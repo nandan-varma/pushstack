@@ -6,13 +6,13 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { cloudflare } from '@cloudflare/vite-plugin'
+// import { cloudflare } from '@cloudflare/vite-plugin' // Disabled - deploying to Node.js for git support
 // import neon from './neon-vite-plugin.ts' // Disabled - using Drizzle migrations instead
 
 const config = defineConfig({
   plugins: [
     devtools(),
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    // cloudflare({ viteEnvironment: { name: 'ssr' } }), // Disabled - deploying to Node.js
     // neon, // Disabled - using Drizzle migrations instead
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
@@ -21,12 +21,13 @@ const config = defineConfig({
   ],
   build: {
     rollupOptions: {
-      external: ['node:async_hooks', 'node:stream', 'node:stream/web'],
+      external: ['node:async_hooks', 'node:stream', 'node:stream/web', 'node:fs', 'node:path'],
     },
   },
   ssr: {
     noExternal: ['@tanstack/react-start', '@tanstack/react-router'],
-    target: 'webworker',
+    external: ['node:fs', 'node:path', 'node:fs/promises'],
+    target: 'node', // Changed from 'webworker' to 'node' for git operations
   },
 })
 

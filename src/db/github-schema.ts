@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer, boolean, jsonb, index, bigint } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, integer, jsonb, index, bigint } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { user } from './schema';
 
@@ -124,38 +124,11 @@ export const repositoriesRelations = relations(repositories, ({ one, many }) => 
     fields: [repositories.ownerId],
     references: [user.id],
   }),
-  branches: many(branches),
-  commits: many(commits),
-  files: many(repositoryFiles),
   issues: many(issues),
   pullRequests: many(pullRequests),
   stars: many(stars),
   collaborators: many(repositoryCollaborators),
   activities: many(activities),
-}));
-
-export const branchesRelations = relations(branches, ({ one, many }) => ({
-  repository: one(repositories, {
-    fields: [branches.repoId],
-    references: [repositories.id],
-  }),
-  commits: many(commits),
-  files: many(repositoryFiles),
-}));
-
-export const commitsRelations = relations(commits, ({ one }) => ({
-  repository: one(repositories, {
-    fields: [commits.repoId],
-    references: [repositories.id],
-  }),
-  branch: one(branches, {
-    fields: [commits.branchId],
-    references: [branches.id],
-  }),
-  author: one(user, {
-    fields: [commits.authorId],
-    references: [user.id],
-  }),
 }));
 
 export const issuesRelations = relations(issues, ({ one, many }) => ({
@@ -178,16 +151,6 @@ export const pullRequestsRelations = relations(pullRequests, ({ one, many }) => 
   author: one(user, {
     fields: [pullRequests.authorId],
     references: [user.id],
-  }),
-  sourceBranch: one(branches, {
-    fields: [pullRequests.sourceBranchId],
-    references: [branches.id],
-    relationName: 'sourceBranch',
-  }),
-  targetBranch: one(branches, {
-    fields: [pullRequests.targetBranchId],
-    references: [branches.id],
-    relationName: 'targetBranch',
   }),
   comments: many(comments),
 }));

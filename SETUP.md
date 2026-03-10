@@ -18,11 +18,30 @@ pnpm install
 Create a `.env.local` file in the root directory:
 
 ```bash
+# Copy the example file
+cp .env.example .env.local
+```
+
+### Required Configuration
+
+**1. Database (PostgreSQL with Neon)**
+
+Sign up for a free Neon account at https://neon.tech and create a new project. Copy your connection string:
+
+```env
+DATABASE_URL=postgresql://user:password@host/database
+```
+
+**2. Better Auth**
+
+Generate a secure secret:
+
+```bash
 # Generate Better Auth secret
 pnpm dlx @better-auth/cli secret
 ```
 
-This will output a secret key. Add it to `.env.local`:
+Add the generated secret to `.env.local`:
 
 ```env
 BETTER_AUTH_SECRET=your_generated_secret_here
@@ -31,7 +50,7 @@ BETTER_AUTH_URL=http://localhost:3000
 
 **Optional - Cloudflare R2 (for file uploads):**
 
-If you want to use the R2 file upload demo, add your R2 credentials:
+If you want to use R2 storage for backups and LFS:
 
 ```env
 R2_ACCESS_KEY_ID=your_access_key_id
@@ -40,9 +59,25 @@ R2_BUCKET_NAME=your_bucket_name
 R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 ```
 
-You can skip R2 setup if you don't need file uploads - other demos will still work.
+**Optional - Git Repository Path:**
 
-## Step 3: Start Development Server
+By default, repositories are stored in `data/repos`. You can customize this:
+
+```env
+GIT_REPOS_PATH=/path/to/git/repos
+```
+
+## Step 3: Initialize Database
+
+Push your schema to the database:
+
+```bash
+pnpm drizzle-kit push
+```
+
+This will sync your schema directly to the Neon database without using migration files.
+
+## Step 4: Start Development Server
 
 ```bash
 pnpm dev

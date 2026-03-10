@@ -1,16 +1,16 @@
 import { createServerFn } from '@tanstack/react-start';
 import { db } from '../db';
-import { repositories, stars, repositoryCollaborators, activities, user } from '../db/github-schema';
+import { repositories, stars, repositoryCollaborators, activities } from '../db/github-schema';
+import { user } from '../db/schema';
 import { auth } from '../lib/auth';
-import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { getRequestHeaders } from '@tanstack/react-start/server';
 
 // Git operations imports
-import { initRepository } from './git-operations';
-import { deleteRepo, getRepoDiskUsage, getRepoPath } from './git-manager';
-import { backupRepositoryToR2 } from './git-backup';
+import { createCommit } from './git-operations-iso';
+import { deleteRepo, initBareRepo } from './git-manager-iso';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -64,52 +64,67 @@ const createRepoSchema = z.object({
 export const createRepository = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => createRepoSchema.parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
-    
-    // Check if repository name already exists for this user
-    const existing = await db.query.repositories.findFirst({
-      where: and(
-        eq(repositories.ownerId, user.id),
-        eq(repositories.name, data.name)
-      ),
-    })
-    
-    if (existing) {
-      throw new Error('Repository with this name already exists')
+    try {
+      const user = await getCurrentUser()
+      
+      // Check if repository name already exists for this user
+      const existing = await db.query.repositories.findFirst({
+        where: and(
+          eq(repositories.ownerId, user.id),
+          eq(repositories.name, data.name)
+        ),
+      })
+      
+      if (existing) {
+        throw new Error('Repository with this name already exists')
+      }
+      
+      // Get owner ID as number (assuming user IDs are numeric strings or can be converted)
+      const ownerId = Number.parseInt(user.id, 10);
+      if (isNaN(ownerId)) {
+        throw new Error('Invalid user ID format');
+      }
+      
+      // Initialize git repository on filesystem
+      const gitPath = await initBareRepo(ownerId, data.name);
+      
+      // Create initial commit with README
+      const commitSha = await createCommit(
+        ownerId,
+        data.name,
+        'Initial commit',
+        [{ path: 'README.md', content: `# ${data.name}\n\n${data.description || 'No description provided'}` }],
+        user.name || user.username || 'Unknown',
+        user.email,
+        'main'
+      );
+      
+      // Create repository record in database
+      const [repo] = await db.insert(repositories).values({
+        ownerId: user.id,
+        name: data.name,
+        description: data.description || null,
+        visibility: data.visibility,
+        defaultBranch: 'main',
+        gitPath, // Store filesystem path
+      }).returning()
+      
+      // Log activity
+      await db.insert(activities).values({
+        userId: user.id,
+        repoId: repo.id,
+        type: 'create_repo',
+        metadata: { 
+          repoName: repo.name,
+          initialCommitSha: commitSha,
+        },
+      })
+      
+      return repo
+    } catch (error) {
+      console.error('Error creating repository:', error);
+      throw error;
     }
-    
-    // Get owner ID as number (assuming user IDs are numeric strings or can be converted)
-    const ownerId = Number.parseInt(user.id, 10);
-    if (isNaN(ownerId)) {
-      throw new Error('Invalid user ID format');
-    }
-    
-    // Initialize bare git repository on filesystem
-    const commitInfo = await initRepository(ownerId, data.name, 'main');
-    const gitPath = getRepoPath(ownerId, data.name);
-    
-    // Create repository record in database
-    const [repo] = await db.insert(repositories).values({
-      ownerId: user.id,
-      name: data.name,
-      description: data.description || null,
-      visibility: data.visibility,
-      defaultBranch: 'main',
-      gitPath, // Store filesystem path
-    }).returning()
-    
-    // Log activity
-    await db.insert(activities).values({
-      userId: user.id,
-      repoId: repo.id,
-      type: 'create_repo',
-      metadata: { 
-        repoName: repo.name,
-        initialCommitSha: commitInfo.sha,
-      },
-    })
-    
-    return repo
   })
 
 // Get user repositories
@@ -268,28 +283,27 @@ export const deleteRepository = createServerFn({ method: 'POST' })
     })
     
     if (!repo) {
-    // Get owner ID as number
-    const ownerId = Number.parseInt(repo.ownerId, 10);
-    
-    // Optionally backup before deleting
-    try {
-      await backupRepositoryToR2(ownerId, repo.name);
-    } catch (error) {
-      // Log backup failure but continue with deletion
-      console.error('Failed to backup repository before deletion:', error);
-    }
-    
-    // Delete git repository from filesystem
-    await deleteRepo(ownerId, repo.name);
-    
-    // Delete from database (cascades to related tables)
-      throw new Error('Repository not found')
+      throw new Error('Repository not found');
     }
     
     if (repo.ownerId !== user.id) {
       throw new Error('Only repository owner can delete')
     }
     
+    // Get owner ID as number
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Optionally backup before deleting (TODO: implement with isomorphic-git)
+    // try {
+    //   await backupRepositoryToR2(ownerId, repo.name);
+    // } catch (error) {
+    //   console.error('Failed to backup repository before deletion:', error);
+    // }
+    
+    // Delete git repository from filesystem
+    await deleteRepo(ownerId, repo.name);
+    
+    // Delete from database (cascades to related tables)
     await db.delete(repositories)
       .where(eq(repositories.id, data.id))
     

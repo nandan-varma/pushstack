@@ -1,13 +1,13 @@
 import { createServerFn } from '@tanstack/react-start';
 import { getRequestHeaders } from '@tanstack/react-start/server';
 import { db } from '../db';
-import { issues, pullRequests, comments, repositories, activities } from '../db/github-schema';
+import { issues, pullRequests, comments, repositories, activities, repositoryCollaborators } from '../db/github-schema';
 import { auth } from '../lib/auth';
-import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 // Git operations imports
-import { analyzeMerge, mergeBranches } from './git-merge';
+import { analyzeMerge, mergeBranches } from './git-merge-iso';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -31,8 +31,8 @@ async function canAccessRepo(repoId: number, userId: string) {
   
   const collab = await db.query.repositoryCollaborators.findFirst({
     where: and(
-      eq(db.query.repositoryCollaborators.repoId, repoId),
-      eq(db.query.repositoryCollaborators.userId, userId)
+      eq(repositoryCollaborators.repoId, repoId),
+      eq(repositoryCollaborators.userId, userId)
     ),
   })
   
@@ -77,7 +77,7 @@ export const createIssue = createServerFn({ method: 'POST' })
       },
     })
     
-    return issue
+    return { ...issue, labels: issue.labels as {} }
   })
 
 // Get issues
@@ -104,7 +104,7 @@ export const getIssues = createServerFn({ method: 'GET' })
       orderBy: [desc(issues.createdAt)],
     })
     
-    return issueList
+    return issueList.map(issue => ({ ...issue, labels: issue.labels as {} }))
   })
 
 // Get issue by ID
@@ -131,7 +131,7 @@ export const getIssue = createServerFn({ method: 'GET' })
       throw new Error('Access denied')
     }
     
-    return issue
+    return { ...issue, labels: issue.labels as {} }
   })
 
 // Update issue
@@ -186,7 +186,7 @@ export const updateIssue = createServerFn({ method: 'POST' })
       })
     }
     
-    return updated
+    return { ...updated, labels: updated.labels as {} }
   })
 
 // ============ PULL REQUESTS ============
@@ -207,26 +207,8 @@ export const createPullRequest = createServerFn({ method: 'POST' })
       throw new Error('Access denied')
     }
     
-    // Get branches
-    const sourceBranch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.sourceBranchName)
-      ),
-    })
-    
-    const targetBranch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.targetBranchName)
-      ),
-    })
-    
-    if (!sourceBranch || !targetBranch) {
-      throw new Error('Branch not found')
-    }
-    
-    if (sourceBranch.id === targetBranch.id) {
+    // Validate branches exist - we now work with branch names directly
+    if (data.sourceBranchName === data.targetBranchName) {
       throw new Error('Cannot create PR from same branch')
     }
     
@@ -235,8 +217,8 @@ export const createPullRequest = createServerFn({ method: 'POST' })
       authorId: user.id,
       title: data.title,
       body: data.body || null,
-      sourceBranchId: sourceBranch.id,
-      targetBranchId: targetBranch.id,
+      sourceBranch: data.sourceBranchName,
+      targetBranch: data.targetBranchName,
       status: 'open',
     }).returning()
     
@@ -354,7 +336,7 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => z.object({
     prId: z.number(),
     commitMessage: z.string().optional(),
-    strategy: z.enum(['recursive', 'ours', 'theirs']).optional().default('recursive'),
+    strategy: z.enum(['merge', 'ours', 'theirs']).optional().default('merge'),
   }).parse(data))
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
@@ -407,13 +389,16 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
       repo.name,
       pr.sourceBranch,
       pr.targetBranch,
-      mergeMessage,
-      { name: user.name || user.username || 'Unknown', email: user.email },
-      data.strategy
+      {
+        message: mergeMessage,
+        authorName: user.name || user.username || 'Unknown',
+        authorEmail: user.email,
+        strategy: data.strategy,
+      }
     );
     
     if (!mergeResult.success) {
-      throw new Error(`Merge failed: ${mergeResult.message}`);
+      throw new Error(`Merge failed: ${mergeResult.conflicts?.join(', ') || 'Unknown error'}`);
     }
     
     // Update PR status
@@ -442,7 +427,6 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
     return { 
       success: true,
       commitSha: mergeResult.commitSha,
-      message: mergeResult.message,
     }
   })
 

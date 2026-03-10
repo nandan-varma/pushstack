@@ -1,23 +1,22 @@
 /**
  * File Operations Server Functions
  * 
- * Handles file operations using real git repositories via nodegit.
+ * Handles file operations using real git repositories via isomorphic-git.
  * All file/commit/branch operations now interact with actual git repos on filesystem.
  */
 
 import { createServerFn } from '@tanstack/react-start';
 import { getRequestHeaders } from '@tanstack/react-start/server';
 import { db } from '../db';
-import { repositories, activities, user } from '../db/github-schema';
+import { repositories, activities } from '../db/github-schema';
+import { user } from '../db/schema';
 import { auth } from '../lib/auth';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 
-// Git operations imports
-import * as GitOps from './git-operations';
-import * as GitDiff from './git-diff';
-import * as GitLFS from './git-lfs';
-import { repoExists } from './git-manager';
+// Git operations imports (isomorphic-git)
+import * as GitOps from './git-operations-iso';
+import * as GitDiff from './git-diff-iso';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -126,24 +125,17 @@ export const uploadFile = createServerFn({ method: 'POST' })
     
     // Decode content
     const buffer = Buffer.from(data.content, 'base64');
-    
-    // Process file (check for LFS)
     const ownerId = Number.parseInt(repo.ownerId, 10);
-    const { content: processedContent, isLFS, lfsObject } = await GitLFS.processFileUpload(
-      ownerId,
-      repo.name,
-      data.path,
-      buffer
-    );
     
     // Create commit with the file
-    const commitInfo = await GitOps.createCommit(
+    const commitSha = await GitOps.createCommit(
       ownerId,
       repo.name,
-      data.branchName,
       data.commitMessage,
-      [{ path: data.path, content: processedContent }],
-      { name: user.name || user.username || 'Unknown', email: user.email }
+      [{ path: data.path, content: buffer }],
+      user.name || user.username || 'Unknown',
+      user.email,
+      data.branchName
     );
     
     // Update repository updated_at
@@ -157,17 +149,14 @@ export const uploadFile = createServerFn({ method: 'POST' })
       repoId: data.repoId,
       type: 'commit',
       metadata: { 
-        commitSha: commitInfo.sha, 
+        commitSha, 
         message: data.commitMessage,
         filesCount: 1,
-        isLFS,
       },
     });
     
     return { 
-      commit: commitInfo,
-      isLFS,
-      lfsObject,
+      commit: { sha: commitSha, message: data.commitMessage },
     };
   });
 
@@ -202,25 +191,7 @@ export const getFile = createServerFn({ method: 'GET' })
       data.path
     );
     
-    // Resolve LFS if needed
-    let content = fileInfo.content;
-    let resolvedFromLFS = false;
-    
-    if (!fileInfo.isBinary && GitLFS.isLFSPointer(fileInfo.content)) {
-      const buffer = await GitLFS.resolveFileContent(
-        ownerId,
-        repo.name,
-        Buffer.from(fileInfo.content, 'utf-8')
-      );
-      content = buffer.toString('base64');
-      resolvedFromLFS = true;
-    }
-    
-    return {
-      ...fileInfo,
-      content,
-      resolvedFromLFS,
-    };
+    return fileInfo;
   });
 
 /**
@@ -254,17 +225,7 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
       data.path
     );
     
-    // Check if LFS
-    if (!fileInfo.isBinary && GitLFS.isLFSPointer(fileInfo.content)) {
-      const pointer = GitLFS.parseLFSPointer(fileInfo.content);
-      if (pointer) {
-        const url = await GitLFS.getLFSDownloadUrl(ownerId, repo.name, pointer.oid);
-        return { url, isLFS: true, size: pointer.size };
-      }
-    }
-    
-    // For non-LFS files, return content directly
-    // In production, you might want to use presigned URLs for large files too
+    // For simplicity, return content directly
     return { 
       content: fileInfo.content, 
       isLFS: false,
@@ -283,6 +244,30 @@ export const listFiles = createServerFn({ method: 'GET' })
   }).parse(data))
   .handler(async ({ data }) => {
     await getCurrentUser();
+    
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
+    
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
+    
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Get tree from git
+    const entries = await GitOps.getTreeFromBranch(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.path || ''
+    );
+    
+    return entries;
+  });
+
+/**For simplicity, return content directly
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -393,7 +378,7 @@ export const createBranch = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     name: z.string(),
-    fromCommitSha: z.string().optional(),
+    fromBranch: z.string().optional().default('main'),
   }).parse(data))
   .handler(async ({ data }) => {
     const user = await getCurrentUser();
@@ -414,14 +399,14 @@ export const createBranch = createServerFn({ method: 'POST' })
     const ownerId = Number.parseInt(repo.ownerId, 10);
     
     // Create branch in git
-    const branch = await GitOps.createBranch(
+    await GitOps.createBranch(
       ownerId,
       repo.name,
       data.name,
-      data.fromCommitSha
+      data.fromBranch
     );
     
-    return branch;
+    return { success: true, name: data.name };
   });
 
 /**
