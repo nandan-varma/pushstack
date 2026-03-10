@@ -1,8 +1,10 @@
-import { pgTable, serial, text, timestamp, integer, boolean, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, integer, boolean, jsonb, index, bigint } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { user } from './schema';
 
 // Repositories table - stores repository metadata
+// NOTE: Git operations (commits, branches, files) are now handled by actual git repositories on filesystem
+// This table only stores metadata for discovery and permissions
 export const repositories = pgTable('repositories', {
   id: serial('id').primaryKey(),
   ownerId: text('owner_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
@@ -10,6 +12,10 @@ export const repositories = pgTable('repositories', {
   description: text('description'),
   visibility: text('visibility').notNull().default('public'), // 'public' | 'private'
   defaultBranch: text('default_branch').notNull().default('main'),
+  gitPath: text('git_path'), // Filesystem path to bare git repository
+  diskUsage: bigint('disk_usage', { mode: 'number' }), // Repository size in bytes
+  lastBackupAt: timestamp('last_backup_at'), // Last R2 backup timestamp
+  backupR2Key: text('backup_r2_key'), // R2 key for latest backup
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({
@@ -17,51 +23,10 @@ export const repositories = pgTable('repositories', {
   nameIdx: index('repo_name_idx').on(table.name),
 }));
 
-// Branches table - stores git branches
-export const branches = pgTable('branches', {
-  id: serial('id').primaryKey(),
-  repoId: integer('repo_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  lastCommitId: integer('last_commit_id'),
-  isDefault: boolean('is_default').notNull().default(false),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (table) => ({
-  repoIdx: index('branch_repo_idx').on(table.repoId),
-}));
-
-// Commits table - stores commit metadata
-export const commits = pgTable('commits', {
-  id: serial('id').primaryKey(),
-  repoId: integer('repo_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
-  branchId: integer('branch_id').notNull().references(() => branches.id, { onDelete: 'cascade' }),
-  authorId: text('author_id').notNull().references(() => user.id),
-  message: text('message').notNull(),
-  filesChanged: jsonb('files_changed').notNull(), // Array of { path, action: 'added'|'modified'|'deleted', r2Key }
-  parentCommitId: integer('parent_commit_id'), // Self-reference for commit history
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (table) => ({
-  repoIdx: index('commit_repo_idx').on(table.repoId),
-  branchIdx: index('commit_branch_idx').on(table.branchId),
-  authorIdx: index('commit_author_idx').on(table.authorId),
-}));
-
-// Repository files table - stores file metadata (actual content in R2)
-export const repositoryFiles = pgTable('repository_files', {
-  id: serial('id').primaryKey(),
-  repoId: integer('repo_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
-  branchId: integer('branch_id').notNull().references(() => branches.id, { onDelete: 'cascade' }),
-  path: text('path').notNull(), // Full file path e.g., 'src/index.ts'
-  r2Key: text('r2_key').notNull(), // Key in R2 bucket
-  size: integer('size').notNull(), // File size in bytes
-  type: text('type').notNull().default('file'), // 'file' | 'directory'
-  lastCommitId: integer('last_commit_id').references(() => commits.id),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-}, (table) => ({
-  repoIdx: index('file_repo_idx').on(table.repoId),
-  branchIdx: index('file_branch_idx').on(table.branchId),
-  pathIdx: index('file_path_idx').on(table.path),
-}));
+// REMOVED: branches table - git refs handle branches
+// REMOVED: commits table - git objects handle commits
+// REMOVED: repositoryFiles table - git tree/blob objects handle files
+// All git operations now use nodegit to interact with real git repositories
 
 // Issues table - stores repository issues
 export const issues = pgTable('issues', {
@@ -81,17 +46,19 @@ export const issues = pgTable('issues', {
 }));
 
 // Pull requests table - stores pull requests
+// NOTE: sourceBranch and targetBranch are now text (branch names) instead of foreign keys
 export const pullRequests = pgTable('pull_requests', {
   id: serial('id').primaryKey(),
   repoId: integer('repo_id').notNull().references(() => repositories.id, { onDelete: 'cascade' }),
   authorId: text('author_id').notNull().references(() => user.id),
   title: text('title').notNull(),
   body: text('body'),
-  sourceBranchId: integer('source_branch_id').notNull().references(() => branches.id),
-  targetBranchId: integer('target_branch_id').notNull().references(() => branches.id),
+  sourceBranch: text('source_branch').notNull(), // Branch name (e.g., 'feature/new-feature')
+  targetBranch: text('target_branch').notNull(), // Branch name (e.g., 'main')
   status: text('status').notNull().default('open'), // 'open' | 'closed' | 'merged'
   mergedAt: timestamp('merged_at'),
   mergedBy: text('merged_by').references(() => user.id),
+  mergeCommitSha: text('merge_commit_sha'), // SHA of merge commit when merged
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 }, (table) => ({

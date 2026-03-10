@@ -1,47 +1,97 @@
-import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { db } from '../db'
-import { repositoryFiles, commits, branches, repositories, activities } from '../db/schema'
-import { auth } from '../lib/auth'
-import { uploadToR2, getPresignedDownloadUrl, deleteFromR2, getFileFromR2 } from '../lib/r2-operations'
-import { eq, and, desc } from 'drizzle-orm'
-import { z } from 'zod'
+/**
+ * File Operations Server Functions
+ * 
+ * Handles file operations using real git repositories via nodegit.
+ * All file/commit/branch operations now interact with actual git repos on filesystem.
+ */
+
+import { createServerFn } from '@tanstack/react-start';
+import { getRequestHeaders } from '@tanstack/react-start/server';
+import { db } from '../db';
+import { repositories, activities, user } from '../db/github-schema';
+import { auth } from '../lib/auth';
+import { eq, and } from 'drizzle-orm';
+import { z } from 'zod';
+
+// Git operations imports
+import * as GitOps from './git-operations';
+import * as GitDiff from './git-diff';
+import * as GitLFS from './git-lfs';
+import { repoExists } from './git-manager';
 
 // Get current user session helper
 async function getCurrentUser() {
-  const headers = getRequestHeaders()
-  const session = await auth.api.getSession({ headers })
+  const headers = getRequestHeaders();
+  const session = await auth.api.getSession({ headers });
   if (!session?.user?.id) {
-    throw new Error('Unauthorized')
+    throw new Error('Unauthorized');
   }
-  return session.user
+  return session.user;
 }
 
 // Check write access to repository
 async function canWriteToRepo(repoId: number, userId: string) {
   const repo = await db.query.repositories.findFirst({
     where: eq(repositories.id, repoId),
-  })
+  });
   
   if (!repo) {
-    return false
+    return false;
   }
   
   // Owner has write access
   if (repo.ownerId === userId) {
-    return true
+    return true;
   }
   
   // Check collaborator role
   const collab = await db.query.repositoryCollaborators.findFirst({
     where: and(
-      eq(db.query.repositoryCollaborators.repoId, repoId),
-      eq(db.query.repositoryCollaborators.userId, userId)
+      eq(repositories.id, repoId),
+      eq(repositories.ownerId, userId)
     ),
-  })
+  });
   
-  return collab?.role === 'write' || collab?.role === 'admin'
+  return collab?.role === 'write' || collab?.role === 'admin';
 }
+
+/**
+ * Get repository by owner username and name
+ */
+export const getRepositoryByName = createServerFn({ method: 'GET' })
+  .inputValidator((data: unknown) => z.object({
+    owner: z.string(),
+    name: z.string(),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    await getCurrentUser();
+    
+    // Find owner by username
+    const owner = await db.query.user.findFirst({
+      where: eq(user.username, data.owner),
+    });
+    
+    if (!owner) {
+      throw new Error('Owner not found');
+    }
+    
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: and(
+        eq(repositories.ownerId, owner.id),
+        eq(repositories.name, data.name)
+      ),
+      with: {
+        owner: true,
+      },
+    });
+    
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
+    
+    return repo;
+  });
 
 // Upload file schema
 const uploadFileSchema = z.object({
@@ -50,98 +100,56 @@ const uploadFileSchema = z.object({
   path: z.string(),
   content: z.string(), // Base64 encoded content
   commitMessage: z.string(),
-})
+});
 
-// Upload file to repository
+/**
+ * Upload file to repository - creates a git commit
+ */
 export const uploadFile = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => uploadFileSchema.parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUser();
     
     if (!(await canWriteToRepo(data.repoId, user.id))) {
-      throw new Error('No write access to repository')
+      throw new Error('No write access to repository');
     }
     
-    // Get or create branch
-    let branch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.branchName)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+      with: { owner: true },
+    });
     
-    if (!branch) {
-      // Create new branch
-      const [newBranch] = await db.insert(branches).values({
-        repoId: data.repoId,
-        name: data.branchName,
-        isDefault: false,
-      }).returning()
-      branch = newBranch
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Generate R2 key
-    const r2Key = `repo-${data.repoId}/branch-${branch.id}/${data.path}`
+    // Decode content
+    const buffer = Buffer.from(data.content, 'base64');
     
-    // Upload to R2
-    const buffer = Buffer.from(data.content, 'base64')
-    await uploadToR2(r2Key, buffer, 'application/octet-stream')
+    // Process file (check for LFS)
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const { content: processedContent, isLFS, lfsObject } = await GitLFS.processFileUpload(
+      ownerId,
+      repo.name,
+      data.path,
+      buffer
+    );
     
-    // Check if file exists
-    const existingFile = await db.query.repositoryFiles.findFirst({
-      where: and(
-        eq(repositoryFiles.repoId, data.repoId),
-        eq(repositoryFiles.branchId, branch.id),
-        eq(repositoryFiles.path, data.path)
-      ),
-    })
-    
-    let file
-    if (existingFile) {
-      // Update existing file
-      [file] = await db.update(repositoryFiles)
-        .set({
-          r2Key,
-          size: buffer.length,
-          updatedAt: new Date(),
-        })
-        .where(eq(repositoryFiles.id, existingFile.id))
-        .returning()
-    } else {
-      // Create new file
-      [file] = await db.insert(repositoryFiles).values({
-        repoId: data.repoId,
-        branchId: branch.id,
-        path: data.path,
-        r2Key,
-        size: buffer.length,
-        type: 'file',
-      }).returning()
-    }
-    
-    // Create commit
-    const [commit] = await db.insert(commits).values({
-      repoId: data.repoId,
-      branchId: branch.id,
-      authorId: user.id,
-      message: data.commitMessage,
-      filesChanged: [{ path: data.path, action: existingFile ? 'modified' : 'added', r2Key }],
-    }).returning()
-    
-    // Update file with commit ID
-    await db.update(repositoryFiles)
-      .set({ lastCommitId: commit.id })
-      .where(eq(repositoryFiles.id, file.id))
-    
-    // Update branch with latest commit
-    await db.update(branches)
-      .set({ lastCommitId: commit.id })
-      .where(eq(branches.id, branch.id))
+    // Create commit with the file
+    const commitInfo = await GitOps.createCommit(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.commitMessage,
+      [{ path: data.path, content: processedContent }],
+      { name: user.name || user.username || 'Unknown', email: user.email }
+    );
     
     // Update repository updated_at
     await db.update(repositories)
       .set({ updatedAt: new Date() })
-      .where(eq(repositories.id, data.repoId))
+      .where(eq(repositories.id, data.repoId));
     
     // Log activity
     await db.insert(activities).values({
@@ -149,16 +157,23 @@ export const uploadFile = createServerFn({ method: 'POST' })
       repoId: data.repoId,
       type: 'commit',
       metadata: { 
-        commitId: commit.id, 
+        commitSha: commitInfo.sha, 
         message: data.commitMessage,
         filesCount: 1,
+        isLFS,
       },
-    })
+    });
     
-    return { file, commit }
-  })
+    return { 
+      commit: commitInfo,
+      isLFS,
+      lfsObject,
+    };
+  });
 
-// Get file from repository
+/**
+ * Get file from repository
+ */
 export const getFile = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
@@ -166,50 +181,51 @@ export const getFile = createServerFn({ method: 'GET' })
     path: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
+    await getCurrentUser();
     
-    // Get branch
-    const branch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.branchName)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (!branch) {
-      throw new Error('Branch not found')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Get file metadata
-    const file = await db.query.repositoryFiles.findFirst({
-      where: and(
-        eq(repositoryFiles.repoId, data.repoId),
-        eq(repositoryFiles.branchId, branch.id),
-        eq(repositoryFiles.path, data.path)
-      ),
-      with: {
-        lastCommit: {
-          with: {
-            author: true,
-          },
-        },
-      },
-    })
+    const ownerId = Number.parseInt(repo.ownerId, 10);
     
-    if (!file) {
-      throw new Error('File not found')
+    // Get file from git
+    const fileInfo = await GitOps.getFileFromBranch(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.path
+    );
+    
+    // Resolve LFS if needed
+    let content = fileInfo.content;
+    let resolvedFromLFS = false;
+    
+    if (!fileInfo.isBinary && GitLFS.isLFSPointer(fileInfo.content)) {
+      const buffer = await GitLFS.resolveFileContent(
+        ownerId,
+        repo.name,
+        Buffer.from(fileInfo.content, 'utf-8')
+      );
+      content = buffer.toString('base64');
+      resolvedFromLFS = true;
     }
-    
-    // Get file content from R2
-    const content = await getFileFromR2(file.r2Key)
     
     return {
-      ...file,
-      content: content.toString('base64'),
-    }
-  })
+      ...fileInfo,
+      content,
+      resolvedFromLFS,
+    };
+  });
 
-// Get presigned download URL for file
+/**
+ * Get presigned download URL for file
+ */
 export const getFileDownloadUrl = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
@@ -217,87 +233,82 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
     path: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
+    await getCurrentUser();
     
-    // Get branch
-    const branch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.branchName)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (!branch) {
-      throw new Error('Branch not found')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Get file metadata
-    const file = await db.query.repositoryFiles.findFirst({
-      where: and(
-        eq(repositoryFiles.repoId, data.repoId),
-        eq(repositoryFiles.branchId, branch.id),
-        eq(repositoryFiles.path, data.path)
-      ),
-    })
+    const ownerId = Number.parseInt(repo.ownerId, 10);
     
-    if (!file) {
-      throw new Error('File not found')
+    // Get file info
+    const fileInfo = await GitOps.getFileFromBranch(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.path
+    );
+    
+    // Check if LFS
+    if (!fileInfo.isBinary && GitLFS.isLFSPointer(fileInfo.content)) {
+      const pointer = GitLFS.parseLFSPointer(fileInfo.content);
+      if (pointer) {
+        const url = await GitLFS.getLFSDownloadUrl(ownerId, repo.name, pointer.oid);
+        return { url, isLFS: true, size: pointer.size };
+      }
     }
     
-    // Generate presigned URL (valid for 1 hour)
-    const url = await getPresignedDownloadUrl(file.r2Key, 3600)
-    
-    return { url, file }
-  })
+    // For non-LFS files, return content directly
+    // In production, you might want to use presigned URLs for large files too
+    return { 
+      content: fileInfo.content, 
+      isLFS: false,
+      size: fileInfo.size,
+    };
+  });
 
-// List files in repository
+/**
+ * List files in repository directory
+ */
 export const listFiles = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
-    path: z.string().optional(),
+    path: z.string().optional().default(''),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
+    await getCurrentUser();
     
-    // Get branch
-    const branch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.branchName)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (!branch) {
-      throw new Error('Branch not found')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Get all files in branch
-    const files = await db.query.repositoryFiles.findMany({
-      where: and(
-        eq(repositoryFiles.repoId, data.repoId),
-        eq(repositoryFiles.branchId, branch.id)
-      ),
-      with: {
-        lastCommit: {
-          with: {
-            author: true,
-          },
-        },
-      },
-      orderBy: [repositoryFiles.path],
-    })
+    const ownerId = Number.parseInt(repo.ownerId, 10);
     
-    // Filter by path if provided
-    if (data.path) {
-      const prefix = data.path.endsWith('/') ? data.path : `${data.path}/`
-      return files.filter(f => f.path.startsWith(prefix))
-    }
+    // Get tree from git
+    const entries = await GitOps.getTreeFromBranch(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.path
+    );
     
-    return files
-  })
+    return entries;
+  });
 
-// Delete file from repository
+/**
+ * Delete file from repository
+ */
 export const deleteFile = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
@@ -306,52 +317,32 @@ export const deleteFile = createServerFn({ method: 'POST' })
     commitMessage: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUser();
     
     if (!(await canWriteToRepo(data.repoId, user.id))) {
-      throw new Error('No write access to repository')
+      throw new Error('No write access to repository');
     }
     
-    // Get branch
-    const branch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.branchName)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (!branch) {
-      throw new Error('Branch not found')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Get file
-    const file = await db.query.repositoryFiles.findFirst({
-      where: and(
-        eq(repositoryFiles.repoId, data.repoId),
-        eq(repositoryFiles.branchId, branch.id),
-        eq(repositoryFiles.path, data.path)
-      ),
-    })
+    const ownerId = Number.parseInt(repo.ownerId, 10);
     
-    if (!file) {
-      throw new Error('File not found')
-    }
-    
-    // Delete from R2
-    await deleteFromR2(file.r2Key)
-    
-    // Delete from database
-    await db.delete(repositoryFiles)
-      .where(eq(repositoryFiles.id, file.id))
-    
-    // Create commit
-    const [commit] = await db.insert(commits).values({
-      repoId: data.repoId,
-      branchId: branch.id,
-      authorId: user.id,
-      message: data.commitMessage,
-      filesChanged: [{ path: data.path, action: 'deleted', r2Key: file.r2Key }],
-    }).returning()
+    // Delete file and create commit
+    const commitInfo = await GitOps.deleteFile(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.path,
+      data.commitMessage,
+      { name: user.name || user.username || 'Unknown', email: user.email }
+    );
     
     // Log activity
     await db.insert(activities).values({
@@ -359,177 +350,239 @@ export const deleteFile = createServerFn({ method: 'POST' })
       repoId: data.repoId,
       type: 'commit',
       metadata: { 
-        commitId: commit.id, 
+        commitSha: commitInfo.sha, 
         message: data.commitMessage,
         filesCount: 1,
       },
-    })
+    });
     
-    return { success: true, commit }
-  })
+    return { success: true, commit: commitInfo };
+  });
 
-// Get repository branches
+/**
+ * Get repository branches
+ */
 export const getBranches = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
+    await getCurrentUser();
     
-    const branchList = await db.query.branches.findMany({
-      where: eq(branches.repoId, data.repoId),
-      with: {
-        lastCommit: {
-          with: {
-            author: true,
-          },
-        },
-      },
-      orderBy: [desc(branches.isDefault), branches.name],
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    return branchList
-  })
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
+    
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Get branches from git
+    const branches = await GitOps.getBranches(ownerId, repo.name);
+    
+    return branches;
+  });
 
-// Create branch
+/**
+ * Create branch
+ */
 export const createBranch = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     name: z.string(),
-    sourceBranchName: z.string().optional(),
+    fromCommitSha: z.string().optional(),
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUser();
     
     if (!(await canWriteToRepo(data.repoId, user.id))) {
-      throw new Error('No write access to repository')
+      throw new Error('No write access to repository');
     }
     
-    // Check if branch already exists
-    const existing = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.name)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (existing) {
-      throw new Error('Branch already exists')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Get source branch if provided
-    let sourceCommitId = null
-    if (data.sourceBranchName) {
-      const sourceBranch = await db.query.branches.findFirst({
-        where: and(
-          eq(branches.repoId, data.repoId),
-          eq(branches.name, data.sourceBranchName)
-        ),
-      })
-      sourceCommitId = sourceBranch?.lastCommitId || null
-    }
+    const ownerId = Number.parseInt(repo.ownerId, 10);
     
-    // Create branch
-    const [branch] = await db.insert(branches).values({
-      repoId: data.repoId,
-      name: data.name,
-      lastCommitId: sourceCommitId,
-      isDefault: false,
-    }).returning()
+    // Create branch in git
+    const branch = await GitOps.createBranch(
+      ownerId,
+      repo.name,
+      data.name,
+      data.fromCommitSha
+    );
     
-    // If source branch provided, copy files
-    if (data.sourceBranchName) {
-      const sourceBranch = await db.query.branches.findFirst({
-        where: and(
-          eq(branches.repoId, data.repoId),
-          eq(branches.name, data.sourceBranchName)
-        ),
-      })
-      
-      if (sourceBranch) {
-        const sourceFiles = await db.query.repositoryFiles.findMany({
-          where: and(
-            eq(repositoryFiles.repoId, data.repoId),
-            eq(repositoryFiles.branchId, sourceBranch.id)
-          ),
-        })
-        
-        // Copy files to new branch
-        for (const file of sourceFiles) {
-          await db.insert(repositoryFiles).values({
-            repoId: data.repoId,
-            branchId: branch.id,
-            path: file.path,
-            r2Key: file.r2Key, // R2 key can be shared across branches
-            size: file.size,
-            type: file.type,
-            lastCommitId: file.lastCommitId,
-          })
-        }
-      }
-    }
-    
-    return branch
-  })
+    return branch;
+  });
 
-// Get commits for a branch
+/**
+ * Delete branch
+ */
+export const deleteBranch = createServerFn({ method: 'POST' })
+  .inputValidator((data: unknown) => z.object({
+    repoId: z.number(),
+    name: z.string(),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    const user = await getCurrentUser();
+    
+    if (!(await canWriteToRepo(data.repoId, user.id))) {
+      throw new Error('No write access to repository');
+    }
+    
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
+    
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
+    
+    // Don't allow deleting default branch
+    if (data.name === repo.defaultBranch) {
+      throw new Error('Cannot delete default branch');
+    }
+    
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Delete branch from git
+    await GitOps.deleteBranch(ownerId, repo.name, data.name);
+    
+    return { success: true };
+  });
+
+/**
+ * Get commits for a branch
+ */
 export const getCommits = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
     limit: z.number().optional().default(50),
+    skip: z.number().optional().default(0),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
+    await getCurrentUser();
     
-    // Get branch
-    const branch = await db.query.branches.findFirst({
-      where: and(
-        eq(branches.repoId, data.repoId),
-        eq(branches.name, data.branchName)
-      ),
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (!branch) {
-      throw new Error('Branch not found')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    // Get commits
-    const commitList = await db.query.commits.findMany({
-      where: and(
-        eq(commits.repoId, data.repoId),
-        eq(commits.branchId, branch.id)
-      ),
-      with: {
-        author: true,
-      },
-      orderBy: [desc(commits.createdAt)],
-      limit: data.limit,
-    })
+    const ownerId = Number.parseInt(repo.ownerId, 10);
     
-    return commitList
-  })
+    // Get commit history from git
+    const commits = await GitOps.getCommitHistory(
+      ownerId,
+      repo.name,
+      data.branchName,
+      data.limit,
+      data.skip
+    );
+    
+    return commits;
+  });
 
-// Get commit details
+/**
+ * Get commit details by SHA
+ */
 export const getCommit = createServerFn({ method: 'GET' })
   .inputValidator((data: unknown) => z.object({
-    commitId: z.number(),
+    repoId: z.number(),
+    commitSha: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
+    await getCurrentUser();
     
-    const commit = await db.query.commits.findFirst({
-      where: eq(commits.id, data.commitId),
-      with: {
-        author: true,
-        repository: true,
-        branch: true,
-      },
-    })
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
     
-    if (!commit) {
-      throw new Error('Commit not found')
+    if (!repo) {
+      throw new Error('Repository not found');
     }
     
-    return commit
-  })
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Get commit from git
+    const commit = await GitOps.getCommit(ownerId, repo.name, data.commitSha);
+    
+    return commit;
+  });
+
+/**
+ * Get commit diff
+ */
+export const getCommitDiff = createServerFn({ method: 'GET' })
+  .inputValidator((data: unknown) => z.object({
+    repoId: z.number(),
+    commitSha: z.string(),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    await getCurrentUser();
+    
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
+    
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
+    
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Get diff from git
+    const diff = await GitDiff.getCommitDiff(ownerId, repo.name, data.commitSha);
+    
+    return diff;
+  });
+
+/**
+ * Get diff between branches (for pull requests)
+ */
+export const getBranchDiff = createServerFn({ method: 'GET' })
+  .inputValidator((data: unknown) => z.object({
+    repoId: z.number(),
+    sourceBranch: z.string(),
+    targetBranch: z.string(),
+  }).parse(data))
+  .handler(async ({ data }) => {
+    await getCurrentUser();
+    
+    // Get repository
+    const repo = await db.query.repositories.findFirst({
+      where: eq(repositories.id, data.repoId),
+    });
+    
+    if (!repo) {
+      throw new Error('Repository not found');
+    }
+    
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Get diff from git
+    const diff = await GitDiff.getDiffBetweenBranches(
+      ownerId,
+      repo.name,
+      data.sourceBranch,
+      data.targetBranch
+    );
+    
+    return diff;
+  });

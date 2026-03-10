@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import DiffViewer from '@/components/DiffViewer'
 import { formatDistanceToNow, format } from 'date-fns'
 import { useQuery } from '@tanstack/react-query'
-import { getCommit } from '@/server/files'
+import { getCommit, getCommitDiff, getRepositoryByName } from '@/server/files'
 
 export const Route = createFileRoute('/repo/$owner/$name/commit/$sha')({
   component: CommitDetailPage,
@@ -14,13 +14,27 @@ export const Route = createFileRoute('/repo/$owner/$name/commit/$sha')({
 function CommitDetailPage() {
   const { owner, name, sha } = Route.useParams()
 
-  const { data: commit, isLoading } = useQuery({
-    queryKey: ['commit', sha],
-    queryFn: () => getCommit({ data: { sha } }),
+  // Get repository first
+  const { data: repo } = useQuery({
+    queryKey: ['repo', owner, name],
+    queryFn: () => getRepositoryByName({ data: { owner, name } }),
   })
 
-  // Diff viewer is complex, skip for now
-  const diff = []
+  // Get commit details
+  const { data: commit, isLoading: commitLoading } = useQuery({
+    queryKey: ['commit', repo?.id, sha],
+    queryFn: () => getCommit({ data: { repoId: repo!.id, commitSha: sha } }),
+    enabled: !!repo,
+  })
+
+  // Get commit diff
+  const { data: diffData, isLoading: diffLoading } = useQuery({
+    queryKey: ['commitDiff', repo?.id, sha],
+    queryFn: () => getCommitDiff({ data: { repoId: repo!.id, commitSha: sha } }),
+    enabled: !!repo,
+  })
+
+  const isLoading = commitLoading || diffLoading
 
   const getInitials = (name: string) =>
     name
@@ -90,30 +104,23 @@ function CommitDetailPage() {
       <Card className="p-6">
         <div className="flex items-start gap-4">
           <Avatar className="h-12 w-12">
-            <AvatarImage src={commit.author?.image || undefined} />
             <AvatarFallback>
-              {getInitials(commit.author?.name || commit.authorName || 'U')}
+              {getInitials(commit.author?.name || 'U')}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <span className="font-medium text-[var(--sea-ink)]">
-                {commit.author?.name || commit.authorName || 'Unknown'}
+                {commit.author?.name || 'Unknown'}
               </span>
               <span className="text-sm text-[var(--sea-ink-soft)]">
                 committed{' '}
-                {formatDistanceToNow(new Date(commit.createdAt), {
+                {formatDistanceToNow(new Date(commit.author?.date || new Date()), {
                   addSuffix: true,
                 })}
               </span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
-              <div>
-                <p className="text-[var(--sea-ink-soft)]">Branch</p>
-                <p className="font-medium text-[var(--sea-ink)]">
-                  {commit.branch}
-                </p>
-              </div>
               <div>
                 <p className="text-[var(--sea-ink-soft)]">Commit SHA</p>
                 <code className="text-xs font-mono text-[var(--sea-ink)]">
@@ -123,13 +130,20 @@ function CommitDetailPage() {
               <div>
                 <p className="text-[var(--sea-ink-soft)]">Timestamp</p>
                 <p className="font-medium text-[var(--sea-ink)]">
-                  {format(new Date(commit.createdAt), 'PPp')}
+                  {format(new Date(commit.author?.date || new Date()), 'PPp')}
                 </p>
               </div>
               <div>
                 <p className="text-[var(--sea-ink-soft)]">Changes</p>
                 <p className="font-medium text-[var(--sea-ink)]">
-                  {diff?.length || 0} file{diff?.length !== 1 ? 's' : ''}
+                  {diffData?.files?.length || 0} file{diffData?.files?.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div>
+                <p className="text-[var(--sea-ink-soft)]">Stats</p>
+                <p className="font-medium text-[var(--sea-ink)]">
+                  <span className="text-green-600">+{diffData?.totalAdditions || 0}</span>
+                  {' '}<span className="text-red-600">-{diffData?.totalDeletions || 0}</span>
                 </p>
               </div>
             </div>
@@ -152,10 +166,10 @@ function CommitDetailPage() {
       {/* File Changes */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-[var(--sea-ink)]">
-          File Changes {diff && `(${diff.length})`}
+          File Changes {diffData?.files && `(${diffData.files.length})`}
         </h2>
-        {diff && diff.length > 0 ? (
-          diff.map((fileDiff, index) => (
+        {diffData?.files && diffData.files.length > 0 ? (
+          diffData.files.map((fileDiff, index) => (
             <DiffViewer
               key={index}
               oldValue={fileDiff.oldContent || ''}
@@ -163,7 +177,6 @@ function CommitDetailPage() {
               oldTitle="Before"
               newTitle="After"
               fileName={fileDiff.path}
-              language={fileDiff.language}
             />
           ))
         ) : (

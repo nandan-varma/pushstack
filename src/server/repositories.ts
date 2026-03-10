@@ -1,11 +1,16 @@
-import { createServerFn } from '@tanstack/react-start'
-import { db } from '../db'
-import { repositories, branches, stars, repositoryCollaborators, activities, user } from '../db/schema'
-import { auth } from '../lib/auth'
-import { eq, and, or, desc, sql } from 'drizzle-orm'
-import { z } from 'zod'
+import { createServerFn } from '@tanstack/react-start';
+import { db } from '../db';
+import { repositories, stars, repositoryCollaborators, activities, user } from '../db/github-schema';
+import { auth } from '../lib/auth';
+import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { z } from 'zod';
 
-import { getRequestHeaders } from '@tanstack/react-start/server'
+import { getRequestHeaders } from '@tanstack/react-start/server';
+
+// Git operations imports
+import { initRepository } from './git-operations';
+import { deleteRepo, getRepoDiskUsage, getRepoPath } from './git-manager';
+import { backupRepositoryToR2 } from './git-backup';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -73,28 +78,35 @@ export const createRepository = createServerFn({ method: 'POST' })
       throw new Error('Repository with this name already exists')
     }
     
-    // Create repository
+    // Get owner ID as number (assuming user IDs are numeric strings or can be converted)
+    const ownerId = Number.parseInt(user.id, 10);
+    if (isNaN(ownerId)) {
+      throw new Error('Invalid user ID format');
+    }
+    
+    // Initialize bare git repository on filesystem
+    const commitInfo = await initRepository(ownerId, data.name, 'main');
+    const gitPath = getRepoPath(ownerId, data.name);
+    
+    // Create repository record in database
     const [repo] = await db.insert(repositories).values({
       ownerId: user.id,
       name: data.name,
       description: data.description || null,
       visibility: data.visibility,
       defaultBranch: 'main',
+      gitPath, // Store filesystem path
     }).returning()
-    
-    // Create default branch
-    await db.insert(branches).values({
-      repoId: repo.id,
-      name: 'main',
-      isDefault: true,
-    })
     
     // Log activity
     await db.insert(activities).values({
       userId: user.id,
       repoId: repo.id,
       type: 'create_repo',
-      metadata: { repoName: repo.name },
+      metadata: { 
+        repoName: repo.name,
+        initialCommitSha: commitInfo.sha,
+      },
     })
     
     return repo
@@ -256,6 +268,21 @@ export const deleteRepository = createServerFn({ method: 'POST' })
     })
     
     if (!repo) {
+    // Get owner ID as number
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Optionally backup before deleting
+    try {
+      await backupRepositoryToR2(ownerId, repo.name);
+    } catch (error) {
+      // Log backup failure but continue with deletion
+      console.error('Failed to backup repository before deletion:', error);
+    }
+    
+    // Delete git repository from filesystem
+    await deleteRepo(ownerId, repo.name);
+    
+    // Delete from database (cascades to related tables)
       throw new Error('Repository not found')
     }
     

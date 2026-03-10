@@ -1,10 +1,13 @@
-import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { db } from '../db'
-import { issues, pullRequests, comments, repositories, branches, activities } from '../db/schema'
-import { auth } from '../lib/auth'
-import { eq, and, or, desc, sql } from 'drizzle-orm'
-import { z } from 'zod'
+import { createServerFn } from '@tanstack/react-start';
+import { getRequestHeaders } from '@tanstack/react-start/server';
+import { db } from '../db';
+import { issues, pullRequests, comments, repositories, activities } from '../db/github-schema';
+import { auth } from '../lib/auth';
+import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { z } from 'zod';
+
+// Git operations imports
+import { analyzeMerge, mergeBranches } from './git-merge';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -351,6 +354,7 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
   .inputValidator((data: unknown) => z.object({
     prId: z.number(),
     commitMessage: z.string().optional(),
+    strategy: z.enum(['recursive', 'ours', 'theirs']).optional().default('recursive'),
   }).parse(data))
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
@@ -358,8 +362,11 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
     const pr = await db.query.pullRequests.findFirst({
       where: eq(pullRequests.id, data.prId),
       with: {
-        sourceBranch: true,
-        targetBranch: true,
+        repository: {
+          with: {
+            owner: true,
+          },
+        },
       },
     })
     
@@ -375,12 +382,47 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
       throw new Error('Pull request is not open')
     }
     
+    // Get repository
+    const repo = pr.repository;
+    const ownerId = Number.parseInt(repo.ownerId, 10);
+    
+    // Analyze merge first to check for conflicts
+    const analysis = await analyzeMerge(
+      ownerId,
+      repo.name,
+      pr.sourceBranch,
+      pr.targetBranch
+    );
+    
+    if (!analysis.canMerge) {
+      throw new Error(
+        `Cannot merge: ${analysis.hasConflicts ? 'has conflicts' : 'unknown issue'}`
+      );
+    }
+    
+    // Perform the merge
+    const mergeMessage = data.commitMessage || `Merge pull request #${pr.id}: ${pr.title}`;
+    const mergeResult = await mergeBranches(
+      ownerId,
+      repo.name,
+      pr.sourceBranch,
+      pr.targetBranch,
+      mergeMessage,
+      { name: user.name || user.username || 'Unknown', email: user.email },
+      data.strategy
+    );
+    
+    if (!mergeResult.success) {
+      throw new Error(`Merge failed: ${mergeResult.message}`);
+    }
+    
     // Update PR status
     await db.update(pullRequests)
       .set({
         status: 'merged',
         mergedAt: new Date(),
         mergedBy: user.id,
+        mergeCommitSha: mergeResult.commitSha,
       })
       .where(eq(pullRequests.id, data.prId))
     
@@ -393,10 +435,15 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
         prId: pr.id, 
         title: pr.title,
         action: 'merged',
+        mergeCommitSha: mergeResult.commitSha,
       },
     })
     
-    return { success: true }
+    return { 
+      success: true,
+      commitSha: mergeResult.commitSha,
+      message: mergeResult.message,
+    }
   })
 
 // ============ COMMENTS ============
