@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/start/server'
+import { createServerFn } from '@tanstack/react-start'
 import { db } from '../db'
 import { issues, pullRequests, comments, repositories, branches, activities } from '../db/schema'
 import { auth } from '../lib/auth'

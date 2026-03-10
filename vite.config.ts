@@ -19,6 +19,15 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  build: {
+    rollupOptions: {
+      external: ['node:async_hooks', 'node:stream', 'node:stream/web'],
+    },
+  },
+  ssr: {
+    noExternal: ['@tanstack/react-start', '@tanstack/react-router'],
+    target: 'webworker',
+  },
 })
 
 export default config

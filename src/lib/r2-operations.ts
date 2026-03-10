@@ -61,6 +61,14 @@ export async function downloadFromR2(key: string) {
 }
 
 /**
+ * Get a file from R2 (alias for downloadFromR2)
+ */
+export async function getFileFromR2(key: string) {
+  const result = await downloadFromR2(key)
+  return result.content
+}
+
+/**
  * List files in R2 bucket
  */
 export async function listR2Files(prefix?: string, maxKeys = 100): Promise<R2File[]> {

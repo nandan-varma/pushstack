@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { listFiles, getBranches } from '../../server/files'
-import { getRepository } from '../../server/repositories'
+import { listFiles, getBranches } from '@/server/files'
+import { getRepositoryByName } from '@/server/repositories'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button } from '../../components/ui/button'
+import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/repo/$owner/$name/')({
   component: RepositoryIndexPage,
@@ -16,7 +16,7 @@ function RepositoryIndexPage() {
   
   const { data: repo } = useQuery({
     queryKey: ['repository', owner, name],
-    queryFn: () => getRepository({ data: { id: 1 } }), // This should use proper ID lookup
+    queryFn: () => getRepositoryByName({ data: { owner, name } }),
   })
   
   const { data: branches } = useQuery({

@@ -3,7 +3,7 @@ import { auth } from '../lib/auth'
 import { getRepositoryByName, toggleStar } from '../server/repositories'
 import { getBranches } from '../server/files'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button } from '../../components/ui/button'
+import { Button } from '@/components/ui/button'
 import { z } from 'zod'
 
 const repoRouteSchema = z.object({
