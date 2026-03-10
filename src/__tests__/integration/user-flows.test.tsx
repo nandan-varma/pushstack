@@ -2,7 +2,15 @@ import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { createRoute, Link, redirect } from '@tanstack/react-router'
+import {
+  createRoute,
+  Link,
+  redirect,
+  Outlet,
+  useSearch,
+  useLoaderData,
+  useNavigate,
+} from '@tanstack/react-router'
 import { renderWithRouter, rootRoute, createTestQueryClient } from '../../test/router-utils'
 import { mockUser, mockRepository } from '../../test/mock-routes'
 
@@ -120,7 +128,7 @@ describe('Integration Tests - Full User Flows', () => {
     ;(window as any).router = router
 
     // 1. Should show login page
-    expect(screen.getByTestId('login-page')).toBeInTheDocument()
+    expect(await screen.findByTestId('login-page')).toBeInTheDocument()
 
     // 2. Fill in credentials and submit
     await user.type(screen.getByTestId('email-input'), 'test@example.com')
@@ -172,7 +180,9 @@ describe('Integration Tests - Full User Flows', () => {
         <div data-testid="repo-layout">
           <h1 data-testid="repo-name">{data?.name}</h1>
           <p data-testid="repo-description">{data?.description}</p>
-          <div data-testid="outlet">{/* Outlet */}</div>
+          <div data-testid="outlet">
+            <Outlet />
+          </div>
         </div>
       )
     }
@@ -258,6 +268,11 @@ describe('Integration Tests - Full User Flows', () => {
     const user = userEvent.setup()
 
     const mockSearchRepos = vi.fn().mockImplementation(async (query: string, filter: string) => {
+      // Return empty results if no search query
+      if (!query) {
+        return []
+      }
+
       const allRepos = [
         { id: 1, name: 'react-app', language: 'javascript' },
         { id: 2, name: 'python-api', language: 'python' },
@@ -278,16 +293,17 @@ describe('Integration Tests - Full User Flows', () => {
     let searchData: any = null
 
     function SearchPage() {
-      const search = (window as any).routeSearch || { q: '', filter: 'all' }
-      const data = (window as any).searchData
+      const search = useSearch({ from: '/search' })
+      const data = useLoaderData({ from: '/search' }) as any
+      const navigate = useNavigate({ from: '/search' })
       searchData = data
 
-      const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+      const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         const formData = new FormData(e.currentTarget)
         const query = formData.get('query') as string
         const filter = formData.get('filter') as string
-        ;(window as any).router?.navigate({
+        await navigate({
           to: '/search',
           search: { q: query, filter },
         })
@@ -300,10 +316,16 @@ describe('Integration Tests - Full User Flows', () => {
             <input
               data-testid="search-input"
               name="query"
+              key={search.q} // Force re-render on search change
               defaultValue={search.q}
               placeholder="Search..."
             />
-            <select data-testid="filter-select" name="filter" defaultValue={search.filter}>
+            <select
+              data-testid="filter-select"
+              name="filter"
+              key={search.filter} // Force re-render on filter change
+              defaultValue={search.filter}
+            >
               <option value="all">All Languages</option>
               <option value="javascript">JavaScript</option>
               <option value="python">Python</option>
@@ -334,16 +356,16 @@ describe('Integration Tests - Full User Flows', () => {
       path: '/search',
       component: SearchPage,
       validateSearch: (search) => {
-        const validated = {
+        return {
           q: (search.q as string) || '',
           filter: (search.filter as string) || 'all',
         }
-        ;(window as any).routeSearch = validated
-        return validated
       },
-      loader: async ({ search }) => {
-        const data = await mockSearchRepos(search.q, search.filter)
-        ;(window as any).searchData = data
+      loaderDeps: ({ search }) => ({ q: search.q, filter: search.filter }),
+      loader: async ({ deps }) => {
+        const q = deps.q || ''
+        const filter = deps.filter || 'all'
+        const data = await mockSearchRepos(q, filter)
         return data
       },
     })
@@ -352,8 +374,6 @@ describe('Integration Tests - Full User Flows', () => {
       routes: [searchRoute],
       initialLocation: '/search',
     })
-
-    ;(window as any).router = router
 
     // 1. Initial load - no results
     await waitFor(() => {
@@ -366,9 +386,15 @@ describe('Integration Tests - Full User Flows', () => {
     await user.type(screen.getByTestId('search-input'), 'react')
     await user.click(screen.getByTestId('search-button'))
 
-    await waitFor(() => {
-      expect(screen.getByTestId('results-list')).toBeInTheDocument()
-    })
+    // Wait for navigation and loader to complete
+    await waitFor(
+      () => {
+        // Verify mock was called with the search term
+        expect(mockSearchRepos).toHaveBeenCalledWith('react', 'all')
+        expect(screen.getByTestId('results-list')).toBeInTheDocument()
+      },
+      { timeout: 3000 },
+    )
 
     expect(screen.getByTestId('repo-1')).toHaveTextContent('react-app')
     expect(screen.getByTestId('repo-3')).toHaveTextContent('react-native-app')

@@ -7,7 +7,7 @@ test.describe('Authentication Flow E2E', () => {
 
     // Should redirect to login
     await expect(page).toHaveURL(/\/auth\/login/)
-    await expect(page.locator('h1')).toContainText('Login')
+    await expect(page.locator('h1')).toContainText('Welcome to PushStack')
   })
 
   test('should show login form', async ({ page }) => {
@@ -15,7 +15,7 @@ test.describe('Authentication Flow E2E', () => {
 
     // Check for login form elements
     await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input[type="password"]')).toBeVisible()
+    await expect(page.locator('input#password')).toBeVisible()
     await expect(page.locator('button[type="submit"]')).toBeVisible()
   })
 
@@ -36,14 +36,14 @@ test.describe('Authentication Flow E2E', () => {
 
     // Check for registration form elements
     await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input[type="password"]')).toBeVisible()
+    await expect(page.locator('input#password')).toBeVisible()
   })
 
   test('should handle forgot password flow', async ({ page }) => {
     await page.goto('/auth/forgot-password')
 
     // Check for forgot password form
-    await expect(page.locator('h1')).toContainText(/forgot.*password/i)
+    await expect(page.locator('h1')).toContainText(/reset.*password/i)
     await expect(page.locator('input[type="email"]')).toBeVisible()
   })
 

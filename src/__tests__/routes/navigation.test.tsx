@@ -41,7 +41,7 @@ describe('Route Navigation', () => {
     })
 
     // Initial state
-    expect(screen.getByText('Home')).toBeInTheDocument()
+    expect(await screen.findByText('Home')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
 
     // Click link
@@ -97,7 +97,7 @@ describe('Route Navigation', () => {
     // Store router globally for component access
     ;(window as any).router = router
 
-    expect(screen.getByText('Navigation Test')).toBeInTheDocument()
+    expect(await screen.findByText('Navigation Test')).toBeInTheDocument()
 
     await user.click(screen.getByTestId('navigate-btn'))
 
@@ -146,7 +146,8 @@ describe('Route Navigation', () => {
 
     const user = userEvent.setup()
 
-    // Navigate to page 2
+    // Wait for initial render and navigate to page 2
+    await screen.findByText('Page 1')
     await user.click(screen.getByTestId('page2-link'))
 
     await waitFor(() => {
@@ -207,6 +208,9 @@ describe('Route Navigation', () => {
       routes: [searchRoute, resultsRoute],
       initialLocation: '/search',
     })
+
+    // Wait for initial render
+    await screen.findByText('Search')
 
     await user.click(screen.getByTestId('results-link'))
 

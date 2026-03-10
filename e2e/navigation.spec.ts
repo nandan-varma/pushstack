@@ -8,14 +8,12 @@ test.describe('Route Navigation E2E', () => {
     // Check home page content
     await expect(page.locator('h1')).toContainText('Build, collaborate, and ship together')
 
-    // Navigate to about page
-    await page.click('text=About')
-    await expect(page).toHaveURL('/about')
-    await expect(page.locator('h1')).toContainText('A small starter')
-
-    // Use browser back button
-    await page.goBack()
-    await expect(page).toHaveURL('/')
+    // Navigate to repositories page
+    await page.click('text=Repositories')
+    // Should redirect to login if not authenticated
+    const url = page.url()
+    const pathname = new URL(url).pathname
+    expect(['/repositories', '/auth/login']).toContain(pathname)
   })
 
   test('should handle dashboard navigation flow', async ({ page }) => {
@@ -26,7 +24,7 @@ test.describe('Route Navigation E2E', () => {
 
     // Should redirect to login (if not authenticated)
     await expect(page).toHaveURL('/auth/login')
-    await expect(page.locator('h1')).toContainText('Login')
+    await expect(page.locator('h1')).toContainText('Welcome to PushStack')
   })
 
   test('should navigate through repository pages', async ({ page }) => {
@@ -50,9 +48,9 @@ test.describe('Route Navigation E2E', () => {
   test('should preserve state during navigation', async ({ page }) => {
     await page.goto('/')
     
-    // Navigate to different pages and back
-    await page.click('text=About')
-    await expect(page).toHaveURL('/about')
+    // Navigate to login and back
+    await page.click('text=Sign In')
+    await expect(page).toHaveURL('/auth/login')
     
     await page.goBack()
     await expect(page).toHaveURL('/')

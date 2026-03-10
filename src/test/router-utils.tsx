@@ -39,25 +39,6 @@ export function createTestRouter(
   return router
 }
 
-// Wrapper component for testing
-interface RouterWrapperProps {
-  children?: ReactNode
-  router: any
-  queryClient?: QueryClient
-}
-
-function RouterWrapper({ children, router, queryClient }: RouterWrapperProps) {
-  const Wrapper = queryClient ? (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  ) : (
-    <RouterProvider router={router} />
-  )
-
-  return Wrapper
-}
-
 // Custom render function with router
 interface RenderWithRouterOptions extends Omit<RenderOptions, 'wrapper'> {
   router?: any
@@ -88,31 +69,21 @@ export function renderWithRouter(
     )
   }
 
-  // If no UI is provided, just render the router
-  const content = ui || <RouterWrapper router={router} queryClient={queryClient} />
+  // Always render RouterProvider
+  const content = queryClient ? (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  ) : (
+    <RouterProvider router={router} />
+  )
 
-  function Wrapper({ children }: { children: ReactNode }) {
-    if (queryClient) {
-      return (
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      )
-    }
-    return <>{children}</>
+  const result = render(content, { ...renderOptions })
+
+  return {
+    ...result,
+    router,
   }
-
-  const result = ui
-    ? {
-        ...render(content, { wrapper: Wrapper, ...renderOptions }),
-        router,
-      }
-    : {
-        ...render(content, { ...renderOptions }),
-        router,
-      }
-
-  return result
 }
 
 // Create a test QueryClient with sensible defaults

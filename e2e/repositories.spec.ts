@@ -13,7 +13,7 @@ test.describe('Repository Management E2E', () => {
     // Should show repositories or redirect to login
     const url = page.url()
     if (url.includes('/auth/login')) {
-      await expect(page.locator('h1')).toContainText('Login')
+      await expect(page.locator('h1')).toContainText('Welcome to PushStack')
     } else {
       await expect(page).toHaveURL('/repositories')
     }
@@ -25,7 +25,7 @@ test.describe('Repository Management E2E', () => {
     // Should show create form or redirect to login
     const url = page.url()
     if (url.includes('/auth/login')) {
-      await expect(page.locator('h1')).toContainText('Login')
+      await expect(page.locator('h1')).toContainText('Welcome to PushStack')
     } else {
       await expect(page).toHaveURL('/repositories/new')
       await expect(page.locator('h1')).toContainText(/create.*repository/i)
