@@ -8,8 +8,6 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
 
-import StoreDevtools from '../lib/demo-store-devtools'
-
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -69,7 +67,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 name: 'Tanstack Router',
                 render: <TanStackRouterDevtoolsPanel />,
               },
-              StoreDevtools,
               TanStackQueryDevtools,
             ]}
           />

@@ -77,3 +77,6 @@ export const notes = pgTable('notes', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// Export GitHub schema tables
+export * from './github-schema'

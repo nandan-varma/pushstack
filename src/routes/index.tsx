@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Button } from '../components/ui/button'
 
 export const Route = createFileRoute('/')({ component: App })
 
@@ -8,55 +9,50 @@ function App() {
       <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
         <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
         <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">TanStack Start Base Template</p>
+        <p className="island-kicker mb-3">PushStack - Code Repository Platform</p>
         <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          Start simple, ship quickly.
+          Build, collaborate, and ship together.
         </h1>
         <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          This base starter intentionally keeps things light: two routes, clean
-          structure, and the essentials you need to build from scratch.
+          A modern code hosting platform built with TanStack Start. Manage repositories,
+          track issues, collaborate with pull requests, and deploy with confidence.
         </p>
         <div className="flex flex-wrap gap-3">
-          <a
-            href="/demo"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
-          >
-            View Demo Examples
-          </a>
-          <a
-            href="/about"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
-          >
-            About This Starter
-          </a>
-          <a
-            href="https://tanstack.com/router"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
-          >
-            Router Guide
-          </a>
+          <Link to="/auth/register">
+            <Button size="lg">
+              Get Started →
+            </Button>
+          </Link>
+          <Link to="/auth/login">
+            <Button variant="outline" size="lg">
+              Sign In
+            </Button>
+          </Link>
+          <Link to="/dashboard">
+            <Button variant="outline" size="lg">
+              Dashboard
+            </Button>
+          </Link>
         </div>
       </section>
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           [
-            'Type-Safe Routing',
-            'Routes and links stay in sync across every page.',
+            'Git-Like Repositories',
+            'Create public or private repositories with full version control.',
           ],
           [
-            'Server Functions',
-            'Call server code from your UI without creating API boilerplate.',
+            'Issue Tracking',
+            'Track bugs, features, and tasks with a powerful issue system.',
           ],
           [
-            'Streaming by Default',
-            'Ship progressively rendered responses for faster experiences.',
+            'Pull Requests',
+            'Collaborate with team members through code reviews and merges.',
           ],
           [
-            'Tailwind Native',
-            'Design quickly with utility-first styling and reusable tokens.',
+            'Cloudflare R2 Storage',
+            'Secure, scalable file storage powered by Cloudflare R2.',
           ],
         ].map(([title, desc], index) => (
           <article
@@ -73,18 +69,19 @@ function App() {
       </section>
 
       <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Quick Start</p>
+        <p className="island-kicker mb-2">Features</p>
         <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
           <li>
-            Edit <code>src/routes/index.tsx</code> to customize the home page.
+            <strong>Branches & Commits:</strong> Full branching support with commit history tracking.
           </li>
           <li>
-            Update <code>src/components/Header.tsx</code> and{' '}
-            <code>src/components/Footer.tsx</code> for brand links.
+            <strong>Collaboration:</strong> Add collaborators with different permission levels.
           </li>
           <li>
-            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
-            <code>src/styles.css</code>.
+            <strong>Star & Follow:</strong> Star repositories and track activity across your organization.
+          </li>
+          <li>
+            <strong>Powerful Search:</strong> Find repositories, issues, and code quickly.
           </li>
         </ul>
       </section>

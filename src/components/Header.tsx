@@ -12,7 +12,7 @@ export default function Header() {
             className="inline-flex items-center gap-2 rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm text-[var(--sea-ink)] no-underline shadow-[0_8px_24px_rgba(30,90,72,0.08)] sm:px-4 sm:py-2"
           >
             <span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#56c6be,#7ed3bf)]" />
-            TanStack Start
+            PushStack
           </Link>
         </h2>
 
@@ -59,11 +59,18 @@ export default function Header() {
             Home
           </Link>
           <Link
-            to="/about"
+            to="/dashboard"
             className="nav-link"
             activeProps={{ className: 'nav-link is-active' }}
           >
-            About
+            Dashboard
+          </Link>
+          <Link
+            to="/repositories"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            Repositories
           </Link>
           <a
             href="https://tanstack.com/start/latest/docs/framework/react/overview"
@@ -73,79 +80,6 @@ export default function Header() {
           >
             Docs
           </a>
-          <details className="relative w-full sm:w-auto">
-            <summary className="nav-link list-none cursor-pointer">
-              Demos
-            </summary>
-            <div className="mt-2 min-w-56 rounded-xl border border-[var(--line)] bg-[var(--header-bg)] p-2 shadow-lg sm:absolute sm:right-0">
-              <a
-                href="/demo"
-                className="block rounded-lg px-3 py-2 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:bg-[rgba(79,184,178,0.1)] mb-2 border-b border-[var(--line)] pb-3"
-              >
-                View All Demos →
-              </a>
-              <a
-                href="/demo/integrated"
-                className="block rounded-lg px-3 py-2 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:bg-[var(--link-bg-hover)] mb-2"
-              >
-                ✨ Full Stack Integration
-              </a>
-              <a
-                href="/demo/neon"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Neon
-              </a>
-              <a
-                href="/demo/drizzle"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Drizzle
-              </a>
-              <a
-                href="/demo/better-auth"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Better Auth
-              </a>
-              <a
-                href="/demo/form/simple"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Simple Form
-              </a>
-              <a
-                href="/demo/form/address"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Address Form
-              </a>
-              <a
-                href="/demo/store"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Store
-              </a>
-              <a
-                href="/demo/tanstack-query"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                TanStack Query
-              </a>
-              <a
-                href="/demo/db-chat"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                DB Chat
-              </a>
-              <a
-                href="/demo/r2"
-                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
-              >
-                Cloudflare R2
-              </a>
-            </div>
-          </details>
         </div>
       </nav>
     </header>

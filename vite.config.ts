@@ -7,13 +7,13 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { cloudflare } from '@cloudflare/vite-plugin'
-import neon from './neon-vite-plugin.ts'
+// import neon from './neon-vite-plugin.ts' // Disabled - using Drizzle migrations instead
 
 const config = defineConfig({
   plugins: [
     devtools(),
     cloudflare({ viteEnvironment: { name: 'ssr' } }),
-    neon,
+    // neon, // Disabled - using Drizzle migrations instead
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
     tanstackStart(),
