@@ -11,7 +11,7 @@ export const Route = createFileRoute('/auth/login')({
 
 function LoginPage() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,24 +22,48 @@ function LoginPage() {
     setLoading(true)
 
     try {
-      await authClient.signIn.email(
-        {
-          email,
-          password,
-        },
-        {
-          onRequest: () => {
-            setLoading(true)
+      // Determine if identifier is email or username
+      const isEmail = identifier.includes('@')
+      
+      if (isEmail) {
+        await authClient.signIn.email(
+          {
+            email: identifier,
+            password,
           },
-          onSuccess: () => {
-            navigate({ to: '/dashboard' })
+          {
+            onRequest: () => {
+              setLoading(true)
+            },
+            onSuccess: () => {
+              navigate({ to: '/dashboard' })
+            },
+            onError: (ctx) => {
+              setError(ctx.error.message || 'Login failed')
+              setLoading(false)
+            },
+          }
+        )
+      } else {
+        await authClient.signIn.username(
+          {
+            username: identifier,
+            password,
           },
-          onError: (ctx) => {
-            setError(ctx.error.message || 'Login failed')
-            setLoading(false)
-          },
-        }
-      )
+          {
+            onRequest: () => {
+              setLoading(true)
+            },
+            onSuccess: () => {
+              navigate({ to: '/dashboard' })
+            },
+            onError: (ctx) => {
+              setError(ctx.error.message || 'Login failed')
+              setLoading(false)
+            },
+          }
+        )
+      }
     } catch (err) {
       setError('An unexpected error occurred during login')
       setLoading(false)
@@ -65,15 +89,15 @@ function LoginPage() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="identifier">Email or Username</Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="identifier"
+              type="text"
+              placeholder="email@example.com or username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
             />
           </div>
 

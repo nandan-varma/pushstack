@@ -1,77 +1,219 @@
 import { test, expect } from '@playwright/test'
 
+// Generate unique test credentials for each test run  
+const timestamp = Date.now()
+const testUser = {
+  name: `Test User`,
+  username: `testuser${timestamp}`,
+  email: `pushstack.test.${timestamp}@gmail.com`,
+  password: 'SecurePassword123!',
+  invalidPassword: 'WrongPassword123!',
+}
+
 test.describe('Authentication Flow E2E', () => {
-  test('should redirect to login when accessing protected routes', async ({ page }) => {
-    // Try to access dashboard without authentication
-    await page.goto('/dashboard')
+  test.describe('Protected Routes', () => {
+    test('should redirect to login when accessing protected routes', async ({ page }) => {
+      // Try to access dashboard without authentication
+      await page.goto('/dashboard')
 
-    // Should redirect to login
-    await expect(page).toHaveURL(/\/auth\/login/)
-    await expect(page.locator('h1')).toContainText('Welcome to PushStack')
+      // Should redirect to login
+      await expect(page).toHaveURL(/\/auth\/login/)
+      await expect(page.locator('h1')).toContainText('Welcome to PushStack')
+    })
+
+    test('should redirect to login when accessing repositories', async ({ page }) => {
+      await page.goto('/repositories')
+      await expect(page).toHaveURL(/\/auth\/login/)
+    })
   })
 
-  test('should show login form', async ({ page }) => {
-    await page.goto('/auth/login')
+  test.describe('Form Validation', () => {
+    test('should show registration form with all fields', async ({ page }) => {
+      await page.goto('/auth/register')
 
-    // Check for login form elements
-    await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input#password')).toBeVisible()
-    await expect(page.locator('button[type="submit"]')).toBeVisible()
+      // Check for registration form elements
+      await expect(page.locator('h1')).toContainText('Join')
+      await expect(page.locator('input#name')).toBeVisible()
+      await expect(page.locator('input#username')).toBeVisible()
+      await expect(page.locator('input#email')).toBeVisible()
+      await expect(page.locator('input#password')).toBeVisible()
+      await expect(page.locator('input#confirmPassword')).toBeVisible()
+      await expect(page.locator('button[type="submit"]')).toBeVisible()
+    })
+
+    test('should show all login form elements', async ({ page }) => {
+      await page.goto('/auth/login')
+
+      // Check for login form elements
+      await expect(page.locator('h1')).toContainText('Welcome to PushStack')
+      await expect(page.locator('input#identifier')).toBeVisible()
+      await expect(page.locator('input#password')).toBeVisible()
+      await expect(page.locator('button[type="submit"]')).toBeVisible()
+      await expect(page.locator('text=/forgot password/i')).toBeVisible()
+      await expect(page.locator('text=/create one/i')).toBeVisible()
+    })
+
+    test('should reject invalid credentials', async ({ page }) => {
+      await page.goto('/auth/login')
+
+      // Fill in invalid credentials
+      const invalidEmail = `nonexistent${Date.now()}@testmail.com`
+      await page.locator('input#identifier').pressSequentially(invalidEmail, { delay: 50 })
+      await page.locator('input#password').pressSequentially('wrongpassword123', { delay: 50 })
+
+      // Submit form
+      await page.click('button[type="submit"]')
+
+      // Should stay on login page
+      await expect(page).toHaveURL(/\/auth\/login/, { timeout: 5000 })
+    })
   })
 
-  test('should navigate to registration page', async ({ page }) => {
-    await page.goto('/auth/login')
+  // Serial execution ensures user exists before login/logout tests
+  test.describe.serial('Full Auth Flow', () => {
+    test('should successfully register a new user', async ({ page }) => {
+      await page.goto('/auth/register')
 
-    // Look for a link to registration (adjust selector as needed)
-    const signUpLink = page.locator('text=/sign up/i, text=/register/i').first()
-    
-    if (await signUpLink.isVisible()) {
-      await signUpLink.click()
-      await expect(page).toHaveURL(/\/auth\/register/)
-    }
+      // Fill in registration form
+      await page.locator('input#name').pressSequentially(testUser.name, { delay: 50 })
+      await page.locator('input#username').pressSequentially(testUser.username, { delay: 50 })
+      await page.locator('input#email').pressSequentially(testUser.email, { delay: 50 })
+      await page.locator('input#password').pressSequentially(testUser.password, { delay: 50 })
+      await page.locator('input#confirmPassword').pressSequentially(testUser.password, { delay: 50 })
+
+      // Submit form and wait for navigation
+      await Promise.all([
+        page.waitForURL('/dashboard', { timeout: 15000 }),
+        page.click('button[type="submit"]')
+      ])
+
+      // Verify user is logged in
+      await expect(page.locator('button:has-text("Sign out")')).toBeVisible()
+    })
+
+    test('should successfully login with valid credentials', async ({ page }) => {
+      await page.goto('/auth/login')
+
+      // Fill in valid credentials
+      await page.locator('input#identifier').pressSequentially(testUser.email, { delay: 50 })
+      await page.locator('input#password').pressSequentially(testUser.password, { delay: 50 })
+
+      // Submit form and wait for navigation
+      await Promise.all([
+        page.waitForURL('/dashboard', { timeout: 15000 }),
+        page.click('button[type="submit"]')
+      ])
+
+      // Verify user is logged in
+      await expect(page.locator('button:has-text("Sign out")')).toBeVisible()
+    })
+
+    test('should persist session after page reload', async ({ page }) => {
+      // Login
+      await page.goto('/auth/login')
+      await page.locator('input#identifier').pressSequentially(testUser.email, { delay: 50 })
+      await page.locator('input#password').pressSequentially(testUser.password, { delay: 50 })
+      
+      await Promise.all([
+        page.waitForURL('/dashboard', { timeout: 15000 }),
+        page.click('button[type="submit"]')
+      ])
+
+      // Reload page
+      await page.reload()
+
+      // Should still be logged in
+      await expect(page).toHaveURL('/dashboard')
+      await expect(page.locator('button:has-text("Sign out")')).toBeVisible()
+    })
+
+    test('should successfully logout', async ({ page }) => {
+      // Login
+      await page.goto('/auth/login')
+      await page.locator('input#identifier').pressSequentially(testUser.email, { delay: 50 })
+      await page.locator('input#password').pressSequentially(testUser.password, { delay: 50 })
+      
+      await Promise.all([
+        page.waitForURL('/dashboard', { timeout: 15000 }),
+        page.click('button[type="submit"]')
+      ])
+
+      // Click sign out button
+      await page.click('button:has-text("Sign out")')
+
+      // Wait for navigation to home
+      await page.waitForURL('/', { timeout: 10000 })
+
+      // Verify logged out
+      await expect(page.locator('a:has-text("Sign in")')).toBeVisible()
+    })
+
+    test('should not access protected routes after logout', async ({ page }) => {
+      // Login
+      await page.goto('/auth/login')
+      await page.locator('input#identifier').pressSequentially(testUser.email, { delay: 50 })
+      await page.locator('input#password').pressSequentially(testUser.password, { delay: 50 })
+      
+      await Promise.all([
+        page.waitForURL('/dashboard', { timeout: 15000 }),
+        page.click('button[type="submit"]')
+      ])
+
+      // Logout
+      await page.click('button:has-text("Sign out")')
+      await page.waitForURL('/', { timeout: 10000 })
+
+      // Try to access dashboard
+      await page.goto('/dashboard')
+
+      // Should redirect to login
+      await expect(page).toHaveURL(/\/auth\/login/)
+    })
   })
 
-  test('should show registration form', async ({ page }) => {
-    await page.goto('/auth/register')
+  test.describe('Password Reset Flow', () => {
+    test('should show forgot password form', async ({ page }) => {
+      await page.goto('/auth/forgot-password')
 
-    // Check for registration form elements
-    await expect(page.locator('input[type="email"]')).toBeVisible()
-    await expect(page.locator('input#password')).toBeVisible()
+      // Check for forgot password form
+      await expect(page.locator('h1')).toContainText(/reset.*password/i)
+      await expect(page.locator('input[type="email"]')).toBeVisible()
+      await expect(page.locator('button[type="submit"]')).toBeVisible()
+    })
+
+    test('should navigate to forgot password from login', async ({ page }) => {
+      await page.goto('/auth/login')
+
+      // Click forgot password link
+      await page.click('text=/forgot password/i')
+
+      // Should navigate to forgot password page
+      await expect(page).toHaveURL('/auth/forgot-password')
+      await expect(page.locator('h1')).toContainText(/reset.*password/i)
+    })
   })
 
-  test('should handle forgot password flow', async ({ page }) => {
-    await page.goto('/auth/forgot-password')
+  test.describe('Navigation Between Auth Pages', () => {
+    test('should navigate from login to registration', async ({ page }) => {
+      await page.goto('/auth/login')
 
-    // Check for forgot password form
-    await expect(page.locator('h1')).toContainText(/reset.*password/i)
-    await expect(page.locator('input[type="email"]')).toBeVisible()
-  })
+      // Click create account link
+      await page.click('text=/create one/i')
 
-  // Note: Actual login test would require valid test credentials
-  // This is just a structure example
-  test.skip('should login with valid credentials', async ({ page }) => {
-    await page.goto('/auth/login')
+      // Should navigate to registration page
+      await expect(page).toHaveURL('/auth/register')
+      await expect(page.locator('h1')).toContainText('Join')
+    })
 
-    // Fill in credentials (use test account)
-    await page.fill('input[type="email"]', 'test@example.com')
-    await page.fill('input[type="password"]', 'testpassword123')
-    
-    // Submit form
-    await page.click('button[type="submit"]')
+    test('should navigate from registration to login', async ({ page }) => {
+      await page.goto('/auth/register')
 
-    // Should redirect to dashboard after successful login
-    await expect(page).toHaveURL('/dashboard', { timeout: 10000 })
-  })
+      // Click sign in link
+      await page.click('a:has-text("Sign in")')
 
-  test.skip('should logout successfully', async ({ page }) => {
-    // Assuming user is logged in
-    await page.goto('/dashboard')
-
-    // Look for logout button (adjust selector as needed)
-    await page.click('[data-testid="logout-button"]')
-
-    // Should redirect to home or login
-    const url = page.url()
-    expect(['/', '/auth/login']).toContain(new URL(url).pathname)
+      // Should navigate to login page
+      await expect(page).toHaveURL('/auth/login')
+      await expect(page.locator('h1')).toContainText('Welcome to PushStack')
+    })
   })
 })

@@ -80,12 +80,15 @@ function DashboardPage() {
             </div>
           ) : repositories && repositories.length > 0 ? (
             <div className="space-y-4">
-              {repositories.map((repo) => (
-                <Link
-                  key={repo.id}
-                  to={`/repo/${repo.owner?.name || 'user'}/${repo.name}`}
-                  className="block rounded-xl border border-[var(--line)] bg-[var(--card-bg)] p-6 transition hover:border-[var(--lagoon-deep)] hover:shadow-lg"
-                >
+              {repositories.map((repo) => {
+                const ownerUsername = repo.owner?.username || 'unknown'
+                return (
+                  <Link
+                    key={repo.id}
+                    to="/repo/$owner/$name"
+                    params={{ owner: ownerUsername, name: repo.name }}
+                    className="block rounded-xl border border-[var(--line)] bg-[var(--card-bg)] p-6 transition hover:border-[var(--lagoon-deep)] hover:shadow-lg"
+                  >
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-xl font-semibold text-[var(--lagoon-deep)]">
@@ -108,7 +111,8 @@ function DashboardPage() {
                     </div>
                   </div>
                 </Link>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="rounded-xl border border-[var(--line)] bg-[var(--card-bg)] p-12 text-center">

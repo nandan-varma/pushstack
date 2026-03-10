@@ -23,6 +23,8 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('createdAt').notNull(),
   updatedAt: timestamp('updatedAt').notNull(),
+  username: text('username').unique(),
+  displayUsername: text('displayUsername'),
 })
 
 export const session = pgTable('session', {

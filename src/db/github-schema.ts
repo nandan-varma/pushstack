@@ -1,4 +1,5 @@
 import { pgTable, serial, text, timestamp, integer, boolean, jsonb, index } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 import { user } from './schema';
 
 // Repositories table - stores repository metadata
@@ -148,4 +149,130 @@ export const activities = pgTable('activities', {
   userIdx: index('activity_user_idx').on(table.userId),
   repoIdx: index('activity_repo_idx').on(table.repoId),
   typeIdx: index('activity_type_idx').on(table.type),
+}));
+
+// Relations
+export const repositoriesRelations = relations(repositories, ({ one, many }) => ({
+  owner: one(user, {
+    fields: [repositories.ownerId],
+    references: [user.id],
+  }),
+  branches: many(branches),
+  commits: many(commits),
+  files: many(repositoryFiles),
+  issues: many(issues),
+  pullRequests: many(pullRequests),
+  stars: many(stars),
+  collaborators: many(repositoryCollaborators),
+  activities: many(activities),
+}));
+
+export const branchesRelations = relations(branches, ({ one, many }) => ({
+  repository: one(repositories, {
+    fields: [branches.repoId],
+    references: [repositories.id],
+  }),
+  commits: many(commits),
+  files: many(repositoryFiles),
+}));
+
+export const commitsRelations = relations(commits, ({ one }) => ({
+  repository: one(repositories, {
+    fields: [commits.repoId],
+    references: [repositories.id],
+  }),
+  branch: one(branches, {
+    fields: [commits.branchId],
+    references: [branches.id],
+  }),
+  author: one(user, {
+    fields: [commits.authorId],
+    references: [user.id],
+  }),
+}));
+
+export const issuesRelations = relations(issues, ({ one, many }) => ({
+  repository: one(repositories, {
+    fields: [issues.repoId],
+    references: [repositories.id],
+  }),
+  author: one(user, {
+    fields: [issues.authorId],
+    references: [user.id],
+  }),
+  comments: many(comments),
+}));
+
+export const pullRequestsRelations = relations(pullRequests, ({ one, many }) => ({
+  repository: one(repositories, {
+    fields: [pullRequests.repoId],
+    references: [repositories.id],
+  }),
+  author: one(user, {
+    fields: [pullRequests.authorId],
+    references: [user.id],
+  }),
+  sourceBranch: one(branches, {
+    fields: [pullRequests.sourceBranchId],
+    references: [branches.id],
+    relationName: 'sourceBranch',
+  }),
+  targetBranch: one(branches, {
+    fields: [pullRequests.targetBranchId],
+    references: [branches.id],
+    relationName: 'targetBranch',
+  }),
+  comments: many(comments),
+}));
+
+export const commentsRelations = relations(comments, ({ one }) => ({
+  repository: one(repositories, {
+    fields: [comments.repoId],
+    references: [repositories.id],
+  }),
+  issue: one(issues, {
+    fields: [comments.issueId],
+    references: [issues.id],
+  }),
+  pullRequest: one(pullRequests, {
+    fields: [comments.pullRequestId],
+    references: [pullRequests.id],
+  }),
+  author: one(user, {
+    fields: [comments.authorId],
+    references: [user.id],
+  }),
+}));
+
+export const starsRelations = relations(stars, ({ one }) => ({
+  repository: one(repositories, {
+    fields: [stars.repoId],
+    references: [repositories.id],
+  }),
+  user: one(user, {
+    fields: [stars.userId],
+    references: [user.id],
+  }),
+}));
+
+export const repositoryCollaboratorsRelations = relations(repositoryCollaborators, ({ one }) => ({
+  repository: one(repositories, {
+    fields: [repositoryCollaborators.repoId],
+    references: [repositories.id],
+  }),
+  user: one(user, {
+    fields: [repositoryCollaborators.userId],
+    references: [user.id],
+  }),
+}));
+
+export const activitiesRelations = relations(activities, ({ one }) => ({
+  user: one(user, {
+    fields: [activities.userId],
+    references: [user.id],
+  }),
+  repository: one(repositories, {
+    fields: [activities.repoId],
+    references: [repositories.id],
+  }),
 }));

@@ -1,0 +1,90 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation [ref=e3]:
+      - heading "PushStack" [level=2] [ref=e4]:
+        - link "PushStack" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - text: PushStack
+      - generic [ref=e7]:
+        - link "Follow TanStack on X" [ref=e8] [cursor=pointer]:
+          - /url: https://x.com/tan_stack
+          - generic [ref=e9]: Follow TanStack on X
+          - img [ref=e10]
+        - link "Go to TanStack GitHub" [ref=e12] [cursor=pointer]:
+          - /url: https://github.com/TanStack
+          - generic [ref=e13]: Go to TanStack GitHub
+          - img [ref=e14]
+        - link "Sign in" [ref=e16] [cursor=pointer]:
+          - /url: /auth/login
+        - 'button "Theme mode: auto (system). Click to switch to light mode." [ref=e17]': Auto
+      - generic [ref=e18]:
+        - link "Home" [ref=e19] [cursor=pointer]:
+          - /url: /
+        - link "Dashboard" [ref=e20] [cursor=pointer]:
+          - /url: /dashboard
+        - link "Repositories" [ref=e21] [cursor=pointer]:
+          - /url: /repositories
+        - link "Docs" [ref=e22] [cursor=pointer]:
+          - /url: https://tanstack.com/start/latest/docs/framework/react/overview
+  - main [ref=e23]:
+    - generic [ref=e24]:
+      - paragraph [ref=e25]: PushStack - Code Repository Platform
+      - heading "Build, collaborate, and ship together." [level=1] [ref=e26]
+      - paragraph [ref=e27]: A modern code hosting platform built with TanStack Start. Manage repositories, track issues, collaborate with pull requests, and deploy with confidence.
+      - generic [ref=e28]:
+        - link "Get Started →" [ref=e29] [cursor=pointer]:
+          - /url: /auth/register
+          - button "Get Started →" [ref=e30]
+        - link "Sign In" [ref=e31] [cursor=pointer]:
+          - /url: /auth/login
+          - button "Sign In" [ref=e32]
+        - link "Dashboard" [ref=e33] [cursor=pointer]:
+          - /url: /dashboard
+          - button "Dashboard" [ref=e34]
+    - generic [ref=e35]:
+      - article [ref=e36]:
+        - heading "Git-Like Repositories" [level=2] [ref=e37]
+        - paragraph [ref=e38]: Create public or private repositories with full version control.
+      - article [ref=e39]:
+        - heading "Issue Tracking" [level=2] [ref=e40]
+        - paragraph [ref=e41]: Track bugs, features, and tasks with a powerful issue system.
+      - article [ref=e42]:
+        - heading "Pull Requests" [level=2] [ref=e43]
+        - paragraph [ref=e44]: Collaborate with team members through code reviews and merges.
+      - article [ref=e45]:
+        - heading "Cloudflare R2 Storage" [level=2] [ref=e46]
+        - paragraph [ref=e47]: Secure, scalable file storage powered by Cloudflare R2.
+    - generic [ref=e48]:
+      - paragraph [ref=e49]: Features
+      - list [ref=e50]:
+        - listitem [ref=e51]:
+          - strong [ref=e52]: "Branches & Commits:"
+          - text: Full branching support with commit history tracking.
+        - listitem [ref=e53]:
+          - strong [ref=e54]: "Collaboration:"
+          - text: Add collaborators with different permission levels.
+        - listitem [ref=e55]:
+          - strong [ref=e56]: "Star & Follow:"
+          - text: Star repositories and track activity across your organization.
+        - listitem [ref=e57]:
+          - strong [ref=e58]: "Powerful Search:"
+          - text: Find repositories, issues, and code quickly.
+  - contentinfo [ref=e59]:
+    - generic [ref=e60]:
+      - paragraph [ref=e61]: © 2026 Your name here. All rights reserved.
+      - paragraph [ref=e62]: Built with TanStack Start
+    - generic [ref=e63]:
+      - link "Follow TanStack on X" [ref=e64] [cursor=pointer]:
+        - /url: https://x.com/tan_stack
+        - generic [ref=e65]: Follow TanStack on X
+        - img [ref=e66]
+      - link "Go to TanStack GitHub" [ref=e68] [cursor=pointer]:
+        - /url: https://github.com/TanStack
+        - generic [ref=e69]: Go to TanStack GitHub
+        - img [ref=e70]
+  - button "Open TanStack Devtools" [ref=e72] [cursor=pointer]:
+    - img "TanStack Devtools" [ref=e73]
+```

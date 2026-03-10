@@ -12,6 +12,7 @@ export const Route = createFileRoute('/auth/register')({
 function RegisterPage() {
   const navigate = useNavigate()
   const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -32,6 +33,11 @@ function RegisterPage() {
       return
     }
 
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -40,6 +46,7 @@ function RegisterPage() {
           email,
           password,
           name,
+          username,
         },
         {
           onRequest: () => {
@@ -89,6 +96,24 @@ function RegisterPage() {
             required
             autoComplete="name"
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="username">Username</Label>
+          <Input
+            id="username"
+            type="text"
+            placeholder="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            autoComplete="username"
+            minLength={3}
+            maxLength={30}
+          />
+          <p className="text-xs text-[var(--sea-ink-soft)]">
+            3-30 characters, alphanumeric and underscores only
+          </p>
         </div>
 
         <div className="space-y-2">

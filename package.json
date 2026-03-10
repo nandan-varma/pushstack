@@ -51,6 +51,7 @@
     "@tanstack/react-store": "latest",
     "@tanstack/router-plugin": "^1.132.0",
     "@tanstack/store": "latest",
+    "@types/nodegit": "^0.28.11",
     "@types/react-syntax-highlighter": "^15.5.13",
     "better-auth": "^1.5.3",
     "class-variance-authority": "^0.7.1",
@@ -61,6 +62,7 @@
     "drizzle-kit": "^0.31.9",
     "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.577.0",
+    "nodegit": "^0.27.0",
     "pg": "^8.16.3",
     "radix-ui": "^1.4.3",
     "react": "^19.2.0",
@@ -103,6 +105,9 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "lightningcss"
+    ],
+    "ignoredBuiltDependencies": [
+      "nodegit"
     ]
   }
 }

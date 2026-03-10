@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { db } from '../db'
-import { repositories, branches, stars, repositoryCollaborators, activities } from '../db/schema'
+import { repositories, branches, stars, repositoryCollaborators, activities, user } from '../db/schema'
 import { auth } from '../lib/auth'
 import { eq, and, or, desc, sql } from 'drizzle-orm'
 import { z } from 'zod'
@@ -175,11 +175,11 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
     name: z.string() 
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const currentUser = await getCurrentUser()
     
-    // Find owner
+    // Find owner by username
     const owner = await db.query.user.findFirst({
-      where: eq(db.query.user.email, data.owner), // Assuming owner is email or username
+      where: eq(user.username, data.owner),
     })
     
     if (!owner) {
@@ -200,7 +200,7 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
       throw new Error('Repository not found')
     }
     
-    if (!(await canAccessRepo(repo.id, user.id))) {
+    if (!(await canAccessRepo(repo.id, currentUser.id))) {
       throw new Error('Access denied')
     }
     
