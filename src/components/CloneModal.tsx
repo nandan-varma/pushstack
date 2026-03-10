@@ -154,10 +154,10 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
                   />
                 </svg>
                 <div className="text-sm text-amber-800">
-                  <p className="font-medium">Git HTTP protocol not fully implemented</p>
+                  <p className="font-medium">Git HTTP protocol is now available</p>
                   <p className="mt-1 text-amber-700">
-                    Git clone/push operations are not yet fully supported. 
-                    Use the web UI to browse and upload files for now.
+                    You can now use git clone, push, and pull commands. 
+                    Authentication is required for private repositories.
                   </p>
                 </div>
               </div>

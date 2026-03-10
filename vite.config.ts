@@ -6,6 +6,7 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { gitHttpProtocol } from './vite-plugin-git'
 // import { cloudflare } from '@cloudflare/vite-plugin' // Disabled - deploying to Node.js for git support
 // import neon from './neon-vite-plugin.ts' // Disabled - using Drizzle migrations instead
 
@@ -14,6 +15,7 @@ const config = defineConfig({
     devtools(),
     // cloudflare({ viteEnvironment: { name: 'ssr' } }), // Disabled - deploying to Node.js
     // neon, // Disabled - using Drizzle migrations instead
+    gitHttpProtocol(), // Git HTTP protocol middleware
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
     tanstackStart(),

@@ -53,6 +53,31 @@ async function canAccessRepo(repoId: number, userId: string) {
   return !!collab
 }
 
+// Find repository by owner username and repo name (for git protocol - plain function, not serverFn)
+export async function findRepositoryByName(ownerUsername: string, repoName: string) {
+  // Find owner by username
+  const owner = await db.query.user.findFirst({
+    where: eq(user.username, ownerUsername),
+  })
+  
+  if (!owner) {
+    return null
+  }
+  
+  // Find repository
+  const repo = await db.query.repositories.findFirst({
+    where: and(
+      eq(repositories.ownerId, owner.id),
+      eq(repositories.name, repoName)
+    ),
+    with: {
+      owner: true,
+    },
+  })
+  
+  return repo
+}
+
 // Create repository schema
 const createRepoSchema = z.object({
   name: z.string().min(1).max(100),

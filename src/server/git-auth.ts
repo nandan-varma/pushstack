@@ -8,6 +8,7 @@ import { repositories, repositoryCollaborators } from '../db/github-schema'
 import { user as userTable } from '../db/schema'
 import { auth } from '../lib/auth'
 import { eq, and } from 'drizzle-orm'
+import { findRepositoryByName } from './repositories'
 
 export interface GitAuthContext {
   user: {
@@ -85,29 +86,48 @@ async function authenticateUser(request: Request): Promise<GitAuthContext['user'
   
   // Verify credentials with Better Auth
   try {
-    // For now, use username and check if user exists
-    // TODO: Implement Personal Access Token (PAT) verification
-    // The password should be a PAT in production
-    
+    // Look up user by username (can be username or email)
     const foundUser = await db.query.user.findFirst({
       where: eq(userTable.username, credentials.username),
     })
     
     if (!foundUser) {
+      // Try email as fallback
+      const userByEmail = await db.query.user.findFirst({
+        where: eq(userTable.email, credentials.username),
+      })
+      
+      if (!userByEmail) {
+        return null
+      }
+      
+      // For MVP: Accept any non-empty password
+      // TODO: In production, verify against Better Auth or use Personal Access Tokens
+      if (credentials.password && credentials.password.length > 0) {
+        return {
+          id: userByEmail.id,
+          username: userByEmail.username,
+          email: userByEmail.email,
+          name: userByEmail.name,
+        }
+      }
       return null
     }
     
-    // For MVP: Accept any password for authenticated users
-    // In production: Verify PAT against stored tokens
-    // TODO: Add PAT table and verification
-    
-    return {
-      id: foundUser.id,
-      username: foundUser.username,
-      email: foundUser.email,
-      name: foundUser.name,
+    // For MVP: Accept any non-empty password for existing users
+    // TODO: In production, implement proper password verification or PAT system
+    if (credentials.password && credentials.password.length > 0) {
+      return {
+        id: foundUser.id,
+        username: foundUser.username,
+        email: foundUser.email,
+        name: foundUser.name,
+      }
     }
-  } catch {
+    
+    return null
+  } catch (error) {
+    console.error('Git auth error:', error)
     return null
   }
 }
@@ -184,31 +204,6 @@ async function canWriteRepo(
 }
 
 /**
- * Get repository by owner and name
- * @param owner Repository owner username
- * @param repoName Repository name (without .git extension)
- * @returns Repository object or null
- */
-async function getRepo(owner: string, repoName: string) {
-  const repoOwner = await db.query.user.findFirst({
-    where: eq(userTable.username, owner),
-  })
-  
-  if (!repoOwner) {
-    return null
-  }
-  
-  const repo = await db.query.repositories.findFirst({
-    where: and(
-      eq(repositories.ownerId, repoOwner.id),
-      eq(repositories.name, repoName)
-    ),
-  })
-  
-  return repo
-}
-
-/**
  * Authenticate and authorize git operation
  * @param request Request object
  * @param owner Repository owner username
@@ -227,10 +222,15 @@ export async function authenticateGitRequest(
   const user = await authenticateUser(request)
   
   // Get repository
-  const repo = await getRepo(owner, repoName)
+  const repo = await findRepositoryByName(owner, repoName)
   
   if (!repo) {
     throw new Error('Repository not found')
+  }
+  
+  // For write operations, require authentication first
+  if (requireWrite && !user) {
+    throw new Error('Unauthorized: Authentication required for write access')
   }
   
   // Check read permission

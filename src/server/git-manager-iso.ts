@@ -39,8 +39,8 @@ export async function initBareRepo(ownerId: number, repoName: string): Promise<s
   await fs.mkdir(path.dirname(dir), { recursive: true });
   await fs.mkdir(dir, { recursive: true });
   
-  // Initialize repository
-  await git.init({ fs, dir, defaultBranch: 'main' });
+  // Initialize as bare repository
+  await git.init({ fs, dir, defaultBranch: 'main', bare: true });
   
   // Set default config
   await git.setConfig({ fs, dir, path: 'user.name', value: DEFAULT_USER_NAME });
@@ -56,7 +56,8 @@ export async function repoExists(ownerId: number, repoName: string): Promise<boo
   const dir = getRepoPath(ownerId, repoName);
   
   try {
-    await fs.access(path.join(dir, '.git'));
+    // For bare repos, check for HEAD or refs directory
+    await fs.access(path.join(dir, 'HEAD'));
     return true;
   } catch {
     return false;
