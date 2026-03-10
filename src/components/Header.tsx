@@ -138,6 +138,12 @@ export default function Header() {
               >
                 DB Chat
               </a>
+              <a
+                href="/demo/r2"
+                className="block rounded-lg px-3 py-2 text-sm text-[var(--sea-ink-soft)] no-underline transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
+              >
+                Cloudflare R2
+              </a>
             </div>
           </details>
         </div>

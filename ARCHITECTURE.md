@@ -17,7 +17,7 @@ This document explains how all the packages in this starter are integrated and w
 │  └─ useCollection() ───────────┘ TanStack DB                    │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
-                              ↕ HTTP/WebSocket
+                  ↕ HTTP/WebSocket            ↕ Direct Upload (Presigned URL)
 ┌─────────────────────────────────────────────────────────────────┐
 │                TanStack Start Server (SSR/API)                   │
 ├─────────────────────────────────────────────────────────────────┤
@@ -25,20 +25,21 @@ This document explains how all the packages in this starter are integrated and w
 │  Server Functions (createServerFn)                               │
 │  ├─ auth.api.getSession() ─────┐ Better Auth Server             │
 │  ├─ db.select/insert/update ───┤ Drizzle ORM                    │
-│  └─ collections.subscribe() ───┘ TanStack DB                    │
+│  ├─ collections.subscribe() ───┤ TanStack DB                    │
+│  └─ r2Client.send(commands) ───┘ R2 Client (AWS SDK)            │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
-                              ↕ SQL/Connection Pool
-┌─────────────────────────────────────────────────────────────────┐
-│                    Neon PostgreSQL Database                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Tables                                                          │
-│  ├─ user, session, account, verification (Better Auth)          │
-│  ├─ todos (Demo)                                                │
-│  └─ notes (Integrated Demo)                                     │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+       ↕ SQL/Connection Pool                ↕ S3-compatible API
+┌───────────────────────────┐     ┌───────────────────────────────┐
+│  Neon PostgreSQL Database │     │    Cloudflare R2 Storage      │
+├───────────────────────────┤     ├───────────────────────────────┤
+│                           │     │                               │
+│  Tables                   │     │  Objects (Files)              │
+│  ├─ user, session         │     │  ├─ images/                   │
+│  ├─ todos                 │     │  ├─ documents/                │
+│  └─ notes                 │     │  └─ uploads/                  │
+│                           │     │                               │
+└───────────────────────────┘     └───────────────────────────────┘
 ```
 
 ## Package Integration Details
@@ -217,6 +218,54 @@ export const Route = createFileRoute('/api/data')({
 - `src/routes/demo/db-chat.tsx` - Real-time UI
 - `src/components/demo.chat-area.tsx` - Chat component
 
+### ☁️ Cloudflare R2
+
+**How it works:**
+1. R2 client uses AWS S3 SDK with Cloudflare endpoint
+2. Files can be uploaded directly through server or via presigned URLs
+3. Presigned URLs allow browser to upload directly to R2, bypassing server
+4. Download URLs are also presigned with expiration times
+
+**Code flow (Presigned URL upload):**
+```typescript
+// Step 1: Client requests presigned URL from server
+const getUploadUrl = createServerFn()
+  .handler(async ({ data }) => {
+    const client = getR2Client()
+    return await getSignedUrl(
+      client,
+      new PutObjectCommand({
+        Bucket: 'my-bucket',
+        Key: data.fileName,
+        ContentType: data.contentType,
+      }),
+      { expiresIn: 3600 }
+    )
+  })
+
+// Step 2: Client uploads directly to R2
+const url = await getUploadUrl({ 
+  data: { fileName: 'image.png', contentType: 'image/png' } 
+})
+
+await fetch(url, {
+  method: 'PUT',
+  body: file,
+  headers: { 'Content-Type': 'image/png' },
+})
+```
+
+**Benefits of presigned URLs:**
+- Reduced server bandwidth (direct browser → R2)
+- Better performance using Cloudflare's edge network
+- Time-limited access (URLs expire)
+- Content-Type restrictions for security
+
+**Files:**
+- `src/lib/r2.ts` - R2 client configuration
+- `src/lib/r2-operations.ts` - Upload/download operations
+- `src/routes/demo/r2.tsx` - File upload demo
+
 ## Authentication Flow
 
 ```
@@ -304,6 +353,7 @@ Different types of state are handled by different packages:
 | UI state | TanStack Store | Filters, toggles, modals | Local only |
 | Real-time data | TanStack DB | Chat messages, notifications | Streamed |
 | Auth state | Better Auth | Current user, session | Server + cookie |
+| File storage | Cloudflare R2 | Images, documents, uploads | Object storage |
 
 ## File Structure
 
@@ -325,6 +375,8 @@ src/
 ├── lib/               # Utilities and configs
 │   ├── auth.ts        # Better Auth server
 │   ├── auth-client.ts # Better Auth client
+│   ├── r2.ts          # R2 client configuration
+│   ├── r2-operations.ts # R2 file operations
 │   └── utils.ts       # Utility functions
 └── routes/            # File-based routes
     ├── __root.tsx     # Root layout
@@ -337,7 +389,8 @@ src/
         ├── tanstack-query.tsx   # Query demo
         ├── form.*.tsx           # Form demos
         ├── store.tsx            # Store demo
-        └── db-chat.tsx          # Real-time demo
+        ├── db-chat.tsx          # Real-time demo
+        └── r2.tsx               # File storage demo
 ```
 
 ## DevTools

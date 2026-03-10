@@ -238,6 +238,78 @@ messagesCollection.subscribeChanges((changes) => {
 
 See [/demo/db-chat](http://localhost:3000/demo/db-chat) for a complete example.
 
+## ☁️ Object Storage - Cloudflare R2
+
+Cloudflare R2 provides S3-compatible object storage with zero egress fees.
+
+**Features:**
+- S3-compatible API (works with AWS SDK)
+- Zero egress fees
+- Presigned URLs for direct uploads/downloads
+- Global edge network
+
+**Setup:**
+
+Your R2 credentials should be in `.env.local`:
+
+```env
+R2_ACCESS_KEY_ID=your_access_key_id
+R2_SECRET_ACCESS_KEY=your_secret_access_key
+R2_BUCKET_NAME=your_bucket_name
+R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+```
+
+**Configuration:** `src/lib/r2.ts`
+
+**Usage - Direct Upload:**
+```tsx
+import { uploadToR2 } from '#/lib/r2-operations'
+
+// Upload a file
+await uploadToR2('my-file.txt', Buffer.from('Hello, R2!'), 'text/plain')
+```
+
+**Usage - Presigned URL Upload (recommended for large files):**
+```tsx
+import { getPresignedUploadUrl } from '#/lib/r2-operations'
+
+// Step 1: Get presigned URL from server
+const url = await getPresignedUploadUrl('my-file.txt', 'image/png', 3600)
+
+// Step 2: Upload directly from browser to R2
+await fetch(url, {
+  method: 'PUT',
+  body: file,
+  headers: { 'Content-Type': 'image/png' },
+})
+```
+
+**Usage - Download with Presigned URL:**
+```tsx
+import { getPresignedDownloadUrl } from '#/lib/r2-operations'
+
+// Generate temporary download link (valid for 1 hour)
+const url = await getPresignedDownloadUrl('my-file.txt', 3600)
+window.open(url, '_blank')
+```
+
+**Available Operations:**
+- `uploadToR2(key, body, contentType)` - Upload file through server
+- `downloadFromR2(key)` - Download file content
+- `listR2Files(prefix?, maxKeys?)` - List files in bucket
+- `deleteFromR2(key)` - Delete a file
+- `fileExistsInR2(key)` - Check if file exists
+- `getPresignedUploadUrl(key, contentType, expiresIn)` - Generate upload URL
+- `getPresignedDownloadUrl(key, expiresIn)` - Generate download URL
+
+**Why use presigned URLs?**
+- **Large files**: Browser uploads directly to R2, bypassing your server
+- **Bandwidth**: Reduces server bandwidth usage
+- **Performance**: Faster uploads using Cloudflare's edge network
+- **Security**: Time-limited URLs with content-type restrictions
+
+See [/demo/r2](http://localhost:3000/demo/r2) for a complete example with both upload methods.
+
 # 🎯 Full Stack Integration Example
 
 Visit [/demo/integrated](http://localhost:3000/demo/integrated) to see all packages working together in a real-world notes app that features:

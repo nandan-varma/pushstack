@@ -29,6 +29,19 @@ BETTER_AUTH_SECRET=your_generated_secret_here
 BETTER_AUTH_URL=http://localhost:3000
 ```
 
+**Optional - Cloudflare R2 (for file uploads):**
+
+If you want to use the R2 file upload demo, add your R2 credentials:
+
+```env
+R2_ACCESS_KEY_ID=your_access_key_id
+R2_SECRET_ACCESS_KEY=your_secret_access_key
+R2_BUCKET_NAME=your_bucket_name
+R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+```
+
+You can skip R2 setup if you don't need file uploads - other demos will still work.
+
 ## Step 3: Start Development Server
 
 ```bash
@@ -76,6 +89,7 @@ Visit [http://localhost:3000/demo](http://localhost:3000/demo) to see all integr
 5. **TanStack Form** (`/demo/form.simple`) - Form handling
 6. **TanStack Store** (`/demo/store`) - State management
 7. **TanStack DB** (`/demo/db-chat`) - Real-time collections
+8. **Cloudflare R2** (`/demo/r2`) - File uploads with presigned URLs
 
 ## Quick Command Reference
 

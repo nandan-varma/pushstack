@@ -72,6 +72,13 @@ const demos = [
     features: ['Serverless', 'Instant provisioning', 'Auto-scaling'],
     icon: '⚡',
   },
+  {
+    title: 'Cloudflare R2',
+    description: 'S3-compatible object storage with presigned URLs',
+    path: '/demo/r2',
+    features: ['File uploads', 'Presigned URLs', 'Zero egress fees'],
+    icon: '☁️',
+  },
 ]
 
 function DemoIndex() {
@@ -246,6 +253,14 @@ function DemoIndex() {
             </h3>
             <p className="text-xs text-[var(--sea-ink-soft)]">
               TanStack DB collections for real-time updates via streaming APIs
+            </p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--sea-ink)] mb-2">
+              Object Storage
+            </h3>
+            <p className="text-xs text-[var(--sea-ink-soft)]">
+              Cloudflare R2 with S3-compatible API for file uploads and presigned URLs
             </p>
           </div>
         </div>
