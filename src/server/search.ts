@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { db } from '../db'
 import { repositories, issues, activities, user } from '../db/schema'
 import { auth } from '../lib/auth'
@@ -7,9 +8,8 @@ import { z } from 'zod'
 
 // Get current user session helper
 async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: new Headers()
-  })
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
   if (!session?.user?.id) {
     throw new Error('Unauthorized')
   }
@@ -18,7 +18,7 @@ async function getCurrentUser() {
 
 // Search repositories
 export const searchRepositories = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     query: z.string().min(1),
     limit: z.number().optional().default(20),
   }).parse(data))
@@ -49,7 +49,7 @@ export const searchRepositories = createServerFn({ method: 'GET' })
 
 // Search issues
 export const searchIssues = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     query: z.string().min(1),
     limit: z.number().optional().default(20),
@@ -77,7 +77,7 @@ export const searchIssues = createServerFn({ method: 'GET' })
 
 // Search users
 export const searchUsers = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     query: z.string().min(1),
     limit: z.number().optional().default(20),
   }).parse(data))
@@ -97,7 +97,7 @@ export const searchUsers = createServerFn({ method: 'GET' })
 
 // Get user activity feed
 export const getUserActivity = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     userId: z.string().optional(),
     limit: z.number().optional().default(50),
   }).parse(data))
@@ -120,7 +120,7 @@ export const getUserActivity = createServerFn({ method: 'GET' })
 
 // Get repository activity feed
 export const getRepositoryActivity = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     limit: z.number().optional().default(50),
   }).parse(data))
@@ -141,7 +141,7 @@ export const getRepositoryActivity = createServerFn({ method: 'GET' })
 
 // Get global activity feed (public repositories)
 export const getGlobalActivity = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     limit: z.number().optional().default(50),
   }).parse(data))
   .handler(async ({ data }) => {

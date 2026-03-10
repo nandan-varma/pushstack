@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { db } from '../db'
 import { repositoryFiles, commits, branches, repositories, activities } from '../db/schema'
 import { auth } from '../lib/auth'
@@ -8,9 +9,8 @@ import { z } from 'zod'
 
 // Get current user session helper
 async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: new Headers()
-  })
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
   if (!session?.user?.id) {
     throw new Error('Unauthorized')
   }
@@ -54,7 +54,7 @@ const uploadFileSchema = z.object({
 
 // Upload file to repository
 export const uploadFile = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => uploadFileSchema.parse(data))
+  .inputValidator((data: unknown) => uploadFileSchema.parse(data))
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
     
@@ -160,7 +160,7 @@ export const uploadFile = createServerFn({ method: 'POST' })
 
 // Get file from repository
 export const getFile = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
     path: z.string(),
@@ -211,7 +211,7 @@ export const getFile = createServerFn({ method: 'GET' })
 
 // Get presigned download URL for file
 export const getFileDownloadUrl = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
     path: z.string(),
@@ -252,7 +252,7 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
 
 // List files in repository
 export const listFiles = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
     path: z.string().optional(),
@@ -299,7 +299,7 @@ export const listFiles = createServerFn({ method: 'GET' })
 
 // Delete file from repository
 export const deleteFile = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
     path: z.string(),
@@ -370,7 +370,7 @@ export const deleteFile = createServerFn({ method: 'POST' })
 
 // Get repository branches
 export const getBranches = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
@@ -393,7 +393,7 @@ export const getBranches = createServerFn({ method: 'GET' })
 
 // Create branch
 export const createBranch = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     name: z.string(),
     sourceBranchName: z.string().optional(),
@@ -474,7 +474,7 @@ export const createBranch = createServerFn({ method: 'POST' })
 
 // Get commits for a branch
 export const getCommits = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     branchName: z.string(),
     limit: z.number().optional().default(50),
@@ -512,7 +512,7 @@ export const getCommits = createServerFn({ method: 'GET' })
 
 // Get commit details
 export const getCommit = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     commitId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {

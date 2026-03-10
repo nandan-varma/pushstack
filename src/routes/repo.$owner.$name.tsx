@@ -1,4 +1,6 @@
 import { createFileRoute, redirect, Link, Outlet } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '../lib/auth'
 import { getRepositoryByName, toggleStar } from '../server/repositories'
 import { getBranches } from '../server/files'
@@ -11,12 +13,15 @@ const repoRouteSchema = z.object({
   name: z.string(),
 })
 
+const getAuthSession = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = getRequestHeaders()
+  return await auth.api.getSession({ headers })
+})
+
 export const Route = createFileRoute('/repo/$owner/$name')({
   component: RepositoryPage,
   beforeLoad: async () => {
-    const session = await auth.api.getSession({
-      headers: new Headers(),
-    })
+    const session = await getAuthSession()
     
     if (!session?.user) {
       throw redirect({ to: '/auth/login' })

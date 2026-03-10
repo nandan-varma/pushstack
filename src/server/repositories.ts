@@ -5,11 +5,12 @@ import { auth } from '../lib/auth'
 import { eq, and, or, desc, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
+import { getRequestHeaders } from '@tanstack/react-start/server'
+
 // Get current user session helper
 async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: new Headers()
-  })
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
   if (!session?.user?.id) {
     throw new Error('Unauthorized')
   }
@@ -56,7 +57,7 @@ const createRepoSchema = z.object({
 
 // Create repository
 export const createRepository = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => createRepoSchema.parse(data))
+  .inputValidator((data: unknown) => createRepoSchema.parse(data))
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
     
@@ -101,7 +102,7 @@ export const createRepository = createServerFn({ method: 'POST' })
 
 // Get user repositories
 export const getUserRepositories = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({ 
+  .inputValidator((data: unknown) => z.object({ 
     userId: z.string().optional() 
   }).parse(data))
   .handler(async ({ data }) => {
@@ -126,7 +127,7 @@ export const getUserRepositories = createServerFn({ method: 'GET' })
 
 // Get repository by ID
 export const getRepository = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({ 
+  .inputValidator((data: unknown) => z.object({ 
     id: z.number() 
   }).parse(data))
   .handler(async ({ data }) => {
@@ -169,7 +170,7 @@ export const getRepository = createServerFn({ method: 'GET' })
 
 // Get repository by owner and name
 export const getRepositoryByName = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({ 
+  .inputValidator((data: unknown) => z.object({ 
     owner: z.string(),
     name: z.string() 
   }).parse(data))
@@ -208,7 +209,7 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
 
 // Update repository
 export const updateRepository = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     id: z.number(),
     name: z.string().min(1).max(100).optional(),
     description: z.string().optional(),
@@ -244,7 +245,7 @@ export const updateRepository = createServerFn({ method: 'POST' })
 
 // Delete repository
 export const deleteRepository = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({ 
+  .inputValidator((data: unknown) => z.object({ 
     id: z.number() 
   }).parse(data))
   .handler(async ({ data }) => {
@@ -270,7 +271,7 @@ export const deleteRepository = createServerFn({ method: 'POST' })
 
 // Star/unstar repository
 export const toggleStar = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({ 
+  .inputValidator((data: unknown) => z.object({ 
     repoId: z.number() 
   }).parse(data))
   .handler(async ({ data }) => {
@@ -316,7 +317,7 @@ export const toggleStar = createServerFn({ method: 'POST' })
 
 // Get repository collaborators
 export const getCollaborators = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({ 
+  .inputValidator((data: unknown) => z.object({ 
     repoId: z.number() 
   }).parse(data))
   .handler(async ({ data }) => {
@@ -338,7 +339,7 @@ export const getCollaborators = createServerFn({ method: 'GET' })
 
 // Add collaborator
 export const addCollaborator = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     userId: z.string(),
     role: z.enum(['read', 'write', 'admin']).default('read'),
@@ -369,7 +370,7 @@ export const addCollaborator = createServerFn({ method: 'POST' })
 
 // Remove collaborator
 export const removeCollaborator = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     userId: z.string(),
   }).parse(data))

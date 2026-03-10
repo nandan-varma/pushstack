@@ -1,5 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '../../lib/auth'
 import { createRepository } from '../../server/repositories'
 import { useMutation } from '@tanstack/react-query'
@@ -9,12 +11,15 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { Select } from '../../components/ui/select'
 
+const getAuthSession = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = getRequestHeaders()
+  return await auth.api.getSession({ headers })
+})
+
 export const Route = createFileRoute('/repositories/new')({
   component: NewRepositoryPage,
   beforeLoad: async () => {
-    const session = await auth.api.getSession({
-      headers: new Headers(),
-    })
+    const session = await getAuthSession()
     
     if (!session?.user) {
       throw redirect({ to: '/auth/login' })

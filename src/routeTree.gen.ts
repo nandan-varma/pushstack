@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
 import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
@@ -67,6 +68,11 @@ const AuthRegisterRoute = AuthRegisterRouteImport.update({
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => AuthRoute,
 } as any)
 const RepoOwnerNameRoute = RepoOwnerNameRouteImport.update({
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/repositories/new': typeof RepositoriesNewRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/repositories/new': typeof RepositoriesNewRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/repositories/new': typeof RepositoriesNewRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/repositories/new'
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/repositories/new'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/repositories/new'
@@ -322,6 +334,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/auth/forgot-password': {
+      id: '/auth/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/repo/$owner/$name': {
       id: '/repo/$owner/$name'
       path: '/repo/$owner/$name'
@@ -403,11 +422,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthRouteChildren {
+  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthRegisterRoute: typeof AuthRegisterRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthRegisterRoute: AuthRegisterRoute,
 }

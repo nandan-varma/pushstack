@@ -22,38 +22,42 @@ function LoginPage() {
     setLoading(true)
 
     try {
-      const result = await authClient.signIn.email({
-        email,
-        password,
-      })
-
-      if (result.error) {
-        setError(result.error.message || 'Login failed')
-        setLoading(false)
-        return
-      }
-
-      // Redirect to dashboard on success
-      navigate({ to: '/dashboard' })
+      await authClient.signIn.email(
+        {
+          email,
+          password,
+        },
+        {
+          onRequest: () => {
+            setLoading(true)
+          },
+          onSuccess: () => {
+            navigate({ to: '/dashboard' })
+          },
+          onError: (ctx) => {
+            setError(ctx.error.message || 'Login failed')
+            setLoading(false)
+          },
+        }
+      )
     } catch (err) {
-      setError('An error occurred during login')
+      setError('An unexpected error occurred during login')
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[var(--gradient-1)] via-[var(--gradient-2)] to-[var(--gradient-3)] p-4">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-            Welcome to <span className="text-[var(--lagoon-deep)]">PushStack</span>
-          </h1>
-          <p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
-            Sign in to your account
-          </p>
-        </div>
+    <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold text-[var(--sea-ink)]">
+          Welcome to <span className="text-[var(--lagoon-deep)]">PushStack</span>
+        </h1>
+        <p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+          Sign in to your account
+        </p>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
               {error}
@@ -74,7 +78,15 @@ function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <a
+                href="/auth/forgot-password"
+                className="text-xs text-[var(--lagoon-deep)] hover:underline"
+              >
+                Forgot password?
+              </a>
+            </div>
             <Input
               id="password"
               type="password"
@@ -107,6 +119,5 @@ function LoginPage() {
           </p>
         </div>
       </div>
-    </div>
   )
 }

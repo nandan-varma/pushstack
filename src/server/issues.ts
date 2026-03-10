@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { db } from '../db'
 import { issues, pullRequests, comments, repositories, branches, activities } from '../db/schema'
 import { auth } from '../lib/auth'
@@ -7,9 +8,8 @@ import { z } from 'zod'
 
 // Get current user session helper
 async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: new Headers()
-  })
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
   if (!session?.user?.id) {
     throw new Error('Unauthorized')
   }
@@ -40,7 +40,7 @@ async function canAccessRepo(repoId: number, userId: string) {
 
 // Create issue
 export const createIssue = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     title: z.string().min(1),
     body: z.string().optional(),
@@ -79,7 +79,7 @@ export const createIssue = createServerFn({ method: 'POST' })
 
 // Get issues
 export const getIssues = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     status: z.enum(['open', 'closed', 'all']).optional().default('open'),
   }).parse(data))
@@ -106,7 +106,7 @@ export const getIssues = createServerFn({ method: 'GET' })
 
 // Get issue by ID
 export const getIssue = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     issueId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
@@ -133,7 +133,7 @@ export const getIssue = createServerFn({ method: 'GET' })
 
 // Update issue
 export const updateIssue = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     issueId: z.number(),
     title: z.string().optional(),
     body: z.string().optional(),
@@ -190,7 +190,7 @@ export const updateIssue = createServerFn({ method: 'POST' })
 
 // Create pull request
 export const createPullRequest = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     title: z.string().min(1),
     body: z.string().optional(),
@@ -254,7 +254,7 @@ export const createPullRequest = createServerFn({ method: 'POST' })
 
 // Get pull requests
 export const getPullRequests = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     status: z.enum(['open', 'closed', 'merged', 'all']).optional().default('open'),
   }).parse(data))
@@ -283,7 +283,7 @@ export const getPullRequests = createServerFn({ method: 'GET' })
 
 // Get pull request by ID
 export const getPullRequest = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     prId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
@@ -312,7 +312,7 @@ export const getPullRequest = createServerFn({ method: 'GET' })
 
 // Update pull request
 export const updatePullRequest = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     prId: z.number(),
     title: z.string().optional(),
     body: z.string().optional(),
@@ -348,7 +348,7 @@ export const updatePullRequest = createServerFn({ method: 'POST' })
 
 // Merge pull request
 export const mergePullRequest = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     prId: z.number(),
     commitMessage: z.string().optional(),
   }).parse(data))
@@ -403,7 +403,7 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
 
 // Create comment
 export const createComment = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     repoId: z.number(),
     issueId: z.number().optional(),
     pullRequestId: z.number().optional(),
@@ -445,7 +445,7 @@ export const createComment = createServerFn({ method: 'POST' })
 
 // Get comments
 export const getComments = createServerFn({ method: 'GET' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     issueId: z.number().optional(),
     pullRequestId: z.number().optional(),
   }).parse(data))
@@ -471,7 +471,7 @@ export const getComments = createServerFn({ method: 'GET' })
 
 // Update comment
 export const updateComment = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     commentId: z.number(),
     body: z.string().min(1),
   }).parse(data))
@@ -503,7 +503,7 @@ export const updateComment = createServerFn({ method: 'POST' })
 
 // Delete comment
 export const deleteComment = createServerFn({ method: 'POST' })
-  .validator((data: unknown) => z.object({
+  .inputValidator((data: unknown) => z.object({
     commentId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
