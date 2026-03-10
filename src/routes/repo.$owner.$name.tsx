@@ -6,6 +6,7 @@ import { getRepositoryByName, toggleStar } from '../server/repositories'
 import { getBranches } from '../server/files'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
+import { CloneModal } from '@/components/CloneModal'
 import { z } from 'zod'
 
 const repoRouteSchema = z.object({
@@ -40,12 +41,6 @@ function RepositoryPage() {
   const { data: repo, isLoading } = useQuery({
     queryKey: ['repository', owner, name],
     queryFn: () => getRepositoryByName({ data: { owner, name } }),
-  })
-  
-  const { data: branches } = useQuery({
-    queryKey: ['branches', repo?.id],
-    queryFn: () => getBranches({ data: { repoId: repo!.id } }),
-    enabled: !!repo,
   })
   
   const starMutation = useMutation({
@@ -85,9 +80,9 @@ function RepositoryPage() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 text-[var(--sea-ink-soft)]">
-              <Link to={`/user/${owner}`} className="hover:underline">
+              <a href={`/user/${owner}`} className="hover:underline">
                 {owner}
-              </Link>
+              </a>
               <span>/</span>
               <span className="font-semibold text-[var(--sea-ink)]">{name}</span>
               <span className={`ml-2 inline-block rounded-full border px-2 py-0.5 text-xs ${repo.visibility === 'public' ? 'border-green-500 text-green-600' : 'border-yellow-500 text-yellow-600'}`}>
@@ -100,19 +95,21 @@ function RepositoryPage() {
           </div>
           
           <div className="flex gap-2">
+            <CloneModal owner={owner} repoName={name} />
+            
             <Button
               variant="outline"
               size="sm"
               onClick={() => starMutation.mutate({ data: { repoId: repo.id } })}
               disabled={starMutation.isPending}
             >
-              {repo.isStarred ? '★' : '☆'} Star {repo.starCount > 0 && `(${repo.starCount})`}
+              ☆ Star
             </Button>
             
             {isOwner && (
-              <Link to={`/repo/${owner}/${name}/settings`}>
+              <a href={`/repo/${owner}/${name}/settings`}>
                 <Button variant="outline" size="sm">Settings</Button>
-              </Link>
+              </a>
             )}
           </div>
         </div>
@@ -122,28 +119,32 @@ function RepositoryPage() {
       <div className="mb-6 border-b border-[var(--line)]">
         <nav className="flex gap-6">
           <Link
-            to={`/repo/${owner}/${name}`}
+            to="/repo/$owner/$name"
+            params={{ owner, name }}
             className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
             activeProps={{ className: 'active' }}
           >
             Code
           </Link>
           <Link
-            to={`/repo/${owner}/${name}/issues`}
+            to="/repo/$owner/$name/issues"
+            params={{ owner, name }}
             className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
             activeProps={{ className: 'active' }}
           >
             Issues
           </Link>
           <Link
-            to={`/repo/${owner}/${name}/pulls`}
+            to="/repo/$owner/$name/pulls"
+            params={{ owner, name }}
             className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
             activeProps={{ className: 'active' }}
           >
             Pull Requests
           </Link>
           <Link
-            to={`/repo/${owner}/${name}/commits`}
+            to="/repo/$owner/$name/commits"
+            params={{ owner, name }}
             className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
             activeProps={{ className: 'active' }}
           >

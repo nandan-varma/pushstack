@@ -22,6 +22,7 @@ import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
 import { Route as RepoOwnerNameUploadRouteImport } from './routes/repo/$owner.$name.upload'
+import { Route as RepoOwnerNameSetupRouteImport } from './routes/repo/$owner.$name.setup'
 import { Route as RepoOwnerNamePullsRouteImport } from './routes/repo/$owner.$name.pulls'
 import { Route as RepoOwnerNameIssuesRouteImport } from './routes/repo/$owner.$name.issues'
 import { Route as RepoOwnerNameCommitsRouteImport } from './routes/repo/$owner.$name.commits'
@@ -95,6 +96,11 @@ const RepoOwnerNameUploadRoute = RepoOwnerNameUploadRouteImport.update({
   path: '/upload',
   getParentRoute: () => RepoOwnerNameRoute,
 } as any)
+const RepoOwnerNameSetupRoute = RepoOwnerNameSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
 const RepoOwnerNamePullsRoute = RepoOwnerNamePullsRouteImport.update({
   id: '/pulls',
   path: '/pulls',
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/repo/$owner/$name/commits': typeof RepoOwnerNameCommitsRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
+  '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
   '/repo/$owner/$name/upload': typeof RepoOwnerNameUploadRoute
   '/repo/$owner/$name/': typeof RepoOwnerNameIndexRoute
   '/repo/$owner/$name/commit/$sha': typeof RepoOwnerNameCommitShaRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/repo/$owner/$name/commits': typeof RepoOwnerNameCommitsRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
+  '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
   '/repo/$owner/$name/upload': typeof RepoOwnerNameUploadRoute
   '/repo/$owner/$name': typeof RepoOwnerNameIndexRoute
   '/repo/$owner/$name/commit/$sha': typeof RepoOwnerNameCommitShaRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/repo/$owner/$name/commits': typeof RepoOwnerNameCommitsRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
+  '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
   '/repo/$owner/$name/upload': typeof RepoOwnerNameUploadRoute
   '/repo/$owner/$name/': typeof RepoOwnerNameIndexRoute
   '/repo/$owner/$name/commit/$sha': typeof RepoOwnerNameCommitShaRoute
@@ -215,6 +224,7 @@ export interface FileRouteTypes {
     | '/repo/$owner/$name/commits'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
+    | '/repo/$owner/$name/setup'
     | '/repo/$owner/$name/upload'
     | '/repo/$owner/$name/'
     | '/repo/$owner/$name/commit/$sha'
@@ -236,6 +246,7 @@ export interface FileRouteTypes {
     | '/repo/$owner/$name/commits'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
+    | '/repo/$owner/$name/setup'
     | '/repo/$owner/$name/upload'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/commit/$sha'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/repo/$owner/$name/commits'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
+    | '/repo/$owner/$name/setup'
     | '/repo/$owner/$name/upload'
     | '/repo/$owner/$name/'
     | '/repo/$owner/$name/commit/$sha'
@@ -369,6 +381,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RepoOwnerNameUploadRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
+    '/repo/$owner/$name/setup': {
+      id: '/repo/$owner/$name/setup'
+      path: '/setup'
+      fullPath: '/repo/$owner/$name/setup'
+      preLoaderRoute: typeof RepoOwnerNameSetupRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
     '/repo/$owner/$name/pulls': {
       id: '/repo/$owner/$name/pulls'
       path: '/pulls'
@@ -473,6 +492,7 @@ interface RepoOwnerNameRouteChildren {
   RepoOwnerNameCommitsRoute: typeof RepoOwnerNameCommitsRoute
   RepoOwnerNameIssuesRoute: typeof RepoOwnerNameIssuesRouteWithChildren
   RepoOwnerNamePullsRoute: typeof RepoOwnerNamePullsRouteWithChildren
+  RepoOwnerNameSetupRoute: typeof RepoOwnerNameSetupRoute
   RepoOwnerNameUploadRoute: typeof RepoOwnerNameUploadRoute
   RepoOwnerNameIndexRoute: typeof RepoOwnerNameIndexRoute
   RepoOwnerNameCommitShaRoute: typeof RepoOwnerNameCommitShaRoute
@@ -483,6 +503,7 @@ const RepoOwnerNameRouteChildren: RepoOwnerNameRouteChildren = {
   RepoOwnerNameCommitsRoute: RepoOwnerNameCommitsRoute,
   RepoOwnerNameIssuesRoute: RepoOwnerNameIssuesRouteWithChildren,
   RepoOwnerNamePullsRoute: RepoOwnerNamePullsRouteWithChildren,
+  RepoOwnerNameSetupRoute: RepoOwnerNameSetupRoute,
   RepoOwnerNameUploadRoute: RepoOwnerNameUploadRoute,
   RepoOwnerNameIndexRoute: RepoOwnerNameIndexRoute,
   RepoOwnerNameCommitShaRoute: RepoOwnerNameCommitShaRoute,

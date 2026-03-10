@@ -257,8 +257,6 @@ export const getPullRequests = createServerFn({ method: 'GET' })
       ),
       with: {
         author: true,
-        sourceBranch: true,
-        targetBranch: true,
       },
       orderBy: [desc(pullRequests.createdAt)],
     })
@@ -279,8 +277,6 @@ export const getPullRequest = createServerFn({ method: 'GET' })
       with: {
         author: true,
         repository: true,
-        sourceBranch: true,
-        targetBranch: true,
       },
     })
     

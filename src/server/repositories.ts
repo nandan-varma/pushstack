@@ -120,7 +120,16 @@ export const createRepository = createServerFn({ method: 'POST' })
         },
       })
       
-      return repo
+      // Return repo with owner info for navigation
+      return {
+        ...repo,
+        owner: {
+          id: user.id,
+          username: user.username || user.email.split('@')[0], // Fallback to email prefix
+          email: user.email,
+          name: user.name,
+        },
+      }
     } catch (error) {
       console.error('Error creating repository:', error);
       throw error;

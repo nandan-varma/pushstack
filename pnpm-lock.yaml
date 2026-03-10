@@ -116,6 +116,9 @@ importers:
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.4)
+      node-git-server:
+        specifier: ^1.0.0
+        version: 1.0.0
       pg:
         specifier: ^8.16.3
         version: 8.20.0
@@ -4594,6 +4597,9 @@ packages:
   node-fetch-native@1.6.7:
     resolution: {integrity: sha512-g9yhqoedzIUm0nTnTqAQvueMPVOuIY16bqgAJJC8XOOubYFNwz6IER9qs0Gq2Xd0+CecCKFjtdDTMA4u4xG06Q==}
 
+  node-git-server@1.0.0:
+    resolution: {integrity: sha512-LdAEExF4N6/RIuAdJe16l1U5OZrw5M1U7B4C4O2PiRVImyaPNTFeTHlj46vGgpjthvrK7z43JKcIPc4r6+j0fA==}
+
   node-releases@2.0.36:
     resolution: {integrity: sha512-TdC8FSgHz8Mwtw9g5L4gR/Sh9XhSP/0DEkQxfEFXOpiul5IiHgHan2VhYYb6agDSfp4KuvltmGApc8HMgUrIkA==}
 
@@ -5168,6 +5174,9 @@ packages:
   tapable@2.3.0:
     resolution: {integrity: sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg==}
     engines: {node: '>=6'}
+
+  through@2.3.8:
+    resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
 
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
@@ -10374,6 +10383,10 @@ snapshots:
 
   node-fetch-native@1.6.7: {}
 
+  node-git-server@1.0.0:
+    dependencies:
+      through: 2.3.8
+
   node-releases@2.0.36: {}
 
   normalize-path@3.0.0: {}
@@ -11049,6 +11062,8 @@ snapshots:
   tailwindcss@4.2.1: {}
 
   tapable@2.3.0: {}
+
+  through@2.3.8: {}
 
   tiny-invariant@1.3.3: {}
 
