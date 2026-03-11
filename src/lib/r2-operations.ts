@@ -3,10 +3,12 @@ import {
   GetObjectCommand,
   ListObjectsV2Command,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getR2Client, getR2Config } from './r2'
+import { R2UploadError, R2DownloadError, isRetryableError } from '#/server/git-errors'
 
 export interface R2File {
   key: string
@@ -15,49 +17,165 @@ export interface R2File {
   etag: string
 }
 
+// Retry configuration
+const MAX_RETRIES = 3
+const INITIAL_RETRY_DELAY = 100 // ms
+const MAX_RETRY_DELAY = 5000 // ms
+
+// Circuit breaker configuration
+const CIRCUIT_BREAKER_THRESHOLD = 5 // failures before opening circuit
+const CIRCUIT_BREAKER_TIMEOUT = 30000 // ms before trying again
+
+class CircuitBreaker {
+  private failures = 0
+  private lastFailureTime = 0
+  private state: 'closed' | 'open' | 'half-open' = 'closed'
+  
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    // Check if circuit is open
+    if (this.state === 'open') {
+      const timeSinceFailure = Date.now() - this.lastFailureTime
+      if (timeSinceFailure < CIRCUIT_BREAKER_TIMEOUT) {
+        throw new R2UploadError('Circuit breaker is open, R2 unavailable', false)
+      }
+      // Try to recover
+      this.state = 'half-open'
+    }
+    
+    try {
+      const result = await fn()
+      // Success - reset circuit breaker
+      if (this.state === 'half-open') {
+        this.state = 'closed'
+        this.failures = 0
+      }
+      return result
+    } catch (error) {
+      this.failures++
+      this.lastFailureTime = Date.now()
+      
+      if (this.failures >= CIRCUIT_BREAKER_THRESHOLD) {
+        this.state = 'open'
+      }
+      
+      throw error
+    }
+  }
+  
+  getState() {
+    return {
+      state: this.state,
+      failures: this.failures,
+      lastFailureTime: this.lastFailureTime,
+    }
+  }
+}
+
+const circuitBreaker = new CircuitBreaker()
+
 /**
- * Upload a file to R2
+ * Retry with exponential backoff and jitter
  */
-export async function uploadToR2(key: string, body: Buffer | string, contentType?: string) {
-  const client = getR2Client()
-  const { bucketName } = getR2Config()
-
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    }),
-  )
-
-  return { key, bucketName }
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  operation: string,
+  maxRetries = MAX_RETRIES
+): Promise<T> {
+  let lastError: any
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await circuitBreaker.execute(fn)
+    } catch (error) {
+      lastError = error
+      
+      // Don't retry if error is not retryable
+      if (!isRetryableError(error)) {
+        throw error
+      }
+      
+      // Don't retry on last attempt
+      if (attempt === maxRetries) {
+        break
+      }
+      
+      // Calculate delay with exponential backoff and jitter
+      const baseDelay = Math.min(
+        INITIAL_RETRY_DELAY * Math.pow(2, attempt),
+        MAX_RETRY_DELAY
+      )
+      const jitter = Math.random() * baseDelay * 0.3
+      const delay = baseDelay + jitter
+      
+      console.log(`${operation} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${Math.round(delay)}ms...`)
+      
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  
+  throw lastError
 }
 
 /**
- * Download a file from R2
+ * Upload a file to R2 with retry logic
+ */
+export async function uploadToR2(key: string, body: Buffer | string, contentType?: string) {
+  return withRetry(async () => {
+    const client = getR2Client()
+    const { bucketName } = getR2Config()
+
+    try {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+        }),
+      )
+
+      return { key, bucketName }
+    } catch (error) {
+      throw new R2UploadError(`Failed to upload ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }, `Upload ${key}`)
+}
+
+/**
+ * Download a file from R2 with retry logic
  */
 export async function downloadFromR2(key: string) {
-  const client = getR2Client()
-  const { bucketName } = getR2Config()
+  return withRetry(async () => {
+    const client = getR2Client()
+    const { bucketName } = getR2Config()
 
-  const response = await client.send(
-    new GetObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-    }),
-  )
+    try {
+      const response = await client.send(
+        new GetObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+        }),
+      )
 
-  if (!response.Body) {
-    throw new Error('No body returned from R2')
-  }
+      if (!response.Body) {
+        throw new Error('No body returned from R2')
+      }
 
-  const content = await response.Body.transformToByteArray()
-  return {
-    content: Buffer.from(content),
-    contentType: response.ContentType,
-    size: response.ContentLength,
-  }
+      const content = await response.Body.transformToByteArray()
+      return {
+        content: Buffer.from(content),
+        contentType: response.ContentType,
+        size: response.ContentLength,
+        etag: response.ETag,
+      }
+    } catch (error: any) {
+      if (error.$metadata?.httpStatusCode === 404 || error.name === 'NoSuchKey') {
+        // Don't wrap 404 errors, just rethrow
+        throw error
+      }
+      throw new R2DownloadError(`Failed to download ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }, `Download ${key}`)
 }
 
 /**
@@ -181,4 +299,75 @@ export async function getPresignedUploadUrl(
 export function getPublicUrl(key: string): string {
   const { endpoint, bucketName } = getR2Config()
   return `${endpoint}/${bucketName}/${key}`
+}
+
+/**
+ * Bulk upload multiple files to R2
+ */
+export async function bulkUploadToR2(
+  uploads: Array<{ key: string; data: Buffer | string; contentType?: string }>
+): Promise<Array<{ key: string; success: boolean; error?: string }>> {
+  const results = await Promise.allSettled(
+    uploads.map(({ key, data, contentType }) => 
+      uploadToR2(key, data, contentType).then(() => ({ key, success: true }))
+    )
+  )
+  
+  return results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value
+    }
+    return {
+      key: uploads[index].key,
+      success: false,
+      error: result.reason instanceof Error ? result.reason.message : 'Unknown error',
+    }
+  })
+}
+
+/**
+ * Bulk delete multiple files from R2
+ */
+export async function bulkDeleteFromR2(keys: string[]): Promise<{ deleted: number; errors: number }> {
+  const client = getR2Client()
+  const { bucketName } = getR2Config()
+  
+  // R2 supports batch delete of up to 1000 objects
+  const chunks: string[][] = []
+  for (let i = 0; i < keys.length; i += 1000) {
+    chunks.push(keys.slice(i, i + 1000))
+  }
+  
+  let deleted = 0
+  let errors = 0
+  
+  for (const chunk of chunks) {
+    try {
+      await withRetry(async () => {
+        const response = await client.send(
+          new DeleteObjectsCommand({
+            Bucket: bucketName,
+            Delete: {
+              Objects: chunk.map(key => ({ Key: key })),
+            },
+          }),
+        )
+        
+        deleted += response.Deleted?.length || 0
+        errors += response.Errors?.length || 0
+      }, `Bulk delete ${chunk.length} objects`)
+    } catch (error) {
+      errors += chunk.length
+      console.error('Bulk delete failed:', error)
+    }
+  }
+  
+  return { deleted, errors }
+}
+
+/**
+ * Get circuit breaker state for monitoring
+ */
+export function getCircuitBreakerState() {
+  return circuitBreaker.getState()
 }

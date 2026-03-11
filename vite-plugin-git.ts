@@ -24,10 +24,11 @@ export function gitHttpProtocol(): Plugin {
             handleInfoRefs, 
             handleUploadPack, 
             handleReceivePack, 
-            getRepoPath, 
             initBareRepository 
-          } = await import('./src/server/git-http-backend')
-          const { existsSync } = await import('node:fs')
+          } = await import('./src/server/git-http-proto')
+          const { r2RefBackend } = await import('./src/server/git-r2-backend')
+          const { findRepositoryByName } = await import('./src/server/repositories')
+          const { formatErrorResponse } = await import('./src/server/git-errors')
           
           const fullUrl = `http://${req.headers.host}${req.url}`
           const parsed = parseGitUrl(fullUrl)
@@ -46,21 +47,33 @@ export function gitHttpProtocol(): Plugin {
             headers: req.headers as HeadersInit,
           })
           
+          // Get repository from database
+          let repository
+          try {
+            repository = await findRepositoryByName(owner, repo)
+            if (!repository) {
+              res.statusCode = 404
+              res.end('Repository not found')
+              return
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Database error'
+            res.statusCode = 500
+            res.end(`Database error: ${errorMessage}`)
+            return
+          }
+          
           // Determine if this is a write operation
           const requireWrite = service === 'git-receive-pack'
           
-          // Authenticate the request (will also verify repo exists)
+          // Authenticate the request
           let authContext
           try {
             authContext = await authenticateGitRequest(request, owner, repo, requireWrite)
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Authentication failed'
             
-            if (errorMessage.includes('Repository not found')) {
-              res.statusCode = 404
-              res.end('Repository not found')
-            } else if (errorMessage.includes('Unauthorized')) {
-              // Return 401 to prompt for credentials
+            if (errorMessage.includes('Unauthorized')) {
               res.statusCode = 401
               res.setHeader('WWW-Authenticate', createAuthChallenge())
               res.end('Unauthorized: Authentication required')
@@ -82,14 +95,14 @@ export function gitHttpProtocol(): Plugin {
             return
           }
           
-          // Get repository path on disk using owner ID (not username)
-          // This matches the path format used by git-manager-iso.ts
-          const repoPath = getRepoPath(authContext.repo.ownerId, repo)
-          
-          // Initialize repository if it doesn't exist
-          if (!existsSync(repoPath)) {
-            const initialized = await initBareRepository(repoPath)
-            if (!initialized) {
+          // Check if repository is initialized in R2
+          try {
+            await r2RefBackend.readRef(repository.ownerId, repo, 'HEAD')
+          } catch (error) {
+            // Repository not initialized, initialize it
+            try {
+              await initBareRepository(repository.ownerId, repo, repository.defaultBranch || 'main')
+            } catch (initError) {
               res.statusCode = 500
               res.end('Failed to initialize repository')
               return
@@ -98,12 +111,19 @@ export function gitHttpProtocol(): Plugin {
           
           // Handle GET (info/refs)
           if (req.method === 'GET' && isInfoRefs && service) {
-            const result = await handleInfoRefs(repoPath, service, authContext)
-            res.statusCode = result.status
-            Object.entries(result.headers).forEach(([key, value]) => {
-              res.setHeader(key, value)
-            })
-            res.end(result.body)
+            try {
+              const result = await handleInfoRefs(repository.ownerId, repo, service, authContext)
+              res.statusCode = result.status
+              Object.entries(result.headers).forEach(([key, value]) => {
+                res.setHeader(key, value)
+              })
+              res.end(result.body)
+            } catch (error) {
+              const errorResponse = formatErrorResponse(error)
+              res.statusCode = errorResponse.status
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify(errorResponse.body))
+            }
             return
           }
           
@@ -113,25 +133,32 @@ export function gitHttpProtocol(): Plugin {
             const chunks: Buffer[] = []
             req.on('data', (chunk) => chunks.push(chunk))
             req.on('end', async () => {
-              const body = Buffer.concat(chunks)
-              const requestBody = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)
-              
-              let result
-              if (service === 'git-upload-pack') {
-                result = await handleUploadPack(repoPath, requestBody, authContext)
-              } else if (service === 'git-receive-pack') {
-                result = await handleReceivePack(repoPath, requestBody, authContext)
-              } else {
-                res.statusCode = 400
-                res.end('Invalid service')
-                return
+              try {
+                const body = Buffer.concat(chunks)
+                const requestBody = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)
+                
+                let result
+                if (service === 'git-upload-pack') {
+                  result = await handleUploadPack(repository.ownerId, repo, requestBody, authContext)
+                } else if (service === 'git-receive-pack') {
+                  result = await handleReceivePack(repository.ownerId, repo, requestBody, authContext)
+                } else {
+                  res.statusCode = 400
+                  res.end('Invalid service')
+                  return
+                }
+                
+                res.statusCode = result.status
+                Object.entries(result.headers).forEach(([key, value]) => {
+                  res.setHeader(key, value)
+                })
+                res.end(result.body)
+              } catch (error) {
+                const errorResponse = formatErrorResponse(error)
+                res.statusCode = errorResponse.status
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify(errorResponse.body))
               }
-              
-              res.statusCode = result.status
-              Object.entries(result.headers).forEach(([key, value]) => {
-                res.setHeader(key, value)
-              })
-              res.end(result.body)
             })
             return
           }

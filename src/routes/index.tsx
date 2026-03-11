@@ -14,7 +14,7 @@ function App() {
           Build, collaborate, and ship together.
         </h1>
         <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          A modern code hosting platform built with TanStack Start. Manage repositories,
+          A modern code hosting platform. Manage repositories,
           track issues, collaborate with pull requests, and deploy with confidence.
         </p>
         <div className="flex flex-wrap gap-3">

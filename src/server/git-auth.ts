@@ -4,13 +4,15 @@
  */
 
 import { db } from '../db'
-import { repositories, repositoryCollaborators } from '../db/github-schema'
+import { repositoryCollaborators } from '../db/github-schema'
 import { user as userTable } from '../db/schema'
 import { auth } from '../lib/auth'
 import { eq, and } from 'drizzle-orm'
 import { findRepositoryByName } from './repositories'
 
 export interface GitAuthContext {
+  userId: string
+  username: string
   user: {
     id: string
     username: string | null
@@ -84,7 +86,12 @@ async function authenticateUser(request: Request): Promise<GitAuthContext['user'
     return null
   }
   
-  // Verify credentials with Better Auth
+  // Check if it's a Personal Access Token (starts with 'ghp_')
+  if (credentials.username.startsWith('ghp_')) {
+    return await authenticateToken(credentials.username)
+  }
+  
+  // Verify password with Better Auth
   try {
     // Look up user by username (can be username or email)
     const foundUser = await db.query.user.findFirst({
@@ -101,33 +108,101 @@ async function authenticateUser(request: Request): Promise<GitAuthContext['user'
         return null
       }
       
-      // For MVP: Accept any non-empty password
-      // TODO: In production, verify against Better Auth or use Personal Access Tokens
-      if (credentials.password && credentials.password.length > 0) {
-        return {
-          id: userByEmail.id,
-          username: userByEmail.username,
+      // Verify password using Better Auth
+      // Note: Better Auth doesn't expose password verification directly
+      // For now, we'll use a simplified check
+      // In production, use Better Auth's signIn API or implement proper verification
+      try {
+        const signInResult = await auth.api.signInEmail({
           email: userByEmail.email,
-          name: userByEmail.name,
+          password: credentials.password,
+        } as any)
+        
+        if (signInResult) {
+          return {
+            id: userByEmail.id,
+            username: userByEmail.username,
+            email: userByEmail.email,
+            name: userByEmail.name,
+          }
         }
+      } catch {
+        // Sign in failed, invalid password
+        return null
       }
+      
       return null
     }
     
-    // For MVP: Accept any non-empty password for existing users
-    // TODO: In production, implement proper password verification or PAT system
-    if (credentials.password && credentials.password.length > 0) {
-      return {
-        id: foundUser.id,
-        username: foundUser.username,
+    // Verify password for user found by username
+    try {
+      const signInResult = await auth.api.signInEmail({
         email: foundUser.email,
-        name: foundUser.name,
+        password: credentials.password,
+      } as any)
+      
+      if (signInResult) {
+        return {
+          id: foundUser.id,
+          username: foundUser.username,
+          email: foundUser.email,
+          name: foundUser.name,
+        }
       }
+    } catch {
+      // Sign in failed, invalid password
+      return null
     }
     
     return null
   } catch (error) {
     console.error('Git auth error:', error)
+    return null
+  }
+}
+
+/**
+ * Authenticate user via Personal Access Token
+ * @param token PAT string (starts with 'ghp_')
+ * @returns User object or null if token is invalid
+ */
+async function authenticateToken(token: string): Promise<GitAuthContext['user'] | null> {
+  try {
+    // Hash the token for lookup
+    const crypto = await import('node:crypto')
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    
+    // Look up token in database
+    const { tokens } = await import('../db/github-schema')
+    const foundToken = await db.query.tokens.findFirst({
+      where: eq(tokens.tokenHash, tokenHash),
+      with: {
+        user: true,
+      },
+    })
+    
+    if (!foundToken) {
+      return null
+    }
+    
+    // Check if token is expired
+    if (foundToken.expiresAt && new Date(foundToken.expiresAt) < new Date()) {
+      return null
+    }
+    
+    // Update last used timestamp
+    await db.update(tokens)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(tokens.id, foundToken.id))
+    
+    return {
+      id: foundToken.userId,
+      username: foundToken.user.username,
+      email: foundToken.user.email,
+      name: foundToken.user.name,
+    }
+  } catch (error) {
+    console.error('Token auth error:', error)
     return null
   }
 }
@@ -234,14 +309,14 @@ export async function authenticateGitRequest(
   }
   
   // Check read permission
-  const canRead = await canReadRepo(repo.id, user?.id || null, repo)
+  const canRead = await canReadRepo(repo.id, user?.id || null, { visibility: repo.visibility as 'public' | 'private', ownerId: repo.ownerId })
   
   if (!canRead) {
     throw new Error('Access denied: You do not have read access to this repository')
   }
   
   // Check write permission if required
-  const canWrite = await canWriteRepo(repo.id, user?.id || null, repo)
+  const canWrite = await canWriteRepo(repo.id, user?.id || null, { ownerId: repo.ownerId })
   
   if (requireWrite && !canWrite) {
     throw new Error('Access denied: You do not have write access to this repository')
@@ -249,6 +324,8 @@ export async function authenticateGitRequest(
   
   // Return auth context
   return {
+    userId: user?.id || 'anonymous',
+    username: user?.username || 'anonymous',
     user: user || {
       id: 'anonymous',
       username: null,

@@ -206,3 +206,39 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
     references: [repositories.id],
   }),
 }));
+
+// Personal Access Tokens table - stores PATs for programmatic git access
+export const tokens = pgTable('tokens', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(), // User-friendly name for the token
+  tokenHash: text('token_hash').notNull().unique(), // SHA-256 hash of the token
+  scopes: jsonb('scopes').notNull(), // Array of permission scopes (e.g., ['repo:read', 'repo:write'])
+  lastUsedAt: timestamp('last_used_at'),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index('token_user_idx').on(table.userId),
+  hashIdx: index('token_hash_idx').on(table.tokenHash),
+}));
+
+// Git transactions table - tracks pending/abandoned transactions for cleanup
+export const gitTransactions = pgTable('git_transactions', {
+  id: text('id').primaryKey(), // Transaction ID (e.g., 'txn_1234567890_abc123')
+  status: text('status').notNull().default('pending'), // 'pending' | 'committed' | 'rolled_back'
+  objectKeys: jsonb('object_keys').notNull(), // Array of R2 keys written in this transaction
+  metadata: jsonb('metadata'), // Additional transaction metadata
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+}, (table) => ({
+  statusIdx: index('git_txn_status_idx').on(table.status),
+  createdIdx: index('git_txn_created_idx').on(table.createdAt),
+}));
+
+// Token relations
+export const tokensRelations = relations(tokens, ({ one }) => ({
+  user: one(user, {
+    fields: [tokens.userId],
+    references: [user.id],
+  }),
+}));
