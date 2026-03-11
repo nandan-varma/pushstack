@@ -192,23 +192,67 @@ export async function getFileFromR2(key: string) {
 export async function listR2Files(prefix?: string, maxKeys = 100): Promise<R2File[]> {
   const client = getR2Client()
   const { bucketName } = getR2Config()
+  const files: R2File[] = []
+  let continuationToken: string | undefined
 
-  const response = await client.send(
-    new ListObjectsV2Command({
-      Bucket: bucketName,
-      Prefix: prefix,
-      MaxKeys: maxKeys,
-    }),
-  )
+  while (files.length < maxKeys) {
+    const response = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: prefix,
+        MaxKeys: Math.min(maxKeys - files.length, 1000),
+        ContinuationToken: continuationToken,
+      }),
+    )
 
-  return (
-    response.Contents?.map((obj) => ({
-      key: obj.Key || '',
-      size: obj.Size || 0,
-      lastModified: obj.LastModified || new Date(),
-      etag: obj.ETag || '',
-    })) || []
-  )
+    files.push(...(
+      response.Contents?.map((obj) => ({
+        key: obj.Key || '',
+        size: obj.Size || 0,
+        lastModified: obj.LastModified || new Date(),
+        etag: obj.ETag || '',
+      })) || []
+    ))
+
+    if (!response.IsTruncated || !response.NextContinuationToken) {
+      break
+    }
+
+    continuationToken = response.NextContinuationToken
+  }
+
+  return files
+}
+
+export async function listAllR2Files(prefix?: string): Promise<R2File[]> {
+  const client = getR2Client()
+  const { bucketName } = getR2Config()
+  const files: R2File[] = []
+  let continuationToken: string | undefined
+
+  do {
+    const response = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: prefix,
+        MaxKeys: 1000,
+        ContinuationToken: continuationToken,
+      }),
+    )
+
+    files.push(...(
+      response.Contents?.map((obj) => ({
+        key: obj.Key || '',
+        size: obj.Size || 0,
+        lastModified: obj.LastModified || new Date(),
+        etag: obj.ETag || '',
+      })) || []
+    ))
+
+    continuationToken = response.NextContinuationToken
+  } while (continuationToken)
+
+  return files
 }
 
 /**

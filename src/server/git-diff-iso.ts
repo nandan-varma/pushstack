@@ -4,10 +4,10 @@
  * Generate diffs and compare branches/commits.
  */
 
-import git from 'isomorphic-git';
-import { promises as fs } from 'node:fs';
-import { getRepoPath } from './git-manager-iso';
-import { getCommit, getFileContent } from './git-operations-iso';
+import git from 'isomorphic-git'
+import { getBareRepoOptions } from './git-manager-iso'
+import { ensureRepositoryHydrated } from './git-repo-storage'
+import { getCommit, getFileContent } from './git-operations-iso'
 
 export interface DiffFile {
   path: string;
@@ -23,6 +23,11 @@ export interface DiffResult {
   totalAdditions: number;
   totalDeletions: number;
   totalFiles: number;
+}
+
+async function getRepoOptions(ownerId: number, repoName: string) {
+  await ensureRepositoryHydrated(ownerId, repoName)
+  return getBareRepoOptions(ownerId, repoName)
 }
 
 /**
@@ -77,7 +82,7 @@ export async function getCommitDiff(
   repoName: string,
   commitSha: string
 ): Promise<DiffResult> {
-  const dir = getRepoPath(ownerId, repoName);
+  const repo = await getRepoOptions(ownerId, repoName)
 
   try {
     // Get commit info
@@ -86,7 +91,7 @@ export async function getCommitDiff(
 
     if (!parent) {
       // Initial commit - all files are additions
-      const tree = await git.readTree({ fs, dir, oid: commit.commit.tree });
+      const tree = await git.readTree({ ...repo, oid: commit.commit.tree });
       const files: DiffFile[] = [];
 
       for (const entry of tree.tree) {
@@ -112,9 +117,8 @@ export async function getCommitDiff(
     }
 
     // Compare with parent
-    const changes = await git.walk({
-      fs,
-      dir,
+      const changes = await git.walk({
+      ...repo,
       trees: [git.TREE({ ref: parent }), git.TREE({ ref: commitSha })],
       map: async function (filepath, [A, B]) {
         if (!filepath) return null;
@@ -128,7 +132,7 @@ export async function getCommitDiff(
         // File deleted
         if (typeA && !typeB) {
           const oidA = A ? await A.oid() : '';
-          const { blob } = await git.readBlob({ fs, dir, oid: oidA });
+          const { blob } = await git.readBlob({ ...repo, oid: oidA });
           const lines = Buffer.from(blob).toString().split('\n');
           return {
             path: filepath,
@@ -142,7 +146,7 @@ export async function getCommitDiff(
         // File added
         if (!typeA && typeB) {
           const oidB = B ? await B.oid() : '';
-          const { blob } = await git.readBlob({ fs, dir, oid: oidB });
+          const { blob } = await git.readBlob({ ...repo, oid: oidB });
           const lines = Buffer.from(blob).toString().split('\n');
           return {
             path: filepath,
@@ -158,8 +162,8 @@ export async function getCommitDiff(
         const oidB = B ? await B.oid() : '';
 
         if (oidA !== oidB) {
-          const { blob: blobA } = await git.readBlob({ fs, dir, oid: oidA });
-          const { blob: blobB } = await git.readBlob({ fs, dir, oid: oidB });
+          const { blob: blobA } = await git.readBlob({ ...repo, oid: oidA });
+          const { blob: blobB } = await git.readBlob({ ...repo, oid: oidB });
           const contentA = Buffer.from(blobA).toString();
           const contentB = Buffer.from(blobB).toString();
 
@@ -204,14 +208,13 @@ export async function getDiffBetweenBranches(
   baseBranch: string,
   compareBranch: string
 ): Promise<DiffResult> {
-  const dir = getRepoPath(ownerId, repoName);
+  const repo = await getRepoOptions(ownerId, repoName)
 
-  const baseOid = await git.resolveRef({ fs, dir, ref: baseBranch });
-  const compareOid = await git.resolveRef({ fs, dir, ref: compareBranch });
+  const baseOid = await git.resolveRef({ ...repo, ref: baseBranch });
+  const compareOid = await git.resolveRef({ ...repo, ref: compareBranch });
 
   const changes = await git.walk({
-    fs,
-    dir,
+    ...repo,
     trees: [git.TREE({ ref: baseOid }), git.TREE({ ref: compareOid })],
     map: async function (filepath, [A, B]) {
       if (!filepath) return null;
@@ -223,7 +226,7 @@ export async function getDiffBetweenBranches(
 
       if (typeA && !typeB) {
         const oidA = A ? await A.oid() : '';
-        const { blob } = await git.readBlob({ fs, dir, oid: oidA });
+        const { blob } = await git.readBlob({ ...repo, oid: oidA });
         const lines = Buffer.from(blob).toString().split('\n');
         return {
           path: filepath,
@@ -236,7 +239,7 @@ export async function getDiffBetweenBranches(
 
       if (!typeA && typeB) {
         const oidB = B ? await B.oid() : '';
-        const { blob } = await git.readBlob({ fs, dir, oid: oidB });
+        const { blob } = await git.readBlob({ ...repo, oid: oidB });
         const lines = Buffer.from(blob).toString().split('\n');
         return {
           path: filepath,
@@ -251,8 +254,8 @@ export async function getDiffBetweenBranches(
       const oidB = B ? await B.oid() : '';
 
       if (oidA !== oidB) {
-        const { blob: blobA } = await git.readBlob({ fs, dir, oid: oidA });
-        const { blob: blobB } = await git.readBlob({ fs, dir, oid: oidB });
+        const { blob: blobA } = await git.readBlob({ ...repo, oid: oidA });
+        const { blob: blobB } = await git.readBlob({ ...repo, oid: oidB });
         const contentA = Buffer.from(blobA).toString();
         const contentB = Buffer.from(blobB).toString();
 

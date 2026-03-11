@@ -9,7 +9,6 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
-import { Select } from '../../components/ui/select'
 
 const getAuthSession = createServerFn({ method: 'GET' }).handler(async () => {
   const headers = getRequestHeaders()
@@ -40,7 +39,13 @@ function NewRepositoryPage() {
   const createRepoMutation = useMutation({
     mutationFn: createRepository,
     onSuccess: (repo) => {
-      navigate({ to: `/repo/${user.name}/${repo.name}` })
+      navigate({
+        to: '/repo/$owner/$name',
+        params: {
+          owner: repo.owner.username || user.username || user.email.split('@')[0],
+          name: repo.name,
+        },
+      })
     },
     onError: (err: Error) => {
       setError(err.message || 'Failed to create repository')
@@ -93,7 +98,7 @@ function NewRepositoryPage() {
               title="Only letters, numbers, hyphens, and underscores allowed"
             />
             <p className="text-xs text-[var(--sea-ink-soft)]">
-              {user.name}/{name || 'repository-name'}
+              {(user.username || user.email.split('@')[0])}/{name || 'repository-name'}
             </p>
           </div>
 

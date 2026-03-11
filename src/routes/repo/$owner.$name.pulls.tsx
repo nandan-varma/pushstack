@@ -71,8 +71,8 @@ function PullRequestsPage() {
         repoId: repo.id,
         title: newPR.title,
         body: newPR.body,
-        baseBranch: newPR.baseBranch,
-        headBranch: newPR.headBranch,
+        sourceBranchName: newPR.headBranch,
+        targetBranchName: newPR.baseBranch,
       }
     })
   }
@@ -291,16 +291,10 @@ function PullRequestsPage() {
                     })}{' '}
                     by {pr.author?.name || 'Unknown'} •{' '}
                     <span className="font-mono">
-                      {pr.headBranch} → {pr.baseBranch}
+                      {pr.sourceBranch} → {pr.targetBranch}
                     </span>
                   </p>
                 </div>
-                {pr._count?.comments > 0 && (
-                  <div className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)]">
-                    <span>💬</span>
-                    <span>{pr._count.comments}</span>
-                  </div>
-                )}
               </div>
             </Card>
           ))}

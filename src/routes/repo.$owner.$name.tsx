@@ -1,12 +1,9 @@
-import { createFileRoute, redirect, Link, Outlet } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { auth } from '../lib/auth'
+import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
 import { getRepositoryByName, toggleStar } from '../server/repositories'
-import { getBranches } from '../server/files'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { CloneModal } from '@/components/CloneModal'
+import { authClient } from '../lib/auth-client'
 import { z } from 'zod'
 
 const repoRouteSchema = z.object({
@@ -14,28 +11,14 @@ const repoRouteSchema = z.object({
   name: z.string(),
 })
 
-const getAuthSession = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders()
-  return await auth.api.getSession({ headers })
-})
-
 export const Route = createFileRoute('/repo/$owner/$name')({
   component: RepositoryPage,
-  beforeLoad: async () => {
-    const session = await getAuthSession()
-    
-    if (!session?.user) {
-      throw redirect({ to: '/auth/login' })
-    }
-    
-    return { user: session.user }
-  },
   parseParams: (params) => repoRouteSchema.parse(params),
 })
 
 function RepositoryPage() {
   const { owner, name } = Route.useParams()
-  const { user } = Route.useRouteContext()
+  const { data: session } = authClient.useSession()
   const queryClient = useQueryClient()
   
   const { data: repo, isLoading } = useQuery({
@@ -71,7 +54,7 @@ function RepositoryPage() {
     )
   }
 
-  const isOwner = repo.ownerId === user.id
+  const isOwner = repo.ownerId === session?.user?.id
 
   return (
     <div className="page-wrap py-8">
@@ -80,9 +63,9 @@ function RepositoryPage() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 text-[var(--sea-ink-soft)]">
-              <a href={`/user/${owner}`} className="hover:underline">
+              <Link to="/repositories" className="hover:underline">
                 {owner}
-              </a>
+              </Link>
               <span>/</span>
               <span className="font-semibold text-[var(--sea-ink)]">{name}</span>
               <span className={`ml-2 inline-block rounded-full border px-2 py-0.5 text-xs ${repo.visibility === 'public' ? 'border-green-500 text-green-600' : 'border-yellow-500 text-yellow-600'}`}>
@@ -107,9 +90,9 @@ function RepositoryPage() {
             </Button>
             
             {isOwner && (
-              <a href={`/repo/${owner}/${name}/settings`}>
+              <Link to="/repo/$owner/$name/setup" params={{ owner, name }}>
                 <Button variant="outline" size="sm">Settings</Button>
-              </a>
+              </Link>
             )}
           </div>
         </div>

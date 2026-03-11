@@ -11,6 +11,7 @@ import { getRequestHeaders } from '@tanstack/react-start/server';
 // Git operations imports
 import { createCommit } from './git-operations-iso';
 import { deleteRepo, initBareRepo } from './git-manager-iso';
+import { syncRepositoryToR2 } from './git-repo-storage';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -22,8 +23,14 @@ async function getCurrentUser() {
   return session.user
 }
 
+async function getCurrentUserOptional() {
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
+  return session?.user || null
+}
+
 // Check if user can access repository
-async function canAccessRepo(repoId: number, userId: string) {
+async function canAccessRepo(repoId: number, userId?: string | null) {
   const repo = await db.query.repositories.findFirst({
     where: eq(repositories.id, repoId),
   })
@@ -35,6 +42,10 @@ async function canAccessRepo(repoId: number, userId: string) {
   // Public repos are accessible to all
   if (repo.visibility === 'public') {
     return true
+  }
+
+  if (!userId) {
+    return false
   }
   
   // Check if user is owner
@@ -144,6 +155,8 @@ export const createRepository = createServerFn({ method: 'POST' })
           initialCommitSha: commitSha,
         },
       })
+
+      await syncRepositoryToR2(ownerId, data.name)
       
       // Return repo with owner info for navigation
       return {
@@ -236,7 +249,7 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
     name: z.string() 
   }).parse(data))
   .handler(async ({ data }) => {
-    const currentUser = await getCurrentUser()
+    const currentUser = await getCurrentUserOptional()
     
     // Find owner by username
     const owner = await db.query.user.findFirst({
@@ -261,7 +274,7 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
       throw new Error('Repository not found')
     }
     
-    if (!(await canAccessRepo(repo.id, currentUser.id))) {
+    if (!(await canAccessRepo(repo.id, currentUser?.id))) {
       throw new Error('Access denied')
     }
     

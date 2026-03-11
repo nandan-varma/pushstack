@@ -1,11 +1,16 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import CodeViewer from '@/components/CodeViewer'
-import { detectLanguage, isBinaryFile, formatFileSize } from '@/lib/language-detection'
+import { detectLanguage, formatFileSize } from '@/lib/language-detection'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useQuery } from '@tanstack/react-query'
 import { getRepositoryByName } from '@/server/repositories'
 import { getFile } from '@/server/files'
+
+function decodeBase64ToBytes(content: string) {
+  const binary = window.atob(content)
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
+}
 
 export const Route = createFileRoute('/repo/$owner/$name/blob/$branch/$')({
   component: FileBlobPage,
@@ -46,7 +51,7 @@ function FileBlobPage() {
             The file "{filePath}" does not exist in the {branch} branch.
           </p>
           <Link
-            to="/repo/$owner/$name/files"
+            to="/repo/$owner/$name"
             params={{ owner, name }}
             className="mt-4 inline-block"
           >
@@ -58,8 +63,26 @@ function FileBlobPage() {
   }
 
   const language = detectLanguage(filePath)
-  const isBinary = isBinaryFile(filePath)
-  const fileContent = file.content ? Buffer.from(file.content, 'base64').toString('utf-8') : ''
+  const isBinary = file.isBinary
+  const fileContent = !file.content
+    ? ''
+    : file.isBinary
+      ? window.atob(file.content)
+      : file.content
+
+  const downloadFile = () => {
+    const blob = isBinary
+      ? new Blob([decodeBase64ToBytes(file.content)], { type: 'application/octet-stream' })
+      : new Blob([fileContent], { type: 'text/plain;charset=utf-8' })
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filePath.split('/').pop() || 'download'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+  }
 
   return (
     <div className="container py-8 space-y-4">
@@ -73,21 +96,15 @@ function FileBlobPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to="/repo/$owner/$name/files"
+            to="/repo/$owner/$name"
             params={{ owner, name }}
-            search={{ branch }}
           >
             <Button variant="outline" size="sm">
               Back to Files
             </Button>
           </Link>
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={`/api/files/${owner}/${name}/${branch}/${filePath}`}
-              download={filePath.split('/').pop()}
-            >
-              Download
-            </a>
+          <Button variant="outline" size="sm" onClick={downloadFile}>
+            Download
           </Button>
         </div>
       </div>
@@ -95,7 +112,7 @@ function FileBlobPage() {
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-sm text-[var(--sea-ink-soft)]">
         <Link
-          to="/repo/$owner/$name/files"
+          to="/repo/$owner/$name"
           params={{ owner, name }}
           className="hover:text-[var(--accent)]"
         >
@@ -110,13 +127,7 @@ function FileBlobPage() {
               {isLast ? (
                 <span className="text-[var(--sea-ink)] font-medium">{part}</span>
               ) : (
-                <Link
-                  to="/repo/$owner/$name/tree/$branch/$"
-                  params={{ owner, name, branch, _splat: pathSoFar }}
-                  className="hover:text-[var(--accent)]"
-                >
-                  {part}
-                </Link>
+                <span className="hover:text-[var(--accent)]">{part}</span>
               )}
             </span>
           )
@@ -129,13 +140,8 @@ function FileBlobPage() {
           <p className="text-[var(--sea-ink-soft)]">
             This file is binary and cannot be displayed.
           </p>
-          <Button variant="outline" size="sm" className="mt-4" asChild>
-            <a
-              href={`/api/files/${owner}/${name}/${branch}/${filePath}`}
-              download={filePath.split('/').pop()}
-            >
-              Download File
-            </a>
+          <Button variant="outline" size="sm" className="mt-4" onClick={downloadFile}>
+            Download File
           </Button>
         </Card>
       ) : (

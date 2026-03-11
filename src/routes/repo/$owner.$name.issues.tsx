@@ -214,12 +214,6 @@ function IssuesPage() {
                     by {issue.author?.name || 'Unknown'}
                   </p>
                 </div>
-                {issue._count?.comments > 0 && (
-                  <div className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)]">
-                    <span>💬</span>
-                    <span>{issue._count.comments}</span>
-                  </div>
-                )}
               </div>
             </Card>
           ))}

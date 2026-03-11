@@ -15,7 +15,7 @@ export default function BetterAuthHeader() {
     return (
       <div className="flex items-center gap-3">
         <Link
-          to={`/${session.user.username || session.user.id}`}
+          to="/dashboard"
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
           {session.user.image ? (

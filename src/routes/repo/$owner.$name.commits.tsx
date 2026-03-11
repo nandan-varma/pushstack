@@ -119,7 +119,7 @@ function CommitsPage() {
           <p className="text-[var(--sea-ink-soft)] mb-4">
             No commits found in this branch
           </p>
-          <Link to="/repo/$owner/$name/files" params={{ owner, name }}>
+          <Link to="/repo/$owner/$name" params={{ owner, name }}>
             <Button variant="outline">View Files</Button>
           </Link>
         </Card>
@@ -138,7 +138,6 @@ function CommitsPage() {
             >
               <div className="flex items-start gap-4">
                 <Avatar>
-                  <AvatarImage src={commit.author?.image || undefined} />
                   <AvatarFallback>
                     {getInitials(commit.author?.name || commit.authorName || 'U')}
                   </AvatarFallback>

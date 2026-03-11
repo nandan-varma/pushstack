@@ -9,9 +9,8 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { parseGitUrl } from '#/lib/git-url-parser'
 import { authenticateGitRequest, createAuthChallenge } from '#/server/git-auth'
-import { handleInfoRefs, handleUploadPack, handleReceivePack, initBareRepository } from '#/server/git-http-proto'
+import { handleInfoRefs, handleUploadPack, handleReceivePack } from '#/server/git-http-backend'
 import { findRepositoryByName } from '#/server/repositories'
-import { r2RefBackend } from '#/server/git-r2-backend'
 import { formatErrorResponse } from '#/server/git-errors'
 
 export const Route = createFileRoute('/api/git/$')({
@@ -43,18 +42,17 @@ export const Route = createFileRoute('/api/git/$')({
             })
           }
           
-          // Check if repository is initialized in R2
-          try {
-            await r2RefBackend.readRef(repository.ownerId, repo, 'HEAD')
-          } catch (error) {
-            // Repository not initialized, initialize it
-            await initBareRepository(repository.ownerId, repo, repository.defaultBranch || 'main')
-          }
-          
           // Handle info/refs request
-          const result = await handleInfoRefs(repository.ownerId, repo, service, authContext)
+          const result = await handleInfoRefs(
+            Number.parseInt(repository.ownerId, 10),
+            repo,
+            service,
+            authContext,
+            repository.updatedAt,
+            repository.defaultBranch || 'main',
+          )
           
-          return new Response(result.body, {
+          return new Response(new Uint8Array(result.body), {
             status: result.status,
             headers: result.headers
           })
@@ -96,28 +94,34 @@ export const Route = createFileRoute('/api/git/$')({
             })
           }
           
-          // Check if repository is initialized in R2
-          try {
-            await r2RefBackend.readRef(repository.ownerId, repo, 'HEAD')
-          } catch (error) {
-            // Repository not initialized, initialize it
-            await initBareRepository(repository.ownerId, repo, repository.defaultBranch || 'main')
-          }
-          
           // Read request body
           const requestBody = await request.arrayBuffer()
           
           // Handle upload-pack (clone/fetch) or receive-pack (push)
           let result
           if (service === 'git-upload-pack') {
-            result = await handleUploadPack(repository.ownerId, repo, requestBody, authContext)
+            result = await handleUploadPack(
+              Number.parseInt(repository.ownerId, 10),
+              repo,
+              requestBody,
+              authContext,
+              repository.updatedAt,
+              repository.defaultBranch || 'main',
+            )
           } else if (service === 'git-receive-pack') {
-            result = await handleReceivePack(repository.ownerId, repo, requestBody, authContext)
+            result = await handleReceivePack(
+              Number.parseInt(repository.ownerId, 10),
+              repo,
+              requestBody,
+              authContext,
+              repository.updatedAt,
+              repository.defaultBranch || 'main',
+            )
           } else {
             return new Response('Invalid service', { status: 400 })
           }
           
-          return new Response(result.body, {
+          return new Response(new Uint8Array(result.body), {
             status: result.status,
             headers: result.headers
           })

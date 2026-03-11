@@ -1,39 +1,38 @@
 /**
- * Git HTTP Backend using node-git-server
+ * Git HTTP Backend using native git services
  * Handles git smart HTTP protocol for clone, fetch, and push operations
  */
 
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
 import type { GitAuthContext } from './git-auth'
+import { ensureRepositoryHydrated, initRepositoryStorage, syncRepositoryToR2 } from './git-repo-storage'
 
-/**
- * Get the path to the repository on disk
- * Uses user ID (not username) to match git-manager-iso.ts path format
- */
-export function getRepoPath(userId: string, repo: string): string {
-  // Base path for all git repositories
-  const baseGitPath = process.env.GIT_REPOS_PATH || join(process.cwd(), '.git-repos')
-  // Use userId directory (not username) to match web UI expectations
-  return join(baseGitPath, userId, repo)
+type GitHttpResult = {
+  status: number
+  headers: Record<string, string>
+  body: Buffer
 }
 
 /**
  * Handle git-upload-pack (clone/fetch) using git command
  */
 export async function handleUploadPack(
-  repoPath: string,
+  ownerId: number,
+  repoName: string,
   requestBody: ArrayBuffer,
-  authContext: GitAuthContext
-): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+  authContext: GitAuthContext,
+  remoteUpdatedAt?: Date | null,
+  defaultBranch: string = 'main',
+): Promise<GitHttpResult> {
   if (!authContext.canRead) {
     return {
       status: 403,
       headers: { 'Content-Type': 'text/plain' },
-      body: Buffer.from('Forbidden: No read access')
+      body: Buffer.from('Forbidden: No read access'),
     }
   }
 
+  const repoPath = await ensureRepositoryHydrated(ownerId, repoName, remoteUpdatedAt, defaultBranch)
   return executeCgiService('upload-pack', repoPath, requestBody)
 }
 
@@ -41,19 +40,29 @@ export async function handleUploadPack(
  * Handle git-receive-pack (push) using git command
  */
 export async function handleReceivePack(
-  repoPath: string,
+  ownerId: number,
+  repoName: string,
   requestBody: ArrayBuffer,
-  authContext: GitAuthContext
-): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+  authContext: GitAuthContext,
+  remoteUpdatedAt?: Date | null,
+  defaultBranch: string = 'main',
+): Promise<GitHttpResult> {
   if (!authContext.canWrite) {
     return {
       status: 403,
       headers: { 'Content-Type': 'text/plain' },
-      body: Buffer.from('Forbidden: No write access')
+      body: Buffer.from('Forbidden: No write access'),
     }
   }
 
-  return executeCgiService('receive-pack', repoPath, requestBody)
+  const repoPath = await ensureRepositoryHydrated(ownerId, repoName, remoteUpdatedAt, defaultBranch)
+  const result = await executeCgiService('receive-pack', repoPath, requestBody)
+
+  if (result.status === 200) {
+    await syncRepositoryToR2(ownerId, repoName)
+  }
+
+  return result
 }
 
 /**
@@ -63,7 +72,7 @@ async function executeCgiService(
   service: 'upload-pack' | 'receive-pack',
   repoPath: string,
   requestBody: ArrayBuffer
-): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+): Promise<GitHttpResult> {
   return new Promise((resolve) => {
     const git = spawn('git', [service, '--stateless-rpc', repoPath])
     
@@ -85,7 +94,7 @@ async function executeCgiService(
         resolve({
           status: 500,
           headers: { 'Content-Type': 'text/plain' },
-          body: Buffer.from(`Git ${service} failed: ${errorMsg}`)
+          body: Buffer.from(`Git ${service} failed: ${errorMsg}`),
         })
         return
       }
@@ -95,9 +104,9 @@ async function executeCgiService(
         status: 200,
         headers: {
           'Content-Type': `application/x-git-${service}-result`,
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
         },
-        body
+        body,
       })
     })
     
@@ -106,7 +115,7 @@ async function executeCgiService(
       resolve({
         status: 500,
         headers: { 'Content-Type': 'text/plain' },
-        body: Buffer.from(`Failed to execute git ${service}: ${err.message}`)
+        body: Buffer.from(`Failed to execute git ${service}: ${err.message}`),
       })
     })
     
@@ -122,16 +131,19 @@ async function executeCgiService(
  * Generate git info/refs response
  */
 export async function handleInfoRefs(
-  repoPath: string,
+  ownerId: number,
+  repoName: string,
   service: 'git-upload-pack' | 'git-receive-pack',
-  authContext: GitAuthContext
-): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+  authContext: GitAuthContext,
+  remoteUpdatedAt?: Date | null,
+  defaultBranch: string = 'main',
+): Promise<GitHttpResult> {
   // Check permissions
   if (service === 'git-upload-pack' && !authContext.canRead) {
     return {
       status: 403,
       headers: { 'Content-Type': 'text/plain' },
-      body: Buffer.from('Forbidden: No read access')
+      body: Buffer.from('Forbidden: No read access'),
     }
   }
   
@@ -139,9 +151,11 @@ export async function handleInfoRefs(
     return {
       status: 403,
       headers: { 'Content-Type': 'text/plain' },
-      body: Buffer.from('Forbidden: No write access')
+      body: Buffer.from('Forbidden: No write access'),
     }
   }
+
+  const repoPath = await ensureRepositoryHydrated(ownerId, repoName, remoteUpdatedAt, defaultBranch)
 
   return new Promise((resolve) => {
     const git = spawn('git', [service.replace('git-', ''), '--stateless-rpc', '--advertise-refs', repoPath])
@@ -164,7 +178,7 @@ export async function handleInfoRefs(
         resolve({
           status: 500,
           headers: { 'Content-Type': 'text/plain' },
-          body: Buffer.from(`Repository not found or inaccessible`)
+          body: Buffer.from('Repository not found or inaccessible'),
         })
         return
       }
@@ -181,9 +195,9 @@ export async function handleInfoRefs(
         status: 200,
         headers: {
           'Content-Type': `application/x-${service}-advertisement`,
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
         },
-        body
+        body,
       })
     })
     
@@ -192,7 +206,7 @@ export async function handleInfoRefs(
       resolve({
         status: 500,
         headers: { 'Content-Type': 'text/plain' },
-        body: Buffer.from(`Failed to execute git: ${err.message}`)
+        body: Buffer.from(`Failed to execute git: ${err.message}`),
       })
     })
     
@@ -203,16 +217,6 @@ export async function handleInfoRefs(
 /**
  * Initialize a bare repository on disk
  */
-export async function initBareRepository(repoPath: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const git = spawn('git', ['init', '--bare', repoPath])
-    
-    git.on('close', (code) => {
-      resolve(code === 0)
-    })
-    
-    git.on('error', () => {
-      resolve(false)
-    })
-  })
+export async function initBareRepository(ownerId: number, repoName: string, defaultBranch: string = 'main'): Promise<void> {
+  await initRepositoryStorage(ownerId, repoName, defaultBranch)
 }

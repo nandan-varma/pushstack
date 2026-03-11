@@ -28,11 +28,11 @@ function PullRequestDetailPage() {
 
   const { data: comments } = useQuery({
     queryKey: ['prComments', Number(id)],
-    queryFn: () => getComments({ data: { prId: Number(id) } }),
+    queryFn: () => getComments({ data: { pullRequestId: Number(id) } }),
   })
 
   // Diff viewer is complex, skip for now
-  const diff = []
+  const diff: Array<{ path: string; oldContent?: string; newContent?: string; language?: string }> = []
 
   const mergeMutation = useMutation({
     mutationFn: mergePullRequest,
@@ -72,7 +72,8 @@ function PullRequestDetailPage() {
     if (!newComment.trim()) return
     commentMutation.mutate({
       data: {
-        prId: Number(id),
+        repoId: pr.repoId,
+        pullRequestId: Number(id),
         body: newComment,
       }
     })
@@ -145,7 +146,7 @@ function PullRequestDetailPage() {
           <p className="text-[var(--sea-ink-soft)]">
             #{pr.id} opened{' '}
             {formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{' '}
-            by {pr.author?.name || 'Unknown'} • {pr.headBranch} → {pr.baseBranch}
+            by {pr.author?.name || 'Unknown'} • {pr.sourceBranch} → {pr.targetBranch}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -21,6 +21,16 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  server: {
+    watch: {
+      ignored: [
+        '**/.git-repos/**',
+        '**/.git_repos/**',
+        '**/data/repos/**',
+        '**/.pushstack/repos/**',
+      ],
+    },
+  },
   build: {
     rollupOptions: {
       external: ['node:async_hooks', 'node:stream', 'node:stream/web', 'node:fs', 'node:path'],

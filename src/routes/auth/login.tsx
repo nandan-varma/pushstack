@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '../../lib/auth-client'
 import { Button } from '../../components/ui/button'
@@ -10,7 +10,6 @@ export const Route = createFileRoute('/auth/login')({
 })
 
 function LoginPage() {
-  const navigate = useNavigate()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -36,7 +35,7 @@ function LoginPage() {
               setLoading(true)
             },
             onSuccess: () => {
-              navigate({ to: '/dashboard' })
+              window.location.assign('/dashboard')
             },
             onError: (ctx) => {
               setError(ctx.error.message || 'Login failed')
@@ -55,7 +54,7 @@ function LoginPage() {
               setLoading(true)
             },
             onSuccess: () => {
-              navigate({ to: '/dashboard' })
+              window.location.assign('/dashboard')
             },
             onError: (ctx) => {
               setError(ctx.error.message || 'Login failed')

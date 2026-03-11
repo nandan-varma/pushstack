@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '../../lib/auth-client'
 import { Button } from '../../components/ui/button'
@@ -10,7 +10,6 @@ export const Route = createFileRoute('/auth/register')({
 })
 
 function RegisterPage() {
-  const navigate = useNavigate()
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -53,7 +52,7 @@ function RegisterPage() {
             setLoading(true)
           },
           onSuccess: () => {
-            navigate({ to: '/dashboard' })
+            window.location.assign('/dashboard')
           },
           onError: (ctx) => {
             setError(ctx.error.message || 'Registration failed')

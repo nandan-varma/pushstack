@@ -1,5 +1,7 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,8 +10,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getRepositoryByName } from '@/server/repositories'
 import { getBranches, uploadFile } from '@/server/files'
+import { auth } from '../../lib/auth'
+
+const getAuthSession = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = getRequestHeaders()
+  return await auth.api.getSession({ headers })
+})
 
 export const Route = createFileRoute('/repo/$owner/$name/upload')({
+  beforeLoad: async () => {
+    const session = await getAuthSession()
+
+    if (!session?.user) {
+      throw redirect({ to: '/auth/login' })
+    }
+  },
   component: FileUploadPage,
 })
 
@@ -39,7 +54,7 @@ function FileUploadPage() {
     mutationFn: uploadFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files'] })
-      navigate({ to: '/repo/$owner/$name/files', params: { owner, name } })
+      navigate({ to: '/repo/$owner/$name', params: { owner, name } })
     },
   })
 
@@ -79,7 +94,12 @@ function FileUploadPage() {
     const reader = new FileReader()
     reader.onload = async () => {
       const buffer = reader.result as ArrayBuffer
-      const base64 = Buffer.from(buffer).toString('base64')
+      const bytes = new Uint8Array(buffer)
+      let binary = ''
+      for (const byte of bytes) {
+        binary += String.fromCharCode(byte)
+      }
+      const base64 = window.btoa(binary)
       
       uploadMutation.mutate({
         data: {
@@ -87,7 +107,7 @@ function FileUploadPage() {
           branchName: branch,
           path,
           content: base64,
-          message: commitMessage,
+          commitMessage,
         }
       })
     }
@@ -209,7 +229,7 @@ function FileUploadPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate({ to: '/repo/$owner/$name/files', params: { owner, name } })}
+                onClick={() => navigate({ to: '/repo/$owner/$name', params: { owner, name } })}
               >
                 Cancel
               </Button>

@@ -23,10 +23,8 @@ export function gitHttpProtocol(): Plugin {
           const { 
             handleInfoRefs, 
             handleUploadPack, 
-            handleReceivePack, 
-            initBareRepository 
-          } = await import('./src/server/git-http-proto')
-          const { r2RefBackend } = await import('./src/server/git-r2-backend')
+            handleReceivePack,
+          } = await import('./src/server/git-http-backend')
           const { findRepositoryByName } = await import('./src/server/repositories')
           const { formatErrorResponse } = await import('./src/server/git-errors')
           
@@ -95,24 +93,17 @@ export function gitHttpProtocol(): Plugin {
             return
           }
           
-          // Check if repository is initialized in R2
-          try {
-            await r2RefBackend.readRef(repository.ownerId, repo, 'HEAD')
-          } catch (error) {
-            // Repository not initialized, initialize it
-            try {
-              await initBareRepository(repository.ownerId, repo, repository.defaultBranch || 'main')
-            } catch (initError) {
-              res.statusCode = 500
-              res.end('Failed to initialize repository')
-              return
-            }
-          }
-          
           // Handle GET (info/refs)
           if (req.method === 'GET' && isInfoRefs && service) {
             try {
-              const result = await handleInfoRefs(repository.ownerId, repo, service, authContext)
+              const result = await handleInfoRefs(
+                Number.parseInt(repository.ownerId, 10),
+                repo,
+                service,
+                authContext,
+                repository.updatedAt,
+                repository.defaultBranch || 'main',
+              )
               res.statusCode = result.status
               Object.entries(result.headers).forEach(([key, value]) => {
                 res.setHeader(key, value)
@@ -139,9 +130,23 @@ export function gitHttpProtocol(): Plugin {
                 
                 let result
                 if (service === 'git-upload-pack') {
-                  result = await handleUploadPack(repository.ownerId, repo, requestBody, authContext)
+                  result = await handleUploadPack(
+                    Number.parseInt(repository.ownerId, 10),
+                    repo,
+                    requestBody,
+                    authContext,
+                    repository.updatedAt,
+                    repository.defaultBranch || 'main',
+                  )
                 } else if (service === 'git-receive-pack') {
-                  result = await handleReceivePack(repository.ownerId, repo, requestBody, authContext)
+                  result = await handleReceivePack(
+                    Number.parseInt(repository.ownerId, 10),
+                    repo,
+                    requestBody,
+                    authContext,
+                    repository.updatedAt,
+                    repository.defaultBranch || 'main',
+                  )
                 } else {
                   res.statusCode = 400
                   res.end('Invalid service')

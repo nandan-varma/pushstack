@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { listFiles, getBranches } from '@/server/files'
 import { getRepositoryByName } from '@/server/repositories'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getCloneUrl, getSetupInstructions } from '@/lib/git-utils'
@@ -32,6 +32,12 @@ function RepositoryIndexPage() {
     queryFn: () => listFiles({ data: { repoId: repo!.id, branchName: selectedBranch } }),
     enabled: !!repo,
   })
+
+  useEffect(() => {
+    if (repo?.defaultBranch) {
+      setSelectedBranch(repo.defaultBranch)
+    }
+  }, [repo?.defaultBranch])
   
   const handleCopy = async (text: string, section: string) => {
     try {
@@ -88,18 +94,6 @@ function RepositoryIndexPage() {
             </Button>
           </div>
           
-          {/* Warning */}
-          <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 p-4">
-            <div className="flex gap-2">
-              <span className="text-amber-600">⚠️</span>
-              <div className="text-sm text-amber-800">
-                <p className="font-medium">Git HTTP protocol not fully implemented</p>
-                <p className="mt-1 text-amber-700">
-                  Use the web UI to upload files for now.
-                </p>
-              </div>
-            </div>
-          </div>
         </Card>
         
         {/* Command Line Instructions */}
@@ -203,12 +197,18 @@ function RepositoryIndexPage() {
               {files.map((file, idx) => (
                 <tr key={idx} className="border-b border-[var(--line)] last:border-b-0">
                   <td className="p-4">
-                    <a
-                      href={`/repo/${owner}/${name}/blob/${selectedBranch}/${file.path}`}
+                    <Link
+                      to="/repo/$owner/$name/blob/$branch/$"
+                      params={{
+                        owner,
+                        name,
+                        branch: selectedBranch,
+                        _splat: file.path,
+                      }}
                       className="font-medium text-[var(--lagoon-deep)] hover:underline"
                     >
                       {file.type === 'tree' ? `📁 ${file.path}` : file.path}
-                    </a>
+                    </Link>
                   </td>
                   <td className="p-4 text-sm text-[var(--sea-ink-soft)]">
                     {file.type}

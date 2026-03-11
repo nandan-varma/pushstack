@@ -8,7 +8,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { getRequestHeaders } from '@tanstack/react-start/server';
 import { db } from '../db';
-import { repositories, activities } from '../db/github-schema';
+import { repositories, activities, repositoryCollaborators } from '../db/github-schema';
 import { user } from '../db/schema';
 import { auth } from '../lib/auth';
 import { eq, and } from 'drizzle-orm';
@@ -26,6 +26,43 @@ async function getCurrentUser() {
     throw new Error('Unauthorized');
   }
   return session.user;
+}
+
+async function getCurrentUserOptional() {
+  const headers = getRequestHeaders();
+  const session = await auth.api.getSession({ headers });
+  return session?.user || null;
+}
+
+async function canReadRepo(repoId: number, userId?: string | null) {
+  const repo = await db.query.repositories.findFirst({
+    where: eq(repositories.id, repoId),
+  });
+  
+  if (!repo) {
+    return false;
+  }
+  
+  if (repo.visibility === 'public') {
+    return true;
+  }
+
+  if (!userId) {
+    return false;
+  }
+
+  if (repo.ownerId === userId) {
+    return true;
+  }
+
+  const collab = await db.query.repositoryCollaborators.findFirst({
+    where: and(
+      eq(repositoryCollaborators.repoId, repoId),
+      eq(repositoryCollaborators.userId, userId)
+    ),
+  });
+
+  return !!collab;
 }
 
 // Check write access to repository
@@ -46,8 +83,8 @@ async function canWriteToRepo(repoId: number, userId: string) {
   // Check collaborator role
   const collab = await db.query.repositoryCollaborators.findFirst({
     where: and(
-      eq(repositories.id, repoId),
-      eq(repositories.ownerId, userId)
+      eq(repositoryCollaborators.repoId, repoId),
+      eq(repositoryCollaborators.userId, userId)
     ),
   });
   
@@ -63,7 +100,7 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
     name: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Find owner by username
     const owner = await db.query.user.findFirst({
@@ -87,6 +124,10 @@ export const getRepositoryByName = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     return repo;
@@ -170,7 +211,7 @@ export const getFile = createServerFn({ method: 'GET' })
     path: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -179,6 +220,10 @@ export const getFile = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
@@ -204,7 +249,7 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
     path: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -213,6 +258,10 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
@@ -243,7 +292,7 @@ export const listFiles = createServerFn({ method: 'GET' })
     path: z.string().optional().default(''),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -252,6 +301,10 @@ export const listFiles = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
@@ -262,30 +315,6 @@ export const listFiles = createServerFn({ method: 'GET' })
       repo.name,
       data.branchName,
       data.path || ''
-    );
-    
-    return entries;
-  });
-
-/**For simplicity, return content directly
-    
-    // Get repository
-    const repo = await db.query.repositories.findFirst({
-      where: eq(repositories.id, data.repoId),
-    });
-    
-    if (!repo) {
-      throw new Error('Repository not found');
-    }
-    
-    const ownerId = Number.parseInt(repo.ownerId, 10);
-    
-    // Get tree from git
-    const entries = await GitOps.getTreeFromBranch(
-      ownerId,
-      repo.name,
-      data.branchName,
-      data.path
     );
     
     return entries;
@@ -352,7 +381,7 @@ export const getBranches = createServerFn({ method: 'GET' })
     repoId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -361,6 +390,10 @@ export const getBranches = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
@@ -457,7 +490,7 @@ export const getCommits = createServerFn({ method: 'GET' })
     skip: z.number().optional().default(0),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -466,6 +499,10 @@ export const getCommits = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
@@ -479,7 +516,17 @@ export const getCommits = createServerFn({ method: 'GET' })
       data.skip
     );
     
-    return commits;
+    return commits.map((commit) => ({
+      sha: commit.oid,
+      message: commit.commit.message.trim(),
+      createdAt: new Date(commit.commit.author.timestamp * 1000).toISOString(),
+      authorName: commit.commit.author.name,
+      authorEmail: commit.commit.author.email,
+      author: {
+        name: commit.commit.author.name,
+        email: commit.commit.author.email,
+      },
+    }));
   });
 
 /**
@@ -491,7 +538,7 @@ export const getCommit = createServerFn({ method: 'GET' })
     commitSha: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -501,13 +548,34 @@ export const getCommit = createServerFn({ method: 'GET' })
     if (!repo) {
       throw new Error('Repository not found');
     }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
+    }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
     
     // Get commit from git
     const commit = await GitOps.getCommit(ownerId, repo.name, data.commitSha);
     
-    return commit;
+    return {
+      sha: commit.oid,
+      message: commit.commit.message.trim(),
+      tree: commit.commit.tree,
+      parent: commit.commit.parent,
+      payload: commit.payload,
+      branch: repo.defaultBranch,
+      author: {
+        name: commit.commit.author.name,
+        email: commit.commit.author.email,
+        date: new Date(commit.commit.author.timestamp * 1000).toISOString(),
+      },
+      committer: {
+        name: commit.commit.committer.name,
+        email: commit.commit.committer.email,
+        date: new Date(commit.commit.committer.timestamp * 1000).toISOString(),
+      },
+    };
   });
 
 /**
@@ -519,7 +587,7 @@ export const getCommitDiff = createServerFn({ method: 'GET' })
     commitSha: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -528,6 +596,10 @@ export const getCommitDiff = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);
@@ -548,7 +620,7 @@ export const getBranchDiff = createServerFn({ method: 'GET' })
     targetBranch: z.string(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser();
+    const currentUser = await getCurrentUserOptional();
     
     // Get repository
     const repo = await db.query.repositories.findFirst({
@@ -557,6 +629,10 @@ export const getBranchDiff = createServerFn({ method: 'GET' })
     
     if (!repo) {
       throw new Error('Repository not found');
+    }
+
+    if (!(await canReadRepo(repo.id, currentUser?.id))) {
+      throw new Error('Access denied');
     }
     
     const ownerId = Number.parseInt(repo.ownerId, 10);

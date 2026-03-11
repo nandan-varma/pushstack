@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import DiffViewer from '@/components/DiffViewer'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { formatDistanceToNow, format } from 'date-fns'
 import { useQuery } from '@tanstack/react-query'
 import { getCommit, getCommitDiff, getRepositoryByName } from '@/server/files'
@@ -67,6 +66,7 @@ function CommitDetailPage() {
             to="/repo/$owner/$name/commits"
             params={{ owner, name }}
             className="inline-block"
+            search={{ branch: 'main' }}
           >
             <Button variant="outline">Back to Commits</Button>
           </Link>
@@ -115,9 +115,9 @@ function CommitDetailPage() {
               </span>
               <span className="text-sm text-[var(--sea-ink-soft)]">
                 committed{' '}
-                {formatDistanceToNow(new Date(commit.author?.date || new Date()), {
-                  addSuffix: true,
-                })}
+                  {formatDistanceToNow(new Date(commit.author?.date || new Date()), {
+                    addSuffix: true,
+                  })}
               </span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
@@ -170,14 +170,15 @@ function CommitDetailPage() {
         </h2>
         {diffData?.files && diffData.files.length > 0 ? (
           diffData.files.map((fileDiff, index) => (
-            <DiffViewer
-              key={index}
-              oldValue={fileDiff.oldContent || ''}
-              newValue={fileDiff.newContent || ''}
-              oldTitle="Before"
-              newTitle="After"
-              fileName={fileDiff.path}
-            />
+            <Card key={index} className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <code className="text-sm font-medium text-[var(--sea-ink)]">{fileDiff.path}</code>
+                <span className="text-xs uppercase text-[var(--sea-ink-soft)]">{fileDiff.status}</span>
+              </div>
+              <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
+                {fileDiff.patch}
+              </pre>
+            </Card>
           ))
         ) : (
           <Card className="p-12 text-center">

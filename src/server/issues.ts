@@ -19,14 +19,21 @@ async function getCurrentUser() {
   return session.user
 }
 
+async function getCurrentUserOptional() {
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
+  return session?.user || null
+}
+
 // Check if user can access repository
-async function canAccessRepo(repoId: number, userId: string) {
+async function canAccessRepo(repoId: number, userId?: string | null) {
   const repo = await db.query.repositories.findFirst({
     where: eq(repositories.id, repoId),
   })
   
   if (!repo) return false
   if (repo.visibility === 'public') return true
+  if (!userId) return false
   if (repo.ownerId === userId) return true
   
   const collab = await db.query.repositoryCollaborators.findFirst({
@@ -87,9 +94,9 @@ export const getIssues = createServerFn({ method: 'GET' })
     status: z.enum(['open', 'closed', 'all']).optional().default('open'),
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUserOptional()
     
-    if (!(await canAccessRepo(data.repoId, user.id))) {
+    if (!(await canAccessRepo(data.repoId, user?.id))) {
       throw new Error('Access denied')
     }
     
@@ -113,7 +120,7 @@ export const getIssue = createServerFn({ method: 'GET' })
     issueId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUserOptional()
     
     const issue = await db.query.issues.findFirst({
       where: eq(issues.id, data.issueId),
@@ -127,7 +134,7 @@ export const getIssue = createServerFn({ method: 'GET' })
       throw new Error('Issue not found')
     }
     
-    if (!(await canAccessRepo(issue.repoId, user.id))) {
+    if (!(await canAccessRepo(issue.repoId, user?.id))) {
       throw new Error('Access denied')
     }
     
@@ -244,9 +251,9 @@ export const getPullRequests = createServerFn({ method: 'GET' })
     status: z.enum(['open', 'closed', 'merged', 'all']).optional().default('open'),
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUserOptional()
     
-    if (!(await canAccessRepo(data.repoId, user.id))) {
+    if (!(await canAccessRepo(data.repoId, user?.id))) {
       throw new Error('Access denied')
     }
     
@@ -270,7 +277,7 @@ export const getPullRequest = createServerFn({ method: 'GET' })
     prId: z.number(),
   }).parse(data))
   .handler(async ({ data }) => {
-    const user = await getCurrentUser()
+    const user = await getCurrentUserOptional()
     
     const pr = await db.query.pullRequests.findFirst({
       where: eq(pullRequests.id, data.prId),
@@ -284,7 +291,7 @@ export const getPullRequest = createServerFn({ method: 'GET' })
       throw new Error('Pull request not found')
     }
     
-    if (!(await canAccessRepo(pr.repoId, user.id))) {
+    if (!(await canAccessRepo(pr.repoId, user?.id))) {
       throw new Error('Access denied')
     }
     
@@ -477,10 +484,30 @@ export const getComments = createServerFn({ method: 'GET' })
     pullRequestId: z.number().optional(),
   }).parse(data))
   .handler(async ({ data }) => {
-    await getCurrentUser()
-    
     if (!data.issueId && !data.pullRequestId) {
       throw new Error('Must specify issueId or pullRequestId')
+    }
+
+    const user = await getCurrentUserOptional()
+
+    if (data.issueId) {
+      const issue = await db.query.issues.findFirst({
+        where: eq(issues.id, data.issueId),
+      })
+
+      if (!issue || !(await canAccessRepo(issue.repoId, user?.id))) {
+        throw new Error('Access denied')
+      }
+    }
+
+    if (data.pullRequestId) {
+      const pullRequest = await db.query.pullRequests.findFirst({
+        where: eq(pullRequests.id, data.pullRequestId),
+      })
+
+      if (!pullRequest || !(await canAccessRepo(pullRequest.repoId, user?.id))) {
+        throw new Error('Access denied')
+      }
     }
     
     const commentList = await db.query.comments.findMany({
