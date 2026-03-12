@@ -12,6 +12,7 @@ import { getRequestHeaders } from '@tanstack/react-start/server';
 import { createCommit } from './git-operations-iso';
 import { deleteRepo, initBareRepo } from './git-manager-iso';
 import { syncRepositoryToR2 } from './git-repo-storage';
+import { getLegacyStorageOwnerKeys, getStorageOwnerKey } from './git-storage-naming';
 
 // Get current user session helper
 async function getCurrentUser() {
@@ -115,24 +116,30 @@ export const createRepository = createServerFn({ method: 'POST' })
         throw new Error('Repository with this name already exists')
       }
       
-      // Get owner ID as number (assuming user IDs are numeric strings or can be converted)
-      const ownerId = Number.parseInt(user.id, 10);
-      if (isNaN(ownerId)) {
-        throw new Error('Invalid user ID format');
-      }
-      
+      const ownerKey = getStorageOwnerKey({
+        id: user.id,
+        username: user.username || null,
+        email: user.email,
+      })
+      const legacyOwnerKeys = getLegacyStorageOwnerKeys({
+        id: user.id,
+        username: user.username || null,
+        email: user.email,
+      })
+
       // Initialize git repository on filesystem
-      const gitPath = await initBareRepo(ownerId, data.name);
+      const gitPath = await initBareRepo(ownerKey, data.name);
       
       // Create initial commit with README
       const commitSha = await createCommit(
-        ownerId,
+        ownerKey,
         data.name,
         'Initial commit',
         [{ path: 'README.md', content: `# ${data.name}\n\n${data.description || 'No description provided'}` }],
         user.name || user.username || 'Unknown',
         user.email,
-        'main'
+        'main',
+        legacyOwnerKeys,
       );
       
       // Create repository record in database
@@ -156,7 +163,7 @@ export const createRepository = createServerFn({ method: 'POST' })
         },
       })
 
-      await syncRepositoryToR2(ownerId, data.name)
+      await syncRepositoryToR2(ownerKey, data.name, user.id, legacyOwnerKeys)
       
       // Return repo with owner info for navigation
       return {
@@ -294,6 +301,9 @@ export const updateRepository = createServerFn({ method: 'POST' })
     
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.id),
+      with: {
+        owner: true,
+      },
     })
     
     if (!repo) {
@@ -327,6 +337,9 @@ export const deleteRepository = createServerFn({ method: 'POST' })
     
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.id),
+      with: {
+        owner: true,
+      },
     })
     
     if (!repo) {
@@ -337,8 +350,16 @@ export const deleteRepository = createServerFn({ method: 'POST' })
       throw new Error('Only repository owner can delete')
     }
     
-    // Get owner ID as number
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const ownerKey = getStorageOwnerKey({
+      id: repo.owner.id,
+      username: repo.owner.username,
+      email: repo.owner.email,
+    })
+    const legacyOwnerKeys = getLegacyStorageOwnerKeys({
+      id: repo.owner.id,
+      username: repo.owner.username,
+      email: repo.owner.email,
+    })
     
     // Optionally backup before deleting (TODO: implement with isomorphic-git)
     // try {
@@ -348,7 +369,12 @@ export const deleteRepository = createServerFn({ method: 'POST' })
     // }
     
     // Delete git repository from filesystem
-    await deleteRepo(ownerId, repo.name);
+    await deleteRepo(ownerKey, repo.name);
+    for (const legacyOwnerKey of legacyOwnerKeys) {
+      if (legacyOwnerKey !== ownerKey) {
+        await deleteRepo(legacyOwnerKey, repo.name).catch(() => undefined)
+      }
+    }
     
     // Delete from database (cascades to related tables)
     await db.delete(repositories)

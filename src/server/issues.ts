@@ -5,6 +5,7 @@ import { issues, pullRequests, comments, repositories, activities, repositoryCol
 import { auth } from '../lib/auth';
 import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
+import { getRepoStorageCoordinates } from './git-storage-naming';
 
 // Git operations imports
 import { analyzeMerge, mergeBranches } from './git-merge-iso';
@@ -369,14 +370,15 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
     
     // Get repository
     const repo = pr.repository;
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getRepoStorageCoordinates(repo);
     
     // Analyze merge first to check for conflicts
     const analysis = await analyzeMerge(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       pr.sourceBranch,
-      pr.targetBranch
+      pr.targetBranch,
+      storage.legacyOwnerKeys,
     );
     
     if (!analysis.canMerge) {
@@ -388,7 +390,7 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
     // Perform the merge
     const mergeMessage = data.commitMessage || `Merge pull request #${pr.id}: ${pr.title}`;
     const mergeResult = await mergeBranches(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       pr.sourceBranch,
       pr.targetBranch,
@@ -397,7 +399,8 @@ export const mergePullRequest = createServerFn({ method: 'POST' })
         authorName: user.name || user.username || 'Unknown',
         authorEmail: user.email,
         strategy: data.strategy,
-      }
+      },
+      storage.legacyOwnerKeys,
     );
     
     if (!mergeResult.success) {

@@ -10,6 +10,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { parseGitUrl } from '#/lib/git-url-parser'
 import { authenticateGitRequest, createAuthChallenge } from '#/server/git-auth'
 import { handleInfoRefs, handleUploadPack, handleReceivePack } from '#/server/git-http-backend'
+import { getRepoStorageCoordinates } from '#/server/git-storage-naming'
 import { findRepositoryByName } from '#/server/repositories'
 import { formatErrorResponse } from '#/server/git-errors'
 
@@ -42,14 +43,17 @@ export const Route = createFileRoute('/api/git/$')({
             })
           }
           
+          const storage = getRepoStorageCoordinates(repository)
+
           // Handle info/refs request
           const result = await handleInfoRefs(
-            Number.parseInt(repository.ownerId, 10),
+            storage.ownerKey,
             repo,
             service,
             authContext,
             repository.updatedAt,
             repository.defaultBranch || 'main',
+            storage.legacyOwnerKeys,
           )
           
           return new Response(new Uint8Array(result.body), {
@@ -94,6 +98,8 @@ export const Route = createFileRoute('/api/git/$')({
             })
           }
           
+          const storage = getRepoStorageCoordinates(repository)
+
           // Read request body
           const requestBody = await request.arrayBuffer()
           
@@ -101,21 +107,24 @@ export const Route = createFileRoute('/api/git/$')({
           let result
           if (service === 'git-upload-pack') {
             result = await handleUploadPack(
-              Number.parseInt(repository.ownerId, 10),
+              storage.ownerKey,
               repo,
               requestBody,
               authContext,
               repository.updatedAt,
               repository.defaultBranch || 'main',
+              storage.legacyOwnerKeys,
             )
           } else if (service === 'git-receive-pack') {
             result = await handleReceivePack(
-              Number.parseInt(repository.ownerId, 10),
+              storage.ownerKey,
               repo,
               requestBody,
               authContext,
               repository.updatedAt,
               repository.defaultBranch || 'main',
+              repository.ownerId,
+              storage.legacyOwnerKeys,
             )
           } else {
             return new Response('Invalid service', { status: 400 })

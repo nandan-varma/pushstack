@@ -12,5 +12,5 @@ dist-ssr
 __unconfig*
 todos.json
 
-.git_repos/
-.git-repos/NaN/
+.git_repos/*
+.git-repos/

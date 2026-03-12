@@ -13,6 +13,7 @@ import { user } from '../db/schema';
 import { auth } from '../lib/auth';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
+import { getRepoStorageCoordinates } from './git-storage-naming';
 
 // Git operations imports (isomorphic-git)
 import * as GitOps from './git-operations-iso';
@@ -91,6 +92,10 @@ async function canWriteToRepo(repoId: number, userId: string) {
   return collab?.role === 'write' || collab?.role === 'admin';
 }
 
+function getStorage(repo: { ownerId: string; name: string; owner?: { id: string; username: string | null; email: string } | null }) {
+  return getRepoStorageCoordinates(repo)
+}
+
 /**
  * Get repository by owner username and name
  */
@@ -166,17 +171,18 @@ export const uploadFile = createServerFn({ method: 'POST' })
     
     // Decode content
     const buffer = Buffer.from(data.content, 'base64');
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Create commit with the file
     const commitSha = await GitOps.createCommit(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.commitMessage,
       [{ path: data.path, content: buffer }],
       user.name || user.username || 'Unknown',
       user.email,
-      data.branchName
+      data.branchName,
+      storage.legacyOwnerKeys,
     );
     
     // Update repository updated_at
@@ -216,6 +222,7 @@ export const getFile = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -226,14 +233,15 @@ export const getFile = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get file from git
     const fileInfo = await GitOps.getFileFromBranch(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.branchName,
-      data.path
+      data.path,
+      storage.legacyOwnerKeys,
     );
     
     return fileInfo;
@@ -254,6 +262,7 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -264,14 +273,15 @@ export const getFileDownloadUrl = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get file info
     const fileInfo = await GitOps.getFileFromBranch(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.branchName,
-      data.path
+      data.path,
+      storage.legacyOwnerKeys,
     );
     
     // For simplicity, return content directly
@@ -297,6 +307,7 @@ export const listFiles = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -307,14 +318,15 @@ export const listFiles = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get tree from git
     const entries = await GitOps.getTreeFromBranch(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.branchName,
-      data.path || ''
+      data.path || '',
+      storage.legacyOwnerKeys,
     );
     
     return entries;
@@ -340,22 +352,24 @@ export const deleteFile = createServerFn({ method: 'POST' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
       throw new Error('Repository not found');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Delete file and create commit
     const commitInfo = await GitOps.deleteFile(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.branchName,
       data.path,
       data.commitMessage,
-      { name: user.name || user.username || 'Unknown', email: user.email }
+      { name: user.name || user.username || 'Unknown', email: user.email },
+      storage.legacyOwnerKeys,
     );
     
     // Log activity
@@ -386,6 +400,7 @@ export const getBranches = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -396,10 +411,10 @@ export const getBranches = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get branches from git
-    const branches = await GitOps.getBranches(ownerId, repo.name);
+    const branches = await GitOps.getBranches(storage.ownerKey, repo.name, storage.legacyOwnerKeys);
     
     return branches;
   });
@@ -423,20 +438,22 @@ export const createBranch = createServerFn({ method: 'POST' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
       throw new Error('Repository not found');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Create branch in git
     await GitOps.createBranch(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.name,
-      data.fromBranch
+      data.fromBranch,
+      storage.legacyOwnerKeys,
     );
     
     return { success: true, name: data.name };
@@ -460,6 +477,7 @@ export const deleteBranch = createServerFn({ method: 'POST' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -471,10 +489,10 @@ export const deleteBranch = createServerFn({ method: 'POST' })
       throw new Error('Cannot delete default branch');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Delete branch from git
-    await GitOps.deleteBranch(ownerId, repo.name, data.name);
+    await GitOps.deleteBranch(storage.ownerKey, repo.name, data.name, storage.legacyOwnerKeys);
     
     return { success: true };
   });
@@ -495,6 +513,7 @@ export const getCommits = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -505,15 +524,16 @@ export const getCommits = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get commit history from git
     const commits = await GitOps.getCommitHistory(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.branchName,
       data.limit,
-      data.skip
+      data.skip,
+      storage.legacyOwnerKeys,
     );
     
     return commits.map((commit) => ({
@@ -543,6 +563,7 @@ export const getCommit = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -553,10 +574,10 @@ export const getCommit = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get commit from git
-    const commit = await GitOps.getCommit(ownerId, repo.name, data.commitSha);
+    const commit = await GitOps.getCommit(storage.ownerKey, repo.name, data.commitSha, storage.legacyOwnerKeys);
     
     return {
       sha: commit.oid,
@@ -592,6 +613,7 @@ export const getCommitDiff = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -602,10 +624,10 @@ export const getCommitDiff = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get diff from git
-    const diff = await GitDiff.getCommitDiff(ownerId, repo.name, data.commitSha);
+    const diff = await GitDiff.getCommitDiff(storage.ownerKey, repo.name, data.commitSha, storage.legacyOwnerKeys);
     
     return diff;
   });
@@ -625,6 +647,7 @@ export const getBranchDiff = createServerFn({ method: 'GET' })
     // Get repository
     const repo = await db.query.repositories.findFirst({
       where: eq(repositories.id, data.repoId),
+      with: { owner: true },
     });
     
     if (!repo) {
@@ -635,14 +658,15 @@ export const getBranchDiff = createServerFn({ method: 'GET' })
       throw new Error('Access denied');
     }
     
-    const ownerId = Number.parseInt(repo.ownerId, 10);
+    const storage = getStorage(repo)
     
     // Get diff from git
     const diff = await GitDiff.getDiffBetweenBranches(
-      ownerId,
+      storage.ownerKey,
       repo.name,
       data.sourceBranch,
-      data.targetBranch
+      data.targetBranch,
+      storage.legacyOwnerKeys,
     );
     
     return diff;

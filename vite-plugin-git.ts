@@ -25,6 +25,7 @@ export function gitHttpProtocol(): Plugin {
             handleUploadPack, 
             handleReceivePack,
           } = await import('./src/server/git-http-backend')
+          const { getRepoStorageCoordinates } = await import('./src/server/git-storage-naming')
           const { findRepositoryByName } = await import('./src/server/repositories')
           const { formatErrorResponse } = await import('./src/server/git-errors')
           
@@ -93,16 +94,19 @@ export function gitHttpProtocol(): Plugin {
             return
           }
           
+          const storage = getRepoStorageCoordinates(repository)
+
           // Handle GET (info/refs)
           if (req.method === 'GET' && isInfoRefs && service) {
             try {
               const result = await handleInfoRefs(
-                Number.parseInt(repository.ownerId, 10),
+                storage.ownerKey,
                 repo,
                 service,
                 authContext,
                 repository.updatedAt,
                 repository.defaultBranch || 'main',
+                storage.legacyOwnerKeys,
               )
               res.statusCode = result.status
               Object.entries(result.headers).forEach(([key, value]) => {
@@ -131,21 +135,24 @@ export function gitHttpProtocol(): Plugin {
                 let result
                 if (service === 'git-upload-pack') {
                   result = await handleUploadPack(
-                    Number.parseInt(repository.ownerId, 10),
+                    storage.ownerKey,
                     repo,
                     requestBody,
                     authContext,
                     repository.updatedAt,
                     repository.defaultBranch || 'main',
+                    storage.legacyOwnerKeys,
                   )
                 } else if (service === 'git-receive-pack') {
                   result = await handleReceivePack(
-                    Number.parseInt(repository.ownerId, 10),
+                    storage.ownerKey,
                     repo,
                     requestBody,
                     authContext,
                     repository.updatedAt,
                     repository.defaultBranch || 'main',
+                    repository.ownerId,
+                    storage.legacyOwnerKeys,
                   )
                 } else {
                   res.statusCode = 400

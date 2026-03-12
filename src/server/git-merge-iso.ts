@@ -24,21 +24,22 @@ export interface MergeOptions {
   authorEmail?: string;
 }
 
-async function getRepoOptions(ownerId: number, repoName: string) {
-  await ensureRepositoryHydrated(ownerId, repoName)
-  return getBareRepoOptions(ownerId, repoName)
+async function getRepoOptions(ownerKey: string, repoName: string, legacyOwnerKeys: string[] = []) {
+  await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys)
+  return getBareRepoOptions(ownerKey, repoName)
 }
 
 /**
  * Analyze if two branches can be merged
  */
 export async function analyzeMerge(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   sourceBranch: string,
-  targetBranch: string
+  targetBranch: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<MergeAnalysis> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
 
   try {
     // Check if branches exist
@@ -72,14 +73,15 @@ export async function analyzeMerge(
  * Merge two branches
  */
 export async function mergeBranches(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   sourceBranch: string,
   targetBranch: string,
-  options: MergeOptions = {}
+  options: MergeOptions = {},
+  legacyOwnerKeys: string[] = [],
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
   try {
-    const commitOid = await withRepositoryWorktree(ownerId, repoName, targetBranch, async ({ worktreePath }) => {
+    const commitOid = await withRepositoryWorktree(ownerKey, repoName, targetBranch, async ({ worktreePath }) => {
       await git.merge({
         fs,
         dir: worktreePath,
@@ -96,9 +98,9 @@ export async function mergeBranches(
         message: options.message || `Merge ${sourceBranch} into ${targetBranch}`,
       })
 
-      const repo = await getRepoOptions(ownerId, repoName)
+      const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
       return git.resolveRef({ ...repo, ref: targetBranch })
-    })
+    }, 'main', legacyOwnerKeys)
 
     return {
       success: true,
@@ -117,11 +119,12 @@ export async function mergeBranches(
  * Resolve merge conflicts (simplified)
  */
 export async function resolveConflicts(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
-  resolutions: Array<{ path: string; content: string }>
+  resolutions: Array<{ path: string; content: string }>,
+  legacyOwnerKeys: string[] = [],
 ): Promise<void> {
-  await withRepositoryWorktree(ownerId, repoName, 'main', async ({ worktreePath }) => {
+  await withRepositoryWorktree(ownerKey, repoName, 'main', async ({ worktreePath }) => {
     for (const resolution of resolutions) {
       const filePath = path.join(worktreePath, resolution.path)
       fs.writeFileSync(filePath, resolution.content)
@@ -134,5 +137,5 @@ export async function resolveConflicts(
       message: 'Resolve merge conflicts',
       author: getDefaultAuthor(),
     })
-  })
+  }, 'main', legacyOwnerKeys)
 }

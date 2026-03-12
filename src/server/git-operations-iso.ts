@@ -47,13 +47,13 @@ export interface CommitInfo {
   payload: string
 }
 
-async function getRepoOptions(ownerId: number, repoName: string) {
-  await ensureRepositoryHydrated(ownerId, repoName)
-  return getBareRepoOptions(ownerId, repoName)
+async function getRepoOptions(ownerKey: string, repoName: string, legacyOwnerKeys: string[] = []) {
+  await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys)
+  return getBareRepoOptions(ownerKey, repoName)
 }
 
-async function resolveCommit(ownerId: number, repoName: string, ref: string) {
-  const repo = await getRepoOptions(ownerId, repoName)
+async function resolveCommit(ownerKey: string, repoName: string, ref: string, legacyOwnerKeys: string[] = []) {
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   const oid = await git.resolveRef({ ...repo, ref })
   const result = await git.readCommit({ ...repo, oid })
 
@@ -130,19 +130,20 @@ async function listTreeEntries(
  * Create a commit with files.
  */
 export async function createCommit(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   message: string,
   files: Array<{ path: string; content: string | Buffer }>,
   authorName?: string,
   authorEmail?: string,
   branch: string = 'main',
+  legacyOwnerKeys: string[] = [],
 ): Promise<string> {
   const author = authorName && authorEmail
     ? { name: authorName, email: authorEmail, timestamp: Math.floor(Date.now() / 1000), timezoneOffset: 0 }
     : getDefaultAuthor()
 
-  return withRepositoryWorktree(ownerId, repoName, branch, async ({ worktreePath }) => {
+  return withRepositoryWorktree(ownerKey, repoName, branch, async ({ worktreePath }) => {
     for (const file of files) {
       const filePath = path.join(worktreePath, file.path)
       fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -163,14 +164,14 @@ export async function createCommit(
       author,
       committer: author,
     })
-  })
+  }, 'main', legacyOwnerKeys)
 }
 
 /**
  * Get list of branches.
  */
-export async function getBranches(ownerId: number, repoName: string): Promise<Branch[]> {
-  const repo = await getRepoOptions(ownerId, repoName)
+export async function getBranches(ownerKey: string, repoName: string, legacyOwnerKeys: string[] = []): Promise<Branch[]> {
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   const branches = await git.listBranches(repo)
   const currentBranch = await git.currentBranch({ ...repo, fullname: false })
 
@@ -185,39 +186,42 @@ export async function getBranches(ownerId: number, repoName: string): Promise<Br
  * Create a new branch.
  */
 export async function createBranch(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
   startPoint: string = 'main',
+  legacyOwnerKeys: string[] = [],
 ): Promise<void> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   const object = await git.resolveRef({ ...repo, ref: `refs/heads/${startPoint}` })
   await git.branch({ ...repo, ref: branchName, checkout: false, object })
-  await syncRepositoryToR2(ownerId, repoName)
+  await syncRepositoryToR2(ownerKey, repoName, undefined, legacyOwnerKeys)
 }
 
 /**
  * Delete a branch.
  */
 export async function deleteBranch(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<void> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   await git.deleteBranch({ ...repo, ref: branchName })
-  await syncRepositoryToR2(ownerId, repoName)
+  await syncRepositoryToR2(ownerKey, repoName, undefined, legacyOwnerKeys)
 }
 
 /**
  * Get a blob by OID.
  */
 export async function getBlob(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   sha: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<Buffer> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   const { blob } = await git.readBlob({ ...repo, oid: sha })
   return Buffer.from(blob)
 }
@@ -226,12 +230,13 @@ export async function getBlob(
  * Get file content from a ref.
  */
 export async function getFileContent(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   filePath: string,
   ref: string = 'main',
+  legacyOwnerKeys: string[] = [],
 ): Promise<Buffer> {
-  const { repo, commit } = await resolveCommit(ownerId, repoName, ref)
+  const { repo, commit } = await resolveCommit(ownerKey, repoName, ref, legacyOwnerKeys)
   const entry = await findTreeEntry(repo, commit.tree, filePath)
 
   if (!entry || entry.type !== 'blob') {
@@ -246,23 +251,25 @@ export async function getFileContent(
  * Get tree entries for a ref.
  */
 export async function getTree(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   ref: string = 'main',
   treePath: string = '',
+  legacyOwnerKeys: string[] = [],
 ): Promise<TreeEntry[]> {
-  return getTreeFromBranch(ownerId, repoName, ref, treePath)
+  return getTreeFromBranch(ownerKey, repoName, ref, treePath, legacyOwnerKeys)
 }
 
 /**
  * Get commit information.
  */
 export async function getCommit(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   sha: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   const result = await git.readCommit({ ...repo, oid: sha })
 
   return {
@@ -276,12 +283,13 @@ export async function getCommit(
  * Get commit log.
  */
 export async function getCommitLog(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   ref: string = 'main',
   depth: number = 50,
+  legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo[]> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   const commits = await git.log({ ...repo, ref, depth })
 
   return commits.map((commit) => ({
@@ -295,11 +303,12 @@ export async function getCommitLog(
  * Checkout validation for compatibility with older callers.
  */
 export async function checkoutBranch(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<void> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
   await git.resolveRef({ ...repo, ref: `refs/heads/${branchName}` })
 }
 
@@ -307,12 +316,13 @@ export async function checkoutBranch(
  * Get a file from a branch.
  */
 export async function getFileFromBranch(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
   filePath: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<{ content: string; size: number; isBinary: boolean }> {
-  const buffer = await getFileContent(ownerId, repoName, filePath, branchName)
+  const buffer = await getFileContent(ownerKey, repoName, filePath, branchName, legacyOwnerKeys)
   const isBinary = buffer.includes(0)
 
   return {
@@ -326,12 +336,13 @@ export async function getFileFromBranch(
  * Get tree entries from a branch with an optional subdirectory path.
  */
 export async function getTreeFromBranch(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
   treePath: string = '',
+  legacyOwnerKeys: string[] = [],
 ): Promise<TreeEntry[]> {
-  const { repo, commit } = await resolveCommit(ownerId, repoName, branchName)
+  const { repo, commit } = await resolveCommit(ownerKey, repoName, branchName, legacyOwnerKeys)
 
   if (!treePath) {
     return listTreeEntries(repo, commit.tree)
@@ -350,12 +361,13 @@ export async function getTreeFromBranch(
  * Delete a file by creating a commit without it.
  */
 export async function deleteFile(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
   filePath: string,
   message: string,
   author: { name: string; email: string },
+  legacyOwnerKeys: string[] = [],
 ): Promise<{ sha: string; message: string }> {
   const authorInfo = {
     name: author.name,
@@ -364,7 +376,7 @@ export async function deleteFile(
     timezoneOffset: 0,
   }
 
-  const sha = await withRepositoryWorktree(ownerId, repoName, branchName, async ({ worktreePath }) => {
+  const sha = await withRepositoryWorktree(ownerKey, repoName, branchName, async ({ worktreePath }) => {
     const fullPath = path.join(worktreePath, filePath)
     fs.rmSync(fullPath, { force: true })
     await git.remove({ fs, dir: worktreePath, filepath: filePath })
@@ -378,7 +390,7 @@ export async function deleteFile(
       author: authorInfo,
       committer: authorInfo,
     })
-  })
+  }, 'main', legacyOwnerKeys)
 
   return { sha, message }
 }
@@ -387,12 +399,13 @@ export async function deleteFile(
  * Get commit history with skip/limit.
  */
 export async function getCommitHistory(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
   limit: number = 50,
   skip: number = 0,
+  legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo[]> {
-  const all = await getCommitLog(ownerId, repoName, branchName, limit + skip)
+  const all = await getCommitLog(ownerKey, repoName, branchName, limit + skip, legacyOwnerKeys)
   return all.slice(skip, skip + limit)
 }

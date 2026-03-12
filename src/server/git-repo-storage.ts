@@ -7,7 +7,8 @@ import { db } from '#/db'
 import { repositories } from '#/db/github-schema'
 import { bulkDeleteFromR2, bulkUploadToR2, downloadFromR2, listAllR2Files } from '#/lib/r2-operations'
 import { isR2Configured } from '#/lib/r2'
-import { ensureGitBaseDir, getRepoDiskUsage, initBareRepo, resolveRepoPath } from './git-manager-iso'
+import { ensureGitBaseDir, getRepoDiskUsage, getRepoPath, initBareRepo } from './git-manager-iso'
+import { getLegacyGitPrefixes, getRepoGitStoragePrefix, getRepoStorageRoot } from './git-storage-naming'
 
 type RepoState = {
   hydratedAt?: number
@@ -17,12 +18,49 @@ type RepoState = {
 const repoLocks = new Map<string, Promise<void>>()
 const repoState = new Map<string, RepoState>()
 
-function getRepoKey(ownerId: number | string, repoName: string): string {
-  return `${ownerId}/${repoName}`
+const LEGACY_GIT_BASE_PATH = path.join(process.cwd(), 'data', 'repos')
+
+function getRepoKey(ownerKey: string, repoName: string): string {
+  return `${ownerKey}/${repoName}`
 }
 
-function getRepoPrefix(ownerId: number | string, repoName: string): string {
-  return `repos/${ownerId}/${repoName}/`
+function getRepoPrefix(ownerKey: string, repoName: string): string {
+  return getRepoGitStoragePrefix(ownerKey, repoName)
+}
+
+function getLegacyLocalRepoPaths(legacyOwnerKeys: string[], repoName: string): string[] {
+  const paths = legacyOwnerKeys.flatMap((legacyOwnerKey) => ([
+    path.join(path.dirname(path.dirname(getRepoPath(legacyOwnerKey, repoName))), legacyOwnerKey, repoName),
+    path.join(LEGACY_GIT_BASE_PATH, legacyOwnerKey, repoName),
+  ]))
+
+  return [...new Set(paths)]
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.access(targetPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function promoteLegacyLocalRepo(canonicalRepoPath: string, legacyRepoPaths: string[]): Promise<void> {
+  if (await pathExists(path.join(canonicalRepoPath, 'HEAD'))) {
+    return
+  }
+
+  for (const legacyRepoPath of legacyRepoPaths) {
+    if (!(await pathExists(path.join(legacyRepoPath, 'HEAD')))) {
+      continue
+    }
+
+    await fs.mkdir(path.dirname(canonicalRepoPath), { recursive: true })
+    await fs.rm(canonicalRepoPath, { recursive: true, force: true })
+    await fs.rename(legacyRepoPath, canonicalRepoPath)
+    return
+  }
 }
 
 async function listLocalFiles(dir: string, baseDir: string = dir): Promise<string[]> {
@@ -51,12 +89,16 @@ async function listLocalFiles(dir: string, baseDir: string = dir): Promise<strin
   return files.flat().sort()
 }
 
-async function writeRemoteFilesToDisk(repoPath: string, remoteFiles: Awaited<ReturnType<typeof listAllR2Files>>) {
+async function writeRemoteFilesToDisk(
+  repoPath: string,
+  remoteFiles: Awaited<ReturnType<typeof listAllR2Files>>,
+  sourcePrefix: string,
+) {
   await fs.rm(repoPath, { recursive: true, force: true })
   await fs.mkdir(repoPath, { recursive: true })
 
   for (const file of remoteFiles) {
-    const relativePath = file.key.replace(/^repos\/[^/]+\/[^/]+\//, '')
+    const relativePath = file.key.slice(sourcePrefix.length)
     const destination = path.join(repoPath, relativePath)
     const parent = path.dirname(destination)
 
@@ -68,15 +110,16 @@ async function writeRemoteFilesToDisk(repoPath: string, remoteFiles: Awaited<Ret
 }
 
 async function ensureRepositoryHydratedUnlocked(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
+  legacyOwnerKeys: string[] = [],
   remoteUpdatedAt?: Date | null,
   defaultBranch: string = 'main',
 ): Promise<string> {
   await ensureGitBaseDir()
 
-  const repoPath = await resolveRepoPath(ownerId, repoName)
-  const repoKey = getRepoKey(ownerId, repoName)
+  const repoPath = getRepoPath(ownerKey, repoName)
+  const repoKey = getRepoKey(ownerKey, repoName)
   const state = repoState.get(repoKey)
   const remoteVersion = remoteUpdatedAt?.getTime()
 
@@ -84,23 +127,38 @@ async function ensureRepositoryHydratedUnlocked(
     return repoPath
   }
 
+  await promoteLegacyLocalRepo(repoPath, getLegacyLocalRepoPaths(legacyOwnerKeys, repoName))
+
   if (!isR2Configured()) {
     try {
       await fs.access(path.join(repoPath, 'HEAD'))
     } catch {
-      await initBareRepo(ownerId, repoName, defaultBranch)
+      await initBareRepo(ownerKey, repoName, defaultBranch)
     }
 
     return repoPath
   }
 
-  const remoteFiles = await listAllR2Files(getRepoPrefix(ownerId, repoName))
+  const candidatePrefixes = [
+    getRepoPrefix(ownerKey, repoName),
+    ...getLegacyGitPrefixes(legacyOwnerKeys, repoName),
+  ]
+
+  let remoteFiles: Awaited<ReturnType<typeof listAllR2Files>> = []
+  let sourcePrefix = getRepoPrefix(ownerKey, repoName)
+  for (const prefix of candidatePrefixes) {
+    remoteFiles = await listAllR2Files(prefix)
+    if (remoteFiles.length > 0) {
+      sourcePrefix = prefix
+      break
+    }
+  }
 
   if (remoteFiles.length === 0) {
     try {
       await fs.access(path.join(repoPath, 'HEAD'))
     } catch {
-      await initBareRepo(ownerId, repoName, defaultBranch)
+      await initBareRepo(ownerKey, repoName, defaultBranch)
     }
 
     repoState.set(repoKey, {
@@ -111,7 +169,7 @@ async function ensureRepositoryHydratedUnlocked(
     return repoPath
   }
 
-  await writeRemoteFilesToDisk(repoPath, remoteFiles)
+  await writeRemoteFilesToDisk(repoPath, remoteFiles, sourcePrefix)
 
   repoState.set(repoKey, {
     ...state,
@@ -122,11 +180,11 @@ async function ensureRepositoryHydratedUnlocked(
 }
 
 export async function withRepositoryLock<T>(
-  ownerId: number | string,
+  ownerKey: string,
   repoName: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const repoKey = getRepoKey(ownerId, repoName)
+  const repoKey = getRepoKey(ownerKey, repoName)
   const previous = repoLocks.get(repoKey) ?? Promise.resolve()
   let release!: () => void
   const current = new Promise<void>((resolve) => {
@@ -149,46 +207,57 @@ export async function withRepositoryLock<T>(
 }
 
 export async function ensureRepositoryHydrated(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
+  legacyOwnerKeys: string[] = [],
   remoteUpdatedAt?: Date | null,
   defaultBranch: string = 'main',
 ): Promise<string> {
-  return withRepositoryLock(ownerId, repoName, () => ensureRepositoryHydratedUnlocked(ownerId, repoName, remoteUpdatedAt, defaultBranch))
+  return withRepositoryLock(ownerKey, repoName, () => ensureRepositoryHydratedUnlocked(ownerKey, repoName, legacyOwnerKeys, remoteUpdatedAt, defaultBranch))
 }
 
 async function updateRepositoryBackupMetadata(
-  ownerId: number,
+  ownerDbId: string | undefined,
+  ownerKey: string,
   repoName: string,
   repoPath: string,
 ): Promise<void> {
+  if (!ownerDbId) {
+    return
+  }
+
   const diskUsage = await getRepoDiskUsage(repoPath)
 
   await db.update(repositories)
     .set({
       diskUsage,
       lastBackupAt: new Date(),
-      backupR2Key: `repos/${ownerId}/${repoName}`,
+      backupR2Key: getRepoStorageRoot(ownerKey, repoName),
       updatedAt: new Date(),
     })
     .where(and(
-      eq(repositories.ownerId, String(ownerId)),
+      eq(repositories.ownerId, ownerDbId),
       eq(repositories.name, repoName),
     ))
 }
 
-export async function syncRepositoryToR2(ownerId: number, repoName: string): Promise<void> {
-  await withRepositoryLock(ownerId, repoName, () => syncRepositoryToR2Unlocked(ownerId, repoName))
+export async function syncRepositoryToR2(
+  ownerKey: string,
+  repoName: string,
+  ownerDbId?: string,
+  legacyOwnerKeys: string[] = [],
+): Promise<void> {
+  await withRepositoryLock(ownerKey, repoName, () => syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId, legacyOwnerKeys))
 }
 
 export async function initRepositoryStorage(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   defaultBranch: string = 'main',
 ): Promise<string> {
-  return withRepositoryLock(ownerId, repoName, async () => {
-    const repoPath = await initBareRepo(ownerId, repoName, defaultBranch)
-    await syncRepositoryToR2Unlocked(ownerId, repoName)
+  return withRepositoryLock(ownerKey, repoName, async () => {
+    const repoPath = await initBareRepo(ownerKey, repoName, defaultBranch)
+    await syncRepositoryToR2Unlocked(ownerKey, repoName)
     return repoPath
   })
 }
@@ -209,15 +278,16 @@ async function branchExists(gitdir: string, branchName: string): Promise<boolean
 }
 
 export async function withRepositoryWorktree<T>(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   branchName: string,
   fn: (context: { worktreePath: string; gitdir: string }) => Promise<T>,
   defaultBranch: string = 'main',
+  legacyOwnerKeys: string[] = [],
 ): Promise<T> {
-  return withRepositoryLock(ownerId, repoName, async () => {
-    const gitdir = await ensureRepositoryHydratedUnlocked(ownerId, repoName, undefined, defaultBranch)
-    const worktreeRoot = await fs.mkdtemp(path.join(os.tmpdir(), `pushstack-${ownerId}-${repoName}-`))
+  return withRepositoryLock(ownerKey, repoName, async () => {
+    const gitdir = await ensureRepositoryHydratedUnlocked(ownerKey, repoName, legacyOwnerKeys, undefined, defaultBranch)
+    const worktreeRoot = await fs.mkdtemp(path.join(os.tmpdir(), `pushstack-${ownerKey}-${repoName}-`))
     const worktreePath = path.join(worktreeRoot, 'worktree')
 
     try {
@@ -242,7 +312,7 @@ export async function withRepositoryWorktree<T>(
 
       const result = await fn({ worktreePath, gitdir })
       await run(['-C', worktreePath, 'push', 'origin', `HEAD:refs/heads/${branchName}`])
-      await syncRepositoryToR2Unlocked(ownerId, repoName)
+      await syncRepositoryToR2Unlocked(ownerKey, repoName, undefined, legacyOwnerKeys)
       return result
     } finally {
       await fs.rm(worktreeRoot, { recursive: true, force: true })
@@ -250,9 +320,16 @@ export async function withRepositoryWorktree<T>(
   })
 }
 
-async function syncRepositoryToR2Unlocked(ownerId: number, repoName: string): Promise<void> {
-  const repoPath = await resolveRepoPath(ownerId, repoName)
-  const repoKey = getRepoKey(ownerId, repoName)
+async function syncRepositoryToR2Unlocked(
+  ownerKey: string,
+  repoName: string,
+  ownerDbId?: string,
+  legacyOwnerKeys: string[] = [],
+): Promise<void> {
+  const repoPath = getRepoPath(ownerKey, repoName)
+  const repoKey = getRepoKey(ownerKey, repoName)
+
+  await promoteLegacyLocalRepo(repoPath, getLegacyLocalRepoPaths(legacyOwnerKeys, repoName))
 
   if (!isR2Configured()) {
     repoState.set(repoKey, {
@@ -263,7 +340,7 @@ async function syncRepositoryToR2Unlocked(ownerId: number, repoName: string): Pr
   }
 
   const localFiles = await listLocalFiles(repoPath)
-  const prefix = getRepoPrefix(ownerId, repoName)
+  const prefix = getRepoPrefix(ownerKey, repoName)
   const remoteFiles = await listAllR2Files(prefix)
   const remoteKeys = new Set(remoteFiles.map((file) => file.key))
 
@@ -300,7 +377,15 @@ async function syncRepositoryToR2Unlocked(ownerId: number, repoName: string): Pr
     await bulkDeleteFromR2(staleKeys)
   }
 
-  await updateRepositoryBackupMetadata(ownerId, repoName, repoPath)
+  const legacyPrefixes = getLegacyGitPrefixes(legacyOwnerKeys, repoName)
+  for (const legacyPrefix of legacyPrefixes) {
+    const legacyFiles = await listAllR2Files(legacyPrefix)
+    if (legacyFiles.length > 0) {
+      await bulkDeleteFromR2(legacyFiles.map((file) => file.key))
+    }
+  }
+
+  await updateRepositoryBackupMetadata(ownerDbId, ownerKey, repoName, repoPath)
 
   repoState.set(repoKey, {
     hydratedAt: Date.now(),

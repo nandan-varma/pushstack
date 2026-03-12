@@ -11,17 +11,17 @@ import { getRepoPath } from './git-manager-iso'
  * Handle git-upload-pack request (clone/fetch operations)
  * This implements the server side of git clone/fetch
  * 
- * @param ownerId Repository owner ID
+ * @param ownerKey Repository owner key
  * @param repoName Repository name
  * @param requestBody Request body from git client
  * @returns Response body to send back to git client
  */
 export async function handleGitUploadPack(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   _requestBody: Buffer
 ): Promise<Buffer> {
-  const repoPath = getRepoPath(ownerId, repoName)
+  const repoPath = getRepoPath(ownerKey, repoName)
   
   // Verify repository exists
   if (!fs.existsSync(repoPath)) {
@@ -50,17 +50,17 @@ export async function handleGitUploadPack(
  * Handle git-receive-pack request (push operations)
  * This implements the server side of git push
  * 
- * @param ownerId Repository owner ID
+ * @param ownerKey Repository owner key
  * @param repoName Repository name
  * @param requestBody Request body from git client
  * @returns Response body to send back to git client
  */
 export async function handleGitReceivePack(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   _requestBody: Buffer
 ): Promise<Buffer> {
-  const repoPath = getRepoPath(ownerId, repoName)
+  const repoPath = getRepoPath(ownerKey, repoName)
   
   // Verify repository exists
   if (!fs.existsSync(repoPath)) {
@@ -85,17 +85,17 @@ export async function handleGitReceivePack(
  * Get git info/refs for a repository (used in initial handshake)
  * This is the first request made by git clone/fetch/push
  * 
- * @param ownerId Repository owner ID
+ * @param ownerKey Repository owner key
  * @param repoName Repository name
  * @param service Service name (git-upload-pack or git-receive-pack)
  * @returns Response body in git protocol format
  */
 export async function getGitInfoRefs(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   service: 'git-upload-pack' | 'git-receive-pack'
 ): Promise<string> {
-  const repoPath = getRepoPath(ownerId, repoName)
+  const repoPath = getRepoPath(ownerKey, repoName)
   
   // Verify repository exists
   if (!fs.existsSync(repoPath)) {
@@ -136,12 +136,12 @@ export async function getGitInfoRefs(
 
 /**
  * Get repository metadata for git operations
- * @param ownerId Repository owner ID
+ * @param ownerKey Repository owner key
  * @param repoName Repository name
  * @returns Repository metadata
  */
-export async function getRepoMetadata(ownerId: number, repoName: string) {
-  const repoPath = getRepoPath(ownerId, repoName)
+export async function getRepoMetadata(ownerKey: string, repoName: string) {
+  const repoPath = getRepoPath(ownerKey, repoName)
   
   if (!fs.existsSync(repoPath)) {
     throw new Error('Repository not found on filesystem')
@@ -195,13 +195,13 @@ export async function getRepoMetadata(ownerId: number, repoName: string) {
 
 /**
  * Check if repository is empty (has no commits)
- * @param ownerId Repository owner ID
+ * @param ownerKey Repository owner key
  * @param repoName Repository name
  * @returns true if repository has no commits
  */
-export async function isEmptyRepo(ownerId: number, repoName: string): Promise<boolean> {
+export async function isEmptyRepo(ownerKey: string, repoName: string): Promise<boolean> {
   try {
-    const metadata = await getRepoMetadata(ownerId, repoName)
+    const metadata = await getRepoMetadata(ownerKey, repoName)
     return !metadata.hasCommits
   } catch {
     // If we can't get metadata, assume not empty to avoid showing setup page

@@ -12,13 +12,15 @@ import { db } from '../src/db'
 import { repositories } from '../src/db/github-schema'
 import { eq, isNull, or } from 'drizzle-orm'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import os from 'node:os'
 import { join } from 'node:path'
 import { bulkUploadToR2 } from '../src/lib/r2-operations'
+import { getLegacyStorageOwnerKeys, getRepoGitStoragePrefix, getRepoStorageCoordinates } from '../src/server/git-storage-naming'
 
 // Configuration
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '10', 10)
 const DRY_RUN = process.argv.includes('--dry-run')
-const GIT_REPOS_PATH = process.env.GIT_REPOS_PATH || '.git-repos'
+const GIT_REPOS_PATH = process.env.GIT_REPOS_PATH || join(os.homedir(), '.pushstack', 'repos')
 
 interface MigrationStats {
   total: number
@@ -57,16 +59,21 @@ function getAllFiles(dir: string, baseDir: string = dir): string[] {
 /**
  * Migrate a single repository from filesystem to R2
  */
-async function migrateRepository(repo: typeof repositories.$inferSelect): Promise<boolean> {
-  const repoPath = join(GIT_REPOS_PATH, repo.ownerId, repo.name)
-  
-  // Check if repository exists on filesystem
-  if (!existsSync(repoPath)) {
-    console.log(`  ⚠️  Repository not found on filesystem: ${repoPath}`)
+async function migrateRepository(repo: typeof repositories.$inferSelect & {
+  owner: { id: string; username: string | null; email: string }
+}): Promise<boolean> {
+  const storage = getRepoStorageCoordinates(repo)
+  const legacyOwnerKeys = [storage.ownerKey, ...getLegacyStorageOwnerKeys(repo.owner)]
+  const repoPath = legacyOwnerKeys
+    .map((ownerKey) => join(GIT_REPOS_PATH, ownerKey, repo.name))
+    .find((candidate) => existsSync(candidate))
+
+  if (!repoPath) {
+    console.log(`  Repository not found on filesystem for ${storage.ownerKey}/${repo.name}`)
     return false
   }
   
-  console.log(`  📦 Migrating ${repo.ownerId}/${repo.name}...`)
+  console.log(`  Migrating ${storage.ownerKey}/${repo.name}...`)
   
   try {
     // Get all files in repository
@@ -82,7 +89,7 @@ async function migrateRepository(repo: typeof repositories.$inferSelect): Promis
     const uploads = files.map(file => {
       const fullPath = join(repoPath, file)
       const content = readFileSync(fullPath)
-      const r2Key = `repos/${repo.ownerId}/${repo.name}/${file}`
+      const r2Key = `${getRepoGitStoragePrefix(storage.ownerKey, repo.name)}${file}`
       
       // Determine content type
       let contentType = 'application/octet-stream'
@@ -124,7 +131,7 @@ async function migrateRepository(repo: typeof repositories.$inferSelect): Promis
     await db.update(repositories)
       .set({ 
         lastBackupAt: new Date(),
-        backupR2Key: `repos/${repo.ownerId}/${repo.name}`,
+        backupR2Key: `repos/${storage.ownerKey}/${repo.name}`,
       })
       .where(eq(repositories.id, repo.id))
     
@@ -160,6 +167,9 @@ async function migrate() {
         isNull(repositories.lastBackupAt),
         isNull(repositories.backupR2Key)
       ),
+      with: {
+        owner: true,
+      },
       limit: BATCH_SIZE,
     })
     
@@ -206,6 +216,9 @@ async function migrate() {
         isNull(repositories.lastBackupAt),
         isNull(repositories.backupR2Key)
       ),
+      with: {
+        owner: true,
+      },
       limit: 1,
     })
     

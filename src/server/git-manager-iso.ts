@@ -12,50 +12,21 @@ import os from 'node:os'
 import path from 'node:path'
 
 // Configuration
-const LEGACY_GIT_BASE_PATH = path.join(process.cwd(), 'data', 'repos')
 const GIT_BASE_PATH = process.env.GIT_REPOS_PATH || path.join(os.homedir(), '.pushstack', 'repos')
 const DEFAULT_USER_NAME = 'PushStack'
 const DEFAULT_USER_EMAIL = 'system@pushstack.dev'
 
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.access(targetPath)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * Get the filesystem path for a repository
  */
-export function getRepoPath(ownerId: number, repoName: string): string {
-  return path.join(GIT_BASE_PATH, String(ownerId), repoName)
+export function getRepoPath(ownerKey: string, repoName: string): string {
+  return path.join(GIT_BASE_PATH, ownerKey, repoName)
 }
 
-export function getLegacyRepoPath(ownerId: number, repoName: string): string {
-  return path.join(LEGACY_GIT_BASE_PATH, String(ownerId), repoName)
-}
-
-export async function resolveRepoPath(ownerId: number, repoName: string): Promise<string> {
-  const preferredPath = getRepoPath(ownerId, repoName)
-
-  if (await pathExists(path.join(preferredPath, 'HEAD'))) {
-    return preferredPath
-  }
-
-  const legacyPath = getLegacyRepoPath(ownerId, repoName)
-  if (await pathExists(path.join(legacyPath, 'HEAD'))) {
-    return legacyPath
-  }
-
-  return preferredPath
-}
-
-export function getBareRepoOptions(ownerId: number, repoName: string) {
+export function getBareRepoOptions(ownerKey: string, repoName: string) {
   return {
     fs,
-    gitdir: getRepoPath(ownerId, repoName),
+    gitdir: getRepoPath(ownerKey, repoName),
   }
 }
 
@@ -69,8 +40,8 @@ export async function ensureGitBaseDir(): Promise<void> {
 /**
  * Initialize a new repository
  */
-export async function initBareRepo(ownerId: number, repoName: string, defaultBranch: string = 'main'): Promise<string> {
-  const dir = getRepoPath(ownerId, repoName)
+export async function initBareRepo(ownerKey: string, repoName: string, defaultBranch: string = 'main'): Promise<string> {
+  const dir = getRepoPath(ownerKey, repoName)
   
   // Ensure parent directory exists
   await fs.mkdir(path.dirname(dir), { recursive: true })
@@ -89,8 +60,8 @@ export async function initBareRepo(ownerId: number, repoName: string, defaultBra
 /**
  * Check if a repository exists on filesystem
  */
-export async function repoExists(ownerId: number, repoName: string): Promise<boolean> {
-  const dir = await resolveRepoPath(ownerId, repoName)
+export async function repoExists(ownerKey: string, repoName: string): Promise<boolean> {
+  const dir = getRepoPath(ownerKey, repoName)
   
   try {
     // For bare repos, check for HEAD or refs directory
@@ -104,8 +75,8 @@ export async function repoExists(ownerId: number, repoName: string): Promise<boo
 /**
  * Delete a repository from filesystem
  */
-export async function deleteRepo(ownerId: number, repoName: string): Promise<void> {
-  const dir = await resolveRepoPath(ownerId, repoName)
+export async function deleteRepo(ownerKey: string, repoName: string): Promise<void> {
+  const dir = getRepoPath(ownerKey, repoName)
   
   try {
     await fs.rm(dir, { recursive: true, force: true })
@@ -119,10 +90,10 @@ export async function deleteRepo(ownerId: number, repoName: string): Promise<voi
  */
 export async function cloneRepo(
   url: string,
-  ownerId: number,
+  ownerKey: string,
   repoName: string
 ): Promise<string> {
-  const dir = getRepoPath(ownerId, repoName)
+  const dir = getRepoPath(ownerKey, repoName)
   
   await fs.mkdir(path.dirname(dir), { recursive: true })
   

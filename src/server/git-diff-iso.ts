@@ -25,9 +25,9 @@ export interface DiffResult {
   totalFiles: number;
 }
 
-async function getRepoOptions(ownerId: number, repoName: string) {
-  await ensureRepositoryHydrated(ownerId, repoName)
-  return getBareRepoOptions(ownerId, repoName)
+async function getRepoOptions(ownerKey: string, repoName: string, legacyOwnerKeys: string[] = []) {
+  await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys)
+  return getBareRepoOptions(ownerKey, repoName)
 }
 
 /**
@@ -78,15 +78,16 @@ function generateUnifiedDiff(
  * Get diff between two commits
  */
 export async function getCommitDiff(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
-  commitSha: string
+  commitSha: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<DiffResult> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
 
   try {
     // Get commit info
-    const commit = await getCommit(ownerId, repoName, commitSha);
+    const commit = await getCommit(ownerKey, repoName, commitSha, legacyOwnerKeys);
     const parent = commit.commit.parent[0];
 
     if (!parent) {
@@ -96,7 +97,7 @@ export async function getCommitDiff(
 
       for (const entry of tree.tree) {
         if (entry.type === 'blob') {
-          const content = await getFileContent(ownerId, repoName, entry.path, commitSha);
+          const content = await getFileContent(ownerKey, repoName, entry.path, commitSha, legacyOwnerKeys);
           const lines = content.toString().split('\n');
           files.push({
             path: entry.path,
@@ -203,12 +204,13 @@ export async function getCommitDiff(
  * Get diff between two branches
  */
 export async function getDiffBetweenBranches(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   baseBranch: string,
-  compareBranch: string
+  compareBranch: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<DiffResult> {
-  const repo = await getRepoOptions(ownerId, repoName)
+  const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys)
 
   const baseOid = await git.resolveRef({ ...repo, ref: baseBranch });
   const compareOid = await git.resolveRef({ ...repo, ref: compareBranch });

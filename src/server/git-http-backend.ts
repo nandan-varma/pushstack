@@ -17,12 +17,13 @@ type GitHttpResult = {
  * Handle git-upload-pack (clone/fetch) using git command
  */
 export async function handleUploadPack(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   requestBody: ArrayBuffer,
   authContext: GitAuthContext,
   remoteUpdatedAt?: Date | null,
   defaultBranch: string = 'main',
+  legacyOwnerKeys: string[] = [],
 ): Promise<GitHttpResult> {
   if (!authContext.canRead) {
     return {
@@ -32,7 +33,7 @@ export async function handleUploadPack(
     }
   }
 
-  const repoPath = await ensureRepositoryHydrated(ownerId, repoName, remoteUpdatedAt, defaultBranch)
+  const repoPath = await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys, remoteUpdatedAt, defaultBranch)
   return executeCgiService('upload-pack', repoPath, requestBody)
 }
 
@@ -40,12 +41,14 @@ export async function handleUploadPack(
  * Handle git-receive-pack (push) using git command
  */
 export async function handleReceivePack(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   requestBody: ArrayBuffer,
   authContext: GitAuthContext,
   remoteUpdatedAt?: Date | null,
   defaultBranch: string = 'main',
+  ownerDbId?: string,
+  legacyOwnerKeys: string[] = [],
 ): Promise<GitHttpResult> {
   if (!authContext.canWrite) {
     return {
@@ -55,11 +58,11 @@ export async function handleReceivePack(
     }
   }
 
-  const repoPath = await ensureRepositoryHydrated(ownerId, repoName, remoteUpdatedAt, defaultBranch)
+  const repoPath = await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys, remoteUpdatedAt, defaultBranch)
   const result = await executeCgiService('receive-pack', repoPath, requestBody)
 
   if (result.status === 200) {
-    await syncRepositoryToR2(ownerId, repoName)
+    await syncRepositoryToR2(ownerKey, repoName, ownerDbId, legacyOwnerKeys)
   }
 
   return result
@@ -131,12 +134,13 @@ async function executeCgiService(
  * Generate git info/refs response
  */
 export async function handleInfoRefs(
-  ownerId: number,
+  ownerKey: string,
   repoName: string,
   service: 'git-upload-pack' | 'git-receive-pack',
   authContext: GitAuthContext,
   remoteUpdatedAt?: Date | null,
   defaultBranch: string = 'main',
+  legacyOwnerKeys: string[] = [],
 ): Promise<GitHttpResult> {
   // Check permissions
   if (service === 'git-upload-pack' && !authContext.canRead) {
@@ -155,7 +159,7 @@ export async function handleInfoRefs(
     }
   }
 
-  const repoPath = await ensureRepositoryHydrated(ownerId, repoName, remoteUpdatedAt, defaultBranch)
+  const repoPath = await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys, remoteUpdatedAt, defaultBranch)
 
   return new Promise((resolve) => {
     const git = spawn('git', [service.replace('git-', ''), '--stateless-rpc', '--advertise-refs', repoPath])
@@ -217,6 +221,6 @@ export async function handleInfoRefs(
 /**
  * Initialize a bare repository on disk
  */
-export async function initBareRepository(ownerId: number, repoName: string, defaultBranch: string = 'main'): Promise<void> {
-  await initRepositoryStorage(ownerId, repoName, defaultBranch)
+export async function initBareRepository(ownerKey: string, repoName: string, defaultBranch: string = 'main'): Promise<void> {
+  await initRepositoryStorage(ownerKey, repoName, defaultBranch)
 }

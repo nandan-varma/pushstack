@@ -6,25 +6,37 @@
  * optimistic locking and integrates with cache and transaction layers.
  */
 
-import * as git from 'isomorphic-git'
 import { uploadToR2, downloadFromR2, deleteFromR2, listR2Files, fileExistsInR2 } from '#/lib/r2-operations'
 import { getCache, setCache, deleteCache, invalidateCache } from './git-cache'
 import { GitObjectNotFoundError, GitRefNotFoundError } from './git-errors'
+import { getRepoGitStoragePrefix, getRepoGitStorageRoot } from './git-storage-naming'
 
-// R2 key pattern: repos/{ownerId}/{repoName}/{path}
-function getR2Key(ownerId: string, repoName: string, path: string): string {
+// R2 key pattern: repos/{ownerKey}/{repoName}/git/{path}
+function getR2Key(ownerKey: string, repoName: string, filePath: string): string {
   // Normalize path - remove leading slashes
-  const normalizedPath = path.startsWith('/') ? path.slice(1) : path
-  return `repos/${ownerId}/${repoName}/${normalizedPath}`
+  const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath
+  return `${getRepoGitStoragePrefix(ownerKey, repoName)}${normalizedPath}`
 }
 
 // Parse owner and repo from git directory path
-function parseGitDir(dir: string): { ownerId: string; repoName: string } {
-  // Expected format: /repos/{ownerId}/{repoName} or repos/{ownerId}/{repoName}
+function parseGitDir(dir: string): { ownerKey: string; repoName: string; prefix: string } {
+  // Expected format: /repos/{ownerKey}/{repoName}/git or repos/{ownerKey}/{repoName}/git
   const parts = dir.split('/').filter(p => p !== '')
   
+  if (parts[0] === 'repos' && parts.length >= 4 && parts[3] === 'git') {
+    return {
+      ownerKey: parts[1],
+      repoName: parts[2],
+      prefix: getRepoGitStoragePrefix(parts[1], parts[2]),
+    }
+  }
+
   if (parts[0] === 'repos' && parts.length >= 3) {
-    return { ownerId: parts[1], repoName: parts[2] }
+    return {
+      ownerKey: parts[1],
+      repoName: parts[2],
+      prefix: `${getRepoGitStorageRoot(parts[1], parts[2])}/`,
+    }
   }
   
   throw new Error(`Invalid git directory path: ${dir}`)
@@ -41,9 +53,9 @@ export class R2Backend {
    * Read file from R2 (with caching)
    */
   async readFile(filepath: string, options?: { encoding?: string }): Promise<Buffer | string> {
-    const { ownerId, repoName } = parseGitDir(filepath)
-    const relativePath = filepath.replace(/^\/?(repos\/[^/]+\/[^/]+\/)/, '')
-    const cacheKey = `${ownerId}/${repoName}/${relativePath}`
+    const { ownerKey, repoName } = parseGitDir(filepath)
+    const relativePath = filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, '')
+    const cacheKey = `${ownerKey}/${repoName}/${relativePath}`
     
     // Try cache first
     const cached = getCache(cacheKey)
@@ -52,7 +64,7 @@ export class R2Backend {
     }
     
     // Fetch from R2
-    const r2Key = getR2Key(ownerId, repoName, relativePath)
+    const r2Key = getR2Key(ownerKey, repoName, relativePath)
     
     try {
       const result = await downloadFromR2(r2Key)
@@ -74,9 +86,9 @@ export class R2Backend {
    * Write file to R2 (with cache invalidation)
    */
   async writeFile(filepath: string, data: Buffer | string, _options?: { mode?: number }): Promise<void> {
-    const { ownerId, repoName } = parseGitDir(filepath)
-    const relativePath = filepath.replace(/^\/?(repos\/[^/]+\/[^/]+\/)/, '')
-    const cacheKey = `${ownerId}/${repoName}/${relativePath}`
+    const { ownerKey, repoName } = parseGitDir(filepath)
+    const relativePath = filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, '')
+    const cacheKey = `${ownerKey}/${repoName}/${relativePath}`
     
     // Convert string to buffer if needed
     const buffer = typeof data === 'string' ? Buffer.from(data) : data
@@ -90,7 +102,7 @@ export class R2Backend {
     }
     
     // Upload to R2
-    const r2Key = getR2Key(ownerId, repoName, relativePath)
+    const r2Key = getR2Key(ownerKey, repoName, relativePath)
     await uploadToR2(r2Key, buffer, contentType)
     
     // Invalidate cache
@@ -101,11 +113,11 @@ export class R2Backend {
    * Delete file from R2
    */
   async unlink(filepath: string): Promise<void> {
-    const { ownerId, repoName } = parseGitDir(filepath)
-    const relativePath = filepath.replace(/^\/?(repos\/[^/]+\/[^/]+\/)/, '')
-    const cacheKey = `${ownerId}/${repoName}/${relativePath}`
+    const { ownerKey, repoName } = parseGitDir(filepath)
+    const relativePath = filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, '')
+    const cacheKey = `${ownerKey}/${repoName}/${relativePath}`
     
-    const r2Key = getR2Key(ownerId, repoName, relativePath)
+    const r2Key = getR2Key(ownerKey, repoName, relativePath)
     await deleteFromR2(r2Key)
     
     // Invalidate cache
@@ -116,12 +128,12 @@ export class R2Backend {
    * Read directory (list objects with prefix)
    */
   async readdir(filepath: string): Promise<string[]> {
-    const { ownerId, repoName } = parseGitDir(filepath)
-    const relativePath = filepath.replace(/^\/?(repos\/[^/]+\/[^/]+\/)/, '')
+    const { ownerKey, repoName } = parseGitDir(filepath)
+    const relativePath = filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, '')
     
     // Ensure path ends with / for prefix matching
     const prefix = relativePath ? `${relativePath}/` : ''
-    const r2Prefix = getR2Key(ownerId, repoName, prefix)
+    const r2Prefix = getR2Key(ownerKey, repoName, prefix)
     
     try {
       const files = await listR2Files(r2Prefix, 1000)
@@ -155,11 +167,11 @@ export class R2Backend {
    * Remove directory (delete all objects with prefix)
    */
   async rmdir(filepath: string): Promise<void> {
-    const { ownerId, repoName } = parseGitDir(filepath)
-    const relativePath = filepath.replace(/^\/?(repos\/[^/]+\/[^/]+\/)/, '')
+    const { ownerKey, repoName } = parseGitDir(filepath)
+    const relativePath = filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, '')
     
     const prefix = relativePath ? `${relativePath}/` : ''
-    const r2Prefix = getR2Key(ownerId, repoName, prefix)
+    const r2Prefix = getR2Key(ownerKey, repoName, prefix)
     
     // List and delete all objects with this prefix
     const files = await listR2Files(r2Prefix, 1000)
@@ -168,17 +180,17 @@ export class R2Backend {
     }
     
     // Invalidate cache for this prefix
-    invalidateCache(`${ownerId}/${repoName}/${prefix}`)
+    invalidateCache(`${ownerKey}/${repoName}/${prefix}`)
   }
   
   /**
    * Get file stats
    */
   async stat(filepath: string): Promise<any> {
-    const { ownerId, repoName } = parseGitDir(filepath)
-    const relativePath = filepath.replace(/^\/?(repos\/[^/]+\/[^/]+\/)/, '')
+    const { ownerKey, repoName } = parseGitDir(filepath)
+    const relativePath = filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, '')
     
-    const r2Key = getR2Key(ownerId, repoName, relativePath)
+    const r2Key = getR2Key(ownerKey, repoName, relativePath)
     
     try {
       const exists = await fileExistsInR2(r2Key)
