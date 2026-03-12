@@ -146,6 +146,7 @@ function RepositoryPage() {
 					<Link
 						to="/repo/$owner/$name/commits"
 						params={{ owner, name }}
+						search={{ branch: repo.defaultBranch || "main" }}
 						className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
 						activeProps={{ className: "active" }}
 					>

@@ -128,7 +128,11 @@ function RouteComponent() {
 						Next Actions
 					</h3>
 					<div className="mt-4 flex flex-col gap-3">
-						<Link to="/repo/$owner/$name/commits" params={{ owner, name }}>
+						<Link
+							to="/repo/$owner/$name/commits"
+							params={{ owner, name }}
+							search={{ branch: defaultBranch }}
+						>
 							<Button variant="outline" className="w-full justify-start">
 								View commit history
 							</Button>

@@ -1,7 +1,12 @@
-import { test as base } from '@playwright/test'
+import { test as base, type Page } from '@playwright/test'
+
+type AppFixtures = {
+  authenticatedPage: Page
+  mockApiResponses: void
+}
 
 // Extend base test with custom fixtures
-export const test = base.extend({
+export const test = base.extend<AppFixtures>({
   // Authenticated user fixture
   authenticatedPage: async ({ page }, use) => {
     // This is a placeholder for authentication logic
@@ -37,7 +42,7 @@ export const test = base.extend({
       }
     })
     
-    await use(page)
+    await use()
   },
 })
 

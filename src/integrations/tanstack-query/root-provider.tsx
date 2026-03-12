@@ -1,18 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { useState } from "react";
 
-let context:
-	| {
-			queryClient: QueryClient;
-	  }
-	| undefined;
+export type AppContext = {
+	queryClient: QueryClient;
+};
 
-export function getContext() {
-	if (context) {
-		return context;
-	}
+let clientContext: AppContext | undefined;
 
-	const queryClient = new QueryClient({
+function createQueryClient() {
+	return new QueryClient({
 		defaultOptions: {
 			queries: {
 				retry: false,
@@ -26,12 +23,24 @@ export function getContext() {
 			},
 		},
 	});
+}
 
-	context = {
-		queryClient,
+export function createAppContext(): AppContext {
+	return {
+		queryClient: createQueryClient(),
 	};
+}
 
-	return context;
+export function getContext() {
+	if (typeof window === "undefined") {
+		return createAppContext();
+	}
+
+	if (!clientContext) {
+		clientContext = createAppContext();
+	}
+
+	return clientContext;
 }
 
 export default function TanStackQueryProvider({
@@ -39,7 +48,7 @@ export default function TanStackQueryProvider({
 }: {
 	children: ReactNode;
 }) {
-	const { queryClient } = getContext();
+	const [queryClient] = useState(() => getContext().queryClient);
 
 	return (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

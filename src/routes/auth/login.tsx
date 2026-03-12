@@ -1,146 +1,143 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
-import { authClient } from '../../lib/auth-client'
-import { Button } from '../../components/ui/button'
-import { Input } from '../../components/ui/input'
-import { Label } from '../../components/ui/label'
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { authClient } from "../../lib/auth-client";
 
-export const Route = createFileRoute('/auth/login')({
-  component: LoginPage,
-})
+export const Route = createFileRoute("/auth/login")({
+	component: LoginPage,
+});
 
 function LoginPage() {
-  const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+	const [identifier, setIdentifier] = useState("");
+	const [password, setPassword] = useState("");
+	const [error, setError] = useState("");
+	const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setError("");
+		setLoading(true);
 
-    try {
-      // Determine if identifier is email or username
-      const isEmail = identifier.includes('@')
-      
-      if (isEmail) {
-        await authClient.signIn.email(
-          {
-            email: identifier,
-            password,
-          },
-          {
-            onRequest: () => {
-              setLoading(true)
-            },
-            onSuccess: () => {
-              window.location.assign('/dashboard')
-            },
-            onError: (ctx) => {
-              setError(ctx.error.message || 'Login failed')
-              setLoading(false)
-            },
-          }
-        )
-      } else {
-        await authClient.signIn.username(
-          {
-            username: identifier,
-            password,
-          },
-          {
-            onRequest: () => {
-              setLoading(true)
-            },
-            onSuccess: () => {
-              window.location.assign('/dashboard')
-            },
-            onError: (ctx) => {
-              setError(ctx.error.message || 'Login failed')
-              setLoading(false)
-            },
-          }
-        )
-      }
-    } catch (err) {
-      setError('An unexpected error occurred during login')
-      setLoading(false)
-    }
-  }
+		try {
+			// Determine if identifier is email or username
+			const isEmail = identifier.includes("@");
 
-  return (
-    <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-          Welcome to <span className="text-[var(--lagoon-deep)]">PushStack</span>
-        </h1>
-        <p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
-          Sign in to your account
-        </p>
-      </div>
+			if (isEmail) {
+				await authClient.signIn.email(
+					{
+						email: identifier,
+						password,
+					},
+					{
+						onRequest: () => {
+							setLoading(true);
+						},
+						onSuccess: () => {
+							window.location.assign("/dashboard");
+						},
+						onError: (ctx) => {
+							setError(ctx.error.message || "Login failed");
+							setLoading(false);
+						},
+					},
+				);
+			} else {
+				await authClient.signIn.username(
+					{
+						username: identifier,
+						password,
+					},
+					{
+						onRequest: () => {
+							setLoading(true);
+						},
+						onSuccess: () => {
+							window.location.assign("/dashboard");
+						},
+						onError: (ctx) => {
+							setError(ctx.error.message || "Login failed");
+							setLoading(false);
+						},
+					},
+				);
+			}
+		} catch (err) {
+			setError("An unexpected error occurred during login");
+			setLoading(false);
+		}
+	};
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
-              {error}
-            </div>
-          )}
+	return (
+		<div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
+			<div className="mb-8 text-center">
+				<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
+					Welcome to{" "}
+					<span className="text-[var(--lagoon-deep)]">PushStack</span>
+				</h1>
+				<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+					Sign in to your account
+				</p>
+			</div>
 
-          <div className="space-y-2">
-            <Label htmlFor="identifier">Email or Username</Label>
-            <Input
-              id="identifier"
-              type="text"
-              placeholder="email@example.com or username"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              required
-              autoComplete="username"
-            />
-          </div>
+			<form onSubmit={handleSubmit} className="space-y-6">
+				{error && (
+					<div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+						{error}
+					</div>
+				)}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <a
-                href="/auth/forgot-password"
-                className="text-xs text-[var(--lagoon-deep)] hover:underline"
-              >
-                Forgot password?
-              </a>
-            </div>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
+				<div className="space-y-2">
+					<Label htmlFor="identifier">Email or Username</Label>
+					<Input
+						id="identifier"
+						type="text"
+						placeholder="email@example.com or username"
+						value={identifier}
+						onChange={(e) => setIdentifier(e.target.value)}
+						required
+						autoComplete="username"
+					/>
+				</div>
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </Button>
-        </form>
+				<div className="space-y-2">
+					<div className="flex items-center justify-between">
+						<Label htmlFor="password">Password</Label>
+						<a
+							href="/auth/forgot-password"
+							className="text-xs text-[var(--lagoon-deep)] hover:underline"
+						>
+							Forgot password?
+						</a>
+					</div>
+					<Input
+						id="password"
+						type="password"
+						placeholder="••••••••"
+						value={password}
+						onChange={(e) => setPassword(e.target.value)}
+						required
+						autoComplete="current-password"
+					/>
+				</div>
 
-        <div className="mt-6 text-center">
-          <p className="text-sm text-[var(--sea-ink-soft)]">
-            Don't have an account?{' '}
-            <a
-              href="/auth/register"
-              className="font-medium text-[var(--lagoon-deep)] hover:underline"
-            >
-              Create one →
-            </a>
-          </p>
-        </div>
-      </div>
-  )
+				<Button type="submit" className="w-full" disabled={loading}>
+					{loading ? "Signing in..." : "Sign In"}
+				</Button>
+			</form>
+
+			<div className="mt-6 text-center">
+				<p className="text-sm text-[var(--sea-ink-soft)]">
+					Don't have an account?{" "}
+					<a
+						href="/auth/register"
+						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						Create one →
+					</a>
+				</p>
+			</div>
+		</div>
+	);
 }

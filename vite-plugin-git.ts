@@ -6,28 +6,58 @@
 
 import type { Plugin } from 'vite'
 
+async function loadGitHandlers() {
+  const { parseGitUrl } = await import('./src/lib/git-url-parser')
+  const { authenticateGitRequest, createAuthChallenge } = await import('./src/server/git-auth')
+  const { 
+    handleInfoRefs, 
+    handleUploadPack, 
+    handleReceivePack,
+  } = await import('./src/server/git-http-backend')
+  const { getRepoStorageCoordinates } = await import('./src/server/git-storage-naming')
+  const { findRepositoryByName } = await import('./src/server/repositories')
+  const { formatErrorResponse } = await import('./src/server/git-errors')
+  
+  return {
+    parseGitUrl,
+    authenticateGitRequest,
+    createAuthChallenge,
+    handleInfoRefs,
+    handleUploadPack,
+    handleReceivePack,
+    getRepoStorageCoordinates,
+    findRepositoryByName,
+    formatErrorResponse,
+  }
+}
+
+let gitHandlers: Awaited<ReturnType<typeof loadGitHandlers>> | null = null
+
 export function gitHttpProtocol(): Plugin {
   return {
     name: 'git-http-protocol',
-    configureServer(server) {
+    async configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        // Only handle /api/git/* requests
         if (!req.url?.startsWith('/api/git/')) {
           return next()
         }
 
         try {
-          // Lazy imports to avoid loading at build time
-          const { parseGitUrl } = await import('./src/lib/git-url-parser')
-          const { authenticateGitRequest, createAuthChallenge } = await import('./src/server/git-auth')
+          if (!gitHandlers) {
+            gitHandlers = await loadGitHandlers()
+          }
+          
           const { 
-            handleInfoRefs, 
-            handleUploadPack, 
+            parseGitUrl,
+            authenticateGitRequest,
+            createAuthChallenge,
+            handleInfoRefs,
+            handleUploadPack,
             handleReceivePack,
-          } = await import('./src/server/git-http-backend')
-          const { getRepoStorageCoordinates } = await import('./src/server/git-storage-naming')
-          const { findRepositoryByName } = await import('./src/server/repositories')
-          const { formatErrorResponse } = await import('./src/server/git-errors')
+            getRepoStorageCoordinates,
+            findRepositoryByName,
+            formatErrorResponse,
+          } = gitHandlers
           
           const fullUrl = `http://${req.headers.host}${req.url}`
           const parsed = parseGitUrl(fullUrl)
@@ -40,13 +70,11 @@ export function gitHttpProtocol(): Plugin {
           
           const { owner, repo, service, isInfoRefs } = parsed
           
-          // Create request object compatible with auth function
           const request = new Request(fullUrl, {
             method: req.method,
             headers: req.headers as HeadersInit,
           })
           
-          // Get repository from database
           let repository
           try {
             repository = await findRepositoryByName(owner, repo)
@@ -62,10 +90,8 @@ export function gitHttpProtocol(): Plugin {
             return
           }
           
-          // Determine if this is a write operation
           const requireWrite = service === 'git-receive-pack'
           
-          // Authenticate the request
           let authContext
           try {
             authContext = await authenticateGitRequest(request, owner, repo, requireWrite)
@@ -96,7 +122,6 @@ export function gitHttpProtocol(): Plugin {
           
           const storage = getRepoStorageCoordinates(repository)
 
-          // Handle GET (info/refs)
           if (req.method === 'GET' && isInfoRefs && service) {
             try {
               const result = await handleInfoRefs(
@@ -122,22 +147,25 @@ export function gitHttpProtocol(): Plugin {
             return
           }
           
-          // Handle POST (upload-pack or receive-pack)
           if (req.method === 'POST' && service && !isInfoRefs) {
-            // Read request body
             const chunks: Buffer[] = []
             req.on('data', (chunk) => chunks.push(chunk))
             req.on('end', async () => {
               try {
                 const body = Buffer.concat(chunks)
-                const requestBody = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)
+                
+                const request = new Request(fullUrl, {
+                  method: 'POST',
+                  headers: req.headers as HeadersInit,
+                  body: body,
+                })
                 
                 let result
                 if (service === 'git-upload-pack') {
                   result = await handleUploadPack(
                     storage.ownerKey,
                     repo,
-                    requestBody,
+                    request,
                     authContext,
                     repository.updatedAt,
                     repository.defaultBranch || 'main',
@@ -147,7 +175,7 @@ export function gitHttpProtocol(): Plugin {
                   result = await handleReceivePack(
                     storage.ownerKey,
                     repo,
-                    requestBody,
+                    request,
                     authContext,
                     repository.updatedAt,
                     repository.defaultBranch || 'main',
@@ -175,7 +203,6 @@ export function gitHttpProtocol(): Plugin {
             return
           }
           
-          // Invalid request
           res.statusCode = 400
           res.end('Invalid git request')
         } catch (error) {

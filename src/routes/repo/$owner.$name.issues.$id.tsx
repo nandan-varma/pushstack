@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
-import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { lazy, Suspense, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,8 @@ import {
 	queryKeys,
 } from "@/lib/query-options";
 import { createComment, updateIssue } from "@/server/issues";
+
+const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 	component: IssueDetailPage,
@@ -171,7 +172,13 @@ function IssueDetailPage() {
 							</span>
 						</div>
 						{issue.body ? (
-							<MarkdownRenderer content={issue.body} />
+							<Suspense
+								fallback={
+									<div className="h-24 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+								}
+							>
+								<MarkdownRenderer content={issue.body} />
+							</Suspense>
 						) : (
 							<p className="text-[var(--sea-ink-soft)] italic">
 								No description provided
@@ -207,7 +214,13 @@ function IssueDetailPage() {
 											})}
 										</span>
 									</div>
-									<MarkdownRenderer content={comment.body} />
+									<Suspense
+										fallback={
+											<div className="h-20 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+										}
+									>
+										<MarkdownRenderer content={comment.body} />
+									</Suspense>
 								</div>
 							</div>
 						</Card>

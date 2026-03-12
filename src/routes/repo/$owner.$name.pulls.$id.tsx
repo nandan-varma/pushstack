@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
-import DiffViewer from "@/components/DiffViewer";
-import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { lazy, Suspense, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +18,9 @@ import {
 	mergePullRequest,
 	updatePullRequest,
 } from "@/server/issues";
+
+const DiffViewer = lazy(() => import("@/components/DiffViewer"));
+const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	component: PullRequestDetailPage,
@@ -108,7 +109,7 @@ function PullRequestDetailPage() {
 	};
 
 	const handleAddComment = () => {
-		if (!newComment.trim()) return;
+		if (!pr || !newComment.trim()) return;
 		commentMutation.mutate({
 			data: {
 				repoId: pr.repoId,
@@ -262,7 +263,13 @@ function PullRequestDetailPage() {
 									</span>
 								</div>
 								{pr.body ? (
-									<MarkdownRenderer content={pr.body} />
+									<Suspense
+										fallback={
+											<div className="h-24 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+										}
+									>
+										<MarkdownRenderer content={pr.body} />
+									</Suspense>
 								) : (
 									<p className="text-[var(--sea-ink-soft)] italic">
 										No description provided
@@ -295,7 +302,13 @@ function PullRequestDetailPage() {
 													})}
 												</span>
 											</div>
-											<MarkdownRenderer content={comment.body} />
+											<Suspense
+												fallback={
+													<div className="h-20 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+												}
+											>
+												<MarkdownRenderer content={comment.body} />
+											</Suspense>
 										</div>
 									</div>
 								</Card>
@@ -333,15 +346,21 @@ function PullRequestDetailPage() {
 				<TabsContent value="changes" className="space-y-4">
 					{diff && diff.length > 0 ? (
 						diff.map((fileDiff) => (
-							<DiffViewer
+							<Suspense
 								key={fileDiff.path}
-								oldValue={fileDiff.oldContent || ""}
-								newValue={fileDiff.newContent || ""}
-								oldTitle="Before"
-								newTitle="After"
-								fileName={fileDiff.path}
-								language={fileDiff.language}
-							/>
+								fallback={
+									<div className="h-64 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+								}
+							>
+								<DiffViewer
+									oldValue={fileDiff.oldContent || ""}
+									newValue={fileDiff.newContent || ""}
+									oldTitle="Before"
+									newTitle="After"
+									fileName={fileDiff.path}
+									language={fileDiff.language}
+								/>
+							</Suspense>
 						))
 					) : (
 						<Card className="p-12 text-center">

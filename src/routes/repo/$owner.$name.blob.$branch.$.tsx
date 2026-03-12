@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import CodeViewer from "@/components/CodeViewer";
+import { lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { detectLanguage, formatFileSize } from "@/lib/language-detection";
@@ -8,6 +8,8 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryFileQueryOptions,
 } from "@/lib/query-options";
+
+const CodeViewer = lazy(() => import("@/components/CodeViewer"));
 
 function decodeBase64ToBytes(content: string) {
 	const binary = window.atob(content);
@@ -161,11 +163,17 @@ function FileBlobPage() {
 					</Button>
 				</Card>
 			) : (
-				<CodeViewer
-					code={fileContent}
-					language={language}
-					fileName={filePath.split("/").pop()}
-				/>
+				<Suspense
+					fallback={
+						<div className="h-96 animate-pulse rounded-lg border border-[var(--line)] bg-[var(--card-bg)]" />
+					}
+				>
+					<CodeViewer
+						code={fileContent}
+						language={language}
+						fileName={filePath.split("/").pop()}
+					/>
+				</Suspense>
 			)}
 
 			{/* File Info */}
