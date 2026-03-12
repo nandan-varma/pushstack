@@ -1,193 +1,212 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { formatDistanceToNow, format } from 'date-fns'
-import { useQuery } from '@tanstack/react-query'
-import { getCommit, getCommitDiff, getRepositoryByName } from '@/server/files'
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { format, formatDistanceToNow } from "date-fns";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+	repositoryByNameQueryOptions,
+	repositoryCommitDiffQueryOptions,
+	repositoryCommitQueryOptions,
+} from "@/lib/query-options";
 
-export const Route = createFileRoute('/repo/$owner/$name/commit/$sha')({
-  component: CommitDetailPage,
-})
+export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
+	component: CommitDetailPage,
+});
 
 function CommitDetailPage() {
-  const { owner, name, sha } = Route.useParams()
+	const { owner, name, sha } = Route.useParams();
 
-  // Get repository first
-  const { data: repo } = useQuery({
-    queryKey: ['repo', owner, name],
-    queryFn: () => getRepositoryByName({ data: { owner, name } }),
-  })
+	// Get repository first
+	const { data: repo } = useQuery(
+		repositoryByNameQueryOptions({ owner, name }),
+	);
 
-  // Get commit details
-  const { data: commit, isLoading: commitLoading } = useQuery({
-    queryKey: ['commit', repo?.id, sha],
-    queryFn: () => getCommit({ data: { repoId: repo!.id, commitSha: sha } }),
-    enabled: !!repo,
-  })
+	// Get commit details
+	const { data: commit, isLoading: commitLoading } = useQuery({
+		...repositoryCommitQueryOptions({
+			repoId: repo?.id ?? 0,
+			commitSha: sha,
+		}),
+		enabled: !!repo,
+	});
 
-  // Get commit diff
-  const { data: diffData, isLoading: diffLoading } = useQuery({
-    queryKey: ['commitDiff', repo?.id, sha],
-    queryFn: () => getCommitDiff({ data: { repoId: repo!.id, commitSha: sha } }),
-    enabled: !!repo,
-  })
+	// Get commit diff
+	const { data: diffData, isLoading: diffLoading } = useQuery({
+		...repositoryCommitDiffQueryOptions({
+			repoId: repo?.id ?? 0,
+			commitSha: sha,
+		}),
+		enabled: !!repo,
+	});
 
-  const isLoading = commitLoading || diffLoading
+	const isLoading = commitLoading || diffLoading;
 
-  const getInitials = (name: string) =>
-    name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
+	const getInitials = (name: string) =>
+		name
+			.split(" ")
+			.map((n) => n[0])
+			.join("")
+			.toUpperCase()
+			.slice(0, 2);
 
-  if (isLoading) {
-    return (
-      <div className="container py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
-          <div className="h-64 bg-[var(--card-bg)] rounded" />
-        </div>
-      </div>
-    )
-  }
+	if (isLoading) {
+		return (
+			<div className="container py-8">
+				<div className="animate-pulse space-y-4">
+					<div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
+					<div className="h-64 bg-[var(--card-bg)] rounded" />
+				</div>
+			</div>
+		);
+	}
 
-  if (!commit) {
-    return (
-      <div className="container py-8">
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-2">Commit Not Found</h2>
-          <p className="text-[var(--sea-ink-soft)] mb-4">
-            The commit with SHA "{sha}" does not exist.
-          </p>
-          <Link
-            to="/repo/$owner/$name/commits"
-            params={{ owner, name }}
-            className="inline-block"
-            search={{ branch: 'main' }}
-          >
-            <Button variant="outline">Back to Commits</Button>
-          </Link>
-        </Card>
-      </div>
-    )
-  }
+	if (!commit) {
+		return (
+			<div className="container py-8">
+				<Card className="p-6">
+					<h2 className="text-xl font-semibold mb-2">Commit Not Found</h2>
+					<p className="text-[var(--sea-ink-soft)] mb-4">
+						The commit with SHA "{sha}" does not exist.
+					</p>
+					<Link
+						to="/repo/$owner/$name/commits"
+						params={{ owner, name }}
+						className="inline-block"
+						search={{ branch: "main" }}
+					>
+						<Button variant="outline">Back to Commits</Button>
+					</Link>
+				</Card>
+			</div>
+		);
+	}
 
-  return (
-    <div className="container py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-[var(--sea-ink)] mb-2">
-            {commit.message}
-          </h1>
-          <div className="flex items-center gap-3 text-[var(--sea-ink-soft)]">
-            <code className="px-2 py-1 rounded bg-[var(--chip-bg)] text-[var(--sea-ink)] border border-[var(--chip-line)] text-sm font-mono">
-              {commit.sha}
-            </code>
-          </div>
-        </div>
-        <Link
-          to="/repo/$owner/$name/commits"
-          params={{ owner, name }}
-          search={{ branch: commit.branch }}
-        >
-          <Button variant="outline" size="sm">
-            Back to Commits
-          </Button>
-        </Link>
-      </div>
+	return (
+		<div className="container py-8 space-y-6">
+			{/* Header */}
+			<div className="flex items-start justify-between gap-4">
+				<div className="flex-1">
+					<h1 className="text-3xl font-bold text-[var(--sea-ink)] mb-2">
+						{commit.message}
+					</h1>
+					<div className="flex items-center gap-3 text-[var(--sea-ink-soft)]">
+						<code className="px-2 py-1 rounded bg-[var(--chip-bg)] text-[var(--sea-ink)] border border-[var(--chip-line)] text-sm font-mono">
+							{commit.sha}
+						</code>
+					</div>
+				</div>
+				<Link
+					to="/repo/$owner/$name/commits"
+					params={{ owner, name }}
+					search={{ branch: commit.branch }}
+				>
+					<Button variant="outline" size="sm">
+						Back to Commits
+					</Button>
+				</Link>
+			</div>
 
-      {/* Commit Info */}
-      <Card className="p-6">
-        <div className="flex items-start gap-4">
-          <Avatar className="h-12 w-12">
-            <AvatarFallback>
-              {getInitials(commit.author?.name || 'U')}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-medium text-[var(--sea-ink)]">
-                {commit.author?.name || 'Unknown'}
-              </span>
-              <span className="text-sm text-[var(--sea-ink-soft)]">
-                committed{' '}
-                  {formatDistanceToNow(new Date(commit.author?.date || new Date()), {
-                    addSuffix: true,
-                  })}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
-              <div>
-                <p className="text-[var(--sea-ink-soft)]">Commit SHA</p>
-                <code className="text-xs font-mono text-[var(--sea-ink)]">
-                  {commit.sha.substring(0, 7)}
-                </code>
-              </div>
-              <div>
-                <p className="text-[var(--sea-ink-soft)]">Timestamp</p>
-                <p className="font-medium text-[var(--sea-ink)]">
-                  {format(new Date(commit.author?.date || new Date()), 'PPp')}
-                </p>
-              </div>
-              <div>
-                <p className="text-[var(--sea-ink-soft)]">Changes</p>
-                <p className="font-medium text-[var(--sea-ink)]">
-                  {diffData?.files?.length || 0} file{diffData?.files?.length !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <div>
-                <p className="text-[var(--sea-ink-soft)]">Stats</p>
-                <p className="font-medium text-[var(--sea-ink)]">
-                  <span className="text-green-600">+{diffData?.totalAdditions || 0}</span>
-                  {' '}<span className="text-red-600">-{diffData?.totalDeletions || 0}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
+			{/* Commit Info */}
+			<Card className="p-6">
+				<div className="flex items-start gap-4">
+					<Avatar className="h-12 w-12">
+						<AvatarFallback>
+							{getInitials(commit.author?.name || "U")}
+						</AvatarFallback>
+					</Avatar>
+					<div className="flex-1">
+						<div className="flex items-center gap-2 mb-2">
+							<span className="font-medium text-[var(--sea-ink)]">
+								{commit.author?.name || "Unknown"}
+							</span>
+							<span className="text-sm text-[var(--sea-ink-soft)]">
+								committed{" "}
+								{formatDistanceToNow(
+									new Date(commit.author?.date || new Date()),
+									{
+										addSuffix: true,
+									},
+								)}
+							</span>
+						</div>
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
+							<div>
+								<p className="text-[var(--sea-ink-soft)]">Commit SHA</p>
+								<code className="text-xs font-mono text-[var(--sea-ink)]">
+									{commit.sha.substring(0, 7)}
+								</code>
+							</div>
+							<div>
+								<p className="text-[var(--sea-ink-soft)]">Timestamp</p>
+								<p className="font-medium text-[var(--sea-ink)]">
+									{format(new Date(commit.author?.date || new Date()), "PPp")}
+								</p>
+							</div>
+							<div>
+								<p className="text-[var(--sea-ink-soft)]">Changes</p>
+								<p className="font-medium text-[var(--sea-ink)]">
+									{diffData?.files?.length || 0} file
+									{diffData?.files?.length !== 1 ? "s" : ""}
+								</p>
+							</div>
+							<div>
+								<p className="text-[var(--sea-ink-soft)]">Stats</p>
+								<p className="font-medium text-[var(--sea-ink)]">
+									<span className="text-green-600">
+										+{diffData?.totalAdditions || 0}
+									</span>{" "}
+									<span className="text-red-600">
+										-{diffData?.totalDeletions || 0}
+									</span>
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</Card>
 
-      {/* Commit Message */}
-      {commit.message && (
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold text-[var(--sea-ink)] mb-3">
-            Commit Message
-          </h2>
-          <pre className="whitespace-pre-wrap text-sm text-[var(--sea-ink)] font-mono bg-[var(--chip-bg)] p-4 rounded border border-[var(--chip-line)]">
-            {commit.message}
-          </pre>
-        </Card>
-      )}
+			{/* Commit Message */}
+			{commit.message && (
+				<Card className="p-6">
+					<h2 className="text-lg font-semibold text-[var(--sea-ink)] mb-3">
+						Commit Message
+					</h2>
+					<pre className="whitespace-pre-wrap text-sm text-[var(--sea-ink)] font-mono bg-[var(--chip-bg)] p-4 rounded border border-[var(--chip-line)]">
+						{commit.message}
+					</pre>
+				</Card>
+			)}
 
-      {/* File Changes */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-[var(--sea-ink)]">
-          File Changes {diffData?.files && `(${diffData.files.length})`}
-        </h2>
-        {diffData?.files && diffData.files.length > 0 ? (
-          diffData.files.map((fileDiff, index) => (
-            <Card key={index} className="p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <code className="text-sm font-medium text-[var(--sea-ink)]">{fileDiff.path}</code>
-                <span className="text-xs uppercase text-[var(--sea-ink-soft)]">{fileDiff.status}</span>
-              </div>
-              <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
-                {fileDiff.patch}
-              </pre>
-            </Card>
-          ))
-        ) : (
-          <Card className="p-12 text-center">
-            <p className="text-[var(--sea-ink-soft)]">
-              No file changes to display
-            </p>
-          </Card>
-        )}
-      </div>
-    </div>
-  )
+			{/* File Changes */}
+			<div className="space-y-4">
+				<h2 className="text-lg font-semibold text-[var(--sea-ink)]">
+					File Changes {diffData?.files && `(${diffData.files.length})`}
+				</h2>
+				{diffData?.files && diffData.files.length > 0 ? (
+					diffData.files.map((fileDiff) => (
+						<Card key={fileDiff.path} className="p-4">
+							<div className="mb-3 flex items-center justify-between">
+								<code className="text-sm font-medium text-[var(--sea-ink)]">
+									{fileDiff.path}
+								</code>
+								<span className="text-xs uppercase text-[var(--sea-ink-soft)]">
+									{fileDiff.status}
+								</span>
+							</div>
+							<pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
+								{fileDiff.patch}
+							</pre>
+						</Card>
+					))
+				) : (
+					<Card className="p-12 text-center">
+						<p className="text-[var(--sea-ink-soft)]">
+							No file changes to display
+						</p>
+					</Card>
+				)}
+			</div>
+		</div>
+	);
 }
