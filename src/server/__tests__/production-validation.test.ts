@@ -1,125 +1,72 @@
-/**
- * Production Environment Configuration Validation
- * Ensures all required environment variables and configurations are set
- */
-
 import { describe, expect, it } from "vitest";
 
 describe("Production Environment Validation", () => {
 	describe("Environment Variables", () => {
-		it("should have required environment variables defined", () => {
-			const requiredEnvVars = [
-				"DATABASE_URL",
-				"BETTER_AUTH_SECRET",
-				"BETTER_AUTH_URL",
-			];
-
-			const missingVars: string[] = [];
-
-			requiredEnvVars.forEach((varName) => {
-				if (!process.env[varName] && varName !== "DATABASE_URL") {
-					// DATABASE_URL might be optional in test environment
-					console.warn(`Warning: ${varName} is not set`);
-				}
-			});
-
-			// This test passes but logs warnings
-			expect(missingVars.length >= 0).toBe(true);
-		});
-
-		it("should validate DATABASE_URL format if present", () => {
+		it("validates DATABASE_URL format when present", () => {
 			const dbUrl = process.env.DATABASE_URL;
-
 			if (dbUrl) {
 				expect(dbUrl).toMatch(/^postgres(ql)?:\/\//);
-			} else {
-				console.warn("DATABASE_URL not set - skipping validation");
 			}
-
-			expect(true).toBe(true);
 		});
 
-		it("should validate BETTER_AUTH_URL format if present", () => {
+		it("validates BETTER_AUTH_URL format when present", () => {
 			const authUrl = process.env.BETTER_AUTH_URL;
-
 			if (authUrl) {
 				expect(authUrl).toMatch(/^https?:\/\//);
-			} else {
-				console.warn("BETTER_AUTH_URL not set - skipping validation");
 			}
+		});
 
-			expect(true).toBe(true);
+		it("validates BETTER_AUTH_SECRET length when present", () => {
+			const secret = process.env.BETTER_AUTH_SECRET;
+			if (secret) {
+				expect(secret.length).toBeGreaterThan(32);
+			}
 		});
 	});
 
 	describe("Git Configuration", () => {
-		it("should have valid git repository base path", () => {
-			const gitBasePath = process.env.GIT_REPOS_PATH || "data/repos";
-			expect(gitBasePath).toBeTruthy();
-			expect(typeof gitBasePath).toBe("string");
+		it("GIT_REPOS_PATH is a non-empty string", () => {
+			const p = process.env.GIT_REPOS_PATH || "data/repos";
+			expect(typeof p).toBe("string");
+			expect(p.length).toBeGreaterThan(0);
 		});
 
-		it("should validate git configuration values", () => {
-			// Ensure git operations are properly configured
-			expect(true).toBe(true); // Placeholder for actual git config tests
+		it("GIT_HTTP_MAX_BODY_BYTES, if set, is a positive integer", () => {
+			const raw = process.env.GIT_HTTP_MAX_BODY_BYTES;
+			if (raw !== undefined) {
+				const parsed = Number.parseInt(raw, 10);
+				expect(Number.isFinite(parsed)).toBe(true);
+				expect(parsed).toBeGreaterThan(0);
+			}
 		});
 	});
 
 	describe("R2 Storage Configuration", () => {
-		it("should warn if R2 credentials are missing", () => {
-			const r2Vars = [
-				"CLOUDFLARE_ACCOUNT_ID",
-				"CLOUDFLARE_ACCESS_KEY_ID",
-				"CLOUDFLARE_SECRET_ACCESS_KEY",
-				"R2_BUCKET_NAME",
-			];
-
-			r2Vars.forEach((varName) => {
-				if (!process.env[varName]) {
-					console.warn(`Warning: ${varName} not set - R2 operations may fail`);
-				}
-			});
-
-			expect(true).toBe(true);
+		it("R2 bucket name, if set, has no leading/trailing whitespace", () => {
+			const bucket = process.env.R2_BUCKET_NAME;
+			if (bucket) {
+				expect(bucket).toBe(bucket.trim());
+			}
 		});
 	});
 
-	describe("Security Configuration", () => {
-		it("should ensure auth secret is properly set", () => {
-			const authSecret = process.env.BETTER_AUTH_SECRET;
-
-			if (authSecret) {
-				expect(authSecret.length).toBeGreaterThan(32);
-			} else {
-				console.warn("BETTER_AUTH_SECRET not set");
-			}
-
-			expect(true).toBe(true);
-		});
-
-		it("should validate production environment settings", () => {
-			const nodeEnv = process.env.NODE_ENV;
-
-			if (nodeEnv === "production") {
-				console.log("Running in production mode");
-				// Add production-specific checks here
-			}
-
+	describe("NODE_ENV", () => {
+		it("is a recognised value or undefined", () => {
 			expect(["development", "test", "production", undefined]).toContain(
-				nodeEnv,
+				process.env.NODE_ENV,
 			);
 		});
 	});
 
-	describe("Build Configuration", () => {
-		it("should validate deployment target", () => {
-			// Ensure the app is configured for Node.js deployment
-			expect(true).toBe(true);
+	describe("Required modules", () => {
+		it("isomorphic-git is importable", async () => {
+			const git = await import("isomorphic-git");
+			expect(typeof git.default.init).toBe("function");
 		});
 
-		it("should check for required dependencies", () => {
-			// Verify isomorphic-git is available
-			expect(() => require("isomorphic-git")).not.toThrow();
+		it("node:child_process is available", async () => {
+			const cp = await import("node:child_process");
+			expect(typeof cp.spawn).toBe("function");
 		});
 	});
 });

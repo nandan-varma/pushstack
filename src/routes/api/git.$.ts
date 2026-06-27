@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
  */
 
 import { parseGitUrl } from "#/lib/git-url-parser";
-import { authenticateGitRequest, createAuthChallenge } from "#/server/git-auth";
+import { authenticateGitRequest } from "#/server/git-auth";
 import { formatErrorResponse } from "#/server/git-errors";
 import {
 	getMaxGitRequestBytes,
@@ -39,19 +39,13 @@ export const Route = createFileRoute("/api/git/$")({
 						return new Response("Repository not found", { status: 404 });
 					}
 
-					// Authenticate the request
+					// Authenticate the request (throws GitAuthenticationError/GitAuthorizationError on failure)
 					const authContext = await authenticateGitRequest(
 						request,
 						owner,
 						repo,
 						service === "git-receive-pack",
 					);
-					if (!authContext) {
-						return new Response("Unauthorized", {
-							status: 401,
-							headers: { "WWW-Authenticate": createAuthChallenge() },
-						});
-					}
 
 					const storage = getRepoStorageCoordinates(repository);
 
@@ -112,19 +106,13 @@ export const Route = createFileRoute("/api/git/$")({
 						return new Response("Repository not found", { status: 404 });
 					}
 
-					// Authenticate the request
+					// Authenticate the request (throws GitAuthenticationError/GitAuthorizationError on failure)
 					const authContext = await authenticateGitRequest(
 						request,
 						owner,
 						repo,
 						service === "git-receive-pack",
 					);
-					if (!authContext) {
-						return new Response("Unauthorized", {
-							status: 401,
-							headers: { "WWW-Authenticate": createAuthChallenge() },
-						});
-					}
 
 					const storage = getRepoStorageCoordinates(repository);
 

@@ -6,6 +6,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { auth } from "../lib/auth";
+import {
+	GitAuthenticationError,
+	GitAuthorizationError,
+	GitRepositoryNotFoundError,
+} from "./git-errors";
 import { canReadRepo, canWriteRepo } from "./repo-access";
 import { findRepositoryByName } from "./repositories";
 
@@ -221,7 +226,7 @@ export async function authenticateGitRequest(
 	const repo = await findRepositoryByName(owner, repoName);
 
 	if (!repo) {
-		throw new Error("Repository not found");
+		throw new GitRepositoryNotFoundError("Repository not found");
 	}
 
 	if (isGitAuthDisabled()) {
@@ -253,43 +258,46 @@ export async function authenticateGitRequest(
 
 	// For write operations, require authentication first
 	if (requireWrite && !user) {
-		throw new Error("Unauthorized: Authentication required for write access");
+		throw new GitAuthenticationError(
+			"Authentication required for write access",
+		);
+	}
+
+	// Check token scopes before hitting the DB for access checks
+	if (user?.tokenScopes) {
+		if (!hasRequiredTokenScope(user.tokenScopes, "repo:read")) {
+			throw new GitAuthorizationError(
+				"Access denied: token lacks repo:read scope",
+			);
+		}
+		if (requireWrite && !hasRequiredTokenScope(user.tokenScopes, "repo:write")) {
+			throw new GitAuthorizationError(
+				"Access denied: token lacks repo:write scope",
+			);
+		}
 	}
 
 	// Check read permission
 	const canRead = await canReadRepo(repo.id, user?.id || null);
 
 	if (!canRead) {
-		throw new Error(
-			"Access denied: You do not have read access to this repository",
+		// Unauthenticated users hitting a private repo get 401 so git prompts for credentials
+		if (!user) {
+			throw new GitAuthenticationError(
+				"Authentication required to access this repository",
+			);
+		}
+		throw new GitAuthorizationError(
+			"Access denied: insufficient read permissions",
 		);
 	}
 
 	// Check write permission if required
 	const canWrite = await canWriteRepo(repo.id, user?.id || null);
 
-	if (
-		user?.tokenScopes &&
-		!hasRequiredTokenScope(user.tokenScopes, "repo:read")
-	) {
-		throw new Error(
-			"Access denied: Token does not include repository read scope",
-		);
-	}
-
 	if (requireWrite && !canWrite) {
-		throw new Error(
-			"Access denied: You do not have write access to this repository",
-		);
-	}
-
-	if (
-		requireWrite &&
-		user?.tokenScopes &&
-		!hasRequiredTokenScope(user.tokenScopes, "repo:write")
-	) {
-		throw new Error(
-			"Access denied: Token does not include repository write scope",
+		throw new GitAuthorizationError(
+			"Access denied: insufficient write permissions",
 		);
 	}
 

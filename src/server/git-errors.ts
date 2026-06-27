@@ -177,6 +177,10 @@ export function formatErrorResponse(error: unknown): {
 		return {
 			status: error.statusCode,
 			body: error.toJSON(),
+			// Git clients need WWW-Authenticate to know to prompt for credentials
+			headers: error.statusCode === 401
+				? { "WWW-Authenticate": 'Basic realm="Git Repository"' }
+				: undefined,
 		};
 	}
 

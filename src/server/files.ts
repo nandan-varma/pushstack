@@ -6,11 +6,10 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { activities, repositories } from "../db/github-schema";
-import { user } from "../db/schema";
 import * as GitDiff from "./git-diff-iso";
 // Git operations imports (isomorphic-git)
 import * as GitOps from "./git-operations-iso";
@@ -26,52 +25,6 @@ function getStorage(repo: {
 	return getRepoStorageCoordinates(repo);
 }
 
-/**
- * Get repository by owner username and name
- */
-export const getRepositoryByName = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
-		z
-			.object({
-				owner: z.string(),
-				name: z.string(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
-
-		// Find owner by username
-		const owner = await db.query.user.findFirst({
-			where: eq(user.username, data.owner),
-		});
-
-		if (!owner) {
-			throw new Error("Owner not found");
-		}
-
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: and(
-				eq(repositories.ownerId, owner.id),
-				eq(repositories.name, data.name),
-			),
-			with: {
-				owner: true,
-			},
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
-
-		return repo;
-	});
-
 // Upload file schema
 const uploadFileSchema = z.object({
 	repoId: z.number(),
@@ -85,7 +38,7 @@ const uploadFileSchema = z.object({
  * Upload file to repository - creates a git commit
  */
 export const uploadFile = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) => uploadFileSchema.parse(data))
+	.validator((data: unknown) => uploadFileSchema.parse(data))
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
@@ -147,7 +100,7 @@ export const uploadFile = createServerFn({ method: "POST" })
  * Get file from repository
  */
 export const getFile = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -191,7 +144,7 @@ export const getFile = createServerFn({ method: "GET" })
  * Get presigned download URL for file
  */
 export const getFileDownloadUrl = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -240,7 +193,7 @@ export const getFileDownloadUrl = createServerFn({ method: "GET" })
  * List files in repository directory
  */
 export const listFiles = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -284,7 +237,7 @@ export const listFiles = createServerFn({ method: "GET" })
  * Delete file from repository
  */
 export const deleteFile = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -344,7 +297,7 @@ export const deleteFile = createServerFn({ method: "POST" })
  * Get repository branches
  */
 export const getBranches = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -384,7 +337,7 @@ export const getBranches = createServerFn({ method: "GET" })
  * Create branch
  */
 export const createBranch = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -429,7 +382,7 @@ export const createBranch = createServerFn({ method: "POST" })
  * Delete branch
  */
 export const deleteBranch = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -477,7 +430,7 @@ export const deleteBranch = createServerFn({ method: "POST" })
  * Get commits for a branch
  */
 export const getCommits = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -533,7 +486,7 @@ export const getCommits = createServerFn({ method: "GET" })
  * Get commit details by SHA
  */
 export const getCommit = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -592,7 +545,7 @@ export const getCommit = createServerFn({ method: "GET" })
  * Get commit diff
  */
 export const getCommitDiff = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -634,7 +587,7 @@ export const getCommitDiff = createServerFn({ method: "GET" })
  * Get diff between branches (for pull requests)
  */
 export const getBranchDiff = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),

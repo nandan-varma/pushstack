@@ -23,7 +23,7 @@ import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // Create issue
 export const createIssue = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -69,7 +69,7 @@ export const createIssue = createServerFn({ method: "POST" })
 
 // Get issues
 export const getIssues = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -100,7 +100,7 @@ export const getIssues = createServerFn({ method: "GET" })
 
 // Get issue by ID
 export const getIssue = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				issueId: z.number(),
@@ -131,7 +131,7 @@ export const getIssue = createServerFn({ method: "GET" })
 
 // Update issue
 export const updateIssue = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				issueId: z.number(),
@@ -196,7 +196,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 
 // Create pull request
 export const createPullRequest = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -249,7 +249,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 
 // Get pull requests
 export const getPullRequests = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -285,7 +285,7 @@ export const getPullRequests = createServerFn({ method: "GET" })
 
 // Get pull request by ID
 export const getPullRequest = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				prId: z.number(),
@@ -316,7 +316,7 @@ export const getPullRequest = createServerFn({ method: "GET" })
 
 // Update pull request
 export const updatePullRequest = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				prId: z.number(),
@@ -357,7 +357,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 
 // Merge pull request
 export const mergePullRequest = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				prId: z.number(),
@@ -472,7 +472,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 
 // Create comment
 export const createComment = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -521,7 +521,7 @@ export const createComment = createServerFn({ method: "POST" })
 
 // Get comments
 export const getComments = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				issueId: z.number().optional(),
@@ -571,7 +571,7 @@ export const getComments = createServerFn({ method: "GET" })
 
 // Update comment
 export const updateComment = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				commentId: z.number(),
@@ -611,7 +611,7 @@ export const updateComment = createServerFn({ method: "POST" })
 
 // Delete comment
 export const deleteComment = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				commentId: z.number(),

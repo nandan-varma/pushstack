@@ -1,11 +1,4 @@
-import { boolean, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
-
-// Demo table
-export const todos = pgTable("todos", {
-	id: serial().primaryKey(),
-	title: text().notNull(),
-	createdAt: timestamp("created_at").defaultNow(),
-});
+import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 // Better Auth tables
 export const user = pgTable("user", {
@@ -58,19 +51,6 @@ export const verification = pgTable("verification", {
 	expiresAt: timestamp("expiresAt").notNull(),
 	createdAt: timestamp("createdAt"),
 	updatedAt: timestamp("updatedAt"),
-});
-
-// Integrated demo - Notes table
-export const notes = pgTable("notes", {
-	id: serial().primaryKey(),
-	title: text("title").notNull(),
-	content: text("content").notNull(),
-	isPublic: boolean("is_public").default(false).notNull(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => user.id),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Export GitHub schema tables

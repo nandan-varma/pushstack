@@ -1,4 +1,3 @@
-import copy from "copy-to-clipboard";
 import { useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
@@ -26,7 +25,7 @@ export default function CodeViewer({
 	const [copied, setCopied] = useState(false);
 
 	const handleCopy = () => {
-		copy(code);
+		navigator.clipboard.writeText(code);
 		setCopied(true);
 		setTimeout(() => setCopied(false), 2000);
 	};

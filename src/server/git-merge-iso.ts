@@ -94,11 +94,12 @@ export async function mergeBranches(
 			repoName,
 			targetBranch,
 			async ({ worktreePath }) => {
+				// Use remote tracking ref: worktree clones only have origin/<branch>, not local <branch>
 				await git.merge({
 					fs,
 					dir: worktreePath,
 					ours: targetBranch,
-					theirs: sourceBranch,
+					theirs: `origin/${sourceBranch}`,
 					author:
 						options.authorName && options.authorEmail
 							? {
@@ -112,8 +113,8 @@ export async function mergeBranches(
 						options.message || `Merge ${sourceBranch} into ${targetBranch}`,
 				});
 
-				const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
-				return git.resolveRef({ ...repo, ref: targetBranch });
+				// Read from worktree (bare repo not updated yet) and avoid re-acquiring the lock
+				return git.resolveRef({ fs, dir: worktreePath, ref: targetBranch });
 			},
 			"main",
 			legacyOwnerKeys,

@@ -5,7 +5,6 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
-// import { gitHttpProtocol } from "vite-plugin-git";
 
 const config = defineConfig({
 	resolve: {
@@ -16,9 +15,6 @@ const config = defineConfig({
 	},
 	plugins: [
 		devtools(),
-		// cloudflare({ viteEnvironment: { name: 'ssr' } }), // Disabled - deploying to Node.js
-		// neon, // Disabled - using Drizzle migrations instead
-		// gitHttpProtocol(), // Git HTTP protocol handled by TanStack router
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
 		tanstackStart(),

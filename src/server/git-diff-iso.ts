@@ -137,13 +137,11 @@ export async function getCommitDiff(
 			...repo,
 			trees: [git.TREE({ ref: parent }), git.TREE({ ref: commitSha })],
 			map: async (filepath, [A, B]) => {
-				if (!filepath) return null;
-
 				const typeA = await A?.type();
 				const typeB = await B?.type();
 
-				// Skip directories
-				if (typeA === "tree" || typeB === "tree") return null;
+				// Return undefined (not null) so isomorphic-git descends into subdirs
+				if (typeA === "tree" || typeB === "tree") return;
 
 				// File deleted
 				if (typeA && !typeB) {
@@ -202,20 +200,14 @@ export async function getCommitDiff(
 			},
 		});
 
-		const files = changes.filter(
-			(c: DiffFile | null): c is DiffFile => c !== null,
+		const files = (changes ?? []).filter(
+			(c): c is DiffFile => c !== null && c !== undefined,
 		);
 
 		return {
 			files,
-			totalAdditions: files.reduce(
-				(sum: number, f: DiffFile) => sum + f.additions,
-				0,
-			),
-			totalDeletions: files.reduce(
-				(sum: number, f: DiffFile) => sum + f.deletions,
-				0,
-			),
+			totalAdditions: files.reduce((sum, f) => sum + f.additions, 0),
+			totalDeletions: files.reduce((sum, f) => sum + f.deletions, 0),
 			totalFiles: files.length,
 		};
 	} catch (error) {
@@ -242,12 +234,11 @@ export async function getDiffBetweenBranches(
 		...repo,
 		trees: [git.TREE({ ref: baseOid }), git.TREE({ ref: compareOid })],
 		map: async (filepath, [A, B]) => {
-			if (!filepath) return null;
-
 			const typeA = await A?.type();
 			const typeB = await B?.type();
 
-			if (typeA === "tree" || typeB === "tree") return null;
+			// Return undefined (not null) so isomorphic-git descends into subdirs
+			if (typeA === "tree" || typeB === "tree") return;
 
 			if (typeA && !typeB) {
 				const oidA = A ? await A.oid() : "";
@@ -300,20 +291,14 @@ export async function getDiffBetweenBranches(
 		},
 	});
 
-	const files = changes.filter(
-		(c: DiffFile | null): c is DiffFile => c !== null,
+	const files = (changes ?? []).filter(
+		(c): c is DiffFile => c !== null && c !== undefined,
 	);
 
 	return {
 		files,
-		totalAdditions: files.reduce(
-			(sum: number, f: DiffFile) => sum + f.additions,
-			0,
-		),
-		totalDeletions: files.reduce(
-			(sum: number, f: DiffFile) => sum + f.deletions,
-			0,
-		),
+		totalAdditions: files.reduce((sum, f) => sum + f.additions, 0),
+		totalDeletions: files.reduce((sum, f) => sum + f.deletions, 0),
 		totalFiles: files.length,
 	};
 }

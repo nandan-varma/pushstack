@@ -57,7 +57,7 @@ const createRepoSchema = z.object({
 
 // Create repository
 export const createRepository = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) => createRepoSchema.parse(data))
+	.validator((data: unknown) => createRepoSchema.parse(data))
 	.handler(async ({ data }) => {
 		try {
 			const user = await getCurrentUser();
@@ -150,7 +150,7 @@ export const createRepository = createServerFn({ method: "POST" })
 
 // Get user repositories
 export const getUserRepositories = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				userId: z.string().optional(),
@@ -179,7 +179,7 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 
 // Get repository by ID
 export const getRepository = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				id: z.number(),
@@ -229,7 +229,7 @@ export const getRepository = createServerFn({ method: "GET" })
 
 // Get repository by owner and name
 export const getRepositoryByName = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				owner: z.string(),
@@ -272,7 +272,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 
 // Update repository
 export const updateRepository = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				id: z.number(),
@@ -318,7 +318,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 
 // Delete repository
 export const deleteRepository = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				id: z.number(),
@@ -377,7 +377,7 @@ export const deleteRepository = createServerFn({ method: "POST" })
 
 // Star/unstar repository
 export const toggleStar = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -422,7 +422,7 @@ export const toggleStar = createServerFn({ method: "POST" })
 
 // Get repository collaborators
 export const getCollaborators = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -448,7 +448,7 @@ export const getCollaborators = createServerFn({ method: "GET" })
 
 // Add collaborator
 export const addCollaborator = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -486,7 +486,7 @@ export const addCollaborator = createServerFn({ method: "POST" })
 
 // Remove collaborator
 export const removeCollaborator = createServerFn({ method: "POST" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),

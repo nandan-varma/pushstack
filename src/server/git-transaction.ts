@@ -231,84 +231,21 @@ export async function withTransaction<T>(
 	}
 }
 
-/**
- * Transaction registry for cleanup
- * Tracks active transactions for background cleanup of abandoned ones
- */
-class TransactionRegistry {
-	private transactions = new Map<
-		string,
-		{ txn: GitTransaction; createdAt: number }
-	>();
+// ponytail: plain Map instead of TransactionRegistry class
+const activeTransactions = new Map<string, { txn: GitTransaction; createdAt: number }>();
 
-	register(txn: GitTransaction): void {
-		this.transactions.set(txn.getId(), {
-			txn,
-			createdAt: Date.now(),
-		});
-	}
-
-	unregister(txn: GitTransaction): void {
-		this.transactions.delete(txn.getId());
-	}
-
-	/**
-	 * Clean up abandoned transactions older than threshold
-	 */
-	async cleanupAbandoned(thresholdMs: number = 3600000): Promise<void> {
-		const now = Date.now();
-		const toCleanup: GitTransaction[] = [];
-
-		for (const [id, entry] of this.transactions.entries()) {
-			if (now - entry.createdAt > thresholdMs) {
-				if (!entry.txn.isCommitted() && !entry.txn.isRolledBack()) {
-					toCleanup.push(entry.txn);
-				}
-				this.transactions.delete(id);
-			}
-		}
-
-		// Rollback abandoned transactions
-		for (const txn of toCleanup) {
-			try {
-				await txn.rollback();
-				console.log(`Rolled back abandoned transaction: ${txn.getId()}`);
-			} catch (error) {
-				console.error(
-					`Failed to rollback abandoned transaction ${txn.getId()}:`,
-					error,
-				);
-			}
-		}
-	}
-
-	/**
-	 * Get statistics
-	 */
-	getStats() {
-		return {
-			active: this.transactions.size,
-			transactions: Array.from(this.transactions.entries()).map(
-				([id, entry]) => ({
-					id,
-					ageMs: Date.now() - entry.createdAt,
-					committed: entry.txn.isCommitted(),
-					rolledBack: entry.txn.isRolledBack(),
-					pending: entry.txn.getPendingCount(),
-				}),
-			),
-		};
-	}
-}
-
-// Global transaction registry
-export const transactionRegistry = new TransactionRegistry();
-
-// Start background cleanup job (every 10 minutes)
 if (typeof setInterval !== "undefined") {
-	setInterval(() => {
-		transactionRegistry.cleanupAbandoned().catch((error) => {
-			console.error("Transaction cleanup failed:", error);
-		});
-	}, 600000); // 10 minutes
+	setInterval(async () => {
+		const threshold = Date.now() - 3600000;
+		for (const [id, entry] of activeTransactions.entries()) {
+			if (entry.createdAt < threshold) {
+				activeTransactions.delete(id);
+				if (!entry.txn.isCommitted() && !entry.txn.isRolledBack()) {
+					await entry.txn.rollback().catch((e) =>
+						console.error(`Failed to rollback abandoned transaction ${id}:`, e),
+					);
+				}
+			}
+		}
+	}, 600000);
 }

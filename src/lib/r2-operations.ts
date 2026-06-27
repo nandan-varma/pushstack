@@ -26,59 +26,34 @@ const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 100; // ms
 const MAX_RETRY_DELAY = 5000; // ms
 
-// Circuit breaker configuration
-const CIRCUIT_BREAKER_THRESHOLD = 5; // failures before opening circuit
-const CIRCUIT_BREAKER_TIMEOUT = 30000; // ms before trying again
+// ponytail: circuit breaker state as plain module vars, no class needed
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_TIMEOUT = 30000;
+let cbFailures = 0;
+let cbLastFailureTime = 0;
+let cbState: "closed" | "open" | "half-open" = "closed";
 
-class CircuitBreaker {
-	private failures = 0;
-	private lastFailureTime = 0;
-	private state: "closed" | "open" | "half-open" = "closed";
-
-	async execute<T>(fn: () => Promise<T>): Promise<T> {
-		// Check if circuit is open
-		if (this.state === "open") {
-			const timeSinceFailure = Date.now() - this.lastFailureTime;
-			if (timeSinceFailure < CIRCUIT_BREAKER_TIMEOUT) {
-				throw new R2UploadError(
-					"Circuit breaker is open, R2 unavailable",
-					false,
-				);
-			}
-			// Try to recover
-			this.state = "half-open";
+async function circuitBreakerExecute<T>(fn: () => Promise<T>): Promise<T> {
+	if (cbState === "open") {
+		if (Date.now() - cbLastFailureTime < CIRCUIT_BREAKER_TIMEOUT) {
+			throw new R2UploadError("Circuit breaker is open, R2 unavailable", false);
 		}
-
-		try {
-			const result = await fn();
-			// Success - reset circuit breaker
-			if (this.state === "half-open") {
-				this.state = "closed";
-				this.failures = 0;
-			}
-			return result;
-		} catch (error) {
-			this.failures++;
-			this.lastFailureTime = Date.now();
-
-			if (this.failures >= CIRCUIT_BREAKER_THRESHOLD) {
-				this.state = "open";
-			}
-
-			throw error;
-		}
+		cbState = "half-open";
 	}
-
-	getState() {
-		return {
-			state: this.state,
-			failures: this.failures,
-			lastFailureTime: this.lastFailureTime,
-		};
+	try {
+		const result = await fn();
+		if (cbState === "half-open") {
+			cbState = "closed";
+			cbFailures = 0;
+		}
+		return result;
+	} catch (error) {
+		cbFailures++;
+		cbLastFailureTime = Date.now();
+		if (cbFailures >= CIRCUIT_BREAKER_THRESHOLD) cbState = "open";
+		throw error;
 	}
 }
-
-const circuitBreaker = new CircuitBreaker();
 
 /**
  * Retry with exponential backoff and jitter
@@ -92,7 +67,7 @@ async function withRetry<T>(
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
-			return await circuitBreaker.execute(fn);
+			return await circuitBreakerExecute(fn);
 		} catch (error) {
 			lastError = error;
 
@@ -437,9 +412,6 @@ export async function bulkDeleteFromR2(
 	return { deleted, errors };
 }
 
-/**
- * Get circuit breaker state for monitoring
- */
 export function getCircuitBreakerState() {
-	return circuitBreaker.getState();
+	return { state: cbState, failures: cbFailures, lastFailureTime: cbLastFailureTime };
 }

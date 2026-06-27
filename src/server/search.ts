@@ -16,7 +16,7 @@ type UserSearchResult = {
 
 // Search repositories
 export const searchRepositories = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				query: z.string().min(1),
@@ -51,7 +51,7 @@ export const searchRepositories = createServerFn({ method: "GET" })
 
 // Search issues
 export const searchIssues = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -90,7 +90,7 @@ export const searchIssues = createServerFn({ method: "GET" })
 
 // Search users
 export const searchUsers = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				query: z.string().min(1),
@@ -120,7 +120,7 @@ export const searchUsers = createServerFn({ method: "GET" })
 
 // Get user activity feed
 export const getUserActivity = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				userId: z.string().optional(),
@@ -159,7 +159,7 @@ export const getUserActivity = createServerFn({ method: "GET" })
 
 // Get repository activity feed
 export const getRepositoryActivity = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				repoId: z.number(),
@@ -191,7 +191,7 @@ export const getRepositoryActivity = createServerFn({ method: "GET" })
 
 // Get global activity feed (public repositories)
 export const getGlobalActivity = createServerFn({ method: "GET" })
-	.inputValidator((data: unknown) =>
+	.validator((data: unknown) =>
 		z
 			.object({
 				limit: z.number().optional().default(50),
