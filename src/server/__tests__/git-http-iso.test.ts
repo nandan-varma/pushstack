@@ -63,14 +63,31 @@ import type { GitAuthContext } from "../git-auth";
 const AUTH_BASE: GitAuthContext = {
 	userId: "test-user",
 	username: "testuser",
-	user: { id: "test-user", username: "testuser", email: "test@example.com", name: "Test" },
+	user: {
+		id: "test-user",
+		username: "testuser",
+		email: "test@example.com",
+		name: "Test",
+	},
 	repo: { id: 1, ownerId: "test-user", name: "r", visibility: "public" },
 	canRead: true,
 	canWrite: false,
 };
-const AUTH_READ: GitAuthContext = { ...AUTH_BASE, canRead: true, canWrite: false };
-const AUTH_WRITE: GitAuthContext = { ...AUTH_BASE, canRead: true, canWrite: true };
-const AUTH_NONE: GitAuthContext = { ...AUTH_BASE, canRead: false, canWrite: false };
+const AUTH_READ: GitAuthContext = {
+	...AUTH_BASE,
+	canRead: true,
+	canWrite: false,
+};
+const AUTH_WRITE: GitAuthContext = {
+	...AUTH_BASE,
+	canRead: true,
+	canWrite: true,
+};
+const AUTH_NONE: GitAuthContext = {
+	...AUTH_BASE,
+	canRead: false,
+	canWrite: false,
+};
 
 // Helper to build pkt-line buffer
 function pktLine(s: string): Buffer {

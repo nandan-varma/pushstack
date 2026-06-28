@@ -147,7 +147,9 @@ export class R2Backend {
 
 		// Invalidate file cache and parent dir listing cache
 		deleteCache(cacheKey);
-		const parentDir = relativePath.includes("/") ? relativePath.slice(0, relativePath.lastIndexOf("/")) : "";
+		const parentDir = relativePath.includes("/")
+			? relativePath.slice(0, relativePath.lastIndexOf("/"))
+			: "";
 		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
 	}
 
@@ -164,7 +166,9 @@ export class R2Backend {
 
 		// Invalidate file cache and parent dir listing cache
 		deleteCache(cacheKey);
-		const parentDir = relativePath.includes("/") ? relativePath.slice(0, relativePath.lastIndexOf("/")) : "";
+		const parentDir = relativePath.includes("/")
+			? relativePath.slice(0, relativePath.lastIndexOf("/"))
+			: "";
 		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
 	}
 

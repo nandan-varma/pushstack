@@ -29,12 +29,16 @@ const PULL_STATUS_VALUES = ["open", "closed", "merged", "all"] as const;
 type PullStatus = (typeof PULL_STATUS_VALUES)[number];
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
-	validateSearch: (search: Record<string, unknown>): { status?: PullStatus } => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { status?: PullStatus } => ({
 		status: (PULL_STATUS_VALUES.includes(search.status as PullStatus)
 			? search.status
 			: undefined) as PullStatus | undefined,
 	}),
-	loaderDeps: ({ search }) => ({ status: search.status ?? ("open" as PullStatus) }),
+	loaderDeps: ({ search }) => ({
+		status: search.status ?? ("open" as PullStatus),
+	}),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),

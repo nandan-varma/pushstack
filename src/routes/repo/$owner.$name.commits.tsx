@@ -19,7 +19,9 @@ import {
 const PAGE_SIZE = 25;
 
 export const Route = createFileRoute("/repo/$owner/$name/commits")({
-	validateSearch: (search: Record<string, unknown>): { branch?: string; skip?: number } => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { branch?: string; skip?: number } => ({
 		branch: (search.branch as string) || undefined,
 		skip: (search.skip as number) || undefined,
 	}),

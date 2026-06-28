@@ -76,11 +76,26 @@ export async function mergeBranches(
 		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
 		try {
 			const repo = getBareRepoOptions(ownerKey, repoName);
-			const sourceOid = await git.resolveRef({ ...repo, ref: `refs/heads/${sourceBranch}` });
-			const targetOid = await git.resolveRef({ ...repo, ref: `refs/heads/${targetBranch}` });
-			const isFF = await git.isDescendent({ ...repo, oid: sourceOid, ancestor: targetOid });
+			const sourceOid = await git.resolveRef({
+				...repo,
+				ref: `refs/heads/${sourceBranch}`,
+			});
+			const targetOid = await git.resolveRef({
+				...repo,
+				ref: `refs/heads/${targetBranch}`,
+			});
+			const isFF = await git.isDescendent({
+				...repo,
+				oid: sourceOid,
+				ancestor: targetOid,
+			});
 			if (isFF) {
-				await git.writeRef({ ...repo, ref: `refs/heads/${targetBranch}`, value: sourceOid, force: true });
+				await git.writeRef({
+					...repo,
+					ref: `refs/heads/${targetBranch}`,
+					value: sourceOid,
+					force: true,
+				});
 				return { success: true, commitSha: sourceOid };
 			}
 		} catch (error) {
@@ -157,7 +172,16 @@ export async function resolveConflicts(
 ): Promise<void> {
 	if (isR2Configured()) {
 		// ponytail: resolveConflicts = createCommit with conflict resolutions
-		await createCommit(ownerKey, repoName, "Resolve merge conflicts", resolutions, undefined, undefined, "main", ownerDbId);
+		await createCommit(
+			ownerKey,
+			repoName,
+			"Resolve merge conflicts",
+			resolutions,
+			undefined,
+			undefined,
+			"main",
+			ownerDbId,
+		);
 		return;
 	}
 

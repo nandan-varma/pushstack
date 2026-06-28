@@ -34,7 +34,12 @@ async function upsertTree(
 		}
 	}
 	for (const [name, blobOid] of direct) {
-		byName.set(name, { mode: "100644", path: name, oid: blobOid, type: "blob" });
+		byName.set(name, {
+			mode: "100644",
+			path: name,
+			oid: blobOid,
+			type: "blob",
+		});
 	}
 	for (const [dir, subEntries] of nested) {
 		const entry = byName.get(dir);
@@ -74,8 +79,16 @@ async function writeCommitDirect(
 	repoName: string,
 	branch: string,
 	message: string,
-	author: { name: string; email: string; timestamp: number; timezoneOffset: number },
-	buildTree: (parentTreeOid: string | undefined, repo: ReturnType<typeof getBareRepoOptions>) => Promise<string>,
+	author: {
+		name: string;
+		email: string;
+		timestamp: number;
+		timezoneOffset: number;
+	},
+	buildTree: (
+		parentTreeOid: string | undefined,
+		repo: ReturnType<typeof getBareRepoOptions>,
+	) => Promise<string>,
 ): Promise<string> {
 	const repo = getBareRepoOptions(ownerKey, repoName);
 	let parentOid: string | undefined;
@@ -98,7 +111,12 @@ async function writeCommitDirect(
 			committer: author,
 		},
 	});
-	await git.writeRef({ ...repo, ref: `refs/heads/${branch}`, value: commitOid, force: true });
+	await git.writeRef({
+		...repo,
+		ref: `refs/heads/${branch}`,
+		value: commitOid,
+		force: true,
+	});
 	return commitOid;
 }
 
@@ -243,15 +261,25 @@ export async function createCommit(
 
 	if (isR2Configured()) {
 		// ponytail: write blobs + tree + commit directly to R2 — no worktree, no disk I/O
-		return writeCommitDirect(ownerKey, repoName, branch, message, author, async (parentTreeOid, repo) => {
-			const blobs = new Map<string, string>();
-			for (const file of files) {
-				const content = typeof file.content === "string" ? Buffer.from(file.content) : file.content;
-				const oid = await git.writeBlob({ ...repo, blob: content });
-				blobs.set(file.path, oid);
-			}
-			return upsertTree(repo, parentTreeOid, blobs);
-		});
+		return writeCommitDirect(
+			ownerKey,
+			repoName,
+			branch,
+			message,
+			author,
+			async (parentTreeOid, repo) => {
+				const blobs = new Map<string, string>();
+				for (const file of files) {
+					const content =
+						typeof file.content === "string"
+							? Buffer.from(file.content)
+							: file.content;
+					const oid = await git.writeBlob({ ...repo, blob: content });
+					blobs.set(file.path, oid);
+				}
+				return upsertTree(repo, parentTreeOid, blobs);
+			},
+		);
 	}
 
 	return withRepositoryWorktree(
@@ -506,10 +534,17 @@ export async function deleteFile(
 
 	if (isR2Configured()) {
 		// ponytail: remove from tree + commit directly to R2 — no worktree
-		const sha = await writeCommitDirect(ownerKey, repoName, branchName, message, authorInfo, async (parentTreeOid, repo) => {
-			if (!parentTreeOid) throw new Error(`Branch ${branchName} is empty`);
-			return deleteFromTree(repo, parentTreeOid, filePath);
-		});
+		const sha = await writeCommitDirect(
+			ownerKey,
+			repoName,
+			branchName,
+			message,
+			authorInfo,
+			async (parentTreeOid, repo) => {
+				if (!parentTreeOid) throw new Error(`Branch ${branchName} is empty`);
+				return deleteFromTree(repo, parentTreeOid, filePath);
+			},
+		);
 		return { sha, message };
 	}
 

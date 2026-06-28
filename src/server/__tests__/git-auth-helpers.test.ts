@@ -27,10 +27,7 @@ vi.mock("../repo-access", () => ({
 	canWriteRepo: mockCanWrite,
 }));
 
-import {
-	authenticateGitRequest,
-	createAuthChallenge,
-} from "../git-auth";
+import { authenticateGitRequest, createAuthChallenge } from "../git-auth";
 import {
 	GitAuthenticationError,
 	GitAuthorizationError,
@@ -68,7 +65,9 @@ beforeEach(() => {
 	mockCanWrite.mockResolvedValue(false);
 	// db.update().set().where() chain used by authenticateToken to record lastUsedAt
 	mockDb.update.mockReturnValue({
-		set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+		set: vi
+			.fn()
+			.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
 	});
 });
 
@@ -176,9 +175,7 @@ describe("authenticateGitRequest", () => {
 		it("authenticates via PAT in password field and allows full access", async () => {
 			const token = "ghp_validtoken12345";
 			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(
-				tokenRecord(["repo"]),
-			);
+			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["repo"]));
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(true);
 
@@ -217,7 +214,11 @@ describe("authenticateGitRequest", () => {
 			mockCanRead.mockResolvedValue(false);
 
 			await expect(
-				authenticateGitRequest(req(basicAuthHeader("alice", token)), "alice", "repo"),
+				authenticateGitRequest(
+					req(basicAuthHeader("alice", token)),
+					"alice",
+					"repo",
+				),
 			).rejects.toBeInstanceOf(GitAuthenticationError);
 		});
 
@@ -231,7 +232,11 @@ describe("authenticateGitRequest", () => {
 			mockCanRead.mockResolvedValue(false); // expired → no auth → 401
 
 			await expect(
-				authenticateGitRequest(req(basicAuthHeader("alice", token)), "alice", "repo"),
+				authenticateGitRequest(
+					req(basicAuthHeader("alice", token)),
+					"alice",
+					"repo",
+				),
 			).rejects.toBeInstanceOf(GitAuthenticationError);
 		});
 	});
@@ -287,9 +292,7 @@ describe("authenticateGitRequest", () => {
 		it("accepts repo scope (broad) for write", async () => {
 			const token = "ghp_broadscope12345";
 			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(
-				tokenRecord(["repo"]),
-			);
+			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["repo"]));
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(true);
 
@@ -306,9 +309,7 @@ describe("authenticateGitRequest", () => {
 		it("accepts wildcard scope for write", async () => {
 			const token = "ghp_wildcardscope123";
 			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(
-				tokenRecord(["*"]),
-			);
+			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["*"]));
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(true);
 

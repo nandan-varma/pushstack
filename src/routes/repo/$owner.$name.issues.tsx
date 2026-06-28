@@ -28,12 +28,16 @@ const STATUS_VALUES = ["open", "closed", "all"] as const;
 type IssueStatus = (typeof STATUS_VALUES)[number];
 
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
-	validateSearch: (search: Record<string, unknown>): { status?: IssueStatus } => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { status?: IssueStatus } => ({
 		status: (STATUS_VALUES.includes(search.status as IssueStatus)
 			? search.status
 			: undefined) as IssueStatus | undefined,
 	}),
-	loaderDeps: ({ search }) => ({ status: search.status ?? ("open" as IssueStatus) }),
+	loaderDeps: ({ search }) => ({
+		status: search.status ?? ("open" as IssueStatus),
+	}),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -66,7 +70,10 @@ function IssuesPage() {
 	);
 
 	const { data: issues, isLoading } = useQuery({
-		...repositoryIssuesQueryOptions({ repoId: repo?.id ?? 0, status: filter ?? "open" }),
+		...repositoryIssuesQueryOptions({
+			repoId: repo?.id ?? 0,
+			status: filter ?? "open",
+		}),
 		enabled: !!repo,
 	});
 
