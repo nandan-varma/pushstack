@@ -14,8 +14,8 @@ import {
 import { uploadFile } from "@/server/files";
 
 export const Route = createFileRoute("/repo/$owner/$name/upload")({
-	validateSearch: (search: Record<string, unknown>) => ({
-		branch: (search.branch as string) || "",
+	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
+		branch: (search.branch as string) || undefined,
 	}),
 	beforeLoad: async () => {
 		const session = await getSession();

@@ -28,7 +28,6 @@ vi.mock("../git-storage-naming", () => ({
 
 import * as r2ops from "#/lib/r2-operations";
 import * as cache from "../git-cache";
-import { GitObjectNotFoundError, GitRefNotFoundError } from "../git-errors";
 import { R2Backend, R2RefBackend } from "../git-r2-backend";
 
 const REPO_PATH = "repos/alice/myrepo/git";
@@ -104,7 +103,7 @@ describe("R2Backend.writeFile", () => {
 		);
 
 		expect(r2ops.uploadToR2).toHaveBeenCalledOnce();
-		expect(cache.deleteCache).toHaveBeenCalledOnce();
+		expect(cache.deleteCache).toHaveBeenCalledTimes(2); // file + parent dir listing
 	});
 
 	it("uses text/plain content-type for refs/ paths", async () => {

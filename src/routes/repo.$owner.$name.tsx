@@ -17,7 +17,7 @@ const repoRouteSchema = z.object({
 });
 
 export const Route = createFileRoute("/repo/$owner/$name")({
-	validateSearch: (search: Record<string, unknown>) => ({
+	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
 		branch: (search.branch as string) || undefined,
 	}),
 	loader: ({ params, context: { queryClient } }) =>

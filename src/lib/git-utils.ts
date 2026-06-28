@@ -18,7 +18,9 @@ export function getGitBaseUrl(): string {
 		return authUrl.replace(/\/$/, ""); // Remove trailing slash
 	}
 
-	return "http://localhost:3000";
+	throw new Error(
+		"BETTER_AUTH_URL must be set — cannot generate git clone URLs server-side without it",
+	);
 }
 
 /**

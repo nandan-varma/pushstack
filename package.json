@@ -20,7 +20,7 @@
     "lint": "biome lint",
     "check": "biome check",
     "typecheck": "tsc --noEmit",
-    "deploy": "pnpm run build && wrangler deploy",
+    "deploy": "pnpm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -72,6 +72,7 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^4.1.18",
+    "resend": "^4.6.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -95,8 +96,7 @@
     "typescript": "^5.7.2",
     "vite": "^7.3.1",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.6",
-    "wrangler": "^4.70.0"
+    "vitest": "^3.2.6"
   },
   "packageManager": "pnpm@9.15.5",
   "pnpm": {

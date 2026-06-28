@@ -147,7 +147,7 @@ async function authenticateWithPassword(
 	password: string,
 ): Promise<AuthenticatedGitUser | null> {
 	try {
-		const { user, account } = await import("../db/schema");
+		const { user } = await import("../db/schema");
 		const { or, eq } = await import("drizzle-orm");
 		const { verifyPassword } = await import("better-auth/crypto");
 

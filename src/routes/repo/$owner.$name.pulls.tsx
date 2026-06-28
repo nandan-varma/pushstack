@@ -29,12 +29,12 @@ const PULL_STATUS_VALUES = ["open", "closed", "merged", "all"] as const;
 type PullStatus = (typeof PULL_STATUS_VALUES)[number];
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
-	validateSearch: (search: Record<string, unknown>) => ({
+	validateSearch: (search: Record<string, unknown>): { status?: PullStatus } => ({
 		status: (PULL_STATUS_VALUES.includes(search.status as PullStatus)
 			? search.status
-			: "open") as PullStatus,
+			: undefined) as PullStatus | undefined,
 	}),
-	loaderDeps: ({ search }) => ({ status: search.status }),
+	loaderDeps: ({ search }) => ({ status: search.status ?? ("open" as PullStatus) }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -82,7 +82,7 @@ function PullRequestsPage() {
 	const { data: pullRequests, isLoading } = useQuery({
 		...repositoryPullRequestsQueryOptions({
 			repoId: repo?.id ?? 0,
-			status: filter,
+			status: filter ?? "open",
 		}),
 		enabled: !!repo,
 	});
@@ -246,7 +246,8 @@ function PullRequestsPage() {
 						type="button"
 						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
 						onClick={() =>
-							navigate({ search: { status: value }, replace: true })
+							// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
+							navigate({ search: { status: value } as any, replace: true })
 						}
 					>
 						{label}

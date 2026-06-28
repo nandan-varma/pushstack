@@ -145,7 +145,7 @@ export async function getRepoDiskUsage(dir: string): Promise<number> {
 	let totalSize = 0;
 
 	async function calculateSize(dirPath: string) {
-		let entries: Awaited<ReturnType<typeof fs.readdir>>;
+		let entries: import("node:fs").Dirent<string>[];
 		try {
 			entries = await fs.readdir(dirPath, { withFileTypes: true });
 		} catch {

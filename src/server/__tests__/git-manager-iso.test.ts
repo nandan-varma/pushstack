@@ -50,7 +50,6 @@ vi.mock("../git-storage-naming", () => ({
 }));
 
 // Now import after mocks
-// @ts-expect-error - importing after mock
 const GitManager = await import("../git-manager-iso");
 const git = mockGit.default;
 const fs = mockFs.promises;

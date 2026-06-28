@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import {
 	createFileRoute,
 	Link,
@@ -20,9 +19,9 @@ import {
 const PAGE_SIZE = 25;
 
 export const Route = createFileRoute("/repo/$owner/$name/commits")({
-	validateSearch: (search: Record<string, unknown>) => ({
-		branch: (search.branch as string) || "main",
-		skip: (search.skip as number) || 0,
+	validateSearch: (search: Record<string, unknown>): { branch?: string; skip?: number } => ({
+		branch: (search.branch as string) || undefined,
+		skip: (search.skip as number) || undefined,
 	}),
 	loaderDeps: ({ search }) => ({ branch: search.branch, skip: search.skip }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
@@ -35,7 +34,7 @@ export const Route = createFileRoute("/repo/$owner/$name/commits")({
 				queryClient.ensureQueryData(
 					repositoryCommitsQueryOptions({
 						repoId: repo.id,
-						branchName: deps.branch,
+						branchName: deps.branch ?? "main",
 						skip: deps.skip ?? 0,
 					}),
 				),
@@ -66,7 +65,7 @@ function CommitsPage() {
 	const { data: commits, isLoading } = useQuery({
 		...repositoryCommitsQueryOptions({
 			repoId: repo?.id ?? 0,
-			branchName: branch,
+			branchName: branch ?? "main",
 			skip: skip ?? 0,
 		}),
 		enabled: !!repo,

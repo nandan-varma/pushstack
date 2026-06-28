@@ -4,9 +4,7 @@
  */
 
 import { promises as nodeFs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init
 const TEST_DIR = vi.hoisted(() => {

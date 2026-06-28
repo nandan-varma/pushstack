@@ -12,8 +12,8 @@ import {
 } from "@/lib/query-options";
 
 export const Route = createFileRoute("/repo/$owner/$name/")({
-	validateSearch: (search: Record<string, unknown>) => ({
-		branch: (search.branch as string) || "",
+	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
+		branch: (search.branch as string) || undefined,
 	}),
 	loaderDeps: ({ search }) => ({ branch: search.branch }),
 	loader: async ({ params, deps, context: { queryClient } }) => {

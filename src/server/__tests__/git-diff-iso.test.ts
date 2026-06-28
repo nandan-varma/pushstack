@@ -86,11 +86,6 @@ describe("getCommitDiff", () => {
 			commit: { tree: treeSha, parent: [parentSha] },
 		});
 
-		const treeEntry = (name: string, oid: string) => ({
-			type: () => Promise.resolve("blob"),
-			oid: () => Promise.resolve(oid),
-		});
-
 		g.walk.mockResolvedValue([
 			{
 				path: "file.txt",
@@ -173,7 +168,7 @@ describe("getDiffBetweenBranches", () => {
 		const deleteContent = Buffer.from("old content\n");
 		g.readBlob.mockResolvedValue({ blob: deleteContent });
 
-		const walkEntry = (name: string, type: string) => ({
+		const walkEntry = (_name: string, type: string) => ({
 			type: () => Promise.resolve(type),
 			oid: () => Promise.resolve(makeOid("x")),
 		});

@@ -3,6 +3,7 @@ import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
+import { createCommit } from "./git-operations-iso";
 import {
 	ensureRepositoryHydrated,
 	withRepositoryWorktree,
@@ -71,6 +72,23 @@ export async function mergeBranches(
 	options: MergeOptions = {},
 	ownerDbId?: string,
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
+	if (isR2Configured()) {
+		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
+		try {
+			const repo = getBareRepoOptions(ownerKey, repoName);
+			const sourceOid = await git.resolveRef({ ...repo, ref: `refs/heads/${sourceBranch}` });
+			const targetOid = await git.resolveRef({ ...repo, ref: `refs/heads/${targetBranch}` });
+			const isFF = await git.isDescendent({ ...repo, oid: sourceOid, ancestor: targetOid });
+			if (isFF) {
+				await git.writeRef({ ...repo, ref: `refs/heads/${targetBranch}`, value: sourceOid, force: true });
+				return { success: true, commitSha: sourceOid };
+			}
+		} catch (error) {
+			return { success: false, conflicts: ["Merge conflicts detected"] };
+		}
+		// Non-FF: fall through to worktree path below
+	}
+
 	try {
 		const commitOid = await withRepositoryWorktree(
 			ownerKey,
@@ -137,6 +155,12 @@ export async function resolveConflicts(
 	resolutions: Array<{ path: string; content: string }>,
 	ownerDbId?: string,
 ): Promise<void> {
+	if (isR2Configured()) {
+		// ponytail: resolveConflicts = createCommit with conflict resolutions
+		await createCommit(ownerKey, repoName, "Resolve merge conflicts", resolutions, undefined, undefined, "main", ownerDbId);
+		return;
+	}
+
 	await withRepositoryWorktree(
 		ownerKey,
 		repoName,

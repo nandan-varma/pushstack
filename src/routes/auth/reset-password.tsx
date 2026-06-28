@@ -5,24 +5,34 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 
-export const Route = createFileRoute("/auth/forgot-password")({
-	component: ForgotPasswordPage,
+export const Route = createFileRoute("/auth/reset-password")({
+	component: ResetPasswordPage,
 });
 
-function ForgotPasswordPage() {
-	const [email, setEmail] = useState("");
+function ResetPasswordPage() {
+	const [password, setPassword] = useState("");
+	const [confirm, setConfirm] = useState("");
 	const [error, setError] = useState("");
 	const [success, setSuccess] = useState(false);
 	const [loading, setLoading] = useState(false);
 
+	const token =
+		typeof window !== "undefined"
+			? (new URLSearchParams(window.location.search).get("token") ?? "")
+			: "";
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (password !== confirm) {
+			setError("Passwords do not match");
+			return;
+		}
 		setError("");
 		setLoading(true);
 
-		const { error: err } = await authClient.requestPasswordReset({
-			email,
-			redirectTo: "/auth/reset-password",
+		const { error: err } = await authClient.resetPassword({
+			newPassword: password,
+			token,
 		});
 
 		if (err) {
@@ -37,17 +47,16 @@ function ForgotPasswordPage() {
 		return (
 			<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10 text-center">
 				<h1 className="display-title mb-2 text-2xl font-bold text-[var(--sea-ink)]">
-					Check your email
+					Password updated
 				</h1>
 				<p className="mb-8 text-sm text-[var(--sea-ink-soft)]">
-					If an account exists for {email}, you'll receive reset instructions
-					shortly.
+					Your password has been reset. You can now sign in.
 				</p>
 				<Button
 					onClick={() => window.location.assign("/auth/login")}
 					className="w-full"
 				>
-					Back to sign in
+					Sign in
 				</Button>
 			</div>
 		);
@@ -57,10 +66,10 @@ function ForgotPasswordPage() {
 		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
 			<div className="mb-8 text-center">
 				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
-					Reset your password
+					Set new password
 				</h1>
 				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
-					Enter your email to receive reset instructions
+					Enter your new password below
 				</p>
 			</div>
 
@@ -72,32 +81,47 @@ function ForgotPasswordPage() {
 				)}
 
 				<div className="space-y-1.5">
-					<Label htmlFor="email">Email</Label>
+					<Label htmlFor="password">New password</Label>
 					<Input
-						id="email"
-						type="email"
-						placeholder="you@example.com"
-						value={email}
-						onChange={(e) => setEmail(e.target.value)}
+						id="password"
+						type="password"
+						value={password}
+						onChange={(e) => setPassword(e.target.value)}
 						required
-						autoComplete="email"
+						minLength={8}
+						autoComplete="new-password"
 					/>
 				</div>
 
-				<Button type="submit" className="w-full" disabled={loading}>
-					{loading ? "Sending…" : "Send reset link"}
-				</Button>
-			</form>
+				<div className="space-y-1.5">
+					<Label htmlFor="confirm">Confirm password</Label>
+					<Input
+						id="confirm"
+						type="password"
+						value={confirm}
+						onChange={(e) => setConfirm(e.target.value)}
+						required
+						minLength={8}
+						autoComplete="new-password"
+					/>
+				</div>
 
-			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
-				Remember your password?{" "}
-				<a
-					href="/auth/login"
-					className="font-medium text-[var(--lagoon-deep)] hover:underline"
-				>
-					Sign in
-				</a>
-			</p>
+				<Button type="submit" className="w-full" disabled={loading || !token}>
+					{loading ? "Saving…" : "Set new password"}
+				</Button>
+
+				{!token && (
+					<p className="text-center text-sm text-[var(--sea-ink-soft)]">
+						Invalid or expired reset link.{" "}
+						<a
+							href="/auth/forgot-password"
+							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						>
+							Request a new one
+						</a>
+					</p>
+				)}
+			</form>
 		</div>
 	);
 }

@@ -28,12 +28,12 @@ const STATUS_VALUES = ["open", "closed", "all"] as const;
 type IssueStatus = (typeof STATUS_VALUES)[number];
 
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
-	validateSearch: (search: Record<string, unknown>) => ({
+	validateSearch: (search: Record<string, unknown>): { status?: IssueStatus } => ({
 		status: (STATUS_VALUES.includes(search.status as IssueStatus)
 			? search.status
-			: "open") as IssueStatus,
+			: undefined) as IssueStatus | undefined,
 	}),
-	loaderDeps: ({ search }) => ({ status: search.status }),
+	loaderDeps: ({ search }) => ({ status: search.status ?? ("open" as IssueStatus) }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -66,7 +66,7 @@ function IssuesPage() {
 	);
 
 	const { data: issues, isLoading } = useQuery({
-		...repositoryIssuesQueryOptions({ repoId: repo?.id ?? 0, status: filter }),
+		...repositoryIssuesQueryOptions({ repoId: repo?.id ?? 0, status: filter ?? "open" }),
 		enabled: !!repo,
 	});
 
@@ -167,7 +167,8 @@ function IssuesPage() {
 						type="button"
 						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
 						onClick={() =>
-							navigate({ search: { status: value }, replace: true })
+							// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
+							navigate({ search: { status: value } as any, replace: true })
 						}
 					>
 						{label}

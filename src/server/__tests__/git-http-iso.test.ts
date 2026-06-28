@@ -58,9 +58,19 @@ const g = mockGit.default;
 const { handleInfoRefsIso, handleUploadPackIso, handleReceivePackIso } =
 	await import("../git-http-iso");
 
-const AUTH_READ = { canRead: true, canWrite: false };
-const AUTH_WRITE = { canRead: true, canWrite: true };
-const AUTH_NONE = { canRead: false, canWrite: false };
+import type { GitAuthContext } from "../git-auth";
+
+const AUTH_BASE: GitAuthContext = {
+	userId: "test-user",
+	username: "testuser",
+	user: { id: "test-user", username: "testuser", email: "test@example.com", name: "Test" },
+	repo: { id: 1, ownerId: "test-user", name: "r", visibility: "public" },
+	canRead: true,
+	canWrite: false,
+};
+const AUTH_READ: GitAuthContext = { ...AUTH_BASE, canRead: true, canWrite: false };
+const AUTH_WRITE: GitAuthContext = { ...AUTH_BASE, canRead: true, canWrite: true };
+const AUTH_NONE: GitAuthContext = { ...AUTH_BASE, canRead: false, canWrite: false };
 
 // Helper to build pkt-line buffer
 function pktLine(s: string): Buffer {

@@ -16,7 +16,7 @@ import {
 	uploadToR2,
 } from "#/lib/r2-operations";
 import { deleteCache, getCache, invalidateCache, setCache } from "./git-cache";
-import { GitObjectNotFoundError, GitRefNotFoundError } from "./git-errors";
+import { GitRefNotFoundError } from "./git-errors";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
@@ -145,8 +145,10 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await uploadToR2(r2Key, buffer, contentType);
 
-		// Invalidate cache
+		// Invalidate file cache and parent dir listing cache
 		deleteCache(cacheKey);
+		const parentDir = relativePath.includes("/") ? relativePath.slice(0, relativePath.lastIndexOf("/")) : "";
+		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
 	}
 
 	/**
@@ -160,8 +162,10 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await deleteFromR2(r2Key);
 
-		// Invalidate cache
+		// Invalidate file cache and parent dir listing cache
 		deleteCache(cacheKey);
+		const parentDir = relativePath.includes("/") ? relativePath.slice(0, relativePath.lastIndexOf("/")) : "";
+		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
 	}
 
 	/**
@@ -170,6 +174,11 @@ export class R2Backend {
 	async readdir(filepath: string): Promise<string[]> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
+
+		// Cache dir listings — cuts R2 LIST calls for repeated readdir (refs/, objects/, etc.)
+		const dirCacheKey = `dir:${ownerKey}/${repoName}/${relativePath}`;
+		const cachedDir = getCache(dirCacheKey);
+		if (cachedDir) return JSON.parse(cachedDir.toString()) as string[];
 
 		// Ensure path ends with / for prefix matching
 		const prefix = relativePath ? `${relativePath}/` : "";
@@ -188,7 +197,9 @@ export class R2Backend {
 				}
 			}
 
-			return Array.from(names).sort();
+			const result = Array.from(names).sort();
+			setCache(dirCacheKey, Buffer.from(JSON.stringify(result)));
+			return result;
 		} catch {
 			// Return empty array if directory doesn't exist
 			return [];
