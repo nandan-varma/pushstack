@@ -341,22 +341,24 @@ export async function handleReceivePackIso(
 	}
 
 	// Write incoming PACK into objects/pack/ so indexPack can process it there
-	const packDir = path.join(localGitdir, "objects", "pack");
-	await localFsPromises.mkdir(packDir, { recursive: true });
+	if (packData.length >= 4) {
+		const packDir = path.join(localGitdir, "objects", "pack");
+		await localFsPromises.mkdir(packDir, { recursive: true });
 
-	const packName = `pushstack-recv-${Date.now()}`;
-	await localFsPromises.writeFile(
-		path.join(packDir, `${packName}.pack`),
-		packData,
-	);
+		const packName = `pushstack-recv-${Date.now()}`;
+		await localFsPromises.writeFile(
+			path.join(packDir, `${packName}.pack`),
+			packData,
+		);
 
-	// Index the pack (writes .idx next to .pack, resolves external deltas from gitdir)
-	await git.indexPack({
-		fs,
-		dir: packDir,
-		gitdir: localGitdir,
-		filepath: `${packName}.pack`,
-	});
+		// Index the pack (writes .idx next to .pack, resolves external deltas from gitdir)
+		await git.indexPack({
+			fs,
+			dir: packDir,
+			gitdir: localGitdir,
+			filepath: `${packName}.pack`,
+		});
+	}
 
 	// Update refs
 	const ZERO_OID = "0".repeat(40);

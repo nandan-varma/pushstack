@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
@@ -8,6 +9,7 @@ import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
 import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
+	repositoryFileQueryOptions,
 	repositoryFilesQueryOptions,
 } from "@/lib/query-options";
 
@@ -102,6 +104,20 @@ function RepositoryIndexPage() {
 			return a.path.localeCompare(b.path);
 		});
 	}, [files]);
+
+	const readmeFile = useMemo(
+		() => files?.find((f) => f.type === "blob" && /^readme\.md$/i.test(f.path)),
+		[files],
+	);
+
+	const { data: readmeContent } = useQuery({
+		...repositoryFileQueryOptions({
+			repoId: repo?.id ?? 0,
+			branchName: activeBranch,
+			path: readmeFile?.path ?? "",
+		}),
+		enabled: !!repo && !!readmeFile,
+	});
 
 	const handleBranchChange = useCallback(
 		(e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -271,6 +287,20 @@ function RepositoryIndexPage() {
 					>
 						<Button size="sm">Add file</Button>
 					</Link>
+				</div>
+			)}
+
+			{readmeContent && !readmeContent.isBinary && (
+				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+					<div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2.5">
+						<FileIcon />
+						<span className="text-sm font-medium text-[var(--sea-ink)]">
+							{readmeFile?.path}
+						</span>
+					</div>
+					<div className="p-6">
+						<MarkdownRenderer content={readmeContent.content} />
+					</div>
 				</div>
 			)}
 		</div>
