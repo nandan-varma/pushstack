@@ -28,6 +28,7 @@ interface PendingR2Delete {
 
 export class GitTransaction {
 	private id: string;
+	// biome-ignore lint/suspicious/noExplicitAny: Drizzle PgTransaction requires 3 type params
 	private dbTransaction: PgTransaction<any, any, any> | null = null;
 	private pendingWrites: PendingR2Write[] = [];
 	private pendingDeletes: PendingR2Delete[] = [];
@@ -108,7 +109,7 @@ export class GitTransaction {
 				try {
 					await uploadToR2(write.key, write.data, write.contentType);
 					this.uploadedKeys.push(write.key);
-				} catch (error) {
+				} catch (_error) {
 					// Upload failed - rollback uploaded objects
 					await this.rollback();
 					throw new GitTransactionError(
@@ -230,4 +231,3 @@ export async function withTransaction<T>(
 		throw error;
 	}
 }
-

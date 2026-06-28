@@ -69,7 +69,7 @@ export async function analyzeMerge(
 			conflictingFiles: [],
 			fastForward: isDescendant,
 		};
-	} catch (error) {
+	} catch (_error) {
 		return {
 			canMerge: false,
 			hasConflicts: true,
@@ -128,7 +128,7 @@ export async function mergeBranches(
 			success: true,
 			commitSha: commitOid,
 		};
-	} catch (error) {
+	} catch (_error) {
 		// Merge conflicts occurred
 		return {
 			success: false,

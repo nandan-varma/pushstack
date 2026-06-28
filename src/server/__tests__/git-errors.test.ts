@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatErrorResponse,
 	GitAuthenticationError,
 	GitAuthorizationError,
 	GitConflictError,
@@ -10,11 +11,10 @@ import {
 	GitRefNotFoundError,
 	GitRepositoryNotFoundError,
 	GitTransactionError,
+	isRetryableError,
 	R2DownloadError,
 	R2TransactionError,
 	R2UploadError,
-	formatErrorResponse,
-	isRetryableError,
 } from "../git-errors";
 
 describe("GitError hierarchy", () => {
@@ -154,7 +154,9 @@ describe("isRetryableError", () => {
 	});
 
 	it("returns false for non-network errors", () => {
-		expect(isRetryableError(new Error("TypeError: undefined is not a function"))).toBe(false);
+		expect(
+			isRetryableError(new Error("TypeError: undefined is not a function")),
+		).toBe(false);
 	});
 
 	it("returns false for unknown values", () => {

@@ -15,7 +15,12 @@
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css",
 			"!**/.claude/**/*",
-			"!**/plans/**/*"
+			"!**/plans/**/*",
+			"!**/playwright-report/**/*",
+			"!**/test-results/**/*",
+			"!**/.wrangler/**/*",
+			"!**/dist/**/*",
+			"!**/node_modules/**/*"
 		]
 	},
 	"formatter": {
@@ -29,6 +34,24 @@
 			"recommended": true
 		}
 	},
+	"overrides": [
+		{
+			"includes": [
+				"**/__tests__/**/*",
+				"**/*.test.ts",
+				"**/*.test.tsx",
+				"**/*.spec.ts",
+				"**/*.spec.tsx"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		}
+	],
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"

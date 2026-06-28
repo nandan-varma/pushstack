@@ -58,7 +58,12 @@ const fs = mockFs.promises;
 describe("GitManager - Repository Management", () => {
 	const testOwnerId = "123";
 	const testRepoName = "test-repo";
-	const testGitPath = path.join(os.tmpdir(), "pushstack-repos", "123", "test-repo");
+	const testGitPath = path.join(
+		os.tmpdir(),
+		"pushstack-repos",
+		"123",
+		"test-repo",
+	);
 
 	beforeEach(() => {
 		vi.clearAllMocks();

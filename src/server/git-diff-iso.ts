@@ -53,26 +53,26 @@ function generateUnifiedDiff(
 	diff += `+++ b/${path}\n`;
 
 	// Simple line-by-line diff (not optimal but functional)
-	let additions = 0;
-	let deletions = 0;
-	let hunk = "@@ -1," + oldLines.length + " +1," + newLines.length + " @@\n";
+	let _additions = 0;
+	let _deletions = 0;
+	let hunk = `@@ -1,${oldLines.length} +1,${newLines.length} @@\n`;
 
 	for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
 		if (i < oldLines.length && i < newLines.length) {
 			if (oldLines[i] !== newLines[i]) {
 				hunk += `-${oldLines[i]}\n`;
 				hunk += `+${newLines[i]}\n`;
-				deletions++;
-				additions++;
+				_deletions++;
+				_additions++;
 			} else {
 				hunk += ` ${oldLines[i]}\n`;
 			}
 		} else if (i < oldLines.length) {
 			hunk += `-${oldLines[i]}\n`;
-			deletions++;
+			_deletions++;
 		} else {
 			hunk += `+${newLines[i]}\n`;
-			additions++;
+			_additions++;
 		}
 	}
 

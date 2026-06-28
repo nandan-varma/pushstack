@@ -10,15 +10,16 @@ import {
 } from "../db/github-schema";
 import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
-import {
-	deleteRepositoryFromR2,
-	syncRepositoryToR2,
-} from "./git-repo-storage";
+import { deleteRepositoryFromR2, syncRepositoryToR2 } from "./git-repo-storage";
 import {
 	getLegacyStorageOwnerKeys,
 	getStorageOwnerKey,
 } from "./git-storage-naming";
-import { canModerateRepo, canReadRepo, getRepositoryAccess } from "./repo-access";
+import {
+	canModerateRepo,
+	canReadRepo,
+	getRepositoryAccess,
+} from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // Find repository by owner username and repo name (for git protocol - plain function, not serverFn)

@@ -16,7 +16,7 @@ import {
 	uploadToR2,
 } from "#/lib/r2-operations";
 import { deleteCache, getCache, invalidateCache, setCache } from "./git-cache";
-import { GitObjectNotFoundError, GitRefNotFoundError } from "./git-errors";
+import { GitRefNotFoundError } from "./git-errors";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
@@ -37,6 +37,35 @@ function getR2Key(
 
 function stripGitDir(filepath: string): string {
 	return filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, "");
+}
+
+interface Stats {
+	type: string;
+	mode: number;
+	size: number;
+	ino: number;
+	mtimeMs: number;
+	ctimeMs: number;
+	uid: number;
+	gid: number;
+	dev: number;
+	isFile: () => boolean;
+	isDirectory: () => boolean;
+	isSymbolicLink: () => boolean;
+}
+
+function isNoSuchKeyError(error: unknown): boolean {
+	if (error instanceof Object && "name" in error) {
+		const err = error as Record<string, unknown>;
+		if (err.name === "NoSuchKey") return true;
+		if (
+			err.$metadata instanceof Object &&
+			"httpStatusCode" in (err.$metadata as Record<string, unknown>)
+		) {
+			return (err.$metadata as Record<string, unknown>).httpStatusCode === 404;
+		}
+	}
+	return false;
 }
 
 // Parse owner and repo from git directory path
@@ -102,11 +131,8 @@ export class R2Backend {
 			setCache(cacheKey, buffer);
 
 			return options?.encoding === "utf8" ? buffer.toString("utf8") : buffer;
-		} catch (error: any) {
-			if (
-				error.name === "NoSuchKey" ||
-				error.$metadata?.httpStatusCode === 404
-			) {
+		} catch (error: unknown) {
+			if (isNoSuchKeyError(error)) {
 				// isomorphic-git FileSystem.read() catches any error and returns null
 				// but other callers (e.g. resolveRef) need ENOENT to handle missing refs
 				throw Object.assign(
@@ -229,7 +255,7 @@ export class R2Backend {
 	/**
 	 * Get file stats
 	 */
-	async stat(filepath: string): Promise<any> {
+	async stat(filepath: string): Promise<Stats> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
@@ -306,7 +332,7 @@ export class R2Backend {
 	/**
 	 * Get file stats (symbolic link aware)
 	 */
-	async lstat(filepath: string): Promise<any> {
+	async lstat(filepath: string): Promise<Stats> {
 		// For R2, lstat is the same as stat (no symbolic links in object storage)
 		return this.stat(filepath);
 	}
@@ -363,11 +389,8 @@ export class R2RefBackend {
 			setCache(cacheKey, Buffer.from(value));
 
 			return value;
-		} catch (error: any) {
-			if (
-				error.name === "NoSuchKey" ||
-				error.$metadata?.httpStatusCode === 404
-			) {
+		} catch (error: unknown) {
+			if (isNoSuchKeyError(error)) {
 				throw new GitRefNotFoundError(`Ref not found: ${ref}`);
 			}
 			throw error;
@@ -398,7 +421,7 @@ export class R2RefBackend {
 						`Ref update conflict: expected ${expectedValue}, found ${currentValue}`,
 					);
 				}
-			} catch (error: any) {
+			} catch (error: unknown) {
 				if (error instanceof GitRefNotFoundError && expectedValue !== null) {
 					throw new Error(
 						`Ref update conflict: ref exists but expected it to be null`,

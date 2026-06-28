@@ -103,7 +103,7 @@ async function authenticateUser(
 	// Try session authentication first (for web UI)
 	try {
 		const session = await auth.api.getSession({
-			headers: request.headers as any,
+			headers: request.headers as HeadersInit,
 		});
 
 		if (session?.user) {
@@ -136,7 +136,10 @@ async function authenticateUser(
 	}
 
 	// Fall back to username/password authentication
-	return await authenticateWithPassword(credentials.username, credentials.password);
+	return await authenticateWithPassword(
+		credentials.username,
+		credentials.password,
+	);
 }
 
 async function authenticateWithPassword(
@@ -144,7 +147,7 @@ async function authenticateWithPassword(
 	password: string,
 ): Promise<AuthenticatedGitUser | null> {
 	try {
-		const { user, account } = await import("../db/schema");
+		const { user } = await import("../db/schema");
 		const { or, eq } = await import("drizzle-orm");
 		const { verifyPassword } = await import("better-auth/crypto");
 
@@ -276,7 +279,10 @@ export async function authenticateGitRequest(
 				"Access denied: token lacks repo:read scope",
 			);
 		}
-		if (requireWrite && !hasRequiredTokenScope(user.tokenScopes, "repo:write")) {
+		if (
+			requireWrite &&
+			!hasRequiredTokenScope(user.tokenScopes, "repo:write")
+		) {
 			throw new GitAuthorizationError(
 				"Access denied: token lacks repo:write scope",
 			);

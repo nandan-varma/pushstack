@@ -198,7 +198,7 @@ export function getCache(key: string): Buffer | null {
 
 				return value;
 			}
-		} catch (error) {
+		} catch (_error) {
 			// Filesystem cache miss or error, continue
 		}
 	}
@@ -246,7 +246,7 @@ export function deleteCache(key: string): void {
 			if (existsSync(cachePath)) {
 				unlinkSync(cachePath);
 			}
-		} catch (error) {
+		} catch (_error) {
 			// Filesystem cache delete failed, continue
 		}
 	}

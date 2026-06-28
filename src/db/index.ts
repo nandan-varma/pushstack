@@ -14,7 +14,7 @@ if (isServer && !process.env.DATABASE_URL) {
 // Create a Neon HTTP client for serverless environments
 // On client, use a dummy connection string (will never be used since db calls are server-only)
 const connectionString = isServer
-	? process.env.DATABASE_URL!
+	? (process.env.DATABASE_URL as string)
 	: "postgresql://client@localhost/dummy";
 
 const sql = neon(connectionString);

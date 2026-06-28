@@ -47,9 +47,13 @@ async function circuitBreakerExecute<T>(fn: () => Promise<T>): Promise<T> {
 			cbFailures = 0;
 		}
 		return result;
-	} catch (error: any) {
+	} catch (error: unknown) {
+		const err = error as Record<string, unknown>;
 		// 404/NoSuchKey is expected behavior (file not found), not an R2 outage
-		if (error.$metadata?.httpStatusCode !== 404 && error.name !== "NoSuchKey") {
+		const meta = err.$metadata as Record<string, unknown> | undefined;
+		const httpStatus = meta?.httpStatusCode;
+		const is404 = httpStatus === 404 || err.name === "NoSuchKey";
+		if (!is404) {
 			cbFailures++;
 			cbLastFailureTime = Date.now();
 			if (cbFailures >= CIRCUIT_BREAKER_THRESHOLD) cbState = "open";
@@ -66,7 +70,7 @@ async function withRetry<T>(
 	operation: string,
 	maxRetries = MAX_RETRIES,
 ): Promise<T> {
-	let lastError: any;
+	let lastError: unknown;
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
@@ -161,11 +165,11 @@ export async function downloadFromR2(key: string) {
 				size: response.ContentLength,
 				etag: response.ETag,
 			};
-		} catch (error: any) {
-			if (
-				error.$metadata?.httpStatusCode === 404 ||
-				error.name === "NoSuchKey"
-			) {
+		} catch (error: unknown) {
+			const err = error as Record<string, unknown>;
+			const meta = err.$metadata as Record<string, unknown> | undefined;
+			const httpStatus = meta?.httpStatusCode;
+			if (httpStatus === 404 || err.name === "NoSuchKey") {
 				// Don't wrap 404 errors, just rethrow
 				throw error;
 			}
@@ -306,11 +310,14 @@ export async function headR2Object(
 				contentType: response.ContentType,
 				etag: response.ETag,
 			};
-		} catch (error: any) {
+		} catch (error: unknown) {
+			const err = error as Record<string, unknown>;
+			const meta = err.$metadata as Record<string, unknown> | undefined;
+			const httpStatus = meta?.httpStatusCode;
 			if (
-				error.$metadata?.httpStatusCode === 404 ||
-				error.name === "NoSuchKey" ||
-				error.name === "NotFound"
+				httpStatus === 404 ||
+				err.name === "NoSuchKey" ||
+				err.name === "NotFound"
 			) {
 				return null;
 			}
