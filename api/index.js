@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream'
-import { server } from '../dist/server/server.js'
+import server from '../dist/server/server.js'
 
 export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] ?? 'https'
