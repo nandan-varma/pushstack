@@ -186,11 +186,7 @@ function IssueDetailPage() {
 							</span>
 						</div>
 						{issue.body ? (
-							<Suspense
-								fallback={
-									<Skeleton className="h-24" />
-								}
-							>
+							<Suspense fallback={<Skeleton className="h-24" />}>
 								<MarkdownRenderer content={issue.body} />
 							</Suspense>
 						) : (
@@ -228,11 +224,7 @@ function IssueDetailPage() {
 											})}
 										</span>
 									</div>
-									<Suspense
-										fallback={
-											<Skeleton className="h-20" />
-										}
-									>
+									<Suspense fallback={<Skeleton className="h-20" />}>
 										<MarkdownRenderer content={comment.body} />
 									</Suspense>
 								</div>

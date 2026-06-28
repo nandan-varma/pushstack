@@ -35,7 +35,6 @@ vi.mock("../git-operations-iso", () => ({
 
 const g = mockGit.default;
 
-// @ts-expect-error - import after mocks
 const { getCommitDiff, getDiffBetweenBranches } = await import(
 	"../git-diff-iso"
 );
@@ -179,15 +178,13 @@ describe("getDiffBetweenBranches", () => {
 			oid: () => Promise.resolve(makeOid("x")),
 		});
 
-		g.walk.mockImplementation(
-			async ({ map }: { map: Function }) => {
-				const result = await map("old.txt", [
-					walkEntry("old.txt", "blob"),
-					undefined,
-				]);
-				return [result];
-			},
-		);
+		g.walk.mockImplementation(async ({ map }: { map: Function }) => {
+			const result = await map("old.txt", [
+				walkEntry("old.txt", "blob"),
+				undefined,
+			]);
+			return [result];
+		});
 
 		const result = await getDiffBetweenBranches(
 			"owner",

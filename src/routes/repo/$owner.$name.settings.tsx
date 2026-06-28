@@ -16,7 +16,9 @@ function RouteComponent() {
 	const [confirm, setConfirm] = useState("");
 	const [error, setError] = useState("");
 
-	const { data: repo } = useQuery(repositoryByNameQueryOptions({ owner, name }));
+	const { data: repo } = useQuery(
+		repositoryByNameQueryOptions({ owner, name }),
+	);
 
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteRepository({ data: { id: repo!.id } }),
@@ -39,12 +41,17 @@ function RouteComponent() {
 						Delete repository
 					</h2>
 					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-						This will permanently delete <strong>{owner}/{name}</strong> and all
-						its data. This cannot be undone.
+						This will permanently delete{" "}
+						<strong>
+							{owner}/{name}
+						</strong>{" "}
+						and all its data. This cannot be undone.
 					</p>
 
 					{error && (
-						<p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>
+						<p className="mb-3 text-sm text-red-600 dark:text-red-400">
+							{error}
+						</p>
 					)}
 
 					<div className="flex gap-3">

@@ -1,10 +1,3 @@
-/**
- * Git Operations Service (isomorphic-git)
- *
- * Reads directly from hydrated bare repositories and uses temporary worktrees
- * for mutations that require a checkout.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import git from "isomorphic-git";
@@ -53,24 +46,15 @@ export interface CommitInfo {
 	payload: string;
 }
 
-async function getRepoOptions(
-	ownerKey: string,
-	repoName: string,
-	legacyOwnerKeys: string[] = [],
-) {
+async function getRepoOptions(ownerKey: string, repoName: string) {
 	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys);
+		await ensureRepositoryHydrated(ownerKey, repoName);
 	}
 	return getBareRepoOptions(ownerKey, repoName);
 }
 
-async function resolveCommit(
-	ownerKey: string,
-	repoName: string,
-	ref: string,
-	legacyOwnerKeys: string[] = [],
-) {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+async function resolveCommit(ownerKey: string, repoName: string, ref: string) {
+	const repo = await getRepoOptions(ownerKey, repoName);
 	const oid = await git.resolveRef({ ...repo, ref });
 	const result = await git.readCommit({ ...repo, oid });
 
@@ -145,9 +129,6 @@ async function listTreeEntries(
 	}));
 }
 
-/**
- * Create a commit with files.
- */
 export async function createCommit(
 	ownerKey: string,
 	repoName: string,
@@ -156,7 +137,6 @@ export async function createCommit(
 	authorName?: string,
 	authorEmail?: string,
 	branch: string = "main",
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<string> {
 	const author =
@@ -206,20 +186,15 @@ export async function createCommit(
 			});
 		},
 		"main",
-		legacyOwnerKeys,
 		ownerDbId,
 	);
 }
 
-/**
- * Get list of branches.
- */
 export async function getBranches(
 	ownerKey: string,
 	repoName: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<Branch[]> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	try {
 		const branches = await git.listBranches(repo);
 		const currentBranch = await git
@@ -239,18 +214,14 @@ export async function getBranches(
 	}
 }
 
-/**
- * Create a new branch.
- */
 export async function createBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
 	startPoint: string = "main",
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<void> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	const object = await git.resolveRef({
 		...repo,
 		ref: `refs/heads/${startPoint}`,
@@ -259,57 +230,40 @@ export async function createBranch(
 	// ponytail: when R2 backend is active, git.branch wrote directly to R2 — syncing local→R2
 	// here would read an empty local dir and delete all R2 objects
 	if (!isR2Configured()) {
-		await syncRepositoryToR2(ownerKey, repoName, ownerDbId, legacyOwnerKeys);
+		await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
 	}
 }
 
-/**
- * Delete a branch.
- */
 export async function deleteBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<void> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	await git.deleteBranch({ ...repo, ref: branchName });
 	if (!isR2Configured()) {
-		await syncRepositoryToR2(ownerKey, repoName, ownerDbId, legacyOwnerKeys);
+		await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
 	}
 }
 
-/**
- * Get a blob by OID.
- */
 export async function getBlob(
 	ownerKey: string,
 	repoName: string,
 	sha: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<Buffer> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	const { blob } = await git.readBlob({ ...repo, oid: sha });
 	return Buffer.from(blob);
 }
 
-/**
- * Get file content from a ref.
- */
 export async function getFileContent(
 	ownerKey: string,
 	repoName: string,
 	filePath: string,
 	ref: string = "main",
-	legacyOwnerKeys: string[] = [],
 ): Promise<Buffer> {
-	const { repo, commit } = await resolveCommit(
-		ownerKey,
-		repoName,
-		ref,
-		legacyOwnerKeys,
-	);
+	const { repo, commit } = await resolveCommit(ownerKey, repoName, ref);
 	const entry = await findTreeEntry(repo, commit.tree, filePath);
 
 	if (!entry || entry.type !== "blob") {
@@ -320,29 +274,21 @@ export async function getFileContent(
 	return Buffer.from(blob);
 }
 
-/**
- * Get tree entries for a ref.
- */
 export async function getTree(
 	ownerKey: string,
 	repoName: string,
 	ref: string = "main",
 	treePath: string = "",
-	legacyOwnerKeys: string[] = [],
 ): Promise<TreeEntry[]> {
-	return getTreeFromBranch(ownerKey, repoName, ref, treePath, legacyOwnerKeys);
+	return getTreeFromBranch(ownerKey, repoName, ref, treePath);
 }
 
-/**
- * Get commit information.
- */
 export async function getCommit(
 	ownerKey: string,
 	repoName: string,
 	sha: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	const result = await git.readCommit({ ...repo, oid: sha });
 
 	return {
@@ -352,17 +298,13 @@ export async function getCommit(
 	};
 }
 
-/**
- * Get commit log.
- */
 export async function getCommitLog(
 	ownerKey: string,
 	repoName: string,
 	ref: string = "main",
 	depth: number = 50,
-	legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo[]> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	try {
 		const commits = await git.log({ ...repo, ref, depth });
 		return commits.map((commit) => ({
@@ -376,36 +318,22 @@ export async function getCommitLog(
 	}
 }
 
-/**
- * Checkout validation for compatibility with older callers.
- */
 export async function checkoutBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<void> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	await git.resolveRef({ ...repo, ref: `refs/heads/${branchName}` });
 }
 
-/**
- * Get a file from a branch.
- */
 export async function getFileFromBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
 	filePath: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<{ content: string; size: number; isBinary: boolean }> {
-	const buffer = await getFileContent(
-		ownerKey,
-		repoName,
-		filePath,
-		branchName,
-		legacyOwnerKeys,
-	);
+	const buffer = await getFileContent(ownerKey, repoName, filePath, branchName);
 	const isBinary = buffer.includes(0);
 
 	return {
@@ -415,26 +343,17 @@ export async function getFileFromBranch(
 	};
 }
 
-/**
- * Get tree entries from a branch with an optional subdirectory path.
- */
 export async function getTreeFromBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
 	treePath: string = "",
-	legacyOwnerKeys: string[] = [],
 ): Promise<TreeEntry[]> {
 	let repo: Awaited<ReturnType<typeof getRepoOptions>>;
 	let commit: Awaited<ReturnType<typeof resolveCommit>>["commit"];
 	let headSha: string | null = null;
 	try {
-		const resolved = await resolveCommit(
-			ownerKey,
-			repoName,
-			branchName,
-			legacyOwnerKeys,
-		);
+		const resolved = await resolveCommit(ownerKey, repoName, branchName);
 		repo = resolved.repo;
 		commit = resolved.commit;
 		headSha = resolved.oid;
@@ -454,18 +373,16 @@ export async function getTreeFromBranch(
 		result = await listTreeEntries(repo, commit.tree);
 	} else {
 		const entry = await findTreeEntry(repo, commit.tree, treePath);
-		result = !entry || entry.type !== "tree"
-			? []
-			: await listTreeEntries(repo, entry.oid, entry.path);
+		result =
+			!entry || entry.type !== "tree"
+				? []
+				: await listTreeEntries(repo, entry.oid, entry.path);
 	}
 
 	setCache(cacheKey, Buffer.from(JSON.stringify(result)));
 	return result;
 }
 
-/**
- * Delete a file by creating a commit without it.
- */
 export async function deleteFile(
 	ownerKey: string,
 	repoName: string,
@@ -473,7 +390,6 @@ export async function deleteFile(
 	filePath: string,
 	message: string,
 	author: { name: string; email: string },
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<{ sha: string; message: string }> {
 	const authorInfo = {
@@ -513,25 +429,20 @@ export async function deleteFile(
 			});
 		},
 		"main",
-		legacyOwnerKeys,
 		ownerDbId,
 	);
 
 	return { sha, message };
 }
 
-/**
- * Get commit history with skip/limit.
- */
 export async function getCommitHistory(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
 	limit: number = 50,
 	skip: number = 0,
-	legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo[]> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 	const headSha = await git
 		.resolveRef({ ...repo, ref: `refs/heads/${branchName}` })
 		.catch(() => null);
@@ -545,13 +456,7 @@ export async function getCommitHistory(
 		if (cached) return JSON.parse(cached.toString()) as CommitInfo[];
 	}
 
-	const all = await getCommitLog(
-		ownerKey,
-		repoName,
-		branchName,
-		limit + skip,
-		legacyOwnerKeys,
-	);
+	const all = await getCommitLog(ownerKey, repoName, branchName, limit + skip);
 	const result = all.slice(skip, skip + limit);
 
 	if (cacheKey) setCache(cacheKey, Buffer.from(JSON.stringify(result)));

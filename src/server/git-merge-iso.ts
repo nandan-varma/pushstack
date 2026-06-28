@@ -1,9 +1,3 @@
-/**
- * Git Merge Service (isomorphic-git)
- *
- * Handle merge operations including conflict detection.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import git from "isomorphic-git";
@@ -28,35 +22,25 @@ export interface MergeOptions {
 	authorEmail?: string;
 }
 
-async function getRepoOptions(
-	ownerKey: string,
-	repoName: string,
-	legacyOwnerKeys: string[] = [],
-) {
+async function getRepoOptions(ownerKey: string, repoName: string) {
 	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys);
+		await ensureRepositoryHydrated(ownerKey, repoName);
 	}
 	return getBareRepoOptions(ownerKey, repoName);
 }
 
-/**
- * Analyze if two branches can be merged
- */
 export async function analyzeMerge(
 	ownerKey: string,
 	repoName: string,
 	sourceBranch: string,
 	targetBranch: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<MergeAnalysis> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 
 	try {
-		// Check if branches exist
 		const sourceOid = await git.resolveRef({ ...repo, ref: sourceBranch });
 		const targetOid = await git.resolveRef({ ...repo, ref: targetBranch });
 
-		// Check if it's a fast-forward merge
 		const isDescendant = await git.isDescendent({
 			...repo,
 			oid: sourceOid,
@@ -69,7 +53,7 @@ export async function analyzeMerge(
 			conflictingFiles: [],
 			fastForward: isDescendant,
 		};
-	} catch (error) {
+	} catch {
 		return {
 			canMerge: false,
 			hasConflicts: true,
@@ -79,16 +63,12 @@ export async function analyzeMerge(
 	}
 }
 
-/**
- * Merge two branches
- */
 export async function mergeBranches(
 	ownerKey: string,
 	repoName: string,
 	sourceBranch: string,
 	targetBranch: string,
 	options: MergeOptions = {},
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
 	try {
@@ -120,7 +100,6 @@ export async function mergeBranches(
 				return git.resolveRef({ fs, dir: worktreePath, ref: targetBranch });
 			},
 			"main",
-			legacyOwnerKeys,
 			ownerDbId,
 		);
 
@@ -129,7 +108,6 @@ export async function mergeBranches(
 			commitSha: commitOid,
 		};
 	} catch (error) {
-		// Merge conflicts occurred — extract conflicting file paths from MergeConflictError
 		if (
 			error &&
 			typeof error === "object" &&
@@ -153,14 +131,10 @@ export async function mergeBranches(
 	}
 }
 
-/**
- * Resolve merge conflicts (simplified)
- */
 export async function resolveConflicts(
 	ownerKey: string,
 	repoName: string,
 	resolutions: Array<{ path: string; content: string }>,
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<void> {
 	await withRepositoryWorktree(
@@ -182,7 +156,6 @@ export async function resolveConflicts(
 			});
 		},
 		"main",
-		legacyOwnerKeys,
 		ownerDbId,
 	);
 }

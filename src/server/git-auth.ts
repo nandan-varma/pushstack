@@ -136,7 +136,10 @@ async function authenticateUser(
 	}
 
 	// Fall back to username/password authentication
-	return await authenticateWithPassword(credentials.username, credentials.password);
+	return await authenticateWithPassword(
+		credentials.username,
+		credentials.password,
+	);
 }
 
 async function authenticateWithPassword(
@@ -276,7 +279,10 @@ export async function authenticateGitRequest(
 				"Access denied: token lacks repo:read scope",
 			);
 		}
-		if (requireWrite && !hasRequiredTokenScope(user.tokenScopes, "repo:write")) {
+		if (
+			requireWrite &&
+			!hasRequiredTokenScope(user.tokenScopes, "repo:write")
+		) {
 			throw new GitAuthorizationError(
 				"Access denied: token lacks repo:write scope",
 			);

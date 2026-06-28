@@ -275,7 +275,6 @@ export async function handleReceivePackIso(
 	request: Request,
 	authContext: GitAuthContext,
 	defaultBranch = "main",
-	legacyOwnerKeys: string[] = [],
 	ownerDbId?: string,
 ): Promise<GitHttpResult> {
 	if (!authContext.canWrite) {
@@ -323,7 +322,6 @@ export async function handleReceivePackIso(
 	const localGitdir = await ensureRepositoryHydrated(
 		ownerKey,
 		repoName,
-		legacyOwnerKeys,
 		null,
 		defaultBranch,
 	);
@@ -373,7 +371,7 @@ export async function handleReceivePackIso(
 		}
 	}
 
-	await syncRepositoryToR2(ownerKey, repoName, ownerDbId, legacyOwnerKeys);
+	await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
 
 	const responseBody = Buffer.concat([
 		pktLine("unpack ok\n"),

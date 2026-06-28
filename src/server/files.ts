@@ -69,7 +69,6 @@ export const uploadFile = createServerFn({ method: "POST" })
 			user.name || user.username || "Unknown",
 			user.email,
 			data.branchName,
-			storage.legacyOwnerKeys,
 			repo.ownerId,
 		);
 
@@ -134,7 +133,6 @@ export const getFile = createServerFn({ method: "GET" })
 			repo.name,
 			data.branchName,
 			data.path,
-			storage.legacyOwnerKeys,
 		);
 
 		return fileInfo;
@@ -178,7 +176,6 @@ export const getFileDownloadUrl = createServerFn({ method: "GET" })
 			repo.name,
 			data.branchName,
 			data.path,
-			storage.legacyOwnerKeys,
 		);
 
 		// For simplicity, return content directly
@@ -227,7 +224,6 @@ export const listFiles = createServerFn({ method: "GET" })
 			repo.name,
 			data.branchName,
 			data.path || "",
-			storage.legacyOwnerKeys,
 		);
 
 		return entries;
@@ -274,7 +270,6 @@ export const deleteFile = createServerFn({ method: "POST" })
 			data.path,
 			data.commitMessage,
 			{ name: user.name || user.username || "Unknown", email: user.email },
-			storage.legacyOwnerKeys,
 			repo.ownerId,
 		);
 
@@ -324,11 +319,7 @@ export const getBranches = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get branches from git
-		const branches = await GitOps.getBranches(
-			storage.ownerKey,
-			repo.name,
-			storage.legacyOwnerKeys,
-		);
+		const branches = await GitOps.getBranches(storage.ownerKey, repo.name);
 
 		return branches;
 	});
@@ -371,7 +362,6 @@ export const createBranch = createServerFn({ method: "POST" })
 			repo.name,
 			data.name,
 			data.fromBranch,
-			storage.legacyOwnerKeys,
 			repo.ownerId,
 		);
 
@@ -419,7 +409,6 @@ export const deleteBranch = createServerFn({ method: "POST" })
 			storage.ownerKey,
 			repo.name,
 			data.name,
-			storage.legacyOwnerKeys,
 			repo.ownerId,
 		);
 
@@ -466,7 +455,6 @@ export const getCommits = createServerFn({ method: "GET" })
 			data.branchName,
 			data.limit,
 			data.skip,
-			storage.legacyOwnerKeys,
 		);
 
 		return commits.map((commit) => ({
@@ -518,7 +506,6 @@ export const getCommit = createServerFn({ method: "GET" })
 			storage.ownerKey,
 			repo.name,
 			data.commitSha,
-			storage.legacyOwnerKeys,
 		);
 
 		return {
@@ -577,7 +564,6 @@ export const getCommitDiff = createServerFn({ method: "GET" })
 			storage.ownerKey,
 			repo.name,
 			data.commitSha,
-			storage.legacyOwnerKeys,
 		);
 
 		return diff;
@@ -621,7 +607,6 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 			repo.name,
 			data.sourceBranch,
 			data.targetBranch,
-			storage.legacyOwnerKeys,
 		);
 
 		return diff;

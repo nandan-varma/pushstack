@@ -10,15 +10,13 @@ import {
 } from "../db/github-schema";
 import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
+import { deleteRepositoryFromR2, syncRepositoryToR2 } from "./git-repo-storage";
+import { getStorageOwnerKey } from "./git-storage-naming";
 import {
-	deleteRepositoryFromR2,
-	syncRepositoryToR2,
-} from "./git-repo-storage";
-import {
-	getLegacyStorageOwnerKeys,
-	getStorageOwnerKey,
-} from "./git-storage-naming";
-import { canModerateRepo, canReadRepo, getRepositoryAccess } from "./repo-access";
+	canModerateRepo,
+	canReadRepo,
+	getRepositoryAccess,
+} from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // Find repository by owner username and repo name (for git protocol - plain function, not serverFn)
@@ -80,12 +78,6 @@ export const createRepository = createServerFn({ method: "POST" })
 				username: user.username || null,
 				email: user.email,
 			});
-			const legacyOwnerKeys = getLegacyStorageOwnerKeys({
-				id: user.id,
-				username: user.username || null,
-				email: user.email,
-			});
-
 			// Initialize git repository on filesystem
 			const gitPath = await initBareRepo(ownerKey, data.name);
 
@@ -110,7 +102,7 @@ export const createRepository = createServerFn({ method: "POST" })
 				metadata: { repoName: repo.name },
 			});
 
-			await syncRepositoryToR2(ownerKey, data.name, user.id, legacyOwnerKeys);
+			await syncRepositoryToR2(ownerKey, data.name, user.id);
 
 			// Return repo with owner info for navigation
 			return {
@@ -325,20 +317,9 @@ export const deleteRepository = createServerFn({ method: "POST" })
 			username: repo.owner.username,
 			email: repo.owner.email,
 		});
-		const legacyOwnerKeys = getLegacyStorageOwnerKeys({
-			id: repo.owner.id,
-			username: repo.owner.username,
-			email: repo.owner.email,
-		});
-
 		// Delete git repository from filesystem and R2
 		await deleteRepo(ownerKey, repo.name);
-		for (const legacyOwnerKey of legacyOwnerKeys) {
-			if (legacyOwnerKey !== ownerKey) {
-				await deleteRepo(legacyOwnerKey, repo.name).catch(() => undefined);
-			}
-		}
-		await deleteRepositoryFromR2(ownerKey, repo.name, legacyOwnerKeys);
+		await deleteRepositoryFromR2(ownerKey, repo.name);
 
 		// Delete from database (cascades to related tables)
 		await db.delete(repositories).where(eq(repositories.id, data.id));

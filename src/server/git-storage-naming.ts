@@ -22,24 +22,14 @@ export function getStorageOwnerKey(owner: OwnerLike): string {
 	return sanitizeStorageSegment(owner.username || fallbackUsername || owner.id);
 }
 
-export function getLegacyStorageOwnerKeys(owner: OwnerLike): string[] {
-	return [...new Set([sanitizeStorageSegment(owner.id), "NaN"])];
-}
-
 export function getRepoStorageCoordinates(repo: RepoLike) {
 	if (!repo.owner) {
 		throw new Error(`Repository owner metadata missing for ${repo.name}`);
 	}
 
-	const ownerKey = getStorageOwnerKey(repo.owner);
-	const legacyOwnerKeys = getLegacyStorageOwnerKeys(repo.owner).filter(
-		(legacyOwnerKey) => legacyOwnerKey !== ownerKey,
-	);
-
 	return {
-		ownerKey,
+		ownerKey: getStorageOwnerKey(repo.owner),
 		repoKey: sanitizeStorageSegment(repo.name),
-		legacyOwnerKeys,
 	};
 }
 
@@ -59,24 +49,4 @@ export function getRepoGitStoragePrefix(
 	repoName: string,
 ): string {
 	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
-}
-
-export function getLegacyGitPrefixes(
-	legacyOwnerKeys: string[],
-	repoName: string,
-): string[] {
-	const gitPrefixes = legacyOwnerKeys.map((legacyOwnerKey) =>
-		getRepoGitStoragePrefix(legacyOwnerKey, repoName),
-	);
-	const legacyFlatPrefixes = legacyOwnerKeys.map(
-		(legacyOwnerKey) => `${getRepoStorageRoot(legacyOwnerKey, repoName)}/`,
-	);
-	const oldTopLevelPrefixes = legacyOwnerKeys.map(
-		(legacyOwnerKey) =>
-			`git/${sanitizeStorageSegment(legacyOwnerKey)}/${sanitizeStorageSegment(repoName)}/`,
-	);
-
-	return [
-		...new Set([...gitPrefixes, ...legacyFlatPrefixes, ...oldTopLevelPrefixes]),
-	];
 }

@@ -98,7 +98,10 @@ describe("R2Backend.writeFile", () => {
 		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
 
 		const backend = new R2Backend();
-		await backend.writeFile(`${REPO_PATH}/HEAD`, Buffer.from("ref: refs/heads/main"));
+		await backend.writeFile(
+			`${REPO_PATH}/HEAD`,
+			Buffer.from("ref: refs/heads/main"),
+		);
 
 		expect(r2ops.uploadToR2).toHaveBeenCalledOnce();
 		expect(cache.deleteCache).toHaveBeenCalledOnce();
@@ -124,7 +127,10 @@ describe("R2Backend.writeFile", () => {
 		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
 
 		const backend = new R2Backend();
-		await backend.writeFile(`${REPO_PATH}/HEAD`, Buffer.from("ref: refs/heads/main"));
+		await backend.writeFile(
+			`${REPO_PATH}/HEAD`,
+			Buffer.from("ref: refs/heads/main"),
+		);
 
 		expect(r2ops.uploadToR2).toHaveBeenCalledWith(
 			expect.any(String),
@@ -170,7 +176,13 @@ describe("R2RefBackend.writeRef", () => {
 
 		const backend = new R2RefBackend();
 		await expect(
-			backend.writeRef("alice", "myrepo", "refs/heads/main", "new-sha", "expected-sha"),
+			backend.writeRef(
+				"alice",
+				"myrepo",
+				"refs/heads/main",
+				"new-sha",
+				"expected-sha",
+			),
 		).rejects.toThrow(/conflict/i);
 	});
 
@@ -184,7 +196,13 @@ describe("R2RefBackend.writeRef", () => {
 
 		const backend = new R2RefBackend();
 		await expect(
-			backend.writeRef("alice", "myrepo", "refs/heads/main", "new-sha", "expected-sha"),
+			backend.writeRef(
+				"alice",
+				"myrepo",
+				"refs/heads/main",
+				"new-sha",
+				"expected-sha",
+			),
 		).resolves.toBeUndefined();
 
 		expect(r2ops.uploadToR2).toHaveBeenCalledOnce();

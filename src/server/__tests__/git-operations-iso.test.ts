@@ -207,8 +207,18 @@ describe("GitOperations - Core Operations", () => {
 					message: "Initial commit",
 					tree: "tree-sha",
 					parent: [],
-					author: { name: "A", email: "a@b.com", timestamp: 0, timezoneOffset: 0 },
-					committer: { name: "A", email: "a@b.com", timestamp: 0, timezoneOffset: 0 },
+					author: {
+						name: "A",
+						email: "a@b.com",
+						timestamp: 0,
+						timezoneOffset: 0,
+					},
+					committer: {
+						name: "A",
+						email: "a@b.com",
+						timestamp: 0,
+						timezoneOffset: 0,
+					},
 				},
 				payload: "commit payload",
 			});
@@ -233,8 +243,18 @@ describe("GitOperations - Core Operations", () => {
 						message: "First",
 						tree: "t1",
 						parent: [],
-						author: { name: "A", email: "a@b.com", timestamp: 1, timezoneOffset: 0 },
-						committer: { name: "A", email: "a@b.com", timestamp: 1, timezoneOffset: 0 },
+						author: {
+							name: "A",
+							email: "a@b.com",
+							timestamp: 1,
+							timezoneOffset: 0,
+						},
+						committer: {
+							name: "A",
+							email: "a@b.com",
+							timestamp: 1,
+							timezoneOffset: 0,
+						},
 					},
 					payload: "",
 				},
@@ -244,8 +264,18 @@ describe("GitOperations - Core Operations", () => {
 						message: "Second",
 						tree: "t2",
 						parent: ["sha1"],
-						author: { name: "A", email: "a@b.com", timestamp: 0, timezoneOffset: 0 },
-						committer: { name: "A", email: "a@b.com", timestamp: 0, timezoneOffset: 0 },
+						author: {
+							name: "A",
+							email: "a@b.com",
+							timestamp: 0,
+							timezoneOffset: 0,
+						},
+						committer: {
+							name: "A",
+							email: "a@b.com",
+							timestamp: 0,
+							timezoneOffset: 0,
+						},
 					},
 					payload: "",
 				},
@@ -283,8 +313,18 @@ describe("GitOperations - Core Operations", () => {
 					message: `Commit ${i}`,
 					tree: `t${i}`,
 					parent: i > 0 ? [`sha${i - 1}`] : [],
-					author: { name: "A", email: "a@b.com", timestamp: i, timezoneOffset: 0 },
-					committer: { name: "A", email: "a@b.com", timestamp: i, timezoneOffset: 0 },
+					author: {
+						name: "A",
+						email: "a@b.com",
+						timestamp: i,
+						timezoneOffset: 0,
+					},
+					committer: {
+						name: "A",
+						email: "a@b.com",
+						timestamp: i,
+						timezoneOffset: 0,
+					},
 				},
 				payload: "",
 			}));
@@ -327,7 +367,13 @@ describe("GitOperations - Core Operations", () => {
 			mockGit.default.resolveRef.mockResolvedValue(commitSha);
 			mockGit.default.readCommit.mockResolvedValue({
 				oid: commitSha,
-				commit: { tree: treeSha, message: "", parent: [], author: {}, committer: {} },
+				commit: {
+					tree: treeSha,
+					message: "",
+					parent: [],
+					author: {},
+					committer: {},
+				},
 				payload: "",
 			});
 			mockGit.default.readTree.mockResolvedValue({
@@ -354,7 +400,13 @@ describe("GitOperations - Core Operations", () => {
 			mockGit.default.resolveRef.mockResolvedValue(commitSha);
 			mockGit.default.readCommit.mockResolvedValue({
 				oid: commitSha,
-				commit: { tree: treeSha, message: "", parent: [], author: {}, committer: {} },
+				commit: {
+					tree: treeSha,
+					message: "",
+					parent: [],
+					author: {},
+					committer: {},
+				},
 				payload: "",
 			});
 			mockGit.default.readTree.mockResolvedValue({
@@ -383,7 +435,13 @@ describe("GitOperations - Core Operations", () => {
 			mockGit.default.resolveRef.mockResolvedValue(commitSha);
 			mockGit.default.readCommit.mockResolvedValue({
 				oid: commitSha,
-				commit: { tree: treeSha, message: "", parent: [], author: {}, committer: {} },
+				commit: {
+					tree: treeSha,
+					message: "",
+					parent: [],
+					author: {},
+					committer: {},
+				},
 				payload: "",
 			});
 			mockGit.default.readTree.mockResolvedValue({ tree: [] });
@@ -415,11 +473,19 @@ describe("GitOperations - Core Operations", () => {
 			mockGit.default.resolveRef.mockResolvedValue(commitSha);
 			mockGit.default.readCommit.mockResolvedValue({
 				oid: commitSha,
-				commit: { tree: treeSha, message: "", parent: [], author: {}, committer: {} },
+				commit: {
+					tree: treeSha,
+					message: "",
+					parent: [],
+					author: {},
+					committer: {},
+				},
 				payload: "",
 			});
 			mockGit.default.readTree.mockResolvedValue({
-				tree: [{ path: "hello.txt", mode: "100644", type: "blob", oid: fileOid }],
+				tree: [
+					{ path: "hello.txt", mode: "100644", type: "blob", oid: fileOid },
+				],
 			});
 			mockGit.default.readBlob.mockResolvedValue({
 				blob: Buffer.from("Hello, World!"),
@@ -444,11 +510,19 @@ describe("GitOperations - Core Operations", () => {
 			mockGit.default.resolveRef.mockResolvedValue(commitSha);
 			mockGit.default.readCommit.mockResolvedValue({
 				oid: commitSha,
-				commit: { tree: treeSha, message: "", parent: [], author: {}, committer: {} },
+				commit: {
+					tree: treeSha,
+					message: "",
+					parent: [],
+					author: {},
+					committer: {},
+				},
 				payload: "",
 			});
 			mockGit.default.readTree.mockResolvedValue({
-				tree: [{ path: "image.png", mode: "100644", type: "blob", oid: "bin-oid" }],
+				tree: [
+					{ path: "image.png", mode: "100644", type: "blob", oid: "bin-oid" },
+				],
 			});
 			mockGit.default.readBlob.mockResolvedValue({
 				blob: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x00]),
@@ -462,7 +536,9 @@ describe("GitOperations - Core Operations", () => {
 			);
 
 			expect(result.isBinary).toBe(true);
-			expect(result.content).toBe(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x00]).toString("base64"));
+			expect(result.content).toBe(
+				Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x00]).toString("base64"),
+			);
 		});
 	});
 

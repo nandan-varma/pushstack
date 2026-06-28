@@ -228,34 +228,34 @@ function RepositoryIndexPage() {
 					<table className="w-full">
 						<tbody>
 							{sortedFiles.map((file) => (
-									<tr
-										key={`${file.type}:${file.path}`}
-										className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"
-									>
-										<td className="w-8 py-2.5 pl-4">
-											{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
-										</td>
-										<td className="py-2.5 pr-4">
-											<Link
-												to="/repo/$owner/$name/blob/$branch/$"
-												params={{
-													owner,
-													name,
-													branch: activeBranch,
-													_splat: file.path,
-												}}
-												className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
-											>
-												{file.path}
-											</Link>
-										</td>
-										<td className="py-2.5 pr-4 text-right">
-											<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--sea-ink-soft)]">
-												{file.oid.substring(0, 7)}
-											</code>
-										</td>
-									</tr>
-								))}
+								<tr
+									key={`${file.type}:${file.path}`}
+									className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"
+								>
+									<td className="w-8 py-2.5 pl-4">
+										{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
+									</td>
+									<td className="py-2.5 pr-4">
+										<Link
+											to="/repo/$owner/$name/blob/$branch/$"
+											params={{
+												owner,
+												name,
+												branch: activeBranch,
+												_splat: file.path,
+											}}
+											className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+										>
+											{file.path}
+										</Link>
+									</td>
+									<td className="py-2.5 pr-4 text-right">
+										<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--sea-ink-soft)]">
+											{file.oid.substring(0, 7)}
+										</code>
+									</td>
+								</tr>
+							))}
 						</tbody>
 					</table>
 				</div>

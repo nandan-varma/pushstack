@@ -6,23 +6,23 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // --- mock isomorphic-git ---
-	const mockGit = vi.hoisted(() => ({
-		default: {
-			resolveRef: vi.fn(),
-			currentBranch: vi.fn(),
-			listBranches: vi.fn(),
-			listTags: vi.fn(),
-			readObject: vi.fn(),
-			readCommit: vi.fn(),
-			readTree: vi.fn(),
-			readTag: vi.fn(),
-			packObjects: vi.fn(),
-			indexPack: vi.fn(),
-			writeRef: vi.fn(),
-			deleteRef: vi.fn().mockResolvedValue(undefined),
-			init: vi.fn().mockResolvedValue(undefined),
-		},
-	}));
+const mockGit = vi.hoisted(() => ({
+	default: {
+		resolveRef: vi.fn(),
+		currentBranch: vi.fn(),
+		listBranches: vi.fn(),
+		listTags: vi.fn(),
+		readObject: vi.fn(),
+		readCommit: vi.fn(),
+		readTree: vi.fn(),
+		readTag: vi.fn(),
+		packObjects: vi.fn(),
+		indexPack: vi.fn(),
+		writeRef: vi.fn(),
+		deleteRef: vi.fn().mockResolvedValue(undefined),
+		init: vi.fn().mockResolvedValue(undefined),
+	},
+}));
 vi.mock("isomorphic-git", () => mockGit);
 
 // --- mock r2Backend ---
@@ -55,7 +55,6 @@ vi.mock("node:fs/promises", () => mockFsPromises);
 
 const g = mockGit.default;
 
-// @ts-expect-error - import after mocks
 const { handleInfoRefsIso, handleUploadPackIso, handleReceivePackIso } =
 	await import("../git-http-iso");
 
@@ -91,12 +90,22 @@ function parsePktLines(buf: Buffer): string[] {
 
 describe("handleInfoRefsIso", () => {
 	it("returns 403 if no read access for upload-pack", async () => {
-		const result = await handleInfoRefsIso("u", "r", "git-upload-pack", AUTH_NONE);
+		const result = await handleInfoRefsIso(
+			"u",
+			"r",
+			"git-upload-pack",
+			AUTH_NONE,
+		);
 		expect(result.status).toBe(403);
 	});
 
 	it("returns 403 if no write access for receive-pack", async () => {
-		const result = await handleInfoRefsIso("u", "r", "git-receive-pack", AUTH_READ);
+		const result = await handleInfoRefsIso(
+			"u",
+			"r",
+			"git-receive-pack",
+			AUTH_READ,
+		);
 		expect(result.status).toBe(403);
 	});
 
@@ -105,7 +114,12 @@ describe("handleInfoRefsIso", () => {
 		g.listBranches.mockResolvedValue([]);
 		g.listTags.mockResolvedValue([]);
 
-		const result = await handleInfoRefsIso("u", "r", "git-upload-pack", AUTH_READ);
+		const result = await handleInfoRefsIso(
+			"u",
+			"r",
+			"git-upload-pack",
+			AUTH_READ,
+		);
 		expect(result.status).toBe(200);
 		const lines = parsePktLines(Buffer.from(result.body as ArrayBuffer));
 		expect(lines[0]).toBe("# service=git-upload-pack\n");
@@ -116,14 +130,20 @@ describe("handleInfoRefsIso", () => {
 	it("returns refs and capabilities for a repo with commits", async () => {
 		const sha = "a".repeat(40);
 		g.resolveRef.mockImplementation(({ ref }: { ref: string }) => {
-			if (ref === "HEAD" || ref === "refs/heads/main") return Promise.resolve(sha);
+			if (ref === "HEAD" || ref === "refs/heads/main")
+				return Promise.resolve(sha);
 			return Promise.reject(new Error("not found"));
 		});
 		g.currentBranch.mockResolvedValue("refs/heads/main");
 		g.listBranches.mockResolvedValue(["main"]);
 		g.listTags.mockResolvedValue([]);
 
-		const result = await handleInfoRefsIso("u", "r", "git-upload-pack", AUTH_READ);
+		const result = await handleInfoRefsIso(
+			"u",
+			"r",
+			"git-upload-pack",
+			AUTH_READ,
+		);
 		expect(result.status).toBe(200);
 		const lines = parsePktLines(Buffer.from(result.body as ArrayBuffer));
 		// service header, FLUSH, HEAD line, refs/heads/main, FLUSH
@@ -151,7 +171,11 @@ describe("handleUploadPackIso", () => {
 		const sha = "b".repeat(40);
 		const treeSha = "c".repeat(40);
 
-		const reqBody = Buffer.concat([pktLine(`want ${sha}\n`), Buffer.from("0000"), pktLine("done\n")]);
+		const reqBody = Buffer.concat([
+			pktLine(`want ${sha}\n`),
+			Buffer.from("0000"),
+			pktLine("done\n"),
+		]);
 
 		g.readObject.mockImplementation(({ oid }: { oid: string }) => {
 			if (oid === sha) return Promise.resolve({ type: "commit" });
@@ -172,7 +196,9 @@ describe("handleUploadPackIso", () => {
 		});
 		const result = await handleUploadPackIso("u", "r", req, AUTH_READ);
 		expect(result.status).toBe(200);
-		expect(result.headers["Content-Type"]).toBe("application/x-git-upload-pack-result");
+		expect(result.headers["Content-Type"]).toBe(
+			"application/x-git-upload-pack-result",
+		);
 
 		const body = Buffer.from(result.body as ArrayBuffer);
 		// First pkt-line should be NAK
@@ -241,7 +267,11 @@ describe("handleReceivePackIso", () => {
 		const refLine = `${oldSha} ${newSha} refs/heads/main\n`;
 		const packData = Buffer.from("PACKDATA123");
 
-		const body = Buffer.concat([pktLine(refLine), Buffer.from("0000"), packData]);
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			packData,
+		]);
 
 		const req = new Request("http://x/git-receive-pack", {
 			method: "POST",
@@ -274,7 +304,11 @@ describe("handleReceivePackIso", () => {
 		const zeroOid = "0000000000000000000000000000000000000000";
 
 		const refLine = `${oldSha} ${zeroOid} refs/heads/old-branch\n`;
-		const body = Buffer.concat([pktLine(refLine), Buffer.from("0000"), Buffer.from("PACK")]);
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
 
 		const req = new Request("http://x/git-receive-pack", {
 			method: "POST",
@@ -291,12 +325,15 @@ describe("handleReceivePackIso", () => {
 	});
 
 	it("initializes bare repo on disk if HEAD does not exist", async () => {
-
 		const oldSha = "i".repeat(40);
 		const newSha = "j".repeat(40);
 
 		const refLine = `${oldSha} ${newSha} refs/heads/main\n`;
-		const body = Buffer.concat([pktLine(refLine), Buffer.from("0000"), Buffer.from("PACK")]);
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
 
 		const req = new Request("http://x/git-receive-pack", {
 			method: "POST",
@@ -309,7 +346,6 @@ describe("handleReceivePackIso", () => {
 			req,
 			AUTH_WRITE,
 			"main",
-			[],
 			"owner-db-id",
 		);
 

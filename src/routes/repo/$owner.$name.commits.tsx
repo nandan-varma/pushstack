@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	useNavigate,
+	useSearch,
+} from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -154,7 +159,9 @@ function CommitsPage() {
 							>
 								<Avatar className="h-8 w-8 shrink-0">
 									<AvatarFallback className="text-xs">
-										{getInitials(commit.author?.name || commit.authorName || "U")}
+										{getInitials(
+											commit.author?.name || commit.authorName || "U",
+										)}
 									</AvatarFallback>
 								</Avatar>
 								<div className="min-w-0 flex-1">

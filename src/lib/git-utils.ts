@@ -90,31 +90,6 @@ export function isValidGitRef(ref: string): boolean {
 }
 
 /**
- * Parse git URL to extract owner and repo name
- * @param url Git URL (e.g., https://example.com/git/owner/repo.git)
- * @returns Object with owner and repoName, or null if invalid
- */
-export function parseGitUrl(
-	url: string,
-): { owner: string; repoName: string } | null {
-	try {
-		const urlObj = new URL(url);
-		const pathMatch = urlObj.pathname.match(/^\/git\/([^/]+)\/([^/]+)\.git$/);
-
-		if (pathMatch) {
-			return {
-				owner: pathMatch[1],
-				repoName: pathMatch[2],
-			};
-		}
-
-		return null;
-	} catch {
-		return null;
-	}
-}
-
-/**
  * Sanitize repository name to be filesystem-safe
  * @param name Repository name
  * @returns Sanitized name

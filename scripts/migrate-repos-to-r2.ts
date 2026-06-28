@@ -15,7 +15,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 import { bulkUploadToR2 } from '../src/lib/r2-operations'
-import { getLegacyStorageOwnerKeys, getRepoGitStoragePrefix, getRepoStorageCoordinates } from '../src/server/git-storage-naming'
+import { getRepoGitStoragePrefix, getRepoStorageCoordinates } from '../src/server/git-storage-naming'
 
 // Configuration
 const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '10', 10)
@@ -63,12 +63,9 @@ async function migrateRepository(repo: typeof repositories.$inferSelect & {
   owner: { id: string; username: string | null; email: string }
 }): Promise<boolean> {
   const storage = getRepoStorageCoordinates(repo)
-  const legacyOwnerKeys = [storage.ownerKey, ...getLegacyStorageOwnerKeys(repo.owner)]
-  const repoPath = legacyOwnerKeys
-    .map((ownerKey) => join(GIT_REPOS_PATH, ownerKey, repo.name))
-    .find((candidate) => existsSync(candidate))
+  const repoPath = join(GIT_REPOS_PATH, storage.ownerKey, repo.name)
 
-  if (!repoPath) {
+  if (!existsSync(repoPath)) {
     console.log(`  Repository not found on filesystem for ${storage.ownerKey}/${repo.name}`)
     return false
   }

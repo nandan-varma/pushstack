@@ -122,7 +122,14 @@ function PullRequestsPage() {
 				targetBranchName: newPR.baseBranch,
 			},
 		});
-	}, [newPR.title, newPR.body, newPR.headBranch, newPR.baseBranch, repo, createMutation]);
+	}, [
+		newPR.title,
+		newPR.body,
+		newPR.headBranch,
+		newPR.baseBranch,
+		repo,
+		createMutation,
+	]);
 
 	return (
 		<div className="space-y-5">

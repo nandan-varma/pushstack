@@ -405,7 +405,6 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 			repo.name,
 			pr.sourceBranch,
 			pr.targetBranch,
-			storage.legacyOwnerKeys,
 		);
 
 		if (!analysis.canMerge) {
@@ -428,7 +427,6 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 				authorEmail: user.email,
 				strategy: data.strategy,
 			},
-			storage.legacyOwnerKeys,
 			repo.ownerId,
 		);
 

@@ -154,7 +154,9 @@ describe("isRetryableError", () => {
 	});
 
 	it("returns false for non-network errors", () => {
-		expect(isRetryableError(new Error("TypeError: undefined is not a function"))).toBe(false);
+		expect(
+			isRetryableError(new Error("TypeError: undefined is not a function")),
+		).toBe(false);
 	});
 
 	it("returns false for unknown values", () => {

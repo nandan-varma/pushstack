@@ -14,7 +14,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { parseGitUrl } from "#/lib/git-url-parser";
 import { authenticateGitRequest } from "#/server/git-auth";
 import { formatErrorResponse } from "#/server/git-errors";
-import { getMaxGitRequestBytes } from "#/server/git-http-backend";
 import {
 	handleInfoRefsIso,
 	handleReceivePackIso,
@@ -82,7 +81,9 @@ export const Route = createFileRoute("/api/git/$")({
 						request.headers.get("content-length") || "",
 						10,
 					);
-					const maxRequestBytes = getMaxGitRequestBytes();
+					const maxRequestBytes =
+						Number.parseInt(process.env.GIT_HTTP_MAX_BODY_BYTES || "", 10) ||
+						50 * 1024 * 1024;
 
 					if (
 						Number.isFinite(contentLength) &&
@@ -133,7 +134,6 @@ export const Route = createFileRoute("/api/git/$")({
 							request,
 							authContext,
 							repository.defaultBranch || "main",
-							storage.legacyOwnerKeys,
 							repository.ownerId,
 						);
 					} else {

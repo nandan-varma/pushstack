@@ -21,14 +21,8 @@ const TEST_DIR = vi.hoisted(() => {
 
 // Import after env is set
 import { initBareRepo } from "../git-manager-iso";
-import {
-	getCommitDiff,
-	getDiffBetweenBranches,
-} from "../git-diff-iso";
-import {
-	analyzeMerge,
-	mergeBranches,
-} from "../git-merge-iso";
+import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
+import { analyzeMerge, mergeBranches } from "../git-merge-iso";
 import {
 	checkoutBranch,
 	createBranch,
@@ -184,9 +178,7 @@ describe("getCommit", () => {
 	});
 
 	it("throws for an unknown SHA", async () => {
-		await expect(
-			getCommit(OWNER, REPO, "0".repeat(40)),
-		).rejects.toThrow();
+		await expect(getCommit(OWNER, REPO, "0".repeat(40))).rejects.toThrow();
 	});
 });
 
@@ -423,35 +415,20 @@ describe("getDiffBetweenBranches", () => {
 
 describe("analyzeMerge", () => {
 	it("can merge feature-branch into main", async () => {
-		const result = await analyzeMerge(
-			OWNER,
-			REPO,
-			"feature-branch",
-			"main",
-		);
+		const result = await analyzeMerge(OWNER, REPO, "feature-branch", "main");
 		expect(result.canMerge).toBe(true);
 		expect(result.hasConflicts).toBe(false);
 	});
 
 	it("detects fast-forward when source is ahead", async () => {
 		// feature-branch is ahead of main (not vice versa)
-		const result = await analyzeMerge(
-			OWNER,
-			REPO,
-			"feature-branch",
-			"main",
-		);
+		const result = await analyzeMerge(OWNER, REPO, "feature-branch", "main");
 		// feature-branch commit descends from main, so merging ff into main is a ff
 		expect(typeof result.fastForward).toBe("boolean");
 	});
 
 	it("returns canMerge=false for non-existent branch", async () => {
-		const result = await analyzeMerge(
-			OWNER,
-			REPO,
-			"ghost-branch",
-			"main",
-		);
+		const result = await analyzeMerge(OWNER, REPO, "ghost-branch", "main");
 		expect(result.canMerge).toBe(false);
 	});
 });

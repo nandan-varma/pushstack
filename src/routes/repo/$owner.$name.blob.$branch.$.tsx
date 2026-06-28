@@ -178,11 +178,7 @@ function FileBlobPage() {
 					</Button>
 				</Card>
 			) : (
-				<Suspense
-					fallback={
-						<Skeleton className="h-96" />
-					}
-				>
+				<Suspense fallback={<Skeleton className="h-96" />}>
 					<CodeViewer
 						code={fileContent}
 						language={language}

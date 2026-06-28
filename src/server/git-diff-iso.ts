@@ -1,9 +1,4 @@
-/**
- * Git Diff Service (isomorphic-git)
- *
- * Generate diffs and compare branches/commits.
- */
-
+import { createPatch } from "diff";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions } from "./git-manager-iso";
@@ -26,84 +21,25 @@ export interface DiffResult {
 	totalFiles: number;
 }
 
-async function getRepoOptions(
-	ownerKey: string,
-	repoName: string,
-	legacyOwnerKeys: string[] = [],
-) {
+async function getRepoOptions(ownerKey: string, repoName: string) {
 	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName, legacyOwnerKeys);
+		await ensureRepositoryHydrated(ownerKey, repoName);
 	}
 	return getBareRepoOptions(ownerKey, repoName);
 }
 
-/**
- * Simple unified diff generator
- */
-function generateUnifiedDiff(
-	path: string,
-	oldContent: string,
-	newContent: string,
-): string {
-	const oldLines = oldContent.split("\n");
-	const newLines = newContent.split("\n");
-
-	let diff = `diff --git a/${path} b/${path}\n`;
-	diff += `--- a/${path}\n`;
-	diff += `+++ b/${path}\n`;
-
-	// Simple line-by-line diff (not optimal but functional)
-	let additions = 0;
-	let deletions = 0;
-	let hunk = "@@ -1," + oldLines.length + " +1," + newLines.length + " @@\n";
-
-	for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
-		if (i < oldLines.length && i < newLines.length) {
-			if (oldLines[i] !== newLines[i]) {
-				hunk += `-${oldLines[i]}\n`;
-				hunk += `+${newLines[i]}\n`;
-				deletions++;
-				additions++;
-			} else {
-				hunk += ` ${oldLines[i]}\n`;
-			}
-		} else if (i < oldLines.length) {
-			hunk += `-${oldLines[i]}\n`;
-			deletions++;
-		} else {
-			hunk += `+${newLines[i]}\n`;
-			additions++;
-		}
-	}
-
-	diff += hunk;
-
-	return diff;
-}
-
-/**
- * Get diff between two commits
- */
 export async function getCommitDiff(
 	ownerKey: string,
 	repoName: string,
 	commitSha: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<DiffResult> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 
 	try {
-		// Get commit info
-		const commit = await getCommit(
-			ownerKey,
-			repoName,
-			commitSha,
-			legacyOwnerKeys,
-		);
+		const commit = await getCommit(ownerKey, repoName, commitSha);
 		const parent = commit.commit.parent[0];
 
 		if (!parent) {
-			// Initial commit - all files are additions
 			const tree = await git.readTree({ ...repo, oid: commit.commit.tree });
 			const files: DiffFile[] = [];
 
@@ -114,7 +50,6 @@ export async function getCommitDiff(
 						repoName,
 						entry.path,
 						commitSha,
-						legacyOwnerKeys,
 					);
 					const lines = content.toString().split("\n");
 					files.push({
@@ -129,13 +64,15 @@ export async function getCommitDiff(
 
 			return {
 				files,
-				totalAdditions: files.reduce((sum, f) => sum + f.additions, 0),
+				totalAdditions: files.reduce(
+					(sum: number, f: DiffFile) => sum + f.additions,
+					0,
+				),
 				totalDeletions: 0,
 				totalFiles: files.length,
 			};
 		}
 
-		// Compare with parent
 		const changes = await git.walk({
 			...repo,
 			trees: [git.TREE({ ref: parent }), git.TREE({ ref: commitSha })],
@@ -143,13 +80,13 @@ export async function getCommitDiff(
 				const typeA = await A?.type();
 				const typeB = await B?.type();
 
-				// Return undefined (not null) so isomorphic-git descends into subdirs
 				if (typeA === "tree" || typeB === "tree") return;
 
-				// File deleted
 				if (typeA && !typeB) {
-					const oidA = A ? await A.oid() : "";
-					const { blob } = await git.readBlob({ ...repo, oid: oidA });
+					const { blob } = await git.readBlob({
+						...repo,
+						oid: A ? await A.oid() : "",
+					});
 					const lines = Buffer.from(blob).toString().split("\n");
 					return {
 						path: filepath,
@@ -160,10 +97,11 @@ export async function getCommitDiff(
 					};
 				}
 
-				// File added
 				if (!typeA && typeB) {
-					const oidB = B ? await B.oid() : "";
-					const { blob } = await git.readBlob({ ...repo, oid: oidB });
+					const { blob } = await git.readBlob({
+						...repo,
+						oid: B ? await B.oid() : "",
+					});
 					const lines = Buffer.from(blob).toString().split("\n");
 					return {
 						path: filepath,
@@ -174,7 +112,6 @@ export async function getCommitDiff(
 					};
 				}
 
-				// File modified
 				const oidA = A ? await A.oid() : "";
 				const oidB = B ? await B.oid() : "";
 
@@ -184,18 +121,12 @@ export async function getCommitDiff(
 					const contentA = Buffer.from(blobA).toString();
 					const contentB = Buffer.from(blobB).toString();
 
-					const linesA = contentA.split("\n");
-					const linesB = contentB.split("\n");
-
-					const additions = linesB.length;
-					const deletions = linesA.length;
-
 					return {
 						path: filepath,
 						status: "modified" as const,
-						additions,
-						deletions,
-						patch: generateUnifiedDiff(filepath, contentA, contentB),
+						additions: contentB.split("\n").length,
+						deletions: contentA.split("\n").length,
+						patch: createPatch(filepath, contentA, contentB),
 					};
 				}
 
@@ -204,13 +135,20 @@ export async function getCommitDiff(
 		});
 
 		const files = (changes ?? []).filter(
-			(c): c is DiffFile => c !== null && c !== undefined,
+			(c: DiffFile | null | undefined): c is DiffFile =>
+				c !== null && c !== undefined,
 		);
 
 		return {
 			files,
-			totalAdditions: files.reduce((sum, f) => sum + f.additions, 0),
-			totalDeletions: files.reduce((sum, f) => sum + f.deletions, 0),
+			totalAdditions: files.reduce(
+				(sum: number, f: DiffFile) => sum + f.additions,
+				0,
+			),
+			totalDeletions: files.reduce(
+				(sum: number, f: DiffFile) => sum + f.deletions,
+				0,
+			),
 			totalFiles: files.length,
 		};
 	} catch (error) {
@@ -218,17 +156,13 @@ export async function getCommitDiff(
 	}
 }
 
-/**
- * Get diff between two branches
- */
 export async function getDiffBetweenBranches(
 	ownerKey: string,
 	repoName: string,
 	baseBranch: string,
 	compareBranch: string,
-	legacyOwnerKeys: string[] = [],
 ): Promise<DiffResult> {
-	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const repo = await getRepoOptions(ownerKey, repoName);
 
 	const baseOid = await git.resolveRef({ ...repo, ref: baseBranch });
 	const compareOid = await git.resolveRef({ ...repo, ref: compareBranch });
@@ -240,12 +174,13 @@ export async function getDiffBetweenBranches(
 			const typeA = await A?.type();
 			const typeB = await B?.type();
 
-			// Return undefined (not null) so isomorphic-git descends into subdirs
 			if (typeA === "tree" || typeB === "tree") return;
 
 			if (typeA && !typeB) {
-				const oidA = A ? await A.oid() : "";
-				const { blob } = await git.readBlob({ ...repo, oid: oidA });
+				const { blob } = await git.readBlob({
+					...repo,
+					oid: A ? await A.oid() : "",
+				});
 				const lines = Buffer.from(blob).toString().split("\n");
 				return {
 					path: filepath,
@@ -257,8 +192,10 @@ export async function getDiffBetweenBranches(
 			}
 
 			if (!typeA && typeB) {
-				const oidB = B ? await B.oid() : "";
-				const { blob } = await git.readBlob({ ...repo, oid: oidB });
+				const { blob } = await git.readBlob({
+					...repo,
+					oid: B ? await B.oid() : "",
+				});
 				const lines = Buffer.from(blob).toString().split("\n");
 				return {
 					path: filepath,
@@ -278,15 +215,12 @@ export async function getDiffBetweenBranches(
 				const contentA = Buffer.from(blobA).toString();
 				const contentB = Buffer.from(blobB).toString();
 
-				const linesA = contentA.split("\n");
-				const linesB = contentB.split("\n");
-
 				return {
 					path: filepath,
 					status: "modified" as const,
-					additions: linesB.length,
-					deletions: linesA.length,
-					patch: generateUnifiedDiff(filepath, contentA, contentB),
+					additions: contentB.split("\n").length,
+					deletions: contentA.split("\n").length,
+					patch: createPatch(filepath, contentA, contentB),
 				};
 			}
 
@@ -295,15 +229,20 @@ export async function getDiffBetweenBranches(
 	});
 
 	const files = (changes ?? []).filter(
-		(c): c is DiffFile => c !== null && c !== undefined,
+		(c: DiffFile | null | undefined): c is DiffFile =>
+			c !== null && c !== undefined,
 	);
 
 	return {
 		files,
-		totalAdditions: files.reduce((sum, f) => sum + f.additions, 0),
-		totalDeletions: files.reduce((sum, f) => sum + f.deletions, 0),
+		totalAdditions: files.reduce(
+			(sum: number, f: DiffFile) => sum + f.additions,
+			0,
+		),
+		totalDeletions: files.reduce(
+			(sum: number, f: DiffFile) => sum + f.deletions,
+			0,
+		),
 		totalFiles: files.length,
 	};
 }
-
-

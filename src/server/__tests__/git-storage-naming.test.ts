@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	getLegacyGitPrefixes,
-	getLegacyStorageOwnerKeys,
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	getRepoStorageCoordinates,
@@ -38,21 +36,8 @@ describe("getStorageOwnerKey", () => {
 	});
 });
 
-describe("getLegacyStorageOwnerKeys", () => {
-	it("includes sanitized id and NaN sentinel", () => {
-		const keys = getLegacyStorageOwnerKeys(ownerWithUsername);
-		expect(keys).toContain("user-123");
-		expect(keys).toContain("NaN");
-	});
-
-	it("returns unique values", () => {
-		const keys = getLegacyStorageOwnerKeys(ownerWithUsername);
-		expect(keys.length).toBe(new Set(keys).size);
-	});
-});
-
 describe("getRepoStorageCoordinates", () => {
-	it("returns ownerKey, repoKey, and empty legacyOwnerKeys when username matches no legacy key", () => {
+	it("returns ownerKey and repoKey", () => {
 		const coords = getRepoStorageCoordinates({
 			ownerId: ownerWithUsername.id,
 			name: "myrepo",
@@ -60,8 +45,6 @@ describe("getRepoStorageCoordinates", () => {
 		});
 		expect(coords.ownerKey).toBe("alice");
 		expect(coords.repoKey).toBe("myrepo");
-		// legacyOwnerKeys must not include the canonical ownerKey
-		expect(coords.legacyOwnerKeys).not.toContain("alice");
 	});
 
 	it("throws when owner metadata is missing", () => {
@@ -73,9 +56,7 @@ describe("getRepoStorageCoordinates", () => {
 
 describe("storage path helpers", () => {
 	it("getRepoStorageRoot", () => {
-		expect(getRepoStorageRoot("alice", "myrepo")).toBe(
-			"repos/alice/myrepo",
-		);
+		expect(getRepoStorageRoot("alice", "myrepo")).toBe("repos/alice/myrepo");
 	});
 
 	it("getRepoGitStorageRoot", () => {
@@ -92,25 +73,6 @@ describe("storage path helpers", () => {
 	it("sanitizes path segments with special chars", () => {
 		const root = getRepoStorageRoot("a/b", "repo name");
 		expect(root).not.toContain(" ");
-		// slashes in owner become dashes
 		expect(root).toMatch(/^repos\//);
-	});
-});
-
-describe("getLegacyGitPrefixes", () => {
-	it("returns prefixes for each legacy owner key", () => {
-		const prefixes = getLegacyGitPrefixes(["user-123", "NaN"], "myrepo");
-		expect(prefixes.length).toBeGreaterThan(0);
-		// should include git storage prefix style
-		expect(prefixes.some((p) => p.includes("myrepo"))).toBe(true);
-	});
-
-	it("returns unique prefixes", () => {
-		const prefixes = getLegacyGitPrefixes(["x", "x"], "repo");
-		expect(prefixes.length).toBe(new Set(prefixes).size);
-	});
-
-	it("returns empty array for no legacy keys", () => {
-		expect(getLegacyGitPrefixes([], "repo")).toEqual([]);
 	});
 });
