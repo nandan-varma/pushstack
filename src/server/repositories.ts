@@ -10,8 +10,6 @@ import {
 } from "../db/github-schema";
 import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
-// Git operations imports
-import { createCommit } from "./git-operations-iso";
 import {
 	deleteRepositoryFromR2,
 	syncRepositoryToR2,
@@ -91,24 +89,6 @@ export const createRepository = createServerFn({ method: "POST" })
 			// Initialize git repository on filesystem
 			const gitPath = await initBareRepo(ownerKey, data.name);
 
-			// Create initial commit with README
-			const commitSha = await createCommit(
-				ownerKey,
-				data.name,
-				"Initial commit",
-				[
-					{
-						path: "README.md",
-						content: `# ${data.name}\n\n${data.description || "No description provided"}`,
-					},
-				],
-				user.name || user.username || "Unknown",
-				user.email,
-				"main",
-				legacyOwnerKeys,
-				user.id,
-			);
-
 			// Create repository record in database
 			const [repo] = await db
 				.insert(repositories)
@@ -127,10 +107,7 @@ export const createRepository = createServerFn({ method: "POST" })
 				userId: user.id,
 				repoId: repo.id,
 				type: "create_repo",
-				metadata: {
-					repoName: repo.name,
-					initialCommitSha: commitSha,
-				},
+				metadata: { repoName: repo.name },
 			});
 
 			await syncRepositoryToR2(ownerKey, data.name, user.id, legacyOwnerKeys);

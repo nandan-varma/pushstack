@@ -219,16 +219,23 @@ export async function getBranches(
 	legacyOwnerKeys: string[] = [],
 ): Promise<Branch[]> {
 	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
-	const branches = await git.listBranches(repo);
-	const currentBranch = await git.currentBranch({ ...repo, fullname: false });
+	try {
+		const branches = await git.listBranches(repo);
+		const currentBranch = await git
+			.currentBranch({ ...repo, fullname: false })
+			.catch(() => null);
 
-	return Promise.all(
-		branches.map(async (branch) => ({
-			name: branch,
-			commit: await git.resolveRef({ ...repo, ref: `refs/heads/${branch}` }),
-			isDefault: branch === currentBranch,
-		})),
-	);
+		return Promise.all(
+			branches.map(async (branch) => ({
+				name: branch,
+				commit: await git.resolveRef({ ...repo, ref: `refs/heads/${branch}` }),
+				isDefault: branch === currentBranch,
+			})),
+		);
+	} catch (err: unknown) {
+		if ((err as { code?: string }).code === "NotFoundError") return [];
+		throw err;
+	}
 }
 
 /**
@@ -355,13 +362,17 @@ export async function getCommitLog(
 	legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo[]> {
 	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
-	const commits = await git.log({ ...repo, ref, depth });
-
-	return commits.map((commit) => ({
-		oid: commit.oid,
-		commit: commit.commit,
-		payload: commit.payload || "",
-	}));
+	try {
+		const commits = await git.log({ ...repo, ref, depth });
+		return commits.map((commit) => ({
+			oid: commit.oid,
+			commit: commit.commit,
+			payload: commit.payload || "",
+		}));
+	} catch (err: unknown) {
+		if ((err as { code?: string }).code === "NotFoundError") return [];
+		throw err;
+	}
 }
 
 /**
@@ -413,12 +424,20 @@ export async function getTreeFromBranch(
 	treePath: string = "",
 	legacyOwnerKeys: string[] = [],
 ): Promise<TreeEntry[]> {
-	const { repo, commit } = await resolveCommit(
-		ownerKey,
-		repoName,
-		branchName,
-		legacyOwnerKeys,
-	);
+	let repo: Awaited<ReturnType<typeof getRepoOptions>>;
+	let commit: Awaited<ReturnType<typeof resolveCommit>>["commit"];
+	try {
+		({ repo, commit } = await resolveCommit(
+			ownerKey,
+			repoName,
+			branchName,
+			legacyOwnerKeys,
+		));
+	} catch (err: unknown) {
+		// ponytail: empty repo or branch not yet created — return empty tree
+		if ((err as { code?: string }).code === "NotFoundError") return [];
+		throw err;
+	}
 
 	if (!treePath) {
 		return listTreeEntries(repo, commit.tree);

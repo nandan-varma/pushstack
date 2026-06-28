@@ -10,6 +10,7 @@ import {
 	bulkDeleteFromR2,
 	deleteFromR2,
 	downloadFromR2,
+	headR2Object,
 	listAllR2Files,
 	listR2Files,
 	uploadToR2,
@@ -106,7 +107,12 @@ export class R2Backend {
 				error.name === "NoSuchKey" ||
 				error.$metadata?.httpStatusCode === 404
 			) {
-				throw new GitObjectNotFoundError(`Object not found: ${relativePath}`);
+				// isomorphic-git FileSystem.read() catches any error and returns null
+				// but other callers (e.g. resolveRef) need ENOENT to handle missing refs
+				throw Object.assign(
+					new Error(`ENOENT: no such file or directory, open '${filepath}'`),
+					{ code: "ENOENT" },
+				);
 			}
 			throw error;
 		}
@@ -226,15 +232,15 @@ export class R2Backend {
 	async stat(filepath: string): Promise<any> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
-
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 
-		try {
-			const result = await downloadFromR2(r2Key);
+		// HeadObject is cheaper than GetObject and avoids downloading file content
+		const meta = await headR2Object(r2Key);
+		if (meta !== null) {
 			return {
 				type: "file",
 				mode: 0o100644,
-				size: result.size || 0,
+				size: meta.size,
 				ino: 0,
 				mtimeMs: Date.now(),
 				ctimeMs: Date.now(),
@@ -245,35 +251,35 @@ export class R2Backend {
 				isDirectory: () => false,
 				isSymbolicLink: () => false,
 			};
-		} catch (error: any) {
-			if (
-				error.name === "NoSuchKey" ||
-				error.$metadata?.httpStatusCode === 404
-			) {
-				// Check if it's a directory by listing
-				try {
-					const files = await listR2Files(`${r2Key}/`, 1);
-					if (files.length > 0) {
-						return {
-							type: "dir",
-							mode: 0o040000,
-							size: 0,
-							ino: 0,
-							mtimeMs: Date.now(),
-							ctimeMs: Date.now(),
-							uid: 1,
-							gid: 1,
-							dev: 1,
-							isFile: () => false,
-							isDirectory: () => true,
-							isSymbolicLink: () => false,
-						};
-					}
-				} catch {}
-				throw new GitObjectNotFoundError(`Object not found: ${relativePath}`);
-			}
-			throw error;
 		}
+
+		// Not a file — check if it's a directory prefix
+		try {
+			const files = await listR2Files(`${r2Key}/`, 1);
+			if (files.length > 0) {
+				return {
+					type: "dir",
+					mode: 0o040000,
+					size: 0,
+					ino: 0,
+					mtimeMs: Date.now(),
+					ctimeMs: Date.now(),
+					uid: 1,
+					gid: 1,
+					dev: 1,
+					isFile: () => false,
+					isDirectory: () => true,
+					isSymbolicLink: () => false,
+				};
+			}
+		} catch {}
+		// isomorphic-git's FileSystem.exists() catches code==='ENOENT' to return false;
+		// any other error is "unhandled" and aborts git.init / git.log / etc.
+		const enoent = Object.assign(
+			new Error(`ENOENT: no such file or directory, stat '${filepath}'`),
+			{ code: "ENOENT" },
+		);
+		throw enoent;
 	}
 
 	/**

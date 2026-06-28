@@ -115,7 +115,7 @@ function RepositoryPage() {
 						Star
 					</Button>
 					{isOwner && (
-						<Link to="/repo/$owner/$name/setup" params={{ owner, name }}>
+						<Link to="/repo/$owner/$name/settings" params={{ owner, name }}>
 							<Button variant="outline" size="sm">
 								Settings
 							</Button>

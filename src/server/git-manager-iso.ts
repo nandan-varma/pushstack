@@ -145,7 +145,12 @@ export async function getRepoDiskUsage(dir: string): Promise<number> {
 	let totalSize = 0;
 
 	async function calculateSize(dirPath: string) {
-		const entries = await fs.readdir(dirPath, { withFileTypes: true });
+		let entries: Awaited<ReturnType<typeof fs.readdir>>;
+		try {
+			entries = await fs.readdir(dirPath, { withFileTypes: true });
+		} catch {
+			return;
+		}
 
 		for (const entry of entries) {
 			const fullPath = path.join(dirPath, entry.name);

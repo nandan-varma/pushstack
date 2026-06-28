@@ -203,16 +203,22 @@ async function ensureRepositoryHydratedUnlocked(
 			...state,
 			hydratedAt: remoteVersion ?? Date.now(),
 		});
+	} else {
+		await writeRemoteFilesToDisk(repoPath, remoteFiles, sourcePrefix);
 
-		return repoPath;
+		repoState.set(repoKey, {
+			...state,
+			hydratedAt: remoteVersion ?? Date.now(),
+		});
 	}
 
-	await writeRemoteFilesToDisk(repoPath, remoteFiles, sourcePrefix);
-
-	repoState.set(repoKey, {
-		...state,
-		hydratedAt: remoteVersion ?? Date.now(),
-	});
+	// R2 init only writes files (HEAD, config) — r2Backend.mkdir is a no-op.
+	// Native git clone requires objects/ and refs/heads/ to exist on local disk.
+	await Promise.all([
+		fs.mkdir(path.join(repoPath, "objects"), { recursive: true }),
+		fs.mkdir(path.join(repoPath, "refs", "heads"), { recursive: true }),
+		fs.mkdir(path.join(repoPath, "refs", "tags"), { recursive: true }),
+	]);
 
 	return repoPath;
 }

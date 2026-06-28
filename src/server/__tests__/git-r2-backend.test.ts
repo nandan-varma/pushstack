@@ -65,14 +65,14 @@ describe("R2Backend.readFile", () => {
 		expect(Buffer.isBuffer(result)).toBe(true);
 	});
 
-	it("throws GitObjectNotFoundError on 404", async () => {
+	it("throws ENOENT error on 404", async () => {
 		vi.mocked(cache.getCache).mockReturnValue(null);
 		vi.mocked(r2ops.downloadFromR2).mockRejectedValue({ name: "NoSuchKey" });
 
 		const backend = new R2Backend();
-		await expect(backend.readFile(`${REPO_PATH}/HEAD`)).rejects.toBeInstanceOf(
-			GitObjectNotFoundError,
-		);
+		await expect(backend.readFile(`${REPO_PATH}/HEAD`)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
 	});
 
 	it("returns string when encoding is utf8", async () => {

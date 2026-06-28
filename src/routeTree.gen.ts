@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
 import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
@@ -24,6 +25,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
 import { Route as RepoOwnerNameUploadRouteImport } from './routes/repo/$owner.$name.upload'
 import { Route as RepoOwnerNameSetupRouteImport } from './routes/repo/$owner.$name.setup'
+import { Route as RepoOwnerNameSettingsRouteImport } from './routes/repo/$owner.$name.settings'
 import { Route as RepoOwnerNamePullsRouteImport } from './routes/repo/$owner.$name.pulls'
 import { Route as RepoOwnerNameIssuesRouteImport } from './routes/repo/$owner.$name.issues'
 import { Route as RepoOwnerNameCommitsRouteImport } from './routes/repo/$owner.$name.commits'
@@ -56,6 +58,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RepositoriesRoute,
 } as any)
 const RepositoriesNewRoute = RepositoriesNewRouteImport.update({
   id: '/new',
@@ -107,6 +114,11 @@ const RepoOwnerNameSetupRoute = RepoOwnerNameSetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => RepoOwnerNameRoute,
 } as any)
+const RepoOwnerNameSettingsRoute = RepoOwnerNameSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
 const RepoOwnerNamePullsRoute = RepoOwnerNamePullsRouteImport.update({
   id: '/pulls',
   path: '/pulls',
@@ -154,12 +166,14 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/repositories/new': typeof RepositoriesNewRoute
+  '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/commits': typeof RepoOwnerNameCommitsRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
+  '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
   '/repo/$owner/$name/upload': typeof RepoOwnerNameUploadRoute
   '/repo/$owner/$name/': typeof RepoOwnerNameIndexRoute
@@ -173,16 +187,17 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
-  '/repositories': typeof RepositoriesRouteWithChildren
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/repositories/new': typeof RepositoriesNewRoute
+  '/repositories': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/repo/$owner/$name/commits': typeof RepoOwnerNameCommitsRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
+  '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
   '/repo/$owner/$name/upload': typeof RepoOwnerNameUploadRoute
   '/repo/$owner/$name': typeof RepoOwnerNameIndexRoute
@@ -202,12 +217,14 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/repositories/new': typeof RepositoriesNewRoute
+  '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/commits': typeof RepoOwnerNameCommitsRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
+  '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
   '/repo/$owner/$name/upload': typeof RepoOwnerNameUploadRoute
   '/repo/$owner/$name/': typeof RepoOwnerNameIndexRoute
@@ -228,12 +245,14 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/repositories/new'
+    | '/repositories/'
     | '/api/auth/$'
     | '/api/git/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/commits'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
+    | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
     | '/repo/$owner/$name/upload'
     | '/repo/$owner/$name/'
@@ -247,16 +266,17 @@ export interface FileRouteTypes {
     | '/about'
     | '/auth'
     | '/dashboard'
-    | '/repositories'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/repositories/new'
+    | '/repositories'
     | '/api/auth/$'
     | '/api/git/$'
     | '/repo/$owner/$name/commits'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
+    | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
     | '/repo/$owner/$name/upload'
     | '/repo/$owner/$name'
@@ -275,12 +295,14 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/repositories/new'
+    | '/repositories/'
     | '/api/auth/$'
     | '/api/git/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/commits'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
+    | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
     | '/repo/$owner/$name/upload'
     | '/repo/$owner/$name/'
@@ -337,6 +359,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/repositories/': {
+      id: '/repositories/'
+      path: '/'
+      fullPath: '/repositories/'
+      preLoaderRoute: typeof RepositoriesIndexRouteImport
+      parentRoute: typeof RepositoriesRoute
     }
     '/repositories/new': {
       id: '/repositories/new'
@@ -408,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RepoOwnerNameSetupRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
+    '/repo/$owner/$name/settings': {
+      id: '/repo/$owner/$name/settings'
+      path: '/settings'
+      fullPath: '/repo/$owner/$name/settings'
+      preLoaderRoute: typeof RepoOwnerNameSettingsRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
     '/repo/$owner/$name/pulls': {
       id: '/repo/$owner/$name/pulls'
       path: '/pulls'
@@ -476,10 +512,12 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface RepositoriesRouteChildren {
   RepositoriesNewRoute: typeof RepositoriesNewRoute
+  RepositoriesIndexRoute: typeof RepositoriesIndexRoute
 }
 
 const RepositoriesRouteChildren: RepositoriesRouteChildren = {
   RepositoriesNewRoute: RepositoriesNewRoute,
+  RepositoriesIndexRoute: RepositoriesIndexRoute,
 }
 
 const RepositoriesRouteWithChildren = RepositoriesRoute._addFileChildren(
@@ -512,6 +550,7 @@ interface RepoOwnerNameRouteChildren {
   RepoOwnerNameCommitsRoute: typeof RepoOwnerNameCommitsRoute
   RepoOwnerNameIssuesRoute: typeof RepoOwnerNameIssuesRouteWithChildren
   RepoOwnerNamePullsRoute: typeof RepoOwnerNamePullsRouteWithChildren
+  RepoOwnerNameSettingsRoute: typeof RepoOwnerNameSettingsRoute
   RepoOwnerNameSetupRoute: typeof RepoOwnerNameSetupRoute
   RepoOwnerNameUploadRoute: typeof RepoOwnerNameUploadRoute
   RepoOwnerNameIndexRoute: typeof RepoOwnerNameIndexRoute
@@ -523,6 +562,7 @@ const RepoOwnerNameRouteChildren: RepoOwnerNameRouteChildren = {
   RepoOwnerNameCommitsRoute: RepoOwnerNameCommitsRoute,
   RepoOwnerNameIssuesRoute: RepoOwnerNameIssuesRouteWithChildren,
   RepoOwnerNamePullsRoute: RepoOwnerNamePullsRouteWithChildren,
+  RepoOwnerNameSettingsRoute: RepoOwnerNameSettingsRoute,
   RepoOwnerNameSetupRoute: RepoOwnerNameSetupRoute,
   RepoOwnerNameUploadRoute: RepoOwnerNameUploadRoute,
   RepoOwnerNameIndexRoute: RepoOwnerNameIndexRoute,

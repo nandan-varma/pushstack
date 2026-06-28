@@ -47,10 +47,13 @@ async function circuitBreakerExecute<T>(fn: () => Promise<T>): Promise<T> {
 			cbFailures = 0;
 		}
 		return result;
-	} catch (error) {
-		cbFailures++;
-		cbLastFailureTime = Date.now();
-		if (cbFailures >= CIRCUIT_BREAKER_THRESHOLD) cbState = "open";
+	} catch (error: any) {
+		// 404/NoSuchKey is expected behavior (file not found), not an R2 outage
+		if (error.$metadata?.httpStatusCode !== 404 && error.name !== "NoSuchKey") {
+			cbFailures++;
+			cbLastFailureTime = Date.now();
+			if (cbFailures >= CIRCUIT_BREAKER_THRESHOLD) cbState = "open";
+		}
 		throw error;
 	}
 }
@@ -278,16 +281,44 @@ export async function fileExistsInR2(key: string): Promise<boolean> {
 	const { bucketName } = getR2Config();
 
 	try {
-		await client.send(
-			new HeadObjectCommand({
-				Bucket: bucketName,
-				Key: key,
-			}),
-		);
+		await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
 		return true;
-	} catch (error) {
+	} catch {
 		return false;
 	}
+}
+
+/**
+ * Stat a single R2 object without downloading it (HeadObject)
+ */
+export async function headR2Object(
+	key: string,
+): Promise<{ size: number; contentType?: string; etag?: string } | null> {
+	return circuitBreakerExecute(async () => {
+		const client = getR2Client();
+		const { bucketName } = getR2Config();
+		try {
+			const response = await client.send(
+				new HeadObjectCommand({ Bucket: bucketName, Key: key }),
+			);
+			return {
+				size: response.ContentLength ?? 0,
+				contentType: response.ContentType,
+				etag: response.ETag,
+			};
+		} catch (error: any) {
+			if (
+				error.$metadata?.httpStatusCode === 404 ||
+				error.name === "NoSuchKey" ||
+				error.name === "NotFound"
+			) {
+				return null;
+			}
+			throw new R2DownloadError(
+				`Failed to stat ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
+			);
+		}
+	});
 }
 
 /**
@@ -413,5 +444,9 @@ export async function bulkDeleteFromR2(
 }
 
 export function getCircuitBreakerState() {
-	return { state: cbState, failures: cbFailures, lastFailureTime: cbLastFailureTime };
+	return {
+		state: cbState,
+		failures: cbFailures,
+		lastFailureTime: cbLastFailureTime,
+	};
 }
