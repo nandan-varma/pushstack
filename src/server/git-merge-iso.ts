@@ -129,7 +129,23 @@ export async function mergeBranches(
 			commitSha: commitOid,
 		};
 	} catch (error) {
-		// Merge conflicts occurred
+		// Merge conflicts occurred — extract conflicting file paths from MergeConflictError
+		if (
+			error &&
+			typeof error === "object" &&
+			"code" in error &&
+			(error as { code: string }).code === "MergeConflictError"
+		) {
+			const conflictError = error as {
+				data?: { filepaths?: string[] };
+			};
+			return {
+				success: false,
+				conflicts: conflictError.data?.filepaths?.length
+					? conflictError.data.filepaths
+					: ["Merge conflicts detected"],
+			};
+		}
 		return {
 			success: false,
 			conflicts: ["Merge conflicts detected"],

@@ -6,18 +6,15 @@ import { createFileRoute } from "@tanstack/react-router";
  * - GET /api/git/{owner}/{repo}.git/info/refs?service=git-upload-pack
  * - POST /api/git/{owner}/{repo}.git/git-upload-pack
  * - POST /api/git/{owner}/{repo}.git/git-receive-pack
+ *
+ * Uses the isomorphic-git HTTP backend (git-http-iso.ts) which reads/writes
+ * directly to/from Cloudflare R2. No native git binary dependency.
  */
 
 import { parseGitUrl } from "#/lib/git-url-parser";
-import { isR2Configured } from "#/lib/r2";
 import { authenticateGitRequest } from "#/server/git-auth";
 import { formatErrorResponse } from "#/server/git-errors";
-import {
-	getMaxGitRequestBytes,
-	handleInfoRefs,
-	handleReceivePack,
-	handleUploadPack,
-} from "#/server/git-http-backend";
+import { getMaxGitRequestBytes } from "#/server/git-http-backend";
 import {
 	handleInfoRefsIso,
 	handleReceivePackIso,
@@ -40,13 +37,11 @@ export const Route = createFileRoute("/api/git/$")({
 
 					const { owner, repo, service } = parsed;
 
-					// Get repository from database
 					const repository = await findRepositoryByName(owner, repo);
 					if (!repository) {
 						return new Response("Repository not found", { status: 404 });
 					}
 
-					// Authenticate the request (throws GitAuthenticationError/GitAuthorizationError on failure)
 					const authContext = await authenticateGitRequest(
 						request,
 						owner,
@@ -56,24 +51,13 @@ export const Route = createFileRoute("/api/git/$")({
 
 					const storage = getRepoStorageCoordinates(repository);
 
-					// Handle info/refs request
-					const result = isR2Configured()
-						? await handleInfoRefsIso(
-								storage.ownerKey,
-								repo,
-								service,
-								authContext,
-								repository.defaultBranch || "main",
-							)
-						: await handleInfoRefs(
-								storage.ownerKey,
-								repo,
-								service,
-								authContext,
-								repository.updatedAt,
-								repository.defaultBranch || "main",
-								storage.legacyOwnerKeys,
-							);
+					const result = await handleInfoRefsIso(
+						storage.ownerKey,
+						repo,
+						service,
+						authContext,
+						repository.defaultBranch || "main",
+					);
 
 					return new Response(result.body, {
 						status: result.status,
@@ -116,13 +100,11 @@ export const Route = createFileRoute("/api/git/$")({
 
 					const { owner, repo, service } = parsed;
 
-					// Get repository from database
 					const repository = await findRepositoryByName(owner, repo);
 					if (!repository) {
 						return new Response("Repository not found", { status: 404 });
 					}
 
-					// Authenticate the request (throws GitAuthenticationError/GitAuthorizationError on failure)
 					const authContext = await authenticateGitRequest(
 						request,
 						owner,
@@ -132,50 +114,28 @@ export const Route = createFileRoute("/api/git/$")({
 
 					const storage = getRepoStorageCoordinates(repository);
 
-					// Handle upload-pack (clone/fetch) or receive-pack (push)
 					let result: {
 						status: number;
 						headers: Record<string, string>;
 						body: BodyInit;
 					};
 					if (service === "git-upload-pack") {
-						result = isR2Configured()
-							? await handleUploadPackIso(
-									storage.ownerKey,
-									repo,
-									request,
-									authContext,
-								)
-							: await handleUploadPack(
-									storage.ownerKey,
-									repo,
-									request,
-									authContext,
-									repository.updatedAt,
-									repository.defaultBranch || "main",
-									storage.legacyOwnerKeys,
-								);
+						result = await handleUploadPackIso(
+							storage.ownerKey,
+							repo,
+							request,
+							authContext,
+						);
 					} else if (service === "git-receive-pack") {
-						result = isR2Configured()
-							? await handleReceivePackIso(
-									storage.ownerKey,
-									repo,
-									request,
-									authContext,
-									repository.defaultBranch || "main",
-									storage.legacyOwnerKeys,
-									repository.ownerId,
-								)
-							: await handleReceivePack(
-									storage.ownerKey,
-									repo,
-									request,
-									authContext,
-									repository.updatedAt,
-									repository.defaultBranch || "main",
-									repository.ownerId,
-									storage.legacyOwnerKeys,
-								);
+						result = await handleReceivePackIso(
+							storage.ownerKey,
+							repo,
+							request,
+							authContext,
+							repository.defaultBranch || "main",
+							storage.legacyOwnerKeys,
+							repository.ownerId,
+						);
 					} else {
 						return new Response("Invalid service", { status: 400 });
 					}

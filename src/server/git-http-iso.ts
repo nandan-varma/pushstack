@@ -6,7 +6,8 @@
  * receive-pack (push): writes incoming pack to /tmp gitdir, then syncs to R2.
  */
 
-import fs, { promises as localFsPromises } from "node:fs";
+import fs from "node:fs";
+import * as localFsPromises from "node:fs/promises";
 import path from "node:path";
 import git from "isomorphic-git";
 import type { GitAuthContext } from "./git-auth";
@@ -220,11 +221,19 @@ export async function handleUploadPackIso(
 	const lines = parsePktLines(body);
 
 	const wants: string[] = [];
+	const haves: string[] = [];
 	for (const line of lines) {
 		if (!line) continue;
 		// "want <sha1>" or "want <sha1> <capabilities>" (first line only, NUL-separated)
 		if (line.startsWith("want ")) {
 			wants.push(line.slice(5, 45));
+		}
+		// "have <sha1>"
+		if (line.startsWith("have ")) {
+			const sha = line.slice(5, 45);
+			if (sha !== "0000000000000000000000000000000000000000") {
+				haves.push(sha);
+			}
 		}
 	}
 
@@ -236,9 +245,13 @@ export async function handleUploadPackIso(
 		};
 	}
 
-	const oids = await collectReachableOids(gitdir, wants);
-	// ponytail: no have-negotiation — always send full reachable set
-	// (ok for small/medium repos; add delta-negotiation if fetch performance matters)
+	const wantOids = await collectReachableOids(gitdir, wants);
+	let oids = wantOids;
+	if (haves.length > 0) {
+		const haveOids = new Set(await collectReachableOids(gitdir, haves));
+		oids = wantOids.filter((oid) => !haveOids.has(oid));
+	}
+
 	const { packfile } = await git.packObjects({ fs: r2Backend, gitdir, oids });
 
 	return {

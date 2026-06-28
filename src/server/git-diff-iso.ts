@@ -306,23 +306,4 @@ export async function getDiffBetweenBranches(
 	};
 }
 
-/**
- * Check for merge conflicts between branches
- */
-export async function checkForConflicts(
-	_ownerId: number,
-	_repoName: string,
-	_sourceBranch: string,
-	_targetBranch: string,
-): Promise<{ hasConflicts: boolean; conflictingFiles: string[] }> {
-	// For isomorphic-git, we need to attempt a merge to check for conflicts
-	// For now, return a simple check
-	// TODO: Implement actual conflict detection by attempting merge
-	// const diff = await getDiffBetweenBranches(ownerId, repoName, targetBranch, sourceBranch);
 
-	// This is a simplified check - real conflict detection requires merge attempt
-	return {
-		hasConflicts: false,
-		conflictingFiles: [],
-	};
-}

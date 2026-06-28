@@ -103,7 +103,7 @@ async function authenticateUser(
 	// Try session authentication first (for web UI)
 	try {
 		const session = await auth.api.getSession({
-			headers: request.headers as any,
+			headers: request.headers,
 		});
 
 		if (session?.user) {

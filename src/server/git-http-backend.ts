@@ -1,5 +1,10 @@
 /**
  * Git HTTP Backend using native git services
+ *
+ * @deprecated Use the isomorphic-git HTTP backend (git-http-iso.ts) instead.
+ * The native backend is kept for local development without R2 and will be
+ * removed once the isomorphic-git backend is fully battle-tested.
+ *
  * Handles git smart HTTP protocol for clone, fetch, and push operations
  */
 
