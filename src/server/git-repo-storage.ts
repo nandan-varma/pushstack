@@ -31,6 +31,21 @@ type RepoState = {
 const repoLocks = new Map<string, Promise<void>>();
 const repoState = new Map<string, RepoState>();
 
+// ponytail: 5-second TTL avoids re-listing R2 when hydrate + sync run back-to-back in the same push
+type R2ListEntry = { files: Awaited<ReturnType<typeof listAllR2Files>>; at: number };
+const r2ListCache = new Map<string, R2ListEntry>();
+const R2_LIST_TTL_MS = 5000;
+
+async function listAllR2FilesCached(
+	prefix: string,
+): Promise<Awaited<ReturnType<typeof listAllR2Files>>> {
+	const entry = r2ListCache.get(prefix);
+	if (entry && Date.now() - entry.at < R2_LIST_TTL_MS) return entry.files;
+	const files = await listAllR2Files(prefix);
+	r2ListCache.set(prefix, { files, at: Date.now() });
+	return files;
+}
+
 function getRepoKey(ownerKey: string, repoName: string): string {
 	return `${ownerKey}/${repoName}`;
 }
@@ -119,7 +134,7 @@ async function ensureRepositoryHydratedUnlocked(
 	}
 
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	const remoteFiles = await listAllR2Files(prefix);
+	const remoteFiles = await listAllR2FilesCached(prefix);
 
 	if (remoteFiles.length === 0) {
 		try {
@@ -349,7 +364,7 @@ async function syncRepositoryToR2Unlocked(
 
 	const localFiles = await listLocalFiles(repoPath);
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	const remoteFiles = await listAllR2Files(prefix);
+	const remoteFiles = await listAllR2FilesCached(prefix);
 	const remoteKeys = new Set(remoteFiles.map((file) => file.key));
 
 	// ponytail: git objects are content-addressed — skip uploading any that already exist in R2
@@ -401,6 +416,9 @@ async function syncRepositoryToR2Unlocked(
 	}
 
 	await updateRepositoryBackupMetadata(ownerDbId, ownerKey, repoName, repoPath);
+
+	// Invalidate the list cache so the next read sees the just-uploaded state
+	r2ListCache.delete(prefix);
 
 	repoState.set(repoKey, {
 		hydratedAt: Date.now(),

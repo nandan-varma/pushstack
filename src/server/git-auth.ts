@@ -114,8 +114,9 @@ async function authenticateUser(
 				name: session.user.name || null,
 			};
 		}
-	} catch {
-		// Session auth failed, continue to Basic Auth
+	} catch (err) {
+		// Unexpected error (DB down, misconfiguration) — log it so it's not invisible
+		console.error("[git-auth] session auth error:", err);
 	}
 
 	// Try HTTP Basic Auth (for git CLI)

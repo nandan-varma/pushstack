@@ -130,7 +130,9 @@ async function collectReachableOids(
 					children = [tag.object];
 				}
 				await Promise.all(children.map(visit));
-			} catch {}
+			} catch (err) {
+				console.error(`[git-http] object traversal error for oid ${oid}:`, err);
+			}
 		})();
 
 		promises.set(oid, p);

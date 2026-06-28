@@ -19,6 +19,14 @@ import {
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
+async function getStarCount(repoId: number): Promise<number> {
+	const [row] = await db
+		.select({ count: sql`count(*)` })
+		.from(stars)
+		.where(eq(stars.repoId, repoId));
+	return Number(row?.count || 0);
+}
+
 // Find repository by owner username and repo name (for git protocol - plain function, not serverFn)
 export async function findRepositoryByName(
 	ownerUsername: string,
@@ -174,25 +182,18 @@ export const getRepository = createServerFn({ method: "GET" })
 			throw new Error("Repository not found");
 		}
 
-		// Get star count
-		const starCount = await db
-			.select({ count: sql`count(*)` })
-			.from(stars)
-			.where(eq(stars.repoId, data.id));
-
-		// Check if current user starred
-		const userStar = currentUser
-			? await db.query.stars.findFirst({
-					where: and(
-						eq(stars.repoId, data.id),
-						eq(stars.userId, currentUser.id),
-					),
-				})
-			: null;
+		const [starCount, userStar] = await Promise.all([
+			getStarCount(data.id),
+			currentUser
+				? db.query.stars.findFirst({
+						where: and(eq(stars.repoId, data.id), eq(stars.userId, currentUser.id)),
+					})
+				: null,
+		]);
 
 		return {
 			...repo,
-			starCount: Number(starCount[0]?.count || 0),
+			starCount,
 			isStarred: !!userStar,
 		};
 	});
@@ -236,20 +237,18 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 		const access = await getRepositoryAccess(repo.id, currentUser?.id);
 		if (!access?.canRead) throw new Error("Access denied");
 
-		const starCount = await db
-			.select({ count: sql`count(*)` })
-			.from(stars)
-			.where(eq(stars.repoId, repo.id));
-
-		const userStar = currentUser
-			? await db.query.stars.findFirst({
-					where: and(eq(stars.repoId, repo.id), eq(stars.userId, currentUser.id)),
-				})
-			: null;
+		const [starCount, userStar] = await Promise.all([
+			getStarCount(repo.id),
+			currentUser
+				? db.query.stars.findFirst({
+						where: and(eq(stars.repoId, repo.id), eq(stars.userId, currentUser.id)),
+					})
+				: null,
+		]);
 
 		return {
 			...repo,
-			starCount: Number(starCount[0]?.count || 0),
+			starCount,
 			isStarred: !!userStar,
 		};
 	});

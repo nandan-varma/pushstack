@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
-import { getCache, setCache } from "./git-cache";
+import { getCache, getCachedObject, setCachedObject, setCache } from "./git-cache";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
 	ensureRepositoryHydrated,
@@ -498,8 +498,8 @@ export async function getTreeFromBranch(
 
 	// ponytail: keyed by HEAD sha so cache auto-invalidates on push
 	const cacheKey = `result:tree:${ownerKey}/${repoName}/${headSha}:${treePath}`;
-	const cached = getCache(cacheKey);
-	if (cached) return JSON.parse(cached.toString()) as TreeEntry[];
+	const cached = getCachedObject<TreeEntry[]>(cacheKey);
+	if (cached) return cached;
 
 	let result: TreeEntry[];
 	if (!treePath) {
@@ -512,7 +512,7 @@ export async function getTreeFromBranch(
 				: await listTreeEntries(repo, entry.oid, entry.path);
 	}
 
-	setCache(cacheKey, Buffer.from(JSON.stringify(result)));
+	setCachedObject(cacheKey, result);
 	return result;
 }
 
@@ -601,13 +601,13 @@ export async function getCommitHistory(
 		? `result:commits:${ownerKey}/${repoName}/${headSha}:${limit}:${skip}`
 		: null;
 	if (cacheKey) {
-		const cached = getCache(cacheKey);
-		if (cached) return JSON.parse(cached.toString()) as CommitInfo[];
+		const cached = getCachedObject<CommitInfo[]>(cacheKey);
+		if (cached) return cached;
 	}
 
 	const all = await getCommitLog(ownerKey, repoName, branchName, limit + skip);
 	const result = all.slice(skip, skip + limit);
 
-	if (cacheKey) setCache(cacheKey, Buffer.from(JSON.stringify(result)));
+	if (cacheKey) setCachedObject(cacheKey, result);
 	return result;
 }

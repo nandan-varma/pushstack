@@ -20,6 +20,7 @@
     "lint": "biome lint",
     "check": "biome check",
     "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .output .nitro .vinxi dist node_modules/.cache",
     "deploy": "pnpm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
