@@ -16,6 +16,7 @@ import {
 	getPullRequests,
 } from "@/server/issues";
 import {
+	getCollaborators,
 	getRepositoryByName,
 	getUserRepositories,
 } from "@/server/repositories";
@@ -57,6 +58,8 @@ export const queryKeys = {
 	pullRequest: (prId: number) => ["pull-requests", prId] as const,
 	pullRequestComments: (prId: number) =>
 		["pull-requests", prId, "comments"] as const,
+	repoCollaborators: (repoId: number) =>
+		["repos", repoId, "collaborators"] as const,
 } as const;
 
 const SESSION_STALE_TIME = 60_000;
@@ -255,6 +258,14 @@ export function pullRequestCommentsQueryOptions(prId: number) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequestComments(prId),
 		queryFn: () => getComments({ data: { pullRequestId: prId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repoCollaboratorsQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoCollaborators(repoId),
+		queryFn: () => getCollaborators({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

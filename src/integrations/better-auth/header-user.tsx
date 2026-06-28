@@ -39,6 +39,12 @@ export default function BetterAuthHeader() {
 						{session.user.username || session.user.name}
 					</span>
 				</Link>
+				<Link
+					to="/settings"
+					className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--sea-ink-soft)] transition hover:border-[var(--lagoon-deep)] hover:text-[var(--sea-ink)]"
+				>
+					Settings
+				</Link>
 				<button
 					type="button"
 					disabled={signingOut}

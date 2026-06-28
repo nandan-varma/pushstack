@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RepositoriesRouteImport } from './routes/repositories'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -35,6 +36,11 @@ import { Route as RepoOwnerNameIssuesIdRouteImport } from './routes/repo/$owner.
 import { Route as RepoOwnerNameCommitShaRouteImport } from './routes/repo/$owner.$name.commit.$sha'
 import { Route as RepoOwnerNameBlobBranchSplatRouteImport } from './routes/repo/$owner.$name.blob.$branch.$'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RepositoriesRoute = RepositoriesRouteImport.update({
   id: '/repositories',
   path: '/repositories',
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/settings': typeof SettingsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/settings'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/auth'
     | '/dashboard'
+    | '/settings'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/settings'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
@@ -330,6 +342,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   RepositoriesRoute: typeof RepositoriesRouteWithChildren
+  SettingsRoute: typeof SettingsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiGitSplatRoute: typeof ApiGitSplatRoute
   RepoOwnerNameRoute: typeof RepoOwnerNameRouteWithChildren
@@ -337,6 +350,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/repositories': {
       id: '/repositories'
       path: '/repositories'
@@ -601,6 +621,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   DashboardRoute: DashboardRoute,
   RepositoriesRoute: RepositoriesRouteWithChildren,
+  SettingsRoute: SettingsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiGitSplatRoute: ApiGitSplatRoute,
   RepoOwnerNameRoute: RepoOwnerNameRouteWithChildren,

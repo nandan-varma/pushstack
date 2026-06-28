@@ -487,3 +487,54 @@ export const removeCollaborator = createServerFn({ method: "POST" })
 
 		return { success: true };
 	});
+
+export const addCollaboratorByUsername = createServerFn({ method: "POST" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				repoId: z.number(),
+				username: z.string(),
+				role: z.enum(["read", "write", "admin"]).default("read"),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+
+		const repo = await db.query.repositories.findFirst({
+			where: eq(repositories.id, data.repoId),
+		});
+		if (!repo) throw new Error("Repository not found");
+		if (repo.ownerId !== currentUser.id)
+			throw new Error("Only the owner can add collaborators");
+
+		const target = await db.query.user.findFirst({
+			where: eq(user.username, data.username),
+		});
+		if (!target) throw new Error(`User "${data.username}" not found`);
+		if (target.id === currentUser.id)
+			throw new Error("You are already the owner");
+
+		const existing = await db.query.repositoryCollaborators.findFirst({
+			where: and(
+				eq(repositoryCollaborators.repoId, data.repoId),
+				eq(repositoryCollaborators.userId, target.id),
+			),
+		});
+
+		if (existing) {
+			const [updated] = await db
+				.update(repositoryCollaborators)
+				.set({ role: data.role })
+				.where(eq(repositoryCollaborators.id, existing.id))
+				.returning();
+			return updated;
+		}
+
+		const [collab] = await db
+			.insert(repositoryCollaborators)
+			.values({ repoId: data.repoId, userId: target.id, role: data.role })
+			.returning();
+
+		return collab;
+	});
