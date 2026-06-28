@@ -22,6 +22,10 @@ import {
 	getRepoGitStorageRoot,
 } from "./git-storage-naming";
 
+// ponytail: coalesces concurrent reads for the same R2 key so a single pack file
+// (e.g. 1.5 MB) is only downloaded once even when 100+ object reads fire in parallel.
+const pendingDownloads = new Map<string, Promise<Buffer>>();
+
 // R2 key pattern: repos/{ownerKey}/{repoName}/git/{path}
 function getR2Key(
 	ownerKey: string,
@@ -91,24 +95,36 @@ export class R2Backend {
 			return options?.encoding === "utf8" ? cached.toString("utf8") : cached;
 		}
 
-		// Fetch from R2
+		// Fetch from R2, coalescing concurrent requests for the same key
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 
+		const existing = pendingDownloads.get(r2Key);
+		if (existing) {
+			const buffer = await existing;
+			return options?.encoding === "utf8" ? buffer.toString("utf8") : buffer;
+		}
+
+		const download = downloadFromR2(r2Key)
+			.then((result) => {
+				const buffer = Buffer.from(result.content);
+				setCache(cacheKey, buffer);
+				pendingDownloads.delete(r2Key);
+				return buffer;
+			})
+			.catch((error: any) => {
+				pendingDownloads.delete(r2Key);
+				throw error;
+			});
+		pendingDownloads.set(r2Key, download);
+
 		try {
-			const result = await downloadFromR2(r2Key);
-			const buffer = Buffer.from(result.content);
-
-			// Cache the result
-			setCache(cacheKey, buffer);
-
+			const buffer = await download;
 			return options?.encoding === "utf8" ? buffer.toString("utf8") : buffer;
 		} catch (error: any) {
 			if (
 				error.name === "NoSuchKey" ||
 				error.$metadata?.httpStatusCode === 404
 			) {
-				// isomorphic-git FileSystem.read() catches any error and returns null
-				// but other callers (e.g. resolveRef) need ENOENT to handle missing refs
 				throw Object.assign(
 					new Error(`ENOENT: no such file or directory, open '${filepath}'`),
 					{ code: "ENOENT" },
