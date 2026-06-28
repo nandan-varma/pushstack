@@ -10,7 +10,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthLayout() {
 	return (
-		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[var(--gradient-1)] via-[var(--gradient-2)] to-[var(--gradient-3)] p-4">
+		<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
 			<Outlet />
 		</div>
 	);

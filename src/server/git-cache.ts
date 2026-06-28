@@ -22,7 +22,8 @@ const CACHE_MAX_SIZE = parseInt(
 ); // 1GB default
 const CACHE_TTL = parseInt(process.env.GIT_CACHE_TTL || "3600", 10) * 1000; // 1 hour default
 const CACHE_DIR = process.env.GIT_CACHE_DIR || ".cache/git";
-const USE_FILESYSTEM_CACHE = process.env.GIT_CACHE_FILESYSTEM !== "false";
+// ponytail: opt-in only — Vercel's process.cwd() is read-only and /tmp is ephemeral per-invocation
+const USE_FILESYSTEM_CACHE = process.env.GIT_CACHE_FILESYSTEM === "true";
 
 interface CacheEntry {
 	key: string;

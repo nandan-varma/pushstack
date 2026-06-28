@@ -21,22 +21,13 @@ function LoginPage() {
 		setLoading(true);
 
 		try {
-			// Determine if identifier is email or username
 			const isEmail = identifier.includes("@");
 
 			if (isEmail) {
 				await authClient.signIn.email(
+					{ email: identifier, password },
 					{
-						email: identifier,
-						password,
-					},
-					{
-						onRequest: () => {
-							setLoading(true);
-						},
-						onSuccess: () => {
-							window.location.assign("/dashboard");
-						},
+						onSuccess: () => window.location.assign("/dashboard"),
 						onError: (ctx) => {
 							setError(ctx.error.message || "Login failed");
 							setLoading(false);
@@ -45,17 +36,9 @@ function LoginPage() {
 				);
 			} else {
 				await authClient.signIn.username(
+					{ username: identifier, password },
 					{
-						username: identifier,
-						password,
-					},
-					{
-						onRequest: () => {
-							setLoading(true);
-						},
-						onSuccess: () => {
-							window.location.assign("/dashboard");
-						},
+						onSuccess: () => window.location.assign("/dashboard"),
 						onError: (ctx) => {
 							setError(ctx.error.message || "Login failed");
 							setLoading(false);
@@ -63,37 +46,39 @@ function LoginPage() {
 					},
 				);
 			}
-		} catch (err) {
-			setError("An unexpected error occurred during login");
+		} catch {
+			setError("An unexpected error occurred");
 			setLoading(false);
 		}
 	};
 
 	return (
-		<div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
+		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
 			<div className="mb-8 text-center">
-				<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-					Welcome to{" "}
-					<span className="text-[var(--lagoon-deep)]">PushStack</span>
+				<div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--lagoon),var(--palm))]">
+					<span className="text-sm font-bold text-white">P</span>
+				</div>
+				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
+					Welcome back
 				</h1>
-				<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
-					Sign in to your account
+				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
+					Sign in to your PushStack account
 				</p>
 			</div>
 
-			<form onSubmit={handleSubmit} className="space-y-6">
+			<form onSubmit={handleSubmit} className="space-y-5">
 				{error && (
-					<div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+					<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
 						{error}
 					</div>
 				)}
 
-				<div className="space-y-2">
-					<Label htmlFor="identifier">Email or Username</Label>
+				<div className="space-y-1.5">
+					<Label htmlFor="identifier">Email or username</Label>
 					<Input
 						id="identifier"
 						type="text"
-						placeholder="email@example.com or username"
+						placeholder="you@example.com"
 						value={identifier}
 						onChange={(e) => setIdentifier(e.target.value)}
 						required
@@ -101,7 +86,7 @@ function LoginPage() {
 					/>
 				</div>
 
-				<div className="space-y-2">
+				<div className="space-y-1.5">
 					<div className="flex items-center justify-between">
 						<Label htmlFor="password">Password</Label>
 						<a
@@ -123,21 +108,19 @@ function LoginPage() {
 				</div>
 
 				<Button type="submit" className="w-full" disabled={loading}>
-					{loading ? "Signing in..." : "Sign In"}
+					{loading ? "Signing in…" : "Sign in"}
 				</Button>
 			</form>
 
-			<div className="mt-6 text-center">
-				<p className="text-sm text-[var(--sea-ink-soft)]">
-					Don't have an account?{" "}
-					<a
-						href="/auth/register"
-						className="font-medium text-[var(--lagoon-deep)] hover:underline"
-					>
-						Create one →
-					</a>
-				</p>
-			</div>
+			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
+				Don't have an account?{" "}
+				<a
+					href="/auth/register"
+					className="font-medium text-[var(--lagoon-deep)] hover:underline"
+				>
+					Create one
+				</a>
+			</p>
 		</div>
 	);
 }

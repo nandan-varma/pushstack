@@ -99,7 +99,7 @@ describe("formatErrorResponse", () => {
 	it("maps generic Error to 500", () => {
 		const r = formatErrorResponse(new Error("something broke"));
 		expect(r.status).toBe(500);
-		expect(r.body.message).toBe("something broke");
+		expect(r.body.message).toBe("An internal error occurred");
 		expect(r.body.retryable).toBe(true);
 	});
 

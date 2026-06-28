@@ -52,7 +52,7 @@ function CommitDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="container py-8">
+			<div className="">
 				<div className="animate-pulse space-y-4">
 					<div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
 					<div className="h-64 bg-[var(--card-bg)] rounded" />
@@ -63,7 +63,7 @@ function CommitDetailPage() {
 
 	if (!commit) {
 		return (
-			<div className="container py-8">
+			<div className="">
 				<Card className="p-6">
 					<h2 className="text-xl font-semibold mb-2">Commit Not Found</h2>
 					<p className="text-[var(--sea-ink-soft)] mb-4">
@@ -83,7 +83,7 @@ function CommitDetailPage() {
 	}
 
 	return (
-		<div className="container py-8 space-y-6">
+		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex-1">

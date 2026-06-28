@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -9,7 +9,6 @@ export const Route = createFileRoute("/auth/forgot-password")({
 });
 
 function ForgotPasswordPage() {
-	const navigate = useNavigate();
 	const [email, setEmail] = useState("");
 	const [error, setError] = useState("");
 	const [success] = useState(false);
@@ -32,7 +31,7 @@ function ForgotPasswordPage() {
 
 			// When implemented, uncomment:
 			// setSuccess(true)
-		} catch (err) {
+		} catch {
 			setError("An error occurred. Please try again.");
 			setLoading(false);
 		}
@@ -40,46 +39,43 @@ function ForgotPasswordPage() {
 
 	if (success) {
 		return (
-			<div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
-				<div className="mb-6 text-center">
-					<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-						Check your email
-					</h1>
-					<p className="mt-4 text-sm text-[var(--sea-ink-soft)]">
-						If an account exists with {email}, you'll receive password reset
-						instructions.
-					</p>
-				</div>
-
+			<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10 text-center">
+				<h1 className="display-title mb-2 text-2xl font-bold text-[var(--sea-ink)]">
+					Check your email
+				</h1>
+				<p className="mb-8 text-sm text-[var(--sea-ink-soft)]">
+					If an account exists for {email}, you'll receive reset instructions
+					shortly.
+				</p>
 				<Button
-					onClick={() => navigate({ to: "/auth/login" })}
+					onClick={() => window.location.assign("/auth/login")}
 					className="w-full"
 				>
-					Back to Sign In
+					Back to sign in
 				</Button>
 			</div>
 		);
 	}
 
 	return (
-		<div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--card-bg)] p-8 shadow-2xl backdrop-blur-lg">
+		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
 			<div className="mb-8 text-center">
-				<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-					Reset password
+				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
+					Reset your password
 				</h1>
-				<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
 					Enter your email to receive reset instructions
 				</p>
 			</div>
 
-			<form onSubmit={handleSubmit} className="space-y-6">
+			<form onSubmit={handleSubmit} className="space-y-5">
 				{error && (
-					<div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+					<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
 						{error}
 					</div>
 				)}
 
-				<div className="space-y-2">
+				<div className="space-y-1.5">
 					<Label htmlFor="email">Email</Label>
 					<Input
 						id="email"
@@ -93,21 +89,19 @@ function ForgotPasswordPage() {
 				</div>
 
 				<Button type="submit" className="w-full" disabled={loading}>
-					{loading ? "Sending..." : "Send Reset Link"}
+					{loading ? "Sending…" : "Send reset link"}
 				</Button>
 			</form>
 
-			<div className="mt-6 text-center">
-				<p className="text-sm text-[var(--sea-ink-soft)]">
-					Remember your password?{" "}
-					<a
-						href="/auth/login"
-						className="font-medium text-[var(--lagoon-deep)] hover:underline"
-					>
-						Sign in →
-					</a>
-				</p>
-			</div>
+			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
+				Remember your password?{" "}
+				<a
+					href="/auth/login"
+					className="font-medium text-[var(--lagoon-deep)] hover:underline"
+				>
+					Sign in
+				</a>
+			</p>
 		</div>
 	);
 }

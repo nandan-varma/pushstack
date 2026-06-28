@@ -5,6 +5,7 @@
  */
 
 import git from "isomorphic-git";
+import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions } from "./git-manager-iso";
 import { getCommit, getFileContent } from "./git-operations-iso";
 import { ensureRepositoryHydrated } from "./git-repo-storage";

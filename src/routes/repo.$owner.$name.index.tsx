@@ -1,8 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
 import {
 	repositoryBranchesQueryOptions,
@@ -11,20 +10,70 @@ import {
 } from "@/lib/query-options";
 
 export const Route = createFileRoute("/repo/$owner/$name/")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const repo = await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (repo) {
+			const branch = repo.defaultBranch || "main";
+			await Promise.all([
+				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
+				queryClient.ensureQueryData(
+					repositoryFilesQueryOptions({ repoId: repo.id, branchName: branch }),
+				),
+			]);
+		}
+	},
 	component: RepositoryIndexPage,
 });
+
+function FolderIcon() {
+	return (
+		<svg
+			className="h-4 w-4 shrink-0 text-[var(--lagoon-deep)]"
+			viewBox="0 0 16 16"
+			fill="currentColor"
+			aria-hidden="true"
+		>
+			<title>Folder</title>
+			<path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
+		</svg>
+	);
+}
+
+function FileIcon() {
+	return (
+		<svg
+			className="h-4 w-4 shrink-0 text-[var(--sea-ink-soft)]"
+			viewBox="0 0 16 16"
+			fill="currentColor"
+			aria-hidden="true"
+		>
+			<title>File</title>
+			<path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z" />
+		</svg>
+	);
+}
+
+function CopyButton({ text }: { text: string }) {
+	const [copied, setCopied] = useState(false);
+	const copy = async () => {
+		try {
+			await navigator.clipboard.writeText(text);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {}
+	};
+	return (
+		<Button onClick={copy} variant="outline" size="sm">
+			{copied ? "Copied" : "Copy"}
+		</Button>
+	);
+}
 
 function RepositoryIndexPage() {
 	const { owner, name } = Route.useParams();
 	const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-	const [copiedSection, setCopiedSection] = useState<string | null>(null);
-	const fileSkeletons = [
-		"file-skeleton-1",
-		"file-skeleton-2",
-		"file-skeleton-3",
-		"file-skeleton-4",
-		"file-skeleton-5",
-	];
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
@@ -42,202 +91,160 @@ function RepositoryIndexPage() {
 			branchName: activeBranch,
 		}),
 		enabled: !!repo,
+		placeholderData: keepPreviousData,
 	});
 
-	const handleCopy = async (text: string, section: string) => {
-		try {
-			await navigator.clipboard.writeText(text);
-			setCopiedSection(section);
-			setTimeout(() => setCopiedSection(null), 2000);
-		} catch (error) {
-			console.error("Failed to copy:", error);
-		}
-	};
+	if (!repo) return null;
 
-	if (!repo) {
-		return <div>Loading...</div>;
-	}
-
-	// Check if repository is empty (no branches or no files)
 	const isEmpty =
 		!branches || branches.length === 0 || !files || files.length === 0;
 
-	// If repository is empty, show setup instructions
 	if (isEmpty && !isLoading) {
 		const cloneUrl = getCloneUrl(owner, name, "https");
 		const instructions = getSetupInstructions(owner, name, cloneUrl);
 
 		return (
-			<div className="space-y-6">
-				{/* Quick Setup Header */}
-				<div className="rounded-lg bg-blue-50 border border-blue-200 p-6">
-					<h2 className="text-lg font-semibold text-blue-900 mb-2">
-						Quick setup — if you've done this kind of thing before
-					</h2>
-					<p className="text-sm text-blue-700">
-						Get started by creating a new file or pushing an existing repository
-					</p>
-				</div>
-
+			<div className="space-y-4">
 				{/* Clone URL */}
-				<Card className="p-6">
-					<p className="mb-2 block text-sm font-medium text-[var(--sea-ink)]">
-						HTTPS Clone URL
+				<div className="island-shell rounded-xl p-5">
+					<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--kicker)]">
+						HTTPS clone URL
 					</p>
-					<div className="flex gap-2">
+					<div className="mt-2 flex gap-2">
 						<input
 							type="text"
 							value={cloneUrl}
 							readOnly
-							className="flex-1 rounded-md border border-[var(--line)] bg-white px-3 py-2 font-mono text-sm"
+							className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 font-mono text-xs text-[var(--sea-ink)]"
 						/>
-						<Button
-							onClick={() => handleCopy(cloneUrl, "url")}
-							variant="outline"
-							size="sm"
-						>
-							{copiedSection === "url" ? "✓" : "Copy"}
-						</Button>
+						<CopyButton text={cloneUrl} />
 					</div>
-				</Card>
-
-				{/* Command Line Instructions */}
-				<div>
-					<h3 className="text-base font-semibold text-[var(--sea-ink)] mb-3">
-						…or create a new repository on the command line
-					</h3>
-					<Card className="p-4">
-						<div className="flex items-start justify-between gap-4">
-							<pre className="flex-1 overflow-x-auto text-xs text-[var(--sea-ink)]">
-								<code>{instructions.newRepo}</code>
-							</pre>
-							<Button
-								onClick={() => handleCopy(instructions.newRepo, "new")}
-								variant="outline"
-								size="sm"
-							>
-								{copiedSection === "new" ? "✓" : "Copy"}
-							</Button>
-						</div>
-					</Card>
 				</div>
 
-				<div>
-					<h3 className="text-base font-semibold text-[var(--sea-ink)] mb-3">
-						…or push an existing repository from the command line
-					</h3>
-					<Card className="p-4">
-						<div className="flex items-start justify-between gap-4">
-							<pre className="flex-1 overflow-x-auto text-xs text-[var(--sea-ink)]">
-								<code>{instructions.existingRepo}</code>
-							</pre>
-							<Button
-								onClick={() =>
-									handleCopy(instructions.existingRepo, "existing")
-								}
-								variant="outline"
-								size="sm"
-							>
-								{copiedSection === "existing" ? "✓" : "Copy"}
-							</Button>
-						</div>
-					</Card>
-				</div>
-
-				<div>
-					<h3 className="text-base font-semibold text-[var(--sea-ink)] mb-3">
-						…or use the web interface
-					</h3>
-					<Card className="p-6">
-						<p className="text-sm text-[var(--sea-ink-soft)] mb-4">
-							You can create files directly in the web interface
+				{/* Setup options */}
+				{(
+					[
+						["Create a new repository", instructions.newRepo],
+						["Push an existing repository", instructions.existingRepo],
+					] as const
+				).map(([heading, code]) => (
+					<div key={heading} className="island-shell rounded-xl p-5">
+						<p className="mb-3 text-sm font-semibold text-[var(--sea-ink)]">
+							{heading}
 						</p>
-						<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
-							<Button>+ Create new file</Button>
-						</Link>
-					</Card>
+						<div className="flex items-start gap-3">
+							<pre className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-[var(--line)] bg-[#1a2e3a] p-4 text-xs text-[#e8efff]">
+								<code>{code}</code>
+							</pre>
+							<CopyButton text={code} />
+						</div>
+					</div>
+				))}
+
+				<div className="island-shell rounded-xl p-5">
+					<p className="mb-1 text-sm font-semibold text-[var(--sea-ink)]">
+						Create a file via the web interface
+					</p>
+					<p className="mb-3 text-xs text-[var(--sea-ink-soft)]">
+						Upload or create files directly from your browser.
+					</p>
+					<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
+						<Button size="sm">Create new file</Button>
+					</Link>
 				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			{/* Branch Selector */}
-			<div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--card-bg)] p-4">
-				<div className="flex items-center gap-4">
-					<select
-						value={activeBranch}
-						onChange={(e) => setSelectedBranch(e.target.value)}
-						className="rounded-md border border-[var(--line)] bg-white px-3 py-1.5 text-sm"
-					>
-						{branches?.map((branch) => (
-							<option key={branch.name} value={branch.name}>
-								{branch.name} {branch.isDefault && "(default)"}
-							</option>
-						))}
-					</select>
-					<span className="text-sm text-[var(--sea-ink-soft)]">
+		<div className="space-y-4">
+			{/* Toolbar */}
+			<div className="flex items-center justify-between gap-3">
+				<select
+					value={activeBranch}
+					onChange={(e) => setSelectedBranch(e.target.value)}
+					className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--sea-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]/30"
+				>
+					{branches?.map((branch) => (
+						<option key={branch.name} value={branch.name}>
+							{branch.name}
+							{branch.isDefault ? " (default)" : ""}
+						</option>
+					))}
+				</select>
+
+				<div className="flex items-center gap-2">
+					<span className="text-xs text-[var(--sea-ink-soft)]">
 						{files?.length || 0} files
 					</span>
+					<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
+						<Button size="sm" variant="outline">
+							+ Add file
+						</Button>
+					</Link>
 				</div>
-
-				<Link to="/repo/$owner/$name/upload" params={{ owner, name }} replace>
-					<Button size="sm">+ Add file</Button>
-				</Link>
 			</div>
 
-			{/* File Browser */}
+			{/* File browser */}
 			{isLoading ? (
-				<div className="space-y-2">
-					{fileSkeletons.map((skeletonId) => (
+				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+					{[1, 2, 3, 4, 5].map((i) => (
 						<div
-							key={skeletonId}
-							className="h-12 animate-pulse rounded-lg border border-[var(--line)] bg-[var(--card-bg)]"
+							key={i}
+							className="h-11 animate-pulse border-b border-[var(--line)] bg-[var(--surface)] last:border-0"
 						/>
 					))}
 				</div>
 			) : files && files.length > 0 ? (
-				<div className="overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--card-bg)]">
+				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					<table className="w-full">
 						<tbody>
-							{files.map((file) => (
-								<tr
-									key={`${file.type}:${file.path}`}
-									className="border-b border-[var(--line)] last:border-b-0"
-								>
-									<td className="p-4">
-										<Link
-											to="/repo/$owner/$name/blob/$branch/$"
-											params={{
-												owner,
-												name,
-												branch: activeBranch,
-												_splat: file.path,
-											}}
-											className="font-medium text-[var(--lagoon-deep)] hover:underline"
-										>
-											{file.type === "tree" ? `📁 ${file.path}` : file.path}
-										</Link>
-									</td>
-									<td className="p-4 text-sm text-[var(--sea-ink-soft)]">
-										{file.type}
-									</td>
-									<td className="p-4 text-sm text-[var(--sea-ink-soft)]">
-										{file.oid.substring(0, 7)}
-									</td>
-								</tr>
-							))}
+							{files
+								.slice()
+								.sort((a, b) => {
+									if (a.type === "tree" && b.type !== "tree") return -1;
+									if (a.type !== "tree" && b.type === "tree") return 1;
+									return a.path.localeCompare(b.path);
+								})
+								.map((file) => (
+									<tr
+										key={`${file.type}:${file.path}`}
+										className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"
+									>
+										<td className="w-8 py-2.5 pl-4">
+											{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
+										</td>
+										<td className="py-2.5 pr-4">
+											<Link
+												to="/repo/$owner/$name/blob/$branch/$"
+												params={{
+													owner,
+													name,
+													branch: activeBranch,
+													_splat: file.path,
+												}}
+												className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+											>
+												{file.path}
+											</Link>
+										</td>
+										<td className="py-2.5 pr-4 text-right">
+											<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--sea-ink-soft)]">
+												{file.oid.substring(0, 7)}
+											</code>
+										</td>
+									</tr>
+								))}
 						</tbody>
 					</table>
 				</div>
 			) : (
-				<div className="rounded-lg border border-[var(--line)] bg-[var(--card-bg)] p-12 text-center">
-					<p className="text-[var(--sea-ink-soft)]">
-						This repository is empty. Add your first file to get started!
+				<div className="island-shell rounded-xl p-12 text-center">
+					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
+						This repository is empty.
 					</p>
 					<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
-						<Button className="mt-4">+ Add file</Button>
+						<Button size="sm">Add file</Button>
 					</Link>
 				</div>
 			)}

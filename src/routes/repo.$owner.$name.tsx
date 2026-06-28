@@ -16,9 +16,16 @@ const repoRouteSchema = z.object({
 });
 
 export const Route = createFileRoute("/repo/$owner/$name")({
+	loader: ({ params, context: { queryClient } }) =>
+		queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		),
 	component: RepositoryPage,
 	parseParams: (params) => repoRouteSchema.parse(params),
 });
+
+const tabLinkBase =
+	"border-b-2 border-transparent pb-3 text-sm font-medium text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]";
 
 function RepositoryPage() {
 	const { owner, name } = Route.useParams();
@@ -43,23 +50,23 @@ function RepositoryPage() {
 
 	if (isLoading) {
 		return (
-			<div className="page-wrap py-8">
-				<div className="h-64 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--card-bg)]" />
+			<div className="page-wrap px-4 py-10">
+				<div className="h-48 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]" />
 			</div>
 		);
 	}
 
 	if (!repo) {
 		return (
-			<div className="page-wrap py-8">
-				<div className="text-center">
-					<h1 className="text-2xl font-bold text-[var(--sea-ink)]">
-						Repository not found
-					</h1>
-					<Link to="/dashboard">
-						<Button className="mt-4">Back to Dashboard</Button>
-					</Link>
-				</div>
+			<div className="page-wrap px-4 py-10 text-center">
+				<h1 className="text-xl font-semibold text-[var(--sea-ink)]">
+					Repository not found
+				</h1>
+				<Link to="/dashboard">
+					<Button className="mt-4" size="sm">
+						Back to Dashboard
+					</Button>
+				</Link>
 			</div>
 		);
 	}
@@ -67,62 +74,63 @@ function RepositoryPage() {
 	const isOwner = repo.ownerId === session?.user?.id;
 
 	return (
-		<div className="page-wrap py-8">
-			{/* Repository Header */}
-			<div className="mb-6">
-				<div className="flex items-start justify-between">
-					<div>
-						<div className="flex items-center gap-2 text-[var(--sea-ink-soft)]">
-							<Link to="/repositories" className="hover:underline">
-								{owner}
-							</Link>
-							<span>/</span>
-							<span className="font-semibold text-[var(--sea-ink)]">
-								{name}
-							</span>
-							<span
-								className={`ml-2 inline-block rounded-full border px-2 py-0.5 text-xs ${repo.visibility === "public" ? "border-green-500 text-green-600" : "border-yellow-500 text-yellow-600"}`}
-							>
-								{repo.visibility}
-							</span>
-						</div>
-						{repo.description && (
-							<p className="mt-2 text-[var(--sea-ink-soft)]">
-								{repo.description}
-							</p>
-						)}
-					</div>
-
-					<div className="flex gap-2">
-						<CloneModal owner={owner} repoName={name} />
-
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => starMutation.mutate({ data: { repoId: repo.id } })}
-							disabled={starMutation.isPending}
+		<div className="page-wrap px-4 py-8">
+			{/* Header */}
+			<div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+				<div>
+					<div className="flex flex-wrap items-center gap-1.5 text-sm">
+						<Link
+							to="/repositories"
+							className="font-medium text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
 						>
-							☆ Star
-						</Button>
-
-						{isOwner && (
-							<Link to="/repo/$owner/$name/setup" params={{ owner, name }}>
-								<Button variant="outline" size="sm">
-									Settings
-								</Button>
-							</Link>
-						)}
+							{owner}
+						</Link>
+						<span className="text-[var(--sea-ink-soft)]">/</span>
+						<span className="font-semibold text-[var(--sea-ink)]">{name}</span>
+						<span
+							className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+								repo.visibility === "public"
+									? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400"
+									: "border-[var(--line)] text-[var(--sea-ink-soft)]"
+							}`}
+						>
+							{repo.visibility}
+						</span>
 					</div>
+					{repo.description && (
+						<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
+							{repo.description}
+						</p>
+					)}
+				</div>
+
+				<div className="flex shrink-0 items-center gap-2">
+					<CloneModal owner={owner} repoName={name} />
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => starMutation.mutate({ data: { repoId: repo.id } })}
+						disabled={starMutation.isPending}
+					>
+						Star
+					</Button>
+					{isOwner && (
+						<Link to="/repo/$owner/$name/setup" params={{ owner, name }}>
+							<Button variant="outline" size="sm">
+								Settings
+							</Button>
+						</Link>
+					)}
 				</div>
 			</div>
 
-			{/* Navigation Tabs */}
+			{/* Tab nav */}
 			<div className="mb-6 border-b border-[var(--line)]">
 				<nav className="flex gap-6">
 					<Link
 						to="/repo/$owner/$name"
 						params={{ owner, name }}
-						className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
+						className={tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
 						Code
@@ -130,7 +138,7 @@ function RepositoryPage() {
 					<Link
 						to="/repo/$owner/$name/issues"
 						params={{ owner, name }}
-						className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
+						className={tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
 						Issues
@@ -138,7 +146,7 @@ function RepositoryPage() {
 					<Link
 						to="/repo/$owner/$name/pulls"
 						params={{ owner, name }}
-						className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
+						className={tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
 						Pull Requests
@@ -147,7 +155,7 @@ function RepositoryPage() {
 						to="/repo/$owner/$name/commits"
 						params={{ owner, name }}
 						search={{ branch: repo.defaultBranch || "main" }}
-						className="border-b-2 border-transparent px-1 pb-3 text-sm font-medium transition hover:text-[var(--lagoon-deep)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]"
+						className={tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
 						Commits
@@ -155,7 +163,6 @@ function RepositoryPage() {
 				</nav>
 			</div>
 
-			{/* Content Area */}
 			<Outlet />
 		</div>
 	);

@@ -7,9 +7,10 @@
  */
 
 import {
+	bulkDeleteFromR2,
 	deleteFromR2,
 	downloadFromR2,
-	fileExistsInR2,
+	listAllR2Files,
 	listR2Files,
 	uploadToR2,
 } from "#/lib/r2-operations";
@@ -31,6 +32,10 @@ function getR2Key(
 		? filePath.slice(1)
 		: filePath;
 	return `${getRepoGitStoragePrefix(ownerKey, repoName)}${normalizedPath}`;
+}
+
+function stripGitDir(filepath: string): string {
+	return filepath.replace(/^\/?repos\/[^/]+\/[^/]+\/git\/?/, "");
 }
 
 // Parse owner and repo from git directory path
@@ -76,10 +81,7 @@ export class R2Backend {
 		options?: { encoding?: string },
 	): Promise<Buffer | string> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
-		const relativePath = filepath.replace(
-			/^\/?repos\/[^/]+\/[^/]+\/git\/?/,
-			"",
-		);
+		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
 
 		// Try cache first
@@ -119,10 +121,7 @@ export class R2Backend {
 		_options?: { mode?: number },
 	): Promise<void> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
-		const relativePath = filepath.replace(
-			/^\/?repos\/[^/]+\/[^/]+\/git\/?/,
-			"",
-		);
+		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
 
 		// Convert string to buffer if needed
@@ -149,10 +148,7 @@ export class R2Backend {
 	 */
 	async unlink(filepath: string): Promise<void> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
-		const relativePath = filepath.replace(
-			/^\/?repos\/[^/]+\/[^/]+\/git\/?/,
-			"",
-		);
+		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
 
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
@@ -167,17 +163,14 @@ export class R2Backend {
 	 */
 	async readdir(filepath: string): Promise<string[]> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
-		const relativePath = filepath.replace(
-			/^\/?repos\/[^/]+\/[^/]+\/git\/?/,
-			"",
-		);
+		const relativePath = stripGitDir(filepath);
 
 		// Ensure path ends with / for prefix matching
 		const prefix = relativePath ? `${relativePath}/` : "";
 		const r2Prefix = getR2Key(ownerKey, repoName, prefix);
 
 		try {
-			const files = await listR2Files(r2Prefix, 1000);
+			const files = await listAllR2Files(r2Prefix);
 
 			// Extract just the filenames (remove prefix and subdirectories)
 			const names = new Set<string>();
@@ -190,7 +183,7 @@ export class R2Backend {
 			}
 
 			return Array.from(names).sort();
-		} catch (error) {
+		} catch {
 			// Return empty array if directory doesn't exist
 			return [];
 		}
@@ -212,18 +205,15 @@ export class R2Backend {
 	 */
 	async rmdir(filepath: string): Promise<void> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
-		const relativePath = filepath.replace(
-			/^\/?repos\/[^/]+\/[^/]+\/git\/?/,
-			"",
-		);
+		const relativePath = stripGitDir(filepath);
 
 		const prefix = relativePath ? `${relativePath}/` : "";
 		const r2Prefix = getR2Key(ownerKey, repoName, prefix);
 
 		// List and delete all objects with this prefix
-		const files = await listR2Files(r2Prefix, 1000);
-		for (const file of files) {
-			await deleteFromR2(file.key);
+		const files = await listAllR2Files(r2Prefix);
+		if (files.length > 0) {
+			await bulkDeleteFromR2(files.map((f) => f.key));
 		}
 
 		// Invalidate cache for this prefix
@@ -235,25 +225,15 @@ export class R2Backend {
 	 */
 	async stat(filepath: string): Promise<any> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
-		const relativePath = filepath.replace(
-			/^\/?repos\/[^/]+\/[^/]+\/git\/?/,
-			"",
-		);
+		const relativePath = stripGitDir(filepath);
 
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 
 		try {
-			const exists = await fileExistsInR2(r2Key);
-			if (!exists) {
-				throw new GitObjectNotFoundError(`Object not found: ${relativePath}`);
-			}
-
-			// Try to get actual file info
 			const result = await downloadFromR2(r2Key);
-
 			return {
 				type: "file",
-				mode: 0o100644, // Regular file
+				mode: 0o100644,
 				size: result.size || 0,
 				ino: 0,
 				mtimeMs: Date.now(),
@@ -266,28 +246,33 @@ export class R2Backend {
 				isSymbolicLink: () => false,
 			};
 		} catch (error: any) {
-			// Check if it's a directory by listing
-			try {
-				const files = await listR2Files(r2Key + "/", 1);
-				if (files.length > 0) {
-					return {
-						type: "dir",
-						mode: 0o040000, // Directory
-						size: 0,
-						ino: 0,
-						mtimeMs: Date.now(),
-						ctimeMs: Date.now(),
-						uid: 1,
-						gid: 1,
-						dev: 1,
-						isFile: () => false,
-						isDirectory: () => true,
-						isSymbolicLink: () => false,
-					};
-				}
-			} catch {}
-
-			throw new GitObjectNotFoundError(`Object not found: ${relativePath}`);
+			if (
+				error.name === "NoSuchKey" ||
+				error.$metadata?.httpStatusCode === 404
+			) {
+				// Check if it's a directory by listing
+				try {
+					const files = await listR2Files(`${r2Key}/`, 1);
+					if (files.length > 0) {
+						return {
+							type: "dir",
+							mode: 0o040000,
+							size: 0,
+							ino: 0,
+							mtimeMs: Date.now(),
+							ctimeMs: Date.now(),
+							uid: 1,
+							gid: 1,
+							dev: 1,
+							isFile: () => false,
+							isDirectory: () => true,
+							isSymbolicLink: () => false,
+						};
+					}
+				} catch {}
+				throw new GitObjectNotFoundError(`Object not found: ${relativePath}`);
+			}
+			throw error;
 		}
 	}
 
@@ -399,7 +384,7 @@ export class R2RefBackend {
 		}
 
 		// Write new value
-		await uploadToR2(r2Key, Buffer.from(value + "\n"), "text/plain");
+		await uploadToR2(r2Key, Buffer.from(`${value}\n`), "text/plain");
 
 		// Update cache
 		setCache(cacheKey, Buffer.from(value));
@@ -430,7 +415,7 @@ export class R2RefBackend {
 	): Promise<string[]> {
 		const r2Prefix = getR2Key(ownerId, repoName, prefix);
 
-		const files = await listR2Files(r2Prefix, 1000);
+		const files = await listAllR2Files(r2Prefix);
 
 		return files
 			.map((file) => {

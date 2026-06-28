@@ -26,6 +26,8 @@ function NewRepositoryPage() {
 	const [visibility, setVisibility] = useState<"public" | "private">("public");
 	const [error, setError] = useState("");
 
+	const ownerHandle = user.username || user.email.split("@")[0];
+
 	const createRepoMutation = useMutation({
 		mutationFn: createRepository,
 		onSuccess: async (repo) => {
@@ -35,11 +37,7 @@ function NewRepositoryPage() {
 			]);
 			navigate({
 				to: "/repo/$owner/$name",
-				params: {
-					owner:
-						repo.owner.username || user.username || user.email.split("@")[0],
-					name: repo.name,
-				},
+				params: { owner: repo.owner.username || ownerHandle, name: repo.name },
 			});
 		},
 		onError: (err: Error) => {
@@ -50,127 +48,128 @@ function NewRepositoryPage() {
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
-
 		if (!name.trim()) {
 			setError("Repository name is required");
 			return;
 		}
-
-		createRepoMutation.mutate({
-			data: { name, description, visibility },
-		});
+		createRepoMutation.mutate({ data: { name, description, visibility } });
 	};
 
 	return (
-		<div className="page-wrap py-8">
+		<div className="page-wrap px-4 py-10">
 			<div className="mx-auto max-w-2xl">
 				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
+					<h1 className="display-title text-3xl font-bold text-[var(--sea-ink)]">
 						Create a new repository
 					</h1>
-					<p className="mt-2 text-[var(--sea-ink-soft)]">
+					<p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
 						A repository contains all project files and revision history.
 					</p>
 				</div>
 
-				<form onSubmit={handleSubmit} className="space-y-6">
-					{error && (
-						<div className="rounded-lg bg-red-50 p-4 text-sm text-red-600 border border-red-200">
-							{error}
-						</div>
-					)}
+				<div className="island-shell rounded-2xl p-8">
+					<form onSubmit={handleSubmit} className="space-y-6">
+						{error && (
+							<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
+								{error}
+							</div>
+						)}
 
-					<div className="space-y-2">
-						<Label htmlFor="name">Repository name *</Label>
-						<Input
-							id="name"
-							type="text"
-							placeholder="my-awesome-project"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							required
-							pattern="[a-zA-Z0-9-_]+"
-							title="Only letters, numbers, hyphens, and underscores allowed"
-						/>
-						<p className="text-xs text-[var(--sea-ink-soft)]">
-							{user.username || user.email.split("@")[0]}/
-							{name || "repository-name"}
-						</p>
-					</div>
-
-					<div className="space-y-2">
-						<Label htmlFor="description">Description (optional)</Label>
-						<Textarea
-							id="description"
-							placeholder="A brief description of your repository"
-							value={description}
-							onChange={(e) => setDescription(e.target.value)}
-							rows={3}
-						/>
-					</div>
-
-					<div className="space-y-2">
-						<Label htmlFor="visibility">Visibility</Label>
-						<div className="space-y-3">
-							<label
-								className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${visibility === "public" ? "border-[var(--lagoon-deep)] bg-[rgba(79,184,178,0.05)]" : "border-[var(--line)]"}`}
-							>
-								<input
-									type="radio"
-									name="visibility"
-									value="public"
-									checked={visibility === "public"}
-									onChange={() => setVisibility("public")}
-									className="mt-0.5"
+						<div className="space-y-1.5">
+							<Label htmlFor="name">Repository name</Label>
+							<div className="flex items-center gap-2">
+								<span className="shrink-0 text-sm text-[var(--sea-ink-soft)]">
+									{ownerHandle}/
+								</span>
+								<Input
+									id="name"
+									type="text"
+									placeholder="my-awesome-project"
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									required
+									pattern="[a-zA-Z0-9-_]+"
+									title="Only letters, numbers, hyphens, and underscores"
+									className="flex-1"
 								/>
-								<div>
-									<div className="font-semibold text-[var(--sea-ink)]">
-										Public
-									</div>
-									<div className="text-sm text-[var(--sea-ink-soft)]">
-										Anyone can see this repository
-									</div>
-								</div>
-							</label>
-
-							<label
-								className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${visibility === "private" ? "border-[var(--lagoon-deep)] bg-[rgba(79,184,178,0.05)]" : "border-[var(--line)]"}`}
-							>
-								<input
-									type="radio"
-									name="visibility"
-									value="private"
-									checked={visibility === "private"}
-									onChange={() => setVisibility("private")}
-									className="mt-0.5"
-								/>
-								<div>
-									<div className="font-semibold text-[var(--sea-ink)]">
-										Private
-									</div>
-									<div className="text-sm text-[var(--sea-ink-soft)]">
-										You choose who can see and commit
-									</div>
-								</div>
-							</label>
+							</div>
 						</div>
-					</div>
 
-					<div className="flex gap-3">
-						<Button type="submit" disabled={createRepoMutation.isPending}>
-							{createRepoMutation.isPending
-								? "Creating..."
-								: "Create repository"}
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => navigate({ to: "/dashboard" })}
-						>
-							Cancel
-						</Button>
-					</div>
-				</form>
+						<div className="space-y-1.5">
+							<Label htmlFor="description">Description (optional)</Label>
+							<Textarea
+								id="description"
+								placeholder="A brief description of your repository"
+								value={description}
+								onChange={(e) => setDescription(e.target.value)}
+								rows={2}
+							/>
+						</div>
+
+						<fieldset className="space-y-2">
+							<legend className="text-sm font-medium text-[var(--sea-ink)]">
+								Visibility
+							</legend>
+							<div className="space-y-2">
+								{(
+									[
+										[
+											"public",
+											"Public",
+											"Anyone on PushStack can see this repository.",
+										],
+										[
+											"private",
+											"Private",
+											"Only you and collaborators can see this.",
+										],
+									] as const
+								).map(([value, label, desc]) => (
+									<label
+										key={value}
+										className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
+											visibility === value
+												? "border-[var(--lagoon-deep)] bg-[rgba(79,184,178,0.04)]"
+												: "border-[var(--line)] hover:border-[var(--lagoon-deep)]/50"
+										}`}
+									>
+										<input
+											type="radio"
+											name="visibility"
+											value={value}
+											checked={visibility === value}
+											onChange={() => setVisibility(value)}
+											className="mt-0.5 accent-[var(--lagoon-deep)]"
+										/>
+										<div>
+											<div className="text-sm font-medium text-[var(--sea-ink)]">
+												{label}
+											</div>
+											<div className="mt-0.5 text-xs text-[var(--sea-ink-soft)]">
+												{desc}
+											</div>
+										</div>
+									</label>
+								))}
+							</div>
+						</fieldset>
+
+						<div className="flex gap-3 pt-2">
+							<Button type="submit" disabled={createRepoMutation.isPending}>
+								{createRepoMutation.isPending
+									? "Creating…"
+									: "Create repository"}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => navigate({ to: "/dashboard" })}
+							>
+								Cancel
+							</Button>
+						</div>
+					</form>
+				</div>
 			</div>
 		</div>
 	);

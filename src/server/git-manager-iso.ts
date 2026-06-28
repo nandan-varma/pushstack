@@ -10,10 +10,13 @@ import os from "node:os";
 import path from "node:path";
 import git from "isomorphic-git";
 import http from "isomorphic-git/http/node";
+import { isR2Configured } from "#/lib/r2";
+import { r2Backend } from "./git-r2-backend";
+import { getRepoGitStorageRoot } from "./git-storage-naming";
 
-// Configuration
+// ponytail: /tmp is the only writable dir on Vercel; homedir is read-only
 const GIT_BASE_PATH =
-	process.env.GIT_REPOS_PATH || path.join(os.homedir(), ".pushstack", "repos");
+	process.env.GIT_REPOS_PATH || path.join(os.tmpdir(), "pushstack-repos");
 const DEFAULT_USER_NAME = "PushStack";
 const DEFAULT_USER_EMAIL = "system@pushstack.dev";
 
@@ -25,10 +28,10 @@ export function getRepoPath(ownerKey: string, repoName: string): string {
 }
 
 export function getBareRepoOptions(ownerKey: string, repoName: string) {
-	return {
-		fs,
-		gitdir: getRepoPath(ownerKey, repoName),
-	};
+	if (isR2Configured()) {
+		return { fs: r2Backend, gitdir: getRepoGitStorageRoot(ownerKey, repoName) };
+	}
+	return { fs, gitdir: getRepoPath(ownerKey, repoName) };
 }
 
 /**
@@ -46,24 +49,20 @@ export async function initBareRepo(
 	repoName: string,
 	defaultBranch: string = "main",
 ): Promise<string> {
-	const dir = getRepoPath(ownerKey, repoName);
+	if (isR2Configured()) {
+		const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+		await git.init({ fs: r2Backend, dir: gitdir, defaultBranch, bare: true });
+		await git.setConfig({ fs: r2Backend, dir: gitdir, path: "user.name", value: DEFAULT_USER_NAME });
+		await git.setConfig({ fs: r2Backend, dir: gitdir, path: "user.email", value: DEFAULT_USER_EMAIL });
+		return gitdir;
+	}
 
-	// Ensure parent directory exists
+	const dir = getRepoPath(ownerKey, repoName);
 	await fs.mkdir(path.dirname(dir), { recursive: true });
 	await fs.mkdir(dir, { recursive: true });
-
-	// Initialize as bare repository
 	await git.init({ fs, dir, defaultBranch, bare: true });
-
-	// Set default config
 	await git.setConfig({ fs, dir, path: "user.name", value: DEFAULT_USER_NAME });
-	await git.setConfig({
-		fs,
-		dir,
-		path: "user.email",
-		value: DEFAULT_USER_EMAIL,
-	});
-
+	await git.setConfig({ fs, dir, path: "user.email", value: DEFAULT_USER_EMAIL });
 	return dir;
 }
 

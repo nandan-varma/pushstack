@@ -12,12 +12,15 @@ import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
 // Git operations imports
 import { createCommit } from "./git-operations-iso";
-import { syncRepositoryToR2 } from "./git-repo-storage";
+import {
+	deleteRepositoryFromR2,
+	syncRepositoryToR2,
+} from "./git-repo-storage";
 import {
 	getLegacyStorageOwnerKeys,
 	getStorageOwnerKey,
 } from "./git-storage-naming";
-import { canModerateRepo, canReadRepo } from "./repo-access";
+import { canModerateRepo, canReadRepo, getRepositoryAccess } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // Find repository by owner username and repo name (for git protocol - plain function, not serverFn)
@@ -189,15 +192,13 @@ export const getRepository = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		if (!(await canReadRepo(data.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const access = await getRepositoryAccess(data.id, currentUser?.id);
+		if (!access) throw new Error("Repository not found");
+		if (!access.canRead) throw new Error("Access denied");
 
 		const repo = await db.query.repositories.findFirst({
 			where: eq(repositories.id, data.id),
-			with: {
-				owner: true,
-			},
+			with: { owner: true },
 		});
 
 		if (!repo) {
@@ -263,9 +264,8 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 			throw new Error("Repository not found");
 		}
 
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const access = await getRepositoryAccess(repo.id, currentUser?.id);
+		if (!access?.canRead) throw new Error("Access denied");
 
 		return repo;
 	});
@@ -354,20 +354,14 @@ export const deleteRepository = createServerFn({ method: "POST" })
 			email: repo.owner.email,
 		});
 
-		// Optionally backup before deleting (TODO: implement with isomorphic-git)
-		// try {
-		//   await backupRepositoryToR2(ownerId, repo.name);
-		// } catch (error) {
-		//   console.error('Failed to backup repository before deletion:', error);
-		// }
-
-		// Delete git repository from filesystem
+		// Delete git repository from filesystem and R2
 		await deleteRepo(ownerKey, repo.name);
 		for (const legacyOwnerKey of legacyOwnerKeys) {
 			if (legacyOwnerKey !== ownerKey) {
 				await deleteRepo(legacyOwnerKey, repo.name).catch(() => undefined);
 			}
 		}
+		await deleteRepositoryFromR2(ownerKey, repo.name, legacyOwnerKeys);
 
 		// Delete from database (cascades to related tables)
 		await db.delete(repositories).where(eq(repositories.id, data.id));

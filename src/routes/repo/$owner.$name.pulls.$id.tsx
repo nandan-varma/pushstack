@@ -12,6 +12,7 @@ import {
 	pullRequestCommentsQueryOptions,
 	pullRequestQueryOptions,
 	queryKeys,
+	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 import {
 	createComment,
@@ -23,6 +24,18 @@ const DiffViewer = lazy(() => import("@/components/DiffViewer"));
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const prId = Number(params.id);
+		await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (Number.isFinite(prId)) {
+			await Promise.all([
+				queryClient.ensureQueryData(pullRequestQueryOptions(prId)),
+				queryClient.ensureQueryData(pullRequestCommentsQueryOptions(prId)),
+			]);
+		}
+	},
 	component: PullRequestDetailPage,
 });
 
@@ -121,7 +134,7 @@ function PullRequestDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="container py-8">
+			<div className="">
 				<div className="animate-pulse space-y-4">
 					<div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
 					<div className="h-64 bg-[var(--card-bg)] rounded" />
@@ -132,7 +145,7 @@ function PullRequestDetailPage() {
 
 	if (!pr) {
 		return (
-			<div className="container py-8">
+			<div className="">
 				<Card className="p-6">
 					<h2 className="text-xl font-semibold mb-2">Pull Request Not Found</h2>
 					<Link
@@ -171,7 +184,7 @@ function PullRequestDetailPage() {
 	const canMerge = pr.status === "open";
 
 	return (
-		<div className="container py-8 space-y-6">
+		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex-1">

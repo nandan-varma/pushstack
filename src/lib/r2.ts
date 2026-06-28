@@ -7,8 +7,12 @@ function getAccountIdFromEndpoint(endpoint: string): string {
 	return match?.[1] || "";
 }
 
+let _client: S3Client | null = null;
+
 // Create R2 client using S3-compatible API
 export function getR2Client() {
+	if (_client) return _client;
+
 	const endpoint = process.env.R2_ENDPOINT;
 	const accessKeyId = process.env.R2_ACCESS_KEY_ID;
 	const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
@@ -19,7 +23,7 @@ export function getR2Client() {
 		);
 	}
 
-	return new S3Client({
+	_client = new S3Client({
 		region: "auto", // Required by AWS SDK, not used by R2
 		endpoint,
 		credentials: {
@@ -27,6 +31,7 @@ export function getR2Client() {
 			secretAccessKey,
 		},
 	});
+	return _client;
 }
 
 export function isR2Configured() {

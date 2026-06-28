@@ -4,7 +4,6 @@ import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -25,20 +24,29 @@ import {
 import { createIssue } from "@/server/issues";
 
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const repo = await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (repo) {
+			await queryClient.ensureQueryData(
+				repositoryIssuesQueryOptions({ repoId: repo.id, status: "open" }),
+			);
+		}
+	},
 	component: IssuesPage,
 });
+
+const filterTabBase =
+	"border-b-2 px-1 pb-3 text-sm font-medium transition [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]";
+const filterTabInactive =
+	"border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]";
+const filterTabActive = "border-[var(--lagoon-deep)] text-[var(--lagoon-deep)]";
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const issueSkeletons = [
-		"issue-skeleton-1",
-		"issue-skeleton-2",
-		"issue-skeleton-3",
-		"issue-skeleton-4",
-		"issue-skeleton-5",
-	];
 	const [filter, setFilter] = useState<"open" | "closed" | "all">("open");
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newIssue, setNewIssue] = useState({ title: "", body: "" });
@@ -48,20 +56,14 @@ function IssuesPage() {
 	);
 
 	const { data: issues, isLoading } = useQuery({
-		...repositoryIssuesQueryOptions({
-			repoId: repo?.id ?? 0,
-			status: filter,
-		}),
+		...repositoryIssuesQueryOptions({ repoId: repo?.id ?? 0, status: filter }),
 		enabled: !!repo,
 	});
 
 	const createMutation = useMutation({
 		mutationFn: createIssue,
 		onSuccess: async () => {
-			if (!repo) {
-				return;
-			}
-
+			if (!repo) return;
 			await queryClient.invalidateQueries({
 				queryKey: queryKeys.repoIssuesRoot(repo.id),
 			});
@@ -70,64 +72,47 @@ function IssuesPage() {
 		},
 	});
 
-	const handleCreateIssue = () => {
-		if (!newIssue.title.trim() || !repo) return;
-		createMutation.mutate({
-			data: {
-				repoId: repo.id,
-				title: newIssue.title,
-				body: newIssue.body,
-			},
-		});
-	};
-
-	const openIssuesCount =
-		issues?.filter((i) => i.status === "open").length || 0;
-	const closedIssuesCount =
-		issues?.filter((i) => i.status === "closed").length || 0;
+	const openCount = issues?.filter((i) => i.status === "open").length || 0;
+	const closedCount = issues?.filter((i) => i.status === "closed").length || 0;
 
 	return (
-		<div className="container py-8 space-y-6">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold text-[var(--sea-ink)]">Issues</h1>
-					<p className="text-[var(--sea-ink-soft)] mt-1">
-						Track bugs, feature requests, and discussions
-					</p>
-				</div>
+		<div className="space-y-5">
+			<div className="flex items-center justify-between gap-4">
+				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
+					Issues
+				</h2>
 				<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
 					<DialogTrigger asChild>
-						<Button>New Issue</Button>
+						<Button size="sm">New issue</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Create New Issue</DialogTitle>
+							<DialogTitle>Create new issue</DialogTitle>
 							<DialogDescription>
 								Report a bug, request a feature, or start a discussion
 							</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="title">Title</Label>
 								<Input
 									id="title"
 									value={newIssue.title}
 									onChange={(e) =>
-										setNewIssue((prev) => ({ ...prev, title: e.target.value }))
+										setNewIssue((p) => ({ ...p, title: e.target.value }))
 									}
 									placeholder="Issue title"
 								/>
 							</div>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="body">Description</Label>
 								<Textarea
 									id="body"
 									value={newIssue.body}
 									onChange={(e) =>
-										setNewIssue((prev) => ({ ...prev, body: e.target.value }))
+										setNewIssue((p) => ({ ...p, body: e.target.value }))
 									}
-									placeholder="Describe the issue in detail..."
+									placeholder="Describe the issue in detail…"
 									rows={6}
 								/>
 							</div>
@@ -137,78 +122,71 @@ function IssuesPage() {
 								Cancel
 							</Button>
 							<Button
-								onClick={handleCreateIssue}
+								onClick={() => {
+									if (!newIssue.title.trim() || !repo) return;
+									createMutation.mutate({
+										data: {
+											repoId: repo.id,
+											title: newIssue.title,
+											body: newIssue.body,
+										},
+									});
+								}}
 								disabled={!newIssue.title.trim() || createMutation.isPending}
 							>
-								{createMutation.isPending ? "Creating..." : "Create Issue"}
+								{createMutation.isPending ? "Creating…" : "Create issue"}
 							</Button>
 						</DialogFooter>
 					</DialogContent>
 				</Dialog>
 			</div>
 
-			{/* Filters */}
-			<div className="flex items-center gap-4 border-b border-[var(--line)]">
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "open"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("open")}
-				>
-					Open ({openIssuesCount})
-				</button>
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "closed"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("closed")}
-				>
-					Closed ({closedIssuesCount})
-				</button>
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "all"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("all")}
-				>
-					All ({issues?.length || 0})
-				</button>
+			{/* Filter tabs */}
+			<div className="flex items-center gap-5 border-b border-[var(--line)]">
+				{(
+					[
+						["open", `Open (${openCount})`],
+						["closed", `Closed (${closedCount})`],
+						["all", `All (${issues?.length || 0})`],
+					] as const
+				).map(([value, label]) => (
+					<button
+						key={value}
+						type="button"
+						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
+						onClick={() => setFilter(value)}
+					>
+						{label}
+					</button>
+				))}
 			</div>
 
-			{/* Issues List */}
+			{/* Issues list */}
 			{isLoading ? (
-				<div className="space-y-4">
-					{issueSkeletons.map((skeletonId) => (
-						<Card key={skeletonId} className="p-4 animate-pulse">
-							<div className="h-6 bg-[var(--card-bg)] rounded w-3/4 mb-2" />
-							<div className="h-4 bg-[var(--card-bg)] rounded w-1/2" />
-						</Card>
+				<div className="space-y-2">
+					{[1, 2, 3].map((i) => (
+						<div
+							key={i}
+							className="h-16 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+						/>
 					))}
 				</div>
-			) : issues?.length === 0 ? (
-				<Card className="p-12 text-center">
-					<p className="text-[var(--sea-ink-soft)] mb-4">
-						No {filter !== "all" ? filter : ""} issues found
+			) : !issues?.length ? (
+				<div className="island-shell rounded-xl p-12 text-center">
+					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
+						No {filter !== "all" ? filter : ""} issues found.
 					</p>
-					<Button onClick={() => setIsCreateOpen(true)}>
-						Create First Issue
+					<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+						Create first issue
 					</Button>
-				</Card>
+				</div>
 			) : (
-				<div className="space-y-2">
-					{issues?.map((issue) => (
-						<Card
+				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+					{issues.map((issue, idx) => (
+						<button
+							type="button"
 							key={issue.id}
-							className="p-4 hover:border-[var(--accent)] transition-colors cursor-pointer"
+							className={`flex w-full items-start gap-4 p-4 text-left transition hover:bg-[var(--surface-strong)] ${idx < issues.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 							onClick={() =>
 								navigate({
 									to: "/repo/$owner/$name/issues/$id",
@@ -216,28 +194,26 @@ function IssuesPage() {
 								})
 							}
 						>
-							<div className="flex items-start gap-4">
-								<div className="flex-1 space-y-2">
-									<div className="flex items-center gap-2">
-										<h3 className="text-lg font-medium text-[var(--sea-ink)] hover:text-[var(--accent)]">
-											{issue.title}
-										</h3>
-										<Badge
-											variant={issue.status === "open" ? "success" : "default"}
-										>
-											{issue.status}
-										</Badge>
-									</div>
-									<p className="text-sm text-[var(--sea-ink-soft)]">
-										#{issue.id} opened{" "}
-										{formatDistanceToNow(new Date(issue.createdAt), {
-											addSuffix: true,
-										})}{" "}
-										by {issue.author?.name || "Unknown"}
-									</p>
+							<div className="flex-1 space-y-1">
+								<div className="flex items-center gap-2">
+									<span className="text-sm font-medium text-[var(--sea-ink)]">
+										{issue.title}
+									</span>
+									<Badge
+										variant={issue.status === "open" ? "success" : "default"}
+									>
+										{issue.status}
+									</Badge>
 								</div>
+								<p className="text-xs text-[var(--sea-ink-soft)]">
+									#{issue.id} opened{" "}
+									{formatDistanceToNow(new Date(issue.createdAt), {
+										addSuffix: true,
+									})}{" "}
+									by {issue.author?.name || "Unknown"}
+								</p>
 							</div>
-						</Card>
+						</button>
 					))}
 				</div>
 			)}

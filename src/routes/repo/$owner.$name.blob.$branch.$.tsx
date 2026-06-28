@@ -17,6 +17,20 @@ function decodeBase64ToBytes(content: string) {
 }
 
 export const Route = createFileRoute("/repo/$owner/$name/blob/$branch/$")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const repo = await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (repo) {
+			await queryClient.ensureQueryData(
+				repositoryFileQueryOptions({
+					repoId: repo.id,
+					branchName: params.branch,
+					path: params._splat || "",
+				}),
+			);
+		}
+	},
 	component: FileBlobPage,
 });
 

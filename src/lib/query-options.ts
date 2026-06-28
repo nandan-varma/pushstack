@@ -62,6 +62,7 @@ export const queryKeys = {
 const SESSION_STALE_TIME = 60_000;
 const DEFAULT_STALE_TIME = 30_000;
 const LONG_LIVED_STALE_TIME = 5 * 60_000;
+const IMMUTABLE_STALE_TIME = 10 * 60_000;
 
 export function authSessionQueryOptions() {
 	return queryOptions({
@@ -113,7 +114,7 @@ export function repositoryBranchesQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoBranches(repoId),
 		queryFn: () => getBranches({ data: { repoId } }),
-		staleTime: DEFAULT_STALE_TIME,
+		staleTime: LONG_LIVED_STALE_TIME,
 	});
 }
 
@@ -129,7 +130,7 @@ export function repositoryFilesQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoFiles(repoId, branchName, path),
 		queryFn: () => listFiles({ data: { repoId, branchName, path } }),
-		staleTime: DEFAULT_STALE_TIME,
+		staleTime: LONG_LIVED_STALE_TIME,
 	});
 }
 
@@ -145,7 +146,7 @@ export function repositoryFileQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoFile(repoId, branchName, path),
 		queryFn: () => getFile({ data: { repoId, branchName, path } }),
-		staleTime: DEFAULT_STALE_TIME,
+		staleTime: IMMUTABLE_STALE_TIME,
 	});
 }
 
@@ -163,7 +164,7 @@ export function repositoryCommitsQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoCommits(repoId, branchName, limit, skip),
 		queryFn: () => getCommits({ data: { repoId, branchName, limit, skip } }),
-		staleTime: DEFAULT_STALE_TIME,
+		staleTime: LONG_LIVED_STALE_TIME,
 	});
 }
 

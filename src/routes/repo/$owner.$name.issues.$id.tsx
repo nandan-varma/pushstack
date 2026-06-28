@@ -11,12 +11,25 @@ import {
 	issueCommentsQueryOptions,
 	issueQueryOptions,
 	queryKeys,
+	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 import { createComment, updateIssue } from "@/server/issues";
 
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const issueId = Number(params.id);
+		await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (Number.isFinite(issueId)) {
+			await Promise.all([
+				queryClient.ensureQueryData(issueQueryOptions(issueId)),
+				queryClient.ensureQueryData(issueCommentsQueryOptions(issueId)),
+			]);
+		}
+	},
 	component: IssueDetailPage,
 });
 
@@ -79,7 +92,7 @@ function IssueDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="container py-8">
+			<div className="">
 				<div className="animate-pulse space-y-4">
 					<div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
 					<div className="h-64 bg-[var(--card-bg)] rounded" />
@@ -90,7 +103,7 @@ function IssueDetailPage() {
 
 	if (!issue) {
 		return (
-			<div className="container py-8">
+			<div className="">
 				<Card className="p-6">
 					<h2 className="text-xl font-semibold mb-2">Issue Not Found</h2>
 					<Link
@@ -114,7 +127,7 @@ function IssueDetailPage() {
 			.slice(0, 2);
 
 	return (
-		<div className="container py-8 space-y-6">
+		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex-1">

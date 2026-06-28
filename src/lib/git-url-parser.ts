@@ -39,6 +39,10 @@ export function parseGitUrl(url: string): ParsedGitUrl | null {
 		// Remove .git extension if present
 		const repo = repoWithExt.replace(/\.git$/, "");
 
+		if (!/^[a-zA-Z0-9_-]+$/.test(owner) || !/^[a-zA-Z0-9_-]+$/.test(repo)) {
+			return null;
+		}
+
 		// Check for info/refs
 		const isInfoRefs = parts[2] === "info" && parts[3] === "refs";
 

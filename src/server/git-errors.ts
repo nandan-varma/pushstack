@@ -190,7 +190,7 @@ export function formatErrorResponse(error: unknown): {
 			status: 500,
 			body: {
 				error: "InternalServerError",
-				message: error.message,
+				message: "An internal error occurred",
 				retryable: true,
 			},
 		};

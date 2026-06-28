@@ -32,7 +32,8 @@ type RepoState = {
 const repoLocks = new Map<string, Promise<void>>();
 const repoState = new Map<string, RepoState>();
 
-const LEGACY_GIT_BASE_PATH = path.join(process.cwd(), "data", "repos");
+// ponytail: process.cwd() is read-only on Vercel; /tmp is writable
+const LEGACY_GIT_BASE_PATH = path.join(os.tmpdir(), "pushstack-legacy-repos");
 
 function getRepoKey(ownerKey: string, repoName: string): string {
 	return `${ownerKey}/${repoName}`;
@@ -128,15 +129,18 @@ async function writeRemoteFilesToDisk(
 	await fs.rm(repoPath, { recursive: true, force: true });
 	await fs.mkdir(repoPath, { recursive: true });
 
-	for (const file of remoteFiles) {
-		const relativePath = file.key.slice(sourcePrefix.length);
-		const destination = path.join(repoPath, relativePath);
-		const parent = path.dirname(destination);
-
-		await fs.mkdir(parent, { recursive: true });
-
-		const { content } = await downloadFromR2(file.key);
-		await fs.writeFile(destination, content);
+	const BATCH_SIZE = 20;
+	for (let i = 0; i < remoteFiles.length; i += BATCH_SIZE) {
+		const batch = remoteFiles.slice(i, i + BATCH_SIZE);
+		await Promise.all(
+			batch.map(async (file) => {
+				const relativePath = file.key.slice(sourcePrefix.length);
+				const destination = path.join(repoPath, relativePath);
+				await fs.mkdir(path.dirname(destination), { recursive: true });
+				const { content } = await downloadFromR2(file.key);
+				await fs.writeFile(destination, content);
+			}),
+		);
 	}
 }
 
@@ -386,6 +390,30 @@ export async function withRepositoryWorktree<T>(
 			await fs.rm(worktreeRoot, { recursive: true, force: true });
 		}
 	});
+}
+
+export async function deleteRepositoryFromR2(
+	ownerKey: string,
+	repoName: string,
+	legacyOwnerKeys: string[] = [],
+): Promise<void> {
+	if (!isR2Configured()) return;
+
+	const prefix = getRepoPrefix(ownerKey, repoName);
+	const files = await listAllR2Files(prefix);
+	if (files.length > 0) {
+		await bulkDeleteFromR2(files.map((f) => f.key));
+	}
+
+	const legacyPrefixes = getLegacyGitPrefixes(legacyOwnerKeys, repoName);
+	for (const legacyPrefix of legacyPrefixes) {
+		const legacyFiles = await listAllR2Files(legacyPrefix);
+		if (legacyFiles.length > 0) {
+			await bulkDeleteFromR2(legacyFiles.map((f) => f.key));
+		}
+	}
+
+	repoState.delete(getRepoKey(ownerKey, repoName));
 }
 
 async function syncRepositoryToR2Unlocked(

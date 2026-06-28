@@ -231,21 +231,3 @@ export async function withTransaction<T>(
 	}
 }
 
-// ponytail: plain Map instead of TransactionRegistry class
-const activeTransactions = new Map<string, { txn: GitTransaction; createdAt: number }>();
-
-if (typeof setInterval !== "undefined") {
-	setInterval(async () => {
-		const threshold = Date.now() - 3600000;
-		for (const [id, entry] of activeTransactions.entries()) {
-			if (entry.createdAt < threshold) {
-				activeTransactions.delete(id);
-				if (!entry.txn.isCommitted() && !entry.txn.isRolledBack()) {
-					await entry.txn.rollback().catch((e) =>
-						console.error(`Failed to rollback abandoned transaction ${id}:`, e),
-					);
-				}
-			}
-		}
-	}, 600000);
-}

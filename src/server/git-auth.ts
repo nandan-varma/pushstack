@@ -37,10 +37,6 @@ type AuthenticatedGitUser = GitAuthContext["user"] & {
 	tokenScopes?: string[];
 };
 
-function isGitAuthDisabled(): boolean {
-	return process.env.GIT_DISABLE_AUTH === "true";
-}
-
 function isPersonalAccessToken(value: string): boolean {
 	return value.startsWith("ghp_");
 }
@@ -81,7 +77,10 @@ function parseBasicAuth(
 		const credentials = Buffer.from(base64Credentials, "base64").toString(
 			"utf-8",
 		);
-		const [username, password] = credentials.split(":");
+		const colonIdx = credentials.indexOf(":");
+		if (colonIdx === -1) return null;
+		const username = credentials.slice(0, colonIdx);
+		const password = credentials.slice(colonIdx + 1);
 
 		if (!username || !password) {
 			return null;
@@ -136,7 +135,52 @@ async function authenticateUser(
 		return await authenticateToken(credentials.username);
 	}
 
-	return null;
+	// Fall back to username/password authentication
+	return await authenticateWithPassword(credentials.username, credentials.password);
+}
+
+async function authenticateWithPassword(
+	usernameOrEmail: string,
+	password: string,
+): Promise<AuthenticatedGitUser | null> {
+	try {
+		const { user, account } = await import("../db/schema");
+		const { or, eq } = await import("drizzle-orm");
+		const { verifyPassword } = await import("better-auth/crypto");
+
+		const foundUser = await db.query.user.findFirst({
+			where: or(
+				eq(user.username, usernameOrEmail),
+				eq(user.email, usernameOrEmail),
+			),
+		});
+
+		if (!foundUser) return null;
+
+		const credAccount = await db.query.account.findFirst({
+			where: (a, { and, eq: eqFn }) =>
+				and(eqFn(a.userId, foundUser.id), eqFn(a.providerId, "credential")),
+		});
+
+		if (!credAccount?.password) return null;
+
+		const valid = await verifyPassword({
+			hash: credAccount.password,
+			password,
+		});
+
+		if (!valid) return null;
+
+		return {
+			id: foundUser.id,
+			username: foundUser.username,
+			email: foundUser.email,
+			name: foundUser.name,
+		};
+	} catch (error) {
+		console.error("Password auth error:", error);
+		return null;
+	}
 }
 
 /**
@@ -194,20 +238,6 @@ async function authenticateToken(
 }
 
 /**
-
-	// Check if user is collaborator with write access
-	const collab = await db.query.repositoryCollaborators.findFirst({
-		where: and(
-			eq(repositoryCollaborators.repoId, repoId),
-			eq(repositoryCollaborators.userId, userId),
-		),
-	});
-
-	// Check role (assuming 'write' or 'admin' role)
-	return collab?.role === "write" || collab?.role === "admin";
-}
-
-/**
  * Authenticate and authorize git operation
  * @param request Request object
  * @param owner Repository owner username
@@ -227,30 +257,6 @@ export async function authenticateGitRequest(
 
 	if (!repo) {
 		throw new GitRepositoryNotFoundError("Repository not found");
-	}
-
-	if (isGitAuthDisabled()) {
-		const credentials = parseBasicAuth(request.headers.get("authorization"));
-		const username = credentials?.username || owner || "git-test-user";
-
-		return {
-			userId: repo.ownerId,
-			username,
-			user: {
-				id: repo.ownerId,
-				username,
-				email: `${username}@local.test`,
-				name: username,
-			},
-			repo: {
-				id: repo.id,
-				ownerId: repo.ownerId,
-				name: repo.name,
-				visibility: repo.visibility as "public" | "private",
-			},
-			canRead: true,
-			canWrite: true,
-		};
 	}
 
 	// Authenticate user

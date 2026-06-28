@@ -10,31 +10,31 @@ export default function BetterAuthHeader() {
 
 	if (isPending) {
 		return (
-			<div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
+			<div className="h-8 w-8 animate-pulse rounded-full bg-[var(--surface)]" />
 		);
 	}
 
 	if (session?.user) {
 		return (
-			<div className="flex items-center gap-3">
+			<div className="flex items-center gap-2.5">
 				<Link
 					to="/dashboard"
-					className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+					className="flex items-center gap-2 rounded-full no-underline transition hover:opacity-80"
 				>
 					{session.user.image ? (
 						<img
 							src={session.user.image}
 							alt=""
-							className="h-8 w-8 rounded-full"
+							className="h-8 w-8 rounded-full ring-1 ring-[var(--line)]"
 						/>
 					) : (
-						<div className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-							<span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--lagoon),var(--palm))]">
+							<span className="text-xs font-semibold text-white">
 								{session.user.name?.charAt(0).toUpperCase() || "U"}
 							</span>
 						</div>
 					)}
-					<span className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+					<span className="hidden text-sm font-medium text-[var(--sea-ink)] sm:block">
 						{session.user.username || session.user.name}
 					</span>
 				</Link>
@@ -52,7 +52,7 @@ export default function BetterAuthHeader() {
 							},
 						});
 					}}
-					className="h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+					className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--sea-ink-soft)] transition hover:border-[var(--lagoon-deep)] hover:text-[var(--sea-ink)]"
 				>
 					Sign out
 				</button>
@@ -63,7 +63,7 @@ export default function BetterAuthHeader() {
 	return (
 		<Link
 			to="/auth/login"
-			className="h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors inline-flex items-center"
+			className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--sea-ink)] no-underline transition hover:border-[var(--lagoon-deep)]"
 		>
 			Sign in
 		</Link>

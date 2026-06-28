@@ -161,6 +161,7 @@ export const repositoryCollaborators = pgTable(
 	(table) => ({
 		repoIdx: index("collab_repo_idx").on(table.repoId),
 		userIdx: index("collab_user_idx").on(table.userId),
+		repoUserIdx: index("collab_repo_user_idx").on(table.repoId, table.userId),
 	}),
 );
 

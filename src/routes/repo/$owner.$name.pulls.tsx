@@ -4,7 +4,6 @@ import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -26,20 +25,37 @@ import {
 import { createPullRequest } from "@/server/issues";
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const repo = await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (repo) {
+			await Promise.all([
+				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
+				queryClient.ensureQueryData(
+					repositoryPullRequestsQueryOptions({
+						repoId: repo.id,
+						status: "open",
+					}),
+				),
+			]);
+		}
+	},
 	component: PullRequestsPage,
 });
+
+const filterTabBase = "border-b-2 pb-3 text-sm font-medium transition";
+const filterTabActive = "border-[var(--lagoon-deep)] text-[var(--lagoon-deep)]";
+const filterTabInactive =
+	"border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]";
+
+const statusVariant = (status: string): "success" | "info" | "default" =>
+	status === "open" ? "success" : status === "merged" ? "info" : "default";
 
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const pullRequestSkeletons = [
-		"pull-request-skeleton-1",
-		"pull-request-skeleton-2",
-		"pull-request-skeleton-3",
-		"pull-request-skeleton-4",
-		"pull-request-skeleton-5",
-	];
 	const [filter, setFilter] = useState<"open" | "closed" | "merged" | "all">(
 		"open",
 	);
@@ -71,10 +87,7 @@ function PullRequestsPage() {
 	const createMutation = useMutation({
 		mutationFn: createPullRequest,
 		onSuccess: async () => {
-			if (!repo) {
-				return;
-			}
-
+			if (!repo) return;
 			await queryClient.invalidateQueries({
 				queryKey: queryKeys.pullRequestsRoot(repo.id),
 			});
@@ -83,129 +96,91 @@ function PullRequestsPage() {
 		},
 	});
 
-	const handleCreatePR = () => {
-		if (!newPR.title.trim() || !newPR.headBranch || !repo) return;
-		createMutation.mutate({
-			data: {
-				repoId: repo.id,
-				title: newPR.title,
-				body: newPR.body,
-				sourceBranchName: newPR.headBranch,
-				targetBranchName: newPR.baseBranch,
-			},
-		});
-	};
-
-	const openPRsCount =
-		pullRequests?.filter((pr) => pr.status === "open").length || 0;
-	const closedPRsCount =
-		pullRequests?.filter((pr) => pr.status === "closed").length || 0;
-	const mergedPRsCount =
-		pullRequests?.filter((pr) => pr.status === "merged").length || 0;
-
-	const getStatusBadgeVariant = (status: string) => {
-		switch (status) {
-			case "open":
-				return "success";
-			case "merged":
-				return "info";
-			case "closed":
-				return "default";
-			default:
-				return "default";
-		}
+	const counts = {
+		open: pullRequests?.filter((p) => p.status === "open").length || 0,
+		merged: pullRequests?.filter((p) => p.status === "merged").length || 0,
+		closed: pullRequests?.filter((p) => p.status === "closed").length || 0,
+		all: pullRequests?.length || 0,
 	};
 
 	return (
-		<div className="container py-8 space-y-6">
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-						Pull Requests
-					</h1>
-					<p className="text-[var(--sea-ink-soft)] mt-1">
-						Propose changes and review code
-					</p>
-				</div>
+		<div className="space-y-5">
+			<div className="flex items-center justify-between gap-4">
+				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
+					Pull Requests
+				</h2>
 				<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
 					<DialogTrigger asChild>
-						<Button>New Pull Request</Button>
+						<Button size="sm">New pull request</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
-							<DialogTitle>Create Pull Request</DialogTitle>
+							<DialogTitle>Create pull request</DialogTitle>
 							<DialogDescription>
 								Merge changes from one branch into another
 							</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-4">
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="title">Title</Label>
 								<Input
 									id="title"
 									value={newPR.title}
 									onChange={(e) =>
-										setNewPR((prev) => ({ ...prev, title: e.target.value }))
+										setNewPR((p) => ({ ...p, title: e.target.value }))
 									}
 									placeholder="Pull request title"
 								/>
 							</div>
 							<div className="grid grid-cols-2 gap-4">
-								<div className="space-y-2">
-									<Label htmlFor="base">Base Branch</Label>
+								<div className="space-y-1.5">
+									<Label htmlFor="base">Base branch</Label>
 									<select
 										id="base"
 										value={newPR.baseBranch}
 										onChange={(e) =>
-											setNewPR((prev) => ({
-												...prev,
-												baseBranch: e.target.value,
-											}))
+											setNewPR((p) => ({ ...p, baseBranch: e.target.value }))
 										}
-										className="flex h-10 w-full rounded-md border border-[var(--line)] bg-[var(--card-bg)] px-3 py-2 text-sm"
+										className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
 									>
-										{branches?.map((branch) => (
-											<option key={branch.name} value={branch.name}>
-												{branch.name}
+										{branches?.map((b) => (
+											<option key={b.name} value={b.name}>
+												{b.name}
 											</option>
 										))}
 									</select>
 								</div>
-								<div className="space-y-2">
-									<Label htmlFor="head">Compare Branch</Label>
+								<div className="space-y-1.5">
+									<Label htmlFor="head">Compare branch</Label>
 									<select
 										id="head"
 										value={newPR.headBranch}
 										onChange={(e) =>
-											setNewPR((prev) => ({
-												...prev,
-												headBranch: e.target.value,
-											}))
+											setNewPR((p) => ({ ...p, headBranch: e.target.value }))
 										}
-										className="flex h-10 w-full rounded-md border border-[var(--line)] bg-[var(--card-bg)] px-3 py-2 text-sm"
+										className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
 									>
-										<option value="">Select branch...</option>
+										<option value="">Select branch…</option>
 										{branches
 											?.filter((b) => b.name !== newPR.baseBranch)
-											.map((branch) => (
-												<option key={branch.name} value={branch.name}>
-													{branch.name}
+											.map((b) => (
+												<option key={b.name} value={b.name}>
+													{b.name}
 												</option>
 											))}
 									</select>
 								</div>
 							</div>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<Label htmlFor="body">Description</Label>
 								<Textarea
 									id="body"
 									value={newPR.body}
 									onChange={(e) =>
-										setNewPR((prev) => ({ ...prev, body: e.target.value }))
+										setNewPR((p) => ({ ...p, body: e.target.value }))
 									}
-									placeholder="Describe your changes..."
-									rows={6}
+									placeholder="Describe your changes…"
+									rows={5}
 								/>
 							</div>
 						</div>
@@ -214,95 +189,78 @@ function PullRequestsPage() {
 								Cancel
 							</Button>
 							<Button
-								onClick={handleCreatePR}
+								onClick={() => {
+									if (!newPR.title.trim() || !newPR.headBranch || !repo) return;
+									createMutation.mutate({
+										data: {
+											repoId: repo.id,
+											title: newPR.title,
+											body: newPR.body,
+											sourceBranchName: newPR.headBranch,
+											targetBranchName: newPR.baseBranch,
+										},
+									});
+								}}
 								disabled={
 									!newPR.title.trim() ||
 									!newPR.headBranch ||
 									createMutation.isPending
 								}
 							>
-								{createMutation.isPending
-									? "Creating..."
-									: "Create Pull Request"}
+								{createMutation.isPending ? "Creating…" : "Create pull request"}
 							</Button>
 						</DialogFooter>
 					</DialogContent>
 				</Dialog>
 			</div>
 
-			{/* Filters */}
-			<div className="flex items-center gap-4 border-b border-[var(--line)]">
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "open"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("open")}
-				>
-					Open ({openPRsCount})
-				</button>
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "merged"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("merged")}
-				>
-					Merged ({mergedPRsCount})
-				</button>
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "closed"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("closed")}
-				>
-					Closed ({closedPRsCount})
-				</button>
-				<button
-					type="button"
-					className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-						filter === "all"
-							? "border-[var(--accent)] text-[var(--accent)]"
-							: "border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
-					}`}
-					onClick={() => setFilter("all")}
-				>
-					All ({pullRequests?.length || 0})
-				</button>
+			{/* Filter tabs */}
+			<div className="flex items-center gap-5 border-b border-[var(--line)]">
+				{(
+					[
+						["open", `Open (${counts.open})`],
+						["merged", `Merged (${counts.merged})`],
+						["closed", `Closed (${counts.closed})`],
+						["all", `All (${counts.all})`],
+					] as const
+				).map(([value, label]) => (
+					<button
+						key={value}
+						type="button"
+						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
+						onClick={() => setFilter(value)}
+					>
+						{label}
+					</button>
+				))}
 			</div>
 
-			{/* Pull Requests List */}
+			{/* PR list */}
 			{isLoading ? (
-				<div className="space-y-4">
-					{pullRequestSkeletons.map((skeletonId) => (
-						<Card key={skeletonId} className="p-4 animate-pulse">
-							<div className="h-6 bg-[var(--card-bg)] rounded w-3/4 mb-2" />
-							<div className="h-4 bg-[var(--card-bg)] rounded w-1/2" />
-						</Card>
+				<div className="space-y-2">
+					{[1, 2, 3].map((i) => (
+						<div
+							key={i}
+							className="h-16 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]"
+						/>
 					))}
 				</div>
-			) : pullRequests?.length === 0 ? (
-				<Card className="p-12 text-center">
-					<p className="text-[var(--sea-ink-soft)] mb-4">
-						No {filter !== "all" ? filter : ""} pull requests found
+			) : !pullRequests?.length ? (
+				<div className="island-shell rounded-xl p-12 text-center">
+					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
+						No {filter !== "all" ? filter : ""} pull requests found.
 					</p>
-					<Button onClick={() => setIsCreateOpen(true)}>
-						Create First Pull Request
+					<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+						Create first pull request
 					</Button>
-				</Card>
+				</div>
 			) : (
-				<div className="space-y-2">
-					{pullRequests?.map((pr) => (
-						<Card
+				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+					{pullRequests.map((pr, idx) => (
+						<button
+							type="button"
 							key={pr.id}
-							className="p-4 hover:border-[var(--accent)] transition-colors cursor-pointer"
+							className={`flex w-full items-start gap-4 p-4 text-left transition hover:bg-[var(--surface-strong)] ${idx < pullRequests.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 							onClick={() =>
 								navigate({
 									to: "/repo/$owner/$name/pulls/$id",
@@ -310,29 +268,25 @@ function PullRequestsPage() {
 								})
 							}
 						>
-							<div className="flex items-start gap-4">
-								<div className="flex-1 space-y-2">
-									<div className="flex items-center gap-2">
-										<h3 className="text-lg font-medium text-[var(--sea-ink)] hover:text-[var(--accent)]">
-											{pr.title}
-										</h3>
-										<Badge variant={getStatusBadgeVariant(pr.status)}>
-											{pr.status}
-										</Badge>
-									</div>
-									<p className="text-sm text-[var(--sea-ink-soft)]">
-										#{pr.id} opened{" "}
-										{formatDistanceToNow(new Date(pr.createdAt), {
-											addSuffix: true,
-										})}{" "}
-										by {pr.author?.name || "Unknown"} •{" "}
-										<span className="font-mono">
-											{pr.sourceBranch} → {pr.targetBranch}
-										</span>
-									</p>
+							<div className="flex-1 space-y-1">
+								<div className="flex items-center gap-2">
+									<span className="text-sm font-medium text-[var(--sea-ink)]">
+										{pr.title}
+									</span>
+									<Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>
 								</div>
+								<p className="text-xs text-[var(--sea-ink-soft)]">
+									#{pr.id} opened{" "}
+									{formatDistanceToNow(new Date(pr.createdAt), {
+										addSuffix: true,
+									})}{" "}
+									by {pr.author?.name || "Unknown"} &middot;{" "}
+									<code className="font-mono">
+										{pr.sourceBranch} → {pr.targetBranch}
+									</code>
+								</p>
 							</div>
-						</Card>
+						</button>
 					))}
 				</div>
 			)}

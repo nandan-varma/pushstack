@@ -3,91 +3,116 @@ import { Button } from "../components/ui/button";
 
 export const Route = createFileRoute("/")({ component: App });
 
+const features = [
+	{
+		label: "01",
+		title: "Git Repositories",
+		desc: "Full version control with branches, commits, and history — backed by cloud storage.",
+	},
+	{
+		label: "02",
+		title: "Issue Tracking",
+		desc: "Track bugs, features, and tasks with a lightweight but powerful issue system.",
+	},
+	{
+		label: "03",
+		title: "Pull Requests",
+		desc: "Collaborate through code reviews, diffs, and branch merges with your team.",
+	},
+	{
+		label: "04",
+		title: "R2 Storage",
+		desc: "Git objects stored in Cloudflare R2 — durable, fast, and globally distributed.",
+	},
+];
+
 function App() {
 	return (
-		<main className="page-wrap px-4 pb-8 pt-14">
-			<section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-				<div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-				<div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-				<p className="island-kicker mb-3">
-					PushStack - Code Repository Platform
-				</p>
-				<h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-					Build, collaborate, and ship together.
-				</h1>
-				<p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-					A modern code hosting platform. Manage repositories, track issues,
-					collaborate with pull requests, and deploy with confidence.
-				</p>
-				<div className="flex flex-wrap gap-3">
-					<Link to="/auth/register">
-						<Button size="lg">Get Started →</Button>
-					</Link>
-					<Link to="/auth/login">
-						<Button variant="outline" size="lg">
-							Sign In
-						</Button>
-					</Link>
-					<Link to="/dashboard">
-						<Button variant="outline" size="lg">
-							Dashboard
-						</Button>
-					</Link>
+		<main className="page-wrap px-4 pb-16 pt-10">
+			{/* Hero */}
+			<section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-12 sm:px-12 sm:py-16">
+				<div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.28),transparent_66%)]" />
+				<div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.16),transparent_66%)]" />
+
+				<div className="relative flex flex-col gap-12 lg:flex-row lg:items-center">
+					<div className="flex-1">
+						<p className="island-kicker mb-4">Code hosting, reimagined</p>
+						<h1 className="display-title mb-6 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-[var(--sea-ink)] sm:text-5xl lg:text-6xl">
+							Build, collaborate,
+							<br className="hidden sm:block" /> and ship together.
+						</h1>
+						<p className="mb-8 max-w-md text-base leading-relaxed text-[var(--sea-ink-soft)] sm:text-lg">
+							A modern code hosting platform with full Git support, issue
+							tracking, pull requests, and cloud-native R2 storage.
+						</p>
+						<div className="flex flex-wrap gap-3">
+							<Link to="/auth/register">
+								<Button size="lg">Get started free</Button>
+							</Link>
+							<Link to="/auth/login">
+								<Button variant="outline" size="lg">
+									Sign in
+								</Button>
+							</Link>
+						</div>
+					</div>
+
+					{/* Terminal */}
+					<div className="hidden w-80 shrink-0 lg:block">
+						<div className="overflow-hidden rounded-xl border border-white/10 bg-[#1a2e3a] shadow-2xl">
+							<div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
+								<span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+								<span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
+								<span className="h-3 w-3 rounded-full bg-[#28c840]" />
+							</div>
+							<div className="space-y-1 p-5 font-mono text-xs leading-6">
+								<p>
+									<span className="text-[#60d7cf]">$</span>{" "}
+									<span className="text-[#e8efff]">
+										git remote add origin \
+									</span>
+								</p>
+								<p className="pl-4 text-[#8de5db]">
+									https://pushstack.dev/you/repo
+								</p>
+								<p>
+									<span className="text-[#60d7cf]">$</span>{" "}
+									<span className="text-[#e8efff]">
+										git push -u origin main
+									</span>
+								</p>
+								<p className="text-[#6ec89a]">Enumerating objects: 12</p>
+								<p className="text-[#6ec89a]">Writing to R2... done.</p>
+								<p className="text-[#6ec89a]">Branch 'main' set upstream.</p>
+								<p>
+									<span className="text-[#60d7cf]">$</span>{" "}
+									<span className="animate-pulse text-[#60d7cf]">_</span>
+								</p>
+							</div>
+						</div>
+					</div>
 				</div>
 			</section>
 
-			<section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				{[
-					[
-						"Git-Like Repositories",
-						"Create public or private repositories with full version control.",
-					],
-					[
-						"Issue Tracking",
-						"Track bugs, features, and tasks with a powerful issue system.",
-					],
-					[
-						"Pull Requests",
-						"Collaborate with team members through code reviews and merges.",
-					],
-					[
-						"Cloudflare R2 Storage",
-						"Secure, scalable file storage powered by Cloudflare R2.",
-					],
-				].map(([title, desc], index) => (
+			{/* Features */}
+			<section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				{features.map(({ label, title, desc }, index) => (
 					<article
 						key={title}
-						className="island-shell feature-card rise-in rounded-2xl p-5"
-						style={{ animationDelay: `${index * 90 + 80}ms` }}
+						className="island-shell feature-card rise-in rounded-2xl p-6"
+						style={{ animationDelay: `${index * 80 + 100}ms` }}
 					>
-						<h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
+						<div className="mb-4 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[linear-gradient(135deg,var(--lagoon),var(--palm))] text-xs font-bold text-white">
+							{label}
+						</div>
+						<h2 className="mb-2 text-sm font-semibold text-[var(--sea-ink)]">
 							{title}
 						</h2>
-						<p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
+						<p className="text-sm leading-relaxed text-[var(--sea-ink-soft)]">
+							{desc}
+						</p>
 					</article>
 				))}
-			</section>
-
-			<section className="island-shell mt-8 rounded-2xl p-6">
-				<p className="island-kicker mb-2">Features</p>
-				<ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-					<li>
-						<strong>Branches & Commits:</strong> Full branching support with
-						commit history tracking.
-					</li>
-					<li>
-						<strong>Collaboration:</strong> Add collaborators with different
-						permission levels.
-					</li>
-					<li>
-						<strong>Star & Follow:</strong> Star repositories and track activity
-						across your organization.
-					</li>
-					<li>
-						<strong>Powerful Search:</strong> Find repositories, issues, and
-						code quickly.
-					</li>
-				</ul>
 			</section>
 		</main>
 	);
