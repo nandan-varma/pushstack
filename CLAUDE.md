@@ -12,8 +12,10 @@ pnpm test:watch    # vitest watch mode
 pnpm test:e2e      # playwright E2E
 pnpm check         # biome lint + format check
 pnpm lint          # biome lint only
+pnpm format        # biome format (write)
 pnpm db:push       # push schema to Neon (no migration files)
 pnpm db:generate   # generate drizzle migration files
+pnpm db:migrate    # run generated migrations
 pnpm db:studio     # drizzle studio UI
 pnpm deploy        # build + wrangler deploy to Cloudflare
 ```
@@ -36,9 +38,13 @@ Run a single test file: `pnpm test src/server/__tests__/git-auth.test.ts`
 
 **Storage**: All git data lives in Cloudflare R2. The virtual filesystem root for a repo is `repos/{ownerKey}/{repoName}/git/`. `git-cache.ts` provides an in-process LRU cache in front of R2 reads.
 
-**Database**: Neon (serverless Postgres) via `@neondatabase/serverless`. Schema in `src/db/schema.ts` (Better Auth tables) + `src/db/github-schema.ts` (repos, issues, PRs). ORM: Drizzle.
+**Database**: Neon (serverless Postgres) via `@neondatabase/serverless`. Schema split: `src/db/schema.ts` (Better Auth tables: user, session, account, verification) and `src/db/github-schema.ts` (app tables: repositories, issues, pullRequests, comments, stars, repositoryCollaborators, activities, tokens, gitTransactions). ORM: Drizzle.
 
-**Auth**: Better Auth (`src/lib/auth.ts`), session accessed server-side via `src/server/session.ts`.
+**Auth**: Better Auth (`src/lib/auth.ts`), session accessed server-side via `src/server/session.ts`. Route-level auth guard in `src/lib/route-auth.ts`. Git auth (Basic over HTTPS + PATs) in `src/server/git-auth.ts`.
+
+**Client data fetching**: All TanStack Query keys and `queryOptions` factories live in `src/lib/query-options.ts` — always source keys from `queryKeys` there instead of inlining strings.
+
+**Access control**: `src/server/repo-access.ts` is the single place for computing `RepositoryAccess` (role: anonymous/read/write/admin/owner, canRead/canWrite/canModerate flags). Call it server-side before any repo mutation.
 
 **Path aliases**: `#/*` and `@/*` both resolve to `src/*`.
 

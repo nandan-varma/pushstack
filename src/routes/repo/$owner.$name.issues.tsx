@@ -23,14 +23,23 @@ import {
 } from "@/lib/query-options";
 import { createIssue } from "@/server/issues";
 
+const STATUS_VALUES = ["open", "closed", "all"] as const;
+type IssueStatus = (typeof STATUS_VALUES)[number];
+
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
-	loader: async ({ params, context: { queryClient } }) => {
+	validateSearch: (search: Record<string, unknown>) => ({
+		status: (STATUS_VALUES.includes(search.status as IssueStatus)
+			? search.status
+			: "open") as IssueStatus,
+	}),
+	loaderDeps: ({ search }) => ({ status: search.status }),
+	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
 			await queryClient.ensureQueryData(
-				repositoryIssuesQueryOptions({ repoId: repo.id, status: "open" }),
+				repositoryIssuesQueryOptions({ repoId: repo.id, status: deps.status }),
 			);
 		}
 	},
@@ -45,9 +54,9 @@ const filterTabActive = "border-[var(--lagoon-deep)] text-[var(--lagoon-deep)]";
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
+	const { status: filter } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const [filter, setFilter] = useState<"open" | "closed" | "all">("open");
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newIssue, setNewIssue] = useState({ title: "", body: "" });
 
@@ -154,7 +163,9 @@ function IssuesPage() {
 						key={value}
 						type="button"
 						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
-						onClick={() => setFilter(value)}
+						onClick={() =>
+							navigate({ search: { status: value }, replace: true })
+						}
 					>
 						{label}
 					</button>

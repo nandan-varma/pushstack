@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
@@ -10,12 +10,16 @@ import {
 } from "@/lib/query-options";
 
 export const Route = createFileRoute("/repo/$owner/$name/")({
-	loader: async ({ params, context: { queryClient } }) => {
+	validateSearch: (search: Record<string, unknown>) => ({
+		branch: (search.branch as string) || "",
+	}),
+	loaderDeps: ({ search }) => ({ branch: search.branch }),
+	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			const branch = repo.defaultBranch || "main";
+			const branch = deps.branch || repo.defaultBranch || "main";
 			await Promise.all([
 				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
 				queryClient.ensureQueryData(
@@ -73,12 +77,13 @@ function CopyButton({ text }: { text: string }) {
 
 function RepositoryIndexPage() {
 	const { owner, name } = Route.useParams();
-	const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+	const { branch: searchBranch } = Route.useSearch();
+	const navigate = useNavigate();
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
-	const activeBranch = selectedBranch || repo?.defaultBranch || "main";
+	const activeBranch = searchBranch || repo?.defaultBranch || "main";
 
 	const { data: branches } = useQuery({
 		...repositoryBranchesQueryOptions(repo?.id ?? 0),
@@ -148,7 +153,11 @@ function RepositoryIndexPage() {
 					<p className="mb-3 text-xs text-[var(--sea-ink-soft)]">
 						Upload or create files directly from your browser.
 					</p>
-					<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
+					<Link
+						to="/repo/$owner/$name/upload"
+						params={{ owner, name }}
+						search={{ branch: activeBranch }}
+					>
 						<Button size="sm">Create new file</Button>
 					</Link>
 				</div>
@@ -162,7 +171,13 @@ function RepositoryIndexPage() {
 			<div className="flex items-center justify-between gap-3">
 				<select
 					value={activeBranch}
-					onChange={(e) => setSelectedBranch(e.target.value)}
+					onChange={(e) =>
+						navigate({
+							to: ".",
+							search: { branch: e.target.value },
+							replace: true,
+						})
+					}
 					className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--sea-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]/30"
 				>
 					{branches?.map((branch) => (
@@ -177,7 +192,11 @@ function RepositoryIndexPage() {
 					<span className="text-xs text-[var(--sea-ink-soft)]">
 						{files?.length || 0} files
 					</span>
-					<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
+					<Link
+						to="/repo/$owner/$name/upload"
+						params={{ owner, name }}
+						search={{ branch: activeBranch }}
+					>
 						<Button size="sm" variant="outline">
 							+ Add file
 						</Button>
@@ -243,7 +262,11 @@ function RepositoryIndexPage() {
 					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
 						This repository is empty.
 					</p>
-					<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
+					<Link
+						to="/repo/$owner/$name/upload"
+						params={{ owner, name }}
+						search={{ branch: activeBranch }}
+					>
 						<Button size="sm">Add file</Button>
 					</Link>
 				</div>

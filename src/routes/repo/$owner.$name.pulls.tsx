@@ -24,8 +24,17 @@ import {
 } from "@/lib/query-options";
 import { createPullRequest } from "@/server/issues";
 
+const PULL_STATUS_VALUES = ["open", "closed", "merged", "all"] as const;
+type PullStatus = (typeof PULL_STATUS_VALUES)[number];
+
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
-	loader: async ({ params, context: { queryClient } }) => {
+	validateSearch: (search: Record<string, unknown>) => ({
+		status: (PULL_STATUS_VALUES.includes(search.status as PullStatus)
+			? search.status
+			: "open") as PullStatus,
+	}),
+	loaderDeps: ({ search }) => ({ status: search.status }),
+	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
@@ -35,7 +44,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 				queryClient.ensureQueryData(
 					repositoryPullRequestsQueryOptions({
 						repoId: repo.id,
-						status: "open",
+						status: deps.status,
 					}),
 				),
 			]);
@@ -54,11 +63,9 @@ const statusVariant = (status: string): "success" | "info" | "default" =>
 
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
+	const { status: filter } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const [filter, setFilter] = useState<"open" | "closed" | "merged" | "all">(
-		"open",
-	);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newPR, setNewPR] = useState({
 		title: "",
@@ -228,7 +235,9 @@ function PullRequestsPage() {
 						key={value}
 						type="button"
 						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
-						onClick={() => setFilter(value)}
+						onClick={() =>
+							navigate({ search: { status: value }, replace: true })
+						}
 					>
 						{label}
 					</button>

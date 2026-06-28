@@ -232,6 +232,27 @@ export class R2Backend {
 	async stat(filepath: string): Promise<any> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
+		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
+
+		// If content is cached we already know the file exists — skip HeadObject
+		const cached = getCache(cacheKey);
+		if (cached) {
+			return {
+				type: "file",
+				mode: 0o100644,
+				size: cached.length,
+				ino: 0,
+				mtimeMs: Date.now(),
+				ctimeMs: Date.now(),
+				uid: 1,
+				gid: 1,
+				dev: 1,
+				isFile: () => true,
+				isDirectory: () => false,
+				isSymbolicLink: () => false,
+			};
+		}
+
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 
 		// HeadObject is cheaper than GetObject and avoids downloading file content

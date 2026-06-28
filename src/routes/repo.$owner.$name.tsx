@@ -16,6 +16,9 @@ const repoRouteSchema = z.object({
 });
 
 export const Route = createFileRoute("/repo/$owner/$name")({
+	validateSearch: (search: Record<string, unknown>) => ({
+		branch: (search.branch as string) || undefined,
+	}),
 	loader: ({ params, context: { queryClient } }) =>
 		queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -29,6 +32,7 @@ const tabLinkBase =
 
 function RepositoryPage() {
 	const { owner, name } = Route.useParams();
+	const { branch: searchBranch } = Route.useSearch();
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const queryClient = useQueryClient();
 
@@ -71,6 +75,7 @@ function RepositoryPage() {
 		);
 	}
 
+	const currentBranch = searchBranch || repo?.defaultBranch || "main";
 	const isOwner = repo.ownerId === session?.user?.id;
 
 	return (
@@ -130,6 +135,7 @@ function RepositoryPage() {
 					<Link
 						to="/repo/$owner/$name"
 						params={{ owner, name }}
+						search={{ branch: currentBranch }}
 						className={tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
@@ -154,7 +160,7 @@ function RepositoryPage() {
 					<Link
 						to="/repo/$owner/$name/commits"
 						params={{ owner, name }}
-						search={{ branch: repo.defaultBranch || "main" }}
+						search={{ branch: currentBranch }}
 						className={tabLinkBase}
 						activeProps={{ className: "active" }}
 					>

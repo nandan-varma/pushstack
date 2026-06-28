@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
+import { getCache, setCache } from "./git-cache";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
 	ensureRepositoryHydrated,
@@ -426,30 +427,40 @@ export async function getTreeFromBranch(
 ): Promise<TreeEntry[]> {
 	let repo: Awaited<ReturnType<typeof getRepoOptions>>;
 	let commit: Awaited<ReturnType<typeof resolveCommit>>["commit"];
+	let headSha: string | null = null;
 	try {
-		({ repo, commit } = await resolveCommit(
+		const resolved = await resolveCommit(
 			ownerKey,
 			repoName,
 			branchName,
 			legacyOwnerKeys,
-		));
+		);
+		repo = resolved.repo;
+		commit = resolved.commit;
+		headSha = resolved.oid;
 	} catch (err: unknown) {
 		// ponytail: empty repo or branch not yet created — return empty tree
 		if ((err as { code?: string }).code === "NotFoundError") return [];
 		throw err;
 	}
 
+	// ponytail: keyed by HEAD sha so cache auto-invalidates on push
+	const cacheKey = `result:tree:${ownerKey}/${repoName}/${headSha}:${treePath}`;
+	const cached = getCache(cacheKey);
+	if (cached) return JSON.parse(cached.toString()) as TreeEntry[];
+
+	let result: TreeEntry[];
 	if (!treePath) {
-		return listTreeEntries(repo, commit.tree);
+		result = await listTreeEntries(repo, commit.tree);
+	} else {
+		const entry = await findTreeEntry(repo, commit.tree, treePath);
+		result = !entry || entry.type !== "tree"
+			? []
+			: await listTreeEntries(repo, entry.oid, entry.path);
 	}
 
-	const entry = await findTreeEntry(repo, commit.tree, treePath);
-
-	if (!entry || entry.type !== "tree") {
-		return [];
-	}
-
-	return listTreeEntries(repo, entry.oid, entry.path);
+	setCache(cacheKey, Buffer.from(JSON.stringify(result)));
+	return result;
 }
 
 /**
@@ -520,6 +531,20 @@ export async function getCommitHistory(
 	skip: number = 0,
 	legacyOwnerKeys: string[] = [],
 ): Promise<CommitInfo[]> {
+	const repo = await getRepoOptions(ownerKey, repoName, legacyOwnerKeys);
+	const headSha = await git
+		.resolveRef({ ...repo, ref: `refs/heads/${branchName}` })
+		.catch(() => null);
+
+	// ponytail: keyed by HEAD sha so cache auto-invalidates on push
+	const cacheKey = headSha
+		? `result:commits:${ownerKey}/${repoName}/${headSha}:${limit}:${skip}`
+		: null;
+	if (cacheKey) {
+		const cached = getCache(cacheKey);
+		if (cached) return JSON.parse(cached.toString()) as CommitInfo[];
+	}
+
 	const all = await getCommitLog(
 		ownerKey,
 		repoName,
@@ -527,5 +552,8 @@ export async function getCommitHistory(
 		limit + skip,
 		legacyOwnerKeys,
 	);
-	return all.slice(skip, skip + limit);
+	const result = all.slice(skip, skip + limit);
+
+	if (cacheKey) setCache(cacheKey, Buffer.from(JSON.stringify(result)));
+	return result;
 }

@@ -14,6 +14,9 @@ import { requireUserSession } from "@/lib/route-auth";
 import { uploadFile } from "@/server/files";
 
 export const Route = createFileRoute("/repo/$owner/$name/upload")({
+	validateSearch: (search: Record<string, unknown>) => ({
+		branch: (search.branch as string) || "",
+	}),
 	beforeLoad: async ({ context }) => {
 		await requireUserSession(context.queryClient);
 	},
@@ -22,13 +25,14 @@ export const Route = createFileRoute("/repo/$owner/$name/upload")({
 
 function FileUploadPage() {
 	const { owner, name } = Route.useParams();
+	const { branch: searchBranch } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
 	const [file, setFile] = useState<File | null>(null);
 	const [path, setPath] = useState("");
 	const [commitMessage, setCommitMessage] = useState("");
-	const [branch, setBranch] = useState("main");
+	const [branch, setBranch] = useState(searchBranch || "main");
 	const [isDragging, setIsDragging] = useState(false);
 
 	const { data: repo } = useQuery(
@@ -58,7 +62,11 @@ function FileUploadPage() {
 					queryKey: queryKeys.repoCommitsRoot(repo.id),
 				}),
 			]);
-			navigate({ to: "/repo/$owner/$name", params: { owner, name } });
+			navigate({
+				to: "/repo/$owner/$name",
+				params: { owner, name },
+				search: { branch },
+			});
 		},
 	});
 
@@ -248,7 +256,11 @@ function FileUploadPage() {
 							type="button"
 							variant="outline"
 							onClick={() =>
-								navigate({ to: "/repo/$owner/$name", params: { owner, name } })
+								navigate({
+									to: "/repo/$owner/$name",
+									params: { owner, name },
+									search: { branch },
+								})
 							}
 						>
 							Cancel
