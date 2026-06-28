@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { getSession } from "@/lib/auth-session";
 import { queryKeys } from "@/lib/query-options";
-import { requireUserSession } from "@/lib/route-auth";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -11,8 +11,11 @@ import { createRepository } from "../../server/repositories";
 
 export const Route = createFileRoute("/repositories/new")({
 	component: NewRepositoryPage,
-	beforeLoad: async ({ context }) => {
-		const session = await requireUserSession(context.queryClient);
+	beforeLoad: async () => {
+		const session = await getSession();
+		if (!session?.user) {
+			throw redirect({ to: "/auth/login" });
+		}
 		return { user: session.user };
 	},
 });

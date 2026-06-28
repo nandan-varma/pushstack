@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { getSession } from "@/lib/auth-session";
 import { userRepositoriesQueryOptions } from "@/lib/query-options";
-import { requireUserSession } from "@/lib/route-auth";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 
 export const Route = createFileRoute("/repositories/")({
 	component: RepositoriesPage,
-	beforeLoad: async ({ context }) => {
-		const session = await requireUserSession(context.queryClient);
+	beforeLoad: async () => {
+		const session = await getSession();
+		if (!session?.user) {
+			throw redirect({ to: "/auth/login" });
+		}
 		return { user: session.user };
 	},
 });

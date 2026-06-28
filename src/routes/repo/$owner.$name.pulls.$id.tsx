@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	pullRequestCommentsQueryOptions,
@@ -21,7 +20,6 @@ import {
 	updatePullRequest,
 } from "@/server/issues";
 
-const DiffViewer = lazy(() => import("@/components/DiffViewer"));
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
@@ -49,14 +47,6 @@ function PullRequestDetailPage() {
 	const { data: pr, isLoading } = useQuery(pullRequestQueryOptions(prId));
 
 	const { data: comments } = useQuery(pullRequestCommentsQueryOptions(prId));
-
-	// Diff viewer is complex, skip for now
-	const diff: Array<{
-		path: string;
-		oldContent?: string;
-		newContent?: string;
-		language?: string;
-	}> = [];
 
 	const mergeMutation = useMutation({
 		mutationFn: mergePullRequest,
@@ -243,148 +233,93 @@ function PullRequestDetailPage() {
 				</div>
 			</div>
 
-			{/* Tabs */}
-			<Tabs defaultValue="conversation" className="w-full">
-				<TabsList>
-					<TabsTrigger value="conversation">
-						Conversation {comments && `(${comments.length})`}
-					</TabsTrigger>
-					<TabsTrigger value="changes">
-						Changes {diff && `(${diff.length})`}
-					</TabsTrigger>
-				</TabsList>
-
-				{/* Conversation Tab */}
-				<TabsContent value="conversation" className="space-y-6">
-					{/* PR Body */}
-					<Card className="p-6">
-						<div className="flex items-start gap-4">
-							<Avatar>
-								<AvatarImage src={pr.author?.image || undefined} />
-								<AvatarFallback>
-									{getInitials(pr.author?.name || "U")}
-								</AvatarFallback>
-							</Avatar>
-							<div className="flex-1">
-								<div className="flex items-center gap-2 mb-4">
-									<span className="font-medium text-[var(--sea-ink)]">
-										{pr.author?.name || "Unknown"}
-									</span>
-									<span className="text-sm text-[var(--sea-ink-soft)]">
-										{formatDistanceToNow(new Date(pr.createdAt), {
-											addSuffix: true,
-										})}
-									</span>
-								</div>
-								{pr.body ? (
-									<Suspense
-										fallback={
-											<Skeleton className="h-24" />
-										}
-									>
-										<MarkdownRenderer content={pr.body} />
-									</Suspense>
-								) : (
-									<p className="text-[var(--sea-ink-soft)] italic">
-										No description provided
-									</p>
-								)}
-							</div>
+			<Card className="p-6 space-y-6">
+				<div className="flex items-start gap-4">
+					<Avatar>
+						<AvatarImage src={pr.author?.image || undefined} />
+						<AvatarFallback>
+							{getInitials(pr.author?.name || "U")}
+						</AvatarFallback>
+					</Avatar>
+					<div className="flex-1">
+						<div className="flex items-center gap-2 mb-4">
+							<span className="font-medium text-[var(--sea-ink)]">
+								{pr.author?.name || "Unknown"}
+							</span>
+							<span className="text-sm text-[var(--sea-ink-soft)]">
+								{formatDistanceToNow(new Date(pr.createdAt), {
+									addSuffix: true,
+								})}
+							</span>
 						</div>
-					</Card>
-
-					{/* Comments */}
-					{comments && comments.length > 0 && (
-						<div className="space-y-4">
-							{comments.map((comment) => (
-								<Card key={comment.id} className="p-6">
-									<div className="flex items-start gap-4">
-										<Avatar>
-											<AvatarImage src={comment.author?.image || undefined} />
-											<AvatarFallback>
-												{getInitials(comment.author?.name || "U")}
-											</AvatarFallback>
-										</Avatar>
-										<div className="flex-1">
-											<div className="flex items-center gap-2 mb-4">
-												<span className="font-medium text-[var(--sea-ink)]">
-													{comment.author?.name || "Unknown"}
-												</span>
-												<span className="text-sm text-[var(--sea-ink-soft)]">
-													{formatDistanceToNow(new Date(comment.createdAt), {
-														addSuffix: true,
-													})}
-												</span>
-											</div>
-											<Suspense
-												fallback={
-													<Skeleton className="h-20" />
-												}
-											>
-												<MarkdownRenderer content={comment.body} />
-											</Suspense>
-										</div>
-									</div>
-								</Card>
-							))}
-						</div>
-					)}
-
-					{/* Add Comment */}
-					{pr.status === "open" && (
-						<Card className="p-6">
-							<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
-								Add a Comment
-							</h3>
-							<div className="space-y-4">
-								<Textarea
-									value={newComment}
-									onChange={(e) => setNewComment(e.target.value)}
-									placeholder="Write your comment here... (Markdown supported)"
-									rows={6}
-								/>
-								<div className="flex justify-end">
-									<Button
-										onClick={handleAddComment}
-										disabled={!newComment.trim() || commentMutation.isPending}
-									>
-										{commentMutation.isPending ? "Posting..." : "Post Comment"}
-									</Button>
-								</div>
-							</div>
-						</Card>
-					)}
-				</TabsContent>
-
-				{/* Changes Tab */}
-				<TabsContent value="changes" className="space-y-4">
-					{diff && diff.length > 0 ? (
-						diff.map((fileDiff) => (
-							<Suspense
-								key={fileDiff.path}
-								fallback={
-									<Skeleton className="h-64" />
-								}
-							>
-								<DiffViewer
-									oldValue={fileDiff.oldContent || ""}
-									newValue={fileDiff.newContent || ""}
-									oldTitle="Before"
-									newTitle="After"
-									fileName={fileDiff.path}
-									language={fileDiff.language}
-								/>
+						{pr.body ? (
+							<Suspense fallback={<Skeleton className="h-24" />}>
+								<MarkdownRenderer content={pr.body} />
 							</Suspense>
-						))
-					) : (
-						<Card className="p-12 text-center">
-							<p className="text-[var(--sea-ink-soft)]">
-								No file changes to display
+						) : (
+							<p className="text-[var(--sea-ink-soft)] italic">
+								No description provided
 							</p>
-						</Card>
-					)}
-				</TabsContent>
-			</Tabs>
+						)}
+					</div>
+				</div>
+
+				{comments && comments.length > 0 && (
+					<div className="space-y-4">
+						{comments.map((comment) => (
+							<Card key={comment.id} className="p-6">
+								<div className="flex items-start gap-4">
+									<Avatar>
+										<AvatarImage src={comment.author?.image || undefined} />
+										<AvatarFallback>
+											{getInitials(comment.author?.name || "U")}
+										</AvatarFallback>
+									</Avatar>
+									<div className="flex-1">
+										<div className="flex items-center gap-2 mb-4">
+											<span className="font-medium text-[var(--sea-ink)]">
+												{comment.author?.name || "Unknown"}
+											</span>
+											<span className="text-sm text-[var(--sea-ink-soft)]">
+												{formatDistanceToNow(new Date(comment.createdAt), {
+													addSuffix: true,
+												})}
+											</span>
+										</div>
+										<Suspense fallback={<Skeleton className="h-20" />}>
+											<MarkdownRenderer content={comment.body} />
+										</Suspense>
+									</div>
+								</div>
+							</Card>
+						))}
+					</div>
+				)}
+
+				{pr.status === "open" && (
+					<div>
+						<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
+							Add a Comment
+						</h3>
+						<div className="space-y-4">
+							<Textarea
+								value={newComment}
+								onChange={(e) => setNewComment(e.target.value)}
+								placeholder="Write your comment here... (Markdown supported)"
+								rows={6}
+							/>
+							<div className="flex justify-end">
+								<Button
+									onClick={handleAddComment}
+									disabled={!newComment.trim() || commentMutation.isPending}
+								>
+									{commentMutation.isPending ? "Posting..." : "Post Comment"}
+								</Button>
+							</div>
+						</div>
+					</div>
+				)}
+			</Card>
 		</div>
 	);
 }

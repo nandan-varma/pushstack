@@ -1,24 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { getSession } from "@/lib/auth-session";
 import {
 	queryKeys,
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
-import { requireUserSession } from "@/lib/route-auth";
 import { uploadFile } from "@/server/files";
 
 export const Route = createFileRoute("/repo/$owner/$name/upload")({
 	validateSearch: (search: Record<string, unknown>) => ({
 		branch: (search.branch as string) || "",
 	}),
-	beforeLoad: async ({ context }) => {
-		await requireUserSession(context.queryClient);
+	beforeLoad: async () => {
+		const session = await getSession();
+		if (!session?.user) {
+			throw redirect({ to: "/auth/login" });
+		}
 	},
 	component: FileUploadPage,
 });
