@@ -1,6 +1,15 @@
 import { Readable } from 'node:stream'
 import server from '../dist/server/server.js'
 
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    req.on('data', (c) => chunks.push(c))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
 export default async function handler(req, res) {
   const proto = req.headers['x-forwarded-proto'] ?? 'https'
   const host = req.headers['x-forwarded-host'] ?? req.headers.host ?? 'localhost'
@@ -12,17 +21,16 @@ export default async function handler(req, res) {
   }
 
   const hasBody = !['GET', 'HEAD'].includes(req.method)
-  const request = new Request(url, {
-    method: req.method,
-    headers,
-    ...(hasBody ? { body: Readable.toWeb(req), duplex: 'half' } : {}),
-  })
+  let body = null
+  if (hasBody) {
+    const raw = await readBody(req)
+    if (raw.length > 0) body = raw
+  }
 
+  const request = new Request(url, { method: req.method, headers, body })
   const response = await server.fetch(request)
 
   res.statusCode = response.status
-
-  // Forward headers, handling multi-value Set-Cookie correctly
   response.headers.forEach((v, k) => res.setHeader(k, v))
   if (typeof response.headers.getSetCookie === 'function') {
     const cookies = response.headers.getSetCookie()
