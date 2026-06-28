@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,13 +23,22 @@ export const Route = createFileRoute("/repo/$owner/$name/blob/$branch/$")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			await queryClient.ensureQueryData(
-				repositoryFileQueryOptions({
-					repoId: repo.id,
-					branchName: params.branch,
-					path: params._splat || "",
-				}),
-			);
+			try {
+				await queryClient.ensureQueryData(
+					repositoryFileQueryOptions({
+						repoId: repo.id,
+						branchName: params.branch,
+						path: params._splat || "",
+					}),
+				);
+			} catch (err) {
+				// Directory path — redirect to tree view on the index route
+				throw redirect({
+					to: "/repo/$owner/$name/",
+					params: { owner: params.owner, name: params.name },
+					search: { branch: params.branch, path: params._splat || undefined },
+				});
+			}
 		}
 	},
 	component: FileBlobPage,

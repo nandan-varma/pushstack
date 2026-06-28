@@ -12,6 +12,7 @@ import {
 	downloadFromR2,
 	listAllR2Files,
 } from "#/lib/r2-operations";
+import { invalidateCache, invalidateObjectCache } from "./git-cache";
 import {
 	ensureGitBaseDir,
 	getRepoDiskUsage,
@@ -32,7 +33,10 @@ const repoLocks = new Map<string, Promise<void>>();
 const repoState = new Map<string, RepoState>();
 
 // ponytail: 5-second TTL avoids re-listing R2 when hydrate + sync run back-to-back in the same push
-type R2ListEntry = { files: Awaited<ReturnType<typeof listAllR2Files>>; at: number };
+type R2ListEntry = {
+	files: Awaited<ReturnType<typeof listAllR2Files>>;
+	at: number;
+};
 const r2ListCache = new Map<string, R2ListEntry>();
 const R2_LIST_TTL_MS = 5000;
 
@@ -419,6 +423,14 @@ async function syncRepositoryToR2Unlocked(
 
 	// Invalidate the list cache so the next read sees the just-uploaded state
 	r2ListCache.delete(prefix);
+	// Invalidate r2Backend dir-listing caches — bulkUploadToR2 bypasses r2Backend.writeFile
+	// so dir entries (e.g. refs/heads/) stay stale on warm Lambda reuse without this.
+	invalidateCache(`dir:${ownerKey}/${repoName}/`);
+
+	// Invalidate in-process git cache so refs/trees read fresh from R2
+	invalidateCache(`${ownerKey}/${repoName}/`);
+	invalidateObjectCache(`result:tree:${ownerKey}/${repoName}/`);
+	invalidateObjectCache(`result:commits:${ownerKey}/${repoName}/`);
 
 	repoState.set(repoKey, {
 		hydratedAt: Date.now(),

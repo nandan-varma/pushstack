@@ -36,7 +36,7 @@ export const queryKeys = {
 	repoFiles: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", branchName, path] as const,
 	repoFile: (repoId: number, branchName: string, path: string) =>
-		["repos", repoId, "file", branchName, path] as const,
+		["repos", repoId, "files", "content", branchName, path] as const,
 	repoCommitsRoot: (repoId: number) => ["repos", repoId, "commits"] as const,
 	repoCommits: (repoId: number, branchName: string, limit = 50, skip = 0) =>
 		["repos", repoId, "commits", branchName, limit, skip] as const,
@@ -65,7 +65,6 @@ export const queryKeys = {
 const SESSION_STALE_TIME = 60_000;
 const DEFAULT_STALE_TIME = 2 * 60_000;
 const LONG_LIVED_STALE_TIME = 10 * 60_000;
-const IMMUTABLE_STALE_TIME = 30 * 60_000;
 
 export function authSessionQueryOptions() {
 	return queryOptions({
@@ -133,7 +132,7 @@ export function repositoryFilesQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoFiles(repoId, branchName, path),
 		queryFn: () => listFiles({ data: { repoId, branchName, path } }),
-		staleTime: LONG_LIVED_STALE_TIME,
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 
@@ -149,7 +148,7 @@ export function repositoryFileQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoFile(repoId, branchName, path),
 		queryFn: () => getFile({ data: { repoId, branchName, path } }),
-		staleTime: IMMUTABLE_STALE_TIME,
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 

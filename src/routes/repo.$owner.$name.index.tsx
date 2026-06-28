@@ -14,10 +14,13 @@ import {
 } from "@/lib/query-options";
 
 export const Route = createFileRoute("/repo/$owner/$name/")({
-	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { branch?: string; path?: string } => ({
 		branch: (search.branch as string) || undefined,
+		path: (search.path as string) || undefined,
 	}),
-	loaderDeps: ({ search }) => ({ branch: search.branch }),
+	loaderDeps: ({ search }) => ({ branch: search.branch, path: search.path }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -27,7 +30,11 @@ export const Route = createFileRoute("/repo/$owner/$name/")({
 			await Promise.all([
 				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
 				queryClient.ensureQueryData(
-					repositoryFilesQueryOptions({ repoId: repo.id, branchName: branch }),
+					repositoryFilesQueryOptions({
+						repoId: repo.id,
+						branchName: branch,
+						path: deps.path,
+					}),
 				),
 			]);
 		}
@@ -74,13 +81,14 @@ function CopyButton({ text }: { text: string }) {
 
 function RepositoryIndexPage() {
 	const { owner, name } = Route.useParams();
-	const { branch: searchBranch } = Route.useSearch();
+	const { branch: searchBranch, path: searchPath } = Route.useSearch();
 	const navigate = useNavigate();
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 	const activeBranch = searchBranch || repo?.defaultBranch || "main";
+	const activePath = searchPath || "";
 
 	const { data: branches } = useQuery({
 		...repositoryBranchesQueryOptions(repo?.id ?? 0),
@@ -91,6 +99,7 @@ function RepositoryIndexPage() {
 		...repositoryFilesQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: activeBranch,
+			path: activePath,
 		}),
 		enabled: !!repo,
 		placeholderData: keepPreviousData,
@@ -243,35 +252,70 @@ function RepositoryIndexPage() {
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					<table className="w-full">
 						<tbody>
-							{sortedFiles.map((file) => (
-								<tr
-									key={`${file.type}:${file.path}`}
-									className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"
-								>
-									<td className="w-8 py-2.5 pl-4">
-										{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
-									</td>
+							{activePath && (
+								<tr className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)]">
+									<td className="w-8 py-2.5 pl-4" />
 									<td className="py-2.5 pr-4">
 										<Link
-											to="/repo/$owner/$name/blob/$branch/$"
-											params={{
-												owner,
-												name,
+											to="."
+											search={{
 												branch: activeBranch,
-												_splat: file.path,
+												path: activePath.includes("/")
+													? activePath.slice(0, activePath.lastIndexOf("/"))
+													: undefined,
 											}}
-											className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+											className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
 										>
-											{file.path}
+											..
 										</Link>
 									</td>
-									<td className="py-2.5 pr-4 text-right">
-										<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--sea-ink-soft)]">
-											{file.oid.substring(0, 7)}
-										</code>
-									</td>
+									<td />
 								</tr>
-							))}
+							)}
+							{sortedFiles.map((file) => {
+								const displayName = activePath
+									? file.path.slice(activePath.length + 1)
+									: file.path;
+								return (
+									<tr
+										key={`${file.type}:${file.path}`}
+										className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"
+									>
+										<td className="w-8 py-2.5 pl-4">
+											{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
+										</td>
+										<td className="py-2.5 pr-4">
+											{file.type === "tree" ? (
+												<Link
+													to="."
+													search={{ branch: activeBranch, path: file.path }}
+													className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+												>
+													{displayName}
+												</Link>
+											) : (
+												<Link
+													to="/repo/$owner/$name/blob/$branch/$"
+													params={{
+														owner,
+														name,
+														branch: activeBranch,
+														_splat: file.path,
+													}}
+													className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+												>
+													{displayName}
+												</Link>
+											)}
+										</td>
+										<td className="py-2.5 pr-4 text-right">
+											<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--sea-ink-soft)]">
+												{file.oid.substring(0, 7)}
+											</code>
+										</td>
+									</tr>
+								);
+							})}
 						</tbody>
 					</table>
 				</div>
