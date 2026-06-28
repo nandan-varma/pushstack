@@ -352,8 +352,15 @@ async function syncRepositoryToR2Unlocked(
 	const remoteFiles = await listAllR2Files(prefix);
 	const remoteKeys = new Set(remoteFiles.map((file) => file.key));
 
+	// ponytail: git objects are content-addressed — skip uploading any that already exist in R2
+	const newFiles = localFiles.filter(
+		(relativePath) =>
+			!relativePath.startsWith("objects/") ||
+			!remoteKeys.has(`${prefix}${relativePath}`),
+	);
+
 	const uploads = await Promise.all(
-		localFiles.map(async (relativePath) => {
+		newFiles.map(async (relativePath) => {
 			const fullPath = path.join(repoPath, relativePath);
 			const content = await fs.readFile(fullPath);
 
@@ -385,7 +392,8 @@ async function syncRepositoryToR2Unlocked(
 		}
 	}
 
-	const localKeys = new Set(uploads.map((upload) => upload.key));
+	// stale check uses all local keys (including skipped objects still present locally)
+	const localKeys = new Set(localFiles.map((f) => `${prefix}${f}`));
 	const staleKeys = [...remoteKeys].filter((key) => !localKeys.has(key));
 
 	if (staleKeys.length > 0) {

@@ -108,33 +108,36 @@ async function collectReachableOids(
 	startOids: string[],
 ): Promise<string[]> {
 	const seen = new Set<string>();
-	const queue = [...startOids];
+	// ponytail: promise-per-oid deduplicates concurrent traversal paths
+	const promises = new Map<string, Promise<void>>();
 
-	while (queue.length > 0) {
-		const oid = queue.pop() as string;
-		if (seen.has(oid)) continue;
-		seen.add(oid);
+	function visit(oid: string): Promise<void> {
+		if (promises.has(oid)) return promises.get(oid)!;
 
-		try {
-			const obj = await git.readObject({ fs: r2Backend, gitdir, oid });
+		const p = (async () => {
+			seen.add(oid);
+			try {
+				const obj = await git.readObject({ fs: r2Backend, gitdir, oid });
+				let children: string[] = [];
+				if (obj.type === "commit") {
+					const { commit } = await git.readCommit({ fs: r2Backend, gitdir, oid });
+					children = [commit.tree, ...commit.parent];
+				} else if (obj.type === "tree") {
+					const { tree } = await git.readTree({ fs: r2Backend, gitdir, oid });
+					children = tree.map((e) => e.oid);
+				} else if (obj.type === "tag") {
+					const { tag } = await git.readTag({ fs: r2Backend, gitdir, oid });
+					children = [tag.object];
+				}
+				await Promise.all(children.map(visit));
+			} catch {}
+		})();
 
-			if (obj.type === "commit") {
-				const { commit } = await git.readCommit({
-					fs: r2Backend,
-					gitdir,
-					oid,
-				});
-				queue.push(commit.tree, ...commit.parent);
-			} else if (obj.type === "tree") {
-				const { tree } = await git.readTree({ fs: r2Backend, gitdir, oid });
-				queue.push(...tree.map((e) => e.oid));
-			} else if (obj.type === "tag") {
-				const { tag } = await git.readTag({ fs: r2Backend, gitdir, oid });
-				queue.push(tag.object);
-			}
-		} catch {}
+		promises.set(oid, p);
+		return p;
 	}
 
+	await Promise.all(startOids.map(visit));
 	return Array.from(seen);
 }
 
