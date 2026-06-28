@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	queryKeys,
@@ -110,6 +111,19 @@ function PullRequestsPage() {
 		all: pullRequests?.length || 0,
 	};
 
+	const handleCreatePR = useCallback(() => {
+		if (!newPR.title.trim() || !newPR.headBranch || !repo) return;
+		createMutation.mutate({
+			data: {
+				repoId: repo.id,
+				title: newPR.title,
+				body: newPR.body,
+				sourceBranchName: newPR.headBranch,
+				targetBranchName: newPR.baseBranch,
+			},
+		});
+	}, [newPR.title, newPR.body, newPR.headBranch, newPR.baseBranch, repo, createMutation]);
+
 	return (
 		<div className="space-y-5">
 			<div className="flex items-center justify-between gap-4">
@@ -196,18 +210,7 @@ function PullRequestsPage() {
 								Cancel
 							</Button>
 							<Button
-								onClick={() => {
-									if (!newPR.title.trim() || !newPR.headBranch || !repo) return;
-									createMutation.mutate({
-										data: {
-											repoId: repo.id,
-											title: newPR.title,
-											body: newPR.body,
-											sourceBranchName: newPR.headBranch,
-											targetBranchName: newPR.baseBranch,
-										},
-									});
-								}}
+								onClick={handleCreatePR}
 								disabled={
 									!newPR.title.trim() ||
 									!newPR.headBranch ||
@@ -248,10 +251,7 @@ function PullRequestsPage() {
 			{isLoading ? (
 				<div className="space-y-2">
 					{[1, 2, 3].map((i) => (
-						<div
-							key={i}
-							className="h-16 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-						/>
+						<Skeleton key={i} className="h-16" />
 					))}
 				</div>
 			) : !pullRequests?.length ? (

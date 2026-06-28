@@ -64,7 +64,7 @@ export const createIssue = createServerFn({ method: "POST" })
 			},
 		});
 
-		return { ...issue, labels: issue.labels as Record<string, unknown> };
+		return { ...issue, labels: issue.labels as {} };
 	});
 
 // Get issues
@@ -95,10 +95,7 @@ export const getIssues = createServerFn({ method: "GET" })
 			orderBy: [desc(issues.createdAt)],
 		});
 
-		return issueList.map((issue) => ({
-			...issue,
-			labels: issue.labels as Record<string, unknown>,
-		}));
+		return issueList.map((issue) => ({ ...issue, labels: issue.labels as {} }));
 	});
 
 // Get issue by ID
@@ -129,7 +126,7 @@ export const getIssue = createServerFn({ method: "GET" })
 			throw new Error("Access denied");
 		}
 
-		return { ...issue, labels: issue.labels as Record<string, unknown> };
+		return { ...issue, labels: issue.labels as {} };
 	});
 
 // Update issue
@@ -192,7 +189,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 			});
 		}
 
-		return { ...updated, labels: updated.labels as Record<string, unknown> };
+		return { ...updated, labels: updated.labels as {} };
 	});
 
 // ============ PULL REQUESTS ============
@@ -562,8 +559,7 @@ export const getComments = createServerFn({ method: "GET" })
 		const commentList = await db.query.comments.findMany({
 			where: data.issueId
 				? eq(comments.issueId, data.issueId)
-				: // biome-ignore lint/style/noNonNullAssertion: validated by zod that at least one is present
-					eq(comments.pullRequestId, data.pullRequestId!),
+				: eq(comments.pullRequestId, data.pullRequestId!),
 			with: {
 				author: true,
 			},

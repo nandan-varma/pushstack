@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { userRepositoriesQueryOptions } from "@/lib/query-options";
 import { requireUserSession } from "@/lib/route-auth";
 import { Button } from "../../components/ui/button";
+import { Skeleton } from "../../components/ui/skeleton";
 
 export const Route = createFileRoute("/repositories/")({
 	component: RepositoriesPage,
@@ -36,10 +37,7 @@ function RepositoriesPage() {
 			{isLoading ? (
 				<div className="grid gap-3 md:grid-cols-2">
 					{[1, 2, 3, 4].map((i) => (
-						<div
-							key={i}
-							className="h-28 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-						/>
+						<Skeleton key={i} className="h-28" />
 					))}
 				</div>
 			) : repositories && repositories.length > 0 ? (

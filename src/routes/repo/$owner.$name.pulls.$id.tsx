@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -135,9 +136,9 @@ function PullRequestDetailPage() {
 	if (isLoading) {
 		return (
 			<div className="">
-				<div className="animate-pulse space-y-4">
-					<div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
-					<div className="h-64 bg-[var(--card-bg)] rounded" />
+				<div className="space-y-4">
+					<Skeleton className="h-8 w-1/2" />
+					<Skeleton className="h-64" />
 				</div>
 			</div>
 		);
@@ -278,7 +279,7 @@ function PullRequestDetailPage() {
 								{pr.body ? (
 									<Suspense
 										fallback={
-											<div className="h-24 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+											<Skeleton className="h-24" />
 										}
 									>
 										<MarkdownRenderer content={pr.body} />
@@ -317,7 +318,7 @@ function PullRequestDetailPage() {
 											</div>
 											<Suspense
 												fallback={
-													<div className="h-20 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+													<Skeleton className="h-20" />
 												}
 											>
 												<MarkdownRenderer content={comment.body} />
@@ -362,7 +363,7 @@ function PullRequestDetailPage() {
 							<Suspense
 								key={fileDiff.path}
 								fallback={
-									<div className="h-64 animate-pulse rounded-lg bg-[var(--card-bg)]" />
+									<Skeleton className="h-64" />
 								}
 							>
 								<DiffViewer

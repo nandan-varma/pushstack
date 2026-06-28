@@ -3,6 +3,7 @@ import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { z } from "zod";
 import { CloneModal } from "@/components/CloneModal";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	authSessionQueryOptions,
 	queryKeys,
@@ -55,7 +56,7 @@ function RepositoryPage() {
 	if (isLoading) {
 		return (
 			<div className="page-wrap px-4 py-10">
-				<div className="h-48 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]" />
+				<Skeleton className="h-48" />
 			</div>
 		);
 	}

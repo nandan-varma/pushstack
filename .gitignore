@@ -25,3 +25,6 @@ playwright-report/
 
 # AI agents
 .claude/
+
+# completed plans
+plans/

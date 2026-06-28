@@ -10,8 +10,8 @@ vi.mock("@tanstack/react-start", () => ({
 		const obj: any = {};
 		obj.validator = (validateFn: any) => {
 			const inner: any = {};
-			inner.handler = (handlerFn: any) => (args: any) =>
-				handlerFn({ data: validateFn(args?.data ?? args) });
+			inner.handler = (handlerFn: any) =>
+				(args: any) => handlerFn({ data: validateFn(args?.data ?? args) });
 			return inner;
 		};
 		obj.handler = (handlerFn: any) => (args: any) => handlerFn(args);
@@ -148,11 +148,7 @@ describe("Repository Integration Tests", () => {
 			mockDb.query.repositories.findFirst.mockResolvedValue({
 				...mockRepo,
 				ownerId: "other-user",
-				owner: {
-					id: "other-user",
-					username: "other",
-					email: "other@example.com",
-				},
+				owner: { id: "other-user", username: "other", email: "other@example.com" },
 			});
 
 			const { deleteRepository } = await import("../repositories");

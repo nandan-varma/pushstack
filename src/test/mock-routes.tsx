@@ -5,7 +5,7 @@ import { rootRoute } from "./router-utils";
 export const createMockRoute = (
 	path: string,
 	component: React.ComponentType,
-	options: Record<string, unknown> = {},
+	options: any = {},
 ) => {
 	return createRoute({
 		getParentRoute: () => rootRoute,

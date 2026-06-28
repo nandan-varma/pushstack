@@ -1,7 +1,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
 import {
 	repositoryBranchesQueryOptions,
@@ -60,16 +62,9 @@ function FileIcon() {
 }
 
 function CopyButton({ text }: { text: string }) {
-	const [copied, setCopied] = useState(false);
-	const copy = async () => {
-		try {
-			await navigator.clipboard.writeText(text);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2000);
-		} catch {}
-	};
+	const { copied, copy } = useCopyToClipboard();
 	return (
-		<Button onClick={copy} variant="outline" size="sm">
+		<Button onClick={() => copy(text)} variant="outline" size="sm">
 			{copied ? "Copied" : "Copy"}
 		</Button>
 	);
@@ -98,6 +93,26 @@ function RepositoryIndexPage() {
 		enabled: !!repo,
 		placeholderData: keepPreviousData,
 	});
+
+	const sortedFiles = useMemo(() => {
+		if (!files) return [];
+		return [...files].sort((a, b) => {
+			if (a.type === "tree" && b.type !== "tree") return -1;
+			if (a.type !== "tree" && b.type === "tree") return 1;
+			return a.path.localeCompare(b.path);
+		});
+	}, [files]);
+
+	const handleBranchChange = useCallback(
+		(e: React.ChangeEvent<HTMLSelectElement>) => {
+			navigate({
+				to: ".",
+				search: { branch: e.target.value },
+				replace: true,
+			});
+		},
+		[navigate],
+	);
 
 	if (!repo) return null;
 
@@ -171,13 +186,7 @@ function RepositoryIndexPage() {
 			<div className="flex items-center justify-between gap-3">
 				<select
 					value={activeBranch}
-					onChange={(e) =>
-						navigate({
-							to: ".",
-							search: { branch: e.target.value },
-							replace: true,
-						})
-					}
+					onChange={handleBranchChange}
 					className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--sea-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]/30"
 				>
 					{branches?.map((branch) => (
@@ -208,9 +217,9 @@ function RepositoryIndexPage() {
 			{isLoading ? (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					{[1, 2, 3, 4, 5].map((i) => (
-						<div
+						<Skeleton
 							key={i}
-							className="h-11 animate-pulse border-b border-[var(--line)] bg-[var(--surface)] last:border-0"
+							className="h-11 rounded-none border-b border-[var(--line)] last:border-0"
 						/>
 					))}
 				</div>
@@ -218,14 +227,7 @@ function RepositoryIndexPage() {
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					<table className="w-full">
 						<tbody>
-							{files
-								.slice()
-								.sort((a, b) => {
-									if (a.type === "tree" && b.type !== "tree") return -1;
-									if (a.type !== "tree" && b.type === "tree") return 1;
-									return a.path.localeCompare(b.path);
-								})
-								.map((file) => (
+							{sortedFiles.map((file) => (
 									<tr
 										key={`${file.type}:${file.path}`}
 										className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getCloneUrl } from "@/lib/git-utils";
 
 interface CloneModalProps {
@@ -25,21 +26,11 @@ interface CloneModalProps {
 
 export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 	const [open, setOpen] = useState(false);
-	const [copied, setCopied] = useState(false);
+	const { copied, copy } = useCopyToClipboard();
 	const cloneUrlInputId = useId();
 	const cloneCommandId = useId();
 
 	const httpsUrl = getCloneUrl(owner, repoName, "https");
-
-	const handleCopy = async (text: string) => {
-		try {
-			await navigator.clipboard.writeText(text);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2000);
-		} catch (error) {
-			console.error("Failed to copy:", error);
-		}
-	};
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
@@ -99,7 +90,7 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 									className="font-mono text-sm"
 								/>
 								<Button
-									onClick={() => handleCopy(httpsUrl)}
+									onClick={() => copy(httpsUrl)}
 									variant="outline"
 									size="sm"
 								>

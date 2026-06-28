@@ -6,6 +6,7 @@ import {
 } from "@/lib/query-options";
 import { requireUserSession } from "@/lib/route-auth";
 import { Button } from "../components/ui/button";
+import { Skeleton } from "../components/ui/skeleton";
 
 export const Route = createFileRoute("/dashboard")({
 	component: DashboardPage,
@@ -61,10 +62,7 @@ function DashboardPage() {
 					{reposLoading ? (
 						<div className="space-y-3">
 							{[1, 2, 3].map((i) => (
-								<div
-									key={i}
-									className="h-24 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-								/>
+								<Skeleton key={i} className="h-24" />
 							))}
 						</div>
 					) : repositories && repositories.length > 0 ? (
@@ -129,10 +127,7 @@ function DashboardPage() {
 					{activitiesLoading ? (
 						<div className="space-y-2">
 							{[1, 2, 3, 4].map((i) => (
-								<div
-									key={i}
-									className="h-16 animate-pulse rounded-lg border border-[var(--line)] bg-[var(--surface)]"
-								/>
+								<Skeleton key={i} className="h-16" />
 							))}
 						</div>
 					) : activities && activities.length > 0 ? (

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	queryKeys,
@@ -84,6 +85,17 @@ function IssuesPage() {
 	const openCount = issues?.filter((i) => i.status === "open").length || 0;
 	const closedCount = issues?.filter((i) => i.status === "closed").length || 0;
 
+	const handleCreateIssue = useCallback(() => {
+		if (!newIssue.title.trim() || !repo) return;
+		createMutation.mutate({
+			data: {
+				repoId: repo.id,
+				title: newIssue.title,
+				body: newIssue.body,
+			},
+		});
+	}, [newIssue.title, newIssue.body, repo, createMutation]);
+
 	return (
 		<div className="space-y-5">
 			<div className="flex items-center justify-between gap-4">
@@ -131,16 +143,7 @@ function IssuesPage() {
 								Cancel
 							</Button>
 							<Button
-								onClick={() => {
-									if (!newIssue.title.trim() || !repo) return;
-									createMutation.mutate({
-										data: {
-											repoId: repo.id,
-											title: newIssue.title,
-											body: newIssue.body,
-										},
-									});
-								}}
+								onClick={handleCreateIssue}
 								disabled={!newIssue.title.trim() || createMutation.isPending}
 							>
 								{createMutation.isPending ? "Creating…" : "Create issue"}
@@ -176,10 +179,7 @@ function IssuesPage() {
 			{isLoading ? (
 				<div className="space-y-2">
 					{[1, 2, 3].map((i) => (
-						<div
-							key={i}
-							className="h-16 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-						/>
+						<Skeleton key={i} className="h-16" />
 					))}
 				</div>
 			) : !issues?.length ? (

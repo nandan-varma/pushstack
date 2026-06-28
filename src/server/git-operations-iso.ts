@@ -454,10 +454,9 @@ export async function getTreeFromBranch(
 		result = await listTreeEntries(repo, commit.tree);
 	} else {
 		const entry = await findTreeEntry(repo, commit.tree, treePath);
-		result =
-			!entry || entry.type !== "tree"
-				? []
-				: await listTreeEntries(repo, entry.oid, entry.path);
+		result = !entry || entry.type !== "tree"
+			? []
+			: await listTreeEntries(repo, entry.oid, entry.path);
 	}
 
 	setCache(cacheKey, Buffer.from(JSON.stringify(result)));

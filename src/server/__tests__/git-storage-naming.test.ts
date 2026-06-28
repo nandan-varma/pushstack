@@ -73,7 +73,9 @@ describe("getRepoStorageCoordinates", () => {
 
 describe("storage path helpers", () => {
 	it("getRepoStorageRoot", () => {
-		expect(getRepoStorageRoot("alice", "myrepo")).toBe("repos/alice/myrepo");
+		expect(getRepoStorageRoot("alice", "myrepo")).toBe(
+			"repos/alice/myrepo",
+		);
 	});
 
 	it("getRepoGitStorageRoot", () => {

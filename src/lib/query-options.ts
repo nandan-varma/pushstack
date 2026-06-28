@@ -60,9 +60,9 @@ export const queryKeys = {
 } as const;
 
 const SESSION_STALE_TIME = 60_000;
-const DEFAULT_STALE_TIME = 30_000;
-const LONG_LIVED_STALE_TIME = 5 * 60_000;
-const IMMUTABLE_STALE_TIME = 10 * 60_000;
+const DEFAULT_STALE_TIME = 2 * 60_000;
+const LONG_LIVED_STALE_TIME = 10 * 60_000;
+const IMMUTABLE_STALE_TIME = 30 * 60_000;
 
 export function authSessionQueryOptions() {
 	return queryOptions({

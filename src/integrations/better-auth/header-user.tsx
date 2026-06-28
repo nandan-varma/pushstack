@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
+import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "#/lib/auth-client";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
 
@@ -9,9 +10,7 @@ export default function BetterAuthHeader() {
 	const { data: session, isPending } = useQuery(authSessionQueryOptions());
 
 	if (isPending) {
-		return (
-			<div className="h-8 w-8 animate-pulse rounded-full bg-[var(--surface)]" />
-		);
+		return <Skeleton className="h-8 w-8 rounded-full" />;
 	}
 
 	if (session?.user) {

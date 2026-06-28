@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
 import {
 	authSessionQueryOptions,
@@ -42,8 +43,8 @@ function RouteComponent() {
 	if (!repo) {
 		return (
 			<div className="space-y-4">
-				<div className="h-36 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--card-bg)]" />
-				<div className="h-48 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--card-bg)]" />
+				<Skeleton className="h-36" />
+				<Skeleton className="h-48" />
 			</div>
 		);
 	}

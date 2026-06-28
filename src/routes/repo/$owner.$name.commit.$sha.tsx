@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { format, formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import {
 	repositoryByNameQueryOptions,
@@ -53,9 +54,9 @@ function CommitDetailPage() {
 	if (isLoading) {
 		return (
 			<div className="">
-				<div className="animate-pulse space-y-4">
-					<div className="h-8 bg-[var(--card-bg)] rounded w-1/2" />
-					<div className="h-64 bg-[var(--card-bg)] rounded" />
+				<div className="space-y-4">
+					<Skeleton className="h-8 w-1/2" />
+					<Skeleton className="h-64" />
 				</div>
 			</div>
 		);

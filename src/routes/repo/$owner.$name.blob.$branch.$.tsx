@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { detectLanguage, formatFileSize } from "@/lib/language-detection";
 import {
 	repositoryByNameQueryOptions,
@@ -58,9 +59,9 @@ function FileBlobPage() {
 	if (isLoading) {
 		return (
 			<div className="container py-8">
-				<div className="animate-pulse space-y-4">
-					<div className="h-8 bg-[var(--card-bg)] rounded w-1/3" />
-					<div className="h-96 bg-[var(--card-bg)] rounded" />
+				<div className="space-y-4">
+					<Skeleton className="h-8 w-1/3" />
+					<Skeleton className="h-96" />
 				</div>
 			</div>
 		);
@@ -179,7 +180,7 @@ function FileBlobPage() {
 			) : (
 				<Suspense
 					fallback={
-						<div className="h-96 animate-pulse rounded-lg border border-[var(--line)] bg-[var(--card-bg)]" />
+						<Skeleton className="h-96" />
 					}
 				>
 					<CodeViewer

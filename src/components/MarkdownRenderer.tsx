@@ -29,7 +29,7 @@ export default function MarkdownRenderer({
 					"--tw-prose-hr": "var(--line)",
 					"--tw-prose-th-borders": "var(--line)",
 					"--tw-prose-td-borders": "var(--line)",
-				} as React.CSSProperties
+				} as any
 			}
 		>
 			<ReactMarkdown
@@ -52,12 +52,7 @@ export default function MarkdownRenderer({
 						);
 					},
 					// Custom code block with syntax highlighting
-					code: ({
-						inline,
-						className,
-						children,
-						...props
-					}: React.ComponentPropsWithoutRef<"code">) => {
+					code: ({ inline, className, children, ...props }: any) => {
 						return !inline ? (
 							<code className={className} {...props}>
 								{children}
@@ -108,11 +103,7 @@ export default function MarkdownRenderer({
 						</blockquote>
 					),
 					// Task list items
-					input: ({
-						type,
-						checked,
-						...props
-					}: React.ComponentPropsWithoutRef<"input">) => {
+					input: ({ type, checked, ...props }: any) => {
 						if (type === "checkbox") {
 							return (
 								<input

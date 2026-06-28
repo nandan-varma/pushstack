@@ -35,6 +35,7 @@ export const repositories = pgTable(
 	(table) => ({
 		ownerIdx: index("repo_owner_idx").on(table.ownerId),
 		nameIdx: index("repo_name_idx").on(table.name),
+		ownerNameIdx: index("repo_owner_name_idx").on(table.ownerId, table.name),
 	}),
 );
 

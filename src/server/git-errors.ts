@@ -66,15 +66,7 @@ export class GitConflictError extends GitError {
 		targetLines?: string[];
 	}>;
 
-	constructor(
-		message: string,
-		conflicts: Array<{
-			file: string;
-			baseLines?: string[];
-			sourceLines?: string[];
-			targetLines?: string[];
-		}> = [],
-	) {
+	constructor(message: string, conflicts: any[] = []) {
 		super(message, 409, false);
 		this.conflicts = conflicts;
 	}
@@ -178,7 +170,7 @@ export class GitProtocolError extends GitError {
  */
 export function formatErrorResponse(error: unknown): {
 	status: number;
-	body: Record<string, unknown>;
+	body: any;
 	headers?: Record<string, string>;
 } {
 	if (error instanceof GitError) {
@@ -186,10 +178,9 @@ export function formatErrorResponse(error: unknown): {
 			status: error.statusCode,
 			body: error.toJSON(),
 			// Git clients need WWW-Authenticate to know to prompt for credentials
-			headers:
-				error.statusCode === 401
-					? { "WWW-Authenticate": 'Basic realm="Git Repository"' }
-					: undefined,
+			headers: error.statusCode === 401
+				? { "WWW-Authenticate": 'Basic realm="Git Repository"' }
+				: undefined,
 		};
 	}
 
