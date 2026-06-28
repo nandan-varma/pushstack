@@ -1,0 +1,7 @@
+allowBuilds:
+  '@prisma/engines': false
+  esbuild: true
+  node-git-server: true
+  prisma: false
+  sharp: true
+  workerd: true

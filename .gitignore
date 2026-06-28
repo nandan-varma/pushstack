@@ -1,0 +1,27 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+!*.local.template
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
+*.tsbuildinfo
+
+# git repo storage (local dev)
+.git-repos/
+
+# test artifacts
+test-results/
+playwright-report/
+
+# AI agents
+.claude/
