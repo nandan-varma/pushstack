@@ -12,6 +12,7 @@ dist-ssr
 .wrangler
 .output
 .vinxi
+.vercel/output
 __unconfig*
 todos.json
 *.tsbuildinfo
