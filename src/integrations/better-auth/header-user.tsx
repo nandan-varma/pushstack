@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "#/lib/auth-client";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
@@ -8,6 +9,7 @@ export default function BetterAuthHeader() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const { data: session, isPending } = useQuery(authSessionQueryOptions());
+	const [signingOut, setSigningOut] = useState(false);
 
 	if (isPending) {
 		return <Skeleton className="h-8 w-8 rounded-full" />;
@@ -39,7 +41,9 @@ export default function BetterAuthHeader() {
 				</Link>
 				<button
 					type="button"
+					disabled={signingOut}
 					onClick={async () => {
+						setSigningOut(true);
 						await authClient.signOut({
 							fetchOptions: {
 								onSuccess: async () => {
@@ -50,10 +54,11 @@ export default function BetterAuthHeader() {
 								},
 							},
 						});
+						setSigningOut(false);
 					}}
-					className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--sea-ink-soft)] transition hover:border-[var(--lagoon-deep)] hover:text-[var(--sea-ink)]"
+					className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--sea-ink-soft)] transition hover:border-[var(--lagoon-deep)] hover:text-[var(--sea-ink)] disabled:opacity-50 disabled:cursor-not-allowed"
 				>
-					Sign out
+					{signingOut ? "Signing out…" : "Sign out"}
 				</button>
 			</div>
 		);

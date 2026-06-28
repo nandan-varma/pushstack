@@ -215,7 +215,7 @@ function IssuesPage() {
 						>
 							<div className="flex-1 space-y-1">
 								<div className="flex items-center gap-2">
-									<span className="text-sm font-medium text-[var(--sea-ink)]">
+									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
 										{issue.title}
 									</span>
 									<Badge

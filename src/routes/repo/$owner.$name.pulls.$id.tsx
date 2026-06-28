@@ -48,45 +48,47 @@ function PullRequestDetailPage() {
 
 	const { data: comments } = useQuery(pullRequestCommentsQueryOptions(prId));
 
+	const prQueryKey = queryKeys.pullRequest(prId);
+
 	const mergeMutation = useMutation({
 		mutationFn: mergePullRequest,
-		onSuccess: async () => {
-			if (!pr) {
-				return;
+		onMutate: async () => {
+			await queryClient.cancelQueries({ queryKey: prQueryKey });
+			const prev = queryClient.getQueryData(prQueryKey);
+			queryClient.setQueryData(prQueryKey, (old: typeof pr) =>
+				old ? { ...old, status: "merged" } : old,
+			);
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) queryClient.setQueryData(prQueryKey, ctx.prev);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: prQueryKey });
+			if (pr) {
+				queryClient.invalidateQueries({ queryKey: queryKeys.pullRequestsRoot(pr.repoId) });
+				queryClient.invalidateQueries({ queryKey: queryKeys.repoFilesRoot(pr.repoId) });
+				queryClient.invalidateQueries({ queryKey: queryKeys.repoCommitsRoot(pr.repoId) });
 			}
-
-			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.pullRequest(prId),
-				}),
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
-				}),
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.repoFilesRoot(pr.repoId),
-				}),
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.repoCommitsRoot(pr.repoId),
-				}),
-			]);
 		},
 	});
 
 	const updateMutation = useMutation({
 		mutationFn: updatePullRequest,
-		onSuccess: async () => {
-			if (!pr) {
-				return;
-			}
-
-			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.pullRequest(prId),
-				}),
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
-				}),
-			]);
+		onMutate: async (vars) => {
+			await queryClient.cancelQueries({ queryKey: prQueryKey });
+			const prev = queryClient.getQueryData(prQueryKey);
+			queryClient.setQueryData(prQueryKey, (old: typeof pr) =>
+				old ? { ...old, status: vars.data.status ?? old.status } : old,
+			);
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) queryClient.setQueryData(prQueryKey, ctx.prev);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: prQueryKey });
+			if (pr) queryClient.invalidateQueries({ queryKey: queryKeys.pullRequestsRoot(pr.repoId) });
 		},
 	});
 
@@ -296,11 +298,11 @@ function PullRequestDetailPage() {
 					</div>
 				)}
 
-				{pr.status === "open" && (
-					<div>
-						<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
-							Add a Comment
-						</h3>
+				<div>
+					<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
+						Add a Comment
+					</h3>
+					{pr.status === "open" ? (
 						<div className="space-y-4">
 							<Textarea
 								value={newComment}
@@ -317,8 +319,12 @@ function PullRequestDetailPage() {
 								</Button>
 							</div>
 						</div>
-					</div>
-				)}
+					) : (
+						<p className="text-sm text-[var(--sea-ink-soft)]">
+							This pull request is {pr.status}. Reopen it to add a comment.
+						</p>
+					)}
+				</div>
 			</Card>
 		</div>
 	);

@@ -21,7 +21,7 @@ export default function CodeViewer({
 	fileName,
 	maxHeight = "600px",
 }: CodeViewerProps) {
-	const [theme, setTheme] = useState<"dark" | "light">("dark");
+	const [theme, setTheme] = useState<"dark" | "light">("light");
 	const { copied, copy } = useCopyToClipboard();
 
 	const toggleTheme = () => {
@@ -33,7 +33,7 @@ export default function CodeViewer({
 			<div className="flex items-center justify-between bg-[var(--card-bg)] px-4 py-2 border-b border-[var(--line)]">
 				<div className="flex items-center gap-2">
 					{fileName && (
-						<span className="text-sm font-medium text-[var(--sea-ink)]">
+						<span className="max-w-xs truncate text-sm font-medium text-[var(--sea-ink)]">
 							{fileName}
 						</span>
 					)}

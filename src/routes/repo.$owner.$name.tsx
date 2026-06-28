@@ -41,15 +41,30 @@ function RepositoryPage() {
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
+	const repoQueryKey = queryKeys.repositoryByName(owner, name);
+
 	const starMutation = useMutation({
 		mutationFn: toggleStar,
-		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.repositoryByName(owner, name),
-				}),
-				queryClient.invalidateQueries({ queryKey: queryKeys.repositoriesRoot }),
-			]);
+		onMutate: async () => {
+			await queryClient.cancelQueries({ queryKey: repoQueryKey });
+			const prev = queryClient.getQueryData(repoQueryKey);
+			queryClient.setQueryData(repoQueryKey, (old: typeof repo) =>
+				old
+					? {
+							...old,
+							isStarred: !old.isStarred,
+							starCount: old.isStarred ? old.starCount - 1 : old.starCount + 1,
+						}
+					: old,
+			);
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) queryClient.setQueryData(repoQueryKey, ctx.prev);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: repoQueryKey });
+			queryClient.invalidateQueries({ queryKey: queryKeys.repositoriesRoot });
 		},
 	});
 
@@ -112,14 +127,20 @@ function RepositoryPage() {
 
 				<div className="flex shrink-0 items-center gap-2">
 					<CloneModal owner={owner} repoName={name} />
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => starMutation.mutate({ data: { repoId: repo.id } })}
-						disabled={starMutation.isPending}
+					<button
+						type="button"
+						onClick={() => session && starMutation.mutate({ data: { repoId: repo.id } })}
+						className={`flex items-center gap-0 overflow-hidden rounded-md border text-sm font-medium transition-colors ${
+							repo.isStarred
+								? "border-[var(--lagoon-deep)] bg-[var(--lagoon-deep)] text-white"
+								: "border-[var(--line)] bg-transparent text-[var(--sea-ink)] hover:bg-[var(--surface-raised)]"
+						} ${!session ? "cursor-not-allowed opacity-50" : ""}`}
 					>
-						Star
-					</Button>
+						<span className="px-3 py-1.5">{repo.isStarred ? "★" : "☆"}</span>
+						<span className="border-l border-current/20 px-2.5 py-1.5 tabular-nums">
+							{repo.starCount}
+						</span>
+					</button>
 					{isOwner && (
 						<Link to="/repo/$owner/$name/settings" params={{ owner, name }}>
 							<Button variant="outline" size="sm">

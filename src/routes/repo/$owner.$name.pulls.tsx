@@ -291,7 +291,7 @@ function PullRequestsPage() {
 						>
 							<div className="flex-1 space-y-1">
 								<div className="flex items-center gap-2">
-									<span className="text-sm font-medium text-[var(--sea-ink)]">
+									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
 										{pr.title}
 									</span>
 									<Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>

@@ -236,7 +236,22 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 		const access = await getRepositoryAccess(repo.id, currentUser?.id);
 		if (!access?.canRead) throw new Error("Access denied");
 
-		return repo;
+		const starCount = await db
+			.select({ count: sql`count(*)` })
+			.from(stars)
+			.where(eq(stars.repoId, repo.id));
+
+		const userStar = currentUser
+			? await db.query.stars.findFirst({
+					where: and(eq(stars.repoId, repo.id), eq(stars.userId, currentUser.id)),
+				})
+			: null;
+
+		return {
+			...repo,
+			starCount: Number(starCount[0]?.count || 0),
+			isStarred: !!userStar,
+		};
 	});
 
 // Update repository

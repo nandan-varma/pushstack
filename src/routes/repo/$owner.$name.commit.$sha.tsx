@@ -88,7 +88,7 @@ function CommitDetailPage() {
 			{/* Header */}
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex-1">
-					<h1 className="text-3xl font-bold text-[var(--sea-ink)] mb-2">
+					<h1 className="line-clamp-2 text-3xl font-bold text-[var(--sea-ink)] mb-2">
 						{commit.message}
 					</h1>
 					<div className="flex items-center gap-3 text-[var(--sea-ink-soft)]">

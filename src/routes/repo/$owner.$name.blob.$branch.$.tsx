@@ -116,7 +116,7 @@ function FileBlobPage() {
 			{/* File Header */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">
-					<h1 className="text-2xl font-bold text-[var(--sea-ink)]">
+					<h1 className="max-w-lg truncate text-2xl font-bold text-[var(--sea-ink)]">
 						{filePath}
 					</h1>
 					<span className="text-sm text-[var(--sea-ink-soft)]">

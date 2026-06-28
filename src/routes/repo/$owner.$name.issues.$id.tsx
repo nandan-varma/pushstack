@@ -44,19 +44,24 @@ function IssueDetailPage() {
 
 	const { data: comments } = useQuery(issueCommentsQueryOptions(issueId));
 
+	const issueQueryKey = queryKeys.issue(issueId);
+
 	const updateMutation = useMutation({
 		mutationFn: updateIssue,
-		onSuccess: async () => {
-			if (!issue) {
-				return;
-			}
-
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: queryKeys.issue(issueId) }),
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.repoIssuesRoot(issue.repoId),
-				}),
-			]);
+		onMutate: async (vars) => {
+			await queryClient.cancelQueries({ queryKey: issueQueryKey });
+			const prev = queryClient.getQueryData(issueQueryKey);
+			queryClient.setQueryData(issueQueryKey, (old: typeof issue) =>
+				old ? { ...old, status: vars.data.status ?? old.status } : old,
+			);
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) queryClient.setQueryData(issueQueryKey, ctx.prev);
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: issueQueryKey });
+			if (issue) queryClient.invalidateQueries({ queryKey: queryKeys.repoIssuesRoot(issue.repoId) });
 		},
 	});
 
@@ -235,11 +240,11 @@ function IssueDetailPage() {
 			)}
 
 			{/* Add Comment */}
-			{issue.status === "open" && (
-				<Card className="p-6">
-					<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
-						Add a Comment
-					</h3>
+			<Card className="p-6">
+				<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
+					Add a Comment
+				</h3>
+				{issue.status === "open" ? (
 					<div className="space-y-4">
 						<Textarea
 							value={newComment}
@@ -256,8 +261,12 @@ function IssueDetailPage() {
 							</Button>
 						</div>
 					</div>
-				</Card>
-			)}
+				) : (
+					<p className="text-sm text-[var(--sea-ink-soft)]">
+						This issue is closed. Reopen it to add a comment.
+					</p>
+				)}
+			</Card>
 		</div>
 	);
 }

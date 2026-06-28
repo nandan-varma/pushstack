@@ -244,7 +244,7 @@ function RepositoryIndexPage() {
 												branch: activeBranch,
 												_splat: file.path,
 											}}
-											className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+											className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
 										>
 											{file.path}
 										</Link>
