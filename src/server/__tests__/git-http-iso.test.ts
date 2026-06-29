@@ -26,7 +26,12 @@ const mockGit = vi.hoisted(() => ({
 vi.mock("isomorphic-git", () => mockGit);
 
 // --- mock r2Backend ---
-vi.mock("../git-r2-backend", () => ({ r2Backend: {} }));
+vi.mock("../git-r2-backend", () => ({
+	r2Backend: {
+		readdir: vi.fn().mockResolvedValue([]),
+		readFile: vi.fn().mockResolvedValue(Buffer.alloc(0)),
+	},
+}));
 
 // --- mock storage naming ---
 vi.mock("../git-storage-naming", () => ({

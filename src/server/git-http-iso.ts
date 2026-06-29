@@ -143,7 +143,10 @@ async function collectReachableOids(
 				}
 				await Promise.all(children.map(visit));
 			} catch (err) {
-				console.error(`[git-http] object traversal error for oid ${oid}:`, err);
+				console.warn(
+					`[git-http] missing object ${oid}:`,
+					err instanceof Error ? err.message : err,
+				);
 			}
 		})();
 
@@ -153,6 +156,14 @@ async function collectReachableOids(
 
 	await Promise.all(startOids.map(visit));
 	return Array.from(seen);
+}
+
+// Pack index v2: magic(4) + version(4) + fanout(256×4); fanout[255] = total object count
+function countPackIndexObjects(data: Buffer): number {
+	if (data.length < 8 + 256 * 4) return -1;
+	if (data.readUInt32BE(0) !== 0xff744f63) return -1;
+	if (data.readUInt32BE(4) !== 2) return -1;
+	return data.readUInt32BE(8 + 255 * 4);
 }
 
 // Consolidate all pack files into one after a push so R2 always has a single pack.
@@ -205,12 +216,44 @@ async function repackLocal(localGitdir: string): Promise<void> {
 			filepath: `${newName}.pack`,
 		});
 
-		// Delete all old pack files now that everything is in the new consolidated pack
-		const entries: string[] = await Promise.resolve()
+		// Guard against data loss: only delete old packs if the consolidated pack covers at least
+		// as many objects as all old packs combined (catches incomplete traversal due to missing objects).
+		const allEntries: string[] = await Promise.resolve()
 			.then(() => localFsPromises.readdir(packDir))
 			.catch(() => []);
+
+		const oldIdxNames = allEntries.filter(
+			(f) => f !== `${newName}.idx` && f.endsWith(".idx"),
+		);
+		const [newIdxBuf, ...oldIdxBufs] = await Promise.all([
+			Promise.resolve()
+				.then(() => localFsPromises.readFile(path.join(packDir, `${newName}.idx`)))
+				.catch(() => null),
+			...oldIdxNames.map((n) =>
+				Promise.resolve()
+					.then(() => localFsPromises.readFile(path.join(packDir, n)))
+					.catch(() => null),
+			),
+		]);
+
+		const newCount = newIdxBuf
+			? countPackIndexObjects(Buffer.from(newIdxBuf))
+			: -1;
+		const oldTotal = oldIdxBufs.reduce((sum, buf) => {
+			const n = buf ? countPackIndexObjects(Buffer.from(buf)) : 0;
+			return sum + Math.max(0, n);
+		}, 0);
+
+		if (newCount < 0 || (oldTotal > 0 && newCount < oldTotal)) {
+			// ponytail: skip deletion; old packs are the safety net when traversal was incomplete
+			console.warn(
+				`[git-http] repack: keeping old packs (new=${newCount} old=${oldTotal})`,
+			);
+			return;
+		}
+
 		await Promise.all(
-			entries
+			allEntries
 				.filter((f) => f !== `${newName}.pack` && f !== `${newName}.idx`)
 				.filter(
 					(f) =>
@@ -331,6 +374,29 @@ export async function handleUploadPackIso(
 			headers: { "Content-Type": "application/x-git-upload-pack-result" },
 			body: Buffer.concat([pktLine("NAK\n")]),
 		};
+	}
+
+	// ponytail: fresh clone = no haves, so we need all objects. The consolidated pack
+	// (written by repackLocal after every push) already contains exactly that — serve it
+	// directly and skip the O(N-objects) traversal + repack entirely.
+	if (haves.length === 0) {
+		const packDirPath = `${gitdir}/objects/pack`;
+		const entries = await r2Backend.readdir(packDirPath).catch(() => []);
+		const packNames = entries.filter((f) => f.endsWith(".pack"));
+		if (packNames.length === 1) {
+			const packData = await r2Backend.readFile(`${packDirPath}/${packNames[0]}`);
+			return {
+				status: 200,
+				headers: {
+					"Content-Type": "application/x-git-upload-pack-result",
+					"Cache-Control": "no-cache",
+				},
+				body: Buffer.concat([
+					pktLine("NAK\n"),
+					Buffer.isBuffer(packData) ? packData : Buffer.from(packData as string),
+				]),
+			};
+		}
 	}
 
 	const wantOids = await collectReachableOids(gitdir, wants);

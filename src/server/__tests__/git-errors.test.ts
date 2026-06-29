@@ -9,9 +9,7 @@ import {
 	GitProtocolError,
 	GitRefNotFoundError,
 	GitRepositoryNotFoundError,
-	GitTransactionError,
 	R2DownloadError,
-	R2TransactionError,
 	R2UploadError,
 	formatErrorResponse,
 	isRetryableError,
@@ -46,14 +44,6 @@ describe("GitError hierarchy", () => {
 		expect(e.toJSON()).toMatchObject({ conflicts });
 	});
 
-	it("GitTransactionError is 500 retryable with phase", () => {
-		const e = new GitTransactionError("tx failed", "commit");
-		expect(e.statusCode).toBe(500);
-		expect(e.retryable).toBe(true);
-		expect(e.phase).toBe("commit");
-		expect(e.toJSON()).toMatchObject({ phase: "commit" });
-	});
-
 	it("GitAuthenticationError is 401", () => {
 		expect(new GitAuthenticationError("unauth").statusCode).toBe(401);
 	});
@@ -71,7 +61,7 @@ describe("GitError hierarchy", () => {
 	});
 
 	it("R2 errors are 500 retryable by default", () => {
-		for (const Cls of [R2UploadError, R2DownloadError, R2TransactionError]) {
+		for (const Cls of [R2UploadError, R2DownloadError]) {
 			const e = new Cls("r2 failed");
 			expect(e.statusCode).toBe(500);
 			expect(e.retryable).toBe(true);

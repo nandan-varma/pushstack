@@ -80,29 +80,6 @@ export class GitConflictError extends GitError {
 }
 
 /**
- * Git transaction failed (500)
- */
-export class GitTransactionError extends GitError {
-	phase: "prepare" | "commit" | "rollback";
-
-	constructor(
-		message: string,
-		phase: "prepare" | "commit" | "rollback",
-		retryable: boolean = true,
-	) {
-		super(message, 500, retryable);
-		this.phase = phase;
-	}
-
-	toJSON() {
-		return {
-			...super.toJSON(),
-			phase: this.phase,
-		};
-	}
-}
-
-/**
  * Git authentication failed (401)
  */
 export class GitAuthenticationError extends GitError {
@@ -142,15 +119,6 @@ export class R2UploadError extends GitError {
  * R2 download error (500, retryable)
  */
 export class R2DownloadError extends GitError {
-	constructor(message: string, retryable: boolean = true) {
-		super(message, 500, retryable);
-	}
-}
-
-/**
- * R2 transaction error (500, retryable)
- */
-export class R2TransactionError extends GitError {
 	constructor(message: string, retryable: boolean = true) {
 		super(message, 500, retryable);
 	}

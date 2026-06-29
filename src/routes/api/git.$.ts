@@ -64,8 +64,10 @@ export const Route = createFileRoute("/api/git/$")({
 						headers: result.headers,
 					});
 				} catch (error) {
-					console.error("[git GET]", error);
 					const errorResponse = formatErrorResponse(error);
+					if (errorResponse.status >= 500) {
+						console.error("[git GET]", error);
+					}
 					return new Response(JSON.stringify(errorResponse.body), {
 						status: errorResponse.status,
 						headers: {
@@ -147,8 +149,10 @@ export const Route = createFileRoute("/api/git/$")({
 						headers: result.headers,
 					});
 				} catch (error) {
-					console.error("[git POST]", error);
 					const errorResponse = formatErrorResponse(error);
+					if (errorResponse.status >= 500) {
+						console.error("[git POST]", error);
+					}
 					return new Response(JSON.stringify(errorResponse.body), {
 						status: errorResponse.status,
 						headers: {
