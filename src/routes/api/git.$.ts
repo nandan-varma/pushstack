@@ -46,6 +46,7 @@ export const Route = createFileRoute("/api/git/$")({
 						owner,
 						repo,
 						service === "git-receive-pack",
+						repository,
 					);
 
 					const storage = getRepoStorageCoordinates(repository);
@@ -111,6 +112,7 @@ export const Route = createFileRoute("/api/git/$")({
 						owner,
 						repo,
 						service === "git-receive-pack",
+						repository,
 					);
 
 					const storage = getRepoStorageCoordinates(repository);

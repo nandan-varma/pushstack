@@ -275,6 +275,11 @@ describe("handleUploadPackIso", () => {
 describe("handleReceivePackIso", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		// clearAllMocks resets call counts but not implementations — reset the ones that bleed
+		// from handleInfoRefsIso/handleUploadPackIso tests and would confuse repackLocal.
+		g.listBranches.mockResolvedValue([]);
+		g.listTags.mockResolvedValue([]);
+		g.packObjects.mockResolvedValue({ packfile: null });
 	});
 
 	it("returns 403 if no write access", async () => {

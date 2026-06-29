@@ -58,6 +58,13 @@ function req(authHeader?: string) {
 	});
 }
 
+// Use this when the test needs session auth to run (our shortcut skips it for cookie-less requests)
+function reqWithCookie(authHeader?: string) {
+	const headers: Record<string, string> = { cookie: "session=test" };
+	if (authHeader) headers.authorization = authHeader;
+	return new Request("http://localhost/test.git/info/refs", { headers });
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockGetSession.mockResolvedValue(null);
@@ -121,7 +128,8 @@ describe("authenticateGitRequest", () => {
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(true);
 
-			const ctx = await authenticateGitRequest(req(), "alice", "repo");
+			// reqWithCookie so session auth runs (our shortcut skips getSession for cookie-less requests)
+			const ctx = await authenticateGitRequest(reqWithCookie(), "alice", "repo");
 
 			expect(ctx.canRead).toBe(true);
 			expect(ctx.canWrite).toBe(true);
@@ -133,8 +141,9 @@ describe("authenticateGitRequest", () => {
 			mockGetSession.mockResolvedValue({ user: SESSION_USER });
 			mockCanRead.mockResolvedValue(false);
 
+			// reqWithCookie so session auth runs (our shortcut skips getSession for cookie-less requests)
 			await expect(
-				authenticateGitRequest(req(), "alice", "repo"),
+				authenticateGitRequest(reqWithCookie(), "alice", "repo"),
 			).rejects.toBeInstanceOf(GitAuthorizationError);
 		});
 	});
@@ -155,8 +164,9 @@ describe("authenticateGitRequest", () => {
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(false);
 
+			// reqWithCookie so session auth runs (our shortcut skips getSession for cookie-less requests)
 			await expect(
-				authenticateGitRequest(req(), "alice", "repo", true),
+				authenticateGitRequest(reqWithCookie(), "alice", "repo", true),
 			).rejects.toBeInstanceOf(GitAuthorizationError);
 		});
 	});

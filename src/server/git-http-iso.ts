@@ -55,57 +55,64 @@ function parsePktLines(buf: Buffer): Array<string | null> {
 // --- ref listing ---
 
 async function listAllRefs(gitdir: string, defaultBranch = "main") {
+	// Fetch branch/tag lists and HEAD in parallel
+	const [branches, tags, headOid, headSymref] = await Promise.all([
+		git.listBranches({ fs: r2Backend, gitdir }),
+		git.listTags({ fs: r2Backend, gitdir }),
+		git.resolveRef({ fs: r2Backend, gitdir, ref: "HEAD" }).catch(() => null),
+		// Wrap with Promise.resolve so a mock/stub returning undefined doesn't crash .then()
+		Promise.resolve(git.currentBranch({ fs: r2Backend, gitdir, fullname: true }))
+			.then((cb) => cb ?? `refs/heads/${defaultBranch}`)
+			.catch(() => `refs/heads/${defaultBranch}`),
+	]);
+
+	// Resolve all branch and tag OIDs in parallel
+	const [branchRefs, tagRefs] = await Promise.all([
+		Promise.all(
+			branches.map(async (branch) => {
+				try {
+					const oid = await git.resolveRef({
+						fs: r2Backend,
+						gitdir,
+						ref: `refs/heads/${branch}`,
+					});
+					return { name: `refs/heads/${branch}`, oid };
+				} catch {
+					return null;
+				}
+			}),
+		),
+		Promise.all(
+			tags.map(async (tag) => {
+				try {
+					const oid = await git.resolveRef({
+						fs: r2Backend,
+						gitdir,
+						ref: `refs/tags/${tag}`,
+					});
+					return { name: `refs/tags/${tag}`, oid };
+				} catch {
+					return null;
+				}
+			}),
+		),
+	]);
+
 	const refs: Array<{ name: string; oid: string }> = [];
-
-	let headOid: string | null = null;
-	try {
-		headOid = await git.resolveRef({ fs: r2Backend, gitdir, ref: "HEAD" });
-	} catch {}
-
-	let headSymref = `refs/heads/${defaultBranch}`;
-	try {
-		const cb = await git.currentBranch({
-			fs: r2Backend,
-			gitdir,
-			fullname: true,
-		});
-		if (cb) headSymref = cb;
-	} catch {}
-
 	if (headOid) refs.push({ name: "HEAD", oid: headOid });
-
-	const branches = await git.listBranches({ fs: r2Backend, gitdir });
-	for (const branch of branches) {
-		try {
-			const oid = await git.resolveRef({
-				fs: r2Backend,
-				gitdir,
-				ref: `refs/heads/${branch}`,
-			});
-			refs.push({ name: `refs/heads/${branch}`, oid });
-		} catch {}
-	}
-
-	const tags = await git.listTags({ fs: r2Backend, gitdir });
-	for (const tag of tags) {
-		try {
-			const oid = await git.resolveRef({
-				fs: r2Backend,
-				gitdir,
-				ref: `refs/tags/${tag}`,
-			});
-			refs.push({ name: `refs/tags/${tag}`, oid });
-		} catch {}
-	}
+	for (const r of branchRefs) if (r) refs.push(r);
+	for (const r of tagRefs) if (r) refs.push(r);
 
 	return { refs, headSymref };
 }
 
 // --- object graph traversal ---
 
+// ponytail: filesystem param lets this run against R2 (clone) or local disk (repack after push)
 async function collectReachableOids(
 	gitdir: string,
 	startOids: string[],
+	filesystem: any = r2Backend,
 ): Promise<string[]> {
 	const seen = new Set<string>();
 	// ponytail: promise-per-oid deduplicates concurrent traversal paths
@@ -115,18 +122,23 @@ async function collectReachableOids(
 		if (promises.has(oid)) return promises.get(oid)!;
 
 		const p = (async () => {
-			seen.add(oid);
 			try {
-				const obj = await git.readObject({ fs: r2Backend, gitdir, oid });
+				const obj = await git.readObject({ fs: filesystem, gitdir, oid });
+				// Add to seen only after a successful read so failed reads are excluded from the pack
+				seen.add(oid);
 				let children: string[] = [];
 				if (obj.type === "commit") {
-					const { commit } = await git.readCommit({ fs: r2Backend, gitdir, oid });
+					const { commit } = await git.readCommit({
+						fs: filesystem,
+						gitdir,
+						oid,
+					});
 					children = [commit.tree, ...commit.parent];
 				} else if (obj.type === "tree") {
-					const { tree } = await git.readTree({ fs: r2Backend, gitdir, oid });
+					const { tree } = await git.readTree({ fs: filesystem, gitdir, oid });
 					children = tree.map((e) => e.oid);
 				} else if (obj.type === "tag") {
-					const { tag } = await git.readTag({ fs: r2Backend, gitdir, oid });
+					const { tag } = await git.readTag({ fs: filesystem, gitdir, oid });
 					children = [tag.object];
 				}
 				await Promise.all(children.map(visit));
@@ -141,6 +153,77 @@ async function collectReachableOids(
 
 	await Promise.all(startOids.map(visit));
 	return Array.from(seen);
+}
+
+// Consolidate all pack files into one after a push so R2 always has a single pack.
+// This keeps clone-time object lookups O(1) pack searches instead of O(N pushes).
+async function repackLocal(localGitdir: string): Promise<void> {
+	try {
+		// Null-coalesce to [] so a mock/stub returning undefined never crashes .map()
+		const branches: string[] =
+			(await Promise.resolve(git.listBranches({ fs, gitdir: localGitdir })).catch(() => null)) ?? [];
+		const tags: string[] =
+			(await Promise.resolve(git.listTags({ fs, gitdir: localGitdir })).catch(() => null)) ?? [];
+
+		const tipOids = (
+			await Promise.all([
+				...branches.map((b) =>
+					git
+						.resolveRef({ fs, gitdir: localGitdir, ref: `refs/heads/${b}` })
+						.catch(() => null),
+				),
+				...tags.map((t) =>
+					git
+						.resolveRef({ fs, gitdir: localGitdir, ref: `refs/tags/${t}` })
+						.catch(() => null),
+				),
+			])
+		).filter((oid): oid is string => oid !== null);
+
+		if (tipOids.length === 0) return;
+
+		const allOids = await collectReachableOids(localGitdir, tipOids, fs);
+		if (allOids.length === 0) return;
+
+		const { packfile } = await git.packObjects({
+			fs,
+			gitdir: localGitdir,
+			oids: allOids,
+		});
+		if (!packfile) return;
+
+		const packDir = path.join(localGitdir, "objects", "pack");
+		const newName = `pack-${Date.now()}`;
+		await localFsPromises.writeFile(
+			path.join(packDir, `${newName}.pack`),
+			Buffer.from(packfile),
+		);
+		await git.indexPack({
+			fs,
+			dir: packDir,
+			gitdir: localGitdir,
+			filepath: `${newName}.pack`,
+		});
+
+		// Delete all old pack files now that everything is in the new consolidated pack
+		const entries: string[] = await Promise.resolve()
+			.then(() => localFsPromises.readdir(packDir))
+			.catch(() => []);
+		await Promise.all(
+			entries
+				.filter((f) => f !== `${newName}.pack` && f !== `${newName}.idx`)
+				.filter(
+					(f) =>
+						f.endsWith(".pack") || f.endsWith(".idx") || f.endsWith(".keep"),
+				)
+				.map((f) =>
+					localFsPromises.unlink(path.join(packDir, f)).catch(() => {}),
+				),
+		);
+	} catch (err) {
+		// Repack failure is non-fatal — the push still succeeded, just with an extra pack file
+		console.error("[git-http] repack failed (non-fatal):", err);
+	}
 }
 
 // --- info/refs ---
@@ -378,6 +461,7 @@ export async function handleReceivePackIso(
 		}
 	}
 
+	await repackLocal(localGitdir);
 	await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
 
 	const responseBody = Buffer.concat([

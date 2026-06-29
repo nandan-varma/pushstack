@@ -100,23 +100,25 @@ function parseBasicAuth(
 async function authenticateUser(
 	request: Request,
 ): Promise<AuthenticatedGitUser | null> {
-	// Try session authentication first (for web UI)
-	try {
-		const session = await auth.api.getSession({
-			headers: request.headers,
-		});
+	// git CLI never sends cookies — skip the session DB call for requests without them
+	if (request.headers.has("cookie")) {
+		try {
+			const session = await auth.api.getSession({
+				headers: request.headers,
+			});
 
-		if (session?.user) {
-			return {
-				id: session.user.id,
-				username: session.user.username || null,
-				email: session.user.email,
-				name: session.user.name || null,
-			};
+			if (session?.user) {
+				return {
+					id: session.user.id,
+					username: session.user.username || null,
+					email: session.user.email,
+					name: session.user.name || null,
+				};
+			}
+		} catch (err) {
+			// Unexpected error (DB down, misconfiguration) — log it so it's not invisible
+			console.error("[git-auth] session auth error:", err);
 		}
-	} catch (err) {
-		// Unexpected error (DB down, misconfiguration) — log it so it's not invisible
-		console.error("[git-auth] session auth error:", err);
 	}
 
 	// Try HTTP Basic Auth (for git CLI)
@@ -242,38 +244,30 @@ async function authenticateToken(
 }
 
 /**
- * Authenticate and authorize git operation
- * @param request Request object
- * @param owner Repository owner username
- * @param repoName Repository name (without .git extension)
- * @param requireWrite Whether write access is required (for push operations)
- * @returns GitAuthContext with user, repo, and permissions
- * @throws Error if authentication or authorization fails
+ * Authenticate and authorize git operation.
+ * Pass preloadedRepo (already fetched by the route handler) to avoid a duplicate DB lookup.
  */
 export async function authenticateGitRequest(
 	request: Request,
 	owner: string,
 	repoName: string,
 	requireWrite: boolean = false,
+	preloadedRepo?: Awaited<ReturnType<typeof findRepositoryByName>>,
 ): Promise<GitAuthContext> {
-	// Get repository
-	const repo = await findRepositoryByName(owner, repoName);
+	const repo = preloadedRepo ?? (await findRepositoryByName(owner, repoName));
 
 	if (!repo) {
 		throw new GitRepositoryNotFoundError("Repository not found");
 	}
 
-	// Authenticate user
 	const user = await authenticateUser(request);
 
-	// For write operations, require authentication first
 	if (requireWrite && !user) {
 		throw new GitAuthenticationError(
 			"Authentication required for write access",
 		);
 	}
 
-	// Check token scopes before hitting the DB for access checks
 	if (user?.tokenScopes) {
 		if (!hasRequiredTokenScope(user.tokenScopes, "repo:read")) {
 			throw new GitAuthorizationError(
@@ -290,11 +284,13 @@ export async function authenticateGitRequest(
 		}
 	}
 
-	// Check read permission
-	const canRead = await canReadRepo(repo.id, user?.id || null);
+	const isPublic = repo.visibility === "public";
+
+	// Public repo + anonymous: skip all DB access checks (no write ever, reads always allowed)
+	const canRead =
+		isPublic && !user ? true : await canReadRepo(repo.id, user?.id ?? null);
 
 	if (!canRead) {
-		// Unauthenticated users hitting a private repo get 401 so git prompts for credentials
 		if (!user) {
 			throw new GitAuthenticationError(
 				"Authentication required to access this repository",
@@ -305,8 +301,8 @@ export async function authenticateGitRequest(
 		);
 	}
 
-	// Check write permission if required
-	const canWrite = await canWriteRepo(repo.id, user?.id || null);
+	// Anonymous users can never write; skip the DB call for them
+	const canWrite = !user ? false : await canWriteRepo(repo.id, user.id);
 
 	if (requireWrite && !canWrite) {
 		throw new GitAuthorizationError(
@@ -314,7 +310,6 @@ export async function authenticateGitRequest(
 		);
 	}
 
-	// Return auth context
 	return {
 		userId: user?.id || "anonymous",
 		username: user?.username || "anonymous",
