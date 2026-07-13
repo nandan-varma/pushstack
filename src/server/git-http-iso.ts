@@ -12,10 +12,7 @@ import path from "node:path";
 import git from "isomorphic-git";
 import type { GitAuthContext } from "./git-auth";
 import { r2Backend } from "./git-r2-backend";
-import {
-	ensureRepositoryHydrated,
-	syncRepositoryToR2,
-} from "./git-repo-storage";
+import { withReceivePackLock } from "./git-repo-storage";
 import { getRepoGitStorageRoot } from "./git-storage-naming";
 
 type GitHttpResult = {
@@ -353,6 +350,7 @@ export async function handleUploadPackIso(
 
 	const wants: string[] = [];
 	const haves: string[] = [];
+	let done = false;
 	for (const line of lines) {
 		if (!line) continue;
 		// "want <sha1>" or "want <sha1> <capabilities>" (first line only, NUL-separated)
@@ -366,9 +364,26 @@ export async function handleUploadPackIso(
 				haves.push(sha);
 			}
 		}
+		if (line.startsWith("done")) {
+			done = true;
+		}
 	}
 
 	if (wants.length === 0) {
+		return {
+			status: 200,
+			headers: { "Content-Type": "application/x-git-upload-pack-result" },
+			body: Buffer.concat([pktLine("NAK\n")]),
+		};
+	}
+
+	// We don't implement multi-round negotiation (no multi_ack in our advertised
+	// capabilities), so per protocol the client drives it: it may send several
+	// "have" batches expecting a bare NAK each time, and only the batch carrying
+	// "done" should get the packfile. Sending the pack on a non-final round makes
+	// the client's pkt-line parser choke on the raw "PACK..." bytes it wasn't
+	// expecting yet ("protocol error: bad line length character: PACK").
+	if (haves.length > 0 && !done) {
 		return {
 			status: 200,
 			headers: { "Content-Type": "application/x-git-upload-pack-result" },
@@ -473,62 +488,62 @@ export async function handleReceivePackIso(
 	}
 	const packData = body.slice(pos);
 
-	const localGitdir = await ensureRepositoryHydrated(
+	await withReceivePackLock(
 		ownerKey,
 		repoName,
-		null,
 		defaultBranch,
+		async (localGitdir) => {
+			// ensureRepositoryHydrated may return a path that was inited in R2 but not on
+			// local disk. git.writeRef and indexPack need refs/heads/ and objects/ to exist locally.
+			try {
+				await localFsPromises.access(path.join(localGitdir, "HEAD"));
+			} catch {
+				await localFsPromises.mkdir(localGitdir, { recursive: true });
+				await git.init({ fs, dir: localGitdir, defaultBranch, bare: true });
+			}
+
+			// Write incoming PACK into objects/pack/ so indexPack can process it there
+			if (packData.length >= 4) {
+				const packDir = path.join(localGitdir, "objects", "pack");
+				await localFsPromises.mkdir(packDir, { recursive: true });
+
+				const packName = `pushstack-recv-${Date.now()}`;
+				await localFsPromises.writeFile(
+					path.join(packDir, `${packName}.pack`),
+					packData,
+				);
+
+				// Index the pack (writes .idx next to .pack, resolves external deltas from gitdir)
+				await git.indexPack({
+					fs,
+					dir: packDir,
+					gitdir: localGitdir,
+					filepath: `${packName}.pack`,
+				});
+			}
+
+			// Update refs
+			const ZERO_OID = "0".repeat(40);
+			for (const { newOid, refName } of refUpdates) {
+				if (newOid === ZERO_OID) {
+					await git
+						.deleteRef({ fs, gitdir: localGitdir, ref: refName })
+						.catch(() => {});
+				} else {
+					await git.writeRef({
+						fs,
+						gitdir: localGitdir,
+						ref: refName,
+						value: newOid,
+						force: true,
+					});
+				}
+			}
+
+			await repackLocal(localGitdir);
+		},
+		ownerDbId,
 	);
-
-	// ensureRepositoryHydrated may return a path that was inited in R2 but not on local disk.
-	// git.writeRef and indexPack need refs/heads/ and objects/ to exist locally.
-	try {
-		await localFsPromises.access(path.join(localGitdir, "HEAD"));
-	} catch {
-		await localFsPromises.mkdir(localGitdir, { recursive: true });
-		await git.init({ fs, dir: localGitdir, defaultBranch, bare: true });
-	}
-
-	// Write incoming PACK into objects/pack/ so indexPack can process it there
-	if (packData.length >= 4) {
-		const packDir = path.join(localGitdir, "objects", "pack");
-		await localFsPromises.mkdir(packDir, { recursive: true });
-
-		const packName = `pushstack-recv-${Date.now()}`;
-		await localFsPromises.writeFile(
-			path.join(packDir, `${packName}.pack`),
-			packData,
-		);
-
-		// Index the pack (writes .idx next to .pack, resolves external deltas from gitdir)
-		await git.indexPack({
-			fs,
-			dir: packDir,
-			gitdir: localGitdir,
-			filepath: `${packName}.pack`,
-		});
-	}
-
-	// Update refs
-	const ZERO_OID = "0".repeat(40);
-	for (const { newOid, refName } of refUpdates) {
-		if (newOid === ZERO_OID) {
-			await git
-				.deleteRef({ fs, gitdir: localGitdir, ref: refName })
-				.catch(() => {});
-		} else {
-			await git.writeRef({
-				fs,
-				gitdir: localGitdir,
-				ref: refName,
-				value: newOid,
-				force: true,
-			});
-		}
-	}
-
-	await repackLocal(localGitdir);
-	await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
 
 	const responseBody = Buffer.concat([
 		pktLine("unpack ok\n"),

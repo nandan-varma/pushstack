@@ -2,6 +2,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
+	type ErrorComponentProps,
 	HeadContent,
 	Outlet,
 	Scripts,
@@ -42,7 +43,35 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		],
 	}),
 	component: RootComponent,
+	errorComponent: RootErrorComponent,
 });
+
+// Last-resort fallback so an unhandled error (e.g. a server function throwing
+// a raw git error) renders a recoverable page instead of a blank/crashed app.
+// Route-specific errorComponents (e.g. the repo layout) take precedence over this.
+function RootErrorComponent({ error, reset }: ErrorComponentProps) {
+	return (
+		<RootDocument>
+			<div className="page-wrap px-4 py-20 text-center">
+				<div className="island-shell mx-auto max-w-md rounded-xl p-8">
+					<h1 className="mb-2 text-lg font-semibold text-[var(--sea-ink)]">
+						Something went wrong
+					</h1>
+					<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
+						{error.message || "An unexpected error occurred."}
+					</p>
+					<button
+						type="button"
+						onClick={reset}
+						className="inline-flex h-9 items-center rounded-lg bg-[var(--lagoon-deep)] px-4 text-sm font-medium text-white transition hover:opacity-90"
+					>
+						Try again
+					</button>
+				</div>
+			</div>
+		</RootDocument>
+	);
+}
 
 function RootComponent() {
 	return (

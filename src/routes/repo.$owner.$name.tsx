@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	type ErrorComponentProps,
+	Link,
+	Outlet,
+} from "@tanstack/react-router";
 import { z } from "zod";
 import { CloneModal } from "@/components/CloneModal";
 import { Button } from "@/components/ui/button";
@@ -25,8 +30,39 @@ export const Route = createFileRoute("/repo/$owner/$name")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		),
 	component: RepositoryPage,
+	errorComponent: RepositoryErrorComponent,
 	parseParams: (params) => repoRouteSchema.parse(params),
 });
+
+// Catches errors from this route and its Code/Issues/PRs/Commits tabs — most
+// notably a missing git object (GitObjectNotFoundError) when this repo's stored
+// git data is incomplete, so browsing degrades to a clear message instead of a
+// full-page crash.
+function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
+	const { owner, name } = Route.useParams();
+	return (
+		<div className="page-wrap px-4 py-16 text-center">
+			<div className="island-shell mx-auto max-w-md rounded-xl p-8">
+				<h1 className="mb-2 text-lg font-semibold text-[var(--sea-ink)]">
+					Couldn't load {owner}/{name}
+				</h1>
+				<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
+					{error.message || "An unexpected error occurred."}
+				</p>
+				<div className="flex items-center justify-center gap-2">
+					<Button size="sm" onClick={reset}>
+						Try again
+					</Button>
+					<Link to="/dashboard">
+						<Button size="sm" variant="outline">
+							Back to Dashboard
+						</Button>
+					</Link>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 const tabLinkBase =
 	"border-b-2 border-transparent pb-3 text-sm font-medium text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]";

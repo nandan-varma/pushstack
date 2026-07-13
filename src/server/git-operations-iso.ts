@@ -3,12 +3,33 @@ import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getCache, getCachedObject, setCachedObject, setCache } from "./git-cache";
+import { GitObjectNotFoundError } from "./git-errors";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
 	ensureRepositoryHydrated,
 	syncRepositoryToR2,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
+
+// A resolved ref (branch/commit) not existing is a normal, expected condition (empty
+// repo, unborn branch) and is handled by each caller. An object that fails to resolve
+// *underneath* an already-resolved ref (a tree/blob the stored pack doesn't actually
+// contain) means the repo's git storage is inconsistent — surface that distinctly so
+// callers don't render it as "empty" and the client doesn't see a raw isomorphic-git
+// NotFoundError.
+function wrapMissingObject<T>(
+	promise: Promise<T>,
+	context: string,
+): Promise<T> {
+	return promise.catch((err: unknown) => {
+		if ((err as { code?: string })?.code === "NotFoundError") {
+			throw new GitObjectNotFoundError(
+				`Git data for ${context} is missing from storage. The repository may need to be re-pushed to repair it.`,
+			);
+		}
+		throw err;
+	});
+}
 
 // Build/update a git tree by overlaying new blobs onto an existing tree
 async function upsertTree(
@@ -386,7 +407,10 @@ export async function getBlob(
 	sha: string,
 ): Promise<Buffer> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	const { blob } = await git.readBlob({ ...repo, oid: sha });
+	const { blob } = await wrapMissingObject(
+		git.readBlob({ ...repo, oid: sha }),
+		`${ownerKey}/${repoName} blob ${sha}`,
+	);
 	return Buffer.from(blob);
 }
 
@@ -397,13 +421,19 @@ export async function getFileContent(
 	ref: string = "main",
 ): Promise<Buffer> {
 	const { repo, commit } = await resolveCommit(ownerKey, repoName, ref);
-	const entry = await findTreeEntry(repo, commit.tree, filePath);
+	const entry = await wrapMissingObject(
+		findTreeEntry(repo, commit.tree, filePath),
+		`${ownerKey}/${repoName}@${ref}:${filePath}`,
+	);
 
 	if (!entry || entry.type !== "blob") {
 		throw new Error(`File not found: ${filePath}`);
 	}
 
-	const { blob } = await git.readBlob({ ...repo, oid: entry.oid });
+	const { blob } = await wrapMissingObject(
+		git.readBlob({ ...repo, oid: entry.oid }),
+		`${ownerKey}/${repoName}@${ref}:${filePath}`,
+	);
 	return Buffer.from(blob);
 }
 
@@ -422,7 +452,10 @@ export async function getCommit(
 	sha: string,
 ): Promise<CommitInfo> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	const result = await git.readCommit({ ...repo, oid: sha });
+	const result = await wrapMissingObject(
+		git.readCommit({ ...repo, oid: sha }),
+		`${ownerKey}/${repoName} commit ${sha}`,
+	);
 
 	return {
 		oid: result.oid,
@@ -501,15 +534,25 @@ export async function getTreeFromBranch(
 	const cached = getCachedObject<TreeEntry[]>(cacheKey);
 	if (cached) return cached;
 
+	const context = `${ownerKey}/${repoName}@${branchName}:${treePath || "/"}`;
 	let result: TreeEntry[];
 	if (!treePath) {
-		result = await listTreeEntries(repo, commit.tree);
+		result = await wrapMissingObject(
+			listTreeEntries(repo, commit.tree),
+			context,
+		);
 	} else {
-		const entry = await findTreeEntry(repo, commit.tree, treePath);
+		const entry = await wrapMissingObject(
+			findTreeEntry(repo, commit.tree, treePath),
+			context,
+		);
 		result =
 			!entry || entry.type !== "tree"
 				? []
-				: await listTreeEntries(repo, entry.oid, entry.path);
+				: await wrapMissingObject(
+						listTreeEntries(repo, entry.oid, entry.path),
+						context,
+					);
 	}
 
 	setCachedObject(cacheKey, result);

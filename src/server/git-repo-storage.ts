@@ -278,6 +278,30 @@ async function branchExists(
 	}
 }
 
+// Runs a receive-pack (push) body under a single lock spanning hydrate -> write -> sync,
+// so a concurrent hydrate/push on the same repo can't interleave and clobber
+// not-yet-synced local state (ensureRepositoryHydrated + syncRepositoryToR2 each take
+// the lock independently, which left a gap between them for exactly that race).
+export async function withReceivePackLock<T>(
+	ownerKey: string,
+	repoName: string,
+	defaultBranch: string,
+	fn: (localGitdir: string) => Promise<T>,
+	ownerDbId?: string,
+): Promise<T> {
+	return withRepositoryLock(ownerKey, repoName, async () => {
+		const gitdir = await ensureRepositoryHydratedUnlocked(
+			ownerKey,
+			repoName,
+			null,
+			defaultBranch,
+		);
+		const result = await fn(gitdir);
+		await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
+		return result;
+	});
+}
+
 export async function withRepositoryWorktree<T>(
 	ownerKey: string,
 	repoName: string,
@@ -411,9 +435,17 @@ async function syncRepositoryToR2Unlocked(
 		}
 	}
 
-	// stale check uses all local keys (including skipped objects still present locally)
+	// Never delete anything under objects/ here: git objects are content-addressed and
+	// immutable, and the local checkout is not a reliable source of truth for what
+	// should exist remotely (R2 listing cache, a guarded repackLocal skip, or a
+	// mid-hydration race can all make local transiently incomplete). Treating a
+	// missing-locally object as "stale" and deleting it from R2 is permanent data
+	// loss. Only repackLocal — which has its own object-count safety check — may
+	// remove pack files. Stale-key cleanup here is for mutable refs/config/HEAD only.
 	const localKeys = new Set(localFiles.map((f) => `${prefix}${f}`));
-	const staleKeys = [...remoteKeys].filter((key) => !localKeys.has(key));
+	const staleKeys = [...remoteKeys].filter(
+		(key) => !localKeys.has(key) && !key.startsWith(`${prefix}objects/`),
+	);
 
 	if (staleKeys.length > 0) {
 		await bulkDeleteFromR2(staleKeys);

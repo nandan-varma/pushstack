@@ -41,8 +41,14 @@ vi.mock("../git-storage-naming", () => ({
 
 // --- mock git-repo-storage (used by receive-pack) ---
 vi.mock("../git-repo-storage", () => ({
-	ensureRepositoryHydrated: vi.fn().mockResolvedValue("/tmp/repo"),
-	syncRepositoryToR2: vi.fn().mockResolvedValue(undefined),
+	withReceivePackLock: vi.fn(
+		(
+			_ownerKey: string,
+			_repoName: string,
+			_defaultBranch: string,
+			fn: (gitdir: string) => Promise<unknown>,
+		) => fn("/tmp/repo"),
+	),
 }));
 
 // --- mock node:fs and node:fs/promises for receive-pack ---
@@ -274,6 +280,33 @@ describe("handleUploadPackIso", () => {
 		// 'have' lines should not prevent NAK+pack from being returned
 		const body = Buffer.from(result.body as ArrayBuffer);
 		expect(body.toString("utf8", 4, 8)).toBe("NAK\n");
+	});
+
+	it("returns bare NAK (no pack) when 'have' lines are sent without 'done'", async () => {
+		// Mirrors a mid-negotiation round: the client hasn't decided the exchange
+		// is over yet, so the response must be a NAK only. Shipping the pack here
+		// breaks the client's pkt-line parser (raw "PACK..." isn't a valid length
+		// prefix), surfacing as "protocol error: bad line length character: PACK".
+		const sha = "f".repeat(40);
+		const haveSha = "1".repeat(40);
+
+		const reqBody = Buffer.concat([
+			pktLine(`want ${sha}\n`),
+			Buffer.from("0000"),
+			pktLine(`have ${haveSha}\n`),
+			Buffer.from("0000"),
+		]);
+
+		const req = new Request("http://x/git-upload-pack", {
+			method: "POST",
+			body: reqBody,
+		});
+		const result = await handleUploadPackIso("u", "r", req, AUTH_READ);
+		expect(result.status).toBe(200);
+
+		const body = Buffer.from(result.body as ArrayBuffer);
+		expect(body.toString("utf8", 4, 8)).toBe("NAK\n");
+		expect(body.length).toBe(8); // pkt-line("NAK\n") only, no pack bytes appended
 	});
 });
 
