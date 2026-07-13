@@ -15,6 +15,7 @@ import { getStorageOwnerKey } from "./git-storage-naming";
 import {
 	canModerateRepo,
 	canReadRepo,
+	getRepoOrThrow,
 	getRepositoryAccess,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -288,16 +289,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.id),
-			with: {
-				owner: true,
-			},
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		const repo = await getRepoOrThrow(data.id);
 
 		if (repo.ownerId !== user.id) {
 			throw new Error("Only repository owner can update");
@@ -331,16 +323,7 @@ export const deleteRepository = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.id),
-			with: {
-				owner: true,
-			},
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		const repo = await getRepoOrThrow(data.id);
 
 		if (repo.ownerId !== user.id) {
 			throw new Error("Only repository owner can delete");
@@ -446,13 +429,7 @@ export const addCollaborator = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
 
 		if (repo.ownerId !== user.id) {
 			throw new Error("Only repository owner can add collaborators");
@@ -483,13 +460,7 @@ export const removeCollaborator = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
 
 		if (repo.ownerId !== user.id) {
 			throw new Error("Only repository owner can remove collaborators");
@@ -520,10 +491,7 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-		});
-		if (!repo) throw new Error("Repository not found");
+		const repo = await getRepoOrThrow(data.repoId);
 		if (repo.ownerId !== currentUser.id)
 			throw new Error("Only the owner can add collaborators");
 

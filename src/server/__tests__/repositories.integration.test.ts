@@ -101,6 +101,13 @@ vi.mock("../repo-access", () => ({
 	getRepositoryAccess: vi.fn(() =>
 		Promise.resolve({ canRead: true, canWrite: true, repository: mockRepo }),
 	),
+	getRepoOrThrow: vi.fn(async () => {
+		const repo = await mockDb.query.repositories.findFirst();
+		if (!repo) {
+			throw new Error("Repository not found");
+		}
+		return repo;
+	}),
 }));
 
 describe("Repository Integration Tests", () => {
