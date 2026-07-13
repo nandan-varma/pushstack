@@ -64,13 +64,27 @@ const mockDb = {
 	delete: vi.fn(() => ({
 		where: vi.fn(() => Promise.resolve()),
 	})),
+	select: vi.fn(() => ({
+		from: vi.fn(() => ({
+			where: vi.fn(() => Promise.resolve([{ count: 0 }])),
+		})),
+	})),
 	query: {
 		repositories: {
 			findFirst: vi.fn(),
-			findMany: vi.fn(() => Promise.resolve([])),
+			findMany: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
 		},
 		user: {
-			findFirst: vi.fn(() => Promise.resolve(mockUser)),
+			findFirst: vi.fn(
+				(): Promise<typeof mockUser | undefined> => Promise.resolve(mockUser),
+			),
+		},
+		repositoryCollaborators: {
+			findFirst: vi.fn((): Promise<unknown> => Promise.resolve(undefined)),
+			findMany: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+		},
+		stars: {
+			findFirst: vi.fn((): Promise<unknown> => Promise.resolve(undefined)),
 		},
 	},
 };
@@ -174,6 +188,263 @@ describe("Repository Integration Tests", () => {
 
 			const { deleteRepositoryFromR2 } = await import("../git-repo-storage");
 			expect(deleteRepositoryFromR2).toHaveBeenCalled();
+		});
+	});
+
+	describe("updateRepository", () => {
+		it("throws when caller is not the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				ownerId: "other-user",
+				owner: mockUser,
+			});
+
+			const { updateRepository } = await import("../repositories");
+			await expect(
+				updateRepository({ data: { id: 1, name: "renamed" } }),
+			).rejects.toThrow(/owner/i);
+			expect(mockDb.update).not.toHaveBeenCalled();
+		});
+
+		it("updates fields when caller is the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+
+			const { updateRepository } = await import("../repositories");
+			await updateRepository({ data: { id: 1, name: "renamed" } });
+			expect(mockDb.update).toHaveBeenCalled();
+		});
+	});
+
+	describe("addCollaborator", () => {
+		it("throws when caller is not the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				ownerId: "other-user",
+				owner: mockUser,
+			});
+
+			const { addCollaborator } = await import("../repositories");
+			await expect(
+				addCollaborator({ data: { repoId: 1, userId: "u2" } }),
+			).rejects.toThrow(/owner/i);
+			expect(mockDb.insert).not.toHaveBeenCalled();
+		});
+
+		it("adds the collaborator when caller is the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+
+			const { addCollaborator } = await import("../repositories");
+			await addCollaborator({
+				data: { repoId: 1, userId: "u2", role: "write" },
+			});
+			expect(mockDb.insert).toHaveBeenCalled();
+		});
+	});
+
+	describe("removeCollaborator", () => {
+		it("throws when caller is not the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				ownerId: "other-user",
+				owner: mockUser,
+			});
+
+			const { removeCollaborator } = await import("../repositories");
+			await expect(
+				removeCollaborator({ data: { repoId: 1, userId: "u2" } }),
+			).rejects.toThrow(/owner/i);
+			expect(mockDb.delete).not.toHaveBeenCalled();
+		});
+
+		it("removes the collaborator when caller is the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+
+			const { removeCollaborator } = await import("../repositories");
+			const result = await removeCollaborator({
+				data: { repoId: 1, userId: "u2" },
+			});
+			expect(result.success).toBe(true);
+			expect(mockDb.delete).toHaveBeenCalled();
+		});
+	});
+
+	describe("addCollaboratorByUsername", () => {
+		it("throws when caller is not the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				ownerId: "other-user",
+				owner: mockUser,
+			});
+
+			const { addCollaboratorByUsername } = await import("../repositories");
+			await expect(
+				addCollaboratorByUsername({
+					data: { repoId: 1, username: "target" },
+				}),
+			).rejects.toThrow(/owner/i);
+		});
+
+		it("throws when the target username does not exist", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+			mockDb.query.user.findFirst.mockResolvedValueOnce(undefined);
+
+			const { addCollaboratorByUsername } = await import("../repositories");
+			await expect(
+				addCollaboratorByUsername({
+					data: { repoId: 1, username: "nobody" },
+				}),
+			).rejects.toThrow(/not found/i);
+		});
+
+		it("throws when the owner tries to add themselves", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+			mockDb.query.user.findFirst.mockResolvedValueOnce(mockUser);
+
+			const { addCollaboratorByUsername } = await import("../repositories");
+			await expect(
+				addCollaboratorByUsername({
+					data: { repoId: 1, username: mockUser.username },
+				}),
+			).rejects.toThrow(/already the owner/i);
+		});
+
+		it("inserts a new collaborator when none exists yet", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+			mockDb.query.user.findFirst.mockResolvedValueOnce({
+				...mockUser,
+				id: "target-user",
+				username: "target",
+			});
+			mockDb.query.repositoryCollaborators.findFirst.mockResolvedValueOnce(
+				undefined,
+			);
+
+			const { addCollaboratorByUsername } = await import("../repositories");
+			await addCollaboratorByUsername({
+				data: { repoId: 1, username: "target" },
+			});
+
+			expect(mockDb.insert).toHaveBeenCalled();
+			expect(mockDb.update).not.toHaveBeenCalled();
+		});
+
+		it("updates the role when the collaborator already exists", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+			mockDb.query.user.findFirst.mockResolvedValueOnce({
+				...mockUser,
+				id: "target-user",
+				username: "target",
+			});
+			mockDb.query.repositoryCollaborators.findFirst.mockResolvedValueOnce({
+				id: 42,
+				repoId: 1,
+				userId: "target-user",
+				role: "read",
+			});
+
+			const { addCollaboratorByUsername } = await import("../repositories");
+			await addCollaboratorByUsername({
+				data: { repoId: 1, username: "target", role: "write" },
+			});
+
+			expect(mockDb.update).toHaveBeenCalled();
+			expect(mockDb.insert).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("toggleStar", () => {
+		it("throws when the caller cannot read the repo", async () => {
+			const { canReadRepo } = await import("../repo-access");
+			(canReadRepo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+
+			const { toggleStar } = await import("../repositories");
+			await expect(toggleStar({ data: { repoId: 1 } })).rejects.toThrow(
+				/not found/i,
+			);
+		});
+
+		it("stars the repo when not already starred", async () => {
+			mockDb.query.stars.findFirst.mockResolvedValueOnce(undefined);
+
+			const { toggleStar } = await import("../repositories");
+			const result = await toggleStar({ data: { repoId: 1 } });
+
+			expect(result).toEqual({ starred: true });
+			expect(mockDb.insert).toHaveBeenCalled();
+			expect(mockDb.delete).not.toHaveBeenCalled();
+		});
+
+		it("unstars the repo when already starred", async () => {
+			mockDb.query.stars.findFirst.mockResolvedValueOnce({
+				repoId: 1,
+				userId: mockUser.id,
+			});
+
+			const { toggleStar } = await import("../repositories");
+			const result = await toggleStar({ data: { repoId: 1 } });
+
+			expect(result).toEqual({ starred: false });
+			expect(mockDb.delete).toHaveBeenCalled();
+			expect(mockDb.insert).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("getRepository", () => {
+		it("throws not found when there is no access record", async () => {
+			const { getRepositoryAccess } = await import("../repo-access");
+			(getRepositoryAccess as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+				null,
+			);
+
+			const { getRepository } = await import("../repositories");
+			await expect(getRepository({ data: { id: 1 } })).rejects.toThrow(
+				/not found/i,
+			);
+		});
+
+		it("throws access denied when the caller cannot read the repo", async () => {
+			const { getRepositoryAccess } = await import("../repo-access");
+			(getRepositoryAccess as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+				canRead: false,
+				repository: mockRepo,
+			});
+
+			const { getRepository } = await import("../repositories");
+			await expect(getRepository({ data: { id: 1 } })).rejects.toThrow(
+				/access denied/i,
+			);
+		});
+
+		it("returns the repo with star info when accessible", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue(mockRepo);
+
+			const { getRepository } = await import("../repositories");
+			const result = await getRepository({ data: { id: 1 } });
+
+			expect(result.id).toBe(mockRepo.id);
+			expect(result).toHaveProperty("starCount");
+			expect(result).toHaveProperty("isStarred");
 		});
 	});
 });
