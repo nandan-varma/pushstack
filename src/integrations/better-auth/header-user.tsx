@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "#/lib/auth-client";
+import { Skeleton } from "@/components/ui/skeleton";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
 
 export default function BetterAuthHeader() {

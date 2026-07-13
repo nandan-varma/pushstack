@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatErrorResponse,
 	GitAuthenticationError,
 	GitAuthorizationError,
 	GitConflictError,
@@ -9,10 +10,9 @@ import {
 	GitProtocolError,
 	GitRefNotFoundError,
 	GitRepositoryNotFoundError,
+	isRetryableError,
 	R2DownloadError,
 	R2UploadError,
-	formatErrorResponse,
-	isRetryableError,
 } from "../git-errors";
 
 describe("GitError hierarchy", () => {

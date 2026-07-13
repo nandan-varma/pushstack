@@ -66,9 +66,15 @@ function PullRequestDetailPage() {
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: prQueryKey });
 			if (pr) {
-				queryClient.invalidateQueries({ queryKey: queryKeys.pullRequestsRoot(pr.repoId) });
-				queryClient.invalidateQueries({ queryKey: queryKeys.repoFilesRoot(pr.repoId) });
-				queryClient.invalidateQueries({ queryKey: queryKeys.repoCommitsRoot(pr.repoId) });
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
+				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repoFilesRoot(pr.repoId),
+				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repoCommitsRoot(pr.repoId),
+				});
 			}
 		},
 	});
@@ -78,8 +84,11 @@ function PullRequestDetailPage() {
 		onMutate: async (vars) => {
 			await queryClient.cancelQueries({ queryKey: prQueryKey });
 			const prev = queryClient.getQueryData(prQueryKey);
+			const newStatus = (
+				vars as { data: { status?: "open" | "closed" } } | undefined
+			)?.data.status;
 			queryClient.setQueryData(prQueryKey, (old: typeof pr) =>
-				old ? { ...old, status: vars.data.status ?? old.status } : old,
+				old ? { ...old, status: newStatus ?? old.status } : old,
 			);
 			return { prev };
 		},
@@ -88,7 +97,10 @@ function PullRequestDetailPage() {
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: prQueryKey });
-			if (pr) queryClient.invalidateQueries({ queryKey: queryKeys.pullRequestsRoot(pr.repoId) });
+			if (pr)
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
+				});
 		},
 	});
 

@@ -11,8 +11,8 @@ import {
 } from "@/lib/query-options";
 import {
 	addCollaboratorByUsername,
-	removeCollaborator,
 	deleteRepository,
+	removeCollaborator,
 	updateRepository,
 } from "@/server/repositories";
 
@@ -57,7 +57,12 @@ function GeneralSection({
 	owner,
 	name,
 }: {
-	repo: { id: number; name: string; description: string | null; visibility: string };
+	repo: {
+		id: number;
+		name: string;
+		description: string | null;
+		visibility: string;
+	};
 	owner: string;
 	name: string;
 }) {
@@ -101,7 +106,10 @@ function GeneralSection({
 				</div>
 				<div>
 					<label htmlFor="repo-desc" className={labelCls}>
-						Description <span className="font-normal text-[var(--sea-ink-soft)]">(optional)</span>
+						Description{" "}
+						<span className="font-normal text-[var(--sea-ink-soft)]">
+							(optional)
+						</span>
 					</label>
 					<input
 						id="repo-desc"
@@ -154,7 +162,9 @@ function GeneralSection({
 						{updateMutation.isPending ? "Saving…" : "Save changes"}
 					</Button>
 					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">Saved</span>
+						<span className="text-sm text-green-600 dark:text-green-400">
+							Saved
+						</span>
 					)}
 				</div>
 			</div>
@@ -168,7 +178,9 @@ function CollaboratorsSection({ repoId }: { repoId: number }) {
 	const [role, setRole] = useState<"read" | "write" | "admin">("write");
 	const [addError, setAddError] = useState("");
 
-	const { data: collabs = [] } = useQuery(repoCollaboratorsQueryOptions(repoId));
+	const { data: collabs = [] } = useQuery(
+		repoCollaboratorsQueryOptions(repoId),
+	);
 
 	const addMutation = useMutation({
 		mutationFn: addCollaboratorByUsername,
@@ -228,7 +240,9 @@ function CollaboratorsSection({ repoId }: { repoId: number }) {
 						))}
 					</ul>
 				) : (
-					<p className="text-sm text-[var(--sea-ink-soft)]">No collaborators yet.</p>
+					<p className="text-sm text-[var(--sea-ink-soft)]">
+						No collaborators yet.
+					</p>
 				)}
 
 				{/* Add collaborator */}
@@ -240,7 +254,9 @@ function CollaboratorsSection({ repoId }: { repoId: number }) {
 						onChange={(e) => setUsername(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && username.trim())
-								addMutation.mutate({ data: { repoId, username: username.trim(), role } });
+								addMutation.mutate({
+									data: { repoId, username: username.trim(), role },
+								});
 						}}
 					/>
 					<select
@@ -255,7 +271,9 @@ function CollaboratorsSection({ repoId }: { repoId: number }) {
 					<Button
 						disabled={!username.trim() || addMutation.isPending}
 						onClick={() =>
-							addMutation.mutate({ data: { repoId, username: username.trim(), role } })
+							addMutation.mutate({
+								data: { repoId, username: username.trim(), role },
+							})
 						}
 					>
 						{addMutation.isPending ? "Adding…" : "Add"}
@@ -332,7 +350,10 @@ function RepoSettingsPage() {
 			<div className="page-wrap px-4 py-10">
 				<div className="mx-auto max-w-2xl space-y-4">
 					{[1, 2, 3].map((i) => (
-						<div key={i} className="h-40 animate-pulse rounded-2xl bg-[var(--surface-raised)]" />
+						<div
+							key={i}
+							className="h-40 animate-pulse rounded-2xl bg-[var(--surface-raised)]"
+						/>
 					))}
 				</div>
 			</div>
@@ -344,7 +365,9 @@ function RepoSettingsPage() {
 			<div className="page-wrap px-4 py-10 text-center">
 				<p className="text-[var(--sea-ink-soft)]">Repository not found.</p>
 				<Link to="/repositories">
-					<Button className="mt-4" size="sm">Back</Button>
+					<Button className="mt-4" size="sm">
+						Back
+					</Button>
 				</Link>
 			</div>
 		);
@@ -354,7 +377,9 @@ function RepoSettingsPage() {
 	if (!isOwner) {
 		return (
 			<div className="page-wrap px-4 py-10 text-center">
-				<p className="text-[var(--sea-ink-soft)]">You don't have permission to view settings.</p>
+				<p className="text-[var(--sea-ink-soft)]">
+					You don't have permission to view settings.
+				</p>
 			</div>
 		);
 	}

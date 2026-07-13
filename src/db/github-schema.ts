@@ -186,7 +186,10 @@ export const activities = pgTable(
 		repoIdx: index("activity_repo_idx").on(table.repoId),
 		typeIdx: index("activity_type_idx").on(table.type),
 		// composite indices for user feed queries (userId + createdAt, userId + repoId)
-		userCreatedIdx: index("activity_user_created_idx").on(table.userId, table.createdAt),
+		userCreatedIdx: index("activity_user_created_idx").on(
+			table.userId,
+			table.createdAt,
+		),
 		userRepoIdx: index("activity_user_repo_idx").on(table.userId, table.repoId),
 	}),
 );

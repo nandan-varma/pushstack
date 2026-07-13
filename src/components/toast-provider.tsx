@@ -1,9 +1,9 @@
 import {
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useState,
-	type ReactNode,
 } from "react";
 
 type ToastType = "success" | "error" | "info";

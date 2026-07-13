@@ -58,7 +58,9 @@ async function listAllRefs(gitdir: string, defaultBranch = "main") {
 		git.listTags({ fs: r2Backend, gitdir }),
 		git.resolveRef({ fs: r2Backend, gitdir, ref: "HEAD" }).catch(() => null),
 		// Wrap with Promise.resolve so a mock/stub returning undefined doesn't crash .then()
-		Promise.resolve(git.currentBranch({ fs: r2Backend, gitdir, fullname: true }))
+		Promise.resolve(
+			git.currentBranch({ fs: r2Backend, gitdir, fullname: true }),
+		)
 			.then((cb) => cb ?? `refs/heads/${defaultBranch}`)
 			.catch(() => `refs/heads/${defaultBranch}`),
 	]);
@@ -169,9 +171,13 @@ async function repackLocal(localGitdir: string): Promise<void> {
 	try {
 		// Null-coalesce to [] so a mock/stub returning undefined never crashes .map()
 		const branches: string[] =
-			(await Promise.resolve(git.listBranches({ fs, gitdir: localGitdir })).catch(() => null)) ?? [];
+			(await Promise.resolve(
+				git.listBranches({ fs, gitdir: localGitdir }),
+			).catch(() => null)) ?? [];
 		const tags: string[] =
-			(await Promise.resolve(git.listTags({ fs, gitdir: localGitdir })).catch(() => null)) ?? [];
+			(await Promise.resolve(git.listTags({ fs, gitdir: localGitdir })).catch(
+				() => null,
+			)) ?? [];
 
 		const tipOids = (
 			await Promise.all([
@@ -224,7 +230,9 @@ async function repackLocal(localGitdir: string): Promise<void> {
 		);
 		const [newIdxBuf, ...oldIdxBufs] = await Promise.all([
 			Promise.resolve()
-				.then(() => localFsPromises.readFile(path.join(packDir, `${newName}.idx`)))
+				.then(() =>
+					localFsPromises.readFile(path.join(packDir, `${newName}.idx`)),
+				)
 				.catch(() => null),
 			...oldIdxNames.map((n) =>
 				Promise.resolve()
@@ -399,7 +407,9 @@ export async function handleUploadPackIso(
 		const entries = await r2Backend.readdir(packDirPath).catch(() => []);
 		const packNames = entries.filter((f) => f.endsWith(".pack"));
 		if (packNames.length === 1) {
-			const packData = await r2Backend.readFile(`${packDirPath}/${packNames[0]}`);
+			const packData = await r2Backend.readFile(
+				`${packDirPath}/${packNames[0]}`,
+			);
 			return {
 				status: 200,
 				headers: {
@@ -408,7 +418,9 @@ export async function handleUploadPackIso(
 				},
 				body: Buffer.concat([
 					pktLine("NAK\n"),
-					Buffer.isBuffer(packData) ? packData : Buffer.from(packData as string),
+					Buffer.isBuffer(packData)
+						? packData
+						: Buffer.from(packData as string),
 				]),
 			};
 		}

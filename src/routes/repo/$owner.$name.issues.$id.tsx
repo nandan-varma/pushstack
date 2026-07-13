@@ -51,8 +51,11 @@ function IssueDetailPage() {
 		onMutate: async (vars) => {
 			await queryClient.cancelQueries({ queryKey: issueQueryKey });
 			const prev = queryClient.getQueryData(issueQueryKey);
+			const newStatus = (
+				vars as { data: { status?: "open" | "closed" } } | undefined
+			)?.data.status;
 			queryClient.setQueryData(issueQueryKey, (old: typeof issue) =>
-				old ? { ...old, status: vars.data.status ?? old.status } : old,
+				old ? { ...old, status: newStatus ?? old.status } : old,
 			);
 			return { prev };
 		},
@@ -61,7 +64,10 @@ function IssueDetailPage() {
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: issueQueryKey });
-			if (issue) queryClient.invalidateQueries({ queryKey: queryKeys.repoIssuesRoot(issue.repoId) });
+			if (issue)
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repoIssuesRoot(issue.repoId),
+				});
 		},
 	});
 

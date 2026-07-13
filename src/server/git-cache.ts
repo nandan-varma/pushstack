@@ -31,17 +31,17 @@ export function invalidateCache(prefix: string): void {
 
 // Parsed-object cache — stores JS values directly, avoiding JSON.parse on every hit
 // ponytail: separate instance so sizeCalculation can use JSON.stringify length estimate
-const objectCache = new LRUCache<string, unknown>({
+const objectCache = new LRUCache<string, object>({
 	maxSize: MAX_SIZE / 4,
 	sizeCalculation: (v) => JSON.stringify(v).length,
 	ttl: TTL,
 });
 
-export function getCachedObject<T>(key: string): T | null {
+export function getCachedObject<T extends object>(key: string): T | null {
 	return (objectCache.get(key) as T) ?? null;
 }
 
-export function setCachedObject<T>(key: string, value: T): void {
+export function setCachedObject<T extends object>(key: string, value: T): void {
 	objectCache.set(key, value);
 }
 

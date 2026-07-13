@@ -3,7 +3,7 @@
  * Covers the pkt-line helpers and the info/refs + upload-pack happy paths.
  */
 
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // --- mock isomorphic-git ---
 const mockGit = vi.hoisted(() => ({

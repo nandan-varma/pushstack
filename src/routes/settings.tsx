@@ -30,7 +30,9 @@ function Section({
 }) {
 	return (
 		<Card className="p-6">
-			<h2 className="mb-1 text-base font-semibold text-[var(--sea-ink)]">{title}</h2>
+			<h2 className="mb-1 text-base font-semibold text-[var(--sea-ink)]">
+				{title}
+			</h2>
 			{description && (
 				<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">{description}</p>
 			)}
@@ -39,13 +41,7 @@ function Section({
 	);
 }
 
-function ProfileSection({
-	name,
-	email,
-}: {
-	name: string;
-	email: string;
-}) {
+function ProfileSection({ name, email }: { name: string; email: string }) {
 	const queryClient = useQueryClient();
 	const [displayName, setDisplayName] = useState(name);
 	const [loading, setLoading] = useState(false);
@@ -56,7 +52,9 @@ function ProfileSection({
 		if (!displayName.trim() || displayName === name) return;
 		setLoading(true);
 		setError("");
-		const { error: err } = await authClient.updateUser({ name: displayName.trim() });
+		const { error: err } = await authClient.updateUser({
+			name: displayName.trim(),
+		});
 		setLoading(false);
 		if (err) {
 			setError(err.message ?? "Failed to update profile");
@@ -89,7 +87,9 @@ function ProfileSection({
 						Change your email in the Email section below.
 					</p>
 				</div>
-				{error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+				{error && (
+					<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+				)}
 				<div className="flex items-center gap-3">
 					<Button
 						disabled={loading || !displayName.trim() || displayName === name}
@@ -98,7 +98,9 @@ function ProfileSection({
 						{loading ? "Saving…" : "Save"}
 					</Button>
 					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">Saved</span>
+						<span className="text-sm text-green-600 dark:text-green-400">
+							Saved
+						</span>
 					)}
 				</div>
 			</div>
@@ -136,7 +138,8 @@ function EmailSection({ currentEmail }: { currentEmail: string }) {
 		>
 			{sent ? (
 				<div className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-800 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300">
-					Verification email sent. Check your inbox and click the link to confirm the change.
+					Verification email sent. Check your inbox and click the link to
+					confirm the change.
 				</div>
 			) : (
 				<div className="space-y-4">
@@ -154,7 +157,9 @@ function EmailSection({ currentEmail }: { currentEmail: string }) {
 							onKeyDown={(e) => e.key === "Enter" && change()}
 						/>
 					</div>
-					{error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+					{error && (
+						<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+					)}
 					<Button
 						disabled={loading || !newEmail.trim() || newEmail === currentEmail}
 						onClick={change}
@@ -177,7 +182,10 @@ function PasswordSection() {
 
 	const save = async () => {
 		if (!current || !next || next !== confirm) return;
-		if (next.length < 8) { setError("Password must be at least 8 characters"); return; }
+		if (next.length < 8) {
+			setError("Password must be at least 8 characters");
+			return;
+		}
 		setLoading(true);
 		setError("");
 		const { error: err } = await authClient.changePassword({
@@ -189,7 +197,9 @@ function PasswordSection() {
 		if (err) {
 			setError(err.message ?? "Failed to change password");
 		} else {
-			setCurrent(""); setNext(""); setConfirm("");
+			setCurrent("");
+			setNext("");
+			setConfirm("");
 			setSuccess(true);
 			setTimeout(() => setSuccess(false), 2500);
 		}
@@ -201,7 +211,9 @@ function PasswordSection() {
 		<Section title="Password" description="Must be at least 8 characters.">
 			<div className="space-y-4">
 				<div>
-					<label htmlFor="current-pw" className={labelCls}>Current password</label>
+					<label htmlFor="current-pw" className={labelCls}>
+						Current password
+					</label>
 					<input
 						id="current-pw"
 						type="password"
@@ -212,7 +224,9 @@ function PasswordSection() {
 					/>
 				</div>
 				<div>
-					<label htmlFor="new-pw" className={labelCls}>New password</label>
+					<label htmlFor="new-pw" className={labelCls}>
+						New password
+					</label>
 					<input
 						id="new-pw"
 						type="password"
@@ -223,7 +237,9 @@ function PasswordSection() {
 					/>
 				</div>
 				<div>
-					<label htmlFor="confirm-pw" className={labelCls}>Confirm new password</label>
+					<label htmlFor="confirm-pw" className={labelCls}>
+						Confirm new password
+					</label>
 					<input
 						id="confirm-pw"
 						type="password"
@@ -234,19 +250,31 @@ function PasswordSection() {
 						onKeyDown={(e) => e.key === "Enter" && save()}
 					/>
 					{mismatch && (
-						<p className="mt-1 text-xs text-red-600 dark:text-red-400">Passwords don't match</p>
+						<p className="mt-1 text-xs text-red-600 dark:text-red-400">
+							Passwords don't match
+						</p>
 					)}
 				</div>
-				{error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+				{error && (
+					<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+				)}
 				<div className="flex items-center gap-3">
 					<Button
-						disabled={loading || !current || !next || next !== confirm || next.length < 8}
+						disabled={
+							loading ||
+							!current ||
+							!next ||
+							next !== confirm ||
+							next.length < 8
+						}
 						onClick={save}
 					>
 						{loading ? "Saving…" : "Change password"}
 					</Button>
 					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">Password updated</span>
+						<span className="text-sm text-green-600 dark:text-green-400">
+							Password updated
+						</span>
 					)}
 				</div>
 			</div>
@@ -263,7 +291,9 @@ function SettingsPage() {
 	return (
 		<div className="page-wrap px-4 py-10">
 			<div className="mx-auto max-w-2xl space-y-6">
-				<h1 className="text-2xl font-bold text-[var(--sea-ink)]">Account settings</h1>
+				<h1 className="text-2xl font-bold text-[var(--sea-ink)]">
+					Account settings
+				</h1>
 				<ProfileSection name={user.name} email={user.email} />
 				<EmailSection currentEmail={user.email} />
 				<PasswordSection />

@@ -69,13 +69,13 @@ DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
 
 export {
 	DropdownMenu,
-	DropdownMenuTrigger,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuGroup,
 	DropdownMenuPortal,
-	DropdownMenuSub,
 	DropdownMenuRadioGroup,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuTrigger,
 };

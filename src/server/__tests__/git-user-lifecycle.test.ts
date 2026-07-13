@@ -166,7 +166,7 @@ vi.mock("../../db", async () => {
 	const db = drizzle(client, { schema });
 	const { apply } = await pushSchema(
 		schema as unknown as Record<string, unknown>,
-		db,
+		db as unknown as Parameters<typeof pushSchema>[1],
 	);
 	await apply();
 

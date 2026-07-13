@@ -17,9 +17,9 @@ const TEST_DIR = vi.hoisted(() => {
 	return dir;
 });
 
+import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
 // Import after env is set
 import { initBareRepo } from "../git-manager-iso";
-import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
 import { analyzeMerge, mergeBranches } from "../git-merge-iso";
 import {
 	checkoutBranch,

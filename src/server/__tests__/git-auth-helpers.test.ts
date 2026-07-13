@@ -129,7 +129,11 @@ describe("authenticateGitRequest", () => {
 			mockCanWrite.mockResolvedValue(true);
 
 			// reqWithCookie so session auth runs (our shortcut skips getSession for cookie-less requests)
-			const ctx = await authenticateGitRequest(reqWithCookie(), "alice", "repo");
+			const ctx = await authenticateGitRequest(
+				reqWithCookie(),
+				"alice",
+				"repo",
+			);
 
 			expect(ctx.canRead).toBe(true);
 			expect(ctx.canWrite).toBe(true);

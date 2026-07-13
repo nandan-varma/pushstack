@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
-import { getCache, getCachedObject, setCachedObject, setCache } from "./git-cache";
+import { getCachedObject, setCachedObject } from "./git-cache";
 import { GitObjectNotFoundError } from "./git-errors";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {

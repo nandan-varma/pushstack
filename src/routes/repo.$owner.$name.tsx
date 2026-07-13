@@ -165,7 +165,9 @@ function RepositoryPage() {
 					<CloneModal owner={owner} repoName={name} />
 					<button
 						type="button"
-						onClick={() => session && starMutation.mutate({ data: { repoId: repo.id } })}
+						onClick={() =>
+							session && starMutation.mutate({ data: { repoId: repo.id } })
+						}
 						className={`flex items-center gap-0 overflow-hidden rounded-md border text-sm font-medium transition-colors ${
 							repo.isStarred
 								? "border-[var(--lagoon-deep)] bg-[var(--lagoon-deep)] text-white"
