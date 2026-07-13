@@ -233,6 +233,93 @@ pre code {
   color: inherit;
 }
 
+.shiki,
+.shiki span {
+  color: var(--shiki-light) !important;
+  background-color: var(--shiki-light-bg) !important;
+}
+
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark, var(--shiki-light)) !important;
+  background-color: var(--shiki-dark-bg, var(--shiki-light-bg)) !important;
+}
+
+.code-viewer-html pre.shiki {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 0;
+  border: 0;
+  line-height: 1.5;
+  font-size: 0.875rem;
+  white-space: pre;
+}
+
+.code-viewer-html pre.shiki code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.diff-patch {
+  margin: 0;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 3.5rem 3.5rem 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  min-height: 1.5rem;
+}
+
+.diff-gutter {
+  text-align: right;
+  padding: 0.1rem 0.65rem 0.1rem 0.35rem;
+  color: var(--sea-ink-soft);
+  border-right: 1px solid var(--line);
+  user-select: none;
+}
+
+.diff-prefix {
+  text-align: center;
+  color: var(--sea-ink-soft);
+  border-right: 1px solid var(--line);
+  user-select: none;
+}
+
+.diff-code {
+  padding: 0.1rem 0.65rem;
+  white-space: pre;
+}
+
+.diff-line--meta,
+.diff-line--hunk {
+  background: color-mix(in oklab, var(--chip-bg) 78%, transparent);
+}
+
+.diff-line--hunk .diff-code {
+  color: var(--lagoon-deep);
+  font-weight: 600;
+}
+
+.diff-line--add {
+  background: color-mix(in oklab, var(--palm) 12%, transparent);
+}
+
+.diff-line--add .diff-prefix {
+  color: color-mix(in oklab, var(--palm) 78%, black 22%);
+}
+
+.diff-line--remove {
+  background: color-mix(in oklab, #ef4444 12%, transparent);
+}
+
+.diff-line--remove .diff-prefix {
+  color: color-mix(in oklab, #ef4444 72%, black 28%);
+}
+
 .prose pre {
   border: 1px solid var(--line);
   border-radius: 12px;
