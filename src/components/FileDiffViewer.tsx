@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { ThemedToken } from "shiki";
 import { detectLanguage, isLargeContent } from "@/lib/language-detection";
 import { requestHighlightTokens } from "@/lib/syntax-highlight-client";
@@ -21,6 +22,15 @@ interface ParsedDiffLine {
 	highlightText: string;
 	oldLine: number | null;
 	newLine: number | null;
+}
+
+interface ParsedFileDiff extends FileDiff {
+	language: string;
+	lines: ParsedDiffLine[];
+	highlightSource: string;
+	additions: number;
+	deletions: number;
+	hunks: number;
 }
 
 const HUNK_HEADER_RE = /^@@\s-([0-9]+)(?:,[0-9]+)?\s\+([0-9]+)(?:,[0-9]+)?\s@@/;
@@ -185,19 +195,28 @@ export function FileDiffViewer({
 	emptyMessage?: string;
 	summaryExtra?: ReactNode;
 }) {
-	const parsedFiles = useMemo(
+	const parsedFiles = useMemo<ParsedFileDiff[]>(
 		() =>
 			(files ?? []).map((fileDiff) => {
 				const lines = parsePatch(fileDiff.patch);
+				const additions = lines.filter((line) => line.kind === "add").length;
+				const deletions = lines.filter((line) => line.kind === "remove").length;
+				const hunks = lines.filter((line) => line.kind === "hunk").length;
+
 				return {
 					...fileDiff,
 					language: detectLanguage(fileDiff.path),
 					lines,
 					highlightSource: lines.map((line) => line.highlightText).join("\n"),
+					additions,
+					deletions,
+					hunks,
 				};
 			}),
 		[files],
 	);
+
+	const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
 
 	const [lineTokensByPath, setLineTokensByPath] = useState<
 		Record<string, ThemedToken[][]>
@@ -250,6 +269,22 @@ export function FileDiffViewer({
 		};
 	}, [parsedFiles]);
 
+	useEffect(() => {
+		if (parsedFiles.length === 0) {
+			setExpandedPaths({});
+			return;
+		}
+
+		setExpandedPaths((previous) => {
+			const next: Record<string, boolean> = {};
+			for (const fileDiff of parsedFiles) {
+				next[fileDiff.path] =
+					previous[fileDiff.path] ?? fileDiff.lines.length <= 180;
+			}
+			return next;
+		});
+	}, [parsedFiles]);
+
 	if (isLoading) {
 		return <Skeleton className="h-48" />;
 	}
@@ -264,44 +299,108 @@ export function FileDiffViewer({
 
 	return (
 		<div className="mt-4 space-y-4">
-			{summaryExtra}
+			<div className="diff-viewer-toolbar flex flex-wrap items-center justify-between gap-2">
+				{summaryExtra}
+				{parsedFiles.length > 1 ? (
+					<div className="flex items-center gap-2 text-xs">
+						<button
+							type="button"
+							className="rounded-md border border-[var(--line)] bg-[var(--chip-bg)] px-2.5 py-1 text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+							onClick={() => {
+								setExpandedPaths(
+									Object.fromEntries(
+										parsedFiles.map((fileDiff) => [fileDiff.path, true]),
+									),
+								);
+							}}
+						>
+							Expand all
+						</button>
+						<button
+							type="button"
+							className="rounded-md border border-[var(--line)] bg-[var(--chip-bg)] px-2.5 py-1 text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+							onClick={() => {
+								setExpandedPaths(
+									Object.fromEntries(
+										parsedFiles.map((fileDiff) => [fileDiff.path, false]),
+									),
+								);
+							}}
+						>
+							Collapse all
+						</button>
+					</div>
+				) : null}
+			</div>
 			{parsedFiles.map((fileDiff) => (
 				<div
 					key={fileDiff.path}
-					className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4"
+					className="diff-file-card rounded-lg border border-[var(--line)] bg-[var(--surface)]"
 				>
-					<div className="mb-3 flex items-center justify-between">
-						<code className="text-sm font-medium text-[var(--sea-ink)]">
-							{fileDiff.path}
-						</code>
-						<span className="text-xs uppercase text-[var(--sea-ink-soft)]">
-							{fileDiff.status}
-						</span>
-					</div>
-					<pre className="diff-patch overflow-x-auto rounded border border-[var(--line)] bg-[var(--chip-bg)] p-0 text-xs text-[var(--sea-ink)]">
-						<code>
-							{fileDiff.lines.map((line, lineIndex) => (
-								<div
-									key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
-									className={`diff-line diff-line--${line.kind}`}
-								>
-									<span className="diff-gutter diff-gutter--old">
-										{line.oldLine ?? ""}
-									</span>
-									<span className="diff-gutter diff-gutter--new">
-										{line.newLine ?? ""}
-									</span>
-									<span className="diff-prefix">{line.prefix}</span>
-									<span className="diff-code">
-										{renderLineCode(
-											line,
-											lineTokensByPath[fileDiff.path]?.[lineIndex],
-										)}
-									</span>
-								</div>
-							))}
-						</code>
-					</pre>
+					<button
+						type="button"
+						className="diff-file-header flex w-full items-center justify-between gap-3 rounded-t-lg px-4 py-3 text-left"
+						onClick={() => {
+							setExpandedPaths((previous) => ({
+								...previous,
+								[fileDiff.path]: !previous[fileDiff.path],
+							}));
+						}}
+						aria-expanded={expandedPaths[fileDiff.path] ?? false}
+					>
+						<div className="flex min-w-0 items-center gap-2.5">
+							<ChevronRight
+								className={`size-4 shrink-0 text-[var(--sea-ink-soft)] transition-transform ${expandedPaths[fileDiff.path] ? "rotate-90" : ""}`}
+							/>
+							<code className="truncate text-sm font-medium text-[var(--sea-ink)]">
+								{fileDiff.path}
+							</code>
+						</div>
+						<div className="flex shrink-0 items-center gap-2 text-xs">
+							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+								+{fileDiff.additions}
+							</span>
+							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+								-{fileDiff.deletions}
+							</span>
+							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 uppercase tracking-wide text-[var(--sea-ink-soft)]">
+								{fileDiff.status}
+							</span>
+						</div>
+					</button>
+					{expandedPaths[fileDiff.path] ? (
+						<div className="px-4 pb-4">
+							<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-[var(--line)] bg-[var(--chip-bg)] p-0 text-xs text-[var(--sea-ink)]">
+								<code>
+									{fileDiff.lines.map((line, lineIndex) => (
+										<div
+											key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
+											className={`diff-line diff-line--${line.kind}`}
+										>
+											<span className="diff-gutter diff-gutter--old">
+												{line.oldLine ?? ""}
+											</span>
+											<span className="diff-gutter diff-gutter--new">
+												{line.newLine ?? ""}
+											</span>
+											<span className="diff-prefix">{line.prefix}</span>
+											<span className="diff-code">
+												{renderLineCode(
+													line,
+													lineTokensByPath[fileDiff.path]?.[lineIndex],
+												)}
+											</span>
+										</div>
+									))}
+								</code>
+							</pre>
+						</div>
+					) : (
+						<p className="px-4 pb-4 text-xs text-[var(--sea-ink-soft)]">
+							{fileDiff.lines.length} lines changed across {fileDiff.hunks} hunk
+							{fileDiff.hunks === 1 ? "" : "s"}.
+						</p>
+					)}
 				</div>
 			))}
 		</div>

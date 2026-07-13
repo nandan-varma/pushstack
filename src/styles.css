@@ -267,6 +267,31 @@ pre code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
+.diff-file-card {
+  overflow: hidden;
+}
+
+.diff-file-header {
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--surface-strong) 84%, transparent),
+    color-mix(in oklab, var(--chip-bg) 70%, transparent)
+  );
+}
+
+.diff-file-header:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--surface-strong) 92%, transparent),
+    color-mix(in oklab, var(--chip-bg) 82%, transparent)
+  );
+}
+
+.diff-scroll-area {
+  max-height: min(72vh, 920px);
+}
+
 .diff-line {
   display: grid;
   grid-template-columns: 3.5rem 3.5rem 1.25rem minmax(0, 1fr);
