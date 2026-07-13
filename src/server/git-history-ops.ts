@@ -1,6 +1,6 @@
 import git from "isomorphic-git";
 import { getCachedObject, setCachedObject } from "./git-cache";
-import { GitObjectNotFoundError } from "./git-errors";
+import { GitObjectNotFoundError, GitPathNotFoundError } from "./git-errors";
 import { getRepoOptions } from "./git-repo-storage";
 import { findTreeEntry, listTreeEntries, type TreeEntry } from "./git-tree-ops";
 
@@ -198,8 +198,13 @@ export async function getTreeFromBranch(
 			findTreeEntry(repo, commit.tree, treePath),
 			context,
 		);
+		if (!entry) {
+			throw new GitPathNotFoundError(
+				`Path "${treePath}" does not exist in ${repoName}@${branchName}`,
+			);
+		}
 		result =
-			entry?.type !== "tree"
+			entry.type !== "tree"
 				? []
 				: await wrapMissingObject(
 						listTreeEntries(repo, entry.oid, entry.path),

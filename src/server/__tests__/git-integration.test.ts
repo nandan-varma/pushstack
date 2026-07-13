@@ -225,9 +225,10 @@ describe("getTree (subdirectory)", () => {
 		expect(entries.map((e) => e.path)).toContain("src/index.js");
 	});
 
-	it("returns empty for non-existent path", async () => {
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "nonexistent");
-		expect(entries).toHaveLength(0);
+	it("throws for non-existent path", async () => {
+		await expect(
+			getTreeFromBranch(OWNER, REPO, "main", "nonexistent"),
+		).rejects.toThrow(/does not exist/);
 	});
 });
 

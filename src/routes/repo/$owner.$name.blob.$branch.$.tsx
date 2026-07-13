@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,22 +23,13 @@ export const Route = createFileRoute("/repo/$owner/$name/blob/$branch/$")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			try {
-				await queryClient.ensureQueryData(
-					repositoryFileQueryOptions({
-						repoId: repo.id,
-						branchName: params.branch,
-						path: params._splat || "",
-					}),
-				);
-			} catch (_err) {
-				// Directory path — redirect to tree view on the index route
-				throw redirect({
-					to: "/repo/$owner/$name",
-					params: { owner: params.owner, name: params.name },
-					search: { branch: params.branch, path: params._splat || undefined },
-				});
-			}
+			await queryClient.ensureQueryData(
+				repositoryFileQueryOptions({
+					repoId: repo.id,
+					branchName: params.branch,
+					path: params._splat || "",
+				}),
+			);
 		}
 	},
 	component: FileBlobPage,
@@ -84,8 +75,8 @@ function FileBlobPage() {
 					The file "{filePath}" does not exist in the {branch} branch.
 				</p>
 				<Link
-					to="/repo/$owner/$name"
-					params={{ owner, name }}
+					to="/repo/$owner/$name/tree/$branch/$"
+					params={{ owner, name, branch, _splat: "" }}
 					className="mt-4 inline-block"
 				>
 					<Button variant="outline">Back to Files</Button>
@@ -135,13 +126,14 @@ function FileBlobPage() {
 				</div>
 				<div className="flex items-center gap-2">
 					<Link
-						to="/repo/$owner/$name"
-						params={{ owner, name }}
-						search={{
+						to="/repo/$owner/$name/tree/$branch/$"
+						params={{
+							owner,
+							name,
 							branch,
-							path: filePath.includes("/")
+							_splat: filePath.includes("/")
 								? filePath.slice(0, filePath.lastIndexOf("/"))
-								: undefined,
+								: "",
 						}}
 					>
 						<Button variant="outline" size="sm">
@@ -157,8 +149,8 @@ function FileBlobPage() {
 			{/* Breadcrumbs */}
 			<div className="flex items-center gap-2 text-sm text-[var(--sea-ink-soft)]">
 				<Link
-					to="/repo/$owner/$name"
-					params={{ owner, name }}
+					to="/repo/$owner/$name/tree/$branch/$"
+					params={{ owner, name, branch, _splat: "" }}
 					className="hover:text-[var(--lagoon-deep)]"
 				>
 					{name}
@@ -175,9 +167,8 @@ function FileBlobPage() {
 								</span>
 							) : (
 								<Link
-									to="/repo/$owner/$name"
-									params={{ owner, name }}
-									search={{ branch, path: pathSoFar }}
+									to="/repo/$owner/$name/tree/$branch/$"
+									params={{ owner, name, branch, _splat: pathSoFar }}
 									className="hover:text-[var(--lagoon-deep)]"
 								>
 									{part}

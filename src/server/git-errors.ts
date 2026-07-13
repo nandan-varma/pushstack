@@ -29,6 +29,15 @@ export class GitError extends Error {
 }
 
 /**
+ * Git path (file/directory) not found within the tree (404)
+ */
+export class GitPathNotFoundError extends GitError {
+	constructor(message: string) {
+		super(message, 404, false);
+	}
+}
+
+/**
  * Git object not found (404)
  */
 export class GitObjectNotFoundError extends GitError {
