@@ -486,6 +486,26 @@ export const createComment = createServerFn({ method: "POST" })
 			throw new Error("Must specify issueId or pullRequestId");
 		}
 
+		if (data.issueId) {
+			const issue = await db.query.issues.findFirst({
+				where: eq(issues.id, data.issueId),
+			});
+			if (!issue || issue.repoId !== data.repoId) {
+				throw new Error("Issue does not belong to the specified repository");
+			}
+		}
+
+		if (data.pullRequestId) {
+			const pullRequest = await db.query.pullRequests.findFirst({
+				where: eq(pullRequests.id, data.pullRequestId),
+			});
+			if (!pullRequest || pullRequest.repoId !== data.repoId) {
+				throw new Error(
+					"Pull request does not belong to the specified repository",
+				);
+			}
+		}
+
 		const [comment] = await db
 			.insert(comments)
 			.values({
