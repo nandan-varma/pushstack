@@ -11,6 +11,7 @@ import * as localFsPromises from "node:fs/promises";
 import path from "node:path";
 import git, { type FsClient } from "isomorphic-git";
 import type { GitAuthContext } from "./git-auth";
+import { GitAuthorizationError } from "./git-errors";
 import { r2Backend } from "./git-r2-backend";
 import { withReceivePackLock } from "./git-repo-storage";
 import { getRepoGitStorageRoot } from "./git-storage-naming";
@@ -285,18 +286,14 @@ export async function handleInfoRefsIso(
 	defaultBranch = "main",
 ): Promise<GitHttpResult> {
 	if (service === "git-upload-pack" && !authContext.canRead) {
-		return {
-			status: 403,
-			headers: { "Content-Type": "text/plain" },
-			body: "Forbidden",
-		};
+		throw new GitAuthorizationError(
+			"Access denied: insufficient read permissions",
+		);
 	}
 	if (service === "git-receive-pack" && !authContext.canWrite) {
-		return {
-			status: 403,
-			headers: { "Content-Type": "text/plain" },
-			body: "Forbidden",
-		};
+		throw new GitAuthorizationError(
+			"Access denied: insufficient write permissions",
+		);
 	}
 
 	const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
@@ -346,11 +343,9 @@ export async function handleUploadPackIso(
 	authContext: GitAuthContext,
 ): Promise<GitHttpResult> {
 	if (!authContext.canRead) {
-		return {
-			status: 403,
-			headers: { "Content-Type": "text/plain" },
-			body: "Forbidden",
-		};
+		throw new GitAuthorizationError(
+			"Access denied: insufficient read permissions",
+		);
 	}
 
 	const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
@@ -460,11 +455,9 @@ export async function handleReceivePackIso(
 	ownerDbId?: string,
 ): Promise<GitHttpResult> {
 	if (!authContext.canWrite) {
-		return {
-			status: 403,
-			headers: { "Content-Type": "text/plain" },
-			body: "Forbidden",
-		};
+		throw new GitAuthorizationError(
+			"Access denied: insufficient write permissions",
+		);
 	}
 
 	const body = Buffer.from(await request.arrayBuffer());

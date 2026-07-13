@@ -70,6 +70,7 @@ const { handleInfoRefsIso, handleUploadPackIso, handleReceivePackIso } =
 	await import("../git-http-iso");
 
 import type { GitAuthContext } from "../git-auth";
+import { GitAuthorizationError } from "../git-errors";
 
 const AUTH_BASE: GitAuthContext = {
 	userId: "test-user",
@@ -128,23 +129,15 @@ function parsePktLines(buf: Buffer): string[] {
 
 describe("handleInfoRefsIso", () => {
 	it("returns 403 if no read access for upload-pack", async () => {
-		const result = await handleInfoRefsIso(
-			"u",
-			"r",
-			"git-upload-pack",
-			AUTH_NONE,
-		);
-		expect(result.status).toBe(403);
+		await expect(
+			handleInfoRefsIso("u", "r", "git-upload-pack", AUTH_NONE),
+		).rejects.toThrow(GitAuthorizationError);
 	});
 
 	it("returns 403 if no write access for receive-pack", async () => {
-		const result = await handleInfoRefsIso(
-			"u",
-			"r",
-			"git-receive-pack",
-			AUTH_READ,
-		);
-		expect(result.status).toBe(403);
+		await expect(
+			handleInfoRefsIso("u", "r", "git-receive-pack", AUTH_READ),
+		).rejects.toThrow(GitAuthorizationError);
 	});
 
 	it("returns capability sentinel for empty repo", async () => {
@@ -201,8 +194,9 @@ describe("handleUploadPackIso", () => {
 			method: "POST",
 			body: Buffer.from("0000"),
 		});
-		const result = await handleUploadPackIso("u", "r", req, AUTH_NONE);
-		expect(result.status).toBe(403);
+		await expect(handleUploadPackIso("u", "r", req, AUTH_NONE)).rejects.toThrow(
+			GitAuthorizationError,
+		);
 	});
 
 	it("returns NAK with pack for a want request", async () => {
@@ -325,8 +319,9 @@ describe("handleReceivePackIso", () => {
 			method: "POST",
 			body: Buffer.from("0000"),
 		});
-		const result = await handleReceivePackIso("u", "r", req, AUTH_READ);
-		expect(result.status).toBe(403);
+		await expect(
+			handleReceivePackIso("u", "r", req, AUTH_READ),
+		).rejects.toThrow(GitAuthorizationError);
 	});
 
 	it("parses ref updates and indexes pack on successful push", async () => {
