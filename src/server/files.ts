@@ -29,11 +29,24 @@ function getStorage(repo: {
 	return getRepoStorageCoordinates(repo);
 }
 
+const safeRepoPathSchema = z
+	.string()
+	.refine((p) => !p.startsWith("/"), "Path must be relative")
+	.refine(
+		(p) => !p.split("/").some((segment) => segment === ".."),
+		"Path must not contain '..' segments",
+	)
+	.refine(
+		(p) => !/^\.git(\/|$)/i.test(p),
+		"Path must not reference git internals",
+	)
+	.refine((p) => !p.includes("\0"), "Path must not contain null bytes");
+
 // Upload file schema
 const uploadFileSchema = z.object({
 	repoId: z.number(),
 	branchName: z.string(),
-	path: z.string(),
+	path: safeRepoPathSchema,
 	content: z.string(), // Base64 encoded content
 	commitMessage: z.string(),
 });
@@ -97,7 +110,7 @@ export const getFile = createServerFn({ method: "GET" })
 			.object({
 				repoId: z.number(),
 				branchName: z.string(),
-				path: z.string(),
+				path: safeRepoPathSchema,
 			})
 			.parse(data),
 	)
@@ -129,7 +142,7 @@ export const getFileDownloadUrl = createServerFn({ method: "GET" })
 			.object({
 				repoId: z.number(),
 				branchName: z.string(),
-				path: z.string(),
+				path: safeRepoPathSchema,
 			})
 			.parse(data),
 	)
@@ -166,7 +179,7 @@ export const listFiles = createServerFn({ method: "GET" })
 			.object({
 				repoId: z.number(),
 				branchName: z.string(),
-				path: z.string().optional().default(""),
+				path: safeRepoPathSchema.optional().default(""),
 			})
 			.parse(data),
 	)
@@ -198,7 +211,7 @@ export const deleteFile = createServerFn({ method: "POST" })
 			.object({
 				repoId: z.number(),
 				branchName: z.string(),
-				path: z.string(),
+				path: safeRepoPathSchema,
 				commitMessage: z.string(),
 			})
 			.parse(data),

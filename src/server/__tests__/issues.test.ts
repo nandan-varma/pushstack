@@ -10,7 +10,7 @@ vi.mock("@tanstack/react-start", () => ({
 		validator: (validateFn: (data: unknown) => unknown) => ({
 			handler:
 				(handlerFn: (args: { data: unknown }) => unknown) =>
-				(args?: { data?: unknown }) =>
+				async (args?: { data?: unknown }) =>
 					handlerFn({ data: validateFn(args?.data ?? args) }),
 		}),
 		handler: (handlerFn: (args: unknown) => unknown) => (args: unknown) =>
