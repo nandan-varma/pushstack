@@ -5,7 +5,7 @@ import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import { createCommit } from "./git-operations-iso";
 import {
-	ensureRepositoryHydrated,
+	getRepoOptions,
 	withRepositoryLock,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
@@ -22,13 +22,6 @@ export interface MergeOptions {
 	message?: string;
 	authorName?: string;
 	authorEmail?: string;
-}
-
-async function getRepoOptions(ownerKey: string, repoName: string) {
-	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName);
-	}
-	return getBareRepoOptions(ownerKey, repoName);
 }
 
 export async function analyzeMerge(

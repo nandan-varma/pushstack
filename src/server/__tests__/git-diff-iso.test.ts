@@ -24,6 +24,10 @@ vi.mock("../git-manager-iso", () => ({
 
 vi.mock("../git-repo-storage", () => ({
 	ensureRepositoryHydrated: vi.fn(),
+	getRepoOptions: vi.fn(() => ({
+		fs: {},
+		gitdir: "/tmp/gitdir",
+	})),
 }));
 
 vi.mock("#/lib/r2", () => ({ isR2Configured: vi.fn(() => true) }));

@@ -6,7 +6,7 @@ import { getCachedObject, setCachedObject } from "./git-cache";
 import { GitObjectNotFoundError } from "./git-errors";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
-	ensureRepositoryHydrated,
+	getRepoOptions,
 	syncRepositoryToR2,
 	withRepositoryLock,
 	withRepositoryWorktree,
@@ -179,13 +179,6 @@ export interface CommitInfo {
 		};
 	};
 	payload: string;
-}
-
-async function getRepoOptions(ownerKey: string, repoName: string) {
-	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName);
-	}
-	return getBareRepoOptions(ownerKey, repoName);
 }
 
 async function resolveCommit(ownerKey: string, repoName: string, ref: string) {

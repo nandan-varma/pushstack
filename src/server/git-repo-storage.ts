@@ -15,6 +15,7 @@ import {
 import { invalidateCache, invalidateObjectCache } from "./git-cache";
 import {
 	ensureGitBaseDir,
+	getBareRepoOptions,
 	getRepoDiskUsage,
 	getRepoPath,
 	initBareRepo,
@@ -195,6 +196,13 @@ export async function withRepositoryLock<T>(
 			repoLocks.delete(repoKey);
 		}
 	}
+}
+
+export async function getRepoOptions(ownerKey: string, repoName: string) {
+	if (!isR2Configured()) {
+		await ensureRepositoryHydrated(ownerKey, repoName);
+	}
+	return getBareRepoOptions(ownerKey, repoName);
 }
 
 export async function ensureRepositoryHydrated(

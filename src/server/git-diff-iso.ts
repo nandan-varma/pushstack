@@ -1,9 +1,7 @@
 import { createPatch } from "diff";
 import git from "isomorphic-git";
-import { isR2Configured } from "#/lib/r2";
-import { getBareRepoOptions } from "./git-manager-iso";
 import { getCommit, getFileContent } from "./git-operations-iso";
-import { ensureRepositoryHydrated } from "./git-repo-storage";
+import { getRepoOptions } from "./git-repo-storage";
 
 export interface DiffFile {
 	path: string;
@@ -19,13 +17,6 @@ export interface DiffResult {
 	totalAdditions: number;
 	totalDeletions: number;
 	totalFiles: number;
-}
-
-async function getRepoOptions(ownerKey: string, repoName: string) {
-	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName);
-	}
-	return getBareRepoOptions(ownerKey, repoName);
 }
 
 export async function getCommitDiff(
