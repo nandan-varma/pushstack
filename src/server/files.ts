@@ -353,7 +353,7 @@ export const getCommits = createServerFn({ method: "GET" })
 			.object({
 				repoId: z.number(),
 				branchName: z.string(),
-				limit: z.number().optional().default(50),
+				limit: z.number().max(100).optional().default(50),
 				skip: z.number().optional().default(0),
 			})
 			.parse(data),

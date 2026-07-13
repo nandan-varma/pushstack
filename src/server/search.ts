@@ -20,7 +20,7 @@ export const searchRepositories = createServerFn({ method: "GET" })
 		z
 			.object({
 				query: z.string().min(1),
-				limit: z.number().optional().default(20),
+				limit: z.number().max(100).optional().default(20),
 			})
 			.parse(data),
 	)
@@ -56,7 +56,7 @@ export const searchIssues = createServerFn({ method: "GET" })
 			.object({
 				repoId: z.number(),
 				query: z.string().min(1),
-				limit: z.number().optional().default(20),
+				limit: z.number().max(100).optional().default(20),
 			})
 			.parse(data),
 	)
@@ -94,7 +94,7 @@ export const searchUsers = createServerFn({ method: "GET" })
 		z
 			.object({
 				query: z.string().min(1),
-				limit: z.number().optional().default(20),
+				limit: z.number().max(100).optional().default(20),
 			})
 			.parse(data),
 	)
@@ -124,7 +124,7 @@ export const getUserActivity = createServerFn({ method: "GET" })
 		z
 			.object({
 				userId: z.string().optional(),
-				limit: z.number().optional().default(50),
+				limit: z.number().max(100).optional().default(50),
 			})
 			.parse(data),
 	)
@@ -163,7 +163,7 @@ export const getRepositoryActivity = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				limit: z.number().optional().default(50),
+				limit: z.number().max(100).optional().default(50),
 			})
 			.parse(data),
 	)
@@ -194,7 +194,7 @@ export const getGlobalActivity = createServerFn({ method: "GET" })
 	.validator((data: unknown) =>
 		z
 			.object({
-				limit: z.number().optional().default(50),
+				limit: z.number().max(100).optional().default(50),
 			})
 			.parse(data),
 	)
