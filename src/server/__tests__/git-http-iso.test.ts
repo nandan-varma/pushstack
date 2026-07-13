@@ -332,6 +332,7 @@ describe("handleReceivePackIso", () => {
 	it("parses ref updates and indexes pack on successful push", async () => {
 		const oldSha = "f".repeat(40);
 		const newSha = "g".repeat(40);
+		g.resolveRef.mockResolvedValue(oldSha);
 
 		// Build ref update: "oldSha newSha refs/heads/main\n"
 		const refLine = `${oldSha} ${newSha} refs/heads/main\n`;
@@ -372,6 +373,7 @@ describe("handleReceivePackIso", () => {
 	it("deletes ref when newOid is all-zero", async () => {
 		const oldSha = "h".repeat(40);
 		const zeroOid = "0000000000000000000000000000000000000000";
+		g.resolveRef.mockResolvedValue(oldSha);
 
 		const refLine = `${oldSha} ${zeroOid} refs/heads/old-branch\n`;
 		const body = Buffer.concat([
@@ -397,6 +399,7 @@ describe("handleReceivePackIso", () => {
 	it("initializes bare repo on disk if HEAD does not exist", async () => {
 		const oldSha = "i".repeat(40);
 		const newSha = "j".repeat(40);
+		g.resolveRef.mockResolvedValue(oldSha);
 
 		const refLine = `${oldSha} ${newSha} refs/heads/main\n`;
 		const body = Buffer.concat([
@@ -431,6 +434,13 @@ describe("handleReceivePackIso", () => {
 		const sha2 = "l".repeat(40);
 		const sha3 = "m".repeat(40);
 
+		// new-branch doesn't exist yet (resolveRef rejects -> treated as all-zero);
+		// main currently points at sha2, matching what the client claims as oldOid.
+		g.resolveRef.mockImplementation(({ ref }: { ref: string }) => {
+			if (ref === "refs/heads/main") return Promise.resolve(sha2);
+			return Promise.reject(new Error("not found"));
+		});
+
 		const refLine1 = `${"0".repeat(40)} ${sha1} refs/heads/new-branch\n`;
 		const refLine2 = `${sha2} ${sha3} refs/heads/main\n`;
 
@@ -460,6 +470,63 @@ describe("handleReceivePackIso", () => {
 		const responseBody = Buffer.from(result.body as ArrayBuffer);
 		expect(responseBody.toString("utf8")).toContain("ok refs/heads/new-branch");
 		expect(responseBody.toString("utf8")).toContain("ok refs/heads/main");
+	});
+
+	it("rejects a non-fast-forward push whose oldOid no longer matches the current ref", async () => {
+		const staleOld = "n".repeat(40);
+		const actualCurrent = "o".repeat(40);
+		const attemptedNew = "p".repeat(40);
+		// Client last fetched when the ref was staleOld, but someone else already
+		// pushed it to actualCurrent — the server must reject, not force-overwrite.
+		g.resolveRef.mockResolvedValue(actualCurrent);
+
+		const refLine = `${staleOld} ${attemptedNew} refs/heads/main\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+
+		const result = await handleReceivePackIso("u", "r", req, AUTH_WRITE);
+
+		expect(result.status).toBe(200);
+		expect(g.writeRef).not.toHaveBeenCalled();
+
+		const responseBody = Buffer.from(result.body as ArrayBuffer);
+		const text = responseBody.toString("utf8");
+		expect(text).toContain("unpack ok");
+		expect(text).toContain("ng refs/heads/main");
+		expect(text).not.toContain("ok refs/heads/main\n");
+	});
+
+	it("accepts a new-branch push only when the ref doesn't already exist", async () => {
+		const newSha = "q".repeat(40);
+		g.resolveRef.mockRejectedValue(new Error("not found"));
+
+		const refLine = `${"0".repeat(40)} ${newSha} refs/heads/brand-new\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+
+		const result = await handleReceivePackIso("u", "r", req, AUTH_WRITE);
+
+		expect(g.writeRef).toHaveBeenCalledWith(
+			expect.objectContaining({ ref: "refs/heads/brand-new", value: newSha }),
+		);
+		const responseBody = Buffer.from(result.body as ArrayBuffer);
+		expect(responseBody.toString("utf8")).toContain("ok refs/heads/brand-new");
 	});
 
 	it("returns 400 for invalid service", async () => {

@@ -500,7 +500,7 @@ export async function handleReceivePackIso(
 	}
 	const packData = body.slice(pos);
 
-	await withReceivePackLock(
+	const refUpdateResults = await withReceivePackLock(
 		ownerKey,
 		repoName,
 		defaultBranch,
@@ -534,9 +534,27 @@ export async function handleReceivePackIso(
 				});
 			}
 
-			// Update refs
+			// Update refs, enforcing compare-and-swap against each command's claimed
+			// oldOid so a push whose base moved since the client last fetched (another
+			// push landed first) is rejected instead of force-overwriting the ref and
+			// silently discarding the other push's commits.
 			const ZERO_OID = "0".repeat(40);
-			for (const { newOid, refName } of refUpdates) {
+			const results: Array<{ refName: string; ok: boolean; reason?: string }> =
+				[];
+			for (const { oldOid, newOid, refName } of refUpdates) {
+				const currentOid = await git
+					.resolveRef({ fs, gitdir: localGitdir, ref: refName })
+					.catch(() => ZERO_OID);
+
+				if (currentOid !== oldOid) {
+					results.push({
+						refName,
+						ok: false,
+						reason: "non-fast-forward, ref updated by another push",
+					});
+					continue;
+				}
+
 				if (newOid === ZERO_OID) {
 					await git
 						.deleteRef({ fs, gitdir: localGitdir, ref: refName })
@@ -550,16 +568,20 @@ export async function handleReceivePackIso(
 						force: true,
 					});
 				}
+				results.push({ refName, ok: true });
 			}
 
 			await repackLocal(localGitdir);
+			return results;
 		},
 		ownerDbId,
 	);
 
 	const responseBody = Buffer.concat([
 		pktLine("unpack ok\n"),
-		...refUpdates.map(({ refName }) => pktLine(`ok ${refName}\n`)),
+		...refUpdateResults.map(({ refName, ok, reason }) =>
+			pktLine(ok ? `ok ${refName}\n` : `ng ${refName} ${reason}\n`),
+		),
 		FLUSH,
 	]);
 
