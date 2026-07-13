@@ -238,6 +238,41 @@ function RepositoryIndexPage() {
 				</div>
 			</div>
 
+			{/* Breadcrumb */}
+			{activePath && (
+				<div className="flex flex-wrap items-center gap-1.5 text-sm">
+					<Link
+						to="."
+						search={{ branch: activeBranch, path: undefined }}
+						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						{name}
+					</Link>
+					{activePath.split("/").map((segment, i, segments) => {
+						const pathSoFar = segments.slice(0, i + 1).join("/");
+						const isLast = i === segments.length - 1;
+						return (
+							<span key={pathSoFar} className="flex items-center gap-1.5">
+								<span className="text-[var(--sea-ink-soft)]">/</span>
+								{isLast ? (
+									<span className="font-medium text-[var(--sea-ink)]">
+										{segment}
+									</span>
+								) : (
+									<Link
+										to="."
+										search={{ branch: activeBranch, path: pathSoFar }}
+										className="font-medium text-[var(--lagoon-deep)] hover:underline"
+									>
+										{segment}
+									</Link>
+								)}
+							</span>
+						);
+					})}
+				</div>
+			)}
+
 			{/* File browser */}
 			{isLoading ? (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
@@ -289,6 +324,7 @@ function RepositoryIndexPage() {
 												<Link
 													to="."
 													search={{ branch: activeBranch, path: file.path }}
+													title={displayName}
 													className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
 												>
 													{displayName}
@@ -302,6 +338,7 @@ function RepositoryIndexPage() {
 														branch: activeBranch,
 														_splat: file.path,
 													}}
+													title={displayName}
 													className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
 												>
 													{displayName}

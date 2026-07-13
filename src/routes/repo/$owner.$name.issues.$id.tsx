@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { lazy, Suspense, useState } from "react";
+import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	authSessionQueryOptions,
 	issueCommentsQueryOptions,
 	issueQueryOptions,
 	queryKeys,
@@ -37,8 +39,10 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 function IssueDetailPage() {
 	const { owner, name, id } = Route.useParams();
 	const queryClient = useQueryClient();
+	const { toast } = useToast();
 	const [newComment, setNewComment] = useState("");
 
+	const { data: session } = useQuery(authSessionQueryOptions());
 	const issueId = Number(id);
 	const { data: issue, isLoading } = useQuery(issueQueryOptions(issueId));
 
@@ -59,8 +63,9 @@ function IssueDetailPage() {
 			);
 			return { prev };
 		},
-		onError: (_err, _vars, ctx) => {
+		onError: (err: Error, _vars, ctx) => {
 			if (ctx?.prev) queryClient.setQueryData(issueQueryKey, ctx.prev);
+			toast(err.message || "Failed to update issue", "error");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: issueQueryKey });
@@ -78,6 +83,10 @@ function IssueDetailPage() {
 			await queryClient.invalidateQueries({
 				queryKey: queryKeys.issueComments(issueId),
 			});
+			toast("Comment posted", "success");
+		},
+		onError: (err: Error) => {
+			toast(err.message || "Failed to post comment", "error");
 		},
 	});
 
@@ -165,14 +174,16 @@ function IssueDetailPage() {
 							Back
 						</Button>
 					</Link>
-					<Button
-						variant={issue.status === "open" ? "outline" : "default"}
-						size="sm"
-						onClick={handleToggleStatus}
-						disabled={updateMutation.isPending}
-					>
-						{issue.status === "open" ? "Close Issue" : "Reopen Issue"}
-					</Button>
+					{session?.user && (
+						<Button
+							variant={issue.status === "open" ? "outline" : "default"}
+							size="sm"
+							onClick={handleToggleStatus}
+							disabled={updateMutation.isPending}
+						>
+							{issue.status === "open" ? "Close Issue" : "Reopen Issue"}
+						</Button>
+					)}
 				</div>
 			</div>
 
@@ -250,7 +261,17 @@ function IssueDetailPage() {
 				<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
 					Add a Comment
 				</h3>
-				{issue.status === "open" ? (
+				{!session?.user ? (
+					<p className="text-sm text-[var(--sea-ink-soft)]">
+						<Link
+							to="/auth/login"
+							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						>
+							Sign in
+						</Link>{" "}
+						to add a comment.
+					</p>
+				) : issue.status === "open" ? (
 					<div className="space-y-4">
 						<Textarea
 							value={newComment}

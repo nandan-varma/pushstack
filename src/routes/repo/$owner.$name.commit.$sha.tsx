@@ -53,33 +53,31 @@ function CommitDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="">
-				<div className="space-y-4">
-					<Skeleton className="h-8 w-1/2" />
-					<Skeleton className="h-64" />
-				</div>
+			<div className="space-y-4">
+				<Skeleton className="h-8 w-1/2" />
+				<Skeleton className="h-64" />
 			</div>
 		);
 	}
 
 	if (!commit) {
 		return (
-			<div className="">
-				<Card className="p-6">
-					<h2 className="text-xl font-semibold mb-2">Commit Not Found</h2>
-					<p className="text-[var(--sea-ink-soft)] mb-4">
-						The commit with SHA "{sha}" does not exist.
-					</p>
-					<Link
-						to="/repo/$owner/$name/commits"
-						params={{ owner, name }}
-						className="inline-block"
-						search={{ branch: "main" }}
-					>
-						<Button variant="outline">Back to Commits</Button>
-					</Link>
-				</Card>
-			</div>
+			<Card className="p-6">
+				<h2 className="mb-2 text-xl font-semibold text-[var(--sea-ink)]">
+					Commit Not Found
+				</h2>
+				<p className="text-[var(--sea-ink-soft)] mb-4">
+					The commit with SHA "{sha}" does not exist.
+				</p>
+				<Link
+					to="/repo/$owner/$name/commits"
+					params={{ owner, name }}
+					className="inline-block"
+					search={{ branch: "main" }}
+				>
+					<Button variant="outline">Back to Commits</Button>
+				</Link>
+			</Card>
 		);
 	}
 
@@ -88,7 +86,10 @@ function CommitDetailPage() {
 			{/* Header */}
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex-1">
-					<h1 className="line-clamp-2 text-3xl font-bold text-[var(--sea-ink)] mb-2">
+					<h1
+						title={commit.message}
+						className="line-clamp-2 text-3xl font-bold text-[var(--sea-ink)] mb-2"
+					>
 						{commit.message}
 					</h1>
 					<div className="flex items-center gap-3 text-[var(--sea-ink-soft)]">

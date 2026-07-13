@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback, useState } from "react";
+import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	authSessionQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssuesQueryOptions,
@@ -62,9 +64,11 @@ function IssuesPage() {
 	const { status: filter } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { toast } = useToast();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newIssue, setNewIssue] = useState({ title: "", body: "" });
 
+	const { data: session } = useQuery(authSessionQueryOptions());
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
@@ -86,6 +90,10 @@ function IssuesPage() {
 			});
 			setIsCreateOpen(false);
 			setNewIssue({ title: "", body: "" });
+			toast("Issue created", "success");
+		},
+		onError: (err: Error) => {
+			toast(err.message || "Failed to create issue", "error");
 		},
 	});
 
@@ -109,55 +117,66 @@ function IssuesPage() {
 				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
 					Issues
 				</h2>
-				<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-					<DialogTrigger asChild>
-						<Button size="sm">New issue</Button>
-					</DialogTrigger>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Create new issue</DialogTitle>
-							<DialogDescription>
-								Report a bug, request a feature, or start a discussion
-							</DialogDescription>
-						</DialogHeader>
-						<div className="space-y-4">
-							<div className="space-y-1.5">
-								<Label htmlFor="title">Title</Label>
-								<Input
-									id="title"
-									value={newIssue.title}
-									onChange={(e) =>
-										setNewIssue((p) => ({ ...p, title: e.target.value }))
-									}
-									placeholder="Issue title"
-								/>
+				{!session?.user ? (
+					<Link to="/auth/login">
+						<Button size="sm" variant="outline">
+							Sign in to create an issue
+						</Button>
+					</Link>
+				) : (
+					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+						<DialogTrigger asChild>
+							<Button size="sm">New issue</Button>
+						</DialogTrigger>
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>Create new issue</DialogTitle>
+								<DialogDescription>
+									Report a bug, request a feature, or start a discussion
+								</DialogDescription>
+							</DialogHeader>
+							<div className="space-y-4">
+								<div className="space-y-1.5">
+									<Label htmlFor="title">Title</Label>
+									<Input
+										id="title"
+										value={newIssue.title}
+										onChange={(e) =>
+											setNewIssue((p) => ({ ...p, title: e.target.value }))
+										}
+										placeholder="Issue title"
+									/>
+								</div>
+								<div className="space-y-1.5">
+									<Label htmlFor="body">Description</Label>
+									<Textarea
+										id="body"
+										value={newIssue.body}
+										onChange={(e) =>
+											setNewIssue((p) => ({ ...p, body: e.target.value }))
+										}
+										placeholder="Describe the issue in detail…"
+										rows={6}
+									/>
+								</div>
 							</div>
-							<div className="space-y-1.5">
-								<Label htmlFor="body">Description</Label>
-								<Textarea
-									id="body"
-									value={newIssue.body}
-									onChange={(e) =>
-										setNewIssue((p) => ({ ...p, body: e.target.value }))
-									}
-									placeholder="Describe the issue in detail…"
-									rows={6}
-								/>
-							</div>
-						</div>
-						<DialogFooter>
-							<Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-								Cancel
-							</Button>
-							<Button
-								onClick={handleCreateIssue}
-								disabled={!newIssue.title.trim() || createMutation.isPending}
-							>
-								{createMutation.isPending ? "Creating…" : "Create issue"}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+							<DialogFooter>
+								<Button
+									variant="outline"
+									onClick={() => setIsCreateOpen(false)}
+								>
+									Cancel
+								</Button>
+								<Button
+									onClick={handleCreateIssue}
+									disabled={!newIssue.title.trim() || createMutation.isPending}
+								>
+									{createMutation.isPending ? "Creating…" : "Create issue"}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				)}
 			</div>
 
 			{/* Filter tabs */}
@@ -195,9 +214,17 @@ function IssuesPage() {
 					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
 						No {filter !== "all" ? filter : ""} issues found.
 					</p>
-					<Button size="sm" onClick={() => setIsCreateOpen(true)}>
-						Create first issue
-					</Button>
+					{session?.user ? (
+						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+							Create first issue
+						</Button>
+					) : (
+						<Link to="/auth/login">
+							<Button size="sm" variant="outline">
+								Sign in to create an issue
+							</Button>
+						</Link>
+					)}
 				</div>
 			) : (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">

@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getSession } from "@/lib/auth-session";
 import {
+	getBranchDiff,
 	getBranches,
 	getCommit,
 	getCommitDiff,
@@ -58,6 +59,12 @@ export const queryKeys = {
 	pullRequest: (prId: number) => ["pull-requests", prId] as const,
 	pullRequestComments: (prId: number) =>
 		["pull-requests", prId, "comments"] as const,
+	pullRequestDiff: (
+		repoId: number,
+		sourceBranch: string,
+		targetBranch: string,
+	) =>
+		["repos", repoId, "pull-request-diff", sourceBranch, targetBranch] as const,
 	repoCollaborators: (repoId: number) =>
 		["repos", repoId, "collaborators"] as const,
 } as const;
@@ -257,6 +264,23 @@ export function pullRequestCommentsQueryOptions(prId: number) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequestComments(prId),
 		queryFn: () => getComments({ data: { pullRequestId: prId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function pullRequestDiffQueryOptions({
+	repoId,
+	sourceBranch,
+	targetBranch,
+}: {
+	repoId: number;
+	sourceBranch: string;
+	targetBranch: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestDiff(repoId, sourceBranch, targetBranch),
+		queryFn: () =>
+			getBranchDiff({ data: { repoId, sourceBranch, targetBranch } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

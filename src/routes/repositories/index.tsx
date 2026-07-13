@@ -17,9 +17,12 @@ export const Route = createFileRoute("/repositories/")({
 });
 
 function RepositoriesPage() {
-	const { data: repositories, isLoading } = useQuery(
-		userRepositoriesQueryOptions(),
-	);
+	const {
+		data: repositories,
+		isLoading,
+		isError,
+		refetch,
+	} = useQuery(userRepositoriesQueryOptions());
 
 	return (
 		<main className="page-wrap px-4 py-10">
@@ -43,6 +46,15 @@ function RepositoriesPage() {
 						<Skeleton key={i} className="h-28" />
 					))}
 				</div>
+			) : isError ? (
+				<div className="island-shell rounded-xl p-12 text-center">
+					<p className="mb-4 text-sm text-red-600 dark:text-red-400">
+						Couldn't load repositories.
+					</p>
+					<Button size="sm" variant="outline" onClick={() => refetch()}>
+						Try again
+					</Button>
+				</div>
 			) : repositories && repositories.length > 0 ? (
 				<div className="grid gap-3 md:grid-cols-2">
 					{repositories.map((repo) => {
@@ -58,7 +70,10 @@ function RepositoriesPage() {
 								<div className="flex items-start justify-between gap-3">
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
-											<h2 className="truncate text-sm font-semibold text-[var(--lagoon-deep)]">
+											<h2
+												title={`${ownerUsername}/${repo.name}`}
+												className="truncate text-sm font-semibold text-[var(--lagoon-deep)]"
+											>
 												{ownerUsername}/{repo.name}
 											</h2>
 											<span

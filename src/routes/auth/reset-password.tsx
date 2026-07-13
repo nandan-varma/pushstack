@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -52,12 +52,9 @@ function ResetPasswordPage() {
 				<p className="mb-8 text-sm text-[var(--sea-ink-soft)]">
 					Your password has been reset. You can now sign in.
 				</p>
-				<Button
-					onClick={() => window.location.assign("/auth/login")}
-					className="w-full"
-				>
-					Sign in
-				</Button>
+				<Link to="/auth/login">
+					<Button className="w-full">Sign in</Button>
+				</Link>
 			</div>
 		);
 	}
@@ -113,12 +110,12 @@ function ResetPasswordPage() {
 				{!token && (
 					<p className="text-center text-sm text-[var(--sea-ink-soft)]">
 						Invalid or expired reset link.{" "}
-						<a
-							href="/auth/forgot-password"
+						<Link
+							to="/auth/forgot-password"
 							className="font-medium text-[var(--lagoon-deep)] hover:underline"
 						>
 							Request a new one
-						</a>
+						</Link>
 					</p>
 				)}
 			</form>

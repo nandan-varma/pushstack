@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,25 @@ import {
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 import { uploadFile } from "@/server/files";
+
+// Files above this size are still allowed, but the browser can visibly
+// stutter while base64-encoding them synchronously — warn instead of block.
+const LARGE_FILE_WARNING_BYTES = 25 * 1024 * 1024;
+
+function readFileAsBase64(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			const result = reader.result as string;
+			// readAsDataURL yields "data:<mime>;base64,<data>" — strip the prefix.
+			const commaIndex = result.indexOf(",");
+			resolve(commaIndex === -1 ? result : result.slice(commaIndex + 1));
+		};
+		reader.onerror = () =>
+			reject(reader.error ?? new Error("Failed to read file"));
+		reader.readAsDataURL(file);
+	});
+}
 
 export const Route = createFileRoute("/repo/$owner/$name/upload")({
 	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
@@ -31,12 +51,14 @@ function FileUploadPage() {
 	const { branch: searchBranch } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { toast } = useToast();
 
 	const [file, setFile] = useState<File | null>(null);
 	const [path, setPath] = useState("");
 	const [commitMessage, setCommitMessage] = useState("");
 	const [branch, setBranch] = useState(searchBranch || "main");
 	const [isDragging, setIsDragging] = useState(false);
+	const [isEncoding, setIsEncoding] = useState(false);
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
@@ -65,11 +87,15 @@ function FileUploadPage() {
 					queryKey: queryKeys.repoCommitsRoot(repo.id),
 				}),
 			]);
+			toast("File uploaded", "success");
 			navigate({
 				to: "/repo/$owner/$name",
 				params: { owner, name },
 				search: { branch },
 			});
+		},
+		onError: (err: Error) => {
+			toast(err.message || "Failed to upload file", "error");
 		},
 	});
 
@@ -110,16 +136,9 @@ function FileUploadPage() {
 		e.preventDefault();
 		if (!file || !path || !commitMessage || !repo) return;
 
-		const reader = new FileReader();
-		reader.onload = async () => {
-			const buffer = reader.result as ArrayBuffer;
-			const bytes = new Uint8Array(buffer);
-			let binary = "";
-			for (const byte of bytes) {
-				binary += String.fromCharCode(byte);
-			}
-			const base64 = window.btoa(binary);
-
+		setIsEncoding(true);
+		try {
+			const base64 = await readFileAsBase64(file);
 			uploadMutation.mutate({
 				data: {
 					repoId: repo.id,
@@ -129,9 +148,19 @@ function FileUploadPage() {
 					commitMessage,
 				},
 			});
-		};
-		reader.readAsArrayBuffer(file);
+		} catch {
+			toast("Failed to read file", "error");
+		} finally {
+			setIsEncoding(false);
+		}
 	};
+
+	const isSubmitting = isEncoding || uploadMutation.isPending;
+	const submitLabel = isEncoding
+		? "Reading file…"
+		: uploadMutation.isPending
+			? "Uploading…"
+			: "Upload file";
 
 	return (
 		<div className="mx-auto max-w-2xl">
@@ -182,6 +211,13 @@ function FileUploadPage() {
 								<p className="text-xs text-[var(--sea-ink-soft)]">
 									{(file.size / 1024).toFixed(2)} KB
 								</p>
+								{file.size > LARGE_FILE_WARNING_BYTES && (
+									<p className="text-xs text-amber-600 dark:text-amber-400">
+										Large files may take a while to upload in the browser —
+										consider <code className="font-mono">git push</code> for big
+										files.
+									</p>
+								)}
 								<Button
 									type="button"
 									variant="outline"
@@ -249,15 +285,14 @@ function FileUploadPage() {
 					<div className="flex gap-3 pt-1">
 						<Button
 							type="submit"
-							disabled={
-								!file || !path || !commitMessage || uploadMutation.isPending
-							}
+							disabled={!file || !path || !commitMessage || isSubmitting}
 						>
-							{uploadMutation.isPending ? "Uploading…" : "Upload file"}
+							{submitLabel}
 						</Button>
 						<Button
 							type="button"
 							variant="outline"
+							disabled={isSubmitting}
 							onClick={() =>
 								navigate({
 									to: "/repo/$owner/$name",

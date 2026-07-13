@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback, useState } from "react";
+import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	authSessionQueryOptions,
 	queryKeys,
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
@@ -71,6 +73,8 @@ function PullRequestsPage() {
 	const { status: filter } = Route.useSearch();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const { data: session } = useQuery(authSessionQueryOptions());
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newPR, setNewPR] = useState({
 		title: "",
@@ -105,6 +109,10 @@ function PullRequestsPage() {
 			});
 			setIsCreateOpen(false);
 			setNewPR({ title: "", body: "", baseBranch: "main", headBranch: "" });
+			toast("Pull request created", "success");
+		},
+		onError: (err: Error) => {
+			toast(err.message || "Failed to create pull request", "error");
 		},
 	});
 
@@ -141,98 +149,111 @@ function PullRequestsPage() {
 				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
 					Pull Requests
 				</h2>
-				<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-					<DialogTrigger asChild>
-						<Button size="sm">New pull request</Button>
-					</DialogTrigger>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Create pull request</DialogTitle>
-							<DialogDescription>
-								Merge changes from one branch into another
-							</DialogDescription>
-						</DialogHeader>
-						<div className="space-y-4">
-							<div className="space-y-1.5">
-								<Label htmlFor="title">Title</Label>
-								<Input
-									id="title"
-									value={newPR.title}
-									onChange={(e) =>
-										setNewPR((p) => ({ ...p, title: e.target.value }))
-									}
-									placeholder="Pull request title"
-								/>
-							</div>
-							<div className="grid grid-cols-2 gap-4">
+				{!session?.user ? (
+					<Link to="/auth/login">
+						<Button size="sm" variant="outline">
+							Sign in to open a pull request
+						</Button>
+					</Link>
+				) : (
+					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+						<DialogTrigger asChild>
+							<Button size="sm">New pull request</Button>
+						</DialogTrigger>
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>Create pull request</DialogTitle>
+								<DialogDescription>
+									Merge changes from one branch into another
+								</DialogDescription>
+							</DialogHeader>
+							<div className="space-y-4">
 								<div className="space-y-1.5">
-									<Label htmlFor="base">Base branch</Label>
-									<select
-										id="base"
-										value={newPR.baseBranch}
+									<Label htmlFor="title">Title</Label>
+									<Input
+										id="title"
+										value={newPR.title}
 										onChange={(e) =>
-											setNewPR((p) => ({ ...p, baseBranch: e.target.value }))
+											setNewPR((p) => ({ ...p, title: e.target.value }))
 										}
-										className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
-									>
-										{branches?.map((b) => (
-											<option key={b.name} value={b.name}>
-												{b.name}
-											</option>
-										))}
-									</select>
+										placeholder="Pull request title"
+									/>
 								</div>
-								<div className="space-y-1.5">
-									<Label htmlFor="head">Compare branch</Label>
-									<select
-										id="head"
-										value={newPR.headBranch}
-										onChange={(e) =>
-											setNewPR((p) => ({ ...p, headBranch: e.target.value }))
-										}
-										className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
-									>
-										<option value="">Select branch…</option>
-										{branches
-											?.filter((b) => b.name !== newPR.baseBranch)
-											.map((b) => (
+								<div className="grid grid-cols-2 gap-4">
+									<div className="space-y-1.5">
+										<Label htmlFor="base">Base branch</Label>
+										<select
+											id="base"
+											value={newPR.baseBranch}
+											onChange={(e) =>
+												setNewPR((p) => ({ ...p, baseBranch: e.target.value }))
+											}
+											className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
+										>
+											{branches?.map((b) => (
 												<option key={b.name} value={b.name}>
 													{b.name}
 												</option>
 											))}
-									</select>
+										</select>
+									</div>
+									<div className="space-y-1.5">
+										<Label htmlFor="head">Compare branch</Label>
+										<select
+											id="head"
+											value={newPR.headBranch}
+											onChange={(e) =>
+												setNewPR((p) => ({ ...p, headBranch: e.target.value }))
+											}
+											className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
+										>
+											<option value="">Select branch…</option>
+											{branches
+												?.filter((b) => b.name !== newPR.baseBranch)
+												.map((b) => (
+													<option key={b.name} value={b.name}>
+														{b.name}
+													</option>
+												))}
+										</select>
+									</div>
+								</div>
+								<div className="space-y-1.5">
+									<Label htmlFor="body">Description</Label>
+									<Textarea
+										id="body"
+										value={newPR.body}
+										onChange={(e) =>
+											setNewPR((p) => ({ ...p, body: e.target.value }))
+										}
+										placeholder="Describe your changes…"
+										rows={5}
+									/>
 								</div>
 							</div>
-							<div className="space-y-1.5">
-								<Label htmlFor="body">Description</Label>
-								<Textarea
-									id="body"
-									value={newPR.body}
-									onChange={(e) =>
-										setNewPR((p) => ({ ...p, body: e.target.value }))
+							<DialogFooter>
+								<Button
+									variant="outline"
+									onClick={() => setIsCreateOpen(false)}
+								>
+									Cancel
+								</Button>
+								<Button
+									onClick={handleCreatePR}
+									disabled={
+										!newPR.title.trim() ||
+										!newPR.headBranch ||
+										createMutation.isPending
 									}
-									placeholder="Describe your changes…"
-									rows={5}
-								/>
-							</div>
-						</div>
-						<DialogFooter>
-							<Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-								Cancel
-							</Button>
-							<Button
-								onClick={handleCreatePR}
-								disabled={
-									!newPR.title.trim() ||
-									!newPR.headBranch ||
-									createMutation.isPending
-								}
-							>
-								{createMutation.isPending ? "Creating…" : "Create pull request"}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+								>
+									{createMutation.isPending
+										? "Creating…"
+										: "Create pull request"}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				)}
 			</div>
 
 			{/* Filter tabs */}
@@ -271,9 +292,17 @@ function PullRequestsPage() {
 					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
 						No {filter !== "all" ? filter : ""} pull requests found.
 					</p>
-					<Button size="sm" onClick={() => setIsCreateOpen(true)}>
-						Create first pull request
-					</Button>
+					{session?.user ? (
+						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+							Create first pull request
+						</Button>
+					) : (
+						<Link to="/auth/login">
+							<Button size="sm" variant="outline">
+								Sign in to open a pull request
+							</Button>
+						</Link>
+					)}
 				</div>
 			) : (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">

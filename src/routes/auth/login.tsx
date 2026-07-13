@@ -1,19 +1,28 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { authClient } from "../../lib/auth-client";
+import { queryKeys } from "../../lib/query-options";
 
 export const Route = createFileRoute("/auth/login")({
 	component: LoginPage,
 });
 
 function LoginPage() {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const [identifier, setIdentifier] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+
+	const handleSuccess = async () => {
+		await queryClient.invalidateQueries({ queryKey: queryKeys.authSession });
+		navigate({ to: "/dashboard" });
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -27,7 +36,7 @@ function LoginPage() {
 				await authClient.signIn.email(
 					{ email: identifier, password },
 					{
-						onSuccess: () => window.location.assign("/dashboard"),
+						onSuccess: handleSuccess,
 						onError: (ctx) => {
 							setError(ctx.error.message || "Login failed");
 							setLoading(false);
@@ -38,7 +47,7 @@ function LoginPage() {
 				await authClient.signIn.username(
 					{ username: identifier, password },
 					{
-						onSuccess: () => window.location.assign("/dashboard"),
+						onSuccess: handleSuccess,
 						onError: (ctx) => {
 							setError(ctx.error.message || "Login failed");
 							setLoading(false);
@@ -89,12 +98,12 @@ function LoginPage() {
 				<div className="space-y-1.5">
 					<div className="flex items-center justify-between">
 						<Label htmlFor="password">Password</Label>
-						<a
-							href="/auth/forgot-password"
+						<Link
+							to="/auth/forgot-password"
 							className="text-xs text-[var(--lagoon-deep)] hover:underline"
 						>
 							Forgot password?
-						</a>
+						</Link>
 					</div>
 					<Input
 						id="password"
@@ -114,12 +123,12 @@ function LoginPage() {
 
 			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
 				Don't have an account?{" "}
-				<a
-					href="/auth/register"
+				<Link
+					to="/auth/register"
 					className="font-medium text-[var(--lagoon-deep)] hover:underline"
 				>
 					Create one
-				</a>
+				</Link>
 			</p>
 		</div>
 	);

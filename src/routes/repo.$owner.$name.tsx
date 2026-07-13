@@ -4,9 +4,11 @@ import {
 	type ErrorComponentProps,
 	Link,
 	Outlet,
+	useLocation,
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { CloneModal } from "@/components/CloneModal";
+import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -72,6 +74,14 @@ function RepositoryPage() {
 	const { branch: searchBranch } = Route.useSearch();
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const { pathname } = useLocation();
+	// Blob and commit-detail routes are siblings of the Code/Commits tabs
+	// (not descendants), so TanStack Router's default fuzzy Link matching
+	// doesn't mark those tabs active while viewing a file or a commit —
+	// this fills that gap so the tab bar keeps orientation.
+	const isCodeActive = pathname.includes("/blob/");
+	const isCommitsActive = /\/commit\/[^/]+/.test(pathname);
 
 	const { data: repo, isLoading } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
@@ -95,8 +105,9 @@ function RepositoryPage() {
 			);
 			return { prev };
 		},
-		onError: (_err, _vars, ctx) => {
+		onError: (err: Error, _vars, ctx) => {
 			if (ctx?.prev) queryClient.setQueryData(repoQueryKey, ctx.prev);
+			toast(err.message || "Failed to update star", "error");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: repoQueryKey });
@@ -166,13 +177,16 @@ function RepositoryPage() {
 					<button
 						type="button"
 						onClick={() =>
-							session && starMutation.mutate({ data: { repoId: repo.id } })
+							session
+								? starMutation.mutate({ data: { repoId: repo.id } })
+								: toast("Sign in to star this repository", "info")
 						}
+						title={!session ? "Sign in to star this repository" : undefined}
 						className={`flex items-center gap-0 overflow-hidden rounded-md border text-sm font-medium transition-colors ${
 							repo.isStarred
 								? "border-[var(--lagoon-deep)] bg-[var(--lagoon-deep)] text-white"
 								: "border-[var(--line)] bg-transparent text-[var(--sea-ink)] hover:bg-[var(--surface-raised)]"
-						} ${!session ? "cursor-not-allowed opacity-50" : ""}`}
+						} ${!session ? "opacity-50" : ""}`}
 					>
 						<span className="px-3 py-1.5">{repo.isStarred ? "★" : "☆"}</span>
 						<span className="border-l border-current/20 px-2.5 py-1.5 tabular-nums">
@@ -196,7 +210,7 @@ function RepositoryPage() {
 						to="/repo/$owner/$name"
 						params={{ owner, name }}
 						search={{ branch: currentBranch }}
-						className={tabLinkBase}
+						className={isCodeActive ? `${tabLinkBase} active` : tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
 						Code
@@ -221,7 +235,7 @@ function RepositoryPage() {
 						to="/repo/$owner/$name/commits"
 						params={{ owner, name }}
 						search={{ branch: currentBranch }}
-						className={tabLinkBase}
+						className={isCommitsActive ? `${tabLinkBase} active` : tabLinkBase}
 						activeProps={{ className: "active" }}
 					>
 						Commits

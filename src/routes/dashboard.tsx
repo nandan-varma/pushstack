@@ -19,16 +19,64 @@ export const Route = createFileRoute("/dashboard")({
 	},
 });
 
+function describeActivity(activity: {
+	type: string;
+	metadata: unknown;
+	repository?: { name: string } | null;
+}): { text: string; showRepo: boolean } {
+	const meta = (activity.metadata ?? {}) as Record<string, unknown>;
+	const title = typeof meta.title === "string" ? meta.title : null;
+	const action = typeof meta.action === "string" ? meta.action : null;
+
+	switch (activity.type) {
+		case "create_repo":
+			return { text: "Created this repository", showRepo: true };
+		case "star":
+			return { text: "Starred", showRepo: true };
+		case "commit":
+			return {
+				text:
+					typeof meta.message === "string"
+						? `Pushed a commit: "${meta.message}"`
+						: "Pushed a commit",
+				showRepo: true,
+			};
+		case "issue":
+			return {
+				text: `${action === "closed" ? "Closed" : action === "reopened" ? "Reopened" : "Opened"} issue${title ? ` "${title}"` : ""}`,
+				showRepo: true,
+			};
+		case "pr":
+			return {
+				text: `${action === "merged" ? "Merged" : action === "closed" ? "Closed" : "Opened"} pull request${title ? ` "${title}"` : ""}`,
+				showRepo: true,
+			};
+		case "comment":
+			return {
+				text: `Commented on ${meta.prId ? "a pull request" : "an issue"}`,
+				showRepo: true,
+			};
+		default:
+			return { text: activity.type, showRepo: true };
+	}
+}
+
 function DashboardPage() {
 	const { user } = Route.useRouteContext();
 
-	const { data: repositories, isLoading: reposLoading } = useQuery(
-		userRepositoriesQueryOptions(),
-	);
+	const {
+		data: repositories,
+		isLoading: reposLoading,
+		isError: reposError,
+		refetch: refetchRepos,
+	} = useQuery(userRepositoriesQueryOptions());
 
-	const { data: activities, isLoading: activitiesLoading } = useQuery(
-		userActivityQueryOptions({ limit: 20 }),
-	);
+	const {
+		data: activities,
+		isLoading: activitiesLoading,
+		isError: activitiesError,
+		refetch: refetchActivities,
+	} = useQuery(userActivityQueryOptions({ limit: 20 }));
 
 	return (
 		<div className="page-wrap px-4 py-10">
@@ -68,6 +116,19 @@ function DashboardPage() {
 								<Skeleton key={i} className="h-24" />
 							))}
 						</div>
+					) : reposError ? (
+						<div className="island-shell rounded-xl p-12 text-center">
+							<p className="mb-4 text-sm text-red-600 dark:text-red-400">
+								Couldn't load your repositories.
+							</p>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => refetchRepos()}
+							>
+								Try again
+							</Button>
+						</div>
 					) : repositories && repositories.length > 0 ? (
 						<div className="space-y-3">
 							{repositories.map((repo) => {
@@ -82,7 +143,10 @@ function DashboardPage() {
 										<div className="flex items-start justify-between gap-3">
 											<div className="min-w-0">
 												<div className="flex items-center gap-2">
-													<h3 className="truncate text-sm font-semibold text-[var(--lagoon-deep)]">
+													<h3
+														title={`${ownerUsername}/${repo.name}`}
+														className="truncate text-sm font-semibold text-[var(--lagoon-deep)]"
+													>
 														{ownerUsername}/{repo.name}
 													</h3>
 													<span
@@ -133,26 +197,42 @@ function DashboardPage() {
 								<Skeleton key={i} className="h-16" />
 							))}
 						</div>
+					) : activitiesError ? (
+						<div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6 text-center">
+							<p className="mb-3 text-xs text-red-600 dark:text-red-400">
+								Couldn't load recent activity.
+							</p>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => refetchActivities()}
+							>
+								Try again
+							</Button>
+						</div>
 					) : activities && activities.length > 0 ? (
 						<div className="space-y-2">
-							{activities.map((activity) => (
-								<div
-									key={activity.id}
-									className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3"
-								>
-									<div className="text-xs font-medium text-[var(--sea-ink)]">
-										{activity.type}
-										{activity.repository && (
-											<span className="ml-1 font-normal text-[var(--sea-ink-soft)]">
-												in {activity.repository.name}
-											</span>
-										)}
+							{activities.map((activity) => {
+								const { text, showRepo } = describeActivity(activity);
+								return (
+									<div
+										key={activity.id}
+										className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3"
+									>
+										<div className="text-xs font-medium text-[var(--sea-ink)]">
+											{text}
+											{showRepo && activity.repository && (
+												<span className="ml-1 font-normal text-[var(--sea-ink-soft)]">
+													in {activity.repository.name}
+												</span>
+											)}
+										</div>
+										<div className="mt-0.5 text-[10px] text-[var(--sea-ink-soft)]">
+											{new Date(activity.createdAt).toLocaleString()}
+										</div>
 									</div>
-									<div className="mt-0.5 text-[10px] text-[var(--sea-ink-soft)]">
-										{new Date(activity.createdAt).toLocaleString()}
-									</div>
-								</div>
-							))}
+								);
+							})}
 						</div>
 					) : (
 						<div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6 text-center">

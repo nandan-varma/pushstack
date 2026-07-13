@@ -67,32 +67,30 @@ function FileBlobPage() {
 
 	if (isLoading) {
 		return (
-			<div className="container py-8">
-				<div className="space-y-4">
-					<Skeleton className="h-8 w-1/3" />
-					<Skeleton className="h-96" />
-				</div>
+			<div className="space-y-4">
+				<Skeleton className="h-8 w-1/3" />
+				<Skeleton className="h-96" />
 			</div>
 		);
 	}
 
 	if (error || !file) {
 		return (
-			<div className="container py-8">
-				<Card className="p-6">
-					<h2 className="text-xl font-semibold mb-2">File Not Found</h2>
-					<p className="text-[var(--sea-ink-soft)]">
-						The file "{filePath}" does not exist in the {branch} branch.
-					</p>
-					<Link
-						to="/repo/$owner/$name"
-						params={{ owner, name }}
-						className="mt-4 inline-block"
-					>
-						<Button variant="outline">Back to Files</Button>
-					</Link>
-				</Card>
-			</div>
+			<Card className="p-6">
+				<h2 className="mb-2 text-xl font-semibold text-[var(--sea-ink)]">
+					File Not Found
+				</h2>
+				<p className="text-[var(--sea-ink-soft)]">
+					The file "{filePath}" does not exist in the {branch} branch.
+				</p>
+				<Link
+					to="/repo/$owner/$name"
+					params={{ owner, name }}
+					className="mt-4 inline-block"
+				>
+					<Button variant="outline">Back to Files</Button>
+				</Link>
+			</Card>
 		);
 	}
 
@@ -121,11 +119,14 @@ function FileBlobPage() {
 	};
 
 	return (
-		<div className="container py-8 space-y-4">
+		<div className="space-y-4">
 			{/* File Header */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">
-					<h1 className="max-w-lg truncate text-2xl font-bold text-[var(--sea-ink)]">
+					<h1
+						title={filePath}
+						className="max-w-lg truncate text-2xl font-bold text-[var(--sea-ink)]"
+					>
 						{filePath}
 					</h1>
 					<span className="text-sm text-[var(--sea-ink-soft)]">
@@ -164,7 +165,14 @@ function FileBlobPage() {
 									{part}
 								</span>
 							) : (
-								<span className="hover:text-[var(--accent)]">{part}</span>
+								<Link
+									to="/repo/$owner/$name"
+									params={{ owner, name }}
+									search={{ branch, path: pathSoFar }}
+									className="hover:text-[var(--accent)]"
+								>
+									{part}
+								</Link>
 							)}
 						</span>
 					);

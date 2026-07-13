@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -43,12 +43,9 @@ function ForgotPasswordPage() {
 					If an account exists for {email}, you'll receive reset instructions
 					shortly.
 				</p>
-				<Button
-					onClick={() => window.location.assign("/auth/login")}
-					className="w-full"
-				>
-					Back to sign in
-				</Button>
+				<Link to="/auth/login">
+					<Button className="w-full">Back to sign in</Button>
+				</Link>
 			</div>
 		);
 	}
@@ -91,12 +88,12 @@ function ForgotPasswordPage() {
 
 			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
 				Remember your password?{" "}
-				<a
-					href="/auth/login"
+				<Link
+					to="/auth/login"
 					className="font-medium text-[var(--lagoon-deep)] hover:underline"
 				>
 					Sign in
-				</a>
+				</Link>
 			</p>
 		</div>
 	);

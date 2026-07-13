@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+
 export default function Footer() {
 	const year = new Date().getFullYear();
 
@@ -7,6 +9,11 @@ export default function Footer() {
 				<p className="m-0 text-sm">
 					&copy; {year} PushStack. All rights reserved.
 				</p>
+				<nav className="flex items-center gap-4 text-sm" aria-label="Footer">
+					<Link to="/about" className="hover:text-[var(--sea-ink)]">
+						About
+					</Link>
+				</nav>
 			</div>
 		</footer>
 	);

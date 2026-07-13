@@ -387,13 +387,20 @@ function RepoSettingsPage() {
 	return (
 		<div className="page-wrap px-4 py-10">
 			<div className="mx-auto max-w-2xl space-y-6">
-				<div className="flex items-center gap-3">
+				<div className="flex items-center justify-between gap-3">
 					<Link
 						to="/repo/$owner/$name"
 						params={{ owner, name }}
 						className="text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
 					>
 						← {owner}/{name}
+					</Link>
+					<Link
+						to="/repo/$owner/$name/setup"
+						params={{ owner, name }}
+						className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						View setup guide
 					</Link>
 				</div>
 				<h1 className="text-2xl font-bold text-[var(--sea-ink)]">Settings</h1>

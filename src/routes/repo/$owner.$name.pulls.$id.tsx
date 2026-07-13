@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { lazy, Suspense, useState } from "react";
+import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,9 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	authSessionQueryOptions,
 	pullRequestCommentsQueryOptions,
+	pullRequestDiffQueryOptions,
 	pullRequestQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
@@ -41,12 +44,23 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 function PullRequestDetailPage() {
 	const { owner, name, id } = Route.useParams();
 	const queryClient = useQueryClient();
+	const { toast } = useToast();
 	const [newComment, setNewComment] = useState("");
 
+	const { data: session } = useQuery(authSessionQueryOptions());
 	const prId = Number(id);
 	const { data: pr, isLoading } = useQuery(pullRequestQueryOptions(prId));
 
 	const { data: comments } = useQuery(pullRequestCommentsQueryOptions(prId));
+
+	const { data: diff, isLoading: diffLoading } = useQuery({
+		...pullRequestDiffQueryOptions({
+			repoId: pr?.repoId ?? 0,
+			sourceBranch: pr?.sourceBranch ?? "",
+			targetBranch: pr?.targetBranch ?? "",
+		}),
+		enabled: !!pr,
+	});
 
 	const prQueryKey = queryKeys.pullRequest(prId);
 
@@ -60,8 +74,12 @@ function PullRequestDetailPage() {
 			);
 			return { prev };
 		},
-		onError: (_err, _vars, ctx) => {
+		onError: (err: Error, _vars, ctx) => {
 			if (ctx?.prev) queryClient.setQueryData(prQueryKey, ctx.prev);
+			toast(err.message || "Failed to merge pull request", "error");
+		},
+		onSuccess: () => {
+			toast("Pull request merged", "success");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: prQueryKey });
@@ -92,8 +110,9 @@ function PullRequestDetailPage() {
 			);
 			return { prev };
 		},
-		onError: (_err, _vars, ctx) => {
+		onError: (err: Error, _vars, ctx) => {
 			if (ctx?.prev) queryClient.setQueryData(prQueryKey, ctx.prev);
+			toast(err.message || "Failed to update pull request", "error");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: prQueryKey });
@@ -106,7 +125,11 @@ function PullRequestDetailPage() {
 
 	const commentMutation = useMutation({
 		mutationFn: createComment,
+		onError: (err: Error) => {
+			toast(err.message || "Failed to post comment", "error");
+		},
 		onSuccess: async () => {
+			toast("Comment posted", "success");
 			setNewComment("");
 			await queryClient.invalidateQueries({
 				queryKey: queryKeys.pullRequestComments(prId),
@@ -186,7 +209,7 @@ function PullRequestDetailPage() {
 		}
 	};
 
-	const canMerge = pr.status === "open";
+	const canMerge = pr.status === "open" && !!session?.user;
 
 	return (
 		<div className="space-y-6">
@@ -234,7 +257,7 @@ function PullRequestDetailPage() {
 							</Button>
 						</>
 					)}
-					{pr.status === "closed" && (
+					{pr.status === "closed" && session?.user && (
 						<Button
 							variant="default"
 							size="sm"
@@ -278,6 +301,45 @@ function PullRequestDetailPage() {
 					</div>
 				</div>
 
+				<div className="space-y-4">
+					<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+						Files changed{" "}
+						{diff?.files && (
+							<span className="text-sm font-normal text-[var(--sea-ink-soft)]">
+								({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
+								<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
+								<span className="text-red-600">-{diff.totalDeletions}</span>)
+							</span>
+						)}
+					</h3>
+					{diffLoading ? (
+						<Skeleton className="h-48" />
+					) : diff?.files && diff.files.length > 0 ? (
+						diff.files.map((fileDiff) => (
+							<Card
+								key={fileDiff.path}
+								className="border-[var(--line)] bg-[var(--surface)] p-4"
+							>
+								<div className="mb-3 flex items-center justify-between">
+									<code className="text-sm font-medium text-[var(--sea-ink)]">
+										{fileDiff.path}
+									</code>
+									<span className="text-xs uppercase text-[var(--sea-ink-soft)]">
+										{fileDiff.status}
+									</span>
+								</div>
+								<pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
+									{fileDiff.patch}
+								</pre>
+							</Card>
+						))
+					) : (
+						<p className="text-sm text-[var(--sea-ink-soft)]">
+							No changes between {pr.sourceBranch} and {pr.targetBranch}.
+						</p>
+					)}
+				</div>
+
 				{comments && comments.length > 0 && (
 					<div className="space-y-4">
 						{comments.map((comment) => (
@@ -314,7 +376,17 @@ function PullRequestDetailPage() {
 					<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
 						Add a Comment
 					</h3>
-					{pr.status === "open" ? (
+					{!session?.user ? (
+						<p className="text-sm text-[var(--sea-ink-soft)]">
+							<Link
+								to="/auth/login"
+								className="font-medium text-[var(--lagoon-deep)] hover:underline"
+							>
+								Sign in
+							</Link>{" "}
+							to add a comment.
+						</p>
+					) : pr.status === "open" ? (
 						<div className="space-y-4">
 							<Textarea
 								value={newComment}

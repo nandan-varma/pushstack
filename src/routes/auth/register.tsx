@@ -1,15 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { authClient } from "../../lib/auth-client";
+import { queryKeys } from "../../lib/query-options";
 
 export const Route = createFileRoute("/auth/register")({
 	component: RegisterPage,
 });
 
 function RegisterPage() {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const [name, setName] = useState("");
 	const [username, setUsername] = useState("");
 	const [email, setEmail] = useState("");
@@ -41,7 +45,12 @@ function RegisterPage() {
 			await authClient.signUp.email(
 				{ email, password, name, username },
 				{
-					onSuccess: () => window.location.assign("/dashboard"),
+					onSuccess: async () => {
+						await queryClient.invalidateQueries({
+							queryKey: queryKeys.authSession,
+						});
+						navigate({ to: "/dashboard" });
+					},
 					onError: (ctx) => {
 						setError(ctx.error.message || "Registration failed");
 						setLoading(false);
@@ -156,12 +165,12 @@ function RegisterPage() {
 
 			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
 				Already have an account?{" "}
-				<a
-					href="/auth/login"
+				<Link
+					to="/auth/login"
 					className="font-medium text-[var(--lagoon-deep)] hover:underline"
 				>
 					Sign in
-				</a>
+				</Link>
 			</p>
 		</div>
 	);

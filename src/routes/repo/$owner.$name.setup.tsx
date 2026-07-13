@@ -79,7 +79,7 @@ function RouteComponent() {
 					<input
 						readOnly
 						value={cloneUrl}
-						className="min-w-0 flex-1 rounded-md border border-[var(--line)] bg-white px-3 py-2 font-mono text-sm"
+						className="min-w-0 flex-1 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 font-mono text-sm text-[var(--sea-ink)]"
 					/>
 					<Button variant="outline" onClick={() => handleCopy(cloneUrl, "url")}>
 						{copiedSection === "url" ? "Copied" : "Copy"}
