@@ -16,6 +16,8 @@ import {
 	canModerateRepo,
 	canReadRepo,
 	canWriteRepo,
+	requireReadAccess,
+	requireWriteAccess,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
@@ -36,9 +38,7 @@ export const createIssue = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("Access denied");
-		}
+		await requireWriteAccess(data.repoId, user.id);
 
 		const [issue] = await db
 			.insert(issues)
@@ -80,9 +80,7 @@ export const getIssues = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUserOptional();
 
-		if (!(await canReadRepo(data.repoId, user?.id))) {
-			throw new Error("Access denied");
-		}
+		await requireReadAccess(data.repoId, user?.id);
 
 		const issueList = await db.query.issues.findMany({
 			where: and(
@@ -210,9 +208,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("Access denied");
-		}
+		await requireWriteAccess(data.repoId, user.id);
 
 		// Validate branches exist - we now work with branch names directly
 		if (data.sourceBranchName === data.targetBranchName) {
@@ -263,9 +259,7 @@ export const getPullRequests = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUserOptional();
 
-		if (!(await canReadRepo(data.repoId, user?.id))) {
-			throw new Error("Access denied");
-		}
+		await requireReadAccess(data.repoId, user?.id);
 
 		const prList = await db.query.pullRequests.findMany({
 			where: and(
@@ -483,9 +477,7 @@ export const createComment = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("Access denied");
-		}
+		await requireWriteAccess(data.repoId, user.id);
 
 		if (!data.issueId && !data.pullRequestId) {
 			throw new Error("Must specify issueId or pullRequestId");

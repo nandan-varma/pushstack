@@ -161,3 +161,42 @@ export async function canMergePullRequest(
 	const access = await getRepositoryAccess(repoId, userId);
 	return access?.canMergePullRequest ?? false;
 }
+
+// --- Request-handler helpers ---
+//
+// files.ts and issues.ts each repeated the same "load repo, throw if missing,
+// throw if the caller lacks access" shape at nearly every handler. These
+// don't change the checks above — they just give call sites one place to get
+// the standard "Repository not found" / access-denied errors instead of
+// hand-rolling the same three lines everywhere.
+
+export async function getRepoOrThrow(repoId: number) {
+	const repo = await db.query.repositories.findFirst({
+		where: eq(repositories.id, repoId),
+		with: { owner: true },
+	});
+
+	if (!repo) {
+		throw new Error("Repository not found");
+	}
+
+	return repo;
+}
+
+export async function requireReadAccess(
+	repoId: number,
+	userId?: string | null,
+): Promise<void> {
+	if (!(await canReadRepo(repoId, userId))) {
+		throw new Error("Access denied");
+	}
+}
+
+export async function requireWriteAccess(
+	repoId: number,
+	userId?: string | null,
+): Promise<void> {
+	if (!(await canWriteRepo(repoId, userId))) {
+		throw new Error("No write access to repository");
+	}
+}

@@ -14,7 +14,11 @@ import * as GitDiff from "./git-diff-iso";
 // Git operations imports (isomorphic-git)
 import * as GitOps from "./git-operations-iso";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
-import { canReadRepo, canWriteRepo } from "./repo-access";
+import {
+	getRepoOrThrow,
+	requireReadAccess,
+	requireWriteAccess,
+} from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 function getStorage(repo: {
@@ -42,19 +46,8 @@ export const uploadFile = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("No write access to repository");
-		}
-
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		await requireWriteAccess(data.repoId, user.id);
+		const repo = await getRepoOrThrow(data.repoId);
 
 		// Decode content
 		const buffer = Buffer.from(data.content, "base64");
@@ -111,19 +104,8 @@ export const getFile = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -154,19 +136,8 @@ export const getFileDownloadUrl = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -202,19 +173,8 @@ export const listFiles = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -246,19 +206,8 @@ export const deleteFile = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("No write access to repository");
-		}
-
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		await requireWriteAccess(data.repoId, user.id);
+		const repo = await getRepoOrThrow(data.repoId);
 
 		const storage = getStorage(repo);
 
@@ -302,19 +251,8 @@ export const getBranches = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -340,19 +278,8 @@ export const createBranch = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("No write access to repository");
-		}
-
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		await requireWriteAccess(data.repoId, user.id);
+		const repo = await getRepoOrThrow(data.repoId);
 
 		const storage = getStorage(repo);
 
@@ -383,19 +310,8 @@ export const deleteBranch = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		if (!(await canWriteRepo(data.repoId, user.id))) {
-			throw new Error("No write access to repository");
-		}
-
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
+		await requireWriteAccess(data.repoId, user.id);
+		const repo = await getRepoOrThrow(data.repoId);
 
 		// Don't allow deleting default branch
 		if (data.name === repo.defaultBranch) {
@@ -432,19 +348,8 @@ export const getCommits = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -485,19 +390,8 @@ export const getCommit = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -543,19 +437,8 @@ export const getCommitDiff = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -585,19 +468,8 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// Get repository
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.repoId),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		if (!(await canReadRepo(repo.id, currentUser?.id))) {
-			throw new Error("Access denied");
-		}
+		const repo = await getRepoOrThrow(data.repoId);
+		await requireReadAccess(repo.id, currentUser?.id);
 
 		const storage = getStorage(repo);
 
