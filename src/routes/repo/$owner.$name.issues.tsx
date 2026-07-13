@@ -97,8 +97,9 @@ function IssuesPage() {
 		},
 	});
 
-	const openCount = issues?.filter((i) => i.status === "open").length || 0;
-	const closedCount = issues?.filter((i) => i.status === "closed").length || 0;
+	const openCount = filter === "open" ? issues?.length || 0 : undefined;
+	const closedCount = filter === "closed" ? issues?.length || 0 : undefined;
+	const allCount = filter === "all" ? issues?.length || 0 : undefined;
 
 	const handleCreateIssue = useCallback(() => {
 		if (!newIssue.title.trim() || !repo) return;
@@ -183,11 +184,11 @@ function IssuesPage() {
 			<div className="flex items-center gap-5 border-b border-[var(--line)]">
 				{(
 					[
-						["open", `Open (${openCount})`],
-						["closed", `Closed (${closedCount})`],
-						["all", `All (${issues?.length || 0})`],
+						["open", "Open", openCount],
+						["closed", "Closed", closedCount],
+						["all", "All", allCount],
 					] as const
-				).map(([value, label]) => (
+				).map(([value, label, count]) => (
 					<button
 						key={value}
 						type="button"
@@ -198,6 +199,7 @@ function IssuesPage() {
 						}
 					>
 						{label}
+						{count !== undefined ? ` (${count})` : ""}
 					</button>
 				))}
 			</div>
@@ -229,16 +231,11 @@ function IssuesPage() {
 			) : (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					{issues.map((issue, idx) => (
-						<button
-							type="button"
+						<Link
 							key={issue.id}
-							className={`flex w-full items-start gap-4 p-4 text-left transition hover:bg-[var(--surface-strong)] ${idx < issues.length - 1 ? "border-b border-[var(--line)]" : ""}`}
-							onClick={() =>
-								navigate({
-									to: "/repo/$owner/$name/issues/$id",
-									params: { owner, name, id: issue.id.toString() },
-								})
-							}
+							to="/repo/$owner/$name/issues/$id"
+							params={{ owner, name, id: issue.id.toString() }}
+							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < issues.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 						>
 							<div className="flex-1 space-y-1">
 								<div className="flex items-center gap-2">
@@ -259,7 +256,7 @@ function IssuesPage() {
 									by {issue.author?.name || "Unknown"}
 								</p>
 							</div>
-						</button>
+						</Link>
 					))}
 				</div>
 			)}

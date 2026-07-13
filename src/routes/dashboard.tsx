@@ -22,17 +22,36 @@ export const Route = createFileRoute("/dashboard")({
 function describeActivity(activity: {
 	type: string;
 	metadata: unknown;
-	repository?: { name: string } | null;
-}): { text: string; showRepo: boolean } {
+	repository?: { name: string; owner?: { username?: string } | null } | null;
+	id: number;
+}): {
+	text: string;
+	showRepo: boolean;
+	linkTo?: string;
+	linkParams?: Record<string, string>;
+} {
 	const meta = (activity.metadata ?? {}) as Record<string, unknown>;
 	const title = typeof meta.title === "string" ? meta.title : null;
 	const action = typeof meta.action === "string" ? meta.action : null;
+	const repoOwner = activity.repository?.owner?.username || "unknown";
+	const repoName = activity.repository?.name || "";
+	const repoParams = { owner: repoOwner, name: repoName };
 
 	switch (activity.type) {
 		case "create_repo":
-			return { text: "Created this repository", showRepo: true };
+			return {
+				text: "Created this repository",
+				showRepo: true,
+				linkTo: "/repo/$owner/$name",
+				linkParams: repoParams,
+			};
 		case "star":
-			return { text: "Starred", showRepo: true };
+			return {
+				text: "Starred",
+				showRepo: true,
+				linkTo: "/repo/$owner/$name",
+				linkParams: repoParams,
+			};
 		case "commit":
 			return {
 				text:
@@ -40,24 +59,47 @@ function describeActivity(activity: {
 						? `Pushed a commit: "${meta.message}"`
 						: "Pushed a commit",
 				showRepo: true,
+				linkTo: "/repo/$owner/$name",
+				linkParams: repoParams,
 			};
-		case "issue":
+		case "issue": {
+			const issueId = typeof meta.issueId === "number" ? meta.issueId : null;
 			return {
 				text: `${action === "closed" ? "Closed" : action === "reopened" ? "Reopened" : "Opened"} issue${title ? ` "${title}"` : ""}`,
 				showRepo: true,
+				linkTo: issueId
+					? "/repo/$owner/$name/issues/$id"
+					: "/repo/$owner/$name/issues",
+				linkParams: issueId
+					? { ...repoParams, id: String(issueId) }
+					: repoParams,
 			};
-		case "pr":
+		}
+		case "pr": {
+			const prId = typeof meta.prId === "number" ? meta.prId : null;
 			return {
 				text: `${action === "merged" ? "Merged" : action === "closed" ? "Closed" : "Opened"} pull request${title ? ` "${title}"` : ""}`,
 				showRepo: true,
+				linkTo: prId
+					? "/repo/$owner/$name/pulls/$id"
+					: "/repo/$owner/$name/pulls",
+				linkParams: prId ? { ...repoParams, id: String(prId) } : repoParams,
 			};
+		}
 		case "comment":
 			return {
 				text: `Commented on ${meta.prId ? "a pull request" : "an issue"}`,
 				showRepo: true,
+				linkTo: "/repo/$owner/$name",
+				linkParams: repoParams,
 			};
 		default:
-			return { text: activity.type, showRepo: true };
+			return {
+				text: activity.type,
+				showRepo: true,
+				linkTo: "/repo/$owner/$name",
+				linkParams: repoParams,
+			};
 	}
 }
 
@@ -213,23 +255,44 @@ function DashboardPage() {
 					) : activities && activities.length > 0 ? (
 						<div className="space-y-2">
 							{activities.map((activity) => {
-								const { text, showRepo } = describeActivity(activity);
-								return (
-									<div
-										key={activity.id}
-										className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3"
-									>
+								const { text, showRepo, linkTo, linkParams } =
+									describeActivity(activity);
+								const content = (
+									<>
 										<div className="text-xs font-medium text-[var(--sea-ink)]">
 											{text}
 											{showRepo && activity.repository && (
 												<span className="ml-1 font-normal text-[var(--sea-ink-soft)]">
-													in {activity.repository.name}
+													in {activity.repository.owner?.username || "unknown"}/
+													{activity.repository.name}
 												</span>
 											)}
 										</div>
 										<div className="mt-0.5 text-[10px] text-[var(--sea-ink-soft)]">
 											{new Date(activity.createdAt).toLocaleString()}
 										</div>
+									</>
+								);
+
+								if (linkTo && linkParams) {
+									return (
+										<Link
+											key={activity.id}
+											to={linkTo}
+											params={linkParams}
+											className="block rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 no-underline transition hover:bg-[var(--surface-strong)]"
+										>
+											{content}
+										</Link>
+									);
+								}
+
+								return (
+									<div
+										key={activity.id}
+										className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3"
+									>
+										{content}
 									</div>
 								);
 							})}

@@ -257,43 +257,45 @@ function IssueDetailPage() {
 			)}
 
 			{/* Add Comment */}
-			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
-					Add a Comment
-				</h3>
-				{!session?.user ? (
-					<p className="text-sm text-[var(--sea-ink-soft)]">
-						<Link
-							to="/auth/login"
-							className="font-medium text-[var(--lagoon-deep)] hover:underline"
-						>
-							Sign in
-						</Link>{" "}
-						to add a comment.
-					</p>
-				) : issue.status === "open" ? (
-					<div className="space-y-4">
-						<Textarea
-							value={newComment}
-							onChange={(e) => setNewComment(e.target.value)}
-							placeholder="Write your comment here... (Markdown supported)"
-							rows={6}
-						/>
-						<div className="flex justify-end">
-							<Button
-								onClick={handleAddComment}
-								disabled={!newComment.trim() || commentMutation.isPending}
+			{session?.user && (
+				<Card className="p-6">
+					{issue.status === "open" ? (
+						<>
+							<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
+								Add a Comment
+							</h3>
+							<div className="space-y-4">
+								<Textarea
+									value={newComment}
+									onChange={(e) => setNewComment(e.target.value)}
+									placeholder="Write your comment here... (Markdown supported)"
+									rows={6}
+								/>
+								<div className="flex justify-end">
+									<Button
+										onClick={handleAddComment}
+										disabled={!newComment.trim() || commentMutation.isPending}
+									>
+										{commentMutation.isPending ? "Posting..." : "Post Comment"}
+									</Button>
+								</div>
+							</div>
+						</>
+					) : (
+						<p className="text-sm text-[var(--sea-ink-soft)]">
+							This issue is closed.{" "}
+							<button
+								type="button"
+								onClick={handleToggleStatus}
+								className="font-medium text-[var(--lagoon-deep)] hover:underline"
 							>
-								{commentMutation.isPending ? "Posting..." : "Post Comment"}
-							</Button>
-						</div>
-					</div>
-				) : (
-					<p className="text-sm text-[var(--sea-ink-soft)]">
-						This issue is closed. Reopen it to add a comment.
-					</p>
-				)}
-			</Card>
+								Reopen it
+							</button>{" "}
+							to add a comment.
+						</p>
+					)}
+				</Card>
+			)}
 		</div>
 	);
 }

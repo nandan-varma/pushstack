@@ -6,20 +6,19 @@ import { Label } from "../../components/ui/label";
 import { authClient } from "../../lib/auth-client";
 
 export const Route = createFileRoute("/auth/reset-password")({
+	validateSearch: (search: Record<string, unknown>): { token?: string } => ({
+		token: (search.token as string) || undefined,
+	}),
 	component: ResetPasswordPage,
 });
 
 function ResetPasswordPage() {
+	const { token = "" } = Route.useSearch();
 	const [password, setPassword] = useState("");
 	const [confirm, setConfirm] = useState("");
 	const [error, setError] = useState("");
 	const [success, setSuccess] = useState(false);
 	const [loading, setLoading] = useState(false);
-
-	const token =
-		typeof window !== "undefined"
-			? (new URLSearchParams(window.location.search).get("token") ?? "")
-			: "";
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();

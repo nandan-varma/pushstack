@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	redirect,
+	useNavigate,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
@@ -164,6 +169,16 @@ function FileUploadPage() {
 
 	return (
 		<div className="mx-auto max-w-2xl">
+			<div className="mb-6">
+				<Link
+					to="/repo/$owner/$name"
+					params={{ owner, name }}
+					search={{ branch }}
+					className="text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+				>
+					← {owner}/{name}
+				</Link>
+			</div>
 			<div className="island-shell rounded-2xl p-8">
 				<div className="mb-6">
 					<h2 className="text-lg font-semibold text-[var(--sea-ink)]">

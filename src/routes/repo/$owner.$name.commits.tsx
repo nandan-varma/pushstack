@@ -89,16 +89,6 @@ function CommitsPage() {
 		[navigate, owner, name],
 	);
 
-	const handleCommitClick = useCallback(
-		(sha: string) => {
-			navigate({
-				to: "/repo/$owner/$name/commit/$sha",
-				params: { owner, name, sha },
-			});
-		},
-		[navigate, owner, name],
-	);
-
 	const currentSkip = skip ?? 0;
 
 	return (
@@ -152,11 +142,11 @@ function CommitsPage() {
 				<>
 					<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 						{commits.map((commit, idx) => (
-							<button
-								type="button"
+							<Link
 								key={commit.sha}
-								className={`flex w-full items-center gap-4 p-4 text-left transition hover:bg-[var(--surface-strong)] ${idx < commits.length - 1 ? "border-b border-[var(--line)]" : ""}`}
-								onClick={() => handleCommitClick(commit.sha)}
+								to="/repo/$owner/$name/commit/$sha"
+								params={{ owner, name, sha: commit.sha }}
+								className={`flex w-full items-center gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < commits.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 							>
 								<Avatar className="h-8 w-8 shrink-0">
 									<AvatarFallback className="text-xs">
@@ -180,7 +170,7 @@ function CommitsPage() {
 								<code className="shrink-0 rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--sea-ink-soft)]">
 									{commit.sha.substring(0, 7)}
 								</code>
-							</button>
+							</Link>
 						))}
 					</div>
 

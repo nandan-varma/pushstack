@@ -3,6 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	authSessionQueryOptions,
 	queryKeys,
@@ -19,10 +21,6 @@ import {
 export const Route = createFileRoute("/repo/$owner/$name/settings")({
 	component: RepoSettingsPage,
 });
-
-const inputCls =
-	"w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]";
-const labelCls = "block text-sm font-medium text-[var(--sea-ink)] mb-1";
 
 function Section({
 	title,
@@ -93,27 +91,23 @@ function GeneralSection({
 	return (
 		<Section title="General" description="Basic repository information.">
 			<div className="space-y-4">
-				<div>
-					<label htmlFor="repo-name" className={labelCls}>
-						Repository name
-					</label>
-					<input
+				<div className="space-y-1.5">
+					<Label htmlFor="repo-name">Repository name</Label>
+					<Input
 						id="repo-name"
-						className={inputCls}
 						value={repoName}
 						onChange={(e) => setRepoName(e.target.value)}
 					/>
 				</div>
-				<div>
-					<label htmlFor="repo-desc" className={labelCls}>
+				<div className="space-y-1.5">
+					<Label htmlFor="repo-desc">
 						Description{" "}
 						<span className="font-normal text-[var(--sea-ink-soft)]">
 							(optional)
 						</span>
-					</label>
-					<input
+					</Label>
+					<Input
 						id="repo-desc"
-						className={inputCls}
 						value={description}
 						placeholder="A short description of this repository"
 						onChange={(e) => setDescription(e.target.value)}
@@ -247,8 +241,8 @@ function CollaboratorsSection({ repoId }: { repoId: number }) {
 
 				{/* Add collaborator */}
 				<div className="flex gap-2">
-					<input
-						className={`${inputCls} flex-1`}
+					<Input
+						className="flex-1"
 						placeholder="Username"
 						value={username}
 						onChange={(e) => setUsername(e.target.value)}
@@ -319,20 +313,34 @@ function DangerSection({
 			{error && (
 				<p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>
 			)}
-			<div className="flex gap-3">
-				<input
-					className={`${inputCls} flex-1`}
-					placeholder={`Type "${name}" to confirm`}
-					value={confirm}
-					onChange={(e) => setConfirm(e.target.value)}
-				/>
-				<Button
-					variant="destructive"
-					disabled={confirm !== name || deleteMutation.isPending || !repo}
-					onClick={() => deleteMutation.mutate()}
-				>
-					{deleteMutation.isPending ? "Deleting…" : "Delete repository"}
-				</Button>
+			<div className="space-y-3">
+				<div className="flex gap-3">
+					<Input
+						className="flex-1"
+						placeholder={`Type "${name}" to confirm`}
+						value={confirm}
+						onChange={(e) => setConfirm(e.target.value)}
+					/>
+					<Button
+						variant="destructive"
+						disabled={confirm !== name || deleteMutation.isPending || !repo}
+						onClick={() => deleteMutation.mutate()}
+					>
+						{deleteMutation.isPending ? "Deleting…" : "Delete repository"}
+					</Button>
+				</div>
+				{confirm && confirm !== name && (
+					<p className="text-xs text-[var(--sea-ink-soft)]">
+						Please type{" "}
+						<span className="font-medium text-[var(--sea-ink)]">"{name}"</span>{" "}
+						to confirm
+					</p>
+				)}
+				{confirm === name && (
+					<p className="text-xs text-red-600 dark:text-red-400">
+						Type confirmed. Click "Delete repository" to proceed.
+					</p>
+				)}
 			</div>
 		</Section>
 	);

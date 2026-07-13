@@ -73,7 +73,7 @@ function CommitDetailPage() {
 					to="/repo/$owner/$name/commits"
 					params={{ owner, name }}
 					className="inline-block"
-					search={{ branch: "main" }}
+					search={{ branch: repo?.defaultBranch || "main" }}
 				>
 					<Button variant="outline">Back to Commits</Button>
 				</Link>
@@ -96,6 +96,23 @@ function CommitDetailPage() {
 						<code className="px-2 py-1 rounded bg-[var(--chip-bg)] text-[var(--sea-ink)] border border-[var(--chip-line)] text-sm font-mono">
 							{commit.sha}
 						</code>
+						{commit.parent && commit.parent.length > 0 && (
+							<span className="text-xs text-[var(--sea-ink-soft)]">
+								Parent:{" "}
+								{commit.parent.map((p: string, i: number) => (
+									<span key={p}>
+										{i > 0 && ", "}
+										<Link
+											to="/repo/$owner/$name/commit/$sha"
+											params={{ owner, name, sha: p }}
+											className="font-mono text-[var(--lagoon-deep)] hover:underline"
+										>
+											{p.substring(0, 7)}
+										</Link>
+									</span>
+								))}
+							</span>
+						)}
 					</div>
 				</div>
 				<Link
@@ -167,18 +184,6 @@ function CommitDetailPage() {
 					</div>
 				</div>
 			</Card>
-
-			{/* Commit Message */}
-			{commit.message && (
-				<Card className="p-6">
-					<h2 className="text-lg font-semibold text-[var(--sea-ink)] mb-3">
-						Commit Message
-					</h2>
-					<pre className="whitespace-pre-wrap text-sm text-[var(--sea-ink)] font-mono bg-[var(--chip-bg)] p-4 rounded border border-[var(--chip-line)]">
-						{commit.message}
-					</pre>
-				</Card>
-			)}
 
 			{/* File Changes */}
 			<div className="space-y-4">

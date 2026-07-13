@@ -51,6 +51,15 @@ function RouteComponent() {
 
 	return (
 		<div className="space-y-6">
+			<div className="flex items-center justify-between">
+				<Link
+					to="/repo/$owner/$name"
+					params={{ owner, name }}
+					className="text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+				>
+					← {owner}/{name}
+				</Link>
+			</div>
 			<Card className="p-6">
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>

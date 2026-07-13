@@ -117,10 +117,10 @@ function PullRequestsPage() {
 	});
 
 	const counts = {
-		open: pullRequests?.filter((p) => p.status === "open").length || 0,
-		merged: pullRequests?.filter((p) => p.status === "merged").length || 0,
-		closed: pullRequests?.filter((p) => p.status === "closed").length || 0,
-		all: pullRequests?.length || 0,
+		open: filter === "open" ? pullRequests?.length || 0 : undefined,
+		merged: filter === "merged" ? pullRequests?.length || 0 : undefined,
+		closed: filter === "closed" ? pullRequests?.length || 0 : undefined,
+		all: filter === "all" ? pullRequests?.length || 0 : undefined,
 	};
 
 	const handleCreatePR = useCallback(() => {
@@ -260,12 +260,12 @@ function PullRequestsPage() {
 			<div className="flex items-center gap-5 border-b border-[var(--line)]">
 				{(
 					[
-						["open", `Open (${counts.open})`],
-						["merged", `Merged (${counts.merged})`],
-						["closed", `Closed (${counts.closed})`],
-						["all", `All (${counts.all})`],
+						["open", "Open", counts.open],
+						["merged", "Merged", counts.merged],
+						["closed", "Closed", counts.closed],
+						["all", "All", counts.all],
 					] as const
-				).map(([value, label]) => (
+				).map(([value, label, count]) => (
 					<button
 						key={value}
 						type="button"
@@ -276,6 +276,7 @@ function PullRequestsPage() {
 						}
 					>
 						{label}
+						{count !== undefined ? ` (${count})` : ""}
 					</button>
 				))}
 			</div>
@@ -307,16 +308,11 @@ function PullRequestsPage() {
 			) : (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					{pullRequests.map((pr, idx) => (
-						<button
-							type="button"
+						<Link
 							key={pr.id}
-							className={`flex w-full items-start gap-4 p-4 text-left transition hover:bg-[var(--surface-strong)] ${idx < pullRequests.length - 1 ? "border-b border-[var(--line)]" : ""}`}
-							onClick={() =>
-								navigate({
-									to: "/repo/$owner/$name/pulls/$id",
-									params: { owner, name, id: pr.id.toString() },
-								})
-							}
+							to="/repo/$owner/$name/pulls/$id"
+							params={{ owner, name, id: pr.id.toString() }}
+							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < pullRequests.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 						>
 							<div className="flex-1 space-y-1">
 								<div className="flex items-center gap-2">
@@ -336,7 +332,7 @@ function PullRequestsPage() {
 									</code>
 								</p>
 							</div>
-						</button>
+						</Link>
 					))}
 				</div>
 			)}

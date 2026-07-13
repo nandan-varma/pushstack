@@ -3,6 +3,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { getSession } from "@/lib/auth-session";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
@@ -14,10 +16,6 @@ export const Route = createFileRoute("/settings")({
 	},
 	component: SettingsPage,
 });
-
-const inputCls =
-	"w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]";
-const labelCls = "block text-sm font-medium text-[var(--sea-ink)] mb-1";
 
 function Section({
 	title,
@@ -68,28 +66,18 @@ function ProfileSection({ name, email }: { name: string; email: string }) {
 	return (
 		<Section title="Profile" description="Your public display name and email.">
 			<div className="space-y-4">
-				<div>
-					<label htmlFor="display-name" className={labelCls}>
-						Display name
-					</label>
-					<input
+				<div className="space-y-1.5">
+					<Label htmlFor="display-name">Display name</Label>
+					<Input
 						id="display-name"
-						className={inputCls}
 						value={displayName}
 						onChange={(e) => setDisplayName(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && save()}
 					/>
 				</div>
-				<div>
-					<label htmlFor="email" className={labelCls}>
-						Email
-					</label>
-					<input
-						id="email"
-						className={`${inputCls} opacity-60`}
-						value={email}
-						disabled
-					/>
+				<div className="space-y-1.5">
+					<Label htmlFor="email">Email</Label>
+					<Input id="email" value={email} disabled className="opacity-60" />
 					<p className="mt-1 text-xs text-[var(--sea-ink-soft)]">
 						Change your email in the Email section below.
 					</p>
@@ -150,14 +138,11 @@ function EmailSection({ currentEmail }: { currentEmail: string }) {
 				</div>
 			) : (
 				<div className="space-y-4">
-					<div>
-						<label htmlFor="new-email" className={labelCls}>
-							New email address
-						</label>
-						<input
+					<div className="space-y-1.5">
+						<Label htmlFor="new-email">New email address</Label>
+						<Input
 							id="new-email"
 							type="email"
-							className={inputCls}
 							value={newEmail}
 							placeholder={currentEmail}
 							onChange={(e) => setNewEmail(e.target.value)}
@@ -217,42 +202,34 @@ function PasswordSection() {
 	return (
 		<Section title="Password" description="Must be at least 8 characters.">
 			<div className="space-y-4">
-				<div>
-					<label htmlFor="current-pw" className={labelCls}>
-						Current password
-					</label>
-					<input
+				<div className="space-y-1.5">
+					<Label htmlFor="current-pw">Current password</Label>
+					<Input
 						id="current-pw"
 						type="password"
-						className={inputCls}
 						value={current}
 						autoComplete="current-password"
 						onChange={(e) => setCurrent(e.target.value)}
 					/>
 				</div>
-				<div>
-					<label htmlFor="new-pw" className={labelCls}>
-						New password
-					</label>
-					<input
+				<div className="space-y-1.5">
+					<Label htmlFor="new-pw">New password</Label>
+					<Input
 						id="new-pw"
 						type="password"
-						className={inputCls}
 						value={next}
 						autoComplete="new-password"
 						onChange={(e) => setNext(e.target.value)}
 					/>
 				</div>
-				<div>
-					<label htmlFor="confirm-pw" className={labelCls}>
-						Confirm new password
-					</label>
-					<input
+				<div className="space-y-1.5">
+					<Label htmlFor="confirm-pw">Confirm new password</Label>
+					<Input
 						id="confirm-pw"
 						type="password"
-						className={`${inputCls} ${mismatch ? "border-red-400 focus:ring-red-400" : ""}`}
 						value={confirm}
 						autoComplete="new-password"
+						className={mismatch ? "border-red-400 focus:ring-red-400" : ""}
 						onChange={(e) => setConfirm(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && save()}
 					/>

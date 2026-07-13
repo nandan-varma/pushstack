@@ -270,7 +270,8 @@ function PullRequestDetailPage() {
 				</div>
 			</div>
 
-			<Card className="p-6 space-y-6">
+			{/* Description */}
+			<Card className="p-6">
 				<div className="flex items-start gap-4">
 					<Avatar>
 						<AvatarImage src={pr.author?.image || undefined} />
@@ -300,25 +301,28 @@ function PullRequestDetailPage() {
 						)}
 					</div>
 				</div>
+			</Card>
 
-				<div className="space-y-4">
-					<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
-						Files changed{" "}
-						{diff?.files && (
-							<span className="text-sm font-normal text-[var(--sea-ink-soft)]">
-								({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
-								<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
-								<span className="text-red-600">-{diff.totalDeletions}</span>)
-							</span>
-						)}
-					</h3>
-					{diffLoading ? (
-						<Skeleton className="h-48" />
-					) : diff?.files && diff.files.length > 0 ? (
-						diff.files.map((fileDiff) => (
-							<Card
+			{/* Files changed */}
+			<Card className="p-6">
+				<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+					Files changed{" "}
+					{diff?.files && (
+						<span className="text-sm font-normal text-[var(--sea-ink-soft)]">
+							({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
+							<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
+							<span className="text-red-600">-{diff.totalDeletions}</span>)
+						</span>
+					)}
+				</h3>
+				{diffLoading ? (
+					<Skeleton className="h-48" />
+				) : diff?.files && diff.files.length > 0 ? (
+					<div className="mt-4 space-y-4">
+						{diff.files.map((fileDiff) => (
+							<div
 								key={fileDiff.path}
-								className="border-[var(--line)] bg-[var(--surface)] p-4"
+								className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4"
 							>
 								<div className="mb-3 flex items-center justify-between">
 									<code className="text-sm font-medium text-[var(--sea-ink)]">
@@ -331,85 +335,88 @@ function PullRequestDetailPage() {
 								<pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
 									{fileDiff.patch}
 								</pre>
-							</Card>
-						))
-					) : (
-						<p className="text-sm text-[var(--sea-ink-soft)]">
-							No changes between {pr.sourceBranch} and {pr.targetBranch}.
-						</p>
-					)}
-				</div>
-
-				{comments && comments.length > 0 && (
-					<div className="space-y-4">
-						{comments.map((comment) => (
-							<Card key={comment.id} className="p-6">
-								<div className="flex items-start gap-4">
-									<Avatar>
-										<AvatarImage src={comment.author?.image || undefined} />
-										<AvatarFallback>
-											{getInitials(comment.author?.name || "U")}
-										</AvatarFallback>
-									</Avatar>
-									<div className="flex-1">
-										<div className="flex items-center gap-2 mb-4">
-											<span className="font-medium text-[var(--sea-ink)]">
-												{comment.author?.name || "Unknown"}
-											</span>
-											<span className="text-sm text-[var(--sea-ink-soft)]">
-												{formatDistanceToNow(new Date(comment.createdAt), {
-													addSuffix: true,
-												})}
-											</span>
-										</div>
-										<Suspense fallback={<Skeleton className="h-20" />}>
-											<MarkdownRenderer content={comment.body} />
-										</Suspense>
-									</div>
-								</div>
-							</Card>
+							</div>
 						))}
 					</div>
+				) : (
+					<p className="mt-4 text-sm text-[var(--sea-ink-soft)]">
+						No changes between {pr.sourceBranch} and {pr.targetBranch}.
+					</p>
 				)}
+			</Card>
 
-				<div>
+			{/* Comments */}
+			{comments && comments.length > 0 && (
+				<div className="space-y-4">
+					<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+						Comments ({comments.length})
+					</h3>
+					{comments.map((comment) => (
+						<Card key={comment.id} className="p-6">
+							<div className="flex items-start gap-4">
+								<Avatar>
+									<AvatarImage src={comment.author?.image || undefined} />
+									<AvatarFallback>
+										{getInitials(comment.author?.name || "U")}
+									</AvatarFallback>
+								</Avatar>
+								<div className="flex-1">
+									<div className="flex items-center gap-2 mb-4">
+										<span className="font-medium text-[var(--sea-ink)]">
+											{comment.author?.name || "Unknown"}
+										</span>
+										<span className="text-sm text-[var(--sea-ink-soft)]">
+											{formatDistanceToNow(new Date(comment.createdAt), {
+												addSuffix: true,
+											})}
+										</span>
+									</div>
+									<Suspense fallback={<Skeleton className="h-20" />}>
+										<MarkdownRenderer content={comment.body} />
+									</Suspense>
+								</div>
+							</div>
+						</Card>
+					))}
+				</div>
+			)}
+
+			{/* Add Comment */}
+			{!session?.user ? (
+				<Card className="p-6">
+					<p className="text-sm text-[var(--sea-ink-soft)]">
+						<Link
+							to="/auth/login"
+							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						>
+							Sign in
+						</Link>{" "}
+						to add a comment.
+					</p>
+				</Card>
+			) : (
+				<Card className="p-6">
 					<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
 						Add a Comment
 					</h3>
-					{!session?.user ? (
-						<p className="text-sm text-[var(--sea-ink-soft)]">
-							<Link
-								to="/auth/login"
-								className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					<div className="space-y-4">
+						<Textarea
+							value={newComment}
+							onChange={(e) => setNewComment(e.target.value)}
+							placeholder="Write your comment here... (Markdown supported)"
+							rows={6}
+						/>
+						<div className="flex justify-end">
+							<Button
+								onClick={handleAddComment}
+								disabled={!newComment.trim() || commentMutation.isPending}
 							>
-								Sign in
-							</Link>{" "}
-							to add a comment.
-						</p>
-					) : pr.status === "open" ? (
-						<div className="space-y-4">
-							<Textarea
-								value={newComment}
-								onChange={(e) => setNewComment(e.target.value)}
-								placeholder="Write your comment here... (Markdown supported)"
-								rows={6}
-							/>
-							<div className="flex justify-end">
-								<Button
-									onClick={handleAddComment}
-									disabled={!newComment.trim() || commentMutation.isPending}
-								>
-									{commentMutation.isPending ? "Posting..." : "Post Comment"}
-								</Button>
-							</div>
+								{commentMutation.isPending ? "Posting..." : "Post Comment"}
+							</Button>
 						</div>
-					) : (
-						<p className="text-sm text-[var(--sea-ink-soft)]">
-							This pull request is {pr.status}. Reopen it to add a comment.
-						</p>
-					)}
-				</div>
-			</Card>
+					</div>
+				</Card>
+			)}
 		</div>
 	);
 }

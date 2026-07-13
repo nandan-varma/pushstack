@@ -134,7 +134,16 @@ function FileBlobPage() {
 					</span>
 				</div>
 				<div className="flex items-center gap-2">
-					<Link to="/repo/$owner/$name" params={{ owner, name }}>
+					<Link
+						to="/repo/$owner/$name"
+						params={{ owner, name }}
+						search={{
+							branch,
+							path: filePath.includes("/")
+								? filePath.slice(0, filePath.lastIndexOf("/"))
+								: undefined,
+						}}
+					>
 						<Button variant="outline" size="sm">
 							Back to Files
 						</Button>
@@ -150,7 +159,7 @@ function FileBlobPage() {
 				<Link
 					to="/repo/$owner/$name"
 					params={{ owner, name }}
-					className="hover:text-[var(--accent)]"
+					className="hover:text-[var(--lagoon-deep)]"
 				>
 					{name}
 				</Link>
@@ -169,7 +178,7 @@ function FileBlobPage() {
 									to="/repo/$owner/$name"
 									params={{ owner, name }}
 									search={{ branch, path: pathSoFar }}
-									className="hover:text-[var(--accent)]"
+									className="hover:text-[var(--lagoon-deep)]"
 								>
 									{part}
 								</Link>
