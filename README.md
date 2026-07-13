@@ -13,10 +13,10 @@ Visit [http://localhost:3000](http://localhost:3000) to get started.
 
 ## ✨ Features
 
-- **Git Repository Hosting**: Host and manage Git repositories with full version control
-- **Authentication**: Secure user authentication using Better Auth
+- **Git Repository Hosting**: Full Git smart HTTP protocol (clone/fetch/push) with no native git binary — object storage lives in Cloudflare R2
+- **Authentication**: Secure user authentication using Better Auth, plus Personal Access Tokens for git-over-HTTPS
 - **Issue Tracking**: Track bugs, features, and tasks
-- **Pull Requests**: Collaborate on code with pull requests and reviews
+- **Pull Requests**: Collaborate on code with pull requests, merges, and review comments
 - **Code Viewer**: Browse code with syntax highlighting
 - **Diff Viewer**: View changes with side-by-side or unified diff views
 - **Database**: PostgreSQL database with Drizzle ORM
@@ -29,12 +29,12 @@ Visit [http://localhost:3000](http://localhost:3000) to get started.
    cp .env.example .env.local
    ```
 
-2. Generate Better Auth secret:
+2. Generate a Better Auth secret:
    ```bash
    pnpm dlx @better-auth/cli secret
    ```
 
-3. Add the secret and your database URL to `.env.local`:
+3. Fill in `.env.local`:
    ```env
    DATABASE_URL=postgresql://...
    BETTER_AUTH_SECRET=your_secret_key
@@ -43,75 +43,78 @@ Visit [http://localhost:3000](http://localhost:3000) to get started.
    R2_SECRET_ACCESS_KEY=your_r2_secret
    R2_BUCKET_NAME=your_bucket_name
    R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+   GIT_REPOS_PATH=/path/to/local/hydration/dir   # optional, defaults to os.tmpdir()/pushstack-repos
+   RESEND_API_KEY=your_resend_api_key            # transactional email: password reset, email verification
+   RESEND_EMAIL_FROM=you@yourdomain.com          # optional, has a built-in fallback
    ```
 
-4. Run database migrations:
+4. Push the database schema:
    ```bash
    pnpm db:push
    ```
+
+See `CLAUDE.md` for the full list of environment variables, including optional git-cache and request-size tuning knobs.
 
 ## 📁 Project Structure
 
 ```
 src/
-├── components/        # Reusable UI components
-├── db/               # Database schema and client
-├── hooks/            # Custom React hooks
-├── integrations/     # Third-party integrations
-├── lib/              # Utility functions and helpers
-├── routes/           # File-based routing
-└── server/           # Server-side functions
+├── components/        # Reusable UI components (including shadcn/ui in components/ui)
+├── db/                # Drizzle schema (Better Auth tables + app tables) and client
+├── hooks/             # Custom React hooks
+├── integrations/      # Better Auth client and TanStack Query wiring
+├── lib/               # Client + shared utilities (query-options, email, git URL parsing, ...)
+├── routes/            # File-based routing (TanStack Start); API routes under routes/api/
+└── server/            # Server-only modules — git operations, access control, DB-backed CRUD
 ```
 
 ## 🛠️ Available Commands
 
 ```bash
-pnpm dev          # Start development server
-pnpm build        # Build for production
-pnpm preview      # Preview production build
-pnpm test         # Run unit tests
-pnpm test:e2e     # Run E2E tests
-pnpm lint         # Lint code
-pnpm format       # Format code
-pnpm db:generate  # Generate migrations
-pnpm db:push      # Push schema to database
-pnpm db:migrate   # Run migrations
-pnpm db:studio    # Open Drizzle Studio
+pnpm dev              # Start development server on :3000
+pnpm build            # Build for production
+pnpm preview          # Preview production build
+pnpm typecheck        # tsc --noEmit
+pnpm test             # Run unit tests (Vitest)
+pnpm test:watch       # Run unit tests in watch mode
+pnpm test:coverage    # Run unit tests with coverage
+pnpm test:e2e         # Run E2E tests (Playwright)
+pnpm check            # Biome lint + format check
+pnpm lint             # Biome lint only
+pnpm format           # Biome format (write)
+pnpm db:generate      # Generate Drizzle migration files
+pnpm db:push          # Push schema to the database directly (no migration files)
+pnpm db:migrate       # Run generated migrations
+pnpm db:studio        # Open Drizzle Studio
 ```
 
 ## 🧪 Testing
 
-This project uses Vitest for unit tests and Playwright for E2E tests.
+Unit tests (Vitest, jsdom) live alongside their modules in `__tests__/` directories — most coverage is in `src/server/__tests__/`, covering the git protocol implementation, access control, and CRUD server functions. End-to-end tests (Playwright) live in `e2e/`.
+
+Run a single unit test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 
 ## 🚢 Deployment
-
-To build for production:
 
 ```bash
 pnpm build
 ```
 
-Deploy to Cloudflare Pages:
-
-```bash
-pnpm deploy
-```
+The deployment target is Vercel, via Nitro's `vercel` preset (see `vite.config.ts`) — not Cloudflare, which is used only for R2 object storage. `pnpm deploy` runs the production build; deploying the build output is handled by the Vercel CLI/integration.
 
 ## 📚 Tech Stack
 
-- **Framework**: TanStack Start
-- **Database**: PostgreSQL (Neon)
+- **Framework**: TanStack Start (file-based SSR router, server functions)
+- **Database**: PostgreSQL (Neon serverless)
 - **ORM**: Drizzle
 - **Authentication**: Better Auth
-- **Storage**: Cloudflare R2
+- **Git**: isomorphic-git (no native git binary), Cloudflare R2 for object storage
+- **Email**: Resend
 - **Styling**: Tailwind CSS
-- **UI Components**: Shadcn
+- **UI Components**: shadcn/ui
 - **Testing**: Vitest, Playwright
+- **Lint/Format**: Biome
 
 ## 📖 Documentation
 
-For more detailed documentation, see:
-- [SETUP.md](./SETUP.md) - Setup guide
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Architecture overview
-- [AUTH.md](./AUTH.md) - Authentication system
-- [TEST_GUIDE.md](./TEST_GUIDE.md) - Testing guide
+See `CLAUDE.md` for architecture details, module responsibilities, and environment variables aimed at contributors working in the codebase.
