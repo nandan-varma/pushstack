@@ -83,7 +83,7 @@ describe("GitManager - Repository Management", () => {
 
 	describe("ensureGitBaseDir", () => {
 		it("should create base directory", async () => {
-			(fs.mkdir as any).mockResolvedValue(undefined);
+			fs.mkdir.mockResolvedValue(undefined);
 
 			await GitManager.ensureGitBaseDir();
 
@@ -95,9 +95,9 @@ describe("GitManager - Repository Management", () => {
 
 	describe("initBareRepo", () => {
 		it("should initialize a new repository", async () => {
-			(fs.mkdir as any).mockResolvedValue(undefined);
-			(git.init as any).mockResolvedValue(undefined);
-			(git.setConfig as any).mockResolvedValue(undefined);
+			fs.mkdir.mockResolvedValue(undefined);
+			git.init.mockResolvedValue(undefined);
+			git.setConfig.mockResolvedValue(undefined);
 
 			const result = await GitManager.initBareRepo(testOwnerId, testRepoName);
 
@@ -113,9 +113,9 @@ describe("GitManager - Repository Management", () => {
 		});
 
 		it("should set default git config", async () => {
-			(fs.mkdir as any).mockResolvedValue(undefined);
-			(git.init as any).mockResolvedValue(undefined);
-			(git.setConfig as any).mockResolvedValue(undefined);
+			fs.mkdir.mockResolvedValue(undefined);
+			git.init.mockResolvedValue(undefined);
+			git.setConfig.mockResolvedValue(undefined);
 
 			await GitManager.initBareRepo(testOwnerId, testRepoName);
 
@@ -136,7 +136,7 @@ describe("GitManager - Repository Management", () => {
 
 	describe("repoExists", () => {
 		it("should return true if repository exists", async () => {
-			(fs.access as any).mockResolvedValue(undefined);
+			fs.access.mockResolvedValue(undefined);
 
 			const result = await GitManager.repoExists(testOwnerId, testRepoName);
 
@@ -145,7 +145,7 @@ describe("GitManager - Repository Management", () => {
 		});
 
 		it("should return false if repository does not exist", async () => {
-			(fs.access as any).mockRejectedValue(new Error("Not found"));
+			fs.access.mockRejectedValue(new Error("Not found"));
 
 			const result = await GitManager.repoExists(testOwnerId, testRepoName);
 
@@ -155,7 +155,7 @@ describe("GitManager - Repository Management", () => {
 
 	describe("deleteRepo", () => {
 		it("should delete repository directory", async () => {
-			(fs.rm as any).mockResolvedValue(undefined);
+			fs.rm.mockResolvedValue(undefined);
 
 			await GitManager.deleteRepo(testOwnerId, testRepoName);
 
@@ -166,7 +166,7 @@ describe("GitManager - Repository Management", () => {
 		});
 
 		it("should throw error if deletion fails", async () => {
-			(fs.rm as any).mockRejectedValue(new Error("Permission denied"));
+			fs.rm.mockRejectedValue(new Error("Permission denied"));
 
 			await expect(
 				GitManager.deleteRepo(testOwnerId, testRepoName),
@@ -176,8 +176,8 @@ describe("GitManager - Repository Management", () => {
 
 	describe("cloneRepo", () => {
 		it("should clone repository from URL", async () => {
-			(fs.mkdir as any).mockResolvedValue(undefined);
-			(git.clone as any).mockResolvedValue(undefined);
+			fs.mkdir.mockResolvedValue(undefined);
+			git.clone.mockResolvedValue(undefined);
 
 			const sourceUrl = "https://github.com/example/repo.git";
 			const result = await GitManager.cloneRepo(
@@ -206,12 +206,12 @@ describe("GitManager - Repository Management", () => {
 			];
 			const mockStats = { size: 1024 };
 
-			(fs.readdir as any)
+			fs.readdir
 				.mockResolvedValueOnce(mockFiles)
 				.mockResolvedValueOnce([
 					{ name: "nested.txt", isDirectory: () => false },
 				]);
-			(fs.stat as any).mockResolvedValue(mockStats);
+			fs.stat.mockResolvedValue(mockStats);
 
 			const result = await GitManager.getRepoDiskUsage(testGitPath);
 
@@ -220,7 +220,7 @@ describe("GitManager - Repository Management", () => {
 		});
 
 		it("should handle empty directory", async () => {
-			(fs.readdir as any).mockResolvedValue([]);
+			fs.readdir.mockResolvedValue([]);
 
 			const result = await GitManager.getRepoDiskUsage(testGitPath);
 
@@ -269,8 +269,8 @@ describe("GitManager - Repository Management", () => {
 		describe("initBareRepo", () => {
 			it("skips local mkdir and uses R2 backend when R2 is configured", async () => {
 				mockIsR2Configured.mockReturnValue(true);
-				(git.init as any).mockResolvedValue(undefined);
-				(git.setConfig as any).mockResolvedValue(undefined);
+				git.init.mockResolvedValue(undefined);
+				git.setConfig.mockResolvedValue(undefined);
 
 				const result = await GitManager.initBareRepo(testOwnerId, testRepoName);
 

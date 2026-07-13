@@ -6,17 +6,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Allow calling createServerFn handlers directly in tests
 vi.mock("@tanstack/react-start", () => ({
-	createServerFn: () => {
-		const obj: any = {};
-		obj.validator = (validateFn: any) => {
-			const inner: any = {};
-			inner.handler = (handlerFn: any) => (args: any) =>
-				handlerFn({ data: validateFn(args?.data ?? args) });
-			return inner;
-		};
-		obj.handler = (handlerFn: any) => (args: any) => handlerFn(args);
-		return obj;
-	},
+	createServerFn: () => ({
+		validator: (validateFn: (data: unknown) => unknown) => ({
+			handler:
+				(handlerFn: (args: { data: unknown }) => unknown) =>
+				(args?: { data?: unknown }) =>
+					handlerFn({ data: validateFn(args?.data ?? args) }),
+		}),
+		handler: (handlerFn: (args: unknown) => unknown) => (args: unknown) =>
+			handlerFn(args),
+	}),
 }));
 
 vi.mock("../session", () => ({

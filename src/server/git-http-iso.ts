@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import * as localFsPromises from "node:fs/promises";
 import path from "node:path";
-import git from "isomorphic-git";
+import git, { type FsClient } from "isomorphic-git";
 import type { GitAuthContext } from "./git-auth";
 import { r2Backend } from "./git-r2-backend";
 import { withReceivePackLock } from "./git-repo-storage";
@@ -111,14 +111,15 @@ async function listAllRefs(gitdir: string, defaultBranch = "main") {
 async function collectReachableOids(
 	gitdir: string,
 	startOids: string[],
-	filesystem: any = r2Backend,
+	filesystem: FsClient = r2Backend,
 ): Promise<string[]> {
 	const seen = new Set<string>();
 	// ponytail: promise-per-oid deduplicates concurrent traversal paths
 	const promises = new Map<string, Promise<void>>();
 
 	function visit(oid: string): Promise<void> {
-		if (promises.has(oid)) return promises.get(oid)!;
+		const existing = promises.get(oid);
+		if (existing) return existing;
 
 		const p = (async () => {
 			try {

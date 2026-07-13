@@ -276,8 +276,9 @@ describe("getFileFromBranch", () => {
 describe("getBlob", () => {
 	it("returns blob buffer by OID", async () => {
 		const entries = await getTree(OWNER, REPO, "main", "");
-		const readme = entries.find((e) => e.path === "README.md")!;
+		const readme = entries.find((e) => e.path === "README.md");
 		expect(readme).toBeDefined();
+		if (!readme) throw new Error("unreachable");
 		const buf = await getBlob(OWNER, REPO, readme.oid);
 		expect(buf.toString()).toContain("Repo");
 	});

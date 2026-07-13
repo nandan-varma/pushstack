@@ -5,14 +5,14 @@ import { rootRoute } from "./router-utils";
 export const createMockRoute = (
 	path: string,
 	component: React.ComponentType,
-	options: any = {},
+	options: Record<string, unknown> = {},
 ) => {
 	return createRoute({
 		getParentRoute: () => rootRoute,
 		path,
 		component,
 		...options,
-	});
+	} as Parameters<typeof createRoute>[0]);
 };
 
 // Common test components

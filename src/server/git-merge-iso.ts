@@ -98,7 +98,7 @@ export async function mergeBranches(
 				});
 				return { success: true, commitSha: sourceOid };
 			}
-		} catch (error) {
+		} catch (_error) {
 			return { success: false, conflicts: ["Merge conflicts detected"] };
 		}
 		// Non-FF: fall through to worktree path below

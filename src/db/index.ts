@@ -6,16 +6,15 @@ import * as schema from "./schema.ts";
 // Check if running on server or client
 const isServer = typeof window === "undefined";
 
-// Verify DATABASE_URL is configured (only on server)
-if (isServer && !process.env.DATABASE_URL) {
-	throw new Error("DATABASE_URL environment variable is not set");
-}
-
 // Create a Neon HTTP client for serverless environments
 // On client, use a dummy connection string (will never be used since db calls are server-only)
-const connectionString = isServer
-	? process.env.DATABASE_URL!
-	: "postgresql://client@localhost/dummy";
+let connectionString = "postgresql://client@localhost/dummy";
+if (isServer) {
+	if (!process.env.DATABASE_URL) {
+		throw new Error("DATABASE_URL environment variable is not set");
+	}
+	connectionString = process.env.DATABASE_URL;
+}
 
 const sql = neon(connectionString);
 

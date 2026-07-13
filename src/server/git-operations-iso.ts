@@ -51,7 +51,7 @@ async function upsertTree(
 			const dir = filePath.slice(0, slash);
 			const rest = filePath.slice(slash + 1);
 			if (!nested.has(dir)) nested.set(dir, new Map());
-			nested.get(dir)!.set(rest, blobOid);
+			nested.get(dir)?.set(rest, blobOid);
 		}
 	}
 	for (const [name, blobOid] of direct) {
@@ -426,7 +426,7 @@ export async function getFileContent(
 		`${ownerKey}/${repoName}@${ref}:${filePath}`,
 	);
 
-	if (!entry || entry.type !== "blob") {
+	if (entry?.type !== "blob") {
 		throw new Error(`File not found: ${filePath}`);
 	}
 
@@ -547,7 +547,7 @@ export async function getTreeFromBranch(
 			context,
 		);
 		result =
-			!entry || entry.type !== "tree"
+			entry?.type !== "tree"
 				? []
 				: await wrapMissingObject(
 						listTreeEntries(repo, entry.oid, entry.path),

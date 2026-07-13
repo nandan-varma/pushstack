@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/git/$")({
 					const url = request.url;
 					const parsed = parseGitUrl(url);
 
-					if (!parsed || !parsed.isInfoRefs || !parsed.service) {
+					if (!parsed?.isInfoRefs || !parsed.service) {
 						return new Response("Invalid git request", { status: 400 });
 					}
 
@@ -98,7 +98,7 @@ export const Route = createFileRoute("/api/git/$")({
 					const url = request.url;
 					const parsed = parseGitUrl(url);
 
-					if (!parsed || !parsed.service || parsed.isInfoRefs) {
+					if (!parsed?.service || parsed.isInfoRefs) {
 						return new Response("Invalid git request", { status: 400 });
 					}
 

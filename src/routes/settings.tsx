@@ -81,8 +81,15 @@ function ProfileSection({ name, email }: { name: string; email: string }) {
 					/>
 				</div>
 				<div>
-					<label className={labelCls}>Email</label>
-					<input className={`${inputCls} opacity-60`} value={email} disabled />
+					<label htmlFor="email" className={labelCls}>
+						Email
+					</label>
+					<input
+						id="email"
+						className={`${inputCls} opacity-60`}
+						value={email}
+						disabled
+					/>
 					<p className="mt-1 text-xs text-[var(--sea-ink-soft)]">
 						Change your email in the Email section below.
 					</p>

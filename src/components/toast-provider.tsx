@@ -43,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 	return (
 		<ToastContext.Provider value={{ toasts, toast, dismiss }}>
 			{children}
-			<div
+			<section
 				className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2"
 				aria-live="polite"
 				aria-label="Notifications"
@@ -84,7 +84,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 						</button>
 					</div>
 				))}
-			</div>
+			</section>
 		</ToastContext.Provider>
 	);
 }

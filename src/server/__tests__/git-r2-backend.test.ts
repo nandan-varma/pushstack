@@ -53,8 +53,10 @@ describe("R2Backend.readFile", () => {
 		vi.mocked(cache.getCache).mockReturnValue(null);
 		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({
 			content,
+			contentType: undefined,
 			size: content.length,
-		} as any);
+			etag: undefined,
+		});
 
 		const backend = new R2Backend();
 		const result = await backend.readFile(`${REPO_PATH}/HEAD`);
@@ -79,8 +81,10 @@ describe("R2Backend.readFile", () => {
 		vi.mocked(cache.getCache).mockReturnValue(null);
 		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({
 			content,
+			contentType: undefined,
 			size: content.length,
-		} as any);
+			etag: undefined,
+		});
 
 		const backend = new R2Backend();
 		const result = await backend.readFile(`${REPO_PATH}/HEAD`, {
@@ -94,7 +98,10 @@ describe("R2Backend.readFile", () => {
 
 describe("R2Backend.writeFile", () => {
 	it("uploads to R2 and invalidates cache", async () => {
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
 
 		const backend = new R2Backend();
 		await backend.writeFile(
@@ -107,7 +114,10 @@ describe("R2Backend.writeFile", () => {
 	});
 
 	it("uses text/plain content-type for refs/ paths", async () => {
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
 
 		const backend = new R2Backend();
 		await backend.writeFile(
@@ -123,7 +133,10 @@ describe("R2Backend.writeFile", () => {
 	});
 
 	it("uses text/plain content-type for HEAD file", async () => {
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
 
 		const backend = new R2Backend();
 		await backend.writeFile(
@@ -139,7 +152,10 @@ describe("R2Backend.writeFile", () => {
 	});
 
 	it("uses application/octet-stream for objects/ paths", async () => {
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
 
 		const backend = new R2Backend();
 		await backend.writeFile(
@@ -157,7 +173,10 @@ describe("R2Backend.writeFile", () => {
 
 describe("R2RefBackend.writeRef", () => {
 	it("writes ref without expectedValue check when expectedValue is undefined", async () => {
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
 
 		const backend = new R2RefBackend();
 		await backend.writeRef("alice", "myrepo", "refs/heads/main", "abc123");
@@ -170,8 +189,10 @@ describe("R2RefBackend.writeRef", () => {
 		vi.mocked(cache.getCache).mockReturnValue(null);
 		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({
 			content: Buffer.from("old-sha\n"),
+			contentType: undefined,
 			size: 8,
-		} as any);
+			etag: undefined,
+		});
 
 		const backend = new R2RefBackend();
 		await expect(
@@ -189,9 +210,14 @@ describe("R2RefBackend.writeRef", () => {
 		vi.mocked(cache.getCache).mockReturnValue(null);
 		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({
 			content: Buffer.from("expected-sha\n"),
+			contentType: undefined,
 			size: 13,
-		} as any);
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue(undefined as any);
+			etag: undefined,
+		});
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
 
 		const backend = new R2RefBackend();
 		await expect(

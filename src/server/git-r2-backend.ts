@@ -16,7 +16,7 @@ import {
 	uploadToR2,
 } from "#/lib/r2-operations";
 import { deleteCache, getCache, invalidateCache, setCache } from "./git-cache";
-import { GitRefNotFoundError } from "./git-errors";
+import { GitRefNotFoundError, isR2NotFoundError } from "./git-errors";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
@@ -25,6 +25,21 @@ import {
 // ponytail: coalesces concurrent reads for the same R2 key so a single pack file
 // (e.g. 1.5 MB) is only downloaded once even when 100+ object reads fire in parallel.
 const pendingDownloads = new Map<string, Promise<Buffer>>();
+
+interface R2Stat {
+	type: "file" | "dir";
+	mode: number;
+	size: number;
+	ino: number;
+	mtimeMs: number;
+	ctimeMs: number;
+	uid: number;
+	gid: number;
+	dev: number;
+	isFile: () => boolean;
+	isDirectory: () => boolean;
+	isSymbolicLink: () => boolean;
+}
 
 // R2 key pattern: repos/{ownerKey}/{repoName}/git/{path}
 function getR2Key(
@@ -111,7 +126,7 @@ export class R2Backend {
 				pendingDownloads.delete(r2Key);
 				return buffer;
 			})
-			.catch((error: any) => {
+			.catch((error: unknown) => {
 				pendingDownloads.delete(r2Key);
 				throw error;
 			});
@@ -120,11 +135,8 @@ export class R2Backend {
 		try {
 			const buffer = await download;
 			return options?.encoding === "utf8" ? buffer.toString("utf8") : buffer;
-		} catch (error: any) {
-			if (
-				error.name === "NoSuchKey" ||
-				error.$metadata?.httpStatusCode === 404
-			) {
+		} catch (error) {
+			if (isR2NotFoundError(error)) {
 				throw Object.assign(
 					new Error(`ENOENT: no such file or directory, open '${filepath}'`),
 					{ code: "ENOENT" },
@@ -260,7 +272,7 @@ export class R2Backend {
 	/**
 	 * Get file stats
 	 */
-	async stat(filepath: string): Promise<any> {
+	async stat(filepath: string): Promise<R2Stat> {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
@@ -337,7 +349,7 @@ export class R2Backend {
 	/**
 	 * Get file stats (symbolic link aware)
 	 */
-	async lstat(filepath: string): Promise<any> {
+	async lstat(filepath: string): Promise<R2Stat> {
 		// For R2, lstat is the same as stat (no symbolic links in object storage)
 		return this.stat(filepath);
 	}
@@ -394,11 +406,8 @@ export class R2RefBackend {
 			setCache(cacheKey, Buffer.from(value));
 
 			return value;
-		} catch (error: any) {
-			if (
-				error.name === "NoSuchKey" ||
-				error.$metadata?.httpStatusCode === 404
-			) {
+		} catch (error) {
+			if (isR2NotFoundError(error)) {
 				throw new GitRefNotFoundError(`Ref not found: ${ref}`);
 			}
 			throw error;
@@ -429,7 +438,7 @@ export class R2RefBackend {
 						`Ref update conflict: expected ${expectedValue}, found ${currentValue}`,
 					);
 				}
-			} catch (error: any) {
+			} catch (error) {
 				if (error instanceof GitRefNotFoundError && expectedValue !== null) {
 					throw new Error(
 						`Ref update conflict: ref exists but expected it to be null`,

@@ -31,7 +31,7 @@ export const Route = createFileRoute("/repo/$owner/$name/blob/$branch/$")({
 						path: params._splat || "",
 					}),
 				);
-			} catch (err) {
+			} catch (_err) {
 				// Directory path — redirect to tree view on the index route
 				throw redirect({
 					to: "/repo/$owner/$name",

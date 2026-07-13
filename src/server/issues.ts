@@ -64,7 +64,7 @@ export const createIssue = createServerFn({ method: "POST" })
 			},
 		});
 
-		return { ...issue, labels: issue.labels as {} };
+		return { ...issue, labels: issue.labels as string[] | null };
 	});
 
 // Get issues
@@ -93,7 +93,10 @@ export const getIssues = createServerFn({ method: "GET" })
 			orderBy: [desc(issues.createdAt)],
 		});
 
-		return issueList.map((issue) => ({ ...issue, labels: issue.labels as {} }));
+		return issueList.map((issue) => ({
+			...issue,
+			labels: issue.labels as string[] | null,
+		}));
 	});
 
 // Get issue by ID
@@ -124,7 +127,7 @@ export const getIssue = createServerFn({ method: "GET" })
 			throw new Error("Access denied");
 		}
 
-		return { ...issue, labels: issue.labels as {} };
+		return { ...issue, labels: issue.labels as string[] | null };
 	});
 
 // Update issue
@@ -187,7 +190,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 			});
 		}
 
-		return { ...updated, labels: updated.labels as {} };
+		return { ...updated, labels: updated.labels as string[] | null };
 	});
 
 // ============ PULL REQUESTS ============
@@ -549,7 +552,7 @@ export const getComments = createServerFn({ method: "GET" })
 		const commentList = await db.query.comments.findMany({
 			where: data.issueId
 				? eq(comments.issueId, data.issueId)
-				: eq(comments.pullRequestId, data.pullRequestId!),
+				: eq(comments.pullRequestId, data.pullRequestId as number),
 			with: {
 				author: true,
 			},

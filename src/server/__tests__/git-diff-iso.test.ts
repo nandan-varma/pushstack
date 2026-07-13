@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type MockWalkerMap = (filename: string, entries: unknown[]) => Promise<unknown>;
+
 const mockGit = vi.hoisted(() => ({
 	default: {
 		resolveRef: vi.fn(),
@@ -173,7 +175,7 @@ describe("getDiffBetweenBranches", () => {
 			oid: () => Promise.resolve(makeOid("x")),
 		});
 
-		g.walk.mockImplementation(async ({ map }: { map: Function }) => {
+		g.walk.mockImplementation(async ({ map }: { map: MockWalkerMap }) => {
 			const result = await map("old.txt", [
 				walkEntry("old.txt", "blob"),
 				undefined,

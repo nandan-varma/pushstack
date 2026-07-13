@@ -66,7 +66,15 @@ export class GitConflictError extends GitError {
 		targetLines?: string[];
 	}>;
 
-	constructor(message: string, conflicts: any[] = []) {
+	constructor(
+		message: string,
+		conflicts: Array<{
+			file: string;
+			baseLines?: string[];
+			sourceLines?: string[];
+			targetLines?: string[];
+		}> = [],
+	) {
 		super(message, 409, false);
 		this.conflicts = conflicts;
 	}
@@ -138,7 +146,7 @@ export class GitProtocolError extends GitError {
  */
 export function formatErrorResponse(error: unknown): {
 	status: number;
-	body: any;
+	body: Record<string, unknown>;
 	headers?: Record<string, string>;
 } {
 	if (error instanceof GitError) {
@@ -196,4 +204,19 @@ export function isRetryableError(error: unknown): boolean {
 	}
 
 	return false;
+}
+
+/**
+ * Duck-typed check for R2/S3 "not found" errors. Deliberately doesn't rely on
+ * `instanceof S3ServiceException` — the R2 backend treats `#/lib/r2-operations`
+ * as an opaque boundary, and tests mock it with plain objects/Errors carrying
+ * just `name`/`$metadata`, not real AWS SDK exception instances.
+ */
+export function isR2NotFoundError(error: unknown): boolean {
+	if (typeof error !== "object" || error === null) return false;
+	const err = error as {
+		name?: unknown;
+		$metadata?: { httpStatusCode?: unknown };
+	};
+	return err.name === "NoSuchKey" || err.$metadata?.httpStatusCode === 404;
 }

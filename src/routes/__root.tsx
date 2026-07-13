@@ -85,6 +85,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: THEME_INIT_SCRIPT is a static constant (no user input) and must run synchronously pre-paint to avoid a flash of the wrong theme */}
 				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 				<HeadContent />
 			</head>

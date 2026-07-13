@@ -5,6 +5,7 @@ import {
 	HeadObjectCommand,
 	ListObjectsV2Command,
 	PutObjectCommand,
+	S3ServiceException,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
@@ -47,9 +48,12 @@ async function circuitBreakerExecute<T>(fn: () => Promise<T>): Promise<T> {
 			cbFailures = 0;
 		}
 		return result;
-	} catch (error: any) {
+	} catch (error) {
 		// 404/NoSuchKey is expected behavior (file not found), not an R2 outage
-		if (error.$metadata?.httpStatusCode !== 404 && error.name !== "NoSuchKey") {
+		const isNotFound =
+			error instanceof S3ServiceException &&
+			(error.$metadata?.httpStatusCode === 404 || error.name === "NoSuchKey");
+		if (!isNotFound) {
 			cbFailures++;
 			cbLastFailureTime = Date.now();
 			if (cbFailures >= CIRCUIT_BREAKER_THRESHOLD) cbState = "open";
@@ -66,7 +70,7 @@ async function withRetry<T>(
 	operation: string,
 	maxRetries = MAX_RETRIES,
 ): Promise<T> {
-	let lastError: any;
+	let lastError: unknown;
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		try {
@@ -161,10 +165,10 @@ export async function downloadFromR2(key: string) {
 				size: response.ContentLength,
 				etag: response.ETag,
 			};
-		} catch (error: any) {
+		} catch (error) {
 			if (
-				error.$metadata?.httpStatusCode === 404 ||
-				error.name === "NoSuchKey"
+				error instanceof S3ServiceException &&
+				(error.$metadata?.httpStatusCode === 404 || error.name === "NoSuchKey")
 			) {
 				// Don't wrap 404 errors, just rethrow
 				throw error;
@@ -306,11 +310,12 @@ export async function headR2Object(
 				contentType: response.ContentType,
 				etag: response.ETag,
 			};
-		} catch (error: any) {
+		} catch (error) {
 			if (
-				error.$metadata?.httpStatusCode === 404 ||
-				error.name === "NoSuchKey" ||
-				error.name === "NotFound"
+				error instanceof S3ServiceException &&
+				(error.$metadata?.httpStatusCode === 404 ||
+					error.name === "NoSuchKey" ||
+					error.name === "NotFound")
 			) {
 				return null;
 			}

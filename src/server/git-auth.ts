@@ -68,7 +68,7 @@ function hasRequiredTokenScope(
 function parseBasicAuth(
 	authHeader: string | null,
 ): { username: string; password: string } | null {
-	if (!authHeader || !authHeader.startsWith("Basic ")) {
+	if (!authHeader?.startsWith("Basic ")) {
 		return null;
 	}
 

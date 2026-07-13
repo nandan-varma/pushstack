@@ -75,8 +75,13 @@ beforeAll(async () => {
 	]);
 });
 
-const { getRepositoryAccess, canReadRepo, canWriteRepo, canModerateRepo, canMergePullRequest } =
-	await import("../repo-access");
+const {
+	getRepositoryAccess,
+	canReadRepo,
+	canWriteRepo,
+	canModerateRepo,
+	canMergePullRequest,
+} = await import("../repo-access");
 
 describe("getRepositoryAccess", () => {
 	it("grants full access to the owner, on both public and private repos", async () => {
