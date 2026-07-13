@@ -8,6 +8,7 @@ import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
 	ensureRepositoryHydrated,
 	syncRepositoryToR2,
+	withRepositoryLock,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
 
@@ -282,24 +283,26 @@ export async function createCommit(
 
 	if (isR2Configured()) {
 		// ponytail: write blobs + tree + commit directly to R2 — no worktree, no disk I/O
-		return writeCommitDirect(
-			ownerKey,
-			repoName,
-			branch,
-			message,
-			author,
-			async (parentTreeOid, repo) => {
-				const blobs = new Map<string, string>();
-				for (const file of files) {
-					const content =
-						typeof file.content === "string"
-							? Buffer.from(file.content)
-							: file.content;
-					const oid = await git.writeBlob({ ...repo, blob: content });
-					blobs.set(file.path, oid);
-				}
-				return upsertTree(repo, parentTreeOid, blobs);
-			},
+		return withRepositoryLock(ownerKey, repoName, () =>
+			writeCommitDirect(
+				ownerKey,
+				repoName,
+				branch,
+				message,
+				author,
+				async (parentTreeOid, repo) => {
+					const blobs = new Map<string, string>();
+					for (const file of files) {
+						const content =
+							typeof file.content === "string"
+								? Buffer.from(file.content)
+								: file.content;
+						const oid = await git.writeBlob({ ...repo, blob: content });
+						blobs.set(file.path, oid);
+					}
+					return upsertTree(repo, parentTreeOid, blobs);
+				},
+			),
 		);
 	}
 
@@ -375,16 +378,26 @@ export async function createBranch(
 	startPoint: string = "main",
 	ownerDbId?: string,
 ): Promise<void> {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	const object = await git.resolveRef({
-		...repo,
-		ref: `refs/heads/${startPoint}`,
-	});
-	await git.branch({ ...repo, ref: branchName, checkout: false, object });
-	// ponytail: when R2 backend is active, git.branch wrote directly to R2 — syncing local→R2
-	// here would read an empty local dir and delete all R2 objects
-	if (!isR2Configured()) {
-		await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
+	const run = async () => {
+		const repo = await getRepoOptions(ownerKey, repoName);
+		const object = await git.resolveRef({
+			...repo,
+			ref: `refs/heads/${startPoint}`,
+		});
+		await git.branch({ ...repo, ref: branchName, checkout: false, object });
+		// ponytail: when R2 backend is active, git.branch wrote directly to R2 — syncing local→R2
+		// here would read an empty local dir and delete all R2 objects
+		if (!isR2Configured()) {
+			await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
+		}
+	};
+	// Only lock the R2-direct path: getRepoOptions()/syncRepositoryToR2() in the
+	// non-R2 path already acquire this same lock internally, and it isn't
+	// reentrant — wrapping the whole function unconditionally deadlocks.
+	if (isR2Configured()) {
+		await withRepositoryLock(ownerKey, repoName, run);
+	} else {
+		await run();
 	}
 }
 
@@ -394,10 +407,19 @@ export async function deleteBranch(
 	branchName: string,
 	ownerDbId?: string,
 ): Promise<void> {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	await git.deleteBranch({ ...repo, ref: branchName });
-	if (!isR2Configured()) {
-		await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
+	const run = async () => {
+		const repo = await getRepoOptions(ownerKey, repoName);
+		await git.deleteBranch({ ...repo, ref: branchName });
+		if (!isR2Configured()) {
+			await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
+		}
+	};
+	// See createBranch above: only lock the R2-direct path to avoid deadlocking
+	// on the non-reentrant lock already held by the non-R2 hydrate/sync calls.
+	if (isR2Configured()) {
+		await withRepositoryLock(ownerKey, repoName, run);
+	} else {
+		await run();
 	}
 }
 

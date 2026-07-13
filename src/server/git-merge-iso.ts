@@ -6,6 +6,7 @@ import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import { createCommit } from "./git-operations-iso";
 import {
 	ensureRepositoryHydrated,
+	withRepositoryLock,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
 
@@ -74,32 +75,38 @@ export async function mergeBranches(
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
 	if (isR2Configured()) {
 		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
-		try {
-			const repo = getBareRepoOptions(ownerKey, repoName);
-			const sourceOid = await git.resolveRef({
-				...repo,
-				ref: `refs/heads/${sourceBranch}`,
-			});
-			const targetOid = await git.resolveRef({
-				...repo,
-				ref: `refs/heads/${targetBranch}`,
-			});
-			const isFF = await git.isDescendent({
-				...repo,
-				oid: sourceOid,
-				ancestor: targetOid,
-			});
-			if (isFF) {
-				await git.writeRef({
+		const ffResult = await withRepositoryLock(ownerKey, repoName, async () => {
+			try {
+				const repo = getBareRepoOptions(ownerKey, repoName);
+				const sourceOid = await git.resolveRef({
+					...repo,
+					ref: `refs/heads/${sourceBranch}`,
+				});
+				const targetOid = await git.resolveRef({
 					...repo,
 					ref: `refs/heads/${targetBranch}`,
-					value: sourceOid,
-					force: true,
 				});
-				return { success: true, commitSha: sourceOid };
+				const isFF = await git.isDescendent({
+					...repo,
+					oid: sourceOid,
+					ancestor: targetOid,
+				});
+				if (isFF) {
+					await git.writeRef({
+						...repo,
+						ref: `refs/heads/${targetBranch}`,
+						value: sourceOid,
+						force: true,
+					});
+					return { success: true, commitSha: sourceOid };
+				}
+			} catch (_error) {
+				return { success: false, conflicts: ["Merge conflicts detected"] };
 			}
-		} catch (_error) {
-			return { success: false, conflicts: ["Merge conflicts detected"] };
+			return null;
+		});
+		if (ffResult) {
+			return ffResult;
 		}
 		// Non-FF: fall through to worktree path below
 	}
