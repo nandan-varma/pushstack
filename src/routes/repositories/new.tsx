@@ -36,7 +36,9 @@ function NewRepositoryPage() {
 		onSuccess: async (repo) => {
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: queryKeys.repositoriesRoot }),
-				queryClient.invalidateQueries({ queryKey: ["activity", "user"] }),
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.userActivity(user.id, 20),
+				}),
 			]);
 			navigate({
 				to: "/repo/$owner/$name",

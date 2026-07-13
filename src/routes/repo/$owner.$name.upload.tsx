@@ -5,6 +5,7 @@ import {
 	redirect,
 	useNavigate,
 } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
@@ -94,9 +95,8 @@ function FileUploadPage() {
 			]);
 			toast("File uploaded", "success");
 			navigate({
-				to: "/repo/$owner/$name",
-				params: { owner, name },
-				search: { branch },
+				to: "/repo/$owner/$name/tree/$branch/$",
+				params: { owner, name, branch, _splat: "" },
 			});
 		},
 		onError: (err: Error) => {
@@ -171,12 +171,12 @@ function FileUploadPage() {
 		<div className="mx-auto max-w-2xl">
 			<div className="mb-6">
 				<Link
-					to="/repo/$owner/$name"
-					params={{ owner, name }}
-					search={{ branch }}
-					className="text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+					to="/repo/$owner/$name/tree/$branch/$"
+					params={{ owner, name, branch, _splat: "" }}
+					className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
 				>
-					← {owner}/{name}
+					<ArrowLeft className="size-4" />
+					{owner}/{name}
 				</Link>
 			</div>
 			<div className="island-shell rounded-2xl p-8">
@@ -310,9 +310,8 @@ function FileUploadPage() {
 							disabled={isSubmitting}
 							onClick={() =>
 								navigate({
-									to: "/repo/$owner/$name",
-									params: { owner, name },
-									search: { branch },
+									to: "/repo/$owner/$name/tree/$branch/$",
+									params: { owner, name, branch, _splat: "" },
 								})
 							}
 						>

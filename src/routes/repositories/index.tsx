@@ -63,8 +63,13 @@ function RepositoriesPage() {
 						return (
 							<Link
 								key={repo.id}
-								to="/repo/$owner/$name"
-								params={{ owner: ownerUsername, name: repo.name }}
+								to="/repo/$owner/$name/tree/$branch/$"
+								params={{
+									owner: ownerUsername,
+									name: repo.name,
+									branch: repo.defaultBranch || "main",
+									_splat: "",
+								}}
 								className="island-shell feature-card block rounded-xl p-5 no-underline"
 							>
 								<div className="flex items-start justify-between gap-3">

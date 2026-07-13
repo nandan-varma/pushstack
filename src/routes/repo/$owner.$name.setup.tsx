@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -53,11 +54,12 @@ function RouteComponent() {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<Link
-					to="/repo/$owner/$name"
-					params={{ owner, name }}
-					className="text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+					to="/repo/$owner/$name/tree/$branch/$"
+					params={{ owner, name, branch: defaultBranch, _splat: "" }}
+					className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
 				>
-					← {owner}/{name}
+					<ArrowLeft className="size-4" />
+					{owner}/{name}
 				</Link>
 			</div>
 			<Card className="p-6">
@@ -71,7 +73,10 @@ function RouteComponent() {
 							this repository.
 						</p>
 					</div>
-					<Link to="/repo/$owner/$name" params={{ owner, name }}>
+					<Link
+						to="/repo/$owner/$name/tree/$branch/$"
+						params={{ owner, name, branch: defaultBranch, _splat: "" }}
+					>
 						<Button variant="outline">Back to Code</Button>
 					</Link>
 				</div>
@@ -139,9 +144,8 @@ function RouteComponent() {
 					</h3>
 					<div className="mt-4 flex flex-col gap-3">
 						<Link
-							to="/repo/$owner/$name/commits"
-							params={{ owner, name }}
-							search={{ branch: defaultBranch }}
+							to="/repo/$owner/$name/commits/$branch"
+							params={{ owner, name, branch: defaultBranch }}
 						>
 							<Button variant="outline" className="w-full justify-start">
 								View commit history

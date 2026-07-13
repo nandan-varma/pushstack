@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { useCallback, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
+import { FilterTabs } from "@/components/FilterTabs";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,11 +54,8 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 	component: IssuesPage,
 });
 
-const filterTabBase =
-	"border-b-2 px-1 pb-3 text-sm font-medium transition [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]";
-const filterTabInactive =
-	"border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]";
-const filterTabActive = "border-[var(--lagoon-deep)] text-[var(--lagoon-deep)]";
+const statusVariant = (status: string): "success" | "default" =>
+	status === "open" ? "success" : "default";
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
@@ -180,29 +178,18 @@ function IssuesPage() {
 				)}
 			</div>
 
-			{/* Filter tabs */}
-			<div className="flex items-center gap-5 border-b border-[var(--line)]">
-				{(
-					[
-						["open", "Open", openCount],
-						["closed", "Closed", closedCount],
-						["all", "All", allCount],
-					] as const
-				).map(([value, label, count]) => (
-					<button
-						key={value}
-						type="button"
-						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
-						onClick={() =>
-							// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
-							navigate({ search: { status: value } as any, replace: true })
-						}
-					>
-						{label}
-						{count !== undefined ? ` (${count})` : ""}
-					</button>
-				))}
-			</div>
+			<FilterTabs
+				tabs={[
+					{ value: "open" as const, label: "Open", count: openCount },
+					{ value: "closed" as const, label: "Closed", count: closedCount },
+					{ value: "all" as const, label: "All", count: allCount },
+				]}
+				activeTab={filter ?? "open"}
+				onTabChange={(value) =>
+					// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
+					navigate({ search: { status: value } as any, replace: true })
+				}
+			/>
 
 			{/* Issues list */}
 			{isLoading ? (
@@ -212,22 +199,22 @@ function IssuesPage() {
 					))}
 				</div>
 			) : !issues?.length ? (
-				<div className="island-shell rounded-xl p-12 text-center">
-					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-						No {filter !== "all" ? filter : ""} issues found.
-					</p>
-					{session?.user ? (
-						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
-							Create first issue
-						</Button>
-					) : (
-						<Link to="/auth/login">
-							<Button size="sm" variant="outline">
-								Sign in to create an issue
+				<EmptyState
+					message={`No ${filter !== "all" ? filter : ""} issues found.`}
+					action={
+						session?.user ? (
+							<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+								Create first issue
 							</Button>
-						</Link>
-					)}
-				</div>
+						) : (
+							<Link to="/auth/login">
+								<Button size="sm" variant="outline">
+									Sign in to create an issue
+								</Button>
+							</Link>
+						)
+					}
+				/>
 			) : (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					{issues.map((issue, idx) => (
@@ -242,18 +229,14 @@ function IssuesPage() {
 									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
 										{issue.title}
 									</span>
-									<Badge
-										variant={issue.status === "open" ? "success" : "default"}
-									>
+									<Badge variant={statusVariant(issue.status)}>
 										{issue.status}
 									</Badge>
 								</div>
 								<p className="text-xs text-[var(--sea-ink-soft)]">
 									#{issue.id} opened{" "}
-									{formatDistanceToNow(new Date(issue.createdAt), {
-										addSuffix: true,
-									})}{" "}
-									by {issue.author?.name || "Unknown"}
+									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
+									{issue.author?.name || "Unknown"}
 								</p>
 							</div>
 						</Link>

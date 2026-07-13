@@ -1,3 +1,4 @@
+import { AlertTriangle } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface ErrorBoundaryProps {
@@ -36,7 +37,8 @@ export class ErrorBoundary extends Component<
 			return (
 				<div className="page-wrap px-4 py-20 text-center">
 					<div className="island-shell mx-auto max-w-md rounded-xl p-8">
-						<div className="mb-4 text-4xl">⚠️</div>
+						<AlertTriangle className="mx-auto mb-4 size-10 text-[var(--lagoon-deep)]" />
+
 						<h1 className="mb-2 text-lg font-semibold text-[var(--sea-ink)]">
 							Something went wrong
 						</h1>

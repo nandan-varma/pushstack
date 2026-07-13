@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUser } from "@/test/mock-routes";
 
 vi.mock("@tanstack/react-start", () => ({
 	createServerFn: () => ({
@@ -16,13 +17,6 @@ vi.mock("@tanstack/react-start", () => ({
 			handlerFn(args),
 	}),
 }));
-
-const mockUser = {
-	id: "user123",
-	email: "test@example.com",
-	name: "Test User",
-	username: "testuser",
-};
 
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(() => Promise.resolve(mockUser)),

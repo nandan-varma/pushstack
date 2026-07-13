@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
+import { ArrowRight } from "lucide-react";
 import { useCallback, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
+import { FilterTabs } from "@/components/FilterTabs";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,11 +61,6 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 	},
 	component: PullRequestsPage,
 });
-
-const filterTabBase = "border-b-2 pb-3 text-sm font-medium transition";
-const filterTabActive = "border-[var(--lagoon-deep)] text-[var(--lagoon-deep)]";
-const filterTabInactive =
-	"border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]";
 
 const statusVariant = (status: string): "success" | "info" | "default" =>
 	status === "open" ? "success" : status === "merged" ? "info" : "default";
@@ -256,30 +253,19 @@ function PullRequestsPage() {
 				)}
 			</div>
 
-			{/* Filter tabs */}
-			<div className="flex items-center gap-5 border-b border-[var(--line)]">
-				{(
-					[
-						["open", "Open", counts.open],
-						["merged", "Merged", counts.merged],
-						["closed", "Closed", counts.closed],
-						["all", "All", counts.all],
-					] as const
-				).map(([value, label, count]) => (
-					<button
-						key={value}
-						type="button"
-						className={`${filterTabBase} ${filter === value ? filterTabActive : filterTabInactive}`}
-						onClick={() =>
-							// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
-							navigate({ search: { status: value } as any, replace: true })
-						}
-					>
-						{label}
-						{count !== undefined ? ` (${count})` : ""}
-					</button>
-				))}
-			</div>
+			<FilterTabs
+				tabs={[
+					{ value: "open" as const, label: "Open", count: counts.open },
+					{ value: "merged" as const, label: "Merged", count: counts.merged },
+					{ value: "closed" as const, label: "Closed", count: counts.closed },
+					{ value: "all" as const, label: "All", count: counts.all },
+				]}
+				activeTab={filter ?? "open"}
+				onTabChange={(value) =>
+					// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
+					navigate({ search: { status: value } as any, replace: true })
+				}
+			/>
 
 			{/* PR list */}
 			{isLoading ? (
@@ -289,22 +275,22 @@ function PullRequestsPage() {
 					))}
 				</div>
 			) : !pullRequests?.length ? (
-				<div className="island-shell rounded-xl p-12 text-center">
-					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-						No {filter !== "all" ? filter : ""} pull requests found.
-					</p>
-					{session?.user ? (
-						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
-							Create first pull request
-						</Button>
-					) : (
-						<Link to="/auth/login">
-							<Button size="sm" variant="outline">
-								Sign in to open a pull request
+				<EmptyState
+					message={`No ${filter !== "all" ? filter : ""} pull requests found.`}
+					action={
+						session?.user ? (
+							<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+								Create first pull request
 							</Button>
-						</Link>
-					)}
-				</div>
+						) : (
+							<Link to="/auth/login">
+								<Button size="sm" variant="outline">
+									Sign in to open a pull request
+								</Button>
+							</Link>
+						)
+					}
+				/>
 			) : (
 				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
 					{pullRequests.map((pr, idx) => (
@@ -322,13 +308,12 @@ function PullRequestsPage() {
 									<Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>
 								</div>
 								<p className="text-xs text-[var(--sea-ink-soft)]">
-									#{pr.id} opened{" "}
-									{formatDistanceToNow(new Date(pr.createdAt), {
-										addSuffix: true,
-									})}{" "}
+									#{pr.id} opened {new Date(pr.createdAt).toLocaleDateString()}{" "}
 									by {pr.author?.name || "Unknown"} &middot;{" "}
-									<code className="font-mono">
-										{pr.sourceBranch} → {pr.targetBranch}
+									<code className="inline-flex items-center gap-1 font-mono">
+										{pr.sourceBranch}
+										<ArrowRight className="size-3" />
+										{pr.targetBranch}
 									</code>
 								</p>
 							</div>

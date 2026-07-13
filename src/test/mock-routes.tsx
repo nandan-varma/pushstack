@@ -40,9 +40,10 @@ export function LayoutComponent({ children }: { children: ReactNode }) {
 
 // Mock data for testing
 export const mockUser = {
-	id: "1",
+	id: "user123",
 	name: "Test User",
 	email: "test@example.com",
+	username: "testuser",
 };
 
 export const mockRepository = {

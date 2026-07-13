@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
+import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -146,38 +147,12 @@ function FileBlobPage() {
 				</div>
 			</div>
 
-			{/* Breadcrumbs */}
-			<div className="flex items-center gap-2 text-sm text-[var(--sea-ink-soft)]">
-				<Link
-					to="/repo/$owner/$name/tree/$branch/$"
-					params={{ owner, name, branch, _splat: "" }}
-					className="hover:text-[var(--lagoon-deep)]"
-				>
-					{name}
-				</Link>
-				{filePath.split("/").map((part, i, arr) => {
-					const pathSoFar = arr.slice(0, i + 1).join("/");
-					const isLast = i === arr.length - 1;
-					return (
-						<span key={pathSoFar} className="flex items-center gap-2">
-							<span>/</span>
-							{isLast ? (
-								<span className="text-[var(--sea-ink)] font-medium">
-									{part}
-								</span>
-							) : (
-								<Link
-									to="/repo/$owner/$name/tree/$branch/$"
-									params={{ owner, name, branch, _splat: pathSoFar }}
-									className="hover:text-[var(--lagoon-deep)]"
-								>
-									{part}
-								</Link>
-							)}
-						</span>
-					);
-				})}
-			</div>
+			<PathBreadcrumb
+				owner={owner}
+				name={name}
+				branch={branch}
+				filePath={filePath}
+			/>
 
 			{/* File Content */}
 			{isBinary ? (

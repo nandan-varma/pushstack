@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { lazy, Suspense, useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { CommentCard } from "@/components/CommentCard";
+import { CommentForm } from "@/components/CommentForm";
+import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import {
 	authSessionQueryOptions,
 	pullRequestCommentsQueryOptions,
@@ -17,10 +20,9 @@ import {
 	queryKeys,
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 import { createComment } from "@/server/comments";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
-
-const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -157,6 +159,19 @@ function PullRequestDetailPage() {
 		});
 	};
 
+	const getStatusBadgeVariant = (status: string) => {
+		switch (status) {
+			case "open":
+				return "success";
+			case "merged":
+				return "info";
+			case "closed":
+				return "default";
+			default:
+				return "default";
+		}
+	};
+
 	if (isLoading) {
 		return (
 			<div className="">
@@ -185,27 +200,6 @@ function PullRequestDetailPage() {
 		);
 	}
 
-	const getInitials = (name: string) =>
-		name
-			.split(" ")
-			.map((n) => n[0])
-			.join("")
-			.toUpperCase()
-			.slice(0, 2);
-
-	const getStatusBadgeVariant = (status: string) => {
-		switch (status) {
-			case "open":
-				return "success";
-			case "merged":
-				return "info";
-			case "closed":
-				return "default";
-			default:
-				return "default";
-		}
-	};
-
 	const canMerge = pr.status === "open" && !!session?.user;
 
 	return (
@@ -221,11 +215,15 @@ function PullRequestDetailPage() {
 							{pr.status}
 						</Badge>
 					</div>
-					<p className="text-[var(--sea-ink-soft)]">
+					<p className="flex flex-wrap items-center gap-1 text-[var(--sea-ink-soft)]">
 						#{pr.id} opened{" "}
 						{formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{" "}
-						by {pr.author?.name || "Unknown"} • {pr.sourceBranch} →{" "}
-						{pr.targetBranch}
+						by {pr.author?.name || "Unknown"} •{" "}
+						<span className="inline-flex items-center gap-1">
+							{pr.sourceBranch}
+							<ArrowRight className="size-3" />
+							{pr.targetBranch}
+						</span>
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
@@ -288,9 +286,7 @@ function PullRequestDetailPage() {
 							</span>
 						</div>
 						{pr.body ? (
-							<Suspense fallback={<Skeleton className="h-24" />}>
-								<MarkdownRenderer content={pr.body} owner={owner} name={name} />
-							</Suspense>
+							<p className="text-sm text-[var(--sea-ink-soft)]">{pr.body}</p>
 						) : (
 							<p className="text-[var(--sea-ink-soft)] italic">
 								No description provided
@@ -312,34 +308,11 @@ function PullRequestDetailPage() {
 						</span>
 					)}
 				</h3>
-				{diffLoading ? (
-					<Skeleton className="h-48" />
-				) : diff?.files && diff.files.length > 0 ? (
-					<div className="mt-4 space-y-4">
-						{diff.files.map((fileDiff) => (
-							<div
-								key={fileDiff.path}
-								className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4"
-							>
-								<div className="mb-3 flex items-center justify-between">
-									<code className="text-sm font-medium text-[var(--sea-ink)]">
-										{fileDiff.path}
-									</code>
-									<span className="text-xs uppercase text-[var(--sea-ink-soft)]">
-										{fileDiff.status}
-									</span>
-								</div>
-								<pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
-									{fileDiff.patch}
-								</pre>
-							</div>
-						))}
-					</div>
-				) : (
-					<p className="mt-4 text-sm text-[var(--sea-ink-soft)]">
-						No changes between {pr.sourceBranch} and {pr.targetBranch}.
-					</p>
-				)}
+				<FileDiffViewer
+					files={diff?.files}
+					isLoading={diffLoading}
+					emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
+				/>
 			</Card>
 
 			{/* Comments */}
@@ -349,35 +322,12 @@ function PullRequestDetailPage() {
 						Comments ({comments.length})
 					</h3>
 					{comments.map((comment) => (
-						<Card key={comment.id} className="p-6">
-							<div className="flex items-start gap-4">
-								<Avatar>
-									<AvatarImage src={comment.author?.image || undefined} />
-									<AvatarFallback>
-										{getInitials(comment.author?.name || "U")}
-									</AvatarFallback>
-								</Avatar>
-								<div className="flex-1">
-									<div className="flex items-center gap-2 mb-4">
-										<span className="font-medium text-[var(--sea-ink)]">
-											{comment.author?.name || "Unknown"}
-										</span>
-										<span className="text-sm text-[var(--sea-ink-soft)]">
-											{formatDistanceToNow(new Date(comment.createdAt), {
-												addSuffix: true,
-											})}
-										</span>
-									</div>
-									<Suspense fallback={<Skeleton className="h-20" />}>
-										<MarkdownRenderer
-											content={comment.body}
-											owner={owner}
-											name={name}
-										/>
-									</Suspense>
-								</div>
-							</div>
-						</Card>
+						<CommentCard
+							key={comment.id}
+							comment={comment}
+							owner={owner}
+							name={name}
+						/>
 					))}
 				</div>
 			)}
@@ -396,27 +346,12 @@ function PullRequestDetailPage() {
 					</p>
 				</Card>
 			) : (
-				<Card className="p-6">
-					<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
-						Add a Comment
-					</h3>
-					<div className="space-y-4">
-						<Textarea
-							value={newComment}
-							onChange={(e) => setNewComment(e.target.value)}
-							placeholder="Write your comment here... (Markdown supported)"
-							rows={6}
-						/>
-						<div className="flex justify-end">
-							<Button
-								onClick={handleAddComment}
-								disabled={!newComment.trim() || commentMutation.isPending}
-							>
-								{commentMutation.isPending ? "Posting..." : "Post Comment"}
-							</Button>
-						</div>
-					</div>
-				</Card>
+				<CommentForm
+					value={newComment}
+					onChange={setNewComment}
+					onSubmit={handleAddComment}
+					isPending={commentMutation.isPending}
+				/>
 			)}
 		</div>
 	);

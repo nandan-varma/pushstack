@@ -1,10 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-	createFileRoute,
-	Link,
-	useNavigate,
-	useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,29 +10,29 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryCommitsQueryOptions,
 } from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 
 const PAGE_SIZE = 25;
 
-export const Route = createFileRoute("/repo/$owner/$name/commits")({
-	validateSearch: (
-		search: Record<string, unknown>,
-	): { branch?: string; skip?: number } => ({
-		branch: (search.branch as string) || undefined,
-		skip: (search.skip as number) || undefined,
+export const Route = createFileRoute("/repo/$owner/$name/commits/$branch")({
+	validateSearch: (search: Record<string, unknown>): { page?: number } => ({
+		page: (search.page as number) || undefined,
 	}),
-	loaderDeps: ({ search }) => ({ branch: search.branch, skip: search.skip }),
+	loaderDeps: ({ search }) => ({ page: search.page }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
+			const page = deps.page ?? 1;
+			const skip = (page - 1) * PAGE_SIZE;
 			await Promise.all([
 				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
 				queryClient.ensureQueryData(
 					repositoryCommitsQueryOptions({
 						repoId: repo.id,
-						branchName: deps.branch ?? "main",
-						skip: deps.skip ?? 0,
+						branchName: params.branch,
+						skip,
 					}),
 				),
 			]);
@@ -46,19 +41,12 @@ export const Route = createFileRoute("/repo/$owner/$name/commits")({
 	component: CommitsPage,
 });
 
-function getInitials(n: string) {
-	return n
-		.split(" ")
-		.map((p) => p[0])
-		.join("")
-		.toUpperCase()
-		.slice(0, 2);
-}
-
 function CommitsPage() {
-	const { owner, name } = Route.useParams();
-	const { branch, skip } = useSearch({ from: Route.id });
+	const { owner, name, branch } = Route.useParams();
+	const { page } = Route.useSearch();
 	const navigate = useNavigate();
+	const currentPage = page ?? 1;
+	const currentSkip = (currentPage - 1) * PAGE_SIZE;
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
@@ -67,8 +55,8 @@ function CommitsPage() {
 	const { data: commits, isLoading } = useQuery({
 		...repositoryCommitsQueryOptions({
 			repoId: repo?.id ?? 0,
-			branchName: branch ?? "main",
-			skip: skip ?? 0,
+			branchName: branch,
+			skip: currentSkip,
 		}),
 		enabled: !!repo,
 	});
@@ -81,15 +69,12 @@ function CommitsPage() {
 	const handleBranchChange = useCallback(
 		(e: React.ChangeEvent<HTMLSelectElement>) => {
 			navigate({
-				to: "/repo/$owner/$name/commits",
-				params: { owner, name },
-				search: { branch: e.target.value, skip: 0 },
+				to: "/repo/$owner/$name/commits/$branch",
+				params: { owner, name, branch: e.target.value },
 			});
 		},
 		[navigate, owner, name],
 	);
-
-	const currentSkip = skip ?? 0;
 
 	return (
 		<div className="space-y-5">
@@ -113,7 +98,10 @@ function CommitsPage() {
 						</span>
 					)}
 				</div>
-				<Link to="/repo/$owner/$name" params={{ owner, name }}>
+				<Link
+					to="/repo/$owner/$name/tree/$branch/$"
+					params={{ owner, name, branch, _splat: "" }}
+				>
 					<Button variant="outline" size="sm">
 						Back to files
 					</Button>
@@ -132,7 +120,10 @@ function CommitsPage() {
 					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
 						No commits found in this branch.
 					</p>
-					<Link to="/repo/$owner/$name" params={{ owner, name }}>
+					<Link
+						to="/repo/$owner/$name/tree/$branch/$"
+						params={{ owner, name, branch, _splat: "" }}
+					>
 						<Button variant="outline" size="sm">
 							View files
 						</Button>
@@ -179,15 +170,12 @@ function CommitsPage() {
 						<Button
 							variant="outline"
 							size="sm"
-							disabled={currentSkip === 0}
+							disabled={currentPage <= 1}
 							onClick={() =>
 								navigate({
-									to: "/repo/$owner/$name/commits",
-									params: { owner, name },
-									search: {
-										branch,
-										skip: Math.max(0, currentSkip - PAGE_SIZE),
-									},
+									to: "/repo/$owner/$name/commits/$branch",
+									params: { owner, name, branch },
+									search: { page: Math.max(1, currentPage - 1) },
 								})
 							}
 						>
@@ -202,9 +190,9 @@ function CommitsPage() {
 							disabled={commits.length < PAGE_SIZE}
 							onClick={() =>
 								navigate({
-									to: "/repo/$owner/$name/commits",
-									params: { owner, name },
-									search: { branch, skip: currentSkip + PAGE_SIZE },
+									to: "/repo/$owner/$name/commits/$branch",
+									params: { owner, name, branch },
+									search: { page: currentPage + 1 },
 								})
 							}
 						>

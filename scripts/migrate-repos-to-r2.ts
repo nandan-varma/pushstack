@@ -78,7 +78,7 @@ async function migrateRepository(repo: typeof repositories.$inferSelect & {
     console.log(`     Found ${files.length} files`)
     
     if (files.length === 0) {
-      console.log(`     ⚠️  No files found, skipping`)
+      console.log(`     No files found, skipping`)
       return false
     }
     
@@ -118,11 +118,11 @@ async function migrateRepository(repo: typeof repositories.$inferSelect & {
       uploaded += successCount
       
       if (successCount < chunk.length) {
-        console.log(`     ⚠️  Some uploads failed: ${successCount}/${chunk.length}`)
+        console.log(`     Some uploads failed: ${successCount}/${chunk.length}`)
       }
     }
     
-    console.log(`     ✅ Uploaded ${uploaded}/${files.length} files`)
+    console.log(`     Uploaded ${uploaded}/${files.length} files`)
     
     // Update repository record to mark as migrated
     await db.update(repositories)
@@ -134,7 +134,7 @@ async function migrateRepository(repo: typeof repositories.$inferSelect & {
     
     return true
   } catch (error) {
-    console.error(`     ❌ Error migrating repository:`, error)
+    console.error(`     Error migrating repository:`, error)
     return false
   }
 }
@@ -143,7 +143,7 @@ async function migrateRepository(repo: typeof repositories.$inferSelect & {
  * Main migration function
  */
 async function migrate() {
-  console.log('🚀 Starting repository migration to R2')
+  console.log('Starting repository migration to R2')
   console.log(`   Batch size: ${BATCH_SIZE}`)
   console.log(`   Dry run: ${DRY_RUN}`)
   console.log(`   Git repos path: ${GIT_REPOS_PATH}`)
@@ -173,7 +173,7 @@ async function migrate() {
     stats.total = repos.length
     
     if (repos.length === 0) {
-      console.log('✅ No repositories to migrate')
+      console.log('No repositories to migrate')
       return
     }
     
@@ -193,7 +193,7 @@ async function migrate() {
     }
     
     // Summary
-    console.log('📊 Migration Summary')
+    console.log('Migration Summary')
     console.log(`   Total: ${stats.total}`)
     console.log(`   Migrated: ${stats.migrated}`)
     console.log(`   Skipped: ${stats.skipped}`)
@@ -201,10 +201,10 @@ async function migrate() {
     console.log('')
     
     if (stats.migrated < stats.total) {
-      console.log('⚠️  Not all repositories were migrated')
+      console.log('Not all repositories were migrated')
       console.log('   Run the script again to continue migration')
     } else {
-      console.log('✅ All repositories in this batch migrated successfully')
+      console.log('All repositories in this batch migrated successfully')
     }
     
     // Check if there are more repositories to migrate
@@ -220,13 +220,13 @@ async function migrate() {
     })
     
     if (remaining.length > 0) {
-      console.log(`\n🔄 More repositories remaining, run the script again`)
+      console.log(`\nMore repositories remaining, run the script again`)
     } else {
-      console.log(`\n🎉 All repositories have been migrated!`)
+      console.log(`\nAll repositories have been migrated!`)
     }
     
   } catch (error) {
-    console.error('❌ Migration failed:', error)
+    console.error('Migration failed:', error)
     process.exit(1)
   }
 }

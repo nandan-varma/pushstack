@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { format, formatDistanceToNow } from "date-fns";
+import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import {
 	repositoryCommitDiffQueryOptions,
 	repositoryCommitQueryOptions,
 } from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 
 export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 	component: CommitDetailPage,
@@ -18,12 +20,10 @@ export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 function CommitDetailPage() {
 	const { owner, name, sha } = Route.useParams();
 
-	// Get repository first
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
-	// Get commit details
 	const { data: commit, isLoading: commitLoading } = useQuery({
 		...repositoryCommitQueryOptions({
 			repoId: repo?.id ?? 0,
@@ -32,7 +32,6 @@ function CommitDetailPage() {
 		enabled: !!repo,
 	});
 
-	// Get commit diff
 	const { data: diffData, isLoading: diffLoading } = useQuery({
 		...repositoryCommitDiffQueryOptions({
 			repoId: repo?.id ?? 0,
@@ -42,14 +41,6 @@ function CommitDetailPage() {
 	});
 
 	const isLoading = commitLoading || diffLoading;
-
-	const getInitials = (name: string) =>
-		name
-			.split(" ")
-			.map((n) => n[0])
-			.join("")
-			.toUpperCase()
-			.slice(0, 2);
 
 	if (isLoading) {
 		return (
@@ -70,10 +61,9 @@ function CommitDetailPage() {
 					The commit with SHA "{sha}" does not exist.
 				</p>
 				<Link
-					to="/repo/$owner/$name/commits"
-					params={{ owner, name }}
+					to="/repo/$owner/$name/commits/$branch"
+					params={{ owner, name, branch: repo?.defaultBranch || "main" }}
 					className="inline-block"
-					search={{ branch: repo?.defaultBranch || "main" }}
 				>
 					<Button variant="outline">Back to Commits</Button>
 				</Link>
@@ -116,9 +106,8 @@ function CommitDetailPage() {
 					</div>
 				</div>
 				<Link
-					to="/repo/$owner/$name/commits"
-					params={{ owner, name }}
-					search={{ branch: commit.branch }}
+					to="/repo/$owner/$name/commits/$branch"
+					params={{ owner, name, branch: commit.branch }}
 				>
 					<Button variant="outline" size="sm">
 						Back to Commits
@@ -190,29 +179,7 @@ function CommitDetailPage() {
 				<h2 className="text-lg font-semibold text-[var(--sea-ink)]">
 					File Changes {diffData?.files && `(${diffData.files.length})`}
 				</h2>
-				{diffData?.files && diffData.files.length > 0 ? (
-					diffData.files.map((fileDiff) => (
-						<Card key={fileDiff.path} className="p-4">
-							<div className="mb-3 flex items-center justify-between">
-								<code className="text-sm font-medium text-[var(--sea-ink)]">
-									{fileDiff.path}
-								</code>
-								<span className="text-xs uppercase text-[var(--sea-ink-soft)]">
-									{fileDiff.status}
-								</span>
-							</div>
-							<pre className="overflow-x-auto whitespace-pre-wrap rounded border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
-								{fileDiff.patch}
-							</pre>
-						</Card>
-					))
-				) : (
-					<Card className="p-12 text-center">
-						<p className="text-[var(--sea-ink-soft)]">
-							No file changes to display
-						</p>
-					</Card>
-				)}
+				<FileDiffViewer files={diffData?.files} isLoading={diffLoading} />
 			</div>
 		</div>
 	);

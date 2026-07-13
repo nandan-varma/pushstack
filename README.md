@@ -2,7 +2,7 @@
 
 A modern code repository platform for hosting, managing, and collaborating on your Git repositories.
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 pnpm install
@@ -11,7 +11,7 @@ pnpm dev
 
 Visit [http://localhost:3000](http://localhost:3000) to get started.
 
-## ✨ Features
+## Features
 
 - **Git Repository Hosting**: Full Git smart HTTP protocol (clone/fetch/push) with no native git binary — object storage lives in Cloudflare R2
 - **Authentication**: Secure user authentication using Better Auth, plus Personal Access Tokens for git-over-HTTPS
@@ -22,7 +22,7 @@ Visit [http://localhost:3000](http://localhost:3000) to get started.
 - **Database**: PostgreSQL database with Drizzle ORM
 - **Storage**: Cloudflare R2 for repository storage
 
-## 🔧 Environment Setup
+## Environment Setup
 
 1. Copy `.env.example` to `.env.local`:
    ```bash
@@ -55,7 +55,7 @@ Visit [http://localhost:3000](http://localhost:3000) to get started.
 
 See `CLAUDE.md` for the full list of environment variables, including optional git-cache and request-size tuning knobs.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
@@ -68,7 +68,7 @@ src/
 └── server/            # Server-only modules — git operations, access control, DB-backed CRUD
 ```
 
-## 🛠️ Available Commands
+## Available Commands
 
 ```bash
 pnpm dev              # Start development server on :3000
@@ -88,13 +88,13 @@ pnpm db:migrate       # Run generated migrations
 pnpm db:studio        # Open Drizzle Studio
 ```
 
-## 🧪 Testing
+## Testing
 
 Unit tests (Vitest, jsdom) live alongside their modules in `__tests__/` directories — most coverage is in `src/server/__tests__/`, covering the git protocol implementation, access control, and CRUD server functions. End-to-end tests (Playwright) live in `e2e/`.
 
 Run a single unit test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 
-## 🚢 Deployment
+## Deployment
 
 ```bash
 pnpm build
@@ -102,7 +102,7 @@ pnpm build
 
 The deployment target is Vercel, via Nitro's `vercel` preset (see `vite.config.ts`) — not Cloudflare, which is used only for R2 object storage. `pnpm deploy` runs the production build; deploying the build output is handled by the Vercel CLI/integration.
 
-## 📚 Tech Stack
+## Tech Stack
 
 - **Framework**: TanStack Start (file-based SSR router, server functions)
 - **Database**: PostgreSQL (Neon serverless)
@@ -115,6 +115,6 @@ The deployment target is Vercel, via Nitro's `vercel` preset (see `vite.config.t
 - **Testing**: Vitest, Playwright
 - **Lint/Format**: Biome
 
-## 📖 Documentation
+## Documentation
 
 See `CLAUDE.md` for architecture details, module responsibilities, and environment variables aimed at contributors working in the codebase.

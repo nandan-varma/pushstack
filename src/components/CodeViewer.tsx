@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { useEffect, useState } from "react";
 import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import bash from "react-syntax-highlighter/dist/cjs/languages/prism/bash";
 import c from "react-syntax-highlighter/dist/cjs/languages/prism/c";
@@ -88,6 +89,26 @@ interface CodeViewerProps {
 	maxHeight?: string;
 }
 
+function useIsDarkMode() {
+	const [isDark, setIsDark] = useState(() => {
+		if (typeof document !== "undefined") {
+			return document.documentElement.classList.contains("dark");
+		}
+		return false;
+	});
+
+	useEffect(() => {
+		const root = document.documentElement;
+		const observer = new MutationObserver(() => {
+			setIsDark(root.classList.contains("dark"));
+		});
+		observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+		return () => observer.disconnect();
+	}, []);
+
+	return isDark;
+}
+
 export default function CodeViewer({
 	code,
 	language,
@@ -95,12 +116,8 @@ export default function CodeViewer({
 	fileName,
 	maxHeight = "600px",
 }: CodeViewerProps) {
-	const [theme, setTheme] = useState<"dark" | "light">("light");
+	const isDark = useIsDarkMode();
 	const { copied, copy } = useCopyToClipboard();
-
-	const toggleTheme = () => {
-		setTheme(theme === "dark" ? "light" : "dark");
-	};
 
 	return (
 		<div className="rounded-lg border border-[var(--line)] overflow-hidden">
@@ -119,18 +136,18 @@ export default function CodeViewer({
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={toggleTheme}
-						title="Toggle theme"
-					>
-						{theme === "dark" ? "☀️" : "🌙"}
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
 						onClick={() => copy(code)}
 						disabled={copied}
 					>
-						{copied ? "✓ Copied" : "📋 Copy"}
+						{copied ? (
+							<>
+								<Check className="size-4" /> Copied
+							</>
+						) : (
+							<>
+								<Copy className="size-4" /> Copy
+							</>
+						)}
 					</Button>
 				</div>
 			</div>
@@ -138,18 +155,20 @@ export default function CodeViewer({
 			<div style={{ maxHeight, overflow: "auto" }}>
 				<SyntaxHighlighter
 					language={language}
-					style={theme === "dark" ? oneDark : oneLight}
+					style={isDark ? oneDark : oneLight}
 					showLineNumbers={showLineNumbers}
 					customStyle={{
 						margin: 0,
 						padding: "1rem",
 						fontSize: "0.875rem",
 						lineHeight: "1.5",
+						background: "var(--bg-base)",
+						color: "var(--sea-ink)",
 					}}
 					lineNumberStyle={{
 						minWidth: "3em",
 						paddingRight: "1em",
-						color: theme === "dark" ? "#6272a4" : "#999",
+						color: "var(--sea-ink-soft)",
 						textAlign: "right",
 						userSelect: "none",
 					}}

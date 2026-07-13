@@ -3,6 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockUser } from "@/test/mock-routes";
 
 // Allow calling createServerFn handlers directly in tests
 vi.mock("@tanstack/react-start", () => ({
@@ -33,13 +34,6 @@ const mockRepo = {
 	gitPath: "/data/repos/123/test-repo",
 	createdAt: new Date(),
 	updatedAt: new Date(),
-};
-
-const mockUser = {
-	id: "user123",
-	email: "test@example.com",
-	name: "Test User",
-	username: "testuser",
 };
 
 vi.mock("../../lib/auth", () => ({
@@ -95,7 +89,6 @@ vi.mock("../git-manager-iso", () => ({
 	initBareRepo: vi.fn(() => Promise.resolve("/data/repos/123/test-repo")),
 	deleteRepo: vi.fn(() => Promise.resolve()),
 	getRepoPath: vi.fn(() => "/data/repos/123/test-repo"),
-	repoExists: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock("../git-repo-storage", () => ({

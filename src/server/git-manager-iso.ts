@@ -9,7 +9,6 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import git from "isomorphic-git";
-import http from "isomorphic-git/http/node";
 import { isR2Configured } from "#/lib/r2";
 import { r2Backend } from "./git-r2-backend";
 import { getRepoGitStorageRoot } from "./git-storage-naming";
@@ -82,24 +81,6 @@ export async function initBareRepo(
 }
 
 /**
- * Check if a repository exists on filesystem
- */
-export async function repoExists(
-	ownerKey: string,
-	repoName: string,
-): Promise<boolean> {
-	const dir = getRepoPath(ownerKey, repoName);
-
-	try {
-		// For bare repos, check for HEAD or refs directory
-		await fs.access(path.join(dir, "HEAD"));
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-/**
  * Delete a repository from filesystem
  */
 export async function deleteRepo(
@@ -113,29 +94,6 @@ export async function deleteRepo(
 	} catch (error) {
 		throw new Error(`Failed to delete repository at ${dir}: ${error}`);
 	}
-}
-
-/**
- * Clone a repository
- */
-export async function cloneRepo(
-	url: string,
-	ownerKey: string,
-	repoName: string,
-): Promise<string> {
-	const dir = getRepoPath(ownerKey, repoName);
-
-	await fs.mkdir(path.dirname(dir), { recursive: true });
-
-	await git.clone({
-		fs,
-		http,
-		dir,
-		url,
-		singleBranch: false,
-	});
-
-	return dir;
 }
 
 /**

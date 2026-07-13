@@ -134,25 +134,6 @@ describe("GitManager - Repository Management", () => {
 		});
 	});
 
-	describe("repoExists", () => {
-		it("should return true if repository exists", async () => {
-			fs.access.mockResolvedValue(undefined);
-
-			const result = await GitManager.repoExists(testOwnerId, testRepoName);
-
-			expect(result).toBe(true);
-			expect(fs.access).toHaveBeenCalledWith(expect.stringContaining("HEAD"));
-		});
-
-		it("should return false if repository does not exist", async () => {
-			fs.access.mockRejectedValue(new Error("Not found"));
-
-			const result = await GitManager.repoExists(testOwnerId, testRepoName);
-
-			expect(result).toBe(false);
-		});
-	});
-
 	describe("deleteRepo", () => {
 		it("should delete repository directory", async () => {
 			fs.rm.mockResolvedValue(undefined);
@@ -171,30 +152,6 @@ describe("GitManager - Repository Management", () => {
 			await expect(
 				GitManager.deleteRepo(testOwnerId, testRepoName),
 			).rejects.toThrow("Failed to delete repository");
-		});
-	});
-
-	describe("cloneRepo", () => {
-		it("should clone repository from URL", async () => {
-			fs.mkdir.mockResolvedValue(undefined);
-			git.clone.mockResolvedValue(undefined);
-
-			const sourceUrl = "https://github.com/example/repo.git";
-			const result = await GitManager.cloneRepo(
-				sourceUrl,
-				testOwnerId,
-				testRepoName,
-			);
-
-			expect(fs.mkdir).toHaveBeenCalled();
-			expect(git.clone).toHaveBeenCalledWith({
-				fs: expect.anything(),
-				http: expect.anything(),
-				dir: expect.stringContaining("test-repo"),
-				url: sourceUrl,
-				singleBranch: false,
-			});
-			expect(result).toContain("test-repo");
 		});
 	});
 

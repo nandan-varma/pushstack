@@ -6,25 +6,25 @@
 
 :root {
   --card-bg: var(--surface);
-  --sea-ink: #173a40;
-  --sea-ink-soft: #416166;
-  --lagoon: #4fb8b2;
-  --lagoon-deep: #328f97;
-  --palm: #2f6a4a;
-  --sand: #e7f0e8;
-  --foam: #f3faf5;
-  --surface: rgba(255, 255, 255, 0.74);
-  --surface-strong: rgba(255, 255, 255, 0.9);
-  --line: rgba(23, 58, 64, 0.14);
-  --inset-glint: rgba(255, 255, 255, 0.82);
-  --kicker: rgba(47, 106, 74, 0.9);
-  --bg-base: #e7f3ec;
-  --header-bg: rgba(251, 255, 248, 0.84);
-  --chip-bg: rgba(255, 255, 255, 0.8);
-  --chip-line: rgba(47, 106, 74, 0.18);
-  --link-bg-hover: rgba(255, 255, 255, 0.9);
-  --hero-a: rgba(79, 184, 178, 0.36);
-  --hero-b: rgba(47, 106, 74, 0.2);
+  --sea-ink: #17191c;
+  --sea-ink-soft: #5b6268;
+  --lagoon: #0d9488;
+  --lagoon-deep: #0b7a70;
+  --palm: #16a34a;
+  --sand: #f4f5f6;
+  --foam: #ffffff;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-strong: rgba(255, 255, 255, 0.97);
+  --line: rgba(23, 25, 28, 0.1);
+  --inset-glint: rgba(255, 255, 255, 0.9);
+  --kicker: #0d9488;
+  --bg-base: #f7f8f8;
+  --header-bg: rgba(255, 255, 255, 0.86);
+  --chip-bg: rgba(23, 25, 28, 0.04);
+  --chip-line: rgba(23, 25, 28, 0.1);
+  --link-bg-hover: rgba(23, 25, 28, 0.05);
+  --hero-a: rgba(13, 148, 136, 0.14);
+  --hero-b: rgba(22, 163, 74, 0.08);
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -63,25 +63,25 @@
 
 .dark {
   --card-bg: var(--surface);
-  --sea-ink: #d7ece8;
-  --sea-ink-soft: #afcdc8;
-  --lagoon: #60d7cf;
-  --lagoon-deep: #8de5db;
-  --palm: #6ec89a;
-  --sand: #0f1a1e;
-  --foam: #101d22;
-  --surface: rgba(16, 30, 34, 0.8);
-  --surface-strong: rgba(15, 27, 31, 0.92);
-  --line: rgba(141, 229, 219, 0.18);
-  --inset-glint: rgba(194, 247, 238, 0.14);
-  --kicker: #b8efe5;
-  --bg-base: #0a1418;
-  --header-bg: rgba(10, 20, 24, 0.8);
-  --chip-bg: rgba(13, 28, 32, 0.9);
-  --chip-line: rgba(141, 229, 219, 0.24);
-  --link-bg-hover: rgba(24, 44, 49, 0.8);
-  --hero-a: rgba(96, 215, 207, 0.18);
-  --hero-b: rgba(110, 200, 154, 0.12);
+  --sea-ink: #f0f2f3;
+  --sea-ink-soft: #9aa2a8;
+  --lagoon: #2dd4bf;
+  --lagoon-deep: #5eead4;
+  --palm: #4ade80;
+  --sand: #1c1f22;
+  --foam: #1a1d20;
+  --surface: rgba(30, 33, 37, 0.9);
+  --surface-strong: rgba(37, 41, 45, 0.96);
+  --line: rgba(255, 255, 255, 0.13);
+  --inset-glint: rgba(255, 255, 255, 0.06);
+  --kicker: #5eead4;
+  --bg-base: #131518;
+  --header-bg: rgba(19, 21, 24, 0.86);
+  --chip-bg: rgba(255, 255, 255, 0.06);
+  --chip-line: rgba(255, 255, 255, 0.14);
+  --link-bg-hover: rgba(255, 255, 255, 0.07);
+  --hero-a: rgba(45, 212, 191, 0.14);
+  --hero-b: rgba(74, 222, 128, 0.09);
 
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
@@ -171,8 +171,8 @@ body {
   background:
     radial-gradient(1100px 620px at -8% -10%, var(--hero-a), transparent 58%),
     radial-gradient(1050px 620px at 112% -12%, var(--hero-b), transparent 62%),
-    radial-gradient(720px 380px at 50% 115%, rgba(79, 184, 178, 0.1), transparent 68%),
-    linear-gradient(180deg, color-mix(in oklab, var(--sand) 68%, white) 0%, var(--foam) 44%, var(--bg-base) 100%);
+    radial-gradient(720px 380px at 50% 115%, rgba(13, 148, 136, 0.06), transparent 68%),
+    linear-gradient(180deg, var(--sand) 0%, var(--foam) 44%, var(--bg-base) 100%);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -184,11 +184,11 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.28;
+  opacity: 0.16;
   background:
-    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.8), transparent 34%),
-    radial-gradient(circle at 78% 26%, rgba(79, 184, 178, 0.2), transparent 42%),
-    radial-gradient(circle at 42% 82%, rgba(47, 106, 74, 0.14), transparent 36%);
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.5), transparent 34%),
+    radial-gradient(circle at 78% 26%, rgba(13, 148, 136, 0.14), transparent 42%),
+    radial-gradient(circle at 42% 82%, rgba(22, 163, 74, 0.1), transparent 36%);
 }
 
 body::after {
@@ -206,14 +206,14 @@ body::after {
 }
 
 a {
-  color: var(--lagoon-deep);
-  text-decoration-color: rgba(50, 143, 151, 0.4);
+  color: var(--lagoon);
+  text-decoration-color: rgba(13, 148, 136, 0.4);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
 a:hover {
-  color: #246f76;
+  color: var(--lagoon-deep);
 }
 
 code {
