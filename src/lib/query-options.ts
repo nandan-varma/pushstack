@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getSession } from "@/lib/auth-session";
+import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
 	getBranches,
@@ -9,13 +10,8 @@ import {
 	getFile,
 	listFiles,
 } from "@/server/files";
-import {
-	getComments,
-	getIssue,
-	getIssues,
-	getPullRequest,
-	getPullRequests,
-} from "@/server/issues";
+import { getIssue, getIssues } from "@/server/issues";
+import { getPullRequest, getPullRequests } from "@/server/pull-requests";
 import {
 	getCollaborators,
 	getRepositoryByName,

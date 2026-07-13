@@ -17,11 +17,8 @@ import {
 	queryKeys,
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
-import {
-	createComment,
-	mergePullRequest,
-	updatePullRequest,
-} from "@/server/issues";
+import { createComment } from "@/server/comments";
+import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 

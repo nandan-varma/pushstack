@@ -1,5 +1,5 @@
 /**
- * Tests for issues server functions
+ * Tests for comment server functions
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,20 +32,9 @@ vi.mock("../session", () => ({
 
 vi.mock("../repo-access", () => ({
 	requireWriteAccess: vi.fn(() => Promise.resolve()),
-	requireReadAccess: vi.fn(() => Promise.resolve()),
 	canReadRepo: vi.fn(() => Promise.resolve(true)),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
 	canModerateRepo: vi.fn(() => Promise.resolve(true)),
-	canMergePullRequest: vi.fn(() => Promise.resolve(true)),
-}));
-
-vi.mock("../git-merge-iso", () => ({
-	analyzeMerge: vi.fn(),
-	mergeBranches: vi.fn(),
-}));
-
-vi.mock("../git-storage-naming", () => ({
-	getRepoStorageCoordinates: vi.fn(),
 }));
 
 const mockDb = {
@@ -82,7 +71,7 @@ describe("createComment", () => {
 			repoId: 2, // different from the repoId in the request
 		});
 
-		const { createComment } = await import("../issues");
+		const { createComment } = await import("../comments");
 
 		await expect(
 			createComment({
@@ -99,7 +88,7 @@ describe("createComment", () => {
 			repoId: 2,
 		});
 
-		const { createComment } = await import("../issues");
+		const { createComment } = await import("../comments");
 
 		await expect(
 			createComment({
@@ -113,7 +102,7 @@ describe("createComment", () => {
 	it("rejects when the referenced issue does not exist", async () => {
 		mockDb.query.issues.findFirst.mockResolvedValue(undefined);
 
-		const { createComment } = await import("../issues");
+		const { createComment } = await import("../comments");
 
 		await expect(
 			createComment({
@@ -130,7 +119,7 @@ describe("createComment", () => {
 			repoId: 1,
 		});
 
-		const { createComment } = await import("../issues");
+		const { createComment } = await import("../comments");
 
 		const result = await createComment({
 			data: { repoId: 1, issueId: 10, body: "hello" },
@@ -146,7 +135,7 @@ describe("createComment", () => {
 			repoId: 1,
 		});
 
-		const { createComment } = await import("../issues");
+		const { createComment } = await import("../comments");
 
 		const result = await createComment({
 			data: { repoId: 1, pullRequestId: 20, body: "hello" },

@@ -16,7 +16,8 @@ import {
 	queryKeys,
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
-import { createComment, updateIssue } from "@/server/issues";
+import { createComment } from "@/server/comments";
+import { updateIssue } from "@/server/issues";
 
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 

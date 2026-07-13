@@ -25,7 +25,7 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryPullRequestsQueryOptions,
 } from "@/lib/query-options";
-import { createPullRequest } from "@/server/issues";
+import { createPullRequest } from "@/server/pull-requests";
 
 const PULL_STATUS_VALUES = ["open", "closed", "merged", "all"] as const;
 type PullStatus = (typeof PULL_STATUS_VALUES)[number];
