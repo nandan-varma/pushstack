@@ -2,9 +2,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Globe, Lock } from "lucide-react";
 import { useState } from "react";
 import { Section } from "@/components/Section";
-import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { queryKeys } from "@/lib/query-options";
 import { updateRepository } from "@/server/repositories";
 
@@ -51,28 +51,21 @@ export function GeneralSection({
 	return (
 		<Section title="General" description="Basic repository information.">
 			<div className="space-y-4">
-				<div className="space-y-1.5">
-					<Label htmlFor="repo-name">Repository name</Label>
+				<FormField label="Repository name" htmlFor="repo-name">
 					<Input
 						id="repo-name"
 						value={repoName}
 						onChange={(e) => setRepoName(e.target.value)}
 					/>
-				</div>
-				<div className="space-y-1.5">
-					<Label htmlFor="repo-desc">
-						Description{" "}
-						<span className="font-normal text-[var(--sea-ink-soft)]">
-							(optional)
-						</span>
-					</Label>
+				</FormField>
+				<FormField label="Description" htmlFor="repo-desc" hint="(optional)">
 					<Input
 						id="repo-desc"
 						value={description}
 						placeholder="A short description of this repository"
 						onChange={(e) => setDescription(e.target.value)}
 					/>
-				</div>
+				</FormField>
 				<div>
 					<p className={labelCls}>Visibility</p>
 					<div className="flex gap-3">
@@ -109,16 +102,18 @@ export function GeneralSection({
 					</p>
 				)}
 				<div className="flex items-center gap-3">
-					<Button
-						disabled={!dirty || updateMutation.isPending || !repoName.trim()}
+					<LoadingButton
+						isLoading={updateMutation.isPending}
+						loadingLabel="Saving…"
+						disabled={!dirty || !repoName.trim()}
 						onClick={() =>
 							updateMutation.mutate({
 								data: { id: repo.id, name: repoName, description, visibility },
 							})
 						}
 					>
-						{updateMutation.isPending ? "Saving…" : "Save changes"}
-					</Button>
+						Save changes
+					</LoadingButton>
 					{success && (
 						<span className="text-sm text-green-600 dark:text-green-400">
 							Saved

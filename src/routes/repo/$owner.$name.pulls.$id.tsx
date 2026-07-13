@@ -5,9 +5,13 @@ import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
+import { DetailHeader } from "@/components/DetailHeader";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
+import { NotFoundCard } from "@/components/NotFoundCard";
+import { pullRequestStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -159,19 +163,6 @@ function PullRequestDetailPage() {
 		});
 	};
 
-	const getStatusBadgeVariant = (status: string) => {
-		switch (status) {
-			case "open":
-				return "success";
-			case "merged":
-				return "info";
-			case "closed":
-				return "default";
-			default:
-				return "default";
-		}
-	};
-
 	if (isLoading) {
 		return (
 			<div className="">
@@ -185,18 +176,12 @@ function PullRequestDetailPage() {
 
 	if (!pr) {
 		return (
-			<div className="">
-				<Card className="p-6">
-					<h2 className="text-xl font-semibold mb-2">Pull Request Not Found</h2>
-					<Link
-						to="/repo/$owner/$name/pulls"
-						params={{ owner, name }}
-						className="mt-4 inline-block"
-					>
-						<Button variant="outline">Back to Pull Requests</Button>
-					</Link>
-				</Card>
-			</div>
+			<NotFoundCard
+				title="Pull Request Not Found"
+				backTo="/repo/$owner/$name/pulls"
+				backParams={{ owner, name }}
+				backLabel="Back to Pull Requests"
+			/>
 		);
 	}
 
@@ -205,16 +190,14 @@ function PullRequestDetailPage() {
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex items-start justify-between gap-4">
-				<div className="flex-1">
-					<div className="flex items-center gap-3 mb-2">
-						<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-							{pr.title}
-						</h1>
-						<Badge variant={getStatusBadgeVariant(pr.status)}>
-							{pr.status}
-						</Badge>
-					</div>
+			<DetailHeader
+				title={pr.title}
+				badge={
+					<Badge variant={pullRequestStatusVariant(pr.status)}>
+						{pr.status}
+					</Badge>
+				}
+				meta={
 					<p className="flex flex-wrap items-center gap-1 text-[var(--sea-ink-soft)]">
 						#{pr.id} opened{" "}
 						{formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{" "}
@@ -225,45 +208,43 @@ function PullRequestDetailPage() {
 							{pr.targetBranch}
 						</span>
 					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<Link to="/repo/$owner/$name/pulls" params={{ owner, name }}>
-						<Button variant="outline" size="sm">
-							Back
-						</Button>
-					</Link>
-					{canMerge && (
-						<>
+				}
+				actions={
+					<>
+						<BackLink to="/repo/$owner/$name/pulls" params={{ owner, name }} />
+						{canMerge && (
+							<>
+								<Button
+									variant="default"
+									size="sm"
+									onClick={handleMerge}
+									disabled={mergeMutation.isPending}
+								>
+									{mergeMutation.isPending ? "Merging..." : "Merge"}
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={handleClose}
+									disabled={updateMutation.isPending}
+								>
+									Close
+								</Button>
+							</>
+						)}
+						{pr.status === "closed" && session?.user && (
 							<Button
 								variant="default"
 								size="sm"
-								onClick={handleMerge}
-								disabled={mergeMutation.isPending}
-							>
-								{mergeMutation.isPending ? "Merging..." : "Merge"}
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={handleClose}
+								onClick={handleReopen}
 								disabled={updateMutation.isPending}
 							>
-								Close
+								Reopen
 							</Button>
-						</>
-					)}
-					{pr.status === "closed" && session?.user && (
-						<Button
-							variant="default"
-							size="sm"
-							onClick={handleReopen}
-							disabled={updateMutation.isPending}
-						>
-							Reopen
-						</Button>
-					)}
-				</div>
-			</div>
+						)}
+					</>
+				}
+			/>
 
 			{/* Description */}
 			<Card className="p-6">

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import BetterAuthHeader from "../integrations/better-auth/header-user.tsx";
 import ThemeToggle from "./ThemeToggle";
+import { Button } from "./ui/button";
 
 export default function Header() {
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -45,9 +46,10 @@ export default function Header() {
 				<div className="flex items-center gap-2">
 					<BetterAuthHeader />
 					<ThemeToggle />
-					<button
-						type="button"
-						className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--line)] sm:hidden"
+					<Button
+						variant="outline"
+						size="icon"
+						className="h-8 w-8 sm:hidden"
 						onClick={() => setMenuOpen(!menuOpen)}
 						aria-label={menuOpen ? "Close menu" : "Open menu"}
 						aria-expanded={menuOpen}
@@ -83,7 +85,7 @@ export default function Header() {
 								/>
 							</svg>
 						)}
-					</button>
+					</Button>
 				</div>
 			</div>
 

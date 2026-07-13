@@ -2,8 +2,17 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	repositoryBranchesQueryOptions,
@@ -67,10 +76,10 @@ function CommitsPage() {
 	});
 
 	const handleBranchChange = useCallback(
-		(e: React.ChangeEvent<HTMLSelectElement>) => {
+		(value: string) => {
 			navigate({
 				to: "/repo/$owner/$name/commits/$branch",
-				params: { owner, name, branch: e.target.value },
+				params: { owner, name, branch: value },
 			});
 		},
 		[navigate, owner, name],
@@ -81,31 +90,29 @@ function CommitsPage() {
 			{/* Toolbar */}
 			<div className="flex items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<select
-						value={branch}
-						onChange={handleBranchChange}
-						className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--sea-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]/30"
-					>
-						{branches?.map((b) => (
-							<option key={b.name} value={b.name}>
-								{b.name}
-							</option>
-						))}
-					</select>
+					<Select value={branch} onValueChange={handleBranchChange}>
+						<SelectTrigger size="sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{branches?.map((b) => (
+								<SelectItem key={b.name} value={b.name}>
+									{b.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					{commits && commits.length > 0 && (
 						<span className="text-xs text-[var(--sea-ink-soft)]">
 							{commits.length} commit{commits.length !== 1 ? "s" : ""}
 						</span>
 					)}
 				</div>
-				<Link
+				<BackLink
 					to="/repo/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch, _splat: "" }}
-				>
-					<Button variant="outline" size="sm">
-						Back to files
-					</Button>
-				</Link>
+					label="Back to files"
+				/>
 			</div>
 
 			{/* Commits list */}
@@ -116,19 +123,19 @@ function CommitsPage() {
 					))}
 				</div>
 			) : !commits?.length ? (
-				<div className="island-shell rounded-xl p-12 text-center">
-					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-						No commits found in this branch.
-					</p>
-					<Link
-						to="/repo/$owner/$name/tree/$branch/$"
-						params={{ owner, name, branch, _splat: "" }}
-					>
-						<Button variant="outline" size="sm">
-							View files
-						</Button>
-					</Link>
-				</div>
+				<EmptyState
+					message="No commits found in this branch."
+					action={
+						<Link
+							to="/repo/$owner/$name/tree/$branch/$"
+							params={{ owner, name, branch, _splat: "" }}
+						>
+							<Button variant="outline" size="sm">
+								View files
+							</Button>
+						</Link>
+					}
+				/>
 			) : (
 				<>
 					<div className="overflow-hidden rounded-xl border border-[var(--line)]">

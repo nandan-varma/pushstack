@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import {
 	createContext,
 	type ReactNode,
@@ -5,6 +6,7 @@ import {
 	useContext,
 	useState,
 } from "react";
+import { Button } from "@/components/ui/button";
 
 type ToastType = "success" | "error" | "info";
 
@@ -61,27 +63,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 						role="alert"
 					>
 						<span className="flex-1">{t.message}</span>
-						<button
-							type="button"
+						<Button
+							variant="ghost"
+							size="icon-xs"
 							onClick={() => dismiss(t.id)}
-							className="shrink-0 rounded p-0.5 opacity-60 transition hover:opacity-100"
+							className="shrink-0 opacity-60 hover:bg-transparent hover:opacity-100"
 							aria-label="Dismiss"
 						>
-							<svg
-								aria-hidden="true"
-								className="h-4 w-4"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M6 18L18 6M6 6l12 12"
-								/>
-							</svg>
-						</button>
+							<X aria-hidden="true" />
+						</Button>
 					</div>
 				))}
 			</section>

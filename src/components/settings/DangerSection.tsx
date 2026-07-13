@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Section } from "@/components/Section";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { queryKeys } from "@/lib/query-options";
 import { deleteRepository } from "@/server/repositories";
 
@@ -47,13 +47,15 @@ export function DangerSection({
 						value={confirm}
 						onChange={(e) => setConfirm(e.target.value)}
 					/>
-					<Button
+					<LoadingButton
 						variant="destructive"
-						disabled={confirm !== name || deleteMutation.isPending || !repo}
+						isLoading={deleteMutation.isPending}
+						loadingLabel="Deleting…"
+						disabled={confirm !== name || !repo}
 						onClick={() => deleteMutation.mutate()}
 					>
-						{deleteMutation.isPending ? "Deleting…" : "Delete repository"}
-					</Button>
+						Delete repository
+					</LoadingButton>
 				</div>
 				{confirm && confirm !== name && (
 					<p className="text-xs text-[var(--sea-ink-soft)]">

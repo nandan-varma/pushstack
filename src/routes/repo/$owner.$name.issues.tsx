@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
+import { issueStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,9 +54,6 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 	},
 	component: IssuesPage,
 });
-
-const statusVariant = (status: string): "success" | "default" =>
-	status === "open" ? "success" : "default";
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
@@ -229,7 +227,7 @@ function IssuesPage() {
 									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
 										{issue.title}
 									</span>
-									<Badge variant={statusVariant(issue.status)}>
+									<Badge variant={issueStatusVariant(issue.status)}>
 										{issue.status}
 									</Badge>
 								</div>

@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VisibilityBadge } from "@/components/ui/visibility-badge";
 
 interface Repo {
 	id: number;
@@ -35,29 +37,30 @@ export function RepoList({
 
 	if (isError) {
 		return (
-			<div className="island-shell rounded-xl p-12 text-center">
-				<p className="mb-4 text-sm text-red-600 dark:text-red-400">
-					Couldn't load your repositories.
-				</p>
-				{onRetry && (
-					<Button size="sm" variant="outline" onClick={onRetry}>
-						Try again
-					</Button>
-				)}
-			</div>
+			<EmptyState
+				variant="error"
+				message="Couldn't load your repositories."
+				action={
+					onRetry && (
+						<Button size="sm" variant="outline" onClick={onRetry}>
+							Try again
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 
 	if (!repos || repos.length === 0) {
 		return (
-			<div className="island-shell rounded-xl p-12 text-center">
-				<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-					No repositories yet.
-				</p>
-				<Link to="/repositories/new">
-					<Button size="sm">Create your first repository</Button>
-				</Link>
-			</div>
+			<EmptyState
+				message="No repositories yet."
+				action={
+					<Link to="/repositories/new">
+						<Button size="sm">Create your first repository</Button>
+					</Link>
+				}
+			/>
 		);
 	}
 
@@ -86,15 +89,7 @@ export function RepoList({
 									>
 										{ownerUsername}/{repo.name}
 									</h3>
-									<span
-										className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
-											repo.visibility === "public"
-												? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400"
-												: "border-[var(--line)] text-[var(--sea-ink-soft)]"
-										}`}
-									>
-										{repo.visibility}
-									</span>
+									<VisibilityBadge visibility={repo.visibility} />
 								</div>
 								{repo.description && (
 									<p className="mt-1 line-clamp-1 text-xs text-[var(--sea-ink-soft)]">

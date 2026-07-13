@@ -7,6 +7,7 @@ import {
 	useLocation,
 } from "@tanstack/react-router";
 import { z } from "zod";
+import { NotFoundCard } from "@/components/NotFoundCard";
 import { RepoHeader } from "@/components/repo/RepoHeader";
 import { RepoTabNav } from "@/components/repo/RepoTabNav";
 import { Button } from "@/components/ui/button";
@@ -78,15 +79,14 @@ function RepositoryPage() {
 
 	if (!repo) {
 		return (
-			<div className="page-wrap px-4 py-10 text-center">
-				<h1 className="text-xl font-semibold text-[var(--sea-ink)]">
-					Repository not found
-				</h1>
-				<Link to="/dashboard">
-					<Button className="mt-4" size="sm">
-						Back to Dashboard
-					</Button>
-				</Link>
+			<div className="page-wrap px-4 py-16">
+				<div className="mx-auto max-w-md">
+					<NotFoundCard
+						title="Repository not found"
+						backTo="/dashboard"
+						backLabel="Back to Dashboard"
+					/>
+				</div>
 			</div>
 		);
 	}

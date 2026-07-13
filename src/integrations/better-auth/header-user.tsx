@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { authClient } from "#/lib/auth-client";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 
 export default function BetterAuthHeader() {
 	const router = useRouter();
@@ -47,19 +49,15 @@ export default function BetterAuthHeader() {
 						className="flex items-center gap-2 rounded-full transition hover:opacity-80"
 						aria-label="Account menu"
 					>
-						{session.user.image ? (
-							<img
-								src={session.user.image}
+						<Avatar className="h-8 w-8 ring-1 ring-[var(--line)]">
+							<AvatarImage
+								src={session.user.image ?? undefined}
 								alt={session.user.name || "Account"}
-								className="h-8 w-8 rounded-full ring-1 ring-[var(--line)]"
 							/>
-						) : (
-							<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--lagoon),var(--palm))]">
-								<span className="text-xs font-semibold text-white">
-									{session.user.name?.charAt(0).toUpperCase() || "U"}
-								</span>
-							</div>
-						)}
+							<AvatarFallback className="text-xs font-semibold">
+								{getInitials(session.user.name || "U")}
+							</AvatarFallback>
+						</Avatar>
 						<span className="hidden text-sm font-medium text-[var(--sea-ink)] sm:block">
 							{session.user.username || session.user.name}
 						</span>

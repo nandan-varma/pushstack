@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { EmptyState } from "@/components/EmptyState";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { VisibilityBadge } from "@/components/ui/visibility-badge";
 import { getSession } from "@/lib/auth-session";
 import { userRepositoriesQueryOptions } from "@/lib/query-options";
-import { Button } from "../../components/ui/button";
-import { Skeleton } from "../../components/ui/skeleton";
 
 export const Route = createFileRoute("/repositories/")({
 	component: RepositoriesPage,
@@ -47,14 +49,15 @@ function RepositoriesPage() {
 					))}
 				</div>
 			) : isError ? (
-				<div className="island-shell rounded-xl p-12 text-center">
-					<p className="mb-4 text-sm text-red-600 dark:text-red-400">
-						Couldn't load repositories.
-					</p>
-					<Button size="sm" variant="outline" onClick={() => refetch()}>
-						Try again
-					</Button>
-				</div>
+				<EmptyState
+					variant="error"
+					message="Couldn't load repositories."
+					action={
+						<Button size="sm" variant="outline" onClick={() => refetch()}>
+							Try again
+						</Button>
+					}
+				/>
 			) : repositories && repositories.length > 0 ? (
 				<div className="grid gap-3 md:grid-cols-2">
 					{repositories.map((repo) => {
@@ -81,15 +84,7 @@ function RepositoriesPage() {
 											>
 												{ownerUsername}/{repo.name}
 											</h2>
-											<span
-												className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
-													repo.visibility === "public"
-														? "border-green-300 text-green-700 dark:border-green-700 dark:text-green-400"
-														: "border-[var(--line)] text-[var(--sea-ink-soft)]"
-												}`}
-											>
-												{repo.visibility}
-											</span>
+											<VisibilityBadge visibility={repo.visibility} />
 										</div>
 										<p className="mt-1 line-clamp-2 text-xs text-[var(--sea-ink-soft)]">
 											{repo.description || "No description"}
@@ -104,14 +99,14 @@ function RepositoriesPage() {
 					})}
 				</div>
 			) : (
-				<div className="island-shell rounded-xl p-12 text-center">
-					<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-						No repositories yet.
-					</p>
-					<Link to="/repositories/new">
-						<Button size="sm">Create your first repository</Button>
-					</Link>
-				</div>
+				<EmptyState
+					message="No repositories yet."
+					action={
+						<Link to="/repositories/new">
+							<Button size="sm">Create your first repository</Button>
+						</Link>
+					}
+				/>
 			)}
 		</main>
 	);

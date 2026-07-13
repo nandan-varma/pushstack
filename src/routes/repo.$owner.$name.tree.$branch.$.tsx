@@ -13,6 +13,13 @@ import { FileIcon } from "@/components/repo/tree/FileIcon";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button } from "@/components/ui/button";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
 	repositoryFileQueryOptions,
@@ -110,10 +117,10 @@ function TreeBrowserPage() {
 	});
 
 	const handleBranchChange = useCallback(
-		(e: React.ChangeEvent<HTMLSelectElement>) => {
+		(value: string) => {
 			navigate({
 				to: "/repo/$owner/$name/tree/$branch/$",
-				params: { owner, name, branch: e.target.value, _splat: activePath },
+				params: { owner, name, branch: value, _splat: activePath },
 				replace: true,
 			});
 		},
@@ -133,18 +140,19 @@ function TreeBrowserPage() {
 		<div className="space-y-4">
 			{/* Toolbar */}
 			<div className="flex items-center justify-between gap-3">
-				<select
-					value={activeBranch}
-					onChange={handleBranchChange}
-					className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--sea-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]/30"
-				>
-					{branches?.map((branch) => (
-						<option key={branch.name} value={branch.name}>
-							{branch.name}
-							{branch.isDefault ? " (default)" : ""}
-						</option>
-					))}
-				</select>
+				<Select value={activeBranch} onValueChange={handleBranchChange}>
+					<SelectTrigger size="sm">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{branches?.map((branch) => (
+							<SelectItem key={branch.name} value={branch.name}>
+								{branch.name}
+								{branch.isDefault ? " (default)" : ""}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 
 				<div className="flex items-center gap-2">
 					<span className="text-xs text-[var(--sea-ink-soft)]">

@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
+import { DetailHeader } from "@/components/DetailHeader";
+import { NotFoundCard } from "@/components/NotFoundCard";
+import { issueStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -125,34 +129,26 @@ function IssueDetailPage() {
 
 	if (!issue) {
 		return (
-			<div className="">
-				<Card className="p-6">
-					<h2 className="text-xl font-semibold mb-2">Issue Not Found</h2>
-					<Link
-						to="/repo/$owner/$name/issues"
-						params={{ owner, name }}
-						className="mt-4 inline-block"
-					>
-						<Button variant="outline">Back to Issues</Button>
-					</Link>
-				</Card>
-			</div>
+			<NotFoundCard
+				title="Issue Not Found"
+				backTo="/repo/$owner/$name/issues"
+				backParams={{ owner, name }}
+				backLabel="Back to Issues"
+			/>
 		);
 	}
 
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex items-start justify-between gap-4">
-				<div className="flex-1">
-					<div className="flex items-center gap-3 mb-2">
-						<h1 className="text-3xl font-bold text-[var(--sea-ink)]">
-							{issue.title}
-						</h1>
-						<Badge variant={issue.status === "open" ? "success" : "default"}>
-							{issue.status}
-						</Badge>
-					</div>
+			<DetailHeader
+				title={issue.title}
+				badge={
+					<Badge variant={issueStatusVariant(issue.status)}>
+						{issue.status}
+					</Badge>
+				}
+				meta={
 					<p className="text-[var(--sea-ink-soft)]">
 						#{issue.id} opened{" "}
 						{formatDistanceToNow(new Date(issue.createdAt), {
@@ -160,25 +156,23 @@ function IssueDetailPage() {
 						})}{" "}
 						by {issue.author?.name || "Unknown"}
 					</p>
-				</div>
-				<div className="flex items-center gap-2">
-					<Link to="/repo/$owner/$name/issues" params={{ owner, name }}>
-						<Button variant="outline" size="sm">
-							Back
-						</Button>
-					</Link>
-					{session?.user && (
-						<Button
-							variant={issue.status === "open" ? "outline" : "default"}
-							size="sm"
-							onClick={handleToggleStatus}
-							disabled={updateMutation.isPending}
-						>
-							{issue.status === "open" ? "Close Issue" : "Reopen Issue"}
-						</Button>
-					)}
-				</div>
-			</div>
+				}
+				actions={
+					<>
+						<BackLink to="/repo/$owner/$name/issues" params={{ owner, name }} />
+						{session?.user && (
+							<Button
+								variant={issue.status === "open" ? "outline" : "default"}
+								size="sm"
+								onClick={handleToggleStatus}
+								disabled={updateMutation.isPending}
+							>
+								{issue.status === "open" ? "Close Issue" : "Reopen Issue"}
+							</Button>
+						)}
+					</>
+				}
+			/>
 
 			{/* Issue Body */}
 			<Card className="p-6">

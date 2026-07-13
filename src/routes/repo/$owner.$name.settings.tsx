@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { NotFoundCard } from "@/components/NotFoundCard";
 import { CollaboratorsSection } from "@/components/settings/CollaboratorsSection";
 import { DangerSection } from "@/components/settings/DangerSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
-import { Button } from "@/components/ui/button";
 import {
 	authSessionQueryOptions,
 	repositoryByNameQueryOptions,
@@ -38,13 +38,14 @@ function RepoSettingsPage() {
 
 	if (!repo) {
 		return (
-			<div className="page-wrap px-4 py-10 text-center">
-				<p className="text-[var(--sea-ink-soft)]">Repository not found.</p>
-				<Link to="/repositories">
-					<Button className="mt-4" size="sm">
-						Back
-					</Button>
-				</Link>
+			<div className="page-wrap px-4 py-16">
+				<div className="mx-auto max-w-md">
+					<NotFoundCard
+						title="Repository not found"
+						backTo="/repositories"
+						backLabel="Back"
+					/>
+				</div>
 			</div>
 		);
 	}

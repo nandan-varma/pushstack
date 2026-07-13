@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { format, formatDistanceToNow } from "date-fns";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
+import { NotFoundCard } from "@/components/NotFoundCard";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/ui/back-link";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -53,21 +54,13 @@ function CommitDetailPage() {
 
 	if (!commit) {
 		return (
-			<Card className="p-6">
-				<h2 className="mb-2 text-xl font-semibold text-[var(--sea-ink)]">
-					Commit Not Found
-				</h2>
-				<p className="text-[var(--sea-ink-soft)] mb-4">
-					The commit with SHA "{sha}" does not exist.
-				</p>
-				<Link
-					to="/repo/$owner/$name/commits/$branch"
-					params={{ owner, name, branch: repo?.defaultBranch || "main" }}
-					className="inline-block"
-				>
-					<Button variant="outline">Back to Commits</Button>
-				</Link>
-			</Card>
+			<NotFoundCard
+				title="Commit Not Found"
+				message={`The commit with SHA "${sha}" does not exist.`}
+				backTo="/repo/$owner/$name/commits/$branch"
+				backParams={{ owner, name, branch: repo?.defaultBranch || "main" }}
+				backLabel="Back to Commits"
+			/>
 		);
 	}
 
@@ -105,14 +98,11 @@ function CommitDetailPage() {
 						)}
 					</div>
 				</div>
-				<Link
+				<BackLink
 					to="/repo/$owner/$name/commits/$branch"
 					params={{ owner, name, branch: commit.branch }}
-				>
-					<Button variant="outline" size="sm">
-						Back to Commits
-					</Button>
-				</Link>
+					label="Back to Commits"
+				/>
 			</div>
 
 			{/* Commit Info */}

@@ -1,4 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { EmptyState } from "@/components/EmptyState";
+import { Button } from "@/components/ui/button";
 import { FileIcon, FolderIcon } from "./FileIcon";
 
 interface FileEntry {
@@ -37,23 +39,18 @@ export function FileTable({
 
 	if (!files || files.length === 0) {
 		return (
-			<div className="island-shell rounded-xl p-12 text-center">
-				<p className="mb-4 text-sm text-[var(--sea-ink-soft)]">
-					This repository is empty.
-				</p>
-				<Link
-					to="/repo/$owner/$name/upload"
-					params={{ owner, name }}
-					search={{ branch }}
-				>
-					<button
-						type="button"
-						className="inline-flex items-center justify-center rounded-md bg-[var(--lagoon-deep)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--lagoon-deep)]/90"
+			<EmptyState
+				message="This repository is empty."
+				action={
+					<Link
+						to="/repo/$owner/$name/upload"
+						params={{ owner, name }}
+						search={{ branch }}
 					>
-						Add file
-					</button>
-				</Link>
-			</div>
+						<Button size="sm">Add file</Button>
+					</Link>
+				}
+			/>
 		);
 	}
 

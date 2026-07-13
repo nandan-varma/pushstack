@@ -3,6 +3,14 @@ import { useState } from "react";
 import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingButton } from "@/components/ui/loading-button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { queryKeys, repoCollaboratorsQueryOptions } from "@/lib/query-options";
 import {
 	addCollaboratorByUsername,
@@ -94,25 +102,31 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 								});
 						}}
 					/>
-					<select
-						className="rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
+					<Select
 						value={role}
-						onChange={(e) => setRole(e.target.value as typeof role)}
+						onValueChange={(value) => setRole(value as typeof role)}
 					>
-						<option value="read">Read</option>
-						<option value="write">Write</option>
-						<option value="admin">Admin</option>
-					</select>
-					<Button
-						disabled={!username.trim() || addMutation.isPending}
+						<SelectTrigger className="w-32">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="read">Read</SelectItem>
+							<SelectItem value="write">Write</SelectItem>
+							<SelectItem value="admin">Admin</SelectItem>
+						</SelectContent>
+					</Select>
+					<LoadingButton
+						isLoading={addMutation.isPending}
+						loadingLabel="Adding…"
+						disabled={!username.trim()}
 						onClick={() =>
 							addMutation.mutate({
 								data: { repoId, username: username.trim(), role },
 							})
 						}
 					>
-						{addMutation.isPending ? "Adding…" : "Add"}
-					</Button>
+						Add
+					</LoadingButton>
 				</div>
 				{addError && (
 					<p className="text-sm text-red-600 dark:text-red-400">{addError}</p>

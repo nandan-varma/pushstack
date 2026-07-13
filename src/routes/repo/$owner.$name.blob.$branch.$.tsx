@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
+import { NotFoundCard } from "@/components/NotFoundCard";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
+import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,21 +70,13 @@ function FileBlobPage() {
 
 	if (error || !file) {
 		return (
-			<Card className="p-6">
-				<h2 className="mb-2 text-xl font-semibold text-[var(--sea-ink)]">
-					File Not Found
-				</h2>
-				<p className="text-[var(--sea-ink-soft)]">
-					The file "{filePath}" does not exist in the {branch} branch.
-				</p>
-				<Link
-					to="/repo/$owner/$name/tree/$branch/$"
-					params={{ owner, name, branch, _splat: "" }}
-					className="mt-4 inline-block"
-				>
-					<Button variant="outline">Back to Files</Button>
-				</Link>
-			</Card>
+			<NotFoundCard
+				title="File Not Found"
+				message={`The file "${filePath}" does not exist in the ${branch} branch.`}
+				backTo="/repo/$owner/$name/tree/$branch/$"
+				backParams={{ owner, name, branch, _splat: "" }}
+				backLabel="Back to Files"
+			/>
 		);
 	}
 
@@ -126,7 +120,7 @@ function FileBlobPage() {
 					</span>
 				</div>
 				<div className="flex items-center gap-2">
-					<Link
+					<BackLink
 						to="/repo/$owner/$name/tree/$branch/$"
 						params={{
 							owner,
@@ -136,11 +130,8 @@ function FileBlobPage() {
 								? filePath.slice(0, filePath.lastIndexOf("/"))
 								: "",
 						}}
-					>
-						<Button variant="outline" size="sm">
-							Back to Files
-						</Button>
-					</Link>
+						label="Back to Files"
+					/>
 					<Button variant="outline" size="sm" onClick={downloadFile}>
 						Download
 					</Button>

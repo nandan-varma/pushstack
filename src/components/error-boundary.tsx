@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 interface ErrorBoundaryProps {
 	children: ReactNode;
@@ -45,16 +46,15 @@ export class ErrorBoundary extends Component<
 						<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
 							{this.state.error?.message || "An unexpected error occurred"}
 						</p>
-						<button
-							type="button"
+						<Button
 							onClick={() => {
 								this.setState({ hasError: false, error: null });
 								window.location.reload();
 							}}
-							className="inline-flex h-9 items-center rounded-lg bg-[var(--lagoon-deep)] px-4 text-sm font-medium text-white transition hover:opacity-90"
+							className="bg-[var(--lagoon-deep)] text-white opacity-100 hover:bg-[var(--lagoon-deep)] hover:opacity-90"
 						>
 							Try again
-						</button>
+						</Button>
 					</div>
 				</div>
 			);

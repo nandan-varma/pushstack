@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Section } from "@/components/Section";
-import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "@/lib/auth-client";
 
 export function EmailSection({ currentEmail }: { currentEmail: string }) {
@@ -40,8 +40,7 @@ export function EmailSection({ currentEmail }: { currentEmail: string }) {
 				</div>
 			) : (
 				<div className="space-y-4">
-					<div className="space-y-1.5">
-						<Label htmlFor="new-email">New email address</Label>
+					<FormField label="New email address" htmlFor="new-email">
 						<Input
 							id="new-email"
 							type="email"
@@ -50,16 +49,18 @@ export function EmailSection({ currentEmail }: { currentEmail: string }) {
 							onChange={(e) => setNewEmail(e.target.value)}
 							onKeyDown={(e) => e.key === "Enter" && change()}
 						/>
-					</div>
+					</FormField>
 					{error && (
 						<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
 					)}
-					<Button
-						disabled={loading || !newEmail.trim() || newEmail === currentEmail}
+					<LoadingButton
+						isLoading={loading}
+						loadingLabel="Sending…"
+						disabled={!newEmail.trim() || newEmail === currentEmail}
 						onClick={change}
 					>
-						{loading ? "Sending…" : "Update email"}
-					</Button>
+						Update email
+					</LoadingButton>
 				</div>
 			)}
 		</Section>

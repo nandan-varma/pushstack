@@ -11,6 +11,13 @@ import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getSession } from "@/lib/auth-session";
 import {
@@ -192,18 +199,18 @@ function FileUploadPage() {
 					{/* Branch Selection */}
 					<div className="space-y-1.5">
 						<Label htmlFor="branch">Branch</Label>
-						<select
-							id="branch"
-							value={branch}
-							onChange={(e) => setBranch(e.target.value)}
-							className="flex h-9 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--sea-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--lagoon-deep)]/30"
-						>
-							{branches?.map((b) => (
-								<option key={b.name} value={b.name}>
-									{b.name}
-								</option>
-							))}
-						</select>
+						<Select value={branch} onValueChange={setBranch}>
+							<SelectTrigger id="branch" className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{branches?.map((b) => (
+									<SelectItem key={b.name} value={b.name}>
+										{b.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 
 					{/* File Drop Zone */}

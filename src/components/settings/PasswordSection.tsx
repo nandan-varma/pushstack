@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Section } from "@/components/Section";
-import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "@/lib/auth-client";
 
 export function PasswordSection() {
@@ -43,8 +43,7 @@ export function PasswordSection() {
 	return (
 		<Section title="Password" description="Must be at least 8 characters.">
 			<div className="space-y-4">
-				<div className="space-y-1.5">
-					<Label htmlFor="current-pw">Current password</Label>
+				<FormField label="Current password" htmlFor="current-pw">
 					<Input
 						id="current-pw"
 						type="password"
@@ -52,9 +51,8 @@ export function PasswordSection() {
 						autoComplete="current-password"
 						onChange={(e) => setCurrent(e.target.value)}
 					/>
-				</div>
-				<div className="space-y-1.5">
-					<Label htmlFor="new-pw">New password</Label>
+				</FormField>
+				<FormField label="New password" htmlFor="new-pw">
 					<Input
 						id="new-pw"
 						type="password"
@@ -62,9 +60,8 @@ export function PasswordSection() {
 						autoComplete="new-password"
 						onChange={(e) => setNext(e.target.value)}
 					/>
-				</div>
-				<div className="space-y-1.5">
-					<Label htmlFor="confirm-pw">Confirm new password</Label>
+				</FormField>
+				<FormField label="Confirm new password" htmlFor="confirm-pw">
 					<Input
 						id="confirm-pw"
 						type="password"
@@ -79,23 +76,19 @@ export function PasswordSection() {
 							Passwords don't match
 						</p>
 					)}
-				</div>
+				</FormField>
 				{error && (
 					<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
 				)}
 				<div className="flex items-center gap-3">
-					<Button
-						disabled={
-							loading ||
-							!current ||
-							!next ||
-							next !== confirm ||
-							next.length < 8
-						}
+					<LoadingButton
+						isLoading={loading}
+						loadingLabel="Saving…"
+						disabled={!current || !next || next !== confirm || next.length < 8}
 						onClick={save}
 					>
-						{loading ? "Saving…" : "Change password"}
-					</Button>
+						Change password
+					</LoadingButton>
 					{success && (
 						<span className="text-sm text-green-600 dark:text-green-400">
 							Password updated

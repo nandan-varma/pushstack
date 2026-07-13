@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
+import { pullRequestStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -61,9 +69,6 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 	},
 	component: PullRequestsPage,
 });
-
-const statusVariant = (status: string): "success" | "info" | "default" =>
-	status === "open" ? "success" : status === "merged" ? "info" : "default";
 
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
@@ -179,40 +184,45 @@ function PullRequestsPage() {
 								<div className="grid grid-cols-2 gap-4">
 									<div className="space-y-1.5">
 										<Label htmlFor="base">Base branch</Label>
-										<select
-											id="base"
+										<Select
 											value={newPR.baseBranch}
-											onChange={(e) =>
-												setNewPR((p) => ({ ...p, baseBranch: e.target.value }))
+											onValueChange={(value) =>
+												setNewPR((p) => ({ ...p, baseBranch: value }))
 											}
-											className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
 										>
-											{branches?.map((b) => (
-												<option key={b.name} value={b.name}>
-													{b.name}
-												</option>
-											))}
-										</select>
+											<SelectTrigger id="base" className="w-full">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{branches?.map((b) => (
+													<SelectItem key={b.name} value={b.name}>
+														{b.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
 									</div>
 									<div className="space-y-1.5">
 										<Label htmlFor="head">Compare branch</Label>
-										<select
-											id="head"
+										<Select
 											value={newPR.headBranch}
-											onChange={(e) =>
-												setNewPR((p) => ({ ...p, headBranch: e.target.value }))
+											onValueChange={(value) =>
+												setNewPR((p) => ({ ...p, headBranch: value }))
 											}
-											className="flex h-9 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm"
 										>
-											<option value="">Select branch…</option>
-											{branches
-												?.filter((b) => b.name !== newPR.baseBranch)
-												.map((b) => (
-													<option key={b.name} value={b.name}>
-														{b.name}
-													</option>
-												))}
-										</select>
+											<SelectTrigger id="head" className="w-full">
+												<SelectValue placeholder="Select branch…" />
+											</SelectTrigger>
+											<SelectContent>
+												{branches
+													?.filter((b) => b.name !== newPR.baseBranch)
+													.map((b) => (
+														<SelectItem key={b.name} value={b.name}>
+															{b.name}
+														</SelectItem>
+													))}
+											</SelectContent>
+										</Select>
 									</div>
 								</div>
 								<div className="space-y-1.5">
@@ -305,7 +315,9 @@ function PullRequestsPage() {
 									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
 										{pr.title}
 									</span>
-									<Badge variant={statusVariant(pr.status)}>{pr.status}</Badge>
+									<Badge variant={pullRequestStatusVariant(pr.status)}>
+										{pr.status}
+									</Badge>
 								</div>
 								<p className="text-xs text-[var(--sea-ink-soft)]">
 									#{pr.id} opened {new Date(pr.createdAt).toLocaleDateString()}{" "}

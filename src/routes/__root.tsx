@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { ToastProvider } from "../components/toast-provider";
+import { Button } from "../components/ui/button";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
 import appCss from "../styles.css?url";
@@ -61,13 +62,12 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 					<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
 						{error.message || "An unexpected error occurred."}
 					</p>
-					<button
-						type="button"
+					<Button
 						onClick={reset}
-						className="inline-flex h-9 items-center rounded-lg bg-[var(--lagoon-deep)] px-4 text-sm font-medium text-white transition hover:opacity-90"
+						className="bg-[var(--lagoon-deep)] text-white opacity-100 hover:bg-[var(--lagoon-deep)] hover:opacity-90"
 					>
 						Try again
-					</button>
+					</Button>
 				</div>
 			</div>
 		</RootDocument>
@@ -90,11 +90,11 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 				<HeadContent />
 			</head>
-			<body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
+			<body className="flex min-h-screen flex-col font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
 				<TanStackQueryProvider>
 					<ToastProvider>
 						<Header />
-						{children}
+						<div className="flex-1">{children}</div>
 						<Footer />
 					</ToastProvider>
 					{import.meta.env.DEV && (
