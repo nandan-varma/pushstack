@@ -8,6 +8,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./schema";
 
@@ -35,7 +36,13 @@ export const repositories = pgTable(
 	(table) => ({
 		ownerIdx: index("repo_owner_idx").on(table.ownerId),
 		nameIdx: index("repo_name_idx").on(table.name),
-		ownerNameIdx: index("repo_owner_name_idx").on(table.ownerId, table.name),
+		// Unique, not just indexed: a concurrent double-submit of createRepository
+		// must not be able to create two rows for the same (owner, name) — storage
+		// keys are name-derived, so duplicates would clobber each other's git data.
+		ownerNameIdx: uniqueIndex("repo_owner_name_idx").on(
+			table.ownerId,
+			table.name,
+		),
 	}),
 );
 

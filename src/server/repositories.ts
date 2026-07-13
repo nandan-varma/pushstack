@@ -89,18 +89,29 @@ export const createRepository = createServerFn({ method: "POST" })
 			// Initialize git repository on filesystem
 			const gitPath = await initBareRepo(ownerKey, data.name);
 
-			// Create repository record in database
-			const [repo] = await db
-				.insert(repositories)
-				.values({
-					ownerId: user.id,
-					name: data.name,
-					description: data.description || null,
-					visibility: data.visibility,
-					defaultBranch: "main",
-					gitPath, // Store filesystem path
-				})
-				.returning();
+			// Create repository record in database. The existence check above is
+			// check-then-act (not atomic) — a concurrent double-submit can pass it
+			// twice, so the unique index on (ownerId, name) is the real guard; a
+			// violation here means we lost that race, not a server error.
+			let repo: typeof repositories.$inferSelect;
+			try {
+				[repo] = await db
+					.insert(repositories)
+					.values({
+						ownerId: user.id,
+						name: data.name,
+						description: data.description || null,
+						visibility: data.visibility,
+						defaultBranch: "main",
+						gitPath, // Store filesystem path
+					})
+					.returning();
+			} catch (error) {
+				if ((error as { code?: string })?.code === "23505") {
+					throw new Error("Repository with this name already exists");
+				}
+				throw error;
+			}
 
 			// Log activity
 			await db.insert(activities).values({
