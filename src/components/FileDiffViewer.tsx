@@ -31,6 +31,7 @@ interface ParsedFileDiff extends FileDiff {
 	additions: number;
 	deletions: number;
 	hunks: number;
+	visibleLineCount: number;
 }
 
 const HUNK_HEADER_RE = /^@@\s-([0-9]+)(?:,[0-9]+)?\s\+([0-9]+)(?:,[0-9]+)?\s@@/;
@@ -38,33 +39,26 @@ const HUNK_HEADER_RE = /^@@\s-([0-9]+)(?:,[0-9]+)?\s\+([0-9]+)(?:,[0-9]+)?\s@@/;
 function classifyLine(raw: string): DiffLineKind {
 	if (raw.startsWith("@@")) return "hunk";
 
-	if (
-		raw.startsWith("diff --git") ||
-		raw.startsWith("index ") ||
-		raw.startsWith("new file mode") ||
-		raw.startsWith("deleted file mode") ||
-		raw.startsWith("rename from ") ||
-		raw.startsWith("rename to ") ||
-		raw.startsWith("similarity index") ||
-		raw.startsWith("--- ") ||
-		raw.startsWith("+++ ") ||
-		raw.startsWith("\\ No newline at end of file")
-	) {
-		return "meta";
-	}
-
 	if (raw.startsWith("+")) return "add";
 	if (raw.startsWith("-")) return "remove";
+	if (raw.startsWith("\\")) return "meta";
 
 	return "context";
 }
 
 function parsePatch(patch: string): ParsedDiffLine[] {
-	const rows = patch.split("\n");
+	const normalized = patch.replace(/\r\n/g, "\n");
+	if (!normalized) return [];
+	const rows = normalized.endsWith("\n")
+		? normalized.slice(0, -1).split("\n")
+		: normalized.split("\n");
 	let oldLine = 1;
 	let newLine = 1;
+	let inHunk = false;
 
-	return rows.map((raw) => {
+	const parsed: ParsedDiffLine[] = [];
+
+	for (const raw of rows) {
 		const kind = classifyLine(raw);
 
 		if (kind === "hunk") {
@@ -73,8 +67,8 @@ function parsePatch(patch: string): ParsedDiffLine[] {
 				oldLine = Number(match[1]);
 				newLine = Number(match[2]);
 			}
-
-			return {
+			inHunk = true;
+			parsed.push({
 				raw,
 				kind,
 				prefix: "",
@@ -82,26 +76,20 @@ function parsePatch(patch: string): ParsedDiffLine[] {
 				highlightText: "",
 				oldLine: null,
 				newLine: null,
-			};
+			});
+			continue;
 		}
 
-		if (kind === "meta") {
-			return {
-				raw,
-				kind,
-				prefix: "",
-				code: raw,
-				highlightText: "",
-				oldLine: null,
-				newLine: null,
-			};
+		// Unified diff metadata (file headers, modes, rename info) always
+		// appears before hunks; skip it generically instead of hardcoding labels.
+		if (!inHunk || kind === "meta") {
+			continue;
 		}
 
 		if (kind === "add") {
 			const nextNew = newLine;
 			newLine += 1;
-
-			return {
+			parsed.push({
 				raw,
 				kind,
 				prefix: "+",
@@ -109,14 +97,14 @@ function parsePatch(patch: string): ParsedDiffLine[] {
 				highlightText: raw.slice(1),
 				oldLine: null,
 				newLine: nextNew,
-			};
+			});
+			continue;
 		}
 
 		if (kind === "remove") {
 			const nextOld = oldLine;
 			oldLine += 1;
-
-			return {
+			parsed.push({
 				raw,
 				kind,
 				prefix: "-",
@@ -124,15 +112,15 @@ function parsePatch(patch: string): ParsedDiffLine[] {
 				highlightText: raw.slice(1),
 				oldLine: nextOld,
 				newLine: null,
-			};
+			});
+			continue;
 		}
 
 		const nextOld = oldLine;
 		const nextNew = newLine;
 		oldLine += 1;
 		newLine += 1;
-
-		return {
+		parsed.push({
 			raw,
 			kind,
 			prefix: raw.startsWith(" ") ? " " : "",
@@ -140,8 +128,10 @@ function parsePatch(patch: string): ParsedDiffLine[] {
 			highlightText: raw.startsWith(" ") ? raw.slice(1) : raw,
 			oldLine: nextOld,
 			newLine: nextNew,
-		};
-	});
+		});
+	}
+
+	return parsed;
 }
 
 function tokenStyle(token: ThemedToken): CSSProperties {
@@ -199,6 +189,7 @@ export function FileDiffViewer({
 		() =>
 			(files ?? []).map((fileDiff) => {
 				const lines = parsePatch(fileDiff.patch);
+				const visibleLines = lines.filter((line) => line.kind !== "hunk");
 				const additions = lines.filter((line) => line.kind === "add").length;
 				const deletions = lines.filter((line) => line.kind === "remove").length;
 				const hunks = lines.filter((line) => line.kind === "hunk").length;
@@ -211,6 +202,7 @@ export function FileDiffViewer({
 					additions,
 					deletions,
 					hunks,
+					visibleLineCount: visibleLines.length,
 				};
 			}),
 		[files],
@@ -352,9 +344,9 @@ export function FileDiffViewer({
 							<ChevronRight
 								className={`size-4 shrink-0 text-[var(--sea-ink-soft)] transition-transform ${expandedPaths[fileDiff.path] ? "rotate-90" : ""}`}
 							/>
-							<code className="truncate text-sm font-medium text-[var(--sea-ink)]">
+							<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
 								{fileDiff.path}
-							</code>
+							</span>
 						</div>
 						<div className="flex shrink-0 items-center gap-2 text-xs">
 							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
@@ -369,35 +361,37 @@ export function FileDiffViewer({
 						</div>
 					</button>
 					{expandedPaths[fileDiff.path] ? (
-						<div className="px-4 pb-4">
+						<div className="px-4 p-4">
 							<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-[var(--line)] bg-[var(--chip-bg)] p-0 text-xs text-[var(--sea-ink)]">
 								<code>
 									{fileDiff.lines.map((line, lineIndex) => (
-										<div
-											key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
-											className={`diff-line diff-line--${line.kind}`}
-										>
-											<span className="diff-gutter diff-gutter--old">
-												{line.oldLine ?? ""}
-											</span>
-											<span className="diff-gutter diff-gutter--new">
-												{line.newLine ?? ""}
-											</span>
-											<span className="diff-prefix">{line.prefix}</span>
-											<span className="diff-code">
-												{renderLineCode(
-													line,
-													lineTokensByPath[fileDiff.path]?.[lineIndex],
-												)}
-											</span>
-										</div>
+										line.kind === "hunk" ? null : (
+											<div
+												key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
+												className={`diff-line diff-line--${line.kind}`}
+											>
+												<span className="diff-gutter diff-gutter--old">
+													{line.oldLine ?? ""}
+												</span>
+												<span className="diff-gutter diff-gutter--new">
+													{line.newLine ?? ""}
+												</span>
+												<span className="diff-prefix">{line.prefix}</span>
+												<span className="diff-code">
+													{renderLineCode(
+														line,
+														lineTokensByPath[fileDiff.path]?.[lineIndex],
+													)}
+												</span>
+											</div>
+										)
 									))}
 								</code>
 							</pre>
 						</div>
 					) : (
-						<p className="px-4 pb-4 text-xs text-[var(--sea-ink-soft)]">
-							{fileDiff.lines.length} lines changed across {fileDiff.hunks} hunk
+						<p className="p-4 text-xs text-[var(--sea-ink-soft)]">
+							{fileDiff.visibleLineCount} lines changed across {fileDiff.hunks} hunk
 							{fileDiff.hunks === 1 ? "" : "s"}.
 						</p>
 					)}

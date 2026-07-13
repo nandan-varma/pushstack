@@ -1,4 +1,4 @@
-import { createPatch } from "diff";
+import { createTwoFilesPatch } from "diff";
 import git from "isomorphic-git";
 import { getCommit, getFileContent } from "./git-history-ops";
 import { getRepoOptions } from "./git-repo-storage";
@@ -17,6 +17,35 @@ export interface DiffResult {
 	totalAdditions: number;
 	totalDeletions: number;
 	totalFiles: number;
+}
+
+function countContentLines(content: string): number {
+	if (content.length === 0) return 0;
+	const lines = content.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
+	return lines.length;
+}
+
+function createUnifiedPatch(params: {
+	path: string;
+	before: string;
+	after: string;
+	oldPath?: string;
+	newPath?: string;
+}): string {
+	const oldPath = params.oldPath ?? `a/${params.path}`;
+	const newPath = params.newPath ?? `b/${params.path}`;
+	const patchBody = createTwoFilesPatch(
+		oldPath,
+		newPath,
+		params.before,
+		params.after,
+		"",
+		"",
+		{ context: 3 },
+	).replace(/^=+\n/, "");
+
+	return `diff --git a/${params.path} b/${params.path}\n${patchBody}`;
 }
 
 export async function getCommitDiff(
@@ -42,13 +71,18 @@ export async function getCommitDiff(
 						entry.path,
 						commitSha,
 					);
-					const lines = content.toString().split("\n");
+					const after = content.toString();
 					files.push({
 						path: entry.path,
 						status: "added",
-						additions: lines.length,
+						additions: countContentLines(after),
 						deletions: 0,
-						patch: `+++ b/${entry.path}\n${lines.map((l) => `+${l}`).join("\n")}`,
+						patch: createUnifiedPatch({
+							path: entry.path,
+							before: "",
+							after,
+							oldPath: "/dev/null",
+						}),
 					});
 				}
 			}
@@ -78,13 +112,18 @@ export async function getCommitDiff(
 						...repo,
 						oid: A ? await A.oid() : "",
 					});
-					const lines = Buffer.from(blob).toString().split("\n");
+					const before = Buffer.from(blob).toString();
 					return {
 						path: filepath,
 						status: "deleted" as const,
 						additions: 0,
-						deletions: lines.length,
-						patch: `--- a/${filepath}\n${lines.map((l) => `-${l}`).join("\n")}`,
+						deletions: countContentLines(before),
+						patch: createUnifiedPatch({
+							path: filepath,
+							before,
+							after: "",
+							newPath: "/dev/null",
+						}),
 					};
 				}
 
@@ -93,13 +132,18 @@ export async function getCommitDiff(
 						...repo,
 						oid: B ? await B.oid() : "",
 					});
-					const lines = Buffer.from(blob).toString().split("\n");
+					const after = Buffer.from(blob).toString();
 					return {
 						path: filepath,
 						status: "added" as const,
-						additions: lines.length,
+						additions: countContentLines(after),
 						deletions: 0,
-						patch: `+++ b/${filepath}\n${lines.map((l) => `+${l}`).join("\n")}`,
+						patch: createUnifiedPatch({
+							path: filepath,
+							before: "",
+							after,
+							oldPath: "/dev/null",
+						}),
 					};
 				}
 
@@ -115,9 +159,13 @@ export async function getCommitDiff(
 					return {
 						path: filepath,
 						status: "modified" as const,
-						additions: contentB.split("\n").length,
-						deletions: contentA.split("\n").length,
-						patch: createPatch(filepath, contentA, contentB),
+						additions: countContentLines(contentB),
+						deletions: countContentLines(contentA),
+						patch: createUnifiedPatch({
+							path: filepath,
+							before: contentA,
+							after: contentB,
+						}),
 					};
 				}
 
@@ -172,13 +220,18 @@ export async function getDiffBetweenBranches(
 					...repo,
 					oid: A ? await A.oid() : "",
 				});
-				const lines = Buffer.from(blob).toString().split("\n");
+				const before = Buffer.from(blob).toString();
 				return {
 					path: filepath,
 					status: "deleted" as const,
 					additions: 0,
-					deletions: lines.length,
-					patch: `--- a/${filepath}\n${lines.map((l) => `-${l}`).join("\n")}`,
+					deletions: countContentLines(before),
+					patch: createUnifiedPatch({
+						path: filepath,
+						before,
+						after: "",
+						newPath: "/dev/null",
+					}),
 				};
 			}
 
@@ -187,13 +240,18 @@ export async function getDiffBetweenBranches(
 					...repo,
 					oid: B ? await B.oid() : "",
 				});
-				const lines = Buffer.from(blob).toString().split("\n");
+				const after = Buffer.from(blob).toString();
 				return {
 					path: filepath,
 					status: "added" as const,
-					additions: lines.length,
+					additions: countContentLines(after),
 					deletions: 0,
-					patch: `+++ b/${filepath}\n${lines.map((l) => `+${l}`).join("\n")}`,
+					patch: createUnifiedPatch({
+						path: filepath,
+						before: "",
+						after,
+						oldPath: "/dev/null",
+					}),
 				};
 			}
 
@@ -209,9 +267,13 @@ export async function getDiffBetweenBranches(
 				return {
 					path: filepath,
 					status: "modified" as const,
-					additions: contentB.split("\n").length,
-					deletions: contentA.split("\n").length,
-					patch: createPatch(filepath, contentA, contentB),
+					additions: countContentLines(contentB),
+					deletions: countContentLines(contentA),
+					patch: createUnifiedPatch({
+						path: filepath,
+						before: contentA,
+						after: contentB,
+					}),
 				};
 			}
 

@@ -197,4 +197,43 @@ describe("getDiffBetweenBranches", () => {
 		expect(result.totalFiles).toBe(1);
 		expect(result.files[0].status).toBe("deleted");
 	});
+
+	it("emits git-style patch for modified files without Index separators", async () => {
+		const baseSha = makeOid("b");
+		const compareSha = makeOid("c");
+
+		g.resolveRef
+			.mockResolvedValueOnce(baseSha)
+			.mockResolvedValueOnce(compareSha);
+
+		g.readBlob
+			.mockResolvedValueOnce({ blob: Buffer.from("old line\n") })
+			.mockResolvedValueOnce({ blob: Buffer.from("new line\n") });
+
+		const walkEntry = (_name: string, type: string, oid: string) => ({
+			type: () => Promise.resolve(type),
+			oid: () => Promise.resolve(oid),
+		});
+
+		g.walk.mockImplementation(async ({ map }: { map: MockWalkerMap }) => {
+			const result = await map("file.txt", [
+				walkEntry("file.txt", "blob", makeOid("a")),
+				walkEntry("file.txt", "blob", makeOid("b")),
+			]);
+			return [result];
+		});
+
+		const result = await getDiffBetweenBranches(
+			"owner",
+			"repo",
+			"main",
+			"feature",
+		);
+
+		expect(result.totalFiles).toBe(1);
+		expect(result.files[0].status).toBe("modified");
+		expect(result.files[0].patch).toContain("diff --git a/file.txt b/file.txt");
+		expect(result.files[0].patch).not.toContain("Index:");
+		expect(result.files[0].patch).not.toContain("===");
+	});
 });
