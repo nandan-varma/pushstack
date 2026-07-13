@@ -119,7 +119,10 @@ async function writeCommitDirect(
 		parentOid = await git.resolveRef({ ...repo, ref: `refs/heads/${branch}` });
 		const { commit } = await git.readCommit({ ...repo, oid: parentOid });
 		parentTreeOid = commit.tree;
-	} catch {
+	} catch (err) {
+		if ((err as { code?: string })?.code !== "NotFoundError") {
+			throw err;
+		}
 		// empty repo — first commit
 	}
 	const treeOid = await buildTree(parentTreeOid, repo);

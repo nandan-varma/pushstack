@@ -55,7 +55,10 @@ export async function analyzeMerge(
 			conflictingFiles: [],
 			fastForward: isDescendant,
 		};
-	} catch {
+	} catch (err) {
+		if ((err as { code?: string })?.code !== "NotFoundError") {
+			throw err;
+		}
 		return {
 			canMerge: false,
 			hasConflicts: true,
@@ -76,32 +79,28 @@ export async function mergeBranches(
 	if (isR2Configured()) {
 		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
 		const ffResult = await withRepositoryLock(ownerKey, repoName, async () => {
-			try {
-				const repo = getBareRepoOptions(ownerKey, repoName);
-				const sourceOid = await git.resolveRef({
-					...repo,
-					ref: `refs/heads/${sourceBranch}`,
-				});
-				const targetOid = await git.resolveRef({
+			const repo = getBareRepoOptions(ownerKey, repoName);
+			const sourceOid = await git.resolveRef({
+				...repo,
+				ref: `refs/heads/${sourceBranch}`,
+			});
+			const targetOid = await git.resolveRef({
+				...repo,
+				ref: `refs/heads/${targetBranch}`,
+			});
+			const isFF = await git.isDescendent({
+				...repo,
+				oid: sourceOid,
+				ancestor: targetOid,
+			});
+			if (isFF) {
+				await git.writeRef({
 					...repo,
 					ref: `refs/heads/${targetBranch}`,
+					value: sourceOid,
+					force: true,
 				});
-				const isFF = await git.isDescendent({
-					...repo,
-					oid: sourceOid,
-					ancestor: targetOid,
-				});
-				if (isFF) {
-					await git.writeRef({
-						...repo,
-						ref: `refs/heads/${targetBranch}`,
-						value: sourceOid,
-						force: true,
-					});
-					return { success: true, commitSha: sourceOid };
-				}
-			} catch (_error) {
-				return { success: false, conflicts: ["Merge conflicts detected"] };
+				return { success: true, commitSha: sourceOid };
 			}
 			return null;
 		});
