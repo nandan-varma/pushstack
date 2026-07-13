@@ -71,7 +71,7 @@ describe("R2-direct git writes are serialized per repository", () => {
 	});
 
 	it("never has two concurrent createCommit git calls in flight for the same repo", async () => {
-		const { createCommit } = await import("../git-operations-iso");
+		const { createCommit } = await import("../git-commit-write");
 
 		await Promise.all([
 			createCommit(
@@ -96,7 +96,7 @@ describe("R2-direct git writes are serialized per repository", () => {
 	});
 
 	it("still succeeds for both concurrent createCommit calls", async () => {
-		const { createCommit } = await import("../git-operations-iso");
+		const { createCommit } = await import("../git-commit-write");
 
 		const results = await Promise.all([
 			createCommit(
@@ -121,9 +121,7 @@ describe("R2-direct git writes are serialized per repository", () => {
 	});
 
 	it("never has two concurrent createBranch/deleteBranch git calls in flight for the same repo", async () => {
-		const { createBranch, deleteBranch } = await import(
-			"../git-operations-iso"
-		);
+		const { createBranch, deleteBranch } = await import("../git-branch-ops");
 		const git = (await import("isomorphic-git")).default;
 		(git.resolveRef as ReturnType<typeof vi.fn>).mockImplementation(async () =>
 			trackConcurrency("some-oid"),

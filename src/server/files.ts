@@ -10,9 +10,20 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { activities, repositories } from "../db/github-schema";
-import * as GitDiff from "./git-diff-iso";
+import {
+	createBranch as gitCreateBranch,
+	deleteBranch as gitDeleteBranch,
+	getBranches as gitGetBranches,
+} from "./git-branch-ops";
 // Git operations imports (isomorphic-git)
-import * as GitOps from "./git-operations-iso";
+import { createCommit, deleteFile as gitDeleteFile } from "./git-commit-write";
+import * as GitDiff from "./git-diff-iso";
+import {
+	getCommitHistory,
+	getFileFromBranch,
+	getTreeFromBranch,
+	getCommit as gitGetCommit,
+} from "./git-history-ops";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
 import {
 	getRepoOrThrow,
@@ -67,7 +78,7 @@ export const uploadFile = createServerFn({ method: "POST" })
 		const storage = getStorage(repo);
 
 		// Create commit with the file
-		const commitSha = await GitOps.createCommit(
+		const commitSha = await createCommit(
 			storage.ownerKey,
 			repo.name,
 			data.commitMessage,
@@ -123,7 +134,7 @@ export const getFile = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get file from git
-		const fileInfo = await GitOps.getFileFromBranch(
+		const fileInfo = await getFileFromBranch(
 			storage.ownerKey,
 			repo.name,
 			data.branchName,
@@ -155,7 +166,7 @@ export const getFileDownloadUrl = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get file info
-		const fileInfo = await GitOps.getFileFromBranch(
+		const fileInfo = await getFileFromBranch(
 			storage.ownerKey,
 			repo.name,
 			data.branchName,
@@ -192,7 +203,7 @@ export const listFiles = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get tree from git
-		const entries = await GitOps.getTreeFromBranch(
+		const entries = await getTreeFromBranch(
 			storage.ownerKey,
 			repo.name,
 			data.branchName,
@@ -225,7 +236,7 @@ export const deleteFile = createServerFn({ method: "POST" })
 		const storage = getStorage(repo);
 
 		// Delete file and create commit
-		const commitInfo = await GitOps.deleteFile(
+		const commitInfo = await gitDeleteFile(
 			storage.ownerKey,
 			repo.name,
 			data.branchName,
@@ -270,7 +281,7 @@ export const getBranches = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get branches from git
-		const branches = await GitOps.getBranches(storage.ownerKey, repo.name);
+		const branches = await gitGetBranches(storage.ownerKey, repo.name);
 
 		return branches;
 	});
@@ -297,7 +308,7 @@ export const createBranch = createServerFn({ method: "POST" })
 		const storage = getStorage(repo);
 
 		// Create branch in git
-		await GitOps.createBranch(
+		await gitCreateBranch(
 			storage.ownerKey,
 			repo.name,
 			data.name,
@@ -334,12 +345,7 @@ export const deleteBranch = createServerFn({ method: "POST" })
 		const storage = getStorage(repo);
 
 		// Delete branch from git
-		await GitOps.deleteBranch(
-			storage.ownerKey,
-			repo.name,
-			data.name,
-			repo.ownerId,
-		);
+		await gitDeleteBranch(storage.ownerKey, repo.name, data.name, repo.ownerId);
 
 		return { success: true };
 	});
@@ -367,7 +373,7 @@ export const getCommits = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get commit history from git
-		const commits = await GitOps.getCommitHistory(
+		const commits = await getCommitHistory(
 			storage.ownerKey,
 			repo.name,
 			data.branchName,
@@ -409,7 +415,7 @@ export const getCommit = createServerFn({ method: "GET" })
 		const storage = getStorage(repo);
 
 		// Get commit from git
-		const commit = await GitOps.getCommit(
+		const commit = await gitGetCommit(
 			storage.ownerKey,
 			repo.name,
 			data.commitSha,

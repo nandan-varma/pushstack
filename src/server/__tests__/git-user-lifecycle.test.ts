@@ -8,7 +8,7 @@
  *   - git-auth.ts (PAT authentication + repo-access authorization)
  *   - repo-access.ts (real, DB-driven — not mocked)
  *   - git-http-iso.ts (info/refs + upload-pack over a real loopback HTTP server)
- *   - git-r2-backend.ts / git-operations-iso.ts (write path used when R2 is "configured")
+ *   - git-r2-backend.ts / git-commit-write.ts (write path used when R2 is "configured")
  *
  * Only two things are faked, because they're external infrastructure that
  * doesn't exist in a test environment:
@@ -427,7 +427,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("seeds an initial commit directly (as the first push would)", async () => {
-		const { createCommit } = await import("../git-operations-iso");
+		const { createCommit } = await import("../git-commit-write");
 
 		const sha = await createCommit(
 			TEST_USER.username,

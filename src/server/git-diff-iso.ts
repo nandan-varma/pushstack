@@ -1,6 +1,6 @@
 import { createPatch } from "diff";
 import git from "isomorphic-git";
-import { getCommit, getFileContent } from "./git-operations-iso";
+import { getCommit, getFileContent } from "./git-history-ops";
 import { getRepoOptions } from "./git-repo-storage";
 
 export interface DiffFile {

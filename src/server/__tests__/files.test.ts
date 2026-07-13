@@ -61,7 +61,21 @@ const gitOpsMocks = {
 	getCommit: vi.fn(() => Promise.resolve({})),
 };
 
-vi.mock("../git-operations-iso", () => gitOpsMocks);
+vi.mock("../git-commit-write", () => ({
+	createCommit: gitOpsMocks.createCommit,
+	deleteFile: gitOpsMocks.deleteFile,
+}));
+vi.mock("../git-branch-ops", () => ({
+	getBranches: gitOpsMocks.getBranches,
+	createBranch: gitOpsMocks.createBranch,
+	deleteBranch: gitOpsMocks.deleteBranch,
+}));
+vi.mock("../git-history-ops", () => ({
+	getFileFromBranch: gitOpsMocks.getFileFromBranch,
+	getTreeFromBranch: gitOpsMocks.getTreeFromBranch,
+	getCommitHistory: gitOpsMocks.getCommitHistory,
+	getCommit: gitOpsMocks.getCommit,
+}));
 vi.mock("../git-diff-iso", () => ({
 	getCommitDiff: vi.fn(),
 	getBranchDiff: vi.fn(),

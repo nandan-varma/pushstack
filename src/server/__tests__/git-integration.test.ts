@@ -17,18 +17,16 @@ const TEST_DIR = vi.hoisted(() => {
 	return dir;
 });
 
-import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
-// Import after env is set
-import { initBareRepo } from "../git-manager-iso";
-import { analyzeMerge, mergeBranches } from "../git-merge-iso";
 import {
 	checkoutBranch,
 	createBranch,
-	createCommit,
 	deleteBranch,
-	deleteFile,
-	getBlob,
 	getBranches,
+} from "../git-branch-ops";
+import { createCommit, deleteFile } from "../git-commit-write";
+import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
+import {
+	getBlob,
 	getCommit,
 	getCommitHistory,
 	getCommitLog,
@@ -36,7 +34,10 @@ import {
 	getFileFromBranch,
 	getTree,
 	getTreeFromBranch,
-} from "../git-operations-iso";
+} from "../git-history-ops";
+// Import after env is set
+import { initBareRepo } from "../git-manager-iso";
+import { analyzeMerge, mergeBranches } from "../git-merge-iso";
 
 const OWNER = "testowner";
 const REPO = "testrepo";

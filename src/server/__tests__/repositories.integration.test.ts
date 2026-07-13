@@ -84,13 +84,6 @@ vi.mock("../git-manager-iso", () => ({
 	repoExists: vi.fn(() => Promise.resolve(true)),
 }));
 
-vi.mock("../git-operations-iso", () => ({
-	createCommit: vi.fn(() => Promise.resolve("initial-commit-sha")),
-	getBranches: vi.fn(() =>
-		Promise.resolve([{ name: "main", commit: "commit-sha", isDefault: true }]),
-	),
-}));
-
 vi.mock("../git-repo-storage", () => ({
 	syncRepositoryToR2: vi.fn(() => Promise.resolve()),
 	deleteRepositoryFromR2: vi.fn(() => Promise.resolve()),

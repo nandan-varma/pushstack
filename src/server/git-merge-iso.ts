@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
+import { createCommit } from "./git-commit-write";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
-import { createCommit } from "./git-operations-iso";
 import {
 	getRepoOptions,
 	withRepositoryLock,

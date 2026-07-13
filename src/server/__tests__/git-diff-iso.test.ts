@@ -34,7 +34,7 @@ vi.mock("#/lib/r2", () => ({ isR2Configured: vi.fn(() => true) }));
 
 const mockGetCommit = vi.fn();
 const mockGetFileContent = vi.fn();
-vi.mock("../git-operations-iso", () => ({
+vi.mock("../git-history-ops", () => ({
 	getCommit: (...args: unknown[]) => mockGetCommit(...args),
 	getFileContent: (...args: unknown[]) => mockGetFileContent(...args),
 }));

@@ -52,7 +52,7 @@ describe("writeCommitDirect parent resolution", () => {
 			notFoundError(),
 		);
 
-		const { createCommit } = await import("../git-operations-iso");
+		const { createCommit } = await import("../git-commit-write");
 
 		const sha = await createCommit(
 			"owner",
@@ -72,7 +72,7 @@ describe("writeCommitDirect parent resolution", () => {
 			new Error("R2 timeout"),
 		);
 
-		const { createCommit } = await import("../git-operations-iso");
+		const { createCommit } = await import("../git-commit-write");
 
 		await expect(
 			createCommit(
