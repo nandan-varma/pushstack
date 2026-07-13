@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { AuthFormShell } from "@/components/auth-form-shell";
+import { ErrorAlert } from "@/components/ui/error-alert";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "../../lib/auth-client";
 
 export const Route = createFileRoute("/auth/forgot-password")({
@@ -35,41 +37,38 @@ function ForgotPasswordPage() {
 
 	if (success) {
 		return (
-			<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10 text-center">
-				<h1 className="display-title mb-2 text-2xl font-bold text-[var(--sea-ink)]">
-					Check your email
-				</h1>
-				<p className="mb-8 text-sm text-[var(--sea-ink-soft)]">
+			<AuthFormShell title="Check your email">
+				<p className="mb-8 text-center text-sm text-[var(--sea-ink-soft)]">
 					If an account exists for {email}, you'll receive reset instructions
 					shortly.
 				</p>
 				<Link to="/auth/login">
-					<Button className="w-full">Back to sign in</Button>
+					<LoadingButton className="w-full">Back to sign in</LoadingButton>
 				</Link>
-			</div>
+			</AuthFormShell>
 		);
 	}
 
 	return (
-		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
-			<div className="mb-8 text-center">
-				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
-					Reset your password
-				</h1>
-				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
-					Enter your email to receive reset instructions
-				</p>
-			</div>
-
+		<AuthFormShell
+			title="Reset your password"
+			subtitle="Enter your email to receive reset instructions"
+			footer={
+				<>
+					Remember your password?{" "}
+					<Link
+						to="/auth/login"
+						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						Sign in
+					</Link>
+				</>
+			}
+		>
 			<form onSubmit={handleSubmit} className="space-y-5">
-				{error && (
-					<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
-						{error}
-					</div>
-				)}
+				<ErrorAlert message={error} />
 
-				<div className="space-y-1.5">
-					<Label htmlFor="email">Email</Label>
+				<FormField label="Email" htmlFor="email">
 					<Input
 						id="email"
 						type="email"
@@ -79,22 +78,17 @@ function ForgotPasswordPage() {
 						required
 						autoComplete="email"
 					/>
-				</div>
+				</FormField>
 
-				<Button type="submit" className="w-full" disabled={loading}>
-					{loading ? "Sending…" : "Send reset link"}
-				</Button>
-			</form>
-
-			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
-				Remember your password?{" "}
-				<Link
-					to="/auth/login"
-					className="font-medium text-[var(--lagoon-deep)] hover:underline"
+				<LoadingButton
+					type="submit"
+					className="w-full"
+					isLoading={loading}
+					loadingLabel="Sending…"
 				>
-					Sign in
-				</Link>
-			</p>
-		</div>
+					Send reset link
+				</LoadingButton>
+			</form>
+		</AuthFormShell>
 	);
 }

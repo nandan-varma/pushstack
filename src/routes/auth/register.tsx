@@ -1,9 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { AuthFormShell } from "@/components/auth-form-shell";
+import { ErrorAlert } from "@/components/ui/error-alert";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "../../lib/auth-client";
 import { queryKeys } from "../../lib/query-options";
 
@@ -64,29 +66,27 @@ function RegisterPage() {
 	};
 
 	return (
-		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
-			<div className="mb-8 text-center">
-				<div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--lagoon),var(--palm))]">
-					<span className="text-sm font-bold text-white">P</span>
-				</div>
-				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
-					Create your account
-				</h1>
-				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
-					Join PushStack and start building
-				</p>
-			</div>
-
+		<AuthFormShell
+			title="Create your account"
+			subtitle="Join PushStack and start building"
+			showBranding
+			footer={
+				<>
+					Already have an account?{" "}
+					<Link
+						to="/auth/login"
+						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						Sign in
+					</Link>
+				</>
+			}
+		>
 			<form onSubmit={handleSubmit} className="space-y-4">
-				{error && (
-					<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
-						{error}
-					</div>
-				)}
+				<ErrorAlert message={error} />
 
 				<div className="grid grid-cols-2 gap-4">
-					<div className="space-y-1.5">
-						<Label htmlFor="name">Name</Label>
+					<FormField label="Name" htmlFor="name">
 						<Input
 							id="name"
 							type="text"
@@ -96,9 +96,8 @@ function RegisterPage() {
 							required
 							autoComplete="name"
 						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="username">Username</Label>
+					</FormField>
+					<FormField label="Username" htmlFor="username">
 						<Input
 							id="username"
 							type="text"
@@ -110,11 +109,10 @@ function RegisterPage() {
 							minLength={3}
 							maxLength={30}
 						/>
-					</div>
+					</FormField>
 				</div>
 
-				<div className="space-y-1.5">
-					<Label htmlFor="email">Email</Label>
+				<FormField label="Email" htmlFor="email">
 					<Input
 						id="email"
 						type="email"
@@ -124,11 +122,10 @@ function RegisterPage() {
 						required
 						autoComplete="email"
 					/>
-				</div>
+				</FormField>
 
 				<div className="grid grid-cols-2 gap-4">
-					<div className="space-y-1.5">
-						<Label htmlFor="password">Password</Label>
+					<FormField label="Password" htmlFor="password">
 						<Input
 							id="password"
 							type="password"
@@ -139,9 +136,8 @@ function RegisterPage() {
 							autoComplete="new-password"
 							minLength={8}
 						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="confirmPassword">Confirm</Label>
+					</FormField>
+					<FormField label="Confirm" htmlFor="confirmPassword">
 						<Input
 							id="confirmPassword"
 							type="password"
@@ -151,27 +147,22 @@ function RegisterPage() {
 							required
 							autoComplete="new-password"
 						/>
-					</div>
+					</FormField>
 				</div>
 
 				<p className="text-xs text-[var(--sea-ink-soft)]">
 					3–30 character username. Password must be 8+ characters.
 				</p>
 
-				<Button type="submit" className="w-full" disabled={loading}>
-					{loading ? "Creating account…" : "Create account"}
-				</Button>
-			</form>
-
-			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
-				Already have an account?{" "}
-				<Link
-					to="/auth/login"
-					className="font-medium text-[var(--lagoon-deep)] hover:underline"
+				<LoadingButton
+					type="submit"
+					className="w-full"
+					isLoading={loading}
+					loadingLabel="Creating account…"
 				>
-					Sign in
-				</Link>
-			</p>
-		</div>
+					Create account
+				</LoadingButton>
+			</form>
+		</AuthFormShell>
 	);
 }

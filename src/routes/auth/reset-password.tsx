@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { AuthFormShell } from "@/components/auth-form-shell";
+import { ErrorAlert } from "@/components/ui/error-alert";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "../../lib/auth-client";
 
 export const Route = createFileRoute("/auth/reset-password")({
@@ -44,40 +46,26 @@ function ResetPasswordPage() {
 
 	if (success) {
 		return (
-			<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10 text-center">
-				<h1 className="display-title mb-2 text-2xl font-bold text-[var(--sea-ink)]">
-					Password updated
-				</h1>
-				<p className="mb-8 text-sm text-[var(--sea-ink-soft)]">
+			<AuthFormShell title="Password updated">
+				<p className="mb-8 text-center text-sm text-[var(--sea-ink-soft)]">
 					Your password has been reset. You can now sign in.
 				</p>
 				<Link to="/auth/login">
-					<Button className="w-full">Sign in</Button>
+					<LoadingButton className="w-full">Sign in</LoadingButton>
 				</Link>
-			</div>
+			</AuthFormShell>
 		);
 	}
 
 	return (
-		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
-			<div className="mb-8 text-center">
-				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
-					Set new password
-				</h1>
-				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
-					Enter your new password below
-				</p>
-			</div>
-
+		<AuthFormShell
+			title="Set new password"
+			subtitle="Enter your new password below"
+		>
 			<form onSubmit={handleSubmit} className="space-y-5">
-				{error && (
-					<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
-						{error}
-					</div>
-				)}
+				<ErrorAlert message={error} />
 
-				<div className="space-y-1.5">
-					<Label htmlFor="password">New password</Label>
+				<FormField label="New password" htmlFor="password">
 					<Input
 						id="password"
 						type="password"
@@ -87,10 +75,9 @@ function ResetPasswordPage() {
 						minLength={8}
 						autoComplete="new-password"
 					/>
-				</div>
+				</FormField>
 
-				<div className="space-y-1.5">
-					<Label htmlFor="confirm">Confirm password</Label>
+				<FormField label="Confirm password" htmlFor="confirm">
 					<Input
 						id="confirm"
 						type="password"
@@ -100,11 +87,17 @@ function ResetPasswordPage() {
 						minLength={8}
 						autoComplete="new-password"
 					/>
-				</div>
+				</FormField>
 
-				<Button type="submit" className="w-full" disabled={loading || !token}>
-					{loading ? "Saving…" : "Set new password"}
-				</Button>
+				<LoadingButton
+					type="submit"
+					className="w-full"
+					isLoading={loading}
+					loadingLabel="Saving…"
+					disabled={!token}
+				>
+					Set new password
+				</LoadingButton>
 
 				{!token && (
 					<p className="text-center text-sm text-[var(--sea-ink-soft)]">
@@ -118,6 +111,6 @@ function ResetPasswordPage() {
 					</p>
 				)}
 			</form>
-		</div>
+		</AuthFormShell>
 	);
 }

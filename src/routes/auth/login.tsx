@@ -1,9 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { AuthFormShell } from "@/components/auth-form-shell";
+import { ErrorAlert } from "@/components/ui/error-alert";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "../../lib/auth-client";
 import { queryKeys } from "../../lib/query-options";
 
@@ -62,28 +64,26 @@ function LoginPage() {
 	};
 
 	return (
-		<div className="island-shell w-full max-w-md rounded-2xl px-8 py-10">
-			<div className="mb-8 text-center">
-				<div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[linear-gradient(135deg,var(--lagoon),var(--palm))]">
-					<span className="text-sm font-bold text-white">P</span>
-				</div>
-				<h1 className="display-title text-2xl font-bold text-[var(--sea-ink)]">
-					Welcome back
-				</h1>
-				<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
-					Sign in to your PushStack account
-				</p>
-			</div>
-
+		<AuthFormShell
+			title="Welcome back"
+			subtitle="Sign in to your PushStack account"
+			showBranding
+			footer={
+				<>
+					Don't have an account?{" "}
+					<Link
+						to="/auth/register"
+						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						Create one
+					</Link>
+				</>
+			}
+		>
 			<form onSubmit={handleSubmit} className="space-y-5">
-				{error && (
-					<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
-						{error}
-					</div>
-				)}
+				<ErrorAlert message={error} />
 
-				<div className="space-y-1.5">
-					<Label htmlFor="identifier">Email or username</Label>
+				<FormField label="Email or username" htmlFor="identifier">
 					<Input
 						id="identifier"
 						type="text"
@@ -93,11 +93,11 @@ function LoginPage() {
 						required
 						autoComplete="username"
 					/>
-				</div>
+				</FormField>
 
-				<div className="space-y-1.5">
+				<FormField label="Password" htmlFor="password">
 					<div className="flex items-center justify-between">
-						<Label htmlFor="password">Password</Label>
+						<span />
 						<Link
 							to="/auth/forgot-password"
 							className="text-xs text-[var(--lagoon-deep)] hover:underline"
@@ -114,22 +114,17 @@ function LoginPage() {
 						required
 						autoComplete="current-password"
 					/>
-				</div>
+				</FormField>
 
-				<Button type="submit" className="w-full" disabled={loading}>
-					{loading ? "Signing in…" : "Sign in"}
-				</Button>
-			</form>
-
-			<p className="mt-6 text-center text-sm text-[var(--sea-ink-soft)]">
-				Don't have an account?{" "}
-				<Link
-					to="/auth/register"
-					className="font-medium text-[var(--lagoon-deep)] hover:underline"
+				<LoadingButton
+					type="submit"
+					className="w-full"
+					isLoading={loading}
+					loadingLabel="Signing in…"
 				>
-					Create one
-				</Link>
-			</p>
-		</div>
+					Sign in
+				</LoadingButton>
+			</form>
+		</AuthFormShell>
 	);
 }
