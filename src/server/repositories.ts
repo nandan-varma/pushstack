@@ -10,7 +10,7 @@ import {
 } from "../db/github-schema";
 import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
-import { deleteRepositoryFromR2, syncRepositoryToR2 } from "./git-repo-storage";
+import { deleteRepositoryFromR2 } from "./git-repo-storage";
 import { getStorageOwnerKey } from "./git-storage-naming";
 import {
 	canModerateRepo,
@@ -110,7 +110,10 @@ export const createRepository = createServerFn({ method: "POST" })
 				metadata: { repoName: repo.name },
 			});
 
-			await syncRepositoryToR2(ownerKey, data.name, user.id);
+			// initBareRepo already wrote the bare repo straight to its storage backend
+			// (R2 or local disk, per isR2Configured()) — no separate sync step needed.
+			// Syncing here would treat the never-hydrated-locally repo as having zero
+			// local files and delete the HEAD/config it just wrote as "stale".
 
 			// Return repo with owner info for navigation
 			return {
@@ -186,7 +189,10 @@ export const getRepository = createServerFn({ method: "GET" })
 			getStarCount(data.id),
 			currentUser
 				? db.query.stars.findFirst({
-						where: and(eq(stars.repoId, data.id), eq(stars.userId, currentUser.id)),
+						where: and(
+							eq(stars.repoId, data.id),
+							eq(stars.userId, currentUser.id),
+						),
 					})
 				: null,
 		]);
@@ -241,7 +247,10 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 			getStarCount(repo.id),
 			currentUser
 				? db.query.stars.findFirst({
-						where: and(eq(stars.repoId, repo.id), eq(stars.userId, currentUser.id)),
+						where: and(
+							eq(stars.repoId, repo.id),
+							eq(stars.userId, currentUser.id),
+						),
 					})
 				: null,
 		]);
