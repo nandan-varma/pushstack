@@ -380,7 +380,12 @@ function RepositoryIndexPage() {
 						</span>
 					</div>
 					<div className="p-6">
-						<MarkdownRenderer content={readmeContent.content} />
+						<MarkdownRenderer
+							content={readmeContent.content}
+							owner={owner}
+							name={name}
+							branch={activeBranch}
+						/>
 					</div>
 				</div>
 			)}

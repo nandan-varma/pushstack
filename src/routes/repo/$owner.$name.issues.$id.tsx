@@ -209,7 +209,11 @@ function IssueDetailPage() {
 						</div>
 						{issue.body ? (
 							<Suspense fallback={<Skeleton className="h-24" />}>
-								<MarkdownRenderer content={issue.body} />
+								<MarkdownRenderer
+									content={issue.body}
+									owner={owner}
+									name={name}
+								/>
 							</Suspense>
 						) : (
 							<p className="text-[var(--sea-ink-soft)] italic">
@@ -247,7 +251,11 @@ function IssueDetailPage() {
 										</span>
 									</div>
 									<Suspense fallback={<Skeleton className="h-20" />}>
-										<MarkdownRenderer content={comment.body} />
+										<MarkdownRenderer
+											content={comment.body}
+											owner={owner}
+											name={name}
+										/>
 									</Suspense>
 								</div>
 							</div>
