@@ -274,13 +274,24 @@ pre code {
   counter-increment: line;
   content: counter(line);
   display: inline-block;
+  /* Sticky so the gutter (and its background, covering whatever scrolls
+     underneath) stays pinned to the left edge instead of scrolling away
+     with the rest of a long line — matches GitHub's line-number behavior. */
+  position: sticky;
+  left: 0;
+  z-index: 1;
   min-width: 2.5rem;
   margin-right: 1rem;
   padding-right: 0.75rem;
   border-right: 1px solid var(--line);
   text-align: right;
   color: var(--sea-ink-soft);
+  background: var(--shiki-light-bg, var(--bg-base));
   user-select: none;
+}
+
+.dark .code-viewer-html.with-line-numbers pre.shiki .line::before {
+  background: var(--shiki-dark-bg, var(--shiki-light-bg, var(--bg-base)));
 }
 
 .diff-patch {
@@ -314,37 +325,60 @@ pre code {
   max-height: min(72vh, 920px);
 }
 
-/* The code block is the real grid: its last column sizes to the widest
-   line (max-content) and the block itself grows to fit (width: max-content),
-   so its painted width — and every line's background below — extends the
-   full scrollable distance instead of stopping at the visible pre width. */
+/* `code` grows to fit its widest line (width: max-content, floored at the
+   container width via min-width: 100%) so the block's painted width — and
+   every row's background below — extends the full scrollable distance
+   instead of stopping at the visible pre width. Each `.diff-line` is then
+   a plain block (not a grid item), so it automatically stretches to that
+   full width the same way any block child fills its container; its own
+   independent grid just lays out the gutter/prefix/code cells within that
+   already-correct width. (A `subgrid`-based row previously sized itself
+   off the parent grid's own max-content track, which is unreliable once
+   that width depends on asynchronously-streamed syntax-highlight tokens —
+   rows would end up sized to their own content instead of the widest line.) */
 .diff-patch code {
-  display: grid;
-  grid-template-columns: 3.5rem 3.5rem 1.25rem max-content;
+  display: block;
   width: max-content;
   min-width: 100%;
 }
 
 .diff-line {
   display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
+  grid-template-columns: 3.5rem 3.5rem 1.25rem minmax(0, 1fr);
   align-items: baseline;
   min-height: 1.5rem;
+  background: var(--row-bg, transparent);
 }
 
+/* Gutter/prefix cells stick to the left edge while the code column scrolls
+   underneath, so line numbers stay readable on long lines (GitHub-style). */
 .diff-gutter {
+  position: sticky;
+  z-index: 1;
   text-align: right;
   padding: 0.1rem 0.65rem 0.1rem 0.35rem;
   color: var(--sea-ink-soft);
   border-right: 1px solid var(--line);
+  background: var(--row-bg, var(--chip-bg));
   user-select: none;
 }
 
+.diff-gutter--old {
+  left: 0;
+}
+
+.diff-gutter--new {
+  left: 3.5rem;
+}
+
 .diff-prefix {
+  position: sticky;
+  left: 7rem;
+  z-index: 1;
   text-align: center;
   color: var(--sea-ink-soft);
   border-right: 1px solid var(--line);
+  background: var(--row-bg, var(--chip-bg));
   user-select: none;
 }
 
@@ -365,7 +399,7 @@ pre code {
 
 .diff-line--meta,
 .diff-line--hunk {
-  background: color-mix(in oklab, var(--chip-bg) 78%, transparent);
+  --row-bg: color-mix(in oklab, var(--chip-bg) 78%, transparent);
 }
 
 .diff-line--hunk .diff-code {
@@ -374,7 +408,7 @@ pre code {
 }
 
 .diff-line--add {
-  background: color-mix(in oklab, var(--palm) 12%, transparent);
+  --row-bg: color-mix(in oklab, var(--palm) 12%, transparent);
 }
 
 .diff-line--add .diff-prefix {
@@ -382,7 +416,7 @@ pre code {
 }
 
 .diff-line--remove {
-  background: color-mix(in oklab, #ef4444 12%, transparent);
+  --row-bg: color-mix(in oklab, #ef4444 12%, transparent);
 }
 
 .diff-line--remove .diff-prefix {
