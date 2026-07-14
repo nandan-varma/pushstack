@@ -5,13 +5,9 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
 import { sendEmail } from "./email";
 
-// This module is imported by createServerFn files (e.g. auth-session.ts) whose
-// client-side RPC stub still carries the import even though it's unused there —
-// see src/db/index.ts for the same pattern. Only enforce the secret on the server.
-const isServer = typeof window === "undefined";
-const authSecret = isServer ? process.env.BETTER_AUTH_SECRET : "unused-client-secret";
+const authSecret = process.env.BETTER_AUTH_SECRET;
 
-if (isServer && !authSecret) {
+if (!authSecret) {
 	throw new Error("BETTER_AUTH_SECRET environment variable is required");
 }
 
