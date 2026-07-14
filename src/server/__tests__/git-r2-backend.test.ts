@@ -15,6 +15,9 @@ vi.mock("../git-cache", () => ({
 	setCache: vi.fn(),
 	deleteCache: vi.fn(),
 	invalidateCache: vi.fn(),
+	getCachedObject: vi.fn(),
+	setCachedObject: vi.fn(),
+	invalidateObjectCache: vi.fn(),
 }));
 
 vi.mock("../git-storage-naming", () => ({

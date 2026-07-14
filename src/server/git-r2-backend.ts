@@ -15,7 +15,15 @@ import {
 	listR2Files,
 	uploadToR2,
 } from "#/lib/r2-operations";
-import { deleteCache, getCache, invalidateCache, setCache } from "./git-cache";
+import {
+	deleteCache,
+	getCache,
+	getCachedObject,
+	invalidateCache,
+	invalidateObjectCache,
+	setCache,
+	setCachedObject,
+} from "./git-cache";
 import { GitRefNotFoundError, isR2NotFoundError } from "./git-errors";
 import {
 	getRepoGitStoragePrefix,
@@ -26,6 +34,29 @@ import { recordCacheHit, recordCacheMiss } from "./perf-log";
 // ponytail: coalesces concurrent reads for the same R2 key so a single pack file
 // (e.g. 1.5 MB) is only downloaded once even when 100+ object reads fire in parallel.
 const pendingDownloads = new Map<string, Promise<Buffer>>();
+
+// isomorphic-git's own ref resolution tries several candidate paths in order
+// (packed-refs, <ref>, refs/<ref>, refs/tags/<ref>, refs/heads/<ref>) on every
+// resolveRef call, and readObject probes a loose-object path before falling back
+// to pack search on every object read — most repos don't have packed-refs or a
+// bare `main` ref file, and most objects here are packed rather than loose, so
+// those lookups 404 the *same way* every single time. Measured: a single blob
+// read against a real repo repeated the same 4 failed ref-candidate GETs and 3
+// failed loose-object GETs even on a warm buffer cache, ~900ms wasted on lookups
+// that were already known to fail. Cache negative results (and directory-exists
+// positives for stat()) in the object cache — separate from the content buffer
+// cache since these aren't buffers — invalidated by the same push-triggered sweep
+// in git-repo-storage.ts that clears everything else for a repo.
+type StatMarker = { kind: "missing" } | { kind: "dir" };
+const MISSING: StatMarker = { kind: "missing" };
+const DIR: StatMarker = { kind: "dir" };
+
+function enoent(filepath: string, verb: "open" | "stat"): Error {
+	return Object.assign(
+		new Error(`ENOENT: no such file or directory, ${verb} '${filepath}'`),
+		{ code: "ENOENT" },
+	);
+}
 
 interface R2Stat {
 	type: "file" | "dir";
@@ -111,6 +142,15 @@ export class R2Backend {
 			recordCacheHit();
 			return options?.encoding === "utf8" ? cached.toString("utf8") : cached;
 		}
+
+		// isomorphic-git's ref-candidate scan and loose-object probe both retry the
+		// exact same non-existent paths on every call — skip straight to ENOENT
+		// instead of re-asking R2 something we already know.
+		const marker = getCachedObject<StatMarker>(cacheKey);
+		if (marker?.kind === "missing") {
+			recordCacheHit();
+			throw enoent(filepath, "open");
+		}
 		recordCacheMiss();
 
 		// Fetch from R2, coalescing concurrent requests for the same key
@@ -140,10 +180,8 @@ export class R2Backend {
 			return options?.encoding === "utf8" ? buffer.toString("utf8") : buffer;
 		} catch (error) {
 			if (isR2NotFoundError(error)) {
-				throw Object.assign(
-					new Error(`ENOENT: no such file or directory, open '${filepath}'`),
-					{ code: "ENOENT" },
-				);
+				setCachedObject(cacheKey, MISSING);
+				throw enoent(filepath, "open");
 			}
 			throw error;
 		}
@@ -176,8 +214,9 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await uploadToR2(r2Key, buffer, contentType);
 
-		// Invalidate file cache and parent dir listing cache
+		// Invalidate file cache, any stale stat marker, and parent dir listing cache
 		deleteCache(cacheKey);
+		invalidateObjectCache(cacheKey);
 		const parentDir = relativePath.includes("/")
 			? relativePath.slice(0, relativePath.lastIndexOf("/"))
 			: "";
@@ -195,8 +234,9 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await deleteFromR2(r2Key);
 
-		// Invalidate file cache and parent dir listing cache
+		// Invalidate file cache, any stale stat marker, and parent dir listing cache
 		deleteCache(cacheKey);
+		invalidateObjectCache(cacheKey);
 		const parentDir = relativePath.includes("/")
 			? relativePath.slice(0, relativePath.lastIndexOf("/"))
 			: "";
@@ -274,6 +314,7 @@ export class R2Backend {
 
 		// Invalidate cache for this prefix
 		invalidateCache(`${ownerKey}/${repoName}/${prefix}`);
+		invalidateObjectCache(`${ownerKey}/${repoName}/${prefix}`);
 	}
 
 	/**
@@ -303,6 +344,34 @@ export class R2Backend {
 			};
 		}
 
+		// The gitdir root (and other structural directories) gets stat'd repeatedly
+		// within a single request — isomorphic-git checks it before ref resolution,
+		// before every readCommit, and before every readTree/readBlob. Without this,
+		// each of those redid a HeadObject + ListObjects pair (measured: the same
+		// gitdir stat repeated 3-4x in one file read, ~350ms each). Same idea for
+		// paths that don't exist — HeadObject-then-ListObjects only to come up empty
+		// every time.
+		const marker = getCachedObject<StatMarker>(cacheKey);
+		if (marker?.kind === "dir") {
+			return {
+				type: "dir",
+				mode: 0o040000,
+				size: 0,
+				ino: 0,
+				mtimeMs: Date.now(),
+				ctimeMs: Date.now(),
+				uid: 1,
+				gid: 1,
+				dev: 1,
+				isFile: () => false,
+				isDirectory: () => true,
+				isSymbolicLink: () => false,
+			};
+		}
+		if (marker?.kind === "missing") {
+			throw enoent(filepath, "stat");
+		}
+
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 
 		// HeadObject is cheaper than GetObject and avoids downloading file content
@@ -328,6 +397,7 @@ export class R2Backend {
 		try {
 			const files = await listR2Files(`${r2Key}/`, 1);
 			if (files.length > 0) {
+				setCachedObject(cacheKey, DIR);
 				return {
 					type: "dir",
 					mode: 0o040000,
@@ -346,11 +416,8 @@ export class R2Backend {
 		} catch {}
 		// isomorphic-git's FileSystem.exists() catches code==='ENOENT' to return false;
 		// any other error is "unhandled" and aborts git.init / git.log / etc.
-		const enoent = Object.assign(
-			new Error(`ENOENT: no such file or directory, stat '${filepath}'`),
-			{ code: "ENOENT" },
-		);
-		throw enoent;
+		setCachedObject(cacheKey, MISSING);
+		throw enoent(filepath, "stat");
 	}
 
 	/**

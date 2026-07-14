@@ -30,6 +30,66 @@ async function getStarCount(repoId: number): Promise<number> {
 	return Number(row?.count || 0);
 }
 
+type RepoByNameRow = {
+	repo: typeof repositories.$inferSelect;
+	owner: typeof user.$inferSelect;
+};
+
+// getRepositoryByName's repo+owner join isn't user-specific (unlike the
+// starCount/isStarred it's combined with below), and it's the first thing every
+// single repo page load resolves — including every fresh SSR request from a
+// different visitor to the same public repo, which each pay for this query with
+// an empty QueryClient regardless of how "warm" the git-object caches are.
+// Measured 130-760ms per call against Neon. Short-TTL cache + in-flight
+// coalescing, invalidated explicitly on rename/visibility/delete below so
+// mutations aren't masked by the TTL window.
+const REPO_ROW_CACHE_TTL_MS = 5000;
+const repoRowCache = new Map<
+	string,
+	{ value: RepoByNameRow | null; at: number }
+>();
+const repoRowInFlight = new Map<string, Promise<RepoByNameRow | null>>();
+
+function repoRowCacheKey(owner: string, name: string): string {
+	return `${owner}/${name}`;
+}
+
+function invalidateRepoRowCache(owner: string, name: string): void {
+	repoRowCache.delete(repoRowCacheKey(owner, name));
+}
+
+async function fetchRepoRowByName(
+	owner: string,
+	name: string,
+): Promise<RepoByNameRow | null> {
+	const key = repoRowCacheKey(owner, name);
+
+	const cached = repoRowCache.get(key);
+	if (cached && Date.now() - cached.at < REPO_ROW_CACHE_TTL_MS) {
+		return cached.value;
+	}
+
+	const existing = repoRowInFlight.get(key);
+	if (existing) return existing;
+
+	const promise = db
+		.select({ repo: repositories, owner: user })
+		.from(repositories)
+		.innerJoin(user, eq(repositories.ownerId, user.id))
+		.where(and(eq(user.username, owner), eq(repositories.name, name)))
+		.limit(1)
+		.then(([row]) => row ?? null);
+
+	repoRowInFlight.set(key, promise);
+	try {
+		const result = await promise;
+		repoRowCache.set(key, { value: result, at: Date.now() });
+		return result;
+	} finally {
+		repoRowInFlight.delete(key);
+	}
+}
+
 // Find repository by owner username and repo name (for git protocol - plain function, not serverFn)
 export async function findRepositoryByName(
 	ownerUsername: string,
@@ -232,19 +292,10 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 
 			// ponytail: owner-lookup-then-repo-lookup used to be two sequential
 			// round trips to Neon on the hot path (every repo/tree page load starts
-			// here) — a single join resolves both in one round trip.
-			const [row] = await perfStep("db: repo+owner join", () =>
-				db
-					.select({ repo: repositories, owner: user })
-					.from(repositories)
-					.innerJoin(user, eq(repositories.ownerId, user.id))
-					.where(
-						and(
-							eq(user.username, data.owner),
-							eq(repositories.name, data.name),
-						),
-					)
-					.limit(1),
+			// here) — a single join resolves both in one round trip, cached/coalesced
+			// by fetchRepoRowByName since this part isn't user-specific.
+			const row = await perfStep("db: repo+owner join", () =>
+				fetchRepoRowByName(data.owner, data.name),
 			);
 
 			if (!row) {
@@ -321,6 +372,10 @@ export const updateRepository = createServerFn({ method: "POST" })
 			.where(eq(repositories.id, data.id))
 			.returning();
 
+		// Invalidate under the pre-update name — a rename/visibility change would
+		// otherwise keep resolving to the stale row for up to REPO_ROW_CACHE_TTL_MS.
+		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
+
 		return updated;
 	});
 
@@ -353,6 +408,8 @@ export const deleteRepository = createServerFn({ method: "POST" })
 
 		// Delete from database (cascades to related tables)
 		await db.delete(repositories).where(eq(repositories.id, data.id));
+
+		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
 
 		return { success: true };
 	});
