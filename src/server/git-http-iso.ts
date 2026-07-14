@@ -6,6 +6,7 @@
  * receive-pack (push): writes incoming pack to /tmp gitdir, then syncs to R2.
  */
 
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import * as localFsPromises from "node:fs/promises";
 import path from "node:path";
@@ -195,93 +196,102 @@ async function countLocalPacks(localGitdir: string): Promise<number> {
 	}
 }
 
+// Runs a real `git` subprocess (no shell — args passed as an array, `input`
+// piped directly to stdin, never string-interpolated into a command line).
+// Rejects with stderr attached if the process exits non-zero.
+function runGit(
+	args: string[],
+	options: { cwd: string; input?: string },
+): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const child = spawn("git", args, { cwd: options.cwd });
+		let stdout = "";
+		let stderr = "";
+		child.stdout.on("data", (d) => {
+			stdout += d;
+		});
+		child.stderr.on("data", (d) => {
+			stderr += d;
+		});
+		child.on("error", reject);
+		child.on("close", (code) => {
+			if (code === 0) resolve(stdout);
+			else
+				reject(
+					new Error(`git ${args.join(" ")} exited ${code}: ${stderr.trim()}`),
+				);
+		});
+		if (options.input !== undefined) child.stdin.write(options.input);
+		child.stdin.end();
+	});
+}
+
 // Consolidate all pack files into one after a push so R2 doesn't accumulate one new
 // pack file per push forever. Returns the gitdir-relative paths of any old .pack/.idx
 // files this removed *locally* — syncRepositoryToR2Unlocked never deletes anything
 // under objects/ (git objects are content-addressed and assumed immutable/safe to
-// keep), so the caller must explicitly delete these same paths from R2 too, or the
-// old packs it just proved redundant (via the object-count safety check below) live
-// on in R2 forever, exactly as unconsolidated as before — this used to be silently
-// true here: the local repack succeeded every time, but nothing ever told R2 about
-// the packs it had just made redundant.
+// keep), so the caller must explicitly delete these same paths from R2 too (see
+// deleteStalePacksFromR2, below) or the old packs it just proved redundant live on
+// in R2 forever, exactly as unconsolidated as before — this used to be silently true
+// here: the local repack succeeded every time, but nothing ever told R2 about the
+// packs it had just made redundant.
+//
+// Consolidation itself shells out to real `git rev-list`/`git pack-objects` rather
+// than using isomorphic-git's own traversal + packObjects (as this used to). That
+// wasn't a style choice: isomorphic-git's delta resolution doesn't reliably resolve
+// a thin pack's deltas against base objects that live in a *different* pack from the
+// one being indexed (only a repo's most-recently-received pack, or loose objects,
+// resolve correctly) — every incoming push pack is thin by design (git's push
+// protocol omits objects the server should already have), so once a repo has more
+// than one pack, a later push's indexPack can silently produce an index with
+// unresolvable delta references. That corrupted specific objects in a way that also
+// broke this function's own former safety check (which relied on isomorphic-git's
+// traversal completing) — permanently, since a broken pack doesn't heal itself.
+// Real git's pack/delta handling resolves the exact same on-disk data correctly
+// (verified via `git fsck`/`git rev-list --objects` against a repo isomorphic-git
+// had already given up on) — same category of gap `withRepositoryWorktree` in
+// git-repo-storage.ts already works around by shelling out to native git.
 async function repackLocal(localGitdir: string): Promise<string[]> {
 	try {
 		if ((await countLocalPacks(localGitdir)) < REPACK_PACK_COUNT_THRESHOLD) {
 			return [];
 		}
 
-		// Null-coalesce to [] so a mock/stub returning undefined never crashes .map()
-		const branches: string[] =
-			(await Promise.resolve(
-				git.listBranches({ fs, gitdir: localGitdir }),
-			).catch(() => null)) ?? [];
-		const tags: string[] =
-			(await Promise.resolve(git.listTags({ fs, gitdir: localGitdir })).catch(
-				() => null,
-			)) ?? [];
-
-		const tipOids = (
-			await Promise.all([
-				...branches.map((b) =>
-					git
-						.resolveRef({ fs, gitdir: localGitdir, ref: `refs/heads/${b}` })
-						.catch(() => null),
-				),
-				...tags.map((t) =>
-					git
-						.resolveRef({ fs, gitdir: localGitdir, ref: `refs/tags/${t}` })
-						.catch(() => null),
-				),
-			])
-		).filter((oid): oid is string => oid !== null);
-
+		const refsOutput = await runGit(
+			["for-each-ref", "--format=%(objectname)", "refs/heads", "refs/tags"],
+			{ cwd: localGitdir },
+		);
+		const tipOids = refsOutput
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean);
 		if (tipOids.length === 0) return [];
 
-		const { oids: allOids, complete } = await collectReachableOids(
-			localGitdir,
-			tipOids,
-			fs,
-		);
-		if (allOids.length === 0) return [];
-
-		// Guard against data loss: only delete old packs if the reachability traversal
-		// above actually read every object it visited. A raw object-count comparison
-		// (new consolidated pack vs. sum of old packs) doesn't work as a safety check
-		// here: the moment packs ever overlap in content — which happens as soon as an
-		// earlier repack's own safety check ever declined to clean up — the "old" side
-		// double-counts objects present in more than one old pack, so it almost always
-		// comes out higher than the new deduplicated count. That made this check
-		// permanently refuse to ever consolidate again once it failed once (exactly
-		// what was observed: pack counts climbing indefinitely across many pushes).
-		// Traversal completeness is the actual property that matters — nothing
-		// reachable was missed — so check that directly instead of inferring it from
-		// counts that assumption doesn't hold for.
-		if (!complete) {
-			console.warn(
-				"[git-http] repack: keeping old packs (reachability traversal was incomplete)",
-			);
-			return [];
-		}
-
-		const { packfile } = await git.packObjects({
-			fs,
-			gitdir: localGitdir,
-			oids: allOids,
+		// `git rev-list --objects` is the reachability walk; feeding its output to
+		// `git pack-objects` is real git's own repack primitive, so both steps get
+		// git's (not isomorphic-git's) delta/thin-pack handling. pack-objects exits
+		// non-zero if it can't resolve something it was asked to include — a
+		// stronger safety property than the traversal-completion flag this replaced,
+		// since it's git's own pack layer refusing rather than an approximation of it.
+		const revListOutput = await runGit(["rev-list", "--objects", ...tipOids], {
+			cwd: localGitdir,
 		});
-		if (!packfile) return [];
+		if (!revListOutput.trim()) return [];
 
 		const packDir = path.join(localGitdir, "objects", "pack");
-		const newName = `pack-${Date.now()}`;
-		await localFsPromises.writeFile(
-			path.join(packDir, `${newName}.pack`),
-			Buffer.from(packfile),
-		);
-		await git.indexPack({
-			fs,
-			dir: packDir,
-			gitdir: localGitdir,
-			filepath: `${newName}.pack`,
-		});
+		const newBase = `pack-${Date.now()}`;
+		// pack-objects appends "-<sha1-of-pack-contents>" to the given base name and
+		// prints that sha1 (alone, on stdout) once the .pack/.idx pair is written.
+		const packSha = (
+			await runGit(["pack-objects", "--quiet", path.join(packDir, newBase)], {
+				cwd: localGitdir,
+				input: revListOutput,
+			})
+		).trim();
+		if (!packSha) return [];
+
+		const newPackFile = `${newBase}-${packSha}.pack`;
+		const newIdxFile = `${newBase}-${packSha}.idx`;
 
 		const allEntries: string[] = await Promise.resolve()
 			.then(() => localFsPromises.readdir(packDir))
@@ -289,8 +299,8 @@ async function repackLocal(localGitdir: string): Promise<string[]> {
 
 		const staleFiles = allEntries.filter(
 			(f) =>
-				f !== `${newName}.pack` &&
-				f !== `${newName}.idx` &&
+				f !== newPackFile &&
+				f !== newIdxFile &&
 				(f.endsWith(".pack") || f.endsWith(".idx") || f.endsWith(".keep")),
 		);
 
@@ -306,6 +316,65 @@ async function repackLocal(localGitdir: string): Promise<string[]> {
 		console.error("[git-http] repack failed (non-fatal):", err);
 		return [];
 	}
+}
+
+// repackLocal only removes pack/idx files *locally* (see its own comment) —
+// this is the other half, shared by the live push path (handleReceivePackIso)
+// and repackRepositoryNow (the standalone maintenance entry point below): it
+// deletes the same gitdir-relative paths from R2 and invalidates the caches
+// that would otherwise keep serving the now-deleted names.
+async function deleteStalePacksFromR2(
+	ownerKey: string,
+	repoName: string,
+	staleRelativePaths: string[],
+): Promise<void> {
+	if (staleRelativePaths.length === 0) return;
+	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
+	await bulkDeleteFromR2(staleRelativePaths.map((p) => `${prefix}${p}`)).catch(
+		(err: unknown) => {
+			console.error(
+				"[git-http] failed to delete superseded packs from R2 (non-fatal):",
+				err,
+			);
+		},
+	);
+	// The dir-listing cache for objects/pack/ was already invalidated once by
+	// syncRepositoryToR2 (before these deletes ran) — invalidate again so a
+	// concurrent readdir can't have repopulated it with the now-stale names in
+	// the gap between that invalidation and this delete.
+	invalidateCache(`dir:${ownerKey}/${repoName}/`);
+	for (const relativePath of staleRelativePaths) {
+		deleteCache(`${ownerKey}/${repoName}/${relativePath}`);
+	}
+}
+
+/**
+ * Consolidates a repository's packs on demand, outside of a live push —
+ * for clearing a backlog that accumulated before REPACK_PACK_COUNT_THRESHOLD
+ * (or the R2 cleanup step in deleteStalePacksFromR2) existed, on a repo that
+ * won't otherwise get a repack until its next push crosses the threshold
+ * again. Runs the same repackLocal + R2 cleanup a real push triggers, via its
+ * own hydrate/sync cycle rather than piggybacking on an in-flight push's.
+ */
+export async function repackRepositoryNow(
+	ownerKey: string,
+	repoName: string,
+	defaultBranch = "main",
+	ownerDbId?: string,
+): Promise<{ removedPacks: number }> {
+	let staleRepackedPaths: string[] = [];
+	await withReceivePackLock(
+		ownerKey,
+		repoName,
+		defaultBranch,
+		async (localGitdir) => {
+			staleRepackedPaths = await repackLocal(localGitdir);
+			return null;
+		},
+		ownerDbId,
+	);
+	await deleteStalePacksFromR2(ownerKey, repoName, staleRepackedPaths);
+	return { removedPacks: staleRepackedPaths.length };
 }
 
 // --- info/refs ---
@@ -672,29 +741,11 @@ async function handleReceivePackIsoInner(
 	// automatic syncRepositoryToR2Unlocked already uploaded it — but that same sync
 	// deliberately never deletes anything under objects/ in R2 (git objects are
 	// content-addressed and assumed safe to keep). repackLocal already proved these
-	// specific old packs are redundant (object-count safety check), so it's safe —
-	// and necessary — to explicitly remove them from R2 here, now that the
+	// specific old packs are redundant (reachability-completeness check), so it's
+	// safe — and necessary — to explicitly remove them from R2 here, now that the
 	// replacement pack they're redundant with is confirmed uploaded. Skipping this
 	// is what let every push leave one more permanent pack file in R2 forever.
-	if (staleRepackedPaths.length > 0) {
-		const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-		await bulkDeleteFromR2(
-			staleRepackedPaths.map((p) => `${prefix}${p}`),
-		).catch((err: unknown) => {
-			console.error(
-				`[git-http] failed to delete superseded packs from R2 (non-fatal):`,
-				err,
-			);
-		});
-		// The dir-listing cache for objects/pack/ was already invalidated once by
-		// the sync above (before these deletes ran) — invalidate again so a
-		// concurrent readdir can't have repopulated it with the now-stale names in
-		// the gap between that invalidation and this delete.
-		invalidateCache(`dir:${ownerKey}/${repoName}/`);
-		for (const relativePath of staleRepackedPaths) {
-			deleteCache(`${ownerKey}/${repoName}/${relativePath}`);
-		}
-	}
+	await deleteStalePacksFromR2(ownerKey, repoName, staleRepackedPaths);
 
 	const responseBody = Buffer.concat([
 		pktLine("unpack ok\n"),
