@@ -89,6 +89,23 @@ export const getIssues = createServerFn({ method: "GET" })
 		}));
 	});
 
+// Get all issue numbers for a repo — used to resolve `#123` references in
+// markdown (commit messages, PR/issue bodies, comments) to issue links.
+export const getIssueNumbers = createServerFn({ method: "GET" })
+	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
+	.handler(async ({ data }) => {
+		const user = await getCurrentUserOptional();
+
+		await requireReadAccess(data.repoId, user?.id);
+
+		const rows = await db
+			.select({ id: issues.id })
+			.from(issues)
+			.where(eq(issues.repoId, data.repoId));
+
+		return rows.map((row) => row.id);
+	});
+
 // Get issue by ID
 export const getIssue = createServerFn({ method: "GET" })
 	.validator((data: unknown) =>

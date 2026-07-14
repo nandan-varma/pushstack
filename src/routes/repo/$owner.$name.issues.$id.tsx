@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
 import { DetailHeader } from "@/components/DetailHeader";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
@@ -28,15 +29,22 @@ import { updateIssue } from "@/server/issues";
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const issueId = Number(params.id);
-		await queryClient.ensureQueryData(
-			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
-		);
-		if (Number.isFinite(issueId)) {
-			await Promise.all([
-				queryClient.ensureQueryData(issueQueryOptions(issueId)),
-				queryClient.ensureQueryData(issueCommentsQueryOptions(issueId)),
-			]);
-		}
+		// The issue/comments queries key off params.id, not the repo — no need
+		// to wait on the repo fetch before starting them.
+		await Promise.all([
+			queryClient.ensureQueryData(
+				repositoryByNameQueryOptions({
+					owner: params.owner,
+					name: params.name,
+				}),
+			),
+			...(Number.isFinite(issueId)
+				? [
+						queryClient.ensureQueryData(issueQueryOptions(issueId)),
+						queryClient.ensureQueryData(issueCommentsQueryOptions(issueId)),
+					]
+				: []),
+		]);
 	},
 	component: IssueDetailPage,
 });
@@ -195,7 +203,12 @@ function IssueDetailPage() {
 							</span>
 						</div>
 						{issue.body ? (
-							<p className="text-sm text-[var(--sea-ink-soft)]">{issue.body}</p>
+							<MarkdownRenderer
+								content={issue.body}
+								owner={owner}
+								name={name}
+								repoId={issue.repoId}
+							/>
 						) : (
 							<p className="text-[var(--sea-ink-soft)] italic">
 								No description provided
@@ -217,6 +230,7 @@ function IssueDetailPage() {
 							comment={comment}
 							owner={owner}
 							name={name}
+							repoId={issue.repoId}
 						/>
 					))}
 				</div>

@@ -8,10 +8,15 @@ import {
 	getCommitDiff,
 	getCommits,
 	getFile,
+	getLastCommits,
 	listFiles,
 } from "@/server/files";
-import { getIssue, getIssues } from "@/server/issues";
-import { getPullRequest, getPullRequests } from "@/server/pull-requests";
+import { getIssue, getIssueNumbers, getIssues } from "@/server/issues";
+import {
+	getPullRequest,
+	getPullRequestNumbers,
+	getPullRequests,
+} from "@/server/pull-requests";
 import {
 	getCollaborators,
 	getRepositoryByName,
@@ -41,9 +46,15 @@ export const queryKeys = {
 		["repos", repoId, "commit", commitSha] as const,
 	repoCommitDiff: (repoId: number, commitSha: string) =>
 		["repos", repoId, "commit-diff", commitSha] as const,
+	repoLastCommits: (repoId: number, branchName: string, path = "") =>
+		["repos", repoId, "last-commits", branchName, path] as const,
 	repoIssues: (repoId: number, status: "open" | "closed" | "all") =>
 		["repos", repoId, "issues", status] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
+	repoIssueNumbers: (repoId: number) =>
+		["repos", repoId, "issue-numbers"] as const,
+	repoPullRequestNumbers: (repoId: number) =>
+		["repos", repoId, "pull-request-numbers"] as const,
 	issue: (issueId: number) => ["issues", issueId] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,
 	pullRequests: (
@@ -211,6 +222,39 @@ export function repositoryCommitDiffQueryOptions({
 		queryFn: () => getCommitDiff({ data: { repoId, commitSha } }),
 		staleTime: IMMUTABLE_STALE_TIME,
 		gcTime: IMMUTABLE_GC_TIME,
+	});
+}
+
+export function repositoryLastCommitsQueryOptions({
+	repoId,
+	branchName,
+	path = "",
+}: {
+	repoId: number;
+	branchName: string;
+	path?: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoLastCommits(repoId, branchName, path),
+		queryFn: () => getLastCommits({ data: { repoId, branchName, path } }),
+		staleTime: LONG_LIVED_STALE_TIME,
+		gcTime: LONG_LIVED_GC_TIME,
+	});
+}
+
+export function repositoryIssueNumbersQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoIssueNumbers(repoId),
+		queryFn: () => getIssueNumbers({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryPullRequestNumbersQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoPullRequestNumbers(repoId),
+		queryFn: () => getPullRequestNumbers({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 

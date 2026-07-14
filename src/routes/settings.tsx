@@ -3,12 +3,16 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { EmailSection } from "@/components/settings/EmailSection";
 import { PasswordSection } from "@/components/settings/PasswordSection";
 import { ProfileSection } from "@/components/settings/ProfileSection";
-import { getSession } from "@/lib/auth-session";
 import { authSessionQueryOptions } from "@/lib/query-options";
 
 export const Route = createFileRoute("/settings")({
-	beforeLoad: async () => {
-		const session = await getSession();
+	// Cache the session in the query client (rather than calling getSession()
+	// directly) so the component's useQuery below reads it instantly instead
+	// of firing a second, duplicate fetch and rendering blank in the meantime.
+	beforeLoad: async ({ context: { queryClient } }) => {
+		const session = await queryClient.ensureQueryData(
+			authSessionQueryOptions(),
+		);
 		if (!session?.user) throw redirect({ to: "/auth/login" });
 	},
 	component: SettingsPage,

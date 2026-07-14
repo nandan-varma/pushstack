@@ -23,7 +23,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 	const [role, setRole] = useState<"read" | "write" | "admin">("write");
 	const [addError, setAddError] = useState("");
 
-	const { data: collabs = [] } = useQuery(
+	const { data: collabs = [], isLoading: collabsLoading } = useQuery(
 		repoCollaboratorsQueryOptions(repoId),
 	);
 
@@ -53,7 +53,16 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 			description="People with access to this repository."
 		>
 			<div className="space-y-4">
-				{collabs.length > 0 ? (
+				{collabsLoading ? (
+					<div className="space-y-2">
+						{[1, 2].map((i) => (
+							<div
+								key={i}
+								className="h-11 animate-pulse rounded-lg border border-[var(--line)] bg-[var(--surface-raised)]"
+							/>
+						))}
+					</div>
+				) : collabs.length > 0 ? (
 					<ul className="divide-y divide-[var(--line)] rounded-lg border border-[var(--line)]">
 						{collabs.map((c) => (
 							<li

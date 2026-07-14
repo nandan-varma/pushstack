@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { formatDistanceToNow } from "date-fns";
 import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { FileIcon, FolderIcon } from "./FileIcon";
@@ -9,6 +10,13 @@ interface FileEntry {
 	oid: string;
 }
 
+interface LastCommitInfo {
+	sha: string;
+	message: string;
+	authorName: string;
+	createdAt: string;
+}
+
 export function FileTable({
 	files,
 	owner,
@@ -16,6 +24,8 @@ export function FileTable({
 	branch,
 	activePath,
 	isLoading,
+	lastCommits,
+	lastCommitsLoading,
 }: {
 	files: FileEntry[];
 	owner: string;
@@ -23,6 +33,8 @@ export function FileTable({
 	branch: string;
 	activePath: string;
 	isLoading?: boolean;
+	lastCommits?: Record<string, LastCommitInfo>;
+	lastCommitsLoading?: boolean;
 }) {
 	if (isLoading) {
 		return (
@@ -123,10 +135,35 @@ export function FileTable({
 										</Link>
 									)}
 								</td>
-								<td className="py-2.5 pr-4 text-right">
-									<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--sea-ink-soft)]">
-										{file.oid.substring(0, 7)}
-									</code>
+								<td className="py-2.5 pr-4 text-right align-middle">
+									{lastCommitsLoading ? (
+										<div className="ml-auto h-3 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
+									) : (
+										(() => {
+											const lastCommit = lastCommits?.[file.path];
+											if (!lastCommit) return null;
+											return (
+												<div className="flex items-center justify-end gap-2">
+													<Link
+														to="/repo/$owner/$name/commit/$sha"
+														params={{ owner, name, sha: lastCommit.sha }}
+														title={lastCommit.message}
+														className="max-w-[220px] truncate text-xs text-[var(--sea-ink-soft)] hover:text-[var(--lagoon-deep)] hover:underline"
+													>
+														{lastCommit.message.split("\n")[0]}
+													</Link>
+													<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+														{formatDistanceToNow(
+															new Date(lastCommit.createdAt),
+															{
+																addSuffix: true,
+															},
+														)}
+													</span>
+												</div>
+											);
+										})()
+									)}
 								</td>
 							</tr>
 						);

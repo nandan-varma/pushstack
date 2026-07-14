@@ -9,6 +9,7 @@ import { useCallback, useMemo } from "react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
+import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
 import { FileIcon } from "@/components/repo/tree/FileIcon";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,10 @@ import {
 import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
+	repositoryCommitsQueryOptions,
 	repositoryFileQueryOptions,
 	repositoryFilesQueryOptions,
+	repositoryLastCommitsQueryOptions,
 } from "@/lib/query-options";
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
@@ -93,6 +96,25 @@ function TreeBrowserPage() {
 		enabled: !!repo,
 	});
 
+	const { data: lastCommits, isLoading: lastCommitsLoading } = useQuery({
+		...repositoryLastCommitsQueryOptions({
+			repoId: repo?.id ?? 0,
+			branchName: activeBranch,
+			path: activePath,
+		}),
+		enabled: !!repo && !isLoading && !!files?.length,
+	});
+
+	const { data: latestCommits, isLoading: latestCommitLoading } = useQuery({
+		...repositoryCommitsQueryOptions({
+			repoId: repo?.id ?? 0,
+			branchName: activeBranch,
+			limit: 1,
+		}),
+		enabled: !!repo,
+	});
+	const latestCommit = latestCommits?.[0];
+
 	const sortedFiles = useMemo(() => {
 		if (!files) return [];
 		return [...files].sort((a, b) => {
@@ -136,37 +158,71 @@ function TreeBrowserPage() {
 		return <RepoEmptyState owner={owner} name={name} branch={activeBranch} />;
 	}
 
+	// A ref that's a raw commit sha (not one of the repo's branch names) means
+	// we're browsing the repository as it looked at that specific commit,
+	// same idea as GitHub's "Browsing history at this point" view.
+	const isCommitView =
+		/^[0-9a-f]{40}$/i.test(activeBranch) &&
+		!branches?.some((b) => b.name === activeBranch);
+
 	return (
 		<div className="space-y-4">
+			{isCommitView && (
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+					<span>
+						You&apos;re browsing the repository at commit{" "}
+						<code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/10">
+							{activeBranch.slice(0, 7)}
+						</code>
+						, not the tip of a branch.
+					</span>
+					<Link
+						to="/repo/$owner/$name/tree/$branch/$"
+						params={{ owner, name, branch: repo.defaultBranch, _splat: "" }}
+						className="shrink-0 font-medium underline"
+					>
+						View latest ({repo.defaultBranch})
+					</Link>
+				</div>
+			)}
+
 			{/* Toolbar */}
 			<div className="flex items-center justify-between gap-3">
-				<Select value={activeBranch} onValueChange={handleBranchChange}>
-					<SelectTrigger size="sm">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{branches?.map((branch) => (
-							<SelectItem key={branch.name} value={branch.name}>
-								{branch.name}
-								{branch.isDefault ? " (default)" : ""}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				{isCommitView ? (
+					<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-2 py-1 text-xs font-mono text-[var(--sea-ink-soft)]">
+						{activeBranch.slice(0, 7)}
+					</code>
+				) : (
+					<Select value={activeBranch} onValueChange={handleBranchChange}>
+						<SelectTrigger size="sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{branches?.map((branch) => (
+								<SelectItem key={branch.name} value={branch.name}>
+									{branch.name}
+									{branch.isDefault ? " (default)" : ""}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				)}
 
 				<div className="flex items-center gap-2">
 					<span className="text-xs text-[var(--sea-ink-soft)]">
 						{files?.length || 0} files
 					</span>
-					<Link
-						to="/repo/$owner/$name/upload"
-						params={{ owner, name }}
-						search={{ branch: activeBranch }}
-					>
-						<Button size="sm" variant="outline">
-							+ Add file
-						</Button>
-					</Link>
+					{!isCommitView && (
+						<Link
+							to="/repo/$owner/$name/upload"
+							params={{ owner, name }}
+							search={{ branch: activeBranch }}
+						>
+							<Button size="sm" variant="outline">
+								+ Add file
+							</Button>
+						</Link>
+					)}
 				</div>
 			</div>
 
@@ -177,6 +233,14 @@ function TreeBrowserPage() {
 				filePath={activePath}
 			/>
 
+			<CommitSummaryBar
+				owner={owner}
+				name={name}
+				branch={activeBranch}
+				commit={latestCommit}
+				isLoading={latestCommitLoading}
+			/>
+
 			<FileTable
 				files={sortedFiles}
 				owner={owner}
@@ -184,6 +248,8 @@ function TreeBrowserPage() {
 				branch={activeBranch}
 				activePath={activePath}
 				isLoading={isLoading}
+				lastCommits={lastCommits}
+				lastCommitsLoading={lastCommitsLoading}
 			/>
 
 			{readmeContent && !readmeContent.isBinary && (
@@ -200,6 +266,7 @@ function TreeBrowserPage() {
 							owner={owner}
 							name={name}
 							branch={activeBranch}
+							repoId={repo?.id}
 						/>
 					</div>
 				</div>

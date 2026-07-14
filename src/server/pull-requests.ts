@@ -101,6 +101,24 @@ export const getPullRequests = createServerFn({ method: "GET" })
 		return prList;
 	});
 
+// Get all pull request numbers for a repo — used to resolve `#123`
+// references in markdown (commit messages, PR/issue bodies, comments) to PR
+// links, disambiguated from issue numbers.
+export const getPullRequestNumbers = createServerFn({ method: "GET" })
+	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
+	.handler(async ({ data }) => {
+		const user = await getCurrentUserOptional();
+
+		await requireReadAccess(data.repoId, user?.id);
+
+		const rows = await db
+			.select({ id: pullRequests.id })
+			.from(pullRequests)
+			.where(eq(pullRequests.repoId, data.repoId));
+
+		return rows.map((row) => row.id);
+	});
+
 // Get pull request by ID
 export const getPullRequest = createServerFn({ method: "GET" })
 	.validator((data: unknown) =>

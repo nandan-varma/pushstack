@@ -1,20 +1,42 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { format, formatDistanceToNow } from "date-fns";
+import { useMemo } from "react";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { CommitMessage } from "@/components/repo/CommitMessage";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	repositoryByNameQueryOptions,
 	repositoryCommitDiffQueryOptions,
 	repositoryCommitQueryOptions,
+	repositoryIssueNumbersQueryOptions,
+	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
+import type { ReferenceKind } from "@/lib/reference-patterns";
 import { getInitials } from "@/lib/utils/avatar";
 
 export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
+	loader: async ({ params, context: { queryClient } }) => {
+		const repo = await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (repo) {
+			// Diff computation is comparatively expensive and not needed for the
+			// header — fetch it client-side (own loading state below) instead of
+			// blocking the route transition on it.
+			await queryClient.ensureQueryData(
+				repositoryCommitQueryOptions({
+					repoId: repo.id,
+					commitSha: params.sha,
+				}),
+			);
+		}
+	},
 	component: CommitDetailPage,
 });
 
@@ -41,9 +63,26 @@ function CommitDetailPage() {
 		enabled: !!repo,
 	});
 
-	const isLoading = commitLoading || diffLoading;
+	const { data: issueNumbers } = useQuery({
+		...repositoryIssueNumbersQueryOptions(repo?.id ?? 0),
+		enabled: !!repo,
+	});
+	const { data: prNumbers } = useQuery({
+		...repositoryPullRequestNumbersQueryOptions(repo?.id ?? 0),
+		enabled: !!repo,
+	});
 
-	if (isLoading) {
+	const resolveReference = useMemo(() => {
+		const issueSet = new Set(issueNumbers ?? []);
+		const prSet = new Set(prNumbers ?? []);
+		return (num: number): ReferenceKind | null => {
+			if (prSet.has(num)) return "pull";
+			if (issueSet.has(num)) return "issue";
+			return null;
+		};
+	}, [issueNumbers, prNumbers]);
+
+	if (commitLoading) {
 		return (
 			<div className="space-y-4">
 				<Skeleton className="h-8 w-1/2" />
@@ -69,13 +108,13 @@ function CommitDetailPage() {
 			{/* Header */}
 			<div className="flex items-start justify-between gap-4">
 				<div className="flex-1">
-					<h1
-						title={commit.message}
-						className="line-clamp-2 text-3xl font-bold text-[var(--sea-ink)] mb-2"
-					>
-						{commit.message}
-					</h1>
-					<div className="flex items-center gap-3 text-[var(--sea-ink-soft)]">
+					<CommitMessage
+						message={commit.message}
+						owner={owner}
+						name={name}
+						resolveReference={resolveReference}
+					/>
+					<div className="mt-3 flex items-center gap-3 text-[var(--sea-ink-soft)]">
 						<code className="px-2 py-1 rounded bg-[var(--chip-bg)] text-[var(--sea-ink)] border border-[var(--chip-line)] text-sm font-mono">
 							{commit.sha}
 						</code>
@@ -98,11 +137,21 @@ function CommitDetailPage() {
 						)}
 					</div>
 				</div>
-				<BackLink
-					to="/repo/$owner/$name/commits/$branch"
-					params={{ owner, name, branch: commit.branch }}
-					label="Back to Commits"
-				/>
+				<div className="flex shrink-0 items-center gap-2">
+					<Link
+						to="/repo/$owner/$name/tree/$branch/$"
+						params={{ owner, name, branch: commit.sha, _splat: "" }}
+					>
+						<Button size="sm" variant="outline">
+							Browse files
+						</Button>
+					</Link>
+					<BackLink
+						to="/repo/$owner/$name/commits/$branch"
+						params={{ owner, name, branch: commit.branch }}
+						label="Back to Commits"
+					/>
+				</div>
 			</div>
 
 			{/* Commit Info */}
@@ -143,21 +192,29 @@ function CommitDetailPage() {
 							</div>
 							<div>
 								<p className="text-[var(--sea-ink-soft)]">Changes</p>
-								<p className="font-medium text-[var(--sea-ink)]">
-									{diffData?.files?.length || 0} file
-									{diffData?.files?.length !== 1 ? "s" : ""}
-								</p>
+								{diffLoading ? (
+									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
+								) : (
+									<p className="font-medium text-[var(--sea-ink)]">
+										{diffData?.files?.length || 0} file
+										{diffData?.files?.length !== 1 ? "s" : ""}
+									</p>
+								)}
 							</div>
 							<div>
 								<p className="text-[var(--sea-ink-soft)]">Stats</p>
-								<p className="font-medium text-[var(--sea-ink)]">
-									<span className="text-green-600">
-										+{diffData?.totalAdditions || 0}
-									</span>{" "}
-									<span className="text-red-600">
-										-{diffData?.totalDeletions || 0}
-									</span>
-								</p>
+								{diffLoading ? (
+									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
+								) : (
+									<p className="font-medium text-[var(--sea-ink)]">
+										<span className="text-green-600">
+											+{diffData?.totalAdditions || 0}
+										</span>{" "}
+										<span className="text-red-600">
+											-{diffData?.totalDeletions || 0}
+										</span>
+									</p>
+								)}
 							</div>
 						</div>
 					</div>

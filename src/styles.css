@@ -352,6 +352,21 @@ pre code {
   color: #e8efff;
 }
 
+/* Tailwind Typography wraps inline `code` in literal backticks via
+   ::before/::after content; suppress that and use a background instead. */
+.prose :not(pre) > code {
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-line);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-weight: 400;
+}
+
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after {
+  content: none;
+}
+
 .page-wrap {
   width: min(1080px, calc(100% - 2rem));
   margin-inline: auto;

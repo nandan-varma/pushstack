@@ -7,6 +7,7 @@ import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
 import { DetailHeader } from "@/components/DetailHeader";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { pullRequestStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
@@ -31,15 +32,22 @@ import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const prId = Number(params.id);
-		await queryClient.ensureQueryData(
-			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
-		);
-		if (Number.isFinite(prId)) {
-			await Promise.all([
-				queryClient.ensureQueryData(pullRequestQueryOptions(prId)),
-				queryClient.ensureQueryData(pullRequestCommentsQueryOptions(prId)),
-			]);
-		}
+		// The PR/comments queries key off params.id, not the repo — no need to
+		// wait on the repo fetch before starting them.
+		await Promise.all([
+			queryClient.ensureQueryData(
+				repositoryByNameQueryOptions({
+					owner: params.owner,
+					name: params.name,
+				}),
+			),
+			...(Number.isFinite(prId)
+				? [
+						queryClient.ensureQueryData(pullRequestQueryOptions(prId)),
+						queryClient.ensureQueryData(pullRequestCommentsQueryOptions(prId)),
+					]
+				: []),
+		]);
 	},
 	component: PullRequestDetailPage,
 });
@@ -267,7 +275,12 @@ function PullRequestDetailPage() {
 							</span>
 						</div>
 						{pr.body ? (
-							<p className="text-sm text-[var(--sea-ink-soft)]">{pr.body}</p>
+							<MarkdownRenderer
+								content={pr.body}
+								owner={owner}
+								name={name}
+								repoId={pr.repoId}
+							/>
 						) : (
 							<p className="text-[var(--sea-ink-soft)] italic">
 								No description provided
@@ -308,6 +321,7 @@ function PullRequestDetailPage() {
 							comment={comment}
 							owner={owner}
 							name={name}
+							repoId={pr.repoId}
 						/>
 					))}
 				</div>

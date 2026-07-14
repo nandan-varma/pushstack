@@ -24,6 +24,7 @@ import {
 	getTreeFromBranch,
 	getCommit as gitGetCommit,
 } from "./git-history-ops";
+import { getLastCommitsForTree } from "./git-last-commit";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
 import { getRepoWithReadAccess, getRepoWithWriteAccess } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -203,6 +204,35 @@ export const listFiles = createServerFn({ method: "GET" })
 		);
 
 		return entries;
+	});
+
+/**
+ * Get, per directory entry, the most recent commit that touched it —
+ * powers the GitHub-style "last commit" column on the tree view.
+ */
+export const getLastCommits = createServerFn({ method: "GET" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				repoId: z.number(),
+				branchName: z.string(),
+				path: safeRepoPathSchema.optional().default(""),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUserOptional();
+
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+
+		const storage = getStorage(repo);
+
+		return getLastCommitsForTree(
+			storage.ownerKey,
+			repo.name,
+			data.branchName,
+			data.path || "",
+		);
 	});
 
 /**

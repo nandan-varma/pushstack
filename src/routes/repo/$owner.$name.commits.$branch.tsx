@@ -144,7 +144,7 @@ function CommitsPage() {
 								key={commit.sha}
 								to="/repo/$owner/$name/commit/$sha"
 								params={{ owner, name, sha: commit.sha }}
-								className={`flex w-full items-center gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < commits.length - 1 ? "border-b border-[var(--line)]" : ""}`}
+								className={`flex w-full items-center gap-4 px-4 py-3.5 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < commits.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 							>
 								<Avatar className="h-8 w-8 shrink-0">
 									<AvatarFallback className="text-xs">
@@ -153,11 +153,14 @@ function CommitsPage() {
 										)}
 									</AvatarFallback>
 								</Avatar>
-								<div className="min-w-0 flex-1">
-									<p className="truncate text-sm font-medium text-[var(--sea-ink)]">
-										{commit.message}
+								<div className="min-w-0 flex-1 space-y-1">
+									<p
+										title={commit.message}
+										className="truncate text-sm font-medium leading-snug text-[var(--sea-ink)]"
+									>
+										{commit.message.split("\n")[0]}
 									</p>
-									<p className="mt-0.5 text-xs text-[var(--sea-ink-soft)]">
+									<p className="text-xs leading-snug text-[var(--sea-ink-soft)]">
 										{commit.author?.name || commit.authorName || "Unknown"}{" "}
 										&middot;{" "}
 										{formatDistanceToNow(new Date(commit.createdAt), {

@@ -11,17 +11,33 @@ import {
 } from "@/lib/query-options";
 
 export const Route = createFileRoute("/repo/$owner/$name/settings")({
+	loader: async ({ params, context: { queryClient } }) => {
+		await Promise.all([
+			queryClient.ensureQueryData(
+				repositoryByNameQueryOptions({
+					owner: params.owner,
+					name: params.name,
+				}),
+			),
+			queryClient.ensureQueryData(authSessionQueryOptions()),
+		]);
+	},
 	component: RepoSettingsPage,
 });
 
 function RepoSettingsPage() {
 	const { owner, name } = Route.useParams();
-	const { data: session } = useQuery(authSessionQueryOptions());
-	const { data: repo, isLoading } = useQuery(
+	const { data: session, isLoading: sessionLoading } = useQuery(
+		authSessionQueryOptions(),
+	);
+	const { data: repo, isLoading: repoLoading } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
-	if (isLoading) {
+	// Both queries run in parallel (no `enabled` gating between them), but the
+	// owner check below needs both to have settled — otherwise it can briefly
+	// read a not-yet-loaded session as "not the owner" and flash the wrong UI.
+	if (repoLoading || sessionLoading) {
 		return (
 			<div className="page-wrap px-4 py-10">
 				<div className="mx-auto max-w-2xl space-y-4">

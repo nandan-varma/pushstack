@@ -56,6 +56,16 @@ export const Route = createFileRoute("/repo/$owner/$name/upload")({
 			throw redirect({ to: "/auth/login" });
 		}
 	},
+	loader: async ({ params, context: { queryClient } }) => {
+		const repo = await queryClient.ensureQueryData(
+			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		);
+		if (repo) {
+			await queryClient.ensureQueryData(
+				repositoryBranchesQueryOptions(repo.id),
+			);
+		}
+	},
 	component: FileUploadPage,
 });
 

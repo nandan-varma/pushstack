@@ -11,6 +11,7 @@ export function CommentCard({
 	comment,
 	owner,
 	name,
+	repoId,
 }: {
 	comment: {
 		id: number;
@@ -20,6 +21,7 @@ export function CommentCard({
 	};
 	owner: string;
 	name: string;
+	repoId?: number;
 }) {
 	return (
 		<Card className="p-6">
@@ -46,6 +48,7 @@ export function CommentCard({
 							content={comment.body}
 							owner={owner}
 							name={name}
+							repoId={repoId}
 						/>
 					</Suspense>
 				</div>
