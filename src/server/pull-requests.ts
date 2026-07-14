@@ -7,8 +7,8 @@ import { analyzeMerge, mergeBranches } from "./git-merge-iso";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
 import {
 	canMergePullRequest,
-	canReadRepo,
 	canWriteRepo,
+	getAccessForRepository,
 	requireReadAccess,
 	requireWriteAccess,
 } from "./repo-access";
@@ -143,7 +143,10 @@ export const getPullRequest = createServerFn({ method: "GET" })
 			throw new Error("Pull request not found");
 		}
 
-		if (!(await canReadRepo(pr.repoId, user?.id))) {
+		// ponytail: the query above already fetched the repository row via the
+		// relation — reuse it instead of canReadRepo's own repo fetch.
+		const access = await getAccessForRepository(pr.repository, user?.id);
+		if (!access.canRead) {
 			throw new Error("Access denied");
 		}
 

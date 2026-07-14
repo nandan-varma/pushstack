@@ -1,4 +1,13 @@
+import https from "node:https";
 import { S3Client } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
+
+// ponytail: without an explicit keep-alive agent, the SDK's default request
+// handler doesn't reuse TCP/TLS connections across calls — every R2 GET/HEAD
+// pays a fresh handshake. A single tree-page load fires 100s of these
+// sequentially-dependent object reads (commit chain walk, tree lookups), so
+// handshake overhead was a large, avoidable chunk of the measured latency.
+const keepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 100 });
 
 // Extract account ID from endpoint
 // Format: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
@@ -30,6 +39,7 @@ export function getR2Client() {
 			accessKeyId,
 			secretAccessKey,
 		},
+		requestHandler: new NodeHttpHandler({ httpsAgent: keepAliveAgent }),
 	});
 	return _client;
 }

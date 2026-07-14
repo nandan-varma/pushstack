@@ -28,7 +28,7 @@ vi.mock("../session", () => ({
 vi.mock("../repo-access", () => ({
 	requireWriteAccess: vi.fn(() => Promise.resolve()),
 	requireReadAccess: vi.fn(() => Promise.resolve()),
-	canReadRepo: vi.fn(() => Promise.resolve(true)),
+	getAccessForRepository: vi.fn(() => Promise.resolve({ canRead: true })),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
 	canMergePullRequest: vi.fn(() => Promise.resolve(true)),
 }));
@@ -168,8 +168,10 @@ describe("getPullRequest", () => {
 
 	it("throws access denied when the caller cannot read the repo", async () => {
 		mockDb.query.pullRequests.findFirst.mockResolvedValueOnce(mockPr);
-		const { canReadRepo } = await import("../repo-access");
-		(canReadRepo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+		const { getAccessForRepository } = await import("../repo-access");
+		(getAccessForRepository as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+			canRead: false,
+		});
 
 		const { getPullRequest } = await import("../pull-requests");
 

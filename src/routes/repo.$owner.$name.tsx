@@ -12,6 +12,7 @@ import { RepoHeader } from "@/components/repo/RepoHeader";
 import { RepoTabNav } from "@/components/repo/RepoTabNav";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
 
 const repoRouteSchema = z.object({
@@ -21,8 +22,13 @@ const repoRouteSchema = z.object({
 
 export const Route = createFileRoute("/repo/$owner/$name")({
 	loader: ({ params, context: { queryClient } }) =>
-		queryClient.ensureQueryData(
-			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
+		perfTime(`loader repo-layout ${params.owner}/${params.name}`, () =>
+			queryClient.ensureQueryData(
+				repositoryByNameQueryOptions({
+					owner: params.owner,
+					name: params.name,
+				}),
+			),
 		),
 	component: RepositoryPage,
 	errorComponent: RepositoryErrorComponent,

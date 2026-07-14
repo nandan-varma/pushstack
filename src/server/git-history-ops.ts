@@ -3,6 +3,7 @@ import { getCachedObject, setCachedObject } from "./git-cache";
 import { GitObjectNotFoundError, GitPathNotFoundError } from "./git-errors";
 import { getRepoOptions } from "./git-repo-storage";
 import { findTreeEntry, listTreeEntries, type TreeEntry } from "./git-tree-ops";
+import { perfNote, perfStep } from "./perf-log";
 
 // A resolved ref (branch/commit) not existing is a normal, expected condition (empty
 // repo, unborn branch) and is handled by each caller. An object that fails to resolve
@@ -125,6 +126,11 @@ export async function getCommit(
 	};
 }
 
+function isFullyWalked(commits: CommitInfo[]): boolean {
+	const last = commits[commits.length - 1];
+	return !!last && last.commit.parent.length === 0;
+}
+
 export async function getCommitLog(
 	ownerKey: string,
 	repoName: string,
@@ -132,13 +138,43 @@ export async function getCommitLog(
 	depth: number = 50,
 ): Promise<CommitInfo[]> {
 	const repo = await getRepoOptions(ownerKey, repoName);
+
+	let headSha: string;
 	try {
-		const commits = await git.log({ ...repo, ref, depth });
-		return commits.map((commit) => ({
+		headSha = await git.resolveRef({ ...repo, ref });
+	} catch (err: unknown) {
+		if ((err as { code?: string }).code === "NotFoundError") return [];
+		throw err;
+	}
+
+	// ponytail: walking the commit chain is inherently sequential (each commit's
+	// oid is only discoverable by reading its child first) and dominated by
+	// per-object network round trips — measured at ~150ms/commit against R2.
+	// Different callers on the same page load (and a user browsing between
+	// directories) frequently re-request the same head at different depths, so
+	// cache the deepest walk seen for this head and reuse/slice it instead of
+	// re-walking from scratch every time.
+	const cacheKey = `result:commitlog:${ownerKey}/${repoName}/${headSha}`;
+	const cached = getCachedObject<CommitInfo[]>(cacheKey);
+	if (cached && (cached.length >= depth || isFullyWalked(cached))) {
+		perfNote(`getCommitLog: result-cache HIT for ${cacheKey} (depth=${depth})`);
+		return cached.slice(0, depth);
+	}
+	perfNote(`getCommitLog: result-cache MISS for ${cacheKey} (depth=${depth})`);
+
+	try {
+		const commits = await perfStep(`git.log ${ref} depth=${depth}`, () =>
+			git.log({ ...repo, ref: headSha, depth }),
+		);
+		const result = commits.map((commit) => ({
 			oid: commit.oid,
 			commit: commit.commit,
 			payload: commit.payload || "",
 		}));
+		if (!cached || result.length > cached.length) {
+			setCachedObject(cacheKey, result);
+		}
+		return result;
 	} catch (err: unknown) {
 		if ((err as { code?: string }).code === "NotFoundError") return [];
 		throw err;
@@ -184,18 +220,26 @@ export async function getTreeFromBranch(
 	// ponytail: keyed by HEAD sha so cache auto-invalidates on push
 	const cacheKey = `result:tree:${ownerKey}/${repoName}/${headSha}:${treePath}`;
 	const cached = getCachedObject<TreeEntry[]>(cacheKey);
-	if (cached) return cached;
+	if (cached) {
+		perfNote(`getTreeFromBranch: result-cache HIT for ${cacheKey}`);
+		return cached;
+	}
+	perfNote(`getTreeFromBranch: result-cache MISS for ${cacheKey}`);
 
 	const context = `${ownerKey}/${repoName}@${branchName}:${treePath || "/"}`;
 	let result: TreeEntry[];
 	if (!treePath) {
 		result = await wrapMissingObject(
-			listTreeEntries(repo, commit.tree),
+			perfStep("listTreeEntries (root)", () =>
+				listTreeEntries(repo, commit.tree),
+			),
 			context,
 		);
 	} else {
 		const entry = await wrapMissingObject(
-			findTreeEntry(repo, commit.tree, treePath),
+			perfStep(`findTreeEntry ${treePath}`, () =>
+				findTreeEntry(repo, commit.tree, treePath),
+			),
 			context,
 		);
 		if (!entry) {
@@ -207,7 +251,9 @@ export async function getTreeFromBranch(
 			entry.type !== "tree"
 				? []
 				: await wrapMissingObject(
-						listTreeEntries(repo, entry.oid, entry.path),
+						perfStep(`listTreeEntries ${treePath}`, () =>
+							listTreeEntries(repo, entry.oid, entry.path),
+						),
 						context,
 					);
 	}
@@ -234,8 +280,14 @@ export async function getCommitHistory(
 		: null;
 	if (cacheKey) {
 		const cached = getCachedObject<CommitInfo[]>(cacheKey);
-		if (cached) return cached;
+		if (cached) {
+			perfNote(`getCommitHistory: result-cache HIT for ${cacheKey}`);
+			return cached;
+		}
 	}
+	perfNote(
+		`getCommitHistory: result-cache MISS for ${cacheKey ?? "(no head)"}`,
+	);
 
 	const all = await getCommitLog(ownerKey, repoName, branchName, limit + skip);
 	const result = all.slice(skip, skip + limit);

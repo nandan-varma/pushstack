@@ -1,0 +1,124 @@
+/**
+ * Lightweight request-scoped performance logging for auditing slow page loads.
+ *
+ * Wrap a server function handler in `perfContext(label, fn)` and any awaited
+ * sub-step inside it (or inside anything it calls, transitively) in
+ * `perfStep(label, fn)` — AsyncLocalStorage threads the request id through
+ * without needing to pass a context object through every function signature.
+ * Every R2 network call and DB round trip on the tree-page read path is
+ * wrapped this way so a single page load prints a full timing breakdown.
+ */
+import { AsyncLocalStorage } from "node:async_hooks";
+
+interface PerfCtx {
+	id: string;
+	label: string;
+	start: number;
+	r2Calls: number;
+	r2TimeMs: number;
+	cacheHits: number;
+	cacheMisses: number;
+}
+
+const als = new AsyncLocalStorage<PerfCtx>();
+let counter = 0;
+
+function fmt(ms: number): string {
+	return `${ms.toFixed(1)}ms`;
+}
+
+function prefix(ctx: PerfCtx | undefined): string {
+	return ctx ? `[perf ${ctx.id}]` : "[perf]";
+}
+
+export async function perfContext<T>(
+	label: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const id = `${label}#${(++counter).toString(36)}`;
+	const ctx: PerfCtx = {
+		id,
+		label,
+		start: performance.now(),
+		r2Calls: 0,
+		r2TimeMs: 0,
+		cacheHits: 0,
+		cacheMisses: 0,
+	};
+	return als.run(ctx, async () => {
+		console.log(`${prefix(ctx)} ▶ start`);
+		try {
+			const result = await fn();
+			const total = performance.now() - ctx.start;
+			console.log(
+				`${prefix(ctx)} ■ done in ${fmt(total)} (r2: ${ctx.r2Calls} calls / ${fmt(ctx.r2TimeMs)}, cache: ${ctx.cacheHits} hit / ${ctx.cacheMisses} miss)`,
+			);
+			return result;
+		} catch (err) {
+			console.log(
+				`${prefix(ctx)} ✗ failed after ${fmt(performance.now() - ctx.start)}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+			throw err;
+		}
+	});
+}
+
+export async function perfStep<T>(
+	step: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const ctx = als.getStore();
+	const t0 = performance.now();
+	try {
+		const result = await fn();
+		console.log(`${prefix(ctx)}   · ${step}: ${fmt(performance.now() - t0)}`);
+		return result;
+	} catch (err) {
+		console.log(
+			`${prefix(ctx)}   · ${step}: FAILED after ${fmt(performance.now() - t0)}`,
+		);
+		throw err;
+	}
+}
+
+export function perfNote(note: string): void {
+	console.log(`${prefix(als.getStore())}   · ${note}`);
+}
+
+export function recordR2Call(ms: number): void {
+	const ctx = als.getStore();
+	if (!ctx) return;
+	ctx.r2Calls += 1;
+	ctx.r2TimeMs += ms;
+}
+
+export function recordCacheHit(): void {
+	const ctx = als.getStore();
+	if (ctx) ctx.cacheHits += 1;
+}
+
+export function recordCacheMiss(): void {
+	const ctx = als.getStore();
+	if (ctx) ctx.cacheMisses += 1;
+}
+
+/** For R2 helper functions that run both inside and outside a perfContext (e.g. writes). */
+export async function perfR2<T>(
+	step: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const ctx = als.getStore();
+	const t0 = performance.now();
+	try {
+		const result = await fn();
+		const ms = performance.now() - t0;
+		recordR2Call(ms);
+		console.log(`${prefix(ctx)}   · ${step}: ${fmt(ms)}`);
+		return result;
+	} catch (err) {
+		const ms = performance.now() - t0;
+		recordR2Call(ms);
+		console.log(`${prefix(ctx)}   · ${step}: FAILED after ${fmt(ms)}`);
+		throw err;
+	}
+}

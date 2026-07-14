@@ -26,7 +26,7 @@ vi.mock("../session", () => ({
 
 vi.mock("../repo-access", () => ({
 	requireWriteAccess: vi.fn(() => Promise.resolve()),
-	canReadRepo: vi.fn(() => Promise.resolve(true)),
+	getAccessForRepository: vi.fn(() => Promise.resolve({ canRead: true })),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
 	canModerateRepo: vi.fn(() => Promise.resolve(true)),
 }));

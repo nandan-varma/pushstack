@@ -42,10 +42,18 @@ export async function upsertTree(
 			type: "blob",
 		});
 	}
-	for (const [dir, subEntries] of nested) {
-		const entry = byName.get(dir);
-		const subtreeOid = entry?.type === "tree" ? entry.oid : undefined;
-		const newOid = await upsertTree(repo, subtreeOid, subEntries);
+	// ponytail: sibling subdirectories are independent subtree writes — building
+	// them one at a time only matters for multi-file commits that touch several
+	// directories (e.g. resolveConflicts), but there's no reason to serialize it.
+	const nestedResults = await Promise.all(
+		Array.from(nested, async ([dir, subEntries]) => {
+			const entry = byName.get(dir);
+			const subtreeOid = entry?.type === "tree" ? entry.oid : undefined;
+			const newOid = await upsertTree(repo, subtreeOid, subEntries);
+			return [dir, newOid] as const;
+		}),
+	);
+	for (const [dir, newOid] of nestedResults) {
 		byName.set(dir, { mode: "040000", path: dir, oid: newOid, type: "tree" });
 	}
 	return git.writeTree({ ...repo, tree: Array.from(byName.values()) });

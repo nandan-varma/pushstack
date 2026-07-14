@@ -86,15 +86,20 @@ export async function createCommit(
 				message,
 				author,
 				async (parentTreeOid, repo) => {
+					// ponytail: each blob is written to its own content-addressed R2 key —
+					// no shared state between files, so writing them one-at-a-time (as
+					// resolveConflicts's multi-file commits used to) only added latency.
 					const blobs = new Map<string, string>();
-					for (const file of files) {
-						const content =
-							typeof file.content === "string"
-								? Buffer.from(file.content)
-								: file.content;
-						const oid = await git.writeBlob({ ...repo, blob: content });
-						blobs.set(file.path, oid);
-					}
+					await Promise.all(
+						files.map(async (file) => {
+							const content =
+								typeof file.content === "string"
+									? Buffer.from(file.content)
+									: file.content;
+							const oid = await git.writeBlob({ ...repo, blob: content });
+							blobs.set(file.path, oid);
+						}),
+					);
 					return upsertTree(repo, parentTreeOid, blobs);
 				},
 			),

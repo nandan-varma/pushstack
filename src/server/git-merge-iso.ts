@@ -33,8 +33,10 @@ export async function analyzeMerge(
 	const repo = await getRepoOptions(ownerKey, repoName);
 
 	try {
-		const sourceOid = await git.resolveRef({ ...repo, ref: sourceBranch });
-		const targetOid = await git.resolveRef({ ...repo, ref: targetBranch });
+		const [sourceOid, targetOid] = await Promise.all([
+			git.resolveRef({ ...repo, ref: sourceBranch }),
+			git.resolveRef({ ...repo, ref: targetBranch }),
+		]);
 
 		const isDescendant = await git.isDescendent({
 			...repo,
@@ -73,14 +75,10 @@ export async function mergeBranches(
 		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
 		const ffResult = await withRepositoryLock(ownerKey, repoName, async () => {
 			const repo = getBareRepoOptions(ownerKey, repoName);
-			const sourceOid = await git.resolveRef({
-				...repo,
-				ref: `refs/heads/${sourceBranch}`,
-			});
-			const targetOid = await git.resolveRef({
-				...repo,
-				ref: `refs/heads/${targetBranch}`,
-			});
+			const [sourceOid, targetOid] = await Promise.all([
+				git.resolveRef({ ...repo, ref: `refs/heads/${sourceBranch}` }),
+				git.resolveRef({ ...repo, ref: `refs/heads/${targetBranch}` }),
+			]);
 			const isFF = await git.isDescendent({
 				...repo,
 				oid: sourceOid,

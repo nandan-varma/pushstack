@@ -60,6 +60,31 @@ export async function getRepositoryAccess(
 		return null;
 	}
 
+	return buildAccess(repository, userId, speculativeCollaboratorRole);
+}
+
+// Callers that already hold a fetched repository row (e.g. via a relational
+// `with: { repository: true }` query on an issue/PR/comment) used to call
+// canReadRepo/canWriteRepo(repoId, ...), which re-fetches the same repository
+// row from scratch — a redundant round trip to Neon on every issue/PR/comment
+// read. This skips that refetch, and only queries collaborators when the
+// owner/anonymous fast paths below can't already decide the answer.
+export async function getAccessForRepository(
+	repository: typeof repositories.$inferSelect,
+	userId?: string | null,
+): Promise<RepositoryAccess> {
+	if (!userId || repository.ownerId === userId) {
+		return buildAccess(repository, userId, null);
+	}
+	const collaboratorRole = await getCollaboratorRole(repository.id, userId);
+	return buildAccess(repository, userId, collaboratorRole);
+}
+
+function buildAccess(
+	repository: typeof repositories.$inferSelect,
+	userId: string | null | undefined,
+	collaboratorRole: CollaboratorRole | null,
+): RepositoryAccess {
 	if (repository.visibility === "public" && !userId) {
 		return {
 			repository,
@@ -95,8 +120,6 @@ export async function getRepositoryAccess(
 			canMergePullRequest: true,
 		};
 	}
-
-	const collaboratorRole = speculativeCollaboratorRole;
 
 	if (collaboratorRole === "admin") {
 		return {

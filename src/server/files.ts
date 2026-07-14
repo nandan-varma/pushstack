@@ -26,6 +26,7 @@ import {
 } from "./git-history-ops";
 import { getLastCommitsForTree } from "./git-last-commit";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
+import { perfContext, perfStep } from "./perf-log";
 import { getRepoWithReadAccess, getRepoWithWriteAccess } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
@@ -121,23 +122,34 @@ export const getFile = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`getFile repo=${data.repoId} ${data.branchName}:${data.path}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
 
-		const storage = getStorage(repo);
+				const storage = getStorage(repo);
 
-		// Get file from git
-		const fileInfo = await getFileFromBranch(
-			storage.ownerKey,
-			repo.name,
-			data.branchName,
-			data.path,
-		);
+				// Get file from git
+				const fileInfo = await perfStep("getFileFromBranch", () =>
+					getFileFromBranch(
+						storage.ownerKey,
+						repo.name,
+						data.branchName,
+						data.path,
+					),
+				);
 
-		return fileInfo;
-	});
+				return fileInfo;
+			},
+		),
+	);
 
 /**
  * Get presigned download URL for file
@@ -188,23 +200,34 @@ export const listFiles = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`listFiles repo=${data.repoId} ${data.branchName}:${data.path || "/"}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
 
-		const storage = getStorage(repo);
+				const storage = getStorage(repo);
 
-		// Get tree from git
-		const entries = await getTreeFromBranch(
-			storage.ownerKey,
-			repo.name,
-			data.branchName,
-			data.path || "",
-		);
+				// Get tree from git
+				const entries = await perfStep("getTreeFromBranch", () =>
+					getTreeFromBranch(
+						storage.ownerKey,
+						repo.name,
+						data.branchName,
+						data.path || "",
+					),
+				);
 
-		return entries;
-	});
+				return entries;
+			},
+		),
+	);
 
 /**
  * Get, per directory entry, the most recent commit that touched it —
@@ -220,20 +243,31 @@ export const getLastCommits = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`getLastCommits repo=${data.repoId} ${data.branchName}:${data.path || "/"}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
 
-		const storage = getStorage(repo);
+				const storage = getStorage(repo);
 
-		return getLastCommitsForTree(
-			storage.ownerKey,
-			repo.name,
-			data.branchName,
-			data.path || "",
-		);
-	});
+				return perfStep("getLastCommitsForTree", () =>
+					getLastCommitsForTree(
+						storage.ownerKey,
+						repo.name,
+						data.branchName,
+						data.path || "",
+					),
+				);
+			},
+		),
+	);
 
 /**
  * Delete file from repository
@@ -293,18 +327,26 @@ export const getBranches = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getBranches repo=${data.repoId}`, async () => {
+			const currentUser = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+			const repo = await perfStep("getRepoWithReadAccess", () =>
+				getRepoWithReadAccess(data.repoId, currentUser?.id),
+			);
 
-		const storage = getStorage(repo);
+			const storage = getStorage(repo);
 
-		// Get branches from git
-		const branches = await gitGetBranches(storage.ownerKey, repo.name);
+			// Get branches from git
+			const branches = await perfStep("gitGetBranches", () =>
+				gitGetBranches(storage.ownerKey, repo.name),
+			);
 
-		return branches;
-	});
+			return branches;
+		}),
+	);
 
 /**
  * Create branch
@@ -382,34 +424,47 @@ export const getCommits = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`getCommits repo=${data.repoId} ${data.branchName} limit=${data.limit}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
 
-		const storage = getStorage(repo);
+				const storage = getStorage(repo);
 
-		// Get commit history from git
-		const commits = await getCommitHistory(
-			storage.ownerKey,
-			repo.name,
-			data.branchName,
-			data.limit,
-			data.skip,
-		);
+				// Get commit history from git
+				const commits = await perfStep("getCommitHistory", () =>
+					getCommitHistory(
+						storage.ownerKey,
+						repo.name,
+						data.branchName,
+						data.limit,
+						data.skip,
+					),
+				);
 
-		return commits.map((commit) => ({
-			sha: commit.oid,
-			message: commit.commit.message.trim(),
-			createdAt: new Date(commit.commit.author.timestamp * 1000).toISOString(),
-			authorName: commit.commit.author.name,
-			authorEmail: commit.commit.author.email,
-			author: {
-				name: commit.commit.author.name,
-				email: commit.commit.author.email,
+				return commits.map((commit) => ({
+					sha: commit.oid,
+					message: commit.commit.message.trim(),
+					createdAt: new Date(
+						commit.commit.author.timestamp * 1000,
+					).toISOString(),
+					authorName: commit.commit.author.name,
+					authorEmail: commit.commit.author.email,
+					author: {
+						name: commit.commit.author.name,
+						email: commit.commit.author.email,
+					},
+				}));
 			},
-		}));
-	});
+		),
+	);
 
 /**
  * Get commit details by SHA
@@ -423,39 +478,45 @@ export const getCommit = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getCommit repo=${data.repoId} ${data.commitSha}`, async () => {
+			const currentUser = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+			const repo = await perfStep("getRepoWithReadAccess", () =>
+				getRepoWithReadAccess(data.repoId, currentUser?.id),
+			);
 
-		const storage = getStorage(repo);
+			const storage = getStorage(repo);
 
-		// Get commit from git
-		const commit = await gitGetCommit(
-			storage.ownerKey,
-			repo.name,
-			data.commitSha,
-		);
+			// Get commit from git
+			const commit = await perfStep("gitGetCommit", () =>
+				gitGetCommit(storage.ownerKey, repo.name, data.commitSha),
+			);
 
-		return {
-			sha: commit.oid,
-			message: commit.commit.message.trim(),
-			tree: commit.commit.tree,
-			parent: commit.commit.parent,
-			payload: commit.payload,
-			branch: repo.defaultBranch,
-			author: {
-				name: commit.commit.author.name,
-				email: commit.commit.author.email,
-				date: new Date(commit.commit.author.timestamp * 1000).toISOString(),
-			},
-			committer: {
-				name: commit.commit.committer.name,
-				email: commit.commit.committer.email,
-				date: new Date(commit.commit.committer.timestamp * 1000).toISOString(),
-			},
-		};
-	});
+			return {
+				sha: commit.oid,
+				message: commit.commit.message.trim(),
+				tree: commit.commit.tree,
+				parent: commit.commit.parent,
+				payload: commit.payload,
+				branch: repo.defaultBranch,
+				author: {
+					name: commit.commit.author.name,
+					email: commit.commit.author.email,
+					date: new Date(commit.commit.author.timestamp * 1000).toISOString(),
+				},
+				committer: {
+					name: commit.commit.committer.name,
+					email: commit.commit.committer.email,
+					date: new Date(
+						commit.commit.committer.timestamp * 1000,
+					).toISOString(),
+				},
+			};
+		}),
+	);
 
 /**
  * Get commit diff
@@ -469,22 +530,29 @@ export const getCommitDiff = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`getCommitDiff repo=${data.repoId} ${data.commitSha}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
 
-		const storage = getStorage(repo);
+				const storage = getStorage(repo);
 
-		// Get diff from git
-		const diff = await GitDiff.getCommitDiff(
-			storage.ownerKey,
-			repo.name,
-			data.commitSha,
-		);
+				// Get diff from git
+				const diff = await perfStep("GitDiff.getCommitDiff", () =>
+					GitDiff.getCommitDiff(storage.ownerKey, repo.name, data.commitSha),
+				);
 
-		return diff;
-	});
+				return diff;
+			},
+		),
+	);
 
 /**
  * Get diff between branches (for pull requests)
@@ -499,20 +567,31 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`getBranchDiff repo=${data.repoId} ${data.sourceBranch}...${data.targetBranch}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
 
-		const storage = getStorage(repo);
+				const storage = getStorage(repo);
 
-		// Get diff from git
-		const diff = await GitDiff.getDiffBetweenBranches(
-			storage.ownerKey,
-			repo.name,
-			data.sourceBranch,
-			data.targetBranch,
-		);
+				// Get diff from git
+				const diff = await perfStep("GitDiff.getDiffBetweenBranches", () =>
+					GitDiff.getDiffBetweenBranches(
+						storage.ownerKey,
+						repo.name,
+						data.sourceBranch,
+						data.targetBranch,
+					),
+				);
 
-		return diff;
-	});
+				return diff;
+			},
+		),
+	);

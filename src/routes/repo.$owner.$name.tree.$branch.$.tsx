@@ -5,7 +5,7 @@ import {
 	Link,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
@@ -20,6 +20,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { perfMark, perfTime } from "@/lib/perf-log";
 import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
@@ -52,37 +53,54 @@ function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
-	loader: async ({ params, context: { queryClient } }) => {
-		const repo = await queryClient.ensureQueryData(
-			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
-		);
-		if (repo) {
-			await Promise.all([
-				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
-				queryClient.ensureQueryData(
-					repositoryFilesQueryOptions({
-						repoId: repo.id,
-						branchName: params.branch,
-						path: params._splat || "",
-					}),
-				),
-				queryClient.ensureQueryData(
-					repositoryLastCommitsQueryOptions({
-						repoId: repo.id,
-						branchName: params.branch,
-						path: params._splat || "",
-					}),
-				),
-				queryClient.ensureQueryData(
-					repositoryCommitsQueryOptions({
-						repoId: repo.id,
-						branchName: params.branch,
-						limit: 1,
-					}),
-				),
-			]);
-		}
-	},
+	loader: async ({ params, context: { queryClient } }) =>
+		perfTime(
+			`loader tree ${params.owner}/${params.name}@${params.branch}:${params._splat || "/"}`,
+			async () => {
+				const repo = await perfTime(
+					"loader: ensureQueryData repositoryByName",
+					() =>
+						queryClient.ensureQueryData(
+							repositoryByNameQueryOptions({
+								owner: params.owner,
+								name: params.name,
+							}),
+						),
+				);
+				if (repo) {
+					await perfTime(
+						"loader: ensureQueryData [branches, files, lastCommits, commits]",
+						() =>
+							Promise.all([
+								queryClient.ensureQueryData(
+									repositoryBranchesQueryOptions(repo.id),
+								),
+								queryClient.ensureQueryData(
+									repositoryFilesQueryOptions({
+										repoId: repo.id,
+										branchName: params.branch,
+										path: params._splat || "",
+									}),
+								),
+								queryClient.ensureQueryData(
+									repositoryLastCommitsQueryOptions({
+										repoId: repo.id,
+										branchName: params.branch,
+										path: params._splat || "",
+									}),
+								),
+								queryClient.ensureQueryData(
+									repositoryCommitsQueryOptions({
+										repoId: repo.id,
+										branchName: params.branch,
+										limit: 1,
+									}),
+								),
+							]),
+					);
+				}
+			},
+		),
 	errorComponent: TreeErrorComponent,
 	component: TreeBrowserPage,
 });
@@ -91,6 +109,11 @@ function TreeBrowserPage() {
 	const { owner, name, branch: activeBranch, _splat } = Route.useParams();
 	const activePath = _splat || "";
 	const navigate = useNavigate();
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: mount-only marker, deliberately fires once
+	useEffect(() => {
+		perfMark(`TreeBrowserPage mounted ${owner}/${name}@${activeBranch}`);
+	}, []);
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
@@ -128,6 +151,21 @@ function TreeBrowserPage() {
 		enabled: !!repo,
 	});
 	const latestCommit = latestCommits?.[0];
+
+	useEffect(() => {
+		if (!isLoading && !lastCommitsLoading && !latestCommitLoading) {
+			perfMark(
+				`TreeBrowserPage all queries settled ${owner}/${name}@${activeBranch}`,
+			);
+		}
+	}, [
+		isLoading,
+		lastCommitsLoading,
+		latestCommitLoading,
+		owner,
+		name,
+		activeBranch,
+	]);
 
 	const sortedFiles = useMemo(() => {
 		if (!files) return [];

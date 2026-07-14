@@ -25,6 +25,7 @@ import {
 	getRepoGitStoragePrefix,
 	getRepoStorageRoot,
 } from "./git-storage-naming";
+import { perfNote, perfStep } from "./perf-log";
 
 type RepoState = {
 	hydratedAt?: number;
@@ -201,7 +202,14 @@ export async function withRepositoryLock<T>(
 
 export async function getRepoOptions(ownerKey: string, repoName: string) {
 	if (!isR2Configured()) {
-		await ensureRepositoryHydrated(ownerKey, repoName);
+		perfNote(`getRepoOptions ${ownerKey}/${repoName}: local disk, hydrating`);
+		await perfStep(`ensureRepositoryHydrated ${ownerKey}/${repoName}`, () =>
+			ensureRepositoryHydrated(ownerKey, repoName),
+		);
+	} else {
+		perfNote(
+			`getRepoOptions ${ownerKey}/${repoName}: R2-direct, no hydration needed`,
+		);
 	}
 	return getBareRepoOptions(ownerKey, repoName);
 }

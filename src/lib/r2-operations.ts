@@ -13,6 +13,7 @@ import {
 	R2DownloadError,
 	R2UploadError,
 } from "#/server/git-errors";
+import { perfR2 } from "#/server/perf-log";
 import { getR2Client, getR2Config } from "./r2";
 
 export interface R2File {
@@ -142,42 +143,45 @@ export async function uploadToR2(
  * Download a file from R2 with retry logic
  */
 export async function downloadFromR2(key: string) {
-	return withRetry(async () => {
-		const client = getR2Client();
-		const { bucketName } = getR2Config();
+	return perfR2(`R2 GET ${key}`, () =>
+		withRetry(async () => {
+			const client = getR2Client();
+			const { bucketName } = getR2Config();
 
-		try {
-			const response = await client.send(
-				new GetObjectCommand({
-					Bucket: bucketName,
-					Key: key,
-				}),
-			);
+			try {
+				const response = await client.send(
+					new GetObjectCommand({
+						Bucket: bucketName,
+						Key: key,
+					}),
+				);
 
-			if (!response.Body) {
-				throw new Error("No body returned from R2");
+				if (!response.Body) {
+					throw new Error("No body returned from R2");
+				}
+
+				const content = await response.Body.transformToByteArray();
+				return {
+					content: Buffer.from(content),
+					contentType: response.ContentType,
+					size: response.ContentLength,
+					etag: response.ETag,
+				};
+			} catch (error) {
+				if (
+					error instanceof S3ServiceException &&
+					(error.$metadata?.httpStatusCode === 404 ||
+						error.name === "NoSuchKey")
+				) {
+					// Don't wrap 404 errors, just rethrow
+					throw error;
+				}
+				throw new R2DownloadError(
+					`Failed to download ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
+				);
 			}
-
-			const content = await response.Body.transformToByteArray();
-			return {
-				content: Buffer.from(content),
-				contentType: response.ContentType,
-				size: response.ContentLength,
-				etag: response.ETag,
-			};
-		} catch (error) {
-			if (
-				error instanceof S3ServiceException &&
-				(error.$metadata?.httpStatusCode === 404 || error.name === "NoSuchKey")
-			) {
-				// Don't wrap 404 errors, just rethrow
-				throw error;
-			}
-			throw new R2DownloadError(
-				`Failed to download ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
-			);
-		}
-	}, `Download ${key}`);
+		}, `Download ${key}`),
+	);
 }
 
 /**
@@ -195,69 +199,81 @@ export async function listR2Files(
 	prefix?: string,
 	maxKeys = 100,
 ): Promise<R2File[]> {
-	const client = getR2Client();
-	const { bucketName } = getR2Config();
-	const files: R2File[] = [];
-	let continuationToken: string | undefined;
+	return perfR2(`R2 LIST ${prefix ?? ""} (max ${maxKeys})`, async () => {
+		const client = getR2Client();
+		const { bucketName } = getR2Config();
+		const files: R2File[] = [];
+		let continuationToken: string | undefined;
 
-	while (files.length < maxKeys) {
-		const response = await client.send(
-			new ListObjectsV2Command({
-				Bucket: bucketName,
-				Prefix: prefix,
-				MaxKeys: Math.min(maxKeys - files.length, 1000),
-				ContinuationToken: continuationToken,
-			}),
-		);
+		while (files.length < maxKeys) {
+			const response = await client.send(
+				new ListObjectsV2Command({
+					Bucket: bucketName,
+					Prefix: prefix,
+					MaxKeys: Math.min(maxKeys - files.length, 1000),
+					ContinuationToken: continuationToken,
+				}),
+			);
 
-		files.push(
-			...(response.Contents?.map((obj) => ({
-				key: obj.Key || "",
-				size: obj.Size || 0,
-				lastModified: obj.LastModified || new Date(),
-				etag: obj.ETag || "",
-			})) || []),
-		);
+			files.push(
+				...(response.Contents?.map((obj) => ({
+					key: obj.Key || "",
+					size: obj.Size || 0,
+					lastModified: obj.LastModified || new Date(),
+					etag: obj.ETag || "",
+				})) || []),
+			);
 
-		if (!response.IsTruncated || !response.NextContinuationToken) {
-			break;
+			if (!response.IsTruncated || !response.NextContinuationToken) {
+				break;
+			}
+
+			continuationToken = response.NextContinuationToken;
 		}
 
-		continuationToken = response.NextContinuationToken;
-	}
-
-	return files;
+		return files;
+	});
 }
 
 export async function listAllR2Files(prefix?: string): Promise<R2File[]> {
-	const client = getR2Client();
-	const { bucketName } = getR2Config();
-	const files: R2File[] = [];
-	let continuationToken: string | undefined;
+	return perfR2(`R2 LIST-ALL ${prefix ?? ""}`, async () => {
+		const client = getR2Client();
+		const { bucketName } = getR2Config();
+		const files: R2File[] = [];
+		let continuationToken: string | undefined;
+		let pages = 0;
 
-	do {
-		const response = await client.send(
-			new ListObjectsV2Command({
-				Bucket: bucketName,
-				Prefix: prefix,
-				MaxKeys: 1000,
-				ContinuationToken: continuationToken,
-			}),
-		);
+		do {
+			const response = await client.send(
+				new ListObjectsV2Command({
+					Bucket: bucketName,
+					Prefix: prefix,
+					MaxKeys: 1000,
+					ContinuationToken: continuationToken,
+				}),
+			);
+			pages += 1;
 
-		files.push(
-			...(response.Contents?.map((obj) => ({
-				key: obj.Key || "",
-				size: obj.Size || 0,
-				lastModified: obj.LastModified || new Date(),
-				etag: obj.ETag || "",
-			})) || []),
-		);
+			files.push(
+				...(response.Contents?.map((obj) => ({
+					key: obj.Key || "",
+					size: obj.Size || 0,
+					lastModified: obj.LastModified || new Date(),
+					etag: obj.ETag || "",
+				})) || []),
+			);
 
-		continuationToken = response.NextContinuationToken;
-	} while (continuationToken);
+			continuationToken = response.NextContinuationToken;
+		} while (continuationToken);
 
-	return files;
+		if (pages > 1) {
+			console.log(
+				`[perf] R2 LIST-ALL ${prefix ?? ""} paginated across ${pages} pages (${files.length} keys)`,
+			);
+		}
+
+		return files;
+	});
 }
 
 /**
@@ -298,32 +314,34 @@ export async function fileExistsInR2(key: string): Promise<boolean> {
 export async function headR2Object(
 	key: string,
 ): Promise<{ size: number; contentType?: string; etag?: string } | null> {
-	return circuitBreakerExecute(async () => {
-		const client = getR2Client();
-		const { bucketName } = getR2Config();
-		try {
-			const response = await client.send(
-				new HeadObjectCommand({ Bucket: bucketName, Key: key }),
-			);
-			return {
-				size: response.ContentLength ?? 0,
-				contentType: response.ContentType,
-				etag: response.ETag,
-			};
-		} catch (error) {
-			if (
-				error instanceof S3ServiceException &&
-				(error.$metadata?.httpStatusCode === 404 ||
-					error.name === "NoSuchKey" ||
-					error.name === "NotFound")
-			) {
-				return null;
+	return perfR2(`R2 HEAD ${key}`, () =>
+		circuitBreakerExecute(async () => {
+			const client = getR2Client();
+			const { bucketName } = getR2Config();
+			try {
+				const response = await client.send(
+					new HeadObjectCommand({ Bucket: bucketName, Key: key }),
+				);
+				return {
+					size: response.ContentLength ?? 0,
+					contentType: response.ContentType,
+					etag: response.ETag,
+				};
+			} catch (error) {
+				if (
+					error instanceof S3ServiceException &&
+					(error.$metadata?.httpStatusCode === 404 ||
+						error.name === "NoSuchKey" ||
+						error.name === "NotFound")
+				) {
+					return null;
+				}
+				throw new R2DownloadError(
+					`Failed to stat ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
+				);
 			}
-			throw new R2DownloadError(
-				`Failed to stat ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
-			);
-		}
-	});
+		}),
+	);
 }
 
 /**

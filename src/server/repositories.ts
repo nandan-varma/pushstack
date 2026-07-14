@@ -12,6 +12,7 @@ import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
 import { deleteRepositoryFromR2 } from "./git-repo-storage";
 import { getStorageOwnerKey } from "./git-storage-naming";
+import { perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
 	canReadRepo,
@@ -227,54 +228,62 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getRepositoryByName ${data.owner}/${data.name}`, async () => {
+			const currentUser = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		// Find owner by username
-		const owner = await db.query.user.findFirst({
-			where: eq(user.username, data.owner),
-		});
-
-		if (!owner) {
-			throw new Error("Owner not found");
-		}
-
-		const repo = await db.query.repositories.findFirst({
-			where: and(
-				eq(repositories.ownerId, owner.id),
-				eq(repositories.name, data.name),
-			),
-			with: {
-				owner: true,
-			},
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		// ponytail: access check and star lookups only need repo.id / currentUser.id,
-		// which we already have — run them together instead of access-then-stars.
-		const [access, starCount, userStar] = await Promise.all([
-			getRepositoryAccess(repo.id, currentUser?.id),
-			getStarCount(repo.id),
-			currentUser
-				? db.query.stars.findFirst({
-						where: and(
-							eq(stars.repoId, repo.id),
-							eq(stars.userId, currentUser.id),
+			// ponytail: owner-lookup-then-repo-lookup used to be two sequential
+			// round trips to Neon on the hot path (every repo/tree page load starts
+			// here) — a single join resolves both in one round trip.
+			const [row] = await perfStep("db: repo+owner join", () =>
+				db
+					.select({ repo: repositories, owner: user })
+					.from(repositories)
+					.innerJoin(user, eq(repositories.ownerId, user.id))
+					.where(
+						and(
+							eq(user.username, data.owner),
+							eq(repositories.name, data.name),
 						),
-					})
-				: null,
-		]);
-		if (!access?.canRead) throw new Error("Access denied");
+					)
+					.limit(1),
+			);
 
-		return {
-			...repo,
-			starCount,
-			isStarred: !!userStar,
-		};
-	});
+			if (!row) {
+				throw new Error("Repository not found");
+			}
+
+			const repo = { ...row.repo, owner: row.owner };
+
+			// ponytail: access check and star lookups only need repo.id / currentUser.id,
+			// which we already have — run them together instead of access-then-stars.
+			const [access, starCount, userStar] = await perfStep(
+				"db: access + starCount + userStar",
+				() =>
+					Promise.all([
+						getRepositoryAccess(repo.id, currentUser?.id),
+						getStarCount(repo.id),
+						currentUser
+							? db.query.stars.findFirst({
+									where: and(
+										eq(stars.repoId, repo.id),
+										eq(stars.userId, currentUser.id),
+									),
+								})
+							: null,
+					]),
+			);
+			if (!access?.canRead) throw new Error("Access denied");
+
+			return {
+				...repo,
+				starCount,
+				isStarred: !!userStar,
+			};
+		}),
+	);
 
 // Update repository
 export const updateRepository = createServerFn({ method: "POST" })

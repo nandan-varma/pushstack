@@ -70,9 +70,9 @@ describe("getCommitDiff", () => {
 			],
 		});
 
-		mockGetFileContent
-			.mockResolvedValueOnce(Buffer.from("# Hello\n"))
-			.mockResolvedValueOnce(Buffer.from('console.log("hi");\n'));
+		g.readBlob
+			.mockResolvedValueOnce({ blob: Buffer.from("# Hello\n") })
+			.mockResolvedValueOnce({ blob: Buffer.from('console.log("hi");\n') });
 
 		const result = await getCommitDiff("owner", "repo", commitSha);
 

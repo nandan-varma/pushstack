@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getSession } from "@/lib/auth-session";
+import { perfTime } from "@/lib/perf-log";
 import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
@@ -130,7 +131,10 @@ export function repositoryByNameQueryOptions({
 }) {
 	return queryOptions({
 		queryKey: queryKeys.repositoryByName(owner, name),
-		queryFn: () => getRepositoryByName({ data: { owner, name } }),
+		queryFn: () =>
+			perfTime(`query repositoryByName ${owner}/${name}`, () =>
+				getRepositoryByName({ data: { owner, name } }),
+			),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
@@ -138,7 +142,10 @@ export function repositoryByNameQueryOptions({
 export function repositoryBranchesQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoBranches(repoId),
-		queryFn: () => getBranches({ data: { repoId } }),
+		queryFn: () =>
+			perfTime(`query branches repo=${repoId}`, () =>
+				getBranches({ data: { repoId } }),
+			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
 	});
@@ -155,7 +162,10 @@ export function repositoryFilesQueryOptions({
 }) {
 	return queryOptions({
 		queryKey: queryKeys.repoFiles(repoId, branchName, path),
-		queryFn: () => listFiles({ data: { repoId, branchName, path } }),
+		queryFn: () =>
+			perfTime(`query files repo=${repoId} ${branchName}:${path || "/"}`, () =>
+				listFiles({ data: { repoId, branchName, path } }),
+			),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
@@ -171,7 +181,10 @@ export function repositoryFileQueryOptions({
 }) {
 	return queryOptions({
 		queryKey: queryKeys.repoFile(repoId, branchName, path),
-		queryFn: () => getFile({ data: { repoId, branchName, path } }),
+		queryFn: () =>
+			perfTime(`query file repo=${repoId} ${branchName}:${path}`, () =>
+				getFile({ data: { repoId, branchName, path } }),
+			),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
@@ -189,7 +202,11 @@ export function repositoryCommitsQueryOptions({
 }) {
 	return queryOptions({
 		queryKey: queryKeys.repoCommits(repoId, branchName, limit, skip),
-		queryFn: () => getCommits({ data: { repoId, branchName, limit, skip } }),
+		queryFn: () =>
+			perfTime(
+				`query commits repo=${repoId} ${branchName} limit=${limit}`,
+				() => getCommits({ data: { repoId, branchName, limit, skip } }),
+			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
 	});
@@ -236,7 +253,11 @@ export function repositoryLastCommitsQueryOptions({
 }) {
 	return queryOptions({
 		queryKey: queryKeys.repoLastCommits(repoId, branchName, path),
-		queryFn: () => getLastCommits({ data: { repoId, branchName, path } }),
+		queryFn: () =>
+			perfTime(
+				`query lastCommits repo=${repoId} ${branchName}:${path || "/"}`,
+				() => getLastCommits({ data: { repoId, branchName, path } }),
+			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
 	});

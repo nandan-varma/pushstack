@@ -18,10 +18,10 @@ export async function getBranches(
 ): Promise<Branch[]> {
 	const repo = await getRepoOptions(ownerKey, repoName);
 	try {
-		const branches = await git.listBranches(repo);
-		const currentBranch = await git
-			.currentBranch({ ...repo, fullname: false })
-			.catch(() => null);
+		const [branches, currentBranch] = await Promise.all([
+			git.listBranches(repo),
+			git.currentBranch({ ...repo, fullname: false }).catch(() => null),
+		]);
 
 		return Promise.all(
 			branches.map(async (branch) => ({

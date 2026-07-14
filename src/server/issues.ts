@@ -4,8 +4,8 @@ import { z } from "zod";
 import { db } from "../db";
 import { activities, issues } from "../db/github-schema";
 import {
-	canReadRepo,
 	canWriteRepo,
+	getAccessForRepository,
 	requireReadAccess,
 	requireWriteAccess,
 } from "./repo-access";
@@ -130,7 +130,10 @@ export const getIssue = createServerFn({ method: "GET" })
 			throw new Error("Issue not found");
 		}
 
-		if (!(await canReadRepo(issue.repoId, user?.id))) {
+		// ponytail: the query above already fetched the repository row via the
+		// relation — reuse it instead of canReadRepo's own repo fetch.
+		const access = await getAccessForRepository(issue.repository, user?.id);
+		if (!access.canRead) {
 			throw new Error("Access denied");
 		}
 

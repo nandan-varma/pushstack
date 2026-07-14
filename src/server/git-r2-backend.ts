@@ -21,6 +21,7 @@ import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 } from "./git-storage-naming";
+import { recordCacheHit, recordCacheMiss } from "./perf-log";
 
 // ponytail: coalesces concurrent reads for the same R2 key so a single pack file
 // (e.g. 1.5 MB) is only downloaded once even when 100+ object reads fire in parallel.
@@ -107,8 +108,10 @@ export class R2Backend {
 		// Try cache first
 		const cached = getCache(cacheKey);
 		if (cached) {
+			recordCacheHit();
 			return options?.encoding === "utf8" ? cached.toString("utf8") : cached;
 		}
+		recordCacheMiss();
 
 		// Fetch from R2, coalescing concurrent requests for the same key
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
@@ -210,7 +213,11 @@ export class R2Backend {
 		// Cache dir listings — cuts R2 LIST calls for repeated readdir (refs/, objects/, etc.)
 		const dirCacheKey = `dir:${ownerKey}/${repoName}/${relativePath}`;
 		const cachedDir = getCache(dirCacheKey);
-		if (cachedDir) return JSON.parse(cachedDir.toString()) as string[];
+		if (cachedDir) {
+			recordCacheHit();
+			return JSON.parse(cachedDir.toString()) as string[];
+		}
+		recordCacheMiss();
 
 		// Ensure path ends with / for prefix matching
 		const prefix = relativePath ? `${relativePath}/` : "";

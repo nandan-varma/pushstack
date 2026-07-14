@@ -10,8 +10,8 @@ import {
 } from "../db/github-schema";
 import {
 	canModerateRepo,
-	canReadRepo,
 	canWriteRepo,
+	getAccessForRepository,
 	requireWriteAccess,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -105,9 +105,14 @@ export const getComments = createServerFn({ method: "GET" })
 		if (data.issueId) {
 			const issue = await db.query.issues.findFirst({
 				where: eq(issues.id, data.issueId),
+				with: { repository: true },
 			});
 
-			if (!issue || !(await canReadRepo(issue.repoId, user?.id))) {
+			// ponytail: fetch the repository via the relation above instead of a
+			// second round trip inside canReadRepo.
+			const access =
+				issue && (await getAccessForRepository(issue.repository, user?.id));
+			if (!access?.canRead) {
 				throw new Error("Access denied");
 			}
 		}
@@ -115,9 +120,13 @@ export const getComments = createServerFn({ method: "GET" })
 		if (data.pullRequestId) {
 			const pullRequest = await db.query.pullRequests.findFirst({
 				where: eq(pullRequests.id, data.pullRequestId),
+				with: { repository: true },
 			});
 
-			if (!pullRequest || !(await canReadRepo(pullRequest.repoId, user?.id))) {
+			const access =
+				pullRequest &&
+				(await getAccessForRepository(pullRequest.repository, user?.id));
+			if (!access?.canRead) {
 				throw new Error("Access denied");
 			}
 		}

@@ -27,7 +27,7 @@ vi.mock("../session", () => ({
 vi.mock("../repo-access", () => ({
 	requireWriteAccess: vi.fn(() => Promise.resolve()),
 	requireReadAccess: vi.fn(() => Promise.resolve()),
-	canReadRepo: vi.fn(() => Promise.resolve(true)),
+	getAccessForRepository: vi.fn(() => Promise.resolve({ canRead: true })),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
 }));
 
@@ -140,9 +140,12 @@ describe("getIssue", () => {
 			id: 1,
 			repoId: 5,
 			labels: null,
+			repository: { id: 5 },
 		});
-		const { canReadRepo } = await import("../repo-access");
-		(canReadRepo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+		const { getAccessForRepository } = await import("../repo-access");
+		(getAccessForRepository as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+			canRead: false,
+		});
 
 		const { getIssue } = await import("../issues");
 
@@ -156,6 +159,7 @@ describe("getIssue", () => {
 			id: 1,
 			repoId: 5,
 			labels: ["bug"],
+			repository: { id: 5 },
 		});
 
 		const { getIssue } = await import("../issues");

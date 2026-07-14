@@ -1,6 +1,6 @@
 import { createTwoFilesPatch } from "diff";
 import git from "isomorphic-git";
-import { getCommit, getFileContent } from "./git-history-ops";
+import { getCommit } from "./git-history-ops";
 import { getRepoOptions } from "./git-repo-storage";
 
 export interface DiffFile {
@@ -77,38 +77,38 @@ export async function getCommitDiff(
 
 		if (!parent) {
 			const tree = await git.readTree({ ...repo, oid: commit.commit.tree });
-			const files: DiffFile[] = [];
 
-			for (const entry of tree.tree) {
-				if (entry.type === "blob") {
-					const content = await getFileContent(
-						ownerKey,
-						repoName,
-						entry.path,
-						commitSha,
-					);
-					const after = readBlobContent(content);
-					files.push({
-						path: entry.path,
-						status: "added",
-						additions: after.isBinary ? 0 : countContentLines(after.text),
-						deletions: 0,
-						patch: after.isBinary
-							? ""
-							: createUnifiedPatch({
-									path: entry.path,
-									before: "",
-									after: after.text,
-									oldPath: "/dev/null",
-								}),
-						isBinary: after.isBinary,
-						newContent: after.isBinary
-							? after.buffer.toString("base64")
-							: undefined,
-						newSize: after.buffer.length,
-					});
-				}
-			}
+			// ponytail: previously called getFileContent per entry, which redundantly
+			// re-resolved the commit and re-walked the tree from root for every single
+			// file even though `entry.oid` already points straight at the blob — and
+			// did it one file at a time. Read blobs directly, in parallel.
+			const files: DiffFile[] = await Promise.all(
+				tree.tree
+					.filter((entry) => entry.type === "blob")
+					.map(async (entry) => {
+						const { blob } = await git.readBlob({ ...repo, oid: entry.oid });
+						const after = readBlobContent(blob);
+						return {
+							path: entry.path,
+							status: "added" as const,
+							additions: after.isBinary ? 0 : countContentLines(after.text),
+							deletions: 0,
+							patch: after.isBinary
+								? ""
+								: createUnifiedPatch({
+										path: entry.path,
+										before: "",
+										after: after.text,
+										oldPath: "/dev/null",
+									}),
+							isBinary: after.isBinary,
+							newContent: after.isBinary
+								? after.buffer.toString("base64")
+								: undefined,
+							newSize: after.buffer.length,
+						};
+					}),
+			);
 
 			return {
 				files,
