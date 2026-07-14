@@ -104,32 +104,24 @@ async function fetchRepoRowByName(
 	}
 }
 
-// Find repository by owner username and repo name (for git protocol - plain function, not serverFn)
+// Find repository by owner username and repo name (for git protocol - plain function, not serverFn).
+//
+// Every git HTTP operation (clone/fetch/push) makes at least two requests
+// (info/refs, then upload-pack/receive-pack), and git.$.ts calls this once per
+// request to resolve the repo before authenticating — this used to be two
+// sequential, uncached queries (owner-by-username, then repo-by-owner+name)
+// paid fresh on *every single one* of those requests. Routing through
+// fetchRepoRowByName instead gives it the same single-join query plus 5-second
+// cache and in-flight coalescing that getRepositoryByName already uses — so
+// the receive-pack request of a push typically gets a free cache hit from the
+// info/refs request moments earlier, instead of hitting Postgres again.
 export async function findRepositoryByName(
 	ownerUsername: string,
 	repoName: string,
 ) {
-	// Find owner by username
-	const owner = await db.query.user.findFirst({
-		where: eq(user.username, ownerUsername),
-	});
-
-	if (!owner) {
-		return null;
-	}
-
-	// Find repository
-	const repo = await db.query.repositories.findFirst({
-		where: and(
-			eq(repositories.ownerId, owner.id),
-			eq(repositories.name, repoName),
-		),
-		with: {
-			owner: true,
-		},
-	});
-
-	return repo;
+	const row = await fetchRepoRowByName(ownerUsername, repoName);
+	if (!row) return undefined;
+	return { ...row.repo, owner: row.owner };
 }
 
 // Create repository schema

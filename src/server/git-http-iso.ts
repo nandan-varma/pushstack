@@ -10,11 +10,17 @@ import fs from "node:fs";
 import * as localFsPromises from "node:fs/promises";
 import path from "node:path";
 import git, { type FsClient } from "isomorphic-git";
+import { bulkDeleteFromR2 } from "#/lib/r2-operations";
 import type { GitAuthContext } from "./git-auth";
+import { deleteCache, invalidateCache } from "./git-cache";
 import { GitAuthorizationError } from "./git-errors";
 import { r2Backend } from "./git-r2-backend";
 import { withReceivePackLock } from "./git-repo-storage";
-import { getRepoGitStorageRoot } from "./git-storage-naming";
+import {
+	getRepoGitStoragePrefix,
+	getRepoGitStorageRoot,
+} from "./git-storage-naming";
+import { perfContext, perfStep } from "./perf-log";
 
 type GitHttpResult = {
 	status: number;
@@ -108,13 +114,22 @@ async function listAllRefs(gitdir: string, defaultBranch = "main") {
 
 // --- object graph traversal ---
 
+interface ReachabilityResult {
+	oids: string[];
+	// False if any object in the graph couldn't be read — repackLocal uses this
+	// (not a raw object-count comparison) to decide whether it's safe to delete
+	// old packs: see the comment on that check for why counts alone are unreliable.
+	complete: boolean;
+}
+
 // ponytail: filesystem param lets this run against R2 (clone) or local disk (repack after push)
 async function collectReachableOids(
 	gitdir: string,
 	startOids: string[],
 	filesystem: FsClient = r2Backend,
-): Promise<string[]> {
+): Promise<ReachabilityResult> {
 	const seen = new Set<string>();
+	let complete = true;
 	// ponytail: promise-per-oid deduplicates concurrent traversal paths
 	const promises = new Map<string, Promise<void>>();
 
@@ -144,6 +159,7 @@ async function collectReachableOids(
 				}
 				await Promise.all(children.map(visit));
 			} catch (err) {
+				complete = false;
 				console.warn(
 					`[git-http] missing object ${oid}:`,
 					err instanceof Error ? err.message : err,
@@ -156,21 +172,44 @@ async function collectReachableOids(
 	}
 
 	await Promise.all(startOids.map(visit));
-	return Array.from(seen);
+	return { oids: Array.from(seen), complete };
 }
 
-// Pack index v2: magic(4) + version(4) + fanout(256×4); fanout[255] = total object count
-function countPackIndexObjects(data: Buffer): number {
-	if (data.length < 8 + 256 * 4) return -1;
-	if (data.readUInt32BE(0) !== 0xff744f63) return -1;
-	if (data.readUInt32BE(4) !== 2) return -1;
-	return data.readUInt32BE(8 + 255 * 4);
-}
+// ponytail: repack threshold. Consolidating is O(total repo object count) — reachability
+// traversal + a full packObjects + indexPack over *everything*, not just what this push
+// added — so paying that cost on every single push makes push latency grow with total
+// repo size forever, not with the size of the just-pushed delta. Below this many packs,
+// clone/fetch's own O(1)-ish pack search (isomorphic-git checks each pack's index) is
+// already cheap enough that consolidating isn't worth a full push's extra latency; skip
+// it and let the next call re-check once enough small pushes have piled up packs.
+const REPACK_PACK_COUNT_THRESHOLD = 4;
 
-// Consolidate all pack files into one after a push so R2 always has a single pack.
-// This keeps clone-time object lookups O(1) pack searches instead of O(N pushes).
-async function repackLocal(localGitdir: string): Promise<void> {
+async function countLocalPacks(localGitdir: string): Promise<number> {
 	try {
+		const entries = await localFsPromises.readdir(
+			path.join(localGitdir, "objects", "pack"),
+		);
+		return entries.filter((f) => f.endsWith(".pack")).length;
+	} catch {
+		return 0;
+	}
+}
+
+// Consolidate all pack files into one after a push so R2 doesn't accumulate one new
+// pack file per push forever. Returns the gitdir-relative paths of any old .pack/.idx
+// files this removed *locally* — syncRepositoryToR2Unlocked never deletes anything
+// under objects/ (git objects are content-addressed and assumed immutable/safe to
+// keep), so the caller must explicitly delete these same paths from R2 too, or the
+// old packs it just proved redundant (via the object-count safety check below) live
+// on in R2 forever, exactly as unconsolidated as before — this used to be silently
+// true here: the local repack succeeded every time, but nothing ever told R2 about
+// the packs it had just made redundant.
+async function repackLocal(localGitdir: string): Promise<string[]> {
+	try {
+		if ((await countLocalPacks(localGitdir)) < REPACK_PACK_COUNT_THRESHOLD) {
+			return [];
+		}
+
 		// Null-coalesce to [] so a mock/stub returning undefined never crashes .map()
 		const branches: string[] =
 			(await Promise.resolve(
@@ -196,17 +235,40 @@ async function repackLocal(localGitdir: string): Promise<void> {
 			])
 		).filter((oid): oid is string => oid !== null);
 
-		if (tipOids.length === 0) return;
+		if (tipOids.length === 0) return [];
 
-		const allOids = await collectReachableOids(localGitdir, tipOids, fs);
-		if (allOids.length === 0) return;
+		const { oids: allOids, complete } = await collectReachableOids(
+			localGitdir,
+			tipOids,
+			fs,
+		);
+		if (allOids.length === 0) return [];
+
+		// Guard against data loss: only delete old packs if the reachability traversal
+		// above actually read every object it visited. A raw object-count comparison
+		// (new consolidated pack vs. sum of old packs) doesn't work as a safety check
+		// here: the moment packs ever overlap in content — which happens as soon as an
+		// earlier repack's own safety check ever declined to clean up — the "old" side
+		// double-counts objects present in more than one old pack, so it almost always
+		// comes out higher than the new deduplicated count. That made this check
+		// permanently refuse to ever consolidate again once it failed once (exactly
+		// what was observed: pack counts climbing indefinitely across many pushes).
+		// Traversal completeness is the actual property that matters — nothing
+		// reachable was missed — so check that directly instead of inferring it from
+		// counts that assumption doesn't hold for.
+		if (!complete) {
+			console.warn(
+				"[git-http] repack: keeping old packs (reachability traversal was incomplete)",
+			);
+			return [];
+		}
 
 		const { packfile } = await git.packObjects({
 			fs,
 			gitdir: localGitdir,
 			oids: allOids,
 		});
-		if (!packfile) return;
+		if (!packfile) return [];
 
 		const packDir = path.join(localGitdir, "objects", "pack");
 		const newName = `pack-${Date.now()}`;
@@ -221,58 +283,28 @@ async function repackLocal(localGitdir: string): Promise<void> {
 			filepath: `${newName}.pack`,
 		});
 
-		// Guard against data loss: only delete old packs if the consolidated pack covers at least
-		// as many objects as all old packs combined (catches incomplete traversal due to missing objects).
 		const allEntries: string[] = await Promise.resolve()
 			.then(() => localFsPromises.readdir(packDir))
 			.catch(() => []);
 
-		const oldIdxNames = allEntries.filter(
-			(f) => f !== `${newName}.idx` && f.endsWith(".idx"),
+		const staleFiles = allEntries.filter(
+			(f) =>
+				f !== `${newName}.pack` &&
+				f !== `${newName}.idx` &&
+				(f.endsWith(".pack") || f.endsWith(".idx") || f.endsWith(".keep")),
 		);
-		const [newIdxBuf, ...oldIdxBufs] = await Promise.all([
-			Promise.resolve()
-				.then(() =>
-					localFsPromises.readFile(path.join(packDir, `${newName}.idx`)),
-				)
-				.catch(() => null),
-			...oldIdxNames.map((n) =>
-				Promise.resolve()
-					.then(() => localFsPromises.readFile(path.join(packDir, n)))
-					.catch(() => null),
-			),
-		]);
-
-		const newCount = newIdxBuf
-			? countPackIndexObjects(Buffer.from(newIdxBuf))
-			: -1;
-		const oldTotal = oldIdxBufs.reduce((sum, buf) => {
-			const n = buf ? countPackIndexObjects(Buffer.from(buf)) : 0;
-			return sum + Math.max(0, n);
-		}, 0);
-
-		if (newCount < 0 || (oldTotal > 0 && newCount < oldTotal)) {
-			// ponytail: skip deletion; old packs are the safety net when traversal was incomplete
-			console.warn(
-				`[git-http] repack: keeping old packs (new=${newCount} old=${oldTotal})`,
-			);
-			return;
-		}
 
 		await Promise.all(
-			allEntries
-				.filter((f) => f !== `${newName}.pack` && f !== `${newName}.idx`)
-				.filter(
-					(f) =>
-						f.endsWith(".pack") || f.endsWith(".idx") || f.endsWith(".keep"),
-				)
-				.map((f) =>
-					localFsPromises.unlink(path.join(packDir, f)).catch(() => {}),
-				),
+			staleFiles.map((f) =>
+				localFsPromises.unlink(path.join(packDir, f)).catch(() => {}),
+			),
 		);
+
+		return staleFiles.map((f) => `objects/pack/${f}`);
 	} catch (err) {
 		// Repack failure is non-fatal — the push still succeeded, just with an extra pack file
 		console.error("[git-http] repack failed (non-fatal):", err);
+		return [];
 	}
 }
 
@@ -285,58 +317,76 @@ export async function handleInfoRefsIso(
 	authContext: GitAuthContext,
 	defaultBranch = "main",
 ): Promise<GitHttpResult> {
-	if (service === "git-upload-pack" && !authContext.canRead) {
-		throw new GitAuthorizationError(
-			"Access denied: insufficient read permissions",
-		);
-	}
-	if (service === "git-receive-pack" && !authContext.canWrite) {
-		throw new GitAuthorizationError(
-			"Access denied: insufficient write permissions",
-		);
-	}
+	return perfContext(
+		`infoRefs ${ownerKey}/${repoName} ${service}`,
+		async () => {
+			if (service === "git-upload-pack" && !authContext.canRead) {
+				throw new GitAuthorizationError(
+					"Access denied: insufficient read permissions",
+				);
+			}
+			if (service === "git-receive-pack" && !authContext.canWrite) {
+				throw new GitAuthorizationError(
+					"Access denied: insufficient write permissions",
+				);
+			}
 
-	const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
-	const { refs, headSymref } = await listAllRefs(gitdir, defaultBranch);
-
-	const isUpload = service === "git-upload-pack";
-	const caps = isUpload
-		? `no-progress symref=HEAD:${headSymref} allow-tip-sha1-in-want allow-reachable-sha1-in-want agent=pushstack/1.0`
-		: `delete-refs report-status no-done agent=pushstack/1.0`;
-
-	const parts: Buffer[] = [pktLine(`# service=${service}\n`), FLUSH];
-
-	if (refs.length === 0) {
-		// Empty repo: git needs this exact sentinel
-		parts.push(
-			pktLine(
-				`0000000000000000000000000000000000000000 capabilities^{}\0${caps}\n`,
-			),
-		);
-	} else {
-		let first = true;
-		for (const { name, oid } of refs) {
-			parts.push(
-				pktLine(first ? `${oid} ${name}\0${caps}\n` : `${oid} ${name}\n`),
+			const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+			const { refs, headSymref } = await perfStep("listAllRefs", () =>
+				listAllRefs(gitdir, defaultBranch),
 			);
-			first = false;
-		}
-	}
-	parts.push(FLUSH);
 
-	return {
-		status: 200,
-		headers: {
-			"Content-Type": `application/x-${service}-advertisement`,
-			"Cache-Control": "no-cache",
+			const isUpload = service === "git-upload-pack";
+			const caps = isUpload
+				? `no-progress symref=HEAD:${headSymref} allow-tip-sha1-in-want allow-reachable-sha1-in-want agent=pushstack/1.0`
+				: `delete-refs report-status no-done agent=pushstack/1.0`;
+
+			const parts: Buffer[] = [pktLine(`# service=${service}\n`), FLUSH];
+
+			if (refs.length === 0) {
+				// Empty repo: git needs this exact sentinel
+				parts.push(
+					pktLine(
+						`0000000000000000000000000000000000000000 capabilities^{}\0${caps}\n`,
+					),
+				);
+			} else {
+				let first = true;
+				for (const { name, oid } of refs) {
+					parts.push(
+						pktLine(first ? `${oid} ${name}\0${caps}\n` : `${oid} ${name}\n`),
+					);
+					first = false;
+				}
+			}
+			parts.push(FLUSH);
+
+			return {
+				status: 200,
+				headers: {
+					"Content-Type": `application/x-${service}-advertisement`,
+					"Cache-Control": "no-cache",
+				},
+				body: Buffer.concat(parts),
+			};
 		},
-		body: Buffer.concat(parts),
-	};
+	);
 }
 
 // --- upload-pack (clone/fetch) ---
 
 export async function handleUploadPackIso(
+	ownerKey: string,
+	repoName: string,
+	request: Request,
+	authContext: GitAuthContext,
+): Promise<GitHttpResult> {
+	return perfContext(`uploadPack ${ownerKey}/${repoName}`, () =>
+		handleUploadPackIsoInner(ownerKey, repoName, request, authContext),
+	);
+}
+
+async function handleUploadPackIsoInner(
 	ownerKey: string,
 	repoName: string,
 	request: Request,
@@ -395,16 +445,22 @@ export async function handleUploadPackIso(
 		};
 	}
 
-	// ponytail: fresh clone = no haves, so we need all objects. The consolidated pack
-	// (written by repackLocal after every push) already contains exactly that — serve it
-	// directly and skip the O(N-objects) traversal + repack entirely.
+	// ponytail: fresh clone = no haves, so we need all objects. When the repo is down
+	// to a single pack (repackLocal only consolidates once REPACK_PACK_COUNT_THRESHOLD
+	// packs have accumulated, not after every push — see git-http-iso.ts's repackLocal),
+	// that one pack already contains exactly the full reachable object set — serve it
+	// directly and skip the O(N-objects) traversal + repack entirely. With more than one
+	// pack present this falls through to the general path below instead.
 	if (haves.length === 0) {
 		const packDirPath = `${gitdir}/objects/pack`;
-		const entries = await r2Backend.readdir(packDirPath).catch(() => []);
+		const entries = await perfStep("readdir objects/pack", () =>
+			r2Backend.readdir(packDirPath).catch(() => []),
+		);
 		const packNames = entries.filter((f) => f.endsWith(".pack"));
 		if (packNames.length === 1) {
-			const packData = await r2Backend.readFile(
-				`${packDirPath}/${packNames[0]}`,
+			const packData = await perfStep(
+				"read consolidated pack (fast path)",
+				() => r2Backend.readFile(`${packDirPath}/${packNames[0]}`),
 			);
 			return {
 				status: 200,
@@ -422,14 +478,22 @@ export async function handleUploadPackIso(
 		}
 	}
 
-	const wantOids = await collectReachableOids(gitdir, wants);
+	const { oids: wantOids } = await perfStep("collectReachableOids(wants)", () =>
+		collectReachableOids(gitdir, wants),
+	);
 	let oids = wantOids;
 	if (haves.length > 0) {
-		const haveOids = new Set(await collectReachableOids(gitdir, haves));
+		const { oids: haveOidsList } = await perfStep(
+			"collectReachableOids(haves)",
+			() => collectReachableOids(gitdir, haves),
+		);
+		const haveOids = new Set(haveOidsList);
 		oids = wantOids.filter((oid) => !haveOids.has(oid));
 	}
 
-	const { packfile } = await git.packObjects({ fs: r2Backend, gitdir, oids });
+	const { packfile } = await perfStep("packObjects", () =>
+		git.packObjects({ fs: r2Backend, gitdir, oids }),
+	);
 
 	return {
 		status: 200,
@@ -447,6 +511,26 @@ export async function handleUploadPackIso(
 // --- receive-pack (push) ---
 
 export async function handleReceivePackIso(
+	ownerKey: string,
+	repoName: string,
+	request: Request,
+	authContext: GitAuthContext,
+	defaultBranch = "main",
+	ownerDbId?: string,
+): Promise<GitHttpResult> {
+	return perfContext(`receivePack ${ownerKey}/${repoName}`, () =>
+		handleReceivePackIsoInner(
+			ownerKey,
+			repoName,
+			request,
+			authContext,
+			defaultBranch,
+			ownerDbId,
+		),
+	);
+}
+
+async function handleReceivePackIsoInner(
 	ownerKey: string,
 	repoName: string,
 	request: Request,
@@ -494,6 +578,12 @@ export async function handleReceivePackIso(
 	}
 	const packData = body.slice(pos);
 
+	// Populated inside the locked closure below by repackLocal — deleted *locally*
+	// there, but only actually removable from R2 once withReceivePackLock's automatic
+	// sync has uploaded the new consolidated pack that replaces them (see the
+	// deletion after the lock resolves, below).
+	let staleRepackedPaths: string[] = [];
+
 	const refUpdateResults = await withReceivePackLock(
 		ownerKey,
 		repoName,
@@ -510,66 +600,101 @@ export async function handleReceivePackIso(
 
 			// Write incoming PACK into objects/pack/ so indexPack can process it there
 			if (packData.length >= 4) {
-				const packDir = path.join(localGitdir, "objects", "pack");
-				await localFsPromises.mkdir(packDir, { recursive: true });
+				await perfStep("write + indexPack incoming pack", async () => {
+					const packDir = path.join(localGitdir, "objects", "pack");
+					await localFsPromises.mkdir(packDir, { recursive: true });
 
-				const packName = `pushstack-recv-${Date.now()}`;
-				await localFsPromises.writeFile(
-					path.join(packDir, `${packName}.pack`),
-					packData,
-				);
+					const packName = `pushstack-recv-${Date.now()}`;
+					await localFsPromises.writeFile(
+						path.join(packDir, `${packName}.pack`),
+						packData,
+					);
 
-				// Index the pack (writes .idx next to .pack, resolves external deltas from gitdir)
-				await git.indexPack({
-					fs,
-					dir: packDir,
-					gitdir: localGitdir,
-					filepath: `${packName}.pack`,
+					// Index the pack (writes .idx next to .pack, resolves external deltas from gitdir)
+					await git.indexPack({
+						fs,
+						dir: packDir,
+						gitdir: localGitdir,
+						filepath: `${packName}.pack`,
+					});
 				});
 			}
 
 			// Update refs, enforcing compare-and-swap against each command's claimed
 			// oldOid so a push whose base moved since the client last fetched (another
 			// push landed first) is rejected instead of force-overwriting the ref and
-			// silently discarding the other push's commits.
+			// silently discarding the other push's commits. Each ref update only touches
+			// its own ref file, so a multi-ref push (e.g. `git push --all`/`--tags`)
+			// applies them all in parallel instead of one at a time.
 			const ZERO_OID = "0".repeat(40);
-			const results: Array<{ refName: string; ok: boolean; reason?: string }> =
-				[];
-			for (const { oldOid, newOid, refName } of refUpdates) {
-				const currentOid = await git
-					.resolveRef({ fs, gitdir: localGitdir, ref: refName })
-					.catch(() => ZERO_OID);
+			const results = await perfStep("apply ref updates", () =>
+				Promise.all(
+					refUpdates.map(async ({ oldOid, newOid, refName }) => {
+						const currentOid = await git
+							.resolveRef({ fs, gitdir: localGitdir, ref: refName })
+							.catch(() => ZERO_OID);
 
-				if (currentOid !== oldOid) {
-					results.push({
-						refName,
-						ok: false,
-						reason: "non-fast-forward, ref updated by another push",
-					});
-					continue;
-				}
+						if (currentOid !== oldOid) {
+							return {
+								refName,
+								ok: false,
+								reason: "non-fast-forward, ref updated by another push",
+							};
+						}
 
-				if (newOid === ZERO_OID) {
-					await git
-						.deleteRef({ fs, gitdir: localGitdir, ref: refName })
-						.catch(() => {});
-				} else {
-					await git.writeRef({
-						fs,
-						gitdir: localGitdir,
-						ref: refName,
-						value: newOid,
-						force: true,
-					});
-				}
-				results.push({ refName, ok: true });
-			}
+						if (newOid === ZERO_OID) {
+							await git
+								.deleteRef({ fs, gitdir: localGitdir, ref: refName })
+								.catch(() => {});
+						} else {
+							await git.writeRef({
+								fs,
+								gitdir: localGitdir,
+								ref: refName,
+								value: newOid,
+								force: true,
+							});
+						}
+						return { refName, ok: true };
+					}),
+				),
+			);
 
-			await repackLocal(localGitdir);
+			staleRepackedPaths = await perfStep("repackLocal", () =>
+				repackLocal(localGitdir),
+			);
 			return results;
 		},
 		ownerDbId,
 	);
+
+	// The new consolidated pack is a normal new local file, so withReceivePackLock's
+	// automatic syncRepositoryToR2Unlocked already uploaded it — but that same sync
+	// deliberately never deletes anything under objects/ in R2 (git objects are
+	// content-addressed and assumed safe to keep). repackLocal already proved these
+	// specific old packs are redundant (object-count safety check), so it's safe —
+	// and necessary — to explicitly remove them from R2 here, now that the
+	// replacement pack they're redundant with is confirmed uploaded. Skipping this
+	// is what let every push leave one more permanent pack file in R2 forever.
+	if (staleRepackedPaths.length > 0) {
+		const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
+		await bulkDeleteFromR2(
+			staleRepackedPaths.map((p) => `${prefix}${p}`),
+		).catch((err: unknown) => {
+			console.error(
+				`[git-http] failed to delete superseded packs from R2 (non-fatal):`,
+				err,
+			);
+		});
+		// The dir-listing cache for objects/pack/ was already invalidated once by
+		// the sync above (before these deletes ran) — invalidate again so a
+		// concurrent readdir can't have repopulated it with the now-stale names in
+		// the gap between that invalidation and this delete.
+		invalidateCache(`dir:${ownerKey}/${repoName}/`);
+		for (const relativePath of staleRepackedPaths) {
+			deleteCache(`${ownerKey}/${repoName}/${relativePath}`);
+		}
+	}
 
 	const responseBody = Buffer.concat([
 		pktLine("unpack ok\n"),

@@ -36,6 +36,9 @@ import { perfNote, recordCacheHit, recordCacheMiss } from "./perf-log";
 // (e.g. 1.5 MB) is only downloaded once even when 100+ object reads fire in parallel.
 const pendingDownloads = new Map<string, Promise<Buffer>>();
 
+// Same idea as pendingDownloads, for stat() — see the comment where this is used.
+const pendingStats = new Map<string, Promise<R2Stat>>();
+
 // isomorphic-git's own ref resolution tries several candidate paths in order
 // (packed-refs, <ref>, refs/<ref>, refs/tags/<ref>, refs/heads/<ref>) on every
 // resolveRef call, and readObject probes a loose-object path before falling back
@@ -138,6 +141,71 @@ interface R2Stat {
 	isFile: () => boolean;
 	isDirectory: () => boolean;
 	isSymbolicLink: () => boolean;
+}
+
+function fileStat(size: number): R2Stat {
+	return {
+		type: "file",
+		mode: 0o100644,
+		size,
+		ino: 0,
+		mtimeMs: Date.now(),
+		ctimeMs: Date.now(),
+		uid: 1,
+		gid: 1,
+		dev: 1,
+		isFile: () => true,
+		isDirectory: () => false,
+		isSymbolicLink: () => false,
+	};
+}
+
+function dirStat(): R2Stat {
+	return {
+		type: "dir",
+		mode: 0o040000,
+		size: 0,
+		ino: 0,
+		mtimeMs: Date.now(),
+		ctimeMs: Date.now(),
+		uid: 1,
+		gid: 1,
+		dev: 1,
+		isFile: () => false,
+		isDirectory: () => true,
+		isSymbolicLink: () => false,
+	};
+}
+
+// The actual R2 round trip(s) behind stat() — factored out so concurrent callers
+// (see pendingStats above) can share a single in-flight call.
+async function resolveStatFromR2(
+	filepath: string,
+	ownerKey: string,
+	repoName: string,
+	relativePath: string,
+	cacheKey: string,
+): Promise<R2Stat> {
+	const r2Key = getR2Key(ownerKey, repoName, relativePath);
+
+	// HeadObject is cheaper than GetObject and avoids downloading file content
+	const meta = await headR2Object(r2Key);
+	if (meta !== null) {
+		return fileStat(meta.size);
+	}
+
+	// Not a file — check if it's a directory prefix
+	try {
+		const files = await listR2Files(`${r2Key}/`, 1);
+		if (files.length > 0) {
+			setCachedObject(cacheKey, DIR);
+			return dirStat();
+		}
+	} catch {}
+	// isomorphic-git's FileSystem.exists() catches code==='ENOENT' to return false;
+	// any other error is "unhandled" and aborts git.init / git.log / etc.
+	setCachedObject(cacheKey, MISSING);
+	throw enoent(filepath, "stat");
 }
 
 // R2 key pattern: repos/{ownerKey}/{repoName}/git/{path}
@@ -424,20 +492,7 @@ export class R2Backend {
 		// If content is cached we already know the file exists — skip HeadObject
 		const cached = getCache(cacheKey);
 		if (cached) {
-			return {
-				type: "file",
-				mode: 0o100644,
-				size: cached.length,
-				ino: 0,
-				mtimeMs: Date.now(),
-				ctimeMs: Date.now(),
-				uid: 1,
-				gid: 1,
-				dev: 1,
-				isFile: () => true,
-				isDirectory: () => false,
-				isSymbolicLink: () => false,
-			};
+			return fileStat(cached.length);
 		}
 
 		// The gitdir root (and other structural directories) gets stat'd repeatedly
@@ -448,72 +503,32 @@ export class R2Backend {
 		// paths that don't exist — HeadObject-then-ListObjects only to come up empty
 		// every time.
 		const marker = getCachedObject<StatMarker>(cacheKey);
-		if (marker?.kind === "dir") {
-			return {
-				type: "dir",
-				mode: 0o040000,
-				size: 0,
-				ino: 0,
-				mtimeMs: Date.now(),
-				ctimeMs: Date.now(),
-				uid: 1,
-				gid: 1,
-				dev: 1,
-				isFile: () => false,
-				isDirectory: () => true,
-				isSymbolicLink: () => false,
-			};
-		}
-		if (marker?.kind === "missing") {
-			throw enoent(filepath, "stat");
-		}
+		if (marker?.kind === "dir") return dirStat();
+		if (marker?.kind === "missing") throw enoent(filepath, "stat");
 
-		const r2Key = getR2Key(ownerKey, repoName, relativePath);
+		// The marker cache above only helps *repeated* lookups — it can't help
+		// several concurrent callers that all miss the cache at the same instant,
+		// since none of them can see a result the others haven't produced yet.
+		// git-http-iso.ts's listAllRefs, for instance, fires listBranches/listTags/
+		// resolveRef(HEAD)/currentBranch all in one Promise.all, and each
+		// independently stats the gitdir root first — measured 4 concurrent callers
+		// = 4 real HeadObject+ListObjects pairs against the identical key. Coalesce
+		// concurrent stat() calls the same way readFile already coalesces concurrent
+		// downloads (pendingDownloads, above).
+		const existingStat = pendingStats.get(cacheKey);
+		if (existingStat) return existingStat;
 
-		// HeadObject is cheaper than GetObject and avoids downloading file content
-		const meta = await headR2Object(r2Key);
-		if (meta !== null) {
-			return {
-				type: "file",
-				mode: 0o100644,
-				size: meta.size,
-				ino: 0,
-				mtimeMs: Date.now(),
-				ctimeMs: Date.now(),
-				uid: 1,
-				gid: 1,
-				dev: 1,
-				isFile: () => true,
-				isDirectory: () => false,
-				isSymbolicLink: () => false,
-			};
-		}
-
-		// Not a file — check if it's a directory prefix
-		try {
-			const files = await listR2Files(`${r2Key}/`, 1);
-			if (files.length > 0) {
-				setCachedObject(cacheKey, DIR);
-				return {
-					type: "dir",
-					mode: 0o040000,
-					size: 0,
-					ino: 0,
-					mtimeMs: Date.now(),
-					ctimeMs: Date.now(),
-					uid: 1,
-					gid: 1,
-					dev: 1,
-					isFile: () => false,
-					isDirectory: () => true,
-					isSymbolicLink: () => false,
-				};
-			}
-		} catch {}
-		// isomorphic-git's FileSystem.exists() catches code==='ENOENT' to return false;
-		// any other error is "unhandled" and aborts git.init / git.log / etc.
-		setCachedObject(cacheKey, MISSING);
-		throw enoent(filepath, "stat");
+		const statPromise = resolveStatFromR2(
+			filepath,
+			ownerKey,
+			repoName,
+			relativePath,
+			cacheKey,
+		).finally(() => {
+			pendingStats.delete(cacheKey);
+		});
+		pendingStats.set(cacheKey, statPromise);
+		return statPromise;
 	}
 
 	/**
