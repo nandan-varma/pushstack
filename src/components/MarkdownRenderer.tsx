@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Check, Copy } from "lucide-react";
+import { type ComponentPropsWithoutRef, useMemo, useRef } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
@@ -28,14 +30,41 @@ function isExternalLink(href: string): boolean {
 	return /^(https?:\/\/|mailto:|data:|#)/.test(href);
 }
 
+function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
+	const preRef = useRef<HTMLPreElement>(null);
+	const { copied, copy } = useCopyToClipboard();
+
+	return (
+		<div className="group relative">
+			<pre ref={preRef} {...props}>
+				{children}
+			</pre>
+			<button
+				type="button"
+				onClick={() => copy(preRef.current?.textContent ?? "")}
+				aria-label={copied ? "Copied" : "Copy code"}
+				className="absolute top-2 right-2 rounded-md border border-[var(--chip-line)] bg-[var(--card-bg)] p-1.5 text-[var(--sea-ink-soft)] opacity-0 transition-opacity hover:text-[var(--sea-ink)] group-hover:opacity-100 focus-visible:opacity-100"
+			>
+				{copied ? (
+					<Check className="size-3.5" />
+				) : (
+					<Copy className="size-3.5" />
+				)}
+			</button>
+		</div>
+	);
+}
+
 function buildComponents(
 	owner?: string,
 	name?: string,
 	branch?: string,
 ): Components {
-	if (!owner || !name) return {};
+	const base: Components = { pre: CodeBlock };
+	if (!owner || !name) return base;
 
 	return {
+		...base,
 		a: ({ href, children, ...props }) => {
 			if (!href || isExternalLink(href)) {
 				return (
