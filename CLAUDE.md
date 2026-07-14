@@ -35,7 +35,7 @@ Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 **Routing**: `src/routes/` — file-based. API routes live under `src/routes/api/`. The catch-all git route is `src/routes/api/git.$.ts` (handles the full Git HTTP smart protocol).
 
 **Server logic**: `src/server/` — pure server-side modules, imported only inside `createServerFn` or API handlers. Key modules:
-- `git-r2-backend.ts` — isomorphic-git `fs` plugin that reads/writes git objects directly to/from Cloudflare R2; used for read-only operations (clone/fetch) without touching local disk
+- `git-r2-backend.ts` — isomorphic-git `fs` plugin that reads/writes git objects directly to/from Cloudflare R2; used for read-only operations (clone/fetch) without touching local disk. `detectLooseObjectsHint()` caches, per repo, whether any loose objects exist at all (one cheap bounded LIST) — most repos are fully packed, so without this every commit walked by `git.log` pays a doomed R2 round trip probing a loose-object path that's guaranteed to 404. Flipped back to "present" the instant `writeFile` actually writes a loose object, so it can never go stale mid-push.
 - `git-storage-naming.ts` — canonical R2 key derivation (`repos/{ownerKey}/{repoName}/git/…`); owns all storage key construction — never construct R2 keys manually
 - `git-http-iso.ts` — Git smart HTTP protocol handler (upload-pack / receive-pack) using isomorphic-git; no native git binary
 - `git-auth.ts` — per-request git auth; fallback chain: Better Auth session → PAT (password starting with `ghp_`) → username/password
@@ -61,6 +61,8 @@ Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 **Auth**: Better Auth (`src/lib/auth.ts`), session accessed server-side via `src/lib/auth-session.ts` → `src/server/session.ts`. `getCurrentUser()` throws on unauthenticated requests; `getCurrentUserOptional()` returns null. Git auth (Basic over HTTPS + PATs) in `src/server/git-auth.ts`. Password reset and email verification send through Resend (`src/lib/email.ts`), wired into Better Auth's `sendResetPassword`/`sendVerificationEmail` hooks.
 
 **Client data fetching**: All TanStack Query keys and `queryOptions` factories live in `src/lib/query-options.ts` — always source keys from `queryKeys` there instead of inlining strings.
+
+**Heavy client-only dependencies** (`react-markdown`+`remark-gfm`+`rehype-highlight` in `MarkdownRenderer`, Shiki in `CodeViewer`) are `React.lazy`-loaded at every call site, not just imported directly — these routes (tree/repo-home, blob, issue/PR/comment bodies) are hot paths, and eagerly bundling them adds hundreds of KB to a chunk that most visits don't need. Follow the same `lazy(() => import(...))` + `Suspense` pattern for any new heavy, conditionally-rendered client dependency.
 
 **Access control**: `RepositoryAccess` (role: anonymous/read/write/admin/owner, canRead/canWrite/canModerate flags) is computed exclusively in `repo-access.ts` — see above. Call it server-side before any repo mutation.
 
@@ -94,3 +96,5 @@ RESEND_EMAIL_FROM=...              # optional, falls back to a hardcoded address
 - Biome (not ESLint/Prettier) for lint and format. Config in `biome.json`.
 - Add shadcn components via `pnpm dlx shadcn@latest add <component>` — don't hand-write `src/components/ui/*`.
 - The R2 `S3Client` (`src/lib/r2.ts`) is a lazily-created singleton configured with an explicit keep-alive `https.Agent` (`@smithy/node-http-handler`'s `NodeHttpHandler`) — a page load can fire hundreds of R2 object reads, so connection reuse matters. Don't construct a second `S3Client` elsewhere; go through `getR2Client()`.
+- Repository names are restricted to `/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/` (`repositories.ts`'s `repoNameSchema`) — this isn't cosmetic, it's the thing that stops a name of `..` or containing `/` from escaping the storage root via `getRepoPath`'s `path.join`. `getRepoPath` and `sanitizeStorageSegment` (`git-storage-naming.ts`) both re-sanitize/verify containment as defense in depth, but don't loosen the input-side regex on the assumption those alone are enough.
+- `MarkdownRenderer`'s link/image renderer is one of the few places rendering fully attacker-controlled content (issue/PR/comment bodies, READMEs) as real `<a href>`/`<img src>` attributes — any change there must keep going through `isSafeHref`/`isSafeImageSrc` (scheme allowlist: relative paths, http(s), mailto; data: images only). Don't reintroduce a raw `<a href={href}>` fallback without that check.
