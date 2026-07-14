@@ -106,7 +106,7 @@ function CommitDetailPage() {
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex flex-wrap items-start justify-between gap-4">
+			<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
 				<div className="min-w-0 flex-1">
 					<CommitMessage
 						message={commit.message}
@@ -137,7 +137,7 @@ function CommitDetailPage() {
 						)}
 					</div>
 				</div>
-				<div className="flex shrink-0 flex-wrap items-center gap-2">
+				<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 					<Link
 						to="/repo/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: commit.sha, _splat: "" }}
