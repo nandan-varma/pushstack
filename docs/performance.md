@@ -63,7 +63,21 @@ watch for when adding new code.
 6. **R2 request coalescing** — `git-r2-backend.ts`'s `pendingDownloads` map
    ensures concurrent reads for the same not-yet-cached R2 key (e.g. 100
    object reads all wanting the same pack file mid-walk) share one download
-   instead of firing 100.
+   instead of firing 100. `pendingStats` does the same for `stat()` calls —
+   isomorphic-git fires several *concurrent* ref/branch lookups that each
+   independently stat the gitdir root, and on a cold cache none of them can
+   see a result the others haven't produced yet; measured 4 concurrent
+   callers as 4 real `HeadObject`+`ListObjects` pairs against the identical
+   key before this existed.
+
+7. **`repositories.ts`'s repo-row cache** (`fetchRepoRowByName`, 5-second TTL
+   + in-flight coalescing) — a single-join, cached lookup that both the web
+   UI's `getRepositoryByName` and git-auth's `findRepositoryByName` share.
+   Every git HTTP operation makes at least two requests (info/refs, then
+   upload-pack/receive-pack), and `findRepositoryByName` used to be two
+   sequential, fully uncached queries paid fresh on *every single one* of
+   them; routing it through the same cache the web pages already used means
+   the second request of a push typically gets a free hit.
 
 ## Parallelism over sequential waiting
 
@@ -86,6 +100,10 @@ the codebase, worth matching the shape of when adding new code:
 - `git-r2-backend.ts`'s `prefetchAllPacks` downloads every pack file in
   parallel *before* a sequential `git.log` walk starts, rather than letting
   isomorphic-git fetch packs lazily and serially as the walk needs them.
+- `git-http-iso.ts`'s `handleReceivePackIso` applies every ref update in a
+  push (compare-and-swap check, then write/delete) in one `Promise.all` —
+  each ref only touches its own ref file, so a multi-ref push (`git push
+  --all`/`--tags`) applies them all concurrently instead of one at a time.
 - `git-last-commit.ts`'s `getLastCommitsForTree` walks commit history in
   fixed-size batches, prefetching each batch's tree reads in parallel before
   processing that batch sequentially (the "which entries are still
@@ -100,6 +118,37 @@ commit chain walk only reveals the next oid to fetch after reading the
 current commit, and a resolved access decision has to exist before a gated
 query runs. The fix in those cases is caching/prefetching around the
 sequential part, not fighting the dependency.
+
+## Case study: a "safety check" that was itself the bug
+
+`git-http-iso.ts`'s `repackLocal` consolidates a push's fragmented pack files
+into one, but for a long time the consolidation only ever happened *locally*
+— nothing told R2 to delete the packs it had just made redundant
+(`syncRepositoryToR2Unlocked` deliberately never deletes anything under
+`objects/`, for good reason — see [git-storage.md](./git-storage.md)). The
+result: every single push left one more permanent pack file in R2, forever,
+making both future pushes (more to hydrate) and clones (more packs to
+prefetch) slower as history grew — completely defeating the point of
+consolidating in the first place.
+
+Fixing that alone wasn't enough, because `repackLocal`'s own safety check
+(only delete old packs if the new pack's object count is at least as high as
+the old packs' combined count — a guard against an incomplete traversal
+silently losing objects) was **structurally broken**: the moment packs ever
+overlap in content, the "old" side double-counts objects that appear in more
+than one old pack, so it almost always comes out higher than the new
+deduplicated count. Once that happened once, it happened every time after —
+a permanent, silent lockout from ever consolidating again. This is why a
+repo can accumulate many packs despite the consolidation code running (and
+"succeeding," from its own perspective) on every push.
+
+The lesson: **a safety check's assumptions can quietly stop holding once
+something it depends on has already partially failed once.** The count
+comparison assumed old packs were always disjoint — true until the very
+first time the check itself declined to clean up. The fix replaced the
+count comparison with a check on the actual property that matters
+(traversal completeness — did every object the walk visited get read
+successfully), which doesn't have that failure mode.
 
 ## The `perf-log` instrumentation convention
 
@@ -123,6 +172,36 @@ path**: wrap the handler in `perfContext`, wrap each meaningfully-awaited
 sub-call in `perfStep`. This is what made every fix described above possible
 to actually find — the dev server's logs show a full timing breakdown for any
 slow page load, rather than a single opaque total.
+
+## Cache freshness signaling (the "new commits" banner)
+
+The tiered `staleTime`s above are a trade-off: the longer they are, the
+longer a page can keep showing data that's genuinely out of date if someone
+else pushed in the meantime. Rather than shortening `staleTime` (which
+undoes the caching win for everyone, all the time, to cover the rare case
+someone else just pushed), `repositoryBranchHeadQueryOptions`
+(`query-options.ts`) is a deliberately *separate* query — `staleTime: 0`,
+`refetchInterval: 20_000`, `refetchOnWindowFocus: true` — that exists purely
+to detect staleness, not to serve data. It's backed by `getBranchHead`
+(`files.ts` → `getBranchHeadSha` in `git-branch-ops.ts`), the cheapest
+possible check: a single ref resolve, no branch listing, no commit walk,
+since it's called every 20s from every open repo tab.
+
+`useBranchUpdateBanner` (`hooks/use-branch-update-banner.ts`) compares each
+poll against the SHA seen when it started watching and, on a mismatch, shows
+`BranchUpdateBanner` instead of silently continuing to serve the stale
+cached tree/commit data. Reloading invalidates `["repos", repoId]` — every
+repo-scoped query key is nested under that prefix (see
+[server-functions.md](./server-functions.md)), so one partial-match
+invalidation busts everything a push could have changed, and (with
+`invalidateQueries`'s default `refetchType: "active"`) only refetches
+whatever's actually mounted right now, not every cached-but-unmounted query
+for that repo.
+
+This is the general pattern for any future "long cache, but tell me if it's
+actually gone stale" need: a separate always-polling query for the cheapest
+possible freshness signal, decoupled from the (deliberately long-lived)
+query that serves the actual data.
 
 ## R2 resilience (`src/lib/r2-operations.ts`)
 

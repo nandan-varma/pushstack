@@ -93,7 +93,15 @@ calls, plus caching:
   negative mid-push.
 - **Request coalescing** (`pendingDownloads` map) — if 100 concurrent object
   reads all want the same not-yet-cached pack file, only one R2 `GetObject`
-  fires; the other 99 await the same in-flight promise.
+  fires; the other 99 await the same in-flight promise. `stat()` has the same
+  problem in a different shape: isomorphic-git fires several *concurrent*
+  calls (`listBranches`/`listTags`/`resolveRef(HEAD)`/`currentBranch`, e.g. in
+  `git-http-iso.ts`'s `listAllRefs`) that each independently stat the gitdir
+  root before doing their own work — on a cold cache all of them miss at the
+  same instant (none can see a result the others haven't produced yet), so the
+  marker cache above doesn't help; measured 4 concurrent callers as 4 real
+  `HeadObject`+`ListObjects` pairs against the identical key. A second map,
+  `pendingStats`, coalesces these the same way.
 
 `prefetchAllPacks(ownerKey, repoName)` is the other major lever: since walking
 a commit chain is inherently sequential (you only learn the next oid to fetch
@@ -130,11 +138,16 @@ file edits, branch creation, merges) need real filesystem semantics that
    already exist in R2 (checked against a 5-second-TTL cached R2 listing) —
    loose objects and packs are never re-uploaded once present. Mutable files
    (`HEAD`, `config`, `packed-refs`, everything under `refs/`) are always
-   re-uploaded and stale ones are deleted. **Objects are never deleted here**
-   — a local checkout being transiently incomplete (a caching quirk, a
-   mid-hydration race) must never be read as "this object should no longer
-   exist in R2"; only `repackLocal` (git-http-iso.ts, with its own
-   object-count safety check) is allowed to remove pack files.
+   re-uploaded and stale ones are deleted. **This function itself never
+   deletes anything under `objects/`** — a local checkout being transiently
+   incomplete (a caching quirk, a mid-hydration race) must never be read as
+   "this object should no longer exist in R2." The one caller allowed to
+   delete specific objects is `handleReceivePackIso` (`git-http-iso.ts`),
+   which explicitly deletes the exact R2 keys `repackLocal` just proved
+   redundant, *after* confirming the replacement pack synced successfully —
+   see the receive-pack section below. This distinction used to be a real
+   bug: repackLocal deleted old packs locally, but nothing told R2, so every
+   push left one more permanent pack file behind forever.
 
 All three steps run inside `withRepositoryLock(ownerKey, repoName, fn)` — a
 simple promise-chain mutex, one per `{ownerKey}/{repoName}` key, so concurrent
@@ -175,13 +188,46 @@ wrapper around a native `git http-backend`.
 - **`handleUploadPackIso`** (clone/fetch) — reads directly against `r2Backend`,
   no local hydration needed, since this is a pure read path.
 - **`handleReceivePackIso`** (push) — runs under `withReceivePackLock`: hydrate
-  the repo locally, apply the incoming pack (`indexPack` + ref updates need
-  local disk), sync back to R2. May trigger `repackLocal` afterward to keep
-  the pack count from growing unbounded across many small pushes (bounded by
-  an object-count safety check so it never discards data).
+  the repo locally, apply the incoming pack (`indexPack`), apply ref updates
+  (compare-and-swap per ref, in parallel — a multi-ref push like `git push
+  --all` applies all of them concurrently since each only touches its own ref
+  file), then `repackLocal`.
+
+  `repackLocal` consolidates all local pack files into one, but only when
+  `countLocalPacks` is already at or above `REPACK_PACK_COUNT_THRESHOLD` (4) —
+  below that, it's a no-op. Consolidating is O(total repo object count) (a
+  full reachability traversal + `packObjects` + `indexPack` over *everything*,
+  not just what this push added), so doing it on every single push would make
+  push latency grow with total repo size forever instead of with the size of
+  the just-pushed delta; the threshold defers that cost until pack
+  fragmentation actually matters.
+
+  Its safety check for whether the old packs are actually safe to delete is
+  traversal **completeness** (did every object the reachability walk visited
+  actually get read successfully — `collectReachableOids`'s `complete` flag),
+  not an object-count comparison. An earlier count-based check (new
+  consolidated pack's object count vs. sum of old packs' counts) was
+  structurally broken: once packs ever overlap in content, the old side
+  double-counts objects present in more than one old pack, so it almost
+  always came out higher than the new deduplicated count — which permanently
+  refused to ever consolidate again after the first time it happened. That's
+  exactly how a repo can end up with many packs despite this function running
+  on every push.
+
+  `repackLocal` only deletes the superseded pack/idx files *locally* and
+  returns their relative paths — `handleReceivePackIso` deletes the same keys
+  from R2 itself, but only *after* `withReceivePackLock`'s automatic
+  `syncRepositoryToR2` has already uploaded the new consolidated pack, so
+  there's never a window where R2 has neither the old nor the new pack.
 
 Auth for every git HTTP request goes through `src/server/git-auth.ts` — see
-[authentication.md](./authentication.md).
+[authentication.md](./authentication.md). Every git HTTP request (info/refs,
+then upload-pack/receive-pack — at least two per operation) resolves the
+target repository by owner+name; this goes through
+`repositories.ts`'s `findRepositoryByName`, which is the same cached,
+single-join `fetchRepoRowByName` the web UI's repo pages use — so the
+second request of a push typically gets a free cache hit instead of hitting
+Postgres again.
 
 ## Environment variables that tune this layer
 

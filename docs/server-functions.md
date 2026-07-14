@@ -46,6 +46,14 @@ history and diffs (`git-diff-iso.ts`). Every handler here follows the
 in `perfContext`/`perfStep` since this file backs the tree/blob/commit pages —
 the hottest read paths in the app.
 
+`getBranchHead` is the odd one out: it's not read by any page directly, only
+polled by `repositoryBranchHeadQueryOptions` to detect a push landing while a
+repo page is open (see [performance.md](./performance.md)'s "cache freshness
+signaling"). Deliberately a single ref resolve (`getBranchHeadSha` in
+`git-branch-ops.ts`) — not `getBranches` or `getCommits`, both of which do
+meaningfully more work than comparing one SHA warrants when called every 20s
+from every open tab.
+
 ### `issues.ts` / `pull-requests.ts` / `comments.ts`
 Split by resource (previously one combined `issues.ts`). Each owns its own
 schema validation, access checks, and activity logging:
