@@ -17,6 +17,7 @@ vi.mock("../git-cache", () => ({
 	invalidateCache: vi.fn(),
 	getCachedObject: vi.fn(),
 	setCachedObject: vi.fn(),
+	deleteCachedObject: vi.fn(),
 	invalidateObjectCache: vi.fn(),
 }));
 
@@ -170,6 +171,72 @@ describe("R2Backend.writeFile", () => {
 			expect.any(String),
 			expect.any(Buffer),
 			"application/octet-stream",
+		);
+	});
+
+	// Regression: a directory stat'd (and negatively cached) as "missing" before
+	// it had any content must stop being reported missing once a file is written
+	// under it — including the gitdir root itself, since that's stat'd on every
+	// isomorphic-git operation. invalidateObjectCache(cacheKey) only reaches the
+	// written file's own key (and any of its descendants), never its ancestors,
+	// so ancestor stat markers have to be cleared explicitly.
+	it("clears stat markers on every ancestor directory, including the repo root", async () => {
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
+
+		const backend = new R2Backend();
+		await backend.writeFile(
+			`${REPO_PATH}/refs/heads/main`,
+			Buffer.from("abc123"),
+		);
+
+		const clearedKeys = vi
+			.mocked(cache.deleteCachedObject)
+			.mock.calls.map(([key]) => key);
+		expect(clearedKeys).toEqual(
+			expect.arrayContaining([
+				"alice/myrepo/refs/heads",
+				"alice/myrepo/refs",
+				"alice/myrepo/",
+			]),
+		);
+	});
+});
+
+describe("R2Backend.unlink", () => {
+	it("clears stat markers on every ancestor directory", async () => {
+		vi.mocked(r2ops.deleteFromR2).mockResolvedValue(undefined);
+
+		const backend = new R2Backend();
+		await backend.unlink(`${REPO_PATH}/refs/heads/main`);
+
+		const clearedKeys = vi
+			.mocked(cache.deleteCachedObject)
+			.mock.calls.map(([key]) => key);
+		expect(clearedKeys).toEqual(
+			expect.arrayContaining([
+				"alice/myrepo/refs/heads",
+				"alice/myrepo/refs",
+				"alice/myrepo/",
+			]),
+		);
+	});
+});
+
+describe("R2Backend.rmdir", () => {
+	it("clears stat markers on every ancestor directory", async () => {
+		vi.mocked(r2ops.listAllR2Files).mockResolvedValue([]);
+
+		const backend = new R2Backend();
+		await backend.rmdir(`${REPO_PATH}/refs/heads`);
+
+		const clearedKeys = vi
+			.mocked(cache.deleteCachedObject)
+			.mock.calls.map(([key]) => key);
+		expect(clearedKeys).toEqual(
+			expect.arrayContaining(["alice/myrepo/refs", "alice/myrepo/"]),
 		);
 	});
 });

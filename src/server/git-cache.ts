@@ -45,6 +45,10 @@ export function setCachedObject<T extends object>(key: string, value: T): void {
 	objectCache.set(key, value);
 }
 
+export function deleteCachedObject(key: string): void {
+	objectCache.delete(key);
+}
+
 export function invalidateObjectCache(prefix: string): void {
 	for (const k of objectCache.keys()) {
 		if (k.startsWith(prefix)) objectCache.delete(k);

@@ -17,6 +17,7 @@ import {
 } from "#/lib/r2-operations";
 import {
 	deleteCache,
+	deleteCachedObject,
 	getCache,
 	getCachedObject,
 	invalidateCache,
@@ -56,6 +57,28 @@ function enoent(filepath: string, verb: "open" | "stat"): Error {
 		new Error(`ENOENT: no such file or directory, ${verb} '${filepath}'`),
 		{ code: "ENOENT" },
 	);
+}
+
+// A file's own cache key is never a prefix of its ancestor directories' cache
+// keys (it's the other way around), so invalidateObjectCache(cacheKey) — which
+// only clears keys *starting with* the written/deleted path — can never reach a
+// stale "dir"/"missing" stat marker cached on a parent directory. Without this,
+// a directory stat'd as missing before it had any content (e.g. the gitdir root
+// on a brand-new repo, or refs/heads before the first branch push) stays
+// negatively cached forever, even after a write puts real content under it.
+function ancestorCacheKeys(
+	ownerKey: string,
+	repoName: string,
+	relativePath: string,
+): string[] {
+	const keys: string[] = [];
+	let dir = relativePath;
+	while (dir.includes("/")) {
+		dir = dir.slice(0, dir.lastIndexOf("/"));
+		keys.push(`${ownerKey}/${repoName}/${dir}`);
+	}
+	keys.push(`${ownerKey}/${repoName}/`);
+	return keys;
 }
 
 interface R2Stat {
@@ -214,13 +237,17 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await uploadToR2(r2Key, buffer, contentType);
 
-		// Invalidate file cache, any stale stat marker, and parent dir listing cache
+		// Invalidate file cache, any stale stat marker (including on ancestor
+		// directories — see ancestorCacheKeys), and parent dir listing cache
 		deleteCache(cacheKey);
 		invalidateObjectCache(cacheKey);
 		const parentDir = relativePath.includes("/")
 			? relativePath.slice(0, relativePath.lastIndexOf("/"))
 			: "";
 		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
+		for (const key of ancestorCacheKeys(ownerKey, repoName, relativePath)) {
+			deleteCachedObject(key);
+		}
 	}
 
 	/**
@@ -234,13 +261,17 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await deleteFromR2(r2Key);
 
-		// Invalidate file cache, any stale stat marker, and parent dir listing cache
+		// Invalidate file cache, any stale stat marker (including on ancestor
+		// directories — see ancestorCacheKeys), and parent dir listing cache
 		deleteCache(cacheKey);
 		invalidateObjectCache(cacheKey);
 		const parentDir = relativePath.includes("/")
 			? relativePath.slice(0, relativePath.lastIndexOf("/"))
 			: "";
 		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
+		for (const key of ancestorCacheKeys(ownerKey, repoName, relativePath)) {
+			deleteCachedObject(key);
+		}
 	}
 
 	/**
@@ -312,9 +343,14 @@ export class R2Backend {
 			await bulkDeleteFromR2(files.map((f) => f.key));
 		}
 
-		// Invalidate cache for this prefix
+		// Invalidate cache for this prefix, plus ancestor stat markers — removing
+		// the last entry under a directory can turn an ancestor from "dir" back
+		// into "missing" (see ancestorCacheKeys).
 		invalidateCache(`${ownerKey}/${repoName}/${prefix}`);
 		invalidateObjectCache(`${ownerKey}/${repoName}/${prefix}`);
+		for (const key of ancestorCacheKeys(ownerKey, repoName, relativePath)) {
+			deleteCachedObject(key);
+		}
 	}
 
 	/**
