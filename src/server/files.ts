@@ -25,11 +25,7 @@ import {
 	getCommit as gitGetCommit,
 } from "./git-history-ops";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
-import {
-	getRepoOrThrow,
-	requireReadAccess,
-	requireWriteAccess,
-} from "./repo-access";
+import { getRepoWithReadAccess, getRepoWithWriteAccess } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 function getStorage(repo: {
@@ -70,8 +66,7 @@ export const uploadFile = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		await requireWriteAccess(data.repoId, user.id);
-		const repo = await getRepoOrThrow(data.repoId);
+		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
 
 		// Decode content
 		const buffer = Buffer.from(data.content, "base64");
@@ -128,8 +123,7 @@ export const getFile = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -160,8 +154,7 @@ export const getFileDownloadUrl = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -197,8 +190,7 @@ export const listFiles = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -230,8 +222,7 @@ export const deleteFile = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		await requireWriteAccess(data.repoId, user.id);
-		const repo = await getRepoOrThrow(data.repoId);
+		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
 
 		const storage = getStorage(repo);
 
@@ -275,8 +266,7 @@ export const getBranches = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -302,8 +292,7 @@ export const createBranch = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		await requireWriteAccess(data.repoId, user.id);
-		const repo = await getRepoOrThrow(data.repoId);
+		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
 
 		const storage = getStorage(repo);
 
@@ -334,8 +323,7 @@ export const deleteBranch = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		await requireWriteAccess(data.repoId, user.id);
-		const repo = await getRepoOrThrow(data.repoId);
+		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
 
 		// Don't allow deleting default branch
 		if (data.name === repo.defaultBranch) {
@@ -367,8 +355,7 @@ export const getCommits = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -409,8 +396,7 @@ export const getCommit = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -456,8 +442,7 @@ export const getCommitDiff = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 
@@ -487,8 +472,7 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		await requireReadAccess(repo.id, currentUser?.id);
+		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
 
 		const storage = getStorage(repo);
 

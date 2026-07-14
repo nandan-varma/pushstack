@@ -459,7 +459,17 @@ async function syncRepositoryToR2Unlocked(
 		await bulkDeleteFromR2(staleKeys);
 	}
 
-	await updateRepositoryBackupMetadata(ownerDbId, ownerKey, repoName, repoPath);
+	// Disk-usage accounting is informational bookkeeping, not required for git
+	// correctness — don't hold the repo lock (or delay the push response) on a
+	// filesystem walk + DB write that nothing downstream depends on.
+	updateRepositoryBackupMetadata(ownerDbId, ownerKey, repoName, repoPath).catch(
+		(error: unknown) => {
+			console.error(
+				`Failed to update backup metadata for ${ownerKey}/${repoName}:`,
+				error,
+			);
+		},
+	);
 
 	// Invalidate the list cache so the next read sees the just-uploaded state
 	r2ListCache.delete(prefix);

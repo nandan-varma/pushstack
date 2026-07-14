@@ -100,30 +100,31 @@ export async function deleteRepo(
  * Get disk usage of a repository
  */
 export async function getRepoDiskUsage(dir: string): Promise<number> {
-	let totalSize = 0;
-
-	async function calculateSize(dirPath: string) {
+	async function calculateSize(dirPath: string): Promise<number> {
 		let entries: import("node:fs").Dirent<string>[];
 		try {
 			entries = await fs.readdir(dirPath, { withFileTypes: true });
 		} catch {
-			return;
+			return 0;
 		}
 
-		for (const entry of entries) {
-			const fullPath = path.join(dirPath, entry.name);
-
-			if (entry.isDirectory()) {
-				await calculateSize(fullPath);
-			} else {
+		// ponytail: repos can have thousands of loose objects — stat them concurrently
+		// instead of one fs call at a time, which serialized this walk on every push.
+		const sizes = await Promise.all(
+			entries.map(async (entry) => {
+				const fullPath = path.join(dirPath, entry.name);
+				if (entry.isDirectory()) {
+					return calculateSize(fullPath);
+				}
 				const stats = await fs.stat(fullPath);
-				totalSize += stats.size;
-			}
-		}
+				return stats.size;
+			}),
+		);
+
+		return sizes.reduce((sum, size) => sum + size, 0);
 	}
 
-	await calculateSize(dir);
-	return totalSize;
+	return calculateSize(dir);
 }
 
 /**

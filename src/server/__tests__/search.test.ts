@@ -34,6 +34,11 @@ vi.mock("../../db", () => ({
 			repositories: { findMany: findManyMock },
 			activities: { findMany: findManyMock },
 		},
+		select: vi.fn(() => ({
+			from: vi.fn(() => ({
+				where: vi.fn(() => []),
+			})),
+		})),
 	},
 }));
 

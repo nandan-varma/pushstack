@@ -102,16 +102,13 @@ export async function getCommitDiff(
 			...repo,
 			trees: [git.TREE({ ref: parent }), git.TREE({ ref: commitSha })],
 			map: async (filepath, [A, B]) => {
-				const typeA = await A?.type();
-				const typeB = await B?.type();
+				const [typeA, typeB] = await Promise.all([A?.type(), B?.type()]);
 
 				if (typeA === "tree" || typeB === "tree") return;
 
 				if (typeA && !typeB) {
-					const { blob } = await git.readBlob({
-						...repo,
-						oid: A ? await A.oid() : "",
-					});
+					const oidA = A ? await A.oid() : "";
+					const { blob } = await git.readBlob({ ...repo, oid: oidA });
 					const before = Buffer.from(blob).toString();
 					return {
 						path: filepath,
@@ -128,10 +125,8 @@ export async function getCommitDiff(
 				}
 
 				if (!typeA && typeB) {
-					const { blob } = await git.readBlob({
-						...repo,
-						oid: B ? await B.oid() : "",
-					});
+					const oidB = B ? await B.oid() : "";
+					const { blob } = await git.readBlob({ ...repo, oid: oidB });
 					const after = Buffer.from(blob).toString();
 					return {
 						path: filepath,
@@ -147,12 +142,16 @@ export async function getCommitDiff(
 					};
 				}
 
-				const oidA = A ? await A.oid() : "";
-				const oidB = B ? await B.oid() : "";
+				const [oidA, oidB] = await Promise.all([
+					A ? A.oid() : Promise.resolve(""),
+					B ? B.oid() : Promise.resolve(""),
+				]);
 
 				if (oidA !== oidB) {
-					const { blob: blobA } = await git.readBlob({ ...repo, oid: oidA });
-					const { blob: blobB } = await git.readBlob({ ...repo, oid: oidB });
+					const [{ blob: blobA }, { blob: blobB }] = await Promise.all([
+						git.readBlob({ ...repo, oid: oidA }),
+						git.readBlob({ ...repo, oid: oidB }),
+					]);
 					const contentA = Buffer.from(blobA).toString();
 					const contentB = Buffer.from(blobB).toString();
 
@@ -203,23 +202,22 @@ export async function getDiffBetweenBranches(
 ): Promise<DiffResult> {
 	const repo = await getRepoOptions(ownerKey, repoName);
 
-	const baseOid = await git.resolveRef({ ...repo, ref: baseBranch });
-	const compareOid = await git.resolveRef({ ...repo, ref: compareBranch });
+	const [baseOid, compareOid] = await Promise.all([
+		git.resolveRef({ ...repo, ref: baseBranch }),
+		git.resolveRef({ ...repo, ref: compareBranch }),
+	]);
 
 	const changes = await git.walk({
 		...repo,
 		trees: [git.TREE({ ref: baseOid }), git.TREE({ ref: compareOid })],
 		map: async (filepath, [A, B]) => {
-			const typeA = await A?.type();
-			const typeB = await B?.type();
+			const [typeA, typeB] = await Promise.all([A?.type(), B?.type()]);
 
 			if (typeA === "tree" || typeB === "tree") return;
 
 			if (typeA && !typeB) {
-				const { blob } = await git.readBlob({
-					...repo,
-					oid: A ? await A.oid() : "",
-				});
+				const oidA = A ? await A.oid() : "";
+				const { blob } = await git.readBlob({ ...repo, oid: oidA });
 				const before = Buffer.from(blob).toString();
 				return {
 					path: filepath,
@@ -236,10 +234,8 @@ export async function getDiffBetweenBranches(
 			}
 
 			if (!typeA && typeB) {
-				const { blob } = await git.readBlob({
-					...repo,
-					oid: B ? await B.oid() : "",
-				});
+				const oidB = B ? await B.oid() : "";
+				const { blob } = await git.readBlob({ ...repo, oid: oidB });
 				const after = Buffer.from(blob).toString();
 				return {
 					path: filepath,
@@ -255,12 +251,16 @@ export async function getDiffBetweenBranches(
 				};
 			}
 
-			const oidA = A ? await A.oid() : "";
-			const oidB = B ? await B.oid() : "";
+			const [oidA, oidB] = await Promise.all([
+				A ? A.oid() : Promise.resolve(""),
+				B ? B.oid() : Promise.resolve(""),
+			]);
 
 			if (oidA !== oidB) {
-				const { blob: blobA } = await git.readBlob({ ...repo, oid: oidA });
-				const { blob: blobB } = await git.readBlob({ ...repo, oid: oidB });
+				const [{ blob: blobA }, { blob: blobB }] = await Promise.all([
+					git.readBlob({ ...repo, oid: oidA }),
+					git.readBlob({ ...repo, oid: oidB }),
+				]);
 				const contentA = Buffer.from(blobA).toString();
 				const contentB = Buffer.from(blobB).toString();
 

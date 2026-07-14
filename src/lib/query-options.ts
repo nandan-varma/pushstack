@@ -68,6 +68,15 @@ export const queryKeys = {
 const SESSION_STALE_TIME = 60_000;
 const DEFAULT_STALE_TIME = 2 * 60_000;
 const LONG_LIVED_STALE_TIME = 10 * 60_000;
+// React Query's default gcTime (5min) is shorter than LONG_LIVED_STALE_TIME, so
+// unobserved long-lived entries (e.g. a branch list, or a commit tab the user
+// tabbed away from) were getting garbage-collected before they ever went stale —
+// silently forcing a refetch that staleTime said shouldn't be needed yet.
+const LONG_LIVED_GC_TIME = 30 * 60_000;
+// Commits and their diffs are addressed by SHA — content-addressed and immutable,
+// so once fetched they never need a background refetch.
+const IMMUTABLE_STALE_TIME = Number.POSITIVE_INFINITY;
+const IMMUTABLE_GC_TIME = 60 * 60_000;
 
 export function authSessionQueryOptions() {
 	return queryOptions({
@@ -120,6 +129,7 @@ export function repositoryBranchesQueryOptions(repoId: number) {
 		queryKey: queryKeys.repoBranches(repoId),
 		queryFn: () => getBranches({ data: { repoId } }),
 		staleTime: LONG_LIVED_STALE_TIME,
+		gcTime: LONG_LIVED_GC_TIME,
 	});
 }
 
@@ -170,6 +180,7 @@ export function repositoryCommitsQueryOptions({
 		queryKey: queryKeys.repoCommits(repoId, branchName, limit, skip),
 		queryFn: () => getCommits({ data: { repoId, branchName, limit, skip } }),
 		staleTime: LONG_LIVED_STALE_TIME,
+		gcTime: LONG_LIVED_GC_TIME,
 	});
 }
 
@@ -183,7 +194,8 @@ export function repositoryCommitQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoCommit(repoId, commitSha),
 		queryFn: () => getCommit({ data: { repoId, commitSha } }),
-		staleTime: LONG_LIVED_STALE_TIME,
+		staleTime: IMMUTABLE_STALE_TIME,
+		gcTime: IMMUTABLE_GC_TIME,
 	});
 }
 
@@ -197,7 +209,8 @@ export function repositoryCommitDiffQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.repoCommitDiff(repoId, commitSha),
 		queryFn: () => getCommitDiff({ data: { repoId, commitSha } }),
-		staleTime: LONG_LIVED_STALE_TIME,
+		staleTime: IMMUTABLE_STALE_TIME,
+		gcTime: IMMUTABLE_GC_TIME,
 	});
 }
 

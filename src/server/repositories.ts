@@ -184,20 +184,15 @@ export const getRepository = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		const access = await getRepositoryAccess(data.id, currentUser?.id);
-		if (!access) throw new Error("Repository not found");
-		if (!access.canRead) throw new Error("Access denied");
-
-		const repo = await db.query.repositories.findFirst({
-			where: eq(repositories.id, data.id),
-			with: { owner: true },
-		});
-
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
-
-		const [starCount, userStar] = await Promise.all([
+		// ponytail: none of these four depend on each other's result (all keyed
+		// off data.id / currentUser.id alone) — fire them together instead of
+		// four sequential round trips to Neon.
+		const [access, repo, starCount, userStar] = await Promise.all([
+			getRepositoryAccess(data.id, currentUser?.id),
+			db.query.repositories.findFirst({
+				where: eq(repositories.id, data.id),
+				with: { owner: true },
+			}),
 			getStarCount(data.id),
 			currentUser
 				? db.query.stars.findFirst({
@@ -208,6 +203,12 @@ export const getRepository = createServerFn({ method: "GET" })
 					})
 				: null,
 		]);
+
+		if (!access) throw new Error("Repository not found");
+		if (!access.canRead) throw new Error("Access denied");
+		if (!repo) {
+			throw new Error("Repository not found");
+		}
 
 		return {
 			...repo,
@@ -252,10 +253,10 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 			throw new Error("Repository not found");
 		}
 
-		const access = await getRepositoryAccess(repo.id, currentUser?.id);
-		if (!access?.canRead) throw new Error("Access denied");
-
-		const [starCount, userStar] = await Promise.all([
+		// ponytail: access check and star lookups only need repo.id / currentUser.id,
+		// which we already have — run them together instead of access-then-stars.
+		const [access, starCount, userStar] = await Promise.all([
+			getRepositoryAccess(repo.id, currentUser?.id),
 			getStarCount(repo.id),
 			currentUser
 				? db.query.stars.findFirst({
@@ -266,6 +267,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 					})
 				: null,
 		]);
+		if (!access?.canRead) throw new Error("Access denied");
 
 		return {
 			...repo,

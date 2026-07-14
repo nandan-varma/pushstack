@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { activities, issues, repositories, user } from "../db/schema";
@@ -131,9 +131,25 @@ export const getUserActivity = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const targetUserId = data.userId || currentUser.id;
+		const isOwnActivity = targetUserId === currentUser.id;
 
+		// ponytail: filtering to public repos in JS *after* the DB applied `limit`
+		// meant a page of recent-but-private activity could return far fewer rows
+		// than requested (or none) even when plenty of public activity existed
+		// further back — push the visibility filter into the query instead.
 		const activityList = await db.query.activities.findMany({
-			where: eq(activities.userId, targetUserId),
+			where: isOwnActivity
+				? eq(activities.userId, targetUserId)
+				: and(
+						eq(activities.userId, targetUserId),
+						inArray(
+							activities.repoId,
+							db
+								.select({ id: repositories.id })
+								.from(repositories)
+								.where(eq(repositories.visibility, "public")),
+						),
+					),
 			with: {
 				user: true,
 				repository: true,
@@ -142,19 +158,10 @@ export const getUserActivity = createServerFn({ method: "GET" })
 			limit: data.limit,
 		});
 
-		if (targetUserId === currentUser.id) {
-			return activityList.map((activity) => ({
-				...activity,
-				metadata: activity.metadata ?? {},
-			}));
-		}
-
-		return activityList
-			.filter((activity) => activity.repository?.visibility === "public")
-			.map((activity) => ({
-				...activity,
-				metadata: activity.metadata ?? {},
-			}));
+		return activityList.map((activity) => ({
+			...activity,
+			metadata: activity.metadata ?? {},
+		}));
 	});
 
 // Get repository activity feed
@@ -201,7 +208,16 @@ export const getGlobalActivity = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		await getCurrentUser();
 
+		// ponytail: same limit-then-filter issue as getUserActivity — filter to
+		// public repos in the query so `limit` rows are actually returned.
 		const activityList = await db.query.activities.findMany({
+			where: inArray(
+				activities.repoId,
+				db
+					.select({ id: repositories.id })
+					.from(repositories)
+					.where(eq(repositories.visibility, "public")),
+			),
 			with: {
 				user: true,
 				repository: true,
@@ -210,11 +226,8 @@ export const getGlobalActivity = createServerFn({ method: "GET" })
 			limit: data.limit,
 		});
 
-		// Filter to only public repositories
-		return activityList
-			.filter((activity) => activity.repository?.visibility === "public")
-			.map((activity) => ({
-				...activity,
-				metadata: activity.metadata ?? {},
-			}));
+		return activityList.map((activity) => ({
+			...activity,
+			metadata: activity.metadata ?? {},
+		}));
 	});

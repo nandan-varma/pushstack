@@ -35,6 +35,8 @@ vi.mock("../repo-access", () => ({
 	getRepoOrThrow: vi.fn(() => Promise.resolve(mockRepo)),
 	requireReadAccess: vi.fn(() => Promise.resolve()),
 	requireWriteAccess: vi.fn(() => Promise.resolve()),
+	getRepoWithReadAccess: vi.fn(() => Promise.resolve(mockRepo)),
+	getRepoWithWriteAccess: vi.fn(() => Promise.resolve(mockRepo)),
 }));
 
 vi.mock("../git-storage-naming", () => ({

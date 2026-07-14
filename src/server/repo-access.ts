@@ -46,9 +46,15 @@ export async function getRepositoryAccess(
 	repoId: number,
 	userId?: string | null,
 ): Promise<RepositoryAccess | null> {
-	const repository = await db.query.repositories.findFirst({
-		where: eq(repositories.id, repoId),
-	});
+	// ponytail: fire the collaborator lookup alongside the repo fetch instead of
+	// after it — most callers here are non-owners, so this is a real round trip
+	// most of the time; the rare owner case just discards the wasted query below.
+	const [repository, speculativeCollaboratorRole] = await Promise.all([
+		db.query.repositories.findFirst({
+			where: eq(repositories.id, repoId),
+		}),
+		userId ? getCollaboratorRole(repoId, userId) : Promise.resolve(null),
+	]);
 
 	if (!repository) {
 		return null;
@@ -90,7 +96,7 @@ export async function getRepositoryAccess(
 		};
 	}
 
-	const collaboratorRole = await getCollaboratorRole(repoId, userId);
+	const collaboratorRole = speculativeCollaboratorRole;
 
 	if (collaboratorRole === "admin") {
 		return {
@@ -199,4 +205,36 @@ export async function requireWriteAccess(
 	if (!(await canWriteRepo(repoId, userId))) {
 		throw new Error("No write access to repository");
 	}
+}
+
+// files.ts previously did `getRepoOrThrow` then `require*Access` back to back —
+// each hits the repositories table independently, so that was two sequential
+// round trips to Neon per request for data neither call needed from the other.
+// These run both in parallel and use allSettled (not Promise.all) so a missing
+// repo still surfaces "Repository not found" rather than racing with whichever
+// access-denied error happens to settle first.
+export async function getRepoWithReadAccess(
+	repoId: number,
+	userId?: string | null,
+) {
+	const [repoResult, accessResult] = await Promise.allSettled([
+		getRepoOrThrow(repoId),
+		requireReadAccess(repoId, userId),
+	]);
+	if (repoResult.status === "rejected") throw repoResult.reason;
+	if (accessResult.status === "rejected") throw accessResult.reason;
+	return repoResult.value;
+}
+
+export async function getRepoWithWriteAccess(
+	repoId: number,
+	userId?: string | null,
+) {
+	const [repoResult, accessResult] = await Promise.allSettled([
+		getRepoOrThrow(repoId),
+		requireWriteAccess(repoId, userId),
+	]);
+	if (repoResult.status === "rejected") throw repoResult.reason;
+	if (accessResult.status === "rejected") throw accessResult.reason;
+	return repoResult.value;
 }
