@@ -8,10 +8,9 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { NotFoundCard } from "@/components/NotFoundCard";
-import { RepoHeader } from "@/components/repo/RepoHeader";
-import { RepoTabNav } from "@/components/repo/RepoTabNav";
+import { RepoHeader, RepoHeaderSkeleton } from "@/components/repo/RepoHeader";
+import { RepoTabNav, RepoTabNavSkeleton } from "@/components/repo/RepoTabNav";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
 
@@ -77,8 +76,9 @@ function RepositoryPage() {
 
 	if (isLoading) {
 		return (
-			<div className="page-wrap px-4 py-10">
-				<Skeleton className="h-48" />
+			<div className="page-wrap px-4 py-8">
+				<RepoHeaderSkeleton />
+				<RepoTabNavSkeleton />
 			</div>
 		);
 	}

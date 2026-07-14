@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeActivity } from "@/lib/activity";
@@ -34,25 +35,22 @@ export function ActivityFeed({
 
 	if (isError) {
 		return (
-			<div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6 text-center">
-				<p className="mb-3 text-xs text-red-600 dark:text-red-400">
-					Couldn't load recent activity.
-				</p>
-				{onRetry && (
-					<Button size="sm" variant="outline" onClick={onRetry}>
-						Try again
-					</Button>
-				)}
-			</div>
+			<EmptyState
+				variant="error"
+				message="Couldn't load recent activity."
+				action={
+					onRetry && (
+						<Button size="sm" variant="outline" onClick={onRetry}>
+							Try again
+						</Button>
+					)
+				}
+			/>
 		);
 	}
 
 	if (!activities || activities.length === 0) {
-		return (
-			<div className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6 text-center">
-				<p className="text-xs text-[var(--sea-ink-soft)]">No recent activity</p>
-			</div>
-		);
+		return <EmptyState message="No recent activity yet." />;
 	}
 
 	return (

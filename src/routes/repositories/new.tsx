@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/query-options";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { LoadingButton } from "../../components/ui/loading-button";
 import { Textarea } from "../../components/ui/textarea";
 import { createRepository } from "../../server/repositories";
 
@@ -160,14 +161,17 @@ function NewRepositoryPage() {
 						</fieldset>
 
 						<div className="flex gap-3 pt-2">
-							<Button type="submit" disabled={createRepoMutation.isPending}>
-								{createRepoMutation.isPending
-									? "Creating…"
-									: "Create repository"}
-							</Button>
+							<LoadingButton
+								type="submit"
+								isLoading={createRepoMutation.isPending}
+								loadingLabel="Creating…"
+							>
+								Create repository
+							</LoadingButton>
 							<Button
 								type="button"
 								variant="outline"
+								disabled={createRepoMutation.isPending}
 								onClick={() => navigate({ to: "/dashboard" })}
 							>
 								Cancel

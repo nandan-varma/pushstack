@@ -11,6 +11,7 @@ import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,
@@ -178,11 +179,7 @@ function FileUploadPage() {
 	};
 
 	const isSubmitting = isEncoding || uploadMutation.isPending;
-	const submitLabel = isEncoding
-		? "Reading file…"
-		: uploadMutation.isPending
-			? "Uploading…"
-			: "Upload file";
+	const loadingLabel = isEncoding ? "Reading file…" : "Uploading…";
 
 	return (
 		<div className="mx-auto max-w-2xl">
@@ -315,12 +312,14 @@ function FileUploadPage() {
 
 					{/* Submit */}
 					<div className="flex gap-3 pt-1">
-						<Button
+						<LoadingButton
 							type="submit"
-							disabled={!file || !path || !commitMessage || isSubmitting}
+							disabled={!file || !path || !commitMessage}
+							isLoading={isSubmitting}
+							loadingLabel={loadingLabel}
 						>
-							{submitLabel}
-						</Button>
+							Upload file
+						</LoadingButton>
 						<Button
 							type="button"
 							variant="outline"

@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Textarea } from "@/components/ui/textarea";
 
 export function CommentForm({
@@ -28,12 +28,14 @@ export function CommentForm({
 					rows={6}
 				/>
 				<div className="flex justify-end">
-					<Button
+					<LoadingButton
 						onClick={onSubmit}
-						disabled={!value.trim() || isPending || disabled}
+						disabled={!value.trim() || disabled}
+						isLoading={isPending}
+						loadingLabel="Posting…"
 					>
-						{isPending ? "Posting..." : "Post Comment"}
-					</Button>
+						Post Comment
+					</LoadingButton>
 				</div>
 			</div>
 		</Card>

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,
@@ -241,22 +242,19 @@ function PullRequestsPage() {
 							<DialogFooter>
 								<Button
 									variant="outline"
+									disabled={createMutation.isPending}
 									onClick={() => setIsCreateOpen(false)}
 								>
 									Cancel
 								</Button>
-								<Button
+								<LoadingButton
 									onClick={handleCreatePR}
-									disabled={
-										!newPR.title.trim() ||
-										!newPR.headBranch ||
-										createMutation.isPending
-									}
+									disabled={!newPR.title.trim() || !newPR.headBranch}
+									isLoading={createMutation.isPending}
+									loadingLabel="Creating…"
 								>
-									{createMutation.isPending
-										? "Creating…"
-										: "Create pull request"}
-								</Button>
+									Create pull request
+								</LoadingButton>
 							</DialogFooter>
 						</DialogContent>
 					</Dialog>

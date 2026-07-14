@@ -5,7 +5,11 @@ import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
-import { DetailHeader } from "@/components/DetailHeader";
+import {
+	AvatarBodySkeleton,
+	DetailHeader,
+	DetailHeaderSkeleton,
+} from "@/components/DetailHeader";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { NotFoundCard } from "@/components/NotFoundCard";
@@ -14,9 +18,8 @@ import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	authSessionQueryOptions,
 	pullRequestCommentsQueryOptions,
@@ -173,11 +176,9 @@ function PullRequestDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="">
-				<div className="space-y-4">
-					<Skeleton className="h-8 w-1/2" />
-					<Skeleton className="h-64" />
-				</div>
+			<div className="space-y-6">
+				<DetailHeaderSkeleton />
+				<AvatarBodySkeleton />
 			</div>
 		);
 	}
@@ -222,33 +223,38 @@ function PullRequestDetailPage() {
 						<BackLink to="/repo/$owner/$name/pulls" params={{ owner, name }} />
 						{canMerge && (
 							<>
-								<Button
+								<LoadingButton
 									variant="default"
 									size="sm"
 									onClick={handleMerge}
-									disabled={mergeMutation.isPending}
+									isLoading={mergeMutation.isPending}
+									loadingLabel="Merging…"
+									disabled={updateMutation.isPending}
 								>
-									{mergeMutation.isPending ? "Merging..." : "Merge"}
-								</Button>
-								<Button
+									Merge
+								</LoadingButton>
+								<LoadingButton
 									variant="outline"
 									size="sm"
 									onClick={handleClose}
-									disabled={updateMutation.isPending}
+									isLoading={updateMutation.isPending}
+									loadingLabel="Closing…"
+									disabled={mergeMutation.isPending}
 								>
 									Close
-								</Button>
+								</LoadingButton>
 							</>
 						)}
 						{pr.status === "closed" && session?.user && (
-							<Button
+							<LoadingButton
 								variant="default"
 								size="sm"
 								onClick={handleReopen}
-								disabled={updateMutation.isPending}
+								isLoading={updateMutation.isPending}
+								loadingLabel="Reopening…"
 							>
 								Reopen
-							</Button>
+							</LoadingButton>
 						)}
 					</>
 				}

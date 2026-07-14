@@ -9,6 +9,24 @@ import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
 import { cn } from "@/lib/utils";
 import { toggleStar } from "@/server/repositories";
 
+export function RepoHeaderSkeleton() {
+	return (
+		<div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+			<div className="space-y-2">
+				<div className="flex items-center gap-2">
+					<div className="h-4 w-40 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-5 w-14 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+				</div>
+				<div className="h-3.5 w-56 animate-pulse rounded bg-[var(--surface-raised)]" />
+			</div>
+			<div className="flex shrink-0 items-center gap-2">
+				<div className="h-8 w-24 animate-pulse rounded-md bg-[var(--surface-raised)]" />
+				<div className="h-8 w-16 animate-pulse rounded-md bg-[var(--surface-raised)]" />
+			</div>
+		</div>
+	);
+}
+
 export function RepoHeader({
 	owner,
 	name,

@@ -3,7 +3,6 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { BinaryPreview } from "@/components/BinaryPreview";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	detectLanguage,
 	formatFileSize,
@@ -396,7 +395,28 @@ export function FileDiffViewer({
 	}, [parsedFiles]);
 
 	if (isLoading) {
-		return <Skeleton className="h-48" />;
+		return (
+			<div className="mt-4 space-y-3">
+				{[1, 2, 3].map((i) => (
+					<div
+						key={i}
+						className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-3"
+					>
+						<div className="flex min-w-0 flex-1 items-center gap-2.5">
+							<div className="size-4 shrink-0 animate-pulse rounded bg-[var(--surface-raised)]" />
+							<div
+								className="h-3.5 animate-pulse rounded bg-[var(--surface-raised)]"
+								style={{ width: `${45 - i * 8}%` }}
+							/>
+						</div>
+						<div className="flex shrink-0 items-center gap-2">
+							<div className="h-4 w-9 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+							<div className="h-4 w-9 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+						</div>
+					</div>
+				))}
+			</div>
+		);
 	}
 
 	if (parsedFiles.length === 0) {

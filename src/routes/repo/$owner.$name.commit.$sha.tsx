@@ -9,7 +9,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
 	repositoryByNameQueryOptions,
 	repositoryCommitDiffQueryOptions,
@@ -84,9 +83,37 @@ function CommitDetailPage() {
 
 	if (commitLoading) {
 		return (
-			<div className="space-y-4">
-				<Skeleton className="h-8 w-1/2" />
-				<Skeleton className="h-64" />
+			<div className="space-y-6">
+				<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+					<div className="min-w-0 flex-1 space-y-2.5">
+						<div className="h-6 w-2/3 max-w-md animate-pulse rounded-md bg-[var(--surface-raised)]" />
+						<div className="h-6 w-40 animate-pulse rounded bg-[var(--surface-raised)]" />
+					</div>
+					<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+						<div className="h-8 w-28 animate-pulse rounded-md bg-[var(--surface-raised)]" />
+						<div className="h-8 w-32 animate-pulse rounded-md bg-[var(--surface-raised)]" />
+					</div>
+				</div>
+				<Card className="p-6">
+					<div className="flex items-start gap-4">
+						<div className="size-12 shrink-0 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+						<div className="min-w-0 flex-1 space-y-4">
+							<div className="h-4 w-48 animate-pulse rounded bg-[var(--surface-raised)]" />
+							<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+								{[1, 2, 3, 4].map((i) => (
+									<div key={i} className="space-y-1.5">
+										<div className="h-3 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
+										<div className="h-4 w-20 animate-pulse rounded bg-[var(--surface-raised)]" />
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				</Card>
+				<div className="space-y-4">
+					<div className="h-5 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<FileDiffViewer isLoading />
+				</div>
 			</div>
 		);
 	}

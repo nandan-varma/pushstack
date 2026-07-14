@@ -4,7 +4,11 @@ import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
-import { DetailHeader } from "@/components/DetailHeader";
+import {
+	AvatarBodySkeleton,
+	DetailHeader,
+	DetailHeaderSkeleton,
+} from "@/components/DetailHeader";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
@@ -12,9 +16,8 @@ import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	authSessionQueryOptions,
 	issueCommentsQueryOptions,
@@ -126,11 +129,9 @@ function IssueDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="">
-				<div className="space-y-4">
-					<Skeleton className="h-8 w-1/2" />
-					<Skeleton className="h-64" />
-				</div>
+			<div className="space-y-6">
+				<DetailHeaderSkeleton />
+				<AvatarBodySkeleton />
 			</div>
 		);
 	}
@@ -169,14 +170,17 @@ function IssueDetailPage() {
 					<>
 						<BackLink to="/repo/$owner/$name/issues" params={{ owner, name }} />
 						{session?.user && (
-							<Button
+							<LoadingButton
 								variant={issue.status === "open" ? "outline" : "default"}
 								size="sm"
 								onClick={handleToggleStatus}
-								disabled={updateMutation.isPending}
+								isLoading={updateMutation.isPending}
+								loadingLabel={
+									issue.status === "open" ? "Closing…" : "Reopening…"
+								}
 							>
 								{issue.status === "open" ? "Close Issue" : "Reopen Issue"}
-							</Button>
+							</LoadingButton>
 						)}
 					</>
 				}
