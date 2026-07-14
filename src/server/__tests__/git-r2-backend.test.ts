@@ -32,7 +32,7 @@ vi.mock("../git-storage-naming", () => ({
 
 import * as r2ops from "#/lib/r2-operations";
 import * as cache from "../git-cache";
-import { R2Backend, R2RefBackend } from "../git-r2-backend";
+import { R2Backend } from "../git-r2-backend";
 
 const REPO_PATH = "repos/alice/myrepo/git";
 
@@ -238,68 +238,5 @@ describe("R2Backend.rmdir", () => {
 		expect(clearedKeys).toEqual(
 			expect.arrayContaining(["alice/myrepo/refs", "alice/myrepo/"]),
 		);
-	});
-});
-
-describe("R2RefBackend.writeRef", () => {
-	it("writes ref without expectedValue check when expectedValue is undefined", async () => {
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
-			key: "mock-key",
-			bucketName: "mock-bucket",
-		});
-
-		const backend = new R2RefBackend();
-		await backend.writeRef("alice", "myrepo", "refs/heads/main", "abc123");
-
-		expect(r2ops.uploadToR2).toHaveBeenCalledOnce();
-		expect(r2ops.downloadFromR2).not.toHaveBeenCalled();
-	});
-
-	it("throws conflict error when current ref does not match expectedValue", async () => {
-		vi.mocked(cache.getCache).mockReturnValue(null);
-		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({
-			content: Buffer.from("old-sha\n"),
-			contentType: undefined,
-			size: 8,
-			etag: undefined,
-		});
-
-		const backend = new R2RefBackend();
-		await expect(
-			backend.writeRef(
-				"alice",
-				"myrepo",
-				"refs/heads/main",
-				"new-sha",
-				"expected-sha",
-			),
-		).rejects.toThrow(/conflict/i);
-	});
-
-	it("writes successfully when current ref matches expectedValue", async () => {
-		vi.mocked(cache.getCache).mockReturnValue(null);
-		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({
-			content: Buffer.from("expected-sha\n"),
-			contentType: undefined,
-			size: 13,
-			etag: undefined,
-		});
-		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
-			key: "mock-key",
-			bucketName: "mock-bucket",
-		});
-
-		const backend = new R2RefBackend();
-		await expect(
-			backend.writeRef(
-				"alice",
-				"myrepo",
-				"refs/heads/main",
-				"new-sha",
-				"expected-sha",
-			),
-		).resolves.toBeUndefined();
-
-		expect(r2ops.uploadToR2).toHaveBeenCalledOnce();
 	});
 });

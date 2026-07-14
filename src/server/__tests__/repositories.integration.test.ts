@@ -147,6 +147,22 @@ describe("Repository Integration Tests", () => {
 				createRepository({ data: { name: "test-repo", visibility: "public" } }),
 			).rejects.toThrow("already exists");
 		});
+
+		// Repository name flows into a real path.join for local disk hydration
+		// (getRepoPath) — a name of ".." or containing "/" must never reach there.
+		it.each([
+			[".."],
+			["."],
+			["../../etc"],
+			["a/b"],
+			["a\\b"],
+			[""],
+		])("rejects unsafe repository name %j", async (name) => {
+			const { createRepository } = await import("../repositories");
+			expect(() =>
+				createRepository({ data: { name, visibility: "public" } }),
+			).toThrow();
+		});
 	});
 
 	describe("deleteRepository", () => {

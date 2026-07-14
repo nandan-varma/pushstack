@@ -5,8 +5,7 @@ import {
 	Link,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo } from "react";
-import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
 import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
@@ -20,6 +19,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { perfMark, perfTime } from "@/lib/perf-log";
 import {
 	repositoryBranchesQueryOptions,
@@ -31,6 +31,14 @@ import {
 	repositoryLastCommitsQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
+
+// The tree page is the most-visited route in the app (repo home / file
+// browser) and loads for every repo regardless of whether it has a README —
+// lazy-load react-markdown/remark-gfm/rehype-highlight out of its critical
+// bundle instead of paying for them on every visit, matching how the blob
+// page already lazy-loads CodeViewer and CommentCard already lazy-loads this
+// same component.
+const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	const isPathNotFound =
@@ -349,13 +357,15 @@ function TreeBrowserPage() {
 						</span>
 					</div>
 					<div className="p-6">
-						<MarkdownRenderer
-							content={readmeContent.content}
-							owner={owner}
-							name={name}
-							branch={activeBranch}
-							repoId={repo?.id}
-						/>
+						<Suspense fallback={<Skeleton className="h-40" />}>
+							<MarkdownRenderer
+								content={readmeContent.content}
+								owner={owner}
+								name={name}
+								branch={activeBranch}
+								repoId={repo?.id}
+							/>
+						</Suspense>
 					</div>
 				</div>
 			)}

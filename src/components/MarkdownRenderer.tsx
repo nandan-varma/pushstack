@@ -27,7 +27,28 @@ const REFERENCE_LINK_RE =
 	/^\/repo\/([^/]+)\/([^/]+)\/(commit|issues|pulls)\/(.+)$/;
 
 function isExternalLink(href: string): boolean {
-	return /^(https?:\/\/|mailto:|data:|#)/.test(href);
+	return /^(https?:\/\/|mailto:|#)/.test(href);
+}
+
+// Markdown link/image targets come from repo READMEs, issue bodies, PR bodies,
+// and comments — all attacker-writable by anyone with write access (or, for
+// public repos, anyone who can comment). Without this, a link like
+// `[click](javascript:fetch(...))` rendered as a raw `<a href>` would execute
+// in the viewer's session on click. Only allow schemeless (relative) hrefs or
+// an explicit http(s)/mailto scheme — anything else (javascript:, data:,
+// vbscript:, ...) is rejected outright rather than trying to blocklist every
+// dangerous scheme individually.
+export function isSafeHref(href: string): boolean {
+	const trimmed = href.trim();
+	if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true;
+	return /^(https?|mailto):/i.test(trimmed);
+}
+
+// Images can't execute a data: URI (unlike anchors, where data:text/html is a
+// real navigation risk), so inline base64 images — a common, legitimate case
+// in READMEs — stay allowed here even though isSafeHref rejects data: for links.
+export function isSafeImageSrc(src: string): boolean {
+	return isSafeHref(src) || /^data:image\//i.test(src.trim());
 }
 
 function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
@@ -66,7 +87,9 @@ function buildComponents(
 	return {
 		...base,
 		a: ({ href, children, ...props }) => {
-			if (!href || isExternalLink(href)) {
+			if (!href) return <>{children}</>;
+
+			if (isExternalLink(href)) {
 				return (
 					<a href={href} target="_blank" rel="noopener noreferrer" {...props}>
 						{children}
@@ -104,6 +127,7 @@ function buildComponents(
 			}
 
 			if (!branch) {
+				if (!isSafeHref(href)) return <>{children}</>;
 				return (
 					<a href={href} {...props}>
 						{children}
@@ -122,7 +146,9 @@ function buildComponents(
 			);
 		},
 		img: ({ src, alt, ...props }) => {
-			if (!src || isExternalLink(src) || !branch) {
+			if (!src) return null;
+			if (!isSafeImageSrc(src)) return null;
+			if (isExternalLink(src) || /^data:/i.test(src.trim()) || !branch) {
 				return <img src={src} alt={alt ?? ""} {...props} />;
 			}
 			const cleanSrc = src.replace(/^\.\//, "").replace(/^\//, "");

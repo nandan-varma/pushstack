@@ -47,6 +47,7 @@ vi.mock("../git-r2-backend", () => ({ r2Backend: mockR2Backend }));
 vi.mock("../git-storage-naming", () => ({
 	getRepoGitStorageRoot: (owner: string, repo: string) =>
 		`repos/${owner}/${repo}/git`,
+	sanitizeStorageSegment: (value: string) => value,
 }));
 
 // Now import after mocks
@@ -78,6 +79,23 @@ describe("GitManager - Repository Management", () => {
 			expect(result).toContain("123");
 			expect(result).toContain("test-repo");
 			expect(result).toMatch(/repos/);
+		});
+
+		// The git-storage-naming mock above is an identity passthrough, so this
+		// exercises getRepoPath's own containment check rather than
+		// sanitizeStorageSegment's (which is tested for real in
+		// git-storage-naming.test.ts) — belt-and-suspenders against a caller that
+		// forgot to pre-sanitize.
+		it("refuses to resolve a repoName that escapes the storage root", () => {
+			expect(() =>
+				GitManager.getRepoPath(testOwnerId, "../../../../etc/passwd"),
+			).toThrow(/outside storage root/);
+		});
+
+		it("refuses to resolve an ownerKey that escapes the storage root", () => {
+			expect(() =>
+				GitManager.getRepoPath("../../../../etc", testRepoName),
+			).toThrow(/outside storage root/);
 		});
 	});
 

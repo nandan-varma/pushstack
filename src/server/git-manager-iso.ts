@@ -11,7 +11,10 @@ import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { r2Backend } from "./git-r2-backend";
-import { getRepoGitStorageRoot } from "./git-storage-naming";
+import {
+	getRepoGitStorageRoot,
+	sanitizeStorageSegment,
+} from "./git-storage-naming";
 
 // ponytail: /tmp is the only writable dir on Vercel; homedir is read-only
 const GIT_BASE_PATH =
@@ -20,10 +23,28 @@ const DEFAULT_USER_NAME = "PushStack";
 const DEFAULT_USER_EMAIL = "system@pushstack.dev";
 
 /**
- * Get the filesystem path for a repository
+ * Get the filesystem path for a repository.
+ *
+ * ownerKey/repoName ultimately trace back to user input (repo name at
+ * creation, username at registration) — callers are expected to have already
+ * gone through sanitizeStorageSegment (e.g. via getRepoStorageCoordinates),
+ * but this is the actual path.join into real disk, so it re-sanitizes and
+ * verifies containment itself rather than trusting every call site to have
+ * done so upstream. Without this, a repo/owner segment of ".." (which
+ * sanitizeStorageSegment alone would leave unstripped were it ever skipped)
+ * joined via path.join resolves as a real directory traversal.
  */
 export function getRepoPath(ownerKey: string, repoName: string): string {
-	return path.join(GIT_BASE_PATH, ownerKey, repoName);
+	const safeOwnerKey = sanitizeStorageSegment(ownerKey);
+	const safeRepoName = sanitizeStorageSegment(repoName);
+	const resolved = path.resolve(GIT_BASE_PATH, safeOwnerKey, safeRepoName);
+	const base = path.resolve(GIT_BASE_PATH);
+	if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
+		throw new Error(
+			`Refusing to resolve repo path outside storage root: ${ownerKey}/${repoName}`,
+		);
+	}
+	return resolved;
 }
 
 // isomorphic-git re-parses a packfile's index from scratch on every readTree/log/readObject

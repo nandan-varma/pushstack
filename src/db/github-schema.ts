@@ -73,6 +73,13 @@ export const issues = pgTable(
 	(table) => ({
 		repoIdx: index("issue_repo_idx").on(table.repoId),
 		statusIdx: index("issue_status_idx").on(table.status),
+		// getIssues filters by (repoId, status) together on every issue-list
+		// page load — a composite index turns that into one index scan instead
+		// of intersecting two single-column indices.
+		repoStatusIdx: index("issue_repo_status_idx").on(
+			table.repoId,
+			table.status,
+		),
 	}),
 );
 
@@ -102,6 +109,9 @@ export const pullRequests = pgTable(
 	(table) => ({
 		repoIdx: index("pr_repo_idx").on(table.repoId),
 		statusIdx: index("pr_status_idx").on(table.status),
+		// getPullRequests filters by (repoId, status) together, same reasoning
+		// as issue_repo_status_idx above.
+		repoStatusIdx: index("pr_repo_status_idx").on(table.repoId, table.status),
 	}),
 );
 
@@ -149,6 +159,10 @@ export const stars = pgTable(
 	(table) => ({
 		repoIdx: index("star_repo_idx").on(table.repoId),
 		userIdx: index("star_user_idx").on(table.userId),
+		// getRepository/getRepositoryByName check "did this user star this repo"
+		// via (repoId, userId) together on every repo page load, same pattern as
+		// repository_collaborators' collab_repo_user_idx.
+		repoUserIdx: index("star_repo_user_idx").on(table.repoId, table.userId),
 	}),
 );
 

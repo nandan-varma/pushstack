@@ -25,7 +25,7 @@ import {
 	setCache,
 	setCachedObject,
 } from "./git-cache";
-import { GitRefNotFoundError, isR2NotFoundError } from "./git-errors";
+import { isR2NotFoundError } from "./git-errors";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
@@ -546,127 +546,8 @@ export class R2Backend {
 	}
 }
 
-/**
- * Atomic ref operations with ETag-based compare-and-swap
- */
-export class R2RefBackend {
-	/**
-	 * Read ref value (branch/tag)
-	 */
-	async readRef(
-		ownerId: string,
-		repoName: string,
-		ref: string,
-	): Promise<string> {
-		const cacheKey = `${ownerId}/${repoName}/${ref}`;
-
-		// Try cache first
-		const cached = getCache(cacheKey);
-		if (cached) {
-			return cached.toString("utf8").trim();
-		}
-
-		const r2Key = getR2Key(ownerId, repoName, ref);
-
-		try {
-			const result = await downloadFromR2(r2Key);
-			const value = Buffer.from(result.content).toString("utf8").trim();
-
-			// Cache the result
-			setCache(cacheKey, Buffer.from(value));
-
-			return value;
-		} catch (error) {
-			if (isR2NotFoundError(error)) {
-				throw new GitRefNotFoundError(`Ref not found: ${ref}`);
-			}
-			throw error;
-		}
-	}
-
-	/**
-	 * Write ref value atomically
-	 *
-	 * @param expectedValue - If provided, only update if current value matches (compare-and-swap)
-	 */
-	async writeRef(
-		ownerId: string,
-		repoName: string,
-		ref: string,
-		value: string,
-		expectedValue?: string,
-	): Promise<void> {
-		const r2Key = getR2Key(ownerId, repoName, ref);
-		const cacheKey = `${ownerId}/${repoName}/${ref}`;
-
-		// If expectedValue is provided, verify current value first
-		if (expectedValue !== undefined) {
-			try {
-				const currentValue = await this.readRef(ownerId, repoName, ref);
-				if (currentValue !== expectedValue) {
-					throw new Error(
-						`Ref update conflict: expected ${expectedValue}, found ${currentValue}`,
-					);
-				}
-			} catch (error) {
-				if (error instanceof GitRefNotFoundError && expectedValue !== null) {
-					throw new Error(
-						`Ref update conflict: ref exists but expected it to be null`,
-					);
-				}
-				if (!(error instanceof GitRefNotFoundError) || expectedValue !== null) {
-					throw error;
-				}
-			}
-		}
-
-		// Write new value
-		await uploadToR2(r2Key, Buffer.from(`${value}\n`), "text/plain");
-
-		// Update cache
-		setCache(cacheKey, Buffer.from(value));
-	}
-
-	/**
-	 * Delete ref atomically
-	 */
-	async deleteRef(
-		ownerId: string,
-		repoName: string,
-		ref: string,
-	): Promise<void> {
-		const r2Key = getR2Key(ownerId, repoName, ref);
-		const cacheKey = `${ownerId}/${repoName}/${ref}`;
-
-		await deleteFromR2(r2Key);
-		deleteCache(cacheKey);
-	}
-
-	/**
-	 * List all refs with a prefix
-	 */
-	async listRefs(
-		ownerId: string,
-		repoName: string,
-		prefix: string = "refs/",
-	): Promise<string[]> {
-		const r2Prefix = getR2Key(ownerId, repoName, prefix);
-
-		const files = await listAllR2Files(r2Prefix);
-
-		return files
-			.map((file) => {
-				// Remove the full R2 key prefix to get just the ref path
-				const basePrefix = `repos/${ownerId}/${repoName}/`;
-				return file.key.replace(basePrefix, "");
-			})
-			.sort();
-	}
-}
-
-// Export singleton instances
+// Export singleton instance
 export const r2Backend = new R2Backend();
-export const r2RefBackend = new R2RefBackend();
 
 // isomorphic-git's git.log() is inherently sequential — each commit's parent oid
 // is only known after reading that commit — so a deep walk against R2 pays one

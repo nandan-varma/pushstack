@@ -22,6 +22,20 @@ import {
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
+// Repository name flows into a real filesystem path.join (getRepoPath, for
+// local disk hydration on write) and into R2 storage keys — must start/end
+// with an alphanumeric so it can never be "." or "..", and can't contain "/"
+// or "\" so it can never smuggle in a multi-segment traversal.
+const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
+const repoNameSchema = z
+	.string()
+	.min(1)
+	.max(100)
+	.regex(
+		REPO_NAME_RE,
+		"Repository name may only contain letters, numbers, dots, hyphens, and underscores, and must start/end with a letter or number",
+	);
+
 async function getStarCount(repoId: number): Promise<number> {
 	const [row] = await db
 		.select({ count: sql`count(*)` })
@@ -120,7 +134,7 @@ export async function findRepositoryByName(
 
 // Create repository schema
 const createRepoSchema = z.object({
-	name: z.string().min(1).max(100),
+	name: repoNameSchema,
 	description: z.string().optional(),
 	visibility: z.enum(["public", "private"]).default("public"),
 });
@@ -344,7 +358,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 		z
 			.object({
 				id: z.number(),
-				name: z.string().min(1).max(100).optional(),
+				name: repoNameSchema.optional(),
 				description: z.string().optional(),
 				visibility: z.enum(["public", "private"]).optional(),
 			})

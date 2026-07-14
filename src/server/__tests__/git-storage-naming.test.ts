@@ -5,6 +5,7 @@ import {
 	getRepoStorageCoordinates,
 	getRepoStorageRoot,
 	getStorageOwnerKey,
+	sanitizeStorageSegment,
 } from "../git-storage-naming";
 
 const ownerWithUsername = {
@@ -74,5 +75,24 @@ describe("storage path helpers", () => {
 		const root = getRepoStorageRoot("a/b", "repo name");
 		expect(root).not.toContain(" ");
 		expect(root).toMatch(/^repos\//);
+	});
+});
+
+describe("sanitizeStorageSegment path traversal", () => {
+	it("collapses a bare '..' segment instead of passing it through", () => {
+		expect(sanitizeStorageSegment("..")).not.toBe("..");
+	});
+
+	it("collapses a bare '.' segment instead of passing it through", () => {
+		expect(sanitizeStorageSegment(".")).not.toBe(".");
+	});
+
+	it("still strips slash-based traversal (existing behavior)", () => {
+		expect(sanitizeStorageSegment("../../etc/passwd")).not.toContain("/");
+	});
+
+	it("getRepoStorageRoot never contains a resolvable '..' path segment", () => {
+		const root = getRepoStorageRoot("owner", "..");
+		expect(root.split("/")).not.toContain("..");
 	});
 });

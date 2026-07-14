@@ -10,11 +10,18 @@ type RepoLike = Pick<typeof repositories.$inferSelect, "ownerId" | "name"> & {
 	owner?: OwnerLike | null;
 };
 
-function sanitizeStorageSegment(value: string): string {
-	return value
+// Replacing slashes with "-" defeats a multi-segment traversal (e.g.
+// "../../etc"), but a segment that is *exactly* "." or ".." contains no slash
+// to replace and would otherwise pass through unchanged — and every consumer
+// of this value (getRepoPath in git-manager-iso.ts) joins it into a real
+// filesystem path via path.join, which does resolve ".." components. Collapse
+// those to a literal placeholder so a stored value can never traverse.
+export function sanitizeStorageSegment(value: string): string {
+	const cleaned = value
 		.trim()
 		.replace(/[\\/]+/g, "-")
 		.replace(/\s+/g, "-");
+	return cleaned === "." || cleaned === ".." ? "_" : cleaned;
 }
 
 export function getStorageOwnerKey(owner: OwnerLike): string {
