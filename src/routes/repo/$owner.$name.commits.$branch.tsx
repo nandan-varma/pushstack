@@ -88,7 +88,7 @@ function CommitsPage() {
 	return (
 		<div className="space-y-5">
 			{/* Toolbar */}
-			<div className="flex items-center justify-between gap-3">
+			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
 					<Select value={branch} onValueChange={handleBranchChange}>
 						<SelectTrigger size="sm">

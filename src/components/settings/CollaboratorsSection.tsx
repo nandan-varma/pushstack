@@ -98,7 +98,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 					</p>
 				)}
 
-				<div className="flex gap-2">
+				<div className="flex flex-col gap-2 sm:flex-row">
 					<Input
 						className="flex-1"
 						placeholder="Username"
@@ -115,7 +115,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 						value={role}
 						onValueChange={(value) => setRole(value as typeof role)}
 					>
-						<SelectTrigger className="w-32">
+						<SelectTrigger className="w-full sm:w-32">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>

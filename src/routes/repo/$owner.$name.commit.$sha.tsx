@@ -106,16 +106,16 @@ function CommitDetailPage() {
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex items-start justify-between gap-4">
-				<div className="flex-1">
+			<div className="flex flex-wrap items-start justify-between gap-4">
+				<div className="min-w-0 flex-1">
 					<CommitMessage
 						message={commit.message}
 						owner={owner}
 						name={name}
 						resolveReference={resolveReference}
 					/>
-					<div className="mt-3 flex items-center gap-3 text-[var(--sea-ink-soft)]">
-						<code className="px-2 py-1 rounded bg-[var(--chip-bg)] text-[var(--sea-ink)] border border-[var(--chip-line)] text-sm font-mono">
+					<div className="mt-3 flex flex-wrap items-center gap-3 text-[var(--sea-ink-soft)]">
+						<code className="max-w-full truncate rounded border border-[var(--chip-line)] bg-[var(--chip-bg)] px-2 py-1 font-mono text-sm text-[var(--sea-ink)]">
 							{commit.sha}
 						</code>
 						{commit.parent && commit.parent.length > 0 && (
@@ -137,7 +137,7 @@ function CommitDetailPage() {
 						)}
 					</div>
 				</div>
-				<div className="flex shrink-0 items-center gap-2">
+				<div className="flex shrink-0 flex-wrap items-center gap-2">
 					<Link
 						to="/repo/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: commit.sha, _splat: "" }}
@@ -162,8 +162,8 @@ function CommitDetailPage() {
 							{getInitials(commit.author?.name || "U")}
 						</AvatarFallback>
 					</Avatar>
-					<div className="flex-1">
-						<div className="flex items-center gap-2 mb-2">
+					<div className="min-w-0 flex-1">
+						<div className="mb-2 flex flex-wrap items-center gap-2">
 							<span className="font-medium text-[var(--sea-ink)]">
 								{commit.author?.name || "Unknown"}
 							</span>

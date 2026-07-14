@@ -89,7 +89,7 @@ export function FileTable({
 									..
 								</Link>
 							</td>
-							<td />
+							<td className="hidden md:table-cell" />
 						</tr>
 					)}
 					{files.map((file) => {
@@ -135,7 +135,7 @@ export function FileTable({
 										</Link>
 									)}
 								</td>
-								<td className="py-2.5 pr-4 text-right align-middle">
+								<td className="hidden py-2.5 pr-4 text-right align-middle md:table-cell">
 									{lastCommitsLoading ? (
 										<div className="ml-auto h-3 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
 									) : (

@@ -14,12 +14,12 @@ export function FilterTabs<T extends string>({
 	onTabChange: (value: T) => void;
 }) {
 	return (
-		<div className="flex items-center gap-5 border-b border-[var(--line)]">
+		<div className="flex items-center gap-5 overflow-x-auto border-b border-[var(--line)]">
 			{tabs.map(({ value, label, count }) => (
 				<button
 					key={value}
 					type="button"
-					className={`${filterTabBase} ${activeTab === value ? filterTabActive : filterTabInactive}`}
+					className={`${filterTabBase} shrink-0 ${activeTab === value ? filterTabActive : filterTabInactive}`}
 					onClick={() => onTabChange(value)}
 				>
 					{label}

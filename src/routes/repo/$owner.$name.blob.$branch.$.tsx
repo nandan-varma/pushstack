@@ -114,19 +114,19 @@ function FileBlobPage() {
 	return (
 		<div className="space-y-4">
 			{/* File Header */}
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-3">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-3">
 					<h1
 						title={filePath}
-						className="max-w-lg truncate text-2xl font-bold text-[var(--sea-ink)]"
+						className="min-w-0 truncate text-xl font-bold text-[var(--sea-ink)] sm:text-2xl"
 					>
 						{filePath}
 					</h1>
-					<span className="text-sm text-[var(--sea-ink-soft)]">
+					<span className="shrink-0 text-sm text-[var(--sea-ink-soft)]">
 						{formatFileSize(file.size || fileContent.length)}
 					</span>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex shrink-0 items-center gap-2">
 					<BackLink
 						to="/repo/$owner/$name/tree/$branch/$"
 						params={{

@@ -187,7 +187,7 @@ function TreeBrowserPage() {
 			)}
 
 			{/* Toolbar */}
-			<div className="flex items-center justify-between gap-3">
+			<div className="flex flex-wrap items-center justify-between gap-3">
 				{isCommitView ? (
 					<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-2 py-1 text-xs font-mono text-[var(--sea-ink-soft)]">
 						{activeBranch.slice(0, 7)}

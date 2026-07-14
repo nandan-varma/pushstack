@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 const tabLinkBase =
-	"border-b-2 border-transparent pb-3 text-sm font-medium text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]";
+	"shrink-0 border-b-2 border-transparent pb-3 text-sm font-medium text-[var(--sea-ink-soft)] transition hover:text-[var(--sea-ink)] [&.active]:border-[var(--lagoon-deep)] [&.active]:text-[var(--lagoon-deep)]";
 
 export function RepoTabNav({
 	owner,
@@ -18,7 +18,7 @@ export function RepoTabNav({
 }) {
 	return (
 		<div className="mb-6 border-b border-[var(--line)]">
-			<nav className="flex gap-6">
+			<nav className="flex gap-6 overflow-x-auto">
 				<Link
 					to="/repo/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch: currentBranch, _splat: "" }}

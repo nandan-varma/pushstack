@@ -147,7 +147,7 @@ function PullRequestsPage() {
 
 	return (
 		<div className="space-y-5">
-			<div className="flex items-center justify-between gap-4">
+			<div className="flex flex-wrap items-center justify-between gap-3">
 				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
 					Pull Requests
 				</h2>
@@ -181,7 +181,7 @@ function PullRequestsPage() {
 										placeholder="Pull request title"
 									/>
 								</div>
-								<div className="grid grid-cols-2 gap-4">
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 									<div className="space-y-1.5">
 										<Label htmlFor="base">Base branch</Label>
 										<Select
@@ -310,18 +310,25 @@ function PullRequestsPage() {
 							params={{ owner, name, id: pr.id.toString() }}
 							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < pullRequests.length - 1 ? "border-b border-[var(--line)]" : ""}`}
 						>
-							<div className="flex-1 space-y-1">
-								<div className="flex items-center gap-2">
-									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
+							<div className="min-w-0 flex-1 space-y-1">
+								<div className="flex min-w-0 items-center gap-2">
+									<span className="min-w-0 truncate text-sm font-medium text-[var(--sea-ink)]">
 										{pr.title}
 									</span>
-									<Badge variant={pullRequestStatusVariant(pr.status)}>
+									<Badge
+										className="shrink-0"
+										variant={pullRequestStatusVariant(pr.status)}
+									>
 										{pr.status}
 									</Badge>
 								</div>
-								<p className="text-xs text-[var(--sea-ink-soft)]">
-									#{pr.id} opened {new Date(pr.createdAt).toLocaleDateString()}{" "}
-									by {pr.author?.name || "Unknown"} &middot;{" "}
+								<p className="flex flex-wrap items-center gap-x-1 text-xs text-[var(--sea-ink-soft)]">
+									<span>
+										#{pr.id} opened{" "}
+										{new Date(pr.createdAt).toLocaleDateString()} by{" "}
+										{pr.author?.name || "Unknown"}
+									</span>
+									<span className="hidden sm:inline">&middot;</span>
 									<code className="inline-flex items-center gap-1 font-mono">
 										{pr.sourceBranch}
 										<ArrowRight className="size-3" />
