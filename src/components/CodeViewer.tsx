@@ -94,7 +94,7 @@ export default function CodeViewer({
 						dangerouslySetInnerHTML={{ __html: html }}
 					/>
 				) : (
-					<pre className="m-0 p-4 text-sm leading-relaxed text-[var(--sea-ink)] bg-[var(--bg-base)] whitespace-pre">
+					<pre className="m-0 w-max min-w-full p-4 text-sm leading-relaxed text-[var(--sea-ink)] bg-[var(--bg-base)] whitespace-pre">
 						<code>{code}</code>
 					</pre>
 				)}

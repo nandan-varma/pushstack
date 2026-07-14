@@ -253,6 +253,11 @@ pre code {
   line-height: 1.5;
   font-size: 0.875rem;
   white-space: pre;
+  /* Without this the pre's background stays at the visible viewport width
+     while its nowrap content overflows past it, so the background appears
+     to "run out" once you scroll right. Grow the box to match its content. */
+  width: max-content;
+  min-width: 100%;
 }
 
 .code-viewer-html pre.shiki code {
@@ -309,9 +314,21 @@ pre code {
   max-height: min(72vh, 920px);
 }
 
+/* The code block is the real grid: its last column sizes to the widest
+   line (max-content) and the block itself grows to fit (width: max-content),
+   so its painted width — and every line's background below — extends the
+   full scrollable distance instead of stopping at the visible pre width. */
+.diff-patch code {
+  display: grid;
+  grid-template-columns: 3.5rem 3.5rem 1.25rem max-content;
+  width: max-content;
+  min-width: 100%;
+}
+
 .diff-line {
   display: grid;
-  grid-template-columns: 3.5rem 3.5rem 1.25rem minmax(0, 1fr);
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: baseline;
   min-height: 1.5rem;
 }
