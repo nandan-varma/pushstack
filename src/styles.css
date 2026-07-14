@@ -483,6 +483,31 @@ pre code {
   margin-inline: auto;
 }
 
+.route-loading-bar {
+  height: 3px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.route-loading-bar__fill {
+  height: 100%;
+  width: 40%;
+  background: var(--lagoon-deep);
+  animation: route-loading-bar-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes route-loading-bar-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(60%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
 .display-title {
   font-family: 'Fraunces', Georgia, serif;
 }
