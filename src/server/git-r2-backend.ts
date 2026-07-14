@@ -571,3 +571,47 @@ export class R2RefBackend {
 // Export singleton instances
 export const r2Backend = new R2Backend();
 export const r2RefBackend = new R2RefBackend();
+
+// isomorphic-git's git.log() is inherently sequential — each commit's parent oid
+// is only known after reading that commit — so a deep walk against R2 pays one
+// R2 round trip *per commit* whenever the commit it needs isn't in an
+// already-downloaded pack. A repo's history usually only lives in a handful of
+// packs, so downloading all of them up front in parallel — before the sequential
+// walk starts — turns "N sequential network round trips" into "a few parallel
+// downloads, then N in-memory reads". Caller decides when this trade-off is
+// worth it (a depth=1 lookup shouldn't pay to warm every pack).
+//
+// Measured on a real repo: this cut the network portion from being interleaved
+// through the walk to a flat ~2.2s parallel batch for 15 packs — but the walk
+// itself still took ~11s afterward, because isomorphic-git's pack-index parsing
+// and delta decompression is CPU-bound, not network-bound, once the bytes are
+// local. This function only fixes the network half of that; the CPU half would
+// need either fewer/larger packs (periodic repacking) or a persistent
+// cross-process cache to avoid re-parsing on every cold start — out of scope here.
+//
+// MAX_PACKS_TO_PREFETCH bounds the damage for a repo with a long, fragmented
+// history: unconditionally prefetching *every* pack would download a rewind
+// through the entire history even when the caller only asked for a shallow
+// depth, which for an old/large repo could mean pulling down far more data than
+// the walk will ever touch. Skip prefetching (fall back to isomorphic-git's own
+// lazy per-pack fetch) rather than guess which packs are "recent enough".
+const MAX_PACKS_TO_PREFETCH = 30;
+
+export async function prefetchAllPacks(
+	ownerKey: string,
+	repoName: string,
+): Promise<void> {
+	const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+	let files: string[];
+	try {
+		files = await r2Backend.readdir(`${gitdir}/objects/pack`);
+	} catch {
+		return;
+	}
+	if (files.length > MAX_PACKS_TO_PREFETCH * 2) return; // *2: each pack is an .idx + .pack pair
+	await Promise.all(
+		files.map((name) =>
+			r2Backend.readFile(`${gitdir}/objects/pack/${name}`).catch(() => {}),
+		),
+	);
+}

@@ -1,9 +1,16 @@
 import git from "isomorphic-git";
+import { isR2Configured } from "#/lib/r2";
 import { getCachedObject, setCachedObject } from "./git-cache";
 import { GitObjectNotFoundError, GitPathNotFoundError } from "./git-errors";
+import { prefetchAllPacks } from "./git-r2-backend";
 import { getRepoOptions } from "./git-repo-storage";
 import { findTreeEntry, listTreeEntries, type TreeEntry } from "./git-tree-ops";
 import { perfNote, perfStep } from "./perf-log";
+
+// Below this depth, prefetching every pack up front is more bandwidth than it's
+// worth (e.g. getCommits' limit=1 "latest commit" lookup only ever needs the tip
+// commit, almost always already in the most recently pushed pack).
+const PREFETCH_PACKS_MIN_DEPTH = 5;
 
 // A resolved ref (branch/commit) not existing is a normal, expected condition (empty
 // repo, unborn branch) and is handled by each caller. An object that fails to resolve
@@ -161,6 +168,12 @@ export async function getCommitLog(
 		return cached.slice(0, depth);
 	}
 	perfNote(`getCommitLog: result-cache MISS for ${cacheKey} (depth=${depth})`);
+
+	if (depth >= PREFETCH_PACKS_MIN_DEPTH && isR2Configured()) {
+		await perfStep("prefetchAllPacks", () =>
+			prefetchAllPacks(ownerKey, repoName),
+		);
+	}
 
 	try {
 		const commits = await perfStep(`git.log ${ref} depth=${depth}`, () =>
