@@ -11,6 +11,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import { RouteLoadingBar } from "../components/RouteLoadingBar";
 import { ToastProvider } from "../components/toast-provider";
 import { Button } from "../components/ui/button";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
@@ -176,6 +177,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 				<HeadContent />
 			</head>
 			<body className="flex min-h-screen flex-col font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
+				<RouteLoadingBar />
 				<TanStackQueryProvider>
 					<ToastProvider>
 						<Header />
