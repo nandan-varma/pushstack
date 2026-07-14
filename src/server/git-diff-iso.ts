@@ -10,6 +10,11 @@ export interface DiffFile {
 	deletions: number;
 	patch: string;
 	oldPath?: string;
+	isBinary?: boolean;
+	oldContent?: string;
+	newContent?: string;
+	oldSize?: number;
+	newSize?: number;
 }
 
 export interface DiffResult {
@@ -17,6 +22,17 @@ export interface DiffResult {
 	totalAdditions: number;
 	totalDeletions: number;
 	totalFiles: number;
+}
+
+/** Same null-byte heuristic as getFileFromBranch in git-history-ops.ts. */
+function readBlobContent(blob: Uint8Array): {
+	buffer: Buffer;
+	isBinary: boolean;
+	text: string;
+} {
+	const buffer = Buffer.from(blob);
+	const isBinary = buffer.includes(0);
+	return { buffer, isBinary, text: isBinary ? "" : buffer.toString() };
 }
 
 function countContentLines(content: string): number {
@@ -71,18 +87,25 @@ export async function getCommitDiff(
 						entry.path,
 						commitSha,
 					);
-					const after = content.toString();
+					const after = readBlobContent(content);
 					files.push({
 						path: entry.path,
 						status: "added",
-						additions: countContentLines(after),
+						additions: after.isBinary ? 0 : countContentLines(after.text),
 						deletions: 0,
-						patch: createUnifiedPatch({
-							path: entry.path,
-							before: "",
-							after,
-							oldPath: "/dev/null",
-						}),
+						patch: after.isBinary
+							? ""
+							: createUnifiedPatch({
+									path: entry.path,
+									before: "",
+									after: after.text,
+									oldPath: "/dev/null",
+								}),
+						isBinary: after.isBinary,
+						newContent: after.isBinary
+							? after.buffer.toString("base64")
+							: undefined,
+						newSize: after.buffer.length,
 					});
 				}
 			}
@@ -109,36 +132,50 @@ export async function getCommitDiff(
 				if (typeA && !typeB) {
 					const oidA = A ? await A.oid() : "";
 					const { blob } = await git.readBlob({ ...repo, oid: oidA });
-					const before = Buffer.from(blob).toString();
+					const before = readBlobContent(blob);
 					return {
 						path: filepath,
 						status: "deleted" as const,
 						additions: 0,
-						deletions: countContentLines(before),
-						patch: createUnifiedPatch({
-							path: filepath,
-							before,
-							after: "",
-							newPath: "/dev/null",
-						}),
+						deletions: before.isBinary ? 0 : countContentLines(before.text),
+						patch: before.isBinary
+							? ""
+							: createUnifiedPatch({
+									path: filepath,
+									before: before.text,
+									after: "",
+									newPath: "/dev/null",
+								}),
+						isBinary: before.isBinary,
+						oldContent: before.isBinary
+							? before.buffer.toString("base64")
+							: undefined,
+						oldSize: before.buffer.length,
 					};
 				}
 
 				if (!typeA && typeB) {
 					const oidB = B ? await B.oid() : "";
 					const { blob } = await git.readBlob({ ...repo, oid: oidB });
-					const after = Buffer.from(blob).toString();
+					const after = readBlobContent(blob);
 					return {
 						path: filepath,
 						status: "added" as const,
-						additions: countContentLines(after),
+						additions: after.isBinary ? 0 : countContentLines(after.text),
 						deletions: 0,
-						patch: createUnifiedPatch({
-							path: filepath,
-							before: "",
-							after,
-							oldPath: "/dev/null",
-						}),
+						patch: after.isBinary
+							? ""
+							: createUnifiedPatch({
+									path: filepath,
+									before: "",
+									after: after.text,
+									oldPath: "/dev/null",
+								}),
+						isBinary: after.isBinary,
+						newContent: after.isBinary
+							? after.buffer.toString("base64")
+							: undefined,
+						newSize: after.buffer.length,
 					};
 				}
 
@@ -152,19 +189,27 @@ export async function getCommitDiff(
 						git.readBlob({ ...repo, oid: oidA }),
 						git.readBlob({ ...repo, oid: oidB }),
 					]);
-					const contentA = Buffer.from(blobA).toString();
-					const contentB = Buffer.from(blobB).toString();
+					const before = readBlobContent(blobA);
+					const after = readBlobContent(blobB);
+					const isBinary = before.isBinary || after.isBinary;
 
 					return {
 						path: filepath,
 						status: "modified" as const,
-						additions: countContentLines(contentB),
-						deletions: countContentLines(contentA),
-						patch: createUnifiedPatch({
-							path: filepath,
-							before: contentA,
-							after: contentB,
-						}),
+						additions: isBinary ? 0 : countContentLines(after.text),
+						deletions: isBinary ? 0 : countContentLines(before.text),
+						patch: isBinary
+							? ""
+							: createUnifiedPatch({
+									path: filepath,
+									before: before.text,
+									after: after.text,
+								}),
+						isBinary,
+						oldContent: isBinary ? before.buffer.toString("base64") : undefined,
+						newContent: isBinary ? after.buffer.toString("base64") : undefined,
+						oldSize: before.buffer.length,
+						newSize: after.buffer.length,
 					};
 				}
 
@@ -218,36 +263,50 @@ export async function getDiffBetweenBranches(
 			if (typeA && !typeB) {
 				const oidA = A ? await A.oid() : "";
 				const { blob } = await git.readBlob({ ...repo, oid: oidA });
-				const before = Buffer.from(blob).toString();
+				const before = readBlobContent(blob);
 				return {
 					path: filepath,
 					status: "deleted" as const,
 					additions: 0,
-					deletions: countContentLines(before),
-					patch: createUnifiedPatch({
-						path: filepath,
-						before,
-						after: "",
-						newPath: "/dev/null",
-					}),
+					deletions: before.isBinary ? 0 : countContentLines(before.text),
+					patch: before.isBinary
+						? ""
+						: createUnifiedPatch({
+								path: filepath,
+								before: before.text,
+								after: "",
+								newPath: "/dev/null",
+							}),
+					isBinary: before.isBinary,
+					oldContent: before.isBinary
+						? before.buffer.toString("base64")
+						: undefined,
+					oldSize: before.buffer.length,
 				};
 			}
 
 			if (!typeA && typeB) {
 				const oidB = B ? await B.oid() : "";
 				const { blob } = await git.readBlob({ ...repo, oid: oidB });
-				const after = Buffer.from(blob).toString();
+				const after = readBlobContent(blob);
 				return {
 					path: filepath,
 					status: "added" as const,
-					additions: countContentLines(after),
+					additions: after.isBinary ? 0 : countContentLines(after.text),
 					deletions: 0,
-					patch: createUnifiedPatch({
-						path: filepath,
-						before: "",
-						after,
-						oldPath: "/dev/null",
-					}),
+					patch: after.isBinary
+						? ""
+						: createUnifiedPatch({
+								path: filepath,
+								before: "",
+								after: after.text,
+								oldPath: "/dev/null",
+							}),
+					isBinary: after.isBinary,
+					newContent: after.isBinary
+						? after.buffer.toString("base64")
+						: undefined,
+					newSize: after.buffer.length,
 				};
 			}
 
@@ -261,19 +320,27 @@ export async function getDiffBetweenBranches(
 					git.readBlob({ ...repo, oid: oidA }),
 					git.readBlob({ ...repo, oid: oidB }),
 				]);
-				const contentA = Buffer.from(blobA).toString();
-				const contentB = Buffer.from(blobB).toString();
+				const before = readBlobContent(blobA);
+				const after = readBlobContent(blobB);
+				const isBinary = before.isBinary || after.isBinary;
 
 				return {
 					path: filepath,
 					status: "modified" as const,
-					additions: countContentLines(contentB),
-					deletions: countContentLines(contentA),
-					patch: createUnifiedPatch({
-						path: filepath,
-						before: contentA,
-						after: contentB,
-					}),
+					additions: isBinary ? 0 : countContentLines(after.text),
+					deletions: isBinary ? 0 : countContentLines(before.text),
+					patch: isBinary
+						? ""
+						: createUnifiedPatch({
+								path: filepath,
+								before: before.text,
+								after: after.text,
+							}),
+					isBinary,
+					oldContent: isBinary ? before.buffer.toString("base64") : undefined,
+					newContent: isBinary ? after.buffer.toString("base64") : undefined,
+					oldSize: before.buffer.length,
+					newSize: after.buffer.length,
 				};
 			}
 

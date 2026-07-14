@@ -1,13 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
+import { BinaryPreview } from "@/components/BinaryPreview";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { detectLanguage, formatFileSize } from "@/lib/language-detection";
+import {
+	detectLanguage,
+	formatFileSize,
+	getMimeType,
+	getPreviewKind,
+} from "@/lib/language-detection";
 import {
 	repositoryByNameQueryOptions,
 	repositoryFileQueryOptions,
@@ -82,6 +88,7 @@ function FileBlobPage() {
 
 	const language = detectLanguage(filePath);
 	const isBinary = file.isBinary;
+	const previewKind = isBinary ? getPreviewKind(filePath) : null;
 	const fileContent = !file.content
 		? ""
 		: file.isBinary
@@ -146,7 +153,16 @@ function FileBlobPage() {
 			/>
 
 			{/* File Content */}
-			{isBinary ? (
+			{isBinary && previewKind ? (
+				<Card className="overflow-hidden p-0">
+					<BinaryPreview
+						data={file.content}
+						mimeType={getMimeType(filePath)}
+						previewKind={previewKind}
+						fileName={filePath}
+					/>
+				</Card>
+			) : isBinary ? (
 				<Card className="p-8 text-center">
 					<p className="text-[var(--sea-ink-soft)]">
 						This file is binary and cannot be displayed.

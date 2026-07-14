@@ -364,6 +364,85 @@ export function isBinaryFile(filePath: string): boolean {
 	return binaryExtensions.includes(extension);
 }
 
+/** Extension → real MIME type, for native browser preview elements. */
+export const MIME_TYPE_MAP: Record<string, string> = {
+	// Images
+	png: "image/png",
+	jpg: "image/jpeg",
+	jpeg: "image/jpeg",
+	gif: "image/gif",
+	webp: "image/webp",
+	avif: "image/avif",
+	bmp: "image/bmp",
+	ico: "image/x-icon",
+	svg: "image/svg+xml",
+
+	// Documents
+	pdf: "application/pdf",
+
+	// Audio
+	mp3: "audio/mpeg",
+	wav: "audio/wav",
+	ogg: "audio/ogg",
+	flac: "audio/flac",
+	m4a: "audio/mp4",
+
+	// Video
+	mp4: "video/mp4",
+	webm: "video/webm",
+	mov: "video/quicktime",
+
+	// Fonts
+	woff: "font/woff",
+	woff2: "font/woff2",
+	ttf: "font/ttf",
+	otf: "font/otf",
+};
+
+export function getMimeType(filePath: string): string {
+	const extension =
+		(filePath.split("/").pop() || "").split(".").pop()?.toLowerCase() || "";
+	return MIME_TYPE_MAP[extension] || "application/octet-stream";
+}
+
+export type PreviewKind = "image" | "pdf" | "audio" | "video" | "font";
+
+const PREVIEW_KIND_BY_EXTENSION: Record<string, PreviewKind> = {
+	png: "image",
+	jpg: "image",
+	jpeg: "image",
+	gif: "image",
+	webp: "image",
+	avif: "image",
+	bmp: "image",
+	ico: "image",
+	svg: "image",
+	pdf: "pdf",
+	mp3: "audio",
+	wav: "audio",
+	ogg: "audio",
+	flac: "audio",
+	m4a: "audio",
+	mp4: "video",
+	webm: "video",
+	mov: "video",
+	woff: "font",
+	woff2: "font",
+	ttf: "font",
+	otf: "font",
+};
+
+/**
+ * Extension-based preview classification, independent of the server's
+ * content-based (null-byte) binary sniff — decides *how* to render a binary
+ * file, not whether it's binary.
+ */
+export function getPreviewKind(filePath: string): PreviewKind | null {
+	const extension =
+		(filePath.split("/").pop() || "").split(".").pop()?.toLowerCase() || "";
+	return PREVIEW_KIND_BY_EXTENSION[extension] || null;
+}
+
 /**
  * Format file size for display
  */

@@ -1,15 +1,94 @@
+import { ChevronRight } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
 import type { ThemedToken } from "shiki";
-import { detectLanguage, isLargeContent } from "@/lib/language-detection";
-import { requestHighlightTokens } from "@/lib/syntax-highlight-client";
+import { BinaryPreview } from "@/components/BinaryPreview";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+	detectLanguage,
+	formatFileSize,
+	getMimeType,
+	getPreviewKind,
+	isLargeContent,
+} from "@/lib/language-detection";
+import { requestHighlightTokens } from "@/lib/syntax-highlight-client";
 
 interface FileDiff {
 	path: string;
 	status: string;
 	patch: string;
+	isBinary?: boolean;
+	oldContent?: string;
+	newContent?: string;
+	oldSize?: number;
+	newSize?: number;
+}
+
+function BinaryDiffSide({
+	label,
+	content,
+	size,
+	path,
+}: {
+	label: string;
+	content: string | undefined;
+	size: number | undefined;
+	path: string;
+}) {
+	const previewKind = getPreviewKind(path);
+
+	return (
+		<div className="min-w-0">
+			<p className="mb-2 text-xs font-medium text-[var(--sea-ink-soft)]">
+				{label}
+				{size !== undefined ? ` · ${formatFileSize(size)}` : ""}
+			</p>
+			{content && previewKind ? (
+				<BinaryPreview
+					data={content}
+					mimeType={getMimeType(path)}
+					previewKind={previewKind}
+					fileName={path}
+				/>
+			) : (
+				<div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--chip-bg)] p-6 text-center text-xs text-[var(--sea-ink-soft)]">
+					No file
+				</div>
+			)}
+		</div>
+	);
+}
+
+function BinaryDiffPreview({ fileDiff }: { fileDiff: FileDiff }) {
+	const previewKind = getPreviewKind(fileDiff.path);
+
+	if (!previewKind) {
+		return (
+			<p className="text-xs text-[var(--sea-ink-soft)]">
+				Binary file changed
+				{fileDiff.oldSize !== undefined || fileDiff.newSize !== undefined
+					? ` (${fileDiff.oldSize !== undefined ? formatFileSize(fileDiff.oldSize) : "—"} → ${fileDiff.newSize !== undefined ? formatFileSize(fileDiff.newSize) : "—"})`
+					: ""}
+			</p>
+		);
+	}
+
+	return (
+		<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<BinaryDiffSide
+				label="Before"
+				content={fileDiff.oldContent}
+				size={fileDiff.oldSize}
+				path={fileDiff.path}
+			/>
+			<BinaryDiffSide
+				label="After"
+				content={fileDiff.newContent}
+				size={fileDiff.newSize}
+				path={fileDiff.path}
+			/>
+		</div>
+	);
 }
 
 type DiffLineKind = "meta" | "hunk" | "add" | "remove" | "context";
@@ -208,7 +287,9 @@ export function FileDiffViewer({
 		[files],
 	);
 
-	const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
+	const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>(
+		{},
+	);
 
 	const [lineTokensByPath, setLineTokensByPath] = useState<
 		Record<string, ThemedToken[][]>
@@ -349,12 +430,20 @@ export function FileDiffViewer({
 							</span>
 						</div>
 						<div className="flex shrink-0 items-center gap-2 text-xs">
-							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
-								+{fileDiff.additions}
-							</span>
-							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
-								-{fileDiff.deletions}
-							</span>
+							{fileDiff.isBinary ? (
+								<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+									{formatFileSize(fileDiff.newSize ?? fileDiff.oldSize ?? 0)}
+								</span>
+							) : (
+								<>
+									<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+										+{fileDiff.additions}
+									</span>
+									<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+										-{fileDiff.deletions}
+									</span>
+								</>
+							)}
 							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 uppercase tracking-wide text-[var(--sea-ink-soft)]">
 								{fileDiff.status}
 							</span>
@@ -362,37 +451,42 @@ export function FileDiffViewer({
 					</button>
 					{expandedPaths[fileDiff.path] ? (
 						<div className="px-4 p-4">
-							<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-[var(--line)] bg-[var(--chip-bg)] p-0 text-xs text-[var(--sea-ink)]">
-								<code>
-									{fileDiff.lines.map((line, lineIndex) => (
-										line.kind === "hunk" ? null : (
-											<div
-												key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
-												className={`diff-line diff-line--${line.kind}`}
-											>
-												<span className="diff-gutter diff-gutter--old">
-													{line.oldLine ?? ""}
-												</span>
-												<span className="diff-gutter diff-gutter--new">
-													{line.newLine ?? ""}
-												</span>
-												<span className="diff-prefix">{line.prefix}</span>
-												<span className="diff-code">
-													{renderLineCode(
-														line,
-														lineTokensByPath[fileDiff.path]?.[lineIndex],
-													)}
-												</span>
-											</div>
-										)
-									))}
-								</code>
-							</pre>
+							{fileDiff.isBinary ? (
+								<BinaryDiffPreview fileDiff={fileDiff} />
+							) : (
+								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-[var(--line)] bg-[var(--chip-bg)] p-0 text-xs text-[var(--sea-ink)]">
+									<code>
+										{fileDiff.lines.map((line, lineIndex) =>
+											line.kind === "hunk" ? null : (
+												<div
+													key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
+													className={`diff-line diff-line--${line.kind}`}
+												>
+													<span className="diff-gutter diff-gutter--old">
+														{line.oldLine ?? ""}
+													</span>
+													<span className="diff-gutter diff-gutter--new">
+														{line.newLine ?? ""}
+													</span>
+													<span className="diff-prefix">{line.prefix}</span>
+													<span className="diff-code">
+														{renderLineCode(
+															line,
+															lineTokensByPath[fileDiff.path]?.[lineIndex],
+														)}
+													</span>
+												</div>
+											),
+										)}
+									</code>
+								</pre>
+							)}
 						</div>
 					) : (
 						<p className="p-4 text-xs text-[var(--sea-ink-soft)]">
-							{fileDiff.visibleLineCount} lines changed across {fileDiff.hunks} hunk
-							{fileDiff.hunks === 1 ? "" : "s"}.
+							{fileDiff.isBinary
+								? "Binary file changed."
+								: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}
 						</p>
 					)}
 				</div>
