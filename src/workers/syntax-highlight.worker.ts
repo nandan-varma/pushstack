@@ -1,8 +1,8 @@
 import {
+	type BundledLanguage,
 	bundledLanguages,
 	createHighlighter,
 	createJavaScriptRegexEngine,
-	type BundledLanguage,
 	type Highlighter,
 	type SpecialLanguage,
 	type ThemedToken,

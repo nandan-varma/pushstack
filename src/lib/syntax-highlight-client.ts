@@ -51,7 +51,11 @@ function setCached(key: string, result: Result) {
 	cache.set(key, result);
 }
 
-function request(code: string, lang: string, mode: HighlightMode): Promise<Result> {
+function request(
+	code: string,
+	lang: string,
+	mode: HighlightMode,
+): Promise<Result> {
 	if (typeof window === "undefined" || typeof Worker === "undefined") {
 		return Promise.reject(new Error("Syntax highlighting requires a browser"));
 	}
