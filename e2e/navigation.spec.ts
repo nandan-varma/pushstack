@@ -24,7 +24,7 @@ test.describe('Route Navigation E2E', () => {
 
     // Should redirect to login (if not authenticated)
     await expect(page).toHaveURL('/auth/login')
-    await expect(page.locator('h1')).toContainText('Welcome to PushStack')
+    await expect(page.locator('h1')).toContainText('Welcome back')
   })
 
   test('should navigate through repository pages', async ({ page }) => {
@@ -42,7 +42,7 @@ test.describe('Route Navigation E2E', () => {
     // Navigate directly to a deep route
     await page.goto('/about')
     await expect(page).toHaveURL('/about')
-    await expect(page.locator('h1')).toContainText('A small starter')
+    await expect(page.locator('h1')).toContainText('Modern code hosting, simplified.')
   })
 
   test('should preserve state during navigation', async ({ page }) => {
