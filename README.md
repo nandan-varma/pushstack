@@ -117,4 +117,16 @@ The deployment target is Vercel, via Nitro's `vercel` preset (see `vite.config.t
 
 ## Documentation
 
-See `CLAUDE.md` for architecture details, module responsibilities, and environment variables aimed at contributors working in the codebase.
+The codebase has grown large enough that in-depth docs live under [`docs/`](./docs/README.md):
+
+- [Architecture](./docs/architecture.md) — tech stack, request flow, directory map, storage systems
+- [Git Storage](./docs/git-storage.md) — the R2-backed git storage layer and smart HTTP protocol
+- [Database](./docs/database.md) — schema, indices, migrations
+- [Authentication & Access Control](./docs/authentication.md) — Better Auth, PATs, the `RepositoryAccess` model
+- [Server Functions](./docs/server-functions.md) — `src/server/` modules by resource
+- [Performance](./docs/performance.md) — caching layers and the `perf-log` instrumentation convention
+- [Security](./docs/security.md) — the security model and fixed vulnerabilities' reasoning
+- [Testing](./docs/testing.md) — unit/e2e test layout and conventions
+- [Deployment](./docs/deployment.md) — Vercel/Nitro specifics and the full environment variable reference
+
+See `CLAUDE.md` for a terser, task-oriented reference (commands, key constraints, gotchas) aimed at AI coding agents working in this codebase.
