@@ -5,6 +5,7 @@ import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
 	getBranches,
+	getBranchHead,
 	getCommit,
 	getCommitDiff,
 	getCommits,
@@ -36,6 +37,8 @@ export const queryKeys = {
 	userActivity: (userId: string | undefined, limit: number) =>
 		["activity", "user", userId ?? "self", limit] as const,
 	repoBranches: (repoId: number) => ["repos", repoId, "branches"] as const,
+	repoBranchHead: (repoId: number, branchName: string) =>
+		["repos", repoId, "branch-head", branchName] as const,
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
 	repoFiles: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", branchName, path] as const,
@@ -155,6 +158,32 @@ export function repositoryBranchesQueryOptions(repoId: number) {
 			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
+	});
+}
+
+// Deliberately the opposite of every other query here: staleTime 0 and a short
+// refetchInterval, because this query *is* the polling mechanism — see
+// BranchUpdateBanner, which compares successive results against the sha that was
+// current when the page loaded to detect a push that landed while the user was
+// looking at (possibly long-cached) tree/commit data, without ever blocking the
+// initial render on a live check.
+export function repositoryBranchHeadQueryOptions({
+	repoId,
+	branchName,
+}: {
+	repoId: number;
+	branchName: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoBranchHead(repoId, branchName),
+		queryFn: () =>
+			perfTime(`query branch-head repo=${repoId} ${branchName}`, () =>
+				getBranchHead({ data: { repoId, branchName } }),
+			),
+		staleTime: 0,
+		refetchInterval: 20_000,
+		refetchOnWindowFocus: true,
+		enabled: Boolean(repoId && branchName),
 	});
 }
 
