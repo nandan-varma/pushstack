@@ -3,6 +3,7 @@ import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { activities, issues, repositories, user } from "../db/schema";
+import { perfContext, perfStep } from "./perf-log";
 import { canReadRepo } from "./repo-access";
 import { getCurrentUser } from "./session";
 
@@ -128,41 +129,47 @@ export const getUserActivity = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUser();
-		const targetUserId = data.userId || currentUser.id;
-		const isOwnActivity = targetUserId === currentUser.id;
+	.handler(async ({ data }) =>
+		perfContext(`getUserActivity user=${data.userId ?? "self"}`, async () => {
+			const currentUser = await perfStep("getCurrentUser", () =>
+				getCurrentUser(),
+			);
+			const targetUserId = data.userId || currentUser.id;
+			const isOwnActivity = targetUserId === currentUser.id;
 
-		// ponytail: filtering to public repos in JS *after* the DB applied `limit`
-		// meant a page of recent-but-private activity could return far fewer rows
-		// than requested (or none) even when plenty of public activity existed
-		// further back — push the visibility filter into the query instead.
-		const activityList = await db.query.activities.findMany({
-			where: isOwnActivity
-				? eq(activities.userId, targetUserId)
-				: and(
-						eq(activities.userId, targetUserId),
-						inArray(
-							activities.repoId,
-							db
-								.select({ id: repositories.id })
-								.from(repositories)
-								.where(eq(repositories.visibility, "public")),
-						),
-					),
-			with: {
-				user: true,
-				repository: true,
-			},
-			orderBy: [desc(activities.createdAt)],
-			limit: data.limit,
-		});
+			// ponytail: filtering to public repos in JS *after* the DB applied `limit`
+			// meant a page of recent-but-private activity could return far fewer rows
+			// than requested (or none) even when plenty of public activity existed
+			// further back — push the visibility filter into the query instead.
+			const activityList = await perfStep("db: activities.findMany", () =>
+				db.query.activities.findMany({
+					where: isOwnActivity
+						? eq(activities.userId, targetUserId)
+						: and(
+								eq(activities.userId, targetUserId),
+								inArray(
+									activities.repoId,
+									db
+										.select({ id: repositories.id })
+										.from(repositories)
+										.where(eq(repositories.visibility, "public")),
+								),
+							),
+					with: {
+						user: true,
+						repository: true,
+					},
+					orderBy: [desc(activities.createdAt)],
+					limit: data.limit,
+				}),
+			);
 
-		return activityList.map((activity) => ({
-			...activity,
-			metadata: activity.metadata ?? {},
-		}));
-	});
+			return activityList.map((activity) => ({
+				...activity,
+				metadata: activity.metadata ?? {},
+			}));
+		}),
+	);
 
 // Get repository activity feed
 export const getRepositoryActivity = createServerFn({ method: "GET" })

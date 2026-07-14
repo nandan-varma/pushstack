@@ -5,6 +5,7 @@ import { db } from "../db";
 import { activities, pullRequests } from "../db/github-schema";
 import { analyzeMerge, mergeBranches } from "./git-merge-iso";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
+import { perfContext, perfStep } from "./perf-log";
 import {
 	canMergePullRequest,
 	canWriteRepo,
@@ -80,44 +81,63 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(
+			`getPullRequests repo=${data.repoId} ${data.status}`,
+			async () => {
+				const user = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		await requireReadAccess(data.repoId, user?.id);
+				await perfStep("requireReadAccess", () =>
+					requireReadAccess(data.repoId, user?.id),
+				);
 
-		const prList = await db.query.pullRequests.findMany({
-			where: and(
-				eq(pullRequests.repoId, data.repoId),
-				data.status !== "all"
-					? eq(pullRequests.status, data.status)
-					: undefined,
-			),
-			with: {
-				author: true,
+				const prList = await perfStep("db: pullRequests.findMany", () =>
+					db.query.pullRequests.findMany({
+						where: and(
+							eq(pullRequests.repoId, data.repoId),
+							data.status !== "all"
+								? eq(pullRequests.status, data.status)
+								: undefined,
+						),
+						with: {
+							author: true,
+						},
+						orderBy: [desc(pullRequests.createdAt)],
+					}),
+				);
+
+				return prList;
 			},
-			orderBy: [desc(pullRequests.createdAt)],
-		});
-
-		return prList;
-	});
+		),
+	);
 
 // Get all pull request numbers for a repo — used to resolve `#123`
 // references in markdown (commit messages, PR/issue bodies, comments) to PR
 // links, disambiguated from issue numbers.
 export const getPullRequestNumbers = createServerFn({ method: "GET" })
 	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
-	.handler(async ({ data }) => {
-		const user = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getPullRequestNumbers repo=${data.repoId}`, async () => {
+			const user = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		await requireReadAccess(data.repoId, user?.id);
+			await perfStep("requireReadAccess", () =>
+				requireReadAccess(data.repoId, user?.id),
+			);
 
-		const rows = await db
-			.select({ id: pullRequests.id })
-			.from(pullRequests)
-			.where(eq(pullRequests.repoId, data.repoId));
+			const rows = await perfStep("db: pullRequests ids", () =>
+				db
+					.select({ id: pullRequests.id })
+					.from(pullRequests)
+					.where(eq(pullRequests.repoId, data.repoId)),
+			);
 
-		return rows.map((row) => row.id);
-	});
+			return rows.map((row) => row.id);
+		}),
+	);
 
 // Get pull request by ID
 export const getPullRequest = createServerFn({ method: "GET" })
@@ -128,30 +148,38 @@ export const getPullRequest = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getPullRequest ${data.prId}`, async () => {
+			const user = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		const pr = await db.query.pullRequests.findFirst({
-			where: eq(pullRequests.id, data.prId),
-			with: {
-				author: true,
-				repository: true,
-			},
-		});
+			const pr = await perfStep("db: pullRequests.findFirst", () =>
+				db.query.pullRequests.findFirst({
+					where: eq(pullRequests.id, data.prId),
+					with: {
+						author: true,
+						repository: true,
+					},
+				}),
+			);
 
-		if (!pr) {
-			throw new Error("Pull request not found");
-		}
+			if (!pr) {
+				throw new Error("Pull request not found");
+			}
 
-		// ponytail: the query above already fetched the repository row via the
-		// relation — reuse it instead of canReadRepo's own repo fetch.
-		const access = await getAccessForRepository(pr.repository, user?.id);
-		if (!access.canRead) {
-			throw new Error("Access denied");
-		}
+			// ponytail: the query above already fetched the repository row via the
+			// relation — reuse it instead of canReadRepo's own repo fetch.
+			const access = await perfStep("getAccessForRepository", () =>
+				getAccessForRepository(pr.repository, user?.id),
+			);
+			if (!access.canRead) {
+				throw new Error("Access denied");
+			}
 
-		return pr;
-	});
+			return pr;
+		}),
+	);
 
 // Update pull request
 export const updatePullRequest = createServerFn({ method: "POST" })

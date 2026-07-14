@@ -8,6 +8,7 @@ import {
 	issues,
 	pullRequests,
 } from "../db/github-schema";
+import { perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
 	canWriteRepo,
@@ -95,54 +96,72 @@ export const getComments = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		if (!data.issueId && !data.pullRequestId) {
-			throw new Error("Must specify issueId or pullRequestId");
-		}
+	.handler(async ({ data }) =>
+		perfContext(
+			`getComments issue=${data.issueId ?? "-"} pr=${data.pullRequestId ?? "-"}`,
+			async () => {
+				if (!data.issueId && !data.pullRequestId) {
+					throw new Error("Must specify issueId or pullRequestId");
+				}
 
-		const user = await getCurrentUserOptional();
+				const user = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
 
-		if (data.issueId) {
-			const issue = await db.query.issues.findFirst({
-				where: eq(issues.id, data.issueId),
-				with: { repository: true },
-			});
+				if (data.issueId) {
+					const issue = await perfStep("db: issues.findFirst", () =>
+						db.query.issues.findFirst({
+							where: eq(issues.id, data.issueId as number),
+							with: { repository: true },
+						}),
+					);
 
-			// ponytail: fetch the repository via the relation above instead of a
-			// second round trip inside canReadRepo.
-			const access =
-				issue && (await getAccessForRepository(issue.repository, user?.id));
-			if (!access?.canRead) {
-				throw new Error("Access denied");
-			}
-		}
+					// ponytail: fetch the repository via the relation above instead of a
+					// second round trip inside canReadRepo.
+					const access =
+						issue &&
+						(await perfStep("getAccessForRepository", () =>
+							getAccessForRepository(issue.repository, user?.id),
+						));
+					if (!access?.canRead) {
+						throw new Error("Access denied");
+					}
+				}
 
-		if (data.pullRequestId) {
-			const pullRequest = await db.query.pullRequests.findFirst({
-				where: eq(pullRequests.id, data.pullRequestId),
-				with: { repository: true },
-			});
+				if (data.pullRequestId) {
+					const pullRequest = await perfStep("db: pullRequests.findFirst", () =>
+						db.query.pullRequests.findFirst({
+							where: eq(pullRequests.id, data.pullRequestId as number),
+							with: { repository: true },
+						}),
+					);
 
-			const access =
-				pullRequest &&
-				(await getAccessForRepository(pullRequest.repository, user?.id));
-			if (!access?.canRead) {
-				throw new Error("Access denied");
-			}
-		}
+					const access =
+						pullRequest &&
+						(await perfStep("getAccessForRepository", () =>
+							getAccessForRepository(pullRequest.repository, user?.id),
+						));
+					if (!access?.canRead) {
+						throw new Error("Access denied");
+					}
+				}
 
-		const commentList = await db.query.comments.findMany({
-			where: data.issueId
-				? eq(comments.issueId, data.issueId)
-				: eq(comments.pullRequestId, data.pullRequestId as number),
-			with: {
-				author: true,
+				const commentList = await perfStep("db: comments.findMany", () =>
+					db.query.comments.findMany({
+						where: data.issueId
+							? eq(comments.issueId, data.issueId as number)
+							: eq(comments.pullRequestId, data.pullRequestId as number),
+						with: {
+							author: true,
+						},
+						orderBy: [comments.createdAt],
+					}),
+				);
+
+				return commentList;
 			},
-			orderBy: [comments.createdAt],
-		});
-
-		return commentList;
-	});
+		),
+	);
 
 // Update comment
 export const updateComment = createServerFn({ method: "POST" })

@@ -30,7 +30,7 @@ import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 } from "./git-storage-naming";
-import { recordCacheHit, recordCacheMiss } from "./perf-log";
+import { perfNote, recordCacheHit, recordCacheMiss } from "./perf-log";
 
 // ponytail: coalesces concurrent reads for the same R2 key so a single pack file
 // (e.g. 1.5 MB) is only downloaded once even when 100+ object reads fire in parallel.
@@ -51,6 +51,50 @@ const pendingDownloads = new Map<string, Promise<Buffer>>();
 type StatMarker = { kind: "missing" } | { kind: "dir" };
 const MISSING: StatMarker = { kind: "missing" };
 const DIR: StatMarker = { kind: "dir" };
+
+// A committed repo's history usually lives entirely in packs, so every commit
+// walked by git.log() probes a loose-object path (objects/xx/yyyy...) that is
+// guaranteed to 404 — and since each commit has a distinct oid, the per-key
+// negative cache above never gets reused within the walk. Measured: a 60-commit
+// walk paid ~85ms of real network latency per commit this way, ~5.2s serial,
+// because isomorphic-git only learns the next oid to check after reading the
+// current one. Detecting once per repo (single bounded LIST, 1 item — S3 keys
+// sort loose dirs like "00".."ff" before "info"/"pack" lexically, so the first
+// key under objects/ reveals whether any loose object exists at all) and
+// caching that lets every loose-object read in the walk short-circuit locally.
+// Must be flipped back to "present" the instant any loose object is actually
+// written (see writeFile) or a real object would 404 after the repo goes from
+// packed to holding new loose commits (e.g. mid-push, before repacking).
+type LooseHint = { kind: "none" } | { kind: "present" };
+const LOOSE_NONE: LooseHint = { kind: "none" };
+const LOOSE_PRESENT: LooseHint = { kind: "present" };
+const LOOSE_OBJECT_RE = /^objects\/[0-9a-f]{2}\/[0-9a-f]{38}$/;
+
+function looseHintKey(ownerKey: string, repoName: string): string {
+	return `loose-hint:${ownerKey}/${repoName}`;
+}
+
+/** Cheap one-time-per-repo check so readFile can skip doomed loose-object GETs. */
+export async function detectLooseObjectsHint(
+	ownerKey: string,
+	repoName: string,
+): Promise<void> {
+	const key = looseHintKey(ownerKey, repoName);
+	if (getCachedObject<LooseHint>(key)) return;
+	const basePrefix = getR2Key(ownerKey, repoName, "");
+	try {
+		const files = await listR2Files(`${basePrefix}objects/`, 1);
+		const hasLoose = files.some((f) =>
+			LOOSE_OBJECT_RE.test(f.key.slice(basePrefix.length)),
+		);
+		setCachedObject(key, hasLoose ? LOOSE_PRESENT : LOOSE_NONE);
+		perfNote(
+			`loose objects for ${ownerKey}/${repoName}: ${hasLoose ? "present" : "none — skipping per-commit loose lookups"}`,
+		);
+	} catch {
+		// Leave unknown — readFile falls back to its normal per-object round trip.
+	}
+}
 
 function enoent(filepath: string, verb: "open" | "stat"): Error {
 	return Object.assign(
@@ -159,6 +203,16 @@ export class R2Backend {
 		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
 
+		// See detectLooseObjectsHint: most repos are fully packed, so a loose-object
+		// path is a guaranteed 404 — skip the R2 round trip entirely once we know that.
+		if (LOOSE_OBJECT_RE.test(relativePath)) {
+			const hint = getCachedObject<LooseHint>(looseHintKey(ownerKey, repoName));
+			if (hint?.kind === "none") {
+				recordCacheHit();
+				throw enoent(filepath, "open");
+			}
+		}
+
 		// Try cache first
 		const cached = getCache(cacheKey);
 		if (cached) {
@@ -236,6 +290,12 @@ export class R2Backend {
 		// Upload to R2
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await uploadToR2(r2Key, buffer, contentType);
+
+		// A loose object just got written — flip the hint immediately so any read
+		// racing behind this one doesn't wrongly short-circuit to ENOENT.
+		if (LOOSE_OBJECT_RE.test(relativePath)) {
+			setCachedObject(looseHintKey(ownerKey, repoName), LOOSE_PRESENT);
+		}
 
 		// Invalidate file cache, any stale stat marker (including on ancestor
 		// directories — see ancestorCacheKeys), and parent dir listing cache
@@ -645,9 +705,10 @@ export async function prefetchAllPacks(
 		return;
 	}
 	if (files.length > MAX_PACKS_TO_PREFETCH * 2) return; // *2: each pack is an .idx + .pack pair
-	await Promise.all(
-		files.map((name) =>
+	await Promise.all([
+		detectLooseObjectsHint(ownerKey, repoName),
+		...files.map((name) =>
 			r2Backend.readFile(`${gitdir}/objects/pack/${name}`).catch(() => {}),
 		),
-	);
+	]);
 }

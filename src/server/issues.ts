@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { activities, issues } from "../db/github-schema";
+import { perfContext, perfStep } from "./perf-log";
 import {
 	canWriteRepo,
 	getAccessForRepository,
@@ -67,44 +68,60 @@ export const getIssues = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getIssues repo=${data.repoId} ${data.status}`, async () => {
+			const user = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		await requireReadAccess(data.repoId, user?.id);
+			await perfStep("requireReadAccess", () =>
+				requireReadAccess(data.repoId, user?.id),
+			);
 
-		const issueList = await db.query.issues.findMany({
-			where: and(
-				eq(issues.repoId, data.repoId),
-				data.status !== "all" ? eq(issues.status, data.status) : undefined,
-			),
-			with: {
-				author: true,
-			},
-			orderBy: [desc(issues.createdAt)],
-		});
+			const issueList = await perfStep("db: issues.findMany", () =>
+				db.query.issues.findMany({
+					where: and(
+						eq(issues.repoId, data.repoId),
+						data.status !== "all" ? eq(issues.status, data.status) : undefined,
+					),
+					with: {
+						author: true,
+					},
+					orderBy: [desc(issues.createdAt)],
+				}),
+			);
 
-		return issueList.map((issue) => ({
-			...issue,
-			labels: issue.labels as string[] | null,
-		}));
-	});
+			return issueList.map((issue) => ({
+				...issue,
+				labels: issue.labels as string[] | null,
+			}));
+		}),
+	);
 
 // Get all issue numbers for a repo — used to resolve `#123` references in
 // markdown (commit messages, PR/issue bodies, comments) to issue links.
 export const getIssueNumbers = createServerFn({ method: "GET" })
 	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
-	.handler(async ({ data }) => {
-		const user = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getIssueNumbers repo=${data.repoId}`, async () => {
+			const user = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		await requireReadAccess(data.repoId, user?.id);
+			await perfStep("requireReadAccess", () =>
+				requireReadAccess(data.repoId, user?.id),
+			);
 
-		const rows = await db
-			.select({ id: issues.id })
-			.from(issues)
-			.where(eq(issues.repoId, data.repoId));
+			const rows = await perfStep("db: issues ids", () =>
+				db
+					.select({ id: issues.id })
+					.from(issues)
+					.where(eq(issues.repoId, data.repoId)),
+			);
 
-		return rows.map((row) => row.id);
-	});
+			return rows.map((row) => row.id);
+		}),
+	);
 
 // Get issue by ID
 export const getIssue = createServerFn({ method: "GET" })
@@ -115,30 +132,38 @@ export const getIssue = createServerFn({ method: "GET" })
 			})
 			.parse(data),
 	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUserOptional();
+	.handler(async ({ data }) =>
+		perfContext(`getIssue ${data.issueId}`, async () => {
+			const user = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
+			);
 
-		const issue = await db.query.issues.findFirst({
-			where: eq(issues.id, data.issueId),
-			with: {
-				author: true,
-				repository: true,
-			},
-		});
+			const issue = await perfStep("db: issues.findFirst", () =>
+				db.query.issues.findFirst({
+					where: eq(issues.id, data.issueId),
+					with: {
+						author: true,
+						repository: true,
+					},
+				}),
+			);
 
-		if (!issue) {
-			throw new Error("Issue not found");
-		}
+			if (!issue) {
+				throw new Error("Issue not found");
+			}
 
-		// ponytail: the query above already fetched the repository row via the
-		// relation — reuse it instead of canReadRepo's own repo fetch.
-		const access = await getAccessForRepository(issue.repository, user?.id);
-		if (!access.canRead) {
-			throw new Error("Access denied");
-		}
+			// ponytail: the query above already fetched the repository row via the
+			// relation — reuse it instead of canReadRepo's own repo fetch.
+			const access = await perfStep("getAccessForRepository", () =>
+				getAccessForRepository(issue.repository, user?.id),
+			);
+			if (!access.canRead) {
+				throw new Error("Access denied");
+			}
 
-		return { ...issue, labels: issue.labels as string[] | null };
-	});
+			return { ...issue, labels: issue.labels as string[] | null };
+		}),
+	);
 
 // Update issue
 export const updateIssue = createServerFn({ method: "POST" })

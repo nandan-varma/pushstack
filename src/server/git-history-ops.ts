@@ -143,15 +143,25 @@ export async function getCommitLog(
 	repoName: string,
 	ref: string = "main",
 	depth: number = 50,
+	// Callers that already resolved `ref` to a sha (e.g. getCommitHistory, via a
+	// direct refs/heads/<branch> lookup) should pass it here — isomorphic-git's
+	// own resolveRef tries several candidate paths in sequence (bare ref, refs/,
+	// refs/tags/, refs/heads/) and 404s the first three every time for a normal
+	// branch name, which is pure waste when the sha is already known.
+	knownHeadSha?: string,
 ): Promise<CommitInfo[]> {
 	const repo = await getRepoOptions(ownerKey, repoName);
 
 	let headSha: string;
-	try {
-		headSha = await git.resolveRef({ ...repo, ref });
-	} catch (err: unknown) {
-		if ((err as { code?: string }).code === "NotFoundError") return [];
-		throw err;
+	if (knownHeadSha) {
+		headSha = knownHeadSha;
+	} else {
+		try {
+			headSha = await git.resolveRef({ ...repo, ref });
+		} catch (err: unknown) {
+			if ((err as { code?: string }).code === "NotFoundError") return [];
+			throw err;
+		}
 	}
 
 	// ponytail: walking the commit chain is inherently sequential (each commit's
@@ -301,8 +311,15 @@ export async function getCommitHistory(
 	perfNote(
 		`getCommitHistory: result-cache MISS for ${cacheKey ?? "(no head)"}`,
 	);
+	if (!headSha) return [];
 
-	const all = await getCommitLog(ownerKey, repoName, branchName, limit + skip);
+	const all = await getCommitLog(
+		ownerKey,
+		repoName,
+		branchName,
+		limit + skip,
+		headSha,
+	);
 	const result = all.slice(skip, skip + limit);
 
 	if (cacheKey) setCachedObject(cacheKey, result);
