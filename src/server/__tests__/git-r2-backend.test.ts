@@ -207,7 +207,10 @@ describe("R2Backend.writeFile", () => {
 
 describe("R2Backend.unlink", () => {
 	it("clears stat markers on every ancestor directory", async () => {
-		vi.mocked(r2ops.deleteFromR2).mockResolvedValue(undefined);
+		vi.mocked(r2ops.deleteFromR2).mockResolvedValue({
+			deleted: true,
+			key: "mock-key",
+		});
 
 		const backend = new R2Backend();
 		await backend.unlink(`${REPO_PATH}/refs/heads/main`);
