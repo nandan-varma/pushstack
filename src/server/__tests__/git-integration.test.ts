@@ -25,6 +25,7 @@ import {
 } from "../git-branch-ops";
 import { createCommit, deleteFile } from "../git-commit-write";
 import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
+import { getFileHistory } from "../git-file-history";
 import {
 	getBlob,
 	getCommit,
@@ -197,6 +198,44 @@ describe("getCommitHistory (pagination)", () => {
 	it("skip past end returns empty array", async () => {
 		const history = await getCommitHistory(OWNER, REPO, "main", 10, 999);
 		expect(history).toHaveLength(0);
+	});
+});
+
+describe("getFileHistory", () => {
+	it("returns every commit that touched the file, newest first", async () => {
+		const { entries } = await getFileHistory(OWNER, REPO, "main", "README.md");
+		expect(entries.map((e) => e.sha)).toEqual([shas.second, shas.initial]);
+	});
+
+	it("only includes commits that changed this specific file", async () => {
+		const { entries } = await getFileHistory(
+			OWNER,
+			REPO,
+			"main",
+			"src/index.js",
+		);
+		expect(entries.map((e) => e.sha)).toEqual([shas.second]);
+	});
+
+	it("resolves history scoped to a branch's own commits", async () => {
+		const { entries } = await getFileHistory(
+			OWNER,
+			REPO,
+			"feature-branch",
+			"feature.txt",
+		);
+		expect(entries.map((e) => e.sha)).toEqual([shas.featureCommit]);
+	});
+
+	it("returns empty, non-truncated result for a file that never existed", async () => {
+		const result = await getFileHistory(OWNER, REPO, "main", "nope.txt");
+		expect(result).toEqual({ entries: [], truncated: false });
+	});
+
+	it("marks truncated when limit cuts off older matching commits", async () => {
+		const result = await getFileHistory(OWNER, REPO, "main", "README.md", 1);
+		expect(result.entries.map((e) => e.sha)).toEqual([shas.second]);
+		expect(result.truncated).toBe(true);
 	});
 });
 

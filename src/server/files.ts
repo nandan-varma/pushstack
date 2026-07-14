@@ -18,6 +18,7 @@ import {
 // Git operations imports (isomorphic-git)
 import { createCommit, deleteFile as gitDeleteFile } from "./git-commit-write";
 import * as GitDiff from "./git-diff-iso";
+import { getFileHistory as gitGetFileHistory } from "./git-file-history";
 import {
 	getCommitHistory,
 	getFileFromBranch,
@@ -263,6 +264,48 @@ export const getLastCommits = createServerFn({ method: "GET" })
 						repo.name,
 						data.branchName,
 						data.path || "",
+					),
+				);
+			},
+		),
+	);
+
+/**
+ * Get commits that touched a single file — powers the "latest commit" banner
+ * and the file-scoped History tab on the file viewer.
+ */
+export const getFileHistory = createServerFn({ method: "GET" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				repoId: z.number(),
+				branchName: z.string(),
+				path: safeRepoPathSchema,
+				limit: z.number().max(100).optional().default(30),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) =>
+		perfContext(
+			`getFileHistory repo=${data.repoId} ${data.branchName}:${data.path} limit=${data.limit}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
+
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
+
+				const storage = getStorage(repo);
+
+				return perfStep("gitGetFileHistory", () =>
+					gitGetFileHistory(
+						storage.ownerKey,
+						repo.name,
+						data.branchName,
+						data.path,
+						data.limit,
 					),
 				);
 			},

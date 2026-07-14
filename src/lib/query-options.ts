@@ -9,6 +9,7 @@ import {
 	getCommitDiff,
 	getCommits,
 	getFile,
+	getFileHistory,
 	getLastCommits,
 	listFiles,
 } from "@/server/files";
@@ -49,6 +50,12 @@ export const queryKeys = {
 		["repos", repoId, "commit-diff", commitSha] as const,
 	repoLastCommits: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "last-commits", branchName, path] as const,
+	repoFileHistory: (
+		repoId: number,
+		branchName: string,
+		path: string,
+		limit = 30,
+	) => ["repos", repoId, "file-history", branchName, path, limit] as const,
 	repoIssues: (repoId: number, status: "open" | "closed" | "all") =>
 		["repos", repoId, "issues", status] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
@@ -186,6 +193,29 @@ export function repositoryFileQueryOptions({
 				getFile({ data: { repoId, branchName, path } }),
 			),
 		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryFileHistoryQueryOptions({
+	repoId,
+	branchName,
+	path,
+	limit = 30,
+}: {
+	repoId: number;
+	branchName: string;
+	path: string;
+	limit?: number;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoFileHistory(repoId, branchName, path, limit),
+		queryFn: () =>
+			perfTime(
+				`query file history repo=${repoId} ${branchName}:${path} limit=${limit}`,
+				() => getFileHistory({ data: { repoId, branchName, path, limit } }),
+			),
+		staleTime: LONG_LIVED_STALE_TIME,
+		gcTime: LONG_LIVED_GC_TIME,
 	});
 }
 
