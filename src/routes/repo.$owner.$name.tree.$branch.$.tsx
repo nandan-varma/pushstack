@@ -66,6 +66,20 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 						path: params._splat || "",
 					}),
 				),
+				queryClient.ensureQueryData(
+					repositoryLastCommitsQueryOptions({
+						repoId: repo.id,
+						branchName: params.branch,
+						path: params._splat || "",
+					}),
+				),
+				queryClient.ensureQueryData(
+					repositoryCommitsQueryOptions({
+						repoId: repo.id,
+						branchName: params.branch,
+						limit: 1,
+					}),
+				),
 			]);
 		}
 	},
@@ -102,7 +116,7 @@ function TreeBrowserPage() {
 			branchName: activeBranch,
 			path: activePath,
 		}),
-		enabled: !!repo && !isLoading && !!files?.length,
+		enabled: !!repo,
 	});
 
 	const { data: latestCommits, isLoading: latestCommitLoading } = useQuery({

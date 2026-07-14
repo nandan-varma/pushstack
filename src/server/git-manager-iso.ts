@@ -26,11 +26,44 @@ export function getRepoPath(ownerKey: string, repoName: string): string {
 	return path.join(GIT_BASE_PATH, ownerKey, repoName);
 }
 
-export function getBareRepoOptions(ownerKey: string, repoName: string) {
-	if (isR2Configured()) {
-		return { fs: r2Backend, gitdir: getRepoGitStorageRoot(ownerKey, repoName) };
+// isomorphic-git re-parses a packfile's index from scratch on every readTree/log/readObject
+// call unless callers share a `cache` object across calls — without this, operations that
+// touch many objects (e.g. walking commit history) pay that parse cost hundreds of times over.
+// Objects are content-addressed/immutable so a long-lived per-repo cache is safe; it's cleared
+// in git-repo-storage.ts on sync so a repack (which rewrites pack files) can't leave it stale.
+const repoGitCaches = new Map<string, object>();
+
+function getRepoGitCacheKey(ownerKey: string, repoName: string): string {
+	return `${ownerKey}/${repoName}`;
+}
+
+export function getRepoGitCache(ownerKey: string, repoName: string): object {
+	const key = getRepoGitCacheKey(ownerKey, repoName);
+	let cache = repoGitCaches.get(key);
+	if (!cache) {
+		cache = {};
+		repoGitCaches.set(key, cache);
 	}
-	return { fs, gitdir: getRepoPath(ownerKey, repoName) };
+	return cache;
+}
+
+export function invalidateRepoGitCache(
+	ownerKey: string,
+	repoName: string,
+): void {
+	repoGitCaches.delete(getRepoGitCacheKey(ownerKey, repoName));
+}
+
+export function getBareRepoOptions(ownerKey: string, repoName: string) {
+	const cache = getRepoGitCache(ownerKey, repoName);
+	if (isR2Configured()) {
+		return {
+			fs: r2Backend,
+			gitdir: getRepoGitStorageRoot(ownerKey, repoName),
+			cache,
+		};
+	}
+	return { fs, gitdir: getRepoPath(ownerKey, repoName), cache };
 }
 
 /**

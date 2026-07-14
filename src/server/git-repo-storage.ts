@@ -19,6 +19,7 @@ import {
 	getRepoDiskUsage,
 	getRepoPath,
 	initBareRepo,
+	invalidateRepoGitCache,
 } from "./git-manager-iso";
 import {
 	getRepoGitStoragePrefix,
@@ -481,6 +482,10 @@ async function syncRepositoryToR2Unlocked(
 	invalidateCache(`${ownerKey}/${repoName}/`);
 	invalidateObjectCache(`result:tree:${ownerKey}/${repoName}/`);
 	invalidateObjectCache(`result:commits:${ownerKey}/${repoName}/`);
+
+	// A repack rewrites pack files out from under any already-parsed isomorphic-git
+	// pack index, so drop the shared per-repo git cache too.
+	invalidateRepoGitCache(ownerKey, repoName);
 
 	repoState.set(repoKey, {
 		hydratedAt: Date.now(),

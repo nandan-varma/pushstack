@@ -56,16 +56,40 @@ export async function getLastCommitsForTree(
 	const repo = await getRepoOptions(ownerKey, repoName);
 	const byOid = new Map(commits.map((commit) => [commit.oid, commit]));
 
-	const headDirEntry = await findTreeEntry(
-		repo,
-		commits[0].commit.tree,
-		treePath,
-	);
-	if (headDirEntry?.type !== "tree") return {};
+	// In a linear history, the "parent tree" we resolve at commit[i] is the same
+	// tree we already resolved as the "current tree" at commit[i-1] — memoize by
+	// commit-tree oid (and by resolved dir oid) so each distinct tree is only
+	// walked/listed once across the whole history scan instead of twice per commit.
+	const dirOidByCommitTree = new Map<string, string | null>();
+	const childrenByDirOid = new Map<
+		string,
+		Awaited<ReturnType<typeof listTreeEntries>>
+	>();
+
+	async function resolveDirOid(commitTreeOid: string): Promise<string | null> {
+		const cached = dirOidByCommitTree.get(commitTreeOid);
+		if (cached !== undefined) return cached;
+		const entry = await findTreeEntry(repo, commitTreeOid, treePath);
+		const dirOid = entry?.type === "tree" ? entry.oid : null;
+		dirOidByCommitTree.set(commitTreeOid, dirOid);
+		return dirOid;
+	}
+
+	async function resolveChildren(dirOid: string | null) {
+		if (dirOid === null) return [];
+		const cached = childrenByDirOid.get(dirOid);
+		if (cached) return cached;
+		const children = await listTreeEntries(repo, dirOid, treePath);
+		childrenByDirOid.set(dirOid, children);
+		return children;
+	}
+
+	const headDirOid = await resolveDirOid(commits[0].commit.tree);
+	if (headDirOid === null) return {};
 
 	// listTreeEntries is prefixed with treePath so result keys match the full
 	// paths (`file.path`) that callers key their file listing by.
-	const headChildren = await listTreeEntries(repo, headDirEntry.oid, treePath);
+	const headChildren = await resolveChildren(headDirOid);
 	const remaining = new Set(headChildren.map((entry) => entry.path));
 	const result: Record<string, LastCommitInfo> = {};
 
@@ -76,22 +100,16 @@ export async function getLastCommitsForTree(
 		const parentCommit = parentSha ? byOid.get(parentSha) : undefined;
 		if (parentSha && !parentCommit) break; // walked past our depth cap
 
-		const dirEntry = await findTreeEntry(repo, commit.commit.tree, treePath);
-		const dirOid = dirEntry?.type === "tree" ? dirEntry.oid : null;
-
-		const parentDirEntry = parentCommit
-			? await findTreeEntry(repo, parentCommit.commit.tree, treePath)
+		const dirOid = await resolveDirOid(commit.commit.tree);
+		const parentDirOid = parentCommit
+			? await resolveDirOid(parentCommit.commit.tree)
 			: null;
-		const parentDirOid =
-			parentDirEntry?.type === "tree" ? parentDirEntry.oid : null;
 
 		if (dirOid === parentDirOid) continue;
 
 		const [children, parentChildren] = await Promise.all([
-			dirOid ? listTreeEntries(repo, dirOid, treePath) : Promise.resolve([]),
-			parentDirOid
-				? listTreeEntries(repo, parentDirOid, treePath)
-				: Promise.resolve([]),
+			resolveChildren(dirOid),
+			resolveChildren(parentDirOid),
 		]);
 		const childByName = new Map(
 			children.map((entry) => [entry.path, entry.oid]),
