@@ -26,6 +26,17 @@ export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
+			// CommitMessage resolves `#123` references using these — previously only
+			// fetched client-side after mount (no loader prefetched them), tacking an
+			// extra round trip onto the header render. Fire-and-forget since the page
+			// is still useful without them resolved yet.
+			queryClient
+				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
+				.catch(() => {});
+			queryClient
+				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
+				.catch(() => {});
+
 			// Diff computation is comparatively expensive and not needed for the
 			// header — fetch it client-side (own loading state below) instead of
 			// blocking the route transition on it.

@@ -16,6 +16,7 @@ import { perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
 	canReadRepo,
+	getAccessForRepository,
 	getRepoOrThrow,
 	getRepositoryAccess,
 } from "./repo-access";
@@ -185,15 +186,13 @@ export const getRepository = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// ponytail: none of these four depend on each other's result (all keyed
-		// off data.id / currentUser.id alone) — fire them together instead of
-		// four sequential round trips to Neon.
-		const [access, repo, starCount, userStar] = await Promise.all([
+		// ponytail: getRepositoryAccess already fetches+caches the repo row as part
+		// of resolving access (see repo-access.ts's resolveRepositoryAccess) — a
+		// separate db.query.repositories.findFirst here used to duplicate that same
+		// fetch. Reuse access.repository instead; starCount/userStar don't depend on
+		// either, so they still run fully in parallel.
+		const [access, starCount, userStar] = await Promise.all([
 			getRepositoryAccess(data.id, currentUser?.id),
-			db.query.repositories.findFirst({
-				where: eq(repositories.id, data.id),
-				with: { owner: true },
-			}),
 			getStarCount(data.id),
 			currentUser
 				? db.query.stars.findFirst({
@@ -207,12 +206,9 @@ export const getRepository = createServerFn({ method: "GET" })
 
 		if (!access) throw new Error("Repository not found");
 		if (!access.canRead) throw new Error("Access denied");
-		if (!repo) {
-			throw new Error("Repository not found");
-		}
 
 		return {
-			...repo,
+			...access.repository,
 			starCount,
 			isStarred: !!userStar,
 		};
@@ -259,11 +255,17 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 
 			// ponytail: access check and star lookups only need repo.id / currentUser.id,
 			// which we already have — run them together instead of access-then-stars.
+			// Uses getAccessForRepository (not getRepositoryAccess) since we already have
+			// `repo` from the join above — getRepositoryAccess would re-fetch the same row
+			// again internally. This also primes repo-access.ts's short-TTL cache, so the
+			// tree page's follow-up getBranches/listFiles/getLastCommits/getCommits calls
+			// (which all resolve access for this same repoId+userId right after this
+			// resolves) hit that cache instead of each re-deriving it from scratch.
 			const [access, starCount, userStar] = await perfStep(
 				"db: access + starCount + userStar",
 				() =>
 					Promise.all([
-						getRepositoryAccess(repo.id, currentUser?.id),
+						getAccessForRepository(repo, currentUser?.id),
 						getStarCount(repo.id),
 						currentUser
 							? db.query.stars.findFirst({

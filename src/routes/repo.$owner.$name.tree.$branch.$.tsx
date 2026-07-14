@@ -27,7 +27,9 @@ import {
 	repositoryCommitsQueryOptions,
 	repositoryFileQueryOptions,
 	repositoryFilesQueryOptions,
+	repositoryIssueNumbersQueryOptions,
 	repositoryLastCommitsQueryOptions,
+	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
@@ -68,7 +70,19 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 						),
 				);
 				if (repo) {
-					await perfTime(
+					// MarkdownRenderer (which renders the README below) needs these to
+					// resolve `#123` references to issue/PR links — nothing in any loader
+					// prefetched them before, so they only fired as a client-only query
+					// after the README already rendered. Fire-and-forget: only depends on
+					// repo.id, doesn't block the loader response.
+					queryClient
+						.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
+						.catch(() => {});
+					queryClient
+						.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
+						.catch(() => {});
+
+					const [, files] = await perfTime(
 						"loader: ensureQueryData [branches, files, lastCommits, commits]",
 						() =>
 							Promise.all([
@@ -98,6 +112,28 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 								),
 							]),
 					);
+
+					// The component only discovers the README (and fires its content query)
+					// after `files` has rendered client-side — without this, that's a whole
+					// extra request/response cycle tacked on after the page is already
+					// visible. We already know the file list here, so kick the fetch off now
+					// (fire-and-forget — don't block the loader/response on it) so it's
+					// likely already resolved in the query cache by the time the component
+					// mounts and asks for it.
+					const readmeFile = files?.find(
+						(f) => f.type === "blob" && /^readme\.md$/i.test(f.path),
+					);
+					if (readmeFile) {
+						queryClient
+							.ensureQueryData(
+								repositoryFileQueryOptions({
+									repoId: repo.id,
+									branchName: params.branch,
+									path: readmeFile.path,
+								}),
+							)
+							.catch(() => {});
+					}
 				}
 			},
 		),

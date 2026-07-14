@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { repositories, repositoryCollaborators } from "../db/github-schema";
+import { perfNote } from "./perf-log";
 
 export type CollaboratorRole = "read" | "write" | "admin";
 export type RepositoryPermissionRole =
@@ -42,25 +43,96 @@ async function getCollaboratorRole(
 	return null;
 }
 
+// A single tree-page load fans out to getBranches/listFiles/getLastCommits/getCommits
+// in parallel (see repo.$owner.$name.tree.$branch.$.tsx's loader), and every one of
+// them independently re-resolves "does this user have access to this repo" from
+// scratch — same repoId, same userId, computed 4x concurrently. Short-TTL cache +
+// in-flight coalescing so those 4 calls (plus whatever already ran in
+// getRepositoryByName just before them) share one DB round trip instead of each
+// firing their own. TTL is intentionally short: this is a perf cache, not a
+// correctness cache — a revoked collaborator or flipped visibility should take
+// effect within a few seconds, not linger for the lifetime of the process like the
+// long-lived git object cache does.
+const ACCESS_CACHE_TTL_MS = 4000;
+const accessCache = new Map<
+	string,
+	{ value: RepositoryAccess | null; at: number }
+>();
+const accessInFlight = new Map<string, Promise<RepositoryAccess | null>>();
+
+function accessCacheKey(repoId: number, userId?: string | null): string {
+	return `${repoId}:${userId ?? "anon"}`;
+}
+
+async function fetchRepoRow(repoId: number) {
+	return db.query.repositories.findFirst({
+		where: eq(repositories.id, repoId),
+		with: { owner: true },
+	});
+}
+
+/** Seed the cache with an access decision a caller already computed elsewhere
+ * (e.g. getRepositoryByName, which resolves repo+access as the very first thing
+ * a repo page load does) so the parallel reads that follow hit cache instead of
+ * re-deriving the same answer. */
+export function primeRepositoryAccessCache(
+	repoId: number,
+	userId: string | null | undefined,
+	access: RepositoryAccess,
+): void {
+	accessCache.set(accessCacheKey(repoId, userId), {
+		value: access,
+		at: Date.now(),
+	});
+}
+
+async function resolveRepositoryAccess(
+	repoId: number,
+	userId?: string | null,
+): Promise<RepositoryAccess | null> {
+	const key = accessCacheKey(repoId, userId);
+
+	const cached = accessCache.get(key);
+	if (cached && Date.now() - cached.at < ACCESS_CACHE_TTL_MS) {
+		perfNote(`repo-access cache HIT ${key}`);
+		return cached.value;
+	}
+
+	const existing = accessInFlight.get(key);
+	if (existing) {
+		perfNote(`repo-access in-flight coalesce ${key}`);
+		return existing;
+	}
+
+	perfNote(`repo-access cache MISS ${key}, fetching`);
+	// ponytail: fire the collaborator lookup alongside the repo fetch instead of
+	// after it — most callers here are non-owners, so this is a real round trip
+	// most of the time; the rare owner case just discards the wasted query below.
+	const promise = (async () => {
+		const [repository, speculativeCollaboratorRole] = await Promise.all([
+			fetchRepoRow(repoId),
+			userId ? getCollaboratorRole(repoId, userId) : Promise.resolve(null),
+		]);
+
+		if (!repository) return null;
+		return buildAccess(repository, userId, speculativeCollaboratorRole);
+	})();
+
+	accessInFlight.set(key, promise);
+	try {
+		const result = await promise;
+		accessCache.set(key, { value: result, at: Date.now() });
+		return result;
+	} finally {
+		accessInFlight.delete(key);
+	}
+}
+
 export async function getRepositoryAccess(
 	repoId: number,
 	userId?: string | null,
 ): Promise<RepositoryAccess | null> {
-	// ponytail: fire the collaborator lookup alongside the repo fetch instead of
-	// after it — most callers here are non-owners, so this is a real round trip
-	// most of the time; the rare owner case just discards the wasted query below.
-	const [repository, speculativeCollaboratorRole] = await Promise.all([
-		db.query.repositories.findFirst({
-			where: eq(repositories.id, repoId),
-		}),
-		userId ? getCollaboratorRole(repoId, userId) : Promise.resolve(null),
-	]);
-
-	if (!repository) {
-		return null;
-	}
-
-	return buildAccess(repository, userId, speculativeCollaboratorRole);
+	return resolveRepositoryAccess(repoId, userId);
 }
 
 // Callers that already hold a fetched repository row (e.g. via a relational
@@ -73,11 +145,20 @@ export async function getAccessForRepository(
 	repository: typeof repositories.$inferSelect,
 	userId?: string | null,
 ): Promise<RepositoryAccess> {
-	if (!userId || repository.ownerId === userId) {
-		return buildAccess(repository, userId, null);
-	}
-	const collaboratorRole = await getCollaboratorRole(repository.id, userId);
-	return buildAccess(repository, userId, collaboratorRole);
+	const access =
+		!userId || repository.ownerId === userId
+			? buildAccess(repository, userId, null)
+			: buildAccess(
+					repository,
+					userId,
+					await getCollaboratorRole(repository.id, userId),
+				);
+	// Caller already had this repo row in hand (e.g. via a relational query), so this
+	// didn't need resolveRepositoryAccess's own repo fetch — but priming its cache
+	// means a sibling call in the same request (or the next few seconds) that *does*
+	// go through getRepoWithReadAccess/getRepositoryAccess gets a free cache hit.
+	primeRepositoryAccessCache(repository.id, userId, access);
+	return access;
 }
 
 function buildAccess(
@@ -200,10 +281,7 @@ export async function canMergePullRequest(
 // hand-rolling the same three lines everywhere.
 
 export async function getRepoOrThrow(repoId: number) {
-	const repo = await db.query.repositories.findFirst({
-		where: eq(repositories.id, repoId),
-		with: { owner: true },
-	});
+	const repo = await fetchRepoRow(repoId);
 
 	if (!repo) {
 		throw new Error("Repository not found");
@@ -231,33 +309,29 @@ export async function requireWriteAccess(
 }
 
 // files.ts previously did `getRepoOrThrow` then `require*Access` back to back —
-// each hits the repositories table independently, so that was two sequential
-// round trips to Neon per request for data neither call needed from the other.
-// These run both in parallel and use allSettled (not Promise.all) so a missing
-// repo still surfaces "Repository not found" rather than racing with whichever
-// access-denied error happens to settle first.
+// each independently hit the repositories table (and require*Access's own
+// getRepositoryAccess call re-fetched the row a *third* time under the hood), so a
+// single call here was 2-3 concurrent duplicate reads of the exact same row. Routing
+// through resolveRepositoryAccess collapses that to one fetch, and — since files.ts's
+// tree-page loader calls getBranches/listFiles/getLastCommits/getCommits for the same
+// (repoId, userId) all in parallel — lets those four calls share one cached result
+// instead of each paying for their own.
 export async function getRepoWithReadAccess(
 	repoId: number,
 	userId?: string | null,
 ) {
-	const [repoResult, accessResult] = await Promise.allSettled([
-		getRepoOrThrow(repoId),
-		requireReadAccess(repoId, userId),
-	]);
-	if (repoResult.status === "rejected") throw repoResult.reason;
-	if (accessResult.status === "rejected") throw accessResult.reason;
-	return repoResult.value;
+	const access = await resolveRepositoryAccess(repoId, userId);
+	if (!access) throw new Error("Repository not found");
+	if (!access.canRead) throw new Error("Access denied");
+	return access.repository;
 }
 
 export async function getRepoWithWriteAccess(
 	repoId: number,
 	userId?: string | null,
 ) {
-	const [repoResult, accessResult] = await Promise.allSettled([
-		getRepoOrThrow(repoId),
-		requireWriteAccess(repoId, userId),
-	]);
-	if (repoResult.status === "rejected") throw repoResult.reason;
-	if (accessResult.status === "rejected") throw accessResult.reason;
-	return repoResult.value;
+	const access = await resolveRepositoryAccess(repoId, userId);
+	if (!access) throw new Error("Repository not found");
+	if (!access.canWrite) throw new Error("No write access to repository");
+	return access.repository;
 }
