@@ -16,6 +16,10 @@ export const Route = createFileRoute("/repositories/")({
 		}
 		return { user: session.user };
 	},
+	// Same fix as /dashboard: this had no loader, so the repo list only started
+	// fetching after the client mounted instead of being prefetched during SSR.
+	loader: async ({ context: { queryClient } }) =>
+		queryClient.ensureQueryData(userRepositoriesQueryOptions()),
 });
 
 function RepositoriesPage() {

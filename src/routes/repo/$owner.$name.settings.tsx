@@ -7,12 +7,13 @@ import { DangerSection } from "@/components/settings/DangerSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
 import {
 	authSessionQueryOptions,
+	repoCollaboratorsQueryOptions,
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 
 export const Route = createFileRoute("/repo/$owner/$name/settings")({
 	loader: async ({ params, context: { queryClient } }) => {
-		await Promise.all([
+		const [repo, session] = await Promise.all([
 			queryClient.ensureQueryData(
 				repositoryByNameQueryOptions({
 					owner: params.owner,
@@ -21,6 +22,15 @@ export const Route = createFileRoute("/repo/$owner/$name/settings")({
 			),
 			queryClient.ensureQueryData(authSessionQueryOptions()),
 		]);
+
+		// CollaboratorsSection only renders for the owner and previously fetched
+		// its list client-side with no prefetch — fire-and-forget once we know
+		// they're the owner, so it's warm by the time that section mounts.
+		if (repo && session?.user?.id === repo.ownerId) {
+			queryClient
+				.ensureQueryData(repoCollaboratorsQueryOptions(repo.id))
+				.catch(() => {});
+		}
 	},
 	component: RepoSettingsPage,
 });

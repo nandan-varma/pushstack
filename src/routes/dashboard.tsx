@@ -18,6 +18,15 @@ export const Route = createFileRoute("/dashboard")({
 		}
 		return { user: session.user };
 	},
+	// Unlike every other page in the app, this had no loader — it fetched both
+	// queries client-side after hydration, meaning the dashboard (the first thing
+	// most users see after logging in) always showed loading skeletons before
+	// popping in content, instead of arriving with it already rendered.
+	loader: async ({ context: { queryClient } }) =>
+		Promise.all([
+			queryClient.ensureQueryData(userRepositoriesQueryOptions()),
+			queryClient.ensureQueryData(userActivityQueryOptions({ limit: 20 })),
+		]),
 });
 
 function DashboardPage() {

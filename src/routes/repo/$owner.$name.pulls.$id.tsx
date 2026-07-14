@@ -27,6 +27,8 @@ import {
 	pullRequestQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
+	repositoryIssueNumbersQueryOptions,
+	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
 import { getInitials } from "@/lib/utils/avatar";
 import { createComment } from "@/server/comments";
@@ -37,7 +39,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 		const prId = Number(params.id);
 		// The PR/comments queries key off params.id, not the repo — no need to
 		// wait on the repo fetch before starting them.
-		await Promise.all([
+		const [repo] = await Promise.all([
 			queryClient.ensureQueryData(
 				repositoryByNameQueryOptions({
 					owner: params.owner,
@@ -51,6 +53,18 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 					]
 				: []),
 		]);
+
+		// MarkdownRenderer (PR body + comments) resolves `#123` references using
+		// these — fire-and-forget so the extra round trip doesn't land after the
+		// body has already rendered.
+		if (repo) {
+			queryClient
+				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
+				.catch(() => {});
+			queryClient
+				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
+				.catch(() => {});
+		}
 	},
 	component: PullRequestDetailPage,
 });
