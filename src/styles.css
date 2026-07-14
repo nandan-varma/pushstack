@@ -261,6 +261,23 @@ pre code {
   padding: 0;
 }
 
+.code-viewer-html.with-line-numbers pre.shiki code {
+  counter-reset: line;
+}
+
+.code-viewer-html.with-line-numbers pre.shiki .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  min-width: 2.5rem;
+  margin-right: 1rem;
+  padding-right: 0.75rem;
+  border-right: 1px solid var(--line);
+  text-align: right;
+  color: var(--sea-ink-soft);
+  user-select: none;
+}
+
 .diff-patch {
   margin: 0;
   line-height: 1.5;
@@ -319,6 +336,16 @@ pre code {
   white-space: pre;
 }
 
+.diff-code span {
+  color: var(--shiki-light);
+  background-color: var(--shiki-light-bg, transparent);
+}
+
+.dark .diff-code span {
+  color: var(--shiki-dark, var(--shiki-light));
+  background-color: var(--shiki-dark-bg, var(--shiki-light-bg, transparent));
+}
+
 .diff-line--meta,
 .diff-line--hunk {
   background: color-mix(in oklab, var(--chip-bg) 78%, transparent);
@@ -365,6 +392,90 @@ pre code {
 .prose :not(pre) > code::before,
 .prose :not(pre) > code::after {
   content: none;
+}
+
+/* rehype-highlight (highlight.js) token colors for fenced code blocks in
+   rendered markdown. `.prose pre` above is always dark, so this mirrors the
+   github-dark palette unconditionally rather than gating on `.dark`. */
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: #ff7b72;
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: #d2a8ff;
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #79c0ff;
+}
+
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+
+.hljs-built_in,
+.hljs-symbol {
+  color: #ffa657;
+}
+
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: #8b949e;
+}
+
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: #7ee787;
+}
+
+.hljs-section {
+  color: #1f6feb;
+  font-weight: 600;
+}
+
+.hljs-bullet {
+  color: #f2cc60;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 600;
+}
+
+.hljs-addition {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+
+.hljs-deletion {
+  color: #ffdcd7;
+  background-color: #67060c;
 }
 
 .page-wrap {

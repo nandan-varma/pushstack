@@ -35,6 +35,13 @@ function getWorker() {
 				request.resolve(result);
 			}
 		};
+		worker.onerror = () => {
+			for (const request of pending.values()) {
+				request.reject(new Error("Syntax highlight worker crashed"));
+			}
+			pending.clear();
+			worker = null;
+		};
 	}
 	return worker;
 }

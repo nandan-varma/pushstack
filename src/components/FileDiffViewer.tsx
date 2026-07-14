@@ -103,10 +103,15 @@ interface ParsedDiffLine {
 	newLine: number | null;
 }
 
+interface HunkSegment {
+	start: number;
+	end: number;
+}
+
 interface ParsedFileDiff extends FileDiff {
 	language: string;
 	lines: ParsedDiffLine[];
-	highlightSource: string;
+	hunkSegments: HunkSegment[];
 	additions: number;
 	deletions: number;
 	hunks: number;
@@ -213,16 +218,33 @@ function parsePatch(patch: string): ParsedDiffLine[] {
 	return parsed;
 }
 
+// Hunks aren't contiguous in the real file, so each hunk is tokenized on its
+// own request — joining them into one blob would let tokenizer state (e.g. an
+// open string/comment) leak across an unrelated hunk boundary.
+function getHunkSegments(lines: ParsedDiffLine[]): HunkSegment[] {
+	const segments: HunkSegment[] = [];
+	let segmentStart: number | null = null;
+
+	for (let i = 0; i < lines.length; i++) {
+		if (lines[i].kind === "hunk") {
+			if (segmentStart !== null) {
+				segments.push({ start: segmentStart, end: i });
+				segmentStart = null;
+			}
+			continue;
+		}
+		if (segmentStart === null) segmentStart = i;
+	}
+
+	if (segmentStart !== null)
+		segments.push({ start: segmentStart, end: lines.length });
+	return segments;
+}
+
+const NO_TOKENS: ThemedToken[] = [];
+
 function tokenStyle(token: ThemedToken): CSSProperties {
-	const style: CSSProperties = {};
-	if (token.color) style.color = token.color;
-
-	const fontStyle = token.fontStyle ?? 0;
-	if (fontStyle & 1) style.fontStyle = "italic";
-	if (fontStyle & 2) style.fontWeight = 600;
-	if (fontStyle & 4) style.textDecoration = "underline";
-
-	return style;
+	return (token.htmlStyle ?? {}) as CSSProperties;
 }
 
 function renderLineCode(
@@ -277,7 +299,7 @@ export function FileDiffViewer({
 					...fileDiff,
 					language: detectLanguage(fileDiff.path),
 					lines,
-					highlightSource: lines.map((line) => line.highlightText).join("\n"),
+					hunkSegments: getHunkSegments(lines),
 					additions,
 					deletions,
 					hunks,
@@ -306,22 +328,37 @@ export function FileDiffViewer({
 		const run = async () => {
 			const highlights = await Promise.all(
 				parsedFiles.map(async (fileDiff) => {
-					if (
-						!fileDiff.highlightSource ||
-						isLargeContent(fileDiff.highlightSource)
-					) {
+					if (fileDiff.hunkSegments.length === 0) {
 						return [fileDiff.path, null] as const;
 					}
 
-					try {
-						const tokens = await requestHighlightTokens(
-							fileDiff.highlightSource,
-							fileDiff.language,
-						);
-						return [fileDiff.path, tokens] as const;
-					} catch {
-						return [fileDiff.path, null] as const;
-					}
+					const tokenLines: ThemedToken[][] = new Array(
+						fileDiff.lines.length,
+					).fill(NO_TOKENS);
+
+					await Promise.all(
+						fileDiff.hunkSegments.map(async ({ start, end }) => {
+							const text = fileDiff.lines
+								.slice(start, end)
+								.map((line) => line.highlightText)
+								.join("\n");
+							if (!text || isLargeContent(text)) return;
+
+							try {
+								const tokens = await requestHighlightTokens(
+									text,
+									fileDiff.language,
+								);
+								for (let i = 0; i < tokens.length && start + i < end; i++) {
+									tokenLines[start + i] = tokens[i];
+								}
+							} catch {
+								// leave this segment's lines unhighlighted
+							}
+						}),
+					);
+
+					return [fileDiff.path, tokenLines] as const;
 				}),
 			);
 

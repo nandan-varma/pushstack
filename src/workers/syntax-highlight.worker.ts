@@ -81,6 +81,7 @@ async function highlight(
 				tokens: highlighter.codeToTokens(code, {
 					lang: resolvedLang,
 					themes: HIGHLIGHT_THEMES,
+					defaultColor: false,
 				}).tokens,
 			};
 		}
@@ -88,6 +89,7 @@ async function highlight(
 			html: highlighter.codeToHtml(code, {
 				lang: resolvedLang,
 				themes: HIGHLIGHT_THEMES,
+				defaultColor: false,
 			}),
 		};
 	} catch {
@@ -96,6 +98,7 @@ async function highlight(
 				tokens: highlighter.codeToTokens(code, {
 					lang: "plaintext",
 					themes: HIGHLIGHT_THEMES,
+					defaultColor: false,
 				}).tokens,
 			};
 		}
@@ -103,6 +106,7 @@ async function highlight(
 			html: highlighter.codeToHtml(code, {
 				lang: "plaintext",
 				themes: HIGHLIGHT_THEMES,
+				defaultColor: false,
 			}),
 		};
 	}
