@@ -115,7 +115,6 @@ describe("GitManager - Repository Management", () => {
 		it("should initialize a new repository", async () => {
 			fs.mkdir.mockResolvedValue(undefined);
 			git.init.mockResolvedValue(undefined);
-			git.setConfig.mockResolvedValue(undefined);
 
 			const result = await GitManager.initBareRepo(testOwnerId, testRepoName);
 
@@ -126,29 +125,21 @@ describe("GitManager - Repository Management", () => {
 				defaultBranch: "main",
 				bare: true,
 			});
-			expect(git.setConfig).toHaveBeenCalledTimes(2); // user.name and user.email
 			expect(result).toContain("test-repo");
 		});
 
-		it("should set default git config", async () => {
+		// No git.setConfig call: getDefaultAuthor() returns the default
+		// name/email as plain JS constants, never read back from git config —
+		// see the comment on initBareRepo. A prior version called setConfig
+		// here, but it silently wrote to the wrong (nested, non-bare) config
+		// path and nothing ever consumed it.
+		it("does not call git.setConfig", async () => {
 			fs.mkdir.mockResolvedValue(undefined);
 			git.init.mockResolvedValue(undefined);
-			git.setConfig.mockResolvedValue(undefined);
 
 			await GitManager.initBareRepo(testOwnerId, testRepoName);
 
-			expect(git.setConfig).toHaveBeenCalledWith({
-				fs: expect.anything(),
-				dir: expect.stringContaining("test-repo"),
-				path: "user.name",
-				value: "PushStack",
-			});
-			expect(git.setConfig).toHaveBeenCalledWith({
-				fs: expect.anything(),
-				dir: expect.stringContaining("test-repo"),
-				path: "user.email",
-				value: "system@pushstack.dev",
-			});
+			expect(git.setConfig).not.toHaveBeenCalled();
 		});
 	});
 
@@ -245,7 +236,6 @@ describe("GitManager - Repository Management", () => {
 			it("skips local mkdir and uses R2 backend when R2 is configured", async () => {
 				mockIsR2Configured.mockReturnValue(true);
 				git.init.mockResolvedValue(undefined);
-				git.setConfig.mockResolvedValue(undefined);
 
 				const result = await GitManager.initBareRepo(testOwnerId, testRepoName);
 

@@ -106,6 +106,21 @@ function enoent(filepath: string, verb: "open" | "stat"): Error {
 	);
 }
 
+// isomorphic-git's GitRefManager.resolve/listRefs unconditionally reads
+// "packed-refs" on *every* single ref resolution (no internal caching of its
+// own — see node_modules/isomorphic-git's GitRefManager.packedRefs) — nothing
+// in this codebase ever writes that file (all refs are always loose, never
+// packed; see git-branch-ops.ts), so it is a structural, permanent 404, not
+// merely a "usually missing" one. The MISSING marker below already turns a
+// repeat lookup within one warm process into a cache hit, but that doesn't
+// help the very first lookup, and doesn't help at all on a cold serverless
+// invocation with an empty in-process cache (the common case on Vercel) —
+// measured ~150-340ms of pure R2 round-trip latency paid on every single
+// clone/fetch/push for a file that can never exist. Skip R2 entirely.
+function isStructurallyAbsent(relativePath: string): boolean {
+	return relativePath === "packed-refs";
+}
+
 // A file's own cache key is never a prefix of its ancestor directories' cache
 // keys (it's the other way around), so invalidateObjectCache(cacheKey) — which
 // only clears keys *starting with* the written/deleted path — can never reach a
@@ -270,6 +285,11 @@ export class R2Backend {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
+
+		if (isStructurallyAbsent(relativePath)) {
+			recordCacheHit();
+			throw enoent(filepath, "open");
+		}
 
 		// See detectLooseObjectsHint: most repos are fully packed, so a loose-object
 		// path is a guaranteed 404 — skip the R2 round trip entirely once we know that.
@@ -488,6 +508,10 @@ export class R2Backend {
 		const { ownerKey, repoName } = parseGitDir(filepath);
 		const relativePath = stripGitDir(filepath);
 		const cacheKey = `${ownerKey}/${repoName}/${relativePath}`;
+
+		if (isStructurallyAbsent(relativePath)) {
+			throw enoent(filepath, "stat");
+		}
 
 		// If content is cached we already know the file exists — skip HeadObject
 		const cached = getCache(cacheKey);
