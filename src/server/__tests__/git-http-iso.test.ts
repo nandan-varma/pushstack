@@ -31,6 +31,7 @@ vi.mock("../git-r2-backend", () => ({
 		readdir: vi.fn().mockResolvedValue([]),
 		readFile: vi.fn().mockResolvedValue(Buffer.alloc(0)),
 	},
+	detectLooseObjectsHint: vi.fn().mockResolvedValue(undefined),
 }));
 
 // --- mock storage naming ---

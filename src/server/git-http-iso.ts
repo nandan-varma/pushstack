@@ -17,7 +17,7 @@ import { bulkDeleteFromR2 } from "#/lib/r2-operations";
 import type { GitAuthContext } from "./git-auth";
 import { deleteCache, invalidateCache } from "./git-cache";
 import { GitAuthorizationError } from "./git-errors";
-import { r2Backend } from "./git-r2-backend";
+import { detectLooseObjectsHint, r2Backend } from "./git-r2-backend";
 import { withReceivePackLock } from "./git-repo-storage";
 import {
 	getRepoGitStoragePrefix,
@@ -718,6 +718,17 @@ async function handleUploadPackIsoInner(
 			};
 		}
 	}
+
+	// Most repos are fully packed — without this, every object collectReachableOids
+	// touches below pays a doomed loose-object GET before falling back to the pack
+	// search, since (unlike the single-pack fast path above) this general path always
+	// runs a full reachability walk. This previously only ran from the commit-log
+	// browsing path (getCommitLog's prefetchAllPacks), never from here — meaning
+	// every real `git clone`/`git fetch` that didn't hit the single-pack fast path
+	// (any repo with more than one accumulated pack) paid the full per-object tax.
+	await perfStep("detectLooseObjectsHint", () =>
+		detectLooseObjectsHint(ownerKey, repoName),
+	);
 
 	const { oids: wantOids } = await perfStep("collectReachableOids(wants)", () =>
 		collectReachableOids(gitdir, wants),
