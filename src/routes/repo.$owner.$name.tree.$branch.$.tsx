@@ -24,11 +24,11 @@ import { perfMark, perfTime } from "@/lib/perf-log";
 import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
-	repositoryCommitsQueryOptions,
 	repositoryFileQueryOptions,
 	repositoryFilesQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryLastCommitsQueryOptions,
+	repositoryLatestCommitQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
 
@@ -112,10 +112,9 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 									}),
 								),
 								queryClient.ensureQueryData(
-									repositoryCommitsQueryOptions({
+									repositoryLatestCommitQueryOptions({
 										repoId: repo.id,
 										branchName: params.branch,
-										limit: 1,
 									}),
 								),
 							]),
@@ -187,10 +186,9 @@ function TreeBrowserPage() {
 	});
 
 	const { data: latestCommits, isLoading: latestCommitLoading } = useQuery({
-		...repositoryCommitsQueryOptions({
+		...repositoryLatestCommitQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: activeBranch,
-			limit: 1,
 		}),
 		enabled: !!repo,
 	});
