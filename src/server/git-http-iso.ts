@@ -157,6 +157,25 @@ interface ReachabilityResult {
 	complete: boolean;
 }
 
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A read landing in the gap between repackLocal's new consolidated pack being
+// uploaded and deleteStalePacksFromR2 finishing its cleanup (+ its own cache
+// invalidation, see that function's comment) can transiently 404 on an object
+// that is not actually lost — it exists in the new pack the whole time, this
+// request's cached objects/pack/ listing was just taken before that pack
+// existed (or after the old one it names was already deleted). Reproduced
+// directly: 9 of 15 clones run concurrently against a repo being repeatedly
+// pushed to (each push crossing the repack threshold) failed with "remote did
+// not send all necessary objects" for the exact same oid that a moment later
+// (or a moment earlier) cloned fine. One retry after a short delay — long
+// enough for that cleanup's own cache invalidation to have landed — is enough
+// to observe the current, consistent pack listing instead of the mid-transition
+// snapshot the first attempt raced against.
+const MISSING_OBJECT_RETRY_DELAY_MS = 200;
+
 // ponytail: filesystem param lets this run against R2 (clone) or local disk (repack after push)
 async function collectReachableOids(
 	gitdir: string,
@@ -168,37 +187,42 @@ async function collectReachableOids(
 	// ponytail: promise-per-oid deduplicates concurrent traversal paths
 	const promises = new Map<string, Promise<void>>();
 
+	async function readAndVisitChildren(oid: string): Promise<void> {
+		const obj = await git.readObject({ fs: filesystem, gitdir, oid });
+		// Add to seen only after a successful read so failed reads are excluded from the pack
+		seen.add(oid);
+		let children: string[] = [];
+		if (obj.type === "commit") {
+			const { commit } = await git.readCommit({ fs: filesystem, gitdir, oid });
+			children = [commit.tree, ...commit.parent];
+		} else if (obj.type === "tree") {
+			const { tree } = await git.readTree({ fs: filesystem, gitdir, oid });
+			children = tree.map((e) => e.oid);
+		} else if (obj.type === "tag") {
+			const { tag } = await git.readTag({ fs: filesystem, gitdir, oid });
+			children = [tag.object];
+		}
+		await Promise.all(children.map(visit));
+	}
+
 	function visit(oid: string): Promise<void> {
 		const existing = promises.get(oid);
 		if (existing) return existing;
 
 		const p = (async () => {
 			try {
-				const obj = await git.readObject({ fs: filesystem, gitdir, oid });
-				// Add to seen only after a successful read so failed reads are excluded from the pack
-				seen.add(oid);
-				let children: string[] = [];
-				if (obj.type === "commit") {
-					const { commit } = await git.readCommit({
-						fs: filesystem,
-						gitdir,
-						oid,
-					});
-					children = [commit.tree, ...commit.parent];
-				} else if (obj.type === "tree") {
-					const { tree } = await git.readTree({ fs: filesystem, gitdir, oid });
-					children = tree.map((e) => e.oid);
-				} else if (obj.type === "tag") {
-					const { tag } = await git.readTag({ fs: filesystem, gitdir, oid });
-					children = [tag.object];
+				await readAndVisitChildren(oid);
+			} catch {
+				try {
+					await delay(MISSING_OBJECT_RETRY_DELAY_MS);
+					await readAndVisitChildren(oid);
+				} catch (err) {
+					complete = false;
+					console.warn(
+						`[git-http] missing object ${oid}:`,
+						err instanceof Error ? err.message : err,
+					);
 				}
-				await Promise.all(children.map(visit));
-			} catch (err) {
-				complete = false;
-				console.warn(
-					`[git-http] missing object ${oid}:`,
-					err instanceof Error ? err.message : err,
-				);
 			}
 		})();
 

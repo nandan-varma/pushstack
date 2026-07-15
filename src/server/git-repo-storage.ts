@@ -14,6 +14,7 @@ import {
 	listAllR2Files,
 } from "#/lib/r2-operations";
 import { invalidateCache, invalidateObjectCache } from "./git-cache";
+import { isR2NotFoundError } from "./git-errors";
 import {
 	ensureGitBaseDir,
 	getBareRepoOptions,
@@ -107,8 +108,26 @@ async function writeRemoteFilesToDisk(
 				const relativePath = file.key.slice(sourcePrefix.length);
 				const destination = path.join(repoPath, relativePath);
 				await fs.mkdir(path.dirname(destination), { recursive: true });
-				const { content } = await downloadFromR2(file.key);
-				await fs.writeFile(destination, content);
+				try {
+					const { content } = await downloadFromR2(file.key);
+					await fs.writeFile(destination, content);
+				} catch (err) {
+					// A pack/idx file that existed when listAllR2FilesCached ran but is
+					// gone by the time we go to download it means a concurrent push's
+					// repackLocal + deleteStalePacksFromR2 (see git-http-iso.ts) just
+					// deleted it as redundant — deleteStalePacksFromR2 only ever runs
+					// after the replacement consolidated pack it supersedes has already
+					// been uploaded, so that file's content is not lost, just not needed
+					// under this name. Reproduced directly under concurrent-push load:
+					// this 404 was previously unhandled, crashing the whole hydration
+					// (and the push serving it) with a 500 for a file this hydration
+					// never actually needed.
+					if (!isR2NotFoundError(err)) throw err;
+					perfNote(
+						`writeRemoteFilesToDisk: skipping ${file.key} — 404'd mid-hydration, ` +
+							"likely just deleted by a concurrent repack as redundant",
+					);
+				}
 			}),
 		);
 	}
