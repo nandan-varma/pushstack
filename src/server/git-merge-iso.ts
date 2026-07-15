@@ -6,6 +6,7 @@ import { createCommit } from "./git-commit-write";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
 	getRepoOptions,
+	qualifyBranchRef,
 	withRepositoryLock,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
@@ -34,8 +35,8 @@ export async function analyzeMerge(
 
 	try {
 		const [sourceOid, targetOid] = await Promise.all([
-			git.resolveRef({ ...repo, ref: sourceBranch }),
-			git.resolveRef({ ...repo, ref: targetBranch }),
+			git.resolveRef({ ...repo, ref: qualifyBranchRef(sourceBranch) }),
+			git.resolveRef({ ...repo, ref: qualifyBranchRef(targetBranch) }),
 		]);
 
 		const isDescendant = await git.isDescendent({
@@ -106,13 +107,18 @@ export async function mergeBranches(
 			ownerKey,
 			repoName,
 			targetBranch,
-			async ({ worktreePath }) => {
-				// Use remote tracking ref: worktree clones only have origin/<branch>, not local <branch>
+			async ({ worktreePath, gitdir }) => {
+				// Both branches are real local refs in the same gitdir now — no
+				// remote-tracking indirection needed. Pre-qualified to
+				// refs/heads/<name>: git.merge's own ref expansion (GitRefManager.expand)
+				// does the identical bare-name candidate scan internally — passing an
+				// already-fully-qualified ref makes its first candidate the hit.
 				await git.merge({
 					fs,
 					dir: worktreePath,
-					ours: targetBranch,
-					theirs: `origin/${sourceBranch}`,
+					gitdir,
+					ours: qualifyBranchRef(targetBranch),
+					theirs: qualifyBranchRef(sourceBranch),
 					author:
 						options.authorName && options.authorEmail
 							? {
@@ -126,8 +132,12 @@ export async function mergeBranches(
 						options.message || `Merge ${sourceBranch} into ${targetBranch}`,
 				});
 
-				// Read from worktree (bare repo not updated yet) and avoid re-acquiring the lock
-				return git.resolveRef({ fs, dir: worktreePath, ref: targetBranch });
+				// git.merge already updated refs/heads/<targetBranch> in gitdir directly
+				return git.resolveRef({
+					fs,
+					gitdir,
+					ref: qualifyBranchRef(targetBranch),
+				});
 			},
 			"main",
 			ownerDbId,
@@ -186,16 +196,23 @@ export async function resolveConflicts(
 		ownerKey,
 		repoName,
 		"main",
-		async ({ worktreePath }) => {
+		async ({ worktreePath, gitdir }) => {
 			for (const resolution of resolutions) {
 				const filePath = path.join(worktreePath, resolution.path);
 				fs.writeFileSync(filePath, resolution.content);
-				await git.add({ fs, dir: worktreePath, filepath: resolution.path });
+				await git.add({
+					fs,
+					dir: worktreePath,
+					gitdir,
+					filepath: resolution.path,
+				});
 			}
 
 			await git.commit({
 				fs,
 				dir: worktreePath,
+				gitdir,
+				ref: "refs/heads/main",
 				message: "Resolve merge conflicts",
 				author: getDefaultAuthor(),
 			});

@@ -116,27 +116,29 @@ export async function uploadToR2(
 	body: Buffer | string,
 	contentType?: string,
 ) {
-	return withRetry(async () => {
-		const client = getR2Client();
-		const { bucketName } = getR2Config();
+	return perfR2(`R2 PUT ${key}`, () =>
+		withRetry(async () => {
+			const client = getR2Client();
+			const { bucketName } = getR2Config();
 
-		try {
-			await client.send(
-				new PutObjectCommand({
-					Bucket: bucketName,
-					Key: key,
-					Body: body,
-					ContentType: contentType,
-				}),
-			);
+			try {
+				await client.send(
+					new PutObjectCommand({
+						Bucket: bucketName,
+						Key: key,
+						Body: body,
+						ContentType: contentType,
+					}),
+				);
 
-			return { key, bucketName };
-		} catch (error) {
-			throw new R2UploadError(
-				`Failed to upload ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
-			);
-		}
-	}, `Upload ${key}`);
+				return { key, bucketName };
+			} catch (error) {
+				throw new R2UploadError(
+					`Failed to upload ${key}: ${error instanceof Error ? error.message : "Unknown error"}`,
+				);
+			}
+		}, `Upload ${key}`),
+	);
 }
 
 /**
@@ -280,32 +282,38 @@ export async function listAllR2Files(prefix?: string): Promise<R2File[]> {
  * Delete a file from R2
  */
 export async function deleteFromR2(key: string) {
-	const client = getR2Client();
-	const { bucketName } = getR2Config();
+	return perfR2(`R2 DELETE ${key}`, async () => {
+		const client = getR2Client();
+		const { bucketName } = getR2Config();
 
-	await client.send(
-		new DeleteObjectCommand({
-			Bucket: bucketName,
-			Key: key,
-		}),
-	);
+		await client.send(
+			new DeleteObjectCommand({
+				Bucket: bucketName,
+				Key: key,
+			}),
+		);
 
-	return { deleted: true, key };
+		return { deleted: true, key };
+	});
 }
 
 /**
  * Check if a file exists in R2
  */
 export async function fileExistsInR2(key: string): Promise<boolean> {
-	const client = getR2Client();
-	const { bucketName } = getR2Config();
+	return perfR2(`R2 EXISTS ${key}`, async () => {
+		const client = getR2Client();
+		const { bucketName } = getR2Config();
 
-	try {
-		await client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
-		return true;
-	} catch {
-		return false;
-	}
+		try {
+			await client.send(
+				new HeadObjectCommand({ Bucket: bucketName, Key: key }),
+			);
+			return true;
+		} catch {
+			return false;
+		}
+	});
 }
 
 /**
@@ -444,19 +452,21 @@ export async function bulkDeleteFromR2(
 
 	for (const chunk of chunks) {
 		try {
-			await withRetry(async () => {
-				const response = await client.send(
-					new DeleteObjectsCommand({
-						Bucket: bucketName,
-						Delete: {
-							Objects: chunk.map((key) => ({ Key: key })),
-						},
-					}),
-				);
+			await perfR2(`R2 BULK-DELETE ${chunk.length} objects`, () =>
+				withRetry(async () => {
+					const response = await client.send(
+						new DeleteObjectsCommand({
+							Bucket: bucketName,
+							Delete: {
+								Objects: chunk.map((key) => ({ Key: key })),
+							},
+						}),
+					);
 
-				deleted += response.Deleted?.length || 0;
-				errors += response.Errors?.length || 0;
-			}, `Bulk delete ${chunk.length} objects`);
+					deleted += response.Deleted?.length || 0;
+					errors += response.Errors?.length || 0;
+				}, `Bulk delete ${chunk.length} objects`),
+			);
 		} catch (error) {
 			errors += chunk.length;
 			console.error("Bulk delete failed:", error);

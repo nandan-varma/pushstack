@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
+import git from "isomorphic-git";
 import { db } from "#/db";
 import { repositories } from "#/db/github-schema";
 import { isR2Configured } from "#/lib/r2";
@@ -13,6 +14,7 @@ import {
 	listAllR2Files,
 } from "#/lib/r2-operations";
 import { invalidateCache, invalidateObjectCache } from "./git-cache";
+import { isR2NotFoundError } from "./git-errors";
 import {
 	ensureGitBaseDir,
 	getBareRepoOptions,
@@ -106,8 +108,26 @@ async function writeRemoteFilesToDisk(
 				const relativePath = file.key.slice(sourcePrefix.length);
 				const destination = path.join(repoPath, relativePath);
 				await fs.mkdir(path.dirname(destination), { recursive: true });
-				const { content } = await downloadFromR2(file.key);
-				await fs.writeFile(destination, content);
+				try {
+					const { content } = await downloadFromR2(file.key);
+					await fs.writeFile(destination, content);
+				} catch (err) {
+					// A pack/idx file that existed when listAllR2FilesCached ran but is
+					// gone by the time we go to download it means a concurrent push's
+					// repackLocal + deleteStalePacksFromR2 (see git-http-iso.ts) just
+					// deleted it as redundant — deleteStalePacksFromR2 only ever runs
+					// after the replacement consolidated pack it supersedes has already
+					// been uploaded, so that file's content is not lost, just not needed
+					// under this name. Reproduced directly under concurrent-push load:
+					// this 404 was previously unhandled, crashing the whole hydration
+					// (and the push serving it) with a 500 for a file this hydration
+					// never actually needed.
+					if (!isR2NotFoundError(err)) throw err;
+					perfNote(
+						`writeRemoteFilesToDisk: skipping ${file.key} — 404'd mid-hydration, ` +
+							"likely just deleted by a concurrent repack as redundant",
+					);
+				}
 			}),
 		);
 	}
@@ -277,12 +297,27 @@ export async function initRepositoryStorage(
 	});
 }
 
+// isomorphic-git's resolveRef/expand try several candidate paths in sequence
+// for a bare ref name — ref, refs/ref, refs/tags/ref, refs/heads/ref,
+// refs/remotes/ref, refs/remotes/ref/HEAD — 404ing (or stat-ing) the first
+// three every time before reaching the one this app's ref model actually
+// uses. This codebase's ref model is branch-only (never tags, e.g. the
+// `branchName` params throughout git-history-ops.ts/git-merge-iso.ts), so
+// skip straight to refs/heads/<name> instead of paying 3 guaranteed-failed
+// R2 round trips per resolution. Left untouched: already-qualified refs,
+// "HEAD" (its own first candidate, already optimal), and 40-char oids
+// (resolved locally by isomorphic-git with no I/O at all).
+export function qualifyBranchRef(ref: string): string {
+	if (ref.startsWith("refs/") || ref === "HEAD" || /^[0-9a-f]{40}$/.test(ref)) {
+		return ref;
+	}
+	return `refs/heads/${ref}`;
+}
+
 async function branchExists(
 	gitdir: string,
 	branchName: string,
 ): Promise<boolean> {
-	const git = await import("isomorphic-git");
-
 	try {
 		await git.resolveRef({
 			fs,
@@ -319,6 +354,15 @@ export async function withReceivePackLock<T>(
 	});
 }
 
+// Materializes a scratch working directory (`dir`) checked out against the
+// bare repo (`gitdir`) directly — no clone, no push. `git.checkout`/
+// `git.commit`/`git.merge` all accept independent `dir`/`gitdir` params, and
+// `git.commit`/`git.merge` take an explicit target `ref`, so a mutation
+// against `{dir: worktreePath, gitdir}` writes straight into the bare repo;
+// there's no separate "push the worktree's result back" step the way a real
+// `git clone` + `git push` would need. `noUpdateHead: true` on the checkout
+// keeps the bare repo's own HEAD untouched (we're not making `worktreePath`
+// "the" checkout of this repo, just borrowing gitdir's object store).
 export async function withRepositoryWorktree<T>(
 	ownerKey: string,
 	repoName: string,
@@ -338,40 +382,37 @@ export async function withRepositoryWorktree<T>(
 			path.join(os.tmpdir(), `pushstack-${ownerKey}-${repoName}-`),
 		);
 		const worktreePath = path.join(worktreeRoot, "worktree");
+		await fs.mkdir(worktreePath, { recursive: true });
 
 		try {
-			const { execFile } = await import("node:child_process");
-			const run = (args: string[]) =>
-				new Promise<void>((resolve, reject) => {
-					execFile("git", args, (error) => {
-						if (error) {
-							reject(error);
-							return;
-						}
-						resolve();
-					});
+			// New-branch case: check out the default branch's current tip so a
+			// commit on a not-yet-existing branch still forks from it (matching
+			// what `git clone` + `git checkout -B <new>` used to produce), rather
+			// than starting from an empty working directory.
+			const checkoutRef = (await branchExists(gitdir, branchName))
+				? branchName
+				: defaultBranch;
+
+			if (await branchExists(gitdir, checkoutRef)) {
+				await git.checkout({
+					fs,
+					dir: worktreePath,
+					gitdir,
+					ref: qualifyBranchRef(checkoutRef),
+					noUpdateHead: true,
 				});
-
-			await run(["clone", gitdir, worktreePath]);
-
-			if (await branchExists(gitdir, branchName)) {
-				await run(["-C", worktreePath, "checkout", branchName]);
-			} else {
-				await run(["-C", worktreePath, "checkout", "-B", branchName]);
 			}
+			// else: brand new, empty repo — leave worktreePath empty.
 
 			const result = await fn({ worktreePath, gitdir });
-			await run([
-				"-C",
-				worktreePath,
-				"push",
-				"origin",
-				`HEAD:refs/heads/${branchName}`,
-			]);
 			await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
 			return result;
 		} finally {
 			await fs.rm(worktreeRoot, { recursive: true, force: true });
+			// `git.checkout`/`git.commit` write a working-tree index at
+			// `gitdir/index`, which a bare repo doesn't conventionally have —
+			// don't let it leak into what gets synced to R2.
+			await fs.rm(path.join(gitdir, "index"), { force: true });
 		}
 	});
 }

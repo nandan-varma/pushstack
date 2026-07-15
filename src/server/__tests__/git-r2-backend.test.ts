@@ -98,6 +98,23 @@ describe("R2Backend.readFile", () => {
 		expect(typeof result).toBe("string");
 		expect(result).toBe("ref: refs/heads/main");
 	});
+
+	// Regression: "packed-refs" and "shallow" are files nothing in this codebase
+	// ever writes (all refs are always loose; this app never advertises or
+	// creates shallow clones) — isomorphic-git probes both on essentially every
+	// ref resolution / merge, so they must 404 without ever touching R2.
+	it.each([
+		"packed-refs",
+		"shallow",
+	])("throws ENOENT for %s without calling R2", async (structurallyAbsentPath) => {
+		vi.mocked(cache.getCache).mockReturnValue(null);
+
+		const backend = new R2Backend();
+		await expect(
+			backend.readFile(`${REPO_PATH}/${structurallyAbsentPath}`),
+		).rejects.toMatchObject({ code: "ENOENT" });
+		expect(r2ops.downloadFromR2).not.toHaveBeenCalled();
+	});
 });
 
 describe("R2Backend.writeFile", () => {
@@ -179,12 +196,13 @@ describe("R2Backend.writeFile", () => {
 	// under it — including the gitdir root itself, since that's stat'd on every
 	// isomorphic-git operation. invalidateObjectCache(cacheKey) only reaches the
 	// written file's own key (and any of its descendants), never its ancestors,
-	// so ancestor stat markers have to be cleared explicitly.
-	it("clears stat markers on every ancestor directory, including the repo root", async () => {
+	// so a stale "missing" ancestor marker has to be cleared explicitly.
+	it("clears a 'missing' stat marker on every ancestor directory, including the repo root", async () => {
 		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
 			key: "mock-key",
 			bucketName: "mock-bucket",
 		});
+		vi.mocked(cache.getCachedObject).mockReturnValue({ kind: "missing" });
 
 		const backend = new R2Backend();
 		await backend.writeFile(
@@ -203,14 +221,36 @@ describe("R2Backend.writeFile", () => {
 			]),
 		);
 	});
+
+	// A "dir" marker is already correct (a write underneath it can only ever
+	// keep it a directory) — clearing it anyway would force the next stat() to
+	// pay a full HeadObject+ListObjects round trip for a fact that hadn't
+	// changed. Measured: this was costing several seconds per commit by
+	// invalidating the gitdir root's own "dir" marker on every object write.
+	it("does not clear a 'dir' stat marker on ancestor directories", async () => {
+		vi.mocked(r2ops.uploadToR2).mockResolvedValue({
+			key: "mock-key",
+			bucketName: "mock-bucket",
+		});
+		vi.mocked(cache.getCachedObject).mockReturnValue({ kind: "dir" });
+
+		const backend = new R2Backend();
+		await backend.writeFile(
+			`${REPO_PATH}/refs/heads/main`,
+			Buffer.from("abc123"),
+		);
+
+		expect(cache.deleteCachedObject).not.toHaveBeenCalled();
+	});
 });
 
 describe("R2Backend.unlink", () => {
-	it("clears stat markers on every ancestor directory", async () => {
+	it("clears a 'missing' stat marker on every ancestor directory", async () => {
 		vi.mocked(r2ops.deleteFromR2).mockResolvedValue({
 			deleted: true,
 			key: "mock-key",
 		});
+		vi.mocked(cache.getCachedObject).mockReturnValue({ kind: "missing" });
 
 		const backend = new R2Backend();
 		await backend.unlink(`${REPO_PATH}/refs/heads/main`);
@@ -225,6 +265,19 @@ describe("R2Backend.unlink", () => {
 				"alice/myrepo/",
 			]),
 		);
+	});
+
+	it("does not clear a 'dir' stat marker on ancestor directories", async () => {
+		vi.mocked(r2ops.deleteFromR2).mockResolvedValue({
+			deleted: true,
+			key: "mock-key",
+		});
+		vi.mocked(cache.getCachedObject).mockReturnValue({ kind: "dir" });
+
+		const backend = new R2Backend();
+		await backend.unlink(`${REPO_PATH}/refs/heads/main`);
+
+		expect(cache.deleteCachedObject).not.toHaveBeenCalled();
 	});
 });
 

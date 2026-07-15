@@ -1,7 +1,7 @@
 import { createTwoFilesPatch } from "diff";
 import git from "isomorphic-git";
 import { getCommit } from "./git-history-ops";
-import { getRepoOptions } from "./git-repo-storage";
+import { getRepoOptions, qualifyBranchRef } from "./git-repo-storage";
 
 export interface DiffFile {
 	path: string;
@@ -248,8 +248,8 @@ export async function getDiffBetweenBranches(
 	const repo = await getRepoOptions(ownerKey, repoName);
 
 	const [baseOid, compareOid] = await Promise.all([
-		git.resolveRef({ ...repo, ref: baseBranch }),
-		git.resolveRef({ ...repo, ref: compareBranch }),
+		git.resolveRef({ ...repo, ref: qualifyBranchRef(baseBranch) }),
+		git.resolveRef({ ...repo, ref: qualifyBranchRef(compareBranch) }),
 	]);
 
 	const changes = await git.walk({

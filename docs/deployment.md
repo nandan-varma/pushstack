@@ -29,16 +29,14 @@ pnpm deploy   # currently just runs the build — actual deployment is via the V
 
 ## isomorphic-git, not a native binary
 
-There's no native `git` binary dependency anywhere in the main request paths —
-all git operations go through isomorphic-git, with a custom `fs` plugin
-(`git-r2-backend.ts`) that reads/writes objects directly to/from R2. See
-[git-storage.md](./git-storage.md) for the full read/write model. The one
-exception: `withRepositoryWorktree` (`git-repo-storage.ts`) shells out to a
-real `git` CLI against a temporary local checkout, for operations that
-specifically need a real working directory. This matters for deployment
-because it means the Vercel function environment needs a `git` binary
-available on `PATH` for whatever code paths still call
-`withRepositoryWorktree` — everything else has no such requirement.
+There's no native `git` binary dependency anywhere — all git operations go
+through isomorphic-git, with a custom `fs` plugin (`git-r2-backend.ts`) that
+reads/writes objects directly to/from R2. See [git-storage.md](./git-storage.md)
+for the full read/write model. `withRepositoryWorktree` (`git-repo-storage.ts`)
+materializes a temporary local checkout for operations that need a real
+working directory, but does so with isomorphic-git's own `git.checkout`/
+`git.commit`/`git.merge`, not a shelled-out CLI. The Vercel function
+environment does not need a `git` binary on `PATH`.
 
 ## Environment variables
 

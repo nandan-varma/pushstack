@@ -1,19 +1,18 @@
 /**
- * Real git integration test for repackLocal / repackRepositoryNow — no mocks,
- * actual filesystem, actual `git` subprocess. This path has no coverage from
- * git-http-iso.test.ts (which mocks isomorphic-git and node:fs entirely, so
- * repackLocal's real-git spawn calls never execute there — the pack-count
- * threshold guard always short-circuits first against mocked, empty fs
- * state) — this file exists specifically to exercise the real consolidation
- * logic against real fragmented packs, the exact scenario production hit.
+ * Real isomorphic-git integration test for repackLocal / repackRepositoryNow
+ * — no mocks, actual filesystem, no native `git` binary anywhere (including
+ * fixture setup). This path has no coverage from git-http-iso.test.ts (which
+ * mocks isomorphic-git and node:fs entirely, so repackLocal's real read/
+ * verify/pack calls never execute there — the pack-count threshold guard
+ * always short-circuits first against mocked, empty fs state) — this file
+ * exists specifically to exercise the real consolidation logic against real
+ * fragmented packs, the exact scenario production hit.
  */
 
-import { execFile } from "node:child_process";
-import { promises as nodeFs } from "node:fs";
-import { promisify } from "node:util";
+import fs, { promises as nodeFs } from "node:fs";
+import path from "node:path";
+import git from "isomorphic-git";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-
-const execFileAsync = promisify(execFile);
 
 // Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init
 const TEST_DIR = vi.hoisted(() => {
@@ -45,6 +44,24 @@ async function countLocalPacks(): Promise<number> {
 	}
 }
 
+// Two-level fanout dirs (00-ff) under objects/, excluding the "pack" and
+// "info" siblings that aren't loose-object dirs.
+async function listLooseOids(repoPath: string): Promise<string[]> {
+	const objectsDir = path.join(repoPath, "objects");
+	const fanoutDirs = await nodeFs.readdir(objectsDir).catch(() => []);
+	const oids: string[] = [];
+	for (const dir of fanoutDirs) {
+		if (!/^[0-9a-f]{2}$/.test(dir)) continue;
+		const files = await nodeFs
+			.readdir(path.join(objectsDir, dir))
+			.catch(() => []);
+		for (const file of files) {
+			if (/^[0-9a-f]{38}$/.test(file)) oids.push(dir + file);
+		}
+	}
+	return oids;
+}
+
 beforeAll(async () => {
 	await nodeFs.mkdir(TEST_DIR, { recursive: true });
 	await initBareRepo(OWNER, REPO);
@@ -53,10 +70,12 @@ beforeAll(async () => {
 
 	// Fragment into several packs the same way real pushes do: each commit
 	// writes loose objects (via isomorphic-git's writeBlob/writeTree/writeCommit
-	// inside createCommit), then `git repack -q` (no -a, no -d) packs just the
-	// currently-loose objects into a *new* pack file, leaving any earlier packs
-	// untouched — repeat a few times and packs accumulate exactly like
-	// consecutive `pushstack-recv-*.pack` files did in production.
+	// inside createCommit), then we pack just the currently-loose objects into
+	// a *new* pack file (isomorphic-git's own packObjects — well-tested,
+	// already used elsewhere for real work) and delete the now-packed loose
+	// copies, leaving any earlier packs untouched — repeat a few times and
+	// packs accumulate exactly like consecutive `pushstack-recv-*.pack` files
+	// did in production.
 	for (let i = 1; i <= 5; i++) {
 		await createCommit(
 			OWNER,
@@ -67,7 +86,29 @@ beforeAll(async () => {
 			"test@example.com",
 			"main",
 		);
-		await execFileAsync("git", ["repack", "-q"], { cwd: repoPath });
+		const looseOids = await listLooseOids(repoPath);
+		const { filename } = await git.packObjects({
+			fs,
+			gitdir: repoPath,
+			oids: looseOids,
+			write: true,
+		});
+		// packObjects only writes the .pack — index it ourselves so it's
+		// actually discoverable by readObjectPacked (which only looks at
+		// objects/pack/*.idx), same as a real repack would leave behind.
+		await git.indexPack({
+			fs,
+			dir: path.join(repoPath, "objects", "pack"),
+			gitdir: repoPath,
+			filepath: filename,
+		});
+		await Promise.all(
+			looseOids.map((oid) =>
+				nodeFs
+					.unlink(path.join(repoPath, "objects", oid.slice(0, 2), oid.slice(2)))
+					.catch(() => {}),
+			),
+		);
 	}
 });
 

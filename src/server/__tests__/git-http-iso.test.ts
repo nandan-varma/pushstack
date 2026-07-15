@@ -31,6 +31,7 @@ vi.mock("../git-r2-backend", () => ({
 		readdir: vi.fn().mockResolvedValue([]),
 		readFile: vi.fn().mockResolvedValue(Buffer.alloc(0)),
 	},
+	detectLooseObjectsHint: vi.fn().mockResolvedValue(undefined),
 }));
 
 // --- mock storage naming ---
@@ -125,6 +126,26 @@ function parsePktLines(buf: Buffer): string[] {
 		} else break;
 	}
 	return lines;
+}
+
+// Decodes side-band-64k-framed packfile bytes (band-1 pkt-lines terminated by
+// a flush-pkt) back into the raw packfile, mirroring what a real client's
+// GitSideBand.demux does — see sideBandPackfile in git-http-iso.ts.
+function decodeSideBandPackfile(buf: Buffer): Buffer {
+	const chunks: Buffer[] = [];
+	let pos = 0;
+	while (pos + 4 <= buf.length) {
+		const len = Number.parseInt(buf.slice(pos, pos + 4).toString("ascii"), 16);
+		if (len === 0) {
+			pos += 4;
+			break;
+		}
+		const band = buf[pos + 4];
+		if (band !== 1) throw new Error(`unexpected side-band marker ${band}`);
+		chunks.push(buf.slice(pos + 5, pos + len));
+		pos += len;
+	}
+	return Buffer.concat(chunks);
 }
 
 describe("handleInfoRefsIso", () => {
@@ -237,8 +258,12 @@ describe("handleUploadPackIso", () => {
 		const nakLen = Number.parseInt(body.slice(0, 4).toString("ascii"), 16);
 		const nak = body.slice(4, nakLen).toString();
 		expect(nak).toBe("NAK\n");
-		// Rest should be the pack
-		expect(Buffer.from(body.slice(nakLen))).toEqual(Buffer.from(packBytes));
+		// Rest is side-band-64k framed: a band-1 (packfile) pkt-line per chunk,
+		// terminated by a flush-pkt — required so clients that always demux the
+		// response (e.g. isomorphic-git) don't misparse a raw packfile stream.
+		expect(decodeSideBandPackfile(body.slice(nakLen))).toEqual(
+			Buffer.from(packBytes),
+		);
 	});
 
 	it("returns NAK with pack even when there are 'have' lines (no negotiation)", async () => {

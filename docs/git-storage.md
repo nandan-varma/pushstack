@@ -18,12 +18,11 @@ disk, and no realistic way to bundle a native `git` binary into a function. So:
   canonical key scheme, and a custom `fs` plugin (`git-r2-backend.ts`) speaks
   R2 on isomorphic-git's behalf.
 
-The one place a real native `git` binary is still invoked is
-`withRepositoryWorktree` in `git-repo-storage.ts`, because worktree-based
-operations (used for some merge/checkout flows) need an actual working
-directory checkout, which isomorphic-git doesn't model directly — this hydrates
-a repo to `/tmp` first (see below) and shells out to `git` against that real
-checkout.
+There is no native `git` binary anywhere in the codebase — including
+`withRepositoryWorktree` in `git-repo-storage.ts`, which materializes a scratch
+working directory for merge/checkout/commit-write flows using isomorphic-git's
+own `git.checkout`/`git.commit`/`git.merge` against `{dir: worktreePath,
+gitdir}`, rather than shelling out to a real checkout.
 
 ## Storage key scheme
 
@@ -76,21 +75,54 @@ calls, plus caching:
   reads). Each of those 404s or stat results gets cached as a `{kind:
   "missing"}` or `{kind: "dir"}` marker so the *same* doomed lookup isn't
   repeated against R2 on every call within a request (or across requests,
-  within the cache's TTL).
+  within the cache's TTL). Writing a file only ever clears a `"missing"`
+  ancestor-directory marker, never a `"dir"` one — a write underneath a
+  directory can only ever keep it a directory, so clearing an already-correct
+  `"dir"` marker just forces the next `stat()` (isomorphic-git re-stats the
+  gitdir root before nearly every read/write) to redo a full round trip for a
+  fact that hadn't changed. This one-directional rule (`clearStaleAncestorMarkers`)
+  used to be the single biggest cost in `createCommit`: every object written in
+  a single commit was invalidating the gitdir root's own `"dir"` marker,
+  turning one commit into several seconds of repeated `HeadObject`+`ListObjects`
+  pairs against the same key.
+- **Structurally-absent files** (`isStructurallyAbsent`) — `packed-refs` and
+  `shallow` are probed by isomorphic-git on essentially every ref resolution
+  or merge, but nothing in this codebase ever writes either (refs are always
+  loose, never packed; shallow clones are never created or advertised — see
+  `handleInfoRefsIso`'s capabilities line). These are *permanent* 404s, not
+  merely usually-missing ones, so `readFile`/`stat` short-circuit to ENOENT
+  without touching R2 or even the marker cache above — the marker cache only
+  helps a *repeat* lookup within a warm process, which doesn't help the first
+  lookup, and doesn't help at all on a cold serverless invocation with an
+  empty in-process cache (the common case on Vercel).
 - **Loose-object hint** (`detectLooseObjectsHint`) — a further optimization
   layered on top of the marker cache. Most repositories are fully packed, so
-  *every distinct commit* `git.log` walks probes a loose-object path
-  (`objects/xx/yyyy...`) that's guaranteed to 404 — and since each commit has a
-  different oid, the per-key negative-result cache above never gets reused
-  within one walk (60 commits = 60 guaranteed-failing R2 round trips, ~85ms
-  each, serially — this was the single biggest contributor to slow commit-log
-  cold loads before this existed). One cheap bounded `ListObjectsV2` call
-  (relying on S3 key ordering: loose-object dirs `00`–`ff` sort before
-  `info`/`pack`) tells us up front whether the repo has *any* loose objects at
-  all; if not, every loose-object `readFile` short-circuits to an immediate
-  ENOENT with zero network calls. Flips back to "present" the instant
-  `writeFile` actually writes a loose object, so it can never serve a false
-  negative mid-push.
+  *every distinct commit* a reachability walk touches probes a loose-object
+  path (`objects/xx/yyyy...`) that's guaranteed to 404 — and since each commit
+  has a different oid, the per-key negative-result cache above never gets
+  reused within one walk (60 commits = 60 guaranteed-failing R2 round trips,
+  ~85ms each, serially). One cheap bounded `ListObjectsV2` call (relying on S3
+  key ordering: loose-object dirs `00`–`ff` sort before `info`/`pack`) tells us
+  up front whether the repo has *any* loose objects at all; if not, every
+  loose-object `readFile` short-circuits to an immediate ENOENT with zero
+  network calls. Flips back to "present" the instant `writeFile` actually
+  writes a loose object, so it can never serve a false negative mid-push.
+  Called from both `getCommitLog`'s `prefetchAllPacks` (commit-log browsing)
+  *and* `handleUploadPackIsoInner`'s general path (real `git clone`/`git
+  fetch` traffic, via `collectReachableOids`) — it used to only run from the
+  former, so any clone/fetch against a repo with more than one accumulated
+  pack (i.e. one that hasn't hit `REPACK_PACK_COUNT_THRESHOLD` yet) paid the
+  full per-object tax that this hint exists to avoid.
+- A directory's own R2 key can coincide with its storage-prefix representation
+  (the gitdir root's `relativePath` is `""`, and `getRepoGitStoragePrefix`
+  already returns a trailing `/`) — the directory-listing fallback in
+  `resolveStatFromR2` normalizes the trailing slash before appending one,
+  rather than assuming the key never already ends in `/`. Getting this wrong
+  for the root specifically meant its directory listing always came back
+  empty (a double-slash prefix matches no real single-slash key), permanently
+  miscaching the gitdir root as `"missing"` — so the marker-cache hit path
+  above was dead code for the one directory that's *always* present, and
+  every isomorphic-git call paid the full round trip every time.
 - **Request coalescing** (`pendingDownloads` map) — if 100 concurrent object
   reads all want the same not-yet-cached pack file, only one R2 `GetObject`
   fires; the other 99 await the same in-flight promise. `stat()` has the same
@@ -112,6 +144,20 @@ starts turns "N sequential round trips" into "a few parallel downloads, then N
 in-memory reads." Bounded by `MAX_PACKS_TO_PREFETCH` so a repo with a long,
 fragmented pack history doesn't pull down far more data than a shallow request
 actually needs.
+
+**Qualify ref names before resolving them.** isomorphic-git's `resolveRef`
+(and `git.merge`'s own internal `GitRefManager.expand`) try several candidate
+paths in sequence for a bare ref name — `<ref>`, `refs/<ref>`,
+`refs/tags/<ref>`, `refs/heads/<ref>`, `refs/remotes/<ref>`,
+`refs/remotes/<ref>/HEAD` — 404ing (or stat-ing) the first three every time
+before reaching the one this app's ref model actually uses. This codebase's
+ref model is branch-only, never tags, so `qualifyBranchRef` (`git-repo-storage.ts`)
+maps a bare name straight to `refs/heads/<name>` up front; every call site
+that resolves a branch by name (`git-history-ops.ts`, `git-diff-iso.ts`,
+`git-merge-iso.ts`, including `git.merge`'s `ours`/`theirs`) should use it
+rather than passing the bare name through and letting isomorphic-git pay the
+scan. Left alone: already-qualified refs, `"HEAD"` (its own first candidate,
+already optimal), and 40-char oids (resolved locally, no I/O at all).
 
 `getCommitLog()` (`git-history-ops.ts`) additionally caches the deepest
 commit-chain walk seen per resolved head SHA and slices/reuses it for
@@ -186,7 +232,15 @@ wrapper around a native `git http-backend`.
   and push. Lists all branches/tags/HEAD in parallel, resolves every ref's oid
   in parallel, and writes the pkt-line response.
 - **`handleUploadPackIso`** (clone/fetch) — reads directly against `r2Backend`,
-  no local hydration needed, since this is a pure read path.
+  no local hydration needed, since this is a pure read path. Its response
+  wraps the packfile in `side-band-64k` framing (`sideBandPackfile`), which
+  `handleInfoRefsIso` advertises in the upload-pack capabilities line. Real
+  native `git` tolerates a raw, unframed packfile stream when side-band isn't
+  negotiated, but not every client does — isomorphic-git's own HTTP client
+  (`GitSideBand.demux`) always assumes side-band framing regardless of what
+  was negotiated, and silently spins forever parsing raw packfile bytes as
+  bogus pkt-line headers if it isn't there. Don't drop this framing without
+  confirming isomorphic-git-based clients can still parse the response.
 - **`handleReceivePackIso`** (push) — runs under `withReceivePackLock`: hydrate
   the repo locally, apply the incoming pack (`indexPack`), apply ref updates
   (compare-and-swap per ref, in parallel — a multi-ref push like `git push
@@ -219,6 +273,33 @@ wrapper around a native `git http-backend`.
   from R2 itself, but only *after* `withReceivePackLock`'s automatic
   `syncRepositoryToR2` has already uploaded the new consolidated pack, so
   there's never a window where R2 has neither the old nor the new pack.
+
+  That R2 deletion (`deleteStalePacksFromR2`) deliberately runs *after* the
+  push's lock has already been released, so cleanup doesn't hold up the push
+  response — but that leaves a real window where a concurrent reader's
+  `objects/pack/` directory listing (or a concurrent *push*'s own hydration,
+  see below) can name pack files that get deleted moments later. This is
+  never actual data loss — the replacement consolidated pack is always
+  uploaded before the old ones are removed — but a single object read or file
+  download landing in that gap sees a genuine 404 for content that exists
+  fine elsewhere. Reproduced directly under concurrent load (15 clones racing
+  a burst of pushes that kept crossing the repack threshold): most clones
+  failed with "remote did not send all necessary objects" for the same oid
+  that succeeded moments earlier or later, while `git fsck` on any successful
+  clone confirmed nothing was ever actually corrupted. Two places read pack
+  files based on a listing that can go stale this way, and both now tolerate
+  it instead of treating it as fatal:
+  - `collectReachableOids` (serves clone/fetch) retries once, after a short
+    delay, before marking an object genuinely missing — long enough for
+    `deleteStalePacksFromR2`'s own cache invalidation (already necessary for
+    correctness, see its comment) to have landed, so the retry observes the
+    current pack list rather than the mid-transition snapshot the first
+    attempt raced against.
+  - `writeRemoteFilesToDisk` (`git-repo-storage.ts`, hydrates a repo to local
+    disk before a push writes to it) now tolerates a 404 on an individual
+    file as "a concurrent push's repack just deleted this as redundant" and
+    skips it, rather than letting an unhandled rejection crash the whole
+    hydration — and with it, that push's entire HTTP response — with a 500.
 
 Auth for every git HTTP request goes through `src/server/git-auth.ts` — see
 [authentication.md](./authentication.md). Every git HTTP request (info/refs,

@@ -48,12 +48,20 @@ watch for when adding new code.
    isomorphic-git repeatedly probes paths it expects might not exist (ref
    candidates, loose-object paths before falling back to pack search,
    directory-existence checks before every read). Each 404 gets cached as a
-   `{kind: "missing"}` marker; each confirmed directory as `{kind: "dir"}`.
-   Layered on top, `detectLooseObjectsHint` answers "does this repo have any
-   loose objects at all" once per repo with a single bounded LIST call, so a
-   fully-packed repo (the common case) never even attempts a loose-object
-   probe against R2 — see [git-storage.md](./git-storage.md) for the full
-   story; this was the single biggest fix to commit-log cold-load time.
+   `{kind: "missing"}` marker; each confirmed directory as `{kind: "dir"}` —
+   and a write only ever clears the former, never the latter, since a write
+   underneath a directory can't make it stop existing (see
+   [git-storage.md](./git-storage.md) for the case where getting this backwards
+   turned one commit into several seconds of repeated round trips against the
+   gitdir root). Two files — `packed-refs`, `shallow` — are permanently absent
+   rather than merely usually-missing (nothing here ever writes either), so
+   they skip the cache entirely and go straight to ENOENT. Layered on top,
+   `detectLooseObjectsHint` answers "does this repo have any loose objects at
+   all" once per repo with a single bounded LIST call, so a fully-packed repo
+   (the common case) never even attempts a loose-object probe against R2 — see
+   [git-storage.md](./git-storage.md) for the full story; this was the single
+   biggest fix to commit-log cold-load time, and (once wired into the actual
+   clone/fetch-serving path, not just commit-log browsing) to cold clones too.
 
 5. **`getCommitLog`'s per-head-SHA result cache** (`git-history-ops.ts`) —
    caches the deepest commit-chain walk seen for a resolved head SHA and
@@ -149,6 +157,47 @@ first time the check itself declined to clean up. The fix replaced the
 count comparison with a check on the actual property that matters
 (traversal completeness — did every object the walk visited get read
 successfully), which doesn't have that failure mode.
+
+## Case study: a deliberate performance choice reopening a correctness gap
+
+`deleteStalePacksFromR2` (the R2 half of the fix above) runs *after*
+`withReceivePackLock`'s lock is released, on purpose — so a push's HTTP
+response doesn't wait on cleanup that isn't needed for the push itself to be
+correct. That's a reasonable performance trade-off in isolation, but it
+opens a window: a concurrent reader's `objects/pack/` directory listing (a
+clone/fetch's `collectReachableOids`, or another push's own hydration step)
+can be taken *before* that deletion runs and still be in use *after* it
+completes, naming pack files that no longer exist.
+
+This was invisible under the testing that normally exercises this code
+(sequential pushes, one clone at a time) — it only showed up under a
+deliberately adversarial load test: 15 clones running concurrently against a
+repo being pushed to in a tight loop, each push crossing the repack
+threshold. Most of those clones failed with `fatal: bad object <sha>` /
+"remote did not send all necessary objects" — always the *same* oid within a
+given run, and always one that cloned fine moments before or after. `git
+fsck` on every successful clone confirmed the object was never actually
+missing anywhere; the failing requests were racing a real but narrow
+transition window, not observing real data loss.
+
+The fix in both places that read a pack listing this way (`collectReachableOids`
+in `git-http-iso.ts`, `writeRemoteFilesToDisk` in `git-repo-storage.ts`) isn't
+"take a lock" — locking a read against a background delete would reintroduce
+exactly the latency this deferred-delete design exists to avoid, for a race
+that's rare and whose content is never actually gone. It's **retry once, and
+tolerate a 404 as "superseded," instead of treating either as fatal**: the
+read side gets one retry after a short delay (long enough for the deletion's
+own cache invalidation, which already existed for correctness, to land); the
+hydration side skips a 404'd file outright, since a file that a repack just
+deleted as redundant is, by construction, safe to skip.
+
+The lesson: **when a performance decision means "this cleanup can happen
+later, off the critical path," anything reading the state it cleans up needs
+to tolerate seeing it mid-transition** — not by locking (which defeats the
+reason the decision was made) but by treating a transient inconsistency as
+recoverable rather than fatal, if and only if you can show it really is
+(here: the replacement pack is always written before the old ones are
+removed, so nothing a reader wants is ever actually gone).
 
 ## The `perf-log` instrumentation convention
 

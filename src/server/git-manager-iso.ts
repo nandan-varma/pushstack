@@ -102,21 +102,23 @@ export async function initBareRepo(
 	repoName: string,
 	defaultBranch: string = "main",
 ): Promise<string> {
+	// No git.setConfig calls here: getDefaultAuthor() (below) returns
+	// DEFAULT_USER_NAME/DEFAULT_USER_EMAIL directly as plain JS constants —
+	// nothing anywhere ever reads user.name/user.email back out of a repo's
+	// git config, so writing them was always dead weight. It was also
+	// silently writing to the wrong path: setConfig defaults its internal
+	// `gitdir` to `join(dir, '.git')` unless a `gitdir` param is passed
+	// explicitly, and this call only ever passed `dir` — for a bare repo
+	// (gitdir === dir, no nested `.git`), that resolved to a bogus
+	// `<gitdir>/.git/config` key that nothing else ever read, costing an
+	// extra ~450-600ms of R2 round trips per repo creation (a failed probe
+	// read, then a write, then a second read that only "succeeded" because
+	// the first call had just created the bogus file) for a config file nothing
+	// consults, while the *actual* bare-repo config (written by git.init,
+	// just above) never got a [user] section at all.
 	if (isR2Configured()) {
 		const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
 		await git.init({ fs: r2Backend, dir: gitdir, defaultBranch, bare: true });
-		await git.setConfig({
-			fs: r2Backend,
-			dir: gitdir,
-			path: "user.name",
-			value: DEFAULT_USER_NAME,
-		});
-		await git.setConfig({
-			fs: r2Backend,
-			dir: gitdir,
-			path: "user.email",
-			value: DEFAULT_USER_EMAIL,
-		});
 		return gitdir;
 	}
 
@@ -124,13 +126,6 @@ export async function initBareRepo(
 	await fs.mkdir(path.dirname(dir), { recursive: true });
 	await fs.mkdir(dir, { recursive: true });
 	await git.init({ fs, dir, defaultBranch, bare: true });
-	await git.setConfig({ fs, dir, path: "user.name", value: DEFAULT_USER_NAME });
-	await git.setConfig({
-		fs,
-		dir,
-		path: "user.email",
-		value: DEFAULT_USER_EMAIL,
-	});
 	return dir;
 }
 

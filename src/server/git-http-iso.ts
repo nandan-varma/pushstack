@@ -6,16 +6,18 @@
  * receive-pack (push): writes incoming pack to /tmp gitdir, then syncs to R2.
  */
 
-import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import * as localFsPromises from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
+import zlib from "node:zlib";
 import git, { type FsClient } from "isomorphic-git";
 import { bulkDeleteFromR2 } from "#/lib/r2-operations";
 import type { GitAuthContext } from "./git-auth";
 import { deleteCache, invalidateCache } from "./git-cache";
 import { GitAuthorizationError } from "./git-errors";
-import { r2Backend } from "./git-r2-backend";
+import { detectLooseObjectsHint, r2Backend } from "./git-r2-backend";
 import { withReceivePackLock } from "./git-repo-storage";
 import {
 	getRepoGitStoragePrefix,
@@ -37,7 +39,39 @@ function pktLine(data: string): Buffer {
 	return Buffer.concat([Buffer.from(len), body]);
 }
 
+function pktLineBuffer(body: Buffer): Buffer {
+	const len = (body.length + 4).toString(16).padStart(4, "0");
+	return Buffer.concat([Buffer.from(len), body]);
+}
+
 const FLUSH = Buffer.from("0000");
+
+// Per the git protocol, once side-band-64k has been negotiated (see the
+// "side-band-64k" capability advertised in handleInfoRefsIso), packfile bytes
+// in the upload-pack response must be chunked into pkt-lines each prefixed
+// with a control byte (0x01 = packfile data), terminated by a flush-pkt.
+// Without this, clients that don't special-case "no side-band" — e.g.
+// isomorphic-git's GitSideBand.demux, which always treats the response as
+// side-band-framed regardless of what was negotiated — misparse the raw
+// packfile bytes as bogus pkt-line length headers and spin forever. Real
+// native `git` tolerates a raw, unframed packfile stream when side-band
+// isn't negotiated, which is why this only surfaced once a test started
+// using isomorphic-git itself as the HTTP client.
+const SIDE_BAND_MAX_CHUNK = 65515;
+
+function sideBandPackfile(packData: Buffer): Buffer {
+	const parts: Buffer[] = [];
+	for (
+		let offset = 0;
+		offset < packData.length;
+		offset += SIDE_BAND_MAX_CHUNK
+	) {
+		const chunk = packData.subarray(offset, offset + SIDE_BAND_MAX_CHUNK);
+		parts.push(pktLineBuffer(Buffer.concat([Buffer.from([1]), chunk])));
+	}
+	parts.push(FLUSH);
+	return Buffer.concat(parts);
+}
 
 function parsePktLines(buf: Buffer): Array<string | null> {
 	const lines: Array<string | null> = [];
@@ -123,6 +157,25 @@ interface ReachabilityResult {
 	complete: boolean;
 }
 
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A read landing in the gap between repackLocal's new consolidated pack being
+// uploaded and deleteStalePacksFromR2 finishing its cleanup (+ its own cache
+// invalidation, see that function's comment) can transiently 404 on an object
+// that is not actually lost — it exists in the new pack the whole time, this
+// request's cached objects/pack/ listing was just taken before that pack
+// existed (or after the old one it names was already deleted). Reproduced
+// directly: 9 of 15 clones run concurrently against a repo being repeatedly
+// pushed to (each push crossing the repack threshold) failed with "remote did
+// not send all necessary objects" for the exact same oid that a moment later
+// (or a moment earlier) cloned fine. One retry after a short delay — long
+// enough for that cleanup's own cache invalidation to have landed — is enough
+// to observe the current, consistent pack listing instead of the mid-transition
+// snapshot the first attempt raced against.
+const MISSING_OBJECT_RETRY_DELAY_MS = 200;
+
 // ponytail: filesystem param lets this run against R2 (clone) or local disk (repack after push)
 async function collectReachableOids(
 	gitdir: string,
@@ -134,37 +187,42 @@ async function collectReachableOids(
 	// ponytail: promise-per-oid deduplicates concurrent traversal paths
 	const promises = new Map<string, Promise<void>>();
 
+	async function readAndVisitChildren(oid: string): Promise<void> {
+		const obj = await git.readObject({ fs: filesystem, gitdir, oid });
+		// Add to seen only after a successful read so failed reads are excluded from the pack
+		seen.add(oid);
+		let children: string[] = [];
+		if (obj.type === "commit") {
+			const { commit } = await git.readCommit({ fs: filesystem, gitdir, oid });
+			children = [commit.tree, ...commit.parent];
+		} else if (obj.type === "tree") {
+			const { tree } = await git.readTree({ fs: filesystem, gitdir, oid });
+			children = tree.map((e) => e.oid);
+		} else if (obj.type === "tag") {
+			const { tag } = await git.readTag({ fs: filesystem, gitdir, oid });
+			children = [tag.object];
+		}
+		await Promise.all(children.map(visit));
+	}
+
 	function visit(oid: string): Promise<void> {
 		const existing = promises.get(oid);
 		if (existing) return existing;
 
 		const p = (async () => {
 			try {
-				const obj = await git.readObject({ fs: filesystem, gitdir, oid });
-				// Add to seen only after a successful read so failed reads are excluded from the pack
-				seen.add(oid);
-				let children: string[] = [];
-				if (obj.type === "commit") {
-					const { commit } = await git.readCommit({
-						fs: filesystem,
-						gitdir,
-						oid,
-					});
-					children = [commit.tree, ...commit.parent];
-				} else if (obj.type === "tree") {
-					const { tree } = await git.readTree({ fs: filesystem, gitdir, oid });
-					children = tree.map((e) => e.oid);
-				} else if (obj.type === "tag") {
-					const { tag } = await git.readTag({ fs: filesystem, gitdir, oid });
-					children = [tag.object];
+				await readAndVisitChildren(oid);
+			} catch {
+				try {
+					await delay(MISSING_OBJECT_RETRY_DELAY_MS);
+					await readAndVisitChildren(oid);
+				} catch (err) {
+					complete = false;
+					console.warn(
+						`[git-http] missing object ${oid}:`,
+						err instanceof Error ? err.message : err,
+					);
 				}
-				await Promise.all(children.map(visit));
-			} catch (err) {
-				complete = false;
-				console.warn(
-					`[git-http] missing object ${oid}:`,
-					err instanceof Error ? err.message : err,
-				);
 			}
 		})();
 
@@ -196,34 +254,138 @@ async function countLocalPacks(localGitdir: string): Promise<number> {
 	}
 }
 
-// Runs a real `git` subprocess (no shell — args passed as an array, `input`
-// piped directly to stdin, never string-interpolated into a command line).
-// Rejects with stderr attached if the process exits non-zero.
-function runGit(
-	args: string[],
-	options: { cwd: string; input?: string },
-): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const child = spawn("git", args, { cwd: options.cwd });
-		let stdout = "";
-		let stderr = "";
-		child.stdout.on("data", (d) => {
-			stdout += d;
-		});
-		child.stderr.on("data", (d) => {
-			stderr += d;
-		});
-		child.on("error", reject);
-		child.on("close", (code) => {
-			if (code === 0) resolve(stdout);
-			else
-				reject(
-					new Error(`git ${args.join(" ")} exited ${code}: ${stderr.trim()}`),
+const deflateAsync = promisify(zlib.deflate);
+
+type PackObjectType = "commit" | "tree" | "blob" | "tag";
+
+// Git pack object type bits (bits 6-4 of the header's first byte) — same
+// constants real git and isomorphic-git's own (de)serializers use.
+const PACK_OBJECT_TYPE_BITS: Record<PackObjectType, number> = {
+	commit: 0b0010000,
+	tree: 0b0100000,
+	blob: 0b0110000,
+	tag: 0b1000000,
+};
+
+// Git's pack object header: first byte packs (continuation bit | 3-bit type |
+// low 4 bits of length); any remaining length is emitted 7 bits at a time,
+// each with its own continuation bit, little-endian. Written directly as
+// bytes (not via isomorphic-git's own hex-string round trip in `_pack`,
+// which can drop a byte when a continuation byte's value is < 0x10).
+function encodePackObjectHeader(type: PackObjectType, length: number): Buffer {
+	const bytes: number[] = [];
+	let more = length > 0b1111;
+	bytes.push(
+		(more ? 0b10000000 : 0) | PACK_OBJECT_TYPE_BITS[type] | (length & 0b1111),
+	);
+	length >>>= 4;
+	while (more) {
+		more = length > 0b01111111;
+		bytes.push((more ? 0b10000000 : 0) | (length & 0b01111111));
+		length >>>= 7;
+	}
+	return Buffer.from(bytes);
+}
+
+// Git's object hash: sha1("<type> <byte length>\0<content>") — matches
+// isomorphic-git's internal GitObject.wrap + shasum, computed independently
+// here rather than trusted from isomorphic-git's own read path (see below).
+function hashGitObject(type: string, content: Buffer): string {
+	return createHash("sha1")
+		.update(`${type} ${content.length}\0`)
+		.update(content)
+		.digest("hex");
+}
+
+type VerifiedObject = { type: PackObjectType; content: Buffer };
+
+// Reads every reachable object and independently re-derives its oid from the
+// bytes isomorphic-git handed back, instead of trusting the oid it was asked
+// for. This exists because isomorphic-git's *packed*-object read path
+// (readObjectPacked -> GitPackIndex.readSlice, which resolves ofs/ref deltas,
+// possibly across pack files via getExternalRefDelta) never verifies the
+// resolved content's SHA-1 against the requested oid — only the loose-object
+// branch of _readObject does that. A full reachability walk (what repacking
+// requires) is exactly the operation most likely to touch objects nothing
+// else ever reads, so a latent cross-pack delta-resolution bug would surface
+// here first, silently, unless we check for it ourselves.
+async function readAndVerifyObjects(
+	gitdir: string,
+	oids: string[],
+): Promise<Map<string, VerifiedObject>> {
+	const objects = new Map<string, VerifiedObject>();
+	const BATCH_SIZE = 100;
+	for (let i = 0; i < oids.length; i += BATCH_SIZE) {
+		const batch = oids.slice(i, i + BATCH_SIZE);
+		const entries = await Promise.all(
+			batch.map(async (oid) => {
+				const { type, object } = await git.readObject({
+					fs,
+					gitdir,
+					oid,
+					format: "content",
+				});
+				const content = Buffer.isBuffer(object)
+					? object
+					: Buffer.from(object as Uint8Array);
+				const actualOid = hashGitObject(type, content);
+				if (actualOid !== oid) {
+					throw new Error(
+						`repackLocal: object ${oid} failed independent SHA-1 verification ` +
+							`(recomputed ${actualOid}) — refusing to trust this read, aborting repack`,
+					);
+				}
+				return { oid, type: type as PackObjectType, content };
+			}),
+		);
+		for (const { oid, type, content } of entries) {
+			objects.set(oid, { type, content });
+		}
+	}
+	return objects;
+}
+
+// Serializes verified objects into a pack containing only full (never
+// deltified) entries, in the given oid order. zlib (native, threadpool-backed)
+// runs in bounded-concurrency batches rather than isomorphic-git's own fully
+// serial per-object loop.
+async function buildVerifiedPack(
+	oids: string[],
+	objects: Map<string, VerifiedObject>,
+): Promise<Buffer> {
+	const header = Buffer.alloc(12);
+	header.write("PACK", 0, "ascii");
+	header.writeUInt32BE(2, 4);
+	header.writeUInt32BE(oids.length, 8);
+
+	const chunks: Buffer[] = [header];
+	const hash = createHash("sha1").update(header);
+
+	const BATCH_SIZE = 100;
+	for (let i = 0; i < oids.length; i += BATCH_SIZE) {
+		const batch = oids.slice(i, i + BATCH_SIZE);
+		const encoded = await Promise.all(
+			batch.map(async (oid) => {
+				const entry = objects.get(oid);
+				if (!entry) {
+					throw new Error(`repackLocal: missing verified object for ${oid}`);
+				}
+				const objHeader = encodePackObjectHeader(
+					entry.type,
+					entry.content.length,
 				);
-		});
-		if (options.input !== undefined) child.stdin.write(options.input);
-		child.stdin.end();
-	});
+				const compressed = await deflateAsync(entry.content);
+				return Buffer.concat([objHeader, compressed]);
+			}),
+		);
+		for (const buf of encoded) {
+			chunks.push(buf);
+			hash.update(buf);
+		}
+	}
+
+	chunks.push(hash.digest());
+	return Buffer.concat(chunks);
 }
 
 // Consolidate all pack files into one after a push so R2 doesn't accumulate one new
@@ -236,65 +398,93 @@ function runGit(
 // here: the local repack succeeded every time, but nothing ever told R2 about the
 // packs it had just made redundant.
 //
-// Consolidation itself shells out to real `git rev-list`/`git pack-objects` rather
-// than using isomorphic-git's own traversal + packObjects (as this used to). That
-// wasn't a style choice: isomorphic-git's delta resolution doesn't reliably resolve
-// a thin pack's deltas against base objects that live in a *different* pack from the
-// one being indexed (only a repo's most-recently-received pack, or loose objects,
-// resolve correctly) — every incoming push pack is thin by design (git's push
-// protocol omits objects the server should already have), so once a repo has more
-// than one pack, a later push's indexPack can silently produce an index with
-// unresolvable delta references. That corrupted specific objects in a way that also
-// broke this function's own former safety check (which relied on isomorphic-git's
-// traversal completing) — permanently, since a broken pack doesn't heal itself.
-// Real git's pack/delta handling resolves the exact same on-disk data correctly
-// (verified via `git fsck`/`git rev-list --objects` against a repo isomorphic-git
-// had already given up on) — same category of gap `withRepositoryWorktree` in
-// git-repo-storage.ts already works around by shelling out to native git.
+// This used to shell out to real `git rev-list`/`git pack-objects`, because
+// isomorphic-git's delta resolution once silently produced pack indexes with
+// unresolvable/wrong delta references once a repo had multiple accumulated
+// packs — reading isomorphic-git's own source tracked this to a real gap:
+// readObjectPacked's delta-resolved reads never verify the result's SHA-1
+// against the requested oid (only loose-object reads do). Rather than
+// re-trusting that path, this repacks by reading + independently
+// SHA-1-verifying every reachable object ourselves (readAndVerifyObjects,
+// above) and writing a pack of exclusively full, non-deltified objects
+// (buildVerifiedPack) — which also means indexing the result below can't hit
+// the suspect cross-pack delta-resolution code at all, since there are no
+// deltas in it to resolve.
 async function repackLocal(localGitdir: string): Promise<string[]> {
 	try {
 		if ((await countLocalPacks(localGitdir)) < REPACK_PACK_COUNT_THRESHOLD) {
 			return [];
 		}
 
-		const refsOutput = await runGit(
-			["for-each-ref", "--format=%(objectname)", "refs/heads", "refs/tags"],
-			{ cwd: localGitdir },
-		);
-		const tipOids = refsOutput
-			.split("\n")
-			.map((line) => line.trim())
-			.filter(Boolean);
+		const [branches, tags] = await Promise.all([
+			git.listBranches({ fs, gitdir: localGitdir }),
+			git.listTags({ fs, gitdir: localGitdir }),
+		]);
+		const refNames = [
+			...branches.map((b) => `refs/heads/${b}`),
+			...tags.map((t) => `refs/tags/${t}`),
+		];
+		const tipOids = (
+			await Promise.all(
+				refNames.map((ref) =>
+					git.resolveRef({ fs, gitdir: localGitdir, ref }).catch(() => null),
+				),
+			)
+		).filter((oid): oid is string => oid !== null);
 		if (tipOids.length === 0) return [];
 
-		// `git rev-list --objects` is the reachability walk; feeding its output to
-		// `git pack-objects` is real git's own repack primitive, so both steps get
-		// git's (not isomorphic-git's) delta/thin-pack handling. pack-objects exits
-		// non-zero if it can't resolve something it was asked to include — a
-		// stronger safety property than the traversal-completion flag this replaced,
-		// since it's git's own pack layer refusing rather than an approximation of it.
-		const revListOutput = await runGit(["rev-list", "--objects", ...tipOids], {
-			cwd: localGitdir,
-		});
-		if (!revListOutput.trim()) return [];
+		const { oids, complete } = await collectReachableOids(
+			localGitdir,
+			tipOids,
+			fs,
+		);
+		if (!complete || oids.length === 0) return [];
+
+		const objects = await readAndVerifyObjects(localGitdir, oids);
+		const packBuffer = await buildVerifiedPack(oids, objects);
 
 		const packDir = path.join(localGitdir, "objects", "pack");
+		await localFsPromises.mkdir(packDir, { recursive: true });
 		const newBase = `pack-${Date.now()}`;
-		// pack-objects appends "-<sha1-of-pack-contents>" to the given base name and
-		// prints that sha1 (alone, on stdout) once the .pack/.idx pair is written.
-		const packSha = (
-			await runGit(["pack-objects", "--quiet", path.join(packDir, newBase)], {
-				cwd: localGitdir,
-				input: revListOutput,
-			})
-		).trim();
-		if (!packSha) return [];
+		const newPackFile = `${newBase}.pack`;
+		const newIdxFile = `${newBase}.idx`;
+		await localFsPromises.writeFile(
+			path.join(packDir, newPackFile),
+			packBuffer,
+		);
 
-		const newPackFile = `${newBase}-${packSha}.pack`;
-		const newIdxFile = `${newBase}-${packSha}.idx`;
+		// Indexing a pack with zero deltas never touches the cross-pack
+		// delta-resolution path this function exists to avoid — safe to reuse
+		// the same isomorphic-git primitive already trusted for incoming push
+		// packs (see handleReceivePackIso, below).
+		const { oids: indexedOids } = await git.indexPack({
+			fs,
+			dir: packDir,
+			gitdir: localGitdir,
+			filepath: newPackFile,
+		});
 
-		const allEntries: string[] = await Promise.resolve()
-			.then(() => localFsPromises.readdir(packDir))
+		// Cross-check: the freshly-built index must describe exactly the
+		// verified object set, no more, no less, before anything old is deleted.
+		const expected = new Set(oids);
+		const indexed = new Set(indexedOids);
+		if (
+			indexed.size !== expected.size ||
+			oids.some((oid) => !indexed.has(oid))
+		) {
+			await localFsPromises
+				.unlink(path.join(packDir, newPackFile))
+				.catch(() => {});
+			await localFsPromises
+				.unlink(path.join(packDir, newIdxFile))
+				.catch(() => {});
+			throw new Error(
+				"repackLocal: indexed pack's oid set didn't match the verified reachable set — aborting",
+			);
+		}
+
+		const allEntries: string[] = await localFsPromises
+			.readdir(packDir)
 			.catch(() => []);
 
 		const staleFiles = allEntries.filter(
@@ -406,8 +596,12 @@ export async function handleInfoRefsIso(
 			);
 
 			const isUpload = service === "git-upload-pack";
+			// side-band-64k: advertised (and honored below in
+			// handleUploadPackIsoInner) so clients that unconditionally expect
+			// side-band framing on the response — e.g. isomorphic-git — don't
+			// misparse a raw packfile stream. See sideBandPackfile's comment.
 			const caps = isUpload
-				? `no-progress symref=HEAD:${headSymref} allow-tip-sha1-in-want allow-reachable-sha1-in-want agent=pushstack/1.0`
+				? `no-progress side-band-64k symref=HEAD:${headSymref} allow-tip-sha1-in-want allow-reachable-sha1-in-want agent=pushstack/1.0`
 				: `delete-refs report-status no-done agent=pushstack/1.0`;
 
 			const parts: Buffer[] = [pktLine(`# service=${service}\n`), FLUSH];
@@ -539,13 +733,26 @@ async function handleUploadPackIsoInner(
 				},
 				body: Buffer.concat([
 					pktLine("NAK\n"),
-					Buffer.isBuffer(packData)
-						? packData
-						: Buffer.from(packData as string),
+					sideBandPackfile(
+						Buffer.isBuffer(packData)
+							? packData
+							: Buffer.from(packData as string),
+					),
 				]),
 			};
 		}
 	}
+
+	// Most repos are fully packed — without this, every object collectReachableOids
+	// touches below pays a doomed loose-object GET before falling back to the pack
+	// search, since (unlike the single-pack fast path above) this general path always
+	// runs a full reachability walk. This previously only ran from the commit-log
+	// browsing path (getCommitLog's prefetchAllPacks), never from here — meaning
+	// every real `git clone`/`git fetch` that didn't hit the single-pack fast path
+	// (any repo with more than one accumulated pack) paid the full per-object tax.
+	await perfStep("detectLooseObjectsHint", () =>
+		detectLooseObjectsHint(ownerKey, repoName),
+	);
 
 	const { oids: wantOids } = await perfStep("collectReachableOids(wants)", () =>
 		collectReachableOids(gitdir, wants),
@@ -572,7 +779,7 @@ async function handleUploadPackIsoInner(
 		},
 		body: Buffer.concat([
 			pktLine("NAK\n"),
-			Buffer.from(packfile ?? new Uint8Array()),
+			sideBandPackfile(Buffer.from(packfile ?? new Uint8Array())),
 		]),
 	};
 }
