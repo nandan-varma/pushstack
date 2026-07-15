@@ -135,7 +135,16 @@ function BranchWatcher({
 	repoId: number;
 	branchName: string;
 }) {
-	const { hasUpdate, reload } = useBranchUpdateBanner(repoId, branchName);
+	const { hasUpdate, reload, isReloading } = useBranchUpdateBanner(
+		repoId,
+		branchName,
+	);
 	if (!hasUpdate) return null;
-	return <BranchUpdateBanner branchName={branchName} onReload={reload} />;
+	return (
+		<BranchUpdateBanner
+			branchName={branchName}
+			onReload={reload}
+			isReloading={isReloading}
+		/>
+	);
 }

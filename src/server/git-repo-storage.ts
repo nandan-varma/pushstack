@@ -531,6 +531,12 @@ async function syncRepositoryToR2Unlocked(
 	invalidateCache(`${ownerKey}/${repoName}/`);
 	invalidateObjectCache(`result:tree:${ownerKey}/${repoName}/`);
 	invalidateObjectCache(`result:commits:${ownerKey}/${repoName}/`);
+	// getCommitLog's own walk-result cache (git-history-ops.ts) — getCommits,
+	// getLastCommits, and getFileHistory all build on it. It's keyed per resolved
+	// head sha so a *new* head is never served this cache's old content, but
+	// without this it leaks one orphaned entry per push instead of being cleared
+	// alongside the result caches built on top of it.
+	invalidateObjectCache(`result:commitlog:${ownerKey}/${repoName}/`);
 	// Also covers git-r2-backend.ts's stat()/readFile() negative-result and
 	// directory-exists markers (keyed the same as the buffer cache above) — a push
 	// can turn a previously-missing ref/loose-object path into one that exists.
