@@ -46,13 +46,15 @@ history and diffs (`git-diff-iso.ts`). Every handler here follows the
 in `perfContext`/`perfStep` since this file backs the tree/blob/commit pages —
 the hottest read paths in the app.
 
-`getBranchHead` is the odd one out: it's not read by any page directly, only
-polled by `repositoryBranchHeadQueryOptions` to detect a push landing while a
-repo page is open (see [performance.md](./performance.md)'s "cache freshness
-signaling"). Deliberately a single ref resolve (`getBranchHeadSha` in
-`git-branch-ops.ts`) — not `getBranches` or `getCommits`, both of which do
-meaningfully more work than comparing one SHA warrants when called every 20s
-from every open tab.
+`getCommits` (called with `limit: 1` via `repositoryLatestCommitQueryOptions`
+in `query-options.ts`) does double duty: it's both the tree page's "latest
+commit" display *and*, via an extra `refetchInterval` the client hook adds on
+top of that same query, the poll that detects a push landing while a repo
+page is open (see [performance.md](./performance.md)'s "cache freshness
+signaling"). There's deliberately no separate minimal "just the SHA"
+endpoint — a depth-1 commit-log walk is already as cheap as a bare ref
+resolve, so splitting it into two endpoints would only add a second query to
+keep in sync for no perf benefit.
 
 ### `issues.ts` / `pull-requests.ts` / `comments.ts`
 Split by resource (previously one combined `issues.ts`). Each owns its own

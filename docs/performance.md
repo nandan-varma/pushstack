@@ -228,29 +228,44 @@ The tiered `staleTime`s above are a trade-off: the longer they are, the
 longer a page can keep showing data that's genuinely out of date if someone
 else pushed in the meantime. Rather than shortening `staleTime` (which
 undoes the caching win for everyone, all the time, to cover the rare case
-someone else just pushed), `repositoryBranchHeadQueryOptions`
-(`query-options.ts`) is a deliberately *separate* query — `staleTime: 0`,
-`refetchInterval: 20_000`, `refetchOnWindowFocus: true` — that exists purely
-to detect staleness, not to serve data. It's backed by `getBranchHead`
-(`files.ts` → `getBranchHeadSha` in `git-branch-ops.ts`), the cheapest
-possible check: a single ref resolve, no branch listing, no commit walk,
-since it's called every 20s from every open repo tab.
+someone else just pushed), `useBranchUpdateBanner`
+(`hooks/use-branch-update-banner.ts`) adds `refetchInterval: 20_000` and
+`refetchOnWindowFocus: true` as extra observer options on top of
+`repositoryLatestCommitQueryOptions` (`query-options.ts` — a `limit: 1`
+`repositoryCommitsQueryOptions` call), rather than standing up a second,
+separate "just the SHA" query. A depth-1 commit-log walk is already as cheap
+as a bare ref resolve (`getCommitLog`'s `PREFETCH_PACKS_MIN_DEPTH` skips the
+pack-prefetch path entirely below depth 5 — see
+[server-functions.md](./server-functions.md)), so there's no perf reason to
+keep a minimal endpoint around just to avoid the walk.
 
-`useBranchUpdateBanner` (`hooks/use-branch-update-banner.ts`) compares each
-poll against the SHA seen when it started watching and, on a mismatch, shows
-`BranchUpdateBanner` instead of silently continuing to serve the stale
-cached tree/commit data. Reloading invalidates `["repos", repoId]` — every
-repo-scoped query key is nested under that prefix (see
+This matters because it's the *same* query/cache entry that
+`CommitSummaryBar` (the tree page's "latest commit" line) reads for its own
+display: the banner's poll is what keeps that display fresh, for free, with
+zero extra requests — one query serves both "is there something new" and
+"what is the something new," instead of two independently-resolved answers
+to "what's HEAD" that could in principle disagree.
+
+`useBranchUpdateBanner` compares each poll against the SHA seen when it
+started watching and, on a mismatch, shows `BranchUpdateBanner` instead of
+silently continuing to serve the stale cached tree/commit data. Clicking
+Reload `await`s `invalidateQueries(["repos", repoId])` — every repo-scoped
+query key is nested under that prefix (see
 [server-functions.md](./server-functions.md)), so one partial-match
 invalidation busts everything a push could have changed, and (with
 `invalidateQueries`'s default `refetchType: "active"`) only refetches
 whatever's actually mounted right now, not every cached-but-unmounted query
-for that repo.
+for that repo. Awaiting it (rather than firing-and-forgetting) is what lets
+the banner know it's actually safe to dismiss itself — every mounted query
+for this repo, including the slower ones, is guaranteed to have finished
+refetching by the time `hasUpdate` clears, not just the fast poll.
 
 This is the general pattern for any future "long cache, but tell me if it's
-actually gone stale" need: a separate always-polling query for the cheapest
-possible freshness signal, decoupled from the (deliberately long-lived)
-query that serves the actual data.
+actually gone stale" need: pile the always-polling `refetchInterval` onto
+the *same* query that already serves the real data whenever a live view of
+that data doubles as its own freshness signal — only reach for a genuinely
+separate minimal query if the display data itself is too expensive to poll
+on a timer.
 
 ## R2 resilience (`src/lib/r2-operations.ts`)
 
