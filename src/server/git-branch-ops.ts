@@ -36,24 +36,6 @@ export async function getBranches(
 	}
 }
 
-// Cheapest possible "did anything change" check — a single ref resolve, no branch
-// listing, no commit walk — used to poll for new pushes while a repo page is open
-// (see repositoryBranchHeadQueryOptions / BranchUpdateBanner) without paying for
-// the fuller getBranches/getCommits queries just to compare one SHA.
-export async function getBranchHeadSha(
-	ownerKey: string,
-	repoName: string,
-	branchName: string,
-): Promise<string | null> {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	try {
-		return await git.resolveRef({ ...repo, ref: `refs/heads/${branchName}` });
-	} catch (err: unknown) {
-		if ((err as { code?: string }).code === "NotFoundError") return null;
-		throw err;
-	}
-}
-
 export async function createBranch(
 	ownerKey: string,
 	repoName: string,

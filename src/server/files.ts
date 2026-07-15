@@ -14,7 +14,6 @@ import {
 	createBranch as gitCreateBranch,
 	deleteBranch as gitDeleteBranch,
 	getBranches as gitGetBranches,
-	getBranchHeadSha as gitGetBranchHeadSha,
 } from "./git-branch-ops";
 // Git operations imports (isomorphic-git)
 import { createCommit, deleteFile as gitDeleteFile } from "./git-commit-write";
@@ -390,45 +389,6 @@ export const getBranches = createServerFn({ method: "GET" })
 
 			return branches;
 		}),
-	);
-
-/**
- * Get a single branch's head SHA — a cheap polling primitive for detecting new
- * pushes while a repo page is open (see repositoryBranchHeadQueryOptions on the
- * client). Deliberately does not go through getBranches/getCommits: those do a
- * full branch listing or commit-log walk, far more work than comparing one SHA
- * warrants when called every 20s from every open repo tab.
- */
-export const getBranchHead = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: z.string(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		perfContext(
-			`getBranchHead repo=${data.repoId} ${data.branchName}`,
-			async () => {
-				const currentUser = await perfStep("getCurrentUserOptional", () =>
-					getCurrentUserOptional(),
-				);
-
-				const repo = await perfStep("getRepoWithReadAccess", () =>
-					getRepoWithReadAccess(data.repoId, currentUser?.id),
-				);
-
-				const storage = getStorage(repo);
-
-				const sha = await perfStep("gitGetBranchHeadSha", () =>
-					gitGetBranchHeadSha(storage.ownerKey, repo.name, data.branchName),
-				);
-
-				return { sha };
-			},
-		),
 	);
 
 /**
