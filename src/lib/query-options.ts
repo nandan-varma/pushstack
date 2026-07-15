@@ -5,7 +5,6 @@ import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
 	getBranches,
-	getBranchHead,
 	getCommit,
 	getCommitDiff,
 	getCommits,
@@ -37,8 +36,6 @@ export const queryKeys = {
 	userActivity: (userId: string | undefined, limit: number) =>
 		["activity", "user", userId ?? "self", limit] as const,
 	repoBranches: (repoId: number) => ["repos", repoId, "branches"] as const,
-	repoBranchHead: (repoId: number, branchName: string) =>
-		["repos", repoId, "branch-head", branchName] as const,
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
 	repoFiles: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", branchName, path] as const,
@@ -161,32 +158,6 @@ export function repositoryBranchesQueryOptions(repoId: number) {
 	});
 }
 
-// Deliberately the opposite of every other query here: staleTime 0 and a short
-// refetchInterval, because this query *is* the polling mechanism — see
-// BranchUpdateBanner, which compares successive results against the sha that was
-// current when the page loaded to detect a push that landed while the user was
-// looking at (possibly long-cached) tree/commit data, without ever blocking the
-// initial render on a live check.
-export function repositoryBranchHeadQueryOptions({
-	repoId,
-	branchName,
-}: {
-	repoId: number;
-	branchName: string;
-}) {
-	return queryOptions({
-		queryKey: queryKeys.repoBranchHead(repoId, branchName),
-		queryFn: () =>
-			perfTime(`query branch-head repo=${repoId} ${branchName}`, () =>
-				getBranchHead({ data: { repoId, branchName } }),
-			),
-		staleTime: 0,
-		refetchInterval: 20_000,
-		refetchOnWindowFocus: true,
-		enabled: Boolean(repoId && branchName),
-	});
-}
-
 export function repositoryFilesQueryOptions({
 	repoId,
 	branchName,
@@ -269,6 +240,27 @@ export function repositoryCommitsQueryOptions({
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
 	});
+}
+
+// Single source of truth for "what is the tip commit of this branch right now" —
+// shared by CommitSummaryBar (display) and useBranchUpdateBanner (live polling
+// for new-push detection via BranchUpdateBanner), so both read the exact same
+// query/cache entry instead of resolving HEAD through two independent code
+// paths that could disagree. A depth-1 walk is as cheap as a bare ref resolve
+// (see git-history-ops.ts's PREFETCH_PACKS_MIN_DEPTH — limit=1 never triggers
+// the "prefetch every pack" path deeper walks pay for), so there's no perf
+// reason for a separate minimal endpoint here; the banner's observer adds
+// `refetchInterval` on top of this same query, and — because it's the same
+// cache entry — CommitSummaryBar picks up that live data for free with no
+// extra request of its own.
+export function repositoryLatestCommitQueryOptions({
+	repoId,
+	branchName,
+}: {
+	repoId: number;
+	branchName: string;
+}) {
+	return repositoryCommitsQueryOptions({ repoId, branchName, limit: 1 });
 }
 
 export function repositoryCommitQueryOptions({
