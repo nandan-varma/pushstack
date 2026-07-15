@@ -106,19 +106,24 @@ function enoent(filepath: string, verb: "open" | "stat"): Error {
 	);
 }
 
-// isomorphic-git's GitRefManager.resolve/listRefs unconditionally reads
-// "packed-refs" on *every* single ref resolution (no internal caching of its
-// own — see node_modules/isomorphic-git's GitRefManager.packedRefs) — nothing
-// in this codebase ever writes that file (all refs are always loose, never
-// packed; see git-branch-ops.ts), so it is a structural, permanent 404, not
-// merely a "usually missing" one. The MISSING marker below already turns a
-// repeat lookup within one warm process into a cache hit, but that doesn't
-// help the very first lookup, and doesn't help at all on a cold serverless
-// invocation with an empty in-process cache (the common case on Vercel) —
-// measured ~150-340ms of pure R2 round-trip latency paid on every single
-// clone/fetch/push for a file that can never exist. Skip R2 entirely.
+// Both of these are files isomorphic-git probes as a matter of course but
+// that nothing in this codebase ever writes, making them structural,
+// permanent 404s rather than merely "usually missing":
+//  - "packed-refs": GitRefManager.resolve/listRefs unconditionally reads it
+//    on *every* single ref resolution (no internal caching of its own — see
+//    node_modules/isomorphic-git's GitRefManager.packedRefs); all refs here
+//    are always loose, never packed (see git-branch-ops.ts).
+//  - "shallow": probed by merge/log operations (GitShallowManager); this app
+//    never advertises shallow-clone capabilities in git-http-iso.ts and never
+//    creates a shallow repo, so it can never exist either.
+// The MISSING marker set elsewhere in this file already turns a repeat lookup
+// within one warm process into a cache hit, but that doesn't help the very
+// first lookup, and doesn't help at all on a cold serverless invocation with
+// an empty in-process cache (the common case on Vercel) — measured
+// ~100-340ms of pure R2 round-trip latency paid on every single
+// clone/fetch/push/merge for files that can never exist. Skip R2 entirely.
 function isStructurallyAbsent(relativePath: string): boolean {
-	return relativePath === "packed-refs";
+	return relativePath === "packed-refs" || relativePath === "shallow";
 }
 
 // A file's own cache key is never a prefix of its ancestor directories' cache
@@ -141,6 +146,33 @@ function ancestorCacheKeys(
 	}
 	keys.push(`${ownerKey}/${repoName}/`);
 	return keys;
+}
+
+// Same idea as ancestorCacheKeys, but only for writes (writeFile/unlink), and
+// deliberately one-directional: only clears a *missing* marker (a write can
+// invalidate that — the ancestor now has content where before it had none).
+// A *dir* marker is left alone, because a write or single-file delete
+// underneath it essentially never turns it back into non-existent (unlike
+// rmdir, which really can empty out an entire prefix — see its own use of
+// ancestorCacheKeys above, which intentionally clears unconditionally).
+// Clearing an already-correct "dir" marker just forces the next stat()
+// (isomorphic-git re-stats the gitdir root before nearly every read) to pay a
+// full HeadObject+ListObjects round trip for a fact that hadn't changed.
+// Measured: a single 1-file commit writes ~3-5 objects (blob/tree/commit),
+// and each write was invalidating the gitdir root's own "dir" marker, so
+// every one of those writes' surrounding isomorphic-git calls repaid the
+// ~300ms gitdir-root stat from scratch — several seconds of pure waste for
+// one commit.
+function clearStaleAncestorMarkers(
+	ownerKey: string,
+	repoName: string,
+	relativePath: string,
+): void {
+	for (const key of ancestorCacheKeys(ownerKey, repoName, relativePath)) {
+		if (getCachedObject<StatMarker>(key)?.kind === "missing") {
+			deleteCachedObject(key);
+		}
+	}
 }
 
 interface R2Stat {
@@ -209,9 +241,33 @@ async function resolveStatFromR2(
 		return fileStat(meta.size);
 	}
 
-	// Not a file — check if it's a directory prefix
+	// A loose-object leaf (objects/xx/yyyy...) is never a directory in this flat
+	// storage model — nothing is ever written nested under an object's own oid
+	// path — so the directory-prefix fallback below is guaranteed pointless for
+	// it. isomorphic-git's own writeObjectLoose checks fs.exists() before every
+	// single object write to avoid clobbering (see its comment), so this stat
+	// runs once per blob/tree/commit written, always for brand-new content that
+	// (by definition, before the HeadObject above 404s) doesn't exist yet —
+	// skipping the extra ListObjects here cuts that from ~250-300ms to
+	// ~100-200ms per object, every object, every commit.
+	if (LOOSE_OBJECT_RE.test(relativePath)) {
+		setCachedObject(cacheKey, MISSING);
+		throw enoent(filepath, "stat");
+	}
+
+	// Not a file — check if it's a directory prefix. r2Key already ends in "/"
+	// for the gitdir root itself (relativePath === "" — see
+	// getRepoGitStoragePrefix), so blindly appending another "/" produced a
+	// double-slash prefix that could never match any real (single-slash) key.
+	// That meant the root's directory listing always came back empty, which
+	// wrongly cached it as MISSING and threw ENOENT — the root's "dir" stat
+	// never actually got to hit the cache-hit path below, so isomorphic-git
+	// (which re-stats the gitdir root before nearly every read/write) paid a
+	// full HeadObject+ListObjects round trip on every single call, request
+	// after request, for the one directory that's *always* present.
 	try {
-		const files = await listR2Files(`${r2Key}/`, 1);
+		const prefix = r2Key.endsWith("/") ? r2Key : `${r2Key}/`;
+		const files = await listR2Files(prefix, 1);
 		if (files.length > 0) {
 			setCachedObject(cacheKey, DIR);
 			return dirStat();
@@ -385,17 +441,15 @@ export class R2Backend {
 			setCachedObject(looseHintKey(ownerKey, repoName), LOOSE_PRESENT);
 		}
 
-		// Invalidate file cache, any stale stat marker (including on ancestor
-		// directories — see ancestorCacheKeys), and parent dir listing cache
+		// Invalidate file cache, any stale ("missing") stat marker on an ancestor
+		// directory — see clearStaleAncestorMarkers — and parent dir listing cache
 		deleteCache(cacheKey);
 		invalidateObjectCache(cacheKey);
 		const parentDir = relativePath.includes("/")
 			? relativePath.slice(0, relativePath.lastIndexOf("/"))
 			: "";
 		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
-		for (const key of ancestorCacheKeys(ownerKey, repoName, relativePath)) {
-			deleteCachedObject(key);
-		}
+		clearStaleAncestorMarkers(ownerKey, repoName, relativePath);
 	}
 
 	/**
@@ -409,17 +463,15 @@ export class R2Backend {
 		const r2Key = getR2Key(ownerKey, repoName, relativePath);
 		await deleteFromR2(r2Key);
 
-		// Invalidate file cache, any stale stat marker (including on ancestor
-		// directories — see ancestorCacheKeys), and parent dir listing cache
+		// Invalidate file cache, any stale ("missing") stat marker on an ancestor
+		// directory — see clearStaleAncestorMarkers — and parent dir listing cache
 		deleteCache(cacheKey);
 		invalidateObjectCache(cacheKey);
 		const parentDir = relativePath.includes("/")
 			? relativePath.slice(0, relativePath.lastIndexOf("/"))
 			: "";
 		deleteCache(`dir:${ownerKey}/${repoName}/${parentDir}`);
-		for (const key of ancestorCacheKeys(ownerKey, repoName, relativePath)) {
-			deleteCachedObject(key);
-		}
+		clearStaleAncestorMarkers(ownerKey, repoName, relativePath);
 	}
 
 	/**

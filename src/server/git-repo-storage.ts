@@ -278,6 +278,23 @@ export async function initRepositoryStorage(
 	});
 }
 
+// isomorphic-git's resolveRef/expand try several candidate paths in sequence
+// for a bare ref name — ref, refs/ref, refs/tags/ref, refs/heads/ref,
+// refs/remotes/ref, refs/remotes/ref/HEAD — 404ing (or stat-ing) the first
+// three every time before reaching the one this app's ref model actually
+// uses. This codebase's ref model is branch-only (never tags, e.g. the
+// `branchName` params throughout git-history-ops.ts/git-merge-iso.ts), so
+// skip straight to refs/heads/<name> instead of paying 3 guaranteed-failed
+// R2 round trips per resolution. Left untouched: already-qualified refs,
+// "HEAD" (its own first candidate, already optimal), and 40-char oids
+// (resolved locally by isomorphic-git with no I/O at all).
+export function qualifyBranchRef(ref: string): string {
+	if (ref.startsWith("refs/") || ref === "HEAD" || /^[0-9a-f]{40}$/.test(ref)) {
+		return ref;
+	}
+	return `refs/heads/${ref}`;
+}
+
 async function branchExists(
 	gitdir: string,
 	branchName: string,
@@ -362,7 +379,7 @@ export async function withRepositoryWorktree<T>(
 					fs,
 					dir: worktreePath,
 					gitdir,
-					ref: checkoutRef,
+					ref: qualifyBranchRef(checkoutRef),
 					noUpdateHead: true,
 				});
 			}

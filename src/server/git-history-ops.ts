@@ -3,7 +3,7 @@ import { isR2Configured } from "#/lib/r2";
 import { getCachedObject, setCachedObject } from "./git-cache";
 import { GitObjectNotFoundError, GitPathNotFoundError } from "./git-errors";
 import { prefetchAllPacks } from "./git-r2-backend";
-import { getRepoOptions } from "./git-repo-storage";
+import { getRepoOptions, qualifyBranchRef } from "./git-repo-storage";
 import { findTreeEntry, listTreeEntries, type TreeEntry } from "./git-tree-ops";
 import { perfNote, perfStep } from "./perf-log";
 
@@ -60,7 +60,7 @@ export async function resolveCommit(
 	ref: string,
 ) {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	const oid = await git.resolveRef({ ...repo, ref });
+	const oid = await git.resolveRef({ ...repo, ref: qualifyBranchRef(ref) });
 	const result = await git.readCommit({ ...repo, oid });
 
 	return {
@@ -157,7 +157,7 @@ export async function getCommitLog(
 		headSha = knownHeadSha;
 	} else {
 		try {
-			headSha = await git.resolveRef({ ...repo, ref });
+			headSha = await git.resolveRef({ ...repo, ref: qualifyBranchRef(ref) });
 		} catch (err: unknown) {
 			if ((err as { code?: string }).code === "NotFoundError") return [];
 			throw err;

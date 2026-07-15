@@ -28,6 +28,10 @@ vi.mock("../git-repo-storage", () => ({
 		fs: {},
 		gitdir: "/tmp/gitdir",
 	})),
+	qualifyBranchRef: (ref: string) =>
+		ref.startsWith("refs/") || ref === "HEAD" || /^[0-9a-f]{40}$/.test(ref)
+			? ref
+			: `refs/heads/${ref}`,
 }));
 
 vi.mock("#/lib/r2", () => ({ isR2Configured: vi.fn(() => true) }));

@@ -6,6 +6,7 @@ import { createCommit } from "./git-commit-write";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import {
 	getRepoOptions,
+	qualifyBranchRef,
 	withRepositoryLock,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
@@ -34,8 +35,8 @@ export async function analyzeMerge(
 
 	try {
 		const [sourceOid, targetOid] = await Promise.all([
-			git.resolveRef({ ...repo, ref: sourceBranch }),
-			git.resolveRef({ ...repo, ref: targetBranch }),
+			git.resolveRef({ ...repo, ref: qualifyBranchRef(sourceBranch) }),
+			git.resolveRef({ ...repo, ref: qualifyBranchRef(targetBranch) }),
 		]);
 
 		const isDescendant = await git.isDescendent({
@@ -108,13 +109,16 @@ export async function mergeBranches(
 			targetBranch,
 			async ({ worktreePath, gitdir }) => {
 				// Both branches are real local refs in the same gitdir now — no
-				// remote-tracking indirection needed.
+				// remote-tracking indirection needed. Pre-qualified to
+				// refs/heads/<name>: git.merge's own ref expansion (GitRefManager.expand)
+				// does the identical bare-name candidate scan internally — passing an
+				// already-fully-qualified ref makes its first candidate the hit.
 				await git.merge({
 					fs,
 					dir: worktreePath,
 					gitdir,
-					ours: targetBranch,
-					theirs: sourceBranch,
+					ours: qualifyBranchRef(targetBranch),
+					theirs: qualifyBranchRef(sourceBranch),
 					author:
 						options.authorName && options.authorEmail
 							? {
@@ -129,7 +133,11 @@ export async function mergeBranches(
 				});
 
 				// git.merge already updated refs/heads/<targetBranch> in gitdir directly
-				return git.resolveRef({ fs, gitdir, ref: targetBranch });
+				return git.resolveRef({
+					fs,
+					gitdir,
+					ref: qualifyBranchRef(targetBranch),
+				});
 			},
 			"main",
 			ownerDbId,
