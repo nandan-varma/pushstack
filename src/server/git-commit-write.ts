@@ -110,7 +110,7 @@ export async function createCommit(
 		ownerKey,
 		repoName,
 		branch,
-		async ({ worktreePath }) => {
+		async ({ worktreePath, gitdir }) => {
 			for (const file of files) {
 				const filePath = path.join(worktreePath, file.path);
 				fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -118,25 +118,17 @@ export async function createCommit(
 			}
 
 			for (const file of files) {
-				await git.add({ fs, dir: worktreePath, filepath: file.path });
+				await git.add({ fs, dir: worktreePath, gitdir, filepath: file.path });
 			}
 
-			await git.setConfig({
-				fs,
-				dir: worktreePath,
-				path: "user.name",
-				value: author.name,
-			});
-			await git.setConfig({
-				fs,
-				dir: worktreePath,
-				path: "user.email",
-				value: author.email,
-			});
-
+			// No setConfig needed: author/committer are passed explicitly below, and
+			// `ref` targets the branch directly — parent is derived from that ref's
+			// current tip automatically (or `[]` for a brand new branch/repo).
 			return git.commit({
 				fs,
 				dir: worktreePath,
+				gitdir,
+				ref: `refs/heads/${branch}`,
 				message,
 				author,
 				committer: author,
@@ -183,26 +175,16 @@ export async function deleteFile(
 		ownerKey,
 		repoName,
 		branchName,
-		async ({ worktreePath }) => {
+		async ({ worktreePath, gitdir }) => {
 			const fullPath = path.join(worktreePath, filePath);
 			fs.rmSync(fullPath, { force: true });
-			await git.remove({ fs, dir: worktreePath, filepath: filePath });
-			await git.setConfig({
-				fs,
-				dir: worktreePath,
-				path: "user.name",
-				value: authorInfo.name,
-			});
-			await git.setConfig({
-				fs,
-				dir: worktreePath,
-				path: "user.email",
-				value: authorInfo.email,
-			});
+			await git.remove({ fs, dir: worktreePath, gitdir, filepath: filePath });
 
 			return git.commit({
 				fs,
 				dir: worktreePath,
+				gitdir,
+				ref: `refs/heads/${branchName}`,
 				message,
 				author: authorInfo,
 				committer: authorInfo,

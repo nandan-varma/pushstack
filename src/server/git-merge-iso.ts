@@ -106,13 +106,15 @@ export async function mergeBranches(
 			ownerKey,
 			repoName,
 			targetBranch,
-			async ({ worktreePath }) => {
-				// Use remote tracking ref: worktree clones only have origin/<branch>, not local <branch>
+			async ({ worktreePath, gitdir }) => {
+				// Both branches are real local refs in the same gitdir now — no
+				// remote-tracking indirection needed.
 				await git.merge({
 					fs,
 					dir: worktreePath,
+					gitdir,
 					ours: targetBranch,
-					theirs: `origin/${sourceBranch}`,
+					theirs: sourceBranch,
 					author:
 						options.authorName && options.authorEmail
 							? {
@@ -126,8 +128,8 @@ export async function mergeBranches(
 						options.message || `Merge ${sourceBranch} into ${targetBranch}`,
 				});
 
-				// Read from worktree (bare repo not updated yet) and avoid re-acquiring the lock
-				return git.resolveRef({ fs, dir: worktreePath, ref: targetBranch });
+				// git.merge already updated refs/heads/<targetBranch> in gitdir directly
+				return git.resolveRef({ fs, gitdir, ref: targetBranch });
 			},
 			"main",
 			ownerDbId,
@@ -186,16 +188,23 @@ export async function resolveConflicts(
 		ownerKey,
 		repoName,
 		"main",
-		async ({ worktreePath }) => {
+		async ({ worktreePath, gitdir }) => {
 			for (const resolution of resolutions) {
 				const filePath = path.join(worktreePath, resolution.path);
 				fs.writeFileSync(filePath, resolution.content);
-				await git.add({ fs, dir: worktreePath, filepath: resolution.path });
+				await git.add({
+					fs,
+					dir: worktreePath,
+					gitdir,
+					filepath: resolution.path,
+				});
 			}
 
 			await git.commit({
 				fs,
 				dir: worktreePath,
+				gitdir,
+				ref: "refs/heads/main",
 				message: "Resolve merge conflicts",
 				author: getDefaultAuthor(),
 			});

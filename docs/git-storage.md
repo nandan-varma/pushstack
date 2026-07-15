@@ -18,12 +18,11 @@ disk, and no realistic way to bundle a native `git` binary into a function. So:
   canonical key scheme, and a custom `fs` plugin (`git-r2-backend.ts`) speaks
   R2 on isomorphic-git's behalf.
 
-The one place a real native `git` binary is still invoked is
-`withRepositoryWorktree` in `git-repo-storage.ts`, because worktree-based
-operations (used for some merge/checkout flows) need an actual working
-directory checkout, which isomorphic-git doesn't model directly — this hydrates
-a repo to `/tmp` first (see below) and shells out to `git` against that real
-checkout.
+There is no native `git` binary anywhere in the codebase — including
+`withRepositoryWorktree` in `git-repo-storage.ts`, which materializes a scratch
+working directory for merge/checkout/commit-write flows using isomorphic-git's
+own `git.checkout`/`git.commit`/`git.merge` against `{dir: worktreePath,
+gitdir}`, rather than shelling out to a real checkout.
 
 ## Storage key scheme
 
@@ -186,7 +185,15 @@ wrapper around a native `git http-backend`.
   and push. Lists all branches/tags/HEAD in parallel, resolves every ref's oid
   in parallel, and writes the pkt-line response.
 - **`handleUploadPackIso`** (clone/fetch) — reads directly against `r2Backend`,
-  no local hydration needed, since this is a pure read path.
+  no local hydration needed, since this is a pure read path. Its response
+  wraps the packfile in `side-band-64k` framing (`sideBandPackfile`), which
+  `handleInfoRefsIso` advertises in the upload-pack capabilities line. Real
+  native `git` tolerates a raw, unframed packfile stream when side-band isn't
+  negotiated, but not every client does — isomorphic-git's own HTTP client
+  (`GitSideBand.demux`) always assumes side-band framing regardless of what
+  was negotiated, and silently spins forever parsing raw packfile bytes as
+  bogus pkt-line headers if it isn't there. Don't drop this framing without
+  confirming isomorphic-git-based clients can still parse the response.
 - **`handleReceivePackIso`** (push) — runs under `withReceivePackLock`: hydrate
   the repo locally, apply the incoming pack (`indexPack`), apply ref updates
   (compare-and-swap per ref, in parallel — a multi-ref push like `git push

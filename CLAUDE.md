@@ -89,7 +89,7 @@ RESEND_EMAIL_FROM=...              # optional, falls back to a hardcoded address
 ## Key Constraints
 
 - `vite.config.ts` sets `ssr.target: "node"` — git operations require Node.js APIs (`node:fs`, `node:path`), so the SSR target is not `webworker`.
-- isomorphic-git is used for all git operations — no native git binary dependency. The R2 backend (`git-r2-backend.ts`) plugs into its `fs` interface. The only place native `git` CLI is invoked is inside `withRepositoryWorktree` in `git-repo-storage.ts` (worktree clones require a real checkout).
+- isomorphic-git is used for all git operations — no native git binary dependency anywhere, including tests. The R2 backend (`git-r2-backend.ts`) plugs into its `fs` interface. `withRepositoryWorktree` in `git-repo-storage.ts` materializes a scratch working directory for merge/checkout/commit-write flows using isomorphic-git's own `git.checkout`/`git.commit`/`git.merge` against `{dir: worktreePath, gitdir}` — not a shelled-out checkout.
 - There is no backwards-compatible legacy storage path handling. `getRepoStorageCoordinates()` returns `{ ownerKey, repoKey }` only — no `legacyOwnerKeys`.
 - `nitro` is pinned to an exact beta version (no `^`/`~` range) in `package.json` — deliberate, not a typo; don't loosen it.
 - Deployment target is Vercel (`nitro({ preset: "vercel" })` in `vite.config.ts`), not Cloudflare Pages/Workers — `@cloudflare/vite-plugin` is a dependency but not wired into the Vite config. Cloudflare is used only for R2 object storage. `/tmp` is the only writable directory at runtime, which is why `GIT_REPOS_PATH` defaults there.

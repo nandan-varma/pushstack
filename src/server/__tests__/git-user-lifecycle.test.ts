@@ -18,21 +18,68 @@
  *   - R2 -> replaced with an in-memory Map behind #/lib/r2-operations, the one
  *     module boundary all R2 access already goes through.
  *
- * The clone itself uses the real `git` binary (the same thing your users' git
- * clients speak), talking to a real Node http server over 127.0.0.1. It's
- * fully sandboxed via env vars (HOME/XDG dirs point at a throwaway temp dir,
- * GIT_CONFIG_NOSYSTEM=1, credentials passed via the URL) so it never reads or
- * writes this machine's ~/.gitconfig, ~/.git-credentials, or credential
- * helpers — your normal git workflow is untouched.
+ * The clone itself uses isomorphic-git's own client talking to a real Node
+ * http server over 127.0.0.1 — no native `git` binary anywhere. This still
+ * exercises the real wire protocol (pkt-line framing, `info/refs`,
+ * `upload-pack`, side-band-64k) end to end, since isomorphic-git implements
+ * that protocol independently rather than shelling out; it's just a JS
+ * client instead of a native one.
  */
 
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { promises as nodeFs } from "node:fs";
-import { createServer, type Server } from "node:http";
-import os from "node:os";
-import path from "node:path";
+import fs, { promises as nodeFs } from "node:fs";
+import nodeHttp, { createServer, type Server } from "node:http";
+import git, { type HttpClient } from "isomorphic-git";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// isomorphic-git's bundled `isomorphic-git/http/node` transport (built on the
+// `simple-get` package) hung indefinitely against this test's plain
+// node:http server — reproducibly stuck after the server had already sent a
+// complete, correctly-framed response and closed the socket, which points at
+// that transport's response/decompression handling rather than anything in
+// our protocol implementation. A minimal client built directly on node:http
+// (symmetric with the equally-plain node:http server below) sidesteps it
+// while still exercising the real wire protocol over a real socket.
+const nodeHttpClient: HttpClient = {
+	async request({ url, method = "GET", headers = {}, body }) {
+		const chunks: Buffer[] = [];
+		if (body) {
+			for await (const chunk of body) chunks.push(Buffer.from(chunk));
+		}
+		const requestBody = chunks.length > 0 ? Buffer.concat(chunks) : undefined;
+
+		return new Promise((resolve, reject) => {
+			const req = nodeHttp.request(url, { method, headers }, (res) => {
+				const responseChunks: Buffer[] = [];
+				res.on("data", (chunk: Buffer) => responseChunks.push(chunk));
+				res.on("end", () => {
+					const responseHeaders: Record<string, string> = {};
+					for (const [key, value] of Object.entries(res.headers)) {
+						if (value !== undefined) {
+							responseHeaders[key] = Array.isArray(value)
+								? value.join(", ")
+								: value;
+						}
+					}
+					resolve({
+						url,
+						method,
+						statusCode: res.statusCode ?? 0,
+						statusMessage: res.statusMessage ?? "",
+						headers: responseHeaders,
+						body: (async function* () {
+							yield new Uint8Array(Buffer.concat(responseChunks));
+						})(),
+					});
+				});
+				res.on("error", reject);
+			});
+			req.on("error", reject);
+			if (requestBody) req.write(requestBody);
+			req.end();
+		});
+	},
+};
 
 // Must be hoisted so git-manager-iso.ts (module-level GIT_BASE_PATH) and
 // r2.ts's isR2Configured() see these before any source module is imported.
@@ -226,41 +273,18 @@ const PAT = "ghp_lifecycletestpersonalaccesstoken";
 let server: Server;
 let baseUrl: string;
 
-// Sandboxed env for shelling out to the real `git` binary: HOME/XDG dirs point
-// into our own throwaway temp dir (never the real user's), system config is
-// disabled, and there's no credential helper — so this can never read from or
-// write to this machine's actual git configuration or credential store.
-let gitSandboxHome: string;
-function gitEnv(): NodeJS.ProcessEnv {
-	return {
-		PATH: process.env.PATH,
-		HOME: gitSandboxHome,
-		XDG_CONFIG_HOME: path.join(gitSandboxHome, ".config"),
-		GIT_CONFIG_NOSYSTEM: "1",
-		GIT_CONFIG_GLOBAL: path.join(gitSandboxHome, ".gitconfig"),
-		GIT_TERMINAL_PROMPT: "0",
-	};
-}
-
-function gitClone(url: string, dir: string): Promise<void> {
-	return new Promise((resolve, reject) => {
-		execFile(
-			"git",
-			["clone", "--quiet", url, dir],
-			{ env: gitEnv() },
-			(error) => {
-				if (error) reject(error);
-				else resolve();
-			},
-		);
+function gitClone(
+	url: string,
+	dir: string,
+	credentials?: { username: string; password: string },
+): Promise<void> {
+	return git.clone({
+		fs,
+		http: nodeHttpClient,
+		dir,
+		url,
+		onAuth: credentials ? () => credentials : undefined,
 	});
-}
-
-function withCreds(url: string, username: string, password: string): string {
-	const u = new URL(url);
-	u.username = encodeURIComponent(username);
-	u.password = encodeURIComponent(password);
-	return u.toString();
 }
 
 beforeAll(async () => {
@@ -287,11 +311,6 @@ beforeAll(async () => {
 		tokenHash: createHash("sha256").update(PAT).digest("hex"),
 		scopes: ["repo"],
 	});
-
-	await nodeFs.mkdir(ENV.cloneDir, { recursive: true });
-	gitSandboxHome = await nodeFs.mkdtemp(
-		path.join(os.tmpdir(), "pushstack-git-home-"),
-	);
 
 	// Minimal HTTP server mirroring src/routes/api/git.$.ts's dispatch, using
 	// the same real handler functions the production route uses.
@@ -394,9 +413,6 @@ afterAll(async () => {
 		server.close((err) => (err ? reject(err) : resolve())),
 	);
 	await nodeFs.rm(ENV.base, { recursive: true, force: true }).catch(() => {});
-	await nodeFs
-		.rm(gitSandboxHome, { recursive: true, force: true })
-		.catch(() => {});
 });
 
 describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
@@ -451,21 +467,21 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("rejects a bad token", async () => {
-		const url = withCreds(
-			`${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`,
-			TEST_USER.username,
-			"ghp_wrongtoken000000",
-		);
-		await expect(gitClone(url, `${ENV.cloneDir}-badtoken`)).rejects.toThrow();
+		const url = `${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`;
+		await expect(
+			gitClone(url, `${ENV.cloneDir}-badtoken`, {
+				username: TEST_USER.username,
+				password: "ghp_wrongtoken000000",
+			}),
+		).rejects.toThrow();
 	});
 
 	it("clones the private repo over HTTP using the user's PAT", async () => {
-		const url = withCreds(
-			`${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`,
-			TEST_USER.username,
-			PAT,
-		);
-		await gitClone(url, ENV.cloneDir);
+		const url = `${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`;
+		await gitClone(url, ENV.cloneDir, {
+			username: TEST_USER.username,
+			password: PAT,
+		});
 
 		const readme = await nodeFs.readFile(`${ENV.cloneDir}/README.md`, "utf8");
 		expect(readme).toBe(README_CONTENT);
@@ -496,12 +512,13 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("a subsequent clone attempt 404s once the repo is gone", async () => {
-		const url = withCreds(
-			`${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`,
-			TEST_USER.username,
-			PAT,
-		);
-		await expect(gitClone(url, `${ENV.cloneDir}-postdelete`)).rejects.toThrow();
+		const url = `${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`;
+		await expect(
+			gitClone(url, `${ENV.cloneDir}-postdelete`, {
+				username: TEST_USER.username,
+				password: PAT,
+			}),
+		).rejects.toThrow();
 	});
 
 	it("deletes the user (and cascades their token)", async () => {

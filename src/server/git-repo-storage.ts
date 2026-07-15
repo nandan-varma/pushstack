@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
+import git from "isomorphic-git";
 import { db } from "#/db";
 import { repositories } from "#/db/github-schema";
 import { isR2Configured } from "#/lib/r2";
@@ -281,8 +282,6 @@ async function branchExists(
 	gitdir: string,
 	branchName: string,
 ): Promise<boolean> {
-	const git = await import("isomorphic-git");
-
 	try {
 		await git.resolveRef({
 			fs,
@@ -319,6 +318,15 @@ export async function withReceivePackLock<T>(
 	});
 }
 
+// Materializes a scratch working directory (`dir`) checked out against the
+// bare repo (`gitdir`) directly — no clone, no push. `git.checkout`/
+// `git.commit`/`git.merge` all accept independent `dir`/`gitdir` params, and
+// `git.commit`/`git.merge` take an explicit target `ref`, so a mutation
+// against `{dir: worktreePath, gitdir}` writes straight into the bare repo;
+// there's no separate "push the worktree's result back" step the way a real
+// `git clone` + `git push` would need. `noUpdateHead: true` on the checkout
+// keeps the bare repo's own HEAD untouched (we're not making `worktreePath`
+// "the" checkout of this repo, just borrowing gitdir's object store).
 export async function withRepositoryWorktree<T>(
 	ownerKey: string,
 	repoName: string,
@@ -338,40 +346,37 @@ export async function withRepositoryWorktree<T>(
 			path.join(os.tmpdir(), `pushstack-${ownerKey}-${repoName}-`),
 		);
 		const worktreePath = path.join(worktreeRoot, "worktree");
+		await fs.mkdir(worktreePath, { recursive: true });
 
 		try {
-			const { execFile } = await import("node:child_process");
-			const run = (args: string[]) =>
-				new Promise<void>((resolve, reject) => {
-					execFile("git", args, (error) => {
-						if (error) {
-							reject(error);
-							return;
-						}
-						resolve();
-					});
+			// New-branch case: check out the default branch's current tip so a
+			// commit on a not-yet-existing branch still forks from it (matching
+			// what `git clone` + `git checkout -B <new>` used to produce), rather
+			// than starting from an empty working directory.
+			const checkoutRef = (await branchExists(gitdir, branchName))
+				? branchName
+				: defaultBranch;
+
+			if (await branchExists(gitdir, checkoutRef)) {
+				await git.checkout({
+					fs,
+					dir: worktreePath,
+					gitdir,
+					ref: checkoutRef,
+					noUpdateHead: true,
 				});
-
-			await run(["clone", gitdir, worktreePath]);
-
-			if (await branchExists(gitdir, branchName)) {
-				await run(["-C", worktreePath, "checkout", branchName]);
-			} else {
-				await run(["-C", worktreePath, "checkout", "-B", branchName]);
 			}
+			// else: brand new, empty repo — leave worktreePath empty.
 
 			const result = await fn({ worktreePath, gitdir });
-			await run([
-				"-C",
-				worktreePath,
-				"push",
-				"origin",
-				`HEAD:refs/heads/${branchName}`,
-			]);
 			await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
 			return result;
 		} finally {
 			await fs.rm(worktreeRoot, { recursive: true, force: true });
+			// `git.checkout`/`git.commit` write a working-tree index at
+			// `gitdir/index`, which a bare repo doesn't conventionally have —
+			// don't let it leak into what gets synced to R2.
+			await fs.rm(path.join(gitdir, "index"), { force: true });
 		}
 	});
 }
