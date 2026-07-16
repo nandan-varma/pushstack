@@ -30,7 +30,7 @@ describe("perfContext", () => {
 		const first = spy.mock.calls[0][0];
 		expect(first).toContain("label");
 		expect(first).toContain("start");
-		const last = spy.mock.calls.at(-1)![0];
+		const last = spy.mock.calls.at(-1)?.[0];
 		expect(last).toContain("done");
 		spy.mockRestore();
 	});
@@ -42,7 +42,7 @@ describe("perfContext", () => {
 				throw new Error("crash");
 			}),
 		).rejects.toThrow();
-		const last = spy.mock.calls.at(-1)![0];
+		const last = spy.mock.calls.at(-1)?.[0];
 		expect(last).toContain("failed");
 		expect(last).toContain("crash");
 		spy.mockRestore();
@@ -84,7 +84,7 @@ describe("recordR2Call", () => {
 			recordR2Call(10);
 			recordR2Call(20);
 		});
-		const doneLine = spy.mock.calls.at(-1)![0] as string;
+		const doneLine = spy.mock.calls.at(-1)?.[0] as string;
 		expect(doneLine).toContain("r2: 2 calls");
 		expect(doneLine).toContain("30.0ms");
 		spy.mockRestore();
@@ -103,7 +103,7 @@ describe("recordCacheHit / recordCacheMiss", () => {
 			recordCacheHit();
 			recordCacheMiss();
 		});
-		const doneLine = spy.mock.calls.at(-1)![0] as string;
+		const doneLine = spy.mock.calls.at(-1)?.[0] as string;
 		expect(doneLine).toContain("cache: 2 hit / 1 miss");
 		spy.mockRestore();
 	});
@@ -125,7 +125,7 @@ describe("perfR2", () => {
 			.map((c) => String(c[0]))
 			.find((l) => l.includes("r2-read"));
 		expect(stepLine).toBeDefined();
-		const doneLine = spy.mock.calls.at(-1)![0] as string;
+		const doneLine = spy.mock.calls.at(-1)?.[0] as string;
 		expect(doneLine).toContain("r2: 1 call");
 		spy.mockRestore();
 	});

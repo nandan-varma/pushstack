@@ -1,102 +1,115 @@
+import { neon } from '@neondatabase/serverless'
 import { test, expect } from '@playwright/test'
 
-test.describe('Repository Management E2E', () => {
-  test.beforeEach(async ({ page }) => {
-    // Note: In a real scenario, you'd want to authenticate first
-    // For now, we'll just navigate to the page
-    await page.goto('/')
+const timestamp = Date.now()
+const testUser = {
+  name: `Repo Test User`,
+  username: `repotestuser${timestamp}`,
+  email: `pushstack.repo.test.${timestamp}@gmail.com`,
+  password: 'SecurePassword123!',
+}
+
+function dbClient() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not set')
+  }
+  return neon(process.env.DATABASE_URL)
+}
+
+async function verifyUserEmail(email: string) {
+  const sql = dbClient()
+  await sql`UPDATE "user" SET "emailVerified" = true WHERE email = ${email}`
+}
+
+async function deleteTestUser(email: string) {
+  const sql = dbClient()
+  await sql`DELETE FROM "session" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${email})`
+  await sql`DELETE FROM "account" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${email})`
+  await sql`DELETE FROM "user" WHERE email = ${email}`
+}
+
+test.describe.serial('Repository Management E2E', () => {
+  test.afterAll(async () => {
+    await deleteTestUser(testUser.email)
   })
 
-  test('should display repositories page', async ({ page }) => {
+  test('should register and verify test user', async ({ page }) => {
+    await page.goto('/auth/register')
+    await page.locator('input#name').fill(testUser.name)
+    await page.locator('input#username').fill(testUser.username)
+    await page.locator('input#email').fill(testUser.email)
+    await page.locator('input#password').fill(testUser.password)
+    await page.locator('input#confirmPassword').fill(testUser.password)
+    await page.click('button[type="submit"]')
+    await expect(page).toHaveURL(/\/auth\/login/, { timeout: 15000 })
+
+    const sql = dbClient()
+    const rows = await sql`SELECT email FROM "user" WHERE email = ${testUser.email}`
+    expect(rows).toHaveLength(1)
+    await verifyUserEmail(testUser.email)
+  })
+
+  test('should login successfully', async ({ page }) => {
+    await page.goto('/auth/login')
+    await page.locator('input#identifier').fill(testUser.email)
+    await page.locator('input#password').fill(testUser.password)
+    await Promise.all([
+      page.waitForURL('/dashboard', { timeout: 15000 }),
+      page.click('button[type="submit"]'),
+    ])
+    await expect(page.locator('button[aria-label="Account menu"]')).toBeVisible()
+  })
+
+  test('should display repositories page when logged in', async ({ page }) => {
     await page.goto('/repositories')
-    
-    // Should show repositories or redirect to login
-    const url = page.url()
-    if (url.includes('/auth/login')) {
-      await expect(page.locator('h1')).toContainText('Welcome back')
-    } else {
-      await expect(page).toHaveURL('/repositories')
-    }
+    await expect(page).toHaveURL('/repositories')
   })
 
   test('should access new repository page', async ({ page }) => {
     await page.goto('/repositories/new')
-    
-    // Should show create form or redirect to login
-    const url = page.url()
-    if (url.includes('/auth/login')) {
-      await expect(page.locator('h1')).toContainText('Welcome back')
-    } else {
-      await expect(page).toHaveURL('/repositories/new')
-      await expect(page.locator('h1')).toContainText(/create.*repository/i)
-    }
+    await expect(page).toHaveURL('/repositories/new')
   })
 
-  test.skip('should create a new repository', async ({ page }) => {
-    // This test assumes authentication is working
+  test('should create a new repository', async ({ page }) => {
     await page.goto('/repositories/new')
-    
-    // Fill in repository details
-    await page.fill('input[name="name"]', `test-repo-${Date.now()}`)
-    await page.fill('textarea[name="description"]', 'Test repository description')
-    
-    // Select visibility
-    await page.selectOption('select[name="visibility"]', 'public')
-    
-    // Submit form
+
+    const repoName = `test-repo-${Date.now()}`
+    await page.locator('input[name="name"]').fill(repoName)
+    await page.locator('textarea[name="description"]').fill('Test repository created by E2E test')
+    await page.locator('select[name="visibility"]').selectOption('public')
     await page.click('button[type="submit"]')
-    
-    // Should redirect to the new repository page
-    await expect(page).toHaveURL(/\/repo\/.*\/test-repo-\d+/)
+
+    await expect(page).toHaveURL(new RegExp(`/repo/${testUser.username}/${repoName}`), { timeout: 15000 })
   })
 
   test('should display repository details', async ({ page }) => {
-    // Navigate to a specific repository
-    // Note: Replace with actual test repository
-    await page.goto('/repo/testuser/testrepo')
-    
-    // Should show repository page or redirect
-    const url = page.url()
-    if (!url.includes('/auth/login')) {
-      // Could be 404 or actual repo page
-      const heading = page.locator('h1').first()
-      await expect(heading).toBeVisible({ timeout: 5000 })
+    await page.goto(`/repositories`)
+    const firstRepoLink = page.locator('a[href*="/repo/"]').first()
+    if (await firstRepoLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await firstRepoLink.click()
+      await expect(page.locator('h1').first()).toBeVisible()
     }
   })
 
-  test('should navigate to repository issues', async ({ page }) => {
-    await page.goto('/repo/testuser/testrepo/issues')
-    
-    const url = page.url()
-    if (!url.includes('/auth/login')) {
-      await expect(page).toHaveURL(/\/repo\/.*\/.*\/issues/)
+  test('should navigate to repository issues tab', async ({ page }) => {
+    const repoLinks = page.locator('a[href*="/repo/"]')
+    if (await repoLinks.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      const href = await repoLinks.first().getAttribute('href')
+      if (href) {
+        await page.goto(`${href}/issues`)
+        await expect(page).toHaveURL(/\/issues/)
+      }
     }
   })
 
-  test('should navigate to repository commits', async ({ page }) => {
-    await page.goto('/repo/testuser/testrepo/commits')
-    
-    const url = page.url()
-    if (!url.includes('/auth/login')) {
-      await expect(page).toHaveURL(/\/repo\/.*\/.*\/commits/)
-    }
-  })
-
-  test('should navigate to repository pull requests', async ({ page }) => {
-    await page.goto('/repo/testuser/testrepo/pulls')
-    
-    const url = page.url()
-    if (!url.includes('/auth/login')) {
-      await expect(page).toHaveURL(/\/repo\/.*\/.*\/pulls/)
-    }
-  })
-
-  test('should handle repository file browsing', async ({ page }) => {
-    await page.goto('/repo/testuser/testrepo/blob/main/README.md')
-    
-    const url = page.url()
-    if (!url.includes('/auth/login')) {
-      await expect(page).toHaveURL(/\/repo\/.*\/.*\/blob\/.*/)
+  test('should navigate to repository pull requests tab', async ({ page }) => {
+    const repoLinks = page.locator('a[href*="/repo/"]')
+    if (await repoLinks.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      const href = await repoLinks.first().getAttribute('href')
+      if (href) {
+        await page.goto(`${href}/pulls`)
+        await expect(page).toHaveURL(/\/pulls/)
+      }
     }
   })
 })

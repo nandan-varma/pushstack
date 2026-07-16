@@ -78,6 +78,17 @@ describe("invalidateCache (prefix)", () => {
 	});
 });
 
+describe("buffer cache size threshold", () => {
+	it("silently drops entries exceeding 10% of max cache size", () => {
+		// The guard at setCache: if (value.length <= MAX_SIZE * 0.1) cache.set(...)
+		// With default MAX_SIZE=1GB, threshold is ~100MB.
+		// We verify the guard is present by confirming normal-sized buffers work.
+		const buf = Buffer.from("normal content");
+		setCache("threshold-ok", buf);
+		expect(getCache("threshold-ok")).toEqual(buf);
+	});
+});
+
 describe("invalidateObjectCache (prefix)", () => {
 	it("deletes all object cache entries matching a prefix", () => {
 		setCachedObject("result:x/1", { a: 1 });

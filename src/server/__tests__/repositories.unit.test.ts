@@ -120,7 +120,7 @@ vi.mock("../repo-access", () => ({
 	}),
 }));
 
-describe("Repository Integration Tests", () => {
+describe("Repository Unit Tests", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockDb.query.repositories.findFirst.mockResolvedValue(null);
