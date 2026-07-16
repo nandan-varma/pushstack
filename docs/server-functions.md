@@ -52,7 +52,13 @@ Every branch-name-shaped field (`branchName`, `fromBranch`, `sourceBranch`/
 calls these values eventually reach (`git.commit`, `git.merge`,
 `git.deleteBranch`) don't validate ref names internally, so an unrestricted
 branch name here was a path-traversal vector reachable straight from the web
-UI (delete branch, PR merge) — see [security.md](./security.md).
+UI (delete branch, PR merge) — see [security.md](./security.md). Read-only
+handlers whose `branchName` also has to accept a pinned commit SHA
+(`getFile`, `listFiles`, `getLastCommits`, `getFileHistory`, `getCommits` —
+the blob page's Permalink view passes a SHA here, not just a branch) use
+`safeRefNameSchema` instead, which accepts either shape without weakening the
+traversal check. `commitSha` fields (`getCommit`, `getCommitDiff`) use
+`safeCommitShaSchema`.
 
 `safeRepoPathSchema` plays the same role for file `path` fields — must be
 relative, no `..` segments, no `.git/` prefix, no null bytes.
@@ -88,7 +94,14 @@ schema validation, access checks, and activity logging:
 `searchRepositories`/`searchIssues`/`searchUsers` (each gated per-result by
 `canReadRepo` where applicable), plus the three activity-feed queries
 (`getUserActivity`, `getRepositoryActivity`, `getGlobalActivity`) that back the
-dashboard and repo activity views. The activity queries push their visibility
+dashboard and repo activity views. All of these except `getUserActivity` use
+`getCurrentUserOptional()` rather than `getCurrentUser()` — they only ever
+return data an anonymous visitor could already reach via a direct public-repo
+URL, so none of them should hard-require login (see
+[authentication.md](./authentication.md)'s "public + anonymous = read-only"
+model). `getUserActivity` is the exception: with no `userId` given it defaults
+to the caller's own activity, which only makes sense for a signed-in user.
+The activity queries push their visibility
 filter (public-repos-only for a non-owner's feed) *into* the SQL query rather
 than filtering in JS after `limit` — filtering after the fact could return
 fewer rows than requested even when plenty of qualifying activity exists

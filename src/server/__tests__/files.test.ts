@@ -386,8 +386,9 @@ describe("file path traversal guard", () => {
 		});
 
 		it("returns formatted commit details", async () => {
+			const sha = "a".repeat(40);
 			gitOpsMocks.getCommit.mockResolvedValueOnce({
-				oid: "sha123",
+				oid: sha,
 				commit: {
 					message: "fix bug",
 					tree: "tree1",
@@ -410,10 +411,10 @@ describe("file path traversal guard", () => {
 
 			const { getCommit } = await import("../files");
 			const result = await getCommit({
-				data: { repoId: 1, commitSha: "sha123" },
+				data: { repoId: 1, commitSha: sha },
 			});
 
-			expect(result.sha).toBe("sha123");
+			expect(result.sha).toBe(sha);
 			expect(result.message).toBe("fix bug");
 			expect(result.branch).toBe("main");
 			expect(result.parent).toEqual(["parent1"]);

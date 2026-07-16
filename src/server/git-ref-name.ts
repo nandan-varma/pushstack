@@ -48,3 +48,59 @@ export const safeBranchNameSchema = z
 	.string()
 	.min(1)
 	.refine(isSafeBranchName, "Invalid branch name");
+
+const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
+
+/** True for a full 40-hex-char commit SHA — the shape `isSafeBranchName` deliberately rejects. */
+export function isFullSha(value: string): boolean {
+	return FULL_SHA_RE.test(value);
+}
+
+export const safeCommitShaSchema = z
+	.string()
+	.refine(isFullSha, "Invalid commit SHA");
+
+/**
+ * Validates a "ref" field that may name either a branch or a commit it's
+ * pinned to — the shape the blob/tree/history viewers' route params take
+ * (e.g. the Permalink button on the blob page generates a URL with a full
+ * commit SHA in place of the branch name, and the "Raw" link reuses whatever
+ * ref the page is currently viewing). isSafeBranchName alone rejects a
+ * 40-hex-char value on purpose (to keep a stored branch name from ever being
+ * ambiguous with a SHA at write time) — this is for read paths that need to
+ * accept both shapes, without weakening the traversal check either shape is
+ * still run through.
+ */
+export function isSafeRefName(value: string): boolean {
+	return isSafeBranchName(value) || isFullSha(value);
+}
+
+export const safeRefNameSchema = z
+	.string()
+	.min(1)
+	.refine(isSafeRefName, "Invalid ref name");
+
+// Shared with api/raw.$.ts, which reads path segments straight off the URL
+// rather than through files.ts's createServerFn validators — any new place
+// that accepts a repo-relative file path from request input should validate
+// it the same way rather than re-deriving these checks ad hoc.
+export function isSafeRepoPath(p: string): boolean {
+	if (p.startsWith("/")) return false;
+	if (p.split("/").some((segment) => segment === "..")) return false;
+	if (/^\.git(\/|$)/i.test(p)) return false;
+	if (p.includes("\0")) return false;
+	return true;
+}
+
+export const safeRepoPathSchema = z
+	.string()
+	.refine((p) => !p.startsWith("/"), "Path must be relative")
+	.refine(
+		(p) => !p.split("/").some((segment) => segment === ".."),
+		"Path must not contain '..' segments",
+	)
+	.refine(
+		(p) => !/^\.git(\/|$)/i.test(p),
+		"Path must not reference git internals",
+	)
+	.refine((p) => !p.includes("\0"), "Path must not contain null bytes");

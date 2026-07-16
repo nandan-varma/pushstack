@@ -11,6 +11,7 @@ setupServerFnMock();
 
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(() => Promise.resolve(mockUser)),
+	getCurrentUserOptional: vi.fn(() => Promise.resolve(mockUser)),
 }));
 
 vi.mock("../repo-access", () => ({

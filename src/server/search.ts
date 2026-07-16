@@ -5,7 +5,7 @@ import { db } from "../db";
 import { activities, issues, repositories, user } from "../db/schema";
 import { perfContext, perfStep } from "./perf-log";
 import { canReadRepo } from "./repo-access";
-import { getCurrentUser } from "./session";
+import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 type UserSearchResult = {
 	id: string;
@@ -26,20 +26,29 @@ export const searchRepositories = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUser();
+		// Public repos are readable anonymously everywhere else in the app (see
+		// repo-access.ts's "public + anonymous = read-only" model) — search
+		// shouldn't require login to find the same repos a direct URL visit
+		// wouldn't. Only the "also match my own private repos" clause needs a
+		// signed-in user.
+		const currentUser = await getCurrentUserOptional();
 
-		// Search public repositories and user's own repositories
 		const repos = await db.query.repositories.findMany({
-			where: or(
-				and(
-					ilike(repositories.name, `%${data.query}%`),
-					eq(repositories.visibility, "public"),
-				),
-				and(
-					ilike(repositories.name, `%${data.query}%`),
-					eq(repositories.ownerId, currentUser.id),
-				),
-			),
+			where: currentUser
+				? or(
+						and(
+							ilike(repositories.name, `%${data.query}%`),
+							eq(repositories.visibility, "public"),
+						),
+						and(
+							ilike(repositories.name, `%${data.query}%`),
+							eq(repositories.ownerId, currentUser.id),
+						),
+					)
+				: and(
+						ilike(repositories.name, `%${data.query}%`),
+						eq(repositories.visibility, "public"),
+					),
 			with: {
 				owner: true,
 			},
@@ -62,9 +71,9 @@ export const searchIssues = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUser();
+		const currentUser = await getCurrentUserOptional();
 
-		if (!(await canReadRepo(data.repoId, currentUser.id))) {
+		if (!(await canReadRepo(data.repoId, currentUser?.id))) {
 			throw new Error("Access denied");
 		}
 
@@ -100,8 +109,8 @@ export const searchUsers = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }): Promise<UserSearchResult[]> => {
-		await getCurrentUser();
-
+		// Public profile lookup (username/name/avatar only) — no reason to
+		// require login for something a direct profile-URL visit wouldn't.
 		const users = await db.query.user.findMany({
 			where: or(
 				ilike(user.name, `%${data.query}%`),
@@ -182,9 +191,9 @@ export const getRepositoryActivity = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUser();
+		const currentUser = await getCurrentUserOptional();
 
-		if (!(await canReadRepo(data.repoId, currentUser.id))) {
+		if (!(await canReadRepo(data.repoId, currentUser?.id))) {
 			throw new Error("Access denied");
 		}
 
@@ -213,8 +222,6 @@ export const getGlobalActivity = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) => {
-		await getCurrentUser();
-
 		// ponytail: same limit-then-filter issue as getUserActivity — filter to
 		// public repos in the query so `limit` rows are actually returned.
 		const activityList = await db.query.activities.findMany({

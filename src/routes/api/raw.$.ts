@@ -13,6 +13,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { getMimeType } from "#/lib/language-detection";
 import { getFileContent } from "#/server/git-history-ops";
+import { isSafeRefName, isSafeRepoPath } from "#/server/git-ref-name";
 import { getRepoStorageCoordinates } from "#/server/git-storage-naming";
 import { getAccessForRepository } from "#/server/repo-access";
 import { findRepositoryByName } from "#/server/repositories";
@@ -49,6 +50,18 @@ export const Route = createFileRoute("/api/raw/$")({
 					const [owner, name, ref, ...pathParts] = segments;
 					const path = pathParts.join("/");
 					if (!owner || !name || !ref || !path) {
+						return new Response("Not found", { status: 404 });
+					}
+					// This route builds ref/path straight from URL segments rather than
+					// going through files.ts's zod-validated server functions — validate
+					// them the same way those do (safeRefNameSchema/safeRepoPathSchema)
+					// before either reaches getFileContent, which resolves `ref` via
+					// isomorphic-git's git.resolveRef. That primitive doesn't validate
+					// ref format internally (see git-ref-name.ts's comment), so an
+					// unvalidated "../"-laden ref here would be a cross-repo path
+					// traversal in a local-disk-configured deployment, same class as the
+					// branch-name traversal fixed elsewhere in the app.
+					if (!isSafeRefName(ref) || !isSafeRepoPath(path)) {
 						return new Response("Not found", { status: 404 });
 					}
 
