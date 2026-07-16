@@ -19,7 +19,41 @@ const config = defineConfig({
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
 		tanstackStart(),
-		nitro({ preset: "vercel" }),
+		nitro({
+			preset: "vercel",
+			routeRules: {
+				// Defense-in-depth on top of MarkdownRenderer's isSafeHref/
+				// isSafeImageSrc guards (the primary control for the
+				// attacker-controlled content it renders — issue/PR/comment
+				// bodies, READMEs). 'unsafe-inline' stays necessary in both
+				// directives: TanStack Start's SSR streaming injects small
+				// inline hydration <script> tags with per-response dynamic
+				// content (no static hash/nonce would match), and Shiki's
+				// code-block highlighting emits inline `style` attributes per
+				// token. This still blocks the more common exfiltration
+				// pattern of loading a *remote* script/style from an
+				// attacker-controlled origin, and blocks framing/plugins
+				// entirely — see docs/security.md for the full model.
+				"/**": {
+					headers: {
+						"Content-Security-Policy": [
+							"default-src 'self'",
+							"script-src 'self' 'unsafe-inline'",
+							"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+							"img-src 'self' data: https:",
+							"font-src 'self' https://fonts.gstatic.com",
+							"connect-src 'self'",
+							"frame-ancestors 'none'",
+							"base-uri 'self'",
+							"object-src 'none'",
+						].join("; "),
+						"X-Content-Type-Options": "nosniff",
+						"X-Frame-Options": "DENY",
+						"Referrer-Policy": "strict-origin-when-cross-origin",
+					},
+				},
+			},
+		}),
 		viteReact(),
 	],
 	server: {
