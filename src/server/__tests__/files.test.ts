@@ -45,17 +45,17 @@ vi.mock("../git-storage-naming", () => ({
 }));
 
 const gitOpsMocks = {
-	createCommit: vi.fn(() => Promise.resolve("commit-sha")),
+	createCommit: vi.fn((): Promise<string> => Promise.resolve("commit-sha")),
 	getFileFromBranch: vi.fn(() =>
 		Promise.resolve({ content: "hi", size: 2, isBinary: false }),
 	),
-	getTreeFromBranch: vi.fn(() => Promise.resolve([])),
+	getTreeFromBranch: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
 	deleteFile: vi.fn(() => Promise.resolve({ sha: "sha", message: "msg" })),
-	getBranches: vi.fn(() => Promise.resolve([])),
+	getBranches: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
 	createBranch: vi.fn(() => Promise.resolve()),
 	deleteBranch: vi.fn(() => Promise.resolve()),
-	getCommitHistory: vi.fn(() => Promise.resolve([])),
-	getCommit: vi.fn(() => Promise.resolve({})),
+	getCommitHistory: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+	getCommit: vi.fn((): Promise<unknown> => Promise.resolve({})),
 };
 
 vi.mock("../git-commit-write", () => ({

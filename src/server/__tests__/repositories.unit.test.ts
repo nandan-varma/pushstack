@@ -61,6 +61,11 @@ const mockDb = {
 	select: vi.fn(() => ({
 		from: vi.fn(() => ({
 			where: vi.fn(() => Promise.resolve([{ count: 0 }])),
+			innerJoin: vi.fn(() => ({
+				where: vi.fn(() => ({
+					limit: vi.fn(() => Promise.resolve([])),
+				})),
+			})),
 		})),
 	})),
 	query: {
@@ -534,6 +539,7 @@ describe("Repository Unit Tests", () => {
 			// The join query returns empty → not found
 			mockDb.select.mockReturnValueOnce({
 				from: vi.fn(() => ({
+					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
 					innerJoin: vi.fn(() => ({
 						where: vi.fn(() => ({
 							limit: vi.fn(() => Promise.resolve([])),
@@ -554,14 +560,15 @@ describe("Repository Unit Tests", () => {
 				owner: mockUser,
 			};
 			// Use a different key to avoid the fetchRepoRowByName cache from the prior test.
-			mockDb.select.mockImplementation(() => ({
+			// biome-ignore lint/suspicious/noExplicitAny: test mock with complex nested return type
+			mockDb.select.mockImplementation((): any => ({
 				from: vi.fn(() => ({
+					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
 					innerJoin: vi.fn(() => ({
 						where: vi.fn(() => ({
 							limit: vi.fn(() => Promise.resolve([row])),
 						})),
 					})),
-					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
 				})),
 			}));
 			const { getAccessForRepository } = await import("../repo-access");
@@ -584,14 +591,15 @@ describe("Repository Unit Tests", () => {
 			};
 			// Use a unique key and a select mock that handles both the fetchRepoRowByName
 			// innerJoin chain and the getStarCount from().where() chain.
-			mockDb.select.mockImplementation(() => ({
+			// biome-ignore lint/suspicious/noExplicitAny: test mock with complex nested return type
+			mockDb.select.mockImplementation((): any => ({
 				from: vi.fn(() => ({
+					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
 					innerJoin: vi.fn(() => ({
 						where: vi.fn(() => ({
 							limit: vi.fn(() => Promise.resolve([row])),
 						})),
 					})),
-					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
 				})),
 			}));
 
