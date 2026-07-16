@@ -1,5 +1,19 @@
 import { useEffect, useState } from "react";
 
+/**
+ * Server only base64-encodes content it sniffed as binary (null-byte check) —
+ * text files (including previewable ones like SVG) arrive as raw UTF-8.
+ * Normalizes either shape into base64 so callers building an object URL or
+ * data URI don't need to know which path the content took.
+ */
+export function toPreviewBase64(content: string, isBinary: boolean): string {
+	if (isBinary) return content;
+	const bytes = new TextEncoder().encode(content);
+	let binary = "";
+	for (const byte of bytes) binary += String.fromCharCode(byte);
+	return window.btoa(binary);
+}
+
 export function base64ToObjectUrl(base64: string, mimeType: string): string {
 	const binary = window.atob(base64);
 	const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
