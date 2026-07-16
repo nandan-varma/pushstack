@@ -65,6 +65,8 @@ export const getIssues = createServerFn({ method: "GET" })
 			.object({
 				repoId: z.number(),
 				status: z.enum(["open", "closed", "all"]).optional().default("open"),
+				limit: z.number().max(100).optional().default(100),
+				skip: z.number().optional().default(0),
 			})
 			.parse(data),
 	)
@@ -88,6 +90,8 @@ export const getIssues = createServerFn({ method: "GET" })
 						author: true,
 					},
 					orderBy: [desc(issues.createdAt)],
+					limit: data.limit,
+					offset: data.skip,
 				}),
 			);
 

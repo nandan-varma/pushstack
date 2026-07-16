@@ -217,25 +217,34 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 		z
 			.object({
 				userId: z.string().optional(),
+				limit: z.number().max(100).optional().default(100),
+				skip: z.number().optional().default(0),
 			})
 			.parse(data),
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const targetUserId = data.userId || currentUser.id;
+		const isOwnRepos = targetUserId === currentUser.id;
 
+		// ponytail: visibility filtering used to happen in JS after the fetch —
+		// combined with a limit, that could silently return fewer repos than
+		// requested even when plenty of public ones existed further back (same
+		// issue search.ts's activity feeds fixed). Push it into the query instead.
 		const repos = await db.query.repositories.findMany({
-			where: eq(repositories.ownerId, targetUserId),
+			where: isOwnRepos
+				? eq(repositories.ownerId, targetUserId)
+				: and(
+						eq(repositories.ownerId, targetUserId),
+						eq(repositories.visibility, "public"),
+					),
 			orderBy: [desc(repositories.updatedAt)],
 			with: {
 				owner: true,
 			},
+			limit: data.limit,
+			offset: data.skip,
 		});
-
-		// Filter private repos if not the owner
-		if (targetUserId !== currentUser.id) {
-			return repos.filter((r) => r.visibility === "public");
-		}
 
 		return repos;
 	});
