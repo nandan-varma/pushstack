@@ -47,14 +47,20 @@ a real regression, just the mock needing to catch up.
 
 ### What's not covered yet
 
-There are currently no component-level render tests (nothing using React
-Testing Library's render + assertions on markup) — coverage is entirely
-server-side logic plus a handful of pure-function unit tests for client
+There are very few component-level render tests (using React Testing
+Library's render + assertions on markup) — coverage is overwhelmingly
+server-side logic, plus a handful of pure-function unit tests for client
 utilities (e.g. `src/components/__tests__/MarkdownRenderer.test.ts` tests the
 exported `isSafeHref`/`isSafeImageSrc` guard functions directly, not by
-rendering the component). If you add one, it'll be the first of its kind in
-this codebase — there's no existing pattern to match yet, so the setup itself
-(a render helper, if one doesn't already exist) is part of the work.
+rendering the component). In particular, none of the highest-churn
+user-facing routes (PR merge/update, tree/blob/commit viewers, file upload,
+comment forms) have any test coverage at all.
+
+A full render harness already exists for this, though — `src/test/
+router-utils.tsx` (`renderWithRouter`, `createTestRouter`,
+`createTestQueryClient`), built on `@testing-library/react` (already a
+devDependency). Route-level tests should use it rather than building a new
+pattern from scratch.
 
 ## End-to-end tests (Playwright)
 
