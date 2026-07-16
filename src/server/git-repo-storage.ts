@@ -27,7 +27,7 @@ import {
 	getRepoGitStoragePrefix,
 	getRepoStorageRoot,
 } from "./git-storage-naming";
-import { perfNote, perfStep } from "./perf-log";
+import { logError, perfNote, perfStep } from "./perf-log";
 
 type RepoState = {
 	hydratedAt?: number;
@@ -514,8 +514,9 @@ async function syncRepositoryToR2Unlocked(
 	// filesystem walk + DB write that nothing downstream depends on.
 	updateRepositoryBackupMetadata(ownerDbId, ownerKey, repoName, repoPath).catch(
 		(error: unknown) => {
-			console.error(
-				`Failed to update backup metadata for ${ownerKey}/${repoName}:`,
+			logError(
+				"git-repo-storage",
+				`Failed to update backup metadata for ${ownerKey}/${repoName}`,
 				error,
 			);
 		},

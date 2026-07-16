@@ -12,7 +12,7 @@ import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
 import { deleteRepositoryFromR2 } from "./git-repo-storage";
 import { getStorageOwnerKey } from "./git-storage-naming";
-import { perfContext, perfStep } from "./perf-log";
+import { logError, perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
 	canReadRepo,
@@ -206,7 +206,7 @@ export const createRepository = createServerFn({ method: "POST" })
 				},
 			};
 		} catch (error) {
-			console.error("Error creating repository:", error);
+			logError("repositories", "Error creating repository", error);
 			throw error;
 		}
 	});

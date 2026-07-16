@@ -23,7 +23,7 @@ import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 } from "./git-storage-naming";
-import { perfContext, perfStep } from "./perf-log";
+import { logError, logWarn, perfContext, perfStep } from "./perf-log";
 
 type GitHttpResult = {
 	status: number;
@@ -218,10 +218,7 @@ async function collectReachableOids(
 					await readAndVisitChildren(oid);
 				} catch (err) {
 					complete = false;
-					console.warn(
-						`[git-http] missing object ${oid}:`,
-						err instanceof Error ? err.message : err,
-					);
+					logWarn("git-http", `missing object ${oid}`, err);
 				}
 			}
 		})();
@@ -503,7 +500,7 @@ async function repackLocal(localGitdir: string): Promise<string[]> {
 		return staleFiles.map((f) => `objects/pack/${f}`);
 	} catch (err) {
 		// Repack failure is non-fatal — the push still succeeded, just with an extra pack file
-		console.error("[git-http] repack failed (non-fatal):", err);
+		logError("git-http", "repack failed (non-fatal)", err);
 		return [];
 	}
 }
@@ -522,8 +519,9 @@ async function deleteStalePacksFromR2(
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
 	await bulkDeleteFromR2(staleRelativePaths.map((p) => `${prefix}${p}`)).catch(
 		(err: unknown) => {
-			console.error(
-				"[git-http] failed to delete superseded packs from R2 (non-fatal):",
+			logError(
+				"git-http",
+				"failed to delete superseded packs from R2 (non-fatal)",
 				err,
 			);
 		},
