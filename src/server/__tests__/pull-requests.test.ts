@@ -66,6 +66,11 @@ const mockDb = {
 			})),
 		})),
 	})),
+	select: vi.fn(() => ({
+		from: vi.fn(() => ({
+			where: vi.fn(() => Promise.resolve([{ id: 1 }, { id: 2 }])),
+		})),
+	})),
 	query: {
 		pullRequests: {
 			findFirst: vi.fn(),
@@ -317,5 +322,90 @@ describe("mergePullRequest", () => {
 		expect(result).toEqual({ success: true, commitSha: "abc123" });
 		expect(mockDb.update).toHaveBeenCalledTimes(1);
 		expect(mockDb.insert).toHaveBeenCalledTimes(1); // activity log
+	});
+});
+
+describe("getPullRequests", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("rejects when the caller lacks read access", async () => {
+		const { requireReadAccess } = await import("../repo-access");
+		(requireReadAccess as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+			new Error("Access denied"),
+		);
+
+		const { getPullRequests } = await import("../pull-requests");
+		await expect(getPullRequests({ data: { repoId: 1 } })).rejects.toThrow(
+			"Access denied",
+		);
+	});
+
+	it("returns open PRs by default when the caller can read", async () => {
+		mockDb.query.pullRequests.findMany.mockResolvedValueOnce([
+			{ id: 1, title: "PR one", status: "open", author: { name: "Alice" } },
+		]);
+
+		const { getPullRequests } = await import("../pull-requests");
+		const result = await getPullRequests({ data: { repoId: 5 } });
+
+		expect(result).toHaveLength(1);
+		expect(result[0].title).toBe("PR one");
+	});
+
+	it("passes status filter to the query", async () => {
+		mockDb.query.pullRequests.findMany.mockResolvedValueOnce([]);
+
+		const { getPullRequests } = await import("../pull-requests");
+		await getPullRequests({ data: { repoId: 5, status: "merged" } });
+
+		expect(mockDb.query.pullRequests.findMany).toHaveBeenCalled();
+	});
+});
+
+describe("getPullRequestNumbers", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("rejects when the caller lacks read access", async () => {
+		const { requireReadAccess } = await import("../repo-access");
+		(requireReadAccess as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+			new Error("Access denied"),
+		);
+
+		const { getPullRequestNumbers } = await import("../pull-requests");
+		await expect(
+			getPullRequestNumbers({ data: { repoId: 1 } }),
+		).rejects.toThrow("Access denied");
+	});
+
+	it("returns PR ids for the repo when the caller can read", async () => {
+		mockDb.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: vi.fn(() =>
+					Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+				),
+			})),
+		});
+
+		const { getPullRequestNumbers } = await import("../pull-requests");
+		const result = await getPullRequestNumbers({ data: { repoId: 5 } });
+
+		expect(result).toEqual([10, 20, 30]);
+	});
+
+	it("returns an empty array when there are no pull requests", async () => {
+		mockDb.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: vi.fn(() => Promise.resolve([])),
+			})),
+		});
+
+		const { getPullRequestNumbers } = await import("../pull-requests");
+		const result = await getPullRequestNumbers({ data: { repoId: 99 } });
+
+		expect(result).toEqual([]);
 	});
 });

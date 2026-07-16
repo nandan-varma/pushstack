@@ -28,6 +28,7 @@ const mockRepo = {
 	id: 1,
 	ownerId: "user123",
 	name: "test-repo",
+	defaultBranch: "main",
 	owner: { id: "user123", username: "testuser", email: "test@example.com" },
 };
 
@@ -186,6 +187,177 @@ describe("file path traversal guard", () => {
 				},
 			});
 			expect(gitOpsMocks.deleteFile).toHaveBeenCalled();
+		});
+	});
+
+	describe("deleteBranch", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("rejects deleting the default branch", async () => {
+			const { deleteBranch } = await import("../files");
+			await expect(
+				deleteBranch({ data: { repoId: 1, name: "main" } }),
+			).rejects.toThrow("Cannot delete default branch");
+			expect(gitOpsMocks.deleteBranch).not.toHaveBeenCalled();
+		});
+
+		it("allows deleting a non-default branch", async () => {
+			const { deleteBranch } = await import("../files");
+			await deleteBranch({ data: { repoId: 1, name: "feature" } });
+			expect(gitOpsMocks.deleteBranch).toHaveBeenCalled();
+		});
+
+		it("rejects when caller lacks write access", async () => {
+			const { getRepoWithWriteAccess } = await import("../repo-access");
+			(
+				getRepoWithWriteAccess as ReturnType<typeof vi.fn>
+			).mockRejectedValueOnce(new Error("No write access"));
+
+			const { deleteBranch } = await import("../files");
+			await expect(
+				deleteBranch({ data: { repoId: 1, name: "feature" } }),
+			).rejects.toThrow("No write access");
+		});
+	});
+
+	describe("createBranch", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("rejects when caller lacks write access", async () => {
+			const { getRepoWithWriteAccess } = await import("../repo-access");
+			(
+				getRepoWithWriteAccess as ReturnType<typeof vi.fn>
+			).mockRejectedValueOnce(new Error("No write access"));
+
+			const { createBranch } = await import("../files");
+			await expect(
+				createBranch({ data: { repoId: 1, name: "feature" } }),
+			).rejects.toThrow("No write access");
+			expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
+		});
+
+		it("creates branch and returns success", async () => {
+			const { createBranch } = await import("../files");
+			const result = await createBranch({
+				data: { repoId: 1, name: "feature", fromBranch: "develop" },
+			});
+
+			expect(result.success).toBe(true);
+			expect(result.name).toBe("feature");
+			expect(gitOpsMocks.createBranch).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"feature",
+				"develop",
+				"user123",
+			);
+		});
+	});
+
+	describe("getBranches", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("returns branches from git", async () => {
+			gitOpsMocks.getBranches.mockResolvedValueOnce(["main", "dev"]);
+			const { getBranches } = await import("../files");
+			const result = await getBranches({ data: { repoId: 1 } });
+
+			expect(result).toEqual(["main", "dev"]);
+			expect(gitOpsMocks.getBranches).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+			);
+		});
+	});
+
+	describe("getCommits", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("returns formatted commit data", async () => {
+			gitOpsMocks.getCommitHistory.mockResolvedValueOnce([
+				{
+					oid: "abc123",
+					commit: {
+						message: "test commit",
+						tree: "tree1",
+						parent: [],
+						author: {
+							name: "Alice",
+							email: "alice@test.com",
+							timestamp: 1700000000,
+							timezoneOffset: 0,
+						},
+						committer: {
+							name: "Alice",
+							email: "alice@test.com",
+							timestamp: 1700000000,
+							timezoneOffset: 0,
+						},
+					},
+					payload: "",
+				},
+			]);
+
+			const { getCommits } = await import("../files");
+			const result = await getCommits({
+				data: { repoId: 1, branchName: "main" },
+			});
+
+			expect(result).toHaveLength(1);
+			expect(result[0].sha).toBe("abc123");
+			expect(result[0].message).toBe("test commit");
+			expect(result[0].authorName).toBe("Alice");
+			expect(result[0].author.email).toBe("alice@test.com");
+		});
+	});
+
+	describe("getCommit", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("returns formatted commit details", async () => {
+			gitOpsMocks.getCommit.mockResolvedValueOnce({
+				oid: "sha123",
+				commit: {
+					message: "fix bug",
+					tree: "tree1",
+					parent: ["parent1"],
+					author: {
+						name: "Bob",
+						email: "bob@test.com",
+						timestamp: 1700000000,
+						timezoneOffset: 0,
+					},
+					committer: {
+						name: "Bob",
+						email: "bob@test.com",
+						timestamp: 1700000000,
+						timezoneOffset: 0,
+					},
+				},
+				payload: "tree tree1\nparent parent1\n",
+			});
+
+			const { getCommit } = await import("../files");
+			const result = await getCommit({
+				data: { repoId: 1, commitSha: "sha123" },
+			});
+
+			expect(result.sha).toBe("sha123");
+			expect(result.message).toBe("fix bug");
+			expect(result.branch).toBe("main");
+			expect(result.parent).toEqual(["parent1"]);
+			expect(result.author.name).toBe("Bob");
+			expect(result.committer.name).toBe("Bob");
 		});
 	});
 });

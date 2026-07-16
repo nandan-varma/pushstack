@@ -105,6 +105,9 @@ vi.mock("../repo-access", () => ({
 	canReadRepo: vi.fn(() => Promise.resolve(true)),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
 	canModerateRepo: vi.fn(() => Promise.resolve(true)),
+	getAccessForRepository: vi.fn(() =>
+		Promise.resolve({ canRead: true, canWrite: true }),
+	),
 	getRepositoryAccess: vi.fn(() =>
 		Promise.resolve({ canRead: true, canWrite: true, repository: mockRepo }),
 	),
@@ -450,6 +453,152 @@ describe("Repository Integration Tests", () => {
 
 			const { getRepository } = await import("../repositories");
 			const result = await getRepository({ data: { id: 1 } });
+
+			expect(result.id).toBe(mockRepo.id);
+			expect(result).toHaveProperty("starCount");
+			expect(result).toHaveProperty("isStarred");
+		});
+	});
+
+	describe("getUserRepositories", () => {
+		it("returns the current user's own repos when no userId is provided", async () => {
+			mockDb.query.repositories.findMany.mockResolvedValueOnce([
+				{ id: 1, name: "repo-a", ownerId: mockUser.id, visibility: "public" },
+				{ id: 2, name: "repo-b", ownerId: mockUser.id, visibility: "private" },
+			]);
+
+			const { getUserRepositories } = await import("../repositories");
+			const result = await getUserRepositories({ data: {} });
+
+			expect(result).toHaveLength(2);
+			expect(mockDb.query.repositories.findMany).toHaveBeenCalled();
+		});
+
+		it("filters to public repos when viewing another user's page", async () => {
+			mockDb.query.repositories.findMany.mockResolvedValueOnce([
+				{ id: 3, name: "public-only", visibility: "public" },
+			]);
+
+			const { getUserRepositories } = await import("../repositories");
+			const result = await getUserRepositories({
+				data: { userId: "other-user" },
+			});
+
+			expect(result).toHaveLength(1);
+		});
+
+		it("respects limit and skip pagination", async () => {
+			mockDb.query.repositories.findMany.mockResolvedValueOnce([]);
+
+			const { getUserRepositories } = await import("../repositories");
+			await getUserRepositories({ data: { limit: 10, skip: 20 } });
+
+			expect(mockDb.query.repositories.findMany).toHaveBeenCalled();
+		});
+	});
+
+	describe("getCollaborators", () => {
+		it("throws when the caller lacks moderate access", async () => {
+			const { canModerateRepo } = await import("../repo-access");
+			(canModerateRepo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+				false,
+			);
+
+			const { getCollaborators } = await import("../repositories");
+			await expect(getCollaborators({ data: { repoId: 1 } })).rejects.toThrow(
+				/Access denied/,
+			);
+		});
+
+		it("returns the collaborator list when the caller can moderate", async () => {
+			mockDb.query.repositoryCollaborators.findMany.mockResolvedValueOnce([
+				{
+					id: 1,
+					repoId: 1,
+					userId: "u2",
+					role: "write",
+					user: { name: "Bob" },
+				},
+			]);
+
+			const { getCollaborators } = await import("../repositories");
+			const result = await getCollaborators({ data: { repoId: 1 } });
+
+			expect(result).toHaveLength(1);
+			expect(result[0].role).toBe("write");
+		});
+	});
+
+	describe("getRepositoryByName", () => {
+		it("throws when the repository does not exist", async () => {
+			// The join query returns empty → not found
+			mockDb.select.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					innerJoin: vi.fn(() => ({
+						where: vi.fn(() => ({
+							limit: vi.fn(() => Promise.resolve([])),
+						})),
+					})),
+				})),
+			});
+
+			const { getRepositoryByName } = await import("../repositories");
+			await expect(
+				getRepositoryByName({ data: { owner: "nobody", name: "nope" } }),
+			).rejects.toThrow("Repository not found");
+		});
+
+		it("throws access denied when the caller cannot read a private repo", async () => {
+			const row = {
+				repo: { ...mockRepo, visibility: "private" },
+				owner: mockUser,
+			};
+			// Use a different key to avoid the fetchRepoRowByName cache from the prior test.
+			mockDb.select.mockImplementation(() => ({
+				from: vi.fn(() => ({
+					innerJoin: vi.fn(() => ({
+						where: vi.fn(() => ({
+							limit: vi.fn(() => Promise.resolve([row])),
+						})),
+					})),
+					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
+				})),
+			}));
+			const { getAccessForRepository } = await import("../repo-access");
+			(
+				getAccessForRepository as ReturnType<typeof vi.fn>
+			).mockResolvedValueOnce({
+				canRead: false,
+			});
+
+			const { getRepositoryByName } = await import("../repositories");
+			await expect(
+				getRepositoryByName({ data: { owner: "nobody2", name: "nope2" } }),
+			).rejects.toThrow("Access denied");
+		});
+
+		it("returns the repo with star info when accessible", async () => {
+			const row = {
+				repo: mockRepo,
+				owner: mockUser,
+			};
+			// Use a unique key and a select mock that handles both the fetchRepoRowByName
+			// innerJoin chain and the getStarCount from().where() chain.
+			mockDb.select.mockImplementation(() => ({
+				from: vi.fn(() => ({
+					innerJoin: vi.fn(() => ({
+						where: vi.fn(() => ({
+							limit: vi.fn(() => Promise.resolve([row])),
+						})),
+					})),
+					where: vi.fn(() => Promise.resolve([{ count: 0 }])),
+				})),
+			}));
+
+			const { getRepositoryByName } = await import("../repositories");
+			const result = await getRepositoryByName({
+				data: { owner: "testuser", name: "test-repo" },
+			});
 
 			expect(result.id).toBe(mockRepo.id);
 			expect(result).toHaveProperty("starCount");

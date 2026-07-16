@@ -37,12 +37,28 @@ const mockDb = {
 			returning: vi.fn(() => [{ id: 1 }]),
 		})),
 	})),
+	update: vi.fn(() => ({
+		set: vi.fn(() => ({
+			where: vi.fn(() => ({
+				returning: vi.fn(() => [
+					{ id: 1, body: "updated", updatedAt: new Date() },
+				]),
+			})),
+		})),
+	})),
+	delete: vi.fn(() => ({
+		where: vi.fn(() => Promise.resolve()),
+	})),
 	query: {
 		issues: {
 			findFirst: vi.fn(),
 		},
 		pullRequests: {
 			findFirst: vi.fn(),
+		},
+		comments: {
+			findFirst: vi.fn(),
+			findMany: vi.fn(),
 		},
 	},
 };
@@ -137,5 +153,236 @@ describe("createComment", () => {
 
 		expect(result).toEqual({ id: 1 });
 		expect(mockDb.insert).toHaveBeenCalled();
+	});
+});
+
+describe("getComments", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("throws when neither issueId nor pullRequestId is provided", async () => {
+		const { getComments } = await import("../comments");
+		await expect(getComments({ data: {} })).rejects.toThrow(
+			/Must specify issueId or pullRequestId/,
+		);
+	});
+
+	it("throws when the caller cannot read the issue's repo", async () => {
+		mockDb.query.issues.findFirst.mockResolvedValue({
+			id: 10,
+			repoId: 1,
+			repository: { id: 1 },
+		});
+		const { getAccessForRepository } = await import("../repo-access");
+		(getAccessForRepository as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+			canRead: false,
+		});
+
+		const { getComments } = await import("../comments");
+		await expect(getComments({ data: { issueId: 10 } })).rejects.toThrow(
+			/Access denied/,
+		);
+	});
+
+	it("returns comments for an issue when the caller can read", async () => {
+		mockDb.query.issues.findFirst.mockResolvedValue({
+			id: 10,
+			repoId: 1,
+			repository: { id: 1 },
+		});
+		mockDb.query.comments = {
+			findMany: vi.fn().mockResolvedValue([
+				{ id: 1, body: "first", author: { name: "Alice" } },
+				{ id: 2, body: "second", author: { name: "Bob" } },
+			]),
+		};
+
+		const { getComments } = await import("../comments");
+		const result = await getComments({ data: { issueId: 10 } });
+
+		expect(result).toHaveLength(2);
+		expect(result[0].body).toBe("first");
+	});
+
+	it("returns comments for a pull request", async () => {
+		mockDb.query.pullRequests.findFirst.mockResolvedValue({
+			id: 20,
+			repoId: 1,
+			repository: { id: 1 },
+		});
+		mockDb.query.comments = {
+			findMany: vi
+				.fn()
+				.mockResolvedValue([
+					{ id: 3, body: "pr comment", author: { name: "Carol" } },
+				]),
+		};
+
+		const { getComments } = await import("../comments");
+		const result = await getComments({ data: { pullRequestId: 20 } });
+
+		expect(result).toHaveLength(1);
+		expect(result[0].body).toBe("pr comment");
+	});
+});
+
+describe("updateComment", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("throws when the comment does not exist", async () => {
+		mockDb.query.comments = { findFirst: vi.fn().mockResolvedValue(undefined) };
+
+		const { updateComment } = await import("../comments");
+		await expect(
+			updateComment({ data: { commentId: 999, body: "updated" } }),
+		).rejects.toThrow("Comment not found");
+	});
+
+	it("throws when a non-author lacks write access", async () => {
+		mockDb.query.comments = {
+			findFirst: vi.fn().mockResolvedValue({
+				id: 1,
+				authorId: "someone-else",
+				repoId: 5,
+			}),
+		};
+		const { canWriteRepo } = await import("../repo-access");
+		(canWriteRepo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+
+		const { updateComment } = await import("../comments");
+		await expect(
+			updateComment({ data: { commentId: 1, body: "edited" } }),
+		).rejects.toThrow("Only comment author can edit");
+	});
+
+	it("allows the author to edit without write access", async () => {
+		mockDb.query.comments = {
+			findFirst: vi.fn().mockResolvedValue({
+				id: 1,
+				authorId: mockUser.id,
+				repoId: 5,
+			}),
+		};
+		mockDb.update = vi.fn(() => ({
+			set: vi.fn(() => ({
+				where: vi.fn(() => ({
+					returning: vi.fn(() => [
+						{ id: 1, body: "edited", updatedAt: new Date() },
+					]),
+				})),
+			})),
+		}));
+		const { canWriteRepo } = await import("../repo-access");
+		const canWriteRepoMock = canWriteRepo as ReturnType<typeof vi.fn>;
+
+		const { updateComment } = await import("../comments");
+		const result = await updateComment({
+			data: { commentId: 1, body: "edited" },
+		});
+
+		expect(result.body).toBe("edited");
+		expect(canWriteRepoMock).not.toHaveBeenCalled();
+	});
+
+	it("allows a non-author repo writer to edit", async () => {
+		mockDb.query.comments = {
+			findFirst: vi.fn().mockResolvedValue({
+				id: 1,
+				authorId: "someone-else",
+				repoId: 5,
+			}),
+		};
+		mockDb.update = vi.fn(() => ({
+			set: vi.fn(() => ({
+				where: vi.fn(() => ({
+					returning: vi.fn(() => [
+						{ id: 1, body: "edited by mod", updatedAt: new Date() },
+					]),
+				})),
+			})),
+		}));
+
+		const { updateComment } = await import("../comments");
+		const result = await updateComment({
+			data: { commentId: 1, body: "edited by mod" },
+		});
+		expect(result.body).toBe("edited by mod");
+	});
+});
+
+describe("deleteComment", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("throws when the comment does not exist", async () => {
+		mockDb.query.comments = { findFirst: vi.fn().mockResolvedValue(undefined) };
+
+		const { deleteComment } = await import("../comments");
+		await expect(deleteComment({ data: { commentId: 999 } })).rejects.toThrow(
+			"Comment not found",
+		);
+	});
+
+	it("throws when a non-author lacks moderate access", async () => {
+		mockDb.query.comments = {
+			findFirst: vi.fn().mockResolvedValue({
+				id: 1,
+				authorId: "someone-else",
+				repoId: 5,
+				repository: { id: 5 },
+			}),
+		};
+		const { canModerateRepo } = await import("../repo-access");
+		(canModerateRepo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+
+		const { deleteComment } = await import("../comments");
+		await expect(deleteComment({ data: { commentId: 1 } })).rejects.toThrow(
+			"Not authorized to delete this comment",
+		);
+	});
+
+	it("allows the author to delete without moderate access", async () => {
+		mockDb.query.comments = {
+			findFirst: vi.fn().mockResolvedValue({
+				id: 1,
+				authorId: mockUser.id,
+				repoId: 5,
+				repository: { id: 5 },
+			}),
+		};
+		mockDb.delete = vi.fn(() => ({
+			where: vi.fn(() => Promise.resolve()),
+		}));
+		const { canModerateRepo } = await import("../repo-access");
+		const canModerateRepoMock = canModerateRepo as ReturnType<typeof vi.fn>;
+
+		const { deleteComment } = await import("../comments");
+		const result = await deleteComment({ data: { commentId: 1 } });
+
+		expect(result).toEqual({ success: true });
+		expect(canModerateRepoMock).not.toHaveBeenCalled();
+	});
+
+	it("allows a non-author moderator to delete", async () => {
+		mockDb.query.comments = {
+			findFirst: vi.fn().mockResolvedValue({
+				id: 1,
+				authorId: "someone-else",
+				repoId: 5,
+				repository: { id: 5 },
+			}),
+		};
+		mockDb.delete = vi.fn(() => ({
+			where: vi.fn(() => Promise.resolve()),
+		}));
+
+		const { deleteComment } = await import("../comments");
+		const result = await deleteComment({ data: { commentId: 1 } });
+		expect(result).toEqual({ success: true });
+		expect(mockDb.delete).toHaveBeenCalled();
 	});
 });
