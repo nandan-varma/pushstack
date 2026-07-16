@@ -46,6 +46,11 @@ const mockDb = {
 			})),
 		})),
 	})),
+	select: vi.fn(() => ({
+		from: vi.fn(() => ({
+			where: vi.fn(() => Promise.resolve([{ id: 1 }, { id: 2 }])),
+		})),
+	})),
 	query: {
 		issues: {
 			findFirst: vi.fn(),
@@ -267,5 +272,51 @@ describe("updateIssue", () => {
 		await updateIssue({ data: { issueId: 1, title: "Renamed" } });
 
 		expect(mockDb.insert).not.toHaveBeenCalled();
+	});
+});
+
+describe("getIssueNumbers", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("rejects when the caller lacks read access", async () => {
+		const { requireReadAccess } = await import("../repo-access");
+		(requireReadAccess as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+			new Error("Access denied"),
+		);
+
+		const { getIssueNumbers } = await import("../issues");
+		await expect(getIssueNumbers({ data: { repoId: 1 } })).rejects.toThrow(
+			"Access denied",
+		);
+	});
+
+	it("returns issue ids for the repo when the caller can read", async () => {
+		mockDb.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: vi.fn(() =>
+					Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+				),
+			})),
+		});
+
+		const { getIssueNumbers } = await import("../issues");
+		const result = await getIssueNumbers({ data: { repoId: 5 } });
+
+		expect(result).toEqual([10, 20, 30]);
+	});
+
+	it("returns an empty array when there are no issues", async () => {
+		mockDb.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: vi.fn(() => Promise.resolve([])),
+			})),
+		});
+
+		const { getIssueNumbers } = await import("../issues");
+		const result = await getIssueNumbers({ data: { repoId: 99 } });
+
+		expect(result).toEqual([]);
 	});
 });
