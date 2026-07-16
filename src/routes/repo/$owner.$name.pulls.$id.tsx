@@ -76,6 +76,9 @@ function PullRequestDetailPage() {
 	const [newComment, setNewComment] = useState("");
 
 	const { data: session } = useQuery(authSessionQueryOptions());
+	const { data: repo } = useQuery(
+		repositoryByNameQueryOptions({ owner, name }),
+	);
 	const prId = Number(id);
 	const { data: pr, isLoading } = useQuery(pullRequestQueryOptions(prId));
 
@@ -86,6 +89,7 @@ function PullRequestDetailPage() {
 			repoId: pr?.repoId ?? 0,
 			sourceBranch: pr?.sourceBranch ?? "",
 			targetBranch: pr?.targetBranch ?? "",
+			autoRefresh: !!repo?.autoRefreshPrDiffs,
 		}),
 		enabled: !!pr,
 	});

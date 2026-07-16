@@ -5,6 +5,7 @@ import { NotFoundCard } from "@/components/NotFoundCard";
 import { CollaboratorsSection } from "@/components/settings/CollaboratorsSection";
 import { DangerSection } from "@/components/settings/DangerSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
+import { PerformanceSection } from "@/components/settings/PerformanceSection";
 import {
 	authSessionQueryOptions,
 	repoCollaboratorsQueryOptions,
@@ -115,6 +116,7 @@ function RepoSettingsPage() {
 				<h1 className="text-2xl font-bold text-[var(--sea-ink)]">Settings</h1>
 
 				<GeneralSection repo={repo} owner={owner} name={name} />
+				<PerformanceSection repo={repo} owner={owner} name={name} />
 				<CollaboratorsSection repoId={repo.id} />
 				<DangerSection repo={repo} owner={owner} name={name} />
 			</div>

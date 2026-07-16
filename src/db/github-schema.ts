@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import {
 	bigint,
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -30,6 +31,15 @@ export const repositories = pgTable(
 		diskUsage: bigint("disk_usage", { mode: "number" }), // Repository size in bytes
 		lastBackupAt: timestamp("last_backup_at"), // Last R2 backup timestamp
 		backupR2Key: text("backup_r2_key"), // R2 key for latest backup
+		// Both default false: each costs a real R2/CPU walk on every view they're
+		// on (see docs/performance.md) for cosmetic/convenience value, not core
+		// browsing — opt-in per repo rather than paid by every visitor by default.
+		showLastCommitColumn: boolean("show_last_commit_column")
+			.notNull()
+			.default(false), // tree view's per-file "last commit" column (git-last-commit.ts)
+		autoRefreshPrDiffs: boolean("auto_refresh_pr_diffs")
+			.notNull()
+			.default(false), // keep an open PR's file-diff live via polling vs. load-once
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},

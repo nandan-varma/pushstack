@@ -55,7 +55,17 @@ export const queryKeys = {
 		branchName: string,
 		path: string,
 		limit = 30,
-	) => ["repos", repoId, "file-history", branchName, path, limit] as const,
+		maxDepth?: number,
+	) =>
+		[
+			"repos",
+			repoId,
+			"file-history",
+			branchName,
+			path,
+			limit,
+			maxDepth ?? "default",
+		] as const,
 	repoIssues: (repoId: number, status: "open" | "closed" | "all") =>
 		["repos", repoId, "issues", status] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
@@ -201,18 +211,31 @@ export function repositoryFileHistoryQueryOptions({
 	branchName,
 	path,
 	limit = 30,
+	maxDepth,
 }: {
 	repoId: number;
 	branchName: string;
 	path: string;
 	limit?: number;
+	/** Pass a shallow value (see BANNER_WALK_DEPTH) for a single-latest-commit
+	 * lookup — leave unset for a caller that wants the full history depth. */
+	maxDepth?: number;
 }) {
 	return queryOptions({
-		queryKey: queryKeys.repoFileHistory(repoId, branchName, path, limit),
+		queryKey: queryKeys.repoFileHistory(
+			repoId,
+			branchName,
+			path,
+			limit,
+			maxDepth,
+		),
 		queryFn: () =>
 			perfTime(
 				`query file history repo=${repoId} ${branchName}:${path} limit=${limit}`,
-				() => getFileHistory({ data: { repoId, branchName, path, limit } }),
+				() =>
+					getFileHistory({
+						data: { repoId, branchName, path, limit, maxDepth },
+					}),
 			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
@@ -393,20 +416,31 @@ export function pullRequestCommentsQueryOptions(prId: number) {
 	});
 }
 
+// Unlike a single commit's diff (immutable, cached forever), a PR's diff is
+// keyed by branch *names*, which move — so by default it's loaded once and
+// left alone rather than re-walked and re-diffed on a timer. `autoRefresh`
+// (repo settings > Performance, off by default) opts a repo into polling this
+// query live so an open PR tab picks up new pushes to either branch, same
+// tradeoff as useBranchUpdateBanner's tree-page polling.
 export function pullRequestDiffQueryOptions({
 	repoId,
 	sourceBranch,
 	targetBranch,
+	autoRefresh = false,
 }: {
 	repoId: number;
 	sourceBranch: string;
 	targetBranch: string;
+	autoRefresh?: boolean;
 }) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequestDiff(repoId, sourceBranch, targetBranch),
 		queryFn: () =>
 			getBranchDiff({ data: { repoId, sourceBranch, targetBranch } }),
-		staleTime: DEFAULT_STALE_TIME,
+		staleTime: autoRefresh ? DEFAULT_STALE_TIME : LONG_LIVED_STALE_TIME,
+		gcTime: autoRefresh ? undefined : LONG_LIVED_GC_TIME,
+		refetchOnWindowFocus: autoRefresh,
+		refetchInterval: autoRefresh ? 20_000 : false,
 	});
 }
 
