@@ -25,6 +25,16 @@ export interface MergeOptions {
 	authorEmail?: string;
 }
 
+/**
+ * Cheap pre-merge check: do both branches exist, and is this a fast-forward?
+ * `canMerge`/`fastForward` are the only fields this actually determines —
+ * `hasConflicts`/`conflictingFiles` are NOT a real content-conflict check
+ * (isomorphic-git's `git.merge` doesn't expose a dry-run), they only ever
+ * reflect "one of the branches couldn't be resolved" (`canMerge: false`).
+ * Real merge conflicts are only discoverable by actually attempting the
+ * merge — see `mergeBranches`'s `MergeConflictError` handling below, which
+ * is the sole source of truth for whether content conflicts exist.
+ */
 export async function analyzeMerge(
 	ownerKey: string,
 	repoName: string,
@@ -55,6 +65,10 @@ export async function analyzeMerge(
 		if ((err as { code?: string })?.code !== "NotFoundError") {
 			throw err;
 		}
+		// A branch ref failed to resolve — not a content conflict, just "can't
+		// merge because one side doesn't exist." hasConflicts here is a misnomer
+		// kept for MergeAnalysis's existing shape; canMerge is the field that
+		// actually matters to callers.
 		return {
 			canMerge: false,
 			hasConflicts: true,
@@ -164,10 +178,13 @@ export async function mergeBranches(
 					: ["Merge conflicts detected"],
 			};
 		}
-		return {
-			success: false,
-			conflicts: ["Merge conflicts detected"],
-		};
+		// Anything other than a real MergeConflictError (R2/network failure,
+		// corrupted object, an internal bug) used to be relabeled as "merge
+		// conflicts detected" too — which hid the actual failure from both the
+		// user (misleading message) and the logs (nothing printed at all). Log
+		// it and let it propagate as a real error instead of a fake conflict.
+		console.error("[git-merge] mergeBranches failed unexpectedly:", error);
+		throw error;
 	}
 }
 
