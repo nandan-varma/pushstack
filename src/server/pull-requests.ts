@@ -78,6 +78,8 @@ export const getPullRequests = createServerFn({ method: "GET" })
 					.enum(["open", "closed", "merged", "all"])
 					.optional()
 					.default("open"),
+				limit: z.number().max(100).optional().default(100),
+				skip: z.number().optional().default(0),
 			})
 			.parse(data),
 	)
@@ -105,6 +107,8 @@ export const getPullRequests = createServerFn({ method: "GET" })
 							author: true,
 						},
 						orderBy: [desc(pullRequests.createdAt)],
+						limit: data.limit,
+						offset: data.skip,
 					}),
 				);
 
