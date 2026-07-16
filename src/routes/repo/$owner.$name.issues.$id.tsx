@@ -18,6 +18,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import {
 	authSessionQueryOptions,
 	issueCommentsQueryOptions,
@@ -82,21 +83,16 @@ function IssueDetailPage() {
 
 	const updateMutation = useMutation({
 		mutationFn: updateIssue,
-		onMutate: async (vars) => {
-			await queryClient.cancelQueries({ queryKey: issueQueryKey });
-			const prev = queryClient.getQueryData(issueQueryKey);
-			const newStatus = (
-				vars as { data: { status?: "open" | "closed" } } | undefined
-			)?.data.status;
-			queryClient.setQueryData(issueQueryKey, (old: typeof issue) =>
-				old ? { ...old, status: newStatus ?? old.status } : old,
-			);
-			return { prev };
-		},
-		onError: (err: Error, _vars, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(issueQueryKey, ctx.prev);
-			toast(err.message || "Failed to update issue", "error");
-		},
+		...useOptimisticUpdate<typeof issue>(
+			issueQueryKey,
+			(old, vars) => {
+				const newStatus = (
+					vars as { data: { status?: "open" | "closed" } } | undefined
+				)?.data.status;
+				return old ? { ...old, status: newStatus ?? old.status } : old;
+			},
+			"Failed to update issue",
+		),
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: issueQueryKey });
 			if (issue)

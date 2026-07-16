@@ -20,6 +20,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import {
 	authSessionQueryOptions,
 	pullRequestCommentsQueryOptions,
@@ -98,18 +99,11 @@ function PullRequestDetailPage() {
 
 	const mergeMutation = useMutation({
 		mutationFn: mergePullRequest,
-		onMutate: async () => {
-			await queryClient.cancelQueries({ queryKey: prQueryKey });
-			const prev = queryClient.getQueryData(prQueryKey);
-			queryClient.setQueryData(prQueryKey, (old: typeof pr) =>
-				old ? { ...old, status: "merged" } : old,
-			);
-			return { prev };
-		},
-		onError: (err: Error, _vars, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(prQueryKey, ctx.prev);
-			toast(err.message || "Failed to merge pull request", "error");
-		},
+		...useOptimisticUpdate<typeof pr>(
+			prQueryKey,
+			(old) => (old ? { ...old, status: "merged" } : old),
+			"Failed to merge pull request",
+		),
 		onSuccess: () => {
 			toast("Pull request merged", "success");
 		},
@@ -131,21 +125,16 @@ function PullRequestDetailPage() {
 
 	const updateMutation = useMutation({
 		mutationFn: updatePullRequest,
-		onMutate: async (vars) => {
-			await queryClient.cancelQueries({ queryKey: prQueryKey });
-			const prev = queryClient.getQueryData(prQueryKey);
-			const newStatus = (
-				vars as { data: { status?: "open" | "closed" } } | undefined
-			)?.data.status;
-			queryClient.setQueryData(prQueryKey, (old: typeof pr) =>
-				old ? { ...old, status: newStatus ?? old.status } : old,
-			);
-			return { prev };
-		},
-		onError: (err: Error, _vars, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(prQueryKey, ctx.prev);
-			toast(err.message || "Failed to update pull request", "error");
-		},
+		...useOptimisticUpdate<typeof pr>(
+			prQueryKey,
+			(old, vars) => {
+				const newStatus = (
+					vars as { data: { status?: "open" | "closed" } } | undefined
+				)?.data.status;
+				return old ? { ...old, status: newStatus ?? old.status } : old;
+			},
+			"Failed to update pull request",
+		),
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: prQueryKey });
 			if (pr)
