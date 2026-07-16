@@ -30,11 +30,44 @@ describe("isSafeHref", () => {
 	it("rejects schemes regardless of casing/whitespace", () => {
 		expect(isSafeHref("  JaVaScRiPt:alert(1)")).toBe(false);
 	});
+
+	it("allows empty string", () => {
+		expect(isSafeHref("")).toBe(true);
+	});
+
+	it("allows hash-only anchors", () => {
+		expect(isSafeHref("#section")).toBe(true);
+	});
+
+	it("rejects ftp scheme", () => {
+		expect(isSafeHref("ftp://example.com/file")).toBe(false);
+	});
+
+	it("rejects file scheme", () => {
+		expect(isSafeHref("file:///etc/passwd")).toBe(false);
+	});
+
+	it("rejects svg with script", () => {
+		expect(isSafeHref("data:image/svg+xml,<script>alert(1)</script>")).toBe(
+			false,
+		);
+	});
+
+	it("allows whitespace-padded http", () => {
+		expect(isSafeHref("  https://safe.com")).toBe(true);
+	});
 });
 
 describe("isSafeImageSrc", () => {
 	it("allows inline base64 images", () => {
 		expect(isSafeImageSrc("data:image/png;base64,AAAA")).toBe(true);
+	});
+
+	it("allows all image subtypes", () => {
+		expect(isSafeImageSrc("data:image/jpeg;base64,/9j/")).toBe(true);
+		expect(isSafeImageSrc("data:image/gif;base64,R0lGODlh")).toBe(true);
+		expect(isSafeImageSrc("data:image/svg+xml;base64,PHN2Zy")).toBe(true);
+		expect(isSafeImageSrc("data:image/webp;base64,UklGR")).toBe(true);
 	});
 
 	it("rejects data:text/html", () => {
@@ -45,5 +78,22 @@ describe("isSafeImageSrc", () => {
 
 	it("rejects javascript:", () => {
 		expect(isSafeImageSrc("javascript:alert(1)")).toBe(false);
+	});
+
+	it("allows relative paths", () => {
+		expect(isSafeImageSrc("./images/photo.png")).toBe(true);
+		expect(isSafeImageSrc("/static/logo.svg")).toBe(true);
+	});
+
+	it("allows http(s) URLs", () => {
+		expect(isSafeImageSrc("https://example.com/image.png")).toBe(true);
+	});
+
+	it("rejects data:text/plain", () => {
+		expect(isSafeImageSrc("data:text/plain;base64,hello")).toBe(false);
+	});
+
+	it("rejects vbscript scheme", () => {
+		expect(isSafeImageSrc("vbscript:MsgBox(1)")).toBe(false);
 	});
 });
