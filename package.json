@@ -16,7 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "format": "biome format",
+    "format": "biome format --write",
     "lint": "biome lint",
     "check": "biome check",
     "typecheck": "tsc --noEmit",
