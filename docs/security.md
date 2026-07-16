@@ -210,6 +210,65 @@ holds) before dismissing a new audit finding the same way; check the
 dependency chain is genuinely dev-only or has since become part of a real
 runtime path.
 
+## Path traversal via the raw-content route's ref/path
+
+`src/routes/api/raw.$.ts` (the `/api/raw/{owner}/{repo}/{ref}/{...path}` "Raw"
+link and permalink target) builds its `ref` and `path` straight off the URL's
+decoded segments and passed them directly into `getFileContent`/
+`resolveCommit` (`git-history-ops.ts`) — unlike every other entry point in the
+app that accepts a branch-name- or path-shaped field, this route did **not**
+run them through `safeBranchNameSchema`/`safeRepoPathSchema` first, since it's
+a raw API route handler rather than one of `files.ts`'s validated
+`createServerFn`s.
+
+`resolveCommit` resolves `ref` via `qualifyBranchRef` + the top-level
+`git.resolveRef` — one of the isomorphic-git primitives that (like
+`git.deleteRef`/`git.commit`/`git.merge` — see the ref-name section above)
+does not validate ref format internally. In R2-configured deployments this is
+contained (R2 keys are opaque strings with no path-navigation semantics — see
+above), but in a local-disk-configured deployment (`isR2Configured()` false),
+the read goes through real Node `fs` calls, where the OS itself resolves `../`
+components regardless of whether isomorphic-git's own JS-level path helper
+does — so a crafted `ref` could read another repository's ref/blob data
+straight off disk, bypassing that repository's own read-access check
+entirely (the access check only ever validated access to the repo named in
+the URL's `{owner}/{repo}`, not whatever repo the traversal actually reads
+from).
+
+**Fix**: both `ref` and `path` are validated (`isSafeRefName` /
+`isSafeRepoPath`, `git-ref-name.ts`) before either reaches `getFileContent`,
+returning a 404 for anything invalid — same posture as every other
+branch/path field in the app. If you add a new route handler that reads
+request-supplied path segments directly (rather than through one of
+`files.ts`'s already-validated server functions), run them through these same
+validators rather than assuming access-control alone is enough.
+
+## Fixed: SHA-pinned blob viewing was rejected by the branch-name validator
+
+`isSafeBranchName` deliberately rejects any 40-hex-char value (to keep a
+*stored* branch name from ever being ambiguous with a commit SHA at write
+time — see its comment in `git-ref-name.ts`) — but `files.ts`'s read-path
+handlers (`getFile`, `listFiles`, `getLastCommits`, `getFileHistory`,
+`getCommits`) reused the same `safeBranchNameSchema` for their `branchName`
+field, which is also the field the blob page's **Permalink** button relies on
+being able to pass a full commit SHA (`/repo/{owner}/{name}/blob/{sha}/{path}`
+— see `isPinnedRevision` in that route). The result: viewing a file pinned to
+a specific commit threw a validation error before ever reaching the handler,
+which the blob page's `error || !file` check silently rendered as "File Not
+Found" — indistinguishable from the file genuinely not existing.
+
+**Fix**: `git-ref-name.ts` now also exports `isSafeRefName`/
+`safeRefNameSchema`, which accept *either* a valid branch name *or* a full
+40-hex commit SHA, still rejecting every unsafe shape either check would
+reject on its own. The read-path `branchName` fields above now use this;
+write-path fields (`uploadFile`, `deleteFile`, `createBranch`, `deleteBranch`,
+`getBranchDiff`, `createPullRequest`'s branch fields) keep the stricter
+`safeBranchNameSchema`, since a SHA is never a meaningful value there.
+`getCommit`/`getCommitDiff`'s `commitSha` field now uses a dedicated
+`safeCommitShaSchema` (exact 40-hex) instead of a bare `z.string()`, for the
+same defense-in-depth reason every other ref-shaped field is validated rather
+than trusted.
+
 ## A known, separate issue (not a vulnerability, but worth knowing)
 
 Blob routes for files ending in `.md` (e.g. viewing a `README.md` through the

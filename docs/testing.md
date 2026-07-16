@@ -16,10 +16,13 @@ storage-path safety, CRUD server functions) lives. Notable files:
   `createCommit`/`deleteFile` (was two separate files,
   `git-operations-locking.test.ts`/`git-operations-errors.test.ts`, merged
   since they shared nearly all their mock setup).
-- `git-ref-name.test.ts` — the shared branch/ref-name validators
-  (`isSafeBranchName`/`isSafeFullRefName`) directly, covering every rejected
-  shape (`..`, control chars, a `refs/`-prefixed name smuggled in as a bare
-  branch name, `.lock` suffix, etc.) — see [security.md](./security.md).
+- `git-ref-name.test.ts` — the shared branch/ref-name/path validators
+  (`isSafeBranchName`/`isSafeFullRefName`/`isSafeRefName`/`isSafeRepoPath` and
+  their zod schema wrappers) directly, covering every rejected shape (`..`,
+  control chars, a `refs/`-prefixed name smuggled in as a bare branch name,
+  `.lock` suffix, etc.), plus `isSafeRefName`/`safeCommitShaSchema` accepting a
+  full 40-hex commit SHA where `isSafeBranchName` alone would reject it — see
+  [security.md](./security.md).
 - `git-branch-ops.test.ts`, `git-merge-iso.test.ts` — `createBranch`/
   `deleteBranch`/`checkoutBranch` and `analyzeMerge`/`mergeBranches` reject a
   path-traversal branch name before any isomorphic-git call runs.
@@ -36,7 +39,12 @@ storage-path safety, CRUD server functions) lives. Notable files:
 - `files.test.ts`, `repositories.unit.test.ts`, `issues.test.ts`,
   `pull-requests.test.ts`, `comments.test.ts`, `search.test.ts` — CRUD server
   function behavior, including access-check rejection paths and the file-path/
-  branch-name traversal guards (`safeRepoPathSchema`/`safeBranchNameSchema`).
+  branch-name traversal guards (`safeRepoPathSchema`/`safeBranchNameSchema`/
+  `safeRefNameSchema`/`safeCommitShaSchema`). `search.test.ts`'s session mock
+  exports both `getCurrentUser` and `getCurrentUserOptional` — most of
+  `search.ts`'s handlers use the latter (public data shouldn't require login;
+  see [server-functions.md](./server-functions.md)), so a mock missing either
+  export fails any test that hits the corresponding handler.
 
 Run everything: `pnpm test` (or `pnpm test:watch` for watch mode, `pnpm
 test:coverage` for a coverage report). Run one file:

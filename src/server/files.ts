@@ -29,7 +29,12 @@ import {
 	getCommit as gitGetCommit,
 } from "./git-history-ops";
 import { getLastCommitsForTree } from "./git-last-commit";
-import { safeBranchNameSchema } from "./git-ref-name";
+import {
+	safeBranchNameSchema,
+	safeCommitShaSchema,
+	safeRefNameSchema,
+	safeRepoPathSchema,
+} from "./git-ref-name";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
 import { perfContext, perfStep } from "./perf-log";
 import { getRepoWithReadAccess, getRepoWithWriteAccess } from "./repo-access";
@@ -42,19 +47,6 @@ function getStorage(repo: {
 }) {
 	return getRepoStorageCoordinates(repo);
 }
-
-const safeRepoPathSchema = z
-	.string()
-	.refine((p) => !p.startsWith("/"), "Path must be relative")
-	.refine(
-		(p) => !p.split("/").some((segment) => segment === ".."),
-		"Path must not contain '..' segments",
-	)
-	.refine(
-		(p) => !/^\.git(\/|$)/i.test(p),
-		"Path must not reference git internals",
-	)
-	.refine((p) => !p.includes("\0"), "Path must not contain null bytes");
 
 // Upload file schema
 const uploadFileSchema = z.object({
@@ -122,7 +114,10 @@ export const getFile = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: safeBranchNameSchema,
+				// Accepts a branch name or a full commit SHA — the blob page's
+				// Permalink button generates URLs pinned to a commit, not just a
+				// branch (see safeRefNameSchema's comment in git-ref-name.ts).
+				branchName: safeRefNameSchema,
 				path: safeRepoPathSchema,
 			})
 			.parse(data),
@@ -164,7 +159,7 @@ export const listFiles = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: safeBranchNameSchema,
+				branchName: safeRefNameSchema,
 				path: safeRepoPathSchema.optional().default(""),
 			})
 			.parse(data),
@@ -207,7 +202,7 @@ export const getLastCommits = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: safeBranchNameSchema,
+				branchName: safeRefNameSchema,
 				path: safeRepoPathSchema.optional().default(""),
 			})
 			.parse(data),
@@ -247,7 +242,7 @@ export const getFileHistory = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: safeBranchNameSchema,
+				branchName: safeRefNameSchema,
 				path: safeRepoPathSchema,
 				limit: z.number().max(100).optional().default(30),
 				// Lets the blob page's single-latest-commit banner ask for a much
@@ -434,7 +429,7 @@ export const getCommits = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: safeBranchNameSchema,
+				branchName: safeRefNameSchema,
 				limit: z.number().max(100).optional().default(50),
 				skip: z.number().optional().default(0),
 			})
@@ -490,7 +485,7 @@ export const getCommit = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				commitSha: z.string(),
+				commitSha: safeCommitShaSchema,
 			})
 			.parse(data),
 	)
@@ -542,7 +537,7 @@ export const getCommitDiff = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				commitSha: z.string(),
+				commitSha: safeCommitShaSchema,
 			})
 			.parse(data),
 	)

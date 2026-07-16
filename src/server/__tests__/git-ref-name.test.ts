@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
 	isSafeBranchName,
 	isSafeFullRefName,
+	isSafeRefName,
+	isSafeRepoPath,
 	safeBranchNameSchema,
+	safeCommitShaSchema,
+	safeRefNameSchema,
+	safeRepoPathSchema,
 } from "../git-ref-name";
 
 describe("isSafeBranchName", () => {
@@ -86,5 +91,93 @@ describe("safeBranchNameSchema", () => {
 
 	it("rejects an empty branch name", () => {
 		expect(() => safeBranchNameSchema.parse("")).toThrow();
+	});
+});
+
+describe("isSafeRefName", () => {
+	it.each([
+		"main",
+		"feature/foo",
+		"a".repeat(40),
+		"A".repeat(40),
+	])("accepts branch name or full commit sha %j", (value) => {
+		expect(isSafeRefName(value)).toBe(true);
+	});
+
+	it.each([
+		"",
+		"..",
+		"../../etc/passwd",
+		"refs/heads/main",
+		"HEAD",
+		"branch\0name",
+	])("rejects unsafe ref name %j", (value) => {
+		expect(isSafeRefName(value)).toBe(false);
+	});
+});
+
+describe("safeRefNameSchema", () => {
+	it("accepts a branch name", () => {
+		expect(safeRefNameSchema.parse("main")).toBe("main");
+	});
+
+	it("accepts a full commit sha", () => {
+		const sha = "b".repeat(40);
+		expect(safeRefNameSchema.parse(sha)).toBe(sha);
+	});
+
+	it("rejects a path-traversal value", () => {
+		expect(() =>
+			safeRefNameSchema.parse(
+				"../../other-owner/other-repo/git/refs/heads/main",
+			),
+		).toThrow();
+	});
+});
+
+describe("safeCommitShaSchema", () => {
+	it("accepts a full 40-hex commit sha", () => {
+		const sha = "c".repeat(40);
+		expect(safeCommitShaSchema.parse(sha)).toBe(sha);
+	});
+
+	it.each([
+		"",
+		"not-a-sha",
+		"a".repeat(39),
+		"g".repeat(40),
+	])("rejects non-sha value %j", (value) => {
+		expect(() => safeCommitShaSchema.parse(value)).toThrow();
+	});
+});
+
+describe("isSafeRepoPath", () => {
+	it.each([
+		"README.md",
+		"src/index.ts",
+		"a/b/c.txt",
+	])("accepts well-formed path %j", (p) => {
+		expect(isSafeRepoPath(p)).toBe(true);
+	});
+
+	it.each([
+		"/etc/passwd",
+		"../secret",
+		"a/../../etc/passwd",
+		".git/config",
+		".GIT/config",
+		"foo\0bar",
+	])("rejects unsafe path %j", (p) => {
+		expect(isSafeRepoPath(p)).toBe(false);
+	});
+});
+
+describe("safeRepoPathSchema", () => {
+	it("accepts a relative path", () => {
+		expect(safeRepoPathSchema.parse("src/index.ts")).toBe("src/index.ts");
+	});
+
+	it("rejects a traversal path", () => {
+		expect(() => safeRepoPathSchema.parse("../secret")).toThrow();
 	});
 });
