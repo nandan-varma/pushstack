@@ -447,5 +447,143 @@ describe("authenticateGitRequest", () => {
 				),
 			).rejects.toBeInstanceOf(GitAuthenticationError);
 		});
+
+		it("records a failed attempt when user is not found", async () => {
+			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
+			mockDb.query.user.findFirst.mockResolvedValue(null);
+			mockCanRead.mockResolvedValue(false);
+
+			await expect(
+				authenticateGitRequest(
+					req(basicAuthHeader("nonexistent-user", "some-pass")),
+					"alice",
+					"repo",
+				),
+			).rejects.toBeInstanceOf(GitAuthenticationError);
+		});
+
+		it("records a failed attempt when credential account has no password", async () => {
+			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
+			mockDb.query.user.findFirst.mockResolvedValue(SESSION_USER);
+			mockDb.query.account.findFirst.mockResolvedValue(null);
+			mockCanRead.mockResolvedValue(false);
+
+			await expect(
+				authenticateGitRequest(
+					req(basicAuthHeader("no-cred-user", "some-pass")),
+					"alice",
+					"repo",
+				),
+			).rejects.toBeInstanceOf(GitAuthenticationError);
+		});
+	});
+
+	describe("error resilience", () => {
+		it("falls through to basic auth when session lookup throws (DB down)", async () => {
+			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
+			mockGetSession.mockRejectedValueOnce(new Error("DB connection refused"));
+			// Basic auth with PAT succeeds
+			const token = "ghp_sessionerrortoken1234";
+			mockDb.query.tokens.findFirst.mockResolvedValue({
+				id: "tok1",
+				userId: "u1",
+				expiresAt: null,
+				scopes: ["repo"],
+				user: SESSION_USER,
+			});
+			mockCanRead.mockResolvedValue(true);
+			mockCanWrite.mockResolvedValue(true);
+
+			// reqWithCookie triggers session auth, which throws, falls through to PAT
+			const ctx = await authenticateGitRequest(
+				reqWithCookie(basicAuthHeader("alice", token)),
+				"alice",
+				"repo",
+			);
+
+			expect(ctx.canRead).toBe(true);
+			expect(ctx.userId).toBe("u1");
+		});
+
+		it("returns null when token lookup throws (DB error), treated as unauthenticated", async () => {
+			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
+			const token = "ghp_dberrortoken1234";
+			mockDb.query.tokens.findFirst.mockRejectedValueOnce(
+				new Error("DB read timeout"),
+			);
+			mockCanRead.mockResolvedValue(false);
+
+			await expect(
+				authenticateGitRequest(
+					req(basicAuthHeader("alice", token)),
+					"alice",
+					"repo",
+				),
+			).rejects.toBeInstanceOf(GitAuthenticationError);
+		});
+
+		it("returns null when password auth DB query throws", async () => {
+			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
+			mockDb.query.user.findFirst.mockRejectedValueOnce(
+				new Error("DB read timeout"),
+			);
+			mockCanRead.mockResolvedValue(true);
+
+			// Password auth error is caught internally, returns null → anonymous
+			const ctx = await authenticateGitRequest(
+				req(basicAuthHeader("dberror-user", "some-pass")),
+				"alice",
+				"repo",
+			);
+
+			expect(ctx.userId).toBe("anonymous");
+		});
+
+		it("rejects PAT with undefined scopes (treated as no scopes = full access)", async () => {
+			const token = "ghp_undefscopes12345";
+			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
+			mockDb.query.tokens.findFirst.mockResolvedValue({
+				id: "tok1",
+				userId: "u1",
+				expiresAt: null,
+				scopes: undefined, // not an array
+				user: SESSION_USER,
+			});
+			mockCanRead.mockResolvedValue(true);
+			mockCanWrite.mockResolvedValue(true);
+
+			const ctx = await authenticateGitRequest(
+				req(basicAuthHeader("alice", token)),
+				"alice",
+				"repo",
+				true,
+			);
+
+			expect(ctx.canWrite).toBe(true);
+		});
+
+		it("filters non-string values from token scopes array", async () => {
+			const token = "ghp_mixedscopes12345";
+			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
+			mockDb.query.tokens.findFirst.mockResolvedValue({
+				id: "tok1",
+				userId: "u1",
+				expiresAt: null,
+				scopes: ["repo:read", 123, null, "repo:write"],
+				user: SESSION_USER,
+			});
+			mockCanRead.mockResolvedValue(true);
+			mockCanWrite.mockResolvedValue(true);
+
+			const ctx = await authenticateGitRequest(
+				req(basicAuthHeader("alice", token)),
+				"alice",
+				"repo",
+				true,
+			);
+
+			// Non-string values filtered out, repo:write remains
+			expect(ctx.canWrite).toBe(true);
+		});
 	});
 });
