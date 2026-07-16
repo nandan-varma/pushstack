@@ -237,25 +237,9 @@ const TEST_USER = {
 
 // createRepository/deleteRepository are createServerFn-wrapped; unwrap them to
 // plain callables, same shim as repositories.integration.test.ts.
-vi.mock("@tanstack/react-start", () => ({
-	createServerFn: () => {
-		// biome-ignore lint/suspicious/noExplicitAny: test shim
-		const obj: any = {};
-		// biome-ignore lint/suspicious/noExplicitAny: test shim
-		obj.validator = (validateFn: any) => {
-			// biome-ignore lint/suspicious/noExplicitAny: test shim
-			const inner: any = {};
-			inner.handler =
-				// biome-ignore lint/suspicious/noExplicitAny: test shim
-				(handlerFn: any) => (args: any) =>
-					handlerFn({ data: validateFn(args?.data ?? args) });
-			return inner;
-		};
-		// biome-ignore lint/suspicious/noExplicitAny: test shim
-		obj.handler = (handlerFn: any) => (args: any) => handlerFn(args);
-		return obj;
-	},
-}));
+import { setupServerFnMock } from "@/test/server-test-utils";
+
+setupServerFnMock();
 
 // createRepository/deleteRepository call getCurrentUser() for "who is the
 // caller" — this is Better Auth's cookie-session plumbing, orthogonal to the

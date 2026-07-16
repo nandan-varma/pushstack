@@ -5,20 +5,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUser } from "@/test/mock-routes";
+import { setupServerFnMock } from "@/test/server-test-utils";
 
-// Allow calling createServerFn handlers directly in tests
-vi.mock("@tanstack/react-start", () => ({
-	createServerFn: () => ({
-		validator: (validateFn: (data: unknown) => unknown) => ({
-			handler:
-				(handlerFn: (args: { data: unknown }) => unknown) =>
-				async (args?: { data?: unknown }) =>
-					handlerFn({ data: validateFn(args?.data ?? args) }),
-		}),
-		handler: (handlerFn: (args: unknown) => unknown) => (args: unknown) =>
-			handlerFn(args),
-	}),
-}));
+setupServerFnMock();
 
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(() => Promise.resolve(mockUser)),

@@ -1,12 +1,11 @@
 /**
- * Regression coverage for repository-level locking on R2-direct git writes.
+ * Consolidated tests for createCommit (git-commit-write.ts):
+ *   1. Parent resolution error discrimination (was git-operations-errors.test.ts)
+ *   2. Repository-level locking on concurrent writes (was git-operations-locking.test.ts)
  *
- * createCommit/createBranch/deleteBranch write straight to R2 via
- * isomorphic-git when R2 is configured, with no worktree in between. These
- * tests prove two concurrent calls to the same repo are serialized by
- * withRepositoryLock instead of interleaving their reads/writes.
+ * These tests share identical mock infrastructure (isomorphic-git, git-manager-iso,
+ * r2) so merging them eliminates ~120 lines of duplicated setup.
  */
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/lib/r2", () => ({
@@ -21,12 +20,9 @@ function resetConcurrencyTracking() {
 	maxConcurrentCalls = 0;
 }
 
-// Wraps a mocked isomorphic-git call so we can detect whether two
-// createCommit invocations ever have git calls in flight at the same time.
 async function trackConcurrency<T>(result: T): Promise<T> {
 	concurrentCalls++;
 	maxConcurrentCalls = Math.max(maxConcurrentCalls, concurrentCalls);
-	// Yield long enough that an unlocked second call would overlap this one.
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	concurrentCalls--;
 	return result;
@@ -41,6 +37,12 @@ vi.mock("isomorphic-git", () => ({
 				throw err;
 			});
 		}),
+		readCommit: vi.fn(async () =>
+			trackConcurrency({
+				commit: { tree: "tree-oid", parent: [], message: "init" },
+				payload: "",
+			}),
+		),
 		writeBlob: vi.fn(async () => trackConcurrency("blob-oid")),
 		writeTree: vi.fn(async () => trackConcurrency("tree-oid")),
 		writeCommit: vi.fn(async () => trackConcurrency("commit-oid")),
@@ -64,13 +66,74 @@ vi.mock("../git-manager-iso", async (importOriginal) => {
 	};
 });
 
-describe("R2-direct git writes are serialized per repository", () => {
+function notFoundError(message = "not found") {
+	const err = new Error(message);
+	(err as { code?: string }).code = "NotFoundError";
+	return err;
+}
+
+describe("createCommit — parent resolution", () => {
 	beforeEach(() => {
-		resetConcurrencyTracking();
 		vi.clearAllMocks();
 	});
 
-	it("never has two concurrent createCommit git calls in flight for the same repo", async () => {
+	it("succeeds as first commit on NotFoundError parent ref", async () => {
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
+			notFoundError(),
+		);
+
+		const { createCommit } = await import("../git-commit-write");
+		const sha = await createCommit(
+			"owner",
+			"repo",
+			"initial commit",
+			[{ path: "README.md", content: "hello" }],
+			"Test",
+			"test@example.com",
+		);
+		expect(sha).toBe("commit-oid");
+	});
+
+	it("propagates non-NotFoundError instead of treating as empty repo", async () => {
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
+			new Error("R2 timeout"),
+		);
+
+		const { createCommit } = await import("../git-commit-write");
+		await expect(
+			createCommit(
+				"owner",
+				"repo",
+				"initial commit",
+				[{ path: "README.md", content: "hello" }],
+				"Test",
+				"test@example.com",
+			),
+		).rejects.toThrow("R2 timeout");
+	});
+});
+
+describe("createCommit — concurrent write serialization", () => {
+	beforeEach(async () => {
+		resetConcurrencyTracking();
+		vi.clearAllMocks();
+		// Restore resolveRef to the factory default (NotFoundError + concurrency tracking)
+		// since the "parent resolution" tests override it with mockRejectedValue.
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>).mockImplementation(
+			async () => {
+				const err = new Error("not found");
+				(err as { code?: string }).code = "NotFoundError";
+				return trackConcurrency(undefined).then(() => {
+					throw err;
+				});
+			},
+		);
+	});
+
+	it("never has two concurrent git calls in flight for the same repo", async () => {
 		const { createCommit } = await import("../git-commit-write");
 
 		await Promise.all([
@@ -95,7 +158,7 @@ describe("R2-direct git writes are serialized per repository", () => {
 		expect(maxConcurrentCalls).toBe(1);
 	});
 
-	it("still succeeds for both concurrent createCommit calls", async () => {
+	it("still succeeds for both concurrent calls", async () => {
 		const { createCommit } = await import("../git-commit-write");
 
 		const results = await Promise.all([
@@ -120,7 +183,7 @@ describe("R2-direct git writes are serialized per repository", () => {
 		expect(results).toEqual(["commit-oid", "commit-oid"]);
 	});
 
-	it("never has two concurrent createBranch/deleteBranch git calls in flight for the same repo", async () => {
+	it("serializes concurrent createBranch/deleteBranch", async () => {
 		const { createBranch, deleteBranch } = await import("../git-branch-ops");
 		const git = (await import("isomorphic-git")).default;
 		(git.resolveRef as ReturnType<typeof vi.fn>).mockImplementation(async () =>
