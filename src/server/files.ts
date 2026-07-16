@@ -156,42 +156,6 @@ export const getFile = createServerFn({ method: "GET" })
 	);
 
 /**
- * Get presigned download URL for file
- */
-export const getFileDownloadUrl = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: z.string(),
-				path: safeRepoPathSchema,
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
-
-		const repo = await getRepoWithReadAccess(data.repoId, currentUser?.id);
-
-		const storage = getStorage(repo);
-
-		// Get file info
-		const fileInfo = await getFileFromBranch(
-			storage.ownerKey,
-			repo.name,
-			data.branchName,
-			data.path,
-		);
-
-		// For simplicity, return content directly
-		return {
-			content: fileInfo.content,
-			isLFS: false,
-			size: fileInfo.size,
-		};
-	});
-
-/**
  * List files in repository directory
  */
 export const listFiles = createServerFn({ method: "GET" })
