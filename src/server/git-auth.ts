@@ -3,8 +3,9 @@
  * Handles HTTP Basic Auth and repository access permissions
  */
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
+import { gitAuthAttempts } from "../db/github-schema";
 import { auth } from "../lib/auth";
 import {
 	GitAuthenticationError,
@@ -26,38 +27,50 @@ import { findRepositoryByName } from "./repositories";
 // Only failed attempts count against the limit — a legitimate client
 // re-authenticating successfully many times (e.g. frequent CI fetches) never
 // trips it.
+//
+// Backed by the git_auth_attempts table (not an in-memory Map): the git HTTP
+// endpoint can be served by multiple concurrent, or frequently cold-starting,
+// serverless instances, each with its own process memory — a Map on any one
+// of them never sees the full set of failed attempts, so the lockout could be
+// bypassed for free just by distributing attempts across instances/restarts.
 const PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS = 5 * 60_000;
 const PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS = 10;
 
-interface RateLimitEntry {
-	count: number;
-	windowStart: number;
-}
-
-const passwordAuthAttempts = new Map<string, RateLimitEntry>();
-
-function isPasswordAuthLockedOut(key: string): boolean {
-	const entry = passwordAuthAttempts.get(key);
+async function isPasswordAuthLockedOut(key: string): Promise<boolean> {
+	const entry = await db.query.gitAuthAttempts.findFirst({
+		where: eq(gitAuthAttempts.key, key),
+	});
 	if (!entry) return false;
-	if (Date.now() - entry.windowStart >= PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS) {
-		passwordAuthAttempts.delete(key);
+	if (
+		Date.now() - entry.windowStart.getTime() >=
+		PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS
+	) {
 		return false;
 	}
 	return entry.count >= PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS;
 }
 
-function recordFailedPasswordAttempt(key: string): void {
-	const now = Date.now();
-	const entry = passwordAuthAttempts.get(key);
-	if (!entry || now - entry.windowStart >= PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS) {
-		passwordAuthAttempts.set(key, { count: 1, windowStart: now });
-		return;
-	}
-	entry.count += 1;
+// Single upsert, not a read-then-write: the CASE expressions atomically
+// decide "still within the current window, so increment" vs. "window
+// expired, so reset to 1" inside the same statement Postgres evaluates the
+// conflict against, so two concurrent failed attempts for the same key can't
+// race each other into under-counting.
+async function recordFailedPasswordAttempt(key: string): Promise<void> {
+	const windowSeconds = PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS / 1000;
+	await db
+		.insert(gitAuthAttempts)
+		.values({ key, count: 1, windowStart: new Date() })
+		.onConflictDoUpdate({
+			target: gitAuthAttempts.key,
+			set: {
+				count: sql`case when ${gitAuthAttempts.windowStart} <= now() - make_interval(secs => ${windowSeconds}) then 1 else ${gitAuthAttempts.count} + 1 end`,
+				windowStart: sql`case when ${gitAuthAttempts.windowStart} <= now() - make_interval(secs => ${windowSeconds}) then now() else ${gitAuthAttempts.windowStart} end`,
+			},
+		});
 }
 
-function clearPasswordAuthAttempts(key: string): void {
-	passwordAuthAttempts.delete(key);
+async function clearPasswordAuthAttempts(key: string): Promise<void> {
+	await db.delete(gitAuthAttempts).where(eq(gitAuthAttempts.key, key));
 }
 
 export interface GitAuthContext {
@@ -197,7 +210,7 @@ async function authenticateWithPassword(
 ): Promise<AuthenticatedGitUser | null> {
 	const rateLimitKey = usernameOrEmail.trim().toLowerCase();
 
-	if (isPasswordAuthLockedOut(rateLimitKey)) {
+	if (await isPasswordAuthLockedOut(rateLimitKey)) {
 		throw new GitRateLimitError(
 			"Too many failed authentication attempts for this account. Try again later, or use a Personal Access Token instead of a password.",
 		);
@@ -216,7 +229,7 @@ async function authenticateWithPassword(
 		});
 
 		if (!foundUser) {
-			recordFailedPasswordAttempt(rateLimitKey);
+			await recordFailedPasswordAttempt(rateLimitKey);
 			return null;
 		}
 
@@ -226,7 +239,7 @@ async function authenticateWithPassword(
 		});
 
 		if (!credAccount?.password) {
-			recordFailedPasswordAttempt(rateLimitKey);
+			await recordFailedPasswordAttempt(rateLimitKey);
 			return null;
 		}
 
@@ -236,11 +249,11 @@ async function authenticateWithPassword(
 		});
 
 		if (!valid) {
-			recordFailedPasswordAttempt(rateLimitKey);
+			await recordFailedPasswordAttempt(rateLimitKey);
 			return null;
 		}
 
-		clearPasswordAuthAttempts(rateLimitKey);
+		await clearPasswordAuthAttempts(rateLimitKey);
 
 		return {
 			id: foundUser.id,

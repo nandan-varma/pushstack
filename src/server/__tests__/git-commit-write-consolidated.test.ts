@@ -115,6 +115,62 @@ describe("createCommit — parent resolution", () => {
 	});
 });
 
+describe("createCommit — branch name guard", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	// git.commit's internal ref-write (used by the non-R2 worktree path,
+	// git-commit-write.ts) doesn't validate the ref itself the way
+	// git.branch/git.writeRef do — createCommit must reject a path-traversal
+	// branch name itself before any isomorphic-git call runs.
+	it("rejects a path-traversal branch name without writing anything", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { createCommit } = await import("../git-commit-write");
+
+		await expect(
+			createCommit(
+				"owner",
+				"repo",
+				"msg",
+				[{ path: "README.md", content: "hello" }],
+				"Test",
+				"test@example.com",
+				"../../other-owner/other-repo/git/refs/heads/main",
+			),
+		).rejects.toThrow("Invalid branch name");
+
+		expect(git.resolveRef).not.toHaveBeenCalled();
+		expect(git.writeCommit).not.toHaveBeenCalled();
+		expect(git.writeRef).not.toHaveBeenCalled();
+	});
+});
+
+describe("deleteFile — branch name guard", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("rejects a path-traversal branch name without touching the filesystem", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { deleteFile } = await import("../git-commit-write");
+
+		await expect(
+			deleteFile(
+				"owner",
+				"repo",
+				"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
+				"README.md",
+				"msg",
+				{ name: "Test", email: "test@example.com" },
+			),
+		).rejects.toThrow("Invalid branch name");
+
+		expect(git.resolveRef).not.toHaveBeenCalled();
+		expect(git.writeRef).not.toHaveBeenCalled();
+	});
+});
+
 describe("createCommit — concurrent write serialization", () => {
 	beforeEach(async () => {
 		resetConcurrencyTracking();

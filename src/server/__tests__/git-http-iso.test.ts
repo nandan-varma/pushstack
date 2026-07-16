@@ -416,6 +416,91 @@ describe("handleReceivePackIso", () => {
 		expect(g.writeRef).not.toHaveBeenCalled();
 	});
 
+	it("rejects a ref-delete command whose refName path-traverses outside the repo, without touching the filesystem", async () => {
+		const zeroOid = "0000000000000000000000000000000000000000";
+		// resolveRef would report ZERO_OID for basically any non-well-formed-ref
+		// path (mirroring what a real traversal target — another repo's loose
+		// object, pack file, etc. — would do), so the CAS check trivially passes
+		// if refName isn't rejected up front.
+		g.resolveRef.mockRejectedValue(new Error("not a valid ref"));
+
+		const refLine = `${zeroOid} ${zeroOid} ../../other-owner/other-repo/git/refs/heads/main\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+
+		const result = await handleReceivePackIso("u", "r", req, AUTH_WRITE);
+
+		expect(result.status).toBe(200);
+		const responseBody = Buffer.from(result.body as ArrayBuffer).toString(
+			"utf8",
+		);
+		expect(responseBody).toContain("ng ../../other-owner/other-repo");
+		expect(responseBody).toContain("invalid ref name");
+		expect(g.deleteRef).not.toHaveBeenCalled();
+		expect(g.writeRef).not.toHaveBeenCalled();
+		expect(g.resolveRef).not.toHaveBeenCalled();
+	});
+
+	it("rejects a ref-write command whose refName path-traverses outside the repo", async () => {
+		const zeroOid = "0000000000000000000000000000000000000000";
+		const evilSha = "e".repeat(40);
+		g.resolveRef.mockRejectedValue(new Error("not a valid ref"));
+
+		const refLine = `${zeroOid} ${evilSha} ../../other-owner/other-repo/git/refs/heads/main\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+
+		const result = await handleReceivePackIso("u", "r", req, AUTH_WRITE);
+
+		expect(result.status).toBe(200);
+		const responseBody = Buffer.from(result.body as ArrayBuffer).toString(
+			"utf8",
+		);
+		expect(responseBody).toContain("invalid ref name");
+		expect(g.writeRef).not.toHaveBeenCalled();
+	});
+
+	it("accepts a well-formed refs/tags/ ref name", async () => {
+		const oldSha = "0000000000000000000000000000000000000000";
+		const newSha = "a".repeat(40);
+		g.resolveRef.mockResolvedValue(oldSha);
+
+		const refLine = `${oldSha} ${newSha} refs/tags/v1.0.0\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+
+		const result = await handleReceivePackIso("u", "r", req, AUTH_WRITE);
+
+		expect(result.status).toBe(200);
+		expect(g.writeRef).toHaveBeenCalledWith(
+			expect.objectContaining({ ref: "refs/tags/v1.0.0", value: newSha }),
+		);
+	});
+
 	it("initializes bare repo on disk if HEAD does not exist", async () => {
 		const oldSha = "i".repeat(40);
 		const newSha = "j".repeat(40);

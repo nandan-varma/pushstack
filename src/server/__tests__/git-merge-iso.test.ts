@@ -49,6 +49,61 @@ function notFoundError(message = "not found") {
 	return err;
 }
 
+describe("branch name guard", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	const traversalBranchName =
+		"refs/heads/../../other-owner/other-repo/git/refs/heads/main";
+
+	// git.merge/git.commit's internal ref-write (used by mergeBranches'
+	// worktree/non-fast-forward path) doesn't validate the ref itself the way
+	// git.branch/git.writeRef do — analyzeMerge and mergeBranches must reject
+	// a path-traversal branch name before any isomorphic-git call runs.
+	it("analyzeMerge rejects a path-traversal sourceBranch", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { analyzeMerge } = await import("../git-merge-iso");
+
+		await expect(
+			analyzeMerge("owner", "repo", traversalBranchName, "main"),
+		).rejects.toThrow("Invalid branch name");
+		expect(git.resolveRef).not.toHaveBeenCalled();
+	});
+
+	it("analyzeMerge rejects a path-traversal targetBranch", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { analyzeMerge } = await import("../git-merge-iso");
+
+		await expect(
+			analyzeMerge("owner", "repo", "feature", traversalBranchName),
+		).rejects.toThrow("Invalid branch name");
+		expect(git.resolveRef).not.toHaveBeenCalled();
+	});
+
+	it("mergeBranches rejects a path-traversal sourceBranch without touching the filesystem", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { mergeBranches } = await import("../git-merge-iso");
+
+		await expect(
+			mergeBranches("owner", "repo", traversalBranchName, "main"),
+		).rejects.toThrow("Invalid branch name");
+		expect(git.resolveRef).not.toHaveBeenCalled();
+		expect(mockWithRepositoryWorktree).not.toHaveBeenCalled();
+	});
+
+	it("mergeBranches rejects a path-traversal targetBranch without touching the filesystem", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { mergeBranches } = await import("../git-merge-iso");
+
+		await expect(
+			mergeBranches("owner", "repo", "feature", traversalBranchName),
+		).rejects.toThrow("Invalid branch name");
+		expect(git.resolveRef).not.toHaveBeenCalled();
+		expect(mockWithRepositoryWorktree).not.toHaveBeenCalled();
+	});
+});
+
 describe("analyzeMerge", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();

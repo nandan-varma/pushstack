@@ -3,8 +3,19 @@ import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
+import { isSafeBranchName } from "./git-ref-name";
 import { withRepositoryLock, withRepositoryWorktree } from "./git-repo-storage";
 import { deleteFromTree, upsertTree } from "./git-tree-ops";
+
+// Defense in depth: files.ts's zod schemas already reject malformed branch
+// names before they reach here, but git.commit doesn't validate its `ref`
+// internally the way git.branch/git.writeRef do (see isSafeBranchName's
+// comment in git-ref-name.ts) — guard at the point it's actually called.
+function assertSafeBranchName(name: string): void {
+	if (!isSafeBranchName(name)) {
+		throw new Error(`Invalid branch name: ${name}`);
+	}
+}
 
 // Write a commit directly to R2 without a worktree — no download/upload cycle
 async function writeCommitDirect(
@@ -66,6 +77,7 @@ export async function createCommit(
 	branch: string = "main",
 	ownerDbId?: string,
 ): Promise<string> {
+	assertSafeBranchName(branch);
 	const author =
 		authorName && authorEmail
 			? {
@@ -148,6 +160,7 @@ export async function deleteFile(
 	author: { name: string; email: string },
 	ownerDbId?: string,
 ): Promise<{ sha: string; message: string }> {
+	assertSafeBranchName(branchName);
 	const authorInfo = {
 		name: author.name,
 		email: author.email,

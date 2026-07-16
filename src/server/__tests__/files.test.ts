@@ -179,6 +179,78 @@ describe("file path traversal guard", () => {
 		});
 	});
 
+	describe("branch name traversal guard", () => {
+		const traversalBranchNames = [
+			"../../other-owner/other-repo/git/refs/heads/main",
+			"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
+			"refs/heads/main",
+			"..",
+			"HEAD",
+		];
+
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it.each(
+			traversalBranchNames,
+		)("uploadFile rejects branch name %s", async (branchName) => {
+			const { uploadFile } = await import("../files");
+			await expect(
+				uploadFile({
+					data: {
+						repoId: 1,
+						branchName,
+						path: "src/index.ts",
+						content: "aGVsbG8=",
+						commitMessage: "msg",
+					},
+				}),
+			).rejects.toThrow();
+			expect(gitOpsMocks.createCommit).not.toHaveBeenCalled();
+		});
+
+		it.each(
+			traversalBranchNames,
+		)("getFile rejects branch name %s", async (branchName) => {
+			const { getFile } = await import("../files");
+			await expect(
+				getFile({ data: { repoId: 1, branchName, path: "src/index.ts" } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.getFileFromBranch).not.toHaveBeenCalled();
+		});
+
+		it.each(
+			traversalBranchNames,
+		)("createBranch rejects name %s", async (name) => {
+			const { createBranch } = await import("../files");
+			await expect(
+				createBranch({ data: { repoId: 1, name } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
+		});
+
+		it.each(
+			traversalBranchNames,
+		)("createBranch rejects fromBranch %s", async (fromBranch) => {
+			const { createBranch } = await import("../files");
+			await expect(
+				createBranch({ data: { repoId: 1, name: "feature", fromBranch } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
+		});
+
+		it.each(
+			traversalBranchNames,
+		)("deleteBranch rejects name %s", async (name) => {
+			const { deleteBranch } = await import("../files");
+			await expect(
+				deleteBranch({ data: { repoId: 1, name } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.deleteBranch).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("deleteBranch", () => {
 		beforeEach(() => {
 			vi.clearAllMocks();

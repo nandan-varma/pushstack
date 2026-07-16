@@ -4,6 +4,7 @@ import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { createCommit } from "./git-commit-write";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
+import { isSafeBranchName } from "./git-ref-name";
 import {
 	getRepoOptions,
 	qualifyBranchRef,
@@ -11,6 +12,18 @@ import {
 	withRepositoryWorktree,
 } from "./git-repo-storage";
 import { logError } from "./perf-log";
+
+// Defense in depth: pull-requests.ts's zod schema already rejects malformed
+// branch names before a PR can even be created, but git.merge/git.commit
+// don't validate their ref args internally the way git.branch/git.writeRef
+// do (see isSafeBranchName's comment in git-ref-name.ts) — guard here too,
+// since a PR's source/target branch is stored once at creation time and
+// reused (unvalidated at read time) by every later merge attempt.
+function assertSafeBranchName(name: string): void {
+	if (!isSafeBranchName(name)) {
+		throw new Error(`Invalid branch name: ${name}`);
+	}
+}
 
 export interface MergeAnalysis {
 	canMerge: boolean;
@@ -42,6 +55,8 @@ export async function analyzeMerge(
 	sourceBranch: string,
 	targetBranch: string,
 ): Promise<MergeAnalysis> {
+	assertSafeBranchName(sourceBranch);
+	assertSafeBranchName(targetBranch);
 	const repo = await getRepoOptions(ownerKey, repoName);
 
 	try {
@@ -87,6 +102,8 @@ export async function mergeBranches(
 	options: MergeOptions = {},
 	ownerDbId?: string,
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
+	assertSafeBranchName(sourceBranch);
+	assertSafeBranchName(targetBranch);
 	if (isR2Configured()) {
 		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
 		const ffResult = await withRepositoryLock(ownerKey, repoName, async () => {

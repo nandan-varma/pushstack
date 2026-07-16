@@ -88,6 +88,10 @@ vi.mock("../git-manager-iso", () => ({
 vi.mock("../git-repo-storage", () => ({
 	syncRepositoryToR2: vi.fn(() => Promise.resolve()),
 	deleteRepositoryFromR2: vi.fn(() => Promise.resolve()),
+	withRepositoryLock: vi.fn(
+		(_ownerKey: string, _repoName: string, fn: () => unknown) => fn(),
+	),
+	renameRepositoryStorage: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("../git-storage-naming", () => ({
@@ -213,14 +217,49 @@ describe("Repository Unit Tests", () => {
 		});
 
 		it("updates fields when caller is the owner", async () => {
+			// First findFirst call is getRepoOrThrow's fetch of the repo being
+			// updated; the second is updateRepository's own check for a name
+			// collision on the new name — no such repo exists, so it resolves null.
+			mockDb.query.repositories.findFirst
+				.mockResolvedValueOnce({ ...mockRepo, owner: mockUser })
+				.mockResolvedValueOnce(null);
+
+			const { updateRepository } = await import("../repositories");
+			await updateRepository({ data: { id: 1, name: "renamed" } });
+			expect(mockDb.update).toHaveBeenCalled();
+
+			const { renameRepositoryStorage } = await import("../git-repo-storage");
+			expect(renameRepositoryStorage).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"renamed",
+			);
+		});
+
+		it("throws when renaming to a name the owner already has", async () => {
+			mockDb.query.repositories.findFirst
+				.mockResolvedValueOnce({ ...mockRepo, owner: mockUser })
+				.mockResolvedValueOnce({ ...mockRepo, id: 2, name: "renamed" });
+
+			const { updateRepository } = await import("../repositories");
+			await expect(
+				updateRepository({ data: { id: 1, name: "renamed" } }),
+			).rejects.toThrow("already exists");
+			expect(mockDb.update).not.toHaveBeenCalled();
+		});
+
+		it("does not touch storage when only non-name fields change", async () => {
 			mockDb.query.repositories.findFirst.mockResolvedValue({
 				...mockRepo,
 				owner: mockUser,
 			});
 
 			const { updateRepository } = await import("../repositories");
-			await updateRepository({ data: { id: 1, name: "renamed" } });
+			await updateRepository({ data: { id: 1, visibility: "private" } });
 			expect(mockDb.update).toHaveBeenCalled();
+
+			const { renameRepositoryStorage } = await import("../git-repo-storage");
+			expect(renameRepositoryStorage).not.toHaveBeenCalled();
 		});
 	});
 

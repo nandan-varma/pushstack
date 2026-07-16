@@ -1,5 +1,6 @@
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
+import { isSafeBranchName } from "./git-ref-name";
 import {
 	getRepoOptions,
 	syncRepositoryToR2,
@@ -10,6 +11,17 @@ export interface Branch {
 	name: string;
 	commit: string;
 	isDefault: boolean;
+}
+
+// Defense in depth: files.ts's zod schemas already reject malformed branch
+// names before they reach here, but git.deleteBranch and the resolveRef read
+// below don't validate ref names internally the way git.branch does (see
+// isSafeBranchName's comment in git-ref-name.ts) — guard at the point these
+// primitives are actually called, not just at the API boundary.
+function assertSafeBranchName(name: string): void {
+	if (!isSafeBranchName(name)) {
+		throw new Error(`Invalid branch name: ${name}`);
+	}
 }
 
 export async function getBranches(
@@ -43,6 +55,8 @@ export async function createBranch(
 	startPoint: string = "main",
 	ownerDbId?: string,
 ): Promise<void> {
+	assertSafeBranchName(branchName);
+	assertSafeBranchName(startPoint);
 	const run = async () => {
 		const repo = await getRepoOptions(ownerKey, repoName);
 		const object = await git.resolveRef({
@@ -72,6 +86,7 @@ export async function deleteBranch(
 	branchName: string,
 	ownerDbId?: string,
 ): Promise<void> {
+	assertSafeBranchName(branchName);
 	const run = async () => {
 		const repo = await getRepoOptions(ownerKey, repoName);
 		await git.deleteBranch({ ...repo, ref: branchName });
@@ -93,6 +108,7 @@ export async function checkoutBranch(
 	repoName: string,
 	branchName: string,
 ): Promise<void> {
+	assertSafeBranchName(branchName);
 	const repo = await getRepoOptions(ownerKey, repoName);
 	await git.resolveRef({ ...repo, ref: `refs/heads/${branchName}` });
 }

@@ -38,6 +38,7 @@ vi.mock("#/lib/r2-operations", () => ({
 	listAllR2Files: vi.fn(() => Promise.resolve([])),
 	bulkDeleteFromR2: vi.fn(),
 	bulkUploadToR2: vi.fn(() => Promise.resolve([])),
+	bulkCopyInR2: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock("../git-cache", () => ({
@@ -71,6 +72,7 @@ vi.mock("../perf-log", () => ({
 import { promises as nodeFs } from "node:fs";
 import { isR2Configured } from "#/lib/r2";
 import {
+	bulkCopyInR2,
 	bulkDeleteFromR2,
 	bulkUploadToR2,
 	downloadFromR2,
@@ -88,6 +90,7 @@ import {
 	deleteRepositoryFromR2,
 	ensureRepositoryHydrated,
 	getRepoOptions,
+	renameRepositoryStorage,
 	syncRepositoryToR2,
 	withRepositoryLock,
 } from "../git-repo-storage";
@@ -95,6 +98,7 @@ import {
 const mockListAllR2Files = vi.mocked(listAllR2Files);
 const mockBulkUploadToR2 = vi.mocked(bulkUploadToR2);
 const mockBulkDeleteFromR2 = vi.mocked(bulkDeleteFromR2);
+const mockBulkCopyInR2 = vi.mocked(bulkCopyInR2);
 const mockDownloadFromR2 = vi.mocked(downloadFromR2);
 const mockInvalidateCache = vi.mocked(invalidateCache);
 const mockInvalidateObjectCache = vi.mocked(invalidateObjectCache);
@@ -511,6 +515,137 @@ describe("deleteRepositoryFromR2", () => {
 		await deleteRepositoryFromR2("o", "r");
 
 		expect(mockBulkDeleteFromR2).not.toHaveBeenCalled();
+	});
+});
+
+describe("renameRepositoryStorage", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("copies every object to the new prefix and deletes the old ones (R2)", async () => {
+		vi.mocked(isR2Configured).mockReturnValue(true);
+		mockListAllR2Files.mockResolvedValue([
+			{
+				key: "repos/o/old-name/git/HEAD",
+				size: 10,
+				lastModified: new Date(),
+				etag: "a",
+			},
+			{
+				key: "repos/o/old-name/git/objects/ab/cdef",
+				size: 5,
+				lastModified: new Date(),
+				etag: "b",
+			},
+		]);
+		mockBulkCopyInR2.mockResolvedValue([
+			{ key: "repos/o/new-name/git/HEAD", success: true },
+			{ key: "repos/o/new-name/git/objects/ab/cdef", success: true },
+		]);
+
+		await renameRepositoryStorage("o", "old-name", "new-name");
+
+		expect(mockBulkCopyInR2).toHaveBeenCalledWith([
+			{
+				from: "repos/o/old-name/git/HEAD",
+				to: "repos/o/new-name/git/HEAD",
+			},
+			{
+				from: "repos/o/old-name/git/objects/ab/cdef",
+				to: "repos/o/new-name/git/objects/ab/cdef",
+			},
+		]);
+		expect(mockBulkDeleteFromR2).toHaveBeenCalledWith([
+			"repos/o/old-name/git/HEAD",
+			"repos/o/old-name/git/objects/ab/cdef",
+		]);
+		expect(mockInvalidateRepoGitCache).toHaveBeenCalledWith("o", "old-name");
+		expect(mockInvalidateRepoGitCache).toHaveBeenCalledWith("o", "new-name");
+	});
+
+	it("aborts without deleting old objects when a copy fails (R2)", async () => {
+		vi.mocked(isR2Configured).mockReturnValue(true);
+		mockListAllR2Files.mockResolvedValue([
+			{
+				key: "repos/o/old-name/git/HEAD",
+				size: 10,
+				lastModified: new Date(),
+				etag: "a",
+			},
+		]);
+		mockBulkCopyInR2.mockResolvedValue([
+			{ key: "repos/o/new-name/git/HEAD", success: false, error: "boom" },
+		]);
+
+		await expect(
+			renameRepositoryStorage("o", "old-name", "new-name"),
+		).rejects.toThrow("Failed to copy");
+
+		expect(mockBulkDeleteFromR2).not.toHaveBeenCalled();
+	});
+
+	it("no-ops storage copy when the old prefix has no objects (R2)", async () => {
+		vi.mocked(isR2Configured).mockReturnValue(true);
+		mockListAllR2Files.mockResolvedValue([]);
+
+		await renameRepositoryStorage("o", "old-name", "new-name");
+
+		expect(mockBulkCopyInR2).not.toHaveBeenCalled();
+		expect(mockBulkDeleteFromR2).not.toHaveBeenCalled();
+	});
+
+	it("renames the local hydration directory when R2 is not configured", async () => {
+		vi.mocked(isR2Configured).mockReturnValue(false);
+		const mkdirSpy = vi
+			.spyOn(nodeFs, "mkdir")
+			.mockResolvedValue(undefined as never);
+		const renameSpy = vi.spyOn(nodeFs, "rename").mockResolvedValue(undefined);
+
+		await renameRepositoryStorage("o", "old-name", "new-name");
+
+		expect(renameSpy).toHaveBeenCalledWith(
+			"/tmp/pushstack-repos/o/old-name",
+			"/tmp/pushstack-repos/o/new-name",
+		);
+
+		mkdirSpy.mockRestore();
+		renameSpy.mockRestore();
+	});
+
+	it("tolerates a missing local directory (nothing hydrated yet under the old name)", async () => {
+		vi.mocked(isR2Configured).mockReturnValue(false);
+		const mkdirSpy = vi
+			.spyOn(nodeFs, "mkdir")
+			.mockResolvedValue(undefined as never);
+		const enoent = Object.assign(new Error("no such file"), {
+			code: "ENOENT",
+		});
+		const renameSpy = vi.spyOn(nodeFs, "rename").mockRejectedValue(enoent);
+
+		await expect(
+			renameRepositoryStorage("o", "old-name", "new-name"),
+		).resolves.toBeUndefined();
+
+		mkdirSpy.mockRestore();
+		renameSpy.mockRestore();
+	});
+
+	it("propagates a non-ENOENT local rename failure", async () => {
+		vi.mocked(isR2Configured).mockReturnValue(false);
+		const mkdirSpy = vi
+			.spyOn(nodeFs, "mkdir")
+			.mockResolvedValue(undefined as never);
+		const renameSpy = vi
+			.spyOn(nodeFs, "rename")
+			.mockRejectedValue(new Error("disk full"));
+
+		await expect(
+			renameRepositoryStorage("o", "old-name", "new-name"),
+		).rejects.toThrow("disk full");
+
+		mkdirSpy.mockRestore();
+		renameSpy.mockRestore();
 	});
 });
 

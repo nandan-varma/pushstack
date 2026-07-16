@@ -29,6 +29,7 @@ import {
 	getCommit as gitGetCommit,
 } from "./git-history-ops";
 import { getLastCommitsForTree } from "./git-last-commit";
+import { safeBranchNameSchema } from "./git-ref-name";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
 import { perfContext, perfStep } from "./perf-log";
 import { getRepoWithReadAccess, getRepoWithWriteAccess } from "./repo-access";
@@ -58,7 +59,7 @@ const safeRepoPathSchema = z
 // Upload file schema
 const uploadFileSchema = z.object({
 	repoId: z.number(),
-	branchName: z.string(),
+	branchName: safeBranchNameSchema,
 	path: safeRepoPathSchema,
 	content: z.string(), // Base64 encoded content
 	commitMessage: z.string(),
@@ -121,7 +122,7 @@ export const getFile = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: z.string(),
+				branchName: safeBranchNameSchema,
 				path: safeRepoPathSchema,
 			})
 			.parse(data),
@@ -163,7 +164,7 @@ export const listFiles = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: z.string(),
+				branchName: safeBranchNameSchema,
 				path: safeRepoPathSchema.optional().default(""),
 			})
 			.parse(data),
@@ -206,7 +207,7 @@ export const getLastCommits = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: z.string(),
+				branchName: safeBranchNameSchema,
 				path: safeRepoPathSchema.optional().default(""),
 			})
 			.parse(data),
@@ -246,7 +247,7 @@ export const getFileHistory = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: z.string(),
+				branchName: safeBranchNameSchema,
 				path: safeRepoPathSchema,
 				limit: z.number().max(100).optional().default(30),
 				// Lets the blob page's single-latest-commit banner ask for a much
@@ -292,7 +293,7 @@ export const deleteFile = createServerFn({ method: "POST" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: z.string(),
+				branchName: safeBranchNameSchema,
 				path: safeRepoPathSchema,
 				commitMessage: z.string(),
 			})
@@ -371,8 +372,8 @@ export const createBranch = createServerFn({ method: "POST" })
 		z
 			.object({
 				repoId: z.number(),
-				name: z.string(),
-				fromBranch: z.string().optional().default("main"),
+				name: safeBranchNameSchema,
+				fromBranch: safeBranchNameSchema.optional().default("main"),
 			})
 			.parse(data),
 	)
@@ -403,7 +404,7 @@ export const deleteBranch = createServerFn({ method: "POST" })
 		z
 			.object({
 				repoId: z.number(),
-				name: z.string(),
+				name: safeBranchNameSchema,
 			})
 			.parse(data),
 	)
@@ -433,7 +434,7 @@ export const getCommits = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				branchName: z.string(),
+				branchName: safeBranchNameSchema,
 				limit: z.number().max(100).optional().default(50),
 				skip: z.number().optional().default(0),
 			})
@@ -577,8 +578,8 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 		z
 			.object({
 				repoId: z.number(),
-				sourceBranch: z.string(),
-				targetBranch: z.string(),
+				sourceBranch: safeBranchNameSchema,
+				targetBranch: safeBranchNameSchema,
 			})
 			.parse(data),
 	)
