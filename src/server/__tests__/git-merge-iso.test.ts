@@ -1,8 +1,3 @@
-/**
- * Tests that analyzeMerge/mergeBranches discriminate expected "not found"
- * conditions from real errors instead of swallowing everything.
- */
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockIsR2Configured = vi.hoisted(() => vi.fn(() => true));
@@ -21,21 +16,32 @@ vi.mock("isomorphic-git", () => ({
 	},
 }));
 
-vi.mock("../git-manager-iso", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../git-manager-iso")>();
-	return {
-		...actual,
-		getBareRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
-	};
-});
+vi.mock("../git-manager-iso", () => ({
+	getBareRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
+}));
 
-vi.mock("../git-repo-storage", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../git-repo-storage")>();
-	return {
-		...actual,
-		withRepositoryWorktree: mockWithRepositoryWorktree,
-	};
-});
+vi.mock("../git-repo-storage", () => ({
+	withRepositoryLock: vi.fn(
+		async (_owner: string, _repo: string, fn: () => Promise<unknown>) => fn(),
+	),
+	withRepositoryWorktree: mockWithRepositoryWorktree,
+	getRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
+	qualifyBranchRef: (ref: string) => {
+		if (ref.startsWith("refs/") || ref === "HEAD" || /^[0-9a-f]{40}$/.test(ref))
+			return ref;
+		return `refs/heads/${ref}`;
+	},
+}));
+
+vi.mock("../git-commit-write", () => ({
+	createCommit: vi.fn(() => Promise.resolve("resolved-commit-sha")),
+}));
+
+vi.mock("../perf-log", () => ({
+	logError: vi.fn(),
+	perfNote: vi.fn(),
+	perfStep: vi.fn((_label: string, fn: () => Promise<unknown>) => fn()),
+}));
 
 function notFoundError(message = "not found") {
 	const err = new Error(message);
@@ -48,7 +54,7 @@ describe("analyzeMerge", () => {
 		vi.clearAllMocks();
 	});
 
-	it("still returns cannot-merge for a NotFoundError (e.g. deleted branch)", async () => {
+	it("returns cannot-merge for a NotFoundError (deleted branch)", async () => {
 		const git = (await import("isomorphic-git")).default;
 		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
 			notFoundError(),
@@ -77,9 +83,45 @@ describe("analyzeMerge", () => {
 			analyzeMerge("owner", "repo", "feature", "main"),
 		).rejects.toThrow("R2 timeout");
 	});
+
+	it("returns canMerge:true with fastForward:true when source is descendant of target", async () => {
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>)
+			.mockResolvedValueOnce("source-sha")
+			.mockResolvedValueOnce("target-sha");
+		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+		const { analyzeMerge } = await import("../git-merge-iso");
+		const result = await analyzeMerge("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({
+			canMerge: true,
+			hasConflicts: false,
+			conflictingFiles: [],
+			fastForward: true,
+		});
+	});
+
+	it("returns canMerge:true with fastForward:false when branches diverged", async () => {
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>)
+			.mockResolvedValueOnce("source-sha")
+			.mockResolvedValueOnce("target-sha");
+		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+		const { analyzeMerge } = await import("../git-merge-iso");
+		const result = await analyzeMerge("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({
+			canMerge: true,
+			hasConflicts: false,
+			conflictingFiles: [],
+			fastForward: false,
+		});
+	});
 });
 
-describe("mergeBranches fast-forward branch", () => {
+describe("mergeBranches fast-forward (R2 configured)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockIsR2Configured.mockReturnValue(true);
@@ -97,17 +139,53 @@ describe("mergeBranches fast-forward branch", () => {
 			mergeBranches("owner", "repo", "feature", "main"),
 		).rejects.toThrow("R2 timeout");
 	});
+
+	it("performs a fast-forward merge when source is descendant of target", async () => {
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>)
+			.mockResolvedValueOnce("source-sha")
+			.mockResolvedValueOnce("target-sha");
+		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+		(git.writeRef as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({ success: true, commitSha: "source-sha" });
+		expect(git.writeRef).toHaveBeenCalledWith(
+			expect.objectContaining({
+				ref: "refs/heads/main",
+				value: "source-sha",
+				force: true,
+			}),
+		);
+	});
+
+	it("falls through to worktree path when not fast-forward", async () => {
+		const git = (await import("isomorphic-git")).default;
+		(git.resolveRef as ReturnType<typeof vi.fn>)
+			.mockResolvedValueOnce("source-sha")
+			.mockResolvedValueOnce("target-sha");
+		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+		mockWithRepositoryWorktree.mockResolvedValue("merge-sha");
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({ success: true, commitSha: "merge-sha" });
+		expect(mockWithRepositoryWorktree).toHaveBeenCalled();
+		expect(git.writeRef).not.toHaveBeenCalled();
+	});
 });
 
-describe("mergeBranches non-fast-forward (worktree) branch", () => {
+describe("mergeBranches non-fast-forward (worktree)", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// Skip the R2 fast-forward shortcut entirely so mergeBranches goes
-		// straight to the withRepositoryWorktree path under test.
 		mockIsR2Configured.mockReturnValue(false);
 	});
 
-	it("returns a structured conflict result for a real MergeConflictError", async () => {
+	it("returns structured conflict result for MergeConflictError", async () => {
 		const conflictError = new Error("merge conflict") as Error & {
 			code: string;
 			data?: { filepaths?: string[] };
@@ -125,7 +203,25 @@ describe("mergeBranches non-fast-forward (worktree) branch", () => {
 		});
 	});
 
-	it("propagates a non-conflict error instead of mislabeling it as a merge conflict", async () => {
+	it("returns default conflict message when MergeConflictError has no filepaths", async () => {
+		const conflictError = new Error("merge conflict") as Error & {
+			code: string;
+			data?: { filepaths?: string[] };
+		};
+		conflictError.code = "MergeConflictError";
+		conflictError.data = {};
+		mockWithRepositoryWorktree.mockRejectedValue(conflictError);
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({
+			success: false,
+			conflicts: ["Merge conflicts detected"],
+		});
+	});
+
+	it("propagates a non-conflict error instead of mislabeling it", async () => {
 		mockWithRepositoryWorktree.mockRejectedValue(
 			new Error("R2 object read failed"),
 		);
@@ -135,5 +231,90 @@ describe("mergeBranches non-fast-forward (worktree) branch", () => {
 		await expect(
 			mergeBranches("owner", "repo", "feature", "main"),
 		).rejects.toThrow("R2 object read failed");
+	});
+
+	it("returns success with commitSha from worktree merge", async () => {
+		mockWithRepositoryWorktree.mockResolvedValue("new-merge-sha");
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({ success: true, commitSha: "new-merge-sha" });
+	});
+
+	it("passes custom message and author options through to worktree merge", async () => {
+		mockWithRepositoryWorktree.mockResolvedValue("merge-sha");
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		await mergeBranches("owner", "repo", "feature", "main", {
+			message: "Custom merge message",
+			authorName: "Test Author",
+			authorEmail: "test@example.com",
+		});
+
+		expect(mockWithRepositoryWorktree).toHaveBeenCalled();
+	});
+});
+
+describe("resolveConflicts", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("delegates to createCommit when R2 is configured", async () => {
+		mockIsR2Configured.mockReturnValue(true);
+		const { createCommit } = await import("../git-commit-write");
+		const { resolveConflicts } = await import("../git-merge-iso");
+
+		await resolveConflicts("owner", "repo", [
+			{ path: "file.ts", content: "resolved" },
+		]);
+
+		expect(createCommit).toHaveBeenCalledWith(
+			"owner",
+			"repo",
+			"Resolve merge conflicts",
+			[{ path: "file.ts", content: "resolved" }],
+			undefined,
+			undefined,
+			"main",
+			undefined,
+		);
+	});
+
+	it("uses withRepositoryWorktree when R2 is not configured", async () => {
+		mockIsR2Configured.mockReturnValue(false);
+		const { resolveConflicts } = await import("../git-merge-iso");
+
+		await resolveConflicts("owner", "repo", [
+			{ path: "a.txt", content: "content-a" },
+			{ path: "b.txt", content: "content-b" },
+		]);
+
+		expect(mockWithRepositoryWorktree).toHaveBeenCalled();
+	});
+
+	it("passes ownerDbId through when R2 is configured", async () => {
+		mockIsR2Configured.mockReturnValue(true);
+		const { createCommit } = await import("../git-commit-write");
+		const { resolveConflicts } = await import("../git-merge-iso");
+
+		await resolveConflicts(
+			"owner",
+			"repo",
+			[{ path: "f.txt", content: "c" }],
+			"owner-db-id",
+		);
+
+		expect(createCommit).toHaveBeenCalledWith(
+			"owner",
+			"repo",
+			"Resolve merge conflicts",
+			[{ path: "f.txt", content: "c" }],
+			undefined,
+			undefined,
+			"main",
+			"owner-db-id",
+		);
 	});
 });

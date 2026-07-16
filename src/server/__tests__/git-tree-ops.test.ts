@@ -17,7 +17,7 @@ import {
 	upsertTree,
 } from "../git-tree-ops";
 
-const repo = { fs: {}, gitdir: "/fake" };
+const repo = { fs: {} as never, gitdir: "/fake", cache: {} };
 
 beforeEach(() => {
 	vi.clearAllMocks();

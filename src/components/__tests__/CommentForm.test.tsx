@@ -59,6 +59,31 @@ describe("CommentForm", () => {
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not call onSubmit when the button is clicked with whitespace-only content", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<CommentForm value="   " onChange={() => {}} onSubmit={onSubmit} />);
+
+		// Button should be disabled — verify it can't be triggered
+		const button = screen.getByRole("button", { name: "Post Comment" });
+		expect(button).toBeDisabled();
+		await user.click(button);
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("does not call onSubmit when the button is clicked with empty content", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<CommentForm value="" onChange={() => {}} onSubmit={onSubmit} />);
+
+		const button = screen.getByRole("button", { name: "Post Comment" });
+		expect(button).toBeDisabled();
+		await user.click(button);
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("disables the form while a submission is pending", () => {
 		render(
 			<CommentForm

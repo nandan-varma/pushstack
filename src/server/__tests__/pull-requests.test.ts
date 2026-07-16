@@ -345,7 +345,7 @@ describe("getPullRequests", () => {
 	it("returns open PRs by default when the caller can read", async () => {
 		mockDb.query.pullRequests.findMany.mockResolvedValueOnce([
 			{ id: 1, title: "PR one", status: "open", author: { name: "Alice" } },
-		]);
+		] as never);
 
 		const { getPullRequests } = await import("../pull-requests");
 		const result = await getPullRequests({ data: { repoId: 5 } });

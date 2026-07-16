@@ -299,8 +299,18 @@ describe("R2Backend.rmdir", () => {
 
 	it("bulk-deletes all files under the prefix and invalidates cache", async () => {
 		const files = [
-			{ key: "repos/alice/myrepo/git/refs/heads/main", size: 10 },
-			{ key: "repos/alice/myrepo/git/refs/heads/dev", size: 20 },
+			{
+				key: "repos/alice/myrepo/git/refs/heads/main",
+				size: 10,
+				lastModified: new Date(),
+				etag: "a",
+			},
+			{
+				key: "repos/alice/myrepo/git/refs/heads/dev",
+				size: 20,
+				lastModified: new Date(),
+				etag: "b",
+			},
 		];
 		vi.mocked(r2ops.listAllR2Files).mockResolvedValue(files);
 
@@ -461,7 +471,7 @@ describe("R2Backend.readFile", () => {
 
 		// Only one R2 call made for two concurrent reads
 		expect(r2ops.downloadFromR2).toHaveBeenCalledTimes(1);
-		expect(Buffer.compare(r1, r2)).toBe(0);
+		expect(Buffer.compare(r1 as Buffer, r2 as Buffer)).toBe(0);
 	});
 });
 
@@ -511,6 +521,8 @@ describe("prefetchAllPacks", () => {
 		const files = Array.from({ length: 62 }, (_, i) => ({
 			key: `repos/alice/myrepo/git/objects/pack/pack-${i}.pack`,
 			size: 100,
+			lastModified: new Date(),
+			etag: `${i}`,
 		}));
 		vi.mocked(r2ops.listAllR2Files).mockResolvedValue(files);
 
@@ -524,12 +536,27 @@ describe("prefetchAllPacks", () => {
 		const { prefetchAllPacks } = await import("../git-r2-backend");
 		// readdir returns 2 pack files (1 pack pair)
 		vi.mocked(r2ops.listAllR2Files).mockResolvedValue([
-			{ key: "repos/alice/myrepo/git/objects/pack/pack-abc.pack", size: 1000 },
-			{ key: "repos/alice/myrepo/git/objects/pack/pack-abc.idx", size: 500 },
+			{
+				key: "repos/alice/myrepo/git/objects/pack/pack-abc.pack",
+				size: 1000,
+				lastModified: new Date(),
+				etag: "a",
+			},
+			{
+				key: "repos/alice/myrepo/git/objects/pack/pack-abc.idx",
+				size: 500,
+				lastModified: new Date(),
+				etag: "b",
+			},
 		]);
 		// listR2Files for detectLooseObjectsHint — returns 1 item that's NOT a loose object
 		vi.mocked(r2ops.listR2Files).mockResolvedValue([
-			{ key: "repos/alice/myrepo/git/objects/pack/pack-abc.pack" },
+			{
+				key: "repos/alice/myrepo/git/objects/pack/pack-abc.pack",
+				size: 0,
+				lastModified: new Date(),
+				etag: "a",
+			},
 		]);
 		// readFile for each pack file
 		vi.mocked(r2ops.downloadFromR2).mockResolvedValue({

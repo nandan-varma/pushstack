@@ -27,7 +27,7 @@ vi.mock("../repo-access", () => ({
 	canReadRepo: vi.fn(() => Promise.resolve(true)),
 }));
 
-const findManyMock = vi.fn(() => Promise.resolve([]));
+const findManyMock = vi.fn((): Promise<unknown[]> => Promise.resolve([]));
 
 vi.mock("../../db", () => ({
 	db: {

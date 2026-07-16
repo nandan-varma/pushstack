@@ -192,6 +192,7 @@ describe("getComments", () => {
 			repository: { id: 1 },
 		});
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findMany: vi.fn().mockResolvedValue([
 				{ id: 1, body: "first", author: { name: "Alice" } },
 				{ id: 2, body: "second", author: { name: "Bob" } },
@@ -212,6 +213,7 @@ describe("getComments", () => {
 			repository: { id: 1 },
 		});
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findMany: vi
 				.fn()
 				.mockResolvedValue([
@@ -233,7 +235,10 @@ describe("updateComment", () => {
 	});
 
 	it("throws when the comment does not exist", async () => {
-		mockDb.query.comments = { findFirst: vi.fn().mockResolvedValue(undefined) };
+		mockDb.query.comments = {
+			...mockDb.query.comments,
+			findFirst: vi.fn().mockResolvedValue(undefined),
+		};
 
 		const { updateComment } = await import("../comments");
 		await expect(
@@ -243,6 +248,7 @@ describe("updateComment", () => {
 
 	it("throws when a non-author lacks write access", async () => {
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findFirst: vi.fn().mockResolvedValue({
 				id: 1,
 				authorId: "someone-else",
@@ -260,6 +266,7 @@ describe("updateComment", () => {
 
 	it("allows the author to edit without write access", async () => {
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findFirst: vi.fn().mockResolvedValue({
 				id: 1,
 				authorId: mockUser.id,
@@ -289,6 +296,7 @@ describe("updateComment", () => {
 
 	it("allows a non-author repo writer to edit", async () => {
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findFirst: vi.fn().mockResolvedValue({
 				id: 1,
 				authorId: "someone-else",
@@ -319,7 +327,10 @@ describe("deleteComment", () => {
 	});
 
 	it("throws when the comment does not exist", async () => {
-		mockDb.query.comments = { findFirst: vi.fn().mockResolvedValue(undefined) };
+		mockDb.query.comments = {
+			...mockDb.query.comments,
+			findFirst: vi.fn().mockResolvedValue(undefined),
+		};
 
 		const { deleteComment } = await import("../comments");
 		await expect(deleteComment({ data: { commentId: 999 } })).rejects.toThrow(
@@ -329,6 +340,7 @@ describe("deleteComment", () => {
 
 	it("throws when a non-author lacks moderate access", async () => {
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findFirst: vi.fn().mockResolvedValue({
 				id: 1,
 				authorId: "someone-else",
@@ -347,6 +359,7 @@ describe("deleteComment", () => {
 
 	it("allows the author to delete without moderate access", async () => {
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findFirst: vi.fn().mockResolvedValue({
 				id: 1,
 				authorId: mockUser.id,
@@ -369,6 +382,7 @@ describe("deleteComment", () => {
 
 	it("allows a non-author moderator to delete", async () => {
 		mockDb.query.comments = {
+			...mockDb.query.comments,
 			findFirst: vi.fn().mockResolvedValue({
 				id: 1,
 				authorId: "someone-else",

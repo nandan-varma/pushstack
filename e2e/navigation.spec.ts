@@ -1,61 +1,58 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Route Navigation E2E', () => {
-  test('should navigate between pages', async ({ page }) => {
-    // Go to home page
+  test('home page renders hero content', async ({ page }) => {
     await page.goto('/')
-
-    // Check home page content
     await expect(page.locator('h1')).toContainText('Build, collaborate, and ship together')
-
-    // Navigate to repositories page
-    await page.click('text=Repositories')
-    // Should redirect to login if not authenticated
-    const url = page.url()
-    const pathname = new URL(url).pathname
-    expect(['/repositories', '/auth/login']).toContain(pathname)
   })
 
-  test('should handle dashboard navigation flow', async ({ page }) => {
+  test('navigating to login via Sign In link shows login form', async ({ page }) => {
     await page.goto('/')
-
-    // Click dashboard link
-    await page.click('text=Dashboard')
-
-    // Should redirect to login (if not authenticated)
+    await page.click('text=Sign In')
     await expect(page).toHaveURL('/auth/login')
     await expect(page.locator('h1')).toContainText('Welcome back')
   })
 
-  test('should navigate through repository pages', async ({ page }) => {
-    // Note: This assumes you have authentication set up
-    // You may need to implement login first
-    
-    await page.goto('/repositories')
-    
-    // Should either show repositories or redirect to login
-    const url = page.url()
-    expect(['/repositories', '/auth/login']).toContain(new URL(url).pathname)
+  test('navigating to login via Dashboard link shows login form', async ({ page }) => {
+    await page.goto('/')
+    await page.click('text=Dashboard')
+    await expect(page).toHaveURL('/auth/login')
+    await expect(page.locator('h1')).toContainText('Welcome back')
   })
 
-  test('should handle deep linking', async ({ page }) => {
-    // Navigate directly to a deep route
+  test('repositories link redirects to login when not authenticated', async ({ page }) => {
+    await page.goto('/')
+    await page.click('text=Repositories')
+    await expect(page).toHaveURL('/auth/login')
+  })
+
+  test('back button restores previous page content', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('h1')).toContainText('Build, collaborate')
+
+    await page.click('text=Sign In')
+    await expect(page).toHaveURL('/auth/login')
+
+    await page.goBack()
+    await expect(page).toHaveURL('/')
+    await expect(page.locator('h1')).toContainText('Build, collaborate')
+  })
+
+  test('about page renders via direct navigation', async ({ page }) => {
     await page.goto('/about')
     await expect(page).toHaveURL('/about')
     await expect(page.locator('h1')).toContainText('Modern code hosting, simplified.')
   })
 
-  test('should preserve state during navigation', async ({ page }) => {
-    await page.goto('/')
-    
-    // Navigate to login and back
-    await page.click('text=Sign In')
-    await expect(page).toHaveURL('/auth/login')
-    
-    await page.goBack()
-    await expect(page).toHaveURL('/')
-    
-    // Content should be restored
-    await expect(page.locator('h1')).toContainText('Build, collaborate')
+  test('login page renders the sign-in form', async ({ page }) => {
+    await page.goto('/auth/login')
+    await expect(page.getByLabel('Username')).toBeVisible()
+    await expect(page.getByLabel('Password')).toBeVisible()
+  })
+
+  test('sign-up link on login page navigates to register', async ({ page }) => {
+    await page.goto('/auth/login')
+    await page.click('text=Create an account')
+    await expect(page).toHaveURL('/auth/register')
   })
 })

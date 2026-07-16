@@ -560,4 +560,61 @@ describe("handleReceivePackIso", () => {
 		// Empty body with no ref updates is valid — returns unpack ok with no refs
 		expect(result.status).toBe(200);
 	});
+
+	it("acquires withReceivePackLock with correct parameters during push", async () => {
+		const { withReceivePackLock } = await import("../git-repo-storage");
+		const lockMock = vi.mocked(withReceivePackLock);
+
+		const oldSha = "f".repeat(40);
+		const newSha = "g".repeat(40);
+		g.resolveRef.mockResolvedValue(oldSha);
+
+		const refLine = `${oldSha} ${newSha} refs/heads/main\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+		await handleReceivePackIso("u", "r", req, AUTH_WRITE, "main", "owner-id");
+
+		expect(lockMock).toHaveBeenCalledTimes(1);
+		expect(lockMock).toHaveBeenCalledWith(
+			"u",
+			"r",
+			"main",
+			expect.any(Function),
+			"owner-id",
+		);
+	});
+
+	it("returns error response when receive-pack function throws", async () => {
+		const { withReceivePackLock } = await import("../git-repo-storage");
+		vi.mocked(withReceivePackLock).mockRejectedValueOnce(
+			new Error("lock timeout"),
+		);
+
+		const oldSha = "f".repeat(40);
+		const newSha = "g".repeat(40);
+		g.resolveRef.mockResolvedValue(oldSha);
+
+		const refLine = `${oldSha} ${newSha} refs/heads/main\n`;
+		const body = Buffer.concat([
+			pktLine(refLine),
+			Buffer.from("0000"),
+			Buffer.from("PACK"),
+		]);
+
+		const req = new Request("http://x/git-receive-pack", {
+			method: "POST",
+			body,
+		});
+		await expect(
+			handleReceivePackIso("u", "r", req, AUTH_WRITE),
+		).rejects.toThrow("lock timeout");
+	});
 });
