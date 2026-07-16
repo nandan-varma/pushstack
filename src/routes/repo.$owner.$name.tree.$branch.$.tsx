@@ -157,7 +157,7 @@ function TreeBrowserPage() {
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
-	const { data: branches } = useQuery({
+	const { data: branches, isLoading: branchesLoading } = useQuery({
 		...repositoryBranchesQueryOptions(repo?.id ?? 0),
 		enabled: !!repo,
 	});
@@ -233,7 +233,11 @@ function TreeBrowserPage() {
 	const isEmpty =
 		!branches || branches.length === 0 || !files || files.length === 0;
 
-	if (isEmpty && !isLoading) {
+	// Both queries' own loading state matter here — isEmpty is true whenever
+	// branches hasn't resolved yet (its data is undefined), so gating on only
+	// the files query's isLoading could flash the "empty repository" screen for
+	// a non-empty repo while branches is still in flight.
+	if (isEmpty && !isLoading && !branchesLoading) {
 		return <RepoEmptyState owner={owner} name={name} branch={activeBranch} />;
 	}
 
