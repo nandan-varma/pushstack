@@ -41,6 +41,7 @@ export const Route = createFileRoute("/repo/$owner/$name/commits/$branch")({
 					repositoryCommitsQueryOptions({
 						repoId: repo.id,
 						branchName: params.branch,
+						limit: PAGE_SIZE,
 						skip,
 					}),
 				),
@@ -65,6 +66,7 @@ function CommitsPage() {
 		...repositoryCommitsQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: branch,
+			limit: PAGE_SIZE,
 			skip: currentSkip,
 		}),
 		enabled: !!repo,
