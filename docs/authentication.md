@@ -73,6 +73,14 @@ which tries, in order:
    attacks password hashing guards against.
 3. **Username/password** — falls back to verifying against the `account`
    table's stored credential hash via Better Auth's own `verifyPassword`.
+   This path bypasses Better Auth's own rate limiter entirely (that one only
+   wraps `/api/auth/*` requests), so it's rate-limited independently: 10
+   failed attempts per (case-insensitive) username/email within a 5-minute
+   window locks that key out, tracked in a `git_auth_attempts` DB table
+   (not an in-process counter — see [security.md](./security.md)'s "Git
+   password-auth rate limiting" for why a serverless deployment needs the
+   DB-backed version). Only failed attempts count, so frequent legitimate
+   re-auth (e.g. CI polling) never trips it.
 
 Token scopes (`repo:read`/`repo:write`, or none = unrestricted) are checked
 against the requested operation via `hasRequiredTokenScope` — a token scoped

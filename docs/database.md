@@ -29,6 +29,7 @@ content, and bookkeeping.
 | `repositoryCollaborators` | Per-repo, per-user role (`read`/`write`/`admin`) — see [authentication.md](./authentication.md) for how this composes with ownership into `RepositoryAccess` |
 | `activities` | Activity feed events (commit/issue/pr/star/fork/comment) with a `metadata` jsonb blob shaped per `type` |
 | `tokens` | Personal Access Tokens — stores a SHA-256 `tokenHash`, never the raw token, plus scopes and expiry |
+| `gitAuthAttempts` | Failed-attempt counter + window start, keyed by username/email — backs `git-auth.ts`'s password-auth rate limiter (see [security.md](./security.md)); not app data, just rate-limit state |
 | `gitTransactions` | Tracks pending/abandoned git write transactions for cleanup (not a core read/write path) |
 
 Relations for all of these are defined via Drizzle's `relations()` alongside

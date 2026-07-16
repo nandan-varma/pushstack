@@ -219,6 +219,28 @@ result objects, and isomorphic-git's own per-repo pack-index parse cache
 (`invalidateRepoGitCache` — a repack rewrites pack files out from under any
 already-parsed index, so it can't be trusted across a push).
 
+### Renaming a repository (`renameRepositoryStorage`)
+
+Every storage key/path in this layer is derived from the repository's
+*current* `name`, read fresh from the DB — so renaming a repository has to
+move its actual storage, not just update the DB row. `renameRepositoryStorage`
+does that: for R2, it server-side-copies (`CopyObjectCommand`, no download/
+upload round trip) every object under the old name's prefix to the new one,
+then deletes the old keys only after every copy succeeds; for local-disk-only
+mode, it's a plain `fs.rename` of the hydration directory (tolerating ENOENT
+— nothing hydrated locally yet under the old name is not an error).
+
+This function does **not** lock internally — `repositories.ts`'s
+`updateRepository` wraps both the storage move *and* the DB row update in a
+single `withRepositoryLock(ownerKey, repo.name, ...)` call, so a concurrent
+hydration attempt for the old name can't observe a half-renamed state (old
+storage partially copied, or DB already pointing at the new name while
+storage hasn't moved yet). Skipping this migration entirely used to be the
+bug: a rename changed only the DB row, so the very next access resolved
+storage under the new (empty) prefix, silently initialized a brand-new empty
+bare repo there, and permanently orphaned the old commit history under the
+old prefix.
+
 ## The Git smart HTTP protocol (`git-http-iso.ts`)
 
 This is what `git clone https://.../owner/repo.git`, `git fetch`, and `git
@@ -246,6 +268,25 @@ wrapper around a native `git http-backend`.
   (compare-and-swap per ref, in parallel — a multi-ref push like `git push
   --all` applies all of them concurrently since each only touches its own ref
   file), then `repackLocal`.
+
+  Every ref-update command's client-supplied `refName` is validated with
+  `isSafeFullRefName` (`git-ref-name.ts`) *before* any of
+  `git.resolveRef`/`deleteRef`/`writeRef` runs on it — an invalid name gets
+  `{ ok: false, reason: "invalid ref name" }` in the response instead of
+  reaching those calls. This isn't redundant with `git.writeRef`'s own
+  internal validation: the top-level `git.deleteRef` and `git.resolveRef`
+  isomorphic-git exposes have **no** such check, and both resolve straight
+  through `fs.rm`/`fs.read(join(gitdir, ref))` — a `"../"`-laden `refName`
+  would otherwise let a push with write access to any one repo read, corrupt,
+  or delete another repo's ref/object files that happen to sit under the same
+  shared storage root (see [security.md](./security.md)'s "Path traversal via
+  git branch/ref names"). The same validator (as `isSafeBranchName`, its
+  bare-name variant) guards every branch name accepted anywhere else in the
+  app — `files.ts`/`pull-requests.ts`'s input schemas, and defense-in-depth
+  checks in `git-branch-ops.ts`/`git-commit-write.ts`/`git-merge-iso.ts` —
+  since `git.commit`/`git.merge`/`git.deleteBranch` have the same
+  no-internal-validation gap and are reachable from ordinary web-UI actions
+  (branch delete, PR merge), not just a raw git push.
 
   `repackLocal` consolidates all local pack files into one, but only when
   `countLocalPacks` is already at or above `REPACK_PACK_COUNT_THRESHOLD` (4) —
