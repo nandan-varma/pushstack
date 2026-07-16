@@ -90,7 +90,6 @@ const {
 } = await import("../repo-access");
 
 const { db } = await import("../../db");
-const { repositories } = await import("../../db/schema");
 
 describe("getRepositoryAccess", () => {
 	it("grants full access to the owner, on both public and private repos", async () => {
