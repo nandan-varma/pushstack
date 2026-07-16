@@ -9,10 +9,55 @@ import { auth } from "../lib/auth";
 import {
 	GitAuthenticationError,
 	GitAuthorizationError,
+	GitRateLimitError,
 	GitRepositoryNotFoundError,
 } from "./git-errors";
 import { canReadRepo, canWriteRepo } from "./repo-access";
 import { findRepositoryByName } from "./repositories";
+
+// authenticateWithPassword verifies credentials directly against the DB,
+// entirely bypassing Better Auth's own rate limiter (which only wraps
+// requests routed through auth.handler, i.e. /api/auth/*) — without this,
+// the git HTTP endpoint is an unthrottled password-guessing oracle against
+// any user's account. Keyed by the attempted username/email (case-
+// insensitive) rather than IP, since the thing being protected is a specific
+// account, and git/HTTP clients behind NAT or CI shouldn't share a lockout.
+// Only failed attempts count against the limit — a legitimate client
+// re-authenticating successfully many times (e.g. frequent CI fetches) never
+// trips it.
+const PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS = 5 * 60_000;
+const PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS = 10;
+
+interface RateLimitEntry {
+	count: number;
+	windowStart: number;
+}
+
+const passwordAuthAttempts = new Map<string, RateLimitEntry>();
+
+function isPasswordAuthLockedOut(key: string): boolean {
+	const entry = passwordAuthAttempts.get(key);
+	if (!entry) return false;
+	if (Date.now() - entry.windowStart >= PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS) {
+		passwordAuthAttempts.delete(key);
+		return false;
+	}
+	return entry.count >= PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS;
+}
+
+function recordFailedPasswordAttempt(key: string): void {
+	const now = Date.now();
+	const entry = passwordAuthAttempts.get(key);
+	if (!entry || now - entry.windowStart >= PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS) {
+		passwordAuthAttempts.set(key, { count: 1, windowStart: now });
+		return;
+	}
+	entry.count += 1;
+}
+
+function clearPasswordAuthAttempts(key: string): void {
+	passwordAuthAttempts.delete(key);
+}
 
 export interface GitAuthContext {
 	userId: string;
@@ -149,6 +194,14 @@ async function authenticateWithPassword(
 	usernameOrEmail: string,
 	password: string,
 ): Promise<AuthenticatedGitUser | null> {
+	const rateLimitKey = usernameOrEmail.trim().toLowerCase();
+
+	if (isPasswordAuthLockedOut(rateLimitKey)) {
+		throw new GitRateLimitError(
+			"Too many failed authentication attempts for this account. Try again later, or use a Personal Access Token instead of a password.",
+		);
+	}
+
 	try {
 		const { user } = await import("../db/schema");
 		const { or, eq } = await import("drizzle-orm");
@@ -161,21 +214,32 @@ async function authenticateWithPassword(
 			),
 		});
 
-		if (!foundUser) return null;
+		if (!foundUser) {
+			recordFailedPasswordAttempt(rateLimitKey);
+			return null;
+		}
 
 		const credAccount = await db.query.account.findFirst({
 			where: (a, { and, eq: eqFn }) =>
 				and(eqFn(a.userId, foundUser.id), eqFn(a.providerId, "credential")),
 		});
 
-		if (!credAccount?.password) return null;
+		if (!credAccount?.password) {
+			recordFailedPasswordAttempt(rateLimitKey);
+			return null;
+		}
 
 		const valid = await verifyPassword({
 			hash: credAccount.password,
 			password,
 		});
 
-		if (!valid) return null;
+		if (!valid) {
+			recordFailedPasswordAttempt(rateLimitKey);
+			return null;
+		}
+
+		clearPasswordAuthAttempts(rateLimitKey);
 
 		return {
 			id: foundUser.id,

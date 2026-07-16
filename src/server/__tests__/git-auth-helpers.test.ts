@@ -14,6 +14,7 @@ const mockGetSession = vi.hoisted(() => vi.fn());
 const mockFindRepo = vi.hoisted(() => vi.fn());
 const mockCanRead = vi.hoisted(() => vi.fn());
 const mockCanWrite = vi.hoisted(() => vi.fn());
+const mockVerifyPassword = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => ({ db: mockDb }));
 vi.mock("../../db/github-schema", () => ({ tokens: {} }));
@@ -26,11 +27,13 @@ vi.mock("../repo-access", () => ({
 	canReadRepo: mockCanRead,
 	canWriteRepo: mockCanWrite,
 }));
+vi.mock("better-auth/crypto", () => ({ verifyPassword: mockVerifyPassword }));
 
 import { authenticateGitRequest, createAuthChallenge } from "../git-auth";
 import {
 	GitAuthenticationError,
 	GitAuthorizationError,
+	GitRateLimitError,
 	GitRepositoryNotFoundError,
 } from "../git-errors";
 
@@ -352,6 +355,97 @@ describe("authenticateGitRequest", () => {
 			);
 
 			expect(ctx.canWrite).toBe(true);
+		});
+	});
+
+	describe("password authentication", () => {
+		function accountRecord(password = "hashed-password") {
+			return { userId: SESSION_USER.id, providerId: "credential", password };
+		}
+
+		it("authenticates via username/password when no PAT prefix is present", async () => {
+			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
+			mockDb.query.user.findFirst.mockResolvedValue(SESSION_USER);
+			mockDb.query.account.findFirst.mockResolvedValue(accountRecord());
+			mockVerifyPassword.mockResolvedValue(true);
+			mockCanRead.mockResolvedValue(true);
+			mockCanWrite.mockResolvedValue(true);
+
+			const ctx = await authenticateGitRequest(
+				req(basicAuthHeader("pw-user-ok", "correct-horse")),
+				"alice",
+				"repo",
+				true,
+			);
+
+			expect(ctx.canWrite).toBe(true);
+			expect(ctx.username).toBe("alice");
+		});
+
+		it("rejects wrong password without throwing (falls through to anonymous/401)", async () => {
+			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
+			mockDb.query.user.findFirst.mockResolvedValue(SESSION_USER);
+			mockDb.query.account.findFirst.mockResolvedValue(accountRecord());
+			mockVerifyPassword.mockResolvedValue(false);
+			mockCanRead.mockResolvedValue(false);
+
+			await expect(
+				authenticateGitRequest(
+					req(basicAuthHeader("pw-user-wrong", "bad-password")),
+					"alice",
+					"repo",
+				),
+			).rejects.toBeInstanceOf(GitAuthenticationError);
+		});
+
+		it("locks out further attempts after repeated failures for the same username", async () => {
+			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
+			mockDb.query.user.findFirst.mockResolvedValue(SESSION_USER);
+			mockDb.query.account.findFirst.mockResolvedValue(accountRecord());
+			mockVerifyPassword.mockResolvedValue(false);
+			mockCanRead.mockResolvedValue(false);
+
+			const attempt = () =>
+				authenticateGitRequest(
+					req(basicAuthHeader("pw-user-lockout", "bad-password")),
+					"alice",
+					"repo",
+				);
+
+			// 10 failed attempts are allowed through to the normal 401 path...
+			for (let i = 0; i < 10; i++) {
+				await expect(attempt()).rejects.toBeInstanceOf(GitAuthenticationError);
+			}
+
+			// ...the 11th is rejected by the limiter itself, before touching the DB again.
+			await expect(attempt()).rejects.toBeInstanceOf(GitRateLimitError);
+		});
+
+		it("does not lock out a different username after another account's failures", async () => {
+			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
+			mockDb.query.user.findFirst.mockResolvedValue(SESSION_USER);
+			mockDb.query.account.findFirst.mockResolvedValue(accountRecord());
+			mockVerifyPassword.mockResolvedValue(false);
+			mockCanRead.mockResolvedValue(false);
+
+			for (let i = 0; i < 10; i++) {
+				await expect(
+					authenticateGitRequest(
+						req(basicAuthHeader("pw-user-a", "bad-password")),
+						"alice",
+						"repo",
+					),
+				).rejects.toBeInstanceOf(GitAuthenticationError);
+			}
+
+			// A different username is a different rate-limit bucket — still gets the normal 401.
+			await expect(
+				authenticateGitRequest(
+					req(basicAuthHeader("pw-user-b", "bad-password")),
+					"alice",
+					"repo",
+				),
+			).rejects.toBeInstanceOf(GitAuthenticationError);
 		});
 	});
 });
