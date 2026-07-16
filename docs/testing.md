@@ -8,18 +8,35 @@ correctness-critical logic (git protocol implementation, access control,
 storage-path safety, CRUD server functions) lives. Notable files:
 
 - `git-http-iso.test.ts`, `git-integration.test.ts` — the smart HTTP protocol
-  handlers and end-to-end git operations.
+  handlers and end-to-end git operations, including the receive-pack
+  ref-name traversal guard (see [security.md](./security.md)).
 - `git-user-lifecycle.test.ts` — a full user/repo lifecycle test.
-- `git-operations-locking.test.ts`, `git-operations-errors.test.ts` —
-  `withRepositoryLock` behavior and error propagation.
+- `git-commit-write-consolidated.test.ts` — `withRepositoryLock` behavior,
+  error propagation, and the branch-name traversal guard for
+  `createCommit`/`deleteFile` (was two separate files,
+  `git-operations-locking.test.ts`/`git-operations-errors.test.ts`, merged
+  since they shared nearly all their mock setup).
+- `git-ref-name.test.ts` — the shared branch/ref-name validators
+  (`isSafeBranchName`/`isSafeFullRefName`) directly, covering every rejected
+  shape (`..`, control chars, a `refs/`-prefixed name smuggled in as a bare
+  branch name, `.lock` suffix, etc.) — see [security.md](./security.md).
+- `git-branch-ops.test.ts`, `git-merge-iso.test.ts` — `createBranch`/
+  `deleteBranch`/`checkoutBranch` and `analyzeMerge`/`mergeBranches` reject a
+  path-traversal branch name before any isomorphic-git call runs.
 - `repo-access.test.ts` — the `RepositoryAccess` resolution logic (see
   [authentication.md](./authentication.md)).
 - `git-storage-naming.test.ts`, `git-manager-iso.test.ts` — storage key
   construction and path-traversal containment (`getRepoPath`'s
   refuse-to-escape-storage-root check — see [security.md](./security.md)).
-- `repositories.integration.test.ts`, `issues.test.ts`, `pull-requests.test.ts`,
-  `comments.test.ts`, `search.test.ts` — CRUD server function behavior,
-  including access-check rejection paths.
+- `git-repo-storage.test.ts` — `withRepositoryLock`/`ensureRepositoryHydrated`/
+  `syncRepositoryToR2`, plus `renameRepositoryStorage`'s R2-copy and
+  local-`fs.rename` paths (see [git-storage.md](./git-storage.md)).
+- `git-auth-helpers.test.ts` — `authenticateGitRequest`'s full fallback chain
+  (session/PAT/password) and the DB-backed password rate limiter.
+- `files.test.ts`, `repositories.unit.test.ts`, `issues.test.ts`,
+  `pull-requests.test.ts`, `comments.test.ts`, `search.test.ts` — CRUD server
+  function behavior, including access-check rejection paths and the file-path/
+  branch-name traversal guards (`safeRepoPathSchema`/`safeBranchNameSchema`).
 
 Run everything: `pnpm test` (or `pnpm test:watch` for watch mode, `pnpm
 test:coverage` for a coverage report). Run one file:
@@ -38,7 +55,7 @@ Server function tests mock `@tanstack/react-start`'s `createServerFn` itself
 (so a handler's `.validator` and `.handler` chain can be invoked directly as a
 plain function in tests, without pulling in the real framework machinery),
 plus `../session`, `../../db`, and whatever git-layer modules the function
-under test calls. See `repositories.integration.test.ts` for the reference
+under test calls. See `repositories.unit.test.ts` for the reference
 shape of this setup. One easy-to-miss gotcha: if a test file has a `vi.mock()`
 for a module and that module later gains a new export other code starts
 depending on, the mock needs the new export added too, or every test hitting

@@ -87,6 +87,98 @@ not a traversal), but the local-disk hydration path that every write
 operation goes through, R2-configured or not, is real Node.js `path.join`
 against a real filesystem, and that's where this actually bites.
 
+## Path traversal via git branch/ref names
+
+A separate, more severe traversal bug than the repository-name one above:
+**branch/ref names** — a git push's ref-update command, a branch name typed
+into the web UI, a pull request's source/target branch — reached several
+isomorphic-git primitives that, unlike `git.branch`/the top-level
+`git.writeRef`, **never validate the ref name themselves**:
+`git.commit`, `git.merge`, `git.deleteBranch`, and the top-level
+`git.resolveRef`/`git.deleteRef` all resolve straight through
+`fs.write`/`fs.rm(join(gitdir, ref))` (or the R2-backend equivalent) with no
+jail to the current repo's own directory.
+
+That alone would be contained if the storage layer re-verified containment
+the way `getRepoPath` does for repository names (see above) — but it doesn't.
+`git-r2-backend.ts`'s `readFile`/`writeFile`/`unlink` derive the target
+`{ownerKey, repoName}` by calling `parseGitDir(filepath)` on the **already
+`join()`-normalized** filepath isomorphic-git hands them — not from any fixed,
+trusted context tied to the repository the caller thinks it's operating on.
+Once a `../`-laden ref name collapses to a path like
+`repos/{victim-owner}/{victim-repo}/git/refs/heads/main`, the R2 backend
+reads/writes/deletes exactly that key — the *victim's* real ref file — even
+though the operation started against the attacker's own repo's `gitdir`. This
+was directly exploitable in production (R2 configured is the deployed
+configuration, not just a local-disk-only edge case).
+
+Two concrete ways this was reachable, both through the ordinary web UI (no
+git CLI, no raw HTTP crafting needed for the second one):
+
+1. **`git push`'s receive-pack ref-update commands** — the client-supplied
+   `refName` in each `<oldOid> <newOid> <refName>` command line was passed
+   straight to `git.resolveRef`/`git.deleteRef`/`git.writeRef` in
+   `handleReceivePackIso`. `git.writeRef` happens to validate internally, but
+   `git.deleteRef` and `git.resolveRef` don't — a ref-delete command with
+   `refName: "../../victim-owner/victim-repo/git/refs/heads/main"` and
+   `oldOid` set to the all-zero oid trivially passes the compare-and-swap
+   check (`resolveRef` on a non-well-formed-ref path fails and is treated as
+   "doesn't exist yet"), then deletes that file.
+2. **Web-UI branch operations** — `files.ts`'s `uploadFile`/`deleteFile`/
+   `createBranch`/`deleteBranch` and `pull-requests.ts`'s `createPullRequest`
+   all accepted `branchName`/`sourceBranchName`/`targetBranchName` as a bare
+   `z.string()` with no format restriction. "Delete branch" with a
+   traversal name reaches `git.deleteBranch` (no CAS check needed at all,
+   simpler to exploit than the push path above); a PR with a traversal
+   `targetBranchName`, once merged by anyone with merge rights, reaches
+   `git.merge`/`git.commit`.
+
+**Fix**: `src/server/git-ref-name.ts` — `isSafeFullRefName` (for the
+`refs/heads/…`/`refs/tags/…` shape a push's `refName` takes) and
+`isSafeBranchName` (for the bare-name shape every other entry point takes,
+also rejecting anything that already looks like a full ref path, which would
+otherwise smuggle through unprefixed) — both built on the same character-class
+rules isomorphic-git's own internal `isValidRef` uses. Applied at every layer,
+matching the repository-name fix's defense-in-depth shape:
+
+1. **Input validation** — `files.ts` and `pull-requests.ts` validate every
+   branch-name-shaped field with `safeBranchNameSchema` instead of a bare
+   `z.string()`.
+2. **Point of use** — `git-branch-ops.ts` (`createBranch`/`deleteBranch`/
+   `checkoutBranch`), `git-commit-write.ts` (`createCommit`/`deleteFile`), and
+   `git-merge-iso.ts` (`analyzeMerge`/`mergeBranches`) each re-validate their
+   branch-name parameters immediately before calling into isomorphic-git —
+   so a future call site that reaches these functions some other way, without
+   going through the zod schema, can't reintroduce the bug by omission.
+3. **`git-http-iso.ts`'s receive-pack handler** validates every ref-update
+   command's `refName` with `isSafeFullRefName` before it touches
+   `resolveRef`/`deleteRef`/`writeRef` at all — rejecting the whole command
+   with `ok: false, reason: "invalid ref name"` rather than letting any of
+   those calls run.
+
+## Git password-auth rate limiting
+
+`authenticateWithPassword` (`git-auth.ts`) verifies username/password
+credentials directly against the DB for git HTTP requests, entirely
+bypassing Better Auth's own rate limiter (which only wraps requests routed
+through `auth.handler`, i.e. `/api/auth/*`) — without a rate limit here, the
+git HTTP endpoint is an unthrottled password-guessing oracle against any
+user's account. Locks out an account/email key after 10 failed attempts
+within a 5-minute window; only failed attempts count, so a legitimate client
+re-authenticating many times (frequent CI fetches) never trips it.
+
+This is backed by a `git_auth_attempts` table, not an in-process `Map` —
+the git HTTP endpoint can be served by multiple concurrent (or frequently
+cold-starting) Vercel serverless instances, each with its own process
+memory. A per-instance in-memory counter never accumulates a shared view of
+failed attempts across them, which would let the lockout be bypassed for
+free just by distributing guesses across instances/restarts. The upsert that
+records a failed attempt (`recordFailedPasswordAttempt`) uses a single
+`INSERT ... ON CONFLICT DO UPDATE` with the window-expiry check embedded in
+the `SET` clause's `CASE` expression, so two concurrent failed attempts for
+the same key can't race each other into under-counting the way a
+read-then-write would.
+
 ## Personal Access Tokens
 
 PATs are stored as a SHA-256 hash (`tokens.tokenHash`), never in plaintext.

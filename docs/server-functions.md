@@ -46,6 +46,17 @@ history and diffs (`git-diff-iso.ts`). Every handler here follows the
 in `perfContext`/`perfStep` since this file backs the tree/blob/commit pages —
 the hottest read paths in the app.
 
+Every branch-name-shaped field (`branchName`, `fromBranch`, `sourceBranch`/
+`targetBranch`) is validated with `safeBranchNameSchema`
+(`git-ref-name.ts`), not a bare `z.string()` — several of the isomorphic-git
+calls these values eventually reach (`git.commit`, `git.merge`,
+`git.deleteBranch`) don't validate ref names internally, so an unrestricted
+branch name here was a path-traversal vector reachable straight from the web
+UI (delete branch, PR merge) — see [security.md](./security.md).
+
+`safeRepoPathSchema` plays the same role for file `path` fields — must be
+relative, no `..` segments, no `.git/` prefix, no null bytes.
+
 `getCommits` (called with `limit: 1` via `repositoryLatestCommitQueryOptions`
 in `query-options.ts`) does double duty: it's both the tree page's "latest
 commit" display *and*, via an extra `refetchInterval` the client hook adds on
@@ -64,7 +75,11 @@ schema validation, access checks, and activity logging:
   `remark-autolink-references.ts`).
 - `pull-requests.ts` — same shape for PRs, plus `mergePullRequest`, which
   delegates the actual merge to `git-merge-iso.ts` and only updates PR status
-  in Postgres after the git-level merge succeeds.
+  in Postgres after the git-level merge succeeds. `createPullRequest`'s
+  `sourceBranchName`/`targetBranchName` go through `safeBranchNameSchema` —
+  a PR's branch names are stored once and reused, unvalidated at read time,
+  by every later merge attempt, so rejecting a bad one has to happen at
+  creation (see [security.md](./security.md)).
 - `comments.ts` — comments attached to either an issue or a PR (exactly one
   of `issueId`/`pullRequestId` is set); update/delete are gated by "author, or
   a write/moderate collaborator" respectively.
