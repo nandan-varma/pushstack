@@ -24,6 +24,7 @@ export function FileTable({
 	branch,
 	activePath,
 	isLoading,
+	showLastCommit = false,
 	lastCommits,
 	lastCommitsLoading,
 }: {
@@ -33,6 +34,8 @@ export function FileTable({
 	branch: string;
 	activePath: string;
 	isLoading?: boolean;
+	/** Repo setting (Settings > Performance), off by default — see FileTable's row rendering below. */
+	showLastCommit?: boolean;
 	lastCommits?: Record<string, LastCommitInfo>;
 	lastCommitsLoading?: boolean;
 }) {
@@ -89,7 +92,7 @@ export function FileTable({
 									..
 								</Link>
 							</td>
-							<td className="hidden md:table-cell" />
+							{showLastCommit && <td className="hidden md:table-cell" />}
 						</tr>
 					)}
 					{files.map((file) => {
@@ -135,36 +138,38 @@ export function FileTable({
 										</Link>
 									)}
 								</td>
-								<td className="hidden py-2.5 pr-4 text-right align-middle md:table-cell">
-									{lastCommitsLoading ? (
-										<div className="ml-auto h-3 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
-									) : (
-										(() => {
-											const lastCommit = lastCommits?.[file.path];
-											if (!lastCommit) return null;
-											return (
-												<div className="flex items-center justify-end gap-2">
-													<Link
-														to="/repo/$owner/$name/commit/$sha"
-														params={{ owner, name, sha: lastCommit.sha }}
-														title={lastCommit.message}
-														className="max-w-[220px] truncate text-xs text-[var(--sea-ink-soft)] hover:text-[var(--lagoon-deep)] hover:underline"
-													>
-														{lastCommit.message.split("\n")[0]}
-													</Link>
-													<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
-														{formatDistanceToNow(
-															new Date(lastCommit.createdAt),
-															{
-																addSuffix: true,
-															},
-														)}
-													</span>
-												</div>
-											);
-										})()
-									)}
-								</td>
+								{showLastCommit && (
+									<td className="hidden py-2.5 pr-4 text-right align-middle md:table-cell">
+										{lastCommitsLoading ? (
+											<div className="ml-auto h-3 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
+										) : (
+											(() => {
+												const lastCommit = lastCommits?.[file.path];
+												if (!lastCommit) return null;
+												return (
+													<div className="flex items-center justify-end gap-2">
+														<Link
+															to="/repo/$owner/$name/commit/$sha"
+															params={{ owner, name, sha: lastCommit.sha }}
+															title={lastCommit.message}
+															className="max-w-[220px] truncate text-xs text-[var(--sea-ink-soft)] hover:text-[var(--lagoon-deep)] hover:underline"
+														>
+															{lastCommit.message.split("\n")[0]}
+														</Link>
+														<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+															{formatDistanceToNow(
+																new Date(lastCommit.createdAt),
+																{
+																	addSuffix: true,
+																},
+															)}
+														</span>
+													</div>
+												);
+											})()
+										)}
+									</td>
+								)}
 							</tr>
 						);
 					})}

@@ -95,13 +95,19 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 										path: params._splat || "",
 									}),
 								),
-								queryClient.ensureQueryData(
-									repositoryLastCommitsQueryOptions({
-										repoId: repo.id,
-										branchName: params.branch,
-										path: params._splat || "",
-									}),
-								),
+								// Off by default (repo settings > Performance) — this walks up
+								// to 400 commits of history per directory, the single most
+								// expensive thing a tree-page visit can trigger. Don't even
+								// prefetch it unless the repo owner opted in.
+								repo.showLastCommitColumn
+									? queryClient.ensureQueryData(
+											repositoryLastCommitsQueryOptions({
+												repoId: repo.id,
+												branchName: params.branch,
+												path: params._splat || "",
+											}),
+										)
+									: Promise.resolve(undefined),
 								queryClient.ensureQueryData(
 									repositoryLatestCommitQueryOptions({
 										repoId: repo.id,
@@ -165,13 +171,15 @@ function TreeBrowserPage() {
 		enabled: !!repo,
 	});
 
+	const showLastCommitColumn = !!repo?.showLastCommitColumn;
+
 	const { data: lastCommits, isLoading: lastCommitsLoading } = useQuery({
 		...repositoryLastCommitsQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: activeBranch,
 			path: activePath,
 		}),
-		enabled: !!repo,
+		enabled: !!repo && showLastCommitColumn,
 	});
 
 	const { data: latestCommits, isLoading: latestCommitLoading } = useQuery({
@@ -319,6 +327,7 @@ function TreeBrowserPage() {
 				branch={activeBranch}
 				activePath={activePath}
 				isLoading={isLoading}
+				showLastCommit={showLastCommitColumn}
 				lastCommits={lastCommits}
 				lastCommitsLoading={lastCommitsLoading}
 			/>

@@ -18,7 +18,10 @@ import {
 // Git operations imports (isomorphic-git)
 import { createCommit, deleteFile as gitDeleteFile } from "./git-commit-write";
 import * as GitDiff from "./git-diff-iso";
-import { getFileHistory as gitGetFileHistory } from "./git-file-history";
+import {
+	getFileHistory as gitGetFileHistory,
+	HISTORY_WALK_DEPTH,
+} from "./git-file-history";
 import {
 	getCommitHistory,
 	getFileFromBranch,
@@ -282,6 +285,10 @@ export const getFileHistory = createServerFn({ method: "GET" })
 				branchName: z.string(),
 				path: safeRepoPathSchema,
 				limit: z.number().max(100).optional().default(30),
+				// Lets the blob page's single-latest-commit banner ask for a much
+				// shallower walk (BANNER_WALK_DEPTH) than the full "History" tab
+				// (HISTORY_WALK_DEPTH) — see git-file-history.ts.
+				maxDepth: z.number().max(HISTORY_WALK_DEPTH).optional(),
 			})
 			.parse(data),
 	)
@@ -306,6 +313,7 @@ export const getFileHistory = createServerFn({ method: "GET" })
 						data.branchName,
 						data.path,
 						data.limit,
+						data.maxDepth ?? HISTORY_WALK_DEPTH,
 					),
 				);
 			},

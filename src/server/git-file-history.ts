@@ -22,8 +22,19 @@ export interface FileHistoryResult {
 
 // Same bound as getLastCommitsForTree (git-last-commit.ts) — walking the full
 // commit chain is R2-round-trip-bound, so cap how far back a single request
-// will look rather than walking unbounded history.
-const HISTORY_WALK_DEPTH = 400;
+// will look rather than walking unbounded history. This is the default depth
+// for a caller that actually wants deep history (the file's "History" tab);
+// see BANNER_WALK_DEPTH below for the much shallower default used by the
+// blob page's single-latest-commit banner.
+export const HISTORY_WALK_DEPTH = 400;
+
+// The blob page's commit banner only ever displays entries[0] (limit: 1), but
+// previously forced the same 400-commit floor as the full History tab to get
+// it — the single most avoidable R2/CPU cost on every first-time blob view.
+// A shallow cap trades "always finds the true last-touching commit" for
+// "finds it if it's reasonably recent," which is the right tradeoff for a
+// banner (the History tab remains available for the full walk on request).
+export const BANNER_WALK_DEPTH = 60;
 
 // Tree-object reads only depend on each commit's (already-known) tree oid, so
 // they're prefetched in parallel windows same as getLastCommitsForTree — the
@@ -52,15 +63,16 @@ export async function getFileHistory(
 	branchName: string,
 	filePath: string,
 	limit: number = 30,
+	maxDepth: number = HISTORY_WALK_DEPTH,
 ): Promise<FileHistoryResult> {
-	const walkDepth = Math.max(HISTORY_WALK_DEPTH, limit);
+	const walkDepth = Math.max(maxDepth, limit);
 	const commits = await perfStep(`getCommitLog depth=${walkDepth}`, () =>
 		getCommitLog(ownerKey, repoName, branchName, walkDepth),
 	);
 	if (commits.length === 0) return { entries: [], truncated: false };
 
 	const headSha = commits[0].oid;
-	const cacheKey = `result:file-history:${ownerKey}/${repoName}/${headSha}:${filePath}:${limit}`;
+	const cacheKey = `result:file-history:${ownerKey}/${repoName}/${headSha}:${filePath}:${limit}:${maxDepth}`;
 	const cached = getCachedObject<FileHistoryResult>(cacheKey);
 	if (cached) {
 		perfNote("getFileHistory: result-cache HIT, skipping history walk");

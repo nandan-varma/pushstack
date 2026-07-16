@@ -353,6 +353,8 @@ export const updateRepository = createServerFn({ method: "POST" })
 				name: repoNameSchema.optional(),
 				description: z.string().optional(),
 				visibility: z.enum(["public", "private"]).optional(),
+				showLastCommitColumn: z.boolean().optional(),
+				autoRefreshPrDiffs: z.boolean().optional(),
 			})
 			.parse(data),
 	)
@@ -373,6 +375,12 @@ export const updateRepository = createServerFn({ method: "POST" })
 					description: data.description,
 				}),
 				...(data.visibility && { visibility: data.visibility }),
+				...(data.showLastCommitColumn !== undefined && {
+					showLastCommitColumn: data.showLastCommitColumn,
+				}),
+				...(data.autoRefreshPrDiffs !== undefined && {
+					autoRefreshPrDiffs: data.autoRefreshPrDiffs,
+				}),
 				updatedAt: new Date(),
 			})
 			.where(eq(repositories.id, data.id))
