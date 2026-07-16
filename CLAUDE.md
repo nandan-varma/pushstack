@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Never ever use agents and sub agents to keep all context inline.
+
 ## Commands
 
 ```bash

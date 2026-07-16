@@ -115,6 +115,15 @@ export class GitAuthorizationError extends GitError {
 }
 
 /**
+ * Too many failed authentication attempts (429)
+ */
+export class GitRateLimitError extends GitError {
+	constructor(message: string) {
+		super(message, 429, false);
+	}
+}
+
+/**
  * Git invalid request (400)
  */
 export class GitInvalidRequestError extends GitError {
