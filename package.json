@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .output .nitro .vinxi dist node_modules/.cache",
     "deploy": "pnpm run build",
+    "prepare": "husky",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -84,12 +85,17 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.9",
     "dotenv": "^17.4.2",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "lint-staged": "^15.5.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.1.0",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.9"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css}": "biome check --write --no-errors-on-unmatched"
   },
   "packageManager": "pnpm@9.15.5",
   "pnpm": {
