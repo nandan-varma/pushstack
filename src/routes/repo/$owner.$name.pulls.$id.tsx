@@ -38,21 +38,24 @@ import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const prId = Number(params.id);
+		const isValidPrId = Number.isFinite(prId);
 		// The PR/comments queries key off params.id, not the repo — no need to
-		// wait on the repo fetch before starting them.
-		const [repo] = await Promise.all([
+		// wait on the repo fetch before starting them. A fixed 3-element tuple
+		// (rather than conditionally spreading) keeps `pr` positionally typed
+		// instead of widening to a union of every possible array element.
+		const [repo, pr] = await Promise.all([
 			queryClient.ensureQueryData(
 				repositoryByNameQueryOptions({
 					owner: params.owner,
 					name: params.name,
 				}),
 			),
-			...(Number.isFinite(prId)
-				? [
-						queryClient.ensureQueryData(pullRequestQueryOptions(prId)),
-						queryClient.ensureQueryData(pullRequestCommentsQueryOptions(prId)),
-					]
-				: []),
+			isValidPrId
+				? queryClient.ensureQueryData(pullRequestQueryOptions(prId))
+				: Promise.resolve(undefined),
+			isValidPrId
+				? queryClient.ensureQueryData(pullRequestCommentsQueryOptions(prId))
+				: Promise.resolve(undefined),
 		]);
 
 		// MarkdownRenderer (PR body + comments) resolves `#123` references using
@@ -64,6 +67,24 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 				.catch(() => {});
 			queryClient
 				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
+				.catch(() => {});
+		}
+
+		// The "Files changed" diff previously only fired client-side after the
+		// component mounted and saw `pr` resolved — a visible waterfall on every
+		// PR view. We already know pr.sourceBranch/targetBranch here, so kick it
+		// off now too (fire-and-forget — the diff isn't needed for the loader's
+		// own response, just likely to be needed moments later).
+		if (pr) {
+			queryClient
+				.ensureQueryData(
+					pullRequestDiffQueryOptions({
+						repoId: pr.repoId,
+						sourceBranch: pr.sourceBranch,
+						targetBranch: pr.targetBranch,
+						autoRefresh: !!repo?.autoRefreshPrDiffs,
+					}),
+				)
 				.catch(() => {});
 		}
 	},
