@@ -17,7 +17,8 @@
 			"!**/.claude/**/*",
 			"!**/plans/**/*",
 			"!**/playwright-report/**/*",
-			"!**/test-results/**/*"
+			"!**/test-results/**/*",
+			"!**/coverage/**/*"
 		]
 	},
 	"formatter": {

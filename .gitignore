@@ -23,6 +23,7 @@ todos.json
 # test artifacts
 test-results/
 playwright-report/
+coverage/
 
 # AI agents
 .claude/
