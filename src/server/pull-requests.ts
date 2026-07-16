@@ -266,7 +266,9 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 		const repo = pr.repository;
 		const storage = getRepoStorageCoordinates(repo);
 
-		// Analyze merge first to check for conflicts
+		// Cheap pre-check: do both branches still exist? (analyzeMerge does NOT
+		// detect real content conflicts — see its doc comment in git-merge-iso.ts.
+		// Those are only discoverable by actually attempting the merge below.)
 		const analysis = await analyzeMerge(
 			storage.ownerKey,
 			repo.name,
@@ -275,9 +277,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 		);
 
 		if (!analysis.canMerge) {
-			throw new Error(
-				`Cannot merge: ${analysis.hasConflicts ? "has conflicts" : "unknown issue"}`,
-			);
+			throw new Error("Cannot merge: source or target branch no longer exists");
 		}
 
 		// Perform the merge
