@@ -78,17 +78,19 @@ function PullRequestsPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data: session } = useQuery(authSessionQueryOptions());
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [newPR, setNewPR] = useState({
-		title: "",
-		body: "",
-		baseBranch: "main",
-		headBranch: "",
-	});
-
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	// repo is prefetched by this route's loader, so it's already resolved by
+	// the time this component first renders in the normal case — but fall back
+	// to "main" if it somehow isn't, rather than leaving baseBranch empty.
+	const [newPR, setNewPR] = useState({
+		title: "",
+		body: "",
+		baseBranch: repo?.defaultBranch ?? "main",
+		headBranch: "",
+	});
 
 	const { data: pullRequests, isLoading } = useQuery({
 		...repositoryPullRequestsQueryOptions({
@@ -111,7 +113,12 @@ function PullRequestsPage() {
 				queryKey: queryKeys.pullRequestsRoot(repo.id),
 			});
 			setIsCreateOpen(false);
-			setNewPR({ title: "", body: "", baseBranch: "main", headBranch: "" });
+			setNewPR({
+				title: "",
+				body: "",
+				baseBranch: repo.defaultBranch,
+				headBranch: "",
+			});
 			toast("Pull request created", "success");
 		},
 		onError: (err: Error) => {
