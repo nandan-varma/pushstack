@@ -26,6 +26,26 @@ pnpm deploy   # currently just runs the build — actual deployment is via the V
   without accounting for every `node:*` import in `src/server/`.
 - `nitro` is pinned to an **exact** beta version (no `^`/`~` range) in
   `package.json` — deliberate, not a typo. Don't loosen it.
+- `nitro({ traceDeps: ["react*"] })` — required, not decorative. Vite/Nitro's
+  Rolldown-based SSR bundler wraps CJS-only transitive deps (e.g.
+  `use-sync-external-store`'s shim, pulled in by `@tanstack/react-store`) in
+  a CJS-interop shim, and that shim's own internal `require("react")` call
+  can't always be statically rewritten to point at the already-bundled
+  `react` module — it falls back to a real runtime `require()` via
+  `createRequire`. Without `traceDeps`, the deployed Vercel function ships
+  only the explicitly-traced files, not a full `node_modules/react`, so that
+  runtime require 404s with `Cannot find module 'react'` on **every single
+  request** — this took the entire production site down (every route hits
+  SSR) until traced back to this one line. `traceDeps` forces Nitro to
+  physically copy `react`'s package files into the function
+  bundle so the fallback require actually resolves, without needing to fix
+  the bundler's interop decision itself. If a future dependency upgrade
+  removes the CJS shim that trips this (or you see a similar
+  `Cannot find module '<pkg>'` from a `rolldown-runtime-*.mjs` stack trace,
+  routes `/__server`), the fix is the same shape: add the package to
+  `traceDeps` (or narrow it once the actual offending package is identified;
+  check the deployed function's `_ssr/ssr.mjs` for `__require("<pkg>")` call
+  sites the way this one was found).
 
 ## isomorphic-git, not a native binary
 

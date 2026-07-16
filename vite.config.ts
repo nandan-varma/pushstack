@@ -21,6 +21,19 @@ const config = defineConfig({
 		tanstackStart(),
 		nitro({
 			preset: "vercel",
+			// Some CJS-only transitive deps (e.g. use-sync-external-store's
+			// shim, pulled in by @tanstack/react-store) call `require("react")`
+			// from inside their own CJS module body. Rolldown's CJS/ESM interop
+			// can't always statically rewrite that nested require to reference
+			// the already-bundled `react` module, so it falls back to a real
+			// runtime `require()` (via createRequire in the generated
+			// rolldown-runtime chunk) — which fails in the deployed serverless
+			// function because only explicitly-traced files get shipped, not a
+			// full node_modules tree. traceDeps forces nitro to physically copy
+			// react's package files into the function bundle so that fallback
+			// require actually resolves at runtime, without needing to fix the
+			// bundler's interop decision itself.
+			traceDeps: ["react*"],
 			routeRules: {
 				// Defense-in-depth on top of MarkdownRenderer's isSafeHref/
 				// isSafeImageSrc guards (the primary control for the
