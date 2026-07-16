@@ -1,13 +1,58 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Hoisted so vi.mock factories can reference them
+const mockGitAuthAttempts = vi.hoisted(() => new Map<string, unknown>());
+
+// git-auth.ts builds its WHERE clause with the real (unmocked) drizzle-orm
+// `eq(gitAuthAttempts.key, key)` — since the mocked `gitAuthAttempts` export
+// below is a plain object (not a real Column), the raw string value passed to
+// `eq` shows up verbatim as one of the resulting SQL condition's queryChunks.
+function extractEqValue(condition: unknown): string | undefined {
+	const chunks = (condition as { queryChunks?: unknown[] } | undefined)
+		?.queryChunks;
+	return chunks?.find((chunk) => typeof chunk === "string") as
+		| string
+		| undefined;
+}
+
 const mockDb = vi.hoisted(() => ({
 	query: {
 		tokens: { findFirst: vi.fn() },
 		user: { findFirst: vi.fn() },
 		account: { findFirst: vi.fn() },
+		gitAuthAttempts: {
+			findFirst: vi.fn((args: { where: unknown }) =>
+				Promise.resolve(
+					mockGitAuthAttempts.get(extractEqValue(args.where) ?? ""),
+				),
+			),
+		},
 	},
 	update: vi.fn(),
+	insert: vi.fn(() => ({
+		values: vi.fn((row: { key: string; count: number; windowStart: Date }) => ({
+			onConflictDoUpdate: vi.fn(() => {
+				const existing = mockGitAuthAttempts.get(row.key) as
+					| { count: number; windowStart: Date }
+					| undefined;
+				const expired =
+					!existing ||
+					Date.now() - existing.windowStart.getTime() >= 5 * 60_000;
+				mockGitAuthAttempts.set(row.key, {
+					count: expired ? 1 : existing.count + 1,
+					windowStart: expired ? new Date() : existing.windowStart,
+				});
+				return Promise.resolve();
+			}),
+		})),
+	})),
+	delete: vi.fn(() => ({
+		where: vi.fn((condition: unknown) => {
+			const key = extractEqValue(condition);
+			if (key !== undefined) mockGitAuthAttempts.delete(key);
+			return Promise.resolve();
+		}),
+	})),
 }));
 
 const mockGetSession = vi.hoisted(() => vi.fn());
@@ -17,7 +62,10 @@ const mockCanWrite = vi.hoisted(() => vi.fn());
 const mockVerifyPassword = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => ({ db: mockDb }));
-vi.mock("../../db/github-schema", () => ({ tokens: {} }));
+vi.mock("../../db/github-schema", () => ({
+	tokens: {},
+	gitAuthAttempts: { key: {} },
+}));
 vi.mock("../../db/schema", () => ({ user: {}, account: {} }));
 vi.mock("../../lib/auth", () => ({
 	auth: { api: { getSession: mockGetSession } },
@@ -70,6 +118,7 @@ function reqWithCookie(authHeader?: string) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mockGitAuthAttempts.clear();
 	mockGetSession.mockResolvedValue(null);
 	mockCanRead.mockResolvedValue(false);
 	mockCanWrite.mockResolvedValue(false);

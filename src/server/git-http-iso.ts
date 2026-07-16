@@ -18,6 +18,7 @@ import type { GitAuthContext } from "./git-auth";
 import { deleteCache, invalidateCache } from "./git-cache";
 import { GitAuthorizationError } from "./git-errors";
 import { detectLooseObjectsHint, r2Backend } from "./git-r2-backend";
+import { isSafeFullRefName } from "./git-ref-name";
 import { withReceivePackLock } from "./git-repo-storage";
 import {
 	getRepoGitStoragePrefix,
@@ -45,6 +46,12 @@ function pktLineBuffer(body: Buffer): Buffer {
 }
 
 const FLUSH = Buffer.from("0000");
+
+// Applied to every push ref-update command's client-supplied refName
+// *before* it reaches git.resolveRef/deleteRef/writeRef below — see
+// isSafeFullRefName's own comment in git-ref-name.ts for why this can't be
+// skipped even though git.writeRef validates internally.
+const isSafeReceivePackRefName = isSafeFullRefName;
 
 // Per the git protocol, once side-band-64k has been negotiated (see the
 // "side-band-64k" capability advertised in handleInfoRefsIso), packfile bytes
@@ -904,6 +911,16 @@ async function handleReceivePackIsoInner(
 			const results = await perfStep("apply ref updates", () =>
 				Promise.all(
 					refUpdates.map(async ({ oldOid, newOid, refName }) => {
+						// Reject before any filesystem call reads or writes through
+						// this refName — see isSafeReceivePackRefName's comment.
+						if (!isSafeReceivePackRefName(refName)) {
+							return {
+								refName,
+								ok: false,
+								reason: "invalid ref name",
+							};
+						}
+
 						const currentOid = await git
 							.resolveRef({ fs, gitdir: localGitdir, ref: refName })
 							.catch(() => ZERO_OID);

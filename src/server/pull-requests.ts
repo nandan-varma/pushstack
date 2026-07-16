@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { activities, pullRequests } from "../db/github-schema";
 import { analyzeMerge, mergeBranches } from "./git-merge-iso";
+import { safeBranchNameSchema } from "./git-ref-name";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
 import { perfContext, perfStep } from "./perf-log";
 import {
@@ -25,8 +26,8 @@ export const createPullRequest = createServerFn({ method: "POST" })
 				repoId: z.number(),
 				title: z.string().min(1),
 				body: z.string().optional(),
-				sourceBranchName: z.string(),
-				targetBranchName: z.string(),
+				sourceBranchName: safeBranchNameSchema,
+				targetBranchName: safeBranchNameSchema,
 			})
 			.parse(data),
 	)

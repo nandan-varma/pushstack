@@ -344,6 +344,20 @@ export const tokens = pgTable(
 	}),
 );
 
+// Backs git-auth.ts's password-auth rate limiter. Deliberately not an
+// in-memory Map: the git HTTP endpoint can be served by multiple concurrent
+// (or frequently cold-starting) serverless instances, each with its own
+// process memory — an in-memory counter never accumulates a shared view of
+// failed attempts across them, which defeats the lockout it's meant to
+// enforce. Keyed by the attempted username/email (case-insensitive), same as
+// before; `key` is the primary key so recordFailedPasswordAttempt can upsert
+// atomically instead of racing a separate read-then-write.
+export const gitAuthAttempts = pgTable("git_auth_attempts", {
+	key: text("key").primaryKey(),
+	count: integer("count").notNull().default(1),
+	windowStart: timestamp("window_start").notNull().defaultNow(),
+});
+
 // Git transactions table - tracks pending/abandoned transactions for cleanup
 export const gitTransactions = pgTable(
 	"git_transactions",

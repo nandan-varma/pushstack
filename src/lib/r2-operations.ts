@@ -1,4 +1,5 @@
 import {
+	CopyObjectCommand,
 	DeleteObjectCommand,
 	DeleteObjectsCommand,
 	GetObjectCommand,
@@ -423,6 +424,68 @@ export async function bulkUploadToR2(
 		}
 		return {
 			key: uploads[index].key,
+			success: false,
+			error:
+				result.reason instanceof Error
+					? result.reason.message
+					: "Unknown error",
+		};
+	});
+}
+
+/**
+ * Server-side copy of a single object within the same bucket (no download/upload
+ * round trip). Each path segment of the source key is percent-encoded individually
+ * (S3's CopySource format) so a key can't be misparsed at a "/" that isn't a real
+ * path separator.
+ */
+export async function copyR2Object(
+	sourceKey: string,
+	destKey: string,
+): Promise<{ key: string }> {
+	return perfR2(`R2 COPY ${sourceKey} -> ${destKey}`, () =>
+		withRetry(async () => {
+			const client = getR2Client();
+			const { bucketName } = getR2Config();
+			const copySource = `${bucketName}/${sourceKey
+				.split("/")
+				.map(encodeURIComponent)
+				.join("/")}`;
+
+			try {
+				await client.send(
+					new CopyObjectCommand({
+						Bucket: bucketName,
+						CopySource: copySource,
+						Key: destKey,
+					}),
+				);
+				return { key: destKey };
+			} catch (error) {
+				throw new R2UploadError(
+					`Failed to copy ${sourceKey} to ${destKey}: ${error instanceof Error ? error.message : "Unknown error"}`,
+				);
+			}
+		}, `Copy ${sourceKey} to ${destKey}`),
+	);
+}
+
+/**
+ * Bulk server-side copy of multiple objects within the same bucket.
+ */
+export async function bulkCopyInR2(
+	copies: Array<{ from: string; to: string }>,
+): Promise<Array<{ key: string; success: boolean; error?: string }>> {
+	const results = await Promise.allSettled(
+		copies.map(({ from, to }) => copyR2Object(from, to)),
+	);
+
+	return results.map((result, index) => {
+		if (result.status === "fulfilled") {
+			return { key: copies[index].to, success: true };
+		}
+		return {
+			key: copies[index].to,
 			success: false,
 			error:
 				result.reason instanceof Error

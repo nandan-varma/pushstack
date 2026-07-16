@@ -8,6 +8,7 @@ import { db } from "#/db";
 import { repositories } from "#/db/github-schema";
 import { isR2Configured } from "#/lib/r2";
 import {
+	bulkCopyInR2,
 	bulkDeleteFromR2,
 	bulkUploadToR2,
 	downloadFromR2,
@@ -430,6 +431,72 @@ export async function deleteRepositoryFromR2(
 	}
 
 	repoState.delete(getRepoKey(ownerKey, repoName));
+}
+
+// Moves a repository's actual git storage (R2 objects, or the local hydration
+// directory) from its old name to its new one. Every git storage path in this
+// app (getRepoGitStorageRoot/getRepoPath) is derived from the repository's
+// *current* `name` column read fresh from the DB — renaming the DB row alone,
+// without this, orphans all existing commits/branches/objects under the old
+// name's storage prefix forever, while the new name resolves to nothing and
+// silently gets initialized as a brand-new empty repo on next access.
+//
+// Callers must hold `withRepositoryLock(ownerKey, oldRepoName, ...)` around
+// both this call and the DB row update that follows it — this function does
+// not lock internally, so a rename that renamed storage but crashed before
+// committing the DB row (or a concurrent hydrate racing the in-flight rename)
+// can't observe a half-moved state.
+export async function renameRepositoryStorage(
+	ownerKey: string,
+	oldRepoName: string,
+	newRepoName: string,
+): Promise<void> {
+	if (isR2Configured()) {
+		const oldPrefix = getRepoGitStoragePrefix(ownerKey, oldRepoName);
+		const newPrefix = getRepoGitStoragePrefix(ownerKey, newRepoName);
+		const files = await listAllR2Files(oldPrefix);
+
+		if (files.length > 0) {
+			const copies = files.map((file) => ({
+				from: file.key,
+				to: `${newPrefix}${file.key.slice(oldPrefix.length)}`,
+			}));
+			const copyResults = await bulkCopyInR2(copies);
+			const failed = copyResults.filter((result) => !result.success);
+			if (failed.length > 0) {
+				throw new Error(
+					`Failed to copy ${failed.length} object(s) while renaming repository storage from ` +
+						`${oldRepoName} to ${newRepoName} — aborting rename, old storage left untouched`,
+				);
+			}
+			await bulkDeleteFromR2(files.map((f) => f.key));
+		}
+	} else {
+		const oldPath = getRepoPath(ownerKey, oldRepoName);
+		const newPath = getRepoPath(ownerKey, newRepoName);
+		try {
+			await fs.mkdir(path.dirname(newPath), { recursive: true });
+			await fs.rename(oldPath, newPath);
+		} catch (err) {
+			// Nothing hydrated locally yet under the old name (e.g. R2 was
+			// configured until now, or this repo was never read/written on this
+			// instance) — nothing to move.
+			if ((err as { code?: string }).code !== "ENOENT") throw err;
+		}
+	}
+
+	const oldRepoKey = getRepoKey(ownerKey, oldRepoName);
+	const newRepoKey = getRepoKey(ownerKey, newRepoName);
+	repoState.delete(oldRepoKey);
+	repoState.delete(newRepoKey);
+	r2ListCache.delete(getRepoGitStoragePrefix(ownerKey, oldRepoName));
+	r2ListCache.delete(getRepoGitStoragePrefix(ownerKey, newRepoName));
+	invalidateCache(`dir:${ownerKey}/${oldRepoName}/`);
+	invalidateCache(`dir:${ownerKey}/${newRepoName}/`);
+	invalidateCache(`${ownerKey}/${oldRepoName}/`);
+	invalidateObjectCache(`${ownerKey}/${oldRepoName}/`);
+	invalidateRepoGitCache(ownerKey, oldRepoName);
+	invalidateRepoGitCache(ownerKey, newRepoName);
 }
 
 async function syncRepositoryToR2Unlocked(

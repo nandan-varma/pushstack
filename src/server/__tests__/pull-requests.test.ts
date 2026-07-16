@@ -143,6 +143,51 @@ describe("createPullRequest", () => {
 		expect(result.title).toBe("Test PR");
 		expect(mockDb.insert).toHaveBeenCalledTimes(2); // pr + activity
 	});
+
+	// A PR's source/target branch is stored once here and reused, unvalidated
+	// at read time, by every later merge attempt (git-merge-iso.ts's
+	// mergeBranches/analyzeMerge don't self-validate ref names the way
+	// git.branch does) — rejecting a path-traversal branch name at creation
+	// time is the only chance to stop it before it's persisted.
+	it.each([
+		"../../other-owner/other-repo/git/refs/heads/main",
+		"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
+		"refs/heads/main",
+		"..",
+	])("rejects a path-traversal sourceBranchName %s", async (branchName) => {
+		const { createPullRequest } = await import("../pull-requests");
+
+		await expect(
+			createPullRequest({
+				data: {
+					repoId: 1,
+					title: "PR",
+					sourceBranchName: branchName,
+					targetBranchName: "main",
+				},
+			}),
+		).rejects.toThrow();
+		expect(mockDb.insert).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"../../other-owner/other-repo/git/refs/heads/main",
+		"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
+	])("rejects a path-traversal targetBranchName %s", async (branchName) => {
+		const { createPullRequest } = await import("../pull-requests");
+
+		await expect(
+			createPullRequest({
+				data: {
+					repoId: 1,
+					title: "PR",
+					sourceBranchName: "feature",
+					targetBranchName: branchName,
+				},
+			}),
+		).rejects.toThrow();
+		expect(mockDb.insert).not.toHaveBeenCalled();
+	});
 });
 
 describe("getPullRequest", () => {

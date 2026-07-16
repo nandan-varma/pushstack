@@ -10,7 +10,11 @@ import {
 } from "../db/github-schema";
 import { user } from "../db/schema";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
-import { deleteRepositoryFromR2 } from "./git-repo-storage";
+import {
+	deleteRepositoryFromR2,
+	renameRepositoryStorage,
+	withRepositoryLock,
+} from "./git-repo-storage";
 import { getStorageOwnerKey } from "./git-storage-naming";
 import { logError, perfContext, perfStep } from "./perf-log";
 import {
@@ -376,28 +380,66 @@ export const updateRepository = createServerFn({ method: "POST" })
 			throw new Error("Only repository owner can update");
 		}
 
-		const [updated] = await db
-			.update(repositories)
-			.set({
-				...(data.name && { name: data.name }),
-				...(data.description !== undefined && {
-					description: data.description,
-				}),
-				...(data.visibility && { visibility: data.visibility }),
-				...(data.showLastCommitColumn !== undefined && {
-					showLastCommitColumn: data.showLastCommitColumn,
-				}),
-				...(data.autoRefreshPrDiffs !== undefined && {
-					autoRefreshPrDiffs: data.autoRefreshPrDiffs,
-				}),
-				updatedAt: new Date(),
-			})
-			.where(eq(repositories.id, data.id))
-			.returning();
+		const isRename = !!data.name && data.name !== repo.name;
 
-		// Invalidate under the pre-update name — a rename/visibility change would
-		// otherwise keep resolving to the stale row for up to REPO_ROW_CACHE_TTL_MS.
+		if (isRename) {
+			const existing = await db.query.repositories.findFirst({
+				where: and(
+					eq(repositories.ownerId, user.id),
+					eq(repositories.name, data.name as string),
+				),
+			});
+			if (existing) {
+				throw new Error("Repository with this name already exists");
+			}
+		}
+
+		const applyUpdate = () =>
+			db
+				.update(repositories)
+				.set({
+					...(data.name && { name: data.name }),
+					...(data.description !== undefined && {
+						description: data.description,
+					}),
+					...(data.visibility && { visibility: data.visibility }),
+					...(data.showLastCommitColumn !== undefined && {
+						showLastCommitColumn: data.showLastCommitColumn,
+					}),
+					...(data.autoRefreshPrDiffs !== undefined && {
+						autoRefreshPrDiffs: data.autoRefreshPrDiffs,
+					}),
+					updatedAt: new Date(),
+				})
+				.where(eq(repositories.id, data.id))
+				.returning();
+
+		let updated: typeof repositories.$inferSelect;
+		if (isRename) {
+			// Storage (R2 objects / local hydration dir) is keyed by the repo's
+			// current name — move it to the new name before the DB row itself
+			// changes, all under the same repo lock a concurrent hydrate/push
+			// would also wait on, so nothing can observe a half-renamed state.
+			const ownerKey = getStorageOwnerKey({
+				id: repo.owner.id,
+				username: repo.owner.username,
+				email: repo.owner.email,
+			});
+			[updated] = await withRepositoryLock(ownerKey, repo.name, async () => {
+				await renameRepositoryStorage(ownerKey, repo.name, data.name as string);
+				return applyUpdate();
+			});
+		} else {
+			[updated] = await applyUpdate();
+		}
+
+		// Invalidate under both the pre- and post-update name — a rename/visibility
+		// change would otherwise keep resolving to the stale row for up to
+		// REPO_ROW_CACHE_TTL_MS.
 		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
+		if (isRename) {
+			invalidateRepoRowCache(repo.owner.username ?? "", data.name as string);
+		}
 
 		return updated;
 	});
