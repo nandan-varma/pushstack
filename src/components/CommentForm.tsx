@@ -17,11 +17,15 @@ export function CommentForm({
 }) {
 	return (
 		<Card className="p-6">
-			<h3 className="text-lg font-semibold text-[var(--sea-ink)] mb-4">
+			<h3
+				id="comment-form-heading"
+				className="text-lg font-semibold text-[var(--sea-ink)] mb-4"
+			>
 				Add a Comment
 			</h3>
 			<div className="space-y-4">
 				<Textarea
+					aria-labelledby="comment-form-heading"
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
 					placeholder="Write your comment here... (Markdown supported)"
