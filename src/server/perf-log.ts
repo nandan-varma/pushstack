@@ -102,6 +102,27 @@ export function recordCacheMiss(): void {
 	if (ctx) ctx.cacheMisses += 1;
 }
 
+/**
+ * Structured error/warning logging, sharing this module's request-scoped
+ * correlation id (the same `[perf <id>]` prefix used above) instead of each
+ * call site inventing its own ad-hoc console.error/warn with inconsistent
+ * prefixing. `scope` is the module/subsystem name (e.g. "git-auth"); when
+ * called from inside an active perfContext, the log line carries that
+ * request's id for free — when not (many auth/protocol call sites aren't
+ * wrapped in perfContext), it still gets a consistent `[scope] message`
+ * shape rather than no prefix at all.
+ */
+export function logError(scope: string, message: string, err: unknown): void {
+	const detail = err instanceof Error ? err.message : String(err);
+	console.error(`${prefix(als.getStore())} [${scope}] ${message}: ${detail}`);
+}
+
+export function logWarn(scope: string, message: string, err?: unknown): void {
+	const detail =
+		err === undefined ? "" : `: ${err instanceof Error ? err.message : err}`;
+	console.warn(`${prefix(als.getStore())} [${scope}] ${message}${detail}`);
+}
+
 /** For R2 helper functions that run both inside and outside a perfContext (e.g. writes). */
 export async function perfR2<T>(
 	step: string,

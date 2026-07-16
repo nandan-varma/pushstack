@@ -10,6 +10,7 @@ import {
 	withRepositoryLock,
 	withRepositoryWorktree,
 } from "./git-repo-storage";
+import { logError } from "./perf-log";
 
 export interface MergeAnalysis {
 	canMerge: boolean;
@@ -183,7 +184,7 @@ export async function mergeBranches(
 		// conflicts detected" too — which hid the actual failure from both the
 		// user (misleading message) and the logs (nothing printed at all). Log
 		// it and let it propagate as a real error instead of a fake conflict.
-		console.error("[git-merge] mergeBranches failed unexpectedly:", error);
+		logError("git-merge", "mergeBranches failed unexpectedly", error);
 		throw error;
 	}
 }

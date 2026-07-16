@@ -12,6 +12,7 @@ import {
 	GitRateLimitError,
 	GitRepositoryNotFoundError,
 } from "./git-errors";
+import { logError } from "./perf-log";
 import { canReadRepo, canWriteRepo } from "./repo-access";
 import { findRepositoryByName } from "./repositories";
 
@@ -162,7 +163,7 @@ async function authenticateUser(
 			}
 		} catch (err) {
 			// Unexpected error (DB down, misconfiguration) — log it so it's not invisible
-			console.error("[git-auth] session auth error:", err);
+			logError("git-auth", "session auth error", err);
 		}
 	}
 
@@ -248,7 +249,7 @@ async function authenticateWithPassword(
 			name: foundUser.name,
 		};
 	} catch (error) {
-		console.error("Password auth error:", error);
+		logError("git-auth", "Password auth error", error);
 		return null;
 	}
 }
@@ -302,7 +303,7 @@ async function authenticateToken(
 				: [],
 		};
 	} catch (error) {
-		console.error("Token auth error:", error);
+		logError("git-auth", "Token auth error", error);
 		return null;
 	}
 }
