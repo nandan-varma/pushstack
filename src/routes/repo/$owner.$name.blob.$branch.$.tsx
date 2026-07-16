@@ -2,25 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check, Copy, ExternalLink, GitCommitHorizontal } from "lucide-react";
 import { lazy, Suspense } from "react";
-import { BinaryPreview } from "@/components/BinaryPreview";
 import {
 	FileCommitBanner,
 	FileHistoryList,
 } from "@/components/FileHistoryPanel";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
+import { FilePreview } from "@/components/repo/FilePreview";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
-import {
-	detectLanguage,
-	formatFileSize,
-	getMimeType,
-	getPreviewKind,
-} from "@/lib/language-detection";
+import { getPreviewMode } from "@/lib/file-preview";
+import { detectLanguage, formatFileSize } from "@/lib/language-detection";
 import {
 	repositoryByNameQueryOptions,
 	repositoryFileHistoryQueryOptions,
@@ -118,7 +114,7 @@ function FileBlobPage() {
 
 	const language = detectLanguage(filePath);
 	const isBinary = file.isBinary;
-	const previewKind = isBinary ? getPreviewKind(filePath) : null;
+	const previewMode = getPreviewMode(filePath, isBinary);
 	const fileContent = !file.content
 		? ""
 		: file.isBinary
@@ -247,24 +243,36 @@ function FileBlobPage() {
 				/>
 			)}
 
-			<Tabs defaultValue="code">
+			<Tabs defaultValue={previewMode ? "preview" : "code"}>
 				<TabsList>
+					{previewMode && <TabsTrigger value="preview">Preview</TabsTrigger>}
 					<TabsTrigger value="code">Code</TabsTrigger>
 					<TabsTrigger value="history">History</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="code" className="space-y-4">
-					{/* File Content */}
-					{isBinary && previewKind ? (
-						<Card className="overflow-hidden p-0">
-							<BinaryPreview
-								data={file.content}
-								mimeType={getMimeType(filePath)}
-								previewKind={previewKind}
-								fileName={filePath}
+				{previewMode && (
+					<TabsContent value="preview">
+						<Card
+							className={
+								previewMode === "binary" ? "overflow-hidden p-0" : "p-6"
+							}
+						>
+							<FilePreview
+								filePath={filePath}
+								content={file.content}
+								isBinary={isBinary}
+								owner={owner}
+								name={name}
+								branch={branch}
+								repoId={repo?.id}
 							/>
 						</Card>
-					) : isBinary ? (
+					</TabsContent>
+				)}
+
+				<TabsContent value="code" className="space-y-4">
+					{/* File Content */}
+					{isBinary ? (
 						<Card className="p-8 text-center">
 							<p className="text-[var(--sea-ink-soft)]">
 								This file is binary and cannot be displayed.

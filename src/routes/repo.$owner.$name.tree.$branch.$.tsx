@@ -5,11 +5,11 @@ import {
 	Link,
 	useNavigate,
 } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
+import { findReadmeFile, ReadmeCard } from "@/components/repo/ReadmeCard";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
 import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
-import { FileIcon } from "@/components/repo/tree/FileIcon";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { perfMark, perfTime } from "@/lib/perf-log";
 import {
 	repositoryBranchesQueryOptions,
@@ -31,14 +30,6 @@ import {
 	repositoryLatestCommitQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-
-// The tree page is the most-visited route in the app (repo home / file
-// browser) and loads for every repo regardless of whether it has a README —
-// lazy-load react-markdown/remark-gfm/rehype-highlight out of its critical
-// bundle instead of paying for them on every visit, matching how the blob
-// page already lazy-loads CodeViewer and CommentCard already lazy-loads this
-// same component.
-const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	const isPathNotFound =
@@ -127,9 +118,7 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 					// (fire-and-forget — don't block the loader/response on it) so it's
 					// likely already resolved in the query cache by the time the component
 					// mounts and asks for it.
-					const readmeFile = files?.find(
-						(f) => f.type === "blob" && /^readme\.md$/i.test(f.path),
-					);
+					const readmeFile = findReadmeFile(files);
 					if (readmeFile) {
 						queryClient
 							.ensureQueryData(
@@ -218,19 +207,7 @@ function TreeBrowserPage() {
 		});
 	}, [files]);
 
-	const readmeFile = useMemo(
-		() => files?.find((f) => f.type === "blob" && /^readme\.md$/i.test(f.path)),
-		[files],
-	);
-
-	const { data: readmeContent } = useQuery({
-		...repositoryFileQueryOptions({
-			repoId: repo?.id ?? 0,
-			branchName: activeBranch,
-			path: readmeFile?.path ?? "",
-		}),
-		enabled: !!repo && !!readmeFile,
-	});
+	const readmeFile = useMemo(() => findReadmeFile(files), [files]);
 
 	const handleBranchChange = useCallback(
 		(value: string) => {
@@ -346,27 +323,13 @@ function TreeBrowserPage() {
 				lastCommitsLoading={lastCommitsLoading}
 			/>
 
-			{readmeContent && !readmeContent.isBinary && (
-				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
-					<div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2.5">
-						<FileIcon />
-						<span className="text-sm font-medium text-[var(--sea-ink)]">
-							{readmeFile?.path}
-						</span>
-					</div>
-					<div className="p-6">
-						<Suspense fallback={<Skeleton className="h-40" />}>
-							<MarkdownRenderer
-								content={readmeContent.content}
-								owner={owner}
-								name={name}
-								branch={activeBranch}
-								repoId={repo?.id}
-							/>
-						</Suspense>
-					</div>
-				</div>
-			)}
+			<ReadmeCard
+				owner={owner}
+				name={name}
+				branch={activeBranch}
+				repoId={repo?.id}
+				readmeFile={readmeFile}
+			/>
 		</div>
 	);
 }
