@@ -5,7 +5,7 @@ import { db } from "../db";
 import { activities, issues, repositories, user } from "../db/schema";
 import { perfContext, perfStep } from "./perf-log";
 import { canReadRepo } from "./repo-access";
-import { getCurrentUser, getCurrentUserOptional } from "./session";
+import { getCurrentUserOptional } from "./session";
 
 type UserSearchResult = {
 	id: string;
@@ -140,11 +140,17 @@ export const getUserActivity = createServerFn({ method: "GET" })
 	)
 	.handler(async ({ data }) =>
 		perfContext(`getUserActivity user=${data.userId ?? "self"}`, async () => {
-			const currentUser = await perfStep("getCurrentUser", () =>
-				getCurrentUser(),
+			// Another user's public activity is anonymous-readable (same model as
+			// the rest of this module) — only the "default to my own feed" case
+			// still needs a signed-in user.
+			const currentUser = await perfStep("getCurrentUserOptional", () =>
+				getCurrentUserOptional(),
 			);
-			const targetUserId = data.userId || currentUser.id;
-			const isOwnActivity = targetUserId === currentUser.id;
+			const targetUserId = data.userId || currentUser?.id;
+			if (!targetUserId) {
+				throw new Error("Authentication required");
+			}
+			const isOwnActivity = targetUserId === currentUser?.id;
 
 			// ponytail: filtering to public repos in JS *after* the DB applied `limit`
 			// meant a page of recent-but-private activity could return far fewer rows
@@ -166,7 +172,10 @@ export const getUserActivity = createServerFn({ method: "GET" })
 							),
 					with: {
 						user: true,
-						repository: true,
+						// describeActivity builds every activity link from
+						// repository.owner.username — `repository: true` alone leaves
+						// owner undefined, so every link pointed at /repo/unknown/…
+						repository: { with: { owner: true } },
 					},
 					orderBy: [desc(activities.createdAt)],
 					limit: data.limit,
@@ -234,7 +243,8 @@ export const getGlobalActivity = createServerFn({ method: "GET" })
 			),
 			with: {
 				user: true,
-				repository: true,
+				// Same owner-relation requirement as getUserActivity above.
+				repository: { with: { owner: true } },
 			},
 			orderBy: [desc(activities.createdAt)],
 			limit: data.limit,

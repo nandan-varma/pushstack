@@ -10,12 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as RepositoriesRouteImport } from './routes/repositories'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
+import { Route as UsersUsernameRouteImport } from './routes/users.$username'
 import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
@@ -41,6 +43,11 @@ import { Route as RepoOwnerNameBlobBranchSplatRouteImport } from './routes/repo/
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RepositoriesRoute = RepositoriesRouteImport.update({
@@ -72,6 +79,11 @@ const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => RepositoriesRoute,
+} as any)
+const UsersUsernameRoute = UsersUsernameRouteImport.update({
+  id: '/users/$username',
+  path: '/users/$username',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RepositoriesNewRoute = RepositoriesNewRouteImport.update({
   id: '/new',
@@ -188,12 +200,14 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/repositories/new': typeof RepositoriesNewRoute
+  '/users/$username': typeof UsersUsernameRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
@@ -217,12 +231,14 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/repositories/new': typeof RepositoriesNewRoute
+  '/users/$username': typeof UsersUsernameRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
@@ -247,12 +263,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/repositories': typeof RepositoriesRouteWithChildren
+  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/repositories/new': typeof RepositoriesNewRoute
+  '/users/$username': typeof UsersUsernameRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
@@ -279,12 +297,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/search'
     | '/settings'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/auth/reset-password'
     | '/repositories/new'
+    | '/users/$username'
     | '/repositories/'
     | '/api/auth/$'
     | '/api/git/$'
@@ -308,12 +328,14 @@ export interface FileRouteTypes {
     | '/about'
     | '/auth'
     | '/dashboard'
+    | '/search'
     | '/settings'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/auth/reset-password'
     | '/repositories/new'
+    | '/users/$username'
     | '/repositories'
     | '/api/auth/$'
     | '/api/git/$'
@@ -337,12 +359,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/dashboard'
     | '/repositories'
+    | '/search'
     | '/settings'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
     | '/auth/reset-password'
     | '/repositories/new'
+    | '/users/$username'
     | '/repositories/'
     | '/api/auth/$'
     | '/api/git/$'
@@ -368,7 +392,9 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   RepositoriesRoute: typeof RepositoriesRouteWithChildren
+  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  UsersUsernameRoute: typeof UsersUsernameRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiGitSplatRoute: typeof ApiGitSplatRoute
   ApiRawSplatRoute: typeof ApiRawSplatRoute
@@ -382,6 +408,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repositories': {
@@ -425,6 +458,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/repositories/'
       preLoaderRoute: typeof RepositoriesIndexRouteImport
       parentRoute: typeof RepositoriesRoute
+    }
+    '/users/$username': {
+      id: '/users/$username'
+      path: '/users/$username'
+      fullPath: '/users/$username'
+      preLoaderRoute: typeof UsersUsernameRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/repositories/new': {
       id: '/repositories/new'
@@ -664,7 +704,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   DashboardRoute: DashboardRoute,
   RepositoriesRoute: RepositoriesRouteWithChildren,
+  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  UsersUsernameRoute: UsersUsernameRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiGitSplatRoute: ApiGitSplatRoute,
   ApiRawSplatRoute: ApiRawSplatRoute,

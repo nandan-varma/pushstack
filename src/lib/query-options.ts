@@ -24,7 +24,12 @@ import {
 	getRepositoryByName,
 	getUserRepositories,
 } from "@/server/repositories";
-import { getUserActivity } from "@/server/search";
+import {
+	getUserActivity,
+	searchRepositories,
+	searchUsers,
+} from "@/server/search";
+import { getUserProfile } from "@/server/users";
 
 export const queryKeys = {
 	authSession: ["auth", "session"] as const,
@@ -35,6 +40,10 @@ export const queryKeys = {
 		["repositories", "by-name", owner, name] as const,
 	userActivity: (userId: string | undefined, limit: number) =>
 		["activity", "user", userId ?? "self", limit] as const,
+	userProfile: (username: string) => ["users", "profile", username] as const,
+	searchRepositories: (query: string) =>
+		["search", "repositories", query] as const,
+	searchUsers: (query: string) => ["search", "users", query] as const,
 	repoBranches: (repoId: number) => ["repos", repoId, "branches"] as const,
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
 	repoFiles: (repoId: number, branchName: string, path = "") =>
@@ -136,6 +145,44 @@ export function userActivityQueryOptions({
 		queryFn: () =>
 			getUserActivity({ data: { ...(userId ? { userId } : {}), limit } }),
 		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function userProfileQueryOptions(username: string) {
+	return queryOptions({
+		queryKey: queryKeys.userProfile(username),
+		queryFn: () =>
+			perfTime(`query userProfile ${username}`, () =>
+				getUserProfile({ data: { username } }),
+			),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+// Search-as-you-navigate results are keyed by the exact query string; a short
+// staleTime keeps back/forward between result pages instant without holding
+// stale hits for long.
+const SEARCH_STALE_TIME = 60_000;
+
+export function searchRepositoriesQueryOptions(query: string) {
+	return queryOptions({
+		queryKey: queryKeys.searchRepositories(query),
+		queryFn: () =>
+			perfTime(`query searchRepositories "${query}"`, () =>
+				searchRepositories({ data: { query } }),
+			),
+		staleTime: SEARCH_STALE_TIME,
+	});
+}
+
+export function searchUsersQueryOptions(query: string) {
+	return queryOptions({
+		queryKey: queryKeys.searchUsers(query),
+		queryFn: () =>
+			perfTime(`query searchUsers "${query}"`, () =>
+				searchUsers({ data: { query } }),
+			),
+		staleTime: SEARCH_STALE_TIME,
 	});
 }
 
