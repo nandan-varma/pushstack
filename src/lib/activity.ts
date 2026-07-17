@@ -1,7 +1,10 @@
 export function describeActivity(activity: {
 	type: string;
 	metadata: unknown;
-	repository?: { name: string; owner?: { username?: string } | null } | null;
+	repository?: {
+		name: string;
+		owner?: { username?: string | null } | null;
+	} | null;
 	id: number;
 }): {
 	text: string;

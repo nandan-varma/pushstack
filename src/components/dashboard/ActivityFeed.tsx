@@ -9,7 +9,10 @@ interface Activity {
 	type: string;
 	metadata: unknown;
 	createdAt: string | Date;
-	repository?: { name: string; owner?: { username?: string } | null } | null;
+	repository?: {
+		name: string;
+		owner?: { username?: string | null } | null;
+	} | null;
 }
 
 export function ActivityFeed({

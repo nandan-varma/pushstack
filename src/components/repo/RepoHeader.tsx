@@ -82,7 +82,8 @@ export function RepoHeader({
 			<div>
 				<div className="flex flex-wrap items-center gap-1.5 text-sm">
 					<Link
-						to="/repositories"
+						to="/users/$username"
+						params={{ username: owner }}
 						className="font-medium text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
 					>
 						{owner}
