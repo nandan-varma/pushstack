@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import nodeFs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockIsR2Configured = vi.hoisted(() => vi.fn(() => true));
 const mockWithRepositoryWorktree = vi.hoisted(() => vi.fn());
@@ -7,14 +10,23 @@ vi.mock("#/lib/r2", () => ({
 	isR2Configured: mockIsR2Configured,
 }));
 
-vi.mock("isomorphic-git", () => ({
-	default: {
-		resolveRef: vi.fn(),
-		isDescendent: vi.fn(),
-		writeRef: vi.fn(),
-		merge: vi.fn(),
-	},
-}));
+// Mock only the functions git-merge-iso.ts calls, but keep the real `Errors`
+// namespace — mergeBranches's conflict handling checks
+// `instanceof Errors.MergeConflictError`, so the test needs the actual class
+// isomorphic-git's own `git.merge` throws, not a stand-in.
+vi.mock("isomorphic-git", async () => {
+	const actual =
+		await vi.importActual<typeof import("isomorphic-git")>("isomorphic-git");
+	return {
+		default: {
+			resolveRef: vi.fn(),
+			isDescendent: vi.fn(),
+			writeRef: vi.fn(),
+			merge: vi.fn(),
+		},
+		Errors: actual.Errors,
+	};
+});
 
 vi.mock("../git-manager-iso", () => ({
 	getBareRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
@@ -42,12 +54,6 @@ vi.mock("../perf-log", () => ({
 	perfNote: vi.fn(),
 	perfStep: vi.fn((_label: string, fn: () => Promise<unknown>) => fn()),
 }));
-
-function notFoundError(message = "not found") {
-	const err = new Error(message);
-	(err as { code?: string }).code = "NotFoundError";
-	return err;
-}
 
 describe("branch name guard", () => {
 	beforeEach(() => {
@@ -104,16 +110,90 @@ describe("branch name guard", () => {
 	});
 });
 
+// analyzeMerge delegates to @nandan-varma/git-edge's own analyzeMerge, which
+// — under pnpm's isolated node_modules layout — resolves its own internal
+// "isomorphic-git" import outside this file's `vi.mock("isomorphic-git")`
+// interception (confirmed empirically: mocking it here doesn't reach
+// git-edge's copy). So these tests exercise analyzeMerge against a real
+// temporary bare repo instead of mocking isomorphic-git — git-edge has its
+// own unit tests for analyzeMerge's own logic (including the
+// NotFoundError-vs-everything-else distinction); these confirm pushstack's
+// wrapper wires branch qualification and the MergeAnalysis shape correctly
+// end-to-end.
 describe("analyzeMerge", () => {
-	beforeEach(() => {
+	let tmpDir: string;
+	let realGit: typeof import("isomorphic-git").default;
+
+	const author = {
+		name: "Test",
+		email: "test@example.com",
+		timestamp: 1000000000,
+		timezoneOffset: 0,
+	};
+
+	beforeEach(async () => {
 		vi.clearAllMocks();
+		realGit = (
+			await vi.importActual<typeof import("isomorphic-git")>("isomorphic-git")
+		).default;
+		tmpDir = nodeFs.mkdtempSync(path.join(os.tmpdir(), "git-merge-iso-test-"));
+		await realGit.init({
+			fs: nodeFs,
+			dir: tmpDir,
+			bare: true,
+			defaultBranch: "main",
+		});
+
+		const { getRepoOptions } = await import("../git-repo-storage");
+		vi.mocked(getRepoOptions).mockResolvedValue({
+			fs: nodeFs,
+			gitdir: tmpDir,
+			cache: {},
+		} as unknown as Awaited<ReturnType<typeof getRepoOptions>>);
 	});
 
+	afterEach(() => {
+		nodeFs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	async function commitTo(
+		branch: string,
+		content: string,
+		parentOid?: string,
+	): Promise<string> {
+		const blobOid = await realGit.writeBlob({
+			fs: nodeFs,
+			gitdir: tmpDir,
+			blob: new TextEncoder().encode(content),
+		});
+		const treeOid = await realGit.writeTree({
+			fs: nodeFs,
+			gitdir: tmpDir,
+			tree: [{ path: "f.txt", mode: "100644", type: "blob", oid: blobOid }],
+		});
+		const commitOid = await realGit.writeCommit({
+			fs: nodeFs,
+			gitdir: tmpDir,
+			commit: {
+				message: content,
+				tree: treeOid,
+				parent: parentOid ? [parentOid] : [],
+				author,
+				committer: author,
+			},
+		});
+		await realGit.writeRef({
+			fs: nodeFs,
+			gitdir: tmpDir,
+			ref: `refs/heads/${branch}`,
+			value: commitOid,
+			force: true,
+		});
+		return commitOid;
+	}
+
 	it("returns cannot-merge for a NotFoundError (deleted branch)", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
-			notFoundError(),
-		);
+		await commitTo("main", "main content");
 
 		const { analyzeMerge } = await import("../git-merge-iso");
 		const result = await analyzeMerge("owner", "repo", "feature", "main");
@@ -126,25 +206,17 @@ describe("analyzeMerge", () => {
 		});
 	});
 
-	it("propagates a non-NotFoundError instead of swallowing it", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
-			new Error("R2 timeout"),
-		);
-
-		const { analyzeMerge } = await import("../git-merge-iso");
-
-		await expect(
-			analyzeMerge("owner", "repo", "feature", "main"),
-		).rejects.toThrow("R2 timeout");
-	});
+	// "Propagates a non-NotFoundError instead of swallowing it" is covered by
+	// @nandan-varma/git-edge's own test suite (test/merge.test.ts), which
+	// spies on isomorphic-git's isDescendent directly — not reproducible
+	// here: git-edge resolves its own "isomorphic-git" copy under pnpm's
+	// isolated node_modules layout, a genuinely different module instance
+	// than the one this file imports, so spying/mocking it from pushstack's
+	// side never reaches git-edge's internal call.
 
 	it("returns canMerge:true with fastForward:true when source is descendant of target", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>)
-			.mockResolvedValueOnce("source-sha")
-			.mockResolvedValueOnce("target-sha");
-		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+		const mainOid = await commitTo("main", "main content");
+		await commitTo("feature", "feature content", mainOid);
 
 		const { analyzeMerge } = await import("../git-merge-iso");
 		const result = await analyzeMerge("owner", "repo", "feature", "main");
@@ -158,11 +230,9 @@ describe("analyzeMerge", () => {
 	});
 
 	it("returns canMerge:true with fastForward:false when branches diverged", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>)
-			.mockResolvedValueOnce("source-sha")
-			.mockResolvedValueOnce("target-sha");
-		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+		const mainOid = await commitTo("main", "main content");
+		await commitTo("feature", "feature content", mainOid);
+		await commitTo("main", "main content 2", mainOid);
 
 		const { analyzeMerge } = await import("../git-merge-iso");
 		const result = await analyzeMerge("owner", "repo", "feature", "main");
@@ -241,12 +311,13 @@ describe("mergeBranches non-fast-forward (worktree)", () => {
 	});
 
 	it("returns structured conflict result for MergeConflictError", async () => {
-		const conflictError = new Error("merge conflict") as Error & {
-			code: string;
-			data?: { filepaths?: string[] };
-		};
-		conflictError.code = "MergeConflictError";
-		conflictError.data = { filepaths: ["src/a.ts", "src/b.ts"] };
+		const { Errors } = await import("isomorphic-git");
+		const conflictError = new Errors.MergeConflictError(
+			["src/a.ts", "src/b.ts"],
+			[],
+			[],
+			[],
+		);
 		mockWithRepositoryWorktree.mockRejectedValue(conflictError);
 
 		const { mergeBranches } = await import("../git-merge-iso");
@@ -259,12 +330,8 @@ describe("mergeBranches non-fast-forward (worktree)", () => {
 	});
 
 	it("returns default conflict message when MergeConflictError has no filepaths", async () => {
-		const conflictError = new Error("merge conflict") as Error & {
-			code: string;
-			data?: { filepaths?: string[] };
-		};
-		conflictError.code = "MergeConflictError";
-		conflictError.data = {};
+		const { Errors } = await import("isomorphic-git");
+		const conflictError = new Errors.MergeConflictError([], [], [], []);
 		mockWithRepositoryWorktree.mockRejectedValue(conflictError);
 
 		const { mergeBranches } = await import("../git-merge-iso");

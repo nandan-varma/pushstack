@@ -2,6 +2,7 @@ import type { Dirent } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { qualifyBranchRef } from "@nandan-varma/git-fs-s3";
 import { and, eq } from "drizzle-orm";
 import git from "isomorphic-git";
 import { db } from "#/db";
@@ -308,13 +309,11 @@ export async function initRepositoryStorage(
 // skip straight to refs/heads/<name> instead of paying 3 guaranteed-failed
 // R2 round trips per resolution. Left untouched: already-qualified refs,
 // "HEAD" (its own first candidate, already optimal), and 40-char oids
-// (resolved locally by isomorphic-git with no I/O at all).
-export function qualifyBranchRef(ref: string): string {
-	if (ref.startsWith("refs/") || ref === "HEAD" || /^[0-9a-f]{40}$/.test(ref)) {
-		return ref;
-	}
-	return `refs/heads/${ref}`;
-}
+// (resolved locally by isomorphic-git with no I/O at all). Re-exported from
+// @nandan-varma/git-fs-s3's refs.ts (extracted from an earlier version of
+// this exact function) so every call site here still imports it from
+// git-repo-storage.ts.
+export { qualifyBranchRef };
 
 async function branchExists(
 	gitdir: string,
