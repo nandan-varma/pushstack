@@ -1,12 +1,18 @@
 /**
- * Real isomorphic-git integration test for repackLocal / repackRepositoryNow
- * — no mocks, actual filesystem, no native `git` binary anywhere (including
- * fixture setup). This path has no coverage from git-http-iso.test.ts (which
- * mocks isomorphic-git and node:fs entirely, so repackLocal's real read/
- * verify/pack calls never execute there — the pack-count threshold guard
- * always short-circuits first against mocked, empty fs state) — this file
- * exists specifically to exercise the real consolidation logic against real
- * fragmented packs, the exact scenario production hit.
+ * @vitest-environment node
+ *
+ * Real isomorphic-git integration test for repackRepositoryNow (delegates
+ * to @nandan-varma/git-fs-s3's repackRepository) — no mocks, actual
+ * filesystem, no native `git` binary anywhere (including fixture setup).
+ * This path has no coverage from git-http-iso.test.ts (which mocks
+ * isomorphic-git and node:fs entirely, so the real read/verify/pack calls
+ * never execute there — the pack-count threshold guard always short-circuits
+ * first against mocked, empty fs state) — this file exists specifically to
+ * exercise the real consolidation logic against real fragmented packs, the
+ * exact scenario production hit. Needs the real `node` environment (not the
+ * project default `jsdom`): repackRepository's pack compression uses
+ * `Blob.stream()` + `CompressionStream`, which jsdom's `Blob` polyfill
+ * doesn't implement.
  */
 
 import fs, { promises as nodeFs } from "node:fs";
@@ -14,7 +20,12 @@ import path from "node:path";
 import git from "isomorphic-git";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-// Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init
+// Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init.
+// DATABASE_URL is set here too: src/db/index.ts throws at import time if
+// it's unset, and under the `node` environment (see the docblock above)
+// Vite's .env.local auto-load into process.env doesn't reach this module
+// graph the way it does under the project's default jsdom environment —
+// this file never touches the database, so any well-formed value is fine.
 const TEST_DIR = vi.hoisted(() => {
 	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const os = require("node:os");
@@ -22,6 +33,7 @@ const TEST_DIR = vi.hoisted(() => {
 	const p = require("node:path");
 	const dir = p.join(os.tmpdir(), `pushstack-repack-test-${Date.now()}`);
 	process.env.GIT_REPOS_PATH = dir;
+	process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test";
 	return dir;
 });
 

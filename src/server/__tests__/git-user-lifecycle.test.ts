@@ -429,9 +429,7 @@ beforeAll(async () => {
 
 			res.writeHead(result.status, result.headers);
 			res.end(
-				Buffer.isBuffer(result.body)
-					? result.body
-					: Buffer.from(result.body as string),
+				Buffer.isBuffer(result.body) ? result.body : Buffer.from(result.body),
 			);
 		} catch (err) {
 			res

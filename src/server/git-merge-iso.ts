@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import git from "isomorphic-git";
+import { analyzeMerge as gitEdgeAnalyzeMerge } from "@nandan-varma/git-edge";
+import git, { Errors } from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { createCommit } from "./git-commit-write";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
@@ -59,39 +60,26 @@ export async function analyzeMerge(
 	assertSafeBranchName(targetBranch);
 	const repo = await getRepoOptions(ownerKey, repoName);
 
-	try {
-		const [sourceOid, targetOid] = await Promise.all([
-			git.resolveRef({ ...repo, ref: qualifyBranchRef(sourceBranch) }),
-			git.resolveRef({ ...repo, ref: qualifyBranchRef(targetBranch) }),
-		]);
+	// Delegates the resolve+ancestry check to @nandan-varma/git-edge's
+	// analyzeMerge, which already gets the NotFoundError-vs-everything-else
+	// distinction right (only a genuinely missing ref reports canMerge:
+	// false; any other failure — a corrupted object, a storage error —
+	// propagates instead of being misreported the same way).
+	const { canMerge, fastForward } = await gitEdgeAnalyzeMerge(
+		repo,
+		qualifyBranchRef(sourceBranch),
+		qualifyBranchRef(targetBranch),
+	);
 
-		const isDescendant = await git.isDescendent({
-			...repo,
-			oid: sourceOid,
-			ancestor: targetOid,
-		});
-
-		return {
-			canMerge: true,
-			hasConflicts: false,
-			conflictingFiles: [],
-			fastForward: isDescendant,
-		};
-	} catch (err) {
-		if ((err as { code?: string })?.code !== "NotFoundError") {
-			throw err;
-		}
-		// A branch ref failed to resolve — not a content conflict, just "can't
-		// merge because one side doesn't exist." hasConflicts here is a misnomer
-		// kept for MergeAnalysis's existing shape; canMerge is the field that
-		// actually matters to callers.
-		return {
-			canMerge: false,
-			hasConflicts: true,
-			conflictingFiles: [],
-			fastForward: false,
-		};
-	}
+	// hasConflicts/conflictingFiles are a misnomer kept for MergeAnalysis's
+	// existing shape — see this function's own doc comment above for what
+	// they actually mean (never a real content-conflict signal).
+	return {
+		canMerge,
+		hasConflicts: !canMerge,
+		conflictingFiles: [],
+		fastForward,
+	};
 }
 
 export async function mergeBranches(
@@ -180,19 +168,11 @@ export async function mergeBranches(
 			commitSha: commitOid,
 		};
 	} catch (error) {
-		if (
-			error &&
-			typeof error === "object" &&
-			"code" in error &&
-			(error as { code: string }).code === "MergeConflictError"
-		) {
-			const conflictError = error as {
-				data?: { filepaths?: string[] };
-			};
+		if (error instanceof Errors.MergeConflictError) {
 			return {
 				success: false,
-				conflicts: conflictError.data?.filepaths?.length
-					? conflictError.data.filepaths
+				conflicts: error.data.filepaths.length
+					? error.data.filepaths
 					: ["Merge conflicts detected"],
 			};
 		}

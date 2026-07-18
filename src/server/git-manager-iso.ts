@@ -8,6 +8,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { getRepoCache, invalidateRepoCache } from "@nandan-varma/git-edge";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { gitFs } from "./git-fs";
@@ -52,27 +53,17 @@ export function getRepoPath(ownerKey: string, repoName: string): string {
 // touch many objects (e.g. walking commit history) pay that parse cost hundreds of times over.
 // Objects are content-addressed/immutable so a long-lived per-repo cache is safe; it's cleared
 // in git-repo-storage.ts on sync so a repack (which rewrites pack files) can't leave it stale.
-const repoGitCaches = new Map<string, object>();
-
-function getRepoGitCacheKey(ownerKey: string, repoName: string): string {
-	return `${ownerKey}/${repoName}`;
-}
+// Delegated to @nandan-varma/git-edge's per-repo cache management.
 
 export function getRepoGitCache(ownerKey: string, repoName: string): object {
-	const key = getRepoGitCacheKey(ownerKey, repoName);
-	let cache = repoGitCaches.get(key);
-	if (!cache) {
-		cache = {};
-		repoGitCaches.set(key, cache);
-	}
-	return cache;
+	return getRepoCache(ownerKey, repoName);
 }
 
 export function invalidateRepoGitCache(
 	ownerKey: string,
 	repoName: string,
 ): void {
-	repoGitCaches.delete(getRepoGitCacheKey(ownerKey, repoName));
+	invalidateRepoCache(ownerKey, repoName);
 }
 
 export function getBareRepoOptions(ownerKey: string, repoName: string) {
