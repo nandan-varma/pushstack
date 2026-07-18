@@ -42,14 +42,14 @@ vi.mock("#/lib/r2-operations", () => ({
 }));
 
 vi.mock("../git-cache", () => ({
-	getCache: vi.fn(),
-	setCache: vi.fn(),
-	deleteCache: vi.fn(),
-	invalidateCache: vi.fn(),
 	getCachedObject: vi.fn(),
 	setCachedObject: vi.fn(),
 	deleteCachedObject: vi.fn(),
 	invalidateObjectCache: vi.fn(),
+}));
+
+vi.mock("../git-fs", () => ({
+	invalidateRepoGitStorage: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({
@@ -78,7 +78,8 @@ import {
 	downloadFromR2,
 	listAllR2Files,
 } from "#/lib/r2-operations";
-import { invalidateCache, invalidateObjectCache } from "../git-cache";
+import { invalidateObjectCache } from "../git-cache";
+import { invalidateRepoGitStorage } from "../git-fs";
 import {
 	ensureGitBaseDir,
 	getRepoPath,
@@ -100,7 +101,7 @@ const mockBulkUploadToR2 = vi.mocked(bulkUploadToR2);
 const mockBulkDeleteFromR2 = vi.mocked(bulkDeleteFromR2);
 const mockBulkCopyInR2 = vi.mocked(bulkCopyInR2);
 const mockDownloadFromR2 = vi.mocked(downloadFromR2);
-const mockInvalidateCache = vi.mocked(invalidateCache);
+const mockInvalidateStorage = vi.mocked(invalidateRepoGitStorage);
 const mockInvalidateObjectCache = vi.mocked(invalidateObjectCache);
 const mockInvalidateRepoGitCache = vi.mocked(invalidateRepoGitCache);
 const mockInitBareRepo = vi.mocked(initBareRepo);
@@ -436,7 +437,7 @@ describe("syncRepositoryToR2", () => {
 		await syncRepositoryToR2("o", "r");
 
 		expect(mockBulkUploadToR2).toHaveBeenCalled();
-		expect(mockInvalidateCache).toHaveBeenCalled();
+		expect(mockInvalidateStorage).toHaveBeenCalled();
 		expect(mockInvalidateObjectCache).toHaveBeenCalled();
 		expect(mockInvalidateRepoGitCache).toHaveBeenCalled();
 

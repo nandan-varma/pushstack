@@ -17,6 +17,9 @@ importers:
       '@cloudflare/vite-plugin':
         specifier: ^1.42.3
         version: 1.42.3(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(workerd@1.20260301.1)(wrangler@4.71.0)
+      '@nandan-varma/git-fs-s3':
+        specifier: ^0.1.0
+        version: 0.1.0(@aws-sdk/client-s3@3.1075.0)
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1502,6 +1505,15 @@ packages:
   '@mrleebo/prisma-ast@0.13.1':
     resolution: {integrity: sha512-XyroGQXcHrZdvmrGJvsA9KNeOOgGMg1Vg9OlheUsBOSKznLMDl+YChxbkboRHvtFYJEMRYmlV3uoo/njCw05iw==}
     engines: {node: '>=16'}
+
+  '@nandan-varma/git-fs-s3@0.1.0':
+    resolution: {integrity: sha512-fUCNujCiS+lKsJzIZ4a1jRLywH3AMkwWX/MFuSDRz1kzVoXh9SD7u9Oi0SaRjKZahRaQ1tyo7f5yjr1fmoiQzA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@aws-sdk/client-s3': '>=3.0.0'
+    peerDependenciesMeta:
+      '@aws-sdk/client-s3':
+        optional: true
 
   '@napi-rs/wasm-runtime@1.1.6':
     resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
@@ -6570,6 +6582,12 @@ snapshots:
       chevrotain: 10.5.0
       lilconfig: 2.1.0
     optional: true
+
+  '@nandan-varma/git-fs-s3@0.1.0(@aws-sdk/client-s3@3.1075.0)':
+    dependencies:
+      lru-cache: 11.5.1
+    optionalDependencies:
+      '@aws-sdk/client-s3': 3.1075.0
 
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:

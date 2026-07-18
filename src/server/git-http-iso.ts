@@ -2,7 +2,7 @@
  * Isomorphic-git HTTP backend for upload-pack and receive-pack.
  * Replaces the native-git-binary approach in git-http-backend.ts.
  *
- * upload-pack (clone/fetch): reads directly from R2 via r2Backend, no local disk.
+ * upload-pack (clone/fetch): reads directly from R2 via gitFs, no local disk.
  * receive-pack (push): writes incoming pack to /tmp gitdir, then syncs to R2.
  */
 
@@ -15,9 +15,13 @@ import zlib from "node:zlib";
 import git, { type FsClient } from "isomorphic-git";
 import { bulkDeleteFromR2 } from "#/lib/r2-operations";
 import type { GitAuthContext } from "./git-auth";
-import { deleteCache, invalidateCache } from "./git-cache";
 import { GitAuthorizationError } from "./git-errors";
-import { detectLooseObjectsHint, r2Backend } from "./git-r2-backend";
+import {
+	detectLooseObjectsHint,
+	gitFs,
+	invalidateGitStorageKeys,
+	invalidateRepoGitStorage,
+} from "./git-fs";
 import { isSafeFullRefName } from "./git-ref-name";
 import { withReceivePackLock } from "./git-repo-storage";
 import {
@@ -103,13 +107,11 @@ function parsePktLines(buf: Buffer): Array<string | null> {
 async function listAllRefs(gitdir: string, defaultBranch = "main") {
 	// Fetch branch/tag lists and HEAD in parallel
 	const [branches, tags, headOid, headSymref] = await Promise.all([
-		git.listBranches({ fs: r2Backend, gitdir }),
-		git.listTags({ fs: r2Backend, gitdir }),
-		git.resolveRef({ fs: r2Backend, gitdir, ref: "HEAD" }).catch(() => null),
+		git.listBranches({ fs: gitFs, gitdir }),
+		git.listTags({ fs: gitFs, gitdir }),
+		git.resolveRef({ fs: gitFs, gitdir, ref: "HEAD" }).catch(() => null),
 		// Wrap with Promise.resolve so a mock/stub returning undefined doesn't crash .then()
-		Promise.resolve(
-			git.currentBranch({ fs: r2Backend, gitdir, fullname: true }),
-		)
+		Promise.resolve(git.currentBranch({ fs: gitFs, gitdir, fullname: true }))
 			.then((cb) => cb ?? `refs/heads/${defaultBranch}`)
 			.catch(() => `refs/heads/${defaultBranch}`),
 	]);
@@ -120,7 +122,7 @@ async function listAllRefs(gitdir: string, defaultBranch = "main") {
 			branches.map(async (branch) => {
 				try {
 					const oid = await git.resolveRef({
-						fs: r2Backend,
+						fs: gitFs,
 						gitdir,
 						ref: `refs/heads/${branch}`,
 					});
@@ -134,7 +136,7 @@ async function listAllRefs(gitdir: string, defaultBranch = "main") {
 			tags.map(async (tag) => {
 				try {
 					const oid = await git.resolveRef({
-						fs: r2Backend,
+						fs: gitFs,
 						gitdir,
 						ref: `refs/tags/${tag}`,
 					});
@@ -187,7 +189,7 @@ const MISSING_OBJECT_RETRY_DELAY_MS = 200;
 async function collectReachableOids(
 	gitdir: string,
 	startOids: string[],
-	filesystem: FsClient = r2Backend,
+	filesystem: FsClient = gitFs,
 ): Promise<ReachabilityResult> {
 	const seen = new Set<string>();
 	let complete = true;
@@ -533,14 +535,12 @@ async function deleteStalePacksFromR2(
 			);
 		},
 	);
-	// The dir-listing cache for objects/pack/ was already invalidated once by
+	// The repo's cached listings were already invalidated once by
 	// syncRepositoryToR2 (before these deletes ran) — invalidate again so a
-	// concurrent readdir can't have repopulated it with the now-stale names in
+	// concurrent readdir can't have repopulated them with the now-stale names in
 	// the gap between that invalidation and this delete.
-	invalidateCache(`dir:${ownerKey}/${repoName}/`);
-	for (const relativePath of staleRelativePaths) {
-		deleteCache(`${ownerKey}/${repoName}/${relativePath}`);
-	}
+	invalidateRepoGitStorage(ownerKey, repoName);
+	invalidateGitStorageKeys(staleRelativePaths.map((p) => `${prefix}${p}`));
 }
 
 /**
@@ -722,13 +722,13 @@ async function handleUploadPackIsoInner(
 	if (haves.length === 0) {
 		const packDirPath = `${gitdir}/objects/pack`;
 		const entries = await perfStep("readdir objects/pack", () =>
-			r2Backend.readdir(packDirPath).catch(() => []),
+			gitFs.promises.readdir(packDirPath).catch(() => []),
 		);
 		const packNames = entries.filter((f) => f.endsWith(".pack"));
 		if (packNames.length === 1) {
 			const packData = await perfStep(
 				"read consolidated pack (fast path)",
-				() => r2Backend.readFile(`${packDirPath}/${packNames[0]}`),
+				() => gitFs.promises.readFile(`${packDirPath}/${packNames[0]}`),
 			);
 			return {
 				status: 200,
@@ -741,7 +741,7 @@ async function handleUploadPackIsoInner(
 					sideBandPackfile(
 						Buffer.isBuffer(packData)
 							? packData
-							: Buffer.from(packData as string),
+							: Buffer.from(packData as Uint8Array),
 					),
 				]),
 			};
@@ -773,7 +773,7 @@ async function handleUploadPackIsoInner(
 	}
 
 	const { packfile } = await perfStep("packObjects", () =>
-		git.packObjects({ fs: r2Backend, gitdir, oids }),
+		git.packObjects({ fs: gitFs, gitdir, oids }),
 	);
 
 	return {

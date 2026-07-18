@@ -25,13 +25,17 @@ const mockGit = vi.hoisted(() => ({
 }));
 vi.mock("isomorphic-git", () => mockGit);
 
-// --- mock r2Backend ---
-vi.mock("../git-r2-backend", () => ({
-	r2Backend: {
-		readdir: vi.fn().mockResolvedValue([]),
-		readFile: vi.fn().mockResolvedValue(Buffer.alloc(0)),
+// --- mock the R2-backed git fs ---
+vi.mock("../git-fs", () => ({
+	gitFs: {
+		promises: {
+			readdir: vi.fn().mockResolvedValue([]),
+			readFile: vi.fn().mockResolvedValue(new Uint8Array(0)),
+		},
 	},
 	detectLooseObjectsHint: vi.fn().mockResolvedValue(undefined),
+	invalidateRepoGitStorage: vi.fn(),
+	invalidateGitStorageKeys: vi.fn(),
 }));
 
 // --- mock storage naming ---

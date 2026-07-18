@@ -26,7 +26,7 @@ vi.mock("../git-repo-storage", () => ({
 	qualifyBranchRef: vi.fn((ref: string) => `refs/heads/${ref}`),
 }));
 
-vi.mock("../git-r2-backend", () => ({
+vi.mock("../git-fs", () => ({
 	prefetchAllPacks: vi.fn(),
 }));
 
