@@ -201,6 +201,61 @@ vi.mock("#/lib/r2-operations", () => {
 	};
 });
 
+// git-fs.ts talks to R2 through @nandan-varma/git-fs-s3's S3ObjectStore, not
+// #/lib/r2-operations — back it with the SAME fakeR2 map so the direct-read
+// path (gitFs) and the hydrate/sync path (r2-operations mock above) see one
+// consistent bucket. Iteration is sorted to match S3's lexicographic listing
+// (the library's loose-object detection relies on it).
+vi.mock("@nandan-varma/git-fs-s3/s3", () => {
+	class S3ObjectStore {
+		async get(key: string): Promise<Uint8Array | null> {
+			const entry = fakeR2.get(key);
+			return entry ? new Uint8Array(entry.content) : null;
+		}
+		async put(key: string, data: Uint8Array): Promise<void> {
+			fakeR2.set(key, { content: Buffer.from(data) });
+		}
+		async delete(key: string): Promise<void> {
+			fakeR2.delete(key);
+		}
+		async head(key: string): Promise<{ size: number } | null> {
+			const entry = fakeR2.get(key);
+			return entry ? { size: entry.content.length } : null;
+		}
+		async list(
+			prefix: string,
+			options?: { delimiter?: string; limit?: number },
+		): Promise<{
+			objects: { key: string; size: number }[];
+			prefixes: string[];
+		}> {
+			const objects: { key: string; size: number }[] = [];
+			const prefixes = new Set<string>();
+			const sorted = [...fakeR2.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+			for (const [key, entry] of sorted) {
+				if (!key.startsWith(prefix)) continue;
+				const rest = key.slice(prefix.length);
+				const delimiterIndex = options?.delimiter
+					? rest.indexOf(options.delimiter)
+					: -1;
+				if (delimiterIndex !== -1) {
+					prefixes.add(prefix + rest.slice(0, delimiterIndex + 1));
+				} else {
+					objects.push({ key, size: entry.content.length });
+				}
+				if (
+					options?.limit !== undefined &&
+					objects.length + prefixes.size >= options.limit
+				) {
+					break;
+				}
+			}
+			return { objects, prefixes: [...prefixes] };
+		}
+	}
+	return { S3ObjectStore };
+});
+
 // --- real Postgres (embedded, in-memory) replacing #/db, seeded with the
 // project's actual drizzle schema so every query below is real. ---
 vi.mock("../../db", async () => {

@@ -30,3 +30,5 @@ coverage/
 
 # completed plans
 plans/
+.vercel
+.env*

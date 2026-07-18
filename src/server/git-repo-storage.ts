@@ -14,8 +14,9 @@ import {
 	downloadFromR2,
 	listAllR2Files,
 } from "#/lib/r2-operations";
-import { invalidateCache, invalidateObjectCache } from "./git-cache";
+import { invalidateObjectCache } from "./git-cache";
 import { isR2NotFoundError } from "./git-errors";
+import { invalidateRepoGitStorage } from "./git-fs";
 import {
 	ensureGitBaseDir,
 	getBareRepoOptions,
@@ -491,10 +492,8 @@ export async function renameRepositoryStorage(
 	repoState.delete(newRepoKey);
 	r2ListCache.delete(getRepoGitStoragePrefix(ownerKey, oldRepoName));
 	r2ListCache.delete(getRepoGitStoragePrefix(ownerKey, newRepoName));
-	invalidateCache(`dir:${ownerKey}/${oldRepoName}/`);
-	invalidateCache(`dir:${ownerKey}/${newRepoName}/`);
-	invalidateCache(`${ownerKey}/${oldRepoName}/`);
-	invalidateObjectCache(`${ownerKey}/${oldRepoName}/`);
+	invalidateRepoGitStorage(ownerKey, oldRepoName);
+	invalidateRepoGitStorage(ownerKey, newRepoName);
 	invalidateRepoGitCache(ownerKey, oldRepoName);
 	invalidateRepoGitCache(ownerKey, newRepoName);
 }
@@ -591,12 +590,11 @@ async function syncRepositoryToR2Unlocked(
 
 	// Invalidate the list cache so the next read sees the just-uploaded state
 	r2ListCache.delete(prefix);
-	// Invalidate r2Backend dir-listing caches — bulkUploadToR2 bypasses r2Backend.writeFile
-	// so dir entries (e.g. refs/heads/) stay stale on warm Lambda reuse without this.
-	invalidateCache(`dir:${ownerKey}/${repoName}/`);
+	// Invalidate the gitFs read caches (contents, negative markers, dir
+	// listings, loose-object hints) — bulkUploadToR2 bypasses gitFs entirely,
+	// so a warm instance keeps serving pre-push state without this.
+	invalidateRepoGitStorage(ownerKey, repoName);
 
-	// Invalidate in-process git cache so refs/trees read fresh from R2
-	invalidateCache(`${ownerKey}/${repoName}/`);
 	invalidateObjectCache(`result:tree:${ownerKey}/${repoName}/`);
 	invalidateObjectCache(`result:commits:${ownerKey}/${repoName}/`);
 	// getCommitLog's own walk-result cache (git-history-ops.ts) — getCommits,
@@ -605,10 +603,6 @@ async function syncRepositoryToR2Unlocked(
 	// without this it leaks one orphaned entry per push instead of being cleared
 	// alongside the result caches built on top of it.
 	invalidateObjectCache(`result:commitlog:${ownerKey}/${repoName}/`);
-	// Also covers git-r2-backend.ts's stat()/readFile() negative-result and
-	// directory-exists markers (keyed the same as the buffer cache above) — a push
-	// can turn a previously-missing ref/loose-object path into one that exists.
-	invalidateObjectCache(`${ownerKey}/${repoName}/`);
 
 	// A repack rewrites pack files out from under any already-parsed isomorphic-git
 	// pack index, so drop the shared per-repo git cache too.

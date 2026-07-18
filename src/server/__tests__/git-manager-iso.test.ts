@@ -40,8 +40,8 @@ const mockIsR2Configured = vi.hoisted(() => vi.fn(() => false));
 vi.mock("#/lib/r2", () => ({ isR2Configured: mockIsR2Configured }));
 
 // Mock R2 backend
-const mockR2Backend = vi.hoisted(() => ({}));
-vi.mock("../git-r2-backend", () => ({ r2Backend: mockR2Backend }));
+const mockGitFs = vi.hoisted(() => ({ promises: {} }));
+vi.mock("../git-fs", () => ({ gitFs: mockGitFs }));
 
 // Mock storage naming
 vi.mock("../git-storage-naming", () => ({
@@ -220,13 +220,13 @@ describe("GitManager - Repository Management", () => {
 				const opts = GitManager.getBareRepoOptions(testOwnerId, testRepoName);
 				expect(opts.gitdir).toContain(testOwnerId);
 				expect(opts.gitdir).toContain(testRepoName);
-				expect(opts.fs).not.toBe(mockR2Backend);
+				expect(opts.fs).not.toBe(mockGitFs);
 			});
 
 			it("returns R2 backend options when R2 is configured", () => {
 				mockIsR2Configured.mockReturnValue(true);
 				const opts = GitManager.getBareRepoOptions(testOwnerId, testRepoName);
-				expect(opts.fs).toBe(mockR2Backend);
+				expect(opts.fs).toBe(mockGitFs);
 				expect(opts.gitdir).toBe(`repos/${testOwnerId}/${testRepoName}/git`);
 				mockIsR2Configured.mockReturnValue(false);
 			});
@@ -241,7 +241,7 @@ describe("GitManager - Repository Management", () => {
 
 				expect(fs.mkdir).not.toHaveBeenCalled();
 				expect(git.init).toHaveBeenCalledWith(
-					expect.objectContaining({ fs: mockR2Backend, bare: true }),
+					expect.objectContaining({ fs: mockGitFs, bare: true }),
 				);
 				expect(result).toBe(`repos/${testOwnerId}/${testRepoName}/git`);
 				mockIsR2Configured.mockReturnValue(false);

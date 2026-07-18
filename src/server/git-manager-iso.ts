@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
-import { r2Backend } from "./git-r2-backend";
+import { gitFs } from "./git-fs";
 import {
 	getRepoGitStorageRoot,
 	sanitizeStorageSegment,
@@ -79,7 +79,7 @@ export function getBareRepoOptions(ownerKey: string, repoName: string) {
 	const cache = getRepoGitCache(ownerKey, repoName);
 	if (isR2Configured()) {
 		return {
-			fs: r2Backend,
+			fs: gitFs,
 			gitdir: getRepoGitStorageRoot(ownerKey, repoName),
 			cache,
 		};
@@ -118,7 +118,7 @@ export async function initBareRepo(
 	// just above) never got a [user] section at all.
 	if (isR2Configured()) {
 		const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
-		await git.init({ fs: r2Backend, dir: gitdir, defaultBranch, bare: true });
+		await git.init({ fs: gitFs, dir: gitdir, defaultBranch, bare: true });
 		return gitdir;
 	}
 

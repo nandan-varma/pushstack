@@ -2,7 +2,7 @@ import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getCachedObject, setCachedObject } from "./git-cache";
 import { GitObjectNotFoundError, GitPathNotFoundError } from "./git-errors";
-import { prefetchAllPacks } from "./git-r2-backend";
+import { prefetchAllPacks } from "./git-fs";
 import { getRepoOptions, qualifyBranchRef } from "./git-repo-storage";
 import { findTreeEntry, listTreeEntries, type TreeEntry } from "./git-tree-ops";
 import { perfNote, perfStep } from "./perf-log";
