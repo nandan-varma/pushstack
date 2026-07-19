@@ -30,10 +30,16 @@ import { perfNote, perfStep } from "./perf-log";
 
 export type { CommitInfo };
 
-// Below this depth, prefetching every pack up front is more bandwidth than it's
-// worth (e.g. getCommits' limit=1 "latest commit" lookup only ever needs the tip
-// commit, almost always already in the most recently pushed pack).
-const PREFETCH_PACKS_MIN_DEPTH = 5;
+// Previously 5, on the theory that a shallow walk (e.g. getCommits' limit=1
+// "latest commit" lookup) only ever needs the tip commit, almost always
+// already in the most recently pushed pack — so prefetching every pack up
+// front would be more bandwidth than it's worth. Production perf logs showed
+// that assumption doesn't hold here: with the gate at 5, a depth=1 "latest
+// commit" query was consistently the slowest of the tree page's parallel
+// queries (4-5s), same shape of problem getTreeFromRef had before it always
+// prefetched on a cache miss (git-fs-s3 0.3.3). 1 effectively removes the
+// gate — every cache-miss walk prefetches, matching that fix.
+const PREFETCH_PACKS_MIN_DEPTH = 1;
 
 function opsHooksFor(ownerKey: string, repoName: string): OpsHooks {
 	return {
