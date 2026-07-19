@@ -246,63 +246,20 @@ describe("analyzeMerge", () => {
 	});
 });
 
-describe("mergeBranches fast-forward (R2 configured)", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mockIsR2Configured.mockReturnValue(true);
-	});
-
-	it("propagates a non-NotFoundError instead of returning a fake conflict", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
-			new Error("R2 timeout"),
-		);
-
-		const { mergeBranches } = await import("../git-merge-iso");
-
-		await expect(
-			mergeBranches("owner", "repo", "feature", "main"),
-		).rejects.toThrow("R2 timeout");
-	});
-
-	it("performs a fast-forward merge when source is descendant of target", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>)
-			.mockResolvedValueOnce("source-sha")
-			.mockResolvedValueOnce("target-sha");
-		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(true);
-		(git.writeRef as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-
-		const { mergeBranches } = await import("../git-merge-iso");
-		const result = await mergeBranches("owner", "repo", "feature", "main");
-
-		expect(result).toEqual({ success: true, commitSha: "source-sha" });
-		expect(git.writeRef).toHaveBeenCalledWith(
-			expect.objectContaining({
-				ref: "refs/heads/main",
-				value: "source-sha",
-				force: true,
-			}),
-		);
-	});
-
-	it("falls through to worktree path when not fast-forward", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>)
-			.mockResolvedValueOnce("source-sha")
-			.mockResolvedValueOnce("target-sha");
-		(git.isDescendent as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-
-		mockWithRepositoryWorktree.mockResolvedValue("merge-sha");
-
-		const { mergeBranches } = await import("../git-merge-iso");
-		const result = await mergeBranches("owner", "repo", "feature", "main");
-
-		expect(result).toEqual({ success: true, commitSha: "merge-sha" });
-		expect(mockWithRepositoryWorktree).toHaveBeenCalled();
-		expect(git.writeRef).not.toHaveBeenCalled();
-	});
-});
+// mergeBranches's R2 fast-forward path now delegates to
+// @nandan-varma/git-fs-s3/ops's fastForwardMerge, which — like
+// analyzeMerge — resolves its own isomorphic-git copy under pnpm's isolated
+// node_modules layout, so mocking isomorphic-git from this file doesn't
+// reach its internal calls (same issue as analyzeMerge above). Coverage:
+// - The FF-success and falls-through-when-diverged cases are exercised
+//   directly on fastForwardMerge/analyzeMerge in git-fs-s3's own
+//   test/ops.test.ts ("analyzes and fast-forwards merges").
+// - fastForwardMerge has no try/catch of its own — any git.resolveRef
+//   failure (NotFoundError or otherwise) always propagates untouched, so
+//   there's no swallowing behavior left to regression-test here.
+// - The end-to-end FF and non-FF-falls-through-to-worktree paths through
+//   mergeBranches itself are covered against a real repo in
+//   git-integration.test.ts's "mergeBranches" suite.
 
 describe("mergeBranches non-fast-forward (worktree)", () => {
 	beforeEach(() => {

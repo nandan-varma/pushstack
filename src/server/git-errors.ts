@@ -1,136 +1,33 @@
 /**
- * Git-specific error types for proper error handling and HTTP status mapping
+ * Git-specific error types for proper error handling and HTTP status mapping.
+ *
+ * The shared hierarchy (GitError, its 4xx subclasses, and formatErrorResponse)
+ * is re-exported from @nandan-varma/git-fs-s3 — extracted from an earlier
+ * version of this exact file — so it stays a single class hierarchy: the
+ * library's own ops/http functions throw these same classes internally
+ * (e.g. getFileContent's GitPathNotFoundError), and `error instanceof
+ * GitError` here needs to recognize those, not just errors pushstack's own
+ * code constructs. R2UploadError/R2DownloadError/isRetryableError/
+ * isR2NotFoundError are R2-specific and stay local — the library has no R2
+ * concept.
  */
+export {
+	formatErrorResponse,
+	GitAuthenticationError,
+	GitAuthorizationError,
+	GitConflictError,
+	GitError,
+	GitInvalidRequestError,
+	GitObjectNotFoundError,
+	GitPathNotFoundError,
+	GitProtocolError,
+	GitRateLimitError,
+	GitRefNotFoundError,
+	GitRepositoryNotFoundError,
+	type MergeConflictDetail,
+} from "@nandan-varma/git-fs-s3";
 
-export class GitError extends Error {
-	statusCode: number;
-	retryable: boolean;
-
-	constructor(
-		message: string,
-		statusCode: number = 500,
-		retryable: boolean = false,
-	) {
-		super(message);
-		this.name = this.constructor.name;
-		this.statusCode = statusCode;
-		this.retryable = retryable;
-		Error.captureStackTrace(this, this.constructor);
-	}
-
-	toJSON() {
-		return {
-			error: this.name,
-			message: this.message,
-			statusCode: this.statusCode,
-			retryable: this.retryable,
-		};
-	}
-}
-
-/**
- * Git path (file/directory) not found within the tree (404)
- */
-export class GitPathNotFoundError extends GitError {
-	constructor(message: string) {
-		super(message, 404, false);
-	}
-}
-
-/**
- * Git object not found (404)
- */
-export class GitObjectNotFoundError extends GitError {
-	constructor(message: string) {
-		super(message, 404, false);
-	}
-}
-
-/**
- * Git ref (branch/tag) not found (404)
- */
-export class GitRefNotFoundError extends GitError {
-	constructor(message: string) {
-		super(message, 404, false);
-	}
-}
-
-/**
- * Git repository not found (404)
- */
-export class GitRepositoryNotFoundError extends GitError {
-	constructor(message: string) {
-		super(message, 404, false);
-	}
-}
-
-/**
- * Git merge conflict (409)
- */
-export class GitConflictError extends GitError {
-	conflicts: Array<{
-		file: string;
-		baseLines?: string[];
-		sourceLines?: string[];
-		targetLines?: string[];
-	}>;
-
-	constructor(
-		message: string,
-		conflicts: Array<{
-			file: string;
-			baseLines?: string[];
-			sourceLines?: string[];
-			targetLines?: string[];
-		}> = [],
-	) {
-		super(message, 409, false);
-		this.conflicts = conflicts;
-	}
-
-	toJSON() {
-		return {
-			...super.toJSON(),
-			conflicts: this.conflicts,
-		};
-	}
-}
-
-/**
- * Git authentication failed (401)
- */
-export class GitAuthenticationError extends GitError {
-	constructor(message: string) {
-		super(message, 401, false);
-	}
-}
-
-/**
- * Git authorization failed (403)
- */
-export class GitAuthorizationError extends GitError {
-	constructor(message: string) {
-		super(message, 403, false);
-	}
-}
-
-/**
- * Too many failed authentication attempts (429)
- */
-export class GitRateLimitError extends GitError {
-	constructor(message: string) {
-		super(message, 429, false);
-	}
-}
-
-/**
- * Git invalid request (400)
- */
-export class GitInvalidRequestError extends GitError {
-	constructor(message: string) {
-		super(message, 400, false);
-	}
-}
+import { GitError } from "@nandan-varma/git-fs-s3";
 
 /**
  * R2 upload error (500, retryable)
@@ -148,58 +45,6 @@ export class R2DownloadError extends GitError {
 	constructor(message: string, retryable: boolean = true) {
 		super(message, 500, retryable);
 	}
-}
-
-/**
- * Git protocol error (400)
- */
-export class GitProtocolError extends GitError {
-	constructor(message: string) {
-		super(message, 400, false);
-	}
-}
-
-/**
- * Format error for HTTP response
- */
-export function formatErrorResponse(error: unknown): {
-	status: number;
-	body: Record<string, unknown>;
-	headers?: Record<string, string>;
-} {
-	if (error instanceof GitError) {
-		return {
-			status: error.statusCode,
-			body: error.toJSON(),
-			// Git clients need WWW-Authenticate to know to prompt for credentials
-			headers:
-				error.statusCode === 401
-					? { "WWW-Authenticate": 'Basic realm="Git Repository"' }
-					: undefined,
-		};
-	}
-
-	// Handle standard errors
-	if (error instanceof Error) {
-		return {
-			status: 500,
-			body: {
-				error: "InternalServerError",
-				message: "An internal error occurred",
-				retryable: true,
-			},
-		};
-	}
-
-	// Unknown error type
-	return {
-		status: 500,
-		body: {
-			error: "UnknownError",
-			message: "An unknown error occurred",
-			retryable: true,
-		},
-	};
 }
 
 /**

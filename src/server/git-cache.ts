@@ -1,5 +1,6 @@
 import type { ParsedObjectStore } from "@nandan-varma/git-edge";
 import { createParsedObjectCache } from "@nandan-varma/git-edge";
+import type { ResultCache } from "@nandan-varma/git-fs-s3/ops";
 
 // The raw git-object Buffer cache that used to live here moved into
 // @nandan-varma/git-fs-s3's createCachedStore (composed in git-fs.ts).
@@ -27,3 +28,18 @@ export function deleteCachedObject(key: string): void {
 export function invalidateObjectCache(prefix: string): void {
 	objectCache.invalidatePrefix(prefix);
 }
+
+/**
+ * `getCachedObject`/`setCachedObject` structurally satisfy
+ * @nandan-varma/git-fs-s3/ops's `ResultCache` interface already — this object
+ * is the seam every ops-delegating wrapper (git-history-ops.ts,
+ * git-last-commit.ts, git-file-history.ts) passes as `hooks.resultCache`, so
+ * they all share the one cache instead of each re-declaring the same adapter.
+ * The cast bridges `getCachedObject<T extends object>` against
+ * `ResultCache.get<T>`'s unconstrained `T` — every value ops actually stores
+ * (CommitInfo[], TreeEntry[], ...) satisfies `object` at runtime.
+ */
+export const resultCache: ResultCache = {
+	get: <T>(key: string) => getCachedObject<T & object>(key),
+	set: (key: string, value: unknown) => setCachedObject(key, value as object),
+};
