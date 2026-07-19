@@ -30,6 +30,7 @@ import {
 	repositoryLatestCommitQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
+import { SITE_URL } from "@/lib/site";
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	const isPathNotFound =
@@ -141,6 +142,14 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 					.catch(() => {});
 			},
 		),
+	head: ({ params }) => {
+		const path = params._splat ? `/${params._splat}` : "";
+		const url = `${SITE_URL}/repo/${params.owner}/${params.name}/tree/${params.branch}${path}`;
+		return {
+			links: [{ rel: "canonical", href: url }],
+			meta: [{ property: "og:url", content: url }],
+		};
+	},
 	errorComponent: TreeErrorComponent,
 	component: TreeBrowserPage,
 });

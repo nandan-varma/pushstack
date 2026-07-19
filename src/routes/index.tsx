@@ -1,7 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "../components/ui/button";
+import { SITE_URL } from "../lib/site";
 
-export const Route = createFileRoute("/")({ component: App });
+export const Route = createFileRoute("/")({
+	head: () => ({
+		links: [{ rel: "canonical", href: SITE_URL }],
+	}),
+	component: App,
+});
 
 const features = [
 	{
@@ -73,7 +79,7 @@ function App() {
 									</span>
 								</p>
 								<p className="pl-4 text-[#8de5db]">
-									https://pushstack.dev/you/repo
+									https://git.nandan.fyi/you/repo
 								</p>
 								<p>
 									<span className="text-[#60d7cf]">$</span>{" "}

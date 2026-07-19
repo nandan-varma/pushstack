@@ -21,7 +21,7 @@ import {
 const GIT_BASE_PATH =
 	process.env.GIT_REPOS_PATH || path.join(os.tmpdir(), "pushstack-repos");
 const DEFAULT_USER_NAME = "PushStack";
-const DEFAULT_USER_EMAIL = "system@pushstack.dev";
+const DEFAULT_USER_EMAIL = "system@nandan.fyi";
 
 /**
  * Get the filesystem path for a repository.

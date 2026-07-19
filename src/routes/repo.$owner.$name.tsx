@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useBranchUpdateBanner } from "@/hooks/use-branch-update-banner";
 import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
+import { SITE_URL } from "@/lib/site";
 
 const repoRouteSchema = z.object({
 	owner: z.string(),
@@ -31,6 +32,45 @@ export const Route = createFileRoute("/repo/$owner/$name")({
 				}),
 			),
 		),
+	// Every repo sub-page (tree/issues/pulls/commits) shares this layout route,
+	// so this is the one place that can put the repo's own identity into every
+	// one of those pages' title/description instead of them all showing the
+	// same site-wide default — the single biggest gap for a code host where
+	// individual repos are exactly the content worth being found by search.
+	// SoftwareSourceCode structured data helps search engines categorize the
+	// page as a repository rather than generic content (script:ld+json is
+	// TanStack Router's native structured-data hook, deduped/merged the same
+	// way meta tags are).
+	head: ({ loaderData, params }) => {
+		if (!loaderData) return {};
+		const title = `${params.owner}/${params.name}`;
+		const description =
+			loaderData.description || `Browse the ${title} repository on PushStack.`;
+		return {
+			meta: [
+				{ title: `${title} · PushStack` },
+				{ name: "description", content: description },
+				{ property: "og:title", content: title },
+				{ property: "og:description", content: description },
+				{ property: "og:type", content: "object" },
+				{ name: "twitter:title", content: title },
+				{ name: "twitter:description", content: description },
+				{
+					"script:ld+json": {
+						"@context": "https://schema.org",
+						"@type": "SoftwareSourceCode",
+						name: params.name,
+						description,
+						codeRepository: `${SITE_URL}/repo/${params.owner}/${params.name}`,
+						author: {
+							"@type": "Person",
+							name: params.owner,
+						},
+					},
+				},
+			],
+		};
+	},
 	component: RepositoryPage,
 	errorComponent: RepositoryErrorComponent,
 	parseParams: (params) => repoRouteSchema.parse(params),

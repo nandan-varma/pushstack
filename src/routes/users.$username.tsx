@@ -8,8 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VisibilityBadge } from "@/components/ui/visibility-badge";
 import { userProfileQueryOptions } from "@/lib/query-options";
+import { SITE_URL } from "@/lib/site";
 
 export const Route = createFileRoute("/users/$username")({
+	head: ({ params }) => {
+		const title = `${params.username}`;
+		const url = `${SITE_URL}/users/${params.username}`;
+		return {
+			meta: [
+				{ title: `${title} · PushStack` },
+				{
+					name: "description",
+					content: `${title}'s repositories and activity on PushStack.`,
+				},
+				{ property: "og:title", content: title },
+				{ property: "og:url", content: url },
+			],
+			links: [{ rel: "canonical", href: url }],
+		};
+	},
 	component: UserProfilePage,
 	loader: async ({ context: { queryClient }, params }) => {
 		// Swallow the not-found error here so SSR still renders the page shell;

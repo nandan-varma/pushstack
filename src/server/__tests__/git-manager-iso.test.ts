@@ -199,7 +199,7 @@ describe("GitManager - Repository Management", () => {
 			const author = GitManager.getDefaultAuthor();
 
 			expect(author).toHaveProperty("name", "PushStack");
-			expect(author).toHaveProperty("email", "system@pushstack.dev");
+			expect(author).toHaveProperty("email", "system@nandan.fyi");
 			expect(author).toHaveProperty("timestamp");
 			expect(author).toHaveProperty("timezoneOffset", 0);
 			expect(typeof author.timestamp).toBe("number");
