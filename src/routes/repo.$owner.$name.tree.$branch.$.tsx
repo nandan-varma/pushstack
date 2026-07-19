@@ -168,12 +168,24 @@ function TreeBrowserPage() {
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
-	const { data: branches, isLoading: branchesLoading } = useQuery({
+	const {
+		data: branches,
+		isLoading: branchesLoading,
+		isError: branchesErrored,
+		error: branchesError,
+		refetch: refetchBranches,
+	} = useQuery({
 		...repositoryBranchesQueryOptions(repo?.id ?? 0),
 		enabled: !!repo,
 	});
 
-	const { data: files, isLoading } = useQuery({
+	const {
+		data: files,
+		isLoading,
+		isError: filesErrored,
+		error: filesError,
+		refetch: refetchFiles,
+	} = useQuery({
 		...repositoryFilesQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: activeBranch,
@@ -240,6 +252,24 @@ function TreeBrowserPage() {
 	);
 
 	if (!repo) return null;
+
+	// A failed files/branches query also leaves `files`/`branches` undefined,
+	// same as a genuinely empty repo — without checking isError separately,
+	// the isEmpty branch below can't tell "nothing here" from "couldn't load
+	// what's here" and shows the wrong one (an onboarding "push your first
+	// commit" screen for a repo that already has commits, instead of a real,
+	// retryable error).
+	if (filesErrored || branchesErrored) {
+		return (
+			<TreeErrorComponent
+				error={(filesError ?? branchesError) as Error}
+				reset={() => {
+					if (filesErrored) refetchFiles();
+					if (branchesErrored) refetchBranches();
+				}}
+			/>
+		);
+	}
 
 	const isEmpty =
 		!branches || branches.length === 0 || !files || files.length === 0;

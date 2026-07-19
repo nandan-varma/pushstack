@@ -29,6 +29,34 @@ const MAX_BYTES = Number.parseInt(
 );
 const TTL_MS = Number.parseInt(process.env.GIT_CACHE_TTL || "3600", 10) * 1000;
 
+// Refs (HEAD, refs/heads/<branch>) and directory *listings* under objects/
+// are the mutable things in a bare gitdir — refs move and new packs appear
+// on every push — unlike every other key here (a specific content-addressed
+// object's bytes, fixed forever once you know its key, safe to cache for the
+// full TTL_MS). This cache is in-process per server instance with no
+// cross-instance invalidation (invalidateRepoGitStorage only clears the
+// instance handling the push), so without this a *different* warm instance
+// that had already cached a ref, or the pack directory's listing, keeps
+// serving that pre-push view for up to TTL_MS (an hour by default) even
+// though nothing changed about that instance's own state — it just never
+// re-checked. Concretely: prefetchAllPacks's readdir(objects/pack/) is what
+// discovers a freshly pushed pack exists at all; caching that listing long
+// means a warm instance can keep reporting an already-repaired repo's newest
+// commit as "missing from storage" indefinitely, because it never sees the
+// new pack file show up. A ref/listing read is cheap (one small object or a
+// bounded directory), so re-checking far more often than TTL_MS costs little;
+// everything downstream (tree, commit, blob — all keyed by the sha a fresh
+// ref resolves to, or read by a specific pack name a fresh listing named)
+// still gets the full-length cache benefit once the structure itself is
+// fresh.
+const STRUCTURE_TTL_MS = 5_000;
+const STRUCTURE_KEY_RE = /\/(HEAD|refs(\/|$)|objects\/(pack\/)?$)/;
+
+/** Exported for tests. */
+export function refAwareTtl(key: string): number | undefined {
+	return STRUCTURE_KEY_RE.test(key) ? STRUCTURE_TTL_MS : undefined;
+}
+
 // getR2Client() throws when R2 env is unset, so the real store is built on
 // first use, never at import time — the local-disk fallback path
 // (git-manager-iso.ts's getBareRepoOptions) and unit tests import this module
@@ -73,6 +101,7 @@ const cachedStore = createCachedStore(
 	{
 		maxBytes: MAX_BYTES,
 		ttlMs: TTL_MS,
+		ttlForKey: refAwareTtl,
 		cacheMisses: true,
 		cacheLists: true,
 		onHit: recordCacheHit,

@@ -54,6 +54,26 @@ describe("useBranchUpdateBanner", () => {
 		expect(result.current.isReloading).toBe(false);
 	});
 
+	// Regression guard: nothing else exercises these values (useQuery itself
+	// is mocked above), so a future edit dropping refetchInterval or
+	// refetchIntervalInBackground — silently turning this into a hook that
+	// only ever checks for updates on mount/window-focus — would otherwise
+	// pass every other test in this file.
+	it("polls every 60s, including while the tab is backgrounded", () => {
+		mockUseQuery.mockReturnValue({ data: undefined } as never);
+		setupQueryClient();
+
+		renderHook(() => useBranchUpdateBanner(1, "main"));
+
+		expect(mockUseQuery).toHaveBeenCalledWith(
+			expect.objectContaining({
+				refetchInterval: 60_000,
+				refetchIntervalInBackground: true,
+				enabled: true,
+			}),
+		);
+	});
+
 	it("sets baseline on first data arrival", () => {
 		mockUseQuery.mockReturnValue({
 			data: [{ sha: "abc123" }],
