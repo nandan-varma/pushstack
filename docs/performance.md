@@ -36,47 +36,64 @@ watch for when adding new code.
    collaborator should take effect in seconds, not linger for a request's
    lifetime). See [authentication.md](./authentication.md).
 
-3. **`git-cache.ts`'s two in-process LRU caches** (server, per-process,
-   `GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable):
-   - A raw `Buffer` cache for git object bytes read from R2.
-   - A parsed-object cache storing JS values directly (`getCachedObject`/
-     `setCachedObject`) — used for both real results (tree listings, commit
-     logs) and negative/stat markers (see next layer), avoiding a JSON
-     round-trip on every hit.
+3. **`git-cache.ts`'s in-process parsed-object cache** (server, per-process) —
+   stores JS values directly (`getCachedObject`/`setCachedObject`), used for
+   both real results (tree listings, commit logs) and negative/stat markers,
+   avoiding a JSON round-trip on every hit. The *raw* `Buffer` cache for git
+   object bytes read from R2 used to live here too, but has since moved into
+   `@nandan-varma/git-fs-s3`'s own `createCachedStore` (composed in
+   `git-fs.ts`) as part of extracting the R2 backend into that published
+   package (see item 4 below).
 
-4. **`git-r2-backend.ts`'s negative-result and loose-object-hint caching** —
-   isomorphic-git repeatedly probes paths it expects might not exist (ref
-   candidates, loose-object paths before falling back to pack search,
-   directory-existence checks before every read). Each 404 gets cached as a
-   `{kind: "missing"}` marker; each confirmed directory as `{kind: "dir"}` —
-   and a write only ever clears the former, never the latter, since a write
-   underneath a directory can't make it stop existing (see
-   [git-storage.md](./git-storage.md) for the case where getting this backwards
-   turned one commit into several seconds of repeated round trips against the
-   gitdir root). Two files — `packed-refs`, `shallow` — are permanently absent
-   rather than merely usually-missing (nothing here ever writes either), so
-   they skip the cache entirely and go straight to ENOENT. Layered on top,
-   `detectLooseObjectsHint` answers "does this repo have any loose objects at
-   all" once per repo with a single bounded LIST call, so a fully-packed repo
-   (the common case) never even attempts a loose-object probe against R2 — see
-   [git-storage.md](./git-storage.md) for the full story; this was the single
-   biggest fix to commit-log cold-load time, and (once wired into the actual
-   clone/fetch-serving path, not just commit-log browsing) to cold clones too.
+   <a id="ref-aware-ttl"></a>**`git-fs.ts`'s per-key TTL override** — the R2
+   read cache's TTL (`GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable, default
+   1h) is right for content-addressed object reads (a given key's bytes
+   never change) but wrong for the mutable parts of a gitdir: a ref's value
+   moves on every push, and the `objects/`/`objects/pack/` directory
+   listings grow on every push, while the *key* naming either stays the
+   same. Since this cache is in-process per server instance with no
+   cross-instance invalidation, a warm instance that isn't the one handling
+   a given push could keep serving a pre-push ref, or fail to discover a
+   freshly pushed pack exists at all (misreporting its commits as "missing
+   from storage"), for up to the full TTL. `git-fs.ts`'s `refAwareTtl`
+   (passed as `@nandan-varma/git-fs-s3` 0.3.4+'s `ttlForKey` option) gives
+   `HEAD`, `refs/*`, and the two listing paths a 5-second override instead —
+   cheap, since each is one small object or a bounded listing, and safe,
+   since everything downstream (tree/commit/blob reads keyed by the sha a
+   fresh ref resolves to) still gets the full-length cache benefit once the
+   structure itself is current.
+
+4. **Negative-result and loose-object-hint caching** — isomorphic-git
+   repeatedly probes paths it expects might not exist (ref candidates,
+   loose-object paths before falling back to pack search, directory-existence
+   checks before every read). This now lives in `@nandan-varma/git-fs-s3`
+   itself (`createGitFs`'s `looseObjectHints`/`isStructurallyAbsent` options,
+   wired in `git-fs.ts`) rather than the app's own former
+   `git-r2-backend.ts`, which was extracted into that published package —
+   see [git-storage.md](./git-storage.md) for the current architecture.
+   `detectLooseObjectsHint` still answers "does this repo have any loose
+   objects at all" once per repo with a single bounded LIST call, so a
+   fully-packed repo (the common case) never even attempts a loose-object
+   probe against R2 — this was the single biggest fix to commit-log
+   cold-load time, and (once wired into the actual clone/fetch-serving path,
+   not just commit-log browsing) to cold clones too.
 
 5. **`getCommitLog`'s per-head-SHA result cache** (`git-history-ops.ts`) —
    caches the deepest commit-chain walk seen for a resolved head SHA and
    slices/reuses it for shallower or repeated requests, since walking a commit
    chain is inherently sequential and R2-round-trip-bound.
 
-6. **R2 request coalescing** — `git-r2-backend.ts`'s `pendingDownloads` map
-   ensures concurrent reads for the same not-yet-cached R2 key (e.g. 100
-   object reads all wanting the same pack file mid-walk) share one download
-   instead of firing 100. `pendingStats` does the same for `stat()` calls —
-   isomorphic-git fires several *concurrent* ref/branch lookups that each
-   independently stat the gitdir root, and on a cold cache none of them can
-   see a result the others haven't produced yet; measured 4 concurrent
-   callers as 4 real `HeadObject`+`ListObjects` pairs against the identical
-   key before this existed.
+6. **R2 request coalescing** — `@nandan-varma/git-fs-s3`'s
+   `createCachedStore` (`coalesce` option, on by default; formerly
+   `git-r2-backend.ts`'s own `pendingDownloads`/`pendingStats` maps before
+   the R2 backend was extracted into that package) ensures concurrent reads
+   for the same not-yet-cached R2 key (e.g. 100 object reads all wanting the
+   same pack file mid-walk, or several concurrent ref/branch lookups that
+   each independently stat the gitdir root) share one backend call instead
+   of firing one each — on a cold cache, none of them can see a result the
+   others haven't produced yet; measured 4 concurrent callers as 4 real
+   `HeadObject`+`ListObjects` pairs against the identical key before this
+   existed.
 
 7. **`repositories.ts`'s repo-row cache** (`fetchRepoRowByName`, 5-second TTL
    + in-flight coalescing) — a single-join, cached lookup that both the web
@@ -93,21 +110,31 @@ Route loaders and server functions favor `Promise.all` wherever calls don't
 have a real data dependency on each other. Some concrete examples already in
 the codebase, worth matching the shape of when adding new code:
 
-- The tree page's loader fires `repositoryBranchesQueryOptions`,
-  `repositoryFilesQueryOptions`, `repositoryLastCommitsQueryOptions`, and a
-  `limit: 1` `repositoryCommitsQueryOptions` all in one `Promise.all` (only
-  the initial `repositoryByNameQueryOptions` call blocks it, since everything
-  else needs the resolved `repo.id`). It also **fire-and-forgets** (doesn't
-  await) prefetches for issue/PR reference numbers and the README's content —
-  those aren't needed to render the loader's own response, just likely to be
-  needed moments later by the client, so there's no reason to hold the
-  response on them.
-- `git-http-iso.ts`'s `listAllRefs` resolves branches, tags, HEAD's oid, and
-  the current-branch symref all in parallel, then resolves every
-  branch/tag's oid in parallel too.
-- `git-r2-backend.ts`'s `prefetchAllPacks` downloads every pack file in
-  parallel *before* a sequential `git.log` walk starts, rather than letting
-  isomorphic-git fetch packs lazily and serially as the walk needs them.
+- The tree page's loader only `await`s `repositoryByNameQueryOptions` (fast —
+  one DB row) — `repositoryBranchesQueryOptions`, `repositoryFilesQueryOptions`,
+  `repositoryLastCommitsQueryOptions`, the `limit: 1`
+  `repositoryCommitsQueryOptions` call, and the README content query are all
+  **fire-and-forgotten** (`ensureQueryData(...).catch(() => {})`, not
+  awaited), so the route commits and the page mounts the moment `repo`
+  resolves instead of blocking on whichever of those four is slowest. Each
+  section (`FileTable`, `CommitSummaryBar`, the branch selector, ...) reads
+  the *same* query key client-side via its own `useQuery`, picks up the
+  already-in-flight fire-and-forgotten request, and renders a skeleton
+  matching its own final layout until that specific piece resolves — this
+  used to be one blocking `Promise.all` before the loader was restructured
+  to stream; see [server-functions.md](./server-functions.md).
+- `@nandan-varma/git-fs-s3/http`'s `listAllRefs` (used by `git-http-iso.ts`'s
+  thin wrapper) resolves branches, tags, HEAD's oid, and the current-branch
+  symref all in parallel, then resolves every branch/tag's oid in parallel
+  too.
+- `git-fs.ts`'s `prefetchAllPacks` (a thin wrapper around
+  `@nandan-varma/git-fs-s3`'s `GitFs.prefetchPacks`) downloads every pack
+  file in parallel *before* a sequential `git.log` walk starts, rather than
+  letting isomorphic-git fetch packs lazily and serially as the walk needs
+  them. As of `getTreeFromRef`/`getCommitLog`'s current wiring this now
+  fires unconditionally on a cache-miss tree read, and unconditionally (not
+  depth-gated) for any commit-log walk too — see
+  [git-storage.md](./git-storage.md).
 - `git-http-iso.ts`'s `handleReceivePackIso` applies every ref update in a
   push (compare-and-swap check, then write/delete) in one `Promise.all` —
   each ref only touches its own ref file, so a multi-ref push (`git push
@@ -229,15 +256,20 @@ longer a page can keep showing data that's genuinely out of date if someone
 else pushed in the meantime. Rather than shortening `staleTime` (which
 undoes the caching win for everyone, all the time, to cover the rare case
 someone else just pushed), `useBranchUpdateBanner`
-(`hooks/use-branch-update-banner.ts`) adds `refetchInterval: 20_000` and
-`refetchOnWindowFocus: true` as extra observer options on top of
-`repositoryLatestCommitQueryOptions` (`query-options.ts` — a `limit: 1`
-`repositoryCommitsQueryOptions` call), rather than standing up a second,
-separate "just the SHA" query. A depth-1 commit-log walk is already as cheap
-as a bare ref resolve (`getCommitLog`'s `PREFETCH_PACKS_MIN_DEPTH` skips the
-pack-prefetch path entirely below depth 5 — see
-[server-functions.md](./server-functions.md)), so there's no perf reason to
-keep a minimal endpoint around just to avoid the walk.
+(`hooks/use-branch-update-banner.ts`) adds `refetchInterval: 60_000` and
+`refetchIntervalInBackground: true` (plus `refetchOnWindowFocus: true`) as
+extra observer options on top of `repositoryLatestCommitQueryOptions`
+(`query-options.ts` — a `limit: 1` `repositoryCommitsQueryOptions` call),
+rather than standing up a second, separate "just the SHA" query.
+`refetchIntervalInBackground` matters specifically for a backgrounded tab —
+without it, `refetchInterval` alone still pauses while the tab isn't
+focused, so a push landing then wouldn't surface until the user refocuses
+*and* `refetchOnWindowFocus` happens to fire; with it, the banner is already
+correct the moment they come back. A depth-1 commit-log walk is already as
+cheap as a bare ref resolve (`git-history-ops.ts`'s `PREFETCH_PACKS_MIN_DEPTH`
+is 1 — effectively no gate, every cache-miss walk prefetches regardless of
+depth; see [server-functions.md](./server-functions.md)), so there's no perf
+reason to keep a minimal endpoint around just to avoid the walk.
 
 This matters because it's the *same* query/cache entry that
 `CommitSummaryBar` (the tree page's "latest commit" line) reads for its own

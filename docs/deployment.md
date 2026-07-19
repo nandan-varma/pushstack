@@ -50,8 +50,9 @@ pnpm deploy   # currently just runs the build — actual deployment is via the V
 ## isomorphic-git, not a native binary
 
 There's no native `git` binary dependency anywhere — all git operations go
-through isomorphic-git, with a custom `fs` plugin (`git-r2-backend.ts`) that
-reads/writes objects directly to/from R2. See [git-storage.md](./git-storage.md)
+through isomorphic-git, with a custom `fs` plugin (`git-fs.ts`, built on the
+published `@nandan-varma/git-fs-s3` package) that reads/writes objects
+directly to/from R2. See [git-storage.md](./git-storage.md)
 for the full read/write model. `withRepositoryWorktree` (`git-repo-storage.ts`)
 materializes a temporary local checkout for operations that need a real
 working directory, but does so with isomorphic-git's own `git.checkout`/

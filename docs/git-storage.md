@@ -359,3 +359,24 @@ GIT_CACHE_MAX_SIZE=1073741824      # optional, default 1GB — shared budget for
 GIT_CACHE_TTL=3600                 # optional, default 1 hour (seconds)
 GIT_REPOS_PATH=/path/to/dir        # optional, default os.tmpdir()/pushstack-repos — local hydration dir
 ```
+
+`GIT_CACHE_TTL` sizes the R2 read cache's *default* TTL — right for
+content-addressed object reads, but `git-fs.ts`'s `refAwareTtl` overrides it
+down to a fixed 5s for the mutable parts of a gitdir (`HEAD`, `refs/*`, and
+the `objects/`/`objects/pack/` listings) via
+`@nandan-varma/git-fs-s3`'s `ttlForKey` option — not tunable by this env var.
+See [performance.md](./performance.md#ref-aware-ttl).
+
+<a id="stale-docs-notice"></a>
+> **Note on the rest of this document:** the sections above describing
+> `git-r2-backend.ts` (`R2Backend`, its buffer/negative-marker caches,
+> `pendingDownloads`/`pendingStats`) and `repackLocal` predate this app's R2
+> backend being extracted into the published `@nandan-varma/git-fs-s3`
+> package — that file no longer exists. The concepts they describe (loose
+> object hints, structurally-absent short-circuits, request coalescing,
+> pack consolidation) mostly still apply, now living in that package
+> (`createGitFs`, `createCachedStore`, `repackRepository`/
+> `repackRepositoryNow`) with `git-fs.ts`/`git-http-iso.ts` as thin
+> wrappers — but the specific function names, file locations, and some
+> implementation details above are outdated and need a dedicated pass to
+> re-verify against the current code, not a search-and-replace.
