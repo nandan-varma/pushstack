@@ -1,12 +1,18 @@
 import { createRouter } from "@tanstack/react-router";
-import { createAppContext } from "./integrations/tanstack-query/root-provider";
+import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
 	const router = createRouter({
 		routeTree,
 
-		context: createAppContext(),
+		// getContext() (not createAppContext()) so the router's loaders
+		// (ensureQueryData) and TanStackQueryProvider's <QueryClientProvider>
+		// share the exact same QueryClient instance on the client — otherwise
+		// loaders populate a QueryClient nothing reads from, and every
+		// component-level useQuery has to refetch from scratch, doubling every
+		// request the loader already made.
+		context: getContext(),
 
 		scrollRestoration: true,
 		defaultPreload: "intent",
