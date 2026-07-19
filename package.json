@@ -34,7 +34,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "@cloudflare/vite-plugin": "^1.42.3",
     "@nandan-varma/git-edge": "^0.1.2",
-    "@nandan-varma/git-fs-s3": "^0.3.2",
+    "@nandan-varma/git-fs-s3": "^0.3.3",
     "@neondatabase/serverless": "^1.1.0",
     "@smithy/node-http-handler": "^4.0.0",
     "@tailwindcss/vite": "^4.3.1",
