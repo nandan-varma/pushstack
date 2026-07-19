@@ -40,14 +40,42 @@ export function FileTable({
 	lastCommitsLoading?: boolean;
 }) {
 	if (isLoading) {
+		// Row count/width pattern mimics a typical directory listing (a few
+		// folders first, then files of varying name length) so the skeleton
+		// reads as "file list" rather than a generic block, and settles into
+		// real rows without a jarring size change once data arrives.
+		const rowWidths = ["45%", "60%", "38%", "70%", "50%", "42%", "65%", "35%"];
 		return (
 			<div className="overflow-hidden rounded-xl border border-[var(--line)]">
-				{[1, 2, 3, 4, 5].map((i) => (
-					<div
-						key={i}
-						className="h-11 animate-pulse border-b border-[var(--line)] last:border-0 bg-[var(--surface-raised)]"
-					/>
-				))}
+				<table className="w-full">
+					<tbody>
+						{rowWidths.map((width, i) => (
+							<tr
+								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows, never reordered
+								key={i}
+								className="border-b border-[var(--line)] last:border-0"
+							>
+								<td className="w-8 py-2.5 pl-4 pr-2 align-middle">
+									<div className="h-4 w-4 animate-pulse rounded bg-[var(--surface-raised)]" />
+								</td>
+								<td className="py-2.5 pr-4 align-middle">
+									<div
+										className="h-3.5 animate-pulse rounded bg-[var(--surface-raised)]"
+										style={{ width }}
+									/>
+								</td>
+								{showLastCommit && (
+									<td className="hidden py-2.5 pr-4 align-middle md:table-cell">
+										<div className="ml-auto flex items-center justify-end gap-2">
+											<div className="h-3 w-40 animate-pulse rounded bg-[var(--surface-raised)]" />
+											<div className="h-3 w-14 shrink-0 animate-pulse rounded bg-[var(--surface-raised)]" />
+										</div>
+									</td>
+								)}
+							</tr>
+						))}
+					</tbody>
+				</table>
 			</div>
 		);
 	}
