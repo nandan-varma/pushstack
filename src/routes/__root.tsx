@@ -101,6 +101,24 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 		links: [
+			// Previously a CSS @import in styles.css: the browser had to fetch
+			// styles.css, parse it, discover the @import, then fetch Google's CSS,
+			// parse *that*, then fetch the woff2 files — a fully serial chain
+			// before any text could render. Link tags are found by the preload
+			// scanner directly in the raw HTML, in parallel with everything else.
+			{
+				rel: "preconnect",
+				href: "https://fonts.googleapis.com",
+			},
+			{
+				rel: "preconnect",
+				href: "https://fonts.gstatic.com",
+				crossOrigin: "anonymous",
+			},
+			{
+				rel: "stylesheet",
+				href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap",
+			},
 			{
 				rel: "stylesheet",
 				href: appCss,
