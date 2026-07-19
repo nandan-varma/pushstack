@@ -306,16 +306,20 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 	)
 	.handler(async ({ data }) =>
 		perfContext(`getRepositoryByName ${data.owner}/${data.name}`, async () => {
-			const currentUser = await perfStep("getCurrentUserOptional", () =>
-				getCurrentUserOptional(),
-			);
-
-			// ponytail: owner-lookup-then-repo-lookup used to be two sequential
-			// round trips to Neon on the hot path (every repo/tree page load starts
-			// here) — a single join resolves both in one round trip, cached/coalesced
-			// by fetchRepoRowByName since this part isn't user-specific.
-			const row = await perfStep("db: repo+owner join", () =>
-				fetchRepoRowByName(data.owner, data.name),
+			// ponytail: session resolution and the repo+owner join are independent
+			// (neither's input depends on the other's output) — they used to run
+			// sequentially, adding a full DB round trip's worth of pure waiting to
+			// every repo/tree page load's critical first request. Also matters most
+			// exactly when it's slowest: on Neon's scale-to-zero cold-compute wake,
+			// two queries fired together share that one wake instead of each paying
+			// it in series.
+			const [currentUser, row] = await perfStep(
+				"getCurrentUserOptional + db: repo+owner join",
+				() =>
+					Promise.all([
+						getCurrentUserOptional(),
+						fetchRepoRowByName(data.owner, data.name),
+					]),
 			);
 
 			if (!row) {
