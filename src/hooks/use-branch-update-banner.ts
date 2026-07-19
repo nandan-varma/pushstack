@@ -15,9 +15,14 @@ import {
  * than a separate minimal endpoint, so there is exactly one cache entry for
  * "what's the tip commit of this branch" and the banner can never disagree
  * with what the summary bar is showing. Because it's the same query, that
- * live 20s poll also keeps CommitSummaryBar's display fresh for free, with
+ * live 60s poll also keeps CommitSummaryBar's display fresh for free, with
  * zero extra requests — only the heavier structural data (file tree,
  * per-file last-commit, branches) waits for an explicit `reload()`.
+ * `refetchIntervalInBackground: true` because this is exactly the case a
+ * backgrounded tab needs it most — a push landing while the tab isn't
+ * focused should still be waiting as "update available" the moment the user
+ * comes back, not only after they've also refocused (refetchOnWindowFocus
+ * covers that moment too, but shouldn't be the *only* trigger).
  *
  * The first successful poll establishes the "baseline" sha (not the page's
  * already-rendered data — this hook doesn't need to know what's on screen,
@@ -30,7 +35,8 @@ export function useBranchUpdateBanner(repoId: number, branchName: string) {
 	const queryClient = useQueryClient();
 	const { data } = useQuery({
 		...repositoryLatestCommitQueryOptions({ repoId, branchName }),
-		refetchInterval: 20_000,
+		refetchInterval: 60_000,
+		refetchIntervalInBackground: true,
 		refetchOnWindowFocus: true,
 		enabled: Boolean(repoId && branchName),
 	});

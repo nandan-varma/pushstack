@@ -13,6 +13,7 @@ const {
 	invalidateGitStorageKeys,
 	invalidateRepoGitStorage,
 	prefetchAllPacks,
+	refAwareTtl,
 } = await import("../git-fs");
 
 afterEach(() => {
@@ -73,5 +74,31 @@ describe("structural absence", () => {
 		await expect(
 			gitFs.promises.readFile("repos/alice/blog/git/refs/heads/packed-refs"),
 		).rejects.toThrow(/R2 credentials not configured/);
+	});
+});
+
+describe("refAwareTtl", () => {
+	it("gives a short ttl to HEAD and refs/* — the only mutable single objects in a gitdir", () => {
+		expect(refAwareTtl("repos/alice/blog/git/HEAD")).toBe(5_000);
+		expect(refAwareTtl("repos/alice/blog/git/refs/heads/main")).toBe(5_000);
+		// The listing prefix used to enumerate branches (trailing slash, no
+		// specific branch name) must match too — it's the same mutable
+		// "what branches currently exist" question as reading one ref.
+		expect(refAwareTtl("repos/alice/blog/git/refs/heads/")).toBe(5_000);
+	});
+
+	it("gives a short ttl to the objects/ and objects/pack/ directory listings — new packs land there on every push", () => {
+		expect(refAwareTtl("repos/alice/blog/git/objects/")).toBe(5_000);
+		expect(refAwareTtl("repos/alice/blog/git/objects/pack/")).toBe(5_000);
+	});
+
+	it("leaves content-addressed object *reads* (a specific known key) on the default (long) ttl", () => {
+		expect(
+			refAwareTtl("repos/alice/blog/git/objects/pack/pack-1.pack"),
+		).toBeUndefined();
+		expect(
+			refAwareTtl("repos/alice/blog/git/objects/ab/cdef0123456789"),
+		).toBeUndefined();
+		expect(refAwareTtl("repos/alice/blog/git/config")).toBeUndefined();
 	});
 });
