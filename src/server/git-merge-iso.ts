@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { analyzeMerge as gitEdgeAnalyzeMerge } from "@nandan-varma/git-edge";
+import {
+	fastForwardMerge,
+	analyzeMerge as opsAnalyzeMerge,
+} from "@nandan-varma/git-fs-s3/ops";
 import git, { Errors } from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { createCommit } from "./git-commit-write";
@@ -60,26 +63,13 @@ export async function analyzeMerge(
 	assertSafeBranchName(targetBranch);
 	const repo = await getRepoOptions(ownerKey, repoName);
 
-	// Delegates the resolve+ancestry check to @nandan-varma/git-edge's
-	// analyzeMerge, which already gets the NotFoundError-vs-everything-else
-	// distinction right (only a genuinely missing ref reports canMerge:
-	// false; any other failure — a corrupted object, a storage error —
-	// propagates instead of being misreported the same way).
-	const { canMerge, fastForward } = await gitEdgeAnalyzeMerge(
-		repo,
-		qualifyBranchRef(sourceBranch),
-		qualifyBranchRef(targetBranch),
-	);
-
-	// hasConflicts/conflictingFiles are a misnomer kept for MergeAnalysis's
-	// existing shape — see this function's own doc comment above for what
-	// they actually mean (never a real content-conflict signal).
-	return {
-		canMerge,
-		hasConflicts: !canMerge,
-		conflictingFiles: [],
-		fastForward,
-	};
+	// Delegates to @nandan-varma/git-fs-s3/ops's analyzeMerge, which already
+	// returns this exact MergeAnalysis shape (canMerge/hasConflicts/
+	// conflictingFiles/fastForward) and gets the NotFoundError-vs-everything
+	// -else distinction right (only a genuinely missing ref reports
+	// canMerge: false; any other failure — a corrupted object, a storage
+	// error — propagates instead of being misreported the same way).
+	return opsAnalyzeMerge(repo, sourceBranch, targetBranch);
 }
 
 export async function mergeBranches(
@@ -94,27 +84,9 @@ export async function mergeBranches(
 	assertSafeBranchName(targetBranch);
 	if (isR2Configured()) {
 		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
-		const ffResult = await withRepositoryLock(ownerKey, repoName, async () => {
+		const ffResult = await withRepositoryLock(ownerKey, repoName, () => {
 			const repo = getBareRepoOptions(ownerKey, repoName);
-			const [sourceOid, targetOid] = await Promise.all([
-				git.resolveRef({ ...repo, ref: `refs/heads/${sourceBranch}` }),
-				git.resolveRef({ ...repo, ref: `refs/heads/${targetBranch}` }),
-			]);
-			const isFF = await git.isDescendent({
-				...repo,
-				oid: sourceOid,
-				ancestor: targetOid,
-			});
-			if (isFF) {
-				await git.writeRef({
-					...repo,
-					ref: `refs/heads/${targetBranch}`,
-					value: sourceOid,
-					force: true,
-				});
-				return { success: true, commitSha: sourceOid };
-			}
-			return null;
+			return fastForwardMerge(repo, sourceBranch, targetBranch);
 		});
 		if (ffResult) {
 			return ffResult;

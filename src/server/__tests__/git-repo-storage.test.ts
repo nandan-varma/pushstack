@@ -70,6 +70,7 @@ vi.mock("../perf-log", () => ({
 }));
 
 import { promises as nodeFs } from "node:fs";
+import { resultKeyPrefixes } from "@nandan-varma/git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
 import {
 	bulkCopyInR2,
@@ -86,7 +87,6 @@ import {
 	initBareRepo,
 	invalidateRepoGitCache,
 } from "../git-manager-iso";
-
 import {
 	deleteRepositoryFromR2,
 	ensureRepositoryHydrated,
@@ -95,6 +95,7 @@ import {
 	syncRepositoryToR2,
 	withRepositoryLock,
 } from "../git-repo-storage";
+import { getRepoGitStorageRoot } from "../git-storage-naming";
 
 const mockListAllR2Files = vi.mocked(listAllR2Files);
 const mockBulkUploadToR2 = vi.mocked(bulkUploadToR2);
@@ -440,6 +441,17 @@ describe("syncRepositoryToR2", () => {
 		expect(mockInvalidateStorage).toHaveBeenCalled();
 		expect(mockInvalidateObjectCache).toHaveBeenCalled();
 		expect(mockInvalidateRepoGitCache).toHaveBeenCalled();
+
+		// The ops.* result-cache keys are namespaced `<kind>:${gitdir}:...` by
+		// @nandan-varma/git-fs-s3/ops itself, not by this app — invalidation here
+		// must use the exact same gitdir getRepoOptions/getBareRepoOptions
+		// resolve for reads, or these calls silently clear nothing. Regression
+		// coverage for a real bug: this used to invalidate hand-rolled
+		// `result:tree:${owner}/${repo}/`-shaped prefixes that never matched
+		// the library's actual key scheme.
+		for (const prefix of resultKeyPrefixes(getRepoGitStorageRoot("o", "r"))) {
+			expect(mockInvalidateObjectCache).toHaveBeenCalledWith(prefix);
+		}
 
 		readFileSpy.mockRestore();
 		readdirSpy.mockRestore();

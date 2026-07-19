@@ -1,51 +1,33 @@
-import git from "isomorphic-git";
+/**
+ * Branch CRUD — thin wrapper around @nandan-varma/git-fs-s3/ops's branch
+ * functions (extracted from an earlier version of this exact file). What
+ * stays here: resolving `(ownerKey, repoName)` to a `Repo`, and the R2
+ * lock/sync orchestration around writes (createBranch/deleteBranch), which
+ * has no equivalent in the library.
+ */
+import {
+	assertBranchExists,
+	assertSafeBranchName,
+	type Branch,
+	createBranchFrom,
+	deleteBranchByName,
+	listBranches,
+} from "@nandan-varma/git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
-import { isSafeBranchName } from "./git-ref-name";
 import {
 	getRepoOptions,
 	syncRepositoryToR2,
 	withRepositoryLock,
 } from "./git-repo-storage";
 
-export interface Branch {
-	name: string;
-	commit: string;
-	isDefault: boolean;
-}
-
-// Defense in depth: files.ts's zod schemas already reject malformed branch
-// names before they reach here, but git.deleteBranch and the resolveRef read
-// below don't validate ref names internally the way git.branch does (see
-// isSafeBranchName's comment in git-ref-name.ts) — guard at the point these
-// primitives are actually called, not just at the API boundary.
-function assertSafeBranchName(name: string): void {
-	if (!isSafeBranchName(name)) {
-		throw new Error(`Invalid branch name: ${name}`);
-	}
-}
+export type { Branch };
 
 export async function getBranches(
 	ownerKey: string,
 	repoName: string,
 ): Promise<Branch[]> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	try {
-		const [branches, currentBranch] = await Promise.all([
-			git.listBranches(repo),
-			git.currentBranch({ ...repo, fullname: false }).catch(() => null),
-		]);
-
-		return Promise.all(
-			branches.map(async (branch) => ({
-				name: branch,
-				commit: await git.resolveRef({ ...repo, ref: `refs/heads/${branch}` }),
-				isDefault: branch === currentBranch,
-			})),
-		);
-	} catch (err: unknown) {
-		if ((err as { code?: string }).code === "NotFoundError") return [];
-		throw err;
-	}
+	return listBranches(repo);
 }
 
 export async function createBranch(
@@ -59,11 +41,7 @@ export async function createBranch(
 	assertSafeBranchName(startPoint);
 	const run = async () => {
 		const repo = await getRepoOptions(ownerKey, repoName);
-		const object = await git.resolveRef({
-			...repo,
-			ref: `refs/heads/${startPoint}`,
-		});
-		await git.branch({ ...repo, ref: branchName, checkout: false, object });
+		await createBranchFrom(repo, branchName, startPoint);
 		// ponytail: when R2 backend is active, git.branch wrote directly to R2 — syncing local→R2
 		// here would read an empty local dir and delete all R2 objects
 		if (!isR2Configured()) {
@@ -89,7 +67,7 @@ export async function deleteBranch(
 	assertSafeBranchName(branchName);
 	const run = async () => {
 		const repo = await getRepoOptions(ownerKey, repoName);
-		await git.deleteBranch({ ...repo, ref: branchName });
+		await deleteBranchByName(repo, branchName);
 		if (!isR2Configured()) {
 			await syncRepositoryToR2(ownerKey, repoName, ownerDbId);
 		}
@@ -108,7 +86,6 @@ export async function checkoutBranch(
 	repoName: string,
 	branchName: string,
 ): Promise<void> {
-	assertSafeBranchName(branchName);
 	const repo = await getRepoOptions(ownerKey, repoName);
-	await git.resolveRef({ ...repo, ref: `refs/heads/${branchName}` });
+	await assertBranchExists(repo, branchName);
 }

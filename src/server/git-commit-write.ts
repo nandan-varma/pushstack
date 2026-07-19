@@ -1,11 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+	authorNow,
+	commitFilesToBare,
+	deleteFileFromBare,
+} from "@nandan-varma/git-fs-s3/ops";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import { isSafeBranchName } from "./git-ref-name";
 import { withRepositoryLock, withRepositoryWorktree } from "./git-repo-storage";
-import { deleteFromTree, upsertTree } from "./git-tree-ops";
 
 // Defense in depth: files.ts's zod schemas already reject malformed branch
 // names before they reach here, but git.commit doesn't validate its `ref`
@@ -15,56 +19,6 @@ function assertSafeBranchName(name: string): void {
 	if (!isSafeBranchName(name)) {
 		throw new Error(`Invalid branch name: ${name}`);
 	}
-}
-
-// Write a commit directly to R2 without a worktree — no download/upload cycle
-async function writeCommitDirect(
-	ownerKey: string,
-	repoName: string,
-	branch: string,
-	message: string,
-	author: {
-		name: string;
-		email: string;
-		timestamp: number;
-		timezoneOffset: number;
-	},
-	buildTree: (
-		parentTreeOid: string | undefined,
-		repo: ReturnType<typeof getBareRepoOptions>,
-	) => Promise<string>,
-): Promise<string> {
-	const repo = getBareRepoOptions(ownerKey, repoName);
-	let parentOid: string | undefined;
-	let parentTreeOid: string | undefined;
-	try {
-		parentOid = await git.resolveRef({ ...repo, ref: `refs/heads/${branch}` });
-		const { commit } = await git.readCommit({ ...repo, oid: parentOid });
-		parentTreeOid = commit.tree;
-	} catch (err) {
-		if ((err as { code?: string })?.code !== "NotFoundError") {
-			throw err;
-		}
-		// empty repo — first commit
-	}
-	const treeOid = await buildTree(parentTreeOid, repo);
-	const commitOid = await git.writeCommit({
-		...repo,
-		commit: {
-			message,
-			tree: treeOid,
-			parent: parentOid ? [parentOid] : [],
-			author,
-			committer: author,
-		},
-	});
-	await git.writeRef({
-		...repo,
-		ref: `refs/heads/${branch}`,
-		value: commitOid,
-		force: true,
-	});
-	return commitOid;
 }
 
 export async function createCommit(
@@ -80,42 +34,15 @@ export async function createCommit(
 	assertSafeBranchName(branch);
 	const author =
 		authorName && authorEmail
-			? {
-					name: authorName,
-					email: authorEmail,
-					timestamp: Math.floor(Date.now() / 1000),
-					timezoneOffset: 0,
-				}
+			? authorNow(authorName, authorEmail)
 			: getDefaultAuthor();
 
 	if (isR2Configured()) {
 		// ponytail: write blobs + tree + commit directly to R2 — no worktree, no disk I/O
-		return withRepositoryLock(ownerKey, repoName, () =>
-			writeCommitDirect(
-				ownerKey,
-				repoName,
-				branch,
-				message,
-				author,
-				async (parentTreeOid, repo) => {
-					// ponytail: each blob is written to its own content-addressed R2 key —
-					// no shared state between files, so writing them one-at-a-time (as
-					// resolveConflicts's multi-file commits used to) only added latency.
-					const blobs = new Map<string, string>();
-					await Promise.all(
-						files.map(async (file) => {
-							const content =
-								typeof file.content === "string"
-									? Buffer.from(file.content)
-									: file.content;
-							const oid = await git.writeBlob({ ...repo, blob: content });
-							blobs.set(file.path, oid);
-						}),
-					);
-					return upsertTree(repo, parentTreeOid, blobs);
-				},
-			),
-		);
+		return withRepositoryLock(ownerKey, repoName, () => {
+			const repo = getBareRepoOptions(ownerKey, repoName);
+			return commitFilesToBare(repo, { branch, message, author, files });
+		});
 	}
 
 	return withRepositoryWorktree(
@@ -161,26 +88,17 @@ export async function deleteFile(
 	ownerDbId?: string,
 ): Promise<{ sha: string; message: string }> {
 	assertSafeBranchName(branchName);
-	const authorInfo = {
-		name: author.name,
-		email: author.email,
-		timestamp: Math.floor(Date.now() / 1000),
-		timezoneOffset: 0,
-	};
+	const authorInfo = authorNow(author.name, author.email);
 
 	if (isR2Configured()) {
 		// ponytail: remove from tree + commit directly to R2 — no worktree
-		const sha = await writeCommitDirect(
-			ownerKey,
-			repoName,
-			branchName,
+		const repo = getBareRepoOptions(ownerKey, repoName);
+		const sha = await deleteFileFromBare(repo, {
+			branch: branchName,
+			filePath,
 			message,
-			authorInfo,
-			async (parentTreeOid, repo) => {
-				if (!parentTreeOid) throw new Error(`Branch ${branchName} is empty`);
-				return deleteFromTree(repo, parentTreeOid, filePath);
-			},
-		);
+			author: authorInfo,
+		});
 		return { sha, message };
 	}
 

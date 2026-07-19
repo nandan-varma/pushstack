@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { qualifyBranchRef } from "@nandan-varma/git-fs-s3";
+import { resultKeyPrefixes } from "@nandan-varma/git-fs-s3/ops";
 import { and, eq } from "drizzle-orm";
 import git from "isomorphic-git";
 import { db } from "#/db";
@@ -28,6 +29,7 @@ import {
 } from "./git-manager-iso";
 import {
 	getRepoGitStoragePrefix,
+	getRepoGitStorageRoot,
 	getRepoStorageRoot,
 } from "./git-storage-naming";
 import { logError, perfNote, perfStep } from "./perf-log";
@@ -594,14 +596,22 @@ async function syncRepositoryToR2Unlocked(
 	// so a warm instance keeps serving pre-push state without this.
 	invalidateRepoGitStorage(ownerKey, repoName);
 
-	invalidateObjectCache(`result:tree:${ownerKey}/${repoName}/`);
-	invalidateObjectCache(`result:commits:${ownerKey}/${repoName}/`);
-	// getCommitLog's own walk-result cache (git-history-ops.ts) — getCommits,
-	// getLastCommits, and getFileHistory all build on it. It's keyed per resolved
-	// head sha so a *new* head is never served this cache's old content, but
-	// without this it leaks one orphaned entry per push instead of being cleared
-	// alongside the result caches built on top of it.
-	invalidateObjectCache(`result:commitlog:${ownerKey}/${repoName}/`);
+	// Every ops.* result-cache entry for this repo (commit log, tree listings,
+	// commit history pages, last-commits-per-dir, file history) is keyed
+	// `<kind>:${gitdir}:...` by @nandan-varma/git-fs-s3/ops itself — gitdir
+	// here must match what getRepoOptions/getBareRepoOptions resolves for
+	// reads (getRepoGitStorageRoot, since this function only reaches here
+	// when isR2Configured()), or these calls silently invalidate nothing.
+	// getCommitLog's own walk-result cache is included: getCommits,
+	// getLastCommits, and getFileHistory all build on it, and it's keyed per
+	// resolved head sha so a *new* head is never served stale content — but
+	// without this it leaks one orphaned entry per push instead of being
+	// cleared alongside the result caches built on top of it.
+	for (const prefix of resultKeyPrefixes(
+		getRepoGitStorageRoot(ownerKey, repoName),
+	)) {
+		invalidateObjectCache(prefix);
+	}
 
 	// A repack rewrites pack files out from under any already-parsed isomorphic-git
 	// pack index, so drop the shared per-repo git cache too.

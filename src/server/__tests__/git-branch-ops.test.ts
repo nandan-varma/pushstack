@@ -3,7 +3,13 @@
  * resolveRef read in checkoutBranch don't validate ref names internally the
  * way git.branch does (see isSafeBranchName's comment in git-ref-name.ts),
  * so createBranch/deleteBranch/checkoutBranch must reject an unsafe name
- * themselves before any isomorphic-git call runs.
+ * themselves before any isomorphic-git call runs. The happy path (a
+ * well-formed name actually creates/deletes/checks out a branch) is covered
+ * end-to-end against a real repo in git-integration.test.ts — these
+ * functions now delegate to @nandan-varma/git-fs-s3/ops, which resolves its
+ * own isomorphic-git copy under pnpm's isolated node_modules layout, so
+ * asserting "the mocked git.branch was called" from here wouldn't observe
+ * the library's internal call anyway.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -69,14 +75,6 @@ describe("createBranch", () => {
 		expect(git.resolveRef).not.toHaveBeenCalled();
 		expect(git.branch).not.toHaveBeenCalled();
 	});
-
-	it("accepts a well-formed branch name and start point", async () => {
-		const git = (await import("isomorphic-git")).default;
-		const { createBranch } = await import("../git-branch-ops");
-
-		await createBranch("owner", "repo", "feature", "main");
-		expect(git.branch).toHaveBeenCalled();
-	});
 });
 
 describe("deleteBranch", () => {
@@ -95,14 +93,6 @@ describe("deleteBranch", () => {
 		);
 		expect(git.deleteBranch).not.toHaveBeenCalled();
 	});
-
-	it("accepts a well-formed branch name", async () => {
-		const git = (await import("isomorphic-git")).default;
-		const { deleteBranch } = await import("../git-branch-ops");
-
-		await deleteBranch("owner", "repo", "feature");
-		expect(git.deleteBranch).toHaveBeenCalled();
-	});
 });
 
 describe("checkoutBranch", () => {
@@ -120,13 +110,5 @@ describe("checkoutBranch", () => {
 			"Invalid branch name",
 		);
 		expect(git.resolveRef).not.toHaveBeenCalled();
-	});
-
-	it("accepts a well-formed branch name", async () => {
-		const git = (await import("isomorphic-git")).default;
-		const { checkoutBranch } = await import("../git-branch-ops");
-
-		await checkoutBranch("owner", "repo", "feature");
-		expect(git.resolveRef).toHaveBeenCalled();
 	});
 });

@@ -1,10 +1,21 @@
 /**
- * Consolidated tests for createCommit (git-commit-write.ts):
- *   1. Parent resolution error discrimination (was git-operations-errors.test.ts)
- *   2. Repository-level locking on concurrent writes (was git-operations-locking.test.ts)
+ * Consolidated tests for createCommit/deleteFile (git-commit-write.ts) and
+ * the branch mutators (git-branch-ops.ts):
+ *   1. Branch-name guard (path-traversal rejection before any git call)
+ *   2. Repository-level locking on concurrent writes
  *
- * These tests share identical mock infrastructure (isomorphic-git, git-manager-iso,
- * r2) so merging them eliminates ~120 lines of duplicated setup.
+ * Parent-ref resolution error discrimination (NotFoundError = empty repo vs.
+ * any other error propagates) now lives in @nandan-varma/git-fs-s3's own
+ * test/ops.test.ts ("writeCommitToBare parent resolution") — createCommit's
+ * R2 path delegates straight to that function.
+ *
+ * Concurrency here is verified by mocking @nandan-varma/git-fs-s3/ops
+ * directly (not isomorphic-git): that package resolves its own isomorphic-git
+ * copy under pnpm's isolated node_modules layout, so a mock of isomorphic-git
+ * from this file never reaches its internal calls. What actually matters for
+ * this test is that pushstack's own withRepositoryLock serializes concurrent
+ * high-level calls — mocking the ops functions pushstack imports by name
+ * observes that directly.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,29 +39,17 @@ async function trackConcurrency<T>(result: T): Promise<T> {
 	return result;
 }
 
-vi.mock("isomorphic-git", () => ({
-	default: {
-		resolveRef: vi.fn(async () => {
-			const err = new Error("not found");
-			(err as { code?: string }).code = "NotFoundError";
-			return trackConcurrency(undefined).then(() => {
-				throw err;
-			});
-		}),
-		readCommit: vi.fn(async () =>
-			trackConcurrency({
-				commit: { tree: "tree-oid", parent: [], message: "init" },
-				payload: "",
-			}),
-		),
-		writeBlob: vi.fn(async () => trackConcurrency("blob-oid")),
-		writeTree: vi.fn(async () => trackConcurrency("tree-oid")),
-		writeCommit: vi.fn(async () => trackConcurrency("commit-oid")),
-		writeRef: vi.fn(async () => trackConcurrency(undefined)),
-		branch: vi.fn(async () => trackConcurrency(undefined)),
-		deleteBranch: vi.fn(async () => trackConcurrency(undefined)),
-	},
-}));
+vi.mock("@nandan-varma/git-fs-s3/ops", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("@nandan-varma/git-fs-s3/ops")>();
+	return {
+		...actual,
+		commitFilesToBare: vi.fn(async () => trackConcurrency("commit-oid")),
+		deleteFileFromBare: vi.fn(async () => trackConcurrency("commit-oid")),
+		createBranchFrom: vi.fn(async () => trackConcurrency(undefined)),
+		deleteBranchByName: vi.fn(async () => trackConcurrency(undefined)),
+	};
+});
 
 vi.mock("../git-manager-iso", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../git-manager-iso")>();
@@ -66,55 +65,6 @@ vi.mock("../git-manager-iso", async (importOriginal) => {
 	};
 });
 
-function notFoundError(message = "not found") {
-	const err = new Error(message);
-	(err as { code?: string }).code = "NotFoundError";
-	return err;
-}
-
-describe("createCommit — parent resolution", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it("succeeds as first commit on NotFoundError parent ref", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
-			notFoundError(),
-		);
-
-		const { createCommit } = await import("../git-commit-write");
-		const sha = await createCommit(
-			"owner",
-			"repo",
-			"initial commit",
-			[{ path: "README.md", content: "hello" }],
-			"Test",
-			"test@example.com",
-		);
-		expect(sha).toBe("commit-oid");
-	});
-
-	it("propagates non-NotFoundError instead of treating as empty repo", async () => {
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockRejectedValue(
-			new Error("R2 timeout"),
-		);
-
-		const { createCommit } = await import("../git-commit-write");
-		await expect(
-			createCommit(
-				"owner",
-				"repo",
-				"initial commit",
-				[{ path: "README.md", content: "hello" }],
-				"Test",
-				"test@example.com",
-			),
-		).rejects.toThrow("R2 timeout");
-	});
-});
-
 describe("createCommit — branch name guard", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -125,7 +75,7 @@ describe("createCommit — branch name guard", () => {
 	// git.branch/git.writeRef do — createCommit must reject a path-traversal
 	// branch name itself before any isomorphic-git call runs.
 	it("rejects a path-traversal branch name without writing anything", async () => {
-		const git = (await import("isomorphic-git")).default;
+		const { commitFilesToBare } = await import("@nandan-varma/git-fs-s3/ops");
 		const { createCommit } = await import("../git-commit-write");
 
 		await expect(
@@ -140,9 +90,7 @@ describe("createCommit — branch name guard", () => {
 			),
 		).rejects.toThrow("Invalid branch name");
 
-		expect(git.resolveRef).not.toHaveBeenCalled();
-		expect(git.writeCommit).not.toHaveBeenCalled();
-		expect(git.writeRef).not.toHaveBeenCalled();
+		expect(commitFilesToBare).not.toHaveBeenCalled();
 	});
 });
 
@@ -152,7 +100,7 @@ describe("deleteFile — branch name guard", () => {
 	});
 
 	it("rejects a path-traversal branch name without touching the filesystem", async () => {
-		const git = (await import("isomorphic-git")).default;
+		const { deleteFileFromBare } = await import("@nandan-varma/git-fs-s3/ops");
 		const { deleteFile } = await import("../git-commit-write");
 
 		await expect(
@@ -166,30 +114,17 @@ describe("deleteFile — branch name guard", () => {
 			),
 		).rejects.toThrow("Invalid branch name");
 
-		expect(git.resolveRef).not.toHaveBeenCalled();
-		expect(git.writeRef).not.toHaveBeenCalled();
+		expect(deleteFileFromBare).not.toHaveBeenCalled();
 	});
 });
 
 describe("createCommit — concurrent write serialization", () => {
-	beforeEach(async () => {
+	beforeEach(() => {
 		resetConcurrencyTracking();
 		vi.clearAllMocks();
-		// Restore resolveRef to the factory default (NotFoundError + concurrency tracking)
-		// since the "parent resolution" tests override it with mockRejectedValue.
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockImplementation(
-			async () => {
-				const err = new Error("not found");
-				(err as { code?: string }).code = "NotFoundError";
-				return trackConcurrency(undefined).then(() => {
-					throw err;
-				});
-			},
-		);
 	});
 
-	it("never has two concurrent git calls in flight for the same repo", async () => {
+	it("never has two concurrent ops calls in flight for the same repo", async () => {
 		const { createCommit } = await import("../git-commit-write");
 
 		await Promise.all([
@@ -241,10 +176,6 @@ describe("createCommit — concurrent write serialization", () => {
 
 	it("serializes concurrent createBranch/deleteBranch", async () => {
 		const { createBranch, deleteBranch } = await import("../git-branch-ops");
-		const git = (await import("isomorphic-git")).default;
-		(git.resolveRef as ReturnType<typeof vi.fn>).mockImplementation(async () =>
-			trackConcurrency("some-oid"),
-		);
 
 		await Promise.all([
 			createBranch("owner", "repo", "feature-a", "main"),
