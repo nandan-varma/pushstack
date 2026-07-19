@@ -90,6 +90,18 @@ const config = defineConfig({
 			],
 		},
 	},
+	// Default worker build format is 'iife', which can't code-split: shiki's
+	// bundledLanguages map (src/workers/syntax-highlight.worker.ts) is ~200
+	// dynamic import()s, one per grammar, meant to be lazy-loaded per
+	// highlighter.loadLanguage() call. An iife worker has no module graph to
+	// lazy-load from, so Vite inlines every grammar into one ~9.5MB file that
+	// ships in full to any page using the worker (FileDiffViewer/CodeViewer)
+	// even though `langs: []` only ever needs a handful at a time. 'es' lets
+	// the worker use real dynamic import(), so each grammar becomes its own
+	// small chunk fetched only when that language is actually highlighted.
+	worker: {
+		format: "es",
+	},
 	ssr: {
 		noExternal: ["@tanstack/react-start", "@tanstack/react-router"],
 		external: ["node:fs", "node:path", "node:fs/promises"],

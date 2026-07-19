@@ -88,12 +88,26 @@ export const Route = createFileRoute("/api/raw/$")({
 					);
 					const isBinary = buffer.includes(0);
 
+					// `ref` is either a branch name (content can move under the same
+					// URL, so this response must be revalidated quickly) or a full
+					// 40-hex commit SHA (content-addressed — same bytes forever at
+					// this URL, same reasoning as query-options.ts's
+					// IMMUTABLE_STALE_TIME for SHA-pinned queries). Only cache
+					// publicly/long when both that *and* the repo's visibility make
+					// the response identical for every viewer regardless of auth —
+					// a private repo's bytes must never end up in a shared/CDN cache.
+					const isImmutableRef = /^[0-9a-f]{40}$/i.test(ref);
+					const cacheControl =
+						isImmutableRef && repository.visibility === "public"
+							? "public, max-age=31536000, immutable"
+							: "private, max-age=60";
+
 					return new Response(Buffer.concat([buffer]), {
 						headers: {
 							"Content-Type": safeContentType(path, isBinary),
 							"X-Content-Type-Options": "nosniff",
 							"Content-Disposition": "inline",
-							"Cache-Control": "private, max-age=60",
+							"Cache-Control": cacheControl,
 						},
 					});
 				} catch {
