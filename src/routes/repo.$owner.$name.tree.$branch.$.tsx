@@ -58,6 +58,13 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 		perfTime(
 			`loader tree ${params.owner}/${params.name}@${params.branch}:${params._splat || "/"}`,
 			async () => {
+				// Only `repo` is awaited — it's fast (one DB row) and every other
+				// query needs repo.id. Everything past this point is fire-and-forget:
+				// the route commits and TreeBrowserPage mounts as soon as `repo`
+				// resolves, and each section's own useQuery (already wired to these
+				// exact query keys, sharing this in-flight request) renders its own
+				// skeleton and streams in independently as its query settles, instead
+				// of the whole page blocking on the slowest of four parallel R2 reads.
 				const repo = await perfTime(
 					"loader: ensureQueryData repositoryByName",
 					() =>
@@ -68,75 +75,70 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 							}),
 						),
 				);
-				if (repo) {
-					// MarkdownRenderer (which renders the README below) needs these to
-					// resolve `#123` references to issue/PR links — nothing in any loader
-					// prefetched them before, so they only fired as a client-only query
-					// after the README already rendered. Fire-and-forget: only depends on
-					// repo.id, doesn't block the loader response.
-					queryClient
-						.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-						.catch(() => {});
-					queryClient
-						.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-						.catch(() => {});
+				if (!repo) return;
 
-					const [, files] = await perfTime(
-						"loader: ensureQueryData [branches, files, lastCommits, commits]",
-						() =>
-							Promise.all([
-								queryClient.ensureQueryData(
-									repositoryBranchesQueryOptions(repo.id),
-								),
-								queryClient.ensureQueryData(
-									repositoryFilesQueryOptions({
-										repoId: repo.id,
-										branchName: params.branch,
-										path: params._splat || "",
-									}),
-								),
-								// Off by default (repo settings > Performance) — this walks up
-								// to 400 commits of history per directory, the single most
-								// expensive thing a tree-page visit can trigger. Don't even
-								// prefetch it unless the repo owner opted in.
-								repo.showLastCommitColumn
-									? queryClient.ensureQueryData(
-											repositoryLastCommitsQueryOptions({
-												repoId: repo.id,
-												branchName: params.branch,
-												path: params._splat || "",
-											}),
-										)
-									: Promise.resolve(undefined),
-								queryClient.ensureQueryData(
-									repositoryLatestCommitQueryOptions({
-										repoId: repo.id,
-										branchName: params.branch,
-									}),
-								),
-							]),
-					);
+				// MarkdownRenderer (which renders the README below) needs these to
+				// resolve `#123` references to issue/PR links.
+				queryClient
+					.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
+					.catch(() => {});
+				queryClient
+					.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
+					.catch(() => {});
 
-					// The component only discovers the README (and fires its content query)
-					// after `files` has rendered client-side — without this, that's a whole
-					// extra request/response cycle tacked on after the page is already
-					// visible. We already know the file list here, so kick the fetch off now
-					// (fire-and-forget — don't block the loader/response on it) so it's
-					// likely already resolved in the query cache by the time the component
-					// mounts and asks for it.
-					const readmeFile = findReadmeFile(files);
-					if (readmeFile) {
-						queryClient
-							.ensureQueryData(
-								repositoryFileQueryOptions({
-									repoId: repo.id,
-									branchName: params.branch,
-									path: readmeFile.path,
-								}),
-							)
-							.catch(() => {});
-					}
+				queryClient
+					.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
+					.catch(() => {});
+
+				// The component only discovers the README (and fires its content
+				// query) after `files` resolves client-side — chain off this same
+				// fire-and-forget fetch so that readme fetch can start the moment
+				// `files` is known, without making the loader wait for either.
+				queryClient
+					.ensureQueryData(
+						repositoryFilesQueryOptions({
+							repoId: repo.id,
+							branchName: params.branch,
+							path: params._splat || "",
+						}),
+					)
+					.then((files) => {
+						const readmeFile = findReadmeFile(files);
+						if (!readmeFile) return;
+						return queryClient.ensureQueryData(
+							repositoryFileQueryOptions({
+								repoId: repo.id,
+								branchName: params.branch,
+								path: readmeFile.path,
+							}),
+						);
+					})
+					.catch(() => {});
+
+				// Off by default (repo settings > Performance) — this walks up to 400
+				// commits of history per directory, the single most expensive thing a
+				// tree-page visit can trigger. Don't even prefetch it unless the repo
+				// owner opted in.
+				if (repo.showLastCommitColumn) {
+					queryClient
+						.ensureQueryData(
+							repositoryLastCommitsQueryOptions({
+								repoId: repo.id,
+								branchName: params.branch,
+								path: params._splat || "",
+							}),
+						)
+						.catch(() => {});
 				}
+
+				queryClient
+					.ensureQueryData(
+						repositoryLatestCommitQueryOptions({
+							repoId: repo.id,
+							branchName: params.branch,
+						}),
+					)
+					.catch(() => {});
 			},
 		),
 	errorComponent: TreeErrorComponent,
@@ -275,6 +277,8 @@ function TreeBrowserPage() {
 					<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-2 py-1 text-xs font-mono text-[var(--sea-ink-soft)]">
 						{activeBranch.slice(0, 7)}
 					</code>
+				) : branchesLoading ? (
+					<div className="h-8 w-32 animate-pulse rounded-md border border-[var(--line)] bg-[var(--surface-raised)]" />
 				) : (
 					<Select value={activeBranch} onValueChange={handleBranchChange}>
 						<SelectTrigger size="sm">
@@ -292,9 +296,13 @@ function TreeBrowserPage() {
 				)}
 
 				<div className="flex items-center gap-2">
-					<span className="text-xs text-[var(--sea-ink-soft)]">
-						{files?.length || 0} files
-					</span>
+					{isLoading ? (
+						<div className="h-3 w-12 animate-pulse rounded bg-[var(--surface-raised)]" />
+					) : (
+						<span className="text-xs text-[var(--sea-ink-soft)]">
+							{files?.length || 0} files
+						</span>
+					)}
 					{!isCommitView && (
 						<Link
 							to="/repo/$owner/$name/upload"
@@ -342,6 +350,7 @@ function TreeBrowserPage() {
 				branch={activeBranch}
 				repoId={repo?.id}
 				readmeFile={readmeFile}
+				filesLoading={isLoading}
 			/>
 		</div>
 	);

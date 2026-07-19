@@ -25,7 +25,17 @@ export function CommitSummaryBar({
 }) {
 	if (isLoading) {
 		return (
-			<div className="h-12 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface-raised)]" />
+			<div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5">
+				<div className="flex min-w-0 items-center gap-2.5">
+					<div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+					<div className="h-3.5 w-20 shrink-0 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-3.5 w-64 max-w-full animate-pulse rounded bg-[var(--surface-raised)]" />
+				</div>
+				<div className="flex shrink-0 items-center gap-3">
+					<div className="h-3 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-3 w-12 animate-pulse rounded bg-[var(--surface-raised)]" />
+				</div>
+			</div>
 		);
 	}
 

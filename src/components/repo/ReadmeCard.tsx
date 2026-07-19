@@ -36,12 +36,15 @@ export function ReadmeCard({
 	branch,
 	repoId,
 	readmeFile,
+	filesLoading,
 }: {
 	owner: string;
 	name: string;
 	branch: string;
 	repoId?: number;
 	readmeFile: FileEntry | undefined;
+	/** Whether the directory listing readmeFile is derived from is still loading — until it resolves, whether a README exists at all is unknown. */
+	filesLoading?: boolean;
 }) {
 	const { data: readmeContent, isLoading } = useQuery({
 		...repositoryFileQueryOptions({
@@ -51,6 +54,24 @@ export function ReadmeCard({
 		}),
 		enabled: !!repoId && !!readmeFile,
 	});
+
+	// Most non-empty repos have a README, so speculatively reserve its shape
+	// while `files` is still loading rather than have it pop in afterward —
+	// same reasoning as the rest of the tree page's skeletons. Once `files`
+	// resolves, this collapses immediately to nothing if there isn't one.
+	if (filesLoading) {
+		return (
+			<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+				<div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2.5">
+					<div className="h-4 w-4 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-3.5 w-24 animate-pulse rounded bg-[var(--surface-raised)]" />
+				</div>
+				<div className="p-6">
+					<Skeleton className="h-40" />
+				</div>
+			</div>
+		);
+	}
 
 	if (!readmeFile || readmeContent?.isBinary) return null;
 
