@@ -99,6 +99,10 @@ vi.mock("../git-storage-naming", () => ({
 	getLegacyStorageOwnerKeys: vi.fn(() => []),
 }));
 
+vi.mock("../git-http-iso", () => ({
+	repackRepositoryNow: vi.fn(() => Promise.resolve({ removedPacks: 0 })),
+}));
+
 vi.mock("../repo-access", () => ({
 	canReadRepo: vi.fn(() => Promise.resolve(true)),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
@@ -198,6 +202,45 @@ describe("Repository Unit Tests", () => {
 
 			const { deleteRepositoryFromR2 } = await import("../git-repo-storage");
 			expect(deleteRepositoryFromR2).toHaveBeenCalled();
+		});
+	});
+
+	describe("repackRepository", () => {
+		it("throws when caller is not the owner", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				ownerId: "other-user",
+				owner: {
+					id: "other-user",
+					username: "other",
+					email: "other@example.com",
+				},
+			});
+
+			const { repackRepository } = await import("../repositories");
+			await expect(repackRepository({ data: { id: 1 } })).rejects.toThrow(
+				/owner/i,
+			);
+		});
+
+		it("repacks and reports how many packs were removed", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValue({
+				...mockRepo,
+				owner: mockUser,
+			});
+			const { repackRepositoryNow } = await import("../git-http-iso");
+			vi.mocked(repackRepositoryNow).mockResolvedValue({ removedPacks: 3 });
+
+			const { repackRepository } = await import("../repositories");
+			const result = await repackRepository({ data: { id: 1 } });
+
+			expect(result.removedPacks).toBe(3);
+			expect(repackRepositoryNow).toHaveBeenCalledWith(
+				"user123",
+				mockRepo.name,
+				mockRepo.defaultBranch,
+				mockRepo.ownerId,
+			);
 		});
 	});
 

@@ -9,6 +9,7 @@ import {
 	stars,
 } from "../db/github-schema";
 import { user } from "../db/schema";
+import { repackRepositoryNow } from "./git-http-iso";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
 import {
 	deleteRepositoryFromR2,
@@ -477,6 +478,50 @@ export const deleteRepository = createServerFn({ method: "POST" })
 		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
 
 		return { success: true };
+	});
+
+/**
+ * Consolidates a repo's accumulated pack files into one, outside of a live
+ * push. Every push already repacks past REPACK_PACK_COUNT_THRESHOLD and
+ * cleans up the superseded packs it leaves behind in R2 (git-http-iso.ts's
+ * handleReceivePackIso) — this is only for repos that built up a backlog of
+ * orphaned packs *before* that R2 cleanup step existed and won't otherwise
+ * get one until their next push crosses the threshold again. Each cold read
+ * has to fetch every accumulated pack, so a repo stuck with many small packs
+ * from early incremental pushes stays slow on every cache-cold visit until
+ * this runs once.
+ */
+export const repackRepository = createServerFn({ method: "POST" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				id: z.number(),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) => {
+		const user = await getCurrentUser();
+
+		const repo = await getRepoOrThrow(data.id);
+
+		if (repo.ownerId !== user.id) {
+			throw new Error("Only repository owner can repack");
+		}
+
+		const ownerKey = getStorageOwnerKey({
+			id: repo.owner.id,
+			username: repo.owner.username,
+			email: repo.owner.email,
+		});
+
+		const { removedPacks } = await repackRepositoryNow(
+			ownerKey,
+			repo.name,
+			repo.defaultBranch ?? "main",
+			repo.ownerId,
+		);
+
+		return { removedPacks };
 	});
 
 // Star/unstar repository

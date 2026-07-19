@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Section } from "@/components/Section";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Switch } from "@/components/ui/switch";
 import { queryKeys } from "@/lib/query-options";
-import { updateRepository } from "@/server/repositories";
+import { repackRepository, updateRepository } from "@/server/repositories";
 
 function ToggleRow({
 	id,
@@ -65,6 +66,10 @@ export function PerformanceSection({
 		},
 	});
 
+	const repackMutation = useMutation({
+		mutationFn: () => repackRepository({ data: { id: repo.id } }),
+	});
+
 	return (
 		<Section
 			title="Performance"
@@ -99,6 +104,42 @@ export function PerformanceSection({
 			{mutation.isError && (
 				<p className="mt-3 text-sm text-red-600 dark:text-red-400">
 					{(mutation.error as Error).message}
+				</p>
+			)}
+			<div className="mt-4 flex items-start justify-between gap-4 border-t border-[var(--line)] pt-4">
+				<div className="min-w-0">
+					<p className="text-sm font-medium text-[var(--sea-ink)]">
+						Consolidate pack files
+					</p>
+					<p className="mt-0.5 text-xs text-[var(--sea-ink-soft)]">
+						Every push already consolidates old pack files once there are
+						several — this is only for repos that built up a backlog before that
+						started, where every cold visit has to fetch every leftover pack.
+						Safe to run any time; does nothing if there's nothing to
+						consolidate.
+					</p>
+				</div>
+				<LoadingButton
+					variant="outline"
+					size="sm"
+					className="shrink-0"
+					isLoading={repackMutation.isPending}
+					loadingLabel="Consolidating…"
+					onClick={() => repackMutation.mutate()}
+				>
+					Consolidate now
+				</LoadingButton>
+			</div>
+			{repackMutation.isError && (
+				<p className="mt-2 text-sm text-red-600 dark:text-red-400">
+					{(repackMutation.error as Error).message}
+				</p>
+			)}
+			{repackMutation.isSuccess && (
+				<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+					{repackMutation.data.removedPacks > 0
+						? `Consolidated — removed ${repackMutation.data.removedPacks} redundant pack file${repackMutation.data.removedPacks === 1 ? "" : "s"}.`
+						: "Already consolidated — nothing to do."}
 				</p>
 			)}
 		</Section>
