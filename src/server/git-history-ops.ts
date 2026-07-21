@@ -1,6 +1,6 @@
 /**
  * Commit/blob/tree history reads — thin wrapper around
- * @nandan-varma/git-fs-s3/ops's history functions (extracted from an earlier
+ * git-fs-s3/ops's history functions (extracted from an earlier
  * version of this exact file). What stays here: resolving
  * `(ownerKey, repoName)` to a `Repo`, converting the library's `Uint8Array`
  * returns to the `Buffer` this file's own callers expect, and wiring
@@ -20,7 +20,7 @@ import {
 	getCommitLog as opsGetCommitLog,
 	getFileContent as opsGetFileContent,
 	resolveCommit as opsResolveCommit,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
 import { resultCache } from "./git-cache";
 import { prefetchAllPacks } from "./git-fs";

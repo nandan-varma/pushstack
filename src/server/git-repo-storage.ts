@@ -2,9 +2,9 @@ import type { Dirent } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { qualifyBranchRef } from "@nandan-varma/git-fs-s3";
-import { resultKeyPrefixes } from "@nandan-varma/git-fs-s3/ops";
 import { and, eq } from "drizzle-orm";
+import { qualifyBranchRef } from "git-fs-s3";
+import { resultKeyPrefixes } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { db } from "#/db";
 import { repositories } from "#/db/github-schema";
@@ -312,7 +312,7 @@ export async function initRepositoryStorage(
 // R2 round trips per resolution. Left untouched: already-qualified refs,
 // "HEAD" (its own first candidate, already optimal), and 40-char oids
 // (resolved locally by isomorphic-git with no I/O at all). Re-exported from
-// @nandan-varma/git-fs-s3's refs.ts (extracted from an earlier version of
+// git-fs-s3's refs.ts (extracted from an earlier version of
 // this exact function) so every call site here still imports it from
 // git-repo-storage.ts.
 export { qualifyBranchRef };
@@ -598,7 +598,7 @@ async function syncRepositoryToR2Unlocked(
 
 	// Every ops.* result-cache entry for this repo (commit log, tree listings,
 	// commit history pages, last-commits-per-dir, file history) is keyed
-	// `<kind>:${gitdir}:...` by @nandan-varma/git-fs-s3/ops itself — gitdir
+	// `<kind>:${gitdir}:...` by git-fs-s3/ops itself — gitdir
 	// here must match what getRepoOptions/getBareRepoOptions resolves for
 	// reads (getRepoGitStorageRoot, since this function only reaches here
 	// when isR2Configured()), or these calls silently invalidate nothing.

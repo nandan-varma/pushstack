@@ -1,12 +1,12 @@
-import type { ParsedObjectStore } from "@nandan-varma/git-edge";
-import { createParsedObjectCache } from "@nandan-varma/git-edge";
-import type { ResultCache } from "@nandan-varma/git-fs-s3/ops";
+import type { ParsedObjectStore } from "git-edge";
+import { createParsedObjectCache } from "git-edge";
+import type { ResultCache } from "git-fs-s3/ops";
 
 // The raw git-object Buffer cache that used to live here moved into
-// @nandan-varma/git-fs-s3's createCachedStore (composed in git-fs.ts).
+// git-fs-s3's createCachedStore (composed in git-fs.ts).
 
 // Parsed-object cache — stores JS values directly, avoiding JSON.parse on every hit.
-// Delegates to @nandan-varma/git-edge's generalized LRU cache.
+// Delegates to git-edge's generalized LRU cache.
 const objectCache: ParsedObjectStore = createParsedObjectCache({
 	maxSize:
 		Number.parseInt(process.env.GIT_CACHE_MAX_SIZE || "1073741824", 10) / 4,
@@ -31,7 +31,7 @@ export function invalidateObjectCache(prefix: string): void {
 
 /**
  * `getCachedObject`/`setCachedObject` structurally satisfy
- * @nandan-varma/git-fs-s3/ops's `ResultCache` interface already — this object
+ * git-fs-s3/ops's `ResultCache` interface already — this object
  * is the seam every ops-delegating wrapper (git-history-ops.ts,
  * git-last-commit.ts, git-file-history.ts) passes as `hooks.resultCache`, so
  * they all share the one cache instead of each re-declaring the same adapter.

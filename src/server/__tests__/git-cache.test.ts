@@ -7,7 +7,7 @@ import {
 } from "../git-cache";
 
 // The raw Buffer cache that used to live alongside this moved into
-// @nandan-varma/git-fs-s3's createCachedStore (composed in git-fs.ts) and is
+// git-fs-s3's createCachedStore (composed in git-fs.ts) and is
 // covered by that package's test suite.
 
 describe("object cache (getCachedObject / setCachedObject / deleteCachedObject)", () => {

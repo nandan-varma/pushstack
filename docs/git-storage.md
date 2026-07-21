@@ -364,14 +364,14 @@ GIT_REPOS_PATH=/path/to/dir        # optional, default os.tmpdir()/pushstack-rep
 content-addressed object reads, but `git-fs.ts`'s `refAwareTtl` overrides it
 down to a fixed 5s for the mutable parts of a gitdir (`HEAD`, `refs/*`, and
 the `objects/`/`objects/pack/` listings) via
-`@nandan-varma/git-fs-s3`'s `ttlForKey` option — not tunable by this env var.
+`git-fs-s3`'s `ttlForKey` option — not tunable by this env var.
 See [performance.md](./performance.md#ref-aware-ttl).
 
 <a id="stale-docs-notice"></a>
 > **Note on the rest of this document:** the sections above describing
 > `git-r2-backend.ts` (`R2Backend`, its buffer/negative-marker caches,
 > `pendingDownloads`/`pendingStats`) and `repackLocal` predate this app's R2
-> backend being extracted into the published `@nandan-varma/git-fs-s3`
+> backend being extracted into the published `git-fs-s3`
 > package — that file no longer exists. The concepts they describe (loose
 > object hints, structurally-absent short-circuits, request coalescing,
 > pack consolidation) mostly still apply, now living in that package

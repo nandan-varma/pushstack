@@ -1,5 +1,5 @@
 /**
- * Thin wrapper around @nandan-varma/git-fs-s3's smart-HTTP module — the
+ * Thin wrapper around git-fs-s3's smart-HTTP module — the
  * pkt-line framing, reachability walk, receive-pack ref-CAS logic, and pack
  * consolidation all live there now (this file used to hand-roll all of it;
  * git-fs-s3's `/http` module was extracted from an earlier version of this
@@ -23,7 +23,7 @@ import {
 	REPACK_PACK_COUNT_THRESHOLD,
 	receivePackResponse,
 	repackRepository,
-} from "@nandan-varma/git-fs-s3/http";
+} from "git-fs-s3/http";
 import { bulkDeleteFromR2 } from "#/lib/r2-operations";
 import type { GitAuthContext } from "./git-auth";
 import { GitAuthorizationError } from "./git-errors";

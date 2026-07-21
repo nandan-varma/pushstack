@@ -1,5 +1,5 @@
 /**
- * Branch CRUD — thin wrapper around @nandan-varma/git-fs-s3/ops's branch
+ * Branch CRUD — thin wrapper around git-fs-s3/ops's branch
  * functions (extracted from an earlier version of this exact file). What
  * stays here: resolving `(ownerKey, repoName)` to a `Repo`, and the R2
  * lock/sync orchestration around writes (createBranch/deleteBranch), which
@@ -12,7 +12,7 @@ import {
 	createBranchFrom,
 	deleteBranchByName,
 	listBranches,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
 import {
 	getRepoOptions,

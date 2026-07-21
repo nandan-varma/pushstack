@@ -1,14 +1,14 @@
 /**
  * Tests for git-http-iso.ts — the thin pushstack-specific wrapper (auth
  * gating, gitFs vs local-disk selection, R2 stale-pack cleanup) around
- * @nandan-varma/git-fs-s3's smart-HTTP module.
+ * git-fs-s3's smart-HTTP module.
  *
  * Uses real isomorphic-git repos throughout rather than mocking
  * isomorphic-git: git-fs-s3 resolves its own "isomorphic-git" copy under
  * pnpm's isolated node_modules layout — a different module instance than
  * the one this file would mock — so mocking it here never reaches the
  * library's internal calls (same issue documented in git-merge-iso.test.ts
- * for @nandan-varma/git-edge). Deep protocol-level behavior (ref CAS,
+ * for git-edge). Deep protocol-level behavior (ref CAS,
  * path-traversal rejection, multi-ref pushes, non-fast-forward rejection,
  * pack consolidation) has its own dedicated coverage in git-fs-s3's own
  * test/http/*.test.ts — these tests focus on the wiring pushstack itself
@@ -19,7 +19,7 @@
 import nodeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createGitFs, MemoryObjectStore } from "@nandan-varma/git-fs-s3";
+import { createGitFs, MemoryObjectStore } from "git-fs-s3";
 import git from "isomorphic-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

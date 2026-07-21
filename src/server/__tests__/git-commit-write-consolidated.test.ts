@@ -5,11 +5,11 @@
  *   2. Repository-level locking on concurrent writes
  *
  * Parent-ref resolution error discrimination (NotFoundError = empty repo vs.
- * any other error propagates) now lives in @nandan-varma/git-fs-s3's own
+ * any other error propagates) now lives in git-fs-s3's own
  * test/ops.test.ts ("writeCommitToBare parent resolution") — createCommit's
  * R2 path delegates straight to that function.
  *
- * Concurrency here is verified by mocking @nandan-varma/git-fs-s3/ops
+ * Concurrency here is verified by mocking git-fs-s3/ops
  * directly (not isomorphic-git): that package resolves its own isomorphic-git
  * copy under pnpm's isolated node_modules layout, so a mock of isomorphic-git
  * from this file never reaches its internal calls. What actually matters for
@@ -39,9 +39,8 @@ async function trackConcurrency<T>(result: T): Promise<T> {
 	return result;
 }
 
-vi.mock("@nandan-varma/git-fs-s3/ops", async (importOriginal) => {
-	const actual =
-		await importOriginal<typeof import("@nandan-varma/git-fs-s3/ops")>();
+vi.mock("git-fs-s3/ops", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("git-fs-s3/ops")>();
 	return {
 		...actual,
 		commitFilesToBare: vi.fn(async () => trackConcurrency("commit-oid")),
@@ -75,7 +74,7 @@ describe("createCommit — branch name guard", () => {
 	// git.branch/git.writeRef do — createCommit must reject a path-traversal
 	// branch name itself before any isomorphic-git call runs.
 	it("rejects a path-traversal branch name without writing anything", async () => {
-		const { commitFilesToBare } = await import("@nandan-varma/git-fs-s3/ops");
+		const { commitFilesToBare } = await import("git-fs-s3/ops");
 		const { createCommit } = await import("../git-commit-write");
 
 		await expect(
@@ -100,7 +99,7 @@ describe("deleteFile — branch name guard", () => {
 	});
 
 	it("rejects a path-traversal branch name without touching the filesystem", async () => {
-		const { deleteFileFromBare } = await import("@nandan-varma/git-fs-s3/ops");
+		const { deleteFileFromBare } = await import("git-fs-s3/ops");
 		const { deleteFile } = await import("../git-commit-write");
 
 		await expect(

@@ -1,6 +1,6 @@
 /**
  * Per-directory "last commit touched this" resolution — thin wrapper around
- * @nandan-varma/git-fs-s3/ops's getLastCommitsForTree (extracted from an
+ * git-fs-s3/ops's getLastCommitsForTree (extracted from an
  * earlier version of this exact file, including its two-phase
  * prefetch-then-resolve walk). What stays here: resolving
  * `(ownerKey, repoName)` to a `Repo` and wiring pushstack's result
@@ -10,7 +10,7 @@
 import {
 	type LastCommitInfo,
 	getLastCommitsForTree as opsGetLastCommitsForTree,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
 import { resultCache } from "./git-cache";
 import { prefetchAllPacks } from "./git-fs";

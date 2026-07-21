@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Real isomorphic-git integration test for repackRepositoryNow (delegates
- * to @nandan-varma/git-fs-s3's repackRepository) — no mocks, actual
+ * to git-fs-s3's repackRepository) — no mocks, actual
  * filesystem, no native `git` binary anywhere (including fixture setup).
  * This path has no coverage from git-http-iso.test.ts (which mocks
  * isomorphic-git and node:fs entirely, so the real read/verify/pack calls
