@@ -1,5 +1,5 @@
 /**
- * Diff computation — thin wrapper around @nandan-varma/git-fs-s3/ops's
+ * Diff computation — thin wrapper around git-fs-s3/ops's
  * getCommitDiff/getDiffBetweenRefs (extracted from an earlier version of
  * this exact file, which also fixed a real bug along the way: the previous
  * root-commit diff here only listed top-level blobs, silently omitting every
@@ -11,7 +11,7 @@ import {
 	type DiffResult,
 	getDiffBetweenRefs,
 	getCommitDiff as opsGetCommitDiff,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import { getRepoOptions } from "./git-repo-storage";
 
 export type { DiffFile, DiffResult };

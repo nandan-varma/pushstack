@@ -110,7 +110,7 @@ describe("branch name guard", () => {
 	});
 });
 
-// analyzeMerge delegates to @nandan-varma/git-edge's own analyzeMerge, which
+// analyzeMerge delegates to git-edge's own analyzeMerge, which
 // — under pnpm's isolated node_modules layout — resolves its own internal
 // "isomorphic-git" import outside this file's `vi.mock("isomorphic-git")`
 // interception (confirmed empirically: mocking it here doesn't reach
@@ -207,7 +207,7 @@ describe("analyzeMerge", () => {
 	});
 
 	// "Propagates a non-NotFoundError instead of swallowing it" is covered by
-	// @nandan-varma/git-edge's own test suite (test/merge.test.ts), which
+	// git-edge's own test suite (test/merge.test.ts), which
 	// spies on isomorphic-git's isDescendent directly — not reproducible
 	// here: git-edge resolves its own "isomorphic-git" copy under pnpm's
 	// isolated node_modules layout, a genuinely different module instance
@@ -247,7 +247,7 @@ describe("analyzeMerge", () => {
 });
 
 // mergeBranches's R2 fast-forward path now delegates to
-// @nandan-varma/git-fs-s3/ops's fastForwardMerge, which — like
+// git-fs-s3/ops's fastForwardMerge, which — like
 // analyzeMerge — resolves its own isomorphic-git copy under pnpm's isolated
 // node_modules layout, so mocking isomorphic-git from this file doesn't
 // reach its internal calls (same issue as analyzeMerge above). Coverage:

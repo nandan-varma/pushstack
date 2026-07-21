@@ -1,6 +1,6 @@
 /**
  * The R2-backed isomorphic-git filesystem, composed from
- * @nandan-varma/git-fs-s3 (extracted from this app's former git-r2-backend.ts).
+ * git-fs-s3 (extracted from this app's former git-r2-backend.ts).
  *
  * Stack, network-outward: S3ObjectStore → retry/circuit-breaker → perf
  * instrumentation → LRU cache (coalescing, miss/list caching, invalidation) →
@@ -14,8 +14,8 @@ import {
 	createGitFs,
 	createRetryStore,
 	type ObjectStore,
-} from "@nandan-varma/git-fs-s3";
-import { S3ObjectStore } from "@nandan-varma/git-fs-s3/s3";
+} from "git-fs-s3";
+import { S3ObjectStore } from "git-fs-s3/s3";
 import { getR2Client, getR2Config } from "#/lib/r2";
 import {
 	getRepoGitStoragePrefix,

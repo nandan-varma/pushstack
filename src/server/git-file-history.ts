@@ -1,5 +1,5 @@
 /**
- * Per-file commit history — thin wrapper around @nandan-varma/git-fs-s3/ops's
+ * Per-file commit history — thin wrapper around git-fs-s3/ops's
  * getFileHistory (extracted from an earlier version of this exact file,
  * including its prefetch-windowed walk). What stays here: resolving
  * `(ownerKey, repoName)` to a `Repo` and wiring pushstack's result
@@ -11,7 +11,7 @@ import {
 	type FileHistoryResult,
 	HISTORY_WALK_DEPTH,
 	getFileHistory as opsGetFileHistory,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
 import { resultCache } from "./git-cache";
 import { prefetchAllPacks } from "./git-fs";

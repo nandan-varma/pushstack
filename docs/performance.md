@@ -41,7 +41,7 @@ watch for when adding new code.
    both real results (tree listings, commit logs) and negative/stat markers,
    avoiding a JSON round-trip on every hit. The *raw* `Buffer` cache for git
    object bytes read from R2 used to live here too, but has since moved into
-   `@nandan-varma/git-fs-s3`'s own `createCachedStore` (composed in
+   `git-fs-s3`'s own `createCachedStore` (composed in
    `git-fs.ts`) as part of extracting the R2 backend into that published
    package (see item 4 below).
 
@@ -56,7 +56,7 @@ watch for when adding new code.
    a given push could keep serving a pre-push ref, or fail to discover a
    freshly pushed pack exists at all (misreporting its commits as "missing
    from storage"), for up to the full TTL. `git-fs.ts`'s `refAwareTtl`
-   (passed as `@nandan-varma/git-fs-s3` 0.3.4+'s `ttlForKey` option) gives
+   (passed as `git-fs-s3` 0.3.4+'s `ttlForKey` option) gives
    `HEAD`, `refs/*`, and the two listing paths a 5-second override instead —
    cheap, since each is one small object or a bounded listing, and safe,
    since everything downstream (tree/commit/blob reads keyed by the sha a
@@ -66,7 +66,7 @@ watch for when adding new code.
 4. **Negative-result and loose-object-hint caching** — isomorphic-git
    repeatedly probes paths it expects might not exist (ref candidates,
    loose-object paths before falling back to pack search, directory-existence
-   checks before every read). This now lives in `@nandan-varma/git-fs-s3`
+   checks before every read). This now lives in `git-fs-s3`
    itself (`createGitFs`'s `looseObjectHints`/`isStructurallyAbsent` options,
    wired in `git-fs.ts`) rather than the app's own former
    `git-r2-backend.ts`, which was extracted into that published package —
@@ -83,7 +83,7 @@ watch for when adding new code.
    slices/reuses it for shallower or repeated requests, since walking a commit
    chain is inherently sequential and R2-round-trip-bound.
 
-6. **R2 request coalescing** — `@nandan-varma/git-fs-s3`'s
+6. **R2 request coalescing** — `git-fs-s3`'s
    `createCachedStore` (`coalesce` option, on by default; formerly
    `git-r2-backend.ts`'s own `pendingDownloads`/`pendingStats` maps before
    the R2 backend was extracted into that package) ensures concurrent reads
@@ -123,12 +123,12 @@ the codebase, worth matching the shape of when adding new code:
   matching its own final layout until that specific piece resolves — this
   used to be one blocking `Promise.all` before the loader was restructured
   to stream; see [server-functions.md](./server-functions.md).
-- `@nandan-varma/git-fs-s3/http`'s `listAllRefs` (used by `git-http-iso.ts`'s
+- `git-fs-s3/http`'s `listAllRefs` (used by `git-http-iso.ts`'s
   thin wrapper) resolves branches, tags, HEAD's oid, and the current-branch
   symref all in parallel, then resolves every branch/tag's oid in parallel
   too.
 - `git-fs.ts`'s `prefetchAllPacks` (a thin wrapper around
-  `@nandan-varma/git-fs-s3`'s `GitFs.prefetchPacks`) downloads every pack
+  `git-fs-s3`'s `GitFs.prefetchPacks`) downloads every pack
   file in parallel *before* a sequential `git.log` walk starts, rather than
   letting isomorphic-git fetch packs lazily and serially as the walk needs
   them. As of `getTreeFromRef`/`getCommitLog`'s current wiring this now

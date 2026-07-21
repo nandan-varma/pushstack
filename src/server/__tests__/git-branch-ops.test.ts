@@ -6,7 +6,7 @@
  * themselves before any isomorphic-git call runs. The happy path (a
  * well-formed name actually creates/deletes/checks out a branch) is covered
  * end-to-end against a real repo in git-integration.test.ts — these
- * functions now delegate to @nandan-varma/git-fs-s3/ops, which resolves its
+ * functions now delegate to git-fs-s3/ops, which resolves its
  * own isomorphic-git copy under pnpm's isolated node_modules layout, so
  * asserting "the mocked git.branch was called" from here wouldn't observe
  * the library's internal call anyway.

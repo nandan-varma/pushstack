@@ -17,12 +17,6 @@ importers:
       '@cloudflare/vite-plugin':
         specifier: ^1.42.3
         version: 1.42.3(vite@8.1.0(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(workerd@1.20260301.1)(wrangler@4.71.0)
-      '@nandan-varma/git-edge':
-        specifier: ^0.1.2
-        version: 0.1.2(@nandan-varma/git-fs-s3@0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5))(isomorphic-git@1.38.5)
-      '@nandan-varma/git-fs-s3':
-        specifier: ^0.3.5
-        version: 0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5)
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
@@ -71,6 +65,12 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.4)(@neondatabase/serverless@1.1.0)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3))(typescript@6.0.3))(@types/pg@8.20.0)(kysely@0.29.2)(mysql2@3.15.3)(pg@8.22.0)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3))
+      git-edge:
+        specifier: ^0.1.2
+        version: 0.1.2(git-fs-s3@0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5))(isomorphic-git@1.38.5)
+      git-fs-s3:
+        specifier: ^0.3.5
+        version: 0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5)
       isomorphic-git:
         specifier: ^1.38.5
         version: 1.38.5
@@ -1508,28 +1508,6 @@ packages:
   '@mrleebo/prisma-ast@0.13.1':
     resolution: {integrity: sha512-XyroGQXcHrZdvmrGJvsA9KNeOOgGMg1Vg9OlheUsBOSKznLMDl+YChxbkboRHvtFYJEMRYmlV3uoo/njCw05iw==}
     engines: {node: '>=16'}
-
-  '@nandan-varma/git-edge@0.1.2':
-    resolution: {integrity: sha512-lLsJC1vfxSQLJxTC8EY6ChDhgwUjQj8p5AcvGvPOw3jvn0gL1mJrfUDG6irwTG+QvAgNd5ZarE5pFazJmJecmQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@nandan-varma/git-fs-s3': '>=0.3.0'
-      isomorphic-git: '>=1.24.0'
-
-  '@nandan-varma/git-fs-s3@0.3.5':
-    resolution: {integrity: sha512-iHGgYdy67TGk+VEJRWHh5ieOIhkt6NOomfo6/h2MswW/t6LD3eO+jHY7fojobaKe2umgF2QFt31CGTurpjUnwQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@aws-sdk/client-s3': '>=3.0.0'
-      diff: '>=5.0.0'
-      isomorphic-git: '>=1.24.0'
-    peerDependenciesMeta:
-      '@aws-sdk/client-s3':
-        optional: true
-      diff:
-        optional: true
-      isomorphic-git:
-        optional: true
 
   '@napi-rs/wasm-runtime@1.1.6':
     resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
@@ -3851,6 +3829,28 @@ packages:
   giget@2.0.0:
     resolution: {integrity: sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==}
     hasBin: true
+
+  git-edge@0.1.2:
+    resolution: {integrity: sha512-WeDlqT8JdpbfE4Q8hsYzAeXn90KSR9LFkNM8lDOp/8jjZ/emHTrZnJ5jAPYk8aY6Cnxev1Rk93HTU3u6Di4Dkg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      git-fs-s3: '>=0.3.0'
+      isomorphic-git: '>=1.24.0'
+
+  git-fs-s3@0.3.5:
+    resolution: {integrity: sha512-hf8wFQZqF9QM4AdhPXDCkD7A2Wa+/kh7p/2xtOx/u0fa7WojjindAhaoulKdrvSfOPrtFySdI9NR/gagq209zw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@aws-sdk/client-s3': '>=3.0.0'
+      diff: '>=5.0.0'
+      isomorphic-git: '>=1.24.0'
+    peerDependenciesMeta:
+      '@aws-sdk/client-s3':
+        optional: true
+      diff:
+        optional: true
+      isomorphic-git:
+        optional: true
 
   globrex@0.1.2:
     resolution: {integrity: sha512-uHJgbwAMwNFf5mLst7IWLNg14x1CkeqglJb/K3doi4dw6q2IvAAmM/Y81kevy83wP+Sst+nutFTYOGg3d1lsxg==}
@@ -6619,20 +6619,6 @@ snapshots:
       lilconfig: 2.1.0
     optional: true
 
-  '@nandan-varma/git-edge@0.1.2(@nandan-varma/git-fs-s3@0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5))(isomorphic-git@1.38.5)':
-    dependencies:
-      '@nandan-varma/git-fs-s3': 0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5)
-      isomorphic-git: 1.38.5
-      lru-cache: 11.5.1
-
-  '@nandan-varma/git-fs-s3@0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5)':
-    dependencies:
-      lru-cache: 11.5.1
-    optionalDependencies:
-      '@aws-sdk/client-s3': 3.1075.0
-      diff: 9.0.0
-      isomorphic-git: 1.38.5
-
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
       '@emnapi/core': 1.11.1
@@ -8997,6 +8983,20 @@ snapshots:
       nypm: 0.6.8
       pathe: 2.0.3
     optional: true
+
+  git-edge@0.1.2(git-fs-s3@0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5))(isomorphic-git@1.38.5):
+    dependencies:
+      git-fs-s3: 0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5)
+      isomorphic-git: 1.38.5
+      lru-cache: 11.5.1
+
+  git-fs-s3@0.3.5(@aws-sdk/client-s3@3.1075.0)(diff@9.0.0)(isomorphic-git@1.38.5):
+    dependencies:
+      lru-cache: 11.5.1
+    optionalDependencies:
+      '@aws-sdk/client-s3': 3.1075.0
+      diff: 9.0.0
+      isomorphic-git: 1.38.5
 
   globrex@0.1.2: {}
 

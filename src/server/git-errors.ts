@@ -2,7 +2,7 @@
  * Git-specific error types for proper error handling and HTTP status mapping.
  *
  * The shared hierarchy (GitError, its 4xx subclasses, and formatErrorResponse)
- * is re-exported from @nandan-varma/git-fs-s3 — extracted from an earlier
+ * is re-exported from git-fs-s3 — extracted from an earlier
  * version of this exact file — so it stays a single class hierarchy: the
  * library's own ops/http functions throw these same classes internally
  * (e.g. getFileContent's GitPathNotFoundError), and `error instanceof
@@ -25,9 +25,9 @@ export {
 	GitRefNotFoundError,
 	GitRepositoryNotFoundError,
 	type MergeConflictDetail,
-} from "@nandan-varma/git-fs-s3";
+} from "git-fs-s3";
 
-import { GitError } from "@nandan-varma/git-fs-s3";
+import { GitError } from "git-fs-s3";
 
 /**
  * R2 upload error (500, retryable)

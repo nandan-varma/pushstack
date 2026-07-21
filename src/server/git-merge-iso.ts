@@ -3,7 +3,7 @@ import path from "node:path";
 import {
 	fastForwardMerge,
 	analyzeMerge as opsAnalyzeMerge,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import git, { Errors } from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { createCommit } from "./git-commit-write";
@@ -63,7 +63,7 @@ export async function analyzeMerge(
 	assertSafeBranchName(targetBranch);
 	const repo = await getRepoOptions(ownerKey, repoName);
 
-	// Delegates to @nandan-varma/git-fs-s3/ops's analyzeMerge, which already
+	// Delegates to git-fs-s3/ops's analyzeMerge, which already
 	// returns this exact MergeAnalysis shape (canMerge/hasConflicts/
 	// conflictingFiles/fastForward) and gets the NotFoundError-vs-everything
 	// -else distinction right (only a genuinely missing ref reports

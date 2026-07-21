@@ -4,7 +4,7 @@ import {
 	authorNow,
 	commitFilesToBare,
 	deleteFileFromBare,
-} from "@nandan-varma/git-fs-s3/ops";
+} from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";

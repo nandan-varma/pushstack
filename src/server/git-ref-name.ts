@@ -4,10 +4,10 @@ import {
 	isSafeFullRefName,
 	isSafeRefName,
 	isSafeRepoPath,
-} from "@nandan-varma/git-fs-s3";
+} from "git-fs-s3";
 import { z } from "zod";
 
-// Git ref-name/path validation now lives in @nandan-varma/git-fs-s3's refs.ts
+// Git ref-name/path validation now lives in git-fs-s3's refs.ts
 // (extracted from an earlier version of this exact file — see that package's
 // own doc comment for the full rationale: several isomorphic-git primitives —
 // git.commit, git.merge, git.deleteBranch, and the top-level git.resolveRef/

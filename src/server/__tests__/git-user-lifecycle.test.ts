@@ -201,12 +201,12 @@ vi.mock("#/lib/r2-operations", () => {
 	};
 });
 
-// git-fs.ts talks to R2 through @nandan-varma/git-fs-s3's S3ObjectStore, not
+// git-fs.ts talks to R2 through git-fs-s3's S3ObjectStore, not
 // #/lib/r2-operations — back it with the SAME fakeR2 map so the direct-read
 // path (gitFs) and the hydrate/sync path (r2-operations mock above) see one
 // consistent bucket. Iteration is sorted to match S3's lexicographic listing
 // (the library's loose-object detection relies on it).
-vi.mock("@nandan-varma/git-fs-s3/s3", () => {
+vi.mock("git-fs-s3/s3", () => {
 	class S3ObjectStore {
 		async get(key: string): Promise<Uint8Array | null> {
 			const entry = fakeR2.get(key);
