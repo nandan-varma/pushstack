@@ -9,60 +9,40 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SearchRouteImport } from './routes/search'
-import { Route as RepositoriesRouteImport } from './routes/repositories'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
-import { Route as UsersUsernameRouteImport } from './routes/users.$username'
-import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
-import { Route as AuthRegisterRouteImport } from './routes/auth/register'
-import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as RepositoriesRouteImport } from './routes/repositories'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
-import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
-import { Route as ApiRawSplatRouteImport } from './routes/api/raw.$'
-import { Route as ApiGitSplatRouteImport } from './routes/api/git.$'
+import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as AuthRegisterRouteImport } from './routes/auth/register'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
+import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
+import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
+import { Route as UsersUsernameRouteImport } from './routes/users.$username'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiGitSplatRouteImport } from './routes/api/git.$'
+import { Route as ApiRawSplatRouteImport } from './routes/api/raw.$'
+import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
-import { Route as RepoOwnerNameUploadRouteImport } from './routes/repo/$owner.$name.upload'
-import { Route as RepoOwnerNameSetupRouteImport } from './routes/repo/$owner.$name.setup'
-import { Route as RepoOwnerNameSettingsRouteImport } from './routes/repo/$owner.$name.settings'
-import { Route as RepoOwnerNamePullsRouteImport } from './routes/repo/$owner.$name.pulls'
 import { Route as RepoOwnerNameIssuesRouteImport } from './routes/repo/$owner.$name.issues'
-import { Route as RepoOwnerNamePullsIdRouteImport } from './routes/repo/$owner.$name.pulls.$id'
-import { Route as RepoOwnerNameIssuesIdRouteImport } from './routes/repo/$owner.$name.issues.$id'
-import { Route as RepoOwnerNameCommitsBranchRouteImport } from './routes/repo/$owner.$name.commits.$branch'
+import { Route as RepoOwnerNamePullsRouteImport } from './routes/repo/$owner.$name.pulls'
+import { Route as RepoOwnerNameSettingsRouteImport } from './routes/repo/$owner.$name.settings'
+import { Route as RepoOwnerNameSetupRouteImport } from './routes/repo/$owner.$name.setup'
+import { Route as RepoOwnerNameUploadRouteImport } from './routes/repo/$owner.$name.upload'
 import { Route as RepoOwnerNameCommitShaRouteImport } from './routes/repo/$owner.$name.commit.$sha'
-import { Route as RepoOwnerNameTreeBranchSplatRouteImport } from './routes/repo.$owner.$name.tree.$branch.$'
+import { Route as RepoOwnerNameCommitsBranchRouteImport } from './routes/repo/$owner.$name.commits.$branch'
+import { Route as RepoOwnerNameIssuesIdRouteImport } from './routes/repo/$owner.$name.issues.$id'
+import { Route as RepoOwnerNamePullsIdRouteImport } from './routes/repo/$owner.$name.pulls.$id'
 import { Route as RepoOwnerNameBlobBranchSplatRouteImport } from './routes/repo/$owner.$name.blob.$branch.$'
+import { Route as RepoOwnerNameTreeBranchSplatRouteImport } from './routes/repo.$owner.$name.tree.$branch.$'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RepositoriesRoute = RepositoriesRouteImport.update({
-  id: '/repositories',
-  path: '/repositories',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -70,34 +50,34 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => RepositoriesRoute,
-} as any)
-const UsersUsernameRoute = UsersUsernameRouteImport.update({
-  id: '/users/$username',
-  path: '/users/$username',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RepositoriesNewRoute = RepositoriesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => RepositoriesRoute,
+const RepositoriesRoute = RepositoriesRouteImport.update({
+  id: '/repositories',
+  path: '/repositories',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => AuthRoute,
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRegisterRoute = AuthRegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
@@ -105,24 +85,29 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
+const AuthRegisterRoute = AuthRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => AuthRoute,
 } as any)
-const RepoOwnerNameRoute = RepoOwnerNameRouteImport.update({
-  id: '/repo/$owner/$name',
-  path: '/repo/$owner/$name',
-  getParentRoute: () => rootRouteImport,
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
 } as any)
-const ApiRawSplatRoute = ApiRawSplatRouteImport.update({
-  id: '/api/raw/$',
-  path: '/api/raw/$',
-  getParentRoute: () => rootRouteImport,
+const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => RepositoriesRoute,
 } as any)
-const ApiGitSplatRoute = ApiGitSplatRouteImport.update({
-  id: '/api/git/$',
-  path: '/api/git/$',
+const RepositoriesNewRoute = RepositoriesNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => RepositoriesRoute,
+} as any)
+const UsersUsernameRoute = UsersUsernameRouteImport.update({
+  id: '/users/$username',
+  path: '/users/$username',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -130,29 +115,24 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGitSplatRoute = ApiGitSplatRouteImport.update({
+  id: '/api/git/$',
+  path: '/api/git/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRawSplatRoute = ApiRawSplatRouteImport.update({
+  id: '/api/raw/$',
+  path: '/api/raw/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepoOwnerNameRoute = RepoOwnerNameRouteImport.update({
+  id: '/repo/$owner/$name',
+  path: '/repo/$owner/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RepoOwnerNameIndexRoute = RepoOwnerNameIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => RepoOwnerNameRoute,
-} as any)
-const RepoOwnerNameUploadRoute = RepoOwnerNameUploadRouteImport.update({
-  id: '/upload',
-  path: '/upload',
-  getParentRoute: () => RepoOwnerNameRoute,
-} as any)
-const RepoOwnerNameSetupRoute = RepoOwnerNameSetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
-  getParentRoute: () => RepoOwnerNameRoute,
-} as any)
-const RepoOwnerNameSettingsRoute = RepoOwnerNameSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => RepoOwnerNameRoute,
-} as any)
-const RepoOwnerNamePullsRoute = RepoOwnerNamePullsRouteImport.update({
-  id: '/pulls',
-  path: '/pulls',
   getParentRoute: () => RepoOwnerNameRoute,
 } as any)
 const RepoOwnerNameIssuesRoute = RepoOwnerNameIssuesRouteImport.update({
@@ -160,15 +140,30 @@ const RepoOwnerNameIssuesRoute = RepoOwnerNameIssuesRouteImport.update({
   path: '/issues',
   getParentRoute: () => RepoOwnerNameRoute,
 } as any)
-const RepoOwnerNamePullsIdRoute = RepoOwnerNamePullsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => RepoOwnerNamePullsRoute,
+const RepoOwnerNamePullsRoute = RepoOwnerNamePullsRouteImport.update({
+  id: '/pulls',
+  path: '/pulls',
+  getParentRoute: () => RepoOwnerNameRoute,
 } as any)
-const RepoOwnerNameIssuesIdRoute = RepoOwnerNameIssuesIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => RepoOwnerNameIssuesRoute,
+const RepoOwnerNameSettingsRoute = RepoOwnerNameSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
+const RepoOwnerNameSetupRoute = RepoOwnerNameSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
+const RepoOwnerNameUploadRoute = RepoOwnerNameUploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
+const RepoOwnerNameCommitShaRoute = RepoOwnerNameCommitShaRouteImport.update({
+  id: '/commit/$sha',
+  path: '/commit/$sha',
+  getParentRoute: () => RepoOwnerNameRoute,
 } as any)
 const RepoOwnerNameCommitsBranchRoute =
   RepoOwnerNameCommitsBranchRouteImport.update({
@@ -176,21 +171,26 @@ const RepoOwnerNameCommitsBranchRoute =
     path: '/commits/$branch',
     getParentRoute: () => RepoOwnerNameRoute,
   } as any)
-const RepoOwnerNameCommitShaRoute = RepoOwnerNameCommitShaRouteImport.update({
-  id: '/commit/$sha',
-  path: '/commit/$sha',
-  getParentRoute: () => RepoOwnerNameRoute,
+const RepoOwnerNameIssuesIdRoute = RepoOwnerNameIssuesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => RepoOwnerNameIssuesRoute,
 } as any)
-const RepoOwnerNameTreeBranchSplatRoute =
-  RepoOwnerNameTreeBranchSplatRouteImport.update({
-    id: '/tree/$branch/$',
-    path: '/tree/$branch/$',
-    getParentRoute: () => RepoOwnerNameRoute,
-  } as any)
+const RepoOwnerNamePullsIdRoute = RepoOwnerNamePullsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => RepoOwnerNamePullsRoute,
+} as any)
 const RepoOwnerNameBlobBranchSplatRoute =
   RepoOwnerNameBlobBranchSplatRouteImport.update({
     id: '/blob/$branch/$',
     path: '/blob/$branch/$',
+    getParentRoute: () => RepoOwnerNameRoute,
+  } as any)
+const RepoOwnerNameTreeBranchSplatRoute =
+  RepoOwnerNameTreeBranchSplatRouteImport.update({
+    id: '/tree/$branch/$',
+    path: '/tree/$branch/$',
     getParentRoute: () => RepoOwnerNameRoute,
   } as any)
 
@@ -403,39 +403,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/repositories': {
-      id: '/repositories'
-      path: '/repositories'
-      fullPath: '/repositories'
-      preLoaderRoute: typeof RepositoriesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -445,46 +417,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/repositories/': {
-      id: '/repositories/'
-      path: '/'
-      fullPath: '/repositories/'
-      preLoaderRoute: typeof RepositoriesIndexRouteImport
-      parentRoute: typeof RepositoriesRoute
-    }
-    '/users/$username': {
-      id: '/users/$username'
-      path: '/users/$username'
-      fullPath: '/users/$username'
-      preLoaderRoute: typeof UsersUsernameRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/repositories/new': {
-      id: '/repositories/new'
-      path: '/new'
-      fullPath: '/repositories/new'
-      preLoaderRoute: typeof RepositoriesNewRouteImport
-      parentRoute: typeof RepositoriesRoute
+    '/repositories': {
+      id: '/repositories'
+      path: '/repositories'
+      fullPath: '/repositories'
+      preLoaderRoute: typeof RepositoriesRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/auth/reset-password': {
-      id: '/auth/reset-password'
-      path: '/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
-      parentRoute: typeof AuthRoute
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/auth/register': {
-      id: '/auth/register'
-      path: '/register'
-      fullPath: '/auth/register'
-      preLoaderRoute: typeof AuthRegisterRouteImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/forgot-password': {
+      id: '/auth/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof AuthRoute
     }
     '/auth/login': {
@@ -494,32 +466,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/auth/forgot-password': {
-      id: '/auth/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthForgotPasswordRouteImport
+    '/auth/register': {
+      id: '/auth/register'
+      path: '/register'
+      fullPath: '/auth/register'
+      preLoaderRoute: typeof AuthRegisterRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/repo/$owner/$name': {
-      id: '/repo/$owner/$name'
-      path: '/repo/$owner/$name'
-      fullPath: '/repo/$owner/$name'
-      preLoaderRoute: typeof RepoOwnerNameRouteImport
-      parentRoute: typeof rootRouteImport
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
     }
-    '/api/raw/$': {
-      id: '/api/raw/$'
-      path: '/api/raw/$'
-      fullPath: '/api/raw/$'
-      preLoaderRoute: typeof ApiRawSplatRouteImport
-      parentRoute: typeof rootRouteImport
+    '/repositories/': {
+      id: '/repositories/'
+      path: '/'
+      fullPath: '/repositories/'
+      preLoaderRoute: typeof RepositoriesIndexRouteImport
+      parentRoute: typeof RepositoriesRoute
     }
-    '/api/git/$': {
-      id: '/api/git/$'
-      path: '/api/git/$'
-      fullPath: '/api/git/$'
-      preLoaderRoute: typeof ApiGitSplatRouteImport
+    '/repositories/new': {
+      id: '/repositories/new'
+      path: '/new'
+      fullPath: '/repositories/new'
+      preLoaderRoute: typeof RepositoriesNewRouteImport
+      parentRoute: typeof RepositoriesRoute
+    }
+    '/users/$username': {
+      id: '/users/$username'
+      path: '/users/$username'
+      fullPath: '/users/$username'
+      preLoaderRoute: typeof UsersUsernameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -529,39 +508,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/git/$': {
+      id: '/api/git/$'
+      path: '/api/git/$'
+      fullPath: '/api/git/$'
+      preLoaderRoute: typeof ApiGitSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/raw/$': {
+      id: '/api/raw/$'
+      path: '/api/raw/$'
+      fullPath: '/api/raw/$'
+      preLoaderRoute: typeof ApiRawSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/repo/$owner/$name': {
+      id: '/repo/$owner/$name'
+      path: '/repo/$owner/$name'
+      fullPath: '/repo/$owner/$name'
+      preLoaderRoute: typeof RepoOwnerNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/repo/$owner/$name/': {
       id: '/repo/$owner/$name/'
       path: '/'
       fullPath: '/repo/$owner/$name/'
       preLoaderRoute: typeof RepoOwnerNameIndexRouteImport
-      parentRoute: typeof RepoOwnerNameRoute
-    }
-    '/repo/$owner/$name/upload': {
-      id: '/repo/$owner/$name/upload'
-      path: '/upload'
-      fullPath: '/repo/$owner/$name/upload'
-      preLoaderRoute: typeof RepoOwnerNameUploadRouteImport
-      parentRoute: typeof RepoOwnerNameRoute
-    }
-    '/repo/$owner/$name/setup': {
-      id: '/repo/$owner/$name/setup'
-      path: '/setup'
-      fullPath: '/repo/$owner/$name/setup'
-      preLoaderRoute: typeof RepoOwnerNameSetupRouteImport
-      parentRoute: typeof RepoOwnerNameRoute
-    }
-    '/repo/$owner/$name/settings': {
-      id: '/repo/$owner/$name/settings'
-      path: '/settings'
-      fullPath: '/repo/$owner/$name/settings'
-      preLoaderRoute: typeof RepoOwnerNameSettingsRouteImport
-      parentRoute: typeof RepoOwnerNameRoute
-    }
-    '/repo/$owner/$name/pulls': {
-      id: '/repo/$owner/$name/pulls'
-      path: '/pulls'
-      fullPath: '/repo/$owner/$name/pulls'
-      preLoaderRoute: typeof RepoOwnerNamePullsRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
     '/repo/$owner/$name/issues': {
@@ -571,25 +543,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RepoOwnerNameIssuesRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
-    '/repo/$owner/$name/pulls/$id': {
-      id: '/repo/$owner/$name/pulls/$id'
-      path: '/$id'
-      fullPath: '/repo/$owner/$name/pulls/$id'
-      preLoaderRoute: typeof RepoOwnerNamePullsIdRouteImport
-      parentRoute: typeof RepoOwnerNamePullsRoute
+    '/repo/$owner/$name/pulls': {
+      id: '/repo/$owner/$name/pulls'
+      path: '/pulls'
+      fullPath: '/repo/$owner/$name/pulls'
+      preLoaderRoute: typeof RepoOwnerNamePullsRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
     }
-    '/repo/$owner/$name/issues/$id': {
-      id: '/repo/$owner/$name/issues/$id'
-      path: '/$id'
-      fullPath: '/repo/$owner/$name/issues/$id'
-      preLoaderRoute: typeof RepoOwnerNameIssuesIdRouteImport
-      parentRoute: typeof RepoOwnerNameIssuesRoute
+    '/repo/$owner/$name/settings': {
+      id: '/repo/$owner/$name/settings'
+      path: '/settings'
+      fullPath: '/repo/$owner/$name/settings'
+      preLoaderRoute: typeof RepoOwnerNameSettingsRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
     }
-    '/repo/$owner/$name/commits/$branch': {
-      id: '/repo/$owner/$name/commits/$branch'
-      path: '/commits/$branch'
-      fullPath: '/repo/$owner/$name/commits/$branch'
-      preLoaderRoute: typeof RepoOwnerNameCommitsBranchRouteImport
+    '/repo/$owner/$name/setup': {
+      id: '/repo/$owner/$name/setup'
+      path: '/setup'
+      fullPath: '/repo/$owner/$name/setup'
+      preLoaderRoute: typeof RepoOwnerNameSetupRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
+    '/repo/$owner/$name/upload': {
+      id: '/repo/$owner/$name/upload'
+      path: '/upload'
+      fullPath: '/repo/$owner/$name/upload'
+      preLoaderRoute: typeof RepoOwnerNameUploadRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
     '/repo/$owner/$name/commit/$sha': {
@@ -599,18 +578,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RepoOwnerNameCommitShaRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
-    '/repo/$owner/$name/tree/$branch/$': {
-      id: '/repo/$owner/$name/tree/$branch/$'
-      path: '/tree/$branch/$'
-      fullPath: '/repo/$owner/$name/tree/$branch/$'
-      preLoaderRoute: typeof RepoOwnerNameTreeBranchSplatRouteImport
+    '/repo/$owner/$name/commits/$branch': {
+      id: '/repo/$owner/$name/commits/$branch'
+      path: '/commits/$branch'
+      fullPath: '/repo/$owner/$name/commits/$branch'
+      preLoaderRoute: typeof RepoOwnerNameCommitsBranchRouteImport
       parentRoute: typeof RepoOwnerNameRoute
+    }
+    '/repo/$owner/$name/issues/$id': {
+      id: '/repo/$owner/$name/issues/$id'
+      path: '/$id'
+      fullPath: '/repo/$owner/$name/issues/$id'
+      preLoaderRoute: typeof RepoOwnerNameIssuesIdRouteImport
+      parentRoute: typeof RepoOwnerNameIssuesRoute
+    }
+    '/repo/$owner/$name/pulls/$id': {
+      id: '/repo/$owner/$name/pulls/$id'
+      path: '/$id'
+      fullPath: '/repo/$owner/$name/pulls/$id'
+      preLoaderRoute: typeof RepoOwnerNamePullsIdRouteImport
+      parentRoute: typeof RepoOwnerNamePullsRoute
     }
     '/repo/$owner/$name/blob/$branch/$': {
       id: '/repo/$owner/$name/blob/$branch/$'
       path: '/blob/$branch/$'
       fullPath: '/repo/$owner/$name/blob/$branch/$'
       preLoaderRoute: typeof RepoOwnerNameBlobBranchSplatRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
+    '/repo/$owner/$name/tree/$branch/$': {
+      id: '/repo/$owner/$name/tree/$branch/$'
+      path: '/tree/$branch/$'
+      fullPath: '/repo/$owner/$name/tree/$branch/$'
+      preLoaderRoute: typeof RepoOwnerNameTreeBranchSplatRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
   }
