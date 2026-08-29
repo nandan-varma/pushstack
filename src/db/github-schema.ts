@@ -53,6 +53,11 @@ export const repositories = pgTable(
 			table.ownerId,
 			table.name,
 		),
+		// Filtered on directly in 7 places (search.ts, users.ts,
+		// repositories.ts) — "public" repos, other users' visible profile
+		// repos, and every activity feed's visibility subquery all hit this
+		// with no index to use otherwise.
+		visibilityIdx: index("repo_visibility_idx").on(table.visibility),
 	}),
 );
 
@@ -222,6 +227,12 @@ export const activities = pgTable(
 			table.createdAt,
 		),
 		userRepoIdx: index("activity_user_repo_idx").on(table.userId, table.repoId),
+		// getRepositoryActivity filters by repoId and sorts by createdAt —
+		// same shape as userCreatedIdx above, just missing on the repo side.
+		repoCreatedIdx: index("activity_repo_created_idx").on(
+			table.repoId,
+			table.createdAt,
+		),
 	}),
 );
 
