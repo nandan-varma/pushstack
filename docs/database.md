@@ -16,6 +16,22 @@ Cloudflare R2 (see [git-storage.md](./git-storage.md)). Postgres only ever
 holds metadata: who owns what, what's public/private, issue/PR/comment
 content, and bookkeeping.
 
+**Better Auth's tables are hand-maintained here, not driven by its own
+migration CLI** — `schema.ts` is a plain Drizzle table definition kept in
+sync by hand with whatever the installed `better-auth` version's core
+schema actually expects. This drifted once already: bumping `better-auth`
+1.6.22 -> 1.7.2 added a required `account.issuer` field (a stable
+per-provider identity namespace, e.g. `"local:credential"` for password
+auth) with a unique `(issuer, accountId)` index, and every sign-in/sign-up
+started throwing `"The field issuer does not exist in the schema for the
+model account"` until the column was added and backfilled. **Any future
+`better-auth` version bump needs its actual installed schema diffed against
+`schema.ts`** (check `node_modules/@better-auth/core/dist/db/get-tables.mjs`
+for the exact `user`/`session`/`account`/`verification` field lists that
+version expects) before it's considered safe to deploy — a passing
+`pnpm build`/`pnpm typecheck` won't catch this, since better-auth validates
+its configured adapter's schema at request time, not at build time.
+
 ## Tables
 
 | Table | Purpose |
