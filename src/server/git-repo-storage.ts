@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Dirent } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -610,6 +611,7 @@ async function syncRepositoryToR2Unlocked(
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
 	const remoteFiles = await listAllR2FilesCached(prefix);
 	const remoteKeys = new Set(remoteFiles.map((file) => file.key));
+	const remoteEtags = new Map(remoteFiles.map((file) => [file.key, file.etag]));
 
 	// ponytail: git objects are content-addressed — skip uploading any that already exist in R2
 	const newFiles = localFiles.filter(
@@ -618,28 +620,45 @@ async function syncRepositoryToR2Unlocked(
 			!remoteKeys.has(`${prefix}${relativePath}`),
 	);
 
-	const uploads = await Promise.all(
-		newFiles.map(async (relativePath) => {
-			const fullPath = path.join(repoPath, relativePath);
-			const content = await fs.readFile(fullPath);
+	const uploads = (
+		await Promise.all(
+			newFiles.map(async (relativePath) => {
+				const fullPath = path.join(repoPath, relativePath);
+				const content = await fs.readFile(fullPath);
 
-			let contentType = "application/octet-stream";
-			if (
-				relativePath === "HEAD" ||
-				relativePath === "config" ||
-				relativePath === "packed-refs" ||
-				relativePath.startsWith("refs/")
-			) {
-				contentType = "text/plain";
-			}
+				// HEAD and config are written once at repo creation and almost
+				// never change again — without this, every single push re-uploads
+				// both, forever, for bytes identical to what's already in R2. A
+				// non-multipart PUT's ETag is the MD5 of the body, so compare
+				// against that instead of re-uploading blind. A multipart ETag
+				// (rare for files this small — contains a "-") can't be compared
+				// this way, so that case falls through and uploads as before.
+				if (relativePath === "HEAD" || relativePath === "config") {
+					const etag = remoteEtags.get(`${prefix}${relativePath}`);
+					if (etag && !etag.includes("-")) {
+						const md5 = crypto.createHash("md5").update(content).digest("hex");
+						if (etag.replace(/"/g, "") === md5) return null;
+					}
+				}
 
-			return {
-				key: `${prefix}${relativePath}`,
-				data: content,
-				contentType,
-			};
-		}),
-	);
+				let contentType = "application/octet-stream";
+				if (
+					relativePath === "HEAD" ||
+					relativePath === "config" ||
+					relativePath === "packed-refs" ||
+					relativePath.startsWith("refs/")
+				) {
+					contentType = "text/plain";
+				}
+
+				return {
+					key: `${prefix}${relativePath}`,
+					data: content,
+					contentType,
+				};
+			}),
+		)
+	).filter((upload) => upload !== null);
 
 	for (let index = 0; index < uploads.length; index += 100) {
 		const chunk = uploads.slice(index, index + 100);
