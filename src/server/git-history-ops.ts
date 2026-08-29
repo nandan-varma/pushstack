@@ -19,7 +19,6 @@ import {
 	getCommitHistory as opsGetCommitHistory,
 	getCommitLog as opsGetCommitLog,
 	getFileContent as opsGetFileContent,
-	resolveCommit as opsResolveCommit,
 } from "git-fs-s3/ops";
 import { isR2Configured } from "#/lib/r2";
 import { resultCache } from "./git-cache";
@@ -51,16 +50,6 @@ function opsHooksFor(ownerKey: string, repoName: string): OpsHooks {
 			: undefined,
 		prefetchMinDepth: PREFETCH_PACKS_MIN_DEPTH,
 	};
-}
-
-export async function resolveCommit(
-	ownerKey: string,
-	repoName: string,
-	ref: string,
-) {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	const { oid, commit } = await opsResolveCommit(repo, ref);
-	return { repo, oid, commit };
 }
 
 export async function getBlob(

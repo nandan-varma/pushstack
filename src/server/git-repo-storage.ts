@@ -364,18 +364,6 @@ export async function syncRepositoryToR2(
 	);
 }
 
-export async function initRepositoryStorage(
-	ownerKey: string,
-	repoName: string,
-	defaultBranch: string = "main",
-): Promise<string> {
-	return withRepositoryLock(ownerKey, repoName, async () => {
-		const repoPath = await initBareRepo(ownerKey, repoName, defaultBranch);
-		await syncRepositoryToR2Unlocked(ownerKey, repoName);
-		return repoPath;
-	});
-}
-
 // isomorphic-git's resolveRef/expand try several candidate paths in sequence
 // for a bare ref name — ref, refs/ref, refs/tags/ref, refs/heads/ref,
 // refs/remotes/ref, refs/remotes/ref/HEAD — 404ing (or stat-ing) the first

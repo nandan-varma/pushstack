@@ -55,10 +55,6 @@ export function getRepoPath(ownerKey: string, repoName: string): string {
 // in git-repo-storage.ts on sync so a repack (which rewrites pack files) can't leave it stale.
 // Delegated to git-edge's per-repo cache management.
 
-export function getRepoGitCache(ownerKey: string, repoName: string): object {
-	return getRepoCache(ownerKey, repoName);
-}
-
 export function invalidateRepoGitCache(
 	ownerKey: string,
 	repoName: string,
@@ -67,7 +63,7 @@ export function invalidateRepoGitCache(
 }
 
 export function getBareRepoOptions(ownerKey: string, repoName: string) {
-	const cache = getRepoGitCache(ownerKey, repoName);
+	const cache = getRepoCache(ownerKey, repoName);
 	if (isR2Configured()) {
 		return {
 			fs: gitFs,
