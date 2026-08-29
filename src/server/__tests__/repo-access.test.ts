@@ -198,9 +198,9 @@ describe("getAccessForRepository", () => {
 		const repo = await db.query.repositories.findFirst({
 			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
 		});
-		expect(repo).toBeDefined();
+		if (!repo) throw new Error("repo not found");
 
-		const access = await getAccessForRepository(repo!, OWNER);
+		const access = await getAccessForRepository(repo, OWNER);
 		expect(access.role).toBe("owner");
 		expect(access.canWrite).toBe(true);
 	});
@@ -209,9 +209,9 @@ describe("getAccessForRepository", () => {
 		const repo = await db.query.repositories.findFirst({
 			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
 		});
-		expect(repo).toBeDefined();
+		if (!repo) throw new Error("repo not found");
 
-		const access = await getAccessForRepository(repo!, OWNER);
+		const access = await getAccessForRepository(repo, OWNER);
 		expect(access.collaboratorRole).toBeNull();
 		expect(access.role).toBe("owner");
 	});
@@ -220,9 +220,9 @@ describe("getAccessForRepository", () => {
 		const repo = await db.query.repositories.findFirst({
 			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
 		});
-		expect(repo).toBeDefined();
+		if (!repo) throw new Error("repo not found");
 
-		const access = await getAccessForRepository(repo!, WRITE_COLLAB);
+		const access = await getAccessForRepository(repo, WRITE_COLLAB);
 		expect(access.role).toBe("write");
 		expect(access.collaboratorRole).toBe("write");
 	});
@@ -231,9 +231,9 @@ describe("getAccessForRepository", () => {
 		const repo = await db.query.repositories.findFirst({
 			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
 		});
-		expect(repo).toBeDefined();
+		if (!repo) throw new Error("repo not found");
 
-		const access = await getAccessForRepository(repo!, null);
+		const access = await getAccessForRepository(repo, null);
 		expect(access.role).toBe("anonymous");
 		expect(access.canRead).toBe(false);
 	});
@@ -242,9 +242,9 @@ describe("getAccessForRepository", () => {
 		const repo = await db.query.repositories.findFirst({
 			where: (repos, { eq }) => eq(repos.id, PUBLIC_REPO_ID),
 		});
-		expect(repo).toBeDefined();
+		if (!repo) throw new Error("repo not found");
 
-		const access = await getAccessForRepository(repo!, null);
+		const access = await getAccessForRepository(repo, null);
 		expect(access.role).toBe("anonymous");
 		expect(access.canRead).toBe(true);
 	});

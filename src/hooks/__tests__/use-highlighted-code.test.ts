@@ -100,7 +100,7 @@ describe("useHighlightedCode", () => {
 		unmount();
 
 		act(() => {
-			resolveHighlight!("<span>done</span>");
+			resolveHighlight?.("<span>done</span>");
 		});
 
 		expect(result.current.html).toBeNull();
