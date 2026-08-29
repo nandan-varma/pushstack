@@ -104,6 +104,17 @@ watch for when adding new code.
    them; routing it through the same cache the web pages already used means
    the second request of a push typically gets a free hit.
 
+8. **`syncRepositoryToR2Unlocked`'s ETag-compared skip for `HEAD`/`config`**
+   (`git-repo-storage.ts`) — the existing objects/ skip (item above) only
+   ever applied to content-addressed objects; `HEAD` and `config` are set
+   once at repo creation and essentially never change again, but were
+   re-uploaded unconditionally on *every* push regardless. A non-multipart
+   PUT's ETag (already returned by the `ListObjectsV2` call this function
+   already makes) is the MD5 of the body, so comparing against that catches
+   the common "unchanged" case without an extra R2 round trip to check.
+   Live-profiled: ~300ms saved per file, per push, for every push after the
+   first.
+
 ## Parallelism over sequential waiting
 
 Route loaders and server functions favor `Promise.all` wherever calls don't

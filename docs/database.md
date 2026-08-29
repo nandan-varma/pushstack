@@ -54,9 +54,16 @@ in the server code:
   (repoId, userId) together, on every repo page load.
 - `issue_repo_status_idx`, `pr_repo_status_idx` — issue/PR list pages filter by
   `(repoId, status)` together.
-- `activity_user_created_idx`, `activity_user_repo_idx` — the activity feed's
-  two main query shapes (a user's feed ordered by time; a user's activity
-  scoped to one repo).
+- `activity_user_created_idx`, `activity_user_repo_idx`,
+  `activity_repo_created_idx` — the activity feed's three main query shapes (a
+  user's feed ordered by time; a user's activity scoped to one repo; a
+  repo's own feed ordered by time — `getRepositoryActivity` had only a bare
+  `repoId` index for years despite filtering and sorting the same way
+  `activity_user_created_idx` already did for the user-scoped case).
+- `repo_visibility_idx` — filtered on directly in 7 places (`search.ts`,
+  `users.ts`, both activity-feed visibility subqueries): "public" repo
+  search, another user's visible profile repos, and the activity feeds'
+  "public repos only" filter for non-owner viewers.
 - `session_user_idx`, `account_user_idx` — session revocation and the git
   Basic-Auth credential lookup (`git-auth.ts`) both look up by `userId`, which
   Better Auth's own schema doesn't index by default.

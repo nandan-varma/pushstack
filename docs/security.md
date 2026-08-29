@@ -210,7 +210,7 @@ same shape of problem can recur:
   `deepmerge-ts`, `effect`, `valibot`, `undici`) all traced through
   `better-auth`'s optional multi-ORM peer graph pulling in `prisma`'s bundled
   dev-studio tooling — never imported by this app's code, just present as
-  peer-dependency noise. Pinned via `pnpm.overrides` in `package.json`.
+  peer-dependency noise. Pinned via `overrides` in `pnpm-workspace.yaml`.
 
 **The overrides need an explicit upper bound, not just a patched floor.**
 `pnpm audit --fix`'s auto-generated overrides default to an open-ended target
@@ -220,10 +220,18 @@ happily jump to it. This actually broke the whole test suite once: an
 open-ended `undici` override resolved to `undici@8.10.0` on a later install,
 and `jsdom` (which needs `undici@^7.x` — it requires an internal path,
 `undici/lib/handler/wrap-handler.js`, that doesn't exist in v8) crashed
-outright. Every override in `package.json` is capped below its next major
-(`">=7.29.0 <8.0.0"`) for exactly this reason — if you add a new one, cap it
-the same way, and re-run the full test suite (not just `pnpm audit`) before
-considering the fix done.
+outright. Every override in `pnpm-workspace.yaml` is capped below its next
+major (`">=7.29.0 <8.0.0"`) for exactly this reason — if you add a new one,
+cap it the same way, and re-run the full test suite (not just `pnpm audit`)
+before considering the fix done.
+
+**Where the overrides live has moved once already, silently.** They
+originally lived under a `"pnpm"` key in `package.json`. pnpm 9.15 stopped
+reading that field entirely — no error, just an easy-to-miss `WARN` line at
+install time — so the caps above were being silently ignored for a while,
+protected only by the fact that the existing lockfile predated the pnpm
+upgrade and never needed re-resolving. Confirm caps are live with `pnpm why
+<package>` after any pnpm version bump, not just by the absence of a WARN.
 
 If `pnpm audit` shows a new finding, check `findings[].paths` in `pnpm audit
 --json` to see whether the dependency chain is genuinely dev-only/unreachable
