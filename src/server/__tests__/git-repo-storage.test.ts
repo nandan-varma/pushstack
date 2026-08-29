@@ -5,7 +5,7 @@
  * also exercises the non-reentrancy constraint of withRepositoryLock).
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let lockCalls = 0;
 let maxLockConcurrency = 0;
@@ -18,6 +18,31 @@ function resetLockTracking() {
 vi.mock("#/lib/r2", () => ({
 	isR2Configured: vi.fn(() => true),
 }));
+
+// See helpers/fake-repo-lock-db.ts for what this fake db/lockStore actually
+// simulates and why `eq`/`and`/`lt` need mocking alongside it.
+const lockStore = vi.hoisted(
+	() => new Map<string, { holder: string; expiresAt: number }>(),
+);
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+	const { fakeRepoLockDrizzleOrmOverrides } = await import(
+		"./helpers/fake-repo-lock-db"
+	);
+	const actual = await importOriginal<typeof import("drizzle-orm")>();
+	return { ...actual, ...fakeRepoLockDrizzleOrmOverrides() };
+});
+
+// File-wide, not just inside the `withRepositoryLock` describe block:
+// `lockStore` backs every call to withRepositoryLock, which
+// getRepoOptions/ensureRepositoryHydrated/syncRepositoryToR2 (tested in
+// their own describe blocks below) all go through internally. Without this,
+// a stale/never-released entry from one test (e.g. the deliberately-never-
+// acquired lease in the "times out" test) leaks into unrelated tests using
+// the same "owner/repo" key and makes them hang until the 60s lease TTL.
+beforeEach(() => {
+	lockStore.clear();
+});
 
 vi.mock("../git-manager-iso", () => ({
 	getBareRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
@@ -52,15 +77,10 @@ vi.mock("../git-fs", () => ({
 	invalidateRepoGitStorage: vi.fn(),
 }));
 
-vi.mock("../../db", () => ({
-	db: {
-		update: vi.fn(() => ({
-			set: vi.fn(() => ({
-				where: vi.fn(() => Promise.resolve()),
-			})),
-		})),
-	},
-}));
+vi.mock("../../db", async () => {
+	const { createFakeRepoLockDb } = await import("./helpers/fake-repo-lock-db");
+	return { db: createFakeRepoLockDb(lockStore) };
+});
 
 vi.mock("../perf-log", () => ({
 	logError: vi.fn(),
@@ -111,7 +131,12 @@ const mockGetRepoPath = vi.mocked(getRepoPath);
 describe("withRepositoryLock", () => {
 	beforeEach(() => {
 		resetLockTracking();
+		lockStore.clear();
 		vi.clearAllMocks();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it("executes the function and returns its result", async () => {
@@ -173,39 +198,66 @@ describe("withRepositoryLock", () => {
 		expect(result).toBe("ok");
 	});
 
-	it("maintains FIFO order for queued calls", async () => {
-		const order: string[] = [];
+	// The old in-process promise-chain mutex happened to serve queued waiters
+	// in strict FIFO order — a side effect of its implementation, not a
+	// documented guarantee. The DB-lease lock polls with jittered intervals
+	// (see acquireRepoLock), so ordering among waiters is no longer
+	// deterministic; what must still hold is mutual exclusion — no two
+	// critical sections ever overlap.
+	it("serializes 3 concurrent calls for the same repo with no overlap", async () => {
+		let active = 0;
+		let maxActive = 0;
 
-		await Promise.all([
-			withRepositoryLock("owner", "repo", async () => {
-				order.push("start-1");
-				await new Promise((resolve) => setTimeout(resolve, 30));
-				order.push("end-1");
-				return "1";
-			}),
-			withRepositoryLock("owner", "repo", async () => {
-				order.push("start-2");
-				await new Promise((resolve) => setTimeout(resolve, 10));
-				order.push("end-2");
-				return "2";
-			}),
-			withRepositoryLock("owner", "repo", async () => {
-				order.push("start-3");
-				await new Promise((resolve) => setTimeout(resolve, 10));
-				order.push("end-3");
-				return "3";
-			}),
+		const run = async (delayMs: number, value: string): Promise<string> => {
+			active++;
+			maxActive = Math.max(maxActive, active);
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+			active--;
+			return value;
+		};
+
+		const results = await Promise.all([
+			withRepositoryLock("owner", "repo", () => run(30, "1")),
+			withRepositoryLock("owner", "repo", () => run(10, "2")),
+			withRepositoryLock("owner", "repo", () => run(10, "3")),
 		]);
 
-		expect(order.indexOf("start-1")).toBeLessThan(order.indexOf("start-2"));
-		expect(order.indexOf("start-2")).toBeLessThan(order.indexOf("start-3"));
+		expect(maxActive).toBe(1);
+		expect(results.sort()).toEqual(["1", "2", "3"]);
 	});
 
 	it("cleans up the lock entry after the last call completes", async () => {
 		await withRepositoryLock("owner", "repo", async () => "done");
 
+		expect(lockStore.has("owner/repo")).toBe(false);
+
 		const result = await withRepositoryLock("owner", "repo", async () => "ok");
 		expect(result).toBe("ok");
+	});
+
+	it("takes over a lease that already expired instead of waiting out the poll timeout", async () => {
+		lockStore.set("owner/repo", {
+			holder: "stale-holder",
+			expiresAt: Date.now() - 1000,
+		});
+
+		const result = await withRepositoryLock("owner", "repo", async () => "ok");
+		expect(result).toBe("ok");
+	});
+
+	it("times out waiting for a lease that never expires", async () => {
+		vi.useFakeTimers();
+		lockStore.set("owner/repo", {
+			holder: "other-holder",
+			expiresAt: Date.now() + 10 * 60_000,
+		});
+
+		const attempt = withRepositoryLock("owner", "repo", async () => "ok");
+		const assertion = expect(attempt).rejects.toThrow(
+			"Timed out waiting for repository lock",
+		);
+		await vi.advanceTimersByTimeAsync(70_000);
+		await assertion;
 	});
 });
 

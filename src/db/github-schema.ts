@@ -358,6 +358,24 @@ export const gitAuthAttempts = pgTable("git_auth_attempts", {
 	windowStart: timestamp("window_start").notNull().defaultNow(),
 });
 
+// Distributed per-repository write lock. Replaces an in-process Map mutex
+// that gave zero serialization across Vercel's ephemeral, per-invocation
+// serverless instances — two concurrent pushes to the same repo landing on
+// different instances could both hydrate/write/sync with no arbitration at
+// all. A lease row + a single atomic `INSERT ... ON CONFLICT DO UPDATE ...
+// WHERE expires_at < now()` acquire (see acquireRepoLock in
+// git-repo-storage.ts) works over Neon's HTTP driver, which has no
+// persistent session and can't hold a `pg_advisory_lock` or a long
+// transaction — unlike those, this is a single stateless round trip.
+// expiresAt is a TTL, not a heartbeat-renewed lease: if a holder's function
+// is killed mid-critical-section (a real risk under Vercel's execution time
+// limit), the lease self-expires and the repo isn't permanently stuck locked.
+export const repoLocks = pgTable("repo_locks", {
+	repoKey: text("repo_key").primaryKey(), // `${ownerKey}/${repoName}`
+	holder: text("holder").notNull(),
+	expiresAt: timestamp("expires_at").notNull(),
+});
+
 // Git transactions table - tracks pending/abandoned transactions for cleanup
 export const gitTransactions = pgTable(
 	"git_transactions",

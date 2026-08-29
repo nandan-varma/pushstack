@@ -1,6 +1,11 @@
 /**
  * Real git integration tests — no mocks, actual filesystem + isomorphic-git.
  * R2 is not configured in test env, so all storage is local-only.
+ *
+ * `db` is the one exception: every write here now goes through
+ * withRepositoryLock (git-repo-storage.ts), which needs a reachable Postgres
+ * for its lease-row CAS — see helpers/fake-repo-lock-db.ts for the in-memory
+ * stand-in used instead of a live database.
  */
 
 import { promises as nodeFs } from "node:fs";
@@ -15,6 +20,21 @@ const TEST_DIR = vi.hoisted(() => {
 	const dir = p.join(os.tmpdir(), `pushstack-git-test-${Date.now()}`);
 	process.env.GIT_REPOS_PATH = dir;
 	return dir;
+});
+
+const lockStore = vi.hoisted(() => new Map());
+
+vi.mock("../../db", async () => {
+	const { createFakeRepoLockDb } = await import("./helpers/fake-repo-lock-db");
+	return { db: createFakeRepoLockDb(lockStore as never) };
+});
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+	const { fakeRepoLockDrizzleOrmOverrides } = await import(
+		"./helpers/fake-repo-lock-db"
+	);
+	const actual = await importOriginal<typeof import("drizzle-orm")>();
+	return { ...actual, ...fakeRepoLockDrizzleOrmOverrides() };
 });
 
 import {

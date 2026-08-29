@@ -88,23 +88,24 @@ export async function repackRepositoryNow(
 	defaultBranch = "main",
 	ownerDbId?: string,
 ): Promise<{ removedPacks: number }> {
-	let staleRepackedPaths: string[] = [];
+	let removedPacks = 0;
 	await withReceivePackLock(
 		ownerKey,
 		repoName,
 		defaultBranch,
-		async (localGitdir) => {
-			staleRepackedPaths = await repackRepository(
+		(localGitdir) =>
+			repackRepository(
 				{ fs, gitdir: localGitdir },
 				{ threshold: REPACK_PACK_COUNT_THRESHOLD },
 				hooks,
-			);
-			return null;
-		},
+			),
 		ownerDbId,
+		async (stalePaths) => {
+			removedPacks = stalePaths.length;
+			await deleteStalePacksFromR2(ownerKey, repoName, stalePaths);
+		},
 	);
-	await deleteStalePacksFromR2(ownerKey, repoName, staleRepackedPaths);
-	return { removedPacks: staleRepackedPaths.length };
+	return { removedPacks };
 }
 
 export async function handleInfoRefsIso(
@@ -185,19 +186,31 @@ export async function handleReceivePackIso(
 		const body = new Uint8Array(await request.arrayBuffer());
 		const parsed = parseReceivePackBody(body);
 
-		// Populated inside the locked closure below by applyReceivePack's
-		// internal repack — deleted *locally* there, but only actually
-		// removable from R2 once withReceivePackLock's automatic sync has
-		// uploaded the new consolidated pack that replaces them (see the
-		// deletion after the lock resolves, below).
-		let stalePackPaths: string[] = [];
-
-		const results = await withReceivePackLock(
+		// The new consolidated pack is a normal new local file, so
+		// withReceivePackLock's automatic syncRepositoryToR2Unlocked (which runs
+		// before `afterSync`, below) already uploaded it — but that same sync
+		// deliberately never deletes anything under objects/ in R2 (git objects
+		// are content-addressed and assumed safe to keep). The repack already
+		// proved these specific old packs are redundant (reachability-
+		// completeness check), so it's safe — and necessary — to explicitly
+		// remove them from R2 here, now that the replacement pack they're
+		// redundant with is confirmed uploaded. Skipping this is what let every
+		// push leave one more permanent pack file in R2 forever. Running this
+		// inside `afterSync` (still under the lock) rather than after it
+		// releases closes the race against a *concurrent push's own hydration*
+		// (git-repo-storage.ts's writeRemoteFilesToDisk) entirely — it can no
+		// longer observe a deleted-but-not-yet-replaced pack listing, since
+		// hydration now can't even start until this whole push, cleanup
+		// included, is done. It does not (and isn't meant to) close the same
+		// race against a lock-free clone/fetch's collectReachableOids below,
+		// which still tolerates it by design — see withReceivePackLock's
+		// afterSync comment in git-repo-storage.ts.
+		const outcome = await withReceivePackLock(
 			ownerKey,
 			repoName,
 			defaultBranch,
-			async (localGitdir) => {
-				const outcome = await applyReceivePack(
+			(localGitdir) =>
+				applyReceivePack(
 					{ fs, gitdir: localGitdir },
 					parsed,
 					{
@@ -205,25 +218,12 @@ export async function handleReceivePackIso(
 						repack: { threshold: REPACK_PACK_COUNT_THRESHOLD },
 					},
 					hooks,
-				);
-				stalePackPaths = outcome.stalePackPaths;
-				return outcome.results;
-			},
+				),
 			ownerDbId,
+			(applyOutcome) =>
+				deleteStalePacksFromR2(ownerKey, repoName, applyOutcome.stalePackPaths),
 		);
 
-		// The new consolidated pack is a normal new local file, so
-		// withReceivePackLock's automatic syncRepositoryToR2Unlocked already
-		// uploaded it — but that same sync deliberately never deletes anything
-		// under objects/ in R2 (git objects are content-addressed and assumed
-		// safe to keep). The repack already proved these specific old packs are
-		// redundant (reachability-completeness check), so it's safe — and
-		// necessary — to explicitly remove them from R2 here, now that the
-		// replacement pack they're redundant with is confirmed uploaded.
-		// Skipping this is what let every push leave one more permanent pack
-		// file in R2 forever.
-		await deleteStalePacksFromR2(ownerKey, repoName, stalePackPaths);
-
-		return receivePackResponse(results);
+		return receivePackResponse(outcome.results);
 	});
 }

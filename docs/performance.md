@@ -187,14 +187,13 @@ successfully), which doesn't have that failure mode.
 
 ## Case study: a deliberate performance choice reopening a correctness gap
 
-`deleteStalePacksFromR2` (the R2 half of the fix above) runs *after*
-`withReceivePackLock`'s lock is released, on purpose — so a push's HTTP
-response doesn't wait on cleanup that isn't needed for the push itself to be
-correct. That's a reasonable performance trade-off in isolation, but it
-opens a window: a concurrent reader's `objects/pack/` directory listing (a
-clone/fetch's `collectReachableOids`, or another push's own hydration step)
-can be taken *before* that deletion runs and still be in use *after* it
-completes, naming pack files that no longer exist.
+`deleteStalePacksFromR2` (the R2 half of the fix above) used to run *after*
+`withReceivePackLock`'s lock was released, on purpose — so a push's HTTP
+response didn't wait on cleanup that isn't needed for the push itself to be
+correct. That opened a window: a concurrent reader's `objects/pack/`
+directory listing (a clone/fetch's `collectReachableOids`, or another push's
+own hydration step) could be taken *before* that deletion ran and still be in
+use *after* it completed, naming pack files that no longer existed.
 
 This was invisible under the testing that normally exercises this code
 (sequential pushes, one clone at a time) — it only showed up under a
@@ -207,24 +206,35 @@ fsck` on every successful clone confirmed the object was never actually
 missing anywhere; the failing requests were racing a real but narrow
 transition window, not observing real data loss.
 
-The fix in both places that read a pack listing this way (`collectReachableOids`
-in `git-http-iso.ts`, `writeRemoteFilesToDisk` in `git-repo-storage.ts`) isn't
-"take a lock" — locking a read against a background delete would reintroduce
-exactly the latency this deferred-delete design exists to avoid, for a race
-that's rare and whose content is never actually gone. It's **retry once, and
-tolerate a 404 as "superseded," instead of treating either as fatal**: the
-read side gets one retry after a short delay (long enough for the deletion's
-own cache invalidation, which already existed for correctness, to land); the
-hydration side skips a 404'd file outright, since a file that a repack just
-deleted as redundant is, by construction, safe to skip.
+Two places read a pack listing this way, and the fix differs between them:
 
-The lesson: **when a performance decision means "this cleanup can happen
-later, off the critical path," anything reading the state it cleans up needs
-to tolerate seeing it mid-transition** — not by locking (which defeats the
-reason the decision was made) but by treating a transient inconsistency as
-recoverable rather than fatal, if and only if you can show it really is
-(here: the replacement pack is always written before the old ones are
-removed, so nothing a reader wants is ever actually gone).
+- `writeRemoteFilesToDisk` (`git-repo-storage.ts`, a concurrent *push's own*
+  hydration step) races this window only because the cleanup ran outside the
+  write lock. Now that `withReceivePackLock` runs `deleteStalePacksFromR2` via
+  its `afterSync` hook — still inside the same lock the sync itself holds — a
+  concurrent push can no longer even start hydrating until this one's cleanup
+  has finished, closing this side of the race entirely. It still tolerates a
+  404 as "superseded" rather than fatal, as defense in depth, but shouldn't
+  actually hit it via this path anymore.
+- `collectReachableOids` (`git-http-iso.ts`, serves clone/fetch) races this
+  window unavoidably: reads are deliberately lock-free (see
+  [git-storage.md](./git-storage.md)'s "Reads: `git-r2-backend.ts`"), so no
+  amount of moving cleanup around inside the *write* lock changes when a
+  concurrent *read* observes it. Taking the write lock on every read would
+  reintroduce exactly the latency read/write separation exists to avoid, for
+  a race that's rare and whose content is never actually gone — so this side
+  keeps its existing fix instead: **retry once, after a short delay** (long
+  enough for the deletion's own cache invalidation to land), tolerating a 404
+  as "superseded" rather than treating it as fatal.
+
+The lesson: **not every reader of state a background cleanup touches is
+equally reachable by "just take a lock."** A writer racing another writer's
+cleanup can be fixed by broadening what the lock covers, cheaply. A
+lock-free reader racing a writer's cleanup can't be, without giving up the
+reason it was lock-free — that side has to tolerate the transient
+inconsistency instead, and only gets to if you can show it really is
+transient (here: the replacement pack is always written before the old ones
+are removed, so nothing a reader wants is ever actually gone).
 
 ## The `perf-log` instrumentation convention
 

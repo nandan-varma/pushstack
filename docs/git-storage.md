@@ -196,16 +196,30 @@ file edits, branch creation, merges) need real filesystem semantics that
    push left one more permanent pack file behind forever.
 
 All three steps run inside `withRepositoryLock(ownerKey, repoName, fn)` — a
-simple promise-chain mutex, one per `{ownerKey}/{repoName}` key, so concurrent
-writes to the same repo serialize instead of racing. **It is not reentrant**:
-a function already holding the lock must never call another function that
-tries to take it again for the same repo, or it deadlocks. This is why
-`withReceivePackLock` (used for `git push`) takes the lock once and spans
-hydrate → mutate → sync as a single critical section, rather than composing
-`ensureRepositoryHydrated` + some mutation + `syncRepositoryToR2` as three
-separately-locked calls — that gap between separately-acquired locks was a
-real race before `withReceivePackLock` existed (a concurrent hydrate/push
-could interleave and clobber not-yet-synced local state).
+distributed lease-row lock backed by Postgres (the `repo_locks` table), one
+row per `{ownerKey}/{repoName}` key, so concurrent writes to the same repo
+serialize instead of racing *even across different serverless instances*.
+This app runs on Vercel, where a lock scoped to one process's memory gives
+zero protection — two concurrent pushes to the same repo can land on two
+different, unrelated function invocations with no shared state at all. Acquire
+is a single atomic `INSERT ... ON CONFLICT DO UPDATE ... WHERE expires_at <
+now() RETURNING` (works over Neon's stateless HTTP driver, which can't hold a
+session-scoped `pg_advisory_lock` or a long-lived transaction); release is a
+holder-scoped `DELETE`. The lease has a TTL (60s) rather than being
+heartbeat-renewed — if a holder's function is killed mid-critical-section
+(Vercel's execution limit), the repo self-recovers instead of staying locked
+forever. See `acquireRepoLock`/`releaseRepoLock` in `git-repo-storage.ts`.
+
+**It is not reentrant**: a function already holding the lock must never call
+another function that tries to take it again for the same repo, or it
+deadlocks (now: times out after ~65s and throws, rather than hanging
+forever). This is why `withReceivePackLock` (used for `git push`) takes the
+lock once and spans hydrate → mutate → sync as a single critical section,
+rather than composing `ensureRepositoryHydrated` + some mutation +
+`syncRepositoryToR2` as three separately-locked calls — that gap between
+separately-acquired locks was a real race before `withReceivePackLock`
+existed (a concurrent hydrate/push could interleave and clobber
+not-yet-synced local state).
 
 `getRepoOptions(ownerKey, repoName)` is the shared entry point nearly
 everything in `src/server/git-*.ts` calls to get isomorphic-git's `{fs,
@@ -315,32 +329,38 @@ wrapper around a native `git http-backend`.
   `syncRepositoryToR2` has already uploaded the new consolidated pack, so
   there's never a window where R2 has neither the old nor the new pack.
 
-  That R2 deletion (`deleteStalePacksFromR2`) deliberately runs *after* the
-  push's lock has already been released, so cleanup doesn't hold up the push
-  response — but that leaves a real window where a concurrent reader's
-  `objects/pack/` directory listing (or a concurrent *push*'s own hydration,
-  see below) can name pack files that get deleted moments later. This is
-  never actual data loss — the replacement consolidated pack is always
-  uploaded before the old ones are removed — but a single object read or file
-  download landing in that gap sees a genuine 404 for content that exists
-  fine elsewhere. Reproduced directly under concurrent load (15 clones racing
-  a burst of pushes that kept crossing the repack threshold): most clones
-  failed with "remote did not send all necessary objects" for the same oid
-  that succeeded moments earlier or later, while `git fsck` on any successful
-  clone confirmed nothing was ever actually corrupted. Two places read pack
-  files based on a listing that can go stale this way, and both now tolerate
-  it instead of treating it as fatal:
+  That R2 deletion (`deleteStalePacksFromR2`) runs via `withReceivePackLock`'s
+  `afterSync` hook — after the sync has confirmed the replacement consolidated
+  pack is uploaded, but still *inside* the same lock the push itself holds
+  (it used to run after that lock was released, purely to keep it off the
+  push's critical path — see [performance.md](./performance.md)'s case study
+  for why that traded away more correctness than this app's actual traffic
+  needed). This closes the race against a *concurrent push's own hydration*
+  (`writeRemoteFilesToDisk`, below) entirely: hydration can't start until the
+  previous push's cleanup is done. It does not, and can't, close the same
+  race against a lock-free clone/fetch's `objects/pack/` directory listing —
+  reads never take this lock (see "Reads" above) — so that side still
+  tolerates a transient 404 rather than locking every read against a
+  background delete. Reproduced directly under concurrent load before this
+  fix (15 clones racing a burst of pushes that kept crossing the repack
+  threshold): most clones failed with "remote did not send all necessary
+  objects" for the same oid that succeeded moments earlier or later, while
+  `git fsck` on any successful clone confirmed nothing was ever actually
+  corrupted. Two places read pack files based on a listing that can go stale
+  this way:
   - `collectReachableOids` (serves clone/fetch) retries once, after a short
     delay, before marking an object genuinely missing — long enough for
     `deleteStalePacksFromR2`'s own cache invalidation (already necessary for
     correctness, see its comment) to have landed, so the retry observes the
     current pack list rather than the mid-transition snapshot the first
-    attempt raced against.
+    attempt raced against. This tolerance stays, since this path is
+    inherently still racing the delete.
   - `writeRemoteFilesToDisk` (`git-repo-storage.ts`, hydrates a repo to local
-    disk before a push writes to it) now tolerates a 404 on an individual
-    file as "a concurrent push's repack just deleted this as redundant" and
-    skips it, rather than letting an unhandled rejection crash the whole
-    hydration — and with it, that push's entire HTTP response — with a 500.
+    disk before a push writes to it) tolerates a 404 on an individual file as
+    "a concurrent push's repack just deleted this as redundant" and skips it,
+    rather than letting an unhandled rejection crash the whole hydration —
+    kept as defense in depth, though the locking fix above means this path
+    shouldn't actually hit it anymore.
 
 Auth for every git HTTP request goes through `src/server/git-auth.ts` — see
 [authentication.md](./authentication.md). Every git HTTP request (info/refs,

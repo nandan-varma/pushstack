@@ -5,10 +5,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockIsR2Configured = vi.hoisted(() => vi.fn(() => true));
 const mockWithRepositoryWorktree = vi.hoisted(() => vi.fn());
+const mockWithRepositoryLock = vi.hoisted(() =>
+	vi.fn(async (_owner: string, _repo: string, fn: () => Promise<unknown>) =>
+		fn(),
+	),
+);
+const mockThreeWayMerge = vi.hoisted(() => vi.fn());
+const mockFastForwardMerge = vi.hoisted(() => vi.fn());
 
 vi.mock("#/lib/r2", () => ({
 	isR2Configured: mockIsR2Configured,
 }));
+
+// Only threeWayMerge is mocked — GitMergeConflictError stays the real class,
+// since mergeBranches's conflict handling checks `instanceof
+// GitMergeConflictError` (same reasoning as keeping isomorphic-git's real
+// `Errors` below).
+vi.mock("git-edge", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("git-edge")>();
+	return { ...actual, threeWayMerge: mockThreeWayMerge };
+});
+
+// Only fastForwardMerge is mocked — analyzeMerge (imported here as
+// opsAnalyzeMerge) stays real, since the "analyzeMerge" describe block below
+// exercises it against a real temporary repo, unmocked.
+vi.mock("git-fs-s3/ops", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("git-fs-s3/ops")>();
+	return { ...actual, fastForwardMerge: mockFastForwardMerge };
+});
 
 // Mock only the functions git-merge-iso.ts calls, but keep the real `Errors`
 // namespace — mergeBranches's conflict handling checks
@@ -33,9 +57,7 @@ vi.mock("../git-manager-iso", () => ({
 }));
 
 vi.mock("../git-repo-storage", () => ({
-	withRepositoryLock: vi.fn(
-		async (_owner: string, _repo: string, fn: () => Promise<unknown>) => fn(),
-	),
+	withRepositoryLock: mockWithRepositoryLock,
 	withRepositoryWorktree: mockWithRepositoryWorktree,
 	getRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
 	qualifyBranchRef: (ref: string) => {
@@ -332,6 +354,122 @@ describe("mergeBranches non-fast-forward (worktree)", () => {
 		});
 
 		expect(mockWithRepositoryWorktree).toHaveBeenCalled();
+	});
+});
+
+// R2-configured mergeBranches never touches a worktree (see the "worktree"
+// describe block above, which is exclusively the R2-not-configured path) —
+// both the fast-forward check and, when it doesn't apply, the real merge
+// (git-edge's threeWayMerge, object-level, no checkout) run inside one
+// withRepositoryLock span. threeWayMerge itself has its own test coverage in
+// git-edge's own package; this only verifies pushstack's wiring: the lock is
+// acquired once for the combined critical section, refs are qualified before
+// being passed through, and GitMergeConflictError maps to the same
+// {success:false, conflicts} shape the worktree path produces.
+describe("mergeBranches R2 (object-level, worktree-free)", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockIsR2Configured.mockReturnValue(true);
+		mockWithRepositoryLock.mockImplementation(
+			async (_owner: string, _repo: string, fn: () => Promise<unknown>) => fn(),
+		);
+	});
+
+	it("returns the fast-forward result directly without calling threeWayMerge", async () => {
+		mockFastForwardMerge.mockResolvedValue({
+			success: true,
+			commitSha: "ff-sha",
+		});
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({ success: true, commitSha: "ff-sha" });
+		expect(mockThreeWayMerge).not.toHaveBeenCalled();
+	});
+
+	it("falls through to threeWayMerge when fastForwardMerge returns null", async () => {
+		mockFastForwardMerge.mockResolvedValue(null);
+		mockThreeWayMerge.mockResolvedValue({ commitOid: "merge-sha" });
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({ success: true, commitSha: "merge-sha" });
+	});
+
+	it("qualifies refs and passes message/author options through to threeWayMerge", async () => {
+		mockFastForwardMerge.mockResolvedValue(null);
+		mockThreeWayMerge.mockResolvedValue({ commitOid: "merge-sha" });
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		await mergeBranches("owner", "repo", "feature", "main", {
+			message: "Custom merge message",
+			authorName: "Test Author",
+			authorEmail: "test@example.com",
+		});
+
+		expect(mockThreeWayMerge).toHaveBeenCalledWith(
+			{ fs: {}, gitdir: "/fake/gitdir" },
+			"refs/heads/feature",
+			"refs/heads/main",
+			{
+				message: "Custom merge message",
+				authorName: "Test Author",
+				authorEmail: "test@example.com",
+			},
+		);
+	});
+
+	it("acquires the lock exactly once for the FF-check + merge critical section", async () => {
+		mockFastForwardMerge.mockResolvedValue(null);
+		mockThreeWayMerge.mockResolvedValue({ commitOid: "merge-sha" });
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(mockWithRepositoryLock).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns structured conflict result for GitMergeConflictError", async () => {
+		const { GitMergeConflictError } = await import("git-edge");
+		mockFastForwardMerge.mockResolvedValue(null);
+		mockThreeWayMerge.mockRejectedValue(
+			new GitMergeConflictError(["src/a.ts", "src/b.ts"]),
+		);
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({
+			success: false,
+			conflicts: ["src/a.ts", "src/b.ts"],
+		});
+	});
+
+	it("returns default conflict message when GitMergeConflictError has no paths", async () => {
+		const { GitMergeConflictError } = await import("git-edge");
+		mockFastForwardMerge.mockResolvedValue(null);
+		mockThreeWayMerge.mockRejectedValue(new GitMergeConflictError([]));
+
+		const { mergeBranches } = await import("../git-merge-iso");
+		const result = await mergeBranches("owner", "repo", "feature", "main");
+
+		expect(result).toEqual({
+			success: false,
+			conflicts: ["Merge conflicts detected"],
+		});
+	});
+
+	it("propagates a non-conflict error instead of mislabeling it", async () => {
+		mockFastForwardMerge.mockResolvedValue(null);
+		mockThreeWayMerge.mockRejectedValue(new Error("R2 object read failed"));
+
+		const { mergeBranches } = await import("../git-merge-iso");
+
+		await expect(
+			mergeBranches("owner", "repo", "feature", "main"),
+		).rejects.toThrow("R2 object read failed");
 	});
 });
 

@@ -2,12 +2,12 @@ import type { Dirent } from "node:fs";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { and, eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { qualifyBranchRef } from "git-fs-s3";
 import { resultKeyPrefixes } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { db } from "#/db";
-import { repositories } from "#/db/github-schema";
+import { repoLocks, repositories } from "#/db/github-schema";
 import { isR2Configured } from "#/lib/r2";
 import {
 	bulkCopyInR2,
@@ -32,6 +32,11 @@ import {
 	getRepoGitStorageRoot,
 	getRepoStorageRoot,
 } from "./git-storage-naming";
+import {
+	beginGitTransaction,
+	commitGitTransaction,
+	rollbackGitTransaction,
+} from "./git-transactions";
 import { logError, perfNote, perfStep } from "./perf-log";
 
 type RepoState = {
@@ -39,7 +44,6 @@ type RepoState = {
 	syncedAt?: number;
 };
 
-const repoLocks = new Map<string, Promise<void>>();
 const repoState = new Map<string, RepoState>();
 
 // ponytail: 5-second TTL avoids re-listing R2 when hydrate + sync run back-to-back in the same push
@@ -62,6 +66,72 @@ async function listAllR2FilesCached(
 
 function getRepoKey(ownerKey: string, repoName: string): string {
 	return `${ownerKey}/${repoName}`;
+}
+
+// Lease TTL, not a heartbeat-renewed lock — see repoLocks's comment in
+// github-schema.ts. Must comfortably exceed how long a real push/hydrate/
+// sync critical section can run; Vercel kills the function well before this
+// anyway, so a stuck holder's lease always clears on its own.
+const LOCK_LEASE_MS = 60_000;
+const LOCK_POLL_BASE_MS = 200;
+// Slightly over the lease so a caller that starts waiting right after
+// another holder's lease was minted is guaranteed to see it expire within
+// one wait window, instead of timing out one poll interval early.
+const LOCK_ACQUIRE_TIMEOUT_MS = 65_000;
+
+function randomLockHolderId(): string {
+	return `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Atomic single-round-trip acquire: `INSERT ... ON CONFLICT DO UPDATE ...
+// WHERE expires_at < now()`. Postgres only applies the conflict UPDATE (and
+// only then does RETURNING yield a row) when the WHERE holds, i.e. the
+// existing lease has expired — a live lease held by someone else leaves the
+// row untouched and this query returns zero rows. Works over Neon's
+// stateless HTTP driver since it's one statement, no session/transaction
+// needed, unlike a `pg_advisory_lock` or a held `SELECT ... FOR UPDATE`.
+async function acquireRepoLock(repoKey: string): Promise<string> {
+	const holder = randomLockHolderId();
+	const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
+
+	for (;;) {
+		const now = new Date();
+		const expiresAt = new Date(now.getTime() + LOCK_LEASE_MS);
+		const rows = await db
+			.insert(repoLocks)
+			.values({ repoKey, holder, expiresAt })
+			.onConflictDoUpdate({
+				target: repoLocks.repoKey,
+				set: { holder, expiresAt },
+				setWhere: lt(repoLocks.expiresAt, now),
+			})
+			.returning({ holder: repoLocks.holder });
+
+		if (rows.length > 0) {
+			return holder;
+		}
+
+		if (Date.now() >= deadline) {
+			throw new Error(
+				`Timed out waiting for repository lock on ${repoKey} (held by another writer)`,
+			);
+		}
+
+		await new Promise((resolve) =>
+			setTimeout(
+				resolve,
+				LOCK_POLL_BASE_MS + Math.random() * LOCK_POLL_BASE_MS,
+			),
+		);
+	}
+}
+
+// Only deletes the row if we're still its holder — a release racing past our
+// own lease's expiry must not delete whatever the *next* holder just wrote.
+async function releaseRepoLock(repoKey: string, holder: string): Promise<void> {
+	await db
+		.delete(repoLocks)
+		.where(and(eq(repoLocks.repoKey, repoKey), eq(repoLocks.holder, holder)));
 }
 
 async function listLocalFiles(
@@ -204,24 +274,27 @@ export async function withRepositoryLock<T>(
 	fn: () => Promise<T>,
 ): Promise<T> {
 	const repoKey = getRepoKey(ownerKey, repoName);
-	const previous = repoLocks.get(repoKey) ?? Promise.resolve();
-	let release!: () => void;
-	const current = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-	const lockPromise = previous.then(() => current);
-	repoLocks.set(repoKey, lockPromise);
-
-	await previous;
+	const holder = await acquireRepoLock(repoKey);
+	// Best-effort WAL entry — see git-transactions.ts. A logging failure here
+	// (txnId null) never blocks the actual write; only its own bookkeeping is
+	// skipped.
+	const txnId = await beginGitTransaction(ownerKey, repoName);
 
 	try {
-		return await fn();
+		const result = await fn();
+		if (txnId) await commitGitTransaction(txnId);
+		return result;
+	} catch (err) {
+		if (txnId) await rollbackGitTransaction(txnId);
+		throw err;
 	} finally {
-		release();
-
-		if (repoLocks.get(repoKey) === lockPromise) {
-			repoLocks.delete(repoKey);
-		}
+		await releaseRepoLock(repoKey, holder).catch((err: unknown) => {
+			logError(
+				"git-repo-storage",
+				`Failed to release repo lock for ${repoKey} (will self-expire via lease TTL)`,
+				err,
+			);
+		});
 	}
 }
 
@@ -337,12 +410,27 @@ async function branchExists(
 // so a concurrent hydrate/push on the same repo can't interleave and clobber
 // not-yet-synced local state (ensureRepositoryHydrated + syncRepositoryToR2 each take
 // the lock independently, which left a gap between them for exactly that race).
+//
+// `afterSync`, if given, runs after syncRepositoryToR2Unlocked but still
+// inside the lock — for cleanup (like git-http-iso.ts's
+// deleteStalePacksFromR2) that's only safe once the sync has confirmed the
+// replacement data is in R2. This used to run after the lock had already
+// released, trading a real (if narrow — see docs/performance.md's case
+// study) race against a *concurrent push's own hydration step* for lower
+// latency on the common case; that race is now closed, since hydration
+// always goes through this same lock. It does **not** close the separate,
+// still-intentional race against a concurrent lock-free clone/fetch's pack
+// listing (git-http-iso.ts's collectReachableOids reads straight from R2,
+// no lock) — that one is handled by tolerating a transient 404 there
+// instead, and stays that way; taking the write lock on every read would be
+// a much bigger change than this app's actual traffic needs.
 export async function withReceivePackLock<T>(
 	ownerKey: string,
 	repoName: string,
 	defaultBranch: string,
 	fn: (localGitdir: string) => Promise<T>,
 	ownerDbId?: string,
+	afterSync?: (result: T) => Promise<void>,
 ): Promise<T> {
 	return withRepositoryLock(ownerKey, repoName, async () => {
 		const gitdir = await ensureRepositoryHydratedUnlocked(
@@ -353,6 +441,9 @@ export async function withReceivePackLock<T>(
 		);
 		const result = await fn(gitdir);
 		await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
+		if (afterSync) {
+			await afterSync(result);
+		}
 		return result;
 	});
 }

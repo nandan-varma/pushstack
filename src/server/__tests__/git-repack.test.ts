@@ -24,8 +24,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // DATABASE_URL is set here too: src/db/index.ts throws at import time if
 // it's unset, and under the `node` environment (see the docblock above)
 // Vite's .env.local auto-load into process.env doesn't reach this module
-// graph the way it does under the project's default jsdom environment —
-// this file never touches the database, so any well-formed value is fine.
+// graph the way it does under the project's default jsdom environment. The
+// value itself doesn't matter — `db` is mocked below (withRepositoryLock, now
+// exercised via repackRepositoryNow's withReceivePackLock, needs a reachable
+// Postgres for its lease-row CAS; see helpers/fake-repo-lock-db.ts) — this
+// just satisfies the module-load-time presence check.
 const TEST_DIR = vi.hoisted(() => {
 	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const os = require("node:os");
@@ -35,6 +38,21 @@ const TEST_DIR = vi.hoisted(() => {
 	process.env.GIT_REPOS_PATH = dir;
 	process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test";
 	return dir;
+});
+
+const lockStore = vi.hoisted(() => new Map());
+
+vi.mock("../../db", async () => {
+	const { createFakeRepoLockDb } = await import("./helpers/fake-repo-lock-db");
+	return { db: createFakeRepoLockDb(lockStore as never) };
+});
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+	const { fakeRepoLockDrizzleOrmOverrides } = await import(
+		"./helpers/fake-repo-lock-db"
+	);
+	const actual = await importOriginal<typeof import("drizzle-orm")>();
+	return { ...actual, ...fakeRepoLockDrizzleOrmOverrides() };
 });
 
 // Import after env is set

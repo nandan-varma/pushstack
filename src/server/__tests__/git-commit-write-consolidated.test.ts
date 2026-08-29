@@ -23,6 +23,26 @@ vi.mock("#/lib/r2", () => ({
 	isR2Configured: () => true,
 }));
 
+// withRepositoryLock (git-repo-storage.ts) now serializes through a
+// Postgres-backed lease row rather than an in-process mutex — this fake `db`
+// (see helpers/fake-repo-lock-db.ts) reproduces that CAS behavior in memory
+// so this file's whole point (verifying the lock actually serializes
+// concurrent calls) still holds without a live database.
+const lockStore = vi.hoisted(() => new Map());
+
+vi.mock("../../db", async () => {
+	const { createFakeRepoLockDb } = await import("./helpers/fake-repo-lock-db");
+	return { db: createFakeRepoLockDb(lockStore as never) };
+});
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+	const { fakeRepoLockDrizzleOrmOverrides } = await import(
+		"./helpers/fake-repo-lock-db"
+	);
+	const actual = await importOriginal<typeof import("drizzle-orm")>();
+	return { ...actual, ...fakeRepoLockDrizzleOrmOverrides() };
+});
+
 let concurrentCalls = 0;
 let maxConcurrentCalls = 0;
 
@@ -62,6 +82,10 @@ vi.mock("../git-manager-iso", async (importOriginal) => {
 			timezoneOffset: 0,
 		})),
 	};
+});
+
+beforeEach(() => {
+	lockStore.clear();
 });
 
 describe("createCommit — branch name guard", () => {

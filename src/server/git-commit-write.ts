@@ -91,13 +91,18 @@ export async function deleteFile(
 	const authorInfo = authorNow(author.name, author.email);
 
 	if (isR2Configured()) {
-		// ponytail: remove from tree + commit directly to R2 — no worktree
-		const repo = getBareRepoOptions(ownerKey, repoName);
-		const sha = await deleteFileFromBare(repo, {
-			branch: branchName,
-			filePath,
-			message,
-			author: authorInfo,
+		// ponytail: remove from tree + commit directly to R2 — no worktree.
+		// Unlike createCommit's identical R2 branch above, this used to call
+		// deleteFileFromBare without withRepositoryLock — a concurrent write to
+		// the same repo had no serialization at all on this specific path.
+		const sha = await withRepositoryLock(ownerKey, repoName, () => {
+			const repo = getBareRepoOptions(ownerKey, repoName);
+			return deleteFileFromBare(repo, {
+				branch: branchName,
+				filePath,
+				message,
+				author: authorInfo,
+			});
 		});
 		return { sha, message };
 	}

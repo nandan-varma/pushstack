@@ -587,6 +587,7 @@ describe("handleReceivePackIso", () => {
 			"main",
 			expect.any(Function),
 			"owner-id",
+			expect.any(Function),
 		);
 	});
 

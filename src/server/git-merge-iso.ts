@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { GitMergeConflictError, threeWayMerge } from "git-edge";
 import {
 	fastForwardMerge,
 	analyzeMerge as opsAnalyzeMerge,
@@ -82,16 +83,51 @@ export async function mergeBranches(
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
 	assertSafeBranchName(sourceBranch);
 	assertSafeBranchName(targetBranch);
+
 	if (isR2Configured()) {
-		// ponytail: FF merge = just update the ref, no worktree needed; non-FF falls through
-		const ffResult = await withRepositoryLock(ownerKey, repoName, () => {
-			const repo = getBareRepoOptions(ownerKey, repoName);
-			return fastForwardMerge(repo, sourceBranch, targetBranch);
-		});
-		if (ffResult) {
-			return ffResult;
+		// ponytail: FF merge = just update the ref; a real (non-FF) merge uses
+		// git-edge's threeWayMerge, which works directly on the object graph
+		// (trees, blobs, commits) with no worktree — a bare repo living entirely
+		// in R2 has no durable disk to check one out onto. Both cases run under
+		// one lock acquisition spanning the FF check through the merge itself,
+		// so a concurrent write can't land in between and make the "is this a
+		// fast-forward" determination stale by the time the non-FF merge runs.
+		try {
+			const result = await withRepositoryLock(ownerKey, repoName, async () => {
+				const repo = getBareRepoOptions(ownerKey, repoName);
+				const ffResult = await fastForwardMerge(
+					repo,
+					sourceBranch,
+					targetBranch,
+				);
+				if (ffResult) return ffResult;
+
+				const merged = await threeWayMerge(
+					repo,
+					qualifyBranchRef(sourceBranch),
+					qualifyBranchRef(targetBranch),
+					{
+						message:
+							options.message || `Merge ${sourceBranch} into ${targetBranch}`,
+						authorName: options.authorName,
+						authorEmail: options.authorEmail,
+					},
+				);
+				return { success: true as const, commitSha: merged.commitOid };
+			});
+			return result;
+		} catch (error) {
+			if (error instanceof GitMergeConflictError) {
+				return {
+					success: false,
+					conflicts: error.conflictingPaths.length
+						? error.conflictingPaths
+						: ["Merge conflicts detected"],
+				};
+			}
+			logError("git-merge", "mergeBranches failed unexpectedly", error);
+			throw error;
 		}
-		// Non-FF: fall through to worktree path below
 	}
 
 	try {
