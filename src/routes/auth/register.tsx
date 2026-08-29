@@ -23,6 +23,9 @@ function RegisterPage() {
 	const [confirmPassword, setConfirmPassword] = useState("");
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [verificationEmail, setVerificationEmail] = useState<string | null>(
+		null,
+	);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -47,11 +50,20 @@ function RegisterPage() {
 			await authClient.signUp.email(
 				{ email, password, name, username },
 				{
-					onSuccess: async () => {
-						await queryClient.invalidateQueries({
-							queryKey: queryKeys.authSession,
-						});
-						navigate({ to: "/dashboard" });
+					onSuccess: async (ctx) => {
+						// requireEmailVerification means signUp creates the account but
+						// doesn't establish a session (no `token`) until the user clicks
+						// the emailed link — without this check, they'd be silently
+						// bounced by the dashboard route guard with zero explanation.
+						if (ctx.data?.token) {
+							await queryClient.invalidateQueries({
+								queryKey: queryKeys.authSession,
+							});
+							navigate({ to: "/dashboard" });
+						} else {
+							setLoading(false);
+							setVerificationEmail(email);
+						}
 					},
 					onError: (ctx) => {
 						setError(ctx.error.message || "Registration failed");
@@ -64,6 +76,39 @@ function RegisterPage() {
 			setLoading(false);
 		}
 	};
+
+	if (verificationEmail) {
+		return (
+			<AuthFormShell
+				title="Check your email"
+				subtitle={`We sent a verification link to ${verificationEmail}`}
+				showBranding
+				footer={
+					<>
+						Wrong address?{" "}
+						<button
+							type="button"
+							onClick={() => setVerificationEmail(null)}
+							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						>
+							Go back
+						</button>
+					</>
+				}
+			>
+				<p className="text-center text-sm text-[var(--sea-ink-soft)]">
+					Click the link in that email to verify your account, then{" "}
+					<Link
+						to="/auth/login"
+						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					>
+						sign in
+					</Link>
+					.
+				</p>
+			</AuthFormShell>
+		);
+	}
 
 	return (
 		<AuthFormShell
