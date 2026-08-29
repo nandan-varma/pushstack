@@ -1,4 +1,11 @@
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	index,
+	pgTable,
+	text,
+	timestamp,
+	uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 // Better Auth tables
 export const user = pgTable("user", {
@@ -40,6 +47,13 @@ export const account = pgTable(
 		id: text("id").primaryKey(),
 		accountId: text("accountId").notNull(),
 		providerId: text("providerId").notNull(),
+		// Better Auth 1.7 core field — a stable per-provider identity namespace
+		// (`local:<providerId>` for credential/local auth, `local:oauth:<providerId>`
+		// for OAuth providers without their own issuer). Required by every
+		// credential sign-in/sign-up call as of that version; added here to match
+		// (was missing after the 1.6.22 -> 1.7.2 bump, breaking every login with
+		// a "field does not exist in the schema" error — see security.md).
+		issuer: text("issuer").notNull(),
 		userId: text("userId")
 			.notNull()
 			.references(() => user.id),
@@ -58,6 +72,13 @@ export const account = pgTable(
 		// userId on every Basic-Auth git request — without this it's a full
 		// table scan of `account`.
 		userIdx: index("account_user_idx").on(table.userId),
+		// Matches Better Auth 1.7's own core schema (get-tables.mjs): the
+		// (issuer, accountId) pair is what actually identifies an account
+		// uniquely, not (providerId, accountId) alone.
+		issuerAccountIdx: uniqueIndex("account_issuer_account_id_idx").on(
+			table.issuer,
+			table.accountId,
+		),
 	}),
 );
 
