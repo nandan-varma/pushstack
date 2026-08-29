@@ -32,6 +32,7 @@ const memoryGitFs = createGitFs(memoryStore);
 vi.mock("../git-fs", () => ({
 	gitFs: memoryGitFs,
 	detectLooseObjectsHint: vi.fn().mockResolvedValue(undefined),
+	prefetchAllPacks: vi.fn().mockResolvedValue(undefined),
 	invalidateRepoGitStorage: vi.fn(),
 	invalidateGitStorageKeys: vi.fn(),
 }));
@@ -58,6 +59,7 @@ vi.mock("#/lib/r2-operations", () => ({
 
 const { handleInfoRefsIso, handleUploadPackIso, handleReceivePackIso } =
 	await import("../git-http-iso");
+const { detectLooseObjectsHint, prefetchAllPacks } = await import("../git-fs");
 
 import type { GitAuthContext } from "../git-auth";
 import { GitAuthorizationError } from "../git-errors";
@@ -277,6 +279,29 @@ describe("handleUploadPackIso", () => {
 		expect(body.slice(4, nakLen).toString()).toBe("NAK\n");
 		const packfile = decodeSideBandPackfile(body.slice(nakLen));
 		expect(packfile.slice(0, 4).toString()).toBe("PACK");
+	});
+
+	it("prefetches packs and the loose-object hint before the reachability walk", async () => {
+		vi.mocked(detectLooseObjectsHint).mockClear();
+		vi.mocked(prefetchAllPacks).mockClear();
+
+		const { headOid } = await seedMemoryRepo("upprefetch", "r", 2);
+		const reqBody = Buffer.concat([
+			pktLine(`want ${headOid}\n`),
+			Buffer.from("0000"),
+			pktLine("done\n"),
+		]);
+		const req = new Request("http://x/git-upload-pack", {
+			method: "POST",
+			body: reqBody,
+		});
+		await handleUploadPackIso("upprefetch", "r", req, AUTH_READ);
+
+		expect(vi.mocked(detectLooseObjectsHint)).toHaveBeenCalledWith(
+			"upprefetch",
+			"r",
+		);
+		expect(vi.mocked(prefetchAllPacks)).toHaveBeenCalledWith("upprefetch", "r");
 	});
 
 	it("returns NAK with pack even when there are 'have' lines (no negotiation)", async () => {

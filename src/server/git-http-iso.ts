@@ -32,6 +32,7 @@ import {
 	gitFs,
 	invalidateGitStorageKeys,
 	invalidateRepoGitStorage,
+	prefetchAllPacks,
 } from "./git-fs";
 import { withReceivePackLock } from "./git-repo-storage";
 import {
@@ -157,12 +158,28 @@ export async function handleUploadPackIso(
 		return handleUploadPack(
 			{ fs: gitFs, gitdir },
 			body,
-			// Most repos are fully packed — without this, every object the
-			// reachability walk touches pays a doomed loose-object GET before
-			// falling back to the pack search. Skipped by the single-pack fast
-			// path above (a fresh clone of an already-consolidated repo never
-			// reaches this).
-			{ beforeWalk: () => detectLooseObjectsHint(ownerKey, repoName) },
+			{
+				beforeWalk: () =>
+					Promise.all([
+						// Most repos are fully packed — without this, every object the
+						// reachability walk touches pays a doomed loose-object GET
+						// before falling back to the pack search. Skipped by the
+						// single-pack fast path above (a fresh clone of an
+						// already-consolidated repo never reaches this).
+						detectLooseObjectsHint(ownerKey, repoName),
+						// collectReachableOids's graph walk is a sequential commit
+						// chain — same shape as getCommitLog's walk (see
+						// git-history-ops.ts) — so without this, a repo sitting on
+						// more than one pack (the common case between repacks; the
+						// single-pack fast path above only covers an
+						// already-consolidated repo) pays one R2 round trip *per
+						// pack* serially as the walk happens to discover it needs
+						// that pack's objects, instead of one parallel batch
+						// upfront. Measured: 745ms for collectReachableOids alone on
+						// a 2-pack repo before this existed.
+						prefetchAllPacks(ownerKey, repoName),
+					]).then(() => undefined),
+			},
 			hooks,
 		);
 	});
