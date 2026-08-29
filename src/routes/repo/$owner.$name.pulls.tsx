@@ -291,7 +291,7 @@ function PullRequestsPage() {
 				</div>
 			) : !pullRequests?.length ? (
 				<EmptyState
-					message={`No ${filter !== "all" ? filter : ""} pull requests found.`}
+					message={`No ${(filter ?? "open") !== "all" ? (filter ?? "open") : ""} pull requests found.`}
 					action={
 						session?.user ? (
 							<Button size="sm" onClick={() => setIsCreateOpen(true)}>

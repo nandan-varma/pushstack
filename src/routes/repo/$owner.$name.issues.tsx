@@ -198,7 +198,7 @@ function IssuesPage() {
 				</div>
 			) : !issues?.length ? (
 				<EmptyState
-					message={`No ${filter !== "all" ? filter : ""} issues found.`}
+					message={`No ${(filter ?? "open") !== "all" ? (filter ?? "open") : ""} issues found.`}
 					action={
 						session?.user ? (
 							<Button size="sm" onClick={() => setIsCreateOpen(true)}>
