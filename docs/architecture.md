@@ -27,6 +27,37 @@ realistic option and the filesystem is ephemeral. isomorphic-git's `fs` plugin
 interface is also what makes it possible to read git objects directly from R2
 without ever touching local disk (see [git-storage.md](./git-storage.md)).
 
+## Two extracted packages, not just app code
+
+Most of the actual git-on-R2 machinery doesn't live in this repo. It's been
+extracted into two published, independently-versioned npm packages that this
+app depends on and that carry their own documentation — **this repo's docs
+describe how pushstack *integrates* them, not how they work internally**:
+
+- **[`git-fs-s3`](https://nandan-varma.github.io/git-fs-s3/)** — the
+  R2-backed isomorphic-git `fs` plugin, the git smart-HTTP protocol
+  implementation (`git-fs-s3/http`), and a higher-level "git-hosting
+  operations" layer (`git-fs-s3/ops`: commits, branches, trees, diffs,
+  fast-forward merges) built on top. `git-fs.ts`, `git-http-iso.ts`, and most
+  of the `git-*-ops.ts` files in `src/server/` are thin wrappers around this.
+- **[`git-edge`](https://nandan-varma.github.io/git-edge/)** — an
+  object-level three-way merge (`threeWayMerge`) that never needs a worktree,
+  plus a parsed-object cache. `git-merge-iso.ts`'s R2-configured
+  non-fast-forward merge path uses this instead of isomorphic-git's own
+  `git.merge` (which needs a real checked-out working directory) — see
+  [git-storage.md](./git-storage.md).
+
+Both were extracted *from* this app's own code in earlier work (e.g.
+`git-fs.ts`'s R2 backend used to be a local `git-r2-backend.ts`) — when you
+need the deep "why" behind a caching decision, a retry policy, or the merge
+algorithm's edge cases, check the linked package docs first; only the
+integration-specific glue (which R2/local-disk backend gets chosen, how
+pushstack wires its own caches/locks around library calls) belongs in this
+repo's docs. If something looks wrong in the *library's* behavior rather than
+in how pushstack calls it, the fix belongs in that package's own repo
+(`~/dev/git-fs-s3` or `~/dev/git-edge`, sibling checkouts next to this one),
+not here.
+
 ## Request flow
 
 There are three distinct kinds of requests this app serves:
@@ -103,6 +134,7 @@ full role/permission model.
 ## Where to go next
 
 - [git-storage.md](./git-storage.md) — the R2-backed git storage layer, smart HTTP protocol, caching
+- [git-fs-s3 docs](https://nandan-varma.github.io/git-fs-s3/) / [git-edge docs](https://nandan-varma.github.io/git-edge/) — the extracted packages' own internals (see above)
 - [database.md](./database.md) — schema, relations, indices, migrations
 - [authentication.md](./authentication.md) — Better Auth, PATs, access control roles
 - [server-functions.md](./server-functions.md) — server function modules by resource

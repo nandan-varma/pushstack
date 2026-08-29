@@ -5,12 +5,17 @@ In-depth documentation for contributors working in this codebase. Start with
 whichever area you're touching.
 
 - **[Architecture](./architecture.md)** — tech stack, request flow, directory
-  map, the three storage systems (Postgres/R2/local `/tmp`), and where to go
-  next.
+  map, the three storage systems (Postgres/R2/local `/tmp`), the two
+  extracted git-on-R2 packages this app depends on, and where to go next.
 - **[Git Storage](./git-storage.md)** — how git repository data is stored in
   Cloudflare R2 and served without a native `git` binary: the R2-backed `fs`
-  plugin, storage key scheme, the hydrate → mutate → sync write path, per-repo
-  locking, and the smart HTTP protocol implementation.
+  plugin, storage key scheme, the hydrate → mutate → sync write path, the
+  distributed per-repo lock, and the smart HTTP protocol implementation.
+  Covers pushstack's own integration layer — for the underlying library
+  internals, see the [git-fs-s3](https://nandan-varma.github.io/git-fs-s3/)
+  and [git-edge](https://nandan-varma.github.io/git-edge/) docs sites
+  (published packages this repo depends on, extracted from earlier versions
+  of this same codebase).
 - **[Database](./database.md)** — schema tables, relations, indices, and the
   `db:push` vs. `db:generate`/`db:migrate` migration workflows.
 - **[Authentication & Access Control](./authentication.md)** — Better Auth

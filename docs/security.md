@@ -198,17 +198,38 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependency vulnerabilities
 
-`pnpm audit` will show a large number of findings in this project — as of the
-last audit, all of them trace through dev-only tooling (`wrangler`/`miniflare`
-pulled in transitively by `@cloudflare/vite-plugin`, which per
-[deployment.md](./deployment.md) is a dependency but not actually wired into
-the Vite config; and `prisma`'s own dev-server tooling nested oddly under
-`drizzle-orm`/`better-auth`'s dependency tree) — none reachable from the
-actual deployed runtime. Re-verify this reasoning (don't just assume it still
-holds) before dismissing a new audit finding the same way; check the
-`findings[].paths` in `pnpm audit --json` to see whether a given advisory's
-dependency chain is genuinely dev-only or has since become part of a real
-runtime path.
+`pnpm audit` is clean (0 findings) as of the last pass. It wasn't always —
+worth knowing both what was actually wrong and how it was fixed, since the
+same shape of problem can recur:
+
+- `@cloudflare/vite-plugin` was a fully dead dependency (never wired into
+  `vite.config.ts` — see [deployment.md](./deployment.md)) that dragged in
+  `wrangler`/`miniflare`'s own bundled `esbuild`/`undici`/`ws`/`sharp`
+  versions as real, vulnerable installs. Removed outright.
+- The remaining findings (`hono`, `@hono/node-server`, `lodash`,
+  `deepmerge-ts`, `effect`, `valibot`, `undici`) all traced through
+  `better-auth`'s optional multi-ORM peer graph pulling in `prisma`'s bundled
+  dev-studio tooling — never imported by this app's code, just present as
+  peer-dependency noise. Pinned via `pnpm.overrides` in `package.json`.
+
+**The overrides need an explicit upper bound, not just a patched floor.**
+`pnpm audit --fix`'s auto-generated overrides default to an open-ended target
+(`">=7.29.0"`, no ceiling) — that resolved cleanly at the time, but the *next*
+`pnpm install` after a new major version of that package gets published will
+happily jump to it. This actually broke the whole test suite once: an
+open-ended `undici` override resolved to `undici@8.10.0` on a later install,
+and `jsdom` (which needs `undici@^7.x` — it requires an internal path,
+`undici/lib/handler/wrap-handler.js`, that doesn't exist in v8) crashed
+outright. Every override in `package.json` is capped below its next major
+(`">=7.29.0 <8.0.0"`) for exactly this reason — if you add a new one, cap it
+the same way, and re-run the full test suite (not just `pnpm audit`) before
+considering the fix done.
+
+If `pnpm audit` shows a new finding, check `findings[].paths` in `pnpm audit
+--json` to see whether the dependency chain is genuinely dev-only/unreachable
+from the deployed runtime before dismissing it the way the old findings were
+— don't assume every future finding is automatically noise just because past
+ones were.
 
 ## Path traversal via the raw-content route's ref/path
 

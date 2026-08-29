@@ -5,9 +5,11 @@
 The deployment target is **Vercel**, via Nitro's `vercel` preset
 (`nitro({ preset: "vercel" })` in `vite.config.ts`) — despite Cloudflare R2
 being used for object storage, this is **not** a Cloudflare Pages/Workers
-deployment. `@cloudflare/vite-plugin` is a dependency, but it's not wired into
-the Vite config — Cloudflare's role here is exclusively R2 object storage via
-its S3-compatible API, nothing else.
+deployment. Cloudflare's role here is exclusively R2 object storage via its
+S3-compatible API, nothing else — there's no `@cloudflare/vite-plugin` in the
+dependency tree (it used to be listed but was never wired into the Vite
+config; removed as dead weight, see [security.md](./security.md)'s
+"Dependency vulnerabilities").
 
 This is also why `/tmp` matters so much throughout the codebase: it's the only
 writable directory available at runtime on Vercel, which is why

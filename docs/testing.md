@@ -31,9 +31,18 @@ storage-path safety, CRUD server functions) lives. Notable files:
 - `git-storage-naming.test.ts`, `git-manager-iso.test.ts` — storage key
   construction and path-traversal containment (`getRepoPath`'s
   refuse-to-escape-storage-root check — see [security.md](./security.md)).
-- `git-repo-storage.test.ts` — `withRepositoryLock`/`ensureRepositoryHydrated`/
+- `git-repo-storage.test.ts` — `withRepositoryLock`'s Postgres-backed lease
+  CAS (acquire/expire/release, timeout), `ensureRepositoryHydrated`/
   `syncRepositoryToR2`, plus `renameRepositoryStorage`'s R2-copy and
-  local-`fs.rename` paths (see [git-storage.md](./git-storage.md)).
+  local-`fs.rename` paths (see [git-storage.md](./git-storage.md)). Its fake
+  lease-lock `db` mock is shared via `helpers/fake-repo-lock-db.ts` — any
+  test exercising a real write path (which now all go through the same
+  Postgres lock) needs this or a live database; reach for the shared helper
+  before hand-rolling another copy.
+- `git-transactions.test.ts` — the WAL `withRepositoryLock` writes to
+  (`git_transactions`): begin/commit/rollback and
+  `findAbandonedGitTransactions`'s filtering, against a real embedded
+  Postgres (pglite), same pattern as `repo-access.test.ts` below.
 - `git-auth-helpers.test.ts` — `authenticateGitRequest`'s full fallback chain
   (session/PAT/password) and the DB-backed password rate limiter.
 - `files.test.ts`, `repositories.unit.test.ts`, `issues.test.ts`,

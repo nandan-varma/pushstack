@@ -236,6 +236,45 @@ inconsistency instead, and only gets to if you can show it really is
 transient (here: the replacement pack is always written before the old ones
 are removed, so nothing a reader wants is ever actually gone).
 
+## Case study: an optimization applied to three call sites out of four
+
+`prefetchAllPacks` (`git-fs.ts`, wrapping `git-fs-s3`'s `GitFs.prefetchPacks`)
+exists because walking a commit chain is inherently sequential — you only
+learn the next object to fetch after reading the current one — so without
+prefetching, a repo sitting on more than one pack pays one R2 round trip
+*per pack*, serially, as the walk happens to discover it needs that pack's
+objects. `git-history-ops.ts`/`git-last-commit.ts`/`git-file-history.ts` (the
+web UI's commit-log, last-commit-per-file, and file-history reads) all call
+it before their own walks.
+
+`handleUploadPackIso` (`git-http-iso.ts` — serves real `git clone`/`git
+fetch`, not the web UI) has an object-graph walk with the exact same
+shape (`collectReachableOids`, in `git-fs-s3/http`), but never called it —
+this was invisible in code review because nothing about the *code* looked
+wrong; `collectReachableOids` is correctly, fully parallelized internally
+(concurrent, deduplicated promise-per-oid graph traversal). The gap only
+showed up under live profiling against a real R2 bucket: on a 2-pack repo,
+`collectReachableOids` alone cost 744.7ms, with the pack downloads it
+triggered happening essentially serially as the walk's early, single-threaded
+stages (starting from one "want" tip commit) discovered it needed first one
+pack, then the other. Adding the same `prefetchAllPacks` call to
+`handleUploadPackIso`'s existing `beforeWalk` hook (already used for the
+loose-object hint) dropped that same step to 20.1ms — a ~97% reduction — and
+took end-to-end `git clone` against a warm local dev server with real R2 from
+2.1s to 0.65s.
+
+The lesson: **when the same structural problem has already been solved at
+some call sites, audit every place with the same shape for the fix, not just
+the ones a doc happens to mention** — a written claim that an optimization is
+"wired into" a given path is a statement about when it was written, not a
+guarantee it stayed complete as new call sites were added. `grep`ing for the
+fix's own call sites (`prefetchAllPacks(`) is more reliable than trusting
+prose. See `scripts/perf-setup.ts`/`scripts/perf-page-load.ts` for the
+profiling harness this was found with — real `git` CLI operations and direct
+calls to the read-path functions (bypassing `createServerFn`'s request-context
+requirement) against a local dev server with real R2 credentials, reading
+`perf-log.ts`'s breakdown from the dev server's own stdout.
+
 ## The `perf-log` instrumentation convention
 
 Two parallel modules, same idea, different sides of the request:
