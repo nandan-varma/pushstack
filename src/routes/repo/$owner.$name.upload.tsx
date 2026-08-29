@@ -92,6 +92,14 @@ function FileUploadPage() {
 		...repositoryBranchesQueryOptions(repo?.id ?? 0),
 		enabled: !!repo,
 	});
+	// A brand-new repo has no real branches yet (no commits at all), so
+	// `branches` comes back empty — without a fallback, the Select has no
+	// SelectItem to match `branch` against and renders completely blank,
+	// even though `branch` itself already correctly defaults to "main".
+	const branchOptions =
+		branches && branches.length > 0
+			? branches
+			: [{ name: repo?.defaultBranch ?? branch }];
 
 	const uploadMutation = useMutation({
 		mutationFn: uploadFile,
@@ -211,7 +219,7 @@ function FileUploadPage() {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{branches?.map((b) => (
+								{branchOptions.map((b) => (
 									<SelectItem key={b.name} value={b.name}>
 										{b.name}
 									</SelectItem>
