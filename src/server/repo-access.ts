@@ -76,7 +76,22 @@ async function fetchRepoRow(repoId: number) {
 	// a repository row without that relation cannot safely service a file,
 	// branch, diff, or merge request. This also protects serverless deployments
 	// where a stale relation map can otherwise return `owner: undefined`.
-	if (!repository || repository.owner) return repository;
+	return ensureRepositoryOwner(repoId, repository);
+}
+
+type RepositoryWithOptionalOwner = typeof repositories.$inferSelect & {
+	owner?: { id: string; username: string | null; email: string } | null;
+};
+type RepositoryWithOwner = typeof repositories.$inferSelect & {
+	owner: { id: string; username: string | null; email: string };
+};
+
+async function ensureRepositoryOwner(
+	repoId: number,
+	repository: RepositoryWithOptionalOwner | null | undefined,
+): Promise<RepositoryWithOwner | undefined> {
+	if (!repository) return undefined;
+	if (repository.owner) return repository as RepositoryWithOwner;
 
 	const [row] = await db
 		.select({ repo: repositories, owner: user })
@@ -85,7 +100,7 @@ async function fetchRepoRow(repoId: number) {
 		.where(eq(repositories.id, repoId))
 		.limit(1);
 
-	return row ? { ...row.repo, owner: row.owner } : repository;
+	return row ? { ...row.repo, owner: row.owner } : undefined;
 }
 
 /** Seed the cache with an access decision a caller already computed elsewhere
@@ -340,7 +355,9 @@ export async function getRepoWithReadAccess(
 	const access = await resolveRepositoryAccess(repoId, userId);
 	if (!access) throw new Error("Repository not found");
 	if (!access.canRead) throw new Error("Access denied");
-	return access.repository;
+	const repository = await ensureRepositoryOwner(repoId, access.repository);
+	if (!repository) throw new Error("Repository not found");
+	return repository;
 }
 
 export async function getRepoWithWriteAccess(
@@ -350,5 +367,7 @@ export async function getRepoWithWriteAccess(
 	const access = await resolveRepositoryAccess(repoId, userId);
 	if (!access) throw new Error("Repository not found");
 	if (!access.canWrite) throw new Error("No write access to repository");
-	return access.repository;
+	const repository = await ensureRepositoryOwner(repoId, access.repository);
+	if (!repository) throw new Error("Repository not found");
+	return repository;
 }

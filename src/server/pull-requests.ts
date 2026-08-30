@@ -11,6 +11,7 @@ import {
 	canMergePullRequest,
 	canWriteRepo,
 	getAccessForRepository,
+	getRepoWithWriteAccess,
 	requireReadAccess,
 	requireWriteAccess,
 } from "./repo-access";
@@ -268,7 +269,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 		}
 
 		// Get repository
-		const repo = pr.repository;
+		const repo = await getRepoWithWriteAccess(pr.repoId, user.id);
 		const storage = getRepoStorageCoordinates(repo);
 
 		// Cheap pre-check: do both branches still exist? (analyzeMerge does NOT

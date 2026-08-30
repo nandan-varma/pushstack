@@ -18,6 +18,7 @@ vi.mock("../repo-access", () => ({
 	requireWriteAccess: vi.fn(() => Promise.resolve()),
 	requireReadAccess: vi.fn(() => Promise.resolve()),
 	getAccessForRepository: vi.fn(() => Promise.resolve({ canRead: true })),
+	getRepoWithWriteAccess: vi.fn(() => Promise.resolve(mockPr.repository)),
 	canWriteRepo: vi.fn(() => Promise.resolve(true)),
 	canMergePullRequest: vi.fn(() => Promise.resolve(true)),
 }));
