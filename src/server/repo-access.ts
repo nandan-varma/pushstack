@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { repositories, repositoryCollaborators } from "../db/github-schema";
+import { user } from "../db/schema";
 import { perfNote } from "./perf-log";
 
 export type CollaboratorRole = "read" | "write" | "admin";
@@ -65,10 +66,26 @@ function accessCacheKey(repoId: number, userId?: string | null): string {
 }
 
 async function fetchRepoRow(repoId: number) {
-	return db.query.repositories.findFirst({
+	const repository = await db.query.repositories.findFirst({
 		where: eq(repositories.id, repoId),
 		with: { owner: true },
 	});
+
+	// The relational query is the common fast path. Keep the owner lookup
+	// explicit as a fallback: Git storage is keyed by the owner's username, and
+	// a repository row without that relation cannot safely service a file,
+	// branch, diff, or merge request. This also protects serverless deployments
+	// where a stale relation map can otherwise return `owner: undefined`.
+	if (!repository || repository.owner) return repository;
+
+	const [row] = await db
+		.select({ repo: repositories, owner: user })
+		.from(repositories)
+		.innerJoin(user, eq(repositories.ownerId, user.id))
+		.where(eq(repositories.id, repoId))
+		.limit(1);
+
+	return row ? { ...row.repo, owner: row.owner } : repository;
 }
 
 /** Seed the cache with an access decision a caller already computed elsewhere
