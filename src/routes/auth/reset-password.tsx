@@ -47,7 +47,7 @@ function ResetPasswordPage() {
 	if (success) {
 		return (
 			<AuthFormShell title="Password updated">
-				<p className="mb-8 text-center text-sm text-[var(--sea-ink-soft)]">
+				<p className="mb-8 text-center text-sm text-muted-foreground">
 					Your password has been reset. You can now sign in.
 				</p>
 				<Link to="/auth/login">
@@ -100,11 +100,11 @@ function ResetPasswordPage() {
 				</LoadingButton>
 
 				{!token && (
-					<p className="text-center text-sm text-[var(--sea-ink-soft)]">
+					<p className="text-center text-sm text-muted-foreground">
 						Invalid or expired reset link.{" "}
 						<Link
 							to="/auth/forgot-password"
-							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+							className="font-medium text-primary hover:underline"
 						>
 							Request a new one
 						</Link>

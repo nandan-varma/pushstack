@@ -34,10 +34,10 @@ export function CommentCard({
 				</Avatar>
 				<div className="flex-1">
 					<div className="flex items-center gap-2 mb-4">
-						<span className="font-medium text-[var(--sea-ink)]">
+						<span className="font-medium text-foreground">
 							{comment.author?.name || "Unknown"}
 						</span>
-						<span className="text-sm text-[var(--sea-ink-soft)]">
+						<span className="text-sm text-muted-foreground">
 							{formatDistanceToNow(new Date(comment.createdAt), {
 								addSuffix: true,
 							})}

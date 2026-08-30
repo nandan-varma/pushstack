@@ -23,13 +23,10 @@ function ToggleRow({
 	return (
 		<div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
 			<div className="min-w-0">
-				<label
-					htmlFor={id}
-					className="text-sm font-medium text-[var(--sea-ink)]"
-				>
+				<label htmlFor={id} className="text-sm font-medium text-foreground">
 					{label}
 				</label>
-				<p className="mt-0.5 text-xs text-[var(--sea-ink-soft)]">{hint}</p>
+				<p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
 			</div>
 			<Switch
 				id={id}
@@ -75,7 +72,7 @@ export function PerformanceSection({
 			title="Performance"
 			description="Both off by default — each re-walks git history or polls on a timer, which costs real R2 calls and server time on every visit. Turn on only if you actually want the extra info live."
 		>
-			<div className="divide-y divide-[var(--line)]">
+			<div className="divide-y divide-[var(--border)]">
 				<ToggleRow
 					id="show-last-commit-column"
 					label="Show last commit per file in the file browser"
@@ -106,12 +103,12 @@ export function PerformanceSection({
 					{(mutation.error as Error).message}
 				</p>
 			)}
-			<div className="mt-4 flex items-start justify-between gap-4 border-t border-[var(--line)] pt-4">
+			<div className="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4">
 				<div className="min-w-0">
-					<p className="text-sm font-medium text-[var(--sea-ink)]">
+					<p className="text-sm font-medium text-foreground">
 						Consolidate pack files
 					</p>
-					<p className="mt-0.5 text-xs text-[var(--sea-ink-soft)]">
+					<p className="mt-0.5 text-xs text-muted-foreground">
 						Every push already consolidates old pack files once there are
 						several — this is only for repos that built up a backlog before that
 						started, where every cold visit has to fetch every leftover pack.
@@ -136,7 +133,7 @@ export function PerformanceSection({
 				</p>
 			)}
 			{repackMutation.isSuccess && (
-				<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+				<p className="mt-2 text-sm text-muted-foreground">
 					{repackMutation.data.removedPacks > 0
 						? `Consolidated — removed ${repackMutation.data.removedPacks} redundant pack file${repackMutation.data.removedPacks === 1 ? "" : "s"}.`
 						: "Already consolidated — nothing to do."}

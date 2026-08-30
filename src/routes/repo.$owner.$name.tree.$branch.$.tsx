@@ -37,10 +37,10 @@ function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 		error instanceof Error && error.name === "GitPathNotFoundError";
 	return (
 		<div className="island-shell rounded-xl p-12 text-center">
-			<h2 className="mb-2 text-lg font-semibold text-[var(--sea-ink)]">
+			<h2 className="mb-2 text-lg font-semibold text-foreground">
 				{isPathNotFound ? "Path not found" : "Could not load files"}
 			</h2>
-			<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
+			<p className="mb-6 text-sm text-muted-foreground">
 				{isPathNotFound
 					? "The file or folder you're looking for does not exist in this repository."
 					: error?.message || "An unexpected error occurred."}
@@ -313,11 +313,11 @@ function TreeBrowserPage() {
 			{/* Toolbar */}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				{isCommitView ? (
-					<code className="rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-2 py-1 text-xs font-mono text-[var(--sea-ink-soft)]">
+					<code className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">
 						{activeBranch.slice(0, 7)}
 					</code>
 				) : branchesLoading ? (
-					<div className="h-8 w-32 animate-pulse rounded-md border border-[var(--line)] bg-[var(--surface-raised)]" />
+					<div className="h-8 w-32 animate-pulse rounded-md border border-border bg-muted" />
 				) : (
 					<Select value={activeBranch} onValueChange={handleBranchChange}>
 						<SelectTrigger size="sm">
@@ -336,9 +336,9 @@ function TreeBrowserPage() {
 
 				<div className="flex items-center gap-2">
 					{isLoading ? (
-						<div className="h-3 w-12 animate-pulse rounded bg-[var(--surface-raised)]" />
+						<div className="h-3 w-12 animate-pulse rounded bg-muted" />
 					) : (
-						<span className="text-xs text-[var(--sea-ink-soft)]">
+						<span className="text-xs text-muted-foreground">
 							{files?.length || 0} files
 						</span>
 					)}

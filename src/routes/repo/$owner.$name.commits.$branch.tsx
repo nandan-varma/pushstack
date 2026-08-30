@@ -105,7 +105,7 @@ function CommitsPage() {
 						</SelectContent>
 					</Select>
 					{commits && commits.length > 0 && (
-						<span className="text-xs text-[var(--sea-ink-soft)]">
+						<span className="text-xs text-muted-foreground">
 							{commits.length} commit{commits.length !== 1 ? "s" : ""}
 						</span>
 					)}
@@ -140,13 +140,13 @@ function CommitsPage() {
 				/>
 			) : (
 				<>
-					<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+					<div className="overflow-hidden rounded-xl border border-border">
 						{commits.map((commit, idx) => (
 							<Link
 								key={commit.sha}
 								to="/repo/$owner/$name/commit/$sha"
 								params={{ owner, name, sha: commit.sha }}
-								className={`flex w-full items-center gap-4 px-4 py-3.5 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < commits.length - 1 ? "border-b border-[var(--line)]" : ""}`}
+								className={`flex w-full items-center gap-4 px-4 py-3.5 text-left no-underline transition hover:bg-card ${idx < commits.length - 1 ? "border-b border-border" : ""}`}
 							>
 								<Avatar className="h-8 w-8 shrink-0">
 									<AvatarFallback className="text-xs">
@@ -158,11 +158,11 @@ function CommitsPage() {
 								<div className="min-w-0 flex-1 space-y-1">
 									<p
 										title={commit.message}
-										className="truncate text-sm font-medium leading-snug text-[var(--sea-ink)]"
+										className="truncate text-sm font-medium leading-snug text-foreground"
 									>
 										{commit.message.split("\n")[0]}
 									</p>
-									<p className="text-xs leading-snug text-[var(--sea-ink-soft)]">
+									<p className="text-xs leading-snug text-muted-foreground">
 										{commit.author?.name || commit.authorName || "Unknown"}{" "}
 										&middot;{" "}
 										{formatDistanceToNow(new Date(commit.createdAt), {
@@ -170,7 +170,7 @@ function CommitsPage() {
 										})}
 									</p>
 								</div>
-								<code className="shrink-0 rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--sea-ink-soft)]">
+								<code className="shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
 									{commit.sha.substring(0, 7)}
 								</code>
 							</Link>
@@ -193,7 +193,7 @@ function CommitsPage() {
 						>
 							Previous
 						</Button>
-						<span className="text-xs text-[var(--sea-ink-soft)]">
+						<span className="text-xs text-muted-foreground">
 							{currentSkip + 1}–{currentSkip + commits.length}
 						</span>
 						<Button

@@ -156,7 +156,7 @@ function PullRequestsPage() {
 	return (
 		<div className="space-y-5">
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
+				<h2 className="text-base font-semibold text-foreground">
 					Pull Requests
 				</h2>
 				{!session?.user ? (
@@ -307,17 +307,17 @@ function PullRequestsPage() {
 					}
 				/>
 			) : (
-				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+				<div className="overflow-hidden rounded-xl border border-border">
 					{pullRequests.map((pr, idx) => (
 						<Link
 							key={pr.id}
 							to="/repo/$owner/$name/pulls/$id"
 							params={{ owner, name, id: pr.id.toString() }}
-							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < pullRequests.length - 1 ? "border-b border-[var(--line)]" : ""}`}
+							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card ${idx < pullRequests.length - 1 ? "border-b border-border" : ""}`}
 						>
 							<div className="min-w-0 flex-1 space-y-1">
 								<div className="flex min-w-0 items-center gap-2">
-									<span className="min-w-0 truncate text-sm font-medium text-[var(--sea-ink)]">
+									<span className="min-w-0 truncate text-sm font-medium text-foreground">
 										{pr.title}
 									</span>
 									<Badge
@@ -327,7 +327,7 @@ function PullRequestsPage() {
 										{pr.status}
 									</Badge>
 								</div>
-								<p className="flex flex-wrap items-center gap-x-1 text-xs text-[var(--sea-ink-soft)]">
+								<p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
 									<span>
 										#{pr.id} opened{" "}
 										{new Date(pr.createdAt).toLocaleDateString()} by{" "}

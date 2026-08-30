@@ -49,7 +49,7 @@ export default function BetterAuthHeader() {
 						className="flex items-center gap-2 rounded-full transition hover:opacity-80"
 						aria-label="Account menu"
 					>
-						<Avatar className="h-8 w-8 ring-1 ring-[var(--line)]">
+						<Avatar className="h-8 w-8 ring-1 ring-[var(--border)]">
 							<AvatarImage
 								src={session.user.image ?? undefined}
 								alt={session.user.name || "Account"}
@@ -58,13 +58,13 @@ export default function BetterAuthHeader() {
 								{getInitials(session.user.name || "U")}
 							</AvatarFallback>
 						</Avatar>
-						<span className="hidden text-sm font-medium text-[var(--sea-ink)] sm:block">
+						<span className="hidden text-sm font-medium text-foreground sm:block">
 							{session.user.username || session.user.name}
 						</span>
 					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-48">
-					<DropdownMenuLabel className="truncate font-normal text-[var(--sea-ink-soft)]">
+					<DropdownMenuLabel className="truncate font-normal text-muted-foreground">
 						{session.user.email}
 					</DropdownMenuLabel>
 					<DropdownMenuSeparator />
@@ -96,7 +96,7 @@ export default function BetterAuthHeader() {
 	return (
 		<Link
 			to="/auth/login"
-			className="inline-flex h-8 items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--sea-ink)] no-underline transition hover:border-[var(--lagoon-deep)]"
+			className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground no-underline transition hover:border-primary"
 		>
 			Sign in
 		</Link>

@@ -17,10 +17,7 @@ export function FormField({
 			<Label htmlFor={htmlFor}>
 				{label}
 				{hint && (
-					<span className="font-normal text-[var(--sea-ink-soft)]">
-						{" "}
-						{hint}
-					</span>
+					<span className="font-normal text-muted-foreground"> {hint}</span>
 				)}
 			</Label>
 			{children}

@@ -17,7 +17,7 @@ export function LoadingButton({
 		<Button {...props} disabled={isLoading || props.disabled}>
 			{isLoading ? (
 				<>
-					<Spinner size="sm" />
+					<Spinner className="size-4" />
 					{loadingLabel ?? "Saving…"}
 				</>
 			) : (

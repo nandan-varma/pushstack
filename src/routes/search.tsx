@@ -71,10 +71,8 @@ function SearchPage() {
 	return (
 		<main className="page-wrap px-4 py-10">
 			<div className="mb-6">
-				<h1 className="display-title text-3xl font-bold text-[var(--sea-ink)]">
-					Search
-				</h1>
-				<p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
+				<h1 className="text-3xl font-bold text-foreground">Search</h1>
+				<p className="mt-1 text-sm text-muted-foreground">
 					Find repositories and people across PushStack.
 				</p>
 			</div>
@@ -187,17 +185,17 @@ function RepositoryResults({
 								<div className="flex items-center gap-2">
 									<h2
 										title={`${ownerUsername}/${repo.name}`}
-										className="truncate text-sm font-semibold text-[var(--lagoon-deep)]"
+										className="truncate text-sm font-semibold text-primary"
 									>
 										{ownerUsername}/{repo.name}
 									</h2>
 									<VisibilityBadge visibility={repo.visibility} />
 								</div>
-								<p className="mt-1 line-clamp-2 text-xs text-[var(--sea-ink-soft)]">
+								<p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
 									{repo.description || "No description"}
 								</p>
 							</div>
-							<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+							<span className="shrink-0 text-xs text-muted-foreground">
 								{new Date(repo.updatedAt).toLocaleDateString()}
 							</span>
 						</div>
@@ -239,11 +237,11 @@ function UserResults({
 							</AvatarFallback>
 						</Avatar>
 						<div className="min-w-0">
-							<div className="truncate text-sm font-semibold text-[var(--sea-ink)]">
+							<div className="truncate text-sm font-semibold text-foreground">
 								{person.name}
 							</div>
 							{person.username && (
-								<div className="truncate text-xs text-[var(--sea-ink-soft)]">
+								<div className="truncate text-xs text-muted-foreground">
 									@{person.displayUsername || person.username}
 								</div>
 							)}

@@ -34,10 +34,8 @@ function RepositoriesPage() {
 		<main className="page-wrap px-4 py-10">
 			<div className="mb-8 flex items-center justify-between gap-4">
 				<div>
-					<h1 className="display-title text-3xl font-bold text-[var(--sea-ink)]">
-						Repositories
-					</h1>
-					<p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
+					<h1 className="text-3xl font-bold text-foreground">Repositories</h1>
+					<p className="mt-1 text-sm text-muted-foreground">
 						Browse and manage the repositories you can access.
 					</p>
 				</div>
@@ -84,17 +82,17 @@ function RepositoriesPage() {
 										<div className="flex items-center gap-2">
 											<h2
 												title={`${ownerUsername}/${repo.name}`}
-												className="truncate text-sm font-semibold text-[var(--lagoon-deep)]"
+												className="truncate text-sm font-semibold text-primary"
 											>
 												{ownerUsername}/{repo.name}
 											</h2>
 											<VisibilityBadge visibility={repo.visibility} />
 										</div>
-										<p className="mt-1 line-clamp-2 text-xs text-[var(--sea-ink-soft)]">
+										<p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
 											{repo.description || "No description"}
 										</p>
 									</div>
-									<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+									<span className="shrink-0 text-xs text-muted-foreground">
 										{new Date(repo.updatedAt).toLocaleDateString()}
 									</span>
 								</div>

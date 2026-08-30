@@ -1,8 +1,8 @@
 const filterTabBase =
 	"border-b-2 px-1 pb-3 text-sm font-medium transition cursor-pointer";
-const filterTabActive = "border-[var(--lagoon-deep)] text-[var(--lagoon-deep)]";
+const filterTabActive = "border-primary text-primary";
 const filterTabInactive =
-	"border-transparent text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]";
+	"border-transparent text-muted-foreground hover:text-foreground";
 
 export function FilterTabs<T extends string>({
 	tabs,
@@ -14,7 +14,7 @@ export function FilterTabs<T extends string>({
 	onTabChange: (value: T) => void;
 }) {
 	return (
-		<div className="flex items-center gap-5 overflow-x-auto border-b border-[var(--line)]">
+		<div className="flex items-center gap-5 overflow-x-auto border-b border-border">
 			{tabs.map(({ value, label, count }) => (
 				<button
 					key={value}

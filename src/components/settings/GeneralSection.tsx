@@ -8,7 +8,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { queryKeys } from "@/lib/query-options";
 import { updateRepository } from "@/server/repositories";
 
-const labelCls = "text-sm font-medium text-[var(--sea-ink)]";
+const labelCls = "text-sm font-medium text-foreground";
 
 export function GeneralSection({
 	repo,
@@ -74,8 +74,8 @@ export function GeneralSection({
 								key={v}
 								className={`flex flex-1 cursor-pointer items-center gap-2 rounded-lg border px-4 py-3 text-sm transition ${
 									visibility === v
-										? "border-[var(--lagoon-deep)] bg-[var(--lagoon-deep)]/5 font-medium text-[var(--lagoon-deep)]"
-										: "border-[var(--line)] text-[var(--sea-ink-soft)] hover:border-[var(--lagoon-deep)]/50"
+										? "border-primary bg-[var(--primary)]/5 font-medium text-primary"
+										: "border-border text-muted-foreground hover:border-primary/50"
 								}`}
 							>
 								<input

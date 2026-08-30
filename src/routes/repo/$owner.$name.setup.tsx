@@ -66,7 +66,7 @@ function RouteComponent() {
 				<Link
 					to="/repo/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch: defaultBranch, _splat: "" }}
-					className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 				>
 					<ArrowLeft className="size-4" />
 					{owner}/{name}
@@ -75,10 +75,10 @@ function RouteComponent() {
 			<Card className="p-6">
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>
-						<h2 className="text-2xl font-semibold text-[var(--sea-ink)]">
+						<h2 className="text-2xl font-semibold text-foreground">
 							Repository Setup
 						</h2>
-						<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+						<p className="mt-2 text-sm text-muted-foreground">
 							Git, R2-backed object storage, and SQL metadata are configured for
 							this repository.
 						</p>
@@ -93,17 +93,15 @@ function RouteComponent() {
 			</Card>
 
 			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
-					Clone URL
-				</h3>
-				<p className="mt-2 text-sm text-[var(--sea-ink-soft)]">
+				<h3 className="text-lg font-semibold text-foreground">Clone URL</h3>
+				<p className="mt-2 text-sm text-muted-foreground">
 					Use this remote for clone, fetch, pull, and push.
 				</p>
 				<div className="mt-4 flex flex-wrap gap-2">
 					<input
 						readOnly
 						value={cloneUrl}
-						className="min-w-0 flex-1 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 font-mono text-sm text-[var(--sea-ink)]"
+						className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground"
 					/>
 					<Button variant="outline" onClick={() => handleCopy(cloneUrl, "url")}>
 						{copiedSection === "url" ? "Copied" : "Copy"}
@@ -113,43 +111,37 @@ function RouteComponent() {
 
 			<div className="grid gap-4 lg:grid-cols-2">
 				<Card className="p-6">
-					<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+					<h3 className="text-lg font-semibold text-foreground">
 						Repository Status
 					</h3>
 					<dl className="mt-4 space-y-3 text-sm">
 						<div className="flex items-center justify-between gap-4">
-							<dt className="text-[var(--sea-ink-soft)]">Visibility</dt>
-							<dd className="font-medium text-[var(--sea-ink)]">
-								{repo.visibility}
-							</dd>
+							<dt className="text-muted-foreground">Visibility</dt>
+							<dd className="font-medium text-foreground">{repo.visibility}</dd>
 						</div>
 						<div className="flex items-center justify-between gap-4">
-							<dt className="text-[var(--sea-ink-soft)]">Default branch</dt>
-							<dd className="font-medium text-[var(--sea-ink)]">
-								{defaultBranch}
-							</dd>
+							<dt className="text-muted-foreground">Default branch</dt>
+							<dd className="font-medium text-foreground">{defaultBranch}</dd>
 						</div>
 						<div className="flex items-center justify-between gap-4">
-							<dt className="text-[var(--sea-ink-soft)]">Branches</dt>
-							<dd className="font-medium text-[var(--sea-ink)]">
+							<dt className="text-muted-foreground">Branches</dt>
+							<dd className="font-medium text-foreground">
 								{branches?.length || 0}
 							</dd>
 						</div>
 						<div className="flex items-center justify-between gap-4">
-							<dt className="text-[var(--sea-ink-soft)]">Storage</dt>
-							<dd className="font-medium text-[var(--sea-ink)]">
-								Git objects in R2
-							</dd>
+							<dt className="text-muted-foreground">Storage</dt>
+							<dd className="font-medium text-foreground">Git objects in R2</dd>
 						</div>
 						<div className="flex items-center justify-between gap-4">
-							<dt className="text-[var(--sea-ink-soft)]">Metadata</dt>
-							<dd className="font-medium text-[var(--sea-ink)]">SQL-backed</dd>
+							<dt className="text-muted-foreground">Metadata</dt>
+							<dd className="font-medium text-foreground">SQL-backed</dd>
 						</div>
 					</dl>
 				</Card>
 
 				<Card className="p-6">
-					<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+					<h3 className="text-lg font-semibold text-foreground">
 						Next Actions
 					</h3>
 					<div className="mt-4 flex flex-col gap-3">
@@ -178,10 +170,10 @@ function RouteComponent() {
 			</div>
 
 			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+				<h3 className="text-lg font-semibold text-foreground">
 					Push a New Repository
 				</h3>
-				<pre className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
+				<pre className="mt-4 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs text-foreground">
 					<code>{instructions.newRepo}</code>
 				</pre>
 				<Button
@@ -194,10 +186,10 @@ function RouteComponent() {
 			</Card>
 
 			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+				<h3 className="text-lg font-semibold text-foreground">
 					Push an Existing Repository
 				</h3>
-				<pre className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--chip-bg)] p-4 text-xs text-[var(--sea-ink)]">
+				<pre className="mt-4 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs text-foreground">
 					<code>{instructions.existingRepo}</code>
 				</pre>
 				<Button

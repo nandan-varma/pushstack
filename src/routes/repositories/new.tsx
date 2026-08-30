@@ -65,10 +65,10 @@ function NewRepositoryPage() {
 		<div className="page-wrap px-4 py-10">
 			<div className="mx-auto max-w-2xl">
 				<div className="mb-8">
-					<h1 className="display-title text-3xl font-bold text-[var(--sea-ink)]">
+					<h1 className="text-3xl font-bold text-foreground">
 						Create a new repository
 					</h1>
-					<p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
+					<p className="mt-1 text-sm text-muted-foreground">
 						A repository contains all project files and revision history.
 					</p>
 				</div>
@@ -84,7 +84,7 @@ function NewRepositoryPage() {
 						<div className="space-y-1.5">
 							<Label htmlFor="name">Repository name</Label>
 							<div className="flex items-center gap-2">
-								<span className="shrink-0 text-sm text-[var(--sea-ink-soft)]">
+								<span className="shrink-0 text-sm text-muted-foreground">
 									{ownerHandle}/
 								</span>
 								<Input
@@ -113,7 +113,7 @@ function NewRepositoryPage() {
 						</div>
 
 						<fieldset className="space-y-2">
-							<legend className="text-sm font-medium text-[var(--sea-ink)]">
+							<legend className="text-sm font-medium text-foreground">
 								Visibility
 							</legend>
 							<div className="space-y-2">
@@ -135,8 +135,8 @@ function NewRepositoryPage() {
 										key={value}
 										className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
 											visibility === value
-												? "border-[var(--lagoon-deep)] bg-[rgba(79,184,178,0.04)]"
-												: "border-[var(--line)] hover:border-[var(--lagoon-deep)]/50"
+												? "border-primary bg-primary/5"
+												: "border-border hover:border-primary/50"
 										}`}
 									>
 										<input
@@ -145,13 +145,13 @@ function NewRepositoryPage() {
 											value={value}
 											checked={visibility === value}
 											onChange={() => setVisibility(value)}
-											className="mt-0.5 accent-[var(--lagoon-deep)]"
+											className="mt-0.5 accent-[var(--primary)]"
 										/>
 										<div>
-											<div className="text-sm font-medium text-[var(--sea-ink)]">
+											<div className="text-sm font-medium text-foreground">
 												{label}
 											</div>
-											<div className="mt-0.5 text-xs text-[var(--sea-ink-soft)]">
+											<div className="mt-0.5 text-xs text-muted-foreground">
 												{desc}
 											</div>
 										</div>

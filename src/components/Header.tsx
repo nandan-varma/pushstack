@@ -36,7 +36,7 @@ function SearchBox({
 				onChange={(e) => setValue(e.target.value)}
 				placeholder="Search…  ( / )"
 				aria-label="Search repositories and users"
-				className="h-8 w-full rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 text-sm text-[var(--sea-ink)] outline-none transition placeholder:text-[var(--sea-ink-soft)] focus:border-[var(--lagoon-deep)]"
+				className="h-8 w-full rounded-full border border-border bg-muted px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
 			/>
 		</form>
 	);
@@ -74,14 +74,14 @@ export default function Header() {
 	] as const;
 
 	return (
-		<header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--header-bg)] backdrop-blur-lg">
+		<header className="sticky top-0 z-50 border-b border-border bg-background">
 			<div className="page-wrap flex h-14 items-center gap-5 px-4">
 				<Link
 					to="/"
-					className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--sea-ink)] no-underline shadow-sm transition hover:shadow-md"
+					className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 text-sm font-semibold text-foreground no-underline shadow-sm transition hover:shadow-md"
 					aria-label="Home"
 				>
-					<span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#56c6be,#7ed3bf)]" />
+					<span className="h-2 w-2 rounded-full bg-primary" />
 					PushStack
 				</Link>
 
@@ -157,7 +157,7 @@ export default function Header() {
 			{/* Mobile nav */}
 			{menuOpen && (
 				<nav
-					className="border-t border-[var(--line)] bg-[var(--header-bg)] px-4 py-3 sm:hidden"
+					className="border-t border-border bg-background px-4 py-3 sm:hidden"
 					aria-label="Mobile navigation"
 				>
 					<div className="flex flex-col gap-2">
@@ -166,10 +166,10 @@ export default function Header() {
 							<Link
 								key={to}
 								to={to}
-								className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--sea-ink-soft)] transition hover:bg-[var(--surface-strong)] hover:text-[var(--sea-ink)]"
+								className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-card hover:text-foreground"
 								activeProps={{
 									className:
-										"rounded-lg px-3 py-2 text-sm font-medium text-[var(--lagoon-deep)] bg-[var(--surface-strong)]",
+										"rounded-lg px-3 py-2 text-sm font-medium text-primary bg-card",
 								}}
 								onClick={() => setMenuOpen(false)}
 							>

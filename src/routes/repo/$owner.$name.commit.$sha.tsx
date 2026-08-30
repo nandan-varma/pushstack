@@ -97,24 +97,24 @@ function CommitDetailPage() {
 			<div className="space-y-6">
 				<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
 					<div className="min-w-0 flex-1 space-y-2.5">
-						<div className="h-6 w-2/3 max-w-md animate-pulse rounded-md bg-[var(--surface-raised)]" />
-						<div className="h-6 w-40 animate-pulse rounded bg-[var(--surface-raised)]" />
+						<div className="h-6 w-2/3 max-w-md animate-pulse rounded-md bg-muted" />
+						<div className="h-6 w-40 animate-pulse rounded bg-muted" />
 					</div>
 					<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-						<div className="h-8 w-28 animate-pulse rounded-md bg-[var(--surface-raised)]" />
-						<div className="h-8 w-32 animate-pulse rounded-md bg-[var(--surface-raised)]" />
+						<div className="h-8 w-28 animate-pulse rounded-md bg-muted" />
+						<div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
 					</div>
 				</div>
 				<Card className="p-6">
 					<div className="flex items-start gap-4">
-						<div className="size-12 shrink-0 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+						<div className="size-12 shrink-0 animate-pulse rounded-full bg-muted" />
 						<div className="min-w-0 flex-1 space-y-4">
-							<div className="h-4 w-48 animate-pulse rounded bg-[var(--surface-raised)]" />
+							<div className="h-4 w-48 animate-pulse rounded bg-muted" />
 							<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
 								{[1, 2, 3, 4].map((i) => (
 									<div key={i} className="space-y-1.5">
-										<div className="h-3 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
-										<div className="h-4 w-20 animate-pulse rounded bg-[var(--surface-raised)]" />
+										<div className="h-3 w-16 animate-pulse rounded bg-muted" />
+										<div className="h-4 w-20 animate-pulse rounded bg-muted" />
 									</div>
 								))}
 							</div>
@@ -122,7 +122,7 @@ function CommitDetailPage() {
 					</div>
 				</Card>
 				<div className="space-y-4">
-					<div className="h-5 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-5 w-32 animate-pulse rounded bg-muted" />
 					<FileDiffViewer isLoading />
 				</div>
 			</div>
@@ -152,12 +152,12 @@ function CommitDetailPage() {
 						name={name}
 						resolveReference={resolveReference}
 					/>
-					<div className="mt-3 flex flex-wrap items-center gap-3 text-[var(--sea-ink-soft)]">
-						<code className="max-w-full truncate rounded border border-[var(--chip-line)] bg-[var(--chip-bg)] px-2 py-1 font-mono text-sm text-[var(--sea-ink)]">
+					<div className="mt-3 flex flex-wrap items-center gap-3 text-muted-foreground">
+						<code className="max-w-full truncate rounded border border-border bg-muted px-2 py-1 font-mono text-sm text-foreground">
 							{commit.sha}
 						</code>
 						{commit.parent && commit.parent.length > 0 && (
-							<span className="text-xs text-[var(--sea-ink-soft)]">
+							<span className="text-xs text-muted-foreground">
 								Parent:{" "}
 								{commit.parent.map((p: string, i: number) => (
 									<span key={p}>
@@ -165,7 +165,7 @@ function CommitDetailPage() {
 										<Link
 											to="/repo/$owner/$name/commit/$sha"
 											params={{ owner, name, sha: p }}
-											className="font-mono text-[var(--lagoon-deep)] hover:underline"
+											className="font-mono text-primary hover:underline"
 										>
 											{p.substring(0, 7)}
 										</Link>
@@ -202,10 +202,10 @@ function CommitDetailPage() {
 					</Avatar>
 					<div className="min-w-0 flex-1">
 						<div className="mb-2 flex flex-wrap items-center gap-2">
-							<span className="font-medium text-[var(--sea-ink)]">
+							<span className="font-medium text-foreground">
 								{commit.author?.name || "Unknown"}
 							</span>
-							<span className="text-sm text-[var(--sea-ink-soft)]">
+							<span className="text-sm text-muted-foreground">
 								committed{" "}
 								{formatDistanceToNow(
 									new Date(commit.author?.date || new Date()),
@@ -217,34 +217,34 @@ function CommitDetailPage() {
 						</div>
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Commit SHA</p>
-								<code className="text-xs font-mono text-[var(--sea-ink)]">
+								<p className="text-muted-foreground">Commit SHA</p>
+								<code className="text-xs font-mono text-foreground">
 									{commit.sha.substring(0, 7)}
 								</code>
 							</div>
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Timestamp</p>
-								<p className="font-medium text-[var(--sea-ink)]">
+								<p className="text-muted-foreground">Timestamp</p>
+								<p className="font-medium text-foreground">
 									{format(new Date(commit.author?.date || new Date()), "PPp")}
 								</p>
 							</div>
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Changes</p>
+								<p className="text-muted-foreground">Changes</p>
 								{diffLoading ? (
-									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
+									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-muted" />
 								) : (
-									<p className="font-medium text-[var(--sea-ink)]">
+									<p className="font-medium text-foreground">
 										{diffData?.files?.length || 0} file
 										{diffData?.files?.length !== 1 ? "s" : ""}
 									</p>
 								)}
 							</div>
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Stats</p>
+								<p className="text-muted-foreground">Stats</p>
 								{diffLoading ? (
-									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
+									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-muted" />
 								) : (
-									<p className="font-medium text-[var(--sea-ink)]">
+									<p className="font-medium text-foreground">
 										<span className="text-green-600">
 											+{diffData?.totalAdditions || 0}
 										</span>{" "}
@@ -261,7 +261,7 @@ function CommitDetailPage() {
 
 			{/* File Changes */}
 			<div className="space-y-4">
-				<h2 className="text-lg font-semibold text-[var(--sea-ink)]">
+				<h2 className="text-lg font-semibold text-foreground">
 					File Changes {diffData?.files && `(${diffData.files.length})`}
 				</h2>
 				<FileDiffViewer files={diffData?.files} isLoading={diffLoading} />

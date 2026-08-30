@@ -14,14 +14,14 @@ export function RepoHeaderSkeleton() {
 		<div className="mb-6 flex flex-wrap items-start justify-between gap-4">
 			<div className="space-y-2">
 				<div className="flex items-center gap-2">
-					<div className="h-4 w-40 animate-pulse rounded bg-[var(--surface-raised)]" />
-					<div className="h-5 w-14 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+					<div className="h-4 w-40 animate-pulse rounded bg-muted" />
+					<div className="h-5 w-14 animate-pulse rounded-full bg-muted" />
 				</div>
-				<div className="h-3.5 w-56 animate-pulse rounded bg-[var(--surface-raised)]" />
+				<div className="h-3.5 w-56 animate-pulse rounded bg-muted" />
 			</div>
 			<div className="flex shrink-0 items-center gap-2">
-				<div className="h-8 w-24 animate-pulse rounded-md bg-[var(--surface-raised)]" />
-				<div className="h-8 w-16 animate-pulse rounded-md bg-[var(--surface-raised)]" />
+				<div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
+				<div className="h-8 w-16 animate-pulse rounded-md bg-muted" />
 			</div>
 		</div>
 	);
@@ -84,16 +84,16 @@ export function RepoHeader({
 					<Link
 						to="/users/$username"
 						params={{ username: owner }}
-						className="font-medium text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+						className="font-medium text-muted-foreground hover:text-foreground"
 					>
 						{owner}
 					</Link>
-					<span className="text-[var(--sea-ink-soft)]">/</span>
-					<span className="font-semibold text-[var(--sea-ink)]">{name}</span>
+					<span className="text-muted-foreground">/</span>
+					<span className="font-semibold text-foreground">{name}</span>
 					<VisibilityBadge visibility={repo.visibility} />
 				</div>
 				{repo.description && (
-					<p className="mt-1.5 text-sm text-[var(--sea-ink-soft)]">
+					<p className="mt-1.5 text-sm text-muted-foreground">
 						{repo.description}
 					</p>
 				)}
@@ -113,8 +113,8 @@ export function RepoHeader({
 					className={cn(
 						"h-auto gap-0 overflow-hidden p-0",
 						repo.isStarred
-							? "border-[var(--lagoon-deep)] bg-[var(--lagoon-deep)] text-white hover:bg-[var(--lagoon-deep)] hover:text-white"
-							: "border-[var(--line)] bg-transparent text-[var(--sea-ink)] hover:bg-[var(--surface-raised)]",
+							? "border-primary bg-[var(--primary)] text-white hover:bg-[var(--primary)] hover:text-white"
+							: "border-border bg-transparent text-foreground hover:bg-accent",
 						!session && "opacity-50",
 					)}
 				>

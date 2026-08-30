@@ -52,7 +52,7 @@ export function LinkifiedText({
 									: "/repo/$owner/$name/issues/$id"
 							}
 							params={{ owner, name, id: String(num) }}
-							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+							className="font-medium text-primary hover:underline"
 						>
 							{full}
 						</Link>,
@@ -66,7 +66,7 @@ export function LinkifiedText({
 						key={`sha-${key++}`}
 						to="/repo/$owner/$name/commit/$sha"
 						params={{ owner, name, sha: full }}
-						className="rounded bg-[var(--chip-bg)] px-1 font-mono text-[var(--lagoon-deep)] hover:underline"
+						className="rounded bg-muted px-1 font-mono text-primary hover:underline"
 					>
 						{full.slice(0, 7)}
 					</Link>,

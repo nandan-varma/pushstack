@@ -46,7 +46,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "theme-color",
-				content: "#0b7a70",
+				content: "#ffffff",
 			},
 			{
 				property: "og:type",
@@ -153,15 +153,15 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 		<RootDocument>
 			<div className="page-wrap px-4 py-20 text-center">
 				<div className="island-shell mx-auto max-w-md rounded-xl p-8">
-					<h1 className="mb-2 text-lg font-semibold text-[var(--sea-ink)]">
+					<h1 className="mb-2 text-lg font-semibold text-foreground">
 						Something went wrong
 					</h1>
-					<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
+					<p className="mb-6 text-sm text-muted-foreground">
 						{error.message || "An unexpected error occurred."}
 					</p>
 					<Button
 						onClick={reset}
-						className="bg-[var(--lagoon-deep)] text-white opacity-100 hover:bg-[var(--lagoon-deep)] hover:opacity-90"
+						className="bg-[var(--primary)] text-white opacity-100 hover:bg-[var(--primary)] hover:opacity-90"
 					>
 						Try again
 					</Button>
@@ -187,7 +187,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 				<HeadContent />
 			</head>
-			<body className="flex min-h-screen flex-col font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
+			<body className="flex min-h-screen flex-col font-sans antialiased [overflow-wrap:anywhere] selection:bg-primary/20">
 				<RouteLoadingBar />
 				<TanStackQueryProvider>
 					<ToastProvider>

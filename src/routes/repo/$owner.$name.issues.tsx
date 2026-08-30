@@ -111,9 +111,7 @@ function IssuesPage() {
 	return (
 		<div className="space-y-5">
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="text-base font-semibold text-[var(--sea-ink)]">
-					Issues
-				</h2>
+				<h2 className="text-base font-semibold text-foreground">Issues</h2>
 				{!session?.user ? (
 					<Link to="/auth/login">
 						<Button size="sm" variant="outline">
@@ -214,17 +212,17 @@ function IssuesPage() {
 					}
 				/>
 			) : (
-				<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+				<div className="overflow-hidden rounded-xl border border-border">
 					{issues.map((issue, idx) => (
 						<Link
 							key={issue.id}
 							to="/repo/$owner/$name/issues/$id"
 							params={{ owner, name, id: issue.id.toString() }}
-							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < issues.length - 1 ? "border-b border-[var(--line)]" : ""}`}
+							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card ${idx < issues.length - 1 ? "border-b border-border" : ""}`}
 						>
 							<div className="min-w-0 flex-1 space-y-1">
 								<div className="flex min-w-0 items-center gap-2">
-									<span className="min-w-0 truncate text-sm font-medium text-[var(--sea-ink)]">
+									<span className="min-w-0 truncate text-sm font-medium text-foreground">
 										{issue.title}
 									</span>
 									<Badge
@@ -234,7 +232,7 @@ function IssuesPage() {
 										{issue.status}
 									</Badge>
 								</div>
-								<p className="text-xs text-[var(--sea-ink-soft)]">
+								<p className="text-xs text-muted-foreground">
 									#{issue.id} opened{" "}
 									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
 									{issue.author?.name || "Unknown"}

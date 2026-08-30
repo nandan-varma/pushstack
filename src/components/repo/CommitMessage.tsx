@@ -13,8 +13,8 @@ export function CommitMessage({
 	owner,
 	name,
 	resolveReference,
-	subjectClassName = "text-2xl font-bold text-[var(--sea-ink)] leading-snug break-words",
-	bodyClassName = "whitespace-pre-wrap break-words text-sm leading-relaxed text-[var(--sea-ink-soft)]",
+	subjectClassName = "text-2xl font-bold text-foreground leading-snug break-words",
+	bodyClassName = "whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground",
 }: {
 	message: string;
 	owner: string;
@@ -63,7 +63,7 @@ export function CommitMessage({
 				<button
 					type="button"
 					onClick={() => setExpanded((value) => !value)}
-					className="mt-1.5 text-xs font-medium text-[var(--lagoon-deep)] hover:underline"
+					className="mt-1.5 text-xs font-medium text-primary hover:underline"
 				>
 					{expanded ? "Show less" : "Show more"}
 				</button>

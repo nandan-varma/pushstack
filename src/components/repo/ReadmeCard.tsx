@@ -61,10 +61,10 @@ export function ReadmeCard({
 	// resolves, this collapses immediately to nothing if there isn't one.
 	if (filesLoading) {
 		return (
-			<div className="overflow-hidden rounded-xl border border-[var(--line)]">
-				<div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2.5">
-					<div className="h-4 w-4 animate-pulse rounded bg-[var(--surface-raised)]" />
-					<div className="h-3.5 w-24 animate-pulse rounded bg-[var(--surface-raised)]" />
+			<div className="overflow-hidden rounded-xl border border-border">
+				<div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5">
+					<div className="h-4 w-4 animate-pulse rounded bg-muted" />
+					<div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
 				</div>
 				<div className="p-6">
 					<Skeleton className="h-40" />
@@ -76,10 +76,10 @@ export function ReadmeCard({
 	if (!readmeFile || readmeContent?.isBinary) return null;
 
 	return (
-		<div className="overflow-hidden rounded-xl border border-[var(--line)]">
-			<div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-strong)] px-4 py-2.5">
+		<div className="overflow-hidden rounded-xl border border-border">
+			<div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5">
 				<FileIcon />
-				<span className="text-sm font-medium text-[var(--sea-ink)]">
+				<span className="text-sm font-medium text-foreground">
 					{readmeFile.path}
 				</span>
 			</div>

@@ -21,7 +21,7 @@ export function BinaryPreview({
 	switch (previewKind) {
 		case "image":
 			return (
-				<div className="flex justify-center bg-[var(--chip-bg)] rounded-md p-4">
+				<div className="flex justify-center bg-muted rounded-md p-4">
 					<img
 						src={objectUrl}
 						alt={fileName}
@@ -34,7 +34,7 @@ export function BinaryPreview({
 				<embed
 					src={objectUrl}
 					type="application/pdf"
-					className="w-full rounded-md border border-[var(--line)]"
+					className="w-full rounded-md border border-border"
 					style={{ height: "80vh" }}
 				/>
 			);
@@ -47,7 +47,7 @@ export function BinaryPreview({
 			);
 		case "video":
 			return (
-				<div className="flex justify-center bg-[var(--chip-bg)] rounded-md p-4">
+				<div className="flex justify-center bg-muted rounded-md p-4">
 					{/* biome-ignore lint/a11y/useMediaCaption: repo file, no caption track available */}
 					<video controls src={objectUrl} className="max-w-full max-h-[75vh]" />
 				</div>
@@ -58,7 +58,7 @@ export function BinaryPreview({
 					<style>{`@font-face { font-family: "preview-${fontFamilyId}"; src: url(${objectUrl}); }`}</style>
 					<div
 						style={{ fontFamily: `preview-${fontFamilyId}` }}
-						className="space-y-2 text-[var(--sea-ink)]"
+						className="space-y-2 text-foreground"
 					>
 						<p className="text-2xl">
 							The quick brown fox jumps over the lazy dog

@@ -81,10 +81,10 @@ function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
 	return (
 		<div className="page-wrap px-4 py-16 text-center">
 			<div className="island-shell mx-auto max-w-md rounded-xl p-8">
-				<h1 className="mb-2 text-lg font-semibold text-[var(--sea-ink)]">
+				<h1 className="mb-2 text-lg font-semibold text-foreground">
 					Couldn't load {owner}/{name}
 				</h1>
-				<p className="mb-6 text-sm text-[var(--sea-ink-soft)]">
+				<p className="mb-6 text-sm text-muted-foreground">
 					{error.message || "An unexpected error occurred."}
 				</p>
 				<div className="flex items-center justify-center gap-2">

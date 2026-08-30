@@ -25,15 +25,15 @@ export function CommitSummaryBar({
 }) {
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5">
+			<div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
 				<div className="flex min-w-0 items-center gap-2.5">
-					<div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-[var(--surface-raised)]" />
-					<div className="h-3.5 w-20 shrink-0 animate-pulse rounded bg-[var(--surface-raised)]" />
-					<div className="h-3.5 w-64 max-w-full animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-muted" />
+					<div className="h-3.5 w-20 shrink-0 animate-pulse rounded bg-muted" />
+					<div className="h-3.5 w-64 max-w-full animate-pulse rounded bg-muted" />
 				</div>
 				<div className="flex shrink-0 items-center gap-3">
-					<div className="h-3 w-16 animate-pulse rounded bg-[var(--surface-raised)]" />
-					<div className="h-3 w-12 animate-pulse rounded bg-[var(--surface-raised)]" />
+					<div className="h-3 w-16 animate-pulse rounded bg-muted" />
+					<div className="h-3 w-12 animate-pulse rounded bg-muted" />
 				</div>
 			</div>
 		);
@@ -44,26 +44,26 @@ export function CommitSummaryBar({
 	const subject = commit.message.split("\n")[0];
 
 	return (
-		<div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5">
+		<div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
 			<div className="flex min-w-0 items-center gap-2.5">
 				<Avatar className="h-6 w-6 shrink-0">
 					<AvatarFallback className="text-[10px]">
 						{getInitials(commit.authorName || "U")}
 					</AvatarFallback>
 				</Avatar>
-				<span className="shrink-0 text-sm font-medium text-[var(--sea-ink)]">
+				<span className="shrink-0 text-sm font-medium text-foreground">
 					{commit.authorName || "Unknown"}
 				</span>
 				<Link
 					to="/repo/$owner/$name/commit/$sha"
 					params={{ owner, name, sha: commit.sha }}
 					title={commit.message}
-					className="truncate text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)] hover:underline"
+					className="truncate text-sm text-muted-foreground hover:text-foreground hover:underline"
 				>
 					{subject}
 				</Link>
 			</div>
-			<div className="flex shrink-0 items-center gap-3 text-xs text-[var(--sea-ink-soft)]">
+			<div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
 				<span>
 					{formatDistanceToNow(new Date(commit.createdAt), {
 						addSuffix: true,
@@ -72,7 +72,7 @@ export function CommitSummaryBar({
 				<Link
 					to="/repo/$owner/$name/commits/$branch"
 					params={{ owner, name, branch }}
-					className="font-medium text-[var(--lagoon-deep)] hover:underline"
+					className="font-medium text-primary hover:underline"
 				>
 					History
 				</Link>

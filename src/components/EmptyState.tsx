@@ -17,7 +17,7 @@ export function EmptyState({
 					"mb-4 text-sm",
 					variant === "error"
 						? "text-red-600 dark:text-red-400"
-						: "text-[var(--sea-ink-soft)]",
+						: "text-muted-foreground",
 				)}
 			>
 				{message}

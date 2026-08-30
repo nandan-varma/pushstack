@@ -235,7 +235,7 @@ function PullRequestDetailPage() {
 					</Badge>
 				}
 				meta={
-					<p className="flex flex-wrap items-center gap-1 text-[var(--sea-ink-soft)]">
+					<p className="flex flex-wrap items-center gap-1 text-muted-foreground">
 						#{pr.id} opened{" "}
 						{formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{" "}
 						by {pr.author?.name || "Unknown"} •{" "}
@@ -299,10 +299,10 @@ function PullRequestDetailPage() {
 					</Avatar>
 					<div className="flex-1">
 						<div className="flex items-center gap-2 mb-4">
-							<span className="font-medium text-[var(--sea-ink)]">
+							<span className="font-medium text-foreground">
 								{pr.author?.name || "Unknown"}
 							</span>
-							<span className="text-sm text-[var(--sea-ink-soft)]">
+							<span className="text-sm text-muted-foreground">
 								{formatDistanceToNow(new Date(pr.createdAt), {
 									addSuffix: true,
 								})}
@@ -316,7 +316,7 @@ function PullRequestDetailPage() {
 								repoId={pr.repoId}
 							/>
 						) : (
-							<p className="text-[var(--sea-ink-soft)] italic">
+							<p className="text-muted-foreground italic">
 								No description provided
 							</p>
 						)}
@@ -326,10 +326,10 @@ function PullRequestDetailPage() {
 
 			{/* Files changed */}
 			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+				<h3 className="text-lg font-semibold text-foreground">
 					Files changed{" "}
 					{diff?.files && (
-						<span className="text-sm font-normal text-[var(--sea-ink-soft)]">
+						<span className="text-sm font-normal text-muted-foreground">
 							({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
 							<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
 							<span className="text-red-600">-{diff.totalDeletions}</span>)
@@ -346,7 +346,7 @@ function PullRequestDetailPage() {
 			{/* Comments */}
 			{comments && comments.length > 0 && (
 				<div className="space-y-4">
-					<h3 className="text-lg font-semibold text-[var(--sea-ink)]">
+					<h3 className="text-lg font-semibold text-foreground">
 						Comments ({comments.length})
 					</h3>
 					{comments.map((comment) => (
@@ -364,10 +364,10 @@ function PullRequestDetailPage() {
 			{/* Add Comment */}
 			{!session?.user ? (
 				<Card className="p-6">
-					<p className="text-sm text-[var(--sea-ink-soft)]">
+					<p className="text-sm text-muted-foreground">
 						<Link
 							to="/auth/login"
-							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+							className="font-medium text-primary hover:underline"
 						>
 							Sign in
 						</Link>{" "}

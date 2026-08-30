@@ -144,11 +144,11 @@ function FileBlobPage() {
 				<div className="flex min-w-0 items-center gap-3">
 					<h1
 						title={filePath}
-						className="min-w-0 truncate text-xl font-bold text-[var(--sea-ink)] sm:text-2xl"
+						className="min-w-0 truncate text-xl font-bold text-foreground sm:text-2xl"
 					>
 						{filePath}
 					</h1>
-					<span className="shrink-0 text-sm text-[var(--sea-ink-soft)]">
+					<span className="shrink-0 text-sm text-muted-foreground">
 						{formatFileSize(file.size || fileContent.length)}
 					</span>
 				</div>
@@ -209,11 +209,11 @@ function FileBlobPage() {
 			/>
 
 			{isPinnedRevision ? (
-				<div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3.5 py-2 text-xs text-[var(--sea-ink-soft)]">
+				<div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3.5 py-2 text-xs text-muted-foreground">
 					<GitCommitHorizontal className="size-3.5 shrink-0" />
 					<span>
 						Viewing this file pinned to commit{" "}
-						<code className="font-mono text-[var(--sea-ink)]">
+						<code className="font-mono text-foreground">
 							{branch.substring(0, 7)}
 						</code>
 						, not the latest on any branch.
@@ -227,7 +227,7 @@ function FileBlobPage() {
 								branch: repo.defaultBranch,
 								_splat: filePath,
 							}}
-							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+							className="font-medium text-primary hover:underline"
 						>
 							View latest on {repo.defaultBranch}
 						</Link>
@@ -274,7 +274,7 @@ function FileBlobPage() {
 					{/* File Content */}
 					{isBinary ? (
 						<Card className="p-8 text-center">
-							<p className="text-[var(--sea-ink-soft)]">
+							<p className="text-muted-foreground">
 								This file is binary and cannot be displayed.
 							</p>
 							<Button
@@ -300,22 +300,22 @@ function FileBlobPage() {
 					<Card className="p-4">
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Branch</p>
-								<p className="font-medium text-[var(--sea-ink)]">{branch}</p>
+								<p className="text-muted-foreground">Branch</p>
+								<p className="font-medium text-foreground">{branch}</p>
 							</div>
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Language</p>
-								<p className="font-medium text-[var(--sea-ink)]">{language}</p>
+								<p className="text-muted-foreground">Language</p>
+								<p className="font-medium text-foreground">{language}</p>
 							</div>
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Size</p>
-								<p className="font-medium text-[var(--sea-ink)]">
+								<p className="text-muted-foreground">Size</p>
+								<p className="font-medium text-foreground">
 									{formatFileSize(file.size || fileContent.length)}
 								</p>
 							</div>
 							<div>
-								<p className="text-[var(--sea-ink-soft)]">Lines</p>
-								<p className="font-medium text-[var(--sea-ink)]">
+								<p className="text-muted-foreground">Lines</p>
+								<p className="font-medium text-foreground">
 									{fileContent.split("\n").length}
 								</p>
 							</div>

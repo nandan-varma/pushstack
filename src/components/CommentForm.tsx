@@ -19,7 +19,7 @@ export function CommentForm({
 		<Card className="p-6">
 			<h3
 				id="comment-form-heading"
-				className="text-lg font-semibold text-[var(--sea-ink)] mb-4"
+				className="text-lg font-semibold text-foreground mb-4"
 			>
 				Add a Comment
 			</h3>

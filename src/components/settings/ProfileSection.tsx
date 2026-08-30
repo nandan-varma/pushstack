@@ -50,7 +50,7 @@ export function ProfileSection({
 				</FormField>
 				<FormField label="Email" htmlFor="email">
 					<Input id="email" value={email} disabled className="opacity-60" />
-					<p className="mt-1 text-xs text-[var(--sea-ink-soft)]">
+					<p className="mt-1 text-xs text-muted-foreground">
 						Change your email in the Email section below.
 					</p>
 				</FormField>

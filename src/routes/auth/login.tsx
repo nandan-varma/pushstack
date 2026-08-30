@@ -95,7 +95,7 @@ function LoginPage() {
 					Don't have an account?{" "}
 					<Link
 						to="/auth/register"
-						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						className="font-medium text-primary hover:underline"
 					>
 						Create one
 					</Link>
@@ -105,7 +105,7 @@ function LoginPage() {
 			<form onSubmit={handleSubmit} className="space-y-5">
 				<ErrorAlert message={error} />
 				{errorCode === "EMAIL_NOT_VERIFIED" && identifier.includes("@") && (
-					<p className="-mt-3 text-sm text-[var(--sea-ink-soft)]">
+					<p className="-mt-3 text-sm text-muted-foreground">
 						{resendStatus === "sent" ? (
 							"Verification email sent — check your inbox."
 						) : (
@@ -113,7 +113,7 @@ function LoginPage() {
 								type="button"
 								onClick={handleResend}
 								disabled={resendStatus === "sending"}
-								className="font-medium text-[var(--lagoon-deep)] hover:underline disabled:opacity-60"
+								className="font-medium text-primary hover:underline disabled:opacity-60"
 							>
 								{resendStatus === "sending"
 									? "Sending…"
@@ -140,7 +140,7 @@ function LoginPage() {
 						<span />
 						<Link
 							to="/auth/forgot-password"
-							className="text-xs text-[var(--lagoon-deep)] hover:underline"
+							className="text-xs text-primary hover:underline"
 						>
 							Forgot password?
 						</Link>

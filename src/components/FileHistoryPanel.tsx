@@ -48,7 +48,7 @@ export function FileCommitBanner({
 	if (!commit) return null;
 
 	return (
-		<div className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3.5 py-2.5">
+		<div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3.5 py-2.5">
 			<Avatar className="h-6 w-6 shrink-0">
 				<AvatarFallback className="text-[10px]">
 					{getInitials(commit.authorName || "U")}
@@ -58,11 +58,11 @@ export function FileCommitBanner({
 				to="/repo/$owner/$name/commit/$sha"
 				params={{ owner, name, sha: commit.sha }}
 				title={commit.message}
-				className="min-w-0 flex-1 truncate text-sm text-[var(--sea-ink)] hover:underline"
+				className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline"
 			>
 				{commit.message.split("\n")[0]}
 			</Link>
-			<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+			<span className="shrink-0 text-xs text-muted-foreground">
 				{commit.authorName}
 				{" · "}
 				{formatDistanceToNow(new Date(commit.createdAt), { addSuffix: true })}
@@ -70,7 +70,7 @@ export function FileCommitBanner({
 			<Link
 				to="/repo/$owner/$name/commit/$sha"
 				params={{ owner, name, sha: commit.sha }}
-				className="shrink-0 rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+				className="shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground"
 			>
 				{commit.sha.substring(0, 7)}
 			</Link>
@@ -118,7 +118,7 @@ export function FileHistoryList({
 
 	if (entries.length === 0) {
 		return (
-			<p className="py-6 text-center text-sm text-[var(--sea-ink-soft)]">
+			<p className="py-6 text-center text-sm text-muted-foreground">
 				No history found for this file.
 			</p>
 		);
@@ -126,13 +126,13 @@ export function FileHistoryList({
 
 	return (
 		<div className="space-y-3">
-			<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+			<div className="overflow-hidden rounded-xl border border-border">
 				{entries.map((commit, idx) => (
 					<Link
 						key={commit.sha}
 						to="/repo/$owner/$name/commit/$sha"
 						params={{ owner, name, sha: commit.sha }}
-						className={`flex items-center gap-4 px-4 py-3 text-left no-underline transition hover:bg-[var(--surface-strong)] ${idx < entries.length - 1 ? "border-b border-[var(--line)]" : ""}`}
+						className={`flex items-center gap-4 px-4 py-3 text-left no-underline transition hover:bg-card ${idx < entries.length - 1 ? "border-b border-border" : ""}`}
 					>
 						<Avatar className="h-7 w-7 shrink-0">
 							<AvatarFallback className="text-[10px]">
@@ -142,11 +142,11 @@ export function FileHistoryList({
 						<div className="min-w-0 flex-1 space-y-0.5">
 							<p
 								title={commit.message}
-								className="truncate text-sm font-medium leading-snug text-[var(--sea-ink)]"
+								className="truncate text-sm font-medium leading-snug text-foreground"
 							>
 								{commit.message.split("\n")[0]}
 							</p>
-							<p className="text-xs leading-snug text-[var(--sea-ink-soft)]">
+							<p className="text-xs leading-snug text-muted-foreground">
 								{commit.authorName}
 								{" · "}
 								{formatDistanceToNow(new Date(commit.createdAt), {
@@ -154,7 +154,7 @@ export function FileHistoryList({
 								})}
 							</p>
 						</div>
-						<code className="shrink-0 rounded-md border border-[var(--chip-line)] bg-[var(--chip-bg)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--sea-ink-soft)]">
+						<code className="shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
 							{commit.sha.substring(0, 7)}
 						</code>
 					</Link>

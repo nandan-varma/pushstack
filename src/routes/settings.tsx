@@ -27,9 +27,7 @@ function SettingsPage() {
 	return (
 		<div className="page-wrap px-4 py-10">
 			<div className="mx-auto max-w-2xl space-y-6">
-				<h1 className="text-2xl font-bold text-[var(--sea-ink)]">
-					Account settings
-				</h1>
+				<h1 className="text-2xl font-bold text-foreground">Account settings</h1>
 				<ProfileSection name={user.name} email={user.email} />
 				<EmailSection currentEmail={user.email} />
 				<PasswordSection />

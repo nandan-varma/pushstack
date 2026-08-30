@@ -58,22 +58,22 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 						{[1, 2].map((i) => (
 							<div
 								key={i}
-								className="h-11 animate-pulse rounded-lg border border-[var(--line)] bg-[var(--surface-raised)]"
+								className="h-11 animate-pulse rounded-lg border border-border bg-muted"
 							/>
 						))}
 					</div>
 				) : collabs.length > 0 ? (
-					<ul className="divide-y divide-[var(--line)] rounded-lg border border-[var(--line)]">
+					<ul className="divide-y divide-[var(--border)] rounded-lg border border-border">
 						{collabs.map((c) => (
 							<li
 								key={c.id}
 								className="flex items-center justify-between gap-3 px-4 py-3"
 							>
 								<div className="flex items-center gap-2 min-w-0">
-									<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
+									<span className="truncate text-sm font-medium text-foreground">
 										{c.user?.username ?? c.userId}
 									</span>
-									<span className="shrink-0 rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] font-medium text-[var(--sea-ink-soft)] capitalize">
+									<span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground capitalize">
 										{c.role}
 									</span>
 								</div>
@@ -93,9 +93,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 						))}
 					</ul>
 				) : (
-					<p className="text-sm text-[var(--sea-ink-soft)]">
-						No collaborators yet.
-					</p>
+					<p className="text-sm text-muted-foreground">No collaborators yet.</p>
 				)}
 
 				<div className="flex flex-col gap-2 sm:flex-row">

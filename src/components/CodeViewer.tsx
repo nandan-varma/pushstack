@@ -32,19 +32,19 @@ export default function CodeViewer({
 	);
 
 	return (
-		<div className="rounded-lg border border-[var(--line)] overflow-hidden">
-			<div className="flex items-center justify-between bg-[var(--card-bg)] px-4 py-2 border-b border-[var(--line)]">
+		<div className="rounded-lg border border-border overflow-hidden">
+			<div className="flex items-center justify-between bg-card px-4 py-2 border-b border-border">
 				<div className="flex items-center gap-2">
 					{fileName && (
-						<span className="max-w-xs truncate text-sm font-medium text-[var(--sea-ink)]">
+						<span className="max-w-xs truncate text-sm font-medium text-foreground">
 							{fileName}
 						</span>
 					)}
-					<span className="text-xs text-[var(--sea-ink-soft)] px-2 py-0.5 rounded bg-[var(--chip-bg)] border border-[var(--chip-line)]">
+					<span className="text-xs text-muted-foreground px-2 py-0.5 rounded bg-muted border border-border">
 						{language}
 					</span>
 					{isPending && (
-						<Loader2 className="size-3.5 animate-spin text-[var(--sea-ink-soft)]" />
+						<Loader2 className="size-3.5 animate-spin text-muted-foreground" />
 					)}
 				</div>
 				<div className="flex items-center gap-2">
@@ -77,7 +77,7 @@ export default function CodeViewer({
 			</div>
 
 			{isLarge && !forceHighlight && (
-				<p className="px-4 py-2 text-xs text-[var(--sea-ink-soft)] bg-[var(--chip-bg)] border-b border-[var(--line)]">
+				<p className="px-4 py-2 text-xs text-muted-foreground bg-muted border-b border-border">
 					This file is large, so syntax highlighting was skipped to keep things
 					fast. Click "Highlight anyway" to enable it.
 				</p>
@@ -94,7 +94,7 @@ export default function CodeViewer({
 						dangerouslySetInnerHTML={{ __html: html }}
 					/>
 				) : (
-					<pre className="m-0 w-max min-w-full p-4 text-sm leading-relaxed text-[var(--sea-ink)] bg-[var(--bg-base)] whitespace-pre">
+					<pre className="m-0 w-max min-w-full p-4 text-sm leading-relaxed text-foreground bg-background whitespace-pre">
 						<code>{code}</code>
 					</pre>
 				)}

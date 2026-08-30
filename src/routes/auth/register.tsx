@@ -89,18 +89,18 @@ function RegisterPage() {
 						<button
 							type="button"
 							onClick={() => setVerificationEmail(null)}
-							className="font-medium text-[var(--lagoon-deep)] hover:underline"
+							className="font-medium text-primary hover:underline"
 						>
 							Go back
 						</button>
 					</>
 				}
 			>
-				<p className="text-center text-sm text-[var(--sea-ink-soft)]">
+				<p className="text-center text-sm text-muted-foreground">
 					Click the link in that email to verify your account, then{" "}
 					<Link
 						to="/auth/login"
-						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						className="font-medium text-primary hover:underline"
 					>
 						sign in
 					</Link>
@@ -120,7 +120,7 @@ function RegisterPage() {
 					Already have an account?{" "}
 					<Link
 						to="/auth/login"
-						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						className="font-medium text-primary hover:underline"
 					>
 						Sign in
 					</Link>
@@ -195,7 +195,7 @@ function RegisterPage() {
 					</FormField>
 				</div>
 
-				<p className="text-xs text-[var(--sea-ink-soft)]">
+				<p className="text-xs text-muted-foreground">
 					3–30 character username. Password must be 8+ characters.
 				</p>
 

@@ -38,7 +38,7 @@ function BinaryDiffSide({
 
 	return (
 		<div className="min-w-0">
-			<p className="mb-2 text-xs font-medium text-[var(--sea-ink-soft)]">
+			<p className="mb-2 text-xs font-medium text-muted-foreground">
 				{label}
 				{size !== undefined ? ` · ${formatFileSize(size)}` : ""}
 			</p>
@@ -50,7 +50,7 @@ function BinaryDiffSide({
 					fileName={path}
 				/>
 			) : (
-				<div className="rounded-md border border-dashed border-[var(--line)] bg-[var(--chip-bg)] p-6 text-center text-xs text-[var(--sea-ink-soft)]">
+				<div className="rounded-md border border-dashed border-border bg-muted p-6 text-center text-xs text-muted-foreground">
 					No file
 				</div>
 			)}
@@ -63,7 +63,7 @@ function BinaryDiffPreview({ fileDiff }: { fileDiff: FileDiff }) {
 
 	if (!previewKind) {
 		return (
-			<p className="text-xs text-[var(--sea-ink-soft)]">
+			<p className="text-xs text-muted-foreground">
 				Binary file changed
 				{fileDiff.oldSize !== undefined || fileDiff.newSize !== undefined
 					? ` (${fileDiff.oldSize !== undefined ? formatFileSize(fileDiff.oldSize) : "—"} → ${fileDiff.newSize !== undefined ? formatFileSize(fileDiff.newSize) : "—"})`
@@ -400,18 +400,18 @@ export function FileDiffViewer({
 				{[1, 2, 3].map((i) => (
 					<div
 						key={i}
-						className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-3"
+						className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3"
 					>
 						<div className="flex min-w-0 flex-1 items-center gap-2.5">
-							<div className="size-4 shrink-0 animate-pulse rounded bg-[var(--surface-raised)]" />
+							<div className="size-4 shrink-0 animate-pulse rounded bg-muted" />
 							<div
-								className="h-3.5 animate-pulse rounded bg-[var(--surface-raised)]"
+								className="h-3.5 animate-pulse rounded bg-muted"
 								style={{ width: `${45 - i * 8}%` }}
 							/>
 						</div>
 						<div className="flex shrink-0 items-center gap-2">
-							<div className="h-4 w-9 animate-pulse rounded-full bg-[var(--surface-raised)]" />
-							<div className="h-4 w-9 animate-pulse rounded-full bg-[var(--surface-raised)]" />
+							<div className="h-4 w-9 animate-pulse rounded-full bg-muted" />
+							<div className="h-4 w-9 animate-pulse rounded-full bg-muted" />
 						</div>
 					</div>
 				))}
@@ -421,7 +421,7 @@ export function FileDiffViewer({
 
 	if (parsedFiles.length === 0) {
 		return (
-			<p className="mt-4 text-sm text-[var(--sea-ink-soft)]">
+			<p className="mt-4 text-sm text-muted-foreground">
 				{emptyMessage || "No changes to display."}
 			</p>
 		);
@@ -435,7 +435,7 @@ export function FileDiffViewer({
 					<div className="flex items-center gap-2 text-xs">
 						<button
 							type="button"
-							className="rounded-md border border-[var(--line)] bg-[var(--chip-bg)] px-2.5 py-1 text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+							className="rounded-md border border-border bg-muted px-2.5 py-1 text-muted-foreground hover:text-foreground"
 							onClick={() => {
 								setExpandedPaths(
 									Object.fromEntries(
@@ -448,7 +448,7 @@ export function FileDiffViewer({
 						</button>
 						<button
 							type="button"
-							className="rounded-md border border-[var(--line)] bg-[var(--chip-bg)] px-2.5 py-1 text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+							className="rounded-md border border-border bg-muted px-2.5 py-1 text-muted-foreground hover:text-foreground"
 							onClick={() => {
 								setExpandedPaths(
 									Object.fromEntries(
@@ -465,7 +465,7 @@ export function FileDiffViewer({
 			{parsedFiles.map((fileDiff) => (
 				<div
 					key={fileDiff.path}
-					className="diff-file-card rounded-lg border border-[var(--line)] bg-[var(--surface)]"
+					className="diff-file-card rounded-lg border border-border bg-background"
 				>
 					<button
 						type="button"
@@ -480,28 +480,28 @@ export function FileDiffViewer({
 					>
 						<div className="flex min-w-0 items-center gap-2.5">
 							<ChevronRight
-								className={`size-4 shrink-0 text-[var(--sea-ink-soft)] transition-transform ${expandedPaths[fileDiff.path] ? "rotate-90" : ""}`}
+								className={`size-4 shrink-0 text-muted-foreground transition-transform ${expandedPaths[fileDiff.path] ? "rotate-90" : ""}`}
 							/>
-							<span className="truncate text-sm font-medium text-[var(--sea-ink)]">
+							<span className="truncate text-sm font-medium text-foreground">
 								{fileDiff.path}
 							</span>
 						</div>
 						<div className="flex shrink-0 items-center gap-2 text-xs">
 							{fileDiff.isBinary ? (
-								<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+								<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
 									{formatFileSize(fileDiff.newSize ?? fileDiff.oldSize ?? 0)}
 								</span>
 							) : (
 								<>
-									<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+									<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
 										+{fileDiff.additions}
 									</span>
-									<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 text-[var(--sea-ink-soft)]">
+									<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
 										-{fileDiff.deletions}
 									</span>
 								</>
 							)}
-							<span className="rounded-full border border-[var(--line)] bg-[var(--chip-bg)] px-2 py-0.5 uppercase tracking-wide text-[var(--sea-ink-soft)]">
+							<span className="rounded-full border border-border bg-muted px-2 py-0.5 uppercase tracking-wide text-muted-foreground">
 								{fileDiff.status}
 							</span>
 						</div>
@@ -511,7 +511,7 @@ export function FileDiffViewer({
 							{fileDiff.isBinary ? (
 								<BinaryDiffPreview fileDiff={fileDiff} />
 							) : (
-								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-[var(--line)] bg-[var(--chip-bg)] p-0 text-xs text-[var(--sea-ink)]">
+								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
 									<code>
 										{fileDiff.lines.map((line, lineIndex) =>
 											line.kind === "hunk" ? null : (
@@ -540,7 +540,7 @@ export function FileDiffViewer({
 							)}
 						</div>
 					) : (
-						<p className="p-4 text-xs text-[var(--sea-ink-soft)]">
+						<p className="p-4 text-xs text-muted-foreground">
 							{fileDiff.isBinary
 								? "Binary file changed."
 								: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}

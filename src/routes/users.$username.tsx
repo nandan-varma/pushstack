@@ -87,13 +87,13 @@ function UserProfilePage() {
 								{user.name.charAt(0).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
-						<h1 className="display-title mt-4 text-2xl font-bold text-[var(--sea-ink)]">
+						<h1 className="mt-4 text-2xl font-bold text-foreground">
 							{user.name}
 						</h1>
-						<p className="text-sm text-[var(--sea-ink-soft)]">
+						<p className="text-sm text-muted-foreground">
 							@{user.displayUsername || user.username || username}
 						</p>
-						<dl className="mt-4 space-y-1 text-xs text-[var(--sea-ink-soft)]">
+						<dl className="mt-4 space-y-1 text-xs text-muted-foreground">
 							<div className="flex justify-between">
 								<dt>Joined</dt>
 								<dd>{joined}</dd>
@@ -116,7 +116,7 @@ function UserProfilePage() {
 				{/* Repositories + activity */}
 				<div className="space-y-8 lg:col-span-2">
 					<section>
-						<h2 className="mb-4 text-base font-semibold text-[var(--sea-ink)]">
+						<h2 className="mb-4 text-base font-semibold text-foreground">
 							Repositories
 						</h2>
 						{repositories.length === 0 ? (
@@ -155,17 +155,17 @@ function UserProfilePage() {
 													<div className="flex items-center gap-2">
 														<h3
 															title={repo.name}
-															className="truncate text-sm font-semibold text-[var(--lagoon-deep)]"
+															className="truncate text-sm font-semibold text-primary"
 														>
 															{repo.name}
 														</h3>
 														<VisibilityBadge visibility={repo.visibility} />
 													</div>
-													<p className="mt-1 line-clamp-2 text-xs text-[var(--sea-ink-soft)]">
+													<p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
 														{repo.description || "No description"}
 													</p>
 												</div>
-												<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+												<span className="shrink-0 text-xs text-muted-foreground">
 													{new Date(repo.updatedAt).toLocaleDateString()}
 												</span>
 											</div>
@@ -177,7 +177,7 @@ function UserProfilePage() {
 					</section>
 
 					<section>
-						<h2 className="mb-4 text-base font-semibold text-[var(--sea-ink)]">
+						<h2 className="mb-4 text-base font-semibold text-foreground">
 							Recent activity
 						</h2>
 						<ActivityFeed activities={activities} />

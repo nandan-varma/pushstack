@@ -52,11 +52,11 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 				</DialogHeader>
 
 				<div className="space-y-2">
-					<p className="text-sm text-[var(--sea-ink-soft)]">
+					<p className="text-sm text-muted-foreground">
 						Run this command in your terminal:
 					</p>
-					<div className="flex items-center gap-2 rounded-lg bg-[var(--card-bg)] border border-[var(--line)] px-4 py-3">
-						<code className="flex-1 text-sm text-[var(--sea-ink)] break-all">
+					<div className="flex items-center gap-2 rounded-lg bg-card border border-border px-4 py-3">
+						<code className="flex-1 text-sm text-foreground break-all">
 							{cloneCommand}
 						</code>
 						<Button
@@ -99,7 +99,7 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 							)}
 						</Button>
 					</div>
-					<p className="text-xs text-[var(--sea-ink-soft)]">
+					<p className="text-xs text-muted-foreground">
 						Private repositories require authentication.
 					</p>
 				</div>

@@ -64,7 +64,7 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
 				type="button"
 				onClick={() => copy(preRef.current?.textContent ?? "")}
 				aria-label={copied ? "Copied" : "Copy code"}
-				className="absolute top-2 right-2 rounded-md border border-[var(--chip-line)] bg-[var(--card-bg)] p-1.5 text-[var(--sea-ink-soft)] opacity-0 transition-opacity hover:text-[var(--sea-ink)] group-hover:opacity-100 focus-visible:opacity-100"
+				className="absolute top-2 right-2 rounded-md border border-border bg-card p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
 			>
 				{copied ? (
 					<Check className="size-3.5" />

@@ -58,10 +58,10 @@ export function DangerSection({
 					</LoadingButton>
 				</div>
 				{confirm && confirm !== name && (
-					<p className="text-xs text-[var(--sea-ink-soft)]">
+					<p className="text-xs text-muted-foreground">
 						Please type{" "}
-						<span className="font-medium text-[var(--sea-ink)]">"{name}"</span>{" "}
-						to confirm
+						<span className="font-medium text-foreground">"{name}"</span> to
+						confirm
 					</p>
 				)}
 				{confirm === name && (

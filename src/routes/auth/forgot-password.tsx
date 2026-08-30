@@ -38,7 +38,7 @@ function ForgotPasswordPage() {
 	if (success) {
 		return (
 			<AuthFormShell title="Check your email">
-				<p className="mb-8 text-center text-sm text-[var(--sea-ink-soft)]">
+				<p className="mb-8 text-center text-sm text-muted-foreground">
 					If an account exists for {email}, you'll receive reset instructions
 					shortly.
 				</p>
@@ -58,7 +58,7 @@ function ForgotPasswordPage() {
 					Remember your password?{" "}
 					<Link
 						to="/auth/login"
-						className="font-medium text-[var(--lagoon-deep)] hover:underline"
+						className="font-medium text-primary hover:underline"
 					>
 						Sign in
 					</Link>

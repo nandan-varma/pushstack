@@ -51,12 +51,10 @@ function DashboardPage() {
 			{/* Welcome */}
 			<div className="mb-8 flex items-center justify-between gap-4">
 				<div>
-					<h1 className="display-title text-3xl font-bold text-[var(--sea-ink)]">
+					<h1 className="text-3xl font-bold text-foreground">
 						Welcome back, {user.name.split(" ")[0]}
 					</h1>
-					<p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
-						{user.email}
-					</p>
+					<p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
 				</div>
 				<Link to="/repositories/new">
 					<Button size="sm">+ New repository</Button>
@@ -67,12 +65,12 @@ function DashboardPage() {
 				{/* Repositories */}
 				<div className="lg:col-span-2">
 					<div className="mb-4 flex items-center justify-between">
-						<h2 className="text-base font-semibold text-[var(--sea-ink)]">
+						<h2 className="text-base font-semibold text-foreground">
 							Your repositories
 						</h2>
 						<Link
 							to="/repositories"
-							className="text-xs font-medium text-[var(--lagoon-deep)] hover:underline"
+							className="text-xs font-medium text-primary hover:underline"
 						>
 							View all
 						</Link>
@@ -87,7 +85,7 @@ function DashboardPage() {
 
 				{/* Activity */}
 				<div>
-					<h2 className="mb-4 text-base font-semibold text-[var(--sea-ink)]">
+					<h2 className="mb-4 text-base font-semibold text-foreground">
 						Recent activity
 					</h2>
 					<ActivityFeed

@@ -1,7 +1,7 @@
 export function FolderIcon() {
 	return (
 		<svg
-			className="h-4 w-4 shrink-0 text-[var(--lagoon-deep)]"
+			className="h-4 w-4 shrink-0 text-primary"
 			viewBox="0 0 16 16"
 			fill="currentColor"
 			aria-hidden="true"
@@ -15,7 +15,7 @@ export function FolderIcon() {
 export function FileIcon() {
 	return (
 		<svg
-			className="h-4 w-4 shrink-0 text-[var(--sea-ink-soft)]"
+			className="h-4 w-4 shrink-0 text-muted-foreground"
 			viewBox="0 0 16 16"
 			fill="currentColor"
 			aria-hidden="true"

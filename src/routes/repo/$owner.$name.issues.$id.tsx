@@ -168,7 +168,7 @@ function IssueDetailPage() {
 					</Badge>
 				}
 				meta={
-					<p className="text-[var(--sea-ink-soft)]">
+					<p className="text-muted-foreground">
 						#{issue.id} opened{" "}
 						{formatDistanceToNow(new Date(issue.createdAt), {
 							addSuffix: true,
@@ -207,10 +207,10 @@ function IssueDetailPage() {
 					</Avatar>
 					<div className="flex-1">
 						<div className="flex items-center gap-2 mb-4">
-							<span className="font-medium text-[var(--sea-ink)]">
+							<span className="font-medium text-foreground">
 								{issue.author?.name || "Unknown"}
 							</span>
-							<span className="text-sm text-[var(--sea-ink-soft)]">
+							<span className="text-sm text-muted-foreground">
 								{formatDistanceToNow(new Date(issue.createdAt), {
 									addSuffix: true,
 								})}
@@ -224,7 +224,7 @@ function IssueDetailPage() {
 								repoId={issue.repoId}
 							/>
 						) : (
-							<p className="text-[var(--sea-ink-soft)] italic">
+							<p className="text-muted-foreground italic">
 								No description provided
 							</p>
 						)}
@@ -235,7 +235,7 @@ function IssueDetailPage() {
 			{/* Comments */}
 			{comments && comments.length > 0 && (
 				<div className="space-y-4">
-					<h2 className="text-xl font-semibold text-[var(--sea-ink)]">
+					<h2 className="text-xl font-semibold text-foreground">
 						Comments ({comments.length})
 					</h2>
 					{comments.map((comment) => (

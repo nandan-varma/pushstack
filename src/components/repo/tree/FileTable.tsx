@@ -46,29 +46,29 @@ export function FileTable({
 		// real rows without a jarring size change once data arrives.
 		const rowWidths = ["45%", "60%", "38%", "70%", "50%", "42%", "65%", "35%"];
 		return (
-			<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+			<div className="overflow-hidden rounded-xl border border-border">
 				<table className="w-full">
 					<tbody>
 						{rowWidths.map((width, i) => (
 							<tr
 								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows, never reordered
 								key={i}
-								className="border-b border-[var(--line)] last:border-0"
+								className="border-b border-border last:border-0"
 							>
 								<td className="w-8 py-2.5 pl-4 pr-2 align-middle">
-									<div className="h-4 w-4 animate-pulse rounded bg-[var(--surface-raised)]" />
+									<div className="h-4 w-4 animate-pulse rounded bg-muted" />
 								</td>
 								<td className="py-2.5 pr-4 align-middle">
 									<div
-										className="h-3.5 animate-pulse rounded bg-[var(--surface-raised)]"
+										className="h-3.5 animate-pulse rounded bg-muted"
 										style={{ width }}
 									/>
 								</td>
 								{showLastCommit && (
 									<td className="hidden py-2.5 pr-4 align-middle md:table-cell">
 										<div className="ml-auto flex items-center justify-end gap-2">
-											<div className="h-3 w-40 animate-pulse rounded bg-[var(--surface-raised)]" />
-											<div className="h-3 w-14 shrink-0 animate-pulse rounded bg-[var(--surface-raised)]" />
+											<div className="h-3 w-40 animate-pulse rounded bg-muted" />
+											<div className="h-3 w-14 shrink-0 animate-pulse rounded bg-muted" />
 										</div>
 									</td>
 								)}
@@ -98,11 +98,11 @@ export function FileTable({
 	}
 
 	return (
-		<div className="overflow-hidden rounded-xl border border-[var(--line)]">
+		<div className="overflow-hidden rounded-xl border border-border">
 			<table className="w-full">
 				<tbody>
 					{activePath && (
-						<tr className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)]">
+						<tr className="border-b border-border transition hover:bg-card">
 							<td className="w-8 py-2.5 pl-4" />
 							<td className="py-2.5 pr-4">
 								<Link
@@ -115,7 +115,7 @@ export function FileTable({
 											? activePath.slice(0, activePath.lastIndexOf("/"))
 											: "",
 									}}
-									className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+									className="text-sm font-medium text-primary hover:underline"
 								>
 									..
 								</Link>
@@ -130,7 +130,7 @@ export function FileTable({
 						return (
 							<tr
 								key={`${file.type}:${file.path}`}
-								className="border-b border-[var(--line)] transition hover:bg-[var(--surface-strong)] last:border-0"
+								className="border-b border-border transition hover:bg-card last:border-0"
 							>
 								<td className="w-8 py-2.5 pl-4 pr-2 align-middle">
 									{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
@@ -146,7 +146,7 @@ export function FileTable({
 												_splat: file.path,
 											}}
 											title={displayName}
-											className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+											className="max-w-xs truncate text-sm font-medium text-primary hover:underline"
 										>
 											{displayName}
 										</Link>
@@ -160,7 +160,7 @@ export function FileTable({
 												_splat: file.path,
 											}}
 											title={displayName}
-											className="max-w-xs truncate text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+											className="max-w-xs truncate text-sm font-medium text-primary hover:underline"
 										>
 											{displayName}
 										</Link>
@@ -169,7 +169,7 @@ export function FileTable({
 								{showLastCommit && (
 									<td className="hidden py-2.5 pr-4 text-right align-middle md:table-cell">
 										{lastCommitsLoading ? (
-											<div className="ml-auto h-3 w-32 animate-pulse rounded bg-[var(--surface-raised)]" />
+											<div className="ml-auto h-3 w-32 animate-pulse rounded bg-muted" />
 										) : (
 											(() => {
 												const lastCommit = lastCommits?.[file.path];
@@ -180,11 +180,11 @@ export function FileTable({
 															to="/repo/$owner/$name/commit/$sha"
 															params={{ owner, name, sha: lastCommit.sha }}
 															title={lastCommit.message}
-															className="max-w-[220px] truncate text-xs text-[var(--sea-ink-soft)] hover:text-[var(--lagoon-deep)] hover:underline"
+															className="max-w-[220px] truncate text-xs text-muted-foreground hover:text-primary hover:underline"
 														>
 															{lastCommit.message.split("\n")[0]}
 														</Link>
-														<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+														<span className="shrink-0 text-xs text-muted-foreground">
 															{formatDistanceToNow(
 																new Date(lastCommit.createdAt),
 																{

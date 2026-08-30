@@ -53,10 +53,7 @@ function RepoSettingsPage() {
 			<div className="page-wrap px-4 py-10">
 				<div className="mx-auto max-w-2xl space-y-4">
 					{[1, 2, 3].map((i) => (
-						<div
-							key={i}
-							className="h-40 animate-pulse rounded-2xl bg-[var(--surface-raised)]"
-						/>
+						<div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
 					))}
 				</div>
 			</div>
@@ -81,7 +78,7 @@ function RepoSettingsPage() {
 	if (!isOwner) {
 		return (
 			<div className="page-wrap px-4 py-10 text-center">
-				<p className="text-[var(--sea-ink-soft)]">
+				<p className="text-muted-foreground">
 					You don't have permission to view settings.
 				</p>
 			</div>
@@ -100,7 +97,7 @@ function RepoSettingsPage() {
 							branch: repo?.defaultBranch || "main",
 							_splat: "",
 						}}
-						className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+						className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 					>
 						<ArrowLeft className="size-4" />
 						{owner}/{name}
@@ -108,12 +105,12 @@ function RepoSettingsPage() {
 					<Link
 						to="/repo/$owner/$name/setup"
 						params={{ owner, name }}
-						className="text-sm font-medium text-[var(--lagoon-deep)] hover:underline"
+						className="text-sm font-medium text-primary hover:underline"
 					>
 						View setup guide
 					</Link>
 				</div>
-				<h1 className="text-2xl font-bold text-[var(--sea-ink)]">Settings</h1>
+				<h1 className="text-2xl font-bold text-foreground">Settings</h1>
 
 				<GeneralSection repo={repo} owner={owner} name={name} />
 				<PerformanceSection repo={repo} owner={owner} name={name} />

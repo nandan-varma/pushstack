@@ -18,7 +18,7 @@ export function NotFoundCard({
 	return (
 		<Card className="p-6">
 			<h2 className="text-xl font-semibold mb-2">{title}</h2>
-			{message && <p className="text-[var(--sea-ink-soft)] mb-4">{message}</p>}
+			{message && <p className="text-muted-foreground mb-4">{message}</p>}
 			<Link to={backTo} params={backParams} className="mt-4 inline-block">
 				<Button variant="outline">{backLabel}</Button>
 			</Link>

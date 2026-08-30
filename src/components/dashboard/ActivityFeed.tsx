@@ -63,16 +63,16 @@ export function ActivityFeed({
 					describeActivity(activity);
 				const content = (
 					<>
-						<div className="text-xs font-medium text-[var(--sea-ink)]">
+						<div className="text-xs font-medium text-foreground">
 							{text}
 							{showRepo && activity.repository && (
-								<span className="ml-1 font-normal text-[var(--sea-ink-soft)]">
+								<span className="ml-1 font-normal text-muted-foreground">
 									in {activity.repository.owner?.username || "unknown"}/
 									{activity.repository.name}
 								</span>
 							)}
 						</div>
-						<div className="mt-0.5 text-[10px] text-[var(--sea-ink-soft)]">
+						<div className="mt-0.5 text-[10px] text-muted-foreground">
 							{new Date(activity.createdAt).toLocaleString()}
 						</div>
 					</>
@@ -84,7 +84,7 @@ export function ActivityFeed({
 							key={activity.id}
 							to={linkTo}
 							params={linkParams}
-							className="block rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 no-underline transition hover:bg-[var(--surface-strong)]"
+							className="block rounded-lg border border-border bg-background p-3 no-underline transition hover:bg-card"
 						>
 							{content}
 						</Link>
@@ -94,7 +94,7 @@ export function ActivityFeed({
 				return (
 					<div
 						key={activity.id}
-						className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3"
+						className="rounded-lg border border-border bg-background p-3"
 					>
 						{content}
 					</div>

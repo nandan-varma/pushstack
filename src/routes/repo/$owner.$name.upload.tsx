@@ -195,7 +195,7 @@ function FileUploadPage() {
 				<Link
 					to="/repo/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch, _splat: "" }}
-					className="flex items-center gap-1 text-sm text-[var(--sea-ink-soft)] hover:text-[var(--sea-ink)]"
+					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 				>
 					<ArrowLeft className="size-4" />
 					{owner}/{name}
@@ -203,10 +203,10 @@ function FileUploadPage() {
 			</div>
 			<div className="island-shell rounded-2xl p-8">
 				<div className="mb-6">
-					<h2 className="text-lg font-semibold text-[var(--sea-ink)]">
+					<h2 className="text-lg font-semibold text-foreground">
 						Upload file to {owner}/{name}
 					</h2>
-					<p className="mt-1 text-sm text-[var(--sea-ink-soft)]">
+					<p className="mt-1 text-sm text-muted-foreground">
 						Add a new file to the repository via web upload.
 					</p>
 				</div>
@@ -233,8 +233,8 @@ function FileUploadPage() {
 						htmlFor="file-input"
 						className={`block cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
 							isDragging
-								? "border-[var(--lagoon-deep)] bg-[rgba(79,184,178,0.06)]"
-								: "border-[var(--line)] hover:border-[var(--lagoon-deep)]/50"
+								? "border-primary bg-primary/5"
+								: "border-border hover:border-primary/50"
 						}`}
 						onDrop={handleDrop}
 						onDragOver={handleDragOver}
@@ -242,10 +242,10 @@ function FileUploadPage() {
 					>
 						{file ? (
 							<div className="space-y-2">
-								<p className="text-sm font-medium text-[var(--sea-ink)]">
+								<p className="text-sm font-medium text-foreground">
 									{file.name}
 								</p>
-								<p className="text-xs text-[var(--sea-ink-soft)]">
+								<p className="text-xs text-muted-foreground">
 									{(file.size / 1024).toFixed(2)} KB
 								</p>
 								{file.size > LARGE_FILE_WARNING_BYTES && (
@@ -270,7 +270,7 @@ function FileUploadPage() {
 							</div>
 						) : (
 							<div className="space-y-2">
-								<p className="text-sm text-[var(--sea-ink)]">
+								<p className="text-sm text-foreground">
 									Drop a file here or click to select
 								</p>
 								<input

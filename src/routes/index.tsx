@@ -37,17 +37,14 @@ function App() {
 		<main className="page-wrap px-4 pb-16 pt-10">
 			{/* Hero */}
 			<section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-12 sm:px-12 sm:py-16">
-				<div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.28),transparent_66%)]" />
-				<div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.16),transparent_66%)]" />
-
 				<div className="relative flex flex-col gap-12 lg:flex-row lg:items-center">
 					<div className="flex-1">
 						<p className="island-kicker mb-4">Code hosting, reimagined</p>
-						<h1 className="display-title mb-6 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-[var(--sea-ink)] sm:text-5xl lg:text-6xl">
+						<h1 className="mb-6 max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
 							Build, collaborate,
 							<br className="hidden sm:block" /> and ship together.
 						</h1>
-						<p className="mb-8 max-w-md text-base leading-relaxed text-[var(--sea-ink-soft)] sm:text-lg">
+						<p className="mb-8 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
 							A modern code hosting platform with full Git support, issue
 							tracking, pull requests, and cloud-native R2 storage.
 						</p>
@@ -65,34 +62,36 @@ function App() {
 
 					{/* Terminal */}
 					<div className="hidden w-80 shrink-0 lg:block">
-						<div className="overflow-hidden rounded-xl border border-white/10 bg-[#1a2e3a] shadow-2xl">
-							<div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
-								<span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-								<span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
-								<span className="h-3 w-3 rounded-full bg-[#28c840]" />
+						<div className="overflow-hidden rounded-xl border border-border bg-muted shadow-sm">
+							<div className="flex items-center gap-1.5 border-b border-border px-4 py-2.5">
+								<span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
+								<span className="h-3 w-3 rounded-full bg-muted-foreground/60" />
+								<span className="h-3 w-3 rounded-full bg-muted-foreground/80" />
 							</div>
 							<div className="space-y-1 p-5 font-mono text-xs leading-6">
 								<p>
-									<span className="text-[#60d7cf]">$</span>{" "}
-									<span className="text-[#e8efff]">
+									<span className="text-muted-foreground">$</span>{" "}
+									<span className="text-foreground">
 										git remote add origin \
 									</span>
 								</p>
-								<p className="pl-4 text-[#8de5db]">
+								<p className="pl-4 text-muted-foreground">
 									https://git.nandan.fyi/you/repo
 								</p>
 								<p>
-									<span className="text-[#60d7cf]">$</span>{" "}
-									<span className="text-[#e8efff]">
+									<span className="text-muted-foreground">$</span>{" "}
+									<span className="text-foreground">
 										git push -u origin main
 									</span>
 								</p>
-								<p className="text-[#6ec89a]">Enumerating objects: 12</p>
-								<p className="text-[#6ec89a]">Writing to R2... done.</p>
-								<p className="text-[#6ec89a]">Branch 'main' set upstream.</p>
+								<p className="text-muted-foreground">Enumerating objects: 12</p>
+								<p className="text-muted-foreground">Writing to R2... done.</p>
+								<p className="text-muted-foreground">
+									Branch 'main' set upstream.
+								</p>
 								<p>
-									<span className="text-[#60d7cf]">$</span>{" "}
-									<span className="animate-pulse text-[#60d7cf]">_</span>
+									<span className="text-muted-foreground">$</span>{" "}
+									<span className="animate-pulse text-muted-foreground">_</span>
 								</p>
 							</div>
 						</div>
@@ -108,13 +107,13 @@ function App() {
 						className="island-shell feature-card rise-in rounded-2xl p-6"
 						style={{ animationDelay: `${index * 80 + 100}ms` }}
 					>
-						<div className="mb-4 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[linear-gradient(135deg,var(--lagoon),var(--palm))] text-xs font-bold text-white">
+						<div className="mb-4 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
 							{label}
 						</div>
-						<h2 className="mb-2 text-sm font-semibold text-[var(--sea-ink)]">
+						<h2 className="mb-2 text-sm font-semibold text-foreground">
 							{title}
 						</h2>
-						<p className="text-sm leading-relaxed text-[var(--sea-ink-soft)]">
+						<p className="text-sm leading-relaxed text-muted-foreground">
 							{desc}
 						</p>
 					</article>

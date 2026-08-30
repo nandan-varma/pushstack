@@ -20,7 +20,7 @@ export function PathBreadcrumb({
 			<Link
 				to="/repo/$owner/$name/tree/$branch/$"
 				params={{ owner, name, branch, _splat: "" }}
-				className="font-medium text-[var(--lagoon-deep)] hover:underline"
+				className="font-medium text-primary hover:underline"
 			>
 				{name}
 			</Link>
@@ -29,16 +29,14 @@ export function PathBreadcrumb({
 				const isLast = i === segments.length - 1;
 				return (
 					<span key={pathSoFar} className="flex items-center gap-1.5">
-						<span className="text-[var(--sea-ink-soft)]">/</span>
+						<span className="text-muted-foreground">/</span>
 						{isLast ? (
-							<span className="font-medium text-[var(--sea-ink)]">
-								{segment}
-							</span>
+							<span className="font-medium text-foreground">{segment}</span>
 						) : (
 							<Link
 								to="/repo/$owner/$name/tree/$branch/$"
 								params={{ owner, name, branch, _splat: pathSoFar }}
-								className="font-medium text-[var(--lagoon-deep)] hover:underline"
+								className="font-medium text-primary hover:underline"
 							>
 								{segment}
 							</Link>

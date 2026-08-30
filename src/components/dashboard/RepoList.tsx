@@ -85,19 +85,19 @@ export function RepoList({
 								<div className="flex items-center gap-2">
 									<h3
 										title={`${ownerUsername}/${repo.name}`}
-										className="truncate text-sm font-semibold text-[var(--lagoon-deep)]"
+										className="truncate text-sm font-semibold text-primary"
 									>
 										{ownerUsername}/{repo.name}
 									</h3>
 									<VisibilityBadge visibility={repo.visibility} />
 								</div>
 								{repo.description && (
-									<p className="mt-1 line-clamp-1 text-xs text-[var(--sea-ink-soft)]">
+									<p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
 										{repo.description}
 									</p>
 								)}
 							</div>
-							<span className="shrink-0 text-xs text-[var(--sea-ink-soft)]">
+							<span className="shrink-0 text-xs text-muted-foreground">
 								{new Date(repo.updatedAt).toLocaleDateString()}
 							</span>
 						</div>

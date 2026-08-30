@@ -1,12 +1,13 @@
-interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
-	className?: string;
-}
+import { cn } from "#/lib/utils.ts";
 
-export function Skeleton({ className, ...props }: SkeletonProps) {
+function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
-			className={`animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)] ${className ?? ""}`}
+			data-slot="skeleton"
+			className={cn("animate-pulse rounded-md bg-muted", className)}
 			{...props}
 		/>
 	);
 }
+
+export { Skeleton };
