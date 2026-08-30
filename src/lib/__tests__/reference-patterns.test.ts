@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createReferencePattern } from "../reference-patterns";
+import {
+	createReferencePattern,
+	createReferenceResolver,
+} from "../reference-patterns";
 
 describe("createReferencePattern", () => {
 	const pattern = createReferencePattern();
@@ -61,6 +64,20 @@ describe("createReferencePattern", () => {
 
 	it("handles case-insensitive SHA matching", () => {
 		expect(findAll("ABC1234")).toEqual(["ABC1234"]);
+	});
+});
+
+describe("createReferenceResolver", () => {
+	it("resolves unambiguous issue and pull request references", () => {
+		const resolve = createReferenceResolver([1], [2]);
+		expect(resolve(1)).toBe("issue");
+		expect(resolve(2)).toBe("pull");
+		expect(resolve(3)).toBeNull();
+	});
+
+	it("does not guess when issue and pull request numbers collide", () => {
+		const resolve = createReferenceResolver([2], [2]);
+		expect(resolve(2)).toBeNull();
 	});
 });
 

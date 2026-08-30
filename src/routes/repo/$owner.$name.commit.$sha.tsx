@@ -16,7 +16,7 @@ import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-import type { ReferenceKind } from "@/lib/reference-patterns";
+import { createReferenceResolver } from "@/lib/reference-patterns";
 import { getInitials } from "@/lib/utils/avatar";
 
 export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
@@ -83,13 +83,7 @@ function CommitDetailPage() {
 	});
 
 	const resolveReference = useMemo(() => {
-		const issueSet = new Set(issueNumbers ?? []);
-		const prSet = new Set(prNumbers ?? []);
-		return (num: number): ReferenceKind | null => {
-			if (prSet.has(num)) return "pull";
-			if (issueSet.has(num)) return "issue";
-			return null;
-		};
+		return createReferenceResolver(issueNumbers ?? [], prNumbers ?? []);
 	}, [issueNumbers, prNumbers]);
 
 	if (commitLoading) {

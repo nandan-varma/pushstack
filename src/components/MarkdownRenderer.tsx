@@ -11,7 +11,8 @@ import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-import type { ReferenceKind, ResolveReference } from "@/lib/reference-patterns";
+import type { ResolveReference } from "@/lib/reference-patterns";
+import { createReferenceResolver } from "@/lib/reference-patterns";
 import { createAutolinkReferencesPlugin } from "@/lib/remark-autolink-references";
 
 interface MarkdownRendererProps {
@@ -187,13 +188,7 @@ export default function MarkdownRenderer({
 
 	const resolveReference: ResolveReference | undefined = useMemo(() => {
 		if (!issueNumbers && !prNumbers) return undefined;
-		const issueSet = new Set(issueNumbers ?? []);
-		const prSet = new Set(prNumbers ?? []);
-		return (num: number): ReferenceKind | null => {
-			if (prSet.has(num)) return "pull";
-			if (issueSet.has(num)) return "issue";
-			return null;
-		};
+		return createReferenceResolver(issueNumbers ?? [], prNumbers ?? []);
 	}, [issueNumbers, prNumbers]);
 
 	const remarkPlugins = useMemo(() => {
