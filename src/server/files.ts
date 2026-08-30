@@ -597,8 +597,8 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 					GitDiff.getDiffBetweenBranches(
 						storage.ownerKey,
 						repo.name,
-						data.sourceBranch,
 						data.targetBranch,
+						data.sourceBranch,
 					),
 				);
 
