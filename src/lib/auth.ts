@@ -12,6 +12,12 @@ if (!authSecret) {
 }
 
 const APP_URL = process.env.BETTER_AUTH_URL ?? "https://git.nandan.fyi";
+// Vercel sets this per deployment. Add only the exact preview origin instead
+// of a wildcard so authenticated preview testing works without widening the
+// production CSRF trust boundary to arbitrary Vercel projects.
+const vercelPreviewUrl = process.env.VERCEL_URL
+	? `https://${process.env.VERCEL_URL}`
+	: undefined;
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -41,7 +47,9 @@ export const auth = betterAuth({
 	},
 	secret: authSecret,
 	baseURL: APP_URL,
-	trustedOrigins: [APP_URL].filter(Boolean),
+	trustedOrigins: [APP_URL, vercelPreviewUrl].filter(
+		(origin): origin is string => Boolean(origin),
+	),
 	session: {
 		expiresIn: 60 * 60 * 24 * 7, // 7 days
 		updateAge: 60 * 60 * 24, // 1 day
