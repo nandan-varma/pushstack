@@ -11,13 +11,18 @@ if (!authSecret) {
 	throw new Error("BETTER_AUTH_SECRET environment variable is required");
 }
 
-const APP_URL = process.env.BETTER_AUTH_URL ?? "https://git.nandan.fyi";
 // Vercel sets this per deployment. Add only the exact preview origin instead
 // of a wildcard so authenticated preview testing works without widening the
 // production CSRF trust boundary to arbitrary Vercel projects.
 const vercelPreviewUrl = process.env.VERCEL_URL
 	? `https://${process.env.VERCEL_URL}`
 	: undefined;
+const configuredAppUrl =
+	process.env.BETTER_AUTH_URL ?? "https://git.nandan.fyi";
+// Better Auth also uses baseURL when issuing cookies. A preview must use its
+// own host here; otherwise login succeeds server-side but the browser cannot
+// receive the session cookie for the preview origin.
+const APP_URL = vercelPreviewUrl ?? configuredAppUrl;
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -47,7 +52,7 @@ export const auth = betterAuth({
 	},
 	secret: authSecret,
 	baseURL: APP_URL,
-	trustedOrigins: [APP_URL, vercelPreviewUrl].filter(
+	trustedOrigins: [configuredAppUrl, vercelPreviewUrl].filter(
 		(origin): origin is string => Boolean(origin),
 	),
 	session: {
