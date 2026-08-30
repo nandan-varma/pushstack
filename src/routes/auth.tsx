@@ -13,7 +13,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthLayout() {
 	return (
-		<div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4 py-12">
+		<div className="flex flex-1 items-center justify-center px-4 py-12">
 			<Outlet />
 		</div>
 	);

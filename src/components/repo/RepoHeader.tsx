@@ -113,7 +113,7 @@ export function RepoHeader({
 					className={cn(
 						"h-auto gap-0 overflow-hidden p-0",
 						repo.isStarred
-							? "border-primary bg-[var(--primary)] text-white hover:bg-[var(--primary)] hover:text-white"
+							? "border-primary bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground"
 							: "border-border bg-transparent text-foreground hover:bg-accent",
 						!session && "opacity-50",
 					)}

@@ -159,10 +159,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 					<p className="mb-6 text-sm text-muted-foreground">
 						{error.message || "An unexpected error occurred."}
 					</p>
-					<Button
-						onClick={reset}
-						className="bg-[var(--primary)] text-white opacity-100 hover:bg-[var(--primary)] hover:opacity-90"
-					>
+					<Button onClick={reset} className="opacity-100 hover:opacity-90">
 						Try again
 					</Button>
 				</div>
@@ -188,11 +185,19 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 				<HeadContent />
 			</head>
 			<body className="flex min-h-screen flex-col font-sans antialiased [overflow-wrap:anywhere] selection:bg-primary/20">
+				<a
+					href="#main-content"
+					className="sr-only z-[60] rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
+				>
+					Skip to content
+				</a>
 				<RouteLoadingBar />
 				<TanStackQueryProvider>
 					<ToastProvider>
 						<Header />
-						<div className="flex-1">{children}</div>
+						<main id="main-content" className="flex min-w-0 flex-1 flex-col">
+							{children}
+						</main>
 						<Footer />
 					</ToastProvider>
 					{import.meta.env.DEV && (

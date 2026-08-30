@@ -43,46 +43,43 @@ export default function BetterAuthHeader() {
 
 		return (
 			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<button
-						type="button"
-						className="flex items-center gap-2 rounded-full transition hover:opacity-80"
-						aria-label="Account menu"
-					>
-						<Avatar className="h-8 w-8 ring-1 ring-[var(--border)]">
-							<AvatarImage
-								src={session.user.image ?? undefined}
-								alt={session.user.name || "Account"}
-							/>
-							<AvatarFallback className="text-xs font-semibold">
-								{getInitials(session.user.name || "U")}
-							</AvatarFallback>
-						</Avatar>
-						<span className="hidden text-sm font-medium text-foreground sm:block">
-							{session.user.username || session.user.name}
-						</span>
-					</button>
+				<DropdownMenuTrigger
+					className="flex items-center gap-2 rounded-full transition hover:opacity-80"
+					aria-label="Account menu"
+				>
+					<Avatar className="h-8 w-8 ring-1 ring-[var(--border)]">
+						<AvatarImage
+							src={session.user.image ?? undefined}
+							alt={session.user.name || "Account"}
+						/>
+						<AvatarFallback className="text-xs font-semibold">
+							{getInitials(session.user.name || "U")}
+						</AvatarFallback>
+					</Avatar>
+					<span className="hidden text-sm font-medium text-foreground sm:block">
+						{session.user.username || session.user.name}
+					</span>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-48">
 					<DropdownMenuLabel className="truncate font-normal text-muted-foreground">
 						{session.user.email}
 					</DropdownMenuLabel>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem asChild>
-						<Link to="/dashboard" className="w-full no-underline">
-							Dashboard
-						</Link>
+					<DropdownMenuItem
+						onClick={() => router.navigate({ to: "/dashboard" })}
+					>
+						Dashboard
 					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/settings" className="w-full no-underline">
-							Settings
-						</Link>
+					<DropdownMenuItem
+						onClick={() => router.navigate({ to: "/settings" })}
+					>
+						Settings
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						disabled={signingOut}
-						onSelect={(e) => {
-							e.preventDefault();
+						onClick={(event) => {
+							event.preventDefault();
 							handleSignOut();
 						}}
 					>
