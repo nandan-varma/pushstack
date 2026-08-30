@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	useLocation,
+	useNavigate,
+} from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
@@ -74,6 +80,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
 	const { status: filter } = Route.useSearch();
+	const { pathname } = useLocation();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
@@ -152,6 +159,13 @@ function PullRequestsPage() {
 		repo,
 		createMutation,
 	]);
+
+	// This route is both the PR list and the parent of the PR detail route.
+	// Render the child on /pulls/:id rather than leaving the list mounted with
+	// no Outlet, which made every PR link appear to do nothing.
+	if (/\/pulls\/\d+$/.test(pathname)) {
+		return <Outlet />;
+	}
 
 	return (
 		<div className="space-y-5">
