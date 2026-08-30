@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { activities, pullRequests } from "../db/github-schema";
+import { activities, issues, pullRequests } from "../db/github-schema";
 import { analyzeMerge, mergeBranches } from "./git-merge-iso";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
@@ -18,6 +18,25 @@ import {
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // ============ PULL REQUESTS ============
+
+// A repository currently gives issues and pull requests independent numeric
+// sequences. In a closing phrase, however, `#123` conventionally means an
+// issue. Restrict automatic state changes to those explicit verbs so ordinary
+// references never close anything by accident.
+const CLOSING_ISSUE_REFERENCE =
+	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+(?:issue\s+)?#(\d+)\b/gi;
+
+export function getClosingIssueNumbers(
+	body: string | null | undefined,
+): number[] {
+	if (!body) return [];
+	const numbers = new Set<number>();
+	for (const match of body.matchAll(CLOSING_ISSUE_REFERENCE)) {
+		const number = Number(match[1]);
+		if (Number.isSafeInteger(number) && number > 0) numbers.add(number);
+	}
+	return [...numbers];
+}
 
 // Create pull request
 export const createPullRequest = createServerFn({ method: "POST" })
@@ -319,6 +338,20 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 				mergeCommitSha: mergeResult.commitSha,
 			})
 			.where(eq(pullRequests.id, data.prId));
+
+		const closingIssueNumbers = getClosingIssueNumbers(pr.body);
+		if (closingIssueNumbers.length > 0) {
+			await db
+				.update(issues)
+				.set({ status: "closed", closedAt: new Date(), updatedAt: new Date() })
+				.where(
+					and(
+						eq(issues.repoId, pr.repoId),
+						inArray(issues.id, closingIssueNumbers),
+						eq(issues.status, "open"),
+					),
+				);
+		}
 
 		// Log activity
 		await db.insert(activities).values({

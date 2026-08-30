@@ -444,3 +444,17 @@ describe("getPullRequestNumbers", () => {
 		expect(result).toEqual([]);
 	});
 });
+
+describe("getClosingIssueNumbers", () => {
+	it("extracts explicit closing references without duplicates", async () => {
+		const { getClosingIssueNumbers } = await import("../pull-requests");
+		expect(
+			getClosingIssueNumbers("Fixes #2, closes issue #3, and resolves #2."),
+		).toEqual([2, 3]);
+	});
+
+	it("ignores ordinary references", async () => {
+		const { getClosingIssueNumbers } = await import("../pull-requests");
+		expect(getClosingIssueNumbers("Related to #2.")).toEqual([]);
+	});
+});
