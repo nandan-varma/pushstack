@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	useLocation,
+	useNavigate,
+} from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
@@ -58,6 +64,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
 	const { status: filter } = Route.useSearch();
+	const { pathname } = useLocation();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
@@ -107,6 +114,12 @@ function IssuesPage() {
 			},
 		});
 	}, [newIssue.title, newIssue.body, repo, createMutation]);
+
+	// The issues list is the parent of /issues/:id. Rendering the detail
+	// Outlet here keeps list and detail routes independently addressable.
+	if (/\/issues\/\d+$/.test(pathname)) {
+		return <Outlet />;
+	}
 
 	return (
 		<div className="space-y-5">
