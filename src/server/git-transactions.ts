@@ -1,7 +1,7 @@
 /**
  * A minimal write-ahead log for git writes, backed by the `git_transactions`
  * table (github-schema.ts) — that table existed already but was never
- * written to anywhere in the app. withRepositoryLock (git-repo-storage.ts)
+ * written to anywhere in the app. withRepositoryLock (git-repo-lock.ts)
  * is the single choke point every write path goes through (push, commit,
  * branch ops, merge, rename), so it records one row here per critical
  * section: `pending` right after the lock is acquired, `committed` once the
@@ -102,7 +102,7 @@ export type AbandonedGitTransaction = {
 };
 
 // A `pending` row older than a write's lock could ever legitimately still be
-// holding (LOCK_LEASE_MS in git-repo-storage.ts, plus slack for the update
+// holding (LOCK_LEASE_MS in git-repo-lock.ts, plus slack for the update
 // itself) means that write's holder is gone — the lease self-expired and
 // released the repo already, but nothing ever came back to close out this
 // WAL entry. Not wired into a scheduled job (no cron infra exists in this
