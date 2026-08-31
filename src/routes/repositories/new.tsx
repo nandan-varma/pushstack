@@ -94,7 +94,7 @@ function NewRepositoryPage() {
 									value={name}
 									onChange={(e) => setName(e.target.value)}
 									required
-									pattern="[a-zA-Z0-9-_]+"
+									pattern="[a-zA-Z0-9\-_]+"
 									title="Only letters, numbers, hyphens, and underscores"
 									className="flex-1"
 								/>

@@ -314,9 +314,25 @@ than trusted.
 ## A known, separate issue (not a vulnerability, but worth knowing)
 
 Blob routes for files ending in `.md` (e.g. viewing a `README.md` through the
-blob viewer) currently 404 before ever reaching the app's own router — the
-Vercel-dev-emulation layer appears to treat `.md` as a static-asset extension
-and short-circuits the request. This looks like it would also break in a real
-deployment, not just local dev. Not a security issue, but flagged here since
-it was discovered during a security/performance audit and hasn't been
-root-caused yet.
+blob viewer) currently 404 before ever reaching the app's own router, with a
+raw connect-style `Cannot GET ...` body — confirmed via `pnpm dev` that this
+is specific to `.md` (a sibling request for the same nonexistent repo/path
+with a `.txt` extension, or no extension at all, both reach the app and hit
+the expected DB/repo-not-found error instead). Root cause is nitro's local
+Vercel-dev-emulation static-asset short-circuit misfiring for `.md`
+specifically — not yet traced to the exact line, since it isn't reproducible
+by grepping nitro's dist for any `.md`-specific handling.
+
+**This is very likely dev-only, not a production bug**: the actual generated
+`.vercel/output/config.json` routing (inspected directly after a real
+`pnpm build`) has no rule that treats `.md` specially — it's just the
+generic `publicAssets` cache-control rule plus `{ "handle": "filesystem" }`
+falling through to `/__server` for anything without a real matching file in
+`.vercel/output/static`. Since no build output ever contains a static file at
+a path like `/repo/{owner}/{repo}/blob/{branch}/README.md`, real Vercel
+routing's filesystem-handle step has nothing to match and should fall
+through to the SSR function correctly. The previous note in this doc
+speculating this "would also break in a real deployment" was not verified
+against the actual routing config and should not be treated as confirmed —
+if you're debugging a `.md`-related 404 in an actual deployed environment,
+treat it as a new finding rather than assuming this is the cause.
