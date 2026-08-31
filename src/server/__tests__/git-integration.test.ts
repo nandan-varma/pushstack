@@ -257,6 +257,15 @@ describe("getFileHistory", () => {
 		expect(result.entries.map((e) => e.sha)).toEqual([shas.second]);
 		expect(result.truncated).toBe(true);
 	});
+
+	it("escalates to full depth when a shallow (banner) walk finds nothing", async () => {
+		// maxDepth=1 only fetches "second" — its parent ("initial") falls
+		// outside the window, so a bare shallow walk can't confirm anything
+		// and would otherwise report zero entries for a file that does have
+		// history. The wrapper should retry at full depth and find it.
+		const result = await getFileHistory(OWNER, REPO, "main", "README.md", 1, 1);
+		expect(result.entries.map((e) => e.sha)).toEqual([shas.second]);
+	});
 });
 
 // ── Trees & files ─────────────────────────────────────────────────────────────

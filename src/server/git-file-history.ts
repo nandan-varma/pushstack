@@ -32,9 +32,27 @@ export async function getFileHistory(
 	maxDepth: number = HISTORY_WALK_DEPTH,
 ): Promise<FileHistoryResult> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	return opsGetFileHistory(
+	const hooks = opsHooksFor(ownerKey, repoName);
+	const result = await opsGetFileHistory(
 		repo,
 		{ ref: branchName, filePath, limit, maxDepth },
-		opsHooksFor(ownerKey, repoName),
+		hooks,
 	);
+	// A shallow (banner) walk that hit its depth cap without finding a match
+	// doesn't mean the file has no history — just that the commit that last
+	// touched it is older than the shallow window (e.g. a README nobody's
+	// edited in months). Escalate once to the full history depth so the
+	// "latest commit" banner doesn't silently disappear for such files.
+	if (
+		result.entries.length === 0 &&
+		result.truncated &&
+		maxDepth < HISTORY_WALK_DEPTH
+	) {
+		return opsGetFileHistory(
+			repo,
+			{ ref: branchName, filePath, limit, maxDepth: HISTORY_WALK_DEPTH },
+			hooks,
+		);
+	}
+	return result;
 }
