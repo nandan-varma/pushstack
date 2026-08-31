@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/tanstackstart-react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import {
@@ -154,7 +153,11 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 	// but not exceptions raised during route rendering (SSR or client) — this
 	// boundary is the only place those are otherwise seen.
 	useEffect(() => {
-		Sentry.captureException(error);
+		if (import.meta.env.VITE_SENTRY_DSN) {
+			void import("@sentry/tanstackstart-react").then((Sentry) =>
+				Sentry.captureException(error),
+			);
+		}
 	}, [error]);
 
 	return (
