@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/tanstackstart-react";
 import { createRouter } from "@tanstack/react-router";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
@@ -18,6 +19,17 @@ export function getRouter() {
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 30_000,
 	});
+
+	// Client-only: the server side is initialized in instrument.server.mjs.
+	// No-ops if VITE_SENTRY_DSN isn't set.
+	if (!router.isServer) {
+		Sentry.init({
+			dsn: import.meta.env.VITE_SENTRY_DSN,
+			environment: import.meta.env.MODE,
+			integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
+			tracesSampleRate: 0.1,
+		});
+	}
 
 	return router;
 }

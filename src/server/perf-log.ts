@@ -9,6 +9,7 @@
  * wrapped this way so a single page load prints a full timing breakdown.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import * as Sentry from "@sentry/tanstackstart-react";
 
 interface PerfCtx {
 	id: string;
@@ -115,12 +116,24 @@ export function recordCacheMiss(): void {
 export function logError(scope: string, message: string, err: unknown): void {
 	const detail = err instanceof Error ? err.message : String(err);
 	console.error(`${prefix(als.getStore())} [${scope}] ${message}: ${detail}`);
+	Sentry.captureException(err instanceof Error ? err : new Error(detail), {
+		extra: { scope, message },
+	});
 }
 
 export function logWarn(scope: string, message: string, err?: unknown): void {
 	const detail =
 		err === undefined ? "" : `: ${err instanceof Error ? err.message : err}`;
 	console.warn(`${prefix(als.getStore())} [${scope}] ${message}${detail}`);
+	// Breadcrumb, not a captured event — warnings are expected/handled
+	// conditions (see call sites), not incidents worth alerting on by
+	// themselves, but useful context if a related error fires later.
+	Sentry.addBreadcrumb({
+		category: scope,
+		message,
+		level: "warning",
+		data: err === undefined ? undefined : { error: String(err) },
+	});
 }
 
 /** For R2 helper functions that run both inside and outside a perfContext (e.g. writes). */

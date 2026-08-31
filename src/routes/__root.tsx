@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/tanstackstart-react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import {
@@ -8,7 +9,7 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { RouteLoadingBar } from "../components/RouteLoadingBar";
@@ -149,6 +150,13 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 // a raw git error) renders a recoverable page instead of a blank/crashed app.
 // Route-specific errorComponents (e.g. the repo layout) take precedence over this.
 function RootErrorComponent({ error, reset }: ErrorComponentProps) {
+	// Middleware in src/start.ts covers thrown server-function/request errors,
+	// but not exceptions raised during route rendering (SSR or client) — this
+	// boundary is the only place those are otherwise seen.
+	useEffect(() => {
+		Sentry.captureException(error);
+	}, [error]);
+
 	return (
 		<RootDocument>
 			<div className="page-wrap px-4 py-20 text-center">

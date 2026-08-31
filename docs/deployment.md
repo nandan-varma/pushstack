@@ -83,6 +83,12 @@ GIT_REPOS_PATH=/path/to/dir        # default os.tmpdir()/pushstack-repos — loc
 # Transactional email (password reset, email verification) via Resend
 RESEND_API_KEY=...
 RESEND_EMAIL_FROM=you@yourdomain.com   # optional, falls back to a hardcoded address in src/lib/email.ts
+
+# Sentry (error tracking) — optional, the SDK no-ops without a DSN
+VITE_SENTRY_DSN=...                # public DSN, safe to expose client-side (see instrument.server.mjs / src/router.tsx)
+SENTRY_AUTH_TOKEN=...               # build-time only, uploads source maps — unset skips this in vite.config.ts
+SENTRY_ORG=...
+SENTRY_PROJECT=...
 ```
 
 If any of the four `R2_*` variables above are unset, `isR2Configured()`

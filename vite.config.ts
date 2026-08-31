@@ -1,4 +1,5 @@
 import path from "node:path";
+import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -6,6 +7,13 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
+
+// The browser SDK sends error/tracing envelopes straight to this origin
+// (see src/router.tsx's Sentry.init) — without it in connect-src, the CSP
+// silently blocks every client-side-captured error from ever reaching Sentry.
+const sentryIngestOrigin = process.env.VITE_SENTRY_DSN
+	? new URL(process.env.VITE_SENTRY_DSN).origin
+	: undefined;
 
 const config = defineConfig({
 	resolve: {
@@ -55,7 +63,7 @@ const config = defineConfig({
 							"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 							"img-src 'self' data: blob: https:",
 							"font-src 'self' https://fonts.gstatic.com",
-							"connect-src 'self'",
+							`connect-src 'self'${sentryIngestOrigin ? ` ${sentryIngestOrigin}` : ""}`,
 							"frame-ancestors 'none'",
 							"base-uri 'self'",
 							"object-src 'none'",
@@ -68,6 +76,18 @@ const config = defineConfig({
 			},
 		}),
 		viteReact(),
+		// Source-map upload for readable Sentry stack traces — only runs when
+		// SENTRY_AUTH_TOKEN is set (CI/prod release builds), so local/dev
+		// builds without one aren't affected. Must come after tanstackStart().
+		...(process.env.SENTRY_AUTH_TOKEN
+			? [
+					sentryTanstackStart({
+						org: process.env.SENTRY_ORG,
+						project: process.env.SENTRY_PROJECT,
+						authToken: process.env.SENTRY_AUTH_TOKEN,
+					}),
+				]
+			: []),
 	],
 	server: {
 		watch: {
