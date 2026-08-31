@@ -12,7 +12,7 @@ import {
 	canWriteRepo,
 	getAccessForRepository,
 	getRepoWithWriteAccess,
-	requireReadAccess,
+	readWithAccess,
 	requireWriteAccess,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -105,18 +105,11 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) =>
-		perfContext(
+		readWithAccess(
 			`getPullRequests repo=${data.repoId} ${data.status}`,
-			async () => {
-				const user = await perfStep("getCurrentUserOptional", () =>
-					getCurrentUserOptional(),
-				);
-
-				await perfStep("requireReadAccess", () =>
-					requireReadAccess(data.repoId, user?.id),
-				);
-
-				const prList = await perfStep("db: pullRequests.findMany", () =>
+			data.repoId,
+			() =>
+				perfStep("db: pullRequests.findMany", () =>
 					db.query.pullRequests.findMany({
 						where: and(
 							eq(pullRequests.repoId, data.repoId),
@@ -131,10 +124,7 @@ export const getPullRequests = createServerFn({ method: "GET" })
 						limit: data.limit,
 						offset: data.skip,
 					}),
-				);
-
-				return prList;
-			},
+				),
 		),
 	);
 
@@ -144,24 +134,20 @@ export const getPullRequests = createServerFn({ method: "GET" })
 export const getPullRequestNumbers = createServerFn({ method: "GET" })
 	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
 	.handler(async ({ data }) =>
-		perfContext(`getPullRequestNumbers repo=${data.repoId}`, async () => {
-			const user = await perfStep("getCurrentUserOptional", () =>
-				getCurrentUserOptional(),
-			);
+		readWithAccess(
+			`getPullRequestNumbers repo=${data.repoId}`,
+			data.repoId,
+			async () => {
+				const rows = await perfStep("db: pullRequests ids", () =>
+					db
+						.select({ id: pullRequests.id })
+						.from(pullRequests)
+						.where(eq(pullRequests.repoId, data.repoId)),
+				);
 
-			await perfStep("requireReadAccess", () =>
-				requireReadAccess(data.repoId, user?.id),
-			);
-
-			const rows = await perfStep("db: pullRequests ids", () =>
-				db
-					.select({ id: pullRequests.id })
-					.from(pullRequests)
-					.where(eq(pullRequests.repoId, data.repoId)),
-			);
-
-			return rows.map((row) => row.id);
-		}),
+				return rows.map((row) => row.id);
+			},
+		),
 	);
 
 // Get pull request by ID

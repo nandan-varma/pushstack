@@ -7,7 +7,7 @@ import { perfContext, perfStep } from "./perf-log";
 import {
 	canWriteRepo,
 	getAccessForRepository,
-	requireReadAccess,
+	readWithAccess,
 	requireWriteAccess,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -71,35 +71,33 @@ export const getIssues = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) =>
-		perfContext(`getIssues repo=${data.repoId} ${data.status}`, async () => {
-			const user = await perfStep("getCurrentUserOptional", () =>
-				getCurrentUserOptional(),
-			);
+		readWithAccess(
+			`getIssues repo=${data.repoId} ${data.status}`,
+			data.repoId,
+			async () => {
+				const issueList = await perfStep("db: issues.findMany", () =>
+					db.query.issues.findMany({
+						where: and(
+							eq(issues.repoId, data.repoId),
+							data.status !== "all"
+								? eq(issues.status, data.status)
+								: undefined,
+						),
+						with: {
+							author: true,
+						},
+						orderBy: [desc(issues.createdAt)],
+						limit: data.limit,
+						offset: data.skip,
+					}),
+				);
 
-			await perfStep("requireReadAccess", () =>
-				requireReadAccess(data.repoId, user?.id),
-			);
-
-			const issueList = await perfStep("db: issues.findMany", () =>
-				db.query.issues.findMany({
-					where: and(
-						eq(issues.repoId, data.repoId),
-						data.status !== "all" ? eq(issues.status, data.status) : undefined,
-					),
-					with: {
-						author: true,
-					},
-					orderBy: [desc(issues.createdAt)],
-					limit: data.limit,
-					offset: data.skip,
-				}),
-			);
-
-			return issueList.map((issue) => ({
-				...issue,
-				labels: issue.labels as string[] | null,
-			}));
-		}),
+				return issueList.map((issue) => ({
+					...issue,
+					labels: issue.labels as string[] | null,
+				}));
+			},
+		),
 	);
 
 // Get all issue numbers for a repo — used to resolve `#123` references in
@@ -107,24 +105,20 @@ export const getIssues = createServerFn({ method: "GET" })
 export const getIssueNumbers = createServerFn({ method: "GET" })
 	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
 	.handler(async ({ data }) =>
-		perfContext(`getIssueNumbers repo=${data.repoId}`, async () => {
-			const user = await perfStep("getCurrentUserOptional", () =>
-				getCurrentUserOptional(),
-			);
+		readWithAccess(
+			`getIssueNumbers repo=${data.repoId}`,
+			data.repoId,
+			async () => {
+				const rows = await perfStep("db: issues ids", () =>
+					db
+						.select({ id: issues.id })
+						.from(issues)
+						.where(eq(issues.repoId, data.repoId)),
+				);
 
-			await perfStep("requireReadAccess", () =>
-				requireReadAccess(data.repoId, user?.id),
-			);
-
-			const rows = await perfStep("db: issues ids", () =>
-				db
-					.select({ id: issues.id })
-					.from(issues)
-					.where(eq(issues.repoId, data.repoId)),
-			);
-
-			return rows.map((row) => row.id);
-		}),
+				return rows.map((row) => row.id);
+			},
+		),
 	);
 
 // Get issue by ID

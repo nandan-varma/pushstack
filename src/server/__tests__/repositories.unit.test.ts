@@ -120,6 +120,18 @@ vi.mock("../repo-access", () => ({
 		}
 		return repo;
 	}),
+	requireOwner: vi.fn(
+		async (_repoId: number, userId: string, message: string) => {
+			const repo = await mockDb.query.repositories.findFirst();
+			if (!repo) {
+				throw new Error("Repository not found");
+			}
+			if (repo.ownerId !== userId) {
+				throw new Error(message);
+			}
+			return repo;
+		},
+	),
 }));
 
 describe("Repository Unit Tests", () => {

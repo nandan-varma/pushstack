@@ -22,10 +22,11 @@ import {
 	canModerateRepo,
 	canReadRepo,
 	getAccessForRepository,
-	getRepoOrThrow,
 	getRepositoryAccess,
+	requireOwner,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
+import { createTtlCoalescedCache } from "./ttl-cache";
 
 // Repository name flows into a real filesystem path.join (getRepoPath, for
 // local disk hydration on write) and into R2 storage keys — must start/end
@@ -63,11 +64,9 @@ type RepoByNameRow = {
 // coalescing, invalidated explicitly on rename/visibility/delete below so
 // mutations aren't masked by the TTL window.
 const REPO_ROW_CACHE_TTL_MS = 5000;
-const repoRowCache = new Map<
-	string,
-	{ value: RepoByNameRow | null; at: number }
->();
-const repoRowInFlight = new Map<string, Promise<RepoByNameRow | null>>();
+const repoRowCache = createTtlCoalescedCache<RepoByNameRow | null>({
+	ttlMs: REPO_ROW_CACHE_TTL_MS,
+});
 
 function repoRowCacheKey(owner: string, name: string): string {
 	return `${owner}/${name}`;
@@ -83,30 +82,15 @@ async function fetchRepoRowByName(
 ): Promise<RepoByNameRow | null> {
 	const key = repoRowCacheKey(owner, name);
 
-	const cached = repoRowCache.get(key);
-	if (cached && Date.now() - cached.at < REPO_ROW_CACHE_TTL_MS) {
-		return cached.value;
-	}
-
-	const existing = repoRowInFlight.get(key);
-	if (existing) return existing;
-
-	const promise = db
-		.select({ repo: repositories, owner: user })
-		.from(repositories)
-		.innerJoin(user, eq(repositories.ownerId, user.id))
-		.where(and(eq(user.username, owner), eq(repositories.name, name)))
-		.limit(1)
-		.then(([row]) => row ?? null);
-
-	repoRowInFlight.set(key, promise);
-	try {
-		const result = await promise;
-		repoRowCache.set(key, { value: result, at: Date.now() });
-		return result;
-	} finally {
-		repoRowInFlight.delete(key);
-	}
+	return repoRowCache.get(key, () =>
+		db
+			.select({ repo: repositories, owner: user })
+			.from(repositories)
+			.innerJoin(user, eq(repositories.ownerId, user.id))
+			.where(and(eq(user.username, owner), eq(repositories.name, name)))
+			.limit(1)
+			.then(([row]) => row ?? null),
+	);
 }
 
 // Find repository by owner username and repo name (for git protocol - plain function, not serverFn).
@@ -379,11 +363,11 @@ export const updateRepository = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await getRepoOrThrow(data.id);
-
-		if (repo.ownerId !== user.id) {
-			throw new Error("Only repository owner can update");
-		}
+		const repo = await requireOwner(
+			data.id,
+			user.id,
+			"Only repository owner can update",
+		);
 
 		const isRename = !!data.name && data.name !== repo.name;
 
@@ -461,11 +445,11 @@ export const deleteRepository = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await getRepoOrThrow(data.id);
-
-		if (repo.ownerId !== user.id) {
-			throw new Error("Only repository owner can delete");
-		}
+		const repo = await requireOwner(
+			data.id,
+			user.id,
+			"Only repository owner can delete",
+		);
 
 		const ownerKey = getStorageOwnerKey({
 			id: repo.owner.id,
@@ -506,11 +490,11 @@ export const repackRepository = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await getRepoOrThrow(data.id);
-
-		if (repo.ownerId !== user.id) {
-			throw new Error("Only repository owner can repack");
-		}
+		const repo = await requireOwner(
+			data.id,
+			user.id,
+			"Only repository owner can repack",
+		);
 
 		const ownerKey = getStorageOwnerKey({
 			id: repo.owner.id,
@@ -613,11 +597,11 @@ export const addCollaborator = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await getRepoOrThrow(data.repoId);
-
-		if (repo.ownerId !== user.id) {
-			throw new Error("Only repository owner can add collaborators");
-		}
+		await requireOwner(
+			data.repoId,
+			user.id,
+			"Only repository owner can add collaborators",
+		);
 
 		const [collab] = await db
 			.insert(repositoryCollaborators)
@@ -644,11 +628,11 @@ export const removeCollaborator = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
 
-		const repo = await getRepoOrThrow(data.repoId);
-
-		if (repo.ownerId !== user.id) {
-			throw new Error("Only repository owner can remove collaborators");
-		}
+		await requireOwner(
+			data.repoId,
+			user.id,
+			"Only repository owner can remove collaborators",
+		);
 
 		await db
 			.delete(repositoryCollaborators)
@@ -675,9 +659,11 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 
-		const repo = await getRepoOrThrow(data.repoId);
-		if (repo.ownerId !== currentUser.id)
-			throw new Error("Only the owner can add collaborators");
+		await requireOwner(
+			data.repoId,
+			currentUser.id,
+			"Only the owner can add collaborators",
+		);
 
 		const target = await db.query.user.findFirst({
 			where: eq(user.username, data.username),

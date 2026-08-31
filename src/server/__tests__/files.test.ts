@@ -21,13 +21,23 @@ const mockRepo = {
 	owner: { id: "user123", username: "testuser", email: "test@example.com" },
 };
 
-vi.mock("../repo-access", () => ({
-	getRepoOrThrow: vi.fn(() => Promise.resolve(mockRepo)),
-	requireReadAccess: vi.fn(() => Promise.resolve()),
-	requireWriteAccess: vi.fn(() => Promise.resolve()),
-	getRepoWithReadAccess: vi.fn(() => Promise.resolve(mockRepo)),
-	getRepoWithWriteAccess: vi.fn(() => Promise.resolve(mockRepo)),
-}));
+vi.mock("../repo-access", () => {
+	const getRepoWithReadAccess = vi.fn(() => Promise.resolve(mockRepo));
+	return {
+		getRepoOrThrow: vi.fn(() => Promise.resolve(mockRepo)),
+		requireReadAccess: vi.fn(() => Promise.resolve()),
+		requireWriteAccess: vi.fn(() => Promise.resolve()),
+		getRepoWithReadAccess,
+		getRepoWithWriteAccess: vi.fn(() => Promise.resolve(mockRepo)),
+		readWithAccess: vi.fn(
+			async (
+				_label: string,
+				repoId: number,
+				fn: (repo: typeof mockRepo) => unknown,
+			) => fn(await getRepoWithReadAccess(repoId)),
+		),
+	};
+});
 
 vi.mock("../git-storage-naming", () => ({
 	getRepoStorageCoordinates: vi.fn(() => ({ ownerKey: "user123" })),

@@ -2,7 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { repositories, repositoryCollaborators } from "../db/github-schema";
 import { user } from "../db/schema";
-import { perfNote } from "./perf-log";
+import { perfContext, perfNote, perfStep } from "./perf-log";
+import { getCurrentUserOptional } from "./session";
+import { createTtlCoalescedCache } from "./ttl-cache";
 
 export type CollaboratorRole = "read" | "write" | "admin";
 export type RepositoryPermissionRole =
@@ -55,11 +57,12 @@ async function getCollaboratorRole(
 // effect within a few seconds, not linger for the lifetime of the process like the
 // long-lived git object cache does.
 const ACCESS_CACHE_TTL_MS = 4000;
-const accessCache = new Map<
-	string,
-	{ value: RepositoryAccess | null; at: number }
->();
-const accessInFlight = new Map<string, Promise<RepositoryAccess | null>>();
+const accessCache = createTtlCoalescedCache<RepositoryAccess | null>({
+	ttlMs: ACCESS_CACHE_TTL_MS,
+	onHit: (key) => perfNote(`repo-access cache HIT ${key}`),
+	onMiss: (key) => perfNote(`repo-access cache MISS ${key}, fetching`),
+	onCoalesce: (key) => perfNote(`repo-access in-flight coalesce ${key}`),
+});
 
 function accessCacheKey(repoId: number, userId?: string | null): string {
 	return `${repoId}:${userId ?? "anon"}`;
@@ -112,10 +115,7 @@ export function primeRepositoryAccessCache(
 	userId: string | null | undefined,
 	access: RepositoryAccess,
 ): void {
-	accessCache.set(accessCacheKey(repoId, userId), {
-		value: access,
-		at: Date.now(),
-	});
+	accessCache.set(accessCacheKey(repoId, userId), access);
 }
 
 async function resolveRepositoryAccess(
@@ -124,23 +124,11 @@ async function resolveRepositoryAccess(
 ): Promise<RepositoryAccess | null> {
 	const key = accessCacheKey(repoId, userId);
 
-	const cached = accessCache.get(key);
-	if (cached && Date.now() - cached.at < ACCESS_CACHE_TTL_MS) {
-		perfNote(`repo-access cache HIT ${key}`);
-		return cached.value;
-	}
-
-	const existing = accessInFlight.get(key);
-	if (existing) {
-		perfNote(`repo-access in-flight coalesce ${key}`);
-		return existing;
-	}
-
-	perfNote(`repo-access cache MISS ${key}, fetching`);
-	// ponytail: fire the collaborator lookup alongside the repo fetch instead of
-	// after it — most callers here are non-owners, so this is a real round trip
-	// most of the time; the rare owner case just discards the wasted query below.
-	const promise = (async () => {
+	return accessCache.get(key, async () => {
+		// ponytail: fire the collaborator lookup alongside the repo fetch instead
+		// of after it — most callers here are non-owners, so this is a real round
+		// trip most of the time; the rare owner case just discards the wasted
+		// query below.
 		const [repository, speculativeCollaboratorRole] = await Promise.all([
 			fetchRepoRow(repoId),
 			userId ? getCollaboratorRole(repoId, userId) : Promise.resolve(null),
@@ -148,16 +136,7 @@ async function resolveRepositoryAccess(
 
 		if (!repository) return null;
 		return buildAccess(repository, userId, speculativeCollaboratorRole);
-	})();
-
-	accessInFlight.set(key, promise);
-	try {
-		const result = await promise;
-		accessCache.set(key, { value: result, at: Date.now() });
-		return result;
-	} finally {
-		accessInFlight.delete(key);
-	}
+	});
 }
 
 export async function getRepositoryAccess(
@@ -370,4 +349,43 @@ export async function getRepoWithWriteAccess(
 	const repository = await ensureRepositoryOwner(repoId, access.repository);
 	if (!repository) throw new Error("Repository not found");
 	return repository;
+}
+
+// files.ts/issues.ts/pull-requests.ts each repeated the same four lines at
+// nearly every read-side server function: wrap in perfContext, resolve the
+// optional current user, resolve read access (throwing if denied), then run
+// the actual read. This is that shape as one call — `fn` gets the resolved
+// repository (already access-checked) for handlers that need its storage
+// coordinates; handlers that only need the access gate can ignore it, since
+// the underlying resolveRepositoryAccess call is the same either way (and
+// shares its short-TTL cache with any sibling call for the same repoId+user).
+export async function readWithAccess<T>(
+	label: string,
+	repoId: number,
+	fn: (repo: Awaited<ReturnType<typeof getRepoWithReadAccess>>) => Promise<T>,
+): Promise<T> {
+	return perfContext(label, async () => {
+		const currentUser = await perfStep("getCurrentUserOptional", () =>
+			getCurrentUserOptional(),
+		);
+		const repo = await perfStep("getRepoWithReadAccess", () =>
+			getRepoWithReadAccess(repoId, currentUser?.id),
+		);
+		return fn(repo);
+	});
+}
+
+// repositories.ts repeated "fetch the repo, throw unless the caller is its
+// owner" at every owner-only action (rename, delete, repack, manage
+// collaborators) — same two lines, only the error message differed.
+export async function requireOwner(
+	repoId: number,
+	userId: string,
+	message: string,
+) {
+	const repo = await getRepoOrThrow(repoId);
+	if (repo.ownerId !== userId) {
+		throw new Error(message);
+	}
+	return repo;
 }

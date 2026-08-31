@@ -13,12 +13,25 @@ vi.mock("../session", () => ({
 	getCurrentUserOptional: vi.fn(() => Promise.resolve(mockUser)),
 }));
 
-vi.mock("../repo-access", () => ({
-	requireWriteAccess: vi.fn(() => Promise.resolve()),
-	requireReadAccess: vi.fn(() => Promise.resolve()),
-	getAccessForRepository: vi.fn(() => Promise.resolve({ canRead: true })),
-	canWriteRepo: vi.fn(() => Promise.resolve(true)),
-}));
+vi.mock("../repo-access", () => {
+	const requireReadAccess = vi.fn(() => Promise.resolve());
+	return {
+		requireWriteAccess: vi.fn(() => Promise.resolve()),
+		requireReadAccess,
+		getAccessForRepository: vi.fn(() => Promise.resolve({ canRead: true })),
+		canWriteRepo: vi.fn(() => Promise.resolve(true)),
+		readWithAccess: vi.fn(
+			async (
+				_label: string,
+				repoId: number,
+				fn: (repo: undefined) => unknown,
+			) => {
+				await requireReadAccess(repoId);
+				return fn(undefined);
+			},
+		),
+	};
+});
 
 const mockDb = {
 	insert: vi.fn(() => ({
