@@ -14,7 +14,7 @@ import {
 	R2DownloadError,
 	R2UploadError,
 } from "#/server/git-errors";
-import { perfR2 } from "#/server/perf-log";
+import { logError, logWarn, perfNote, perfR2 } from "#/server/perf-log";
 import { getR2Client, getR2Config } from "./r2";
 
 export interface R2File {
@@ -98,8 +98,10 @@ async function withRetry<T>(
 			const jitter = Math.random() * baseDelay * 0.3;
 			const delay = baseDelay + jitter;
 
-			console.log(
-				`${operation} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${Math.round(delay)}ms...`,
+			logWarn(
+				"r2-operations",
+				`${operation} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${Math.round(delay)}ms`,
+				error,
 			);
 
 			await new Promise((resolve) => setTimeout(resolve, delay));
@@ -270,8 +272,8 @@ export async function listAllR2Files(prefix?: string): Promise<R2File[]> {
 		} while (continuationToken);
 
 		if (pages > 1) {
-			console.log(
-				`[perf] R2 LIST-ALL ${prefix ?? ""} paginated across ${pages} pages (${files.length} keys)`,
+			perfNote(
+				`R2 LIST-ALL ${prefix ?? ""} paginated across ${pages} pages (${files.length} keys)`,
 			);
 		}
 
@@ -532,7 +534,7 @@ export async function bulkDeleteFromR2(
 			);
 		} catch (error) {
 			errors += chunk.length;
-			console.error("Bulk delete failed:", error);
+			logError("r2-operations", "Bulk delete failed", error);
 		}
 	}
 

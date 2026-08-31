@@ -17,6 +17,9 @@ vi.mock("#/lib/r2", () => ({
 vi.mock("#/server/perf-log", () => ({
 	perfR2: (_label: string, fn: () => Promise<unknown>) => fn(),
 	perfStep: (_label: string, fn: () => Promise<unknown>) => fn(),
+	perfNote: () => {},
+	logWarn: () => {},
+	logError: () => {},
 }));
 
 // Circuit breaker state is module-level; to get a clean slate for each test we
