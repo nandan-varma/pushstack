@@ -18,9 +18,12 @@ export const Route = createFileRoute("/repo/$owner/$name/setup")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			await queryClient.ensureQueryData(
-				repositoryBranchesQueryOptions(repo.id),
-			);
+			// Only used for a branch count display below — fire-and-forget
+			// (same pattern as the tree page's loader) rather than blocking
+			// route commit on it.
+			queryClient
+				.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
+				.catch(() => {});
 		}
 	},
 	component: RouteComponent,
