@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 test.describe('Route Navigation E2E', () => {
   test('home page renders hero content', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('h1')).toContainText('Build, collaborate, and ship together')
+    await expect(page.locator('h1')).toContainText('The forge for teams that ship their own way.')
   })
 
   test('navigating to login via Sign In link shows login form', async ({ page }) => {
@@ -28,14 +28,14 @@ test.describe('Route Navigation E2E', () => {
 
   test('back button restores previous page content', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('h1')).toContainText('Build, collaborate')
+    await expect(page.locator('h1')).toContainText('The forge for teams')
 
     await page.click('text=Sign In')
     await expect(page).toHaveURL('/auth/login')
 
     await page.goBack()
     await expect(page).toHaveURL('/')
-    await expect(page.locator('h1')).toContainText('Build, collaborate')
+    await expect(page.locator('h1')).toContainText('The forge for teams')
   })
 
   test('about page renders via direct navigation', async ({ page }) => {
@@ -52,7 +52,7 @@ test.describe('Route Navigation E2E', () => {
 
   test('sign-up link on login page navigates to register', async ({ page }) => {
     await page.goto('/auth/login')
-    await page.click('text=Create an account')
+    await page.click('text=Create one')
     await expect(page).toHaveURL('/auth/register')
   })
 })

@@ -45,6 +45,12 @@ const gitOpsMocks = {
 	deleteBranch: vi.fn(() => Promise.resolve()),
 	getCommitHistory: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
 	getCommit: vi.fn((): Promise<unknown> => Promise.resolve({})),
+	getLastCommitsForTree: vi.fn((): Promise<unknown> => Promise.resolve({})),
+	getFileHistory: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+	getCommitDiff: vi.fn((): Promise<unknown> => Promise.resolve({ files: [] })),
+	getDiffBetweenBranches: vi.fn(
+		(): Promise<unknown> => Promise.resolve({ files: [] }),
+	),
 };
 
 vi.mock("../git-commit-write", () => ({
@@ -62,9 +68,16 @@ vi.mock("../git-history-ops", () => ({
 	getCommitHistory: gitOpsMocks.getCommitHistory,
 	getCommit: gitOpsMocks.getCommit,
 }));
+vi.mock("../git-last-commit", () => ({
+	getLastCommitsForTree: gitOpsMocks.getLastCommitsForTree,
+}));
+vi.mock("../git-file-history", () => ({
+	getFileHistory: gitOpsMocks.getFileHistory,
+	HISTORY_WALK_DEPTH: 400,
+}));
 vi.mock("../git-diff-iso", () => ({
-	getCommitDiff: vi.fn(),
-	getBranchDiff: vi.fn(),
+	getCommitDiff: gitOpsMocks.getCommitDiff,
+	getDiffBetweenBranches: gitOpsMocks.getDiffBetweenBranches,
 }));
 
 vi.mock("../../db", () => ({
@@ -77,6 +90,13 @@ vi.mock("../../db", () => ({
 }));
 
 const traversalPaths = ["../../../etc/passwd", "/etc/passwd", ".git/config"];
+const traversalBranchNames = [
+	"../../other-owner/other-repo/git/refs/heads/main",
+	"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
+	"refs/heads/main",
+	"..",
+	"HEAD",
+];
 
 describe("file path traversal guard", () => {
 	beforeEach(() => {
@@ -420,6 +440,193 @@ describe("file path traversal guard", () => {
 			expect(result.parent).toEqual(["parent1"]);
 			expect(result.author.name).toBe("Bob");
 			expect(result.committer.name).toBe("Bob");
+		});
+	});
+
+	describe("getLastCommits", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it.each(traversalPaths)("rejects path %s", async (path) => {
+			const { getLastCommits } = await import("../files");
+			await expect(
+				getLastCommits({ data: { repoId: 1, branchName: "main", path } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.getLastCommitsForTree).not.toHaveBeenCalled();
+		});
+
+		it("returns the per-path last-commit map", async () => {
+			gitOpsMocks.getLastCommitsForTree.mockResolvedValueOnce({
+				"src/index.ts": { sha: "abc123", message: "init" },
+			});
+
+			const { getLastCommits } = await import("../files");
+			const result = await getLastCommits({
+				data: { repoId: 1, branchName: "main", path: "src" },
+			});
+
+			expect(result).toEqual({
+				"src/index.ts": { sha: "abc123", message: "init" },
+			});
+			expect(gitOpsMocks.getLastCommitsForTree).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"main",
+				"src",
+			);
+		});
+
+		it("accepts a full commit SHA as branchName", async () => {
+			const sha = "a".repeat(40);
+			const { getLastCommits } = await import("../files");
+			await getLastCommits({ data: { repoId: 1, branchName: sha } });
+			expect(gitOpsMocks.getLastCommitsForTree).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				sha,
+				"",
+			);
+		});
+	});
+
+	describe("getFileHistory", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it.each(traversalPaths)("rejects path %s", async (path) => {
+			const { getFileHistory } = await import("../files");
+			await expect(
+				getFileHistory({ data: { repoId: 1, branchName: "main", path } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.getFileHistory).not.toHaveBeenCalled();
+		});
+
+		it("rejects maxDepth above HISTORY_WALK_DEPTH", async () => {
+			const { getFileHistory } = await import("../files");
+			await expect(
+				getFileHistory({
+					data: {
+						repoId: 1,
+						branchName: "main",
+						path: "src/index.ts",
+						maxDepth: 401,
+					},
+				}),
+			).rejects.toThrow();
+			expect(gitOpsMocks.getFileHistory).not.toHaveBeenCalled();
+		});
+
+		it("defaults limit to 30 and maxDepth to HISTORY_WALK_DEPTH", async () => {
+			const { getFileHistory } = await import("../files");
+			await getFileHistory({
+				data: { repoId: 1, branchName: "main", path: "src/index.ts" },
+			});
+			expect(gitOpsMocks.getFileHistory).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"main",
+				"src/index.ts",
+				30,
+				400,
+			);
+		});
+
+		it("passes through an explicit limit and maxDepth", async () => {
+			const { getFileHistory } = await import("../files");
+			await getFileHistory({
+				data: {
+					repoId: 1,
+					branchName: "main",
+					path: "src/index.ts",
+					limit: 5,
+					maxDepth: 10,
+				},
+			});
+			expect(gitOpsMocks.getFileHistory).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"main",
+				"src/index.ts",
+				5,
+				10,
+			);
+		});
+	});
+
+	describe("getCommitDiff", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("returns the diff for a commit sha", async () => {
+			const sha = "b".repeat(40);
+			gitOpsMocks.getCommitDiff.mockResolvedValueOnce({
+				files: [{ path: "a.ts", additions: 1, deletions: 0 }],
+			});
+
+			const { getCommitDiff } = await import("../files");
+			const result = await getCommitDiff({
+				data: { repoId: 1, commitSha: sha },
+			});
+
+			expect(result).toEqual({
+				files: [{ path: "a.ts", additions: 1, deletions: 0 }],
+			});
+			expect(gitOpsMocks.getCommitDiff).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				sha,
+			);
+		});
+
+		it("rejects a malformed commit sha", async () => {
+			const { getCommitDiff } = await import("../files");
+			await expect(
+				getCommitDiff({ data: { repoId: 1, commitSha: "not-a-sha" } }),
+			).rejects.toThrow();
+			expect(gitOpsMocks.getCommitDiff).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("getBranchDiff", () => {
+		beforeEach(() => {
+			vi.clearAllMocks();
+		});
+
+		it("returns the diff between two branches", async () => {
+			gitOpsMocks.getDiffBetweenBranches.mockResolvedValueOnce({
+				files: [{ path: "b.ts", additions: 2, deletions: 1 }],
+			});
+
+			const { getBranchDiff } = await import("../files");
+			const result = await getBranchDiff({
+				data: { repoId: 1, sourceBranch: "feature", targetBranch: "main" },
+			});
+
+			expect(result).toEqual({
+				files: [{ path: "b.ts", additions: 2, deletions: 1 }],
+			});
+			// getBranchDiff computes target...source (base first) for PR diffs
+			expect(gitOpsMocks.getDiffBetweenBranches).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"main",
+				"feature",
+			);
+		});
+
+		it.each(
+			traversalBranchNames,
+		)("rejects sourceBranch %s", async (sourceBranch) => {
+			const { getBranchDiff } = await import("../files");
+			await expect(
+				getBranchDiff({
+					data: { repoId: 1, sourceBranch, targetBranch: "main" },
+				}),
+			).rejects.toThrow();
+			expect(gitOpsMocks.getDiffBetweenBranches).not.toHaveBeenCalled();
 		});
 	});
 });

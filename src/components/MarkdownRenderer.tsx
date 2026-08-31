@@ -77,12 +77,37 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
 	);
 }
 
+// Minimal-safe fallback anchor/image renderers, used regardless of whether
+// owner/name context is available (see the ReactMarkdown urlTransform note
+// below — these are the *only* sanitization layer now, so every render path
+// must go through them, not just the owner+name-aware one below).
+const safeAnchor: Components["a"] = ({ href, children, ...props }) => {
+	if (!href || !isSafeHref(href)) return <>{children}</>;
+	if (isExternalLink(href)) {
+		return (
+			<a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+				{children}
+			</a>
+		);
+	}
+	return (
+		<a href={href} {...props}>
+			{children}
+		</a>
+	);
+};
+
+const safeImg: Components["img"] = ({ src, alt, ...props }) => {
+	if (!src || !isSafeImageSrc(src)) return null;
+	return <img src={src} alt={alt ?? ""} {...props} />;
+};
+
 function buildComponents(
 	owner?: string,
 	name?: string,
 	branch?: string,
 ): Components {
-	const base: Components = { pre: CodeBlock };
+	const base: Components = { pre: CodeBlock, a: safeAnchor, img: safeImg };
 	if (!owner || !name) return base;
 
 	return {
@@ -207,6 +232,14 @@ export default function MarkdownRenderer({
 				remarkPlugins={remarkPlugins}
 				rehypePlugins={[rehypeHighlight]}
 				components={components}
+				// react-markdown's own default urlTransform blocks any scheme
+				// outside (https?|ircs?|mailto|xmpp) — including data:, which
+				// silently broke isSafeImageSrc's inline-base64-image allowance
+				// (it never got a chance to run: the src was already emptied
+				// out before reaching our `img` renderer). isSafeHref/
+				// isSafeImageSrc are the sole sanitization layer now, applied
+				// unconditionally by safeAnchor/safeImg above.
+				urlTransform={(value) => value}
 			>
 				{content}
 			</ReactMarkdown>

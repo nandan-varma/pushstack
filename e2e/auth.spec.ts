@@ -1,5 +1,5 @@
-import { neon } from '@neondatabase/serverless'
 import { test, expect } from '@playwright/test'
+import { dbClient, deleteTestUser, gotoAndWaitForHydration, verifyUserEmail } from './helpers'
 
 // Generate unique test credentials for each test run
 const timestamp = Date.now()
@@ -9,31 +9,6 @@ const testUser = {
   email: `pushstack.test.${timestamp}@gmail.com`,
   password: 'SecurePassword123!',
   invalidPassword: 'WrongPassword123!',
-}
-
-// The app requires email verification before a session can be created
-// (see requireEmailVerification: true in src/lib/auth.ts), so sign-up never
-// auto-logs a user in. There's no way to read the real verification email in
-// this environment, so these helpers flip the same DB column the real
-// verify-email link would flip, using the app's actual Postgres database —
-// this is real DB state, not a mock of any app behavior.
-function dbClient() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not set — cannot verify test user email')
-  }
-  return neon(process.env.DATABASE_URL)
-}
-
-async function verifyUserEmail(email: string) {
-  const sql = dbClient()
-  await sql`UPDATE "user" SET "emailVerified" = true WHERE email = ${email}`
-}
-
-async function deleteTestUser(email: string) {
-  const sql = dbClient()
-  await sql`DELETE FROM "session" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${email})`
-  await sql`DELETE FROM "account" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${email})`
-  await sql`DELETE FROM "user" WHERE email = ${email}`
 }
 
 test.describe('Authentication Flow E2E', () => {
@@ -80,7 +55,7 @@ test.describe('Authentication Flow E2E', () => {
     })
 
     test('should reject invalid credentials', async ({ page }) => {
-      await page.goto('/auth/login')
+      await gotoAndWaitForHydration(page, '/auth/login')
 
       // Fill in invalid credentials
       const invalidEmail = `nonexistent${Date.now()}@testmail.com`
@@ -102,7 +77,7 @@ test.describe('Authentication Flow E2E', () => {
     })
 
     test('should successfully register a new user', async ({ page }) => {
-      await page.goto('/auth/register')
+      await gotoAndWaitForHydration(page, '/auth/register')
 
       // Fill in registration form
       await page.locator('input#name').fill(testUser.name)
@@ -112,10 +87,13 @@ test.describe('Authentication Flow E2E', () => {
       await page.locator('input#confirmPassword').fill(testUser.password)
 
       // Submit the form. The app requires email verification before a
-      // session exists, so signUp does not log the user in — it bounces
-      // back to /auth/login instead of landing on /dashboard.
+      // session exists, so signUp does not log the user in — it stays on
+      // /auth/register and swaps in a "Check your email" confirmation panel
+      // (see RegisterPage's verificationEmail state) rather than navigating
+      // anywhere.
       await page.click('button[type="submit"]')
-      await expect(page).toHaveURL(/\/auth\/login/, { timeout: 15000 })
+      await expect(page.locator('h1')).toContainText('Check your email', { timeout: 15000 })
+      await expect(page.getByText(testUser.email)).toBeVisible()
 
       // Confirm the account actually exists in the real DB before verifying it.
       const sql = dbClient()
@@ -131,7 +109,7 @@ test.describe('Authentication Flow E2E', () => {
     // counts every sign-in POST *and* every get-session GET the header fires
     // on each navigation, so re-logging-in via the UI per assertion trips it.
     test('should login, persist session across reload, and log out', async ({ page }) => {
-      await page.goto('/auth/login')
+      await gotoAndWaitForHydration(page, '/auth/login')
       await page.locator('input#identifier').fill(testUser.email)
       await page.locator('input#password').fill(testUser.password)
 
