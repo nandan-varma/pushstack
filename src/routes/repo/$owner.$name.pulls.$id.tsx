@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm } from "@/components/CommentForm";
 import {
@@ -11,7 +11,6 @@ import {
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
-import MarkdownRenderer from "@/components/MarkdownRenderer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { pullRequestStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
@@ -20,6 +19,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import {
 	authSessionQueryOptions,
@@ -34,6 +34,11 @@ import {
 import { getInitials } from "@/lib/utils/avatar";
 import { createComment } from "@/server/comments";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
+
+// react-markdown/remark-gfm/rehype-highlight are lazy-loaded here (same
+// pattern as CommentCard.tsx/FilePreview.tsx) so this route's chunk doesn't
+// eagerly ship them to every visitor.
+const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -309,12 +314,14 @@ function PullRequestDetailPage() {
 							</span>
 						</div>
 						{pr.body ? (
-							<MarkdownRenderer
-								content={pr.body}
-								owner={owner}
-								name={name}
-								repoId={pr.repoId}
-							/>
+							<Suspense fallback={<Skeleton className="h-20" />}>
+								<MarkdownRenderer
+									content={pr.body}
+									owner={owner}
+									name={name}
+									repoId={pr.repoId}
+								/>
+							</Suspense>
 						) : (
 							<p className="text-muted-foreground italic">
 								No description provided
