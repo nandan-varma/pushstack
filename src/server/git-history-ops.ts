@@ -69,7 +69,12 @@ export async function getFileContent(
 	ref: string = "main",
 ): Promise<Buffer> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	const blob = await opsGetFileContent(repo, filePath, ref);
+	const blob = await opsGetFileContent(
+		repo,
+		filePath,
+		ref,
+		opsHooksFor(ownerKey, repoName),
+	);
 	return Buffer.from(blob);
 }
 
@@ -118,7 +123,12 @@ export async function getFileFromBranch(
 	filePath: string,
 ): Promise<{ content: string; size: number; isBinary: boolean }> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	return getFileFromRef(repo, filePath, branchName);
+	return getFileFromRef(
+		repo,
+		filePath,
+		branchName,
+		opsHooksFor(ownerKey, repoName),
+	);
 }
 
 export async function getTreeFromBranch(
