@@ -101,12 +101,14 @@ jail to the current repo's own directory.
 
 That alone would be contained if the storage layer re-verified containment
 the way `getRepoPath` does for repository names (see above) — but it doesn't.
-`git-r2-backend.ts`'s `readFile`/`writeFile`/`unlink` derive the target
-`{ownerKey, repoName}` by calling `parseGitDir(filepath)` on the **already
-`join()`-normalized** filepath isomorphic-git hands them — not from any fixed,
-trusted context tied to the repository the caller thinks it's operating on.
-Once a `../`-laden ref name collapses to a path like
-`repos/{victim-owner}/{victim-repo}/git/refs/heads/main`, the R2 backend
+The object-store `fs` (`git-fs.ts`, built on `git-fs-s3`'s `createGitFs`) has
+no notion of "which repo this request belongs to" — it's constructed with no
+key prefix (gitdirs are the full storage roots), and maps whatever path
+isomorphic-git hands it straight onto an R2 key, normalized only to resolve
+`.`/`..` segments and reject one that would escape the *store's own* root
+(`git-fs-s3`'s `normalizePath`) — not any specific repository's gitdir. Once a
+`../`-laden ref name collapses to a path like
+`repos/{victim-owner}/{victim-repo}/git/refs/heads/main`, the store
 reads/writes/deletes exactly that key — the *victim's* real ref file — even
 though the operation started against the attacker's own repo's `gitdir`. This
 was directly exploitable in production (R2 configured is the deployed

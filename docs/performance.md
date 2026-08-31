@@ -167,17 +167,17 @@ sequential part, not fighting the dependency.
 
 ## Case study: a "safety check" that was itself the bug
 
-`git-http-iso.ts`'s `repackLocal` consolidates a push's fragmented pack files
-into one, but for a long time the consolidation only ever happened *locally*
-— nothing told R2 to delete the packs it had just made redundant
-(`syncRepositoryToR2Unlocked` deliberately never deletes anything under
-`objects/`, for good reason — see [git-storage.md](./git-storage.md)). The
-result: every single push left one more permanent pack file in R2, forever,
-making both future pushes (more to hydrate) and clones (more packs to
-prefetch) slower as history grew — completely defeating the point of
-consolidating in the first place.
+`git-fs-s3/http`'s `repackRepository` (called from `handleReceivePackIso` via
+`applyReceivePack`) consolidates a push's fragmented pack files into one, but
+for a long time the consolidation only ever happened *locally* — nothing told
+R2 to delete the packs it had just made redundant (`syncRepositoryToR2Unlocked`
+deliberately never deletes anything under `objects/`, for good reason — see
+[git-storage.md](./git-storage.md)). The result: every single push left one
+more permanent pack file in R2, forever, making both future pushes (more to
+hydrate) and clones (more packs to prefetch) slower as history grew —
+completely defeating the point of consolidating in the first place.
 
-Fixing that alone wasn't enough, because `repackLocal`'s own safety check
+Fixing that alone wasn't enough, because `repackRepository`'s own safety check
 (only delete old packs if the new pack's object count is at least as high as
 the old packs' combined count — a guard against an incomplete traversal
 silently losing objects) was **structurally broken**: the moment packs ever
@@ -227,9 +227,9 @@ Two places read a pack listing this way, and the fix differs between them:
   has finished, closing this side of the race entirely. It still tolerates a
   404 as "superseded" rather than fatal, as defense in depth, but shouldn't
   actually hit it via this path anymore.
-- `collectReachableOids` (`git-http-iso.ts`, serves clone/fetch) races this
+- `collectReachableOids` (`git-fs-s3/http`, serves clone/fetch) races this
   window unavoidably: reads are deliberately lock-free (see
-  [git-storage.md](./git-storage.md)'s "Reads: `git-r2-backend.ts`"), so no
+  [git-storage.md](./git-storage.md)'s "Reads: `git-fs.ts`"), so no
   amount of moving cleanup around inside the *write* lock changes when a
   concurrent *read* observes it. Taking the write lock on every read would
   reintroduce exactly the latency read/write separation exists to avoid, for

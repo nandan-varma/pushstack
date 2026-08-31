@@ -1,5 +1,24 @@
 # Handoff — production readiness + performance audit
 
+> **Update, later session (2026-08-30/31):** a follow-up session did a
+> codebase-wide simplification/dedup pass across all three repos (pushstack,
+> `git-fs-s3`, `git-edge`) — unrelated in goal to the perf audit below, but it
+> moved several of the things this doc's "current state" section names.
+> Current versions: `git-fs-s3` is now **0.3.11** (dedup-only: shared
+> `DiffFile` construction, loose-ref fs access, ref-CAS check; no public API
+> change), `git-edge` is now **0.2.1** (removed 3 unused exports, and
+> replaced its hand-rolled lockstep line merge — the "not diff3/libgit2"
+> content-merge mentioned in its own README — with a real diff3 algorithm via
+> `node-diff3`, fixing a real false-conflict/corruption bug). pushstack's
+> per-repo Postgres-lease locking (`withRepositoryLock`/`acquireRepoLock`/
+> `releaseRepoLock`) moved out of `git-repo-storage.ts` into its own
+> `git-repo-lock.ts`, which `git-repo-storage.ts` still re-exports from, so no
+> call site changed. All three repos' docs were updated to match in the same
+> session. This session did **not** touch Vercel/production deployment state
+> at all (no `pnpm deploy`, no Vercel MCP calls) — the "Current state" section
+> immediately below reflects only the state as of the *original* session; it
+> was not re-verified against production and may now be stale on that front.
+
 Session goal: audit pushstack for production readiness, add Sentry, then do a
 real cold/warm performance sweep and fix what's actually slow — with an
 explicit constraint (stated by the user partway through): **no caching
