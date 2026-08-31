@@ -23,9 +23,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import {
 	authSessionQueryOptions,
+	pullRequestByNumberQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestDiffQueryOptions,
-	pullRequestQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
@@ -42,12 +42,11 @@ const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
-		const prId = Number(params.id);
-		const isValidPrId = Number.isFinite(prId);
-		// The PR/comments queries key off params.id, not the repo — no need to
-		// wait on the repo fetch before starting them. A fixed 3-element tuple
-		// (rather than conditionally spreading) keeps `pr` positionally typed
-		// instead of widening to a union of every possible array element.
+		const prNumber = Number(params.id);
+		const isValidNumber = Number.isFinite(prNumber);
+		// getPullRequestByNumber resolves the repo server-side, so this can
+		// still run in parallel with the repo query below rather than waiting
+		// on it.
 		const [repo, pr] = await Promise.all([
 			queryClient.ensureQueryData(
 				repositoryByNameQueryOptions({
@@ -55,13 +54,24 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 					name: params.name,
 				}),
 			),
-			isValidPrId
-				? queryClient.ensureQueryData(pullRequestQueryOptions(prId))
-				: Promise.resolve(undefined),
-			isValidPrId
-				? queryClient.ensureQueryData(pullRequestCommentsQueryOptions(prId))
+			isValidNumber
+				? queryClient.ensureQueryData(
+						pullRequestByNumberQueryOptions({
+							owner: params.owner,
+							name: params.name,
+							number: prNumber,
+						}),
+					)
 				: Promise.resolve(undefined),
 		]);
+
+		// Comments are keyed by the PR's internal id, only known once the PR
+		// itself has resolved — can't start this in parallel with it.
+		if (pr) {
+			await queryClient
+				.ensureQueryData(pullRequestCommentsQueryOptions(pr.id))
+				.catch(() => {});
+		}
 
 		// MarkdownRenderer (PR body + comments) resolves `#123` references using
 		// these — fire-and-forget so the extra round trip doesn't land after the
@@ -106,10 +116,15 @@ function PullRequestDetailPage() {
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
-	const prId = Number(id);
-	const { data: pr, isLoading } = useQuery(pullRequestQueryOptions(prId));
+	const prNumber = Number(id);
+	const { data: pr, isLoading } = useQuery(
+		pullRequestByNumberQueryOptions({ owner, name, number: prNumber }),
+	);
 
-	const { data: comments } = useQuery(pullRequestCommentsQueryOptions(prId));
+	const { data: comments } = useQuery({
+		...pullRequestCommentsQueryOptions(pr?.id ?? -1),
+		enabled: !!pr,
+	});
 
 	const { data: diff, isLoading: diffLoading } = useQuery({
 		...pullRequestDiffQueryOptions({
@@ -121,7 +136,7 @@ function PullRequestDetailPage() {
 		enabled: !!pr,
 	});
 
-	const prQueryKey = queryKeys.pullRequest(prId);
+	const prQueryKey = queryKeys.pullRequestByNumber(owner, name, prNumber);
 
 	const mergeMutation = useMutation({
 		mutationFn: mergePullRequest,
@@ -178,22 +193,26 @@ function PullRequestDetailPage() {
 		onSuccess: async () => {
 			toast("Comment posted", "success");
 			setNewComment("");
-			await queryClient.invalidateQueries({
-				queryKey: queryKeys.pullRequestComments(prId),
-			});
+			if (pr)
+				await queryClient.invalidateQueries({
+					queryKey: queryKeys.pullRequestComments(pr.id),
+				});
 		},
 	});
 
 	const handleMerge = () => {
-		mergeMutation.mutate({ data: { prId: Number(id) } });
+		if (!pr) return;
+		mergeMutation.mutate({ data: { prId: pr.id } });
 	};
 
 	const handleClose = () => {
-		updateMutation.mutate({ data: { prId: Number(id), status: "closed" } });
+		if (!pr) return;
+		updateMutation.mutate({ data: { prId: pr.id, status: "closed" } });
 	};
 
 	const handleReopen = () => {
-		updateMutation.mutate({ data: { prId: Number(id), status: "open" } });
+		if (!pr) return;
+		updateMutation.mutate({ data: { prId: pr.id, status: "open" } });
 	};
 
 	const handleAddComment = () => {
@@ -201,7 +220,7 @@ function PullRequestDetailPage() {
 		commentMutation.mutate({
 			data: {
 				repoId: pr.repoId,
-				pullRequestId: prId,
+				pullRequestId: pr.id,
 				body: newComment,
 			},
 		});
@@ -241,7 +260,7 @@ function PullRequestDetailPage() {
 				}
 				meta={
 					<p className="flex flex-wrap items-center gap-1 text-muted-foreground">
-						#{pr.id} opened{" "}
+						#{pr.number} opened{" "}
 						{formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{" "}
 						by {pr.author?.name || "Unknown"} •{" "}
 						<span className="inline-flex items-center gap-1">

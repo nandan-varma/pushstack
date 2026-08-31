@@ -9,7 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { activities, repositories } from "../db/github-schema";
+import { activities, repositories } from "../db/app-schema";
 import {
 	createBranch as gitCreateBranch,
 	deleteBranch as gitDeleteBranch,

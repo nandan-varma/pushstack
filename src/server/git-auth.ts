@@ -7,7 +7,7 @@ import crypto from "node:crypto";
 import { verifyPassword } from "better-auth/crypto";
 import { eq, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { gitAuthAttempts, tokens } from "../db/github-schema";
+import { gitAuthAttempts, tokens } from "../db/app-schema";
 import { user } from "../db/schema";
 import { auth } from "../lib/auth";
 import {

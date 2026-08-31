@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "#/db";
-import { repositories, tokens } from "#/db/github-schema";
+import { repositories, tokens } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { initBareRepo } from "#/server/git-manager-iso";
 import { getStorageOwnerKey } from "#/server/git-storage-naming";

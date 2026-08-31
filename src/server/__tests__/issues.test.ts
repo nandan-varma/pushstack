@@ -84,6 +84,14 @@ describe("createIssue", () => {
 	});
 
 	it("creates the issue and logs activity when authorized", async () => {
+		mockDb.update.mockReturnValueOnce({
+			set: vi.fn(() => ({
+				where: vi.fn(() => ({
+					returning: vi.fn(() => [{ nextIssueNumber: 6 }]),
+				})),
+			})),
+		});
+
 		const { createIssue } = await import("../issues");
 
 		const result = await createIssue({
@@ -93,6 +101,10 @@ describe("createIssue", () => {
 		expect(result.title).toBe("Test issue");
 		// One insert for the issue, one for the activity log.
 		expect(mockDb.insert).toHaveBeenCalledTimes(2);
+		// Claims the pre-increment number (5) from the repo's shared counter.
+		const insertValuesCall = mockDb.insert.mock.results[0].value.values.mock
+			.calls[0][0] as { number: number };
+		expect(insertValuesCall.number).toBe(5);
 	});
 });
 
@@ -294,11 +306,11 @@ describe("getIssueNumbers", () => {
 		);
 	});
 
-	it("returns issue ids for the repo when the caller can read", async () => {
+	it("returns issue numbers for the repo when the caller can read", async () => {
 		mockDb.select.mockReturnValueOnce({
 			from: vi.fn(() => ({
 				where: vi.fn(() =>
-					Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+					Promise.resolve([{ number: 10 }, { number: 20 }, { number: 30 }]),
 				),
 			})),
 		});

@@ -62,7 +62,7 @@ const mockCanWrite = vi.hoisted(() => vi.fn());
 const mockVerifyPassword = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db", () => ({ db: mockDb }));
-vi.mock("../../db/github-schema", () => ({
+vi.mock("../../db/app-schema", () => ({
 	tokens: {},
 	gitAuthAttempts: { key: {} },
 }));

@@ -230,7 +230,7 @@ function IssuesPage() {
 						<Link
 							key={issue.id}
 							to="/repo/$owner/$name/issues/$id"
-							params={{ owner, name, id: issue.id.toString() }}
+							params={{ owner, name, id: issue.number.toString() }}
 							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card ${idx < issues.length - 1 ? "border-b border-border" : ""}`}
 						>
 							<div className="min-w-0 flex-1 space-y-1">
@@ -246,7 +246,7 @@ function IssuesPage() {
 									</Badge>
 								</div>
 								<p className="text-xs text-muted-foreground">
-									#{issue.id} opened{" "}
+									#{issue.number} opened{" "}
 									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
 									{issue.author?.name || "Unknown"}
 								</p>

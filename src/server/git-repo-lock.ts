@@ -7,7 +7,7 @@
  */
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "#/db";
-import { repoLocks } from "#/db/github-schema";
+import { repoLocks } from "#/db/app-schema";
 import { isR2Configured } from "#/lib/r2";
 import {
 	beginGitTransaction,
@@ -21,7 +21,7 @@ export function getRepoKey(ownerKey: string, repoName: string): string {
 }
 
 // Lease TTL, not a heartbeat-renewed lock — see repoLocks's comment in
-// github-schema.ts. Must comfortably exceed how long a real push/hydrate/
+// app-schema.ts. Must comfortably exceed how long a real push/hydrate/
 // sync critical section can run; Vercel kills the function well before this
 // anyway, so a stuck holder's lease always clears on its own.
 const LOCK_LEASE_MS = 60_000;

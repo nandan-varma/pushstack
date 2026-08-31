@@ -14,9 +14,15 @@ import {
 	getTreePageData,
 	listFiles,
 } from "@/server/files";
-import { getIssue, getIssueNumbers, getIssues } from "@/server/issues";
+import {
+	getIssue,
+	getIssueByNumber,
+	getIssueNumbers,
+	getIssues,
+} from "@/server/issues";
 import {
 	getPullRequest,
+	getPullRequestByNumber,
 	getPullRequestNumbers,
 	getPullRequests,
 } from "@/server/pull-requests";
@@ -86,6 +92,8 @@ export const queryKeys = {
 	repoPullRequestNumbers: (repoId: number) =>
 		["repos", repoId, "pull-request-numbers"] as const,
 	issue: (issueId: number) => ["issues", issueId] as const,
+	issueByNumber: (owner: string, name: string, number: number) =>
+		["repos", owner, name, "issues", number] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,
 	pullRequests: (
 		repoId: number,
@@ -94,6 +102,8 @@ export const queryKeys = {
 	pullRequestsRoot: (repoId: number) =>
 		["repos", repoId, "pull-requests"] as const,
 	pullRequest: (prId: number) => ["pull-requests", prId] as const,
+	pullRequestByNumber: (owner: string, name: string, number: number) =>
+		["repos", owner, name, "pull-requests", number] as const,
 	pullRequestComments: (prId: number) =>
 		["pull-requests", prId, "comments"] as const,
 	pullRequestDiff: (
@@ -450,6 +460,22 @@ export function issueQueryOptions(issueId: number) {
 	});
 }
 
+export function issueByNumberQueryOptions({
+	owner,
+	name,
+	number,
+}: {
+	owner: string;
+	name: string;
+	number: number;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.issueByNumber(owner, name, number),
+		queryFn: () => getIssueByNumber({ data: { owner, name, number } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
 export function issueCommentsQueryOptions(issueId: number) {
 	return queryOptions({
 		queryKey: queryKeys.issueComments(issueId),
@@ -479,6 +505,22 @@ export function pullRequestQueryOptions(prId: number) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequest(prId),
 		queryFn: () => getPullRequest({ data: { prId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function pullRequestByNumberQueryOptions({
+	owner,
+	name,
+	number,
+}: {
+	owner: string;
+	name: string;
+	number: number;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestByNumber(owner, name, number),
+		queryFn: () => getPullRequestByNumber({ data: { owner, name, number } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

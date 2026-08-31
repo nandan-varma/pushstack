@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
-import { repositories, repositoryCollaborators } from "../db/github-schema";
+import { repositories, repositoryCollaborators } from "../db/app-schema";
 import { user } from "../db/schema";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import { getCurrentUserOptional } from "./session";

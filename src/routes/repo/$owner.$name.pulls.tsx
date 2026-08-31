@@ -330,7 +330,7 @@ function PullRequestsPage() {
 						<Link
 							key={pr.id}
 							to="/repo/$owner/$name/pulls/$id"
-							params={{ owner, name, id: pr.id.toString() }}
+							params={{ owner, name, id: pr.number.toString() }}
 							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card ${idx < pullRequests.length - 1 ? "border-b border-border" : ""}`}
 						>
 							<div className="min-w-0 flex-1 space-y-1">
@@ -347,7 +347,7 @@ function PullRequestsPage() {
 								</div>
 								<p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
 									<span>
-										#{pr.id} opened{" "}
+										#{pr.number} opened{" "}
 										{new Date(pr.createdAt).toLocaleDateString()} by{" "}
 										{pr.author?.name || "Unknown"}
 									</span>

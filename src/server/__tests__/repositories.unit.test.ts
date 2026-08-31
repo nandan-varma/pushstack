@@ -697,3 +697,42 @@ describe("Repository Unit Tests", () => {
 		});
 	});
 });
+
+describe("claimNextIssueOrPrNumber", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("returns the pre-increment value, not the post-increment counter", async () => {
+		// UPDATE ... SET next_issue_number = next_issue_number + 1 RETURNING
+		// next_issue_number returns the *new* (post-increment) value — the
+		// number to assign is one less than that.
+		mockDb.update.mockReturnValueOnce({
+			set: vi.fn(() => ({
+				where: vi.fn(() => ({
+					returning: vi.fn(() => [{ nextIssueNumber: 6 }]),
+				})),
+			})),
+		});
+
+		const { claimNextIssueOrPrNumber } = await import("../repositories");
+		const number = await claimNextIssueOrPrNumber(1);
+
+		expect(number).toBe(5);
+	});
+
+	it("throws when the repository doesn't exist", async () => {
+		mockDb.update.mockReturnValueOnce({
+			set: vi.fn(() => ({
+				where: vi.fn(() => ({
+					returning: vi.fn(() => []),
+				})),
+			})),
+		});
+
+		const { claimNextIssueOrPrNumber } = await import("../repositories");
+		await expect(claimNextIssueOrPrNumber(999)).rejects.toThrow(
+			"Repository not found",
+		);
+	});
+});

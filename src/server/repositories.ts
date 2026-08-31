@@ -7,7 +7,7 @@ import {
 	repositories,
 	repositoryCollaborators,
 	stars,
-} from "../db/github-schema";
+} from "../db/app-schema";
 import { user } from "../db/schema";
 import { repackRepositoryNow } from "./git-http-iso";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
@@ -111,6 +111,25 @@ export async function findRepositoryByName(
 	const row = await fetchRepoRowByName(ownerUsername, repoName);
 	if (!row) return undefined;
 	return { ...row.repo, owner: row.owner };
+}
+
+// Issues and pull requests share one number sequence per repo (GitHub's
+// numbering model — see app-schema.ts's `nextIssueNumber` doc comment), so
+// createIssue/createPullRequest both claim from here. The row-level UPDATE
+// makes this safe under concurrent creation across Vercel's serverless
+// instances without app-level locking: Postgres serializes concurrent
+// updates to the same row, so two simultaneous claims can't return the same
+// number.
+export async function claimNextIssueOrPrNumber(
+	repoId: number,
+): Promise<number> {
+	const [row] = await db
+		.update(repositories)
+		.set({ nextIssueNumber: sql`${repositories.nextIssueNumber} + 1` })
+		.where(eq(repositories.id, repoId))
+		.returning({ nextIssueNumber: repositories.nextIssueNumber });
+	if (!row) throw new Error("Repository not found");
+	return row.nextIssueNumber - 1;
 }
 
 // Create repository schema

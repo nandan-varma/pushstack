@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { activities, issues } from "../db/github-schema";
+import { activities, issues } from "../db/app-schema";
 import { perfContext, perfStep } from "./perf-log";
 import {
 	canWriteRepo,
@@ -10,6 +10,7 @@ import {
 	readWithAccess,
 	requireWriteAccess,
 } from "./repo-access";
+import { claimNextIssueOrPrNumber, findRepositoryByName } from "./repositories";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // ============ ISSUES ============
@@ -31,10 +32,13 @@ export const createIssue = createServerFn({ method: "POST" })
 
 		await requireWriteAccess(data.repoId, user.id);
 
+		const number = await claimNextIssueOrPrNumber(data.repoId);
+
 		const [issue] = await db
 			.insert(issues)
 			.values({
 				repoId: data.repoId,
+				number,
 				authorId: user.id,
 				title: data.title,
 				body: data.body || null,
@@ -49,7 +53,7 @@ export const createIssue = createServerFn({ method: "POST" })
 			repoId: data.repoId,
 			type: "issue",
 			metadata: {
-				issueId: issue.id,
+				issueId: issue.number,
 				title: issue.title,
 				action: "opened",
 			},
@@ -109,14 +113,14 @@ export const getIssueNumbers = createServerFn({ method: "GET" })
 			`getIssueNumbers repo=${data.repoId}`,
 			data.repoId,
 			async () => {
-				const rows = await perfStep("db: issues ids", () =>
+				const rows = await perfStep("db: issues numbers", () =>
 					db
-						.select({ id: issues.id })
+						.select({ number: issues.number })
 						.from(issues)
 						.where(eq(issues.repoId, data.repoId)),
 				);
 
-				return rows.map((row) => row.id);
+				return rows.map((row) => row.number);
 			},
 		),
 	);
@@ -161,6 +165,63 @@ export const getIssue = createServerFn({ method: "GET" })
 
 			return { ...issue, labels: issue.labels as string[] | null };
 		}),
+	);
+
+// Get issue by its repo-scoped display number (the `$id` route param) —
+// resolves the repo from owner/name server-side so callers don't need to
+// wait on a separate repo fetch to know which repo's number sequence to
+// look in.
+export const getIssueByNumber = createServerFn({ method: "GET" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				owner: z.string(),
+				name: z.string(),
+				number: z.number(),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) =>
+		perfContext(
+			`getIssueByNumber ${data.owner}/${data.name}#${data.number}`,
+			async () => {
+				const user = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
+
+				const repo = await perfStep("findRepositoryByName", () =>
+					findRepositoryByName(data.owner, data.name),
+				);
+				if (!repo) {
+					throw new Error("Issue not found");
+				}
+
+				const access = await perfStep("getAccessForRepository", () =>
+					getAccessForRepository(repo, user?.id),
+				);
+				if (!access.canRead) {
+					throw new Error("Access denied");
+				}
+
+				const issue = await perfStep("db: issues.findFirst", () =>
+					db.query.issues.findFirst({
+						where: and(
+							eq(issues.repoId, repo.id),
+							eq(issues.number, data.number),
+						),
+						with: {
+							author: true,
+						},
+					}),
+				);
+
+				if (!issue) {
+					throw new Error("Issue not found");
+				}
+
+				return { ...issue, labels: issue.labels as string[] | null };
+			},
+		),
 	);
 
 // Update issue
@@ -216,7 +277,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 				repoId: issue.repoId,
 				type: "issue",
 				metadata: {
-					issueId: issue.id,
+					issueId: issue.number,
 					title: issue.title,
 					action: data.status === "closed" ? "closed" : "reopened",
 				},

@@ -143,6 +143,14 @@ describe("createPullRequest", () => {
 	});
 
 	it("creates the PR and logs activity when authorized", async () => {
+		mockDb.update.mockReturnValueOnce({
+			set: vi.fn(() => ({
+				where: vi.fn(() => ({
+					returning: vi.fn(() => [{ nextIssueNumber: 6 }]),
+				})),
+			})),
+		});
+
 		const { createPullRequest } = await import("../pull-requests");
 
 		const result = await createPullRequest({
@@ -156,6 +164,10 @@ describe("createPullRequest", () => {
 
 		expect(result.title).toBe("Test PR");
 		expect(mockDb.insert).toHaveBeenCalledTimes(2); // pr + activity
+		// Claims the pre-increment number (5) from the repo's shared counter.
+		const insertValuesCall = mockDb.insert.mock.results[0].value.values.mock
+			.calls[0][0] as { number: number };
+		expect(insertValuesCall.number).toBe(5);
 	});
 
 	// A PR's source/target branch is stored once here and reused, unvalidated
@@ -429,11 +441,11 @@ describe("getPullRequestNumbers", () => {
 		).rejects.toThrow("Access denied");
 	});
 
-	it("returns PR ids for the repo when the caller can read", async () => {
+	it("returns PR numbers for the repo when the caller can read", async () => {
 		mockDb.select.mockReturnValueOnce({
 			from: vi.fn(() => ({
 				where: vi.fn(() =>
-					Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+					Promise.resolve([{ number: 10 }, { number: 20 }, { number: 30 }]),
 				),
 			})),
 		});

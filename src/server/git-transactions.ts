@@ -1,6 +1,6 @@
 /**
  * A minimal write-ahead log for git writes, backed by the `git_transactions`
- * table (github-schema.ts) — that table existed already but was never
+ * table (app-schema.ts) — that table existed already but was never
  * written to anywhere in the app. withRepositoryLock (git-repo-lock.ts)
  * is the single choke point every write path goes through (push, commit,
  * branch ops, merge, rename), so it records one row here per critical
@@ -28,7 +28,7 @@
 
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "#/db";
-import { gitTransactions } from "#/db/github-schema";
+import { gitTransactions } from "#/db/app-schema";
 import { logError } from "./perf-log";
 
 function generateTransactionId(): string {

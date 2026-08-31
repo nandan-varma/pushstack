@@ -1,4 +1,4 @@
-import type { repositories } from "#/db/github-schema";
+import type { repositories } from "#/db/app-schema";
 
 type OwnerLike = {
 	id: string;

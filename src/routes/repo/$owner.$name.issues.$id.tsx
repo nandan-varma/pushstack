@@ -21,8 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import {
 	authSessionQueryOptions,
+	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
-	issueQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
@@ -39,23 +39,35 @@ const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
-		const issueId = Number(params.id);
-		// The issue/comments queries key off params.id, not the repo — no need
-		// to wait on the repo fetch before starting them.
-		const [repo] = await Promise.all([
+		const issueNumber = Number(params.id);
+		const isValidNumber = Number.isFinite(issueNumber);
+		// getIssueByNumber resolves the repo server-side, so this can still run
+		// in parallel with the repo query below rather than waiting on it.
+		const [repo, issue] = await Promise.all([
 			queryClient.ensureQueryData(
 				repositoryByNameQueryOptions({
 					owner: params.owner,
 					name: params.name,
 				}),
 			),
-			...(Number.isFinite(issueId)
-				? [
-						queryClient.ensureQueryData(issueQueryOptions(issueId)),
-						queryClient.ensureQueryData(issueCommentsQueryOptions(issueId)),
-					]
-				: []),
+			isValidNumber
+				? queryClient.ensureQueryData(
+						issueByNumberQueryOptions({
+							owner: params.owner,
+							name: params.name,
+							number: issueNumber,
+						}),
+					)
+				: Promise.resolve(undefined),
 		]);
+
+		// Comments are keyed by the issue's internal id, only known once the
+		// issue itself has resolved — can't start this in parallel with it.
+		if (issue) {
+			await queryClient
+				.ensureQueryData(issueCommentsQueryOptions(issue.id))
+				.catch(() => {});
+		}
 
 		// MarkdownRenderer (issue body + comments) resolves `#123` references
 		// using these — fire-and-forget so the extra round trip doesn't land
@@ -79,12 +91,17 @@ function IssueDetailPage() {
 	const [newComment, setNewComment] = useState("");
 
 	const { data: session } = useQuery(authSessionQueryOptions());
-	const issueId = Number(id);
-	const { data: issue, isLoading } = useQuery(issueQueryOptions(issueId));
+	const issueNumber = Number(id);
+	const { data: issue, isLoading } = useQuery(
+		issueByNumberQueryOptions({ owner, name, number: issueNumber }),
+	);
 
-	const { data: comments } = useQuery(issueCommentsQueryOptions(issueId));
+	const { data: comments } = useQuery({
+		...issueCommentsQueryOptions(issue?.id ?? -1),
+		enabled: !!issue,
+	});
 
-	const issueQueryKey = queryKeys.issue(issueId);
+	const issueQueryKey = queryKeys.issueByNumber(owner, name, issueNumber);
 
 	const updateMutation = useMutation({
 		mutationFn: updateIssue,
@@ -111,9 +128,10 @@ function IssueDetailPage() {
 		mutationFn: createComment,
 		onSuccess: async () => {
 			setNewComment("");
-			await queryClient.invalidateQueries({
-				queryKey: queryKeys.issueComments(issueId),
-			});
+			if (issue)
+				await queryClient.invalidateQueries({
+					queryKey: queryKeys.issueComments(issue.id),
+				});
 			toast("Comment posted", "success");
 		},
 		onError: (err: Error) => {
@@ -125,7 +143,7 @@ function IssueDetailPage() {
 		if (!issue) return;
 		updateMutation.mutate({
 			data: {
-				issueId: Number(id),
+				issueId: issue.id,
 				status: issue.status === "open" ? "closed" : "open",
 			},
 		});
@@ -135,7 +153,7 @@ function IssueDetailPage() {
 		if (!newComment.trim() || !issue) return;
 		commentMutation.mutate({
 			data: {
-				issueId: Number(id),
+				issueId: issue.id,
 				repoId: issue.repoId,
 				body: newComment,
 			},
@@ -174,7 +192,7 @@ function IssueDetailPage() {
 				}
 				meta={
 					<p className="text-muted-foreground">
-						#{issue.id} opened{" "}
+						#{issue.number} opened{" "}
 						{formatDistanceToNow(new Date(issue.createdAt), {
 							addSuffix: true,
 						})}{" "}

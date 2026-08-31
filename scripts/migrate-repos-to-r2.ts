@@ -9,7 +9,7 @@
  */
 
 import { db } from '../src/db'
-import { repositories } from '../src/db/github-schema'
+import { repositories } from '../src/db/app-schema'
 import { eq, isNull, or } from 'drizzle-orm'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import os from 'node:os'

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { activities, issues, pullRequests } from "../db/github-schema";
+import { activities, issues, pullRequests } from "../db/app-schema";
 import { analyzeMerge, mergeBranches } from "./git-merge-iso";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { getRepoStorageCoordinates } from "./git-storage-naming";
@@ -15,6 +15,7 @@ import {
 	readWithAccess,
 	requireWriteAccess,
 } from "./repo-access";
+import { claimNextIssueOrPrNumber, findRepositoryByName } from "./repositories";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 // ============ PULL REQUESTS ============
@@ -61,10 +62,13 @@ export const createPullRequest = createServerFn({ method: "POST" })
 			throw new Error("Cannot create PR from same branch");
 		}
 
+		const number = await claimNextIssueOrPrNumber(data.repoId);
+
 		const [pr] = await db
 			.insert(pullRequests)
 			.values({
 				repoId: data.repoId,
+				number,
 				authorId: user.id,
 				title: data.title,
 				body: data.body || null,
@@ -80,7 +84,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 			repoId: data.repoId,
 			type: "pr",
 			metadata: {
-				prId: pr.id,
+				prId: pr.number,
 				title: pr.title,
 				action: "opened",
 			},
@@ -138,14 +142,69 @@ export const getPullRequestNumbers = createServerFn({ method: "GET" })
 			`getPullRequestNumbers repo=${data.repoId}`,
 			data.repoId,
 			async () => {
-				const rows = await perfStep("db: pullRequests ids", () =>
+				const rows = await perfStep("db: pullRequests numbers", () =>
 					db
-						.select({ id: pullRequests.id })
+						.select({ number: pullRequests.number })
 						.from(pullRequests)
 						.where(eq(pullRequests.repoId, data.repoId)),
 				);
 
-				return rows.map((row) => row.id);
+				return rows.map((row) => row.number);
+			},
+		),
+	);
+
+// Get pull request by its repo-scoped display number (the `$id` route
+// param) — mirrors getIssueByNumber in issues.ts.
+export const getPullRequestByNumber = createServerFn({ method: "GET" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				owner: z.string(),
+				name: z.string(),
+				number: z.number(),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) =>
+		perfContext(
+			`getPullRequestByNumber ${data.owner}/${data.name}#${data.number}`,
+			async () => {
+				const user = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
+
+				const repo = await perfStep("findRepositoryByName", () =>
+					findRepositoryByName(data.owner, data.name),
+				);
+				if (!repo) {
+					throw new Error("Pull request not found");
+				}
+
+				const access = await perfStep("getAccessForRepository", () =>
+					getAccessForRepository(repo, user?.id),
+				);
+				if (!access.canRead) {
+					throw new Error("Access denied");
+				}
+
+				const pr = await perfStep("db: pullRequests.findFirst", () =>
+					db.query.pullRequests.findFirst({
+						where: and(
+							eq(pullRequests.repoId, repo.id),
+							eq(pullRequests.number, data.number),
+						),
+						with: {
+							author: true,
+						},
+					}),
+				);
+
+				if (!pr) {
+					throw new Error("Pull request not found");
+				}
+
+				return pr;
 			},
 		),
 	);
@@ -293,7 +352,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 
 		// Perform the merge
 		const mergeMessage =
-			data.commitMessage || `Merge pull request #${pr.id}: ${pr.title}`;
+			data.commitMessage || `Merge pull request #${pr.number}: ${pr.title}`;
 		const mergeResult = await mergeBranches(
 			storage.ownerKey,
 			repo.name,
@@ -333,7 +392,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 				.where(
 					and(
 						eq(issues.repoId, pr.repoId),
-						inArray(issues.id, closingIssueNumbers),
+						inArray(issues.number, closingIssueNumbers),
 						eq(issues.status, "open"),
 					),
 				);
@@ -345,7 +404,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 			repoId: pr.repoId,
 			type: "pr",
 			metadata: {
-				prId: pr.id,
+				prId: pr.number,
 				title: pr.title,
 				action: "merged",
 				mergeCommitSha: mergeResult.commitSha,

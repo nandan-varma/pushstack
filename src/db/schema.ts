@@ -92,4 +92,4 @@ export const verification = pgTable("verification", {
 });
 
 // Export GitHub schema tables
-export * from "./github-schema";
+export * from "./app-schema";

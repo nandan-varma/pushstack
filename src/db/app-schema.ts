@@ -40,6 +40,12 @@ export const repositories = pgTable(
 		autoRefreshPrDiffs: boolean("auto_refresh_pr_diffs")
 			.notNull()
 			.default(false), // keep an open PR's file-diff live via polling vs. load-once
+		// The next number to hand out to a new issue or PR in this repo — issues
+		// and PRs share one sequence (GitHub's numbering model), claimed via an
+		// atomic `UPDATE ... SET next_issue_number = next_issue_number + 1
+		// RETURNING`. A repo imported from GitHub can seed this past the highest
+		// preserved original number instead of starting over at 1.
+		nextIssueNumber: integer("next_issue_number").notNull().default(1),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
@@ -74,6 +80,10 @@ export const issues = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
+		// The repo-scoped "#N" shown in the UI — shares one sequence per repo
+		// with pullRequests.number (repositories.nextIssueNumber), matching
+		// GitHub's numbering model instead of this row's raw serial `id`.
+		number: integer("number").notNull(),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
@@ -95,6 +105,13 @@ export const issues = pgTable(
 			table.repoId,
 			table.status,
 		),
+		// Enforces uniqueness of the shared issue/PR number sequence on this
+		// side of it, and backs the (repoId, number) lookup every issue detail
+		// page and `#N` reference resolves against.
+		repoNumberIdx: uniqueIndex("issue_repo_number_idx").on(
+			table.repoId,
+			table.number,
+		),
 	}),
 );
 
@@ -107,6 +124,8 @@ export const pullRequests = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
+		// Shares the repo's issue/PR number sequence — see issues.number above.
+		number: integer("number").notNull(),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
@@ -127,6 +146,10 @@ export const pullRequests = pgTable(
 		// getPullRequests filters by (repoId, status) together, same reasoning
 		// as issue_repo_status_idx above.
 		repoStatusIdx: index("pr_repo_status_idx").on(table.repoId, table.status),
+		repoNumberIdx: uniqueIndex("pr_repo_number_idx").on(
+			table.repoId,
+			table.number,
+		),
 	}),
 );
 

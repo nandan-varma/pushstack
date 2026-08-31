@@ -2,12 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import {
-	activities,
-	comments,
-	issues,
-	pullRequests,
-} from "../db/github-schema";
+import { activities, comments, issues, pullRequests } from "../db/app-schema";
 import { perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
@@ -40,6 +35,9 @@ export const createComment = createServerFn({ method: "POST" })
 			throw new Error("Must specify issueId or pullRequestId");
 		}
 
+		let issueNumber: number | undefined;
+		let prNumber: number | undefined;
+
 		if (data.issueId) {
 			const issue = await db.query.issues.findFirst({
 				where: eq(issues.id, data.issueId),
@@ -47,6 +45,7 @@ export const createComment = createServerFn({ method: "POST" })
 			if (!issue || issue.repoId !== data.repoId) {
 				throw new Error("Issue does not belong to the specified repository");
 			}
+			issueNumber = issue.number;
 		}
 
 		if (data.pullRequestId) {
@@ -58,6 +57,7 @@ export const createComment = createServerFn({ method: "POST" })
 					"Pull request does not belong to the specified repository",
 				);
 			}
+			prNumber = pullRequest.number;
 		}
 
 		const [comment] = await db
@@ -71,15 +71,16 @@ export const createComment = createServerFn({ method: "POST" })
 			})
 			.returning();
 
-		// Log activity
+		// Log activity — issueId/prId here are the repo-scoped display numbers
+		// (used only as route params by activity.ts), not the FK ids above.
 		await db.insert(activities).values({
 			userId: user.id,
 			repoId: data.repoId,
 			type: "comment",
 			metadata: {
 				commentId: comment.id,
-				issueId: data.issueId,
-				prId: data.pullRequestId,
+				issueId: issueNumber,
+				prId: prNumber,
 			},
 		});
 

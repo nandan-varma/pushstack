@@ -8,7 +8,7 @@ import { qualifyBranchRef } from "git-fs-s3";
 import { resultKeyPrefixes } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { db } from "#/db";
-import { repositories } from "#/db/github-schema";
+import { repositories } from "#/db/app-schema";
 import { isR2Configured } from "#/lib/r2";
 import {
 	bulkCopyInR2,
