@@ -35,6 +35,14 @@ describe("getSession", () => {
 		expect(result).toEqual({ user: { id: "u1" } });
 	});
 
+	it("skips Better Auth entirely when the request has no cookies", async () => {
+		currentCookie = "";
+
+		const { getSession } = await import("../auth-session");
+		await expect(getSession()).resolves.toBeNull();
+		expect(getSessionApiMock).not.toHaveBeenCalled();
+	});
+
 	it("coalesces concurrent calls with the same cookie into one auth.api.getSession call", async () => {
 		let resolveSession: (v: unknown) => void = () => {};
 		getSessionApiMock.mockReturnValueOnce(

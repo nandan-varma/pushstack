@@ -16,6 +16,12 @@ export const getSession = createServerFn({ method: "GET" }).handler(
 	async () => {
 		const headers = getRequestHeaders();
 		const cookie = headers.get("cookie") ?? "";
+		// Public pages dominate anonymous traffic. With no Cookie header there
+		// cannot be a Better Auth session, so importing and initializing Better
+		// Auth (and letting it inspect the database) is pure critical-path work.
+		// Return before either happens; requests that do carry cookies retain the
+		// existing per-cookie single-flight validation below.
+		if (cookie === "") return null;
 
 		const existing = inFlight.get(cookie);
 		if (existing) return existing;
