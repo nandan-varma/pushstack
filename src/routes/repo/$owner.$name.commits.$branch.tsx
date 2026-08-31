@@ -32,21 +32,29 @@ export const Route = createFileRoute("/repo/$owner/$name/commits/$branch")({
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
-		if (repo) {
-			const page = deps.page ?? 1;
-			const skip = (page - 1) * PAGE_SIZE;
-			await Promise.all([
-				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
-				queryClient.ensureQueryData(
-					repositoryCommitsQueryOptions({
-						repoId: repo.id,
-						branchName: params.branch,
-						limit: PAGE_SIZE,
-						skip,
-					}),
-				),
-			]);
-		}
+		if (!repo) return;
+
+		// Fire-and-forget (same pattern as the tree page's loader): a cold
+		// commit-log walk can take seconds on a repo with no warm result-cache
+		// entry yet, and the branch switcher is secondary to the list itself —
+		// neither should block the route from committing. CommitsPage's own
+		// useQuery calls (wired to these same keys) pick up the in-flight
+		// request and render their own loading state instead.
+		const page = deps.page ?? 1;
+		const skip = (page - 1) * PAGE_SIZE;
+		queryClient
+			.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
+			.catch(() => {});
+		queryClient
+			.ensureQueryData(
+				repositoryCommitsQueryOptions({
+					repoId: repo.id,
+					branchName: params.branch,
+					limit: PAGE_SIZE,
+					skip,
+				}),
+			)
+			.catch(() => {});
 	},
 	component: CommitsPage,
 });

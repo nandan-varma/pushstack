@@ -62,17 +62,21 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
-		if (repo) {
-			await Promise.all([
-				queryClient.ensureQueryData(repositoryBranchesQueryOptions(repo.id)),
-				queryClient.ensureQueryData(
-					repositoryPullRequestsQueryOptions({
-						repoId: repo.id,
-						status: deps.status,
-					}),
-				),
-			]);
-		}
+		if (!repo) return;
+
+		// Branches only feed the "new PR" source/target selectors, not the list
+		// itself — fire-and-forget (same pattern as the tree page's loader) so
+		// a slow cold branch listing doesn't block the page from rendering the
+		// PR list, which is already fetched separately below.
+		queryClient
+			.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
+			.catch(() => {});
+		await queryClient.ensureQueryData(
+			repositoryPullRequestsQueryOptions({
+				repoId: repo.id,
+				status: deps.status,
+			}),
+		);
 	},
 	component: PullRequestsPage,
 });
