@@ -26,7 +26,25 @@ const config = defineConfig({
 		devtools(),
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
-		tanstackStart(),
+		tanstackStart({
+			router: {
+				// Route components are automatically split, but loaders are not by
+				// default. Every loader imports its server functions, so leaving them
+				// eager makes a public Git tree request initialize unrelated settings,
+				// mail, write, and admin code. Load a route's loader only after its
+				// already-matched route module is requested. SSR is preserved; this is
+				// an explicit module boundary, not a data-cache policy.
+				codeSplittingOptions: {
+					defaultBehavior: [
+						["component"],
+						["pendingComponent"],
+						["errorComponent"],
+						["notFoundComponent"],
+						["loader"],
+					],
+				},
+			},
+		}),
 		nitro({
 			preset: "vercel",
 			vercel: {

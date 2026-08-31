@@ -1,6 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { sql } from "drizzle-orm";
-import { db } from "#/db/index";
 
 /**
  * Uptime-monitor target: GET /api/health
@@ -14,6 +12,10 @@ export const Route = createFileRoute("/api/health")({
 		handlers: {
 			GET: async () => {
 				try {
+					const [{ sql }, { db }] = await Promise.all([
+						import("drizzle-orm"),
+						import("#/db/index"),
+					]);
 					await db.execute(sql`select 1`);
 					return Response.json({ status: "ok" });
 				} catch (err) {

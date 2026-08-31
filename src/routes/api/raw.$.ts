@@ -11,17 +11,13 @@ import { createFileRoute } from "@tanstack/react-router";
  * let arbitrary repo content execute script under this app's origin/cookies).
  */
 
-import { getMimeType } from "#/lib/language-detection";
-import { getFileContent } from "#/server/git-history-ops";
-import { isSafeRefName, isSafeRepoPath } from "#/server/git-ref-name";
-import { getRepoStorageCoordinates } from "#/server/git-storage-naming";
-import { getAccessForRepository } from "#/server/repo-access";
-import { findRepositoryByName } from "#/server/repositories";
-import { getCurrentUserOptional } from "#/server/session";
-
 const SAFE_INLINE_MIME_PREFIXES = ["image/", "video/", "audio/"];
 
-function safeContentType(filePath: string, isBinary: boolean): string {
+function safeContentType(
+	filePath: string,
+	isBinary: boolean,
+	getMimeType: (path: string) => string,
+): string {
 	if (!isBinary) return "text/plain; charset=utf-8";
 
 	const mime = getMimeType(filePath);
@@ -41,6 +37,23 @@ export const Route = createFileRoute("/api/raw/$")({
 		handlers: {
 			GET: async ({ request }) => {
 				try {
+					const [
+						{ getMimeType },
+						{ getFileContent },
+						{ isSafeRefName, isSafeRepoPath },
+						{ getRepoStorageCoordinates },
+						{ getAccessForRepository },
+						{ findRepositoryByName },
+						{ getCurrentUserOptional },
+					] = await Promise.all([
+						import("#/lib/language-detection"),
+						import("#/server/git-history-ops"),
+						import("#/server/git-ref-name"),
+						import("#/server/git-storage-naming"),
+						import("#/server/repo-access"),
+						import("#/server/repositories"),
+						import("#/server/session"),
+					]);
 					const { pathname } = new URL(request.url);
 					const segments = pathname
 						.replace(/^\/api\/raw\//, "")
@@ -104,7 +117,7 @@ export const Route = createFileRoute("/api/raw/$")({
 
 					return new Response(Buffer.concat([buffer]), {
 						headers: {
-							"Content-Type": safeContentType(path, isBinary),
+							"Content-Type": safeContentType(path, isBinary, getMimeType),
 							"X-Content-Type-Options": "nosniff",
 							"Content-Disposition": "inline",
 							"Cache-Control": cacheControl,

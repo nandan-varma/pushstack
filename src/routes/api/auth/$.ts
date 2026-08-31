@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth } from "#/lib/auth";
 
 export const Route = createFileRoute("/api/auth/$")({
 	server: {
 		handlers: {
-			GET: ({ request }) => auth.handler(request),
-			POST: ({ request }) => auth.handler(request),
+			// Keep Better Auth (and its email adapter) out of every SSR route's
+			// module graph. This endpoint is the only consumer of the handler.
+			GET: async ({ request }) =>
+				(await import("#/lib/auth")).auth.handler(request),
+			POST: async ({ request }) =>
+				(await import("#/lib/auth")).auth.handler(request),
 		},
 	},
 });

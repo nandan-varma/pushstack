@@ -11,22 +11,24 @@ import { createFileRoute } from "@tanstack/react-router";
  * directly to/from Cloudflare R2. No native git binary dependency.
  */
 
-import { parseGitUrl } from "#/lib/git-url-parser";
-import { authenticateGitRequest } from "#/server/git-auth";
-import { formatErrorResponse } from "#/server/git-errors";
-import {
-	handleInfoRefsIso,
-	handleReceivePackIso,
-	handleUploadPackIso,
-} from "#/server/git-http-iso";
-import { getRepoStorageCoordinates } from "#/server/git-storage-naming";
-import { findRepositoryByName } from "#/server/repositories";
-
 export const Route = createFileRoute("/api/git/$")({
 	server: {
 		handlers: {
 			GET: async ({ request }) => {
 				try {
+					const [
+						{ parseGitUrl },
+						{ authenticateGitRequest },
+						{ handleInfoRefsIso },
+						{ getRepoStorageCoordinates },
+						{ findRepositoryByName },
+					] = await Promise.all([
+						import("#/lib/git-url-parser"),
+						import("#/server/git-auth"),
+						import("#/server/git-http-iso"),
+						import("#/server/git-storage-naming"),
+						import("#/server/repositories"),
+					]);
 					const url = request.url;
 					const parsed = parseGitUrl(url);
 
@@ -64,6 +66,7 @@ export const Route = createFileRoute("/api/git/$")({
 						headers: result.headers,
 					});
 				} catch (error) {
+					const { formatErrorResponse } = await import("#/server/git-errors");
 					const errorResponse = formatErrorResponse(error);
 					if (errorResponse.status >= 500) {
 						console.error("[git GET]", error);
@@ -80,6 +83,19 @@ export const Route = createFileRoute("/api/git/$")({
 
 			POST: async ({ request }) => {
 				try {
+					const [
+						{ parseGitUrl },
+						{ authenticateGitRequest },
+						{ handleUploadPackIso, handleReceivePackIso },
+						{ getRepoStorageCoordinates },
+						{ findRepositoryByName },
+					] = await Promise.all([
+						import("#/lib/git-url-parser"),
+						import("#/server/git-auth"),
+						import("#/server/git-http-iso"),
+						import("#/server/git-storage-naming"),
+						import("#/server/repositories"),
+					]);
 					const contentLength = Number.parseInt(
 						request.headers.get("content-length") || "",
 						10,
@@ -149,6 +165,7 @@ export const Route = createFileRoute("/api/git/$")({
 						headers: result.headers,
 					});
 				} catch (error) {
+					const { formatErrorResponse } = await import("#/server/git-errors");
 					const errorResponse = formatErrorResponse(error);
 					if (errorResponse.status >= 500) {
 						console.error("[git POST]", error);
