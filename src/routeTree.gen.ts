@@ -16,6 +16,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as RepositoriesRouteImport } from './routes/repositories'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
@@ -73,6 +74,11 @@ const SearchRoute = SearchRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/repositories': typeof RepositoriesRouteWithChildren
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/repositories': typeof RepositoriesRouteWithChildren
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/repositories'
     | '/search'
     | '/settings'
+    | '/api/health'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
@@ -330,6 +340,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/search'
     | '/settings'
+    | '/api/health'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '/repositories'
     | '/search'
     | '/settings'
+    | '/api/health'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/register'
@@ -394,6 +406,7 @@ export interface RootRouteChildren {
   RepositoriesRoute: typeof RepositoriesRouteWithChildren
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   UsersUsernameRoute: typeof UsersUsernameRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiGitSplatRoute: typeof ApiGitSplatRoute
@@ -450,6 +463,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/forgot-password': {
@@ -706,6 +726,7 @@ const rootRouteChildren: RootRouteChildren = {
   RepositoriesRoute: RepositoriesRouteWithChildren,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  ApiHealthRoute: ApiHealthRoute,
   UsersUsernameRoute: UsersUsernameRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiGitSplatRoute: ApiGitSplatRoute,
@@ -717,10 +738,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }
