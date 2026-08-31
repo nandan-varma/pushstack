@@ -239,7 +239,16 @@ function PullRequestsPage() {
 											<SelectTrigger id="head" className="w-full">
 												<SelectValue placeholder="Select branch…" />
 											</SelectTrigger>
-											<SelectContent>
+											{/* alignItemWithTrigger positions the popup by aligning the
+											*selected* item over the trigger — with no branch chosen
+											yet (headBranch starts as ""), there's no selected item to
+											align against, which left the option(s) rendered with a
+											zero-size bounding box (unclickable, and any pointer event
+											that reached the popup at all fell through to the dialog's
+											own outside-click handler and closed the whole dialog).
+											Disabling it here falls back to normal anchored
+											positioning below the trigger. */}
+											<SelectContent alignItemWithTrigger={false}>
 												{branches
 													?.filter((b) => b.name !== newPR.baseBranch)
 													.map((b) => (
