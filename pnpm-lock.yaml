@@ -84,8 +84,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@prisma/client@7.4.2(prisma@7.4.2(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3))(typescript@6.0.3))(@types/pg@8.23.1)(kysely@0.29.5)(mysql2@3.15.3)(pg@8.23.0)(postgres@3.4.7)(prisma@7.4.2(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3))
       git-edge:
-        specifier: ^0.2.1
-        version: 0.2.1(git-fs-s3@0.3.11(@aws-sdk/client-s3@3.1121.0)(diff@9.0.0)(isomorphic-git@1.41.9))(isomorphic-git@1.41.9)
+        specifier: ^0.2.2
+        version: 0.2.2(git-fs-s3@0.3.11(@aws-sdk/client-s3@3.1121.0)(diff@9.0.0)(isomorphic-git@1.41.9))(isomorphic-git@1.41.9)
       git-fs-s3:
         specifier: ^0.3.11
         version: 0.3.11(@aws-sdk/client-s3@3.1121.0)(diff@9.0.0)(isomorphic-git@1.41.9)
@@ -3231,8 +3231,8 @@ packages:
     resolution: {integrity: sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==}
     hasBin: true
 
-  git-edge@0.2.1:
-    resolution: {integrity: sha512-DHwjHM09SwIGSkA9onGIQIXFCTALmKn7nwiBMoexOCl33jq2f6rqtISei/sFELChNYpUoKKawrQdcy48qGkNgA==}
+  git-edge@0.2.2:
+    resolution: {integrity: sha512-AzkDAzpIHEv3VaaLGb8DK52fJeaN1d+NIu7gOT0jBneNkvYJzbSbzi5y7Kwmzi7Xrux3rGcZoBwZ41mlJi+/gA==}
     engines: {node: '>=18'}
     peerDependencies:
       git-fs-s3: '>=0.3.0'
@@ -8465,7 +8465,7 @@ snapshots:
       pathe: 2.0.3
     optional: true
 
-  git-edge@0.2.1(git-fs-s3@0.3.11(@aws-sdk/client-s3@3.1121.0)(diff@9.0.0)(isomorphic-git@1.41.9))(isomorphic-git@1.41.9):
+  git-edge@0.2.2(git-fs-s3@0.3.11(@aws-sdk/client-s3@3.1121.0)(diff@9.0.0)(isomorphic-git@1.41.9))(isomorphic-git@1.41.9):
     dependencies:
       git-fs-s3: 0.3.11(@aws-sdk/client-s3@3.1121.0)(diff@9.0.0)(isomorphic-git@1.41.9)
       isomorphic-git: 1.41.9
