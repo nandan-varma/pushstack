@@ -27,6 +27,7 @@ import {
 	getFileFromBranch,
 	getTreeFromBranch,
 	getCommit as gitGetCommit,
+	getRepositoryTreeData as gitGetRepositoryTreeData,
 } from "./git-history-ops";
 import { getLastCommitsForTree } from "./git-last-commit";
 import {
@@ -189,6 +190,60 @@ export const listFiles = createServerFn({ method: "GET" })
 				);
 
 				return entries;
+			},
+		),
+	);
+
+/**
+ * The tree page's critical Git reads. Keep this deliberately separate from
+ * `listFiles`: consumers that only need a directory listing should not pay
+ * for refs/history, while the page avoids three cold server-function and R2
+ * initialization paths for data it always displays together.
+ */
+export const getTreePageData = createServerFn({ method: "GET" })
+	.validator((data: unknown) =>
+		z
+			.object({
+				repoId: z.number(),
+				branchName: safeRefNameSchema,
+				path: safeRepoPathSchema.optional().default(""),
+			})
+			.parse(data),
+	)
+	.handler(async ({ data }) =>
+		perfContext(
+			`getTreePageData repo=${data.repoId} ${data.branchName}:${data.path || "/"}`,
+			async () => {
+				const currentUser = await perfStep("getCurrentUserOptional", () =>
+					getCurrentUserOptional(),
+				);
+				const repo = await perfStep("getRepoWithReadAccess", () =>
+					getRepoWithReadAccess(data.repoId, currentUser?.id),
+				);
+				const storage = getStorage(repo);
+
+				const treePage = await perfStep("getRepositoryTreeData", () =>
+					gitGetRepositoryTreeData(
+						storage.ownerKey,
+						repo.name,
+						data.branchName,
+						data.path,
+					),
+				);
+
+				return {
+					...treePage,
+					latestCommit: treePage.latestCommit
+						? {
+								sha: treePage.latestCommit.oid,
+								message: treePage.latestCommit.commit.message.trim(),
+								createdAt: new Date(
+									treePage.latestCommit.commit.author.timestamp * 1000,
+								).toISOString(),
+								authorName: treePage.latestCommit.commit.author.name,
+							}
+						: undefined,
+				};
 			},
 		),
 	);

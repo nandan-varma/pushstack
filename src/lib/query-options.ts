@@ -11,6 +11,7 @@ import {
 	getFile,
 	getFileHistory,
 	getLastCommits,
+	getTreePageData,
 	listFiles,
 } from "@/server/files";
 import { getIssue, getIssueNumbers, getIssues } from "@/server/issues";
@@ -48,6 +49,8 @@ export const queryKeys = {
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
 	repoFiles: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", branchName, path] as const,
+	repoTreePage: (repoId: number, branchName: string, path = "") =>
+		["repos", repoId, "tree-page", branchName, path] as const,
 	repoFile: (repoId: number, branchName: string, path: string) =>
 		["repos", repoId, "files", "content", branchName, path] as const,
 	repoCommitsRoot: (repoId: number) => ["repos", repoId, "commits"] as const,
@@ -229,6 +232,31 @@ export function repositoryFilesQueryOptions({
 		queryFn: () =>
 			perfTime(`query files repo=${repoId} ${branchName}:${path || "/"}`, () =>
 				listFiles({ data: { repoId, branchName, path } }),
+			),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/**
+ * One authoritative request for the three Git values the directory screen
+ * renders together. This shares a cold R2 Git context rather than asking
+ * independent server functions to rediscover refs and packs in parallel.
+ */
+export function repositoryTreePageQueryOptions({
+	repoId,
+	branchName,
+	path = "",
+}: {
+	repoId: number;
+	branchName: string;
+	path?: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoTreePage(repoId, branchName, path),
+		queryFn: () =>
+			perfTime(
+				`query tree page repo=${repoId} ${branchName}:${path || "/"}`,
+				() => getTreePageData({ data: { repoId, branchName, path } }),
 			),
 		staleTime: DEFAULT_STALE_TIME,
 	});

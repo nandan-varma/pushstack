@@ -21,14 +21,12 @@ import {
 } from "@/components/ui/select";
 import { perfMark, perfTime } from "@/lib/perf-log";
 import {
-	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
 	repositoryFileQueryOptions,
-	repositoryFilesQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryLastCommitsQueryOptions,
-	repositoryLatestCommitQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
+	repositoryTreePageQueryOptions,
 } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
 
@@ -87,23 +85,19 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 					.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
 					.catch(() => {});
 
-				queryClient
-					.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
-					.catch(() => {});
-
 				// The component only discovers the README (and fires its content
 				// query) after `files` resolves client-side — chain off this same
 				// fire-and-forget fetch so that readme fetch can start the moment
 				// `files` is known, without making the loader wait for either.
 				queryClient
 					.ensureQueryData(
-						repositoryFilesQueryOptions({
+						repositoryTreePageQueryOptions({
 							repoId: repo.id,
 							branchName: params.branch,
 							path: params._splat || "",
 						}),
 					)
-					.then((files) => {
+					.then(({ files }) => {
 						const readmeFile = findReadmeFile(files);
 						if (!readmeFile) return;
 						return queryClient.ensureQueryData(
@@ -114,15 +108,6 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 							}),
 						);
 					})
-					.catch(() => {});
-
-				queryClient
-					.ensureQueryData(
-						repositoryLatestCommitQueryOptions({
-							repoId: repo.id,
-							branchName: params.branch,
-						}),
-					)
 					.catch(() => {});
 			},
 		),
@@ -153,30 +138,22 @@ function TreeBrowserPage() {
 	);
 
 	const {
-		data: branches,
-		isLoading: branchesLoading,
-		isError: branchesErrored,
-		error: branchesError,
-		refetch: refetchBranches,
-	} = useQuery({
-		...repositoryBranchesQueryOptions(repo?.id ?? 0),
-		enabled: !!repo,
-	});
-
-	const {
-		data: files,
+		data: treePage,
 		isLoading,
-		isError: filesErrored,
-		error: filesError,
-		refetch: refetchFiles,
+		isError: treePageErrored,
+		error: treePageError,
+		refetch: refetchTreePage,
 	} = useQuery({
-		...repositoryFilesQueryOptions({
+		...repositoryTreePageQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: activeBranch,
 			path: activePath,
 		}),
 		enabled: !!repo,
 	});
+	const files = treePage?.files;
+	const branches = treePage?.branches;
+	const latestCommit = treePage?.latestCommit;
 
 	const showLastCommitColumn = !!repo?.showLastCommitColumn;
 
@@ -192,29 +169,13 @@ function TreeBrowserPage() {
 		enabled: !!repo && showLastCommitColumn && !!files,
 	});
 
-	const { data: latestCommits, isLoading: latestCommitLoading } = useQuery({
-		...repositoryLatestCommitQueryOptions({
-			repoId: repo?.id ?? 0,
-			branchName: activeBranch,
-		}),
-		enabled: !!repo,
-	});
-	const latestCommit = latestCommits?.[0];
-
 	useEffect(() => {
-		if (!isLoading && !lastCommitsLoading && !latestCommitLoading) {
+		if (!isLoading && !lastCommitsLoading) {
 			perfMark(
 				`TreeBrowserPage all queries settled ${owner}/${name}@${activeBranch}`,
 			);
 		}
-	}, [
-		isLoading,
-		lastCommitsLoading,
-		latestCommitLoading,
-		owner,
-		name,
-		activeBranch,
-	]);
+	}, [isLoading, lastCommitsLoading, owner, name, activeBranch]);
 
 	const sortedFiles = useMemo(() => {
 		if (!files) return [];
@@ -240,20 +201,17 @@ function TreeBrowserPage() {
 
 	if (!repo) return null;
 
-	// A failed files/branches query also leaves `files`/`branches` undefined,
+	// A failed tree-page query also leaves `files`/`branches` undefined,
 	// same as a genuinely empty repo — without checking isError separately,
 	// the isEmpty branch below can't tell "nothing here" from "couldn't load
 	// what's here" and shows the wrong one (an onboarding "push your first
 	// commit" screen for a repo that already has commits, instead of a real,
 	// retryable error).
-	if (filesErrored || branchesErrored) {
+	if (treePageErrored) {
 		return (
 			<TreeErrorComponent
-				error={(filesError ?? branchesError) as Error}
-				reset={() => {
-					if (filesErrored) refetchFiles();
-					if (branchesErrored) refetchBranches();
-				}}
+				error={treePageError as Error}
+				reset={() => refetchTreePage()}
 			/>
 		);
 	}
@@ -261,11 +219,7 @@ function TreeBrowserPage() {
 	const isEmpty =
 		!branches || branches.length === 0 || !files || files.length === 0;
 
-	// Both queries' own loading state matter here — isEmpty is true whenever
-	// branches hasn't resolved yet (its data is undefined), so gating on only
-	// the files query's isLoading could flash the "empty repository" screen for
-	// a non-empty repo while branches is still in flight.
-	if (isEmpty && !isLoading && !branchesLoading) {
+	if (isEmpty && !isLoading) {
 		return <RepoEmptyState owner={owner} name={name} branch={activeBranch} />;
 	}
 
@@ -303,7 +257,7 @@ function TreeBrowserPage() {
 					<code className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">
 						{activeBranch.slice(0, 7)}
 					</code>
-				) : branchesLoading ? (
+				) : isLoading ? (
 					<div className="h-8 w-32 animate-pulse rounded-md border border-border bg-muted" />
 				) : (
 					<Select value={activeBranch} onValueChange={handleBranchChange}>
@@ -355,7 +309,7 @@ function TreeBrowserPage() {
 				name={name}
 				branch={activeBranch}
 				commit={latestCommit}
-				isLoading={latestCommitLoading}
+				isLoading={isLoading}
 			/>
 
 			<FileTable

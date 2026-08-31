@@ -13,6 +13,7 @@ import {
 	type CommitInfo,
 	getFileFromRef,
 	getTreeFromRef,
+	listBranches,
 	type OpsHooks,
 	getBlob as opsGetBlob,
 	getCommit as opsGetCommit,
@@ -28,6 +29,12 @@ import type { TreeEntry } from "./git-tree-ops";
 import { perfNote, perfStep } from "./perf-log";
 
 export type { CommitInfo };
+
+export type RepositoryTreeData = {
+	branches: Awaited<ReturnType<typeof listBranches>>;
+	files: TreeEntry[];
+	latestCommit: CommitInfo | undefined;
+};
 
 // Previously 5, on the theory that a shallow walk (e.g. getCommits' limit=1
 // "latest commit" lookup) only ever needs the tip commit, almost always
@@ -143,6 +150,31 @@ export async function getTreeFromBranch(
 		{ ref: branchName, treePath },
 		opsHooksFor(ownerKey, repoName),
 	);
+}
+
+/**
+ * Read everything needed to render a directory view through one Git context.
+ * A tree page previously issued three independent server functions for the
+ * branch picker, directory entries, and latest-commit bar. On a cold isolate
+ * each created its own repository/access path and repeated R2 structure
+ * discovery. These operations are independent after `getRepoOptions`, so run
+ * them in parallel while sharing the same fs cache and parsed-pack cache.
+ */
+export async function getRepositoryTreeData(
+	ownerKey: string,
+	repoName: string,
+	branchName: string,
+	treePath: string = "",
+): Promise<RepositoryTreeData> {
+	const repo = await getRepoOptions(ownerKey, repoName);
+	const hooks = opsHooksFor(ownerKey, repoName);
+	const [branches, files, commits] = await Promise.all([
+		listBranches(repo),
+		getTreeFromRef(repo, { ref: branchName, treePath }, hooks),
+		opsGetCommitHistory(repo, { ref: branchName, limit: 1 }, hooks),
+	]);
+
+	return { branches, files, latestCommit: commits[0] };
 }
 
 export async function getCommitHistory(
