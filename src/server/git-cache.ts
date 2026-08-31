@@ -1,6 +1,9 @@
 import type { ParsedObjectStore } from "git-edge";
 import { createParsedObjectCache } from "git-edge";
-import type { ResultCache } from "git-fs-s3/ops";
+import type { OpsHooks, ResultCache } from "git-fs-s3/ops";
+import { isR2Configured } from "#/lib/r2";
+import { prefetchAllPacks } from "./git-fs";
+import { perfNote, perfStep } from "./perf-log";
 
 // The raw git-object Buffer cache that used to live here moved into
 // git-fs-s3's createCachedStore (composed in git-fs.ts).
@@ -43,3 +46,25 @@ export const resultCache: ResultCache = {
 	get: <T>(key: string) => getCachedObject<T & object>(key),
 	set: (key: string, value: unknown) => setCachedObject(key, value as object),
 };
+
+/**
+ * The `OpsHooks` object every git-fs-s3/ops call needs — wires this app's
+ * result cache, perf instrumentation, and pack prefetch into the library.
+ * Used to be rebuilt by hand, near-identically, in git-history-ops.ts,
+ * git-last-commit.ts, and git-file-history.ts.
+ */
+export function opsHooksFor(
+	ownerKey: string,
+	repoName: string,
+	options?: { prefetchMinDepth?: number },
+): OpsHooks {
+	return {
+		resultCache,
+		step: perfStep,
+		onNote: perfNote,
+		prefetch: isR2Configured()
+			? () => prefetchAllPacks(ownerKey, repoName)
+			: undefined,
+		prefetchMinDepth: options?.prefetchMinDepth,
+	};
+}

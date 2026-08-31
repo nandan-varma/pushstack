@@ -11,11 +11,8 @@ import {
 	type LastCommitInfo,
 	getLastCommitsForTree as opsGetLastCommitsForTree,
 } from "git-fs-s3/ops";
-import { isR2Configured } from "#/lib/r2";
-import { resultCache } from "./git-cache";
-import { prefetchAllPacks } from "./git-fs";
+import { opsHooksFor } from "./git-cache";
 import { getRepoOptions } from "./git-repo-storage";
-import { perfNote, perfStep } from "./perf-log";
 
 export type { LastCommitInfo };
 
@@ -37,13 +34,6 @@ export async function getLastCommitsForTree(
 	return opsGetLastCommitsForTree(
 		repo,
 		{ ref: branchName, treePath, depth: HISTORY_WALK_DEPTH },
-		{
-			resultCache,
-			step: perfStep,
-			onNote: perfNote,
-			prefetch: isR2Configured()
-				? () => prefetchAllPacks(ownerKey, repoName)
-				: undefined,
-		},
+		opsHooksFor(ownerKey, repoName),
 	);
 }

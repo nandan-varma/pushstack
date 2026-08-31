@@ -3,9 +3,12 @@
  * Handles HTTP Basic Auth and repository access permissions
  */
 
-import { eq, sql } from "drizzle-orm";
+import crypto from "node:crypto";
+import { verifyPassword } from "better-auth/crypto";
+import { eq, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { gitAuthAttempts } from "../db/github-schema";
+import { gitAuthAttempts, tokens } from "../db/github-schema";
+import { user } from "../db/schema";
 import { auth } from "../lib/auth";
 import {
 	GitAuthenticationError,
@@ -217,10 +220,6 @@ async function authenticateWithPassword(
 	}
 
 	try {
-		const { user } = await import("../db/schema");
-		const { or, eq } = await import("drizzle-orm");
-		const { verifyPassword } = await import("better-auth/crypto");
-
 		const foundUser = await db.query.user.findFirst({
 			where: or(
 				eq(user.username, usernameOrEmail),
@@ -277,11 +276,9 @@ async function authenticateToken(
 ): Promise<AuthenticatedGitUser | null> {
 	try {
 		// Hash the token for lookup
-		const crypto = await import("node:crypto");
 		const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
 		// Look up token in database
-		const { tokens } = await import("../db/github-schema");
 		const foundToken = await db.query.tokens.findFirst({
 			where: eq(tokens.tokenHash, tokenHash),
 			with: {

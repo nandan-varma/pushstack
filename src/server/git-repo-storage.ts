@@ -299,6 +299,21 @@ export async function withRepositoryLock<T>(
 	}
 }
 
+// Some writes (git-branch-ops.ts's createBranch/deleteBranch) go straight to
+// R2 when configured, but fall back to getRepoOptions/syncRepositoryToR2 —
+// which already take this same lock internally — on local disk. Since
+// withRepositoryLock isn't reentrant, only the R2-direct path may take it
+// here; call this instead of a hand-rolled `if (isR2Configured())` at each
+// write call site, so that rule lives in one place instead of being
+// re-derived (and re-risked) per call site.
+export async function withRepositoryLockIfR2<T>(
+	ownerKey: string,
+	repoName: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	return isR2Configured() ? withRepositoryLock(ownerKey, repoName, fn) : fn();
+}
+
 export async function getRepoOptions(ownerKey: string, repoName: string) {
 	if (!isR2Configured()) {
 		perfNote(`getRepoOptions ${ownerKey}/${repoName}: local disk, hydrating`);

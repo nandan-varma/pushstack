@@ -22,7 +22,9 @@ const mockRepo = {
 };
 
 vi.mock("../repo-access", () => {
-	const getRepoWithReadAccess = vi.fn(() => Promise.resolve(mockRepo));
+	const getRepoWithReadAccess = vi.fn((_repoId: number) =>
+		Promise.resolve(mockRepo),
+	);
 	return {
 		getRepoOrThrow: vi.fn(() => Promise.resolve(mockRepo)),
 		requireReadAccess: vi.fn(() => Promise.resolve()),

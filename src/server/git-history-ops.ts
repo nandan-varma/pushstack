@@ -14,19 +14,15 @@ import {
 	getFileFromRef,
 	getTreeFromRef,
 	listBranches,
-	type OpsHooks,
 	getBlob as opsGetBlob,
 	getCommit as opsGetCommit,
 	getCommitHistory as opsGetCommitHistory,
 	getCommitLog as opsGetCommitLog,
 	getFileContent as opsGetFileContent,
 } from "git-fs-s3/ops";
-import { isR2Configured } from "#/lib/r2";
-import { resultCache } from "./git-cache";
-import { prefetchAllPacks } from "./git-fs";
+import { opsHooksFor } from "./git-cache";
 import { getRepoOptions } from "./git-repo-storage";
 import type { TreeEntry } from "./git-tree-ops";
-import { perfNote, perfStep } from "./perf-log";
 
 export type { CommitInfo };
 
@@ -47,16 +43,10 @@ export type RepositoryTreeData = {
 // gate — every cache-miss walk prefetches, matching that fix.
 const PREFETCH_PACKS_MIN_DEPTH = 1;
 
-function opsHooksFor(ownerKey: string, repoName: string): OpsHooks {
-	return {
-		resultCache,
-		step: perfStep,
-		onNote: perfNote,
-		prefetch: isR2Configured()
-			? () => prefetchAllPacks(ownerKey, repoName)
-			: undefined,
+function hooksFor(ownerKey: string, repoName: string) {
+	return opsHooksFor(ownerKey, repoName, {
 		prefetchMinDepth: PREFETCH_PACKS_MIN_DEPTH,
-	};
+	});
 }
 
 export async function getBlob(
@@ -80,7 +70,7 @@ export async function getFileContent(
 		repo,
 		filePath,
 		ref,
-		opsHooksFor(ownerKey, repoName),
+		hooksFor(ownerKey, repoName),
 	);
 	return Buffer.from(blob);
 }
@@ -119,7 +109,7 @@ export async function getCommitLog(
 	return opsGetCommitLog(
 		repo,
 		{ ref, depth, knownHeadSha },
-		opsHooksFor(ownerKey, repoName),
+		hooksFor(ownerKey, repoName),
 	);
 }
 
@@ -134,7 +124,7 @@ export async function getFileFromBranch(
 		repo,
 		filePath,
 		branchName,
-		opsHooksFor(ownerKey, repoName),
+		hooksFor(ownerKey, repoName),
 	);
 }
 
@@ -148,7 +138,7 @@ export async function getTreeFromBranch(
 	return getTreeFromRef(
 		repo,
 		{ ref: branchName, treePath },
-		opsHooksFor(ownerKey, repoName),
+		hooksFor(ownerKey, repoName),
 	);
 }
 
@@ -167,7 +157,7 @@ export async function getRepositoryTreeData(
 	treePath: string = "",
 ): Promise<RepositoryTreeData> {
 	const repo = await getRepoOptions(ownerKey, repoName);
-	const hooks = opsHooksFor(ownerKey, repoName);
+	const hooks = hooksFor(ownerKey, repoName);
 	const [branches, files, commits] = await Promise.all([
 		listBranches(repo),
 		getTreeFromRef(repo, { ref: branchName, treePath }, hooks),
@@ -188,6 +178,6 @@ export async function getCommitHistory(
 	return opsGetCommitHistory(
 		repo,
 		{ ref: branchName, limit, skip },
-		opsHooksFor(ownerKey, repoName),
+		hooksFor(ownerKey, repoName),
 	);
 }

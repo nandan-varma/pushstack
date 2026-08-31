@@ -15,7 +15,7 @@ vi.mock("../session", () => ({
 }));
 
 vi.mock("../repo-access", () => {
-	const requireReadAccess = vi.fn(() => Promise.resolve());
+	const requireReadAccess = vi.fn((_repoId: number) => Promise.resolve());
 	return {
 		requireWriteAccess: vi.fn(() => Promise.resolve()),
 		requireReadAccess,
