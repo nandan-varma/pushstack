@@ -1,8 +1,40 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import BetterAuthHeader from "../integrations/better-auth/header-user.tsx";
+import { type ComponentType, useEffect, useRef, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import { Button } from "./ui/button";
+
+/**
+ * The account control contains the full authenticated dropdown implementation.
+ * It is useful after interaction, but it must not make every anonymous Git
+ * page initialize its menu primitives and auth client during SSR. Render the
+ * stable sign-in affordance first, then replace it after hydration.
+ */
+function AccountControl() {
+	const [AccountMenu, setAccountMenu] = useState<ComponentType | null>(null);
+
+	useEffect(() => {
+		let mounted = true;
+		void import("../integrations/better-auth/header-user.tsx").then(
+			({ default: component }) => {
+				if (mounted) setAccountMenu(() => component);
+			},
+		);
+		return () => {
+			mounted = false;
+		};
+	}, []);
+
+	return AccountMenu ? (
+		<AccountMenu />
+	) : (
+		<Link
+			to="/auth/login"
+			className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground no-underline transition hover:border-primary"
+		>
+			Sign in
+		</Link>
+	);
+}
 
 function SearchBox({
 	className,
@@ -109,7 +141,7 @@ export default function Header() {
 				</div>
 
 				<div className="flex items-center gap-2">
-					<BetterAuthHeader />
+					<AccountControl />
 					<ThemeToggle />
 					<Button
 						variant="outline"
