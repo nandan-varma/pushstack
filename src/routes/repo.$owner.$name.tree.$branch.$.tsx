@@ -116,22 +116,6 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 					})
 					.catch(() => {});
 
-				// Off by default (repo settings > Performance) — this walks up to 400
-				// commits of history per directory, the single most expensive thing a
-				// tree-page visit can trigger. Don't even prefetch it unless the repo
-				// owner opted in.
-				if (repo.showLastCommitColumn) {
-					queryClient
-						.ensureQueryData(
-							repositoryLastCommitsQueryOptions({
-								repoId: repo.id,
-								branchName: params.branch,
-								path: params._splat || "",
-							}),
-						)
-						.catch(() => {});
-				}
-
 				queryClient
 					.ensureQueryData(
 						repositoryLatestCommitQueryOptions({
@@ -202,7 +186,10 @@ function TreeBrowserPage() {
 			branchName: activeBranch,
 			path: activePath,
 		}),
-		enabled: !!repo && showLastCommitColumn,
+		// Computing this column needs an exact history walk. Start only once the
+		// directory itself is visible, so it cannot contend with the critical
+		// tree/readme/latest-commit R2 work on a cold navigation.
+		enabled: !!repo && showLastCommitColumn && !!files,
 	});
 
 	const { data: latestCommits, isLoading: latestCommitLoading } = useQuery({
