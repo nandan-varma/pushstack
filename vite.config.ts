@@ -29,6 +29,19 @@ const config = defineConfig({
 		tanstackStart(),
 		nitro({
 			preset: "vercel",
+			vercel: {
+				functions: {
+					// DATABASE_URL is a Neon instance in us-west-2 (Oregon); R2 is
+					// Cloudflare's anycast network so it terminates at whichever edge
+					// is nearest the function regardless of region, but Neon's HTTP
+					// driver is a real regional round trip on every DB read/write —
+					// at least one per request (session + repo lookup), often more.
+					// Vercel's function region defaults to iad1 (Virginia) when
+					// unset, adding a cross-country hop to every single one. pdx1
+					// (Portland) is Vercel's closest region to us-west-2.
+					regions: ["pdx1"],
+				},
+			},
 			// Some CJS-only transitive deps (e.g. use-sync-external-store's
 			// shim, pulled in by @tanstack/react-store) call `require("react")`
 			// from inside their own CJS module body. Rolldown's CJS/ESM interop

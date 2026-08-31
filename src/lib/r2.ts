@@ -39,7 +39,24 @@ export function getR2Client() {
 			accessKeyId,
 			secretAccessKey,
 		},
-		requestHandler: new NodeHttpHandler({ httpsAgent: keepAliveAgent }),
+		requestHandler: new NodeHttpHandler({
+			httpsAgent: keepAliveAgent,
+			// Bounds a single attempt so a stalled connection fails fast into
+			// r2-operations.ts's own retry loop, instead of hanging on the
+			// OS-level TCP timeout (which can be well over a minute).
+			requestTimeout: 5_000,
+		}),
+		// r2-operations.ts's withRetry/circuitBreakerExecute is this app's one
+		// retry policy (bounded backoff, circuit breaker, logged via
+		// logWarn -> Sentry breadcrumbs). The SDK's own default retry strategy
+		// (maxAttempts: 3) runs *inside* a single client.send() call, invisible
+		// to that wrapper and to perf-log's timing — production logs showed
+		// individual HeadObjectCommand calls silently taking ~4.9s with no
+		// corresponding retry-attempt log line, which only lines up with the
+		// SDK retrying internally on its own backoff schedule, stacked
+		// underneath our wrapper's. Disabling it here makes our own wrapper
+		// the single, fully-visible source of retry behavior.
+		maxAttempts: 1,
 	});
 	return _client;
 }
