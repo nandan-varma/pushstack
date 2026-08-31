@@ -65,13 +65,18 @@ const mockDb = {
 	update: vi.fn(() => ({
 		set: vi.fn(() => ({
 			where: vi.fn(() => ({
-				returning: vi.fn(() => [{ id: 1, title: "Updated", status: "open" }]),
+				returning: vi.fn((): Record<string, unknown>[] => [
+					{ id: 1, title: "Updated", status: "open" },
+				]),
 			})),
 		})),
 	})),
 	select: vi.fn(() => ({
 		from: vi.fn(() => ({
-			where: vi.fn(() => Promise.resolve([{ id: 1 }, { id: 2 }])),
+			where: vi.fn(
+				(): Promise<Record<string, unknown>[]> =>
+					Promise.resolve([{ id: 1 }, { id: 2 }]),
+			),
 		})),
 	})),
 	query: {
