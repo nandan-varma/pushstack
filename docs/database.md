@@ -5,9 +5,9 @@ Drizzle ORM. The schema is deliberately split into two files:
 
 - **`src/db/schema.ts`** — Better Auth's own tables (`user`, `session`,
   `account`, `verification`), plus a re-export of everything in
-  `github-schema.ts` so `import { ... } from "#/db/schema"` works as a single
+  `app-schema.ts` so `import { ... } from "#/db/schema"` works as a single
   entry point.
-- **`src/db/github-schema.ts`** — every app-specific table: repositories,
+- **`src/db/app-schema.ts`** — every app-specific table: repositories,
   issues, pull requests, comments, stars, collaborators, activity feed, PATs,
   git-write transaction tracking.
 
@@ -37,9 +37,9 @@ its configured adapter's schema at request time, not at build time.
 | Table | Purpose |
 |---|---|
 | `user`, `session`, `account`, `verification` | Better Auth — accounts, sessions, credential/OAuth accounts, email verification tokens |
-| `repositories` | Name, owner, visibility, default branch, `gitPath` (informational), disk usage / last-backup bookkeeping |
-| `issues` | Repo-scoped issues: title, body, status, labels (jsonb array) |
-| `pullRequests` | Repo-scoped PRs: source/target branch **names** (not FKs — branches are git refs, not DB rows), status, merge metadata |
+| `repositories` | Name, owner, visibility, default branch, `gitPath` (informational), disk usage / last-backup bookkeeping, `nextIssueNumber` (see below) |
+| `issues` | Repo-scoped issues: title, body, status, labels (jsonb array), `number` |
+| `pullRequests` | Repo-scoped PRs: source/target branch **names** (not FKs — branches are git refs, not DB rows), status, merge metadata, `number` |
 | `comments` | Attached to either an issue or a PR (both nullable FKs, exactly one set) |
 | `stars` | User ↔ repository, one row per star |
 | `repositoryCollaborators` | Per-repo, per-user role (`read`/`write`/`admin`) — see [authentication.md](./authentication.md) for how this composes with ownership into `RepositoryAccess` |
@@ -49,8 +49,25 @@ its configured adapter's schema at request time, not at build time.
 | `repoLocks` | One row per `{ownerKey}/{repoName}` currently being written to — the distributed lease-lock every write path (`withRepositoryLock`, `git-repo-lock.ts`) acquires before touching a repo's git storage. Not app data; see [git-storage.md](./git-storage.md) for why this exists (an in-process mutex gives zero protection across Vercel's ephemeral serverless instances) and how the lease/CAS mechanics work. |
 | `gitTransactions` | A write-ahead log: `withRepositoryLock` records one row per critical section (`pending` → `committed`/`rolled_back`), best-effort — a logging failure here never blocks the actual write. Not consulted on any read/write path; exists for provenance and for `findAbandonedGitTransactions` to identify a write whose holder crashed mid-flight (`git-transactions.ts`). |
 
+**Issues and pull requests share one number sequence per repo** — `issues.number`/
+`pullRequests.number` (each unique per `(repoId, number)`), not the row's own
+`id`. This is the repo-scoped "#N" the UI shows and every `#N` markdown
+reference resolves against (`getIssueNumbers`/`getPullRequestNumbers` in
+`issues.ts`/`pull-requests.ts`), matching GitHub's numbering model instead of
+exposing the raw serial `id` (which is a single sequence per *table*, shared
+across every repo, and would produce colliding/non-sequential numbers per
+repo). `createIssue`/`createPullRequest` claim the next number atomically via
+`repositories.claimNextIssueOrPrNumber` (`repositories.ts`) — an
+`UPDATE ... SET next_issue_number = next_issue_number + 1 RETURNING`, safe
+under concurrent creation across Vercel's serverless instances without
+app-level locking. `$id` route params on `/issues/$id` and `/pulls/$id` are
+this `number`, not the internal `id` — `getIssueByNumber`/
+`getPullRequestByNumber` resolve `(owner, name, number)` server-side; mutation
+server functions (`updateIssue`, `mergePullRequest`, ...) still take the
+internal `id`, obtained from the already-loaded issue/PR row.
+
 Relations for all of these are defined via Drizzle's `relations()` alongside
-each table in `github-schema.ts`, so `db.query.X.findFirst({ with: {...} })`
+each table in `app-schema.ts`, so `db.query.X.findFirst({ with: {...} })`
 works for the usual joins (repo ↔ owner, issue ↔ author/repository/comments,
 etc.).
 
@@ -108,6 +125,6 @@ DB and diffs against `schema.ts` directly) — reach for `db:generate` +
 for a change that needs to ship through a review/CI pipeline rather than being
 applied ad hoc).
 
-After any change to `schema.ts` or `github-schema.ts`, run one of these before
+After any change to `schema.ts` or `app-schema.ts`, run one of these before
 the change takes effect against Neon — editing the Drizzle schema alone does
 not touch the database.
