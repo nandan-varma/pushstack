@@ -85,7 +85,9 @@ function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
 					Couldn't load {owner}/{name}
 				</h1>
 				<p className="mb-6 text-sm text-muted-foreground">
-					{error.message || "An unexpected error occurred."}
+					{error instanceof Error
+						? error.message
+						: "An unexpected error occurred."}
 				</p>
 				<div className="flex items-center justify-center gap-2">
 					<Button size="sm" onClick={reset}>

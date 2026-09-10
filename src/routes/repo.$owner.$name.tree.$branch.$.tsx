@@ -41,7 +41,9 @@ function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 			<p className="mb-6 text-sm text-muted-foreground">
 				{isPathNotFound
 					? "The file or folder you're looking for does not exist in this repository."
-					: error?.message || "An unexpected error occurred."}
+					: error instanceof Error
+						? error.message
+						: "An unexpected error occurred."}
 			</p>
 			<div className="flex items-center justify-center gap-2">
 				<Button size="sm" onClick={reset}>

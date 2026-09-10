@@ -168,7 +168,9 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 						Something went wrong
 					</h1>
 					<p className="mb-6 text-sm text-muted-foreground">
-						{error.message || "An unexpected error occurred."}
+						{error instanceof Error
+							? error.message
+							: "An unexpected error occurred."}
 					</p>
 					<Button onClick={reset} className="opacity-100 hover:opacity-90">
 						Try again
