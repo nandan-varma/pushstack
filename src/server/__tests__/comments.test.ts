@@ -4,9 +4,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUser } from "@/test/mock-routes";
-import { setupServerFnMock } from "@/test/server-test-utils";
 
-setupServerFnMock();
+vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(() => Promise.resolve(mockUser)),

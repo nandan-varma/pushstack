@@ -50,31 +50,33 @@ describe("createBranch", () => {
 		vi.clearAllMocks();
 	});
 
-	it.each(
-		traversalNames,
-	)("rejects branch name %s without touching git", async (branchName) => {
-		const git = (await import("isomorphic-git")).default;
-		const { createBranch } = await import("../git-branch-ops");
+	it.each(traversalNames)(
+		"rejects branch name %s without touching git",
+		async (branchName) => {
+			const git = (await import("isomorphic-git")).default;
+			const { createBranch } = await import("../git-branch-ops");
 
-		await expect(
-			createBranch("owner", "repo", branchName, "main"),
-		).rejects.toThrow("Invalid branch name");
-		expect(git.resolveRef).not.toHaveBeenCalled();
-		expect(git.branch).not.toHaveBeenCalled();
-	});
+			await expect(
+				createBranch("owner", "repo", branchName, "main"),
+			).rejects.toThrow("Invalid branch name");
+			expect(git.resolveRef).not.toHaveBeenCalled();
+			expect(git.branch).not.toHaveBeenCalled();
+		},
+	);
 
-	it.each(
-		traversalNames,
-	)("rejects startPoint %s without touching git", async (startPoint) => {
-		const git = (await import("isomorphic-git")).default;
-		const { createBranch } = await import("../git-branch-ops");
+	it.each(traversalNames)(
+		"rejects startPoint %s without touching git",
+		async (startPoint) => {
+			const git = (await import("isomorphic-git")).default;
+			const { createBranch } = await import("../git-branch-ops");
 
-		await expect(
-			createBranch("owner", "repo", "feature", startPoint),
-		).rejects.toThrow("Invalid branch name");
-		expect(git.resolveRef).not.toHaveBeenCalled();
-		expect(git.branch).not.toHaveBeenCalled();
-	});
+			await expect(
+				createBranch("owner", "repo", "feature", startPoint),
+			).rejects.toThrow("Invalid branch name");
+			expect(git.resolveRef).not.toHaveBeenCalled();
+			expect(git.branch).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("deleteBranch", () => {
@@ -82,17 +84,18 @@ describe("deleteBranch", () => {
 		vi.clearAllMocks();
 	});
 
-	it.each(
-		traversalNames,
-	)("rejects branch name %s without touching git", async (branchName) => {
-		const git = (await import("isomorphic-git")).default;
-		const { deleteBranch } = await import("../git-branch-ops");
+	it.each(traversalNames)(
+		"rejects branch name %s without touching git",
+		async (branchName) => {
+			const git = (await import("isomorphic-git")).default;
+			const { deleteBranch } = await import("../git-branch-ops");
 
-		await expect(deleteBranch("owner", "repo", branchName)).rejects.toThrow(
-			"Invalid branch name",
-		);
-		expect(git.deleteBranch).not.toHaveBeenCalled();
-	});
+			await expect(deleteBranch("owner", "repo", branchName)).rejects.toThrow(
+				"Invalid branch name",
+			);
+			expect(git.deleteBranch).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("checkoutBranch", () => {
@@ -100,15 +103,16 @@ describe("checkoutBranch", () => {
 		vi.clearAllMocks();
 	});
 
-	it.each(
-		traversalNames,
-	)("rejects branch name %s without touching git", async (branchName) => {
-		const git = (await import("isomorphic-git")).default;
-		const { checkoutBranch } = await import("../git-branch-ops");
+	it.each(traversalNames)(
+		"rejects branch name %s without touching git",
+		async (branchName) => {
+			const git = (await import("isomorphic-git")).default;
+			const { checkoutBranch } = await import("../git-branch-ops");
 
-		await expect(checkoutBranch("owner", "repo", branchName)).rejects.toThrow(
-			"Invalid branch name",
-		);
-		expect(git.resolveRef).not.toHaveBeenCalled();
-	});
+			await expect(checkoutBranch("owner", "repo", branchName)).rejects.toThrow(
+				"Invalid branch name",
+			);
+			expect(git.resolveRef).not.toHaveBeenCalled();
+		},
+	);
 });

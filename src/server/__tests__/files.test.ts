@@ -4,9 +4,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUser } from "@/test/mock-routes";
-import { setupServerFnMock } from "@/test/server-test-utils";
 
-setupServerFnMock();
+vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(() => Promise.resolve(mockUser)),
@@ -224,63 +223,68 @@ describe("file path traversal guard", () => {
 			vi.clearAllMocks();
 		});
 
-		it.each(
-			traversalBranchNames,
-		)("uploadFile rejects branch name %s", async (branchName) => {
-			const { uploadFile } = await import("../files");
-			await expect(
-				uploadFile({
-					data: {
-						repoId: 1,
-						branchName,
-						path: "src/index.ts",
-						content: "aGVsbG8=",
-						commitMessage: "msg",
-					},
-				}),
-			).rejects.toThrow();
-			expect(gitOpsMocks.createCommit).not.toHaveBeenCalled();
-		});
+		it.each(traversalBranchNames)(
+			"uploadFile rejects branch name %s",
+			async (branchName) => {
+				const { uploadFile } = await import("../files");
+				await expect(
+					uploadFile({
+						data: {
+							repoId: 1,
+							branchName,
+							path: "src/index.ts",
+							content: "aGVsbG8=",
+							commitMessage: "msg",
+						},
+					}),
+				).rejects.toThrow();
+				expect(gitOpsMocks.createCommit).not.toHaveBeenCalled();
+			},
+		);
 
-		it.each(
-			traversalBranchNames,
-		)("getFile rejects branch name %s", async (branchName) => {
-			const { getFile } = await import("../files");
-			await expect(
-				getFile({ data: { repoId: 1, branchName, path: "src/index.ts" } }),
-			).rejects.toThrow();
-			expect(gitOpsMocks.getFileFromBranch).not.toHaveBeenCalled();
-		});
+		it.each(traversalBranchNames)(
+			"getFile rejects branch name %s",
+			async (branchName) => {
+				const { getFile } = await import("../files");
+				await expect(
+					getFile({ data: { repoId: 1, branchName, path: "src/index.ts" } }),
+				).rejects.toThrow();
+				expect(gitOpsMocks.getFileFromBranch).not.toHaveBeenCalled();
+			},
+		);
 
-		it.each(
-			traversalBranchNames,
-		)("createBranch rejects name %s", async (name) => {
-			const { createBranch } = await import("../files");
-			await expect(
-				createBranch({ data: { repoId: 1, name } }),
-			).rejects.toThrow();
-			expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
-		});
+		it.each(traversalBranchNames)(
+			"createBranch rejects name %s",
+			async (name) => {
+				const { createBranch } = await import("../files");
+				await expect(
+					createBranch({ data: { repoId: 1, name } }),
+				).rejects.toThrow();
+				expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
+			},
+		);
 
-		it.each(
-			traversalBranchNames,
-		)("createBranch rejects fromBranch %s", async (fromBranch) => {
-			const { createBranch } = await import("../files");
-			await expect(
-				createBranch({ data: { repoId: 1, name: "feature", fromBranch } }),
-			).rejects.toThrow();
-			expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
-		});
+		it.each(traversalBranchNames)(
+			"createBranch rejects fromBranch %s",
+			async (fromBranch) => {
+				const { createBranch } = await import("../files");
+				await expect(
+					createBranch({ data: { repoId: 1, name: "feature", fromBranch } }),
+				).rejects.toThrow();
+				expect(gitOpsMocks.createBranch).not.toHaveBeenCalled();
+			},
+		);
 
-		it.each(
-			traversalBranchNames,
-		)("deleteBranch rejects name %s", async (name) => {
-			const { deleteBranch } = await import("../files");
-			await expect(
-				deleteBranch({ data: { repoId: 1, name } }),
-			).rejects.toThrow();
-			expect(gitOpsMocks.deleteBranch).not.toHaveBeenCalled();
-		});
+		it.each(traversalBranchNames)(
+			"deleteBranch rejects name %s",
+			async (name) => {
+				const { deleteBranch } = await import("../files");
+				await expect(
+					deleteBranch({ data: { repoId: 1, name } }),
+				).rejects.toThrow();
+				expect(gitOpsMocks.deleteBranch).not.toHaveBeenCalled();
+			},
+		);
 	});
 
 	describe("deleteBranch", () => {
@@ -629,16 +633,17 @@ describe("file path traversal guard", () => {
 			);
 		});
 
-		it.each(
-			traversalBranchNames,
-		)("rejects sourceBranch %s", async (sourceBranch) => {
-			const { getBranchDiff } = await import("../files");
-			await expect(
-				getBranchDiff({
-					data: { repoId: 1, sourceBranch, targetBranch: "main" },
-				}),
-			).rejects.toThrow();
-			expect(gitOpsMocks.getDiffBetweenBranches).not.toHaveBeenCalled();
-		});
+		it.each(traversalBranchNames)(
+			"rejects sourceBranch %s",
+			async (sourceBranch) => {
+				const { getBranchDiff } = await import("../files");
+				await expect(
+					getBranchDiff({
+						data: { repoId: 1, sourceBranch, targetBranch: "main" },
+					}),
+				).rejects.toThrow();
+				expect(gitOpsMocks.getDiffBetweenBranches).not.toHaveBeenCalled();
+			},
+		);
 	});
 });

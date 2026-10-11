@@ -5,9 +5,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setupServerFnMock } from "@/test/server-test-utils";
 
-setupServerFnMock();
+vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
 let currentCookie = "session=abc";
 vi.mock("@tanstack/react-start/server", () => ({

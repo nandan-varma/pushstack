@@ -292,9 +292,8 @@ const TEST_USER = {
 
 // createRepository/deleteRepository are createServerFn-wrapped; unwrap them to
 // plain callables, same shim as repositories.integration.test.ts.
-import { setupServerFnMock } from "@/test/server-test-utils";
 
-setupServerFnMock();
+vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
 // createRepository/deleteRepository call getCurrentUser() for "who is the
 // caller" — this is Better Auth's cookie-session plumbing, orthogonal to the

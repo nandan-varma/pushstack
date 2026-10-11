@@ -11,16 +11,12 @@ import {
 } from "../git-ref-name";
 
 describe("isSafeBranchName", () => {
-	it.each([
-		"main",
-		"feature/foo",
-		"release-1.0",
-		"a",
-		"fix_bug",
-		"v1.2.3",
-	])("accepts well-formed branch name %j", (name) => {
-		expect(isSafeBranchName(name)).toBe(true);
-	});
+	it.each(["main", "feature/foo", "release-1.0", "a", "fix_bug", "v1.2.3"])(
+		"accepts well-formed branch name %j",
+		(name) => {
+			expect(isSafeBranchName(name)).toBe(true);
+		},
+	);
 
 	it.each([
 		"",
@@ -55,13 +51,12 @@ describe("isSafeBranchName", () => {
 });
 
 describe("isSafeFullRefName", () => {
-	it.each([
-		"refs/heads/main",
-		"refs/heads/feature/foo",
-		"refs/tags/v1.0.0",
-	])("accepts well-formed full ref %j", (ref) => {
-		expect(isSafeFullRefName(ref)).toBe(true);
-	});
+	it.each(["refs/heads/main", "refs/heads/feature/foo", "refs/tags/v1.0.0"])(
+		"accepts well-formed full ref %j",
+		(ref) => {
+			expect(isSafeFullRefName(ref)).toBe(true);
+		},
+	);
 
 	it.each([
 		"main", // missing refs/ prefix
@@ -95,14 +90,12 @@ describe("safeBranchNameSchema", () => {
 });
 
 describe("isSafeRefName", () => {
-	it.each([
-		"main",
-		"feature/foo",
-		"a".repeat(40),
-		"A".repeat(40),
-	])("accepts branch name or full commit sha %j", (value) => {
-		expect(isSafeRefName(value)).toBe(true);
-	});
+	it.each(["main", "feature/foo", "a".repeat(40), "A".repeat(40)])(
+		"accepts branch name or full commit sha %j",
+		(value) => {
+			expect(isSafeRefName(value)).toBe(true);
+		},
+	);
 
 	it.each([
 		"",
@@ -141,24 +134,21 @@ describe("safeCommitShaSchema", () => {
 		expect(safeCommitShaSchema.parse(sha)).toBe(sha);
 	});
 
-	it.each([
-		"",
-		"not-a-sha",
-		"a".repeat(39),
-		"g".repeat(40),
-	])("rejects non-sha value %j", (value) => {
-		expect(() => safeCommitShaSchema.parse(value)).toThrow();
-	});
+	it.each(["", "not-a-sha", "a".repeat(39), "g".repeat(40)])(
+		"rejects non-sha value %j",
+		(value) => {
+			expect(() => safeCommitShaSchema.parse(value)).toThrow();
+		},
+	);
 });
 
 describe("isSafeRepoPath", () => {
-	it.each([
-		"README.md",
-		"src/index.ts",
-		"a/b/c.txt",
-	])("accepts well-formed path %j", (p) => {
-		expect(isSafeRepoPath(p)).toBe(true);
-	});
+	it.each(["README.md", "src/index.ts", "a/b/c.txt"])(
+		"accepts well-formed path %j",
+		(p) => {
+			expect(isSafeRepoPath(p)).toBe(true);
+		},
+	);
 
 	it.each([
 		"/etc/passwd",

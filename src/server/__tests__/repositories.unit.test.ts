@@ -4,9 +4,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUser } from "@/test/mock-routes";
-import { setupServerFnMock } from "@/test/server-test-utils";
 
-setupServerFnMock();
+vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(() => Promise.resolve(mockUser)),
@@ -167,19 +166,15 @@ describe("Repository Unit Tests", () => {
 
 		// Repository name flows into a real path.join for local disk hydration
 		// (getRepoPath) — a name of ".." or containing "/" must never reach there.
-		it.each([
-			[".."],
-			["."],
-			["../../etc"],
-			["a/b"],
-			["a\\b"],
-			[""],
-		])("rejects unsafe repository name %j", async (name) => {
-			const { createRepository } = await import("../repositories");
-			await expect(
-				createRepository({ data: { name, visibility: "public" } }),
-			).rejects.toThrow();
-		});
+		it.each([[".."], ["."], ["../../etc"], ["a/b"], ["a\\b"], [""]])(
+			"rejects unsafe repository name %j",
+			async (name) => {
+				const { createRepository } = await import("../repositories");
+				await expect(
+					createRepository({ data: { name, visibility: "public" } }),
+				).rejects.toThrow();
+			},
+		);
 	});
 
 	describe("deleteRepository", () => {
