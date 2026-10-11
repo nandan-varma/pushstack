@@ -200,7 +200,7 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependency vulnerabilities
 
-`pnpm audit` is clean (0 findings) as of the last pass. It wasn't always —
+`pnpm audit --prod` is clean (0 findings) as of the last pass. It wasn't always —
 worth knowing both what was actually wrong and how it was fixed, since the
 same shape of problem can recur:
 
@@ -213,6 +213,15 @@ same shape of problem can recur:
   `better-auth`'s optional multi-ORM peer graph pulling in `prisma`'s bundled
   dev-studio tooling — never imported by this app's code, just present as
   peer-dependency noise. Pinned via `pnpm.overrides` in `package.json`.
+- `@tanstack/react-start` <1.168.60 has an XSS CVE (CVE-2026-102989) that
+  Vercel's build refuses to deploy — bumped. `seroval`, `source-map-js`,
+  `proxy-addr`, `ip-address`, `fast-uri`, `brace-expansion`,
+  `@modelcontextprotocol/sdk` and `shell-quote` are pinned via overrides.
+  `shadcn` moved to `devDependencies` (it's only a build-time CSS `@import`
+  plus the component CLI); its `braces` finding has no patched release.
+- `pnpm audit --prod` is clean. Full `pnpm audit` still reports `braces`
+  (no fix exists) and `postcss-selector-parser` (fix is a major bump that
+  `@tailwindcss/typography` doesn't support) — both dev/build-time only.
 
 **The overrides need an explicit upper bound, not just a patched floor.**
 `pnpm audit --fix`'s auto-generated overrides default to an open-ended target

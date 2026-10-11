@@ -41,9 +41,9 @@
     "@tanstack/react-devtools": "^0.10.12",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-query-devtools": "^5.102.8",
-    "@tanstack/react-router": "^1.170.35",
-    "@tanstack/react-router-devtools": "^1.167.1",
-    "@tanstack/react-start": "^1.168.52",
+    "@tanstack/react-router": "^1.170.42",
+    "@tanstack/react-router-devtools": "^1.167.2",
+    "@tanstack/react-start": "^1.168.61",
     "better-auth": "^1.7.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -64,7 +64,6 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "resend": "^6.27.0",
-    "shadcn": "^4.21.0",
     "shiki": "^4.4.3",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.3",
@@ -91,6 +90,7 @@
     "husky": "^9.1.7",
     "jsdom": "^30.0.1",
     "lint-staged": "^17.5.1",
+    "shadcn": "^4.21.0",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vite": "^8.3.0",
@@ -113,7 +113,16 @@
       "sharp": ">=0.35.0 <1.0.0",
       "valibot": ">=1.4.2 <2.0.0",
       "deepmerge-ts": ">=8.0.0 <9.0.0",
-      "mysql2": ">=3.23.1 <4.0.0"
+      "mysql2": ">=3.23.1 <4.0.0",
+      "fast-uri": ">=3.1.8 <4.0.0",
+      "ip-address": ">=10.7.1 <11.0.0",
+      "brace-expansion@>=4": ">=5.0.12 <6.0.0",
+      "seroval": ">=1.6.3 <2.0.0",
+      "seroval-plugins": ">=1.6.3 <2.0.0",
+      "source-map-js": ">=1.2.2 <2.0.0",
+      "proxy-addr": ">=2.0.8 <3.0.0",
+      "@modelcontextprotocol/sdk": ">=1.31.0 <2.0.0",
+      "shell-quote": ">=1.11.0 <2.0.0"
     }
   }
 }
