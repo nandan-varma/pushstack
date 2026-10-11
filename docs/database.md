@@ -24,7 +24,13 @@ schema actually expects. This drifted once already: bumping `better-auth`
 per-provider identity namespace, e.g. `"local:credential"` for password
 auth) with a unique `(issuer, accountId)` index, and every sign-in/sign-up
 started throwing `"The field issuer does not exist in the schema for the
-model account"` until the column was added and backfilled. **Any future
+model account"` until the column was added and backfilled. Then 1.7.3 removed
+it again (accounts are identified by `(providerId, accountId)`, as in 1.6),
+and the 1.7.2 -> 1.7.4 bump broke every sign-in in the opposite direction:
+better-auth's request-time schema check rejected the now-unwritten
+`NOT NULL` column with `Drizzle schema mismatch — Required columns Better
+Auth never writes: account.issuer`. The column and its index were dropped.
+Drift is possible both ways — a field added *or* removed upstream. **Any future
 `better-auth` version bump needs its actual installed schema diffed against
 `schema.ts`** (check `node_modules/@better-auth/core/dist/db/get-tables.mjs`
 for the exact `user`/`session`/`account`/`verification` field lists that
