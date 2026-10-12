@@ -59,7 +59,7 @@ describe("useBranchUpdateBanner", () => {
 	// refetchIntervalInBackground — silently turning this into a hook that
 	// only ever checks for updates on mount/window-focus — would otherwise
 	// pass every other test in this file.
-	it("polls every 60s, including while the tab is backgrounded", () => {
+	it("polls every 60s while visible and refetches on focus", () => {
 		mockUseQuery.mockReturnValue({ data: undefined } as never);
 		setupQueryClient();
 
@@ -68,9 +68,12 @@ describe("useBranchUpdateBanner", () => {
 		expect(mockUseQuery).toHaveBeenCalledWith(
 			expect.objectContaining({
 				refetchInterval: 60_000,
-				refetchIntervalInBackground: true,
+				refetchOnWindowFocus: true,
 				enabled: true,
 			}),
+		);
+		expect(mockUseQuery.mock.calls[0]?.[0]).not.toHaveProperty(
+			"refetchIntervalInBackground",
 		);
 	});
 

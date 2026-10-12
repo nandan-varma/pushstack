@@ -18,11 +18,11 @@ import {
  * live 60s poll also keeps CommitSummaryBar's display fresh for free, with
  * zero extra requests — only the heavier structural data (file tree,
  * per-file last-commit, branches) waits for an explicit `reload()`.
- * `refetchIntervalInBackground: true` because this is exactly the case a
- * backgrounded tab needs it most — a push landing while the tab isn't
- * focused should still be waiting as "update available" the moment the user
- * comes back, not only after they've also refocused (refetchOnWindowFocus
- * covers that moment too, but shouldn't be the *only* trigger).
+ * Polling pauses while the tab is hidden: each poll is a billed function
+ * invocation (session + R2 ref read), and an idle background tab would
+ * otherwise cost one per minute indefinitely. `refetchOnWindowFocus` checks
+ * immediately when the user comes back, so the banner is still current the
+ * moment it can be seen.
  *
  * The first successful poll establishes the "baseline" sha (not the page's
  * already-rendered data — this hook doesn't need to know what's on screen,
@@ -36,7 +36,6 @@ export function useBranchUpdateBanner(repoId: number, branchName: string) {
 	const { data } = useQuery({
 		...repositoryLatestCommitQueryOptions({ repoId, branchName }),
 		refetchInterval: 60_000,
-		refetchIntervalInBackground: true,
 		refetchOnWindowFocus: true,
 		enabled: Boolean(repoId && branchName),
 	});
