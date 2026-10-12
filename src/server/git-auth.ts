@@ -39,18 +39,26 @@ import { findRepositoryByName } from "./repositories";
 const PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS = 5 * 60_000;
 const PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS = 10;
 
-async function isPasswordAuthLockedOut(key: string): Promise<boolean> {
+// `hasAttempts` lets a successful auth skip the clearing DELETE when there's
+// no row to clear — the common case, since git clients re-send credentials
+// on every request.
+async function getPasswordAuthAttemptState(
+	key: string,
+): Promise<{ lockedOut: boolean; hasAttempts: boolean }> {
 	const entry = await db.query.gitAuthAttempts.findFirst({
 		where: eq(gitAuthAttempts.key, key),
 	});
-	if (!entry) return false;
+	if (!entry) return { lockedOut: false, hasAttempts: false };
 	if (
 		Date.now() - entry.windowStart.getTime() >=
 		PASSWORD_AUTH_RATE_LIMIT_WINDOW_MS
 	) {
-		return false;
+		return { lockedOut: false, hasAttempts: true };
 	}
-	return entry.count >= PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS;
+	return {
+		lockedOut: entry.count >= PASSWORD_AUTH_RATE_LIMIT_MAX_ATTEMPTS,
+		hasAttempts: true,
+	};
 }
 
 // Single upsert, not a read-then-write: the CASE expressions atomically
@@ -213,7 +221,8 @@ async function authenticateWithPassword(
 ): Promise<AuthenticatedGitUser | null> {
 	const rateLimitKey = usernameOrEmail.trim().toLowerCase();
 
-	if (await isPasswordAuthLockedOut(rateLimitKey)) {
+	const attemptState = await getPasswordAuthAttemptState(rateLimitKey);
+	if (attemptState.lockedOut) {
 		throw new GitRateLimitError(
 			"Too many failed authentication attempts for this account. Try again later, or use a Personal Access Token instead of a password.",
 		);
@@ -252,7 +261,9 @@ async function authenticateWithPassword(
 			return null;
 		}
 
-		await clearPasswordAuthAttempts(rateLimitKey);
+		if (attemptState.hasAttempts) {
+			await clearPasswordAuthAttempts(rateLimitKey);
+		}
 
 		return {
 			id: foundUser.id,
