@@ -17,7 +17,7 @@ import {
 	GitRepositoryNotFoundError,
 } from "./git-errors";
 import { logError } from "./perf-log";
-import { canReadRepo, canWriteRepo } from "./repo-access";
+import { getAccessForRepository } from "./repo-access";
 import { findRepositoryByName } from "./repositories";
 
 // authenticateWithPassword verifies credentials directly against the DB,
@@ -376,11 +376,10 @@ export async function authenticateGitRequest(
 		}
 	}
 
-	const isPublic = repo.visibility === "public";
-
-	// Public repo + anonymous: skip all DB access checks (no write ever, reads always allowed)
-	const canRead =
-		isPublic && !user ? true : await canReadRepo(repo.id, user?.id ?? null);
+	// One access computation from the repo row already in hand — no repo
+	// re-fetch, and only owner-less signed-in users cost a collaborator lookup.
+	const access = await getAccessForRepository(repo, user?.id ?? null);
+	const canRead = access.canRead;
 
 	if (!canRead) {
 		if (!user) {
@@ -393,8 +392,7 @@ export async function authenticateGitRequest(
 		);
 	}
 
-	// Anonymous users can never write; skip the DB call for them
-	const canWrite = !user ? false : await canWriteRepo(repo.id, user.id);
+	const canWrite = access.canWrite;
 
 	if (requireWrite && !canWrite) {
 		throw new GitAuthorizationError(

@@ -72,8 +72,10 @@ vi.mock("../../lib/auth", () => ({
 }));
 vi.mock("../repositories", () => ({ findRepositoryByName: mockFindRepo }));
 vi.mock("../repo-access", () => ({
-	canReadRepo: mockCanRead,
-	canWriteRepo: mockCanWrite,
+	getAccessForRepository: async () => ({
+		canRead: await mockCanRead(),
+		canWrite: await mockCanWrite(),
+	}),
 }));
 vi.mock("better-auth/crypto", () => ({ verifyPassword: mockVerifyPassword }));
 
