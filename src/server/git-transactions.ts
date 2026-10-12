@@ -26,7 +26,7 @@
  * constraint.
  */
 
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, ne } from "drizzle-orm";
 import { db } from "#/db";
 import { gitTransactions } from "#/db/app-schema";
 import { logError } from "./perf-log";
@@ -65,12 +65,28 @@ export async function beginGitTransaction(
 	}
 }
 
+// Nothing else ever deletes rows, so the table would grow by one row per
+// write forever. Prune finished entries past this age on a small sample of
+// commits, rather than paying an extra DB round trip on every write.
+const RETENTION_MS = 30 * 24 * 60 * 60_000;
+const PRUNE_SAMPLE_RATE = 0.02;
+
 export async function commitGitTransaction(id: string): Promise<void> {
 	try {
 		await db
 			.update(gitTransactions)
 			.set({ status: "committed", completedAt: new Date() })
 			.where(eq(gitTransactions.id, id));
+		if (Math.random() < PRUNE_SAMPLE_RATE) {
+			await db
+				.delete(gitTransactions)
+				.where(
+					and(
+						ne(gitTransactions.status, "pending"),
+						lt(gitTransactions.createdAt, new Date(Date.now() - RETENTION_MS)),
+					),
+				);
+		}
 	} catch (err) {
 		logError(
 			"git-transactions",

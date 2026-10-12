@@ -110,12 +110,16 @@ export const Route = createFileRoute("/api/raw/$")({
 					// the response identical for every viewer regardless of auth —
 					// a private repo's bytes must never end up in a shared/CDN cache.
 					const isImmutableRef = /^[0-9a-f]{40}$/i.test(ref);
-					const cacheControl =
-						isImmutableRef && repository.visibility === "public"
+					// Public branch refs can be shared-cached briefly at the CDN so
+					// repeat hits skip the function + R2 read (≤60s stale after a push).
+					const isPublic = repository.visibility === "public";
+					const cacheControl = !isPublic
+						? "private, max-age=60"
+						: isImmutableRef
 							? "public, max-age=31536000, immutable"
-							: "private, max-age=60";
+							: "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
 
-					return new Response(Buffer.concat([buffer]), {
+					return new Response(buffer as Uint8Array<ArrayBuffer>, {
 						headers: {
 							"Content-Type": safeContentType(path, isBinary, getMimeType),
 							"X-Content-Type-Options": "nosniff",

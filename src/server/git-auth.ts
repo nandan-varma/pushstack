@@ -295,11 +295,17 @@ async function authenticateToken(
 			return null;
 		}
 
-		// Update last used timestamp
-		await db
-			.update(tokens)
-			.set({ lastUsedAt: new Date() })
-			.where(eq(tokens.id, foundToken.id));
+		// Update last used timestamp — at most hourly, so a burst of git
+		// requests doesn't pay a DB write on every one.
+		if (
+			!foundToken.lastUsedAt ||
+			Date.now() - new Date(foundToken.lastUsedAt).getTime() > 60 * 60_000
+		) {
+			await db
+				.update(tokens)
+				.set({ lastUsedAt: new Date() })
+				.where(eq(tokens.id, foundToken.id));
+		}
 
 		return {
 			id: foundToken.userId,
