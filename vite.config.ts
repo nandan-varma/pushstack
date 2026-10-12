@@ -1,3 +1,4 @@
+import path from "node:path";
 import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
@@ -12,6 +13,10 @@ import { defineConfig } from "vite";
 const sentryIngestOrigin = process.env.VITE_SENTRY_DSN
 	? new URL(process.env.VITE_SENTRY_DSN).origin
 	: undefined;
+
+const serverOnlyDirs = ["db", "server"].map(
+	(dir) => `${path.resolve(import.meta.dirname, "src", dir)}${path.sep}`,
+);
 
 const config = defineConfig({
 	// `#/*` and `@/*` come from tsconfig.json's `paths`, resolved natively.
@@ -125,6 +130,16 @@ const config = defineConfig({
 	},
 	build: {
 		rollupOptions: {
+			// Server-function files keep their top-level imports in the client
+			// build (only handler bodies are stripped), and `src/db` / `src/server`
+			// modules run code at load (the DB client, Drizzle tables), so the
+			// bundler couldn't drop them and shipped the DB driver and schema to
+			// every browser. Nothing in these directories has a side effect a
+			// client needs: once their exports are unused, drop them.
+			treeshake: {
+				moduleSideEffects: (id) =>
+					!serverOnlyDirs.some((dir) => id.startsWith(dir)),
+			},
 			external: [
 				"node:async_hooks",
 				"node:stream",

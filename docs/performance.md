@@ -67,7 +67,7 @@ watch for when adding new code.
    repeatedly probes paths it expects might not exist (ref candidates,
    loose-object paths before falling back to pack search, directory-existence
    checks before every read). This now lives in `git-fs-s3`
-   itself (`createGitFs`'s `looseObjectHints`/`isStructurallyAbsent` options,
+   itself (`createGitFs`'s `looseObjectHints` option and `registerGitdir`,
    wired in `git-fs.ts`) rather than the app's own former
    `git-r2-backend.ts`, which was extracted into that published package —
    see [git-storage.md](./git-storage.md) for the current architecture.

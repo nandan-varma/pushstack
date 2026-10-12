@@ -113,18 +113,18 @@ layer's job:
 - **`createGitFs`** (`looseObjectHints: true`) — the actual `fs` interface
   isomorphic-git needs (`readFile`, `writeFile`, `unlink`, `readdir`, `mkdir`,
   `rmdir`, `stat`, `lstat`), plus:
-  - **Structurally-absent short-circuits** (`isStructurallyAbsent`) —
-    `packed-refs` and `shallow` are probed by isomorphic-git on essentially
-    every ref resolution or merge, but nothing in this codebase ever writes
-    either (refs are always loose, never packed; shallow clones are never
-    created or advertised — see `handleInfoRefsIso`'s capabilities line).
-    These are *permanent* 404s, so `readFile`/`stat` return `ENOENT`
-    immediately without touching R2 or even the cache above — the cache only
-    helps a *repeat* lookup within a warm process, which doesn't help the
-    first lookup, and doesn't help at all on a cold serverless invocation
-    with an empty in-process cache (the common case on Vercel). Anchored to
-    the gitdir layout, so a branch literally named `packed-refs`
-    (`refs/heads/packed-refs`) is unaffected.
+  - **Registered gitdirs** (`registerGitdir`, exposed here as
+    `registerRepoGitdir(ownerKey, repoName)`) — isomorphic-git stats the
+    gitdir on every command and probes `packed-refs` and `shallow` on
+    essentially every ref resolution or merge. Nothing in this codebase ever
+    writes either file (refs are always loose, never packed; shallow clones
+    are never created or advertised — see `handleInfoRefsIso`'s capabilities
+    line), and a repo's gitdir is known to exist once its DB row is found.
+    Registering the gitdir with `absentFiles: ["packed-refs", "shallow"]`
+    answers all three with **zero** R2 calls — not even a cached miss, which
+    wouldn't help a cold serverless invocation's empty cache (the common case
+    on Vercel). `absentFiles` names top-level gitdir files only, so a branch
+    literally named `packed-refs` (`refs/heads/packed-refs`) is unaffected.
   - **Loose-object hint** (`detectLooseObjects`, exposed here as
     `detectLooseObjectsHint(ownerKey, repoName)`) — most repositories are
     fully packed, so *every distinct commit* a reachability walk touches

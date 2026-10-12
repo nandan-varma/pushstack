@@ -23,15 +23,32 @@ describe("perfContext", () => {
 		).rejects.toThrow("boom");
 	});
 
-	it("logs start/done to console.log", async () => {
+	it("prints the whole request as one block when it finishes", async () => {
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 		await perfContext("label", async () => "ok");
-		expect(spy).toHaveBeenCalled();
-		const first = spy.mock.calls[0][0];
-		expect(first).toContain("label");
-		expect(first).toContain("start");
-		const last = spy.mock.calls.at(-1)?.[0];
-		expect(last).toContain("done");
+		expect(spy).toHaveBeenCalledTimes(1);
+		const block = String(spy.mock.calls[0]?.[0]);
+		expect(block).toContain("label");
+		expect(block).toContain("done");
+		spy.mockRestore();
+	});
+
+	it("indents nested steps under their parent, in start order", async () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		await perfContext("tree", async () => {
+			await perfStep("outer", async () => {
+				await perfStep("inner", async () => undefined);
+				perfNote("a note");
+			});
+			await perfStep("sibling", async () => undefined);
+		});
+		const lines = String(spy.mock.calls[0]?.[0]).split("\n").slice(1);
+		expect(lines.map((l) => l.replace(/ [\d.]+ms$/, ""))).toEqual([
+			"  · outer",
+			"    · inner",
+			"    • a note",
+			"  · sibling",
+		]);
 		spy.mockRestore();
 	});
 
@@ -50,6 +67,21 @@ describe("perfContext", () => {
 });
 
 describe("perfStep", () => {
+	it("nests work a lazy thenable does when awaited (e.g. a Drizzle query)", async () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const lazyQuery = {
+			// biome-ignore lint/suspicious/noThenProperty: models a lazy thenable
+			then(resolve: (value: number) => void) {
+				perfNote("sql select 1");
+				resolve(1);
+			},
+		} as unknown as Promise<number>;
+		await perfContext("lazy", () => perfStep("query", () => lazyQuery));
+		const lines = String(spy.mock.calls[0]?.[0]).split("\n");
+		expect(lines).toContain("    • sql select 1");
+		spy.mockRestore();
+	});
+
 	it("returns the value and logs timing inside a perfContext", async () => {
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 		const result = await perfContext("outer", async () => {
@@ -84,9 +116,8 @@ describe("recordR2Call", () => {
 			recordR2Call(10);
 			recordR2Call(20);
 		});
-		const doneLine = spy.mock.calls.at(-1)?.[0] as string;
-		expect(doneLine).toContain("r2: 2 calls");
-		expect(doneLine).toContain("30.0ms");
+		const block = String(spy.mock.calls.at(-1)?.[0]);
+		expect(block).toContain("r2 2 calls 30.0ms");
 		spy.mockRestore();
 	});
 
@@ -103,8 +134,8 @@ describe("recordCacheHit / recordCacheMiss", () => {
 			recordCacheHit();
 			recordCacheMiss();
 		});
-		const doneLine = spy.mock.calls.at(-1)?.[0] as string;
-		expect(doneLine).toContain("cache: 2 hit / 1 miss");
+		const block = String(spy.mock.calls.at(-1)?.[0]);
+		expect(block).toContain("cache 2 hit 1 miss");
 		spy.mockRestore();
 	});
 
@@ -125,8 +156,8 @@ describe("perfR2", () => {
 			.map((c) => String(c[0]))
 			.find((l) => l.includes("r2-read"));
 		expect(stepLine).toBeDefined();
-		const doneLine = spy.mock.calls.at(-1)?.[0] as string;
-		expect(doneLine).toContain("r2: 1 call");
+		const block = String(spy.mock.calls.at(-1)?.[0]);
+		expect(block).toContain("r2 1 calls");
 		spy.mockRestore();
 	});
 

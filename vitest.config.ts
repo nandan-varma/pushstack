@@ -6,6 +6,8 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: 'jsdom',
+    // src/db requires a URL at import; nothing connects until a query runs.
+    env: { DATABASE_URL: 'postgresql://test@localhost/test' },
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
     css: true,

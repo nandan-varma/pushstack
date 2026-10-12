@@ -1,33 +1,20 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-
+import { isPerfLogEnabled } from "#/lib/perf-log";
+import { perfNote } from "#/server/perf-log";
 import * as schema from "./schema.ts";
 
-// Check if running on server or client
-const isServer = typeof window === "undefined";
-
-// Create a Neon HTTP client for serverless environments
-// On client, use a dummy connection string (will never be used since db calls are server-only)
-let connectionString = "postgresql://client@localhost/dummy";
-if (isServer) {
-	if (!process.env.DATABASE_URL) {
-		throw new Error("DATABASE_URL environment variable is not set");
-	}
-	connectionString = process.env.DATABASE_URL;
+if (!process.env.DATABASE_URL) {
+	throw new Error("DATABASE_URL environment variable is not set");
 }
 
-const sql = neon(connectionString);
-
-// Initialize Drizzle with the Neon client
-export const db = drizzle(sql, {
+// Neon's HTTP driver: one stateless HTTPS round trip per query, no pool to
+// manage across serverless invocations.
+export const db = drizzle(neon(process.env.DATABASE_URL), {
 	schema,
-	logger:
-		isServer && process.env.NODE_ENV === "development"
-			? {
-					logQuery: (query, params) => {
-						console.log("Query:", query);
-						console.log("Params:", params);
-					},
-				}
-			: undefined,
+	// SQL text (never parameters — they can carry user data) as notes in the
+	// current request's perf tree; see src/server/perf-log.ts.
+	logger: isPerfLogEnabled()
+		? { logQuery: (query) => perfNote(`sql ${query}`) }
+		: undefined,
 });
