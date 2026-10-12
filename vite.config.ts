@@ -1,4 +1,3 @@
-import path from "node:path";
 import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
@@ -6,7 +5,6 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 // The browser SDK sends error/tracing envelopes straight to this origin
 // (see src/router.tsx's Sentry.init) — without it in connect-src, the CSP
@@ -16,15 +14,10 @@ const sentryIngestOrigin = process.env.VITE_SENTRY_DSN
 	: undefined;
 
 const config = defineConfig({
-	resolve: {
-		alias: {
-			"#": path.resolve(import.meta.dirname, "./src"),
-			"@": path.resolve(import.meta.dirname, "./src"),
-		},
-	},
+	// `#/*` and `@/*` come from tsconfig.json's `paths`, resolved natively.
+	resolve: { tsconfigPaths: true },
 	plugins: [
 		devtools(),
-		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
 		tanstackStart({
 			router: {
