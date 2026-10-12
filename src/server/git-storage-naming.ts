@@ -57,3 +57,30 @@ export function getRepoGitStoragePrefix(
 ): string {
 	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
 }
+
+/** A storage key inside some repo's gitdir, split along the key layout. */
+export interface RepoGitStorageKey {
+	ownerKey: string;
+	repoName: string;
+	/** Path relative to the gitdir; listing prefixes keep their trailing `/`. */
+	gitdirPath: string;
+}
+
+/**
+ * Inverse of {@link getRepoGitStoragePrefix}: split a key (or listing
+ * prefix) of the form `repos/{ownerKey}/{repoName}/git/{gitdirPath}`. `null`
+ * for keys outside that layout.
+ */
+export function parseRepoGitStorageKey(key: string): RepoGitStorageKey | null {
+	const [root, ownerKey, repoName, git, ...rest] = key.split("/");
+	if (
+		root !== "repos" ||
+		!ownerKey ||
+		!repoName ||
+		git !== "git" ||
+		rest.length === 0
+	) {
+		return null;
+	}
+	return { ownerKey, repoName, gitdirPath: rest.join("/") };
+}

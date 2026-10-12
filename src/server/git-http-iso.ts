@@ -34,12 +34,10 @@ import {
 	invalidateGitStorageKeys,
 	invalidateRepoGitStorage,
 	prefetchAllPacks,
+	registerRepoGitdir,
 } from "./git-fs";
 import { withReceivePackLock } from "./git-repo-storage";
-import {
-	getRepoGitStoragePrefix,
-	getRepoGitStorageRoot,
-} from "./git-storage-naming";
+import { getRepoGitStoragePrefix } from "./git-storage-naming";
 import { logWarn, perfContext, perfStep } from "./perf-log";
 
 const hooks: HttpHooks = {
@@ -131,7 +129,7 @@ export async function handleInfoRefsIso(
 				);
 			}
 
-			const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+			const gitdir = registerRepoGitdir(ownerKey, repoName);
 			return handleInfoRefs(
 				{ fs: gitFs, gitdir, cache: getRepoCache(ownerKey, repoName) },
 				{ service, defaultBranch, agent: "pushstack/1.0" },
@@ -154,7 +152,7 @@ export async function handleUploadPackIso(
 			);
 		}
 
-		const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+		const gitdir = registerRepoGitdir(ownerKey, repoName);
 		const body = new Uint8Array(await request.arrayBuffer());
 		return handleUploadPack(
 			// The shared per-repo cache keeps isomorphic-git's parsed pack

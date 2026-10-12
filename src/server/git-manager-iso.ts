@@ -11,7 +11,7 @@ import path from "node:path";
 import { getRepoCache, invalidateRepoCache } from "git-edge";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
-import { gitFs } from "./git-fs";
+import { gitFs, registerRepoGitdir } from "./git-fs";
 import {
 	getRepoGitStorageRoot,
 	sanitizeStorageSegment,
@@ -67,7 +67,7 @@ export function getBareRepoOptions(ownerKey: string, repoName: string) {
 	if (isR2Configured()) {
 		return {
 			fs: gitFs,
-			gitdir: getRepoGitStorageRoot(ownerKey, repoName),
+			gitdir: registerRepoGitdir(ownerKey, repoName),
 			cache,
 		};
 	}

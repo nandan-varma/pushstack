@@ -5,6 +5,7 @@ import {
 	getRepoStorageCoordinates,
 	getRepoStorageRoot,
 	getStorageOwnerKey,
+	parseRepoGitStorageKey,
 	sanitizeStorageSegment,
 } from "../git-storage-naming";
 
@@ -94,5 +95,21 @@ describe("sanitizeStorageSegment path traversal", () => {
 	it("getRepoStorageRoot never contains a resolvable '..' path segment", () => {
 		const root = getRepoStorageRoot("owner", "..");
 		expect(root.split("/")).not.toContain("..");
+	});
+});
+
+describe("parseRepoGitStorageKey", () => {
+	it("inverts getRepoGitStoragePrefix, keeping listing slashes", () => {
+		expect(parseRepoGitStorageKey("repos/alice/blog/git/refs/heads/")).toEqual({
+			ownerKey: "alice",
+			repoName: "blog",
+			gitdirPath: "refs/heads/",
+		});
+	});
+
+	it("rejects keys outside the gitdir layout", () => {
+		expect(parseRepoGitStorageKey("repos/alice/blog/git")).toBeNull();
+		expect(parseRepoGitStorageKey("repos/alice/blog/other/HEAD")).toBeNull();
+		expect(parseRepoGitStorageKey("other/alice/blog/git/HEAD")).toBeNull();
 	});
 });

@@ -41,7 +41,11 @@ vi.mock("#/lib/r2", () => ({ isR2Configured: mockIsR2Configured }));
 
 // Mock R2 backend
 const mockGitFs = vi.hoisted(() => ({ promises: {} }));
-vi.mock("../git-fs", () => ({ gitFs: mockGitFs }));
+vi.mock("../git-fs", () => ({
+	gitFs: mockGitFs,
+	registerRepoGitdir: (owner: string, repo: string) =>
+		`repos/${owner}/${repo}/git`,
+}));
 
 // Mock storage naming
 vi.mock("../git-storage-naming", () => ({

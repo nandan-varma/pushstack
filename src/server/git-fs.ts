@@ -10,9 +10,12 @@
  */
 
 import {
+	classifyGitdirPath,
 	createCachedStore,
 	createGitFs,
 	createRetryStore,
+	type GitdirEntry,
+	isMutableGitdirEntry,
 	type ObjectStore,
 } from "git-fs-s3";
 import { S3ObjectStore } from "git-fs-s3/s3";
@@ -20,6 +23,7 @@ import { getR2Client, getR2Config } from "#/lib/r2";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
+	parseRepoGitStorageKey,
 } from "./git-storage-naming";
 import { perfNote, perfR2, recordCacheHit, recordCacheMiss } from "./perf-log";
 
@@ -50,11 +54,28 @@ const TTL_MS = Number.parseInt(process.env.GIT_CACHE_TTL || "3600", 10) * 1000;
 // still gets the full-length cache benefit once the structure itself is
 // fresh.
 const STRUCTURE_TTL_MS = 5_000;
-const STRUCTURE_KEY_RE = /\/(HEAD|refs(\/|$)|objects\/(pack\/)?$)/;
+
+function gitdirEntryOf(key: string): GitdirEntry | null {
+	const parsed = parseRepoGitStorageKey(key);
+	return parsed ? classifyGitdirPath(parsed.gitdirPath) : null;
+}
 
 /** Exported for tests. */
 export function refAwareTtl(key: string): number | undefined {
-	return STRUCTURE_KEY_RE.test(key) ? STRUCTURE_TTL_MS : undefined;
+	const entry = gitdirEntryOf(key);
+	return entry && isMutableGitdirEntry(entry) ? STRUCTURE_TTL_MS : undefined;
+}
+
+/** HEAD, config and refs are text; everything else is binary. */
+function gitContentType(key: string): string | undefined {
+	switch (gitdirEntryOf(key)?.kind) {
+		case "head":
+		case "config":
+		case "refs":
+			return "text/plain";
+		default:
+			return undefined;
+	}
 }
 
 // getR2Client() throws when R2 env is unset, so the real store is built on
@@ -68,8 +89,7 @@ function getStore(): ObjectStore {
 	realStore = new S3ObjectStore({
 		client: getR2Client(),
 		bucket: getR2Config().bucketName,
-		contentType: (key) =>
-			/\/(HEAD|config)$|\/refs\//.test(key) ? "text/plain" : undefined,
+		contentType: gitContentType,
 	});
 	return realStore;
 }
@@ -104,6 +124,9 @@ const cachedStore = createCachedStore(
 		ttlForKey: refAwareTtl,
 		cacheMisses: true,
 		cacheLists: true,
+		// isomorphic-git never mutates the bytes it reads, so skip the
+		// per-hit defensive copy (megabytes per read for packfiles).
+		copy: false,
 		onHit: recordCacheHit,
 		onMiss: recordCacheMiss,
 	},
@@ -111,15 +134,21 @@ const cachedStore = createCachedStore(
 
 export const gitFs = createGitFs(cachedStore, {
 	looseObjectHints: true,
-	// packed-refs and shallow are structural, permanent 404s: nothing in this
-	// codebase ever writes either (refs are always loose — git-branch-ops.ts —
-	// and shallow clones are never advertised), yet isomorphic-git probes both
-	// constantly. Anchored to the gitdir layout so a branch literally named
-	// "packed-refs" (refs/heads/packed-refs) is unaffected.
-	isStructurallyAbsent: (p) =>
-		/^repos\/[^/]+\/[^/]+\/git\/(packed-refs|shallow)$/.test(p),
 	onNote: perfNote,
 });
+
+/**
+ * The repo's R2 gitdir, registered with `gitFs` so isomorphic-git's
+ * per-command gitdir stat and its `packed-refs`/`shallow` probes cost no R2
+ * calls. Only call once the repository is known to exist (its DB row).
+ * `packed-refs` and `shallow` are never written by this app: refs are always
+ * loose (git-branch-ops.ts) and shallow clones are never advertised.
+ */
+export function registerRepoGitdir(ownerKey: string, repoName: string): string {
+	const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+	gitFs.registerGitdir(gitdir, { absentFiles: ["packed-refs", "shallow"] });
+	return gitdir;
+}
 
 /** Cheap one-time-per-repo check so reads can skip doomed loose-object GETs. */
 export function detectLooseObjectsHint(

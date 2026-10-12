@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../git-storage-naming", () => ({
+vi.mock("../git-storage-naming", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../git-storage-naming")>()),
 	getRepoGitStorageRoot: (owner: string, repo: string) =>
 		`repos/${owner}/${repo}/git`,
 	getRepoGitStoragePrefix: (owner: string, repo: string) =>
@@ -14,6 +15,7 @@ const {
 	invalidateRepoGitStorage,
 	prefetchAllPacks,
 	refAwareTtl,
+	registerRepoGitdir,
 } = await import("../git-fs");
 
 afterEach(() => {
@@ -54,23 +56,26 @@ describe("wrapper gitdir derivation", () => {
 	});
 });
 
-describe("structural absence", () => {
-	it("answers ENOENT for packed-refs and shallow with zero R2 calls", async () => {
+describe("registerRepoGitdir", () => {
+	it("returns the gitdir and makes packed-refs/shallow absent with zero R2 calls", async () => {
 		// R2 env is unset in unit tests: any path that reached the store would
 		// throw "R2 credentials not configured" instead of ENOENT.
+		expect(registerRepoGitdir("alice", "blog")).toBe("repos/alice/blog/git");
 		await expect(
 			gitFs.promises.readFile("repos/alice/blog/git/packed-refs"),
 		).rejects.toMatchObject({ code: "ENOENT" });
 		await expect(
 			gitFs.promises.stat("repos/alice/blog/git/shallow"),
 		).rejects.toMatchObject({ code: "ENOENT" });
+		expect(
+			(await gitFs.promises.stat("repos/alice/blog/git")).isDirectory(),
+		).toBe(true);
 	});
 
 	it("does not treat a branch named packed-refs as absent", async () => {
-		// This path is legal and must reach the store — which proves the
-		// predicate is anchored to the gitdir layout, and that the store is
-		// built lazily (the error is the unconfigured-R2 one, not an import
-		// failure).
+		registerRepoGitdir("alice", "blog");
+		// This path is legal and must reach the store — the error is the
+		// unconfigured-R2 one, which also proves the store is built lazily.
 		await expect(
 			gitFs.promises.readFile("repos/alice/blog/git/refs/heads/packed-refs"),
 		).rejects.toThrow(/R2 credentials not configured/);

@@ -35,6 +35,8 @@ vi.mock("../git-fs", () => ({
 	prefetchAllPacks: vi.fn().mockResolvedValue(undefined),
 	invalidateRepoGitStorage: vi.fn(),
 	invalidateGitStorageKeys: vi.fn(),
+	registerRepoGitdir: (owner: string, repo: string) =>
+		`repos/${owner}/${repo}/git`,
 }));
 
 vi.mock("../git-storage-naming", () => ({
