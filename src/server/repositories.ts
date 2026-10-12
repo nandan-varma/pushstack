@@ -9,8 +9,10 @@ import {
 	stars,
 } from "../db/app-schema";
 import { user } from "../db/schema";
+import { setDefaultBranch } from "./git-branch-ops";
 import { repackRepositoryNow } from "./git-http-iso";
 import { deleteRepo, initBareRepo } from "./git-manager-iso";
+import { safeBranchNameSchema } from "./git-ref-name";
 import {
 	deleteRepositoryFromR2,
 	renameRepositoryStorage,
@@ -376,6 +378,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 				visibility: z.enum(["public", "private"]).optional(),
 				showLastCommitColumn: z.boolean().optional(),
 				autoRefreshPrDiffs: z.boolean().optional(),
+				defaultBranch: safeBranchNameSchema.optional(),
 			})
 			.parse(data),
 	)
@@ -387,6 +390,23 @@ export const updateRepository = createServerFn({ method: "POST" })
 			user.id,
 			"Only repository owner can update",
 		);
+		const ownerKey = getStorageOwnerKey({
+			id: repo.owner.id,
+			username: repo.owner.username,
+			email: repo.owner.email,
+		});
+
+		// Git's HEAD first (it must name an existing branch, which this checks),
+		// then the row — so the row never names a branch git doesn't have.
+		// Before any rename, which moves HEAD along with the rest of storage.
+		if (data.defaultBranch && data.defaultBranch !== repo.defaultBranch) {
+			await setDefaultBranch(
+				ownerKey,
+				repo.name,
+				data.defaultBranch,
+				repo.owner.id,
+			);
+		}
 
 		const isRename = !!data.name && data.name !== repo.name;
 
@@ -417,6 +437,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 					...(data.autoRefreshPrDiffs !== undefined && {
 						autoRefreshPrDiffs: data.autoRefreshPrDiffs,
 					}),
+					...(data.defaultBranch && { defaultBranch: data.defaultBranch }),
 					updatedAt: new Date(),
 				})
 				.where(eq(repositories.id, data.id))
@@ -428,11 +449,6 @@ export const updateRepository = createServerFn({ method: "POST" })
 			// current name — move it to the new name before the DB row itself
 			// changes, all under the same repo lock a concurrent hydrate/push
 			// would also wait on, so nothing can observe a half-renamed state.
-			const ownerKey = getStorageOwnerKey({
-				id: repo.owner.id,
-				username: repo.owner.username,
-				email: repo.owner.email,
-			});
 			[updated] = await withRepositoryLock(ownerKey, repo.name, async () => {
 				await renameRepositoryStorage(ownerKey, repo.name, data.name as string);
 				return applyUpdate();

@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { AccessTokensSection } from "@/components/settings/AccessTokensSection";
+import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { EmailSection } from "@/components/settings/EmailSection";
 import { PasswordSection } from "@/components/settings/PasswordSection";
 import { ProfileSection } from "@/components/settings/ProfileSection";
+import { SessionsSection } from "@/components/settings/SessionsSection";
 import { authSessionQueryOptions } from "@/lib/query-options";
 
 export const Route = createFileRoute("/settings")({
@@ -22,16 +25,44 @@ function SettingsPage() {
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const user = session?.user;
 
-	if (!user) return null;
+	if (!user || !session) return null;
 
 	return (
 		<div className="page-wrap px-4 py-10">
-			<div className="mx-auto max-w-2xl space-y-6">
+			<div className="mx-auto max-w-2xl space-y-10">
 				<h1 className="text-2xl font-bold text-foreground">Account settings</h1>
-				<ProfileSection name={user.name} email={user.email} />
-				<EmailSection currentEmail={user.email} />
-				<PasswordSection />
+				<SettingsGroup title="Account">
+					<ProfileSection name={user.name} email={user.email} />
+					<EmailSection currentEmail={user.email} />
+				</SettingsGroup>
+				<SettingsGroup title="Security">
+					<PasswordSection />
+					<SessionsSection currentToken={session.session.token} />
+				</SettingsGroup>
+				<SettingsGroup title="Git access">
+					<AccessTokensSection />
+				</SettingsGroup>
+				<SettingsGroup title="Developer">
+					<DeveloperSection />
+				</SettingsGroup>
 			</div>
 		</div>
+	);
+}
+
+function SettingsGroup({
+	title,
+	children,
+}: {
+	title: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<section className="space-y-4">
+			<h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+				{title}
+			</h2>
+			{children}
+		</section>
 	);
 }

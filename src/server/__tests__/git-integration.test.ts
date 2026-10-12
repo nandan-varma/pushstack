@@ -38,10 +38,10 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 });
 
 import {
-	checkoutBranch,
 	createBranch,
 	deleteBranch,
 	getBranches,
+	setDefaultBranch,
 } from "../git-branch-ops";
 import { createCommit, deleteFile } from "../git-commit-write";
 import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
@@ -154,15 +154,20 @@ describe("createBranch / deleteBranch", () => {
 	});
 });
 
-describe("checkoutBranch", () => {
-	it("resolves without error for an existing branch", async () => {
-		await expect(checkoutBranch(OWNER, REPO, "main")).resolves.not.toThrow();
+describe("setDefaultBranch", () => {
+	it("points HEAD at the branch, which listings then report as default", async () => {
+		await setDefaultBranch(OWNER, REPO, "feature-branch");
+		const branches = await getBranches(OWNER, REPO);
+		expect(branches.find((b) => b.isDefault)?.name).toBe("feature-branch");
+		await setDefaultBranch(OWNER, REPO, "main");
+		const restored = await getBranches(OWNER, REPO);
+		expect(restored.find((b) => b.isDefault)?.name).toBe("main");
 	});
 
-	it("throws for a non-existent branch", async () => {
-		await expect(
-			checkoutBranch(OWNER, REPO, "does-not-exist"),
-		).rejects.toThrow();
+	it("rejects a branch that doesn't exist", async () => {
+		await expect(setDefaultBranch(OWNER, REPO, "missing")).rejects.toThrow();
+		const branches = await getBranches(OWNER, REPO);
+		expect(branches.find((b) => b.isDefault)?.name).toBe("main");
 	});
 });
 

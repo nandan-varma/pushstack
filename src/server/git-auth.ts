@@ -3,9 +3,9 @@
  * Handles HTTP Basic Auth and repository access permissions
  */
 
-import crypto from "node:crypto";
 import { verifyPassword } from "better-auth/crypto";
 import { eq, or, sql } from "drizzle-orm";
+import { TOKEN_PREFIX, type TokenScope, tokenAllows } from "#/lib/token-scopes";
 import { db } from "../db";
 import { gitAuthAttempts, tokens } from "../db/app-schema";
 import { user } from "../db/schema";
@@ -19,6 +19,7 @@ import {
 import { logError } from "./perf-log";
 import { getAccessForRepository } from "./repo-access";
 import { findRepositoryByName } from "./repositories";
+import { hashToken } from "./tokens";
 
 // authenticateWithPassword verifies credentials directly against the DB,
 // entirely bypassing Better Auth's own rate limiter (which only wraps
@@ -104,30 +105,12 @@ export interface GitAuthContext {
 }
 
 type AuthenticatedGitUser = GitAuthContext["user"] & {
-	tokenScopes?: string[];
+	/** Set when authenticated by personal access token. */
+	tokenScopes?: TokenScope[];
 };
 
 function isPersonalAccessToken(value: string): boolean {
-	return value.startsWith("ghp_");
-}
-
-function hasRequiredTokenScope(
-	scopes: string[] | undefined,
-	requiredScope: "repo:read" | "repo:write",
-): boolean {
-	if (!scopes || scopes.length === 0) {
-		return true;
-	}
-
-	if (scopes.includes("repo") || scopes.includes("*")) {
-		return true;
-	}
-
-	if (requiredScope === "repo:read" && scopes.includes("repo:write")) {
-		return true;
-	}
-
-	return scopes.includes(requiredScope);
+	return value.startsWith(TOKEN_PREFIX);
 }
 
 /**
@@ -279,15 +262,14 @@ async function authenticateWithPassword(
 
 /**
  * Authenticate user via Personal Access Token
- * @param token PAT string (starts with 'ghp_')
+ * @param token PAT string (starts with TOKEN_PREFIX)
  * @returns User object or null if token is invalid
  */
 async function authenticateToken(
 	token: string,
 ): Promise<AuthenticatedGitUser | null> {
 	try {
-		// Hash the token for lookup
-		const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+		const tokenHash = hashToken(token);
 
 		// Look up token in database
 		const foundToken = await db.query.tokens.findFirst({
@@ -323,11 +305,7 @@ async function authenticateToken(
 			username: foundToken.user.username,
 			email: foundToken.user.email,
 			name: foundToken.user.name,
-			tokenScopes: Array.isArray(foundToken.scopes)
-				? foundToken.scopes.filter(
-						(scope): scope is string => typeof scope === "string",
-					)
-				: [],
+			tokenScopes: foundToken.scopes,
 		};
 	} catch (error) {
 		logError("git-auth", "Token auth error", error);
@@ -361,15 +339,12 @@ export async function authenticateGitRequest(
 	}
 
 	if (user?.tokenScopes) {
-		if (!hasRequiredTokenScope(user.tokenScopes, "repo:read")) {
+		if (!tokenAllows(user.tokenScopes, "repo:read")) {
 			throw new GitAuthorizationError(
 				"Access denied: token lacks repo:read scope",
 			);
 		}
-		if (
-			requireWrite &&
-			!hasRequiredTokenScope(user.tokenScopes, "repo:write")
-		) {
+		if (requireWrite && !tokenAllows(user.tokenScopes, "repo:write")) {
 			throw new GitAuthorizationError(
 				"Access denied: token lacks repo:write scope",
 			);

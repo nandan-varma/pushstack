@@ -41,7 +41,7 @@ async function main() {
 		userId: USER_ID,
 		name: "perf-test-token",
 		tokenHash,
-		scopes: ["repo"],
+		scopes: ["repo:write"],
 	});
 
 	const ownerKey = getStorageOwnerKey({

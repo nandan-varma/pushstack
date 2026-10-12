@@ -98,6 +98,10 @@ vi.mock("../git-storage-naming", () => ({
 	getLegacyStorageOwnerKeys: vi.fn(() => []),
 }));
 
+vi.mock("../git-branch-ops", () => ({
+	setDefaultBranch: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock("../git-http-iso", () => ({
 	repackRepositoryNow: vi.fn(() => Promise.resolve({ removedFiles: 0 })),
 }));
@@ -284,6 +288,50 @@ describe("Repository Unit Tests", () => {
 				"test-repo",
 				"renamed",
 			);
+		});
+
+		it("points git HEAD at a new default branch before updating the row", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValueOnce({
+				...mockRepo,
+				defaultBranch: "main",
+				owner: mockUser,
+			});
+			const { setDefaultBranch } = await import("../git-branch-ops");
+			vi.mocked(setDefaultBranch).mockClear();
+
+			const { updateRepository } = await import("../repositories");
+			await updateRepository({ data: { id: 1, defaultBranch: "develop" } });
+
+			expect(setDefaultBranch).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				"develop",
+				mockUser.id,
+			);
+			expect(
+				vi.mocked(setDefaultBranch).mock.invocationCallOrder[0],
+			).toBeLessThan(
+				vi.mocked(mockDb.update).mock.invocationCallOrder.at(-1) ?? 0,
+			);
+		});
+
+		it("doesn't touch the database when the branch can't become default", async () => {
+			mockDb.query.repositories.findFirst.mockResolvedValueOnce({
+				...mockRepo,
+				defaultBranch: "main",
+				owner: mockUser,
+			});
+			const { setDefaultBranch } = await import("../git-branch-ops");
+			vi.mocked(setDefaultBranch).mockRejectedValueOnce(
+				new Error("Branch missing does not exist"),
+			);
+			vi.mocked(mockDb.update).mockClear();
+
+			const { updateRepository } = await import("../repositories");
+			await expect(
+				updateRepository({ data: { id: 1, defaultBranch: "missing" } }),
+			).rejects.toThrow("does not exist");
+			expect(mockDb.update).not.toHaveBeenCalled();
 		});
 
 		it("throws when renaming to a name the owner already has", async () => {

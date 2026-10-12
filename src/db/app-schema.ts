@@ -11,6 +11,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
 
 // Repositories table - stores repository metadata
@@ -365,9 +366,10 @@ export const tokens = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(), // User-friendly name for the token
-		tokenHash: text("token_hash").notNull().unique(), // SHA-256 hash of the token
-		scopes: jsonb("scopes").notNull(), // Array of permission scopes (e.g., ['repo:read', 'repo:write'])
+		name: text("name").notNull(),
+		/** SHA-256 hex of the token; the token itself is never stored. */
+		tokenHash: text("token_hash").notNull().unique(),
+		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
 		lastUsedAt: timestamp("last_used_at"),
 		expiresAt: timestamp("expires_at"),
 		createdAt: timestamp("created_at").notNull().defaultNow(),

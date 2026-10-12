@@ -1,10 +1,10 @@
 /**
  * Tests for git-branch-ops.ts's branch-name guard — git.deleteBranch and the
- * resolveRef read in checkoutBranch don't validate ref names internally the
+ * resolveRef reads don't validate ref names internally the
  * way git.branch does (see isSafeBranchName's comment in git-ref-name.ts),
- * so createBranch/deleteBranch/checkoutBranch must reject an unsafe name
+ * so createBranch/deleteBranch must reject an unsafe name
  * themselves before any isomorphic-git call runs. The happy path (a
- * well-formed name actually creates/deletes/checks out a branch) is covered
+ * well-formed name actually creates/deletes a branch) is covered
  * end-to-end against a real repo in git-integration.test.ts — these
  * functions now delegate to git-fs-s3/ops, which resolves its
  * own isomorphic-git copy under pnpm's isolated node_modules layout, so
@@ -94,25 +94,6 @@ describe("deleteBranch", () => {
 				"Invalid branch name",
 			);
 			expect(git.deleteBranch).not.toHaveBeenCalled();
-		},
-	);
-});
-
-describe("checkoutBranch", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it.each(traversalNames)(
-		"rejects branch name %s without touching git",
-		async (branchName) => {
-			const git = (await import("isomorphic-git")).default;
-			const { checkoutBranch } = await import("../git-branch-ops");
-
-			await expect(checkoutBranch("owner", "repo", branchName)).rejects.toThrow(
-				"Invalid branch name",
-			);
-			expect(git.resolveRef).not.toHaveBeenCalled();
 		},
 	);
 });

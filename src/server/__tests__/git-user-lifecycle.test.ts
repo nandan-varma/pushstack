@@ -347,7 +347,7 @@ beforeAll(async () => {
 		userId: TEST_USER.id,
 		name: "lifecycle-test-token",
 		tokenHash: createHash("sha256").update(PAT).digest("hex"),
-		scopes: ["repo"],
+		scopes: ["repo:write"],
 	});
 
 	// Minimal HTTP server mirroring src/routes/api/git.$.ts's dispatch, using

@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-session", () => ({ getSession: vi.fn(() => "session") }));
 vi.mock("@/lib/perf-log", () => ({
+	isPerfLogEnabled: () => false,
 	perfTime: (_label: string, fn: () => unknown) => fn(),
 }));
 

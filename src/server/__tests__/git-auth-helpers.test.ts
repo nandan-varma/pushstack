@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TokenScope } from "#/lib/token-scopes";
 
 // Hoisted so vi.mock factories can reference them
 const mockGitAuthAttempts = vi.hoisted(() => new Map<string, unknown>());
@@ -230,7 +231,7 @@ describe("authenticateGitRequest", () => {
 	});
 
 	describe("PAT authentication", () => {
-		function tokenRecord(scopes: string[], expiresAt: Date | null = null) {
+		function tokenRecord(scopes: TokenScope[], expiresAt: Date | null = null) {
 			return {
 				id: "tok1",
 				userId: SESSION_USER.id,
@@ -243,7 +244,9 @@ describe("authenticateGitRequest", () => {
 		it("authenticates via PAT in password field and allows full access", async () => {
 			const token = "ghp_validtoken12345";
 			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["repo"]));
+			mockDb.query.tokens.findFirst.mockResolvedValue(
+				tokenRecord(["repo:write"]),
+			);
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(true);
 
@@ -262,7 +265,9 @@ describe("authenticateGitRequest", () => {
 		it("also detects PAT in username field (some git clients send it there)", async () => {
 			const token = "ghp_tokeninusername12345";
 			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["repo"]));
+			mockDb.query.tokens.findFirst.mockResolvedValue(
+				tokenRecord(["repo:write"]),
+			);
 			mockCanRead.mockResolvedValue(true);
 			mockCanWrite.mockResolvedValue(false);
 
@@ -295,7 +300,7 @@ describe("authenticateGitRequest", () => {
 			const yesterday = new Date(Date.now() - 86_400_000);
 			mockFindRepo.mockResolvedValue(PRIVATE_REPO);
 			mockDb.query.tokens.findFirst.mockResolvedValue(
-				tokenRecord(["repo"], yesterday),
+				tokenRecord(["repo:write"], yesterday),
 			);
 			mockCanRead.mockResolvedValue(false); // expired → no auth → 401
 
@@ -310,7 +315,7 @@ describe("authenticateGitRequest", () => {
 	});
 
 	describe("token scope enforcement", () => {
-		function tokenRecord(scopes: string[]) {
+		function tokenRecord(scopes: TokenScope[]) {
 			return {
 				id: "tok1",
 				userId: SESSION_USER.id,
@@ -357,55 +362,19 @@ describe("authenticateGitRequest", () => {
 			expect(ctx.canWrite).toBe(true);
 		});
 
-		it("accepts repo scope (broad) for write", async () => {
-			const token = "ghp_broadscope12345";
-			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["repo"]));
-			mockCanRead.mockResolvedValue(true);
-			mockCanWrite.mockResolvedValue(true);
-
-			const ctx = await authenticateGitRequest(
-				req(basicAuthHeader("alice", token)),
-				"alice",
-				"repo",
-				true,
-			);
-
-			expect(ctx.canWrite).toBe(true);
-		});
-
-		it("accepts wildcard scope for write", async () => {
-			const token = "ghp_wildcardscope123";
-			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
-			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord(["*"]));
-			mockCanRead.mockResolvedValue(true);
-			mockCanWrite.mockResolvedValue(true);
-
-			const ctx = await authenticateGitRequest(
-				req(basicAuthHeader("alice", token)),
-				"alice",
-				"repo",
-				true,
-			);
-
-			expect(ctx.canWrite).toBe(true);
-		});
-
-		it("allows PAT with empty scopes array to access everything (unscoped = full access)", async () => {
+		it("rejects a token with no scopes", async () => {
 			const token = "ghp_noscopestoken1234";
 			mockFindRepo.mockResolvedValue(PUBLIC_REPO);
 			mockDb.query.tokens.findFirst.mockResolvedValue(tokenRecord([]));
 			mockCanRead.mockResolvedValue(true);
-			mockCanWrite.mockResolvedValue(true);
 
-			const ctx = await authenticateGitRequest(
-				req(basicAuthHeader("alice", token)),
-				"alice",
-				"repo",
-				true,
-			);
-
-			expect(ctx.canWrite).toBe(true);
+			await expect(
+				authenticateGitRequest(
+					req(basicAuthHeader("alice", token)),
+					"alice",
+					"repo",
+				),
+			).rejects.toBeInstanceOf(GitAuthorizationError);
 		});
 	});
 
@@ -539,7 +508,7 @@ describe("authenticateGitRequest", () => {
 				id: "tok1",
 				userId: "u1",
 				expiresAt: null,
-				scopes: ["repo"],
+				scopes: ["repo:write"],
 				user: SESSION_USER,
 			});
 			mockCanRead.mockResolvedValue(true);

@@ -36,10 +36,13 @@ import {
 	searchRepositories,
 	searchUsers,
 } from "@/server/search";
+import { listTokens } from "@/server/tokens";
 import { getUserProfile } from "@/server/users";
 
 export const queryKeys = {
 	authSession: ["auth", "session"] as const,
+	accessTokens: ["auth", "access-tokens"] as const,
+	authSessions: ["auth", "sessions"] as const,
 	userRepositories: (userId?: string) =>
 		["repositories", "user", userId ?? "self"] as const,
 	repositoriesRoot: ["repositories"] as const,
@@ -135,6 +138,28 @@ export function authSessionQueryOptions() {
 		queryFn: () => getSession(),
 		staleTime: SESSION_STALE_TIME,
 		gcTime: 30 * 60_000,
+	});
+}
+
+export function accessTokensQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.accessTokens,
+		queryFn: () => listTokens(),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function authSessionsQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.authSessions,
+		queryFn: async () => {
+			// Lazy: only the settings page needs the auth client here.
+			const { authClient } = await import("@/lib/auth-client");
+			const { data, error } = await authClient.listSessions();
+			if (error) throw new Error(error.message ?? "Failed to list sessions");
+			return data;
+		},
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 
