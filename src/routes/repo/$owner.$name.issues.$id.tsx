@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	isNotFound,
+	notFound,
+	redirect,
+} from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { lazy, Suspense, useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
@@ -23,6 +28,7 @@ import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
+	pullRequestByNumberQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
@@ -50,13 +56,36 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 					name: params.name,
 				}),
 			),
-			queryClient.ensureQueryData(
-				issueByNumberQueryOptions({
-					owner: params.owner,
-					name: params.name,
-					number: issueNumber,
+			queryClient
+				.ensureQueryData(
+					issueByNumberQueryOptions({
+						owner: params.owner,
+						name: params.name,
+						number: issueNumber,
+					}),
+				)
+				.catch(async (error: unknown) => {
+					// Issues and pull requests share one number sequence: send a
+					// number that belongs to a pull request to its page.
+					if (!isNotFound(error)) throw error;
+					const other = await queryClient
+						.ensureQueryData(
+							pullRequestByNumberQueryOptions({
+								owner: params.owner,
+								name: params.name,
+								number: issueNumber,
+							}),
+						)
+						.catch(() => null);
+					if (other) {
+						throw redirect({
+							to: "/repo/$owner/$name/pulls/$id",
+							params,
+							statusCode: 301,
+						});
+					}
+					throw error;
 				}),
-			),
 		]);
 
 		// Comments are keyed by the issue's internal id, only known once the

@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	isNotFound,
+	Link,
+	notFound,
+	redirect,
+} from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
@@ -23,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import {
 	authSessionQueryOptions,
+	issueByNumberQueryOptions,
 	pullRequestByNumberQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestDiffQueryOptions,
@@ -54,13 +61,36 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 					name: params.name,
 				}),
 			),
-			queryClient.ensureQueryData(
-				pullRequestByNumberQueryOptions({
-					owner: params.owner,
-					name: params.name,
-					number: prNumber,
+			queryClient
+				.ensureQueryData(
+					pullRequestByNumberQueryOptions({
+						owner: params.owner,
+						name: params.name,
+						number: prNumber,
+					}),
+				)
+				.catch(async (error: unknown) => {
+					// Issues and pull requests share one number sequence: send a
+					// number that belongs to a issue to its page.
+					if (!isNotFound(error)) throw error;
+					const other = await queryClient
+						.ensureQueryData(
+							issueByNumberQueryOptions({
+								owner: params.owner,
+								name: params.name,
+								number: prNumber,
+							}),
+						)
+						.catch(() => null);
+					if (other) {
+						throw redirect({
+							to: "/repo/$owner/$name/issues/$id",
+							params,
+							statusCode: 301,
+						});
+					}
+					throw error;
 				}),
-			),
 		]);
 
 		// Comments are keyed by the PR's internal id, only known once the PR
