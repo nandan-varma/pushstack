@@ -6,7 +6,6 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { z } from "zod";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { BranchUpdateBanner } from "@/components/repo/BranchUpdateBanner";
 import { RepoHeader, RepoHeaderSkeleton } from "@/components/repo/RepoHeader";
@@ -16,11 +15,6 @@ import { useBranchUpdateBanner } from "@/hooks/use-branch-update-banner";
 import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
-
-const repoRouteSchema = z.object({
-	owner: z.string(),
-	name: z.string(),
-});
 
 export const Route = createFileRoute("/repo/$owner/$name")({
 	loader: ({ params, context: { queryClient } }) =>
@@ -73,7 +67,6 @@ export const Route = createFileRoute("/repo/$owner/$name")({
 	},
 	component: RepositoryPage,
 	errorComponent: RepositoryErrorComponent,
-	parseParams: (params) => repoRouteSchema.parse(params),
 });
 
 function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
