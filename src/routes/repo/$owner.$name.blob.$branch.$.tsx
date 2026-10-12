@@ -9,6 +9,7 @@ import {
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { FilePreview } from "@/components/repo/FilePreview";
+import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -52,6 +53,12 @@ export const Route = createFileRoute("/repo/$owner/$name/blob/$branch/$")({
 		}
 	},
 	component: FileBlobPage,
+	notFoundComponent: () => (
+		<RepoResourceNotFound
+			title="File not found"
+			message="This branch or file doesn't exist."
+		/>
+	),
 });
 
 function FileBlobPage() {

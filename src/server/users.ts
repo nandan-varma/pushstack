@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -25,9 +26,7 @@ export const getUserProfile = createServerFn({ method: "GET" })
 				),
 			]);
 
-			if (!profileUser) {
-				throw new Error("User not found");
-			}
+			if (!profileUser) throw notFound();
 
 			const isSelf = currentUser?.id === profileUser.id;
 

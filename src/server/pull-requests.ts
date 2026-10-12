@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -178,14 +179,14 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 					findRepositoryByName(data.owner, data.name),
 				);
 				if (!repo) {
-					throw new Error("Pull request not found");
+					throw notFound();
 				}
 
 				const access = await perfStep("getAccessForRepository", () =>
 					getAccessForRepository(repo, user?.id),
 				);
 				if (!access.canRead) {
-					throw new Error("Access denied");
+					throw notFound();
 				}
 
 				const pr = await perfStep("db: pullRequests.findFirst", () =>
@@ -201,7 +202,7 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 				);
 
 				if (!pr) {
-					throw new Error("Pull request not found");
+					throw notFound();
 				}
 
 				return pr;

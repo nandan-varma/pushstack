@@ -372,7 +372,8 @@ export const createBranch = createServerFn({ method: "POST" })
 			.object({
 				repoId: z.number(),
 				name: safeBranchNameSchema,
-				fromBranch: safeBranchNameSchema.optional().default("main"),
+				/** Defaults to the repository's default branch. */
+				fromBranch: safeBranchNameSchema.optional(),
 			})
 			.parse(data),
 	)
@@ -388,7 +389,7 @@ export const createBranch = createServerFn({ method: "POST" })
 			storage.ownerKey,
 			repo.name,
 			data.name,
-			data.fromBranch,
+			data.fromBranch ?? repo.defaultBranch,
 			repo.ownerId,
 		);
 

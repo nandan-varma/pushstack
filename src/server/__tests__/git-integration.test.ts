@@ -53,7 +53,6 @@ import {
 	getCommitLog,
 	getFileContent,
 	getFileFromBranch,
-	getTree,
 	getTreeFromBranch,
 } from "../git-history-ops";
 // Import after env is set
@@ -72,7 +71,7 @@ const shas = {
 
 beforeAll(async () => {
 	await nodeFs.mkdir(TEST_DIR, { recursive: true });
-	await initBareRepo(OWNER, REPO);
+	await initBareRepo(OWNER, REPO, "main");
 
 	// Commit 1: initial README
 	shas.initial = await createCommit(OWNER, REPO, {
@@ -268,16 +267,16 @@ describe("getFileHistory", () => {
 
 // ── Trees & files ─────────────────────────────────────────────────────────────
 
-describe("getTree (root)", () => {
+describe("getTreeFromBranch (root)", () => {
 	it("lists root entries on main", async () => {
-		const entries = await getTree(OWNER, REPO, "main", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
 		const names = entries.map((e) => e.path);
 		expect(names).toContain("README.md");
 		expect(names).toContain("src");
 	});
 
 	it("marks files as blob and dirs as tree", async () => {
-		const entries = await getTree(OWNER, REPO, "main", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
 		const readme = entries.find((e) => e.path === "README.md");
 		const src = entries.find((e) => e.path === "src");
 		expect(readme?.type).toBe("blob");
@@ -285,7 +284,7 @@ describe("getTree (root)", () => {
 	});
 });
 
-describe("getTree (subdirectory)", () => {
+describe("getTreeFromBranch (subdirectory)", () => {
 	it("lists contents of src/", async () => {
 		const entries = await getTreeFromBranch(OWNER, REPO, "main", "src");
 		expect(entries.map((e) => e.path)).toContain("src/index.js");
@@ -343,7 +342,7 @@ describe("getFileFromBranch", () => {
 
 describe("getBlob", () => {
 	it("returns blob buffer by OID", async () => {
-		const entries = await getTree(OWNER, REPO, "main", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
 		const readme = entries.find((e) => e.path === "README.md");
 		expect(readme).toBeDefined();
 		if (!readme) throw new Error("unreachable");
@@ -369,7 +368,7 @@ describe("createCommit", () => {
 	});
 
 	it("makes the first commit of an empty repository", async () => {
-		await initBareRepo(OWNER, "empty-repo");
+		await initBareRepo(OWNER, "empty-repo", "main");
 		await createCommit(OWNER, "empty-repo", {
 			branch: "main",
 			message: "first",
@@ -388,7 +387,7 @@ describe("createCommit", () => {
 			files: [{ path: "new-file.txt", content: "new content\n" }],
 			author: { name: "Test User", email: "test@example.com" },
 		});
-		const entries = await getTree(OWNER, REPO, "main", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
 		expect(entries.map((e) => e.path)).toContain("new-file.txt");
 	});
 
@@ -428,7 +427,7 @@ describe("deleteFile", () => {
 			{ name: "Test User", email: "test@example.com" },
 		);
 
-		const entries = await getTree(OWNER, REPO, "main", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
 		expect(entries.map((e) => e.path)).not.toContain("to-delete.txt");
 	});
 
@@ -528,7 +527,7 @@ describe("mergeBranches", () => {
 		expect(result.success).toBe(true);
 
 		// feature.txt should now be on merge-target
-		const entries = await getTree(OWNER, REPO, "merge-target", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "merge-target", "");
 		const names = entries.map((e) => e.path);
 		expect(names).toContain("feature.txt");
 	});

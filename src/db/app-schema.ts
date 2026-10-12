@@ -28,7 +28,6 @@ export const repositories = pgTable(
 		description: text("description"),
 		visibility: text("visibility").notNull().default("public"), // 'public' | 'private'
 		defaultBranch: text("default_branch").notNull().default("main"),
-		gitPath: text("git_path"), // Filesystem path to bare git repository
 		diskUsage: bigint("disk_usage", { mode: "number" }), // Repository size in bytes
 		lastBackupAt: timestamp("last_backup_at"), // Last R2 backup timestamp
 		backupR2Key: text("backup_r2_key"), // R2 key for latest backup

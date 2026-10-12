@@ -113,7 +113,7 @@ export async function handleInfoRefsIso(
 	repoName: string,
 	service: "git-upload-pack" | "git-receive-pack",
 	authContext: GitAuthContext,
-	defaultBranch = "main",
+	defaultBranch: string,
 ): Promise<GitHttpResult> {
 	return perfContext(
 		`infoRefs ${ownerKey}/${repoName} ${service}`,

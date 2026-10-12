@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { CommitMessage } from "@/components/repo/CommitMessage";
+import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,12 @@ export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 		}
 	},
 	component: CommitDetailPage,
+	notFoundComponent: () => (
+		<RepoResourceNotFound
+			title="Commit not found"
+			message="This commit doesn't exist in the repository."
+		/>
+	),
 });
 
 function CommitDetailPage() {

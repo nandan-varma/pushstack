@@ -198,13 +198,13 @@ async function seedMemoryRepo(
 describe("handleInfoRefsIso", () => {
 	it("returns 403 if no read access for upload-pack", async () => {
 		await expect(
-			handleInfoRefsIso("u", "r", "git-upload-pack", AUTH_NONE),
+			handleInfoRefsIso("u", "r", "git-upload-pack", AUTH_NONE, "main"),
 		).rejects.toThrow(GitAuthorizationError);
 	});
 
 	it("returns 403 if no write access for receive-pack", async () => {
 		await expect(
-			handleInfoRefsIso("u", "r", "git-receive-pack", AUTH_READ),
+			handleInfoRefsIso("u", "r", "git-receive-pack", AUTH_READ, "main"),
 		).rejects.toThrow(GitAuthorizationError);
 	});
 
@@ -216,6 +216,7 @@ describe("handleInfoRefsIso", () => {
 			"r",
 			"git-upload-pack",
 			AUTH_READ,
+			"main",
 		);
 		expect(result.status).toBe(200);
 		const lines = parsePktLines(Buffer.from(result.body));
@@ -232,6 +233,7 @@ describe("handleInfoRefsIso", () => {
 			"r",
 			"git-upload-pack",
 			AUTH_READ,
+			"main",
 		);
 		expect(result.status).toBe(200);
 		const lines = parsePktLines(Buffer.from(result.body));

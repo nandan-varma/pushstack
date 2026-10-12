@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { lazy, Suspense, useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
@@ -40,7 +40,7 @@ const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const issueNumber = Number(params.id);
-		const isValidNumber = Number.isFinite(issueNumber);
+		if (!Number.isInteger(issueNumber) || issueNumber < 1) throw notFound();
 		// getIssueByNumber resolves the repo server-side, so this can still run
 		// in parallel with the repo query below rather than waiting on it.
 		const [repo, issue] = await Promise.all([
@@ -50,15 +50,13 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 					name: params.name,
 				}),
 			),
-			isValidNumber
-				? queryClient.ensureQueryData(
-						issueByNumberQueryOptions({
-							owner: params.owner,
-							name: params.name,
-							number: issueNumber,
-						}),
-					)
-				: Promise.resolve(undefined),
+			queryClient.ensureQueryData(
+				issueByNumberQueryOptions({
+					owner: params.owner,
+					name: params.name,
+					number: issueNumber,
+				}),
+			),
 		]);
 
 		// Comments are keyed by the issue's internal id, only known once the
@@ -82,6 +80,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 		}
 	},
 	component: IssueDetailPage,
+	notFoundComponent: IssueNotFound,
 });
 
 function IssueDetailPage() {
@@ -169,16 +168,7 @@ function IssueDetailPage() {
 		);
 	}
 
-	if (!issue) {
-		return (
-			<NotFoundCard
-				title="Issue Not Found"
-				backTo="/repo/$owner/$name/issues"
-				backParams={{ owner, name }}
-				backLabel="Back to Issues"
-			/>
-		);
-	}
+	if (!issue) return <IssueNotFound />;
 
 	return (
 		<div className="space-y-6">
@@ -286,5 +276,17 @@ function IssueDetailPage() {
 				/>
 			)}
 		</div>
+	);
+}
+
+function IssueNotFound() {
+	const { owner, name } = Route.useParams();
+	return (
+		<NotFoundCard
+			title="Issue Not Found"
+			backTo="/repo/$owner/$name/issues"
+			backParams={{ owner, name }}
+			backLabel="Back to Issues"
+		/>
 	);
 }

@@ -1,4 +1,5 @@
 import { createRouter } from "@tanstack/react-router";
+import { NotFoundCard } from "./components/NotFoundCard";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
@@ -13,6 +14,21 @@ export function getRouter() {
 		// component-level useQuery has to refetch from scratch, doubling every
 		// request the loader already made.
 		context: getContext(),
+
+		// Unknown URLs, and anything a loader reports missing via notFound()
+		// (repositories, issues, branches, files, commits, users) — a 404.
+		defaultNotFoundComponent: () => (
+			<div className="page-wrap px-4 py-16">
+				<div className="mx-auto max-w-md">
+					<NotFoundCard
+						title="Page not found"
+						message="This page doesn't exist, or you don't have access to it."
+						backTo="/"
+						backLabel="Go home"
+					/>
+				</div>
+			</div>
+		),
 
 		scrollRestoration: true,
 		defaultPreload: "intent",

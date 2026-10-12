@@ -1,3 +1,4 @@
+import { isNotFound } from "@tanstack/react-router";
 /**
  * Tests for repo-access.ts — the single place that computes RepositoryAccess
  * (owner/admin/write/read/anonymous role, canRead/canWrite/canModerate flags)
@@ -275,16 +276,16 @@ describe("getRepoWithReadAccess", () => {
 		expect(repo.id).toBe(PRIVATE_REPO_ID);
 	});
 
-	it("throws 'Repository not found' for a missing repo", async () => {
-		await expect(getRepoWithReadAccess(999_999, OWNER)).rejects.toThrow(
-			"Repository not found",
+	it("answers notFound() for a missing repo", async () => {
+		await expect(getRepoWithReadAccess(999_999, OWNER)).rejects.toSatisfy(
+			isNotFound,
 		);
 	});
 
-	it("throws 'Access denied' for a non-collaborator on a private repo", async () => {
+	it("answers notFound() for a private repo the caller can't read, so it doesn't leak", async () => {
 		await expect(
 			getRepoWithReadAccess(PRIVATE_REPO_ID, OUTSIDER),
-		).rejects.toThrow("Access denied");
+		).rejects.toSatisfy(isNotFound);
 	});
 
 	it("returns the repository for unauthenticated user on public repo", async () => {

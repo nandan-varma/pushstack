@@ -4,7 +4,8 @@ import {
 	type ErrorComponentProps,
 	Link,
 	Outlet,
-	useLocation,
+	useMatchRoute,
+	useParams,
 } from "@tanstack/react-router";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { BranchUpdateBanner } from "@/components/repo/BranchUpdateBanner";
@@ -66,6 +67,7 @@ export const Route = createFileRoute("/repo/$owner/$name")({
 		};
 	},
 	component: RepositoryPage,
+	notFoundComponent: RepositoryNotFound,
 	errorComponent: RepositoryErrorComponent,
 });
 
@@ -97,19 +99,38 @@ function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
 	);
 }
 
+function RepositoryNotFound() {
+	return (
+		<div className="page-wrap px-4 py-16">
+			<div className="mx-auto max-w-md">
+				<NotFoundCard
+					title="Repository not found"
+					message="It doesn't exist, or you don't have access to it."
+					backTo="/dashboard"
+					backLabel="Back to Dashboard"
+				/>
+			</div>
+		</div>
+	);
+}
+
 function RepositoryPage() {
 	const { owner, name } = Route.useParams();
-	const { pathname } = useLocation();
+	// The branch-scoped child routes (tree, blob, commits) all carry `$branch`.
+	const { branch } = useParams({ strict: false });
+	const matchRoute = useMatchRoute();
 
 	const { data: repo, isLoading } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
-	const treeBranchMatch = pathname.match(/\/tree\/([^/]+)/);
-	const commitsBranchMatch = pathname.match(/\/commits\/([^/]+)/);
-	const isCodeActive =
-		pathname.includes("/tree/") || pathname.includes("/blob/");
-	const isCommitsActive = /\/commits\/[^/]+/.test(pathname);
+	const isCodeActive = Boolean(
+		matchRoute({ to: "/repo/$owner/$name/tree/$branch/$", fuzzy: true }) ||
+			matchRoute({ to: "/repo/$owner/$name/blob/$branch/$", fuzzy: true }),
+	);
+	const isCommitsActive = Boolean(
+		matchRoute({ to: "/repo/$owner/$name/commits/$branch", fuzzy: true }),
+	);
 
 	if (isLoading) {
 		return (
@@ -120,25 +141,9 @@ function RepositoryPage() {
 		);
 	}
 
-	if (!repo) {
-		return (
-			<div className="page-wrap px-4 py-16">
-				<div className="mx-auto max-w-md">
-					<NotFoundCard
-						title="Repository not found"
-						backTo="/dashboard"
-						backLabel="Back to Dashboard"
-					/>
-				</div>
-			</div>
-		);
-	}
+	if (!repo) return <RepositoryNotFound />;
 
-	const currentBranch =
-		treeBranchMatch?.[1] ||
-		commitsBranchMatch?.[1] ||
-		repo?.defaultBranch ||
-		"main";
+	const currentBranch = branch ?? repo.defaultBranch;
 
 	// Only the code/commits views render branch-scoped (and often long-cached)
 	// git data — issues/pulls/settings aren't affected by a push landing on

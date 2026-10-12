@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { findReadmeFile, ReadmeCard } from "@/components/repo/ReadmeCard";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
+import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button } from "@/components/ui/button";
@@ -59,13 +60,9 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 		perfTime(
 			`loader tree ${params.owner}/${params.name}@${params.branch}:${params._splat || "/"}`,
 			async () => {
-				// Only `repo` is awaited — it's fast (one DB row) and every other
-				// query needs repo.id. Everything past this point is fire-and-forget:
-				// the route commits and TreeBrowserPage mounts as soon as `repo`
-				// resolves, and each section's own useQuery (already wired to these
-				// exact query keys, sharing this in-flight request) renders its own
-				// skeleton and streams in independently as its query settles, instead
-				// of the whole page blocking on the slowest of four parallel R2 reads.
+				// `repo` and the tree page are awaited; everything else is
+				// fire-and-forget, and each section's own useQuery (sharing these
+				// in-flight requests) streams in as its query settles.
 				const repo = await perfTime(
 					"loader: ensureQueryData repositoryByName",
 					() =>
@@ -76,7 +73,6 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 							}),
 						),
 				);
-				if (!repo) return;
 
 				// MarkdownRenderer (which renders the README below) needs these to
 				// resolve `#123` references to issue/PR links.
@@ -87,30 +83,29 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 					.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
 					.catch(() => {});
 
-				// The component only discovers the README (and fires its content
-				// query) after `files` resolves client-side — chain off this same
-				// fire-and-forget fetch so that readme fetch can start the moment
-				// `files` is known, without making the loader wait for either.
-				queryClient
-					.ensureQueryData(
-						repositoryTreePageQueryOptions({
-							repoId: repo.id,
-							branchName: params.branch,
-							path: params._splat || "",
-						}),
-					)
-					.then(({ files }) => {
-						const readmeFile = findReadmeFile(files);
-						if (!readmeFile) return;
-						return queryClient.ensureQueryData(
+				// Awaited: it's the existence check for the branch and path — a
+				// missing one throws notFound() (a 404) before the page commits —
+				// and server-rendering the listing beats a skeleton. The README
+				// fetch chained off it stays fire-and-forget.
+				const { files } = await queryClient.ensureQueryData(
+					repositoryTreePageQueryOptions({
+						repoId: repo.id,
+						branchName: params.branch,
+						path: params._splat || "",
+					}),
+				);
+				const readmeFile = findReadmeFile(files);
+				if (readmeFile) {
+					queryClient
+						.ensureQueryData(
 							repositoryFileQueryOptions({
 								repoId: repo.id,
 								branchName: params.branch,
 								path: readmeFile.path,
 							}),
-						);
-					})
-					.catch(() => {});
+						)
+						.catch(() => {});
+				}
 			},
 		),
 	head: ({ params }) => {
@@ -123,6 +118,12 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 	},
 	errorComponent: TreeErrorComponent,
 	component: TreeBrowserPage,
+	notFoundComponent: () => (
+		<RepoResourceNotFound
+			title="Not found"
+			message="This branch or folder doesn't exist."
+		/>
+	),
 });
 
 function TreeBrowserPage() {

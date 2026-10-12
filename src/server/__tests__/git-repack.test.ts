@@ -57,7 +57,7 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 
 // Import after env is set
 import { createCommit } from "../git-commit-write";
-import { getCommitLog, getTree } from "../git-history-ops";
+import { getCommitLog, getTreeFromBranch } from "../git-history-ops";
 import { repackRepositoryNow } from "../git-http-iso";
 import { getRepoPath, initBareRepo } from "../git-manager-iso";
 
@@ -94,7 +94,7 @@ async function listLooseOids(repoPath: string): Promise<string[]> {
 
 beforeAll(async () => {
 	await nodeFs.mkdir(TEST_DIR, { recursive: true });
-	await initBareRepo(OWNER, REPO);
+	await initBareRepo(OWNER, REPO, "main");
 
 	const repoPath = getRepoPath(OWNER, REPO);
 
@@ -171,7 +171,7 @@ describe("repackRepositoryNow", () => {
 	});
 
 	it("preserves every file's content after consolidating", async () => {
-		const entries = await getTree(OWNER, REPO, "main", "");
+		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
 		const names = entries.map((e) => e.path).sort();
 		expect(names).toEqual([
 			"file1.txt",

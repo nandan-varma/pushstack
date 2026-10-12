@@ -49,13 +49,12 @@ async function main() {
 		username: USERNAME,
 		email: EMAIL,
 	});
-	const gitPath = await initBareRepo(ownerKey, REPO_NAME);
+	await initBareRepo(ownerKey, REPO_NAME, "main");
 	await db.insert(repositories).values({
 		ownerId: USER_ID,
 		name: REPO_NAME,
 		visibility: "public",
 		defaultBranch: "main",
-		gitPath,
 	});
 
 	console.log("PAT:", pat);

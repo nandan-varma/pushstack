@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -192,16 +193,12 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 				const repo = await perfStep("findRepositoryByName", () =>
 					findRepositoryByName(data.owner, data.name),
 				);
-				if (!repo) {
-					throw new Error("Issue not found");
-				}
+				if (!repo) throw notFound();
 
 				const access = await perfStep("getAccessForRepository", () =>
 					getAccessForRepository(repo, user?.id),
 				);
-				if (!access.canRead) {
-					throw new Error("Access denied");
-				}
+				if (!access.canRead) throw notFound();
 
 				const issue = await perfStep("db: issues.findFirst", () =>
 					db.query.issues.findFirst({
@@ -215,9 +212,7 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 					}),
 				);
 
-				if (!issue) {
-					throw new Error("Issue not found");
-				}
+				if (!issue) throw notFound();
 
 				return { ...issue, labels: issue.labels as string[] | null };
 			},

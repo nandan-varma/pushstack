@@ -1,3 +1,4 @@
+import { isNotFound } from "@tanstack/react-router";
 /**
  * Tests for users.ts's getUserProfile — public/self visibility gating and
  * activity metadata normalization. Follows the same "public + anonymous =
@@ -62,7 +63,7 @@ describe("getUserProfile", () => {
 		const { getUserProfile } = await import("../users");
 		await expect(
 			getUserProfile({ data: { username: "nobody" } }),
-		).rejects.toThrow("User not found");
+		).rejects.toSatisfy(isNotFound);
 	});
 
 	it("rejects an empty username", async () => {

@@ -35,7 +35,7 @@ export async function createBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
-	startPoint: string = "main",
+	startPoint: string,
 	ownerDbId?: string,
 ): Promise<void> {
 	assertSafeBranchName(branchName);

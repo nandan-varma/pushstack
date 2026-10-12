@@ -63,7 +63,7 @@ export async function getFileContent(
 	ownerKey: string,
 	repoName: string,
 	filePath: string,
-	ref: string = "main",
+	ref: string,
 ): Promise<Buffer> {
 	const repo = await getRepoOptions(ownerKey, repoName);
 	const blob = await opsGetFileContent(
@@ -73,15 +73,6 @@ export async function getFileContent(
 		hooksFor(ownerKey, repoName),
 	);
 	return Buffer.from(blob);
-}
-
-export async function getTree(
-	ownerKey: string,
-	repoName: string,
-	ref: string = "main",
-	treePath: string = "",
-): Promise<TreeEntry[]> {
-	return getTreeFromBranch(ownerKey, repoName, ref, treePath);
 }
 
 export async function getCommit(
@@ -96,7 +87,7 @@ export async function getCommit(
 export async function getCommitLog(
 	ownerKey: string,
 	repoName: string,
-	ref: string = "main",
+	ref: string,
 	depth: number = 50,
 	// Callers that already resolved `ref` to a sha (e.g. getCommitHistory, via a
 	// direct refs/heads/<branch> lookup) should pass it here — isomorphic-git's

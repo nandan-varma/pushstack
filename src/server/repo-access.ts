@@ -1,7 +1,9 @@
+import { notFound } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { repositories, repositoryCollaborators } from "../db/app-schema";
 import { user } from "../db/schema";
+import { isGitNotFoundError } from "./git-errors";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import { getCurrentUserOptional } from "./session";
 import { createTtlCoalescedCache } from "./ttl-cache";
@@ -327,15 +329,16 @@ export async function requireWriteAccess(
 // tree-page loader calls getBranches/listFiles/getLastCommits/getCommits for the same
 // (repoId, userId) all in parallel — lets those four calls share one cached result
 // instead of each paying for their own.
+// A repository the caller can't read answers exactly like a missing one
+// (`notFound()`, a 404), so private repositories don't reveal they exist.
 export async function getRepoWithReadAccess(
 	repoId: number,
 	userId?: string | null,
 ) {
 	const access = await resolveRepositoryAccess(repoId, userId);
-	if (!access) throw new Error("Repository not found");
-	if (!access.canRead) throw new Error("Access denied");
+	if (!access?.canRead) throw notFound();
 	const repository = await ensureRepositoryOwner(repoId, access.repository);
-	if (!repository) throw new Error("Repository not found");
+	if (!repository) throw notFound();
 	return repository;
 }
 
@@ -371,7 +374,13 @@ export async function readWithAccess<T>(
 		const repo = await perfStep("getRepoWithReadAccess", () =>
 			getRepoWithReadAccess(repoId, currentUser?.id),
 		);
-		return fn(repo);
+		try {
+			return await fn(repo);
+		} catch (error) {
+			// A missing branch, path or commit is a 404 for the page asking.
+			if (isGitNotFoundError(error)) throw notFound();
+			throw error;
+		}
 	});
 }
 

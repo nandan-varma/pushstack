@@ -95,10 +95,10 @@ importers:
         version: 0.45.4(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1)(@prisma/client@7.4.2(prisma@7.4.2(@types/node@26.6.5)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2))(typescript@7.0.2))(@types/pg@8.23.1)(kysely@0.29.6)(mysql2@3.24.4(@types/node@26.6.5))(pg@8.23.1)(postgres@3.4.7)(prisma@7.4.2(@types/node@26.6.5)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2))
       git-edge:
         specifier: ^0.3.0
-        version: 0.3.0(git-fs-s3@0.5.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3))(isomorphic-git@1.43.3)
+        version: 0.3.0(git-fs-s3@0.6.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3))(isomorphic-git@1.43.3)
       git-fs-s3:
-        specifier: ^0.5.0
-        version: 0.5.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3)
+        specifier: ^0.6.0
+        version: 0.6.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3)
       isomorphic-git:
         specifier: ^1.43.3
         version: 1.43.3
@@ -3099,8 +3099,8 @@ packages:
       git-fs-s3: '>=0.5.0'
       isomorphic-git: '>=1.43.0'
 
-  git-fs-s3@0.5.0:
-    resolution: {integrity: sha512-1QyDePaIZlNmJ+X3EJJ9lbufhdsNS6I4ts/NMc8OCUyyrIaKkIIIXVGH9XGrjPHHW8917RuCgY1SrxlPOzpvZQ==}
+  git-fs-s3@0.6.0:
+    resolution: {integrity: sha512-ZQTVJmKatx+OsdZl3lHSu/xqrtO7+g6Yjf9Zixwf2VTfNtL7c6vhvIo04/D0r87IjPe4I5SIdzBKjNuG2XSgAw==}
     engines: {node: '>=22'}
     peerDependencies:
       '@aws-sdk/client-s3': '>=3.0.0'
@@ -7885,14 +7885,14 @@ snapshots:
       pathe: 2.0.3
     optional: true
 
-  git-edge@0.3.0(git-fs-s3@0.5.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3))(isomorphic-git@1.43.3):
+  git-edge@0.3.0(git-fs-s3@0.6.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3))(isomorphic-git@1.43.3):
     dependencies:
-      git-fs-s3: 0.5.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3)
+      git-fs-s3: 0.6.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3)
       isomorphic-git: 1.43.3
       lru-cache: 11.5.3
       node-diff3: 3.2.1
 
-  git-fs-s3@0.5.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3):
+  git-fs-s3@0.6.0(@aws-sdk/client-s3@3.1149.0)(diff@9.0.0)(isomorphic-git@1.43.3):
     dependencies:
       lru-cache: 11.5.3
     optionalDependencies:

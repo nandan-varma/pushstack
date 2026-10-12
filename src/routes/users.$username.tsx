@@ -28,14 +28,25 @@ export const Route = createFileRoute("/users/$username")({
 		};
 	},
 	component: UserProfilePage,
-	loader: async ({ context: { queryClient }, params }) => {
-		// Swallow the not-found error here so SSR still renders the page shell;
-		// the component shows the NotFoundCard from the query state.
-		await queryClient
-			.ensureQueryData(userProfileQueryOptions(params.username))
-			.catch(() => undefined);
-	},
+	notFoundComponent: UserNotFound,
+	// getUserProfile throws notFound() for an unknown username: a 404.
+	loader: ({ context: { queryClient }, params }) =>
+		queryClient.ensureQueryData(userProfileQueryOptions(params.username)),
 });
+
+function UserNotFound() {
+	const { username } = Route.useParams();
+	return (
+		<main className="page-wrap px-4 py-10">
+			<NotFoundCard
+				title="User not found"
+				message={`No user named "${username}" exists.`}
+				backTo="/"
+				backLabel="Back to home"
+			/>
+		</main>
+	);
+}
 
 function UserProfilePage() {
 	const { username } = Route.useParams();
@@ -56,18 +67,7 @@ function UserProfilePage() {
 		);
 	}
 
-	if (profile.isError || !profile.data) {
-		return (
-			<main className="page-wrap px-4 py-10">
-				<NotFoundCard
-					title="User not found"
-					message={`No user named "${username}" exists.`}
-					backTo="/"
-					backLabel="Back to home"
-				/>
-			</main>
-		);
-	}
+	if (!profile.data) return <UserNotFound />;
 
 	const { user, isSelf, repositories, activities } = profile.data;
 	const joined = new Date(user.createdAt).toLocaleDateString(undefined, {

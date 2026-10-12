@@ -80,26 +80,26 @@ function FileUploadPage() {
 	const [file, setFile] = useState<File | null>(null);
 	const [path, setPath] = useState("");
 	const [commitMessage, setCommitMessage] = useState("");
-	const [branch, setBranch] = useState(searchBranch || "main");
+	// null = the repository's default branch, once it's known.
+	const [selectedBranch, setBranch] = useState<string | null>(
+		searchBranch ?? null,
+	);
 	const [isDragging, setIsDragging] = useState(false);
 	const [isEncoding, setIsEncoding] = useState(false);
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
+	const branch = selectedBranch ?? repo?.defaultBranch ?? "";
 
 	const { data: branches } = useQuery({
 		...repositoryBranchesQueryOptions(repo?.id ?? 0),
 		enabled: !!repo,
 	});
-	// A brand-new repo has no real branches yet (no commits at all), so
-	// `branches` comes back empty — without a fallback, the Select has no
-	// SelectItem to match `branch` against and renders completely blank,
-	// even though `branch` itself already correctly defaults to "main".
+	// A brand-new repo has no branches yet (no commits at all): offer its
+	// default branch, which the first upload creates.
 	const branchOptions =
-		branches && branches.length > 0
-			? branches
-			: [{ name: repo?.defaultBranch ?? branch }];
+		branches && branches.length > 0 ? branches : [{ name: branch }];
 
 	const uploadMutation = useMutation({
 		mutationFn: uploadFile,

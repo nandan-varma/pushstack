@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -134,6 +135,9 @@ export async function claimNextIssueOrPrNumber(
 	return row.nextIssueNumber - 1;
 }
 
+/** The branch a new repository's history starts on. */
+const NEW_REPOSITORY_DEFAULT_BRANCH = "main";
+
 // Create repository schema
 const createRepoSchema = z.object({
 	name: repoNameSchema,
@@ -165,8 +169,7 @@ export const createRepository = createServerFn({ method: "POST" })
 				username: user.username || null,
 				email: user.email,
 			});
-			// Initialize git repository on filesystem
-			const gitPath = await initBareRepo(ownerKey, data.name);
+			await initBareRepo(ownerKey, data.name, NEW_REPOSITORY_DEFAULT_BRANCH);
 
 			// Create repository record in database. The existence check above is
 			// check-then-act (not atomic) — a concurrent double-submit can pass it
@@ -181,8 +184,7 @@ export const createRepository = createServerFn({ method: "POST" })
 						name: data.name,
 						description: data.description || null,
 						visibility: data.visibility,
-						defaultBranch: "main",
-						gitPath, // Store filesystem path
+						defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
 					})
 					.returning();
 			} catch (error) {
@@ -327,9 +329,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 					]),
 			);
 
-			if (!row) {
-				throw new Error("Repository not found");
-			}
+			if (!row) throw notFound();
 
 			const repo = { ...row.repo, owner: row.owner };
 
@@ -357,7 +357,8 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 							: null,
 					]),
 			);
-			if (!access?.canRead) throw new Error("Access denied");
+			// Unreadable answers like missing, so private repos don't leak.
+			if (!access?.canRead) throw notFound();
 
 			return {
 				...repo,

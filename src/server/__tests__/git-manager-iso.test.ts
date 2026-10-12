@@ -120,7 +120,11 @@ describe("GitManager - Repository Management", () => {
 			fs.mkdir.mockResolvedValue(undefined);
 			git.init.mockResolvedValue(undefined);
 
-			const result = await GitManager.initBareRepo(testOwnerId, testRepoName);
+			const result = await GitManager.initBareRepo(
+				testOwnerId,
+				testRepoName,
+				"main",
+			);
 
 			expect(fs.mkdir).toHaveBeenCalled();
 			expect(git.init).toHaveBeenCalledWith({
@@ -141,7 +145,7 @@ describe("GitManager - Repository Management", () => {
 			fs.mkdir.mockResolvedValue(undefined);
 			git.init.mockResolvedValue(undefined);
 
-			await GitManager.initBareRepo(testOwnerId, testRepoName);
+			await GitManager.initBareRepo(testOwnerId, testRepoName, "main");
 
 			expect(git.setConfig).not.toHaveBeenCalled();
 		});
@@ -241,7 +245,11 @@ describe("GitManager - Repository Management", () => {
 				mockIsR2Configured.mockReturnValue(true);
 				git.init.mockResolvedValue(undefined);
 
-				const result = await GitManager.initBareRepo(testOwnerId, testRepoName);
+				const result = await GitManager.initBareRepo(
+					testOwnerId,
+					testRepoName,
+					"main",
+				);
 
 				expect(fs.mkdir).not.toHaveBeenCalled();
 				expect(git.init).toHaveBeenCalledWith(

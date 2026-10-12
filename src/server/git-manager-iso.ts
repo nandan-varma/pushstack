@@ -87,7 +87,7 @@ export async function ensureGitBaseDir(): Promise<void> {
 export async function initBareRepo(
 	ownerKey: string,
 	repoName: string,
-	defaultBranch: string = "main",
+	defaultBranch: string,
 ): Promise<string> {
 	// No git.setConfig calls here: getDefaultAuthor() (below) returns
 	// DEFAULT_USER_NAME/DEFAULT_USER_EMAIL directly as plain JS constants —

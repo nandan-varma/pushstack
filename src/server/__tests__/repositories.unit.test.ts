@@ -1,3 +1,4 @@
+import { isNotFound } from "@tanstack/react-router";
 /**
  * Integration tests for repository server functions
  */
@@ -676,7 +677,7 @@ describe("Repository Unit Tests", () => {
 			const { getRepositoryByName } = await import("../repositories");
 			await expect(
 				getRepositoryByName({ data: { owner: "nobody", name: "nope" } }),
-			).rejects.toThrow("Repository not found");
+			).rejects.toSatisfy(isNotFound);
 		});
 
 		it("throws access denied when the caller cannot read a private repo", async () => {
@@ -706,7 +707,7 @@ describe("Repository Unit Tests", () => {
 			const { getRepositoryByName } = await import("../repositories");
 			await expect(
 				getRepositoryByName({ data: { owner: "nobody2", name: "nope2" } }),
-			).rejects.toThrow("Access denied");
+			).rejects.toSatisfy(isNotFound);
 		});
 
 		it("returns the repo with star info when accessible", async () => {

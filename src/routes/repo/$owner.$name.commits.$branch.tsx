@@ -1,8 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	notFound,
+	useNavigate,
+} from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { useCallback } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
@@ -32,19 +38,26 @@ export const Route = createFileRoute("/repo/$owner/$name/commits/$branch")({
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
-		if (!repo) return;
 
-		// Fire-and-forget (same pattern as the tree page's loader): a cold
-		// commit-log walk can take seconds on a repo with no warm result-cache
-		// entry yet, and the branch switcher is secondary to the list itself —
-		// neither should block the route from committing. CommitsPage's own
-		// useQuery calls (wired to these same keys) pick up the in-flight
-		// request and render their own loading state instead.
+		// The branch list is cheap (one listing) and answers whether this
+		// branch exists: a repository with branches, but not this one, is a
+		// 404. An empty repository has none yet — its history is just empty.
+		const branches = await queryClient.ensureQueryData(
+			repositoryBranchesQueryOptions(repo.id),
+		);
+		if (
+			branches.length > 0 &&
+			!branches.some((b) => b.name === params.branch)
+		) {
+			throw notFound();
+		}
+
+		// Fire-and-forget: a cold commit-log walk can take seconds on a repo
+		// with no warm result-cache entry yet. CommitsPage's own useQuery
+		// (wired to the same key) picks up the in-flight request and renders
+		// its own loading state.
 		const page = deps.page ?? 1;
 		const skip = (page - 1) * PAGE_SIZE;
-		queryClient
-			.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
-			.catch(() => {});
 		queryClient
 			.ensureQueryData(
 				repositoryCommitsQueryOptions({
@@ -57,6 +70,12 @@ export const Route = createFileRoute("/repo/$owner/$name/commits/$branch")({
 			.catch(() => {});
 	},
 	component: CommitsPage,
+	notFoundComponent: () => (
+		<RepoResourceNotFound
+			title="Branch not found"
+			message="This branch doesn't exist."
+		/>
+	),
 });
 
 function CommitsPage() {

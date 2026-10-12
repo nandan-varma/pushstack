@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
@@ -43,7 +43,7 @@ const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const prNumber = Number(params.id);
-		const isValidNumber = Number.isFinite(prNumber);
+		if (!Number.isInteger(prNumber) || prNumber < 1) throw notFound();
 		// getPullRequestByNumber resolves the repo server-side, so this can
 		// still run in parallel with the repo query below rather than waiting
 		// on it.
@@ -54,15 +54,13 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 					name: params.name,
 				}),
 			),
-			isValidNumber
-				? queryClient.ensureQueryData(
-						pullRequestByNumberQueryOptions({
-							owner: params.owner,
-							name: params.name,
-							number: prNumber,
-						}),
-					)
-				: Promise.resolve(undefined),
+			queryClient.ensureQueryData(
+				pullRequestByNumberQueryOptions({
+					owner: params.owner,
+					name: params.name,
+					number: prNumber,
+				}),
+			),
 		]);
 
 		// Comments are keyed by the PR's internal id, only known once the PR
@@ -104,6 +102,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 		}
 	},
 	component: PullRequestDetailPage,
+	notFoundComponent: PullRequestNotFound,
 });
 
 function PullRequestDetailPage() {
@@ -235,16 +234,7 @@ function PullRequestDetailPage() {
 		);
 	}
 
-	if (!pr) {
-		return (
-			<NotFoundCard
-				title="Pull Request Not Found"
-				backTo="/repo/$owner/$name/pulls"
-				backParams={{ owner, name }}
-				backLabel="Back to Pull Requests"
-			/>
-		);
-	}
+	if (!pr) return <PullRequestNotFound />;
 
 	const canMerge = pr.status === "open" && !!session?.user;
 
@@ -409,5 +399,17 @@ function PullRequestDetailPage() {
 				/>
 			)}
 		</div>
+	);
+}
+
+function PullRequestNotFound() {
+	const { owner, name } = Route.useParams();
+	return (
+		<NotFoundCard
+			title="Pull Request Not Found"
+			backTo="/repo/$owner/$name/pulls"
+			backParams={{ owner, name }}
+			backLabel="Back to Pull Requests"
+		/>
 	);
 }
