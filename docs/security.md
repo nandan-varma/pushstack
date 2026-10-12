@@ -220,8 +220,12 @@ same shape of problem can recur:
   `shadcn` moved to `devDependencies` (it's only a build-time CSS `@import`
   plus the component CLI); its `braces` finding has no patched release.
 - `pnpm audit --prod` is clean. Full `pnpm audit` still reports `braces`
-  (no fix exists) and `postcss-selector-parser` (fix is a major bump that
-  `@tailwindcss/typography` doesn't support) — both dev/build-time only.
+  (GHSA-vfj7-8cjw-p6xm, via `shadcn`; no fix exists) and
+  `postcss-selector-parser` (GHSA-rj75-hqrm-r3gf, via
+  `@tailwindcss/typography`; the fix is a major bump it doesn't support) —
+  both dev/build-time only. Those two advisory IDs are listed in
+  `package.json`'s `pnpm.auditConfig.ignoreGhsas` so CI's full `pnpm audit`
+  still fails on anything new; remove an entry once its fix is installable.
 
 **The overrides need an explicit upper bound, not just a patched floor.**
 `pnpm audit --fix`'s auto-generated overrides default to an open-ended target
