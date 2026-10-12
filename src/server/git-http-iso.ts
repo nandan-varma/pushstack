@@ -13,6 +13,7 @@
  */
 
 import fs from "node:fs";
+import { getRepoCache } from "git-edge";
 import {
 	applyReceivePack,
 	type GitHttpResult,
@@ -132,7 +133,7 @@ export async function handleInfoRefsIso(
 
 			const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
 			return handleInfoRefs(
-				{ fs: gitFs, gitdir },
+				{ fs: gitFs, gitdir, cache: getRepoCache(ownerKey, repoName) },
 				{ service, defaultBranch, agent: "pushstack/1.0" },
 				hooks,
 			);
@@ -156,7 +157,11 @@ export async function handleUploadPackIso(
 		const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
 		const body = new Uint8Array(await request.arrayBuffer());
 		return handleUploadPack(
-			{ fs: gitFs, gitdir },
+			// The shared per-repo cache keeps isomorphic-git's parsed pack
+			// indexes (and its one-time pack checksum) across object reads and
+			// requests — without it every object read re-parses every .idx and
+			// re-hashes every .pack.
+			{ fs: gitFs, gitdir, cache: getRepoCache(ownerKey, repoName) },
 			body,
 			{
 				beforeWalk: () =>
