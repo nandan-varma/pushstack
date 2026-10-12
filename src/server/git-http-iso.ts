@@ -87,8 +87,8 @@ export async function repackRepositoryNow(
 	repoName: string,
 	defaultBranch = "main",
 	ownerDbId?: string,
-): Promise<{ removedPacks: number }> {
-	let removedPacks = 0;
+): Promise<{ removedFiles: number }> {
+	let removedFiles = 0;
 	await withReceivePackLock(
 		ownerKey,
 		repoName,
@@ -101,11 +101,11 @@ export async function repackRepositoryNow(
 			),
 		ownerDbId,
 		async (stalePaths) => {
-			removedPacks = stalePaths.length;
+			removedFiles = stalePaths.length;
 			await deleteStalePacksFromR2(ownerKey, repoName, stalePaths);
 		},
 	);
-	return { removedPacks };
+	return { removedFiles };
 }
 
 export async function handleInfoRefsIso(

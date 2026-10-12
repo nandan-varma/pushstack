@@ -156,9 +156,9 @@ describe("repackRepositoryNow", () => {
 
 		const result = await repackRepositoryNow(OWNER, REPO, "main");
 
-		expect(result.removedPacks).toBeGreaterThan(0);
+		expect(result.removedFiles).toBeGreaterThan(0);
 		// Each stale pack contributes both a .pack and a .idx path
-		expect(result.removedPacks).toBe(packsBefore * 2);
+		expect(result.removedFiles).toBe(packsBefore * 2);
 		expect(await countLocalPacks()).toBe(1);
 	});
 
@@ -187,7 +187,7 @@ describe("repackRepositoryNow", () => {
 
 	it("is a no-op (returns zero) when already consolidated", async () => {
 		const result = await repackRepositoryNow(OWNER, REPO, "main");
-		expect(result.removedPacks).toBe(0);
+		expect(result.removedFiles).toBe(0);
 		expect(await countLocalPacks()).toBe(1);
 	});
 });

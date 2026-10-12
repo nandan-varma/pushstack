@@ -521,14 +521,14 @@ export const repackRepository = createServerFn({ method: "POST" })
 			email: repo.owner.email,
 		});
 
-		const { removedPacks } = await repackRepositoryNow(
+		const { removedFiles } = await repackRepositoryNow(
 			ownerKey,
 			repo.name,
 			repo.defaultBranch ?? "main",
 			repo.ownerId,
 		);
 
-		return { removedPacks };
+		return { removedFiles };
 	});
 
 // Star/unstar repository

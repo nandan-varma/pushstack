@@ -134,8 +134,8 @@ export function PerformanceSection({
 			)}
 			{repackMutation.isSuccess && (
 				<p className="mt-2 text-sm text-muted-foreground">
-					{repackMutation.data.removedPacks > 0
-						? `Consolidated — removed ${repackMutation.data.removedPacks} redundant pack file${repackMutation.data.removedPacks === 1 ? "" : "s"}.`
+					{repackMutation.data.removedFiles > 0
+						? `Consolidated — removed ${repackMutation.data.removedFiles} redundant pack file${repackMutation.data.removedFiles === 1 ? "" : "s"}.`
 						: "Already consolidated — nothing to do."}
 				</p>
 			)}

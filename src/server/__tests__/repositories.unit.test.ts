@@ -99,7 +99,7 @@ vi.mock("../git-storage-naming", () => ({
 }));
 
 vi.mock("../git-http-iso", () => ({
-	repackRepositoryNow: vi.fn(() => Promise.resolve({ removedPacks: 0 })),
+	repackRepositoryNow: vi.fn(() => Promise.resolve({ removedFiles: 0 })),
 }));
 
 vi.mock("../repo-access", () => ({
@@ -236,12 +236,12 @@ describe("Repository Unit Tests", () => {
 				owner: mockUser,
 			});
 			const { repackRepositoryNow } = await import("../git-http-iso");
-			vi.mocked(repackRepositoryNow).mockResolvedValue({ removedPacks: 3 });
+			vi.mocked(repackRepositoryNow).mockResolvedValue({ removedFiles: 3 });
 
 			const { repackRepository } = await import("../repositories");
 			const result = await repackRepository({ data: { id: 1 } });
 
-			expect(result.removedPacks).toBe(3);
+			expect(result.removedFiles).toBe(3);
 			expect(repackRepositoryNow).toHaveBeenCalledWith(
 				"user123",
 				mockRepo.name,

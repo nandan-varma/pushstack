@@ -8,12 +8,20 @@
  * replacement pack. Old R2 packs are removed only after the new pack is synced
  * while the repository write lock is held.
  */
+import { parsePackFileName } from "git-fs-s3";
 import { listAllR2Files } from "#/lib/r2-operations";
 import { repackRepositoryNow } from "#/server/git-http-iso";
 import { getRepoGitStoragePrefix } from "#/server/git-storage-naming";
 
-function packCount(files: Awaited<ReturnType<typeof listAllR2Files>>): number {
-	return files.filter((file) => file.key.endsWith(".pack")).length;
+function packCount(
+	files: Awaited<ReturnType<typeof listAllR2Files>>,
+	prefix: string,
+): number {
+	return files.filter(
+		(file) =>
+			parsePackFileName(file.key.slice(`${prefix}objects/pack/`.length))
+				?.kind === "pack",
+	).length;
 }
 
 async function main(): Promise<void> {
@@ -24,19 +32,19 @@ async function main(): Promise<void> {
 
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
 	const before = await listAllR2Files(prefix);
-	const beforePacks = packCount(before);
+	const beforePacks = packCount(before, prefix);
 	console.log(`Found ${beforePacks} pack(s) in ${ownerKey}/${repoName}.`);
 
-	const { removedPacks } = await repackRepositoryNow(
+	const { removedFiles } = await repackRepositoryNow(
 		ownerKey,
 		repoName,
 		defaultBranch,
 	);
 
 	const after = await listAllR2Files(prefix);
-	const afterPacks = packCount(after);
+	const afterPacks = packCount(after, prefix);
 	console.log(
-		`Repack removed ${removedPacks / 2} pack(s); ${afterPacks} pack(s) remain.`,
+		`Repack removed ${removedFiles} file(s); ${afterPacks} pack(s) remain.`,
 	);
 
 	if (beforePacks >= 4 && afterPacks !== 1) {
