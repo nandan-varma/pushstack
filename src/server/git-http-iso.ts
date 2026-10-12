@@ -85,17 +85,17 @@ async function deleteStalePacksFromR2(
 export async function repackRepositoryNow(
 	ownerKey: string,
 	repoName: string,
-	defaultBranch = "main",
 	ownerDbId?: string,
 ): Promise<{ removedFiles: number }> {
 	let removedFiles = 0;
 	await withReceivePackLock(
 		ownerKey,
 		repoName,
-		defaultBranch,
 		(localGitdir) =>
 			repackRepository(
-				{ fs, gitdir: localGitdir },
+				// Fresh isomorphic-git cache per operation: without one, every
+				// object read re-parses every pack index.
+				{ fs, gitdir: localGitdir, cache: {} },
 				{ threshold: REPACK_PACK_COUNT_THRESHOLD },
 				hooks,
 			),
@@ -193,7 +193,7 @@ export async function handleReceivePackIso(
 	repoName: string,
 	request: Request,
 	authContext: GitAuthContext,
-	defaultBranch = "main",
+	defaultBranch: string,
 	ownerDbId?: string,
 ): Promise<GitHttpResult> {
 	return perfContext(`receivePack ${ownerKey}/${repoName}`, async () => {
@@ -228,10 +228,9 @@ export async function handleReceivePackIso(
 		const outcome = await withReceivePackLock(
 			ownerKey,
 			repoName,
-			defaultBranch,
 			(localGitdir) =>
 				applyReceivePack(
-					{ fs, gitdir: localGitdir },
+					{ fs, gitdir: localGitdir, cache: {} },
 					parsed,
 					{
 						defaultBranch,

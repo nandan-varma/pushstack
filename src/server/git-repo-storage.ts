@@ -18,14 +18,13 @@ import {
 	listAllR2Files,
 } from "#/lib/r2-operations";
 import { invalidateObjectCache } from "./git-cache";
-import { isR2NotFoundError } from "./git-errors";
+import { GitRepositoryNotFoundError, isR2NotFoundError } from "./git-errors";
 import { invalidateRepoGitStorage } from "./git-fs";
 import {
 	ensureGitBaseDir,
 	getBareRepoOptions,
 	getRepoDiskUsage,
 	getRepoPath,
-	initBareRepo,
 	invalidateRepoGitCache,
 } from "./git-manager-iso";
 import { getRepoKey, withRepositoryLock } from "./git-repo-lock";
@@ -45,7 +44,7 @@ type RepoState = {
 
 const repoState = new Map<string, RepoState>();
 
-// ponytail: 5-second TTL avoids re-listing R2 when hydrate + sync run back-to-back in the same push
+// 5-second TTL avoids re-listing R2 when hydrate + sync run back-to-back in the same push
 type R2ListEntry = {
 	files: Awaited<ReturnType<typeof listAllR2Files>>;
 	at: number;
@@ -141,7 +140,6 @@ async function ensureRepositoryHydratedUnlocked(
 	ownerKey: string,
 	repoName: string,
 	remoteUpdatedAt?: Date | null,
-	defaultBranch: string = "main",
 ): Promise<string> {
 	await ensureGitBaseDir();
 
@@ -154,38 +152,32 @@ async function ensureRepositoryHydratedUnlocked(
 		return repoPath;
 	}
 
+	// Repositories get their storage from createRepository (initBareRepo);
+	// hydration never creates one. Missing storage is an error to surface,
+	// not something to paper over with a fresh empty repository.
+	const missing = () =>
+		new GitRepositoryNotFoundError(
+			`Storage for ${ownerKey}/${repoName} does not exist`,
+		);
+
 	if (!isR2Configured()) {
 		try {
 			await fs.access(path.join(repoPath, "HEAD"));
 		} catch {
-			await initBareRepo(ownerKey, repoName, defaultBranch);
+			throw missing();
 		}
-
 		return repoPath;
 	}
 
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
 	const remoteFiles = await listAllR2FilesCached(prefix);
+	if (remoteFiles.length === 0) throw missing();
 
-	if (remoteFiles.length === 0) {
-		try {
-			await fs.access(path.join(repoPath, "HEAD"));
-		} catch {
-			await initBareRepo(ownerKey, repoName, defaultBranch);
-		}
-
-		repoState.set(repoKey, {
-			...state,
-			hydratedAt: remoteVersion ?? Date.now(),
-		});
-	} else {
-		await writeRemoteFilesToDisk(repoPath, remoteFiles, prefix);
-
-		repoState.set(repoKey, {
-			...state,
-			hydratedAt: remoteVersion ?? Date.now(),
-		});
-	}
+	await writeRemoteFilesToDisk(repoPath, remoteFiles, prefix);
+	repoState.set(repoKey, {
+		...state,
+		hydratedAt: remoteVersion ?? Date.now(),
+	});
 
 	// Native git clone requires objects/ and refs/heads/ to exist on local disk.
 	await Promise.all([
@@ -215,15 +207,9 @@ export async function ensureRepositoryHydrated(
 	ownerKey: string,
 	repoName: string,
 	remoteUpdatedAt?: Date | null,
-	defaultBranch: string = "main",
 ): Promise<string> {
 	return withRepositoryLock(ownerKey, repoName, () =>
-		ensureRepositoryHydratedUnlocked(
-			ownerKey,
-			repoName,
-			remoteUpdatedAt,
-			defaultBranch,
-		),
+		ensureRepositoryHydratedUnlocked(ownerKey, repoName, remoteUpdatedAt),
 	);
 }
 
@@ -314,7 +300,6 @@ async function branchExists(
 export async function withReceivePackLock<T>(
 	ownerKey: string,
 	repoName: string,
-	defaultBranch: string,
 	fn: (localGitdir: string) => Promise<T>,
 	ownerDbId?: string,
 	afterSync?: (result: T) => Promise<void>,
@@ -324,7 +309,6 @@ export async function withReceivePackLock<T>(
 			ownerKey,
 			repoName,
 			null,
-			defaultBranch,
 		);
 		const result = await fn(gitdir);
 		await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
@@ -349,16 +333,10 @@ export async function withRepositoryWorktree<T>(
 	repoName: string,
 	branchName: string,
 	fn: (context: { worktreePath: string; gitdir: string }) => Promise<T>,
-	defaultBranch: string = "main",
 	ownerDbId?: string,
 ): Promise<T> {
 	return withRepositoryLock(ownerKey, repoName, async () => {
-		const gitdir = await ensureRepositoryHydratedUnlocked(
-			ownerKey,
-			repoName,
-			undefined,
-			defaultBranch,
-		);
+		const gitdir = await ensureRepositoryHydratedUnlocked(ownerKey, repoName);
 		const worktreeRoot = await fs.mkdtemp(
 			path.join(os.tmpdir(), `pushstack-${ownerKey}-${repoName}-`),
 		);
@@ -366,24 +344,18 @@ export async function withRepositoryWorktree<T>(
 		await fs.mkdir(worktreePath, { recursive: true });
 
 		try {
-			// New-branch case: check out the default branch's current tip so a
-			// commit on a not-yet-existing branch still forks from it (matching
-			// what `git clone` + `git checkout -B <new>` used to produce), rather
-			// than starting from an empty working directory.
-			const checkoutRef = (await branchExists(gitdir, branchName))
-				? branchName
-				: defaultBranch;
-
-			if (await branchExists(gitdir, checkoutRef)) {
+			// A missing branch only reaches here for the first commit of an empty
+			// repository (callers check, see git-commit-write.ts): leave the
+			// worktree empty.
+			if (await branchExists(gitdir, branchName)) {
 				await git.checkout({
 					fs,
 					dir: worktreePath,
 					gitdir,
-					ref: qualifyBranchRef(checkoutRef),
+					ref: qualifyBranchRef(branchName),
 					noUpdateHead: true,
 				});
 			}
-			// else: brand new, empty repo — leave worktreePath empty.
 
 			const result = await fn({ worktreePath, gitdir });
 			await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
@@ -499,7 +471,7 @@ async function syncRepositoryToR2Unlocked(
 	const remoteKeys = new Set(remoteFiles.map((file) => file.key));
 	const remoteEtags = new Map(remoteFiles.map((file) => [file.key, file.etag]));
 
-	// ponytail: git objects are content-addressed — skip uploading any that already exist in R2
+	// Git objects are content-addressed — skip uploading any that already exist in R2
 	const newFiles = localFiles.filter(
 		(relativePath) =>
 			!relativePath.startsWith("objects/") ||

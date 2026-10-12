@@ -75,41 +75,34 @@ beforeAll(async () => {
 	await initBareRepo(OWNER, REPO);
 
 	// Commit 1: initial README
-	shas.initial = await createCommit(
-		OWNER,
-		REPO,
-		"Initial commit",
-		[{ path: "README.md", content: "# Test Repo\n" }],
-		"Test User",
-		"test@example.com",
-	);
+	shas.initial = await createCommit(OWNER, REPO, {
+		branch: "main",
+		message: "Initial commit",
+		files: [{ path: "README.md", content: "# Test Repo\n" }],
+		author: { name: "Test User", email: "test@example.com" },
+	});
 
 	// Commit 2: update README + add src/index.js
-	shas.second = await createCommit(
-		OWNER,
-		REPO,
-		"Add source file",
-		[
+	shas.second = await createCommit(OWNER, REPO, {
+		branch: "main",
+		message: "Add source file",
+		files: [
 			{ path: "README.md", content: "# Updated Repo\n\nSome content.\n" },
 			{ path: "src/index.js", content: 'console.log("hello");\n' },
 		],
-		"Test User",
-		"test@example.com",
-	);
+		author: { name: "Test User", email: "test@example.com" },
+	});
 
 	// Create a feature branch from current HEAD (main)
 	await createBranch(OWNER, REPO, "feature-branch", "main");
 
 	// Commit on feature branch
-	shas.featureCommit = await createCommit(
-		OWNER,
-		REPO,
-		"Add feature file",
-		[{ path: "feature.txt", content: "feature content\n" }],
-		"Test User",
-		"test@example.com",
-		"feature-branch",
-	);
+	shas.featureCommit = await createCommit(OWNER, REPO, {
+		branch: "feature-branch",
+		message: "Add feature file",
+		files: [{ path: "feature.txt", content: "feature content\n" }],
+		author: { name: "Test User", email: "test@example.com" },
+	});
 }, 60_000);
 
 afterAll(async () => {
@@ -333,14 +326,14 @@ describe("getFileFromBranch", () => {
 
 	it("detects binary when file contains null byte", async () => {
 		// Create a commit with a "binary" file (contains null byte)
-		await createCommit(
-			OWNER,
-			REPO,
-			"Add binary file",
-			[{ path: "image.bin", content: Buffer.from([0x89, 0x50, 0x00, 0x00]) }],
-			"Test User",
-			"test@example.com",
-		);
+		await createCommit(OWNER, REPO, {
+			branch: "main",
+			message: "Add binary file",
+			files: [
+				{ path: "image.bin", content: Buffer.from([0x89, 0x50, 0x00, 0x00]) },
+			],
+			author: { name: "Test User", email: "test@example.com" },
+		});
 		const result = await getFileFromBranch(OWNER, REPO, "main", "image.bin");
 		expect(result.isBinary).toBe(true);
 		// Binary content returned as base64
@@ -362,28 +355,50 @@ describe("getBlob", () => {
 // ── Write operations ──────────────────────────────────────────────────────────
 
 describe("createCommit", () => {
+	it("rejects a commit to a branch that doesn't exist", async () => {
+		await expect(
+			createCommit(OWNER, REPO, {
+				branch: "no-such-branch",
+				message: "stray",
+				files: [{ path: "stray.txt", content: "x" }],
+				author: { name: "Test User", email: "test@example.com" },
+			}),
+		).rejects.toThrow("Branch no-such-branch does not exist");
+		const branches = await getBranches(OWNER, REPO);
+		expect(branches.map((b) => b.name)).not.toContain("no-such-branch");
+	});
+
+	it("makes the first commit of an empty repository", async () => {
+		await initBareRepo(OWNER, "empty-repo");
+		await createCommit(OWNER, "empty-repo", {
+			branch: "main",
+			message: "first",
+			files: [{ path: "a.txt", content: "a" }],
+			author: { name: "Test User", email: "test@example.com" },
+		});
+		const [head] = await getCommitLog(OWNER, "empty-repo", "main", 5);
+		expect(head?.commit.message.trim()).toBe("first");
+		expect(head?.commit.parent).toEqual([]);
+	});
+
 	it("new file appears in tree", async () => {
-		await createCommit(
-			OWNER,
-			REPO,
-			"Add new-file.txt",
-			[{ path: "new-file.txt", content: "new content\n" }],
-			"Test User",
-			"test@example.com",
-		);
+		await createCommit(OWNER, REPO, {
+			branch: "main",
+			message: "Add new-file.txt",
+			files: [{ path: "new-file.txt", content: "new content\n" }],
+			author: { name: "Test User", email: "test@example.com" },
+		});
 		const entries = await getTree(OWNER, REPO, "main", "");
 		expect(entries.map((e) => e.path)).toContain("new-file.txt");
 	});
 
 	it("updated file has new content", async () => {
-		await createCommit(
-			OWNER,
-			REPO,
-			"Update new-file.txt",
-			[{ path: "new-file.txt", content: "updated content\n" }],
-			"Test User",
-			"test@example.com",
-		);
+		await createCommit(OWNER, REPO, {
+			branch: "main",
+			message: "Update new-file.txt",
+			files: [{ path: "new-file.txt", content: "updated content\n" }],
+			author: { name: "Test User", email: "test@example.com" },
+		});
 		const buf = await getFileContent(OWNER, REPO, "new-file.txt", "main");
 		expect(buf.toString()).toBe("updated content\n");
 	});
@@ -392,27 +407,17 @@ describe("createCommit", () => {
 		const log = await getCommitLog(OWNER, REPO, "main", 1);
 		expect(log[0].commit.message.trim()).toBe("Update new-file.txt");
 	});
-
-	it("uses default author when none supplied", async () => {
-		await createCommit(OWNER, REPO, "No-author commit", [
-			{ path: "auto.txt", content: "auto\n" },
-		]);
-		const [head] = await getCommitLog(OWNER, REPO, "main", 1);
-		expect(head.commit.author.name).toBe("PushStack");
-	});
 });
 
 describe("deleteFile", () => {
 	it("removes file from tree", async () => {
 		// Ensure file exists
-		await createCommit(
-			OWNER,
-			REPO,
-			"Pre-delete commit",
-			[{ path: "to-delete.txt", content: "bye\n" }],
-			"Test User",
-			"test@example.com",
-		);
+		await createCommit(OWNER, REPO, {
+			branch: "main",
+			message: "Pre-delete commit",
+			files: [{ path: "to-delete.txt", content: "bye\n" }],
+			author: { name: "Test User", email: "test@example.com" },
+		});
 
 		await deleteFile(
 			OWNER,

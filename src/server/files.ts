@@ -76,11 +76,15 @@ export const uploadFile = createServerFn({ method: "POST" })
 		const commitSha = await createCommit(
 			storage.ownerKey,
 			repo.name,
-			data.commitMessage,
-			[{ path: data.path, content: buffer }],
-			user.name || user.username || "Unknown",
-			user.email,
-			data.branchName,
+			{
+				branch: data.branchName,
+				message: data.commitMessage,
+				files: [{ path: data.path, content: buffer }],
+				author: {
+					name: user.name,
+					email: user.email,
+				},
+			},
 			repo.ownerId,
 		);
 

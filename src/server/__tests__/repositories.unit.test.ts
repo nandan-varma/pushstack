@@ -249,7 +249,6 @@ describe("Repository Unit Tests", () => {
 			expect(repackRepositoryNow).toHaveBeenCalledWith(
 				"user123",
 				mockRepo.name,
-				mockRepo.defaultBranch,
 				mockRepo.ownerId,
 			);
 		});

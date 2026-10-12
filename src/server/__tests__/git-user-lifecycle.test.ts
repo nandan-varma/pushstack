@@ -481,14 +481,12 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	it("seeds an initial commit directly (as the first push would)", async () => {
 		const { createCommit } = await import("../git-commit-write");
 
-		const sha = await createCommit(
-			TEST_USER.username,
-			REPO_NAME,
-			"Initial commit",
-			[{ path: "README.md", content: README_CONTENT }],
-			TEST_USER.name,
-			TEST_USER.email,
-		);
+		const sha = await createCommit(TEST_USER.username, REPO_NAME, {
+			branch: "main",
+			message: "Initial commit",
+			files: [{ path: "README.md", content: README_CONTENT }],
+			author: { name: TEST_USER.name, email: TEST_USER.email },
+		});
 
 		expect(sha).toMatch(/^[0-9a-f]{40}$/);
 	});

@@ -93,15 +93,14 @@ function PullRequestsPage() {
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	// repo is prefetched by this route's loader, so it's already resolved by
-	// the time this component first renders in the normal case — but fall back
-	// to "main" if it somehow isn't, rather than leaving baseBranch empty.
-	const [newPR, setNewPR] = useState({
-		title: "",
-		body: "",
-		baseBranch: repo?.defaultBranch ?? "main",
-		headBranch: "",
-	});
+	// baseBranch null = the repo's default branch, whenever it's known.
+	const [newPR, setNewPR] = useState<{
+		title: string;
+		body: string;
+		baseBranch: string | null;
+		headBranch: string;
+	}>({ title: "", body: "", baseBranch: null, headBranch: "" });
+	const baseBranch = newPR.baseBranch ?? repo?.defaultBranch ?? "";
 
 	const { data: pullRequests, isLoading } = useQuery({
 		...repositoryPullRequestsQueryOptions({
@@ -127,7 +126,7 @@ function PullRequestsPage() {
 			setNewPR({
 				title: "",
 				body: "",
-				baseBranch: repo.defaultBranch,
+				baseBranch: null,
 				headBranch: "",
 			});
 			toast("Pull request created", "success");
@@ -152,14 +151,14 @@ function PullRequestsPage() {
 				title: newPR.title,
 				body: newPR.body,
 				sourceBranchName: newPR.headBranch,
-				targetBranchName: newPR.baseBranch,
+				targetBranchName: baseBranch,
 			},
 		});
 	}, [
 		newPR.title,
 		newPR.body,
 		newPR.headBranch,
-		newPR.baseBranch,
+		baseBranch,
 		repo,
 		createMutation,
 	]);
@@ -211,7 +210,7 @@ function PullRequestsPage() {
 									<div className="space-y-1.5">
 										<Label htmlFor="base">Base branch</Label>
 										<Select
-											value={newPR.baseBranch}
+											value={baseBranch}
 											onValueChange={(value) =>
 												setNewPR((p) => ({ ...p, baseBranch: value }))
 											}
@@ -250,7 +249,7 @@ function PullRequestsPage() {
 											positioning below the trigger. */}
 											<SelectContent alignItemWithTrigger={false}>
 												{branches
-													?.filter((b) => b.name !== newPR.baseBranch)
+													?.filter((b) => b.name !== baseBranch)
 													.map((b) => (
 														<SelectItem key={b.name} value={b.name}>
 															{b.name}

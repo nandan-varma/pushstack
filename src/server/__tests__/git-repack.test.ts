@@ -107,15 +107,12 @@ beforeAll(async () => {
 	// packs accumulate exactly like consecutive `pushstack-recv-*.pack` files
 	// did in production.
 	for (let i = 1; i <= 5; i++) {
-		await createCommit(
-			OWNER,
-			REPO,
-			`commit ${i}`,
-			[{ path: `file${i}.txt`, content: `content ${i}\n` }],
-			"Test",
-			"test@example.com",
-			"main",
-		);
+		await createCommit(OWNER, REPO, {
+			branch: "main",
+			message: `commit ${i}`,
+			files: [{ path: `file${i}.txt`, content: `content ${i}\n` }],
+			author: { name: "Test", email: "test@example.com" },
+		});
 		const looseOids = await listLooseOids(repoPath);
 		const { filename } = await git.packObjects({
 			fs,

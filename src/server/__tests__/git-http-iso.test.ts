@@ -366,7 +366,6 @@ describe("handleReceivePackIso", () => {
 			async (
 				_ownerKey: string,
 				_repoName: string,
-				_defaultBranch: string,
 				fn: (gitdir: string) => Promise<unknown>,
 			) => fn(receiveDirRef.current),
 		);
@@ -382,7 +381,7 @@ describe("handleReceivePackIso", () => {
 			body: Buffer.from("0000"),
 		});
 		await expect(
-			handleReceivePackIso("u", "r", req, AUTH_READ),
+			handleReceivePackIso("u", "r", req, AUTH_READ, "main"),
 		).rejects.toThrow(GitAuthorizationError);
 	});
 
@@ -437,7 +436,13 @@ describe("handleReceivePackIso", () => {
 			method: "POST",
 			body,
 		});
-		const result = await handleReceivePackIso("u", "r", req, AUTH_WRITE);
+		const result = await handleReceivePackIso(
+			"u",
+			"r",
+			req,
+			AUTH_WRITE,
+			"main",
+		);
 
 		expect(result.status).toBe(200);
 		expect(result.headers["Content-Type"]).toBe(
@@ -476,6 +481,7 @@ describe("handleReceivePackIso", () => {
 				]),
 			}),
 			AUTH_WRITE,
+			"main",
 		);
 
 		// Client still thinks main is at zeroOid (stale) — server disagrees.
@@ -492,6 +498,7 @@ describe("handleReceivePackIso", () => {
 				]),
 			}),
 			AUTH_WRITE,
+			"main",
 		);
 
 		const responseBody = Buffer.from(result.body).toString("utf8");
@@ -525,6 +532,7 @@ describe("handleReceivePackIso", () => {
 				]),
 			}),
 			AUTH_WRITE,
+			"main",
 		);
 
 		const result = await handleReceivePackIso(
@@ -538,6 +546,7 @@ describe("handleReceivePackIso", () => {
 				]),
 			}),
 			AUTH_WRITE,
+			"main",
 		);
 
 		expect(Buffer.from(result.body).toString("utf8")).toContain(
@@ -611,7 +620,6 @@ describe("handleReceivePackIso", () => {
 		expect(withReceivePackLockMock).toHaveBeenCalledWith(
 			"u",
 			"r",
-			"main",
 			expect.any(Function),
 			"owner-id",
 			expect.any(Function),
@@ -630,7 +638,7 @@ describe("handleReceivePackIso", () => {
 			]),
 		});
 		await expect(
-			handleReceivePackIso("u", "r", req, AUTH_WRITE),
+			handleReceivePackIso("u", "r", req, AUTH_WRITE, "main"),
 		).rejects.toThrow("lock timeout");
 	});
 });

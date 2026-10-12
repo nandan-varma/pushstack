@@ -90,13 +90,8 @@ function RepoSettingsPage() {
 			<div className="mx-auto max-w-2xl space-y-6">
 				<div className="flex items-center justify-between gap-3">
 					<Link
-						to="/repo/$owner/$name/tree/$branch/$"
-						params={{
-							owner,
-							name,
-							branch: repo?.defaultBranch || "main",
-							_splat: "",
-						}}
+						to="/repo/$owner/$name"
+						params={{ owner, name }}
 						className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 					>
 						<ArrowLeft className="size-4" />

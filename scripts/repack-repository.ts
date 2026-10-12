@@ -2,7 +2,7 @@
  * Consolidate a repository's Git packs stored in R2.
  *
  * Usage:
- *   node --env-file=.env.local --import tsx scripts/repack-repository.ts <owner> <repo> [branch]
+ *   node --env-file=.env.local --import tsx scripts/repack-repository.ts <owner> <repo>
  *
  * The underlying repack validates every reachable object before publishing the
  * replacement pack. Old R2 packs are removed only after the new pack is synced
@@ -25,9 +25,9 @@ function packCount(
 }
 
 async function main(): Promise<void> {
-	const [ownerKey, repoName, defaultBranch = "main"] = process.argv.slice(2);
+	const [ownerKey, repoName] = process.argv.slice(2);
 	if (!ownerKey || !repoName) {
-		throw new Error("Usage: repack-repository.ts <owner> <repo> [branch]");
+		throw new Error("Usage: repack-repository.ts <owner> <repo>");
 	}
 
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
@@ -35,11 +35,7 @@ async function main(): Promise<void> {
 	const beforePacks = packCount(before, prefix);
 	console.log(`Found ${beforePacks} pack(s) in ${ownerKey}/${repoName}.`);
 
-	const { removedFiles } = await repackRepositoryNow(
-		ownerKey,
-		repoName,
-		defaultBranch,
-	);
+	const { removedFiles } = await repackRepositoryNow(ownerKey, repoName);
 
 	const after = await listAllR2Files(prefix);
 	const afterPacks = packCount(after, prefix);

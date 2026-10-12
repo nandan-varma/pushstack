@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import { GitMergeConflictError, threeWayMerge } from "git-edge";
 import {
 	fastForwardMerge,
@@ -7,7 +6,6 @@ import {
 } from "git-fs-s3/ops";
 import git, { Errors } from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
-import { createCommit } from "./git-commit-write";
 import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
 import { isSafeBranchName } from "./git-ref-name";
 import {
@@ -85,7 +83,7 @@ export async function mergeBranches(
 	assertSafeBranchName(targetBranch);
 
 	if (isR2Configured()) {
-		// ponytail: FF merge = just update the ref; a real (non-FF) merge uses
+		// FF merge = just update the ref; a real (non-FF) merge uses
 		// git-edge's threeWayMerge, which works directly on the object graph
 		// (trees, blobs, commits) with no worktree — a bare repo living entirely
 		// in R2 has no durable disk to check one out onto. Both cases run under
@@ -167,7 +165,6 @@ export async function mergeBranches(
 					ref: qualifyBranchRef(targetBranch),
 				});
 			},
-			"main",
 			ownerDbId,
 		);
 
@@ -192,55 +189,4 @@ export async function mergeBranches(
 		logError("git-merge", "mergeBranches failed unexpectedly", error);
 		throw error;
 	}
-}
-
-export async function resolveConflicts(
-	ownerKey: string,
-	repoName: string,
-	resolutions: Array<{ path: string; content: string }>,
-	ownerDbId?: string,
-): Promise<void> {
-	if (isR2Configured()) {
-		// ponytail: resolveConflicts = createCommit with conflict resolutions
-		await createCommit(
-			ownerKey,
-			repoName,
-			"Resolve merge conflicts",
-			resolutions,
-			undefined,
-			undefined,
-			"main",
-			ownerDbId,
-		);
-		return;
-	}
-
-	await withRepositoryWorktree(
-		ownerKey,
-		repoName,
-		"main",
-		async ({ worktreePath, gitdir }) => {
-			for (const resolution of resolutions) {
-				const filePath = path.join(worktreePath, resolution.path);
-				fs.writeFileSync(filePath, resolution.content);
-				await git.add({
-					fs,
-					dir: worktreePath,
-					gitdir,
-					filepath: resolution.path,
-				});
-			}
-
-			await git.commit({
-				fs,
-				dir: worktreePath,
-				gitdir,
-				ref: "refs/heads/main",
-				message: "Resolve merge conflicts",
-				author: getDefaultAuthor(),
-			});
-		},
-		"main",
-		ownerDbId,
-	);
 }

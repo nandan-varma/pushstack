@@ -152,7 +152,7 @@ export const getUserActivity = createServerFn({ method: "GET" })
 			}
 			const isOwnActivity = targetUserId === currentUser?.id;
 
-			// ponytail: filtering to public repos in JS *after* the DB applied `limit`
+			// Filtering to public repos in JS *after* the DB applied `limit`
 			// meant a page of recent-but-private activity could return far fewer rows
 			// than requested (or none) even when plenty of public activity existed
 			// further back — push the visibility filter into the query instead.
@@ -231,7 +231,7 @@ export const getGlobalActivity = createServerFn({ method: "GET" })
 			.parse(data),
 	)
 	.handler(async ({ data }) => {
-		// ponytail: same limit-then-filter issue as getUserActivity — filter to
+		// Same limit-then-filter issue as getUserActivity — filter to
 		// public repos in the query so `limit` rows are actually returned.
 		const activityList = await db.query.activities.findMany({
 			where: inArray(

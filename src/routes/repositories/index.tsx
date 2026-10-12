@@ -72,7 +72,7 @@ function RepositoriesPage() {
 								params={{
 									owner: ownerUsername,
 									name: repo.name,
-									branch: repo.defaultBranch || "main",
+									branch: repo.defaultBranch,
 									_splat: "",
 								}}
 								className="island-shell feature-card block rounded-xl p-5 no-underline"

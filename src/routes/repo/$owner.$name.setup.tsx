@@ -45,7 +45,6 @@ function RouteComponent() {
 
 	const cloneUrl = getCloneUrl(owner, name, "https");
 	const instructions = getSetupInstructions(owner, name, cloneUrl);
-	const defaultBranch = repo?.defaultBranch || "main";
 	const isOwner = repo?.ownerId === session?.user?.id;
 
 	const handleCopy = async (value: string, key: string) => {
@@ -62,6 +61,8 @@ function RouteComponent() {
 			</div>
 		);
 	}
+
+	const { defaultBranch } = repo;
 
 	return (
 		<div className="space-y-6">

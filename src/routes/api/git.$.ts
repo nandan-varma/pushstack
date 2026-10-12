@@ -58,7 +58,7 @@ export const Route = createFileRoute("/api/git/$")({
 						repo,
 						service,
 						authContext,
-						repository.defaultBranch || "main",
+						repository.defaultBranch,
 					);
 
 					return new Response(result.body, {
@@ -66,10 +66,13 @@ export const Route = createFileRoute("/api/git/$")({
 						headers: result.headers,
 					});
 				} catch (error) {
-					const { formatErrorResponse } = await import("#/server/git-errors");
+					const [{ formatErrorResponse }, { logError }] = await Promise.all([
+						import("#/server/git-errors"),
+						import("#/server/perf-log"),
+					]);
 					const errorResponse = formatErrorResponse(error);
 					if (errorResponse.status >= 500) {
-						console.error("[git GET]", error);
+						logError("git-http", "GET failed", error);
 					}
 					return new Response(JSON.stringify(errorResponse.body), {
 						status: errorResponse.status,
@@ -153,7 +156,7 @@ export const Route = createFileRoute("/api/git/$")({
 							repo,
 							request,
 							authContext,
-							repository.defaultBranch || "main",
+							repository.defaultBranch,
 							repository.ownerId,
 						);
 					} else {
@@ -165,10 +168,13 @@ export const Route = createFileRoute("/api/git/$")({
 						headers: result.headers,
 					});
 				} catch (error) {
-					const { formatErrorResponse } = await import("#/server/git-errors");
+					const [{ formatErrorResponse }, { logError }] = await Promise.all([
+						import("#/server/git-errors"),
+						import("#/server/perf-log"),
+					]);
 					const errorResponse = formatErrorResponse(error);
 					if (errorResponse.status >= 500) {
-						console.error("[git POST]", error);
+						logError("git-http", "POST failed", error);
 					}
 					return new Response(JSON.stringify(errorResponse.body), {
 						status: errorResponse.status,

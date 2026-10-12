@@ -100,11 +100,11 @@ import {
 	listAllR2Files,
 } from "#/lib/r2-operations";
 import { invalidateObjectCache } from "../git-cache";
+import { GitRepositoryNotFoundError } from "../git-errors";
 import { invalidateRepoGitStorage } from "../git-fs";
 import {
 	ensureGitBaseDir,
 	getRepoPath,
-	initBareRepo,
 	invalidateRepoGitCache,
 } from "../git-manager-iso";
 import {
@@ -125,7 +125,6 @@ const mockDownloadFromR2 = vi.mocked(downloadFromR2);
 const mockInvalidateStorage = vi.mocked(invalidateRepoGitStorage);
 const mockInvalidateObjectCache = vi.mocked(invalidateObjectCache);
 const mockInvalidateRepoGitCache = vi.mocked(invalidateRepoGitCache);
-const mockInitBareRepo = vi.mocked(initBareRepo);
 const mockGetRepoPath = vi.mocked(getRepoPath);
 
 describe("withRepositoryLock", () => {
@@ -276,11 +275,13 @@ describe("getRepoOptions", () => {
 
 	it("triggers hydration when R2 is not configured", async () => {
 		vi.mocked(isR2Configured).mockReturnValue(false);
+		const accessSpy = vi.spyOn(nodeFs, "access").mockResolvedValue(undefined);
 
 		await getRepoOptions("owner", "repo");
 
 		expect(ensureGitBaseDir).toHaveBeenCalled();
 		expect(mockGetRepoPath).toHaveBeenCalledWith("owner", "repo");
+		accessSpy.mockRestore();
 	});
 });
 
@@ -291,9 +292,30 @@ describe("ensureRepositoryHydrated", () => {
 
 	it("skips hydration when already hydrated and remote version is older", async () => {
 		vi.mocked(isR2Configured).mockReturnValue(true);
-		mockListAllR2Files.mockResolvedValue([]);
+		mockListAllR2Files.mockResolvedValue([
+			{
+				key: "repos/owner/repo/git/HEAD",
+				size: 4,
+				lastModified: new Date(),
+				etag: "a",
+			},
+		]);
+		mockDownloadFromR2.mockResolvedValue({
+			content: Buffer.from("data"),
+			contentType: undefined,
+			size: 4,
+			etag: undefined,
+		});
+		const mkdirSpy = vi.spyOn(nodeFs, "mkdir").mockResolvedValue(undefined);
+		const rmSpy = vi.spyOn(nodeFs, "rm").mockResolvedValue(undefined);
+		const writeFileSpy = vi
+			.spyOn(nodeFs, "writeFile")
+			.mockResolvedValue(undefined);
 
 		await ensureRepositoryHydrated("owner", "repo");
+		mkdirSpy.mockRestore();
+		rmSpy.mockRestore();
+		writeFileSpy.mockRestore();
 
 		vi.clearAllMocks();
 
@@ -304,25 +326,25 @@ describe("ensureRepositoryHydrated", () => {
 		expect(mockListAllR2Files).not.toHaveBeenCalled();
 	});
 
-	it("initializes a bare repo when R2 is not configured and no HEAD exists", async () => {
+	it("reports missing storage instead of creating a repo (no R2, no HEAD)", async () => {
 		vi.mocked(isR2Configured).mockReturnValue(false);
 		const accessSpy = vi
 			.spyOn(nodeFs, "access")
 			.mockRejectedValue(new Error("ENOENT"));
 
-		await ensureRepositoryHydrated("owner", "repo");
-
-		expect(mockInitBareRepo).toHaveBeenCalledWith("owner", "repo", "main");
+		await expect(
+			ensureRepositoryHydrated("owner", "repo"),
+		).rejects.toBeInstanceOf(GitRepositoryNotFoundError);
 		accessSpy.mockRestore();
 	});
 
-	it("skips init when R2 is not configured and HEAD already exists", async () => {
+	it("uses the local repository when R2 is not configured and HEAD exists", async () => {
 		vi.mocked(isR2Configured).mockReturnValue(false);
 		const accessSpy = vi.spyOn(nodeFs, "access").mockResolvedValue(undefined);
 
-		await ensureRepositoryHydrated("owner", "repo");
-
-		expect(mockInitBareRepo).not.toHaveBeenCalled();
+		await expect(ensureRepositoryHydrated("owner", "repo")).resolves.toBe(
+			"/tmp/pushstack-repos/owner/repo",
+		);
 		accessSpy.mockRestore();
 	});
 
@@ -365,17 +387,13 @@ describe("ensureRepositoryHydrated", () => {
 		writeFileSpy.mockRestore();
 	});
 
-	it("initializes a bare repo when R2 is configured but has no files", async () => {
+	it("reports missing storage when R2 has no files for the repo", async () => {
 		vi.mocked(isR2Configured).mockReturnValue(true);
 		mockListAllR2Files.mockResolvedValue([]);
-		const accessSpy = vi
-			.spyOn(nodeFs, "access")
-			.mockRejectedValue(new Error("ENOENT"));
 
-		await ensureRepositoryHydrated("owner", "repo");
-
-		expect(mockInitBareRepo).toHaveBeenCalled();
-		accessSpy.mockRestore();
+		await expect(
+			ensureRepositoryHydrated("owner", "never-created"),
+		).rejects.toBeInstanceOf(GitRepositoryNotFoundError);
 	});
 
 	it("handles R2 404 mid-hydration gracefully (concurrent repack)", async () => {

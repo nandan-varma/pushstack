@@ -237,7 +237,7 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 		const targetUserId = data.userId || currentUser.id;
 		const isOwnRepos = targetUserId === currentUser.id;
 
-		// ponytail: visibility filtering used to happen in JS after the fetch —
+		// Visibility filtering used to happen in JS after the fetch —
 		// combined with a limit, that could silently return fewer repos than
 		// requested even when plenty of public ones existed further back (same
 		// issue search.ts's activity feeds fixed). Push it into the query instead.
@@ -271,7 +271,7 @@ export const getRepository = createServerFn({ method: "GET" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 
-		// ponytail: getRepositoryAccess already fetches+caches the repo row as part
+		// GetRepositoryAccess already fetches+caches the repo row as part
 		// of resolving access (see repo-access.ts's resolveRepositoryAccess) — a
 		// separate db.query.repositories.findFirst here used to duplicate that same
 		// fetch. Reuse access.repository instead; starCount/userStar don't depend on
@@ -311,7 +311,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 	)
 	.handler(async ({ data }) =>
 		perfContext(`getRepositoryByName ${data.owner}/${data.name}`, async () => {
-			// ponytail: session resolution and the repo+owner join are independent
+			// Session resolution and the repo+owner join are independent
 			// (neither's input depends on the other's output) — they used to run
 			// sequentially, adding a full DB round trip's worth of pure waiting to
 			// every repo/tree page load's critical first request. Also matters most
@@ -333,7 +333,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 
 			const repo = { ...row.repo, owner: row.owner };
 
-			// ponytail: access check and star lookups only need repo.id / currentUser.id,
+			// Access check and star lookups only need repo.id / currentUser.id,
 			// which we already have — run them together instead of access-then-stars.
 			// Uses getAccessForRepository (not getRepositoryAccess) since we already have
 			// `repo` from the join above — getRepositoryAccess would re-fetch the same row
@@ -540,7 +540,6 @@ export const repackRepository = createServerFn({ method: "POST" })
 		const { removedFiles } = await repackRepositoryNow(
 			ownerKey,
 			repo.name,
-			repo.defaultBranch ?? "main",
 			repo.ownerId,
 		);
 

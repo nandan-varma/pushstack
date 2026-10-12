@@ -29,7 +29,7 @@ const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 100; // ms
 const MAX_RETRY_DELAY = 5000; // ms
 
-// ponytail: circuit breaker state as plain module vars, no class needed
+// Circuit breaker state as plain module vars, no class needed
 const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_TIMEOUT = 30000;
 let cbFailures = 0;

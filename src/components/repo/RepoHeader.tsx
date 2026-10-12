@@ -38,7 +38,7 @@ export function RepoHeader({
 		id: number;
 		visibility: string;
 		description: string | null;
-		defaultBranch: string | null;
+		defaultBranch: string;
 		isStarred: boolean;
 		starCount: number;
 		ownerId: string;

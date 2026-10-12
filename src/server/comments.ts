@@ -117,7 +117,7 @@ export const getComments = createServerFn({ method: "GET" })
 						}),
 					);
 
-					// ponytail: fetch the repository via the relation above instead of a
+					// Fetch the repository via the relation above instead of a
 					// second round trip inside canReadRepo.
 					const access =
 						issue &&

@@ -67,10 +67,6 @@ vi.mock("../git-repo-storage", () => ({
 	},
 }));
 
-vi.mock("../git-commit-write", () => ({
-	createCommit: vi.fn(() => Promise.resolve("resolved-commit-sha")),
-}));
-
 vi.mock("../perf-log", () => ({
 	logError: vi.fn(),
 	perfNote: vi.fn(),
@@ -470,68 +466,5 @@ describe("mergeBranches R2 (object-level, worktree-free)", () => {
 		await expect(
 			mergeBranches("owner", "repo", "feature", "main"),
 		).rejects.toThrow("R2 object read failed");
-	});
-});
-
-describe("resolveConflicts", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it("delegates to createCommit when R2 is configured", async () => {
-		mockIsR2Configured.mockReturnValue(true);
-		const { createCommit } = await import("../git-commit-write");
-		const { resolveConflicts } = await import("../git-merge-iso");
-
-		await resolveConflicts("owner", "repo", [
-			{ path: "file.ts", content: "resolved" },
-		]);
-
-		expect(createCommit).toHaveBeenCalledWith(
-			"owner",
-			"repo",
-			"Resolve merge conflicts",
-			[{ path: "file.ts", content: "resolved" }],
-			undefined,
-			undefined,
-			"main",
-			undefined,
-		);
-	});
-
-	it("uses withRepositoryWorktree when R2 is not configured", async () => {
-		mockIsR2Configured.mockReturnValue(false);
-		const { resolveConflicts } = await import("../git-merge-iso");
-
-		await resolveConflicts("owner", "repo", [
-			{ path: "a.txt", content: "content-a" },
-			{ path: "b.txt", content: "content-b" },
-		]);
-
-		expect(mockWithRepositoryWorktree).toHaveBeenCalled();
-	});
-
-	it("passes ownerDbId through when R2 is configured", async () => {
-		mockIsR2Configured.mockReturnValue(true);
-		const { createCommit } = await import("../git-commit-write");
-		const { resolveConflicts } = await import("../git-merge-iso");
-
-		await resolveConflicts(
-			"owner",
-			"repo",
-			[{ path: "f.txt", content: "c" }],
-			"owner-db-id",
-		);
-
-		expect(createCommit).toHaveBeenCalledWith(
-			"owner",
-			"repo",
-			"Resolve merge conflicts",
-			[{ path: "f.txt", content: "c" }],
-			undefined,
-			undefined,
-			"main",
-			"owner-db-id",
-		);
 	});
 });

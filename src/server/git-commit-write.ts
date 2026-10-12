@@ -1,46 +1,57 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+	assertSafeBranchName,
 	authorNow,
 	commitFilesToBare,
 	deleteFileFromBare,
+	listBranches,
+	type Repo,
 } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { isR2Configured } from "#/lib/r2";
-import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
-import { isSafeBranchName } from "./git-ref-name";
+import { GitInvalidRequestError } from "./git-errors";
+import { getBareRepoOptions } from "./git-manager-iso";
 import { withRepositoryLock, withRepositoryWorktree } from "./git-repo-storage";
 
-// Defense in depth: files.ts's zod schemas already reject malformed branch
-// names before they reach here, but git.commit doesn't validate its `ref`
-// internally the way git.branch/git.writeRef do (see isSafeBranchName's
-// comment in git-ref-name.ts) — guard at the point it's actually called.
-function assertSafeBranchName(name: string): void {
-	if (!isSafeBranchName(name)) {
-		throw new Error(`Invalid branch name: ${name}`);
+export interface CommitAuthorInput {
+	name: string;
+	email: string;
+}
+
+/**
+ * Commits go onto an existing branch — or, as the first commit, into an
+ * empty repository. A commit to a missing branch of a non-empty repository
+ * would otherwise start unrelated history; branches are created explicitly
+ * (git-branch-ops.ts's createBranch), from a chosen start point.
+ */
+async function assertCommitTarget(repo: Repo, branch: string): Promise<void> {
+	const branches = await listBranches(repo);
+	if (branches.length > 0 && !branches.some((b) => b.name === branch)) {
+		throw new GitInvalidRequestError(`Branch ${branch} does not exist`);
 	}
 }
 
 export async function createCommit(
 	ownerKey: string,
 	repoName: string,
-	message: string,
-	files: Array<{ path: string; content: string | Buffer }>,
-	authorName?: string,
-	authorEmail?: string,
-	branch: string = "main",
+	commit: {
+		branch: string;
+		message: string;
+		files: Array<{ path: string; content: string | Buffer }>;
+		author: CommitAuthorInput;
+	},
 	ownerDbId?: string,
 ): Promise<string> {
+	const { branch, message, files } = commit;
 	assertSafeBranchName(branch);
-	const author =
-		authorName && authorEmail
-			? authorNow(authorName, authorEmail)
-			: getDefaultAuthor();
+	const author = authorNow(commit.author.name, commit.author.email);
 
 	if (isR2Configured()) {
-		// ponytail: write blobs + tree + commit directly to R2 — no worktree, no disk I/O
-		return withRepositoryLock(ownerKey, repoName, () => {
+		// Blobs, tree and commit straight to R2 — no worktree, no disk I/O.
+		return withRepositoryLock(ownerKey, repoName, async () => {
 			const repo = getBareRepoOptions(ownerKey, repoName);
+			await assertCommitTarget(repo, branch);
 			return commitFilesToBare(repo, { branch, message, author, files });
 		});
 	}
@@ -50,6 +61,7 @@ export async function createCommit(
 		repoName,
 		branch,
 		async ({ worktreePath, gitdir }) => {
+			await assertCommitTarget({ fs, gitdir }, branch);
 			for (const file of files) {
 				const filePath = path.join(worktreePath, file.path);
 				fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -60,9 +72,8 @@ export async function createCommit(
 				await git.add({ fs, dir: worktreePath, gitdir, filepath: file.path });
 			}
 
-			// No setConfig needed: author/committer are passed explicitly below, and
-			// `ref` targets the branch directly — parent is derived from that ref's
-			// current tip automatically (or `[]` for a brand new branch/repo).
+			// `ref` targets the branch directly — the parent is that ref's
+			// current tip (or none, for the first commit of an empty repo).
 			return git.commit({
 				fs,
 				dir: worktreePath,
@@ -73,7 +84,6 @@ export async function createCommit(
 				committer: author,
 			});
 		},
-		"main",
 		ownerDbId,
 	);
 }
@@ -84,17 +94,14 @@ export async function deleteFile(
 	branchName: string,
 	filePath: string,
 	message: string,
-	author: { name: string; email: string },
+	author: CommitAuthorInput,
 	ownerDbId?: string,
 ): Promise<{ sha: string; message: string }> {
 	assertSafeBranchName(branchName);
 	const authorInfo = authorNow(author.name, author.email);
 
 	if (isR2Configured()) {
-		// ponytail: remove from tree + commit directly to R2 — no worktree.
-		// Unlike createCommit's identical R2 branch above, this used to call
-		// deleteFileFromBare without withRepositoryLock — a concurrent write to
-		// the same repo had no serialization at all on this specific path.
+		// Remove from the tree and commit straight to R2 — no worktree.
 		const sha = await withRepositoryLock(ownerKey, repoName, () => {
 			const repo = getBareRepoOptions(ownerKey, repoName);
 			return deleteFileFromBare(repo, {
@@ -126,7 +133,6 @@ export async function deleteFile(
 				committer: authorInfo,
 			});
 		},
-		"main",
 		ownerDbId,
 	);
 

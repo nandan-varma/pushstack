@@ -154,7 +154,7 @@ export const getIssue = createServerFn({ method: "GET" })
 				throw new Error("Issue not found");
 			}
 
-			// ponytail: the query above already fetched the repository row via the
+			// The query above already fetched the repository row via the
 			// relation — reuse it instead of canReadRepo's own repo fetch.
 			const access = await perfStep("getAccessForRepository", () =>
 				getAccessForRepository(issue.repository, user?.id),

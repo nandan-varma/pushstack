@@ -67,6 +67,10 @@ vi.mock("git-fs-s3/ops", async (importOriginal) => {
 		deleteFileFromBare: vi.fn(async () => trackConcurrency("commit-oid")),
 		createBranchFrom: vi.fn(async () => trackConcurrency(undefined)),
 		deleteBranchByName: vi.fn(async () => trackConcurrency(undefined)),
+		// A repo whose main branch exists, so commits to main are accepted.
+		listBranches: vi.fn(async () => [
+			{ name: "main", commit: "0".repeat(40), isDefault: true },
+		]),
 	};
 });
 
@@ -102,15 +106,12 @@ describe("createCommit — branch name guard", () => {
 		const { createCommit } = await import("../git-commit-write");
 
 		await expect(
-			createCommit(
-				"owner",
-				"repo",
-				"msg",
-				[{ path: "README.md", content: "hello" }],
-				"Test",
-				"test@example.com",
-				"../../other-owner/other-repo/git/refs/heads/main",
-			),
+			createCommit("owner", "repo", {
+				branch: "../../other-owner/other-repo/git/refs/heads/main",
+				message: "msg",
+				files: [{ path: "README.md", content: "hello" }],
+				author: { name: "Test", email: "test@example.com" },
+			}),
 		).rejects.toThrow("Invalid branch name");
 
 		expect(commitFilesToBare).not.toHaveBeenCalled();
@@ -151,22 +152,18 @@ describe("createCommit — concurrent write serialization", () => {
 		const { createCommit } = await import("../git-commit-write");
 
 		await Promise.all([
-			createCommit(
-				"owner",
-				"repo",
-				"first commit",
-				[{ path: "a.txt", content: "a" }],
-				"Test",
-				"test@example.com",
-			),
-			createCommit(
-				"owner",
-				"repo",
-				"second commit",
-				[{ path: "b.txt", content: "b" }],
-				"Test",
-				"test@example.com",
-			),
+			createCommit("owner", "repo", {
+				branch: "main",
+				message: "first commit",
+				files: [{ path: "a.txt", content: "a" }],
+				author: { name: "Test", email: "test@example.com" },
+			}),
+			createCommit("owner", "repo", {
+				branch: "main",
+				message: "second commit",
+				files: [{ path: "b.txt", content: "b" }],
+				author: { name: "Test", email: "test@example.com" },
+			}),
 		]);
 
 		expect(maxConcurrentCalls).toBe(1);
@@ -176,22 +173,18 @@ describe("createCommit — concurrent write serialization", () => {
 		const { createCommit } = await import("../git-commit-write");
 
 		const results = await Promise.all([
-			createCommit(
-				"owner",
-				"repo",
-				"first commit",
-				[{ path: "a.txt", content: "a" }],
-				"Test",
-				"test@example.com",
-			),
-			createCommit(
-				"owner",
-				"repo",
-				"second commit",
-				[{ path: "b.txt", content: "b" }],
-				"Test",
-				"test@example.com",
-			),
+			createCommit("owner", "repo", {
+				branch: "main",
+				message: "first commit",
+				files: [{ path: "a.txt", content: "a" }],
+				author: { name: "Test", email: "test@example.com" },
+			}),
+			createCommit("owner", "repo", {
+				branch: "main",
+				message: "second commit",
+				files: [{ path: "b.txt", content: "b" }],
+				author: { name: "Test", email: "test@example.com" },
+			}),
 		]);
 
 		expect(results).toEqual(["commit-oid", "commit-oid"]);

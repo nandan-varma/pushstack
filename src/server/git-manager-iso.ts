@@ -17,7 +17,7 @@ import {
 	sanitizeStorageSegment,
 } from "./git-storage-naming";
 
-// ponytail: /tmp is the only writable dir on Vercel; homedir is read-only
+// /tmp is the only writable dir on Vercel; homedir is read-only
 const GIT_BASE_PATH =
 	process.env.GIT_REPOS_PATH || path.join(os.tmpdir(), "pushstack-repos");
 const DEFAULT_USER_NAME = "PushStack";
@@ -144,7 +144,7 @@ export async function getRepoDiskUsage(dir: string): Promise<number> {
 			return 0;
 		}
 
-		// ponytail: repos can have thousands of loose objects — stat them concurrently
+		// Repos can have thousands of loose objects — stat them concurrently
 		// instead of one fs call at a time, which serialized this walk on every push.
 		const sizes = await Promise.all(
 			entries.map(async (entry) => {

@@ -128,9 +128,9 @@ function CommitDetailPage() {
 			<NotFoundCard
 				title="Commit Not Found"
 				message={`The commit with SHA "${sha}" does not exist.`}
-				backTo="/repo/$owner/$name/commits/$branch"
-				backParams={{ owner, name, branch: repo?.defaultBranch || "main" }}
-				backLabel="Back to Commits"
+				backTo="/repo/$owner/$name"
+				backParams={{ owner, name }}
+				backLabel="Back to repository"
 			/>
 		);
 	}

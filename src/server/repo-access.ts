@@ -125,7 +125,7 @@ async function resolveRepositoryAccess(
 	const key = accessCacheKey(repoId, userId);
 
 	return accessCache.get(key, async () => {
-		// ponytail: fire the collaborator lookup alongside the repo fetch instead
+		// Fire the collaborator lookup alongside the repo fetch instead
 		// of after it — most callers here are non-owners, so this is a real round
 		// trip most of the time; the rare owner case just discards the wasted
 		// query below.
