@@ -1,8 +1,9 @@
 import { lazy, Suspense } from "react";
 import { BinaryPreview } from "@/components/BinaryPreview";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toPreviewBase64 } from "@/lib/binary-preview";
+import { useTextObjectUrl } from "@/lib/binary-preview";
 import { getPreviewMode } from "@/lib/file-preview";
+import { type FileView, rawFileUrl } from "@/lib/file-view";
 import { getMimeType, getPreviewKind } from "@/lib/language-detection";
 
 // Shared by the README card (tree pages, any directory) and the file blob
@@ -12,34 +13,39 @@ import { getMimeType, getPreviewKind } from "@/lib/language-detection";
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 interface FilePreviewProps {
+	file: FileView;
 	filePath: string;
-	content: string;
-	isBinary: boolean;
-	owner?: string;
-	name?: string;
-	branch?: string;
+	owner: string;
+	name: string;
+	branch: string;
 	repoId?: number;
 	className?: string;
 }
 
-/** Renders a file as its previewable form (markdown or binary media). Returns null if not previewable — check `getPreviewMode` first to decide whether to show a Preview tab/section at all. */
+/** Renders a file as its previewable form (markdown or media). Returns null if not previewable — check `getPreviewMode` first to decide whether to show a Preview tab/section at all. */
 export function FilePreview({
+	file,
 	filePath,
-	content,
-	isBinary,
 	owner,
 	name,
 	branch,
 	repoId,
 	className,
 }: FilePreviewProps) {
-	const mode = getPreviewMode(filePath, isBinary);
+	const mode = getPreviewMode(filePath, file.kind);
+	const previewKind = mode === "media" ? getPreviewKind(filePath) : null;
+	// Media stored as text (an SVG) previews from an object URL; anything
+	// else is fetched from the raw endpoint only now that it's displayed.
+	const textMediaUrl = useTextObjectUrl(
+		previewKind && file.kind === "text" ? file.content : undefined,
+		getMimeType(filePath),
+	);
 
-	if (mode === "markdown") {
+	if (mode === "markdown" && file.kind === "text") {
 		return (
 			<Suspense fallback={<Skeleton className="h-40" />}>
 				<MarkdownRenderer
-					content={content}
+					content={file.content}
 					owner={owner}
 					name={name}
 					branch={branch}
@@ -50,13 +56,15 @@ export function FilePreview({
 		);
 	}
 
-	const previewKind = mode === "binary" ? getPreviewKind(filePath) : null;
 	if (!previewKind) return null;
 
 	return (
 		<BinaryPreview
-			data={toPreviewBase64(content, isBinary)}
-			mimeType={getMimeType(filePath)}
+			src={
+				file.kind === "text"
+					? textMediaUrl
+					: rawFileUrl({ owner, name, ref: branch, path: filePath })
+			}
 			previewKind={previewKind}
 			fileName={filePath}
 		/>

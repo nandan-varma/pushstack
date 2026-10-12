@@ -10,6 +10,7 @@
 
 import { promises as nodeFs } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 
 // Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init
 const TEST_DIR = vi.hoisted(() => {
@@ -316,15 +317,15 @@ describe("getFileContent", () => {
 });
 
 describe("getFileFromBranch", () => {
-	it("returns content, size, and isBinary=false for text", async () => {
+	it("returns small text inline", async () => {
 		const result = await getFileFromBranch(OWNER, REPO, "main", "README.md");
+		expect(result.kind).toBe("text");
+		if (result.kind !== "text") return;
 		expect(result.content).toContain("Updated Repo");
 		expect(result.size).toBeGreaterThan(0);
-		expect(result.isBinary).toBe(false);
 	});
 
-	it("detects binary when file contains null byte", async () => {
-		// Create a commit with a "binary" file (contains null byte)
+	it("reports binary files by size only (a NUL byte means binary)", async () => {
 		await createCommit(OWNER, REPO, {
 			branch: "main",
 			message: "Add binary file",
@@ -334,9 +335,23 @@ describe("getFileFromBranch", () => {
 			author: { name: "Test User", email: "test@example.com" },
 		});
 		const result = await getFileFromBranch(OWNER, REPO, "main", "image.bin");
-		expect(result.isBinary).toBe(true);
-		// Binary content returned as base64
-		expect(() => Buffer.from(result.content, "base64")).not.toThrow();
+		expect(result).toEqual({ kind: "binary", size: 4 });
+	});
+
+	it("doesn't inline text over the display limit", async () => {
+		await createCommit(OWNER, REPO, {
+			branch: "main",
+			message: "Add large file",
+			files: [
+				{ path: "big.txt", content: "x".repeat(MAX_INLINE_TEXT_BYTES + 1) },
+			],
+			author: { name: "Test User", email: "test@example.com" },
+		});
+		const result = await getFileFromBranch(OWNER, REPO, "main", "big.txt");
+		expect(result).toEqual({
+			kind: "too-large",
+			size: MAX_INLINE_TEXT_BYTES + 1,
+		});
 	});
 });
 

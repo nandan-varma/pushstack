@@ -1,36 +1,38 @@
+import type { DiffFile } from "git-fs-s3/ops";
 import { ChevronRight } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { BinaryPreview } from "@/components/BinaryPreview";
+import { rawFileUrl } from "@/lib/file-view";
 import {
 	detectLanguage,
 	formatFileSize,
-	getMimeType,
 	getPreviewKind,
 	isLargeContent,
 } from "@/lib/language-detection";
 import { requestHighlightTokens } from "@/lib/syntax-highlight-client";
 
-interface FileDiff {
-	path: string;
-	status: string;
-	patch: string;
-	isBinary?: boolean;
-	oldContent?: string;
-	newContent?: string;
-	oldSize?: number;
-	newSize?: number;
+type FileDiff = DiffFile;
+
+/** Where each side of the diff lives, so media can be fetched from /api/raw. */
+export interface DiffSides {
+	owner: string;
+	name: string;
+	/** Absent when there's no "before" (a root commit). */
+	oldRef?: string;
+	newRef: string;
 }
 
 function BinaryDiffSide({
 	label,
-	content,
+	src,
 	size,
 	path,
 }: {
 	label: string;
-	content: string | undefined;
+	/** Null when the file doesn't exist on this side. */
+	src: string | null;
 	size: number | undefined;
 	path: string;
 }) {
@@ -42,13 +44,8 @@ function BinaryDiffSide({
 				{label}
 				{size !== undefined ? ` · ${formatFileSize(size)}` : ""}
 			</p>
-			{content && previewKind ? (
-				<BinaryPreview
-					data={content}
-					mimeType={getMimeType(path)}
-					previewKind={previewKind}
-					fileName={path}
-				/>
+			{src && previewKind ? (
+				<BinaryPreview src={src} previewKind={previewKind} fileName={path} />
 			) : (
 				<div className="rounded-md border border-dashed border-border bg-muted p-6 text-center text-xs text-muted-foreground">
 					No file
@@ -58,31 +55,56 @@ function BinaryDiffSide({
 	);
 }
 
-function BinaryDiffPreview({ fileDiff }: { fileDiff: FileDiff }) {
-	const previewKind = getPreviewKind(fileDiff.path);
+function sizeChange(fileDiff: FileDiff): string {
+	const size = (bytes: number | undefined) =>
+		bytes === undefined ? "—" : formatFileSize(bytes);
+	return `${size(fileDiff.oldSize)} → ${size(fileDiff.newSize)}`;
+}
 
-	if (!previewKind) {
+/** A diff with no patch: binary (previewed side by side) or too large. */
+function UnpatchedDiff({
+	fileDiff,
+	sides,
+}: {
+	fileDiff: FileDiff;
+	sides?: DiffSides;
+}) {
+	const previewKind = getPreviewKind(fileDiff.path);
+	if (fileDiff.kind === "too-large" || !previewKind || !sides) {
 		return (
 			<p className="text-xs text-muted-foreground">
-				Binary file changed
-				{fileDiff.oldSize !== undefined || fileDiff.newSize !== undefined
-					? ` (${fileDiff.oldSize !== undefined ? formatFileSize(fileDiff.oldSize) : "—"} → ${fileDiff.newSize !== undefined ? formatFileSize(fileDiff.newSize) : "—"})`
-					: ""}
+				{fileDiff.kind === "too-large"
+					? "Large file changed — diff not shown"
+					: "Binary file changed"}{" "}
+				({sizeChange(fileDiff)})
 			</p>
 		);
 	}
+
+	const sideSrc = (ref: string | undefined, path: string, exists: boolean) =>
+		ref && exists
+			? rawFileUrl({ owner: sides.owner, name: sides.name, ref, path })
+			: null;
 
 	return (
 		<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			<BinaryDiffSide
 				label="Before"
-				content={fileDiff.oldContent}
+				src={sideSrc(
+					sides.oldRef,
+					fileDiff.oldPath ?? fileDiff.path,
+					fileDiff.oldSize !== undefined,
+				)}
 				size={fileDiff.oldSize}
 				path={fileDiff.path}
 			/>
 			<BinaryDiffSide
 				label="After"
-				content={fileDiff.newContent}
+				src={sideSrc(
+					sides.newRef,
+					fileDiff.path,
+					fileDiff.newSize !== undefined,
+				)}
 				size={fileDiff.newSize}
 				path={fileDiff.path}
 			/>
@@ -276,11 +298,14 @@ function renderLineCode(
 
 export function FileDiffViewer({
 	files,
+	sides,
 	isLoading,
 	emptyMessage,
 	summaryExtra,
 }: {
 	files?: FileDiff[];
+	/** Needed to preview binary media; without it they're summarized. */
+	sides?: DiffSides;
 	isLoading?: boolean;
 	emptyMessage?: string;
 	summaryExtra?: ReactNode;
@@ -487,7 +512,7 @@ export function FileDiffViewer({
 							</span>
 						</div>
 						<div className="flex shrink-0 items-center gap-2 text-xs">
-							{fileDiff.isBinary ? (
+							{fileDiff.kind !== "text" ? (
 								<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
 									{formatFileSize(fileDiff.newSize ?? fileDiff.oldSize ?? 0)}
 								</span>
@@ -508,8 +533,8 @@ export function FileDiffViewer({
 					</button>
 					{expandedPaths[fileDiff.path] ? (
 						<div className="px-4 p-4">
-							{fileDiff.isBinary ? (
-								<BinaryDiffPreview fileDiff={fileDiff} />
+							{fileDiff.kind !== "text" ? (
+								<UnpatchedDiff fileDiff={fileDiff} sides={sides} />
 							) : (
 								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
 									<code>
@@ -541,9 +566,11 @@ export function FileDiffViewer({
 						</div>
 					) : (
 						<p className="p-4 text-xs text-muted-foreground">
-							{fileDiff.isBinary
+							{fileDiff.kind === "binary"
 								? "Binary file changed."
-								: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}
+								: fileDiff.kind === "too-large"
+									? "Large file changed — diff not shown."
+									: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}
 						</p>
 					)}
 				</div>

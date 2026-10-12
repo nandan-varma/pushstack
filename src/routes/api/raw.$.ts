@@ -119,8 +119,24 @@ export const Route = createFileRoute("/api/raw/$")({
 							? "public, max-age=31536000, immutable"
 							: "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
 
-					return new Response(buffer as Uint8Array<ArrayBuffer>, {
+					// Streamed in chunks: a non-streamed function response is capped
+					// (4.5 MB on Vercel), and repository files can be larger.
+					const CHUNK_BYTES = 256 * 1024;
+					let offset = 0;
+					const body = new ReadableStream<Uint8Array>({
+						pull(controller) {
+							if (offset >= buffer.byteLength) {
+								controller.close();
+								return;
+							}
+							controller.enqueue(buffer.subarray(offset, offset + CHUNK_BYTES));
+							offset += CHUNK_BYTES;
+						},
+					});
+
+					return new Response(body, {
 						headers: {
+							"Content-Length": String(buffer.byteLength),
 							"Content-Type": safeContentType(path, isBinary, getMimeType),
 							"X-Content-Type-Options": "nosniff",
 							"Content-Disposition": "inline",

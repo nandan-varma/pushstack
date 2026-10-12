@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getPreviewMode } from "@/lib/file-preview";
+import { rawFileUrl } from "@/lib/file-view";
 import { detectLanguage, formatFileSize } from "@/lib/language-detection";
 import {
 	repositoryByNameQueryOptions,
@@ -27,11 +28,6 @@ import {
 const CodeViewer = lazy(() => import("@/components/CodeViewer"));
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
-
-function decodeBase64ToBytes(content: string) {
-	const binary = window.atob(content);
-	return Uint8Array.from(binary, (char) => char.charCodeAt(0));
-}
 
 function encodePath(path: string) {
 	return path.split("/").map(encodeURIComponent).join("/");
@@ -120,29 +116,11 @@ function FileBlobPage() {
 	}
 
 	const language = detectLanguage(filePath);
-	const isBinary = file.isBinary;
-	const previewMode = getPreviewMode(filePath, isBinary);
-	const fileContent = !file.content
-		? ""
-		: file.isBinary
-			? window.atob(file.content)
-			: file.content;
-
-	const downloadFile = () => {
-		const blob = isBinary
-			? new Blob([decodeBase64ToBytes(file.content)], {
-					type: "application/octet-stream",
-				})
-			: new Blob([fileContent], { type: "text/plain;charset=utf-8" });
-		const objectUrl = URL.createObjectURL(blob);
-		const link = document.createElement("a");
-		link.href = objectUrl;
-		link.download = filePath.split("/").pop() || "download";
-		document.body.appendChild(link);
-		link.click();
-		link.remove();
-		URL.revokeObjectURL(objectUrl);
-	};
+	const previewMode = getPreviewMode(filePath, file.kind);
+	const fileName = filePath.split("/").pop() || filePath;
+	// Bytes are fetched from the raw endpoint only when asked for (view raw,
+	// download, media preview) — never shipped inside the page data.
+	const rawUrl = rawFileUrl({ owner, name, ref: branch, path: filePath });
 
 	return (
 		<div className="space-y-4">
@@ -156,7 +134,7 @@ function FileBlobPage() {
 						{filePath}
 					</h1>
 					<span className="shrink-0 text-sm text-muted-foreground">
-						{formatFileSize(file.size || fileContent.length)}
+						{formatFileSize(file.size)}
 					</span>
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -173,11 +151,7 @@ function FileBlobPage() {
 						label="Back to Files"
 					/>
 					<Button variant="outline" size="sm" asChild>
-						<a
-							href={`/api/raw/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/${encodeURIComponent(branch)}/${encodePath(filePath)}`}
-							target="_blank"
-							rel="noreferrer"
-						>
+						<a href={rawUrl} target="_blank" rel="noreferrer">
 							<ExternalLink className="size-4" /> Raw
 						</a>
 					</Button>
@@ -202,8 +176,10 @@ function FileBlobPage() {
 							</>
 						)}
 					</Button>
-					<Button variant="outline" size="sm" onClick={downloadFile}>
-						Download
+					<Button variant="outline" size="sm" asChild>
+						<a href={rawUrl} download={fileName}>
+							Download
+						</a>
 					</Button>
 				</div>
 			</div>
@@ -261,13 +237,12 @@ function FileBlobPage() {
 					<TabsContent value="preview">
 						<Card
 							className={
-								previewMode === "binary" ? "overflow-hidden p-0" : "p-6"
+								previewMode === "media" ? "overflow-hidden p-0" : "p-6"
 							}
 						>
 							<FilePreview
+								file={file}
 								filePath={filePath}
-								content={file.content}
-								isBinary={isBinary}
 								owner={owner}
 								name={name}
 								branch={branch}
@@ -279,28 +254,34 @@ function FileBlobPage() {
 
 				<TabsContent value="code" className="space-y-4">
 					{/* File Content */}
-					{isBinary ? (
-						<Card className="p-8 text-center">
-							<p className="text-muted-foreground">
-								This file is binary and cannot be displayed.
-							</p>
-							<Button
-								variant="outline"
-								size="sm"
-								className="mt-4"
-								onClick={downloadFile}
-							>
-								Download File
-							</Button>
-						</Card>
-					) : (
+					{file.kind === "text" ? (
 						<Suspense fallback={<Skeleton className="h-96" />}>
 							<CodeViewer
-								code={fileContent}
+								code={file.content}
 								language={language}
-								fileName={filePath.split("/").pop()}
+								fileName={fileName}
 							/>
 						</Suspense>
+					) : (
+						<Card className="p-8 text-center">
+							<p className="text-muted-foreground">
+								{file.kind === "binary"
+									? "This file is binary and can't be displayed."
+									: `This file is too large to display (${formatFileSize(file.size)}).`}
+							</p>
+							<div className="mt-4 flex justify-center gap-2">
+								<Button variant="outline" size="sm" asChild>
+									<a href={rawUrl} target="_blank" rel="noreferrer">
+										View raw
+									</a>
+								</Button>
+								<Button variant="outline" size="sm" asChild>
+									<a href={rawUrl} download={fileName}>
+										Download
+									</a>
+								</Button>
+							</div>
+						</Card>
 					)}
 
 					{/* File Info */}
@@ -317,13 +298,13 @@ function FileBlobPage() {
 							<div>
 								<p className="text-muted-foreground">Size</p>
 								<p className="font-medium text-foreground">
-									{formatFileSize(file.size || fileContent.length)}
+									{formatFileSize(file.size)}
 								</p>
 							</div>
 							<div>
 								<p className="text-muted-foreground">Lines</p>
 								<p className="font-medium text-foreground">
-									{fileContent.split("\n").length}
+									{file.kind === "text" ? file.content.split("\n").length : "—"}
 								</p>
 							</div>
 						</div>

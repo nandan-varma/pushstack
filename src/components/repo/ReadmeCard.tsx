@@ -73,7 +73,10 @@ export function ReadmeCard({
 		);
 	}
 
-	if (!readmeFile || readmeContent?.isBinary) return null;
+	// Only a README small enough to show inline is rendered.
+	if (!readmeFile || (readmeContent && readmeContent.kind !== "text")) {
+		return null;
+	}
 
 	return (
 		<div className="overflow-hidden rounded-xl border border-border">
@@ -86,9 +89,8 @@ export function ReadmeCard({
 			<div className="p-6">
 				{readmeContent ? (
 					<FilePreview
+						file={readmeContent}
 						filePath={readmeFile.path}
-						content={readmeContent.content}
-						isBinary={readmeContent.isBinary}
 						owner={owner}
 						name={name}
 						branch={branch}

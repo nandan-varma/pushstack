@@ -265,7 +265,11 @@ function CommitDetailPage() {
 				<h2 className="text-lg font-semibold text-foreground">
 					File Changes {diffData?.files && `(${diffData.files.length})`}
 				</h2>
-				<FileDiffViewer files={diffData?.files} isLoading={diffLoading} />
+				<FileDiffViewer
+					files={diffData?.files}
+					sides={{ owner, name, oldRef: commit.parent?.[0], newRef: sha }}
+					isLoading={diffLoading}
+				/>
 			</div>
 		</div>
 	);

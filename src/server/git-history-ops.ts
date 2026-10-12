@@ -11,7 +11,6 @@
  */
 import {
 	type CommitInfo,
-	getFileFromRef,
 	getTreeFromRef,
 	listBranches,
 	getBlob as opsGetBlob,
@@ -20,6 +19,7 @@ import {
 	getCommitLog as opsGetCommitLog,
 	getFileContent as opsGetFileContent,
 } from "git-fs-s3/ops";
+import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 import { opsHooksFor } from "./git-cache";
 import { getRepoOptions } from "./git-repo-storage";
 import type { TreeEntry } from "./git-tree-ops";
@@ -104,19 +104,19 @@ export async function getCommitLog(
 	);
 }
 
+/** A file at a ref, for display: inline text only when it's small text. */
 export async function getFileFromBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
 	filePath: string,
-): Promise<{ content: string; size: number; isBinary: boolean }> {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	return getFileFromRef(
-		repo,
-		filePath,
-		branchName,
-		hooksFor(ownerKey, repoName),
-	);
+): Promise<FileView> {
+	const bytes = await getFileContent(ownerKey, repoName, filePath, branchName);
+	const size = bytes.byteLength;
+	// git's own heuristic: a NUL byte means binary.
+	if (bytes.includes(0)) return { kind: "binary", size };
+	if (size > MAX_INLINE_TEXT_BYTES) return { kind: "too-large", size };
+	return { kind: "text", size, content: bytes.toString("utf8") };
 }
 
 export async function getTreeFromBranch(

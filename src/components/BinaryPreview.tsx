@@ -1,29 +1,26 @@
 import { useId } from "react";
-import { useBinaryObjectUrl } from "@/lib/binary-preview";
 import type { PreviewKind } from "@/lib/language-detection";
 
+/** Renders media from `src` (the raw endpoint, or an object URL for text media). */
 export function BinaryPreview({
-	data,
-	mimeType,
+	src,
 	previewKind,
 	fileName,
 }: {
-	data: string;
-	mimeType: string;
+	src: string | null;
 	previewKind: PreviewKind;
 	fileName: string;
 }) {
-	const objectUrl = useBinaryObjectUrl(data, mimeType);
 	const fontFamilyId = useId().replace(/[^a-zA-Z0-9]/g, "");
 
-	if (!objectUrl) return null;
+	if (!src) return null;
 
 	switch (previewKind) {
 		case "image":
 			return (
 				<div className="flex justify-center bg-muted rounded-md p-4">
 					<img
-						src={objectUrl}
+						src={src}
 						alt={fileName}
 						className="max-w-full max-h-[75vh] object-contain"
 					/>
@@ -32,7 +29,7 @@ export function BinaryPreview({
 		case "pdf":
 			return (
 				<embed
-					src={objectUrl}
+					src={src}
 					type="application/pdf"
 					className="w-full rounded-md border border-border"
 					style={{ height: "80vh" }}
@@ -42,20 +39,20 @@ export function BinaryPreview({
 			return (
 				<div className="p-4">
 					{/* biome-ignore lint/a11y/useMediaCaption: repo file, no caption track available */}
-					<audio controls src={objectUrl} className="w-full" />
+					<audio controls src={src} className="w-full" />
 				</div>
 			);
 		case "video":
 			return (
 				<div className="flex justify-center bg-muted rounded-md p-4">
 					{/* biome-ignore lint/a11y/useMediaCaption: repo file, no caption track available */}
-					<video controls src={objectUrl} className="max-w-full max-h-[75vh]" />
+					<video controls src={src} className="max-w-full max-h-[75vh]" />
 				</div>
 			);
 		case "font":
 			return (
 				<div className="p-4">
-					<style>{`@font-face { font-family: "preview-${fontFamilyId}"; src: url(${objectUrl}); }`}</style>
+					<style>{`@font-face { font-family: "preview-${fontFamilyId}"; src: url(${src}); }`}</style>
 					<div
 						style={{ fontFamily: `preview-${fontFamilyId}` }}
 						className="space-y-2 text-foreground"

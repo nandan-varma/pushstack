@@ -384,6 +384,12 @@ function PullRequestDetailPage() {
 				</h3>
 				<FileDiffViewer
 					files={diff?.files}
+					sides={{
+						owner,
+						name,
+						oldRef: pr.targetBranch,
+						newRef: pr.sourceBranch,
+					}}
 					isLoading={diffLoading}
 					emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
 				/>

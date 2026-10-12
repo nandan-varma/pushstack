@@ -52,7 +52,7 @@
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
     "git-edge": "^0.3.0",
-    "git-fs-s3": "^0.6.0",
+    "git-fs-s3": "^0.7.0",
     "isomorphic-git": "^1.43.3",
     "lucide-react": "^1.55.0",
     "mdast-util-find-and-replace": "^3.0.3",
