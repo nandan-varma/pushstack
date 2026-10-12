@@ -288,20 +288,36 @@ requirement) against a local dev server with real R2 credentials, reading
 
 ## The `perf-log` instrumentation convention
 
-Two parallel modules, same idea, different sides of the request:
+Two modules, same idea, different sides of the request:
 
 - **`src/server/perf-log.ts`** (server): `perfContext(label, fn)` wraps a
   `createServerFn` handler in an AsyncLocalStorage-based context (so nested
   calls don't need it threaded through every function signature);
-  `perfStep(label, fn)` times an awaited sub-call and nests under the active
-  context; `perfR2(label, fn)` (used inside `r2-operations.ts`) additionally
-  tallies R2 call count/time onto the context, printed in the `perfContext`
-  summary line at the end (e.g. `■ done in 2721ms (r2: 39 calls / 16378ms,
-  cache: 123 hit / 36 miss)`).
+  `perfStep(label, fn)` times an awaited sub-call, and anything that step
+  starts is recorded one level deeper; `perfR2(label, fn)` (used inside
+  `r2-operations.ts` and `git-fs.ts`) also tallies R2 call count/time;
+  `perfNote(text)` adds a note at the current depth (`db/index.ts` routes
+  every SQL statement — text only, never parameters — through it). When the
+  request ends, its whole tree prints as one block:
+
+  ```
+  [perf getTreePageData repo=11 main:src#4] done 539.3ms · r2 8 calls 1396.4ms · cache 8 hit 8 miss
+    · getCurrentUserOptional 1.0ms
+    · getRepositoryTreeData 538.1ms
+      · R2 LIST repos/nandan/pushstack/git/refs/heads/ 208.8ms
+      • getCommitLog: result-cache MISS for …
+  ```
 - **`src/lib/perf-log.ts`** (client/SSR): `perfTime`/`perfMark`, used in route
   loaders and `query-options.ts` queryFns — prefixed `[perf:ssr]` or
-  `[perf:client]` so the same request's client-perceived latency can be
-  compared against the server-side breakdown printed by the module above.
+  `[perf:client]` so a request's client-perceived latency can be compared
+  against the server-side tree for the same request. It also owns the switch.
+
+**Off in production by default.** Visitors' consoles stay quiet and the
+server doesn't pay for log volume: everything above is a no-op unless
+`isPerfLogEnabled()` — always in dev; on the server when
+`PUSHSTACK_PERF_LOG=1`; in a browser when `localStorage["pushstack:perf-log"]`
+is `"1"`, which Settings → Developer toggles for that browser. `logError` and
+`logWarn` always log.
 
 **Follow this pattern when adding a new server function on a user-facing read
 path**: wrap the handler in `perfContext`, wrap each meaningfully-awaited
@@ -383,3 +399,14 @@ import(...))` + `Suspense` pattern for any new heavy, conditionally-rendered
 dependency — check the production build's chunk output (`pnpm build`, look at
 `.vercel/output/static/assets/`) to confirm a new heavy import actually lands
 in its own chunk rather than inflating a hot route's critical bundle.
+
+Server code must not reach the browser either. TanStack Start strips server
+function bodies from the client build but keeps each file's top-level
+imports, so `vite.config.ts` declares every module under `src/db/` and
+`src/server/` free of side effects (`treeshake.moduleSideEffects`): once their
+exports are unused, the bundler drops them. Before that, the Neon driver,
+Drizzle and the schema shipped to every visitor (the `query-options` chunk
+was 83 KB gzip; it's 16 KB). For the same reason `src/start.ts` loads
+Sentry's global middlewares with a server-only dynamic import — a static
+import put the whole SDK in the main chunk, whose client halves are no-ops.
+The main entry chunk is ~85 KB gzip; when it grows, check what's in it.
