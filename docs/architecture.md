@@ -8,7 +8,7 @@ pieces fit together. For deep dives on any one piece, see the other files in `do
 ## Tech stack
 
 | Concern | Choice |
-|---|---|
+| --- | --- |
 | Framework | [TanStack Start](https://tanstack.com/start) — file-based SSR router with server functions |
 | Database | Neon (serverless Postgres) via `@neondatabase/serverless` |
 | ORM | Drizzle |
@@ -98,8 +98,9 @@ src/
 ```
 
 `src/server/` is the one directory with a hard boundary: nothing in it is safe
-to import from client code (it touches R2 credentials, the DB connection, and
-Node-only APIs like `node:fs`). Everything in it is reached exclusively through
+to import from client code (it touches R2 credentials and the DB connection,
+and is the only place that reaches for a Node built-in — `node:async_hooks`, in
+`perf-log.ts`). Everything in it is reached exclusively through
 `createServerFn` handlers or the git HTTP route handler.
 
 ## The two storage systems

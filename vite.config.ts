@@ -7,13 +7,6 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 
-// The browser SDK sends error/tracing envelopes straight to this origin
-// (see src/router.tsx's Sentry.init) — without it in connect-src, the CSP
-// silently blocks every client-side-captured error from ever reaching Sentry.
-const sentryIngestOrigin = process.env.VITE_SENTRY_DSN
-	? new URL(process.env.VITE_SENTRY_DSN).origin
-	: undefined;
-
 const serverOnlyDirs = ["db", "server"].map(
 	(dir) => `${path.resolve(import.meta.dirname, "src", dir)}${path.sep}`,
 );
@@ -72,31 +65,12 @@ const config = defineConfig({
 			// bundler's interop decision itself.
 			traceDeps: ["react*"],
 			routeRules: {
-				// Defense-in-depth on top of MarkdownRenderer's isSafeHref/
-				// isSafeImageSrc guards (the primary control for the
-				// attacker-controlled content it renders — issue/PR/comment
-				// bodies, READMEs). 'unsafe-inline' stays necessary in both
-				// directives: TanStack Start's SSR streaming injects small
-				// inline hydration <script> tags with per-response dynamic
-				// content (no static hash/nonce would match), and Shiki's
-				// code-block highlighting emits inline `style` attributes per
-				// token. This still blocks the more common exfiltration
-				// pattern of loading a *remote* script/style from an
-				// attacker-controlled origin, and blocks framing/plugins
-				// entirely — see docs/security.md for the full model.
+				// Static security headers for every response. The
+				// Content-Security-Policy is deliberately *not* here: it carries a
+				// per-request nonce, so it is set by the request middleware in
+				// src/server/csp.ts instead. See docs/security.md.
 				"/**": {
 					headers: {
-						"Content-Security-Policy": [
-							"default-src 'self'",
-							"script-src 'self' 'unsafe-inline'",
-							"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-							"img-src 'self' data: blob: https:",
-							"font-src 'self' https://fonts.gstatic.com",
-							`connect-src 'self'${sentryIngestOrigin ? ` ${sentryIngestOrigin}` : ""}`,
-							"frame-ancestors 'none'",
-							"base-uri 'self'",
-							"object-src 'none'",
-						].join("; "),
 						"X-Content-Type-Options": "nosniff",
 						"X-Frame-Options": "DENY",
 						"Referrer-Policy": "strict-origin-when-cross-origin",

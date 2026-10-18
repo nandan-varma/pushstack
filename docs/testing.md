@@ -60,6 +60,15 @@ Notable files:
 - `git-ref-name.test.ts`, `git-storage-naming.test.ts` — the validators and
   key construction that stop path traversal (see [security.md](./security.md)).
 - `repo-access.test.ts` — `RepositoryAccess` and its handler helpers.
+- `rate-limit.test.ts` — the shared rate-limit counters against real SQL
+  (the atomic upsert's allowance, per-key isolation, window rollover), plus an
+  assertion that the auth config uses that storage rather than the in-memory
+  default.
+- `csp.test.ts` — the Content-Security-Policy's directives, the theme script's
+  hash being the hash of the constant the document renders, and the nonce being
+  unguessable and distinct per call.
+- `repo-path.test.ts` — resolving a relative markdown target against its
+  containing file, including refusal to climb above the repository root.
 
 Run everything with `pnpm test` (`pnpm test:watch`, `pnpm test:coverage`);
 one file with `pnpm test src/server/__tests__/repo-access.test.ts`.
@@ -76,7 +85,9 @@ are covered only by e2e.
 
 ## End-to-end tests (Playwright)
 
-Live in `e2e/`: `auth.spec.ts`, `navigation.spec.ts`, `repositories.spec.ts`.
+Live in `e2e/`: `auth.spec.ts`, `navigation.spec.ts`, `repositories.spec.ts`,
+and `git-cli.spec.ts` (that same smart-HTTP path, driven by the real `git`
+binary rather than isomorphic-git).
 
 ```bash
 pnpm test:e2e         # headless
@@ -91,7 +102,9 @@ suite:
   spins up and the test files themselves (which need direct DB access to
   verify things like test-user email state) see the same environment `pnpm
   dev` would. It creates and deletes users, so point `.env.local` at a dev
-  database before running it — never production.
+  database before running it — never production. The helpers refuse to run
+  against a non-local `DATABASE_URL` unless `E2E_ALLOW_REMOTE_DB=1` is set,
+  because `.env.local` is the file most likely to be pointed at a real one.
 - It runs **serially, one worker** (`fullyParallel: false, workers: 1`) —
   deliberately, not for lack of trying parallelism elsewhere in this
   codebase. All specs share one dev server, one real database, and one auth

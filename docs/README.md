@@ -41,3 +41,5 @@ understanding *why* the codebase is shaped the way it is.
 
 - [Submodules](./submodules.md) — clone URLs, private/nested submodules,
   browsing, pointer diffs and merge behavior.
+- [Dogfood workflow](./dogfood-workflow.md) — the change that exercises the
+  issue and pull-request flow end to end.

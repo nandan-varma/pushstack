@@ -8,6 +8,12 @@ export interface TtlCoalescedCache<V> {
 	set(key: string, value: V): void;
 	/** Forget `key`, including a fetch still in flight (it won't be cached). */
 	delete(key: string): void;
+	/**
+	 * Forget every entry whose key starts with `prefix` — for a mutation that
+	 * invalidates a whole key space at once (every user's access decision for one
+	 * repository, say) rather than one key.
+	 */
+	deletePrefix(prefix: string): void;
 }
 
 export function createTtlCoalescedCache<V>(options: {
@@ -68,6 +74,16 @@ export function createTtlCoalescedCache<V>(options: {
 		delete(key) {
 			cache.delete(key);
 			inFlight.delete(key);
+		},
+		deletePrefix(prefix) {
+			for (const key of [...cache.keys()]) {
+				if (key.startsWith(prefix)) cache.delete(key);
+			}
+			// Also drop in-flight fetches: one that started before the mutation
+			// holds a pre-mutation answer and must not repopulate the cache.
+			for (const key of [...inFlight.keys()]) {
+				if (key.startsWith(prefix)) inFlight.delete(key);
+			}
 		},
 	};
 }

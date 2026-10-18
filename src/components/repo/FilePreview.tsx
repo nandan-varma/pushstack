@@ -49,6 +49,7 @@ export function FilePreview({
 					owner={owner}
 					name={name}
 					branch={branch}
+					filePath={filePath}
 					repoId={repoId}
 					className={className}
 				/>

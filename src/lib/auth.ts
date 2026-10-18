@@ -4,6 +4,7 @@ import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
 import { STORAGE_NAME_RE } from "#/server/git-storage-naming";
+import { rateLimitStorage } from "#/server/rate-limit";
 import { sendEmail } from "./email";
 
 const authSecret = process.env.BETTER_AUTH_SECRET;
@@ -39,7 +40,13 @@ function escapeHtml(text: string): string {
 // changing it would orphan every repository the user owns, and let whoever
 // later took the old name inherit that storage. The username plugin exposes
 // username changes through update-user, so they're refused here, server-side.
-const IMMUTABLE_USER_FIELDS = ["username", "displayUsername"];
+//
+// `email` is listed for the same reason every other invariant here is: the
+// refusal has to be a line in this app, not a property of whichever Better
+// Auth flow happens to be enabled. Today /update-user rejects an email field
+// itself and /change-email is off (`user.changeEmail.enabled` is unset), but
+// turning that flow on would otherwise silently make the address mutable.
+const IMMUTABLE_USER_FIELDS = ["username", "displayUsername", "email"];
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -109,6 +116,10 @@ export const auth = betterAuth({
 		enabled: true,
 		window: 60,
 		max: 20,
+		// Counters in Postgres rather than Better Auth's default per-instance
+		// Map — a limit that multiplies by the number of warm serverless
+		// instances is not a limit. See server/rate-limit.ts.
+		customStorage: rateLimitStorage,
 	},
 	advanced: {
 		cookiePrefix: "pushstack",

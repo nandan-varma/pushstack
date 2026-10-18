@@ -103,8 +103,11 @@ async function getCollaboratorRole(
 
 /**
  * A page load fans out to several reads for the same (repo, user) in
- * parallel; this coalesces them onto one lookup. The TTL is a few seconds:
- * a revoked collaborator or a visibility change takes effect almost at once.
+ * parallel; this coalesces them onto one lookup. The TTL is a few seconds, but
+ * a mutation that changes who can do what to a repository (a visibility flip,
+ * a collaborator added or removed, a delete) calls
+ * {@link invalidateRepositoryAccess} so the new answer is live immediately
+ * rather than up to a TTL later.
  */
 const accessCache = createTtlCoalescedCache<RepositoryAccess | null>({
 	ttlMs: 4000,
@@ -115,6 +118,15 @@ const accessCache = createTtlCoalescedCache<RepositoryAccess | null>({
 
 const accessKey = (repoId: number, userId?: string | null) =>
 	`${repoId}:${userId ?? "anon"}`;
+
+/**
+ * Forget every cached access decision for a repository. Call from any mutation
+ * that changes who may read or write it, so the change is live at once instead
+ * of when the cache's TTL lapses.
+ */
+export function invalidateRepositoryAccess(repoId: number): void {
+	accessCache.deletePrefix(`${repoId}:`);
+}
 
 /** The caller's access to a repository by id, or null when it doesn't exist. */
 export function getRepositoryAccess(
@@ -153,14 +165,6 @@ export async function canReadRepo(repoId: number, userId?: string | null) {
 	return (await getRepositoryAccess(repoId, userId))?.canRead ?? false;
 }
 
-export async function canWriteRepo(repoId: number, userId?: string | null) {
-	return (await getRepositoryAccess(repoId, userId))?.canWrite ?? false;
-}
-
-export async function canModerateRepo(repoId: number, userId?: string | null) {
-	return (await getRepositoryAccess(repoId, userId))?.canModerate ?? false;
-}
-
 export async function canMergePullRequest(
 	repoId: number,
 	userId?: string | null,
@@ -170,10 +174,42 @@ export async function canMergePullRequest(
 	);
 }
 
+export async function canWriteRepo(repoId: number, userId?: string | null) {
+	return (await getRepositoryAccess(repoId, userId))?.canWrite ?? false;
+}
+
+export async function canModerateRepo(repoId: number, userId?: string | null) {
+	return (await getRepositoryAccess(repoId, userId))?.canModerate ?? false;
+}
+
 export async function requireWriteAccess(repoId: number, userId: string) {
 	if (!(await canWriteRepo(repoId, userId))) {
 		throw new Error("No write access to repository");
 	}
+}
+
+/**
+ * What the current viewer may do in a repository, for a page that must render
+ * only the actions its mutations would accept. Presentation only: every
+ * mutation re-checks the same permissions server-side, so a stale or forged
+ * page cannot grant anything.
+ */
+export interface ViewerRepositoryAccess {
+	/** May merge a pull request in this repository. */
+	canMerge: boolean;
+	/** May write to this repository (commit, comment, open issues and PRs). */
+	canWrite: boolean;
+}
+
+export async function getViewerRepositoryAccess(
+	repoId: number,
+): Promise<ViewerRepositoryAccess> {
+	const user = await getCurrentUserOptional();
+	const [canMerge, canWrite] = await Promise.all([
+		canMergePullRequest(repoId, user?.id),
+		canWriteRepo(repoId, user?.id),
+	]);
+	return { canMerge, canWrite };
 }
 
 /** A repository with its owner — what storage coordinates are derived from. */

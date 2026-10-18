@@ -141,10 +141,9 @@ describe("MarkdownRenderer link safety", () => {
 
 describe("MarkdownRenderer image safety", () => {
 	// The isSafeImageSrc guard lives in buildComponents' custom `img` renderer,
-	// which (like `a`) is only installed once owner+name are given — without
-	// them, react-markdown's own default sanitizer is what's stripping (or
-	// letting through) the src, not the app's guard. Pass owner+name so these
-	// tests exercise our own logic.
+	// which (like `a`) is only installed once owner+name are given; without
+	// them the fallback safeImg applies the same guard. Owner+name is passed
+	// here so the branch-aware, file-relative src rewriting is exercised too.
 	it("renders a safe inline base64 image", () => {
 		renderMarkdown({
 			content: "![alt](data:image/png;base64,AAAA)",
@@ -179,18 +178,94 @@ describe("MarkdownRenderer image safety", () => {
 		expect(img).toHaveAttribute("src", "data:image/png;base64,AAAA");
 	});
 
-	it("rewrites a safe relative image src to the repo blob API route when branch context is given", () => {
+	it("rewrites a relative image src to the raw-content route when branch context is given", () => {
 		renderMarkdown({
 			content: "![diagram](./assets/diagram.png)",
 			owner: "acme",
 			name: "widgets",
 			branch: "main",
+			filePath: "README.md",
 		});
 		const img = screen.getByAltText("diagram");
 		expect(img).toHaveAttribute(
 			"src",
-			"/api/repos/acme/widgets/blob/main/assets/diagram.png",
+			"/api/raw/acme/widgets/main/assets/diagram.png",
 		);
+	});
+
+	it("resolves a relative image src against the file that contains it", () => {
+		renderMarkdown({
+			content: "![diagram](./diagram.png)",
+			owner: "acme",
+			name: "widgets",
+			branch: "main",
+			filePath: "docs/guides/README.md",
+		});
+		expect(screen.getByAltText("diagram")).toHaveAttribute(
+			"src",
+			"/api/raw/acme/widgets/main/docs/guides/diagram.png",
+		);
+	});
+
+	it("does not invent a src for a relative image that escapes the repository root", () => {
+		renderMarkdown({
+			content: "![diagram](../../../../etc/passwd)",
+			owner: "acme",
+			name: "widgets",
+			branch: "main",
+			filePath: "docs/README.md",
+		});
+		expect(screen.queryByAltText("diagram")).toBeNull();
+	});
+
+	it("resolves a relative link target against the containing file too", () => {
+		renderMarkdown({
+			content: "[sibling](../other/y.md)",
+			owner: "acme",
+			name: "widgets",
+			branch: "main",
+			filePath: "docs/guides/x.md",
+		});
+		expect(screen.getByTestId("router-link")).toHaveAttribute(
+			"href",
+			"/repo/acme/widgets/blob/main/docs/other/y.md",
+		);
+	});
+
+	it("never emits an href or src the browser resolves to javascript:", () => {
+		// `java\tscript:` and `\u0001javascript:` are both live javascript: URLs
+		// to a browser: the URL parser strips the tab / leading control before
+		// it looks for a scheme. The markdown parser percent-encodes the control
+		// character, which is what keeps these inert today — so assert the
+		// outcome through the browser's own URL algorithm rather than trusting
+		// that encoding to keep happening.
+		for (const payload of [
+			"[click me](<java\tscript:alert(1)>)",
+			"[click me](<\u0001javascript:alert(1)>)",
+			"[click me](<java\u0000script:alert(1)>)",
+			"![alt](<java\tscript:alert(1)>)",
+		]) {
+			const { container, unmount } = renderMarkdown({
+				content: payload,
+				owner: "acme",
+				name: "widgets",
+			});
+			for (const element of container.querySelectorAll("a[href], img[src]")) {
+				const value =
+					element.getAttribute("href") ?? element.getAttribute("src") ?? "";
+				expect(new URL(value, "https://example.test/").protocol).not.toBe(
+					"javascript:",
+				);
+				expect(
+					[...value].some(
+						(character) =>
+							character.charCodeAt(0) <= 0x20 ||
+							character.charCodeAt(0) === 0x7f,
+					),
+				).toBe(false);
+			}
+			unmount();
+		}
 	});
 });
 

@@ -19,7 +19,6 @@
  * and `logWarn` always log.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import * as Sentry from "@sentry/tanstackstart-react";
 import { isPerfLogEnabled } from "#/lib/perf-log";
 
 interface PerfEntry {
@@ -180,7 +179,50 @@ export function recordCacheMiss(): void {
 }
 
 /**
- * Structured error/warning logging, sharing this module's request-scoped
+ * Sentry's server SDK, loaded on first use and only when a DSN is configured.
+ * Without one there is nothing to report to, so there is no reason for this
+ * module to be in the dependency graph of every route that logs. The fetch
+ * wrapper (src/server.ts) and the middlewares (src/start.ts) are gated the same
+ * way. Memoized, so the import happens at most once per process.
+ */
+let sentrySdk: Promise<
+	typeof import("@sentry/tanstackstart-react") | null
+> | null = null;
+
+function sentry() {
+	if (!process.env.VITE_SENTRY_DSN) return Promise.resolve(null);
+	sentrySdk ??= import("@sentry/tanstackstart-react").catch(
+		(error: unknown) => {
+			// A failure to load the reporter must not become the error being logged.
+			console.error(`[perf] could not load the Sentry SDK: ${String(error)}`);
+			return null;
+		},
+	);
+	return sentrySdk;
+}
+
+/**
+ * Report through Sentry when one is configured. Deliberately fire-and-forget:
+ * every caller is already on an error path, and awaiting a network reporter
+ * there would put reporting on the critical path — while a reporter that threw
+ * would turn one failure into two.
+ */
+function reportWithSentry(
+	use: (client: typeof import("@sentry/tanstackstart-react")) => void,
+): void {
+	void sentry().then((client) => {
+		if (!client) return;
+		try {
+			use(client);
+		} catch (reportingError) {
+			console.error(
+				`[perf] Sentry rejected the report: ${String(reportingError)}`,
+			);
+		}
+	});
+}
+
+/**
  * correlation id (the same `[perf <id>]` prefix used above) instead of each
  * call site inventing its own ad-hoc console.error/warn with inconsistent
  * prefixing. `scope` is the module/subsystem name (e.g. "git-auth"); when
@@ -194,9 +236,11 @@ export function logError(scope: string, message: string, err: unknown): void {
 	console.error(
 		`${prefix(als.getStore()?.request)} [${scope}] ${message}: ${detail}`,
 	);
-	Sentry.captureException(err instanceof Error ? err : new Error(detail), {
-		extra: { scope, message },
-	});
+	reportWithSentry((client) =>
+		client.captureException(err instanceof Error ? err : new Error(detail), {
+			extra: { scope, message },
+		}),
+	);
 }
 
 export function logWarn(scope: string, message: string, err?: unknown): void {
@@ -208,10 +252,12 @@ export function logWarn(scope: string, message: string, err?: unknown): void {
 	// Breadcrumb, not a captured event — warnings are expected/handled
 	// conditions (see call sites), not incidents worth alerting on by
 	// themselves, but useful context if a related error fires later.
-	Sentry.addBreadcrumb({
-		category: scope,
-		message,
-		level: "warning",
-		data: err === undefined ? undefined : { error: String(err) },
-	});
+	reportWithSentry((client) =>
+		client.addBreadcrumb({
+			category: scope,
+			message,
+			level: "warning",
+			data: err === undefined ? undefined : { error: String(err) },
+		}),
+	);
 }

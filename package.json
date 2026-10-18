@@ -48,8 +48,8 @@
     "diff": "^9.0.0",
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
-    "git-edge": "^0.4.0",
-    "git-fs-s3": "^0.10.0",
+    "git-edge": "^0.4.2",
+    "git-fs-s3": "^0.11.0",
     "isomorphic-git": "^1.44.3",
     "lucide-react": "^1.59.0",
     "mdast-util-find-and-replace": "^3.0.3",
@@ -98,6 +98,10 @@
   },
   "packageManager": "pnpm@9.15.5",
   "pnpm": {
+    "neverBuiltDependencies": [
+      "@prisma/engines",
+      "prisma"
+    ],
     "overrides": {
       "esbuild": ">=0.28.1 <0.29.0",
       "hono": ">=4.12.34 <5.0.0",

@@ -114,4 +114,8 @@ pnpm dev
 ## Database
 
 Schema changes reach the database only through `pnpm db:push` (no migration
-files). See [database.md](./database.md).
+files). See [database.md](./database.md). `rate_limits` — the shared auth
+rate-limiter counters ([security.md](./security.md)) — is part of that schema,
+so a deploy that introduces it must have `pnpm db:push` run against the target
+database *before* the code that writes to it is live; otherwise the first
+rate-limited request fails against a missing table.

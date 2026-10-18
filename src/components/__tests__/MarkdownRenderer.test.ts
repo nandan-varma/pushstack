@@ -3,8 +3,10 @@ import { isSafeHref, isSafeImageSrc } from "../MarkdownRenderer";
 
 // Markdown link/image targets come from repo READMEs, issue bodies, PR
 // bodies, and comments — all attacker-writable content rendered back to
-// other viewers. isSafeHref/isSafeImageSrc are the only guard between that
-// content and a raw <a href>/<img src>.
+// other viewers. isSafeHref/isSafeImageSrc are the guard between that content
+// and a raw <a href>/<img src>, so they have to agree with the browser's URL
+// parser about what counts as a scheme — see their comment in
+// MarkdownRenderer.tsx.
 describe("isSafeHref", () => {
 	it("allows relative repo paths", () => {
 		expect(isSafeHref("./docs/readme.md")).toBe(true);
@@ -53,8 +55,17 @@ describe("isSafeHref", () => {
 		);
 	});
 
-	it("allows whitespace-padded http", () => {
-		expect(isSafeHref("  https://safe.com")).toBe(true);
+	it("rejects values containing whitespace or a control character", () => {
+		// The URL parser strips all ASCII tab/newline characters and leading C0
+		// controls and spaces before it reads a scheme, so a value whose literal
+		// prefix looks schemeless can still be a live javascript: URL.
+		expect(isSafeHref("  https://safe.com")).toBe(false);
+		expect(isSafeHref("java\tscript:alert(1)")).toBe(false);
+		expect(isSafeHref("java\nscript:alert(1)")).toBe(false);
+		expect(isSafeHref("\u0001javascript:alert(1)")).toBe(false);
+		expect(isSafeHref("java\u0000script:alert(1)")).toBe(false);
+		expect(isSafeHref("\u007fjavascript:alert(1)")).toBe(false);
+		expect(isSafeHref("https://example.com/x\u0009y")).toBe(false);
 	});
 });
 
@@ -95,5 +106,11 @@ describe("isSafeImageSrc", () => {
 
 	it("rejects vbscript scheme", () => {
 		expect(isSafeImageSrc("vbscript:MsgBox(1)")).toBe(false);
+	});
+
+	it("rejects whitespace or control characters, like isSafeHref", () => {
+		expect(isSafeImageSrc("java\tscript:alert(1)")).toBe(false);
+		expect(isSafeImageSrc("\u0001javascript:alert(1)")).toBe(false);
+		expect(isSafeImageSrc(" https://example.com/x.png")).toBe(false);
 	});
 });

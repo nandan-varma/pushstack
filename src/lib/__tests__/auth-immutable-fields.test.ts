@@ -4,7 +4,9 @@
  * Real Better Auth (email + username plugin) against in-memory Postgres
  * (pglite): sign-up still sets a username, profile edits still work, but the
  * username and email — which repository storage keys derive from — can't be
- * changed afterwards.
+ * changed afterwards. The email refusal is asserted twice: once through the
+ * public API and once against this app's own `databaseHooks` refusal, because
+ * Better Auth's own guard would mask a missing entry in that list.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -59,6 +61,25 @@ describe("immutable user fields", () => {
 		await auth.api.updateUser({ body: { name: "Octo Cat" }, headers });
 		await expect(
 			auth.api.updateUser({ body: { username: "someoneelse" }, headers }),
+		).rejects.toThrow(/can't be changed/);
+
+		// The app's own refusal, called directly. `updateUser`'s body type does
+		// not even admit an `email` field (and its handler rejects one), so an
+		// API-level assertion would pass with `email` missing from this app's
+		// list — which is exactly the regression to catch: the check that still
+		// holds if `/change-email` is enabled later.
+		const beforeUpdate = auth.options.databaseHooks?.user?.update?.before;
+		const updateHooks = Array.isArray(beforeUpdate)
+			? beforeUpdate
+			: [beforeUpdate];
+		await expect(
+			(async () => {
+				for (const hook of updateHooks) {
+					await hook?.({
+						email: "moved@example.com",
+					} as unknown as Parameters<NonNullable<typeof hook>>[0]);
+				}
+			})(),
 		).rejects.toThrow(/can't be changed/);
 
 		const [after] = await db.select().from(user).where(eq(user.id, userId));

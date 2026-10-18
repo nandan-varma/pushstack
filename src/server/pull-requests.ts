@@ -5,6 +5,11 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issues, pullRequests } from "#/db/app-schema";
+import {
+	MAX_BODY_CHARS,
+	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_LIST_SKIP,
+} from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { analyzeMerge } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
@@ -13,6 +18,7 @@ import { mergeBranches } from "./git-write";
 import {
 	canMergePullRequest,
 	canWriteRepo,
+	getViewerRepositoryAccess,
 	readWithAccess,
 	writeWithAccess,
 } from "./repo-access";
@@ -44,7 +50,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 		z.object({
 			repoId: z.number(),
 			title: z.string().trim().min(1).max(256),
-			body: z.string().optional(),
+			body: z.string().max(MAX_BODY_CHARS).optional(),
 			sourceBranchName: safeBranchNameSchema,
 			targetBranchName: safeBranchNameSchema,
 		}),
@@ -89,7 +95,7 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			repoId: z.number(),
 			status: z.enum(["open", "closed", "merged", "all"]).default("open"),
 			limit: z.number().int().min(1).max(100).default(100),
-			skip: z.number().int().min(0).default(0),
+			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
 	.handler(({ data }) =>
@@ -141,7 +147,7 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 					with: { author: publicUserFields },
 				});
 				if (!pr) throw notFound();
-				return pr;
+				return { ...pr, viewer: await getViewerRepositoryAccess(repo.id) };
 			},
 		),
 	);
@@ -151,7 +157,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 		z.object({
 			prId: z.number(),
 			title: z.string().trim().min(1).max(256).optional(),
-			body: z.string().optional(),
+			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
 		}),
 	)
@@ -186,7 +192,10 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 
 export const mergePullRequest = createServerFn({ method: "POST" })
 	.validator(
-		z.object({ prId: z.number(), commitMessage: z.string().trim().optional() }),
+		z.object({
+			prId: z.number(),
+			commitMessage: z.string().trim().max(MAX_COMMIT_MESSAGE_CHARS).optional(),
+		}),
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();

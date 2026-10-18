@@ -11,6 +11,7 @@ import {
 	stars,
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { MAX_LIST_SKIP } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
@@ -27,6 +28,7 @@ import {
 	canModerateRepo,
 	canReadRepo,
 	getAccessForRepository,
+	invalidateRepositoryAccess,
 	requireOwner,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -40,6 +42,18 @@ const repoNameSchema = z
 		STORAGE_NAME_RE,
 		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",
 	);
+
+/**
+ * A username used to look someone up. The same shape the username plugin
+ * allows at sign-up (3–30 characters, `STORAGE_NAME_RE`), so a value that
+ * cannot name a user fails validation instead of becoming a query that can
+ * only miss.
+ */
+const usernameSchema = z
+	.string()
+	.min(3)
+	.max(30)
+	.regex(STORAGE_NAME_RE, "Not a valid username");
 
 /** The user columns safe to show anyone (never the email). */
 const publicUserColumns = {
@@ -194,7 +208,7 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 		z.object({
 			userId: z.string().optional(),
 			limit: z.number().int().min(1).max(100).default(100),
-			skip: z.number().int().min(0).default(0),
+			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -313,6 +327,9 @@ export const updateRepository = createServerFn({ method: "POST" })
 
 		evictRepoByName(ownerKey, repo.name);
 		if (isRename) evictRepoByName(ownerKey, name);
+		// A visibility flip changes who may read the repository, and the access
+		// cache is keyed per (repo, user) — drop every entry for it.
+		if (settings.visibility !== undefined) invalidateRepositoryAccess(id);
 		return updated;
 	});
 
@@ -332,6 +349,7 @@ export const deleteRepository = createServerFn({ method: "POST" })
 		// unreachable objects, which the next create under this name clears.
 		await db.delete(repositories).where(eq(repositories.id, data.id));
 		evictRepoByName(ownerKey, repo.name);
+		invalidateRepositoryAccess(data.id);
 		await withRepositoryLock(ownerKey, repo.name, () =>
 			deleteRepositoryStorage(ownerKey, repo.name),
 		).catch((error: unknown) =>
@@ -404,7 +422,7 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			username: z.string().trim().min(1),
+			username: usernameSchema,
 			role: z.enum(["read", "write", "admin"]).default("read"),
 		}),
 	)
@@ -434,6 +452,7 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 				set: { role: data.role },
 			})
 			.returning();
+		invalidateRepositoryAccess(data.repoId);
 		return collaborator;
 	});
 
@@ -454,4 +473,5 @@ export const removeCollaborator = createServerFn({ method: "POST" })
 					eq(repositoryCollaborators.userId, data.userId),
 				),
 			);
+		invalidateRepositoryAccess(data.repoId);
 	});

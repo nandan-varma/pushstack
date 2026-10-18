@@ -149,6 +149,20 @@ export function createR2ObjectStore(options: {
 			return new Uint8Array(await response.arrayBuffer());
 		},
 
+		async getRange(key, start, end) {
+			const response = await send(
+				objectUrl(key),
+				{ method: "GET", headers: { Range: `bytes=${start}-${end}` } },
+				METADATA_TIMEOUT_MS,
+			);
+			if (response.status === 404) {
+				await response.body?.cancel();
+				return null;
+			}
+			if (!response.ok) return fail("GET range", key, response);
+			return new Uint8Array(await response.arrayBuffer());
+		},
+
 		async put(key, data) {
 			const headers: Record<string, string> = {};
 			const type = options.contentType?.(key);

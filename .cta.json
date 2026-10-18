@@ -17,7 +17,6 @@
   "framework": "react",
   "chosenAddOns": [
     "biome",
-    "cloudflare",
     "neon",
     "drizzle",
     "shadcn",

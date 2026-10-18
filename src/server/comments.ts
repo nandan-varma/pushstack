@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { comments, issues, pullRequests } from "#/db/app-schema";
+import { MAX_BODY_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { getAccessForRepository, requireWriteAccess } from "./repo-access";
 import { publicUserFields } from "./repositories";
@@ -36,7 +37,11 @@ async function findThread(thread: Thread) {
 }
 
 export const createComment = createServerFn({ method: "POST" })
-	.validator(z.object({ body: z.string().trim().min(1) }).and(threadSchema))
+	.validator(
+		z
+			.object({ body: z.string().trim().min(1).max(MAX_BODY_CHARS) })
+			.and(threadSchema),
+	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const { repository, number } = await findThread(data);

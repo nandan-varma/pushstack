@@ -76,7 +76,7 @@ Behavior tests run the real server functions against pglite (`src/test/pglite-db
 
 ## Environment Variables
 
-```
+```bash
 DATABASE_URL=postgresql://...
 BETTER_AUTH_SECRET=...
 BETTER_AUTH_URL=http://localhost:3000
@@ -98,7 +98,10 @@ SENTRY_AUTH_TOKEN=... SENTRY_ORG=... SENTRY_PROJECT=...   # optional, build-time
 
 - Deployment is Vercel's Node runtime (`nitro({ preset: "vercel" })`, `ssr.target: "node"`); nitro v3 has no Vercel Edge preset. Cloudflare provides only R2.
 - `nitro` is pinned to an exact beta version on purpose — don't loosen it.
-- Biome (not ESLint/Prettier). Add shadcn components with `pnpm dlx shadcn@latest add <component>`; don't hand-write `src/components/ui/*`.
+- Biome (not ESLint/Prettier). Add shadcn components with `pnpm dlx shadcn@latest add <component>`; don't hand-write one that already exists upstream. The handful of app-specific primitives with no shadcn equivalent (`back-link`, `error-alert`, `form-field`, `loading-button`, `spinner`, `visibility-badge`) live in `src/components/ui/*` too.
+- The Content-Security-Policy is built per request in `src/server/csp.ts` (nonce plus the theme script's hash), *not* in `vite.config.ts`'s `routeRules` — that is why only the static headers are there. `style-src` keeps `'unsafe-inline'` for Shiki's inline style attributes; adding a nonce to it would disable them.
+- Every persisted, caller-controlled string has an explicit maximum in `src/lib/limits.ts` (issue/PR/comment bodies, commit messages, web uploads), and list endpoints bound `skip`. Put new persisted text there instead of relying on the platform's request-body cap.
+- `username`, `displayUsername` and `email` are immutable (`src/lib/auth.ts`); repository storage keys derive from the username.
 - Repository names and usernames match `STORAGE_NAME_RE` (`/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/`). That rule is what keeps `..` or `/` out of storage keys — don't loosen it.
 - Every branch-name field is validated with `safeBranchNameSchema` (writes) or `safeRefNameSchema` (reads); never a bare `z.string()`. `git.commit`/`git.deleteBranch` don't validate ref names, and the fs derives the repo from the path, so an unvalidated name is a cross-tenant path traversal. Route handlers reading refs/paths off the URL (`raw.ts`) validate explicitly.
 - `MarkdownRenderer` renders attacker-controlled content: links and images must go through `isSafeHref`/`isSafeImageSrc`.

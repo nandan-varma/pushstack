@@ -8,8 +8,8 @@ import { test, expect } from '@playwright/test'
 import { deleteTestUser, gotoAndWaitForHydration, verifyUserEmail } from './helpers'
 
 /**
- * End-to-end test of the real Git Smart HTTP protocol (git-http-iso.ts /
- * api/git.$.ts) using the actual `git` binary — everything else in this repo
+ * End-to-end test of the real Git Smart HTTP protocol (src/server/git-http.ts
+ * via src/routes/api/git.$.ts) using the actual `git` binary — everything else in this repo
  * tests that path through isomorphic-git (git-integration.test.ts) or
  * git-fs-s3's own test suite, both of which share the *same* library that
  * implements the server side. A real git client is the only thing that

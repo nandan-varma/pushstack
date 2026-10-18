@@ -1,11 +1,32 @@
 import { createRouter } from "@tanstack/react-router";
+import { getGlobalStartContext } from "@tanstack/react-start";
 import { NotFoundCard } from "./components/NotFoundCard";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
+/** The request middleware context, as src/server/csp.ts sends it. */
+interface StartRequestContext {
+	nonce?: string;
+}
+
 export function getRouter() {
+	// The CSP nonce the request middleware generated (src/server/csp.ts), which
+	// TanStack Router stamps on every script and style it renders and React's
+	// streamed renderer uses for its bootstrap scripts. It is undefined in the
+	// browser, where a per-request nonce does not exist.
+	//
+	// The cast is because `getGlobalStartContext()`'s type is derived from the
+	// start instance's *registered* request middlewares, and this app assembles
+	// that array at runtime (the CSP middleware is a dynamic import, so the Sentry
+	// SDK it would otherwise drag in stays server-only) — the declaration below
+	// is the shape `next({ context: { nonce } })` sends, and the middleware
+	// above is what guarantees it was present by the time this runs.
+	const nonce = (getGlobalStartContext() as StartRequestContext | undefined)
+		?.nonce;
+
 	const router = createRouter({
 		routeTree,
+		ssr: nonce ? { nonce } : undefined,
 
 		// getContext() (not createAppContext()) so the router's loaders
 		// (ensureQueryData) and TanStackQueryProvider's <QueryClientProvider>

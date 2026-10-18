@@ -256,6 +256,24 @@ export const repoLocks = pgTable("repo_locks", {
 	expiresAt: timestamp("expires_at").notNull(),
 });
 
+/**
+ * Fixed-window request counters for Better Auth's rate limiter
+ * (src/server/rate-limit.ts). One small row per rate-limited caller per
+ * window; `key` is Better Auth's own limiter key (client IP + route).
+ */
+export const rateLimits = pgTable(
+	"rate_limits",
+	{
+		key: text("key").primaryKey(),
+		count: integer("count").notNull(),
+		windowStartedAt: timestamp("window_started_at").notNull(),
+	},
+	(table) => ({
+		// Supports the periodic expiry prune; without it every prune is a scan.
+		windowIdx: index("rate_limit_window_idx").on(table.windowStartedAt),
+	}),
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
 export type PullRequest = typeof pullRequests.$inferSelect;

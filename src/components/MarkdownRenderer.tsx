@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { rawFileUrl } from "@/lib/file-view";
 import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
@@ -14,6 +15,7 @@ import {
 import type { ResolveReference } from "@/lib/reference-patterns";
 import { createReferenceResolver } from "@/lib/reference-patterns";
 import { createAutolinkReferencesPlugin } from "@/lib/remark-autolink-references";
+import { resolveRepoRelativePath } from "@/lib/repo-path";
 
 interface MarkdownRendererProps {
 	content: string;
@@ -21,6 +23,8 @@ interface MarkdownRendererProps {
 	owner?: string;
 	name?: string;
 	branch?: string;
+	/** The file this content came from, for resolving its relative links. */
+	filePath?: string;
 	repoId?: number;
 }
 
@@ -33,23 +37,61 @@ function isExternalLink(href: string): boolean {
 
 // Markdown link/image targets come from repo READMEs, issue bodies, PR bodies,
 // and comments — all attacker-writable by anyone with write access (or, for
-// public repos, anyone who can comment). Without this, a link like
-// `[click](javascript:fetch(...))` rendered as a raw `<a href>` would execute
-// in the viewer's session on click. Only allow schemeless (relative) hrefs or
-// an explicit http(s)/mailto scheme — anything else (javascript:, data:,
-// vbscript:, ...) is rejected outright rather than trying to blocklist every
-// dangerous scheme individually.
-export function isSafeHref(href: string): boolean {
-	const trimmed = href.trim();
-	if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true;
-	return /^(https?|mailto):/i.test(trimmed);
+// public repos, anyone who can comment). A `javascript:` href reaching a real
+// `<a href>` executes in the viewer's session on click.
+//
+// So these predicates answer exactly one question — does this value have a
+// scheme I allow? — and they must answer it the way the browser's URL parser
+// will, not the way the value's literal prefix looks. That parser removes
+// every ASCII tab and newline from its input and strips leading C0 controls
+// and spaces *before* it reads the scheme, so a value whose prefix looks
+// schemeless can still be a live `javascript:` URL: both
+// `java\tscript:alert(1)` and `\u0001javascript:alert(1)` normalize to
+// `javascript:alert(1)`. A prefix-anchored scheme test is therefore not a
+// check on what the browser will do.
+//
+// Rather than enumerate which characters the parser happens to strip, any
+// value containing a C0 control or a space is rejected outright, and only then
+// is the scheme allowlisted. Nothing legitimate is lost: a markdown
+// destination cannot carry a raw control character or space in the first
+// place — the markdown parser percent-encodes them before this ever sees the
+// value.
+
+/** C0 controls (tab, CR, LF and the rest), space, and DEL. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: the C0 range is exactly what the URL parser strips before it reads a scheme, so this check has to match those code points.
+const URL_UNSAFE_CHARS = /[\u0000-\u0020\u007f]/;
+
+/** The scheme of a value that starts with one (`https:`, `data:`, `javascript:`). */
+const URL_SCHEME_RE = /^([a-z][a-z0-9+.-]*):/i;
+
+const SAFE_URL_SCHEMES: ReadonlySet<string> = new Set([
+	"http",
+	"https",
+	"mailto",
+]);
+
+/** Whether `value` is a URL whose scheme is safe in the attribute using it. */
+function hasSafeScheme(value: string, allowDataImage: boolean): boolean {
+	if (URL_UNSAFE_CHARS.test(value)) return false;
+	const scheme = URL_SCHEME_RE.exec(value)?.[1]?.toLowerCase();
+	// No scheme at all: a relative reference, which resolves within this origin
+	// (a protocol-relative `//host/x` resolves to another origin but is still
+	// only ever a link or an image, never script).
+	if (scheme === undefined) return true;
+	// An `<img src="data:...">` cannot execute script the way an
+	// `<a href="data:text/html,...">` navigation can, so inline base64 images —
+	// a common, legitimate README case — are allowed for images and only for
+	// image types.
+	if (scheme === "data") return allowDataImage && /^data:image\//i.test(value);
+	return SAFE_URL_SCHEMES.has(scheme);
 }
 
-// Images can't execute a data: URI (unlike anchors, where data:text/html is a
-// real navigation risk), so inline base64 images — a common, legitimate case
-// in READMEs — stay allowed here even though isSafeHref rejects data: for links.
+export function isSafeHref(href: string): boolean {
+	return hasSafeScheme(href, false);
+}
+
 export function isSafeImageSrc(src: string): boolean {
-	return isSafeHref(src) || /^data:image\//i.test(src.trim());
+	return hasSafeScheme(src, true);
 }
 
 function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
@@ -77,10 +119,9 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
 	);
 }
 
-// Minimal-safe fallback anchor/image renderers, used regardless of whether
-// owner/name context is available (see the ReactMarkdown urlTransform note
-// below — these are the *only* sanitization layer now, so every render path
-// must go through them, not just the owner+name-aware one below).
+// Fallback anchor/image renderers for the paths without owner/name context.
+// Every render path goes through isSafeHref/isSafeImageSrc; the
+// owner+name-aware renderers below are not a stricter alternative to these.
 const safeAnchor: Components["a"] = ({ href, children, ...props }) => {
 	if (!href || !isSafeHref(href)) return <>{children}</>;
 	if (isExternalLink(href)) {
@@ -106,6 +147,7 @@ function buildComponents(
 	owner?: string,
 	name?: string,
 	branch?: string,
+	filePath = "",
 ): Components {
 	const base: Components = { pre: CodeBlock, a: safeAnchor, img: safeImg };
 	if (!owner || !name) return base;
@@ -122,6 +164,7 @@ function buildComponents(
 					</a>
 				);
 			}
+			if (!isSafeHref(href)) return <>{children}</>;
 
 			const refMatch = href.match(REFERENCE_LINK_RE);
 			if (refMatch) {
@@ -152,19 +195,25 @@ function buildComponents(
 				);
 			}
 
-			if (!branch) {
-				if (!isSafeHref(href)) return <>{children}</>;
+			// A href that qualified a scheme but isn't the external shape handled
+			// above (mailto:, http: without slashes) is a real URL, not a path in
+			// this repository; so is any href when there is no branch to browse.
+			if (URL_SCHEME_RE.test(href) || !branch) {
 				return (
 					<a href={href} {...props}>
 						{children}
 					</a>
 				);
 			}
-			const cleanHref = href.replace(/^\.\//, "").replace(/^\//, "");
+
+			const target = resolveRepoRelativePath(filePath, href);
+			// A relative target that climbs above the repository root is not a
+			// path that exists; render the text rather than invent one.
+			if (target === null) return <>{children}</>;
 			return (
 				<Link
 					to="/repo/$owner/$name/blob/$branch/$"
-					params={{ owner, name, branch, _splat: cleanHref }}
+					params={{ owner, name, branch, _splat: target }}
 					{...props}
 				>
 					{children}
@@ -172,15 +221,15 @@ function buildComponents(
 			);
 		},
 		img: ({ src, alt, ...props }) => {
-			if (!src) return null;
-			if (!isSafeImageSrc(src)) return null;
-			if (isExternalLink(src) || /^data:/i.test(src.trim()) || !branch) {
+			if (!src || !isSafeImageSrc(src)) return null;
+			if (URL_SCHEME_RE.test(src) || !branch) {
 				return <img src={src} alt={alt ?? ""} {...props} />;
 			}
-			const cleanSrc = src.replace(/^\.\//, "").replace(/^\//, "");
+			const target = resolveRepoRelativePath(filePath, src);
+			if (target === null) return null;
 			return (
 				<img
-					src={`/api/repos/${owner}/${name}/blob/${branch}/${cleanSrc}`}
+					src={rawFileUrl({ owner, name, ref: branch, path: target })}
 					alt={alt ?? ""}
 					{...props}
 				/>
@@ -195,11 +244,12 @@ export default function MarkdownRenderer({
 	owner,
 	name,
 	branch,
+	filePath = "",
 	repoId,
 }: MarkdownRendererProps) {
 	const components = useMemo(
-		() => buildComponents(owner, name, branch),
-		[owner, name, branch],
+		() => buildComponents(owner, name, branch, filePath),
+		[owner, name, branch, filePath],
 	);
 
 	const { data: issueNumbers } = useQuery({
@@ -236,9 +286,11 @@ export default function MarkdownRenderer({
 				// outside (https?|ircs?|mailto|xmpp) — including data:, which
 				// silently broke isSafeImageSrc's inline-base64-image allowance
 				// (it never got a chance to run: the src was already emptied
-				// out before reaching our `img` renderer). isSafeHref/
-				// isSafeImageSrc are the sole sanitization layer now, applied
-				// unconditionally by safeAnchor/safeImg above.
+				// out before reaching our `img` renderer). That leaves
+				// isSafeHref/isSafeImageSrc as the decision layer for every
+				// href/src — judging the value mdast has already percent-encoded,
+				// which is why they cannot key off the literal prefix alone (see
+				// their own comment).
 				urlTransform={(value) => value}
 			>
 				{content}

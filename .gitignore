@@ -5,8 +5,6 @@ dist-ssr
 *.local
 .env
 .env.*
-!.env.example
-!*.local.template
 .nitro
 .tanstack
 .wrangler
@@ -25,10 +23,19 @@ test-results/
 playwright-report/
 coverage/
 
+# vitest's typecheck workspace
+.vitest/
+
 # AI agents
 .claude/
 
 # completed plans
 plans/
 .vercel
+
+# Files under here are ignored, except the templates that are meant to be
+# committed — negations must come after the pattern they refine, since the last
+# matching pattern wins.
 .env*
+!.env.example
+!*.local.template

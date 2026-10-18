@@ -20,9 +20,8 @@ actions).
 
 `MarkdownRenderer` (`src/components/MarkdownRenderer.tsx`) renders content
 that is **fully attacker-controlled**: issue bodies, PR bodies, comments, and
-README files — anyone with write access to a repo (or, for a public repo,
-anyone who can comment) can put arbitrary markdown in front of anyone who
-views that content.
+README files — anyone with write access to a repo can put arbitrary markdown in
+front of anyone who views that content.
 
 The link/image renderer used to render a raw `<a href={href}>`/`<img
 src={src}>` for any href/src that didn't match a known "external" pattern and
@@ -33,32 +32,160 @@ comment bodies (they're rendered without a `branch` prop, only with `owner`/
 would render as a live `javascript:` link, executing in the viewer's
 authenticated session on click.
 
-**Fix**: `isSafeHref`/`isSafeImageSrc` gate every href/src before it reaches
-a real DOM attribute. The rule is an **allowlist**, not a blocklist — schemeless
-(relative) hrefs are safe by construction, and an explicit scheme is only
-allowed if it's `http:`, `https:`, or `mailto:` (images additionally allow
-`data:image/...` specifically, since an `<img src="data:...">` can't execute
-script the way an `<a href="data:text/html,...">` navigation could). Anything
-else — `javascript:`, `vbscript:`, `data:text/html`, whatever comes next — is
-rejected by construction rather than requiring the blocklist to be kept
-up to date.
+**Fix**: `isSafeHref`/`isSafeImageSrc` gate every href/src before it reaches a
+real DOM attribute. The rule is an **allowlist**, not a blocklist: a value with
+no scheme at all is a relative reference (safe by construction), and an explicit
+scheme is allowed only if it is `http:`, `https:` or `mailto:` — with `data:`
+allowed additionally for images, and only for `data:image/…`, since an `<img
+src="data:…">` cannot execute script the way an `<a href="data:text/html,…">`
+navigation can. Anything else — `javascript:`, `vbscript:`, `data:text/html`,
+whatever comes next — is rejected by construction rather than by keeping a
+blocklist up to date.
+
+**The subtle half of that rule is what "has no scheme" means.** These
+predicates do not judge the value's literal prefix; they have to judge what the
+browser's URL parser will do with it. That parser removes every ASCII tab and
+newline from its input and strips leading C0 controls and spaces *before* it
+reads the scheme, so both `<java\tscript:alert(1)>` and
+`<\u0001javascript:alert(1)>` are live `javascript:` URLs even though neither
+starts with `javascript:`. A prefix-anchored scheme test returns "no scheme, so
+it's just a relative link" for both, and the original implementation did
+exactly that. So any value containing a C0 control or a space is now rejected
+outright, and only then is the scheme allowlisted. Nothing legitimate is lost: a
+markdown destination cannot carry a raw control character or space — the
+markdown parser percent-encodes them before the renderer sees the value.
+
+That percent-encoding is worth knowing about, because it is *not* part of this
+app's control and has silently neutralised these payloads all along: by the time
+`isSafeHref` runs, `java\tscript:…` has already become `java%09script:…`, and
+`%` is not a scheme character, so the browser resolves it as a relative path.
+`MarkdownRenderer.render.test.tsx` therefore asserts the *outcome* through the
+browser's own URL parser (`new URL(value, origin).protocol` is never
+`javascript:`) rather than trusting that encoding to keep happening. If a
+react-markdown upgrade, a `rehype-raw` addition, or a new caller ever stops
+pre-encoding a user-controlled href, the test says so.
 
 **If you touch this component**: any new place that renders a user-controlled
-href/src as a real attribute must go through these same two functions. Don't
-reintroduce a raw `<a href={href}>` fallback "just for this one case" without
-the check — that's exactly how the original bug existed.
+href/src as a real attribute must go through these same two functions, and any
+new *source* of an href (JSON, a prop, an API field) must be judged knowing that
+it has not been through a markdown parser.
+
+## Relative links resolve against the file that contains them
+
+`buildComponents` resolves a relative target against the containing document —
+`./diagram.png` written in `docs/README.md` names `docs/diagram.png`, the same
+as on any git host — via `src/lib/repo-path.ts`. That module also refuses a
+target that climbs above the repository root, so a `../../../../etc/passwd`
+image renders as nothing rather than as a request for a path no repository
+contains. `rawFileUrl` (`src/lib/file-view.ts`) builds the raw-content URL with
+per-segment `encodeURIComponent`, and it is the only URL builder for repo bytes
+— the previous `/api/repos/{owner}/{name}/blob/…` shape matched no route, so
+every relative image in every README 404'd.
 
 ## Usernames are immutable (storage keys derive from them)
 
 A repository's storage prefix is `repos/{ownerKey}/{repoName}`, and `ownerKey`
-is the owner's username (or, without one, their email's local part). Better
-Auth's username plugin lets `update-user` change the username, which would
-orphan every repository the user owns — and let whoever later claims the old
-username inherit that storage under matching repository names, a
-cross-tenant read. `src/lib/auth.ts` refuses username, display-username and
-email changes in `databaseHooks.user.update.before`
+is the owner's username. Better Auth's username plugin lets `update-user` change
+the username, which would orphan every repository the user owns — and let
+whoever later claims the old username inherit that storage under matching
+repository names, a cross-tenant read. `src/lib/auth.ts` refuses `username`,
+`displayUsername` and `email` changes in `databaseHooks.user.update.before`
 (`auth-immutable-fields.test.ts` runs it against real Better Auth). Allowing
 renames would first need storage keyed by user id, plus a migration.
+
+`email` is on that list so the invariant is a line in this app rather than a
+property of whichever Better Auth flow happens to be enabled — `/update-user`
+rejects an email field itself, and `/change-email` is off because
+`user.changeEmail.enabled` is unset, but neither of those is the app's own
+check.
+
+## The Content-Security-Policy is per-request (nonce)
+
+`src/server/csp.ts` runs as a global request middleware: it generates a nonce,
+hands it to the router through the middleware context (read back in
+`src/router.tsx` as `ssr.nonce`), and writes the header. TanStack Router stamps
+that nonce on every script and style it renders, React's streamed renderer uses
+it for the bootstrap scripts, and both come from the same middleware call as the
+header, so the document and the policy cannot disagree.
+
+This replaced `script-src 'self' 'unsafe-inline'`. With `'unsafe-inline'` an
+injected inline script or event handler still runs, which made the policy — the
+last line of defence behind `isSafeHref` — decorative against exactly the attack
+it exists to stop. Three deliberate consequences:
+
+- **The theme script is allowed by hash, not by nonce.** `src/lib/theme.ts` is
+  a build-time constant and the policy carries its SHA-256, computed from that
+  same constant, so the two cannot drift. A hash also needs nothing from the
+  client render, where a per-request nonce does not exist.
+- **`style-src` keeps `'unsafe-inline'` and carries no nonce.** Shiki's
+  highlighted output puts theme colours in inline `style` *attributes*, which no
+  nonce can cover, and in browsers that implement "a nonce makes
+  `'unsafe-inline'` ineffective" adding one here would blank out every
+  highlighted code block. Inline styles cannot execute script, so the concession
+  stays confined to CSS.
+- **A development build sends the policy report-only.** Vite's client and the
+  TanStack devtools inject inline scripts with no nonce; enforcing the policy in
+dev would break the dev server rather than secure it. Report-only keeps the two
+  policies in step and surfaces violations during development instead of at
+  deploy time.
+
+`form-action 'self'` is set because it has no fallback to `default-src` —
+without it a submitted form can post anywhere. `img-src` allows any `https:`
+origin on purpose: READMEs reference remote images, and an image is a content
+decision rather than a script-execution one.
+
+## Rate limiting is shared (Postgres), not per-instance
+
+Better Auth's limiter keeps its counters in a module-level `Map` by default
+(`options.rateLimit.storage` resolves to `"memory"` when nothing else is
+configured). On Vercel that is one `Map` per warm instance, so the configured
+`20 requests / 60 s` (`src/lib/auth.ts`) is really 20 × however many instances
+are serving, and an attacker spreading requests across instances sees a ceiling
+far above what the configuration claims.
+
+`src/server/rate-limit.ts` supplies Better Auth's `rateLimit.customStorage` with
+counters in the `rate_limits` table, so the window is shared. One statement does
+the whole decision — Postgres starts a new window or advances the current one,
+and reports whether the caller is inside the limit — so two concurrent requests
+cannot both read "under the limit": the check *is* the write. The elapsed-time
+and retry arithmetic happens in SQL too, so one clock decides and no driver date
+parsing is involved. `rate-limit.test.ts` runs the real SQL against pglite and
+asserts the auth config actually uses this storage, since quietly falling back
+to the `Map` is the regression worth catching.
+
+## Input bounds are explicit
+
+Every string a caller controls that gets *persisted* — a commit message, an
+issue/PR/comment body, an uploaded file — has an explicit maximum in
+`src/lib/limits.ts`, applied by the server function's validator. Without them
+the only bound was the platform's request-body size, which says nothing about
+how much storage or how much rendering work one request may cause, and a commit
+message is not rendered small. The upload bound is shared with the browser, so
+what the UI warns about and what the server accepts cannot drift.
+
+List endpoints also bound `skip` (`MAX_LIST_SKIP`). A commit page's history walk
+reads `limit + skip` commits, so `skip` was the input that made a public
+repository's entire history walkable — and cacheable — from one anonymous
+request. `git-read.ts` clamps the walk again at the call into the git layer
+(`MAX_HISTORY_WALK`) so a future caller that skipped the validator cannot
+reintroduce it.
+
+Lookup fields that only address an existing row (`owner`, `repoId`, an already
+picked `username`) are *not* bounded for this reason: a few kilobytes in a SQL
+parameter neither persists nor grows, and tightening them would turn a 404 into
+a validation error. Usernames that are looked up by name use the same shape the
+username plugin enforces at sign-up, so a value that cannot name a user fails
+validation instead of becoming a query that can only miss.
+
+## Revoking access takes effect immediately
+
+The access cache (`repo-access.ts`) and the repository-by-name cache
+(`repositories.ts`) exist to collapse a page load's parallel reads onto one
+lookup each, which means a mutation that changes who may do what would otherwise
+stay invisible for that cache's TTL. `invalidateRepositoryAccess(repoId)` is
+called by every such mutation — visibility change, collaborator added or
+removed, repository deleted — and `evictRepoByName` by renames and deletes, so
+the new answer is live at once rather than up to a few seconds later.
 
 ## Request body limits on the git endpoint
 

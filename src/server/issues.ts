@@ -5,9 +5,11 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issues } from "#/db/app-schema";
+import { MAX_BODY_CHARS, MAX_LIST_SKIP } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import {
 	canWriteRepo,
+	getViewerRepositoryAccess,
 	readWithAccess,
 	requireWriteAccess,
 } from "./repo-access";
@@ -25,7 +27,7 @@ export const createIssue = createServerFn({ method: "POST" })
 		z.object({
 			repoId: z.number(),
 			title: z.string().trim().min(1).max(256),
-			body: z.string().optional(),
+			body: z.string().max(MAX_BODY_CHARS).optional(),
 			labels: labelsSchema.default([]),
 		}),
 	)
@@ -57,7 +59,7 @@ export const getIssues = createServerFn({ method: "GET" })
 			repoId: z.number(),
 			status: z.enum(["open", "closed", "all"]).default("open"),
 			limit: z.number().int().min(1).max(100).default(100),
-			skip: z.number().int().min(0).default(0),
+			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
 	.handler(({ data }) =>
@@ -107,7 +109,7 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 					with: { author: publicUserFields },
 				});
 				if (!issue) throw notFound();
-				return issue;
+				return { ...issue, viewer: await getViewerRepositoryAccess(repo.id) };
 			},
 		),
 	);
@@ -117,7 +119,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 		z.object({
 			issueId: z.number(),
 			title: z.string().trim().min(1).max(256).optional(),
-			body: z.string().optional(),
+			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
 			labels: labelsSchema.optional(),
 		}),

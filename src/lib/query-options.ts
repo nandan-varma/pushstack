@@ -80,6 +80,14 @@ export const queryKeys = {
 		["repos", repoId, "issue-numbers"] as const,
 	repoPullRequestNumbers: (repoId: number) =>
 		["repos", repoId, "pull-request-numbers"] as const,
+	/**
+	 * Two key families live under `["repos", …]`: the list and detail reads
+	 * addressed by `repoId`, and the URL-addressed single-resource reads keyed by
+	 * owner/name (below), because that is what their routes and server functions
+	 * take. A mutation has to invalidate the entry it changed — a `repoId`
+	 * prefix does not reach an owner/name entry — which is why each mutation
+	 * invalidates its own detail key as well as the list root.
+	 */
 	issueByNumber: (owner: string, name: string, number: number) =>
 		["repos", owner, name, "issues", number] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,

@@ -2,7 +2,7 @@
  * Git reads for the web UI: (ownerKey, repoName) → git-fs-s3/ops with the
  * app's result cache, perf hooks and pack prefetch wired in.
  */
-import { GitPathNotFoundError } from "git-fs-s3";
+import { GitPathNotFoundError, getObjectSize } from "git-fs-s3";
 import {
 	BANNER_WALK_DEPTH,
 	type CommitInfo,
@@ -27,6 +27,7 @@ import {
 	type TreeEntry,
 } from "git-fs-s3/ops";
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
+import { MAX_HISTORY_WALK } from "#/lib/limits";
 import { opsHooksFor } from "./git-cache";
 import { repoFor } from "./git-repo";
 
@@ -75,6 +76,14 @@ export async function getFileView(
 	}
 	if (entry?.type !== "blob")
 		throw new GitPathNotFoundError(`File not found: ${filePath}`);
+	// Ask the object's pack entry for its size first: a blob over the inline
+	// limit is never inflated just to be rejected. `null` means the size isn't
+	// available (a loose object, or a store without range reads), in which case
+	// the read below decides and its own check still applies.
+	const packedSize = await getObjectSize(repo, entry.oid);
+	if (packedSize !== null && packedSize > MAX_INLINE_TEXT_BYTES) {
+		return { kind: "too-large", size: packedSize };
+	}
 	const bytes = await getBlob(repo, entry.oid);
 	const size = bytes.byteLength;
 	// git's own heuristic: a NUL byte means binary.
@@ -111,9 +120,14 @@ export function getCommitHistory(
 	limit = 50,
 	skip = 0,
 ): Promise<CommitInfo[]> {
+	// git-fs-s3 reads `limit + skip` commits for one page, so `skip` is what
+	// makes this walk cost grow with input. The server functions already bound
+	// it (git-ref-name.ts's callers); clamping here too keeps the walk bounded
+	// for any future caller that doesn't.
+	const boundedSkip = Math.max(0, Math.min(skip, MAX_HISTORY_WALK - limit));
 	return opsGetCommitHistory(
 		repoFor(ownerKey, repoName),
-		{ ref, limit, skip },
+		{ ref, limit, skip: boundedSkip },
 		opsHooksFor(ownerKey, repoName),
 	);
 }

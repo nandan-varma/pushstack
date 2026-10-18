@@ -1,13 +1,17 @@
-import * as Sentry from "@sentry/tanstackstart-react";
-
-// Only reports if VITE_SENTRY_DSN is set — Sentry.init with an empty/undefined
-// dsn disables the SDK rather than throwing, so this is safe to import
-// unconditionally (including in local dev with no DSN configured).
-Sentry.init({
-	dsn: process.env.VITE_SENTRY_DSN,
-	environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
-	// Vercel serverless functions are invoked per-request, so batch flush
-	// doesn't get a background tick between requests the way a long-running
-	// Node process would — capped low mainly to bound cost, not latency.
-	tracesSampleRate: 0.1,
-});
+// Sentry is loaded only when a DSN is configured. Nothing in the app reports
+// without one — the fetch wrapper (src/server.ts), the global middlewares
+// (src/start.ts) and perf-log's reporter are gated the same way — so importing
+// the SDK would be cold-start cost on every serverless instance for nothing.
+// Top-level await is fine here: this module is ESM and is loaded before the
+// server entry (src/server.ts already awaits its own Sentry import).
+if (process.env.VITE_SENTRY_DSN) {
+	const Sentry = await import("@sentry/tanstackstart-react");
+	Sentry.init({
+		dsn: process.env.VITE_SENTRY_DSN,
+		environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
+		// Vercel serverless functions are invoked per-request, so batch flush
+		// doesn't get a background tick between requests the way a long-running
+		// Node process would — capped low mainly to bound cost, not latency.
+		tracesSampleRate: 0.1,
+	});
+}

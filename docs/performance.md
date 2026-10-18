@@ -285,6 +285,42 @@ own, which is what the old explicit keep-alive `https.Agent` existed for (a
 single page load can fire hundreds of object reads). `git-fs.ts` owns the
 app's one store instance; never construct a second one.
 
+## The cost isomorphic-git pays before your first object read
+
+`isomorphic-git` verifies each pack against its index-recorded checksum the
+first time it reads from it in a process: it compares the pack's trailer to the
+index's record and then SHA-1s the **entire pack payload**, memoising the result
+per pack per process. On a serverless runtime that memo has the lifetime of an
+instance, so a cold instance serving one small object out of a large pack pays
+a whole-pack hash first (a few hundred milliseconds for a 200 MB pack). It is
+not avoidable from here — the verification lives upstream and it is what makes
+a corrupted pack fail loudly instead of serving wrong bytes.
+
+Worth knowing for two reasons. First, it is why `prefetchPacks` and the
+per-repo parse cache matter more than their own timings suggest: they amortise
+over a walk the verification the first read has already paid. Second, the pack
+checksum does **not** cover the `.idx` beside it, so a tampered index could point
+an oid at the wrong offset and pass. That is why `repackRepository` re-derives
+every object's oid from its bytes before consolidating (`git-fs-s3`'s
+`readAndVerifyObjects`) rather than trusting the read — the one place in this
+app where a wrong answer would be written back to storage permanently.
+
+## Bounded fan-out on push and merge
+
+Both `collectReachableOids` (a push's validation walk, `git-fs-s3/http`) and
+`mergeTrees` (`git-edge`) visit a tree's children concurrently, and a tree can
+be arbitrarily wide. Unbounded, one push or merge of a wide directory issues one
+object read per entry at once — enough to exhaust sockets or memory on a
+serverless function and to trip storage rate limits. Both now bound in-flight
+reads with a semaphore, releasing the permit *before* recursing into children so
+the limit cannot deadlock against itself.
+
+The diff path had the same shape plus one more: `diffTrees` read both sides of
+every changed blob and only then applied `MAX_DIFF_TEXT_BYTES`, so a commit
+touching many large files materialised all of them. The size gate now runs
+before the read (via the object's size from its pack entry header, so nothing
+large is ever loaded), and the remaining reads are bounded too.
+
 ## Client bundle size
 
 Heavy, conditionally-rendered client dependencies are `React.lazy`-loaded at

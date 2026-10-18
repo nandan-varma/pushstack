@@ -262,7 +262,13 @@ function PullRequestDetailPage() {
 
 	if (!pr) return <PullRequestNotFound />;
 
-	const canMerge = pr.status === "open" && !!session?.user;
+	// The mutations re-check these server-side; deriving the buttons from the same
+	// permissions is what keeps the page from offering an action that can only
+	// fail — a Merge button for someone who may not merge.
+	const canMerge = pr.status === "open" && pr.viewer.canMerge;
+	const canChangeStatus =
+		pr.status !== "merged" &&
+		(pr.viewer.canWrite || session?.user?.id === pr.authorId);
 
 	return (
 		<div className="space-y-6">
@@ -290,30 +296,30 @@ function PullRequestDetailPage() {
 					<>
 						<BackLink to="/repo/$owner/$name/pulls" params={{ owner, name }} />
 						{canMerge && (
-							<>
-								<LoadingButton
-									variant="default"
-									size="sm"
-									onClick={handleMerge}
-									isLoading={mergeMutation.isPending}
-									loadingLabel="Merging…"
-									disabled={updateMutation.isPending}
-								>
-									Merge
-								</LoadingButton>
-								<LoadingButton
-									variant="outline"
-									size="sm"
-									onClick={handleClose}
-									isLoading={updateMutation.isPending}
-									loadingLabel="Closing…"
-									disabled={mergeMutation.isPending}
-								>
-									Close
-								</LoadingButton>
-							</>
+							<LoadingButton
+								variant="default"
+								size="sm"
+								onClick={handleMerge}
+								isLoading={mergeMutation.isPending}
+								loadingLabel="Merging…"
+								disabled={updateMutation.isPending}
+							>
+								Merge
+							</LoadingButton>
 						)}
-						{pr.status === "closed" && session?.user && (
+						{canChangeStatus && pr.status === "open" && (
+							<LoadingButton
+								variant="outline"
+								size="sm"
+								onClick={handleClose}
+								isLoading={updateMutation.isPending}
+								loadingLabel="Closing…"
+								disabled={mergeMutation.isPending}
+							>
+								Close
+							</LoadingButton>
+						)}
+						{canChangeStatus && pr.status === "closed" && (
 							<LoadingButton
 								variant="default"
 								size="sm"
@@ -422,13 +428,19 @@ function PullRequestDetailPage() {
 						to add a comment.
 					</p>
 				</Card>
-			) : (
+			) : pr.viewer.canWrite ? (
 				<CommentForm
 					value={newComment}
 					onChange={setNewComment}
 					onSubmit={handleAddComment}
 					isPending={commentMutation.isPending}
 				/>
+			) : (
+				<Card className="p-6">
+					<p className="text-sm text-muted-foreground">
+						Only collaborators with write access can comment on this repository.
+					</p>
+				</Card>
 			)}
 		</div>
 	);

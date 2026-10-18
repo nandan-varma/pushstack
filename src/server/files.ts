@@ -3,6 +3,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { summarizeCommit } from "git-fs-s3/ops";
 import { z } from "zod";
 import { base64ToBytes } from "#/lib/bytes";
+import {
+	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_LIST_SKIP,
+	MAX_WEB_UPLOAD_BYTES,
+	maxBase64CharsForBytes,
+} from "#/lib/limits";
 import { recordActivity } from "./activity";
 import * as gitRead from "./git-read";
 import { BANNER_WALK_DEPTH } from "./git-read";
@@ -137,7 +143,7 @@ export const getCommits = createServerFn({ method: "GET" })
 			repoId: z.number(),
 			branchName: safeRefNameSchema,
 			limit: z.number().int().min(1).max(100).default(50),
-			skip: z.number().int().min(0).default(0),
+			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
 	.handler(({ data }) =>
@@ -220,8 +226,8 @@ export const uploadFile = createServerFn({ method: "POST" })
 			repoId: z.number(),
 			branchName: safeBranchNameSchema,
 			path: safeRepoPathSchema.min(1),
-			content: z.base64(),
-			commitMessage: z.string().trim().min(1),
+			content: z.base64().max(maxBase64CharsForBytes(MAX_WEB_UPLOAD_BYTES)),
+			commitMessage: z.string().trim().min(1).max(MAX_COMMIT_MESSAGE_CHARS),
 		}),
 	)
 	.handler(({ data }) =>
@@ -246,7 +252,7 @@ export const deleteFile = createServerFn({ method: "POST" })
 			repoId: z.number(),
 			branchName: safeBranchNameSchema,
 			path: safeRepoPathSchema.min(1),
-			commitMessage: z.string().trim().min(1),
+			commitMessage: z.string().trim().min(1).max(MAX_COMMIT_MESSAGE_CHARS),
 		}),
 	)
 	.handler(({ data }) =>

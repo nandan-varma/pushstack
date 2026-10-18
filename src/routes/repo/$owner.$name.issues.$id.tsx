@@ -198,6 +198,12 @@ function IssueDetailPage() {
 
 	if (!issue) return <IssueNotFound />;
 
+	// The mutations re-check both of these server-side; deriving the controls
+	// from the same permissions is what keeps the page from offering an action
+	// that can only fail.
+	const canToggleStatus =
+		issue.viewer.canWrite || session?.user?.id === issue.authorId;
+
 	return (
 		<div className="space-y-6">
 			{/* Header */}
@@ -220,7 +226,7 @@ function IssueDetailPage() {
 				actions={
 					<>
 						<BackLink to="/repo/$owner/$name/issues" params={{ owner, name }} />
-						{session?.user && (
+						{canToggleStatus && (
 							<LoadingButton
 								variant={issue.status === "open" ? "outline" : "default"}
 								size="sm"
@@ -294,7 +300,7 @@ function IssueDetailPage() {
 			)}
 
 			{/* Add Comment */}
-			{session?.user && (
+			{issue.viewer.canWrite ? (
 				<CommentForm
 					value={newComment}
 					onChange={setNewComment}
@@ -302,7 +308,13 @@ function IssueDetailPage() {
 					isPending={commentMutation.isPending}
 					disabled={issue.status !== "open"}
 				/>
-			)}
+			) : session?.user ? (
+				<Card className="p-6">
+					<p className="text-sm text-muted-foreground">
+						Only collaborators with write access can comment on this repository.
+					</p>
+				</Card>
+			) : null}
 		</div>
 	);
 }
