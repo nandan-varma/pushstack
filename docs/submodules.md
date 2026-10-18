@@ -17,7 +17,7 @@ git commit -m "Add shared library"
 git push
 ```
 
-Clone everything, including nested submodules:
+In the Clone dialog, select **Include submodules (recursive)**, or run:
 
 ```sh
 git clone --recurse-submodules https://git.nandan.fyi/api/git/OWNER/REPO.git

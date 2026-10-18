@@ -18,10 +18,11 @@ interface CloneModalProps {
 
 export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 	const [open, setOpen] = useState(false);
+	const [includeSubmodules, setIncludeSubmodules] = useState(false);
 	const { copied, copy } = useCopyToClipboard();
 
 	const httpsUrl = getCloneUrl(owner, repoName);
-	const cloneCommand = `git clone ${httpsUrl}`;
+	const cloneCommand = `git clone ${includeSubmodules ? "--recurse-submodules " : ""}${httpsUrl}`;
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
@@ -99,8 +100,17 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 							)}
 						</Button>
 					</div>
+					<label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+						<input
+							type="checkbox"
+							checked={includeSubmodules}
+							onChange={(event) => setIncludeSubmodules(event.target.checked)}
+							className="size-4 accent-primary"
+						/>
+						Include submodules (recursive)
+					</label>
 					<p className="text-xs text-muted-foreground">
-						Private repositories require authentication.
+						Private repositories and submodules require their own access.
 					</p>
 				</div>
 			</DialogContent>
