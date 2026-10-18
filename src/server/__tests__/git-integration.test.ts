@@ -503,3 +503,68 @@ describe("mergeBranches", () => {
 		expect(names).toContain("feature.txt");
 	});
 });
+
+describe("submodule browsing", () => {
+	it("reads gitlinks at a pinned revision, preserves them through web edits, and includes history", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { repoFor } = await import("../git-repo");
+		const repo = repoFor(OWNER, "submodules");
+		await initBareRepo(OWNER, "submodules", "main");
+		const oid = "1".repeat(40);
+		const blob = await git.writeBlob({
+			...repo,
+			blob: new TextEncoder().encode(
+				'[submodule "lib"]\npath=lib\nurl=../library.git\n',
+			),
+		});
+		const tree = await git.writeTree({
+			...repo,
+			tree: [
+				{ path: ".gitmodules", type: "blob", mode: "100644", oid: blob },
+				{ path: "lib", type: "commit", mode: "160000", oid },
+			],
+		});
+		const author = { name: "T", email: "t@t", timestamp: 1, timezoneOffset: 0 };
+		const first = await git.writeCommit({
+			...repo,
+			commit: {
+				tree,
+				parent: [],
+				message: "Add submodule\n",
+				author,
+				committer: author,
+			},
+		});
+		await git.writeRef({ ...repo, ref: "refs/heads/main", value: first });
+		expect(await getFileView(OWNER, "submodules", "main", "lib")).toEqual({
+			kind: "submodule",
+			oid,
+			url: "../library.git",
+		});
+		await expect(
+			getFileContent(OWNER, "submodules", "lib", "main"),
+		).rejects.toThrow();
+		await createCommit(OWNER, "submodules", {
+			branch: "main",
+			message: "Unrelated web edit",
+			files: [{ path: "README.md", content: "hello" }],
+			author: { name: "T", email: "t@t" },
+		});
+		expect(await getTree(OWNER, "submodules", "main")).toContainEqual({
+			path: "lib",
+			type: "commit",
+			mode: "160000",
+			oid,
+		});
+		expect(
+			(await getFileHistory(OWNER, "submodules", "main", "lib")).entries.map(
+				(e) => e.sha,
+			),
+		).toEqual([first]);
+		expect(await getFileView(OWNER, "submodules", first, "lib")).toEqual({
+			kind: "submodule",
+			oid,
+			url: "../library.git",
+		});
+	});
+});

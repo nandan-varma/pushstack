@@ -2,13 +2,16 @@
  * Git reads for the web UI: (ownerKey, repoName) → git-fs-s3/ops with the
  * app's result cache, perf hooks and pack prefetch wired in.
  */
+import { GitPathNotFoundError } from "git-fs-s3";
 import {
 	BANNER_WALK_DEPTH,
 	type CommitInfo,
 	type CommitSummary,
 	type DiffResult,
 	type FileHistoryResult,
+	getBlob,
 	getDiffBetweenRefs,
+	getSubmodules,
 	getTreeFromRef,
 	HISTORY_WALK_DEPTH,
 	listBranches,
@@ -20,6 +23,7 @@ import {
 	getFileContent as opsGetFileContent,
 	getFileHistory as opsGetFileHistory,
 	getLastCommitsForTree as opsGetLastCommitsForTree,
+	resolveCommit,
 	type TreeEntry,
 } from "git-fs-s3/ops";
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
@@ -42,14 +46,36 @@ export function getFileContent(
 	);
 }
 
-/** A file at a ref, for display: inline text only when it's small text. */
+/** A blob or submodule at a revision; only small text blobs travel inline. */
 export async function getFileView(
 	ownerKey: string,
 	repoName: string,
 	ref: string,
 	filePath: string,
 ): Promise<FileView> {
-	const bytes = await getFileContent(ownerKey, repoName, filePath, ref);
+	const repo = repoFor(ownerKey, repoName);
+	const hooks = opsHooksFor(ownerKey, repoName);
+	if (hooks.prefetch) await hooks.prefetch();
+	const { oid } = await resolveCommit(repo, ref);
+	const slash = filePath.lastIndexOf("/");
+	const parentPath = slash === -1 ? "" : filePath.slice(0, slash);
+	const entries = await getTreeFromRef(
+		repo,
+		{ ref: oid, treePath: parentPath },
+		hooks,
+	);
+	const entry = entries.find((entry) => entry.path === filePath);
+	if (entry?.type === "commit") {
+		const modules = await getSubmodules(repo, oid);
+		return {
+			kind: "submodule",
+			oid: entry.oid,
+			url: modules.find((m) => m.path === filePath)?.url ?? null,
+		};
+	}
+	if (entry?.type !== "blob")
+		throw new GitPathNotFoundError(`File not found: ${filePath}`);
+	const bytes = await getBlob(repo, entry.oid);
 	const size = bytes.byteLength;
 	// git's own heuristic: a NUL byte means binary.
 	if (bytes.includes(0)) return { kind: "binary", size };

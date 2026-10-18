@@ -10,6 +10,7 @@ import { NotFoundCard } from "@/components/NotFoundCard";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { FilePreview } from "@/components/repo/FilePreview";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
+import { SubmoduleCard } from "@/components/repo/SubmoduleCard";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -112,6 +113,49 @@ function FileBlobPage() {
 				backParams={{ owner, name, branch, _splat: "" }}
 				backLabel="Back to Files"
 			/>
+		);
+	}
+
+	if (file.kind === "submodule") {
+		return (
+			<div className="space-y-4">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<h1 className="break-all text-xl font-bold sm:text-2xl">
+						{filePath}
+					</h1>
+					<BackLink
+						to="/repo/$owner/$name/tree/$branch/$"
+						params={{
+							owner,
+							name,
+							branch,
+							_splat: filePath.includes("/")
+								? filePath.slice(0, filePath.lastIndexOf("/"))
+								: "",
+						}}
+						label="Back to Files"
+					/>
+				</div>
+				<PathBreadcrumb
+					owner={owner}
+					name={name}
+					branch={branch}
+					filePath={filePath}
+				/>
+				<SubmoduleCard
+					oid={file.oid}
+					url={file.url}
+					owner={owner}
+					name={name}
+				/>
+				<FileHistoryList
+					owner={owner}
+					name={name}
+					repoId={repo?.id ?? 0}
+					branch={branch}
+					filePath={filePath}
+				/>
+			</div>
 		);
 	}
 

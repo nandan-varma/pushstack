@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { repositoryFileQueryOptions } from "@/lib/query-options";
 
 interface FileEntry {
-	type: "tree" | "blob";
+	type: "tree" | "blob" | "commit";
 	path: string;
 }
 

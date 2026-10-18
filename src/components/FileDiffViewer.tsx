@@ -12,6 +12,7 @@ import {
 	isLargeContent,
 } from "@/lib/language-detection";
 import { requestHighlightTokens } from "@/lib/syntax-highlight-client";
+import { SubmoduleDiff } from "./SubmoduleDiff";
 
 type FileDiff = DiffFile;
 
@@ -352,7 +353,10 @@ export function FileDiffViewer({
 		const run = async () => {
 			const highlights = await Promise.all(
 				parsedFiles.map(async (fileDiff) => {
-					if (fileDiff.hunkSegments.length === 0) {
+					if (
+						fileDiff.kind === "submodule" ||
+						fileDiff.hunkSegments.length === 0
+					) {
 						return [fileDiff.path, null] as const;
 					}
 
@@ -514,7 +518,9 @@ export function FileDiffViewer({
 						<div className="flex shrink-0 items-center gap-2 text-xs">
 							{fileDiff.kind !== "text" ? (
 								<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
-									{formatFileSize(fileDiff.newSize ?? fileDiff.oldSize ?? 0)}
+									{fileDiff.kind === "submodule"
+										? "Submodule"
+										: formatFileSize(fileDiff.newSize ?? fileDiff.oldSize ?? 0)}
 								</span>
 							) : (
 								<>
@@ -533,7 +539,9 @@ export function FileDiffViewer({
 					</button>
 					{expandedPaths[fileDiff.path] ? (
 						<div className="px-4 p-4">
-							{fileDiff.kind !== "text" ? (
+							{fileDiff.kind === "submodule" ? (
+								<SubmoduleDiff file={fileDiff} sides={sides} />
+							) : fileDiff.kind !== "text" ? (
 								<UnpatchedDiff fileDiff={fileDiff} sides={sides} />
 							) : (
 								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
@@ -566,11 +574,13 @@ export function FileDiffViewer({
 						</div>
 					) : (
 						<p className="p-4 text-xs text-muted-foreground">
-							{fileDiff.kind === "binary"
-								? "Binary file changed."
-								: fileDiff.kind === "too-large"
-									? "Large file changed — diff not shown."
-									: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}
+							{fileDiff.kind === "submodule"
+								? "Submodule pointer changed."
+								: fileDiff.kind === "binary"
+									? "Binary file changed."
+									: fileDiff.kind === "too-large"
+										? "Large file changed — diff not shown."
+										: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}
 						</p>
 					)}
 				</div>

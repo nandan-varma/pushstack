@@ -337,8 +337,9 @@ describe("native git against the pushstack git endpoint", () => {
 		expect(merged.success).toBe(true);
 
 		await git(a, "pull", "-q", "--ff-only", "origin", "main");
-		const parents = (await git(a, "rev-list", "--parents", "-n", "1", "HEAD"))
-			.stdout.split(" ");
+		const parents = (
+			await git(a, "rev-list", "--parents", "-n", "1", "HEAD")
+		).stdout.split(" ");
 		expect(parents).toHaveLength(3);
 		expect(await readFile(path.join(a, "topic.txt"), "utf8")).toBe("topic\n");
 		await git(a, "fsck", "--full", "--strict");
@@ -349,6 +350,163 @@ describe("native git against the pushstack git endpoint", () => {
 		const out = await gitFails(work, "ls-remote", bad);
 		expect(out).toMatch(/401|Authentication failed|could not read/i);
 	}, 30_000);
+
+	it("pushes, recursively clones, updates, and repacks private nested submodules", async () => {
+		const { createRepository, updateRepository } = await import(
+			"#/server/repositories"
+		);
+		const { getFileView, getCommitDiff } = await import("#/server/git-read");
+		const { createCommit } = await import("#/server/git-write");
+		const { repackRepositoryNow } = await import("#/server/git-repo");
+		const repoNames = ["module-leaf", "module-lib", "module-parent"];
+		const url = (name: string) => remote.replace(`${REPO}.git`, `${name}.git`);
+		let parentId = 0;
+		for (const name of repoNames) {
+			const row = await createRepository({
+				data: { name, visibility: "private" },
+			});
+			if (name === "module-parent") parentId = row.id;
+		}
+		await git(work, "clone", "-q", url("module-leaf"), "leaf");
+		const leaf = path.join(work, "leaf");
+		await commitFile(leaf, "leaf.txt", "first leaf\n");
+		await git(leaf, "push", "-q", "origin", "main");
+		await git(work, "clone", "-q", url("module-lib"), "lib");
+		const lib = path.join(work, "lib");
+		await git(lib, "submodule", "add", "../module-leaf.git", "nested");
+		await git(lib, "commit", "-qm", "Add nested submodule");
+		await git(lib, "push", "-q", "origin", "main");
+		await git(work, "clone", "-q", url("module-parent"), "parent");
+		const parent = path.join(work, "parent");
+		await git(parent, "submodule", "add", "../module-lib.git", "vendor/lib");
+		await git(parent, "commit", "-qm", "Add submodule");
+		await git(parent, "push", "-q", "origin", "main");
+		await git(
+			work,
+			"clone",
+			"-q",
+			"--recurse-submodules",
+			url("module-parent"),
+			"recursive",
+		);
+		const clone = path.join(work, "recursive");
+		expect(
+			await readFile(path.join(clone, "vendor/lib/nested/leaf.txt"), "utf8"),
+		).toBe("first leaf\n");
+		await git(clone, "fsck", "--full", "--strict");
+		await git(path.join(clone, "vendor/lib"), "fsck", "--full", "--strict");
+		const initial = (await git(parent, "rev-parse", "HEAD")).stdout;
+		const oldPointer = (await git(lib, "rev-parse", "HEAD")).stdout;
+		expect(
+			await getFileView(USER.username, "module-parent", "main", "vendor/lib"),
+		).toEqual({ kind: "submodule", oid: oldPointer, url: "../module-lib.git" });
+		await commitFile(leaf, "leaf.txt", "updated leaf\n");
+		await git(leaf, "push", "-q", "origin", "main");
+		await git(
+			path.join(lib, "nested"),
+			"pull",
+			"-q",
+			"--ff-only",
+			"origin",
+			"main",
+		);
+		await git(lib, "add", "nested");
+		await git(lib, "commit", "-qm", "Update nested pointer");
+		await git(lib, "push", "-q", "origin", "main");
+		await git(
+			path.join(parent, "vendor/lib"),
+			"pull",
+			"-q",
+			"--ff-only",
+			"origin",
+			"main",
+		);
+		await git(parent, "add", "vendor/lib");
+		await git(parent, "commit", "-qm", "Update submodule pointer");
+		await git(parent, "push", "-q", "origin", "main");
+		const updated = (await git(parent, "rev-parse", "HEAD")).stdout;
+		expect(
+			(await getCommitDiff(USER.username, "module-parent", updated)).files,
+		).toContainEqual(
+			expect.objectContaining({
+				path: "vendor/lib",
+				kind: "submodule",
+				oldEntry: expect.objectContaining({ oid: oldPointer }),
+			}),
+		);
+		await git(clone, "pull", "-q", "--ff-only", "origin", "main");
+		await git(clone, "submodule", "update", "--init", "--recursive");
+		expect(
+			await readFile(path.join(clone, "vendor/lib/nested/leaf.txt"), "utf8"),
+		).toBe("updated leaf\n");
+		await createCommit(USER.username, "module-parent", {
+			branch: "main",
+			message: "Web edit beside submodule",
+			files: [{ path: "README.md", content: "parent" }],
+			author: { name: USER.name, email: USER.email },
+		});
+		for (const name of repoNames)
+			await repackRepositoryNow(USER.username, name);
+		await git(
+			work,
+			"clone",
+			"-q",
+			"--recurse-submodules",
+			url("module-parent"),
+			"repacked-modules",
+		);
+		expect(
+			await readFile(
+				path.join(work, "repacked-modules/vendor/lib/nested/leaf.txt"),
+				"utf8",
+			),
+		).toBe("updated leaf\n");
+		expect(
+			await getFileView(USER.username, "module-parent", initial, "vendor/lib"),
+		).toEqual({ kind: "submodule", oid: oldPointer, url: "../module-lib.git" });
+		const anonymous = url("module-parent").replace(
+			`${USER.username}:${PAT}@`,
+			"",
+		);
+		expect(
+			await gitFails(
+				work,
+				"clone",
+				"-q",
+				"--recurse-submodules",
+				anonymous,
+				"denied-modules",
+			),
+		).toMatch(/401|Authentication failed|could not read/i);
+		await updateRepository({ data: { id: parentId, visibility: "public" } });
+		await git(work, "clone", "-q", anonymous, "public-parent-only");
+		const denied = await gitFails(
+			work,
+			"clone",
+			"-q",
+			"--recurse-submodules",
+			anonymous,
+			"private-child-denied",
+		);
+		expect(denied).toMatch(/module-lib|vendor\/lib/);
+		expect(denied).toMatch(/401|Authentication failed|could not read/i);
+		await git(
+			work,
+			"-c",
+			`http.extraHeader=Authorization: Basic ${btoa(`${USER.username}:${PAT}`)}`,
+			"clone",
+			"-q",
+			"--recurse-submodules",
+			anonymous,
+			"public-parent-with-token",
+		);
+		expect(
+			await readFile(
+				path.join(work, "public-parent-with-token/vendor/lib/nested/leaf.txt"),
+				"utf8",
+			),
+		).toBe("updated leaf\n");
+	}, 120_000);
 
 	it("never wrote a loose object to storage", () => {
 		const loose = [...fakeS3.objects.keys()].filter((key) =>

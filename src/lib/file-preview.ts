@@ -21,6 +21,7 @@ export function getPreviewMode(
 	filePath: string,
 	kind: FileView["kind"],
 ): PreviewMode {
+	if (kind === "submodule") return null;
 	if (isMarkdownFile(filePath)) return kind === "text" ? "markdown" : null;
 	if (getPreviewKind(filePath)) return "media";
 	return null;

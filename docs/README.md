@@ -38,3 +38,6 @@ For a terser, task-oriented reference (common commands, key constraints,
 gotchas), see [`../CLAUDE.md`](../CLAUDE.md) at the repo root — that file is
 optimized for quick lookup while working in the code; these docs are for
 understanding *why* the codebase is shaped the way it is.
+
+- [Submodules](./submodules.md) — clone URLs, private/nested submodules,
+  browsing, pointer diffs and merge behavior.

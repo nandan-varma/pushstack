@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
+import { GitFork } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { FileIcon, FolderIcon } from "./FileIcon";
 
 interface FileEntry {
-	type: "tree" | "blob";
+	type: "tree" | "blob" | "commit";
 	path: string;
 	oid: string;
 }
@@ -133,7 +134,16 @@ export function FileTable({
 								className="border-b border-border transition hover:bg-card last:border-0"
 							>
 								<td className="w-8 py-2.5 pl-4 pr-2 align-middle">
-									{file.type === "tree" ? <FolderIcon /> : <FileIcon />}
+									{file.type === "commit" ? (
+										<GitFork
+											className="size-4 text-primary"
+											aria-hidden="true"
+										/>
+									) : file.type === "tree" ? (
+										<FolderIcon />
+									) : (
+										<FileIcon />
+									)}
 								</td>
 								<td className="py-2.5 pr-4 align-middle">
 									{file.type === "tree" ? (
@@ -163,6 +173,12 @@ export function FileTable({
 											className="max-w-xs truncate text-sm font-medium text-primary hover:underline"
 										>
 											{displayName}
+											{file.type === "commit" && (
+												<span className="ml-2 font-mono text-xs text-muted-foreground">
+													@ {file.oid.slice(0, 7)}{" "}
+													<span className="font-sans">(submodule)</span>
+												</span>
+											)}
 										</Link>
 									)}
 								</td>
