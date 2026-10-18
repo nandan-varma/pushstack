@@ -8,7 +8,7 @@
 import { isSafeRefName, isSafeRepoPath } from "git-fs-s3";
 import { getMimeType } from "#/lib/language-detection";
 import { isGitNotFoundError } from "./git-errors";
-import { getFileContent } from "./git-read";
+import { getRawFileContent } from "./git-read";
 import { logError } from "./perf-log";
 import { getAccessForRepository } from "./repo-access";
 import { findRepositoryByName } from "./repositories";
@@ -83,12 +83,27 @@ export async function serveRawFile(request: Request): Promise<Response> {
 		if (!(await getAccessForRepository(repository, currentUser?.id)).canRead) {
 			return notFound();
 		}
-		const bytes = await getFileContent(
+		const file = await getRawFileContent(
 			repository.owner.username,
 			repository.name,
-			path,
 			ref,
+			path,
 		);
+		if (file.kind === "too-large") {
+			// Streaming from memory is what this endpoint does, so above the cap
+			// the honest answer is to clone the repository instead.
+			return new Response(
+				`File is larger than this endpoint serves (${file.size} bytes). Use git clone.`,
+				{
+					status: 413,
+					headers: {
+						"Content-Type": "text/plain; charset=utf-8",
+						"X-Content-Type-Options": "nosniff",
+					},
+				},
+			);
+		}
+		const bytes = file.bytes;
 		return new Response(stream(bytes), {
 			headers: {
 				"Content-Length": String(bytes.byteLength),

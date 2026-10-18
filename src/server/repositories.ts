@@ -12,6 +12,7 @@ import {
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { MAX_LIST_SKIP } from "#/lib/limits";
+import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
@@ -21,7 +22,7 @@ import {
 	repackRepositoryNow,
 } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
-import { ownerKeyOf, STORAGE_NAME_RE } from "./git-storage-naming";
+import { ownerKeyOf } from "./git-storage-naming";
 import { setDefaultBranch } from "./git-write";
 import { logError, perfContext, perfStep } from "./perf-log";
 import {
@@ -37,7 +38,7 @@ import { createTtlCoalescedCache } from "./ttl-cache";
 /** Also a storage-path segment, so this is a security boundary, not cosmetics. */
 const repoNameSchema = z
 	.string()
-	.max(100)
+	.max(MAX_STORAGE_NAME_LENGTH)
 	.regex(
 		STORAGE_NAME_RE,
 		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",

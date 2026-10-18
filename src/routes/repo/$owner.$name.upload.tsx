@@ -21,16 +21,14 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { getSession } from "@/lib/auth-session";
+import { formatFileSize } from "@/lib/language-detection";
+import { MAX_WEB_UPLOAD_BYTES, UPLOAD_WARNING_BYTES } from "@/lib/limits";
 import {
 	queryKeys,
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 import { uploadFile } from "@/server/files";
-
-// Files above this size are still allowed, but the browser can visibly
-// stutter while base64-encoding them synchronously — warn instead of block.
-const LARGE_FILE_WARNING_BYTES = 25 * 1024 * 1024;
 
 function readFileAsBase64(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -248,11 +246,13 @@ function FileUploadPage() {
 								<p className="text-xs text-muted-foreground">
 									{(file.size / 1024).toFixed(2)} KB
 								</p>
-								{file.size > LARGE_FILE_WARNING_BYTES && (
+								{file.size > UPLOAD_WARNING_BYTES && (
 									<p className="text-xs text-amber-600 dark:text-amber-400">
-										Large files may take a while to upload in the browser —
-										consider <code className="font-mono">git push</code> for big
-										files.
+										This file is large enough that the browser will stutter
+										while encoding it, and web uploads are refused above{" "}
+										{formatFileSize(MAX_WEB_UPLOAD_BYTES)} — use{" "}
+										<code className="font-mono">git push</code> for files this
+										big.
 									</p>
 								)}
 								<Button

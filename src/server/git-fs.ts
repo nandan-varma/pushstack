@@ -66,12 +66,26 @@ function gitContentType(key: string): string | undefined {
 	}
 }
 
+/**
+ * A store that can serve byte ranges. Both backends this app builds implement
+ * `getRange` — the R2 store with S3's `Range` header, `MemoryObjectStore`
+ * directly — and requiring it here is deliberate: the alternative is a wrapper
+ * that silently drops the method, which does not fail loudly, it makes
+ * `getObjectSize` answer "unknown" so every size gate quietly reads the whole
+ * object instead of refusing it. A future backend without ranges should be a
+ * type error, not a silent regression.
+ */
+type RangeCapableStore = ObjectStore & {
+	getRange: NonNullable<ObjectStore["getRange"]>;
+};
+
 // Without R2 env (tests, a quick local run) repositories live in memory for
 // the life of the process; production refuses instead of silently losing
 // pushes. Built on first use, never at import time.
-let backend: { store: ObjectStore; r2: R2ObjectStore | null } | null = null;
+let backend: { store: RangeCapableStore; r2: R2ObjectStore | null } | null =
+	null;
 
-function getBackend() {
+function getBackend(): { store: RangeCapableStore; r2: R2ObjectStore | null } {
 	if (backend) return backend;
 	if (isR2Configured()) {
 		const r2 = createR2ObjectStoreFromEnv(gitContentType);
@@ -91,17 +105,28 @@ function getBackend() {
 	return backend;
 }
 
-const lazyStore: ObjectStore = {
+const lazyStore: RangeCapableStore = {
 	get: (key) => getBackend().store.get(key),
 	put: (key, data) => getBackend().store.put(key, data),
 	delete: (key) => getBackend().store.delete(key),
 	head: (key) => getBackend().store.head(key),
 	list: (prefix, options) => getBackend().store.list(prefix, options),
+	getRange: (key, start, end) => getBackend().store.getRange(key, start, end),
 };
 
 // Every backend call shows in the request's perf tree (perf-log.ts).
 function withPerfLogging(store: ObjectStore): ObjectStore {
+	// Forwarded explicitly: this returns a new object, and a dropped `getRange`
+	// would not fail — `getObjectSize` reports "unknown size" instead, so every
+	// size gate would quietly fall back to reading the whole object.
+	const range = store.getRange?.bind(store);
 	return {
+		...(range
+			? {
+					getRange: (key: string, start: number, end: number) =>
+						perfR2(`R2 GET ${key} (range)`, () => range(key, start, end)),
+				}
+			: {}),
 		get: (key) => perfR2(`R2 GET ${key}`, () => store.get(key)),
 		put: (key, data) => perfR2(`R2 PUT ${key}`, () => store.put(key, data)),
 		delete: (key) => perfR2(`R2 DELETE ${key}`, () => store.delete(key)),

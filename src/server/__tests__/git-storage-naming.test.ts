@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	ownerKeyOf,
 	parseRepoGitStorageKey,
-	STORAGE_NAME_RE,
 } from "../git-storage-naming";
 
 describe("storage keys", () => {

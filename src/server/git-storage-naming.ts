@@ -4,8 +4,7 @@
  * (required, immutable) username. The only place keys are built.
  */
 
-/** Usernames and repository names: never ".", "..", or anything with a "/". */
-export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
+import { STORAGE_NAME_RE } from "#/lib/storage-name";
 
 /**
  * Fails closed on a name that isn't a single safe segment: gitFs resolves

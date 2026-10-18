@@ -8,6 +8,11 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { LoadingButton } from "../../components/ui/loading-button";
 import { Textarea } from "../../components/ui/textarea";
+import {
+	MAX_STORAGE_NAME_LENGTH,
+	STORAGE_NAME_HINT,
+	STORAGE_NAME_PATTERN,
+} from "../../lib/storage-name";
 import { createRepository } from "../../server/repositories";
 
 export const Route = createFileRoute("/repositories/new")({
@@ -94,8 +99,9 @@ function NewRepositoryPage() {
 									value={name}
 									onChange={(e) => setName(e.target.value)}
 									required
-									pattern="[a-zA-Z0-9\-_]+"
-									title="Only letters, numbers, hyphens, and underscores"
+									pattern={STORAGE_NAME_PATTERN}
+									maxLength={MAX_STORAGE_NAME_LENGTH}
+									title={STORAGE_NAME_HINT}
 									className="flex-1"
 								/>
 							</div>

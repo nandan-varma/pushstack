@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "../../lib/auth-client";
 import { queryKeys } from "../../lib/query-options";
+import {
+	MAX_USERNAME_LENGTH,
+	STORAGE_NAME_HINT,
+	STORAGE_NAME_PATTERN,
+} from "../../lib/storage-name";
 
 export const Route = createFileRoute("/auth/register")({
 	component: RegisterPage,
@@ -152,7 +157,9 @@ function RegisterPage() {
 							required
 							autoComplete="username"
 							minLength={3}
-							maxLength={30}
+							maxLength={MAX_USERNAME_LENGTH}
+							pattern={STORAGE_NAME_PATTERN}
+							title={STORAGE_NAME_HINT}
 						/>
 					</FormField>
 				</div>
@@ -196,7 +203,9 @@ function RegisterPage() {
 				</div>
 
 				<p className="text-xs text-muted-foreground">
-					3–30 character username. Password must be 8+ characters.
+					A 3–30 character username: letters, numbers, dots, hyphens and
+					underscores, starting and ending with a letter or number. Password
+					must be 8+ characters.
 				</p>
 
 				<LoadingButton

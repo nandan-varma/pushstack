@@ -22,6 +22,23 @@ export const MAX_BODY_CHARS = 65_536;
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**
+ * Where the browser starts warning about an upload's size. Deliberately *below*
+ * {@link MAX_WEB_UPLOAD_BYTES}: a warning that fires at the size the server
+ * rejects is not a warning, it is the error message. `limits.test.ts` asserts
+ * the ordering so the two cannot cross.
+ */
+export const UPLOAD_WARNING_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Largest object `/api/raw` will serve. That endpoint streams from memory, so a
+ * file reaching it is a file held in the function's heap; this is the git push
+ * body cap, and an object larger than it can only exist by growing through
+ * successive deltas. Above it the honest answer is `git clone` (see
+ * `docs/security.md`).
+ */
+export const MAX_RAW_BYTES = 50 * 1024 * 1024;
+
+/**
  * Offset a list endpoint accepts. A commit page's walk depth is `limit + skip`,
  * so this is also the bound on how much history one request can be made to
  * traverse — deep enough for any pagination the UI offers, small enough that

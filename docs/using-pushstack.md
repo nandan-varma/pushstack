@@ -187,6 +187,7 @@ takes effect immediately.
 | Limit | Value |
 | --- | --- |
 | Web file upload | 25 MB per file |
+| Raw file download (`/api/raw`) | 50 MB — above that, `git clone` |
 | Git push request body | 50 MB |
 | Issue, pull request and comment body | 65,536 characters |
 | Commit message (web UI) | 10,000 characters |

@@ -191,6 +191,13 @@ how much storage or how much rendering work one request may cause, and a commit
 message is not rendered small. The upload bound is shared with the browser, so
 what the UI warns about and what the server accepts cannot drift.
 
+The raw-content endpoint bounds what it will serve: it reads the object's size
+from its pack entry and refuses anything over `MAX_RAW_BYTES` (50 MB) with a
+`413` **without reading it**, because it streams from memory. That is the same
+size as the git push body cap, so anything one push could have introduced is
+still downloadable; a larger object can only exist by growing through
+successive deltas, and `git clone` is the way to get it.
+
 List endpoints also bound `skip` (`MAX_LIST_SKIP`). A commit page's history walk
 reads `limit + skip` commits, so `skip` was the input that made a public
 repository's entire history walkable — and cacheable — from one anonymous

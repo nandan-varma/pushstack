@@ -36,6 +36,14 @@ export class R2HttpError extends Error {
 export interface R2ObjectStore extends ObjectStore {
 	/** Server-side copy within the bucket: no bytes pass through this process. */
 	copy(fromKey: string, toKey: string): Promise<void>;
+	/**
+	 * Required, not optional as on {@link ObjectStore}: this store always serves
+	 * ranges (S3's `Range` header). Declaring it required is what makes a wrapper
+	 * that forgets to forward it a compile error — dropping it does not fail
+	 * loudly, it makes `getObjectSize` answer "unknown", so every size gate would
+	 * quietly read the whole object instead of refusing it.
+	 */
+	getRange(key: string, start: number, end: number): Promise<Uint8Array | null>;
 }
 
 // Per attempt. Bodies (pack files) can be tens of MB; metadata calls are tiny.

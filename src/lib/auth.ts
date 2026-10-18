@@ -3,9 +3,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
-import { STORAGE_NAME_RE } from "#/server/git-storage-naming";
 import { rateLimitStorage } from "#/server/rate-limit";
 import { sendEmail } from "./email";
+import { MAX_USERNAME_LENGTH, STORAGE_NAME_RE } from "./storage-name";
 
 const authSecret = process.env.BETTER_AUTH_SECRET;
 
@@ -132,7 +132,7 @@ export const auth = betterAuth({
 		tanstackStartCookies(),
 		username({
 			minUsernameLength: 3,
-			maxUsernameLength: 30,
+			maxUsernameLength: MAX_USERNAME_LENGTH,
 			// One storage-path segment: letters, digits, ".", "_", "-", starting
 			// and ending alphanumeric — same rule as repository names.
 			usernameValidator: (name) => STORAGE_NAME_RE.test(name),

@@ -15,6 +15,7 @@ import {
 	getTreeFromRef,
 	HISTORY_WALK_DEPTH,
 	listBranches,
+	type OpsHooks,
 	analyzeMerge as opsAnalyzeMerge,
 	getCommit as opsGetCommit,
 	getCommitDiff as opsGetCommitDiff,
@@ -23,11 +24,12 @@ import {
 	getFileContent as opsGetFileContent,
 	getFileHistory as opsGetFileHistory,
 	getLastCommitsForTree as opsGetLastCommitsForTree,
+	type Repo,
 	resolveCommit,
 	type TreeEntry,
 } from "git-fs-s3/ops";
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
-import { MAX_HISTORY_WALK } from "#/lib/limits";
+import { MAX_HISTORY_WALK, MAX_RAW_BYTES } from "#/lib/limits";
 import { opsHooksFor } from "./git-cache";
 import { repoFor } from "./git-repo";
 
@@ -47,6 +49,27 @@ export function getFileContent(
 	);
 }
 
+/**
+ * The tree entry for `filePath` at `ref`, or undefined when the path isn't
+ * there. Shared by the two readers below so they resolve a path identically.
+ */
+async function findFileEntry(
+	repo: Repo,
+	ref: string,
+	filePath: string,
+	hooks: OpsHooks,
+): Promise<{ entry: TreeEntry | undefined; commitOid: string }> {
+	const { oid: commitOid } = await resolveCommit(repo, ref);
+	const slash = filePath.lastIndexOf("/");
+	const parentPath = slash === -1 ? "" : filePath.slice(0, slash);
+	const entries = await getTreeFromRef(
+		repo,
+		{ ref: commitOid, treePath: parentPath },
+		hooks,
+	);
+	return { entry: entries.find((entry) => entry.path === filePath), commitOid };
+}
+
 /** A blob or submodule at a revision; only small text blobs travel inline. */
 export async function getFileView(
 	ownerKey: string,
@@ -57,17 +80,9 @@ export async function getFileView(
 	const repo = repoFor(ownerKey, repoName);
 	const hooks = opsHooksFor(ownerKey, repoName);
 	if (hooks.prefetch) await hooks.prefetch();
-	const { oid } = await resolveCommit(repo, ref);
-	const slash = filePath.lastIndexOf("/");
-	const parentPath = slash === -1 ? "" : filePath.slice(0, slash);
-	const entries = await getTreeFromRef(
-		repo,
-		{ ref: oid, treePath: parentPath },
-		hooks,
-	);
-	const entry = entries.find((entry) => entry.path === filePath);
+	const { entry, commitOid } = await findFileEntry(repo, ref, filePath, hooks);
 	if (entry?.type === "commit") {
-		const modules = await getSubmodules(repo, oid);
+		const modules = await getSubmodules(repo, commitOid);
 		return {
 			kind: "submodule",
 			oid: entry.oid,
@@ -90,6 +105,40 @@ export async function getFileView(
 	if (bytes.includes(0)) return { kind: "binary", size };
 	if (size > MAX_INLINE_TEXT_BYTES) return { kind: "too-large", size };
 	return { kind: "text", size, content: new TextDecoder().decode(bytes) };
+}
+
+/** A file's bytes at a revision, or the fact that it is too big to buffer. */
+export type RawFileResult =
+	| { kind: "bytes"; bytes: Uint8Array }
+	| { kind: "too-large"; size: number };
+
+/**
+ * A file's exact bytes at a revision — or the fact that it exceeds
+ * {@link MAX_RAW_BYTES}. The size is read from the object's pack entry *before*
+ * anything is inflated, so an oversized file is refused without ever being
+ * materialised; `/api/raw` streams from memory, so whatever reaches it is held
+ * in the function's heap.
+ *
+ * A `null` size (a loose object, or a store without range reads) falls through
+ * to reading, which is what every object did before this existed.
+ */
+export async function getRawFileContent(
+	ownerKey: string,
+	repoName: string,
+	ref: string,
+	filePath: string,
+): Promise<RawFileResult> {
+	const repo = repoFor(ownerKey, repoName);
+	const hooks = opsHooksFor(ownerKey, repoName);
+	const { entry } = await findFileEntry(repo, ref, filePath, hooks);
+	if (entry?.type !== "blob") {
+		throw new GitPathNotFoundError(`File not found: ${filePath}`);
+	}
+	const knownSize = await getObjectSize(repo, entry.oid);
+	if (knownSize !== null && knownSize > MAX_RAW_BYTES) {
+		return { kind: "too-large", size: knownSize };
+	}
+	return { kind: "bytes", bytes: await getBlob(repo, entry.oid) };
 }
 
 export function getCommit(
