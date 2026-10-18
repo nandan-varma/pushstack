@@ -8,19 +8,9 @@ import { TOKEN_PREFIX } from "#/lib/token-scopes";
 
 vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
-vi.mock("../../db", async () => {
-	const { PGlite } = await import("@electric-sql/pglite");
-	const { drizzle } = await import("drizzle-orm/pglite");
-	const { pushSchema } = await import("drizzle-kit/api");
-	const schema = await import("../../db/schema");
-	const db = drizzle(new PGlite(), { schema });
-	const { apply } = await pushSchema(
-		schema as unknown as Record<string, unknown>,
-		db as unknown as Parameters<typeof pushSchema>[1],
-	);
-	await apply();
-	return { db };
-});
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
 
 const currentUser = vi.hoisted(() => ({ id: "alice-id" }));
 vi.mock("../session", () => ({
@@ -29,7 +19,8 @@ vi.mock("../session", () => ({
 
 async function seedUsers() {
 	const { db } = await import("../../db");
-	const { tokens, user } = await import("../../db/schema");
+	const { user } = await import("../../db/schema");
+	const { tokens } = await import("../../db/app-schema");
 	await db.delete(tokens);
 	await db.delete(user);
 	const now = new Date();
@@ -37,6 +28,7 @@ async function seedUsers() {
 		["alice", "bob"].map((name) => ({
 			id: `${name}-id`,
 			name,
+			username: name,
 			email: `${name}@example.com`,
 			emailVerified: true,
 			createdAt: now,
@@ -54,7 +46,7 @@ describe("personal access tokens", () => {
 	it("creates a prefixed token, stores only its hash, and lists it without the value", async () => {
 		const { createToken, hashToken, listTokens } = await import("../tokens");
 		const { db } = await import("../../db");
-		const { tokens } = await import("../../db/schema");
+		const { tokens } = await import("../../db/app-schema");
 
 		const { token } = await createToken({
 			data: { name: "Laptop", scopes: ["repo:read"], lifetimeDays: 30 },
@@ -93,7 +85,7 @@ describe("personal access tokens", () => {
 	it("only lists and revokes the caller's own tokens", async () => {
 		const { createToken, listTokens, revokeToken } = await import("../tokens");
 		const { db } = await import("../../db");
-		const { tokens } = await import("../../db/schema");
+		const { tokens } = await import("../../db/app-schema");
 
 		const { id } = await createToken({
 			data: { name: "alice's", scopes: ["repo:read"], lifetimeDays: 7 },

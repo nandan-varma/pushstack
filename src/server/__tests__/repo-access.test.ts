@@ -15,22 +15,20 @@ import { isNotFound } from "@tanstack/react-router";
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../db", async () => {
-	const { PGlite } = await import("@electric-sql/pglite");
-	const { drizzle } = await import("drizzle-orm/pglite");
-	const { pushSchema } = await import("drizzle-kit/api");
-	const schema = await import("../../db/schema");
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
 
-	const client = new PGlite();
-	const db = drizzle(client, { schema });
-	const { apply } = await pushSchema(
-		schema as unknown as Record<string, unknown>,
-		db as unknown as Parameters<typeof pushSchema>[1],
-	);
-	await apply();
-
-	return { db };
-});
+const session = vi.hoisted(() => ({
+	user: null as { id: string; username: string } | null,
+}));
+vi.mock("../session", () => ({
+	getCurrentUserOptional: async () => session.user,
+	getCurrentUser: async () => {
+		if (!session.user) throw new Error("Unauthorized");
+		return session.user;
+	},
+}));
 
 const OWNER = "repo-access-owner";
 const ADMIN_COLLAB = "repo-access-admin";
@@ -43,13 +41,15 @@ let PRIVATE_REPO_ID: number;
 
 beforeAll(async () => {
 	const { db } = await import("../../db");
-	const { user, repositories, repositoryCollaborators } = await import(
-		"../../db/schema"
+	const { user } = await import("../../db/schema");
+	const { repositories, repositoryCollaborators } = await import(
+		"../../db/app-schema"
 	);
 
 	for (const id of [OWNER, ADMIN_COLLAB, WRITE_COLLAB, READ_COLLAB, OUTSIDER]) {
 		await db.insert(user).values({
 			id,
+			username: id,
 			email: `${id}@example.com`,
 			name: id,
 			emailVerified: true,
@@ -83,11 +83,10 @@ const {
 	canModerateRepo,
 	canMergePullRequest,
 	getAccessForRepository,
-	getRepoOrThrow,
-	getRepoWithReadAccess,
-	getRepoWithWriteAccess,
-	requireReadAccess,
+	readWithAccess,
+	requireOwner,
 	requireWriteAccess,
+	writeWithAccess,
 } = await import("../repo-access");
 
 const { db } = await import("../../db");
@@ -213,7 +212,7 @@ describe("getAccessForRepository", () => {
 		if (!repo) throw new Error("repo not found");
 
 		const access = await getAccessForRepository(repo, OWNER);
-		expect(access.collaboratorRole).toBeNull();
+		expect(access.role).toBe("owner");
 		expect(access.role).toBe("owner");
 	});
 
@@ -225,7 +224,7 @@ describe("getAccessForRepository", () => {
 
 		const access = await getAccessForRepository(repo, WRITE_COLLAB);
 		expect(access.role).toBe("write");
-		expect(access.collaboratorRole).toBe("write");
+		expect(access.role).toBe("write");
 	});
 
 	it("returns anonymous for null userId on private repo", async () => {
@@ -251,133 +250,71 @@ describe("getAccessForRepository", () => {
 	});
 });
 
-describe("getRepoOrThrow", () => {
-	it("returns the repository when it exists", async () => {
-		const repo = await getRepoOrThrow(PRIVATE_REPO_ID);
-		expect(repo.id).toBe(PRIVATE_REPO_ID);
-		expect(repo.name).toBe("private-repo");
+describe("readWithAccess", () => {
+	it("hands the repository, owner loaded, to a caller who can read it", async () => {
+		session.user = { id: READ_COLLAB, username: READ_COLLAB };
+		const repo = await readWithAccess("t", PRIVATE_REPO_ID, async (r) => r);
+		expect(repo.owner.username).toBe(OWNER);
 	});
 
-	it("throws when the repository does not exist", async () => {
-		await expect(getRepoOrThrow(999_999)).rejects.toThrow(
-			"Repository not found",
-		);
-	});
-});
-
-describe("getRepoWithReadAccess", () => {
-	it("returns the repository for an owner", async () => {
-		const repo = await getRepoWithReadAccess(PRIVATE_REPO_ID, OWNER);
-		expect(repo.id).toBe(PRIVATE_REPO_ID);
-	});
-
-	it("returns the repository for a read collaborator", async () => {
-		const repo = await getRepoWithReadAccess(PRIVATE_REPO_ID, READ_COLLAB);
-		expect(repo.id).toBe(PRIVATE_REPO_ID);
-	});
-
-	it("answers notFound() for a missing repo", async () => {
-		await expect(getRepoWithReadAccess(999_999, OWNER)).rejects.toSatisfy(
+	it("answers notFound() for a missing repo or one the caller can't read", async () => {
+		session.user = { id: OUTSIDER, username: OUTSIDER };
+		await expect(
+			readWithAccess("t", PRIVATE_REPO_ID, async () => 1),
+		).rejects.toSatisfy(isNotFound);
+		await expect(readWithAccess("t", 999_999, async () => 1)).rejects.toSatisfy(
 			isNotFound,
 		);
 	});
 
-	it("answers notFound() for a private repo the caller can't read, so it doesn't leak", async () => {
+	it("lets anonymous visitors read public repositories", async () => {
+		session.user = null;
 		await expect(
-			getRepoWithReadAccess(PRIVATE_REPO_ID, OUTSIDER),
+			readWithAccess("t", PUBLIC_REPO_ID, async () => "ok"),
+		).resolves.toBe("ok");
+	});
+
+	it("turns a git not-found inside the read into a 404", async () => {
+		session.user = { id: OWNER, username: OWNER };
+		const { GitRefNotFoundError } = await import("git-fs-s3");
+		await expect(
+			readWithAccess("t", PUBLIC_REPO_ID, async () => {
+				throw new GitRefNotFoundError("gone");
+			}),
 		).rejects.toSatisfy(isNotFound);
 	});
-
-	it("returns the repository for unauthenticated user on public repo", async () => {
-		const repo = await getRepoWithReadAccess(PUBLIC_REPO_ID, null);
-		expect(repo.id).toBe(PUBLIC_REPO_ID);
-	});
 });
 
-describe("getRepoWithWriteAccess", () => {
-	it("returns the repository for an owner", async () => {
-		const repo = await getRepoWithWriteAccess(PRIVATE_REPO_ID, OWNER);
-		expect(repo.id).toBe(PRIVATE_REPO_ID);
+describe("writeWithAccess / requireWriteAccess / requireOwner", () => {
+	it("admits owners and write collaborators", async () => {
+		for (const id of [OWNER, WRITE_COLLAB]) {
+			session.user = { id, username: id };
+			await expect(
+				writeWithAccess(PRIVATE_REPO_ID, async (r, u) => [r.id, u.id]),
+			).resolves.toEqual([PRIVATE_REPO_ID, id]);
+			await expect(
+				requireWriteAccess(PRIVATE_REPO_ID, id),
+			).resolves.toBeUndefined();
+		}
 	});
 
-	it("returns the repository for a write collaborator", async () => {
-		const repo = await getRepoWithWriteAccess(PRIVATE_REPO_ID, WRITE_COLLAB);
-		expect(repo.id).toBe(PRIVATE_REPO_ID);
-	});
-
-	it("throws 'Repository not found' for a missing repo", async () => {
-		await expect(getRepoWithWriteAccess(999_999, OWNER)).rejects.toThrow(
-			"Repository not found",
-		);
-	});
-
-	it("throws 'No write access' for a read collaborator", async () => {
+	it("refuses read collaborators and anonymous callers", async () => {
+		session.user = { id: READ_COLLAB, username: READ_COLLAB };
 		await expect(
-			getRepoWithWriteAccess(PRIVATE_REPO_ID, READ_COLLAB),
-		).rejects.toThrow("No write access to repository");
-	});
-
-	it("throws 'No write access' for a non-collaborator", async () => {
+			writeWithAccess(PRIVATE_REPO_ID, async () => 1),
+		).rejects.toThrow("No write access");
+		session.user = null;
 		await expect(
-			getRepoWithWriteAccess(PRIVATE_REPO_ID, OUTSIDER),
-		).rejects.toThrow("No write access to repository");
+			writeWithAccess(PUBLIC_REPO_ID, async () => 1),
+		).rejects.toThrow("Unauthorized");
 	});
 
-	it("throws 'No write access' for unauthenticated user on public repo", async () => {
-		await expect(getRepoWithWriteAccess(PUBLIC_REPO_ID, null)).rejects.toThrow(
-			"No write access to repository",
-		);
-	});
-});
-
-describe("requireReadAccess", () => {
-	it("does not throw for an owner", async () => {
+	it("requireOwner admits only the owner", async () => {
 		await expect(
-			requireReadAccess(PRIVATE_REPO_ID, OWNER),
-		).resolves.toBeUndefined();
-	});
-
-	it("does not throw for a read collaborator", async () => {
+			requireOwner(PRIVATE_REPO_ID, OWNER, "nope"),
+		).resolves.toMatchObject({ id: PRIVATE_REPO_ID });
 		await expect(
-			requireReadAccess(PRIVATE_REPO_ID, READ_COLLAB),
-		).resolves.toBeUndefined();
-	});
-
-	it("throws 'Access denied' for a non-collaborator on private repo", async () => {
-		await expect(requireReadAccess(PRIVATE_REPO_ID, OUTSIDER)).rejects.toThrow(
-			"Access denied",
-		);
-	});
-
-	it("does not throw for unauthenticated user on public repo", async () => {
-		await expect(
-			requireReadAccess(PUBLIC_REPO_ID, null),
-		).resolves.toBeUndefined();
-	});
-});
-
-describe("requireWriteAccess", () => {
-	it("does not throw for an owner", async () => {
-		await expect(
-			requireWriteAccess(PRIVATE_REPO_ID, OWNER),
-		).resolves.toBeUndefined();
-	});
-
-	it("does not throw for a write collaborator", async () => {
-		await expect(
-			requireWriteAccess(PRIVATE_REPO_ID, WRITE_COLLAB),
-		).resolves.toBeUndefined();
-	});
-
-	it("throws 'No write access' for a read collaborator", async () => {
-		await expect(
-			requireWriteAccess(PRIVATE_REPO_ID, READ_COLLAB),
-		).rejects.toThrow("No write access to repository");
-	});
-
-	it("throws 'No write access' for unauthenticated user on public repo", async () => {
-		await expect(requireWriteAccess(PUBLIC_REPO_ID, null)).rejects.toThrow(
-			"No write access to repository",
-		);
+			requireOwner(PRIVATE_REPO_ID, ADMIN_COLLAB, "nope"),
+		).rejects.toThrow("nope");
 	});
 });

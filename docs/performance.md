@@ -36,14 +36,10 @@ watch for when adding new code.
    collaborator should take effect in seconds, not linger for a request's
    lifetime). See [authentication.md](./authentication.md).
 
-3. **`git-cache.ts`'s in-process parsed-object cache** (server, per-process) —
-   stores JS values directly (`getCachedObject`/`setCachedObject`), used for
-   both real results (tree listings, commit logs) and negative/stat markers,
-   avoiding a JSON round-trip on every hit. The *raw* `Buffer` cache for git
-   object bytes read from R2 used to live here too, but has since moved into
-   `git-fs-s3`'s own `createCachedStore` (composed in
-   `git-fs.ts`) as part of extracting the R2 backend into that published
-   package (see item 4 below).
+3. **`git-cache.ts`'s in-process result cache** (server, per-process) —
+   `resultCache`, holding parsed `git-fs-s3/ops` results (tree listings,
+   commit logs) as JS values keyed by head sha, so a hit costs no parsing. Raw object bytes are cached one
+   layer down, in `git-fs-s3`'s `createCachedStore` (composed in `git-fs.ts`).
 
    <a id="ref-aware-ttl"></a>**`git-fs.ts`'s per-key TTL override** — the R2
    read cache's TTL (`GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable, default
@@ -56,7 +52,7 @@ watch for when adding new code.
    a given push could keep serving a pre-push ref, or fail to discover a
    freshly pushed pack exists at all (misreporting its commits as "missing
    from storage"), for up to the full TTL. `git-fs.ts`'s `refAwareTtl`
-   (passed as `git-fs-s3` 0.3.4+'s `ttlForKey` option) gives
+   (passed as `git-fs-s3`'s `ttlForKey` option) gives
    `HEAD`, `refs/*`, and the two listing paths a 5-second override instead —
    cheap, since each is one small object or a bounded listing, and safe,
    since everything downstream (tree/commit/blob reads keyed by the sha a
@@ -66,52 +62,38 @@ watch for when adding new code.
 4. **Negative-result and loose-object-hint caching** — isomorphic-git
    repeatedly probes paths it expects might not exist (ref candidates,
    loose-object paths before falling back to pack search, directory-existence
-   checks before every read). This now lives in `git-fs-s3`
-   itself (`createGitFs`'s `looseObjectHints` option and `registerGitdir`,
-   wired in `git-fs.ts`) rather than the app's own former
-   `git-r2-backend.ts`, which was extracted into that published package —
-   see [git-storage.md](./git-storage.md) for the current architecture.
-   `detectLooseObjectsHint` still answers "does this repo have any loose
+   checks before every read). `git-fs-s3`'s `createGitFs`
+   (`looseObjectHints`, `registerGitdir`, wired in `git-fs.ts`) answers those
+   without R2 calls — see [git-storage.md](./git-storage.md).
+   `detectLooseObjectsHint` answers "does this repo have any loose
    objects at all" once per repo with a single bounded LIST call, so a
    fully-packed repo (the common case) never even attempts a loose-object
-   probe against R2 — this was the single biggest fix to commit-log
-   cold-load time, and (once wired into the actual clone/fetch-serving path,
-   not just commit-log browsing) to cold clones too.
+   probe against R2 — the single biggest win for cold commit-log loads and
+   cold clones.
 
-5. **`getCommitLog`'s per-head-SHA result cache** (`git-history-ops.ts`) —
-   caches the deepest commit-chain walk seen for a resolved head SHA and
-   slices/reuses it for shallower or repeated requests, since walking a commit
-   chain is inherently sequential and R2-round-trip-bound.
+5. **`getCommitLog`'s per-head-SHA result cache** (`git-fs-s3/ops`, via
+   `git-read.ts`) — caches the deepest commit-chain walk seen for a resolved
+   head SHA and slices it for shallower or repeated requests; commit history
+   pages, file history and last-commit lookups all reuse that one walk.
 
 6. **R2 request coalescing** — `git-fs-s3`'s
-   `createCachedStore` (`coalesce` option, on by default; formerly
-   `git-r2-backend.ts`'s own `pendingDownloads`/`pendingStats` maps before
-   the R2 backend was extracted into that package) ensures concurrent reads
+   `createCachedStore` (`coalesce` option, on by default) ensures concurrent reads
    for the same not-yet-cached R2 key (e.g. 100 object reads all wanting the
    same pack file mid-walk, or several concurrent ref/branch lookups that
    each independently stat the gitdir root) share one backend call instead
    of firing one each — on a cold cache, none of them can see a result the
-   others haven't produced yet; measured 4 concurrent callers as 4 real
-   `HeadObject`+`ListObjects` pairs against the identical key before this
-   existed.
+   others haven't produced yet.
 
-7. **`repositories.ts`'s repo-row cache** (`fetchRepoRowByName`, 5-second TTL
-   + in-flight coalescing) — a single-join, cached lookup that both the web
-   UI's `getRepositoryByName` and git-auth's `findRepositoryByName` share.
-   Every git HTTP operation makes at least two requests (info/refs, then
-   upload-pack/receive-pack), and `findRepositoryByName` used to be two
-   sequential, fully uncached queries paid fresh on *every single one* of
-   them; routing it through the same cache the web pages already used means
-   the second request of a push typically gets a free hit.
+7. **`repositories.ts`'s repo-row cache** (`findRepositoryByName`, short TTL
+   + in-flight coalescing) — one single-join lookup shared by the web UI and
+   the git endpoint. Every git operation makes at least two requests
+   (info/refs, then upload-pack/receive-pack), so the second one typically
+   hits the cache.
 
-8. **Writes go straight to R2** — pushes and web-UI writes used to
-   hydrate the whole repository from R2 into `/tmp`, write there, then
-   re-list and upload the difference (plus a per-push ETag comparison just to
-   skip re-uploading `HEAD`/`config`). Every write now goes through the same
-   `gitFs` as reads (see [git-storage.md](./git-storage.md)): a push costs the
-   pack + index uploads, a few ref reads/writes, and one listing for the
-   storage-size bookkeeping — independent of how big the repository already
-   is, apart from the threshold-gated repack.
+8. **Writes go straight to R2** — every write goes through the same `gitFs`
+   as reads (see [git-storage.md](./git-storage.md)): a push costs the pack +
+   index uploads and a few ref reads/writes, independent of how big the
+   repository already is, apart from the threshold-gated repack.
 
 ## Parallelism over sequential waiting
 
@@ -129,33 +111,24 @@ the codebase, worth matching the shape of when adding new code:
   section (`FileTable`, `CommitSummaryBar`, the branch selector, ...) reads
   the *same* query key client-side via its own `useQuery`, picks up the
   already-in-flight fire-and-forgotten request, and renders a skeleton
-  matching its own final layout until that specific piece resolves — this
-  used to be one blocking `Promise.all` before the loader was restructured
-  to stream; see [server-functions.md](./server-functions.md).
-- `git-fs-s3/http`'s `listAllRefs` (used by `git-http-iso.ts`'s
-  thin wrapper) resolves branches, tags, HEAD's oid, and the current-branch
+  matching its own final layout until that specific piece resolves.
+- `git-fs-s3/http`'s `listAllRefs` (info/refs) resolves branches, tags, HEAD's oid, and the current-branch
   symref all in parallel, then resolves every branch/tag's oid in parallel
   too.
 - `git-fs.ts`'s `prefetchAllPacks` (a thin wrapper around
   `git-fs-s3`'s `GitFs.prefetchPacks`) downloads every pack
   file in parallel *before* a sequential `git.log` walk starts, rather than
   letting isomorphic-git fetch packs lazily and serially as the walk needs
-  them. As of `getTreeFromRef`/`getCommitLog`'s current wiring this now
-  fires unconditionally on a cache-miss tree read, and unconditionally (not
-  depth-gated) for any commit-log walk too — see
-  [git-storage.md](./git-storage.md).
-- `git-http-iso.ts`'s `handleReceivePackIso` applies every ref update in a
+  them. It fires on every cache-miss history walk and tree read.
+- Receive-pack applies every ref update in a
   push (compare-and-swap check, then write/delete) in one `Promise.all` —
   each ref only touches its own ref file, so a multi-ref push (`git push
   --all`/`--tags`) applies them all concurrently instead of one at a time.
-- `git-last-commit.ts`'s `getLastCommitsForTree` walks commit history in
+- `getLastCommitsForTree` (`git-fs-s3/ops`) walks commit history in
   fixed-size batches, prefetching each batch's tree reads in parallel before
-  processing that batch sequentially (the "which entries are still
-  unresolved" state must advance commit-by-commit for correctness) — this
-  two-phase shape (parallel prefetch, then sequential resolve) was previously
-  the single largest contributor to slow repo page loads before it existed
-  (measured: ~36s of a ~39s cold load), and should be preserved if this
-  function is ever touched again.
+  resolving that batch sequentially (which entries are still unresolved must
+  advance commit by commit). Without it this was ~36s of a ~39s cold page
+  load; keep the two-phase shape.
 
 Some things are **inherently sequential and can't be parallelized away** — a
 commit chain walk only reveals the next oid to fetch after reading the
@@ -165,130 +138,49 @@ sequential part, not fighting the dependency.
 
 ## Case study: a "safety check" that was itself the bug
 
-`git-fs-s3/http`'s `repackRepository` (called from `handleReceivePackIso` via
-`applyReceivePack`) consolidates a push's fragmented pack files into one, but
-for a long time the consolidation only ever happened *locally* — back when
-pushes ran against a hydrated `/tmp` copy, nothing told R2 to delete the
-packs it had just made redundant (the sync-back step deliberately never
-deleted anything under `objects/`, for good reason). The result: every single
-push left one more permanent pack file in R2, forever, making both future
-pushes (more to hydrate) and clones (more packs to prefetch) slower as history
-grew — completely defeating the point of consolidating in the first place.
-(Pushes now run the repack directly against R2, so its deletes *are* the R2
-deletes — see [git-storage.md](./git-storage.md).)
-
-Fixing that alone wasn't enough, because `repackRepository`'s own safety check
-(only delete old packs if the new pack's object count is at least as high as
-the old packs' combined count — a guard against an incomplete traversal
-silently losing objects) was **structurally broken**: the moment packs ever
-overlap in content, the "old" side double-counts objects that appear in more
-than one old pack, so it almost always comes out higher than the new
-deduplicated count. Once that happened once, it happened every time after —
-a permanent, silent lockout from ever consolidating again. This is why a
-repo can accumulate many packs despite the consolidation code running (and
-"succeeding," from its own perspective) on every push.
+`repackRepository` (`git-fs-s3/http`) once guarded deleting old packs with an
+object-count comparison: the new pack's count had to be at least the old
+packs' combined count. Packs can overlap, so the old side double-counts and
+almost always came out higher — and once consolidation declined once, it
+declined forever, so repos accumulated packs while the repack "succeeded" on
+every push. The check now tests the property that matters: did the
+reachability walk read every object it visited.
 
 The lesson: **a safety check's assumptions can quietly stop holding once
-something it depends on has already partially failed once.** The count
-comparison assumed old packs were always disjoint — true until the very
-first time the check itself declined to clean up. The fix replaced the
-count comparison with a check on the actual property that matters
-(traversal completeness — did every object the walk visited get read
-successfully), which doesn't have that failure mode.
+something it depends on has already partially failed once.**
 
-## Case study: a deliberate performance choice reopening a correctness gap
+## Case study: lock-free readers racing a writer's cleanup
 
-*(Historical: this describes the hydrate/sync push path, since replaced by
-R2-direct pushes. The lock-free-reader lesson below still applies to
-`collectReachableOids`.)*
+A clone's `collectReachableOids` can list `objects/pack/` just before a
+concurrent push's repack deletes one of the listed packs. Under an
+adversarial load test (15 clones against a repo pushed to in a tight loop,
+each push crossing the repack threshold), most clones failed with "remote
+did not send all necessary objects" — always the same oid, one that cloned
+fine moments before or after; `git fsck` showed nothing was ever lost.
 
-`deleteStalePacksFromR2` (the R2 half of the fix above) used to run *after*
-`withReceivePackLock`'s lock was released, on purpose — so a push's HTTP
-response didn't wait on cleanup that isn't needed for the push itself to be
-correct. That opened a window: a concurrent reader's `objects/pack/`
-directory listing (a clone/fetch's `collectReachableOids`, or another push's
-own hydration step) could be taken *before* that deletion ran and still be in
-use *after* it completed, naming pack files that no longer existed.
-
-This was invisible under the testing that normally exercises this code
-(sequential pushes, one clone at a time) — it only showed up under a
-deliberately adversarial load test: 15 clones running concurrently against a
-repo being pushed to in a tight loop, each push crossing the repack
-threshold. Most of those clones failed with `fatal: bad object <sha>` /
-"remote did not send all necessary objects" — always the *same* oid within a
-given run, and always one that cloned fine moments before or after. `git
-fsck` on every successful clone confirmed the object was never actually
-missing anywhere; the failing requests were racing a real but narrow
-transition window, not observing real data loss.
-
-Two places read a pack listing this way, and the fix differs between them:
-
-- `writeRemoteFilesToDisk` (`git-repo-storage.ts`, a concurrent *push's own*
-  hydration step) races this window only because the cleanup ran outside the
-  write lock. Now that `withReceivePackLock` runs `deleteStalePacksFromR2` via
-  its `afterSync` hook — still inside the same lock the sync itself holds — a
-  concurrent push can no longer even start hydrating until this one's cleanup
-  has finished, closing this side of the race entirely. It still tolerates a
-  404 as "superseded" rather than fatal, as defense in depth, but shouldn't
-  actually hit it via this path anymore.
-- `collectReachableOids` (`git-fs-s3/http`, serves clone/fetch) races this
-  window unavoidably: reads are deliberately lock-free (see
-  [git-storage.md](./git-storage.md)), so no
-  amount of moving cleanup around inside the *write* lock changes when a
-  concurrent *read* observes it. Taking the write lock on every read would
-  reintroduce exactly the latency read/write separation exists to avoid, for
-  a race that's rare and whose content is never actually gone — so this side
-  keeps its existing fix instead: **retry once, after a short delay** (long
-  enough for the deletion's own cache invalidation to land), tolerating a 404
-  as "superseded" rather than treating it as fatal.
-
-The lesson: **not every reader of state a background cleanup touches is
-equally reachable by "just take a lock."** A writer racing another writer's
-cleanup can be fixed by broadening what the lock covers, cheaply. A
-lock-free reader racing a writer's cleanup can't be, without giving up the
-reason it was lock-free — that side has to tolerate the transient
-inconsistency instead, and only gets to if you can show it really is
-transient (here: the replacement pack is always written before the old ones
-are removed, so nothing a reader wants is ever actually gone).
+Taking the write lock on reads would give up what makes them fast, so the
+reader tolerates the transition instead: on a missing object it retries
+once after a short delay, which sees the current pack list. That's sound
+only because the replacement pack is always written before old ones are
+deleted, so nothing a reader wants is ever actually gone.
 
 ## Case study: an optimization applied to three call sites out of four
 
-`prefetchAllPacks` (`git-fs.ts`, wrapping `git-fs-s3`'s `GitFs.prefetchPacks`)
-exists because walking a commit chain is inherently sequential — you only
-learn the next object to fetch after reading the current one — so without
-prefetching, a repo sitting on more than one pack pays one R2 round trip
-*per pack*, serially, as the walk happens to discover it needs that pack's
-objects. `git-history-ops.ts`/`git-last-commit.ts`/`git-file-history.ts` (the
-web UI's commit-log, last-commit-per-file, and file-history reads) all call
-it before their own walks.
+`prefetchAllPacks` (`git-fs.ts`) exists because walking a commit chain is
+inherently sequential, so without prefetching a repo with several packs pays
+one R2 round trip per pack, serially, as the walk discovers it needs each.
+The web UI's history reads used it; upload-pack's walk
+(`collectReachableOids`, serving real `git clone`) has the same shape but
+didn't. Profiling against real R2 showed the walk alone at 744.7ms on a
+2-pack repo; adding the prefetch to its `beforeWalk` hook dropped it to
+20.1ms and a warm-server `git clone` from 2.1s to 0.65s.
 
-`handleUploadPackIso` (`git-http-iso.ts` — serves real `git clone`/`git
-fetch`, not the web UI) has an object-graph walk with the exact same
-shape (`collectReachableOids`, in `git-fs-s3/http`), but never called it —
-this was invisible in code review because nothing about the *code* looked
-wrong; `collectReachableOids` is correctly, fully parallelized internally
-(concurrent, deduplicated promise-per-oid graph traversal). The gap only
-showed up under live profiling against a real R2 bucket: on a 2-pack repo,
-`collectReachableOids` alone cost 744.7ms, with the pack downloads it
-triggered happening essentially serially as the walk's early, single-threaded
-stages (starting from one "want" tip commit) discovered it needed first one
-pack, then the other. Adding the same `prefetchAllPacks` call to
-`handleUploadPackIso`'s existing `beforeWalk` hook (already used for the
-loose-object hint) dropped that same step to 20.1ms — a ~97% reduction — and
-took end-to-end `git clone` against a warm local dev server with real R2 from
-2.1s to 0.65s.
-
-The lesson: **when the same structural problem has already been solved at
-some call sites, audit every place with the same shape for the fix, not just
-the ones a doc happens to mention** — a written claim that an optimization is
-"wired into" a given path is a statement about when it was written, not a
-guarantee it stayed complete as new call sites were added. `grep`ing for the
-fix's own call sites (`prefetchAllPacks(`) is more reliable than trusting
-prose. See `scripts/perf-setup.ts`/`scripts/perf-page-load.ts` for the
-profiling harness this was found with — real `git` CLI operations and direct
-calls to the read-path functions (bypassing `createServerFn`'s request-context
-requirement) against a local dev server with real R2 credentials, reading
-`perf-log.ts`'s breakdown from the dev server's own stdout.
+The lesson: **when a structural problem is solved at some call sites, audit
+every place with the same shape** — `grep` the fix's call sites
+(`prefetchAllPacks(`) rather than trusting prose. `scripts/perf-setup.ts` /
+`scripts/perf-page-load.ts` are the profiling harness: real `git` CLI
+operations and direct read-path calls against a local dev server with real
+R2, reading `perf-log.ts`'s breakdown from its stdout.
 
 ## The `perf-log` instrumentation convention
 
@@ -346,10 +238,7 @@ without it, `refetchInterval` alone still pauses while the tab isn't
 focused, so a push landing then wouldn't surface until the user refocuses
 *and* `refetchOnWindowFocus` happens to fire; with it, the banner is already
 correct the moment they come back. A depth-1 commit-log walk is already as
-cheap as a bare ref resolve (`git-history-ops.ts`'s `PREFETCH_PACKS_MIN_DEPTH`
-is 1 — effectively no gate, every cache-miss walk prefetches regardless of
-depth; see [server-functions.md](./server-functions.md)), so there's no perf
-reason to keep a minimal endpoint around just to avoid the walk.
+cheap as a bare ref resolve, so there's no perf reason to keep a minimal endpoint around just to avoid the walk.
 
 This matters because it's the *same* query/cache entry that
 `CommitSummaryBar` (the tree page's "latest commit" line) reads for its own

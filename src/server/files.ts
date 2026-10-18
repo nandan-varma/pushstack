@@ -1,572 +1,298 @@
-/**
- * File Operations Server Functions
- *
- * Handles file operations using real git repositories via isomorphic-git.
- * All file/commit/branch operations now interact with actual git repos on filesystem.
- */
-
+/** Server functions for browsing and editing a repository's files, branches and commits. */
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
+import { summarizeCommit } from "git-fs-s3/ops";
 import { z } from "zod";
 import { base64ToBytes } from "#/lib/bytes";
-import { db } from "../db";
-import { activities, repositories } from "../db/app-schema";
-import {
-	createBranch as gitCreateBranch,
-	deleteBranch as gitDeleteBranch,
-	getBranches as gitGetBranches,
-} from "./git-branch-ops";
-// Git operations imports (isomorphic-git)
-import { createCommit, deleteFile as gitDeleteFile } from "./git-commit-write";
-import * as GitDiff from "./git-diff-iso";
-import {
-	getFileHistory as gitGetFileHistory,
-	HISTORY_WALK_DEPTH,
-} from "./git-file-history";
-import {
-	getCommitHistory,
-	getFileFromBranch,
-	getTreeFromBranch,
-	getCommit as gitGetCommit,
-	getRepositoryTreeData as gitGetRepositoryTreeData,
-} from "./git-history-ops";
-import { getLastCommitsForTree } from "./git-last-commit";
+import { recordActivity } from "./activity";
+import * as gitRead from "./git-read";
+import { BANNER_WALK_DEPTH } from "./git-read";
 import {
 	safeBranchNameSchema,
 	safeCommitShaSchema,
 	safeRefNameSchema,
 	safeRepoPathSchema,
 } from "./git-ref-name";
-import { getRepoStorageCoordinates } from "./git-storage-naming";
+import { ownerKeyOf } from "./git-storage-naming";
+import * as gitWrite from "./git-write";
 import { perfStep } from "./perf-log";
-import { getRepoWithWriteAccess, readWithAccess } from "./repo-access";
-import { getCurrentUser } from "./session";
+import {
+	type RepositoryWithOwner,
+	readWithAccess,
+	writeWithAccess,
+} from "./repo-access";
 
-function getStorage(repo: {
-	ownerId: string;
-	name: string;
-	owner?: { id: string; username: string | null; email: string } | null;
-}) {
-	return getRepoStorageCoordinates(repo);
+/** Run a git read for a repository the caller can read (404 otherwise). */
+function readGit<T>(
+	label: string,
+	repoId: number,
+	fn: (
+		ownerKey: string,
+		repoName: string,
+		repo: RepositoryWithOwner,
+	) => Promise<T>,
+): Promise<T> {
+	return readWithAccess(label, repoId, (repo) =>
+		perfStep(label, () => fn(ownerKeyOf(repo), repo.name, repo)),
+	);
 }
 
-// Upload file schema
-const uploadFileSchema = z.object({
+const refPath = z.object({
 	repoId: z.number(),
-	branchName: safeBranchNameSchema,
-	path: safeRepoPathSchema,
-	content: z.string(), // Base64 encoded content
-	commitMessage: z.string(),
+	/** A branch name or, for permalinks, a full commit sha. */
+	branchName: safeRefNameSchema,
+	path: safeRepoPathSchema.default(""),
 });
 
-/**
- * Upload file to repository - creates a git commit
- */
-export const uploadFile = createServerFn({ method: "POST" })
-	.validator((data: unknown) => uploadFileSchema.parse(data))
-	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
-
-		// Decode content
-		const content = base64ToBytes(data.content);
-		const storage = getStorage(repo);
-
-		// Create commit with the file
-		const commitSha = await createCommit(storage.ownerKey, repo.name, {
-			branch: data.branchName,
-			message: data.commitMessage,
-			files: [{ path: data.path, content }],
-			author: {
-				name: user.name,
-				email: user.email,
-			},
-		});
-
-		// Update repository updated_at
-		await db
-			.update(repositories)
-			.set({ updatedAt: new Date() })
-			.where(eq(repositories.id, data.repoId));
-
-		// Log activity
-		await db.insert(activities).values({
-			userId: user.id,
-			repoId: data.repoId,
-			type: "commit",
-			metadata: {
-				commitSha,
-				message: data.commitMessage,
-				filesCount: 1,
-			},
-		});
-
-		return {
-			commit: { sha: commitSha, message: data.commitMessage },
-		};
-	});
-
-/**
- * Get file from repository
- */
 export const getFile = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				// Accepts a branch name or a full commit SHA — the blob page's
-				// Permalink button generates URLs pinned to a commit, not just a
-				// branch (see safeRefNameSchema's comment in git-ref-name.ts).
-				branchName: safeRefNameSchema,
-				path: safeRepoPathSchema,
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getFile repo=${data.repoId} ${data.branchName}:${data.path}`,
+	.validator(refPath)
+	.handler(({ data }) =>
+		readGit(
+			`getFile ${data.branchName}:${data.path}`,
 			data.repoId,
-			(repo) => {
-				const storage = getStorage(repo);
-				return perfStep("getFileFromBranch", () =>
-					getFileFromBranch(
-						storage.ownerKey,
-						repo.name,
-						data.branchName,
-						data.path,
-					),
-				);
-			},
+			(owner, name) =>
+				gitRead.getFileView(owner, name, data.branchName, data.path),
 		),
 	);
 
-/**
- * List files in repository directory
- */
 export const listFiles = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: safeRefNameSchema,
-				path: safeRepoPathSchema.optional().default(""),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`listFiles repo=${data.repoId} ${data.branchName}:${data.path || "/"}`,
+	.validator(refPath)
+	.handler(({ data }) =>
+		readGit(
+			`listFiles ${data.branchName}:${data.path}`,
 			data.repoId,
-			(repo) => {
-				const storage = getStorage(repo);
-				return perfStep("getTreeFromBranch", () =>
-					getTreeFromBranch(
-						storage.ownerKey,
-						repo.name,
-						data.branchName,
-						data.path || "",
-					),
-				);
-			},
+			(owner, name) => gitRead.getTree(owner, name, data.branchName, data.path),
 		),
 	);
 
-/**
- * The tree page's critical Git reads. Keep this deliberately separate from
- * `listFiles`: consumers that only need a directory listing should not pay
- * for refs/history, while the page avoids three cold server-function and R2
- * initialization paths for data it always displays together.
- */
+/** A directory page's branches, entries and latest commit, in one round trip. */
 export const getTreePageData = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: safeRefNameSchema,
-				path: safeRepoPathSchema.optional().default(""),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getTreePageData repo=${data.repoId} ${data.branchName}:${data.path || "/"}`,
+	.validator(refPath)
+	.handler(({ data }) =>
+		readGit(
+			`getTreePageData ${data.branchName}:${data.path}`,
 			data.repoId,
-			async (repo) => {
-				const storage = getStorage(repo);
-
-				const treePage = await perfStep("getRepositoryTreeData", () =>
-					gitGetRepositoryTreeData(
-						storage.ownerKey,
-						repo.name,
-						data.branchName,
-						data.path,
-					),
+			async (owner, name) => {
+				const page = await gitRead.getRepositoryTreeData(
+					owner,
+					name,
+					data.branchName,
+					data.path,
 				);
-
 				return {
-					...treePage,
-					latestCommit: treePage.latestCommit
-						? {
-								sha: treePage.latestCommit.oid,
-								message: treePage.latestCommit.commit.message.trim(),
-								createdAt: new Date(
-									treePage.latestCommit.commit.author.timestamp * 1000,
-								).toISOString(),
-								authorName: treePage.latestCommit.commit.author.name,
-							}
-						: undefined,
+					...page,
+					latestCommit: page.latestCommit && summarizeCommit(page.latestCommit),
 				};
 			},
 		),
 	);
 
-/**
- * Get, per directory entry, the most recent commit that touched it —
- * powers the GitHub-style "last commit" column on the tree view.
- */
+/** Per directory entry, the latest commit that touched it (the "last commit" column). */
 export const getLastCommits = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: safeRefNameSchema,
-				path: safeRepoPathSchema.optional().default(""),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getLastCommits repo=${data.repoId} ${data.branchName}:${data.path || "/"}`,
+	.validator(refPath)
+	.handler(({ data }) =>
+		readGit(
+			`getLastCommits ${data.branchName}:${data.path}`,
 			data.repoId,
-			(repo) => {
-				const storage = getStorage(repo);
-				return perfStep("getLastCommitsForTree", () =>
-					getLastCommitsForTree(
-						storage.ownerKey,
-						repo.name,
-						data.branchName,
-						data.path || "",
-					),
-				);
-			},
+			(owner, name) =>
+				gitRead.getLastCommitsForTree(owner, name, data.branchName, data.path),
 		),
 	);
 
-/**
- * Get commits that touched a single file — powers the "latest commit" banner
- * and the file-scoped History tab on the file viewer.
- */
+/** Commits that touched one file: the blob page's banner and History tab. */
 export const getFileHistory = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: safeRefNameSchema,
-				path: safeRepoPathSchema,
-				limit: z.number().max(100).optional().default(30),
-				// Lets the blob page's single-latest-commit banner ask for a much
-				// shallower walk (BANNER_WALK_DEPTH) than the full "History" tab
-				// (HISTORY_WALK_DEPTH) — see git-file-history.ts.
-				maxDepth: z.number().max(HISTORY_WALK_DEPTH).optional(),
-			})
-			.parse(data),
+	.validator(
+		refPath.extend({
+			limit: z.number().int().min(1).max(100).default(30),
+			/** "banner": only the latest commit is shown, so walk shallowly first. */
+			depth: z.enum(["banner", "full"]).default("full"),
+		}),
 	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getFileHistory repo=${data.repoId} ${data.branchName}:${data.path} limit=${data.limit}`,
+	.handler(({ data }) =>
+		readGit(
+			`getFileHistory ${data.branchName}:${data.path}`,
 			data.repoId,
-			(repo) => {
-				const storage = getStorage(repo);
-				return perfStep("gitGetFileHistory", () =>
-					gitGetFileHistory(
-						storage.ownerKey,
-						repo.name,
-						data.branchName,
-						data.path,
-						data.limit,
-						data.maxDepth ?? HISTORY_WALK_DEPTH,
-					),
+			(owner, name) =>
+				gitRead.getFileHistory(
+					owner,
+					name,
+					data.branchName,
+					data.path,
+					data.limit,
+					data.depth === "banner" ? BANNER_WALK_DEPTH : undefined,
+				),
+		),
+	);
+
+export const getBranches = createServerFn({ method: "GET" })
+	.validator(z.object({ repoId: z.number() }))
+	.handler(({ data }) =>
+		readGit("getBranches", data.repoId, (owner, name) =>
+			gitRead.getBranches(owner, name),
+		),
+	);
+
+export const getCommits = createServerFn({ method: "GET" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			branchName: safeRefNameSchema,
+			limit: z.number().int().min(1).max(100).default(50),
+			skip: z.number().int().min(0).default(0),
+		}),
+	)
+	.handler(({ data }) =>
+		readGit(
+			`getCommits ${data.branchName}`,
+			data.repoId,
+			async (owner, name) => {
+				const commits = await gitRead.getCommitHistory(
+					owner,
+					name,
+					data.branchName,
+					data.limit,
+					data.skip,
 				);
+				return commits.map(summarizeCommit);
 			},
 		),
 	);
 
-/**
- * Delete file from repository
- */
-export const deleteFile = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: safeBranchNameSchema,
-				path: safeRepoPathSchema,
-				commitMessage: z.string(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
+const identity = (who: { name: string; email: string; timestamp: number }) => ({
+	name: who.name,
+	email: who.email,
+	date: new Date(who.timestamp * 1000).toISOString(),
+});
 
-		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
-
-		const storage = getStorage(repo);
-
-		// Delete file and create commit
-		const commitInfo = await gitDeleteFile(
-			storage.ownerKey,
-			repo.name,
-			data.branchName,
-			data.path,
-			data.commitMessage,
-			{ name: user.name || user.username || "Unknown", email: user.email },
-		);
-
-		// Log activity
-		await db.insert(activities).values({
-			userId: user.id,
-			repoId: data.repoId,
-			type: "commit",
-			metadata: {
-				commitSha: commitInfo.sha,
-				message: data.commitMessage,
-				filesCount: 1,
-			},
-		});
-
-		return { success: true, commit: commitInfo };
-	});
-
-/**
- * Get repository branches
- */
-export const getBranches = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(`getBranches repo=${data.repoId}`, data.repoId, (repo) => {
-			const storage = getStorage(repo);
-			return perfStep("gitGetBranches", () =>
-				gitGetBranches(storage.ownerKey, repo.name),
+export const getCommit = createServerFn({ method: "GET" })
+	.validator(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema }))
+	.handler(({ data }) =>
+		readGit(`getCommit ${data.commitSha}`, data.repoId, async (owner, name) => {
+			const { oid, commit } = await gitRead.getCommit(
+				owner,
+				name,
+				data.commitSha,
 			);
+			return {
+				sha: oid,
+				message: commit.message.trim(),
+				parents: commit.parent,
+				author: identity(commit.author),
+				committer: identity(commit.committer),
+			};
 		}),
 	);
 
-/**
- * Create branch
- */
-export const createBranch = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				name: safeBranchNameSchema,
-				/** Defaults to the repository's default branch. */
-				fromBranch: safeBranchNameSchema.optional(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
-
-		const storage = getStorage(repo);
-
-		// Create branch in git
-		await gitCreateBranch(
-			storage.ownerKey,
-			repo.name,
-			data.name,
-			data.fromBranch ?? repo.defaultBranch,
-		);
-
-		return { success: true, name: data.name };
-	});
-
-/**
- * Delete branch
- */
-export const deleteBranch = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				name: safeBranchNameSchema,
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
-
-		// Don't allow deleting default branch
-		if (data.name === repo.defaultBranch) {
-			throw new Error("Cannot delete default branch");
-		}
-
-		const storage = getStorage(repo);
-
-		// Delete branch from git
-		await gitDeleteBranch(storage.ownerKey, repo.name, data.name);
-
-		return { success: true };
-	});
-
-/**
- * Get commits for a branch
- */
-export const getCommits = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				branchName: safeRefNameSchema,
-				limit: z.number().max(100).optional().default(50),
-				skip: z.number().optional().default(0),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getCommits repo=${data.repoId} ${data.branchName} limit=${data.limit}`,
-			data.repoId,
-			async (repo) => {
-				const storage = getStorage(repo);
-
-				const commits = await perfStep("getCommitHistory", () =>
-					getCommitHistory(
-						storage.ownerKey,
-						repo.name,
-						data.branchName,
-						data.limit,
-						data.skip,
-					),
-				);
-
-				return commits.map((commit) => ({
-					sha: commit.oid,
-					message: commit.commit.message.trim(),
-					createdAt: new Date(
-						commit.commit.author.timestamp * 1000,
-					).toISOString(),
-					authorName: commit.commit.author.name,
-					authorEmail: commit.commit.author.email,
-					author: {
-						name: commit.commit.author.name,
-						email: commit.commit.author.email,
-					},
-				}));
-			},
-		),
-	);
-
-/**
- * Get commit details by SHA
- */
-export const getCommit = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				commitSha: safeCommitShaSchema,
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getCommit repo=${data.repoId} ${data.commitSha}`,
-			data.repoId,
-			async (repo) => {
-				const storage = getStorage(repo);
-
-				const commit = await perfStep("gitGetCommit", () =>
-					gitGetCommit(storage.ownerKey, repo.name, data.commitSha),
-				);
-
-				return {
-					sha: commit.oid,
-					message: commit.commit.message.trim(),
-					tree: commit.commit.tree,
-					parent: commit.commit.parent,
-					payload: commit.payload,
-					branch: repo.defaultBranch,
-					author: {
-						name: commit.commit.author.name,
-						email: commit.commit.author.email,
-						date: new Date(commit.commit.author.timestamp * 1000).toISOString(),
-					},
-					committer: {
-						name: commit.commit.committer.name,
-						email: commit.commit.committer.email,
-						date: new Date(
-							commit.commit.committer.timestamp * 1000,
-						).toISOString(),
-					},
-				};
-			},
-		),
-	);
-
-/**
- * Get commit diff
- */
 export const getCommitDiff = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				commitSha: safeCommitShaSchema,
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getCommitDiff repo=${data.repoId} ${data.commitSha}`,
-			data.repoId,
-			(repo) => {
-				const storage = getStorage(repo);
-				return perfStep("GitDiff.getCommitDiff", () =>
-					GitDiff.getCommitDiff(storage.ownerKey, repo.name, data.commitSha),
-				);
-			},
+	.validator(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema }))
+	.handler(({ data }) =>
+		readGit(`getCommitDiff ${data.commitSha}`, data.repoId, (owner, name) =>
+			gitRead.getCommitDiff(owner, name, data.commitSha),
 		),
 	);
 
-/**
- * Get diff between branches (for pull requests)
- */
+/** A pull request's diff: what `sourceBranch` changed since branching from `targetBranch`. */
 export const getBranchDiff = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				sourceBranch: safeBranchNameSchema,
-				targetBranch: safeBranchNameSchema,
-			})
-			.parse(data),
+	.validator(
+		z.object({
+			repoId: z.number(),
+			sourceBranch: safeBranchNameSchema,
+			targetBranch: safeBranchNameSchema,
+		}),
 	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getBranchDiff repo=${data.repoId} ${data.sourceBranch}...${data.targetBranch}`,
+	.handler(({ data }) =>
+		readGit(
+			`getBranchDiff ${data.targetBranch}...${data.sourceBranch}`,
 			data.repoId,
-			(repo) => {
-				const storage = getStorage(repo);
-				return perfStep("GitDiff.getDiffBetweenBranches", () =>
-					GitDiff.getDiffBetweenBranches(
-						storage.ownerKey,
-						repo.name,
-						data.targetBranch,
-						data.sourceBranch,
-					),
-				);
-			},
+			(owner, name) =>
+				gitRead.getBranchDiff(
+					owner,
+					name,
+					data.targetBranch,
+					data.sourceBranch,
+				),
 		),
+	);
+
+/** Commit one file (base64 content) onto a branch. */
+export const uploadFile = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			branchName: safeBranchNameSchema,
+			path: safeRepoPathSchema.min(1),
+			content: z.base64(),
+			commitMessage: z.string().trim().min(1),
+		}),
+	)
+	.handler(({ data }) =>
+		writeWithAccess(data.repoId, async (repo, user) => {
+			const sha = await gitWrite.createCommit(ownerKeyOf(repo), repo.name, {
+				branch: data.branchName,
+				message: data.commitMessage,
+				files: [{ path: data.path, content: base64ToBytes(data.content) }],
+				author: { name: user.name, email: user.email },
+			});
+			await recordActivity(user.id, repo.id, {
+				type: "commit",
+				metadata: { commitSha: sha, message: data.commitMessage },
+			});
+			return { commit: { sha, message: data.commitMessage } };
+		}),
+	);
+
+export const deleteFile = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			branchName: safeBranchNameSchema,
+			path: safeRepoPathSchema.min(1),
+			commitMessage: z.string().trim().min(1),
+		}),
+	)
+	.handler(({ data }) =>
+		writeWithAccess(data.repoId, async (repo, user) => {
+			const sha = await gitWrite.deleteFile(ownerKeyOf(repo), repo.name, {
+				branch: data.branchName,
+				filePath: data.path,
+				message: data.commitMessage,
+				author: { name: user.name, email: user.email },
+			});
+			await recordActivity(user.id, repo.id, {
+				type: "commit",
+				metadata: { commitSha: sha, message: data.commitMessage },
+			});
+			return { commit: { sha, message: data.commitMessage } };
+		}),
+	);
+
+export const createBranch = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			name: safeBranchNameSchema,
+			/** Defaults to the repository's default branch. */
+			fromBranch: safeBranchNameSchema.optional(),
+		}),
+	)
+	.handler(({ data }) =>
+		writeWithAccess(data.repoId, async (repo) => {
+			await gitWrite.createBranch(
+				ownerKeyOf(repo),
+				repo.name,
+				data.name,
+				data.fromBranch ?? repo.defaultBranch,
+			);
+			return { name: data.name };
+		}),
+	);
+
+export const deleteBranch = createServerFn({ method: "POST" })
+	.validator(z.object({ repoId: z.number(), name: safeBranchNameSchema }))
+	.handler(({ data }) =>
+		writeWithAccess(data.repoId, async (repo) => {
+			if (data.name === repo.defaultBranch) {
+				throw new Error("Cannot delete the default branch");
+			}
+			await gitWrite.deleteBranch(ownerKeyOf(repo), repo.name, data.name);
+		}),
 	);

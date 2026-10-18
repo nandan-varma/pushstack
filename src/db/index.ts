@@ -2,7 +2,10 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { isPerfLogEnabled } from "#/lib/perf-log";
 import { perfNote } from "#/server/perf-log";
-import * as schema from "./schema.ts";
+import * as appSchema from "./app-schema";
+import * as authSchema from "./schema";
+
+const schema = { ...authSchema, ...appSchema };
 
 if (!process.env.DATABASE_URL) {
 	throw new Error("DATABASE_URL environment variable is not set");

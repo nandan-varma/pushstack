@@ -4,11 +4,10 @@ Two separate authentication surfaces exist in this app, plus one unified
 access-control model that both funnel into.
 
 1. **Web session auth** — Better Auth, cookie-based, for the browser UI.
-2. **Git-over-HTTP auth** — Basic Auth (PAT or username/password) for `git
-   clone`/`fetch`/`push`, since a git client can't do cookie-based sessions.
+2. **Git-over-HTTPS auth** — personal access tokens over Basic Auth for `git
+   clone`/`fetch`/`push`.
 3. **`RepositoryAccess`** — the single computation (`src/server/repo-access.ts`)
-   that both of the above ultimately check against to decide what a given user
-   can actually do with a given repository.
+   both funnel into.
 
 ## Web session auth (Better Auth)
 
@@ -22,9 +21,10 @@ Configured in `src/lib/auth.ts`:
   request.
 - Password reset and email verification both send through Resend, wired into
   Better Auth's `sendResetPassword`/`sendVerificationEmail` hooks.
-- `username` plugin adds a username field (3–30 chars) alongside email —
-  usernames are what shows up in repo URLs and storage keys (see
-  [git-storage.md](./git-storage.md)'s `getStorageOwnerKey`).
+- The `username` plugin adds a username (3–30 chars, `STORAGE_NAME_RE`).
+  It's required at sign-up and can never change: it appears in repo URLs and
+  is the first segment of every storage key (see
+  [git-storage.md](./git-storage.md)). `databaseHooks` enforce both.
 - Cookies: secure, `pushstack`-prefixed, not shared cross-subdomain.
 
 **`BETTER_AUTH_SECRET` must never reach the browser bundle.** `src/lib/auth.ts`
@@ -57,37 +57,22 @@ else in `src/server/` calls:
 
 ## Git-over-HTTPS auth (`git-auth.ts`)
 
-A `git clone`/`push` request can't participate in a browser session, so every
-git HTTP request is authenticated independently via `authenticateGitRequest`,
-which tries, in order:
+A git client can't hold a browser session, so `authorizeGitRequest(request,
+repo, needsWrite)` authenticates every git request on its own, with
+**personal access tokens only**:
 
-1. **Better Auth session cookie** — if the request has a `cookie` header at
-   all (a real git CLI request never does, so this is skipped entirely for
-   CLI traffic, avoiding a wasted session-validation call).
-2. **Personal Access Token** — HTTP Basic Auth where the password (or,
-   for compatibility, the username) starts with `ghp_`. The token is hashed
-   with SHA-256 and looked up by that hash (`tokens.tokenHash`) — the raw
-   token is never stored. Plain SHA-256 (no bcrypt/argon2) is intentional and
-   correct here: PATs are high-entropy random strings, not
-   low-entropy human passwords, so they aren't vulnerable to the rainbow-table
-   attacks password hashing guards against.
-3. **Username/password** — falls back to verifying against the `account`
-   table's stored credential hash via Better Auth's own `verifyPassword`.
-   This path bypasses Better Auth's own rate limiter entirely (that one only
-   wraps `/api/auth/*` requests), so it's rate-limited independently: 10
-   failed attempts per (case-insensitive) username/email within a 5-minute
-   window locks that key out, tracked in a `git_auth_attempts` DB table
-   (not an in-process counter — see [security.md](./security.md)'s "Git
-   password-auth rate limiting" for why a serverless deployment needs the
-   DB-backed version). Only failed attempts count, so frequent legitimate
-   re-auth (e.g. CI polling) never trips it.
+- The token (`pst_…`) goes in the Basic-auth password or username slot.
+  It's hashed with SHA-256 and looked up by hash; the raw token is never
+  stored. Plain SHA-256 is right for high-entropy random tokens.
+- No passwords: a password over git can't be scoped or revoked on its own,
+  and verifying one per request would need its own rate limiter.
+- No cookies: a cookie-authenticated git endpoint is a CSRF target.
+- No credentials → anonymous: reads of public repos succeed; anything else
+  gets `401` with `WWW-Authenticate`, so the client prompts.
+- Bad or expired token → `401`. A valid token without the needed scope
+  (`repo:read` / `repo:write`, write implies read) or role → `403`.
 
-Token scopes (`repo:read`/`repo:write`, or none = unrestricted) are checked
-against the requested operation via `hasRequiredTokenScope` — a token scoped
-to `repo:write` implicitly satisfies a `repo:read` requirement.
-
-None of these three paths ever log the credential itself — only generic
-"auth failed" messages, so nothing sensitive ends up in server logs.
+Credentials are never logged.
 
 ## `RepositoryAccess` — the single access-control computation
 
@@ -103,7 +88,6 @@ object per `(repoId, userId)` pair:
 ```ts
 interface RepositoryAccess {
   repository: ...;
-  collaboratorRole: "read" | "write" | "admin" | null;
   role: "anonymous" | "read" | "write" | "admin" | "owner";
   canRead: boolean;
   canWrite: boolean;
@@ -112,10 +96,9 @@ interface RepositoryAccess {
 }
 ```
 
-Resolution order (`buildAccess`): public + anonymous → read-only; private +
-anonymous → no access; owner → full access; then falls through to the
-collaborator role (`admin`/`write`/`read` collaborators get progressively
-fewer permissions); anything else falls back to "can read only if public."
+`buildAccess` picks the role (owner, else the collaborator role, else
+anonymous) and reads its flags from one `PERMISSIONS` table; anonymous can
+read only public repositories.
 
 **This is the only place in the codebase that should ever compute this.**
 Every server function that touches a repository calls through one of:
@@ -126,16 +109,14 @@ Every server function that touches a repository calls through one of:
   repository: true } })`) — skips a redundant repo-row fetch.
 - `canReadRepo` / `canWriteRepo` / `canModerateRepo` / `canMergePullRequest` —
   boolean convenience wrappers.
-- `requireReadAccess(repoId, userId)` / `requireWriteAccess(repoId, userId)` —
-  throw instead of returning a boolean; use these instead of hand-rolling a
-  fetch-then-check block in a new handler.
-- `getRepoWithReadAccess` / `getRepoWithWriteAccess` — fetch-and-check in one
-  call, returning the repository row on success.
-
-**These are all broader-than-owner checks** — any write collaborator passes
-`requireWriteAccess`. Owner-only actions (deleting a repo, managing
-collaborators) still need an explicit `repo.ownerId !== user.id` check on top;
-there's no single helper for "owner only" because so few actions need it.
+- `requireWriteAccess(repoId, userId)` — throws instead of returning.
+- `readWithAccess(label, repoId, fn)` — the read-handler shape: perf
+  context, optional session, read check (a private repo answers like a
+  missing one), then `fn(repo)`.
+- `writeWithAccess(repoId, fn(repo, user))` — the same for writes,
+  requiring a session and write access.
+- `requireOwner(repoId, userId, message)` — owner-only actions (rename,
+  delete, collaborators, repack).
 
 ### Why there's a short-TTL cache in front of this
 

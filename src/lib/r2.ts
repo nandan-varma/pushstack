@@ -51,13 +51,6 @@ export function isR2Configured() {
 	);
 }
 
-export function getR2Config() {
-	return {
-		bucketName: process.env.R2_BUCKET_NAME || "",
-		endpoint: process.env.R2_ENDPOINT || "",
-	};
-}
-
 function encodeKey(key: string): string {
 	return key.split("/").map(encodeURIComponent).join("/");
 }

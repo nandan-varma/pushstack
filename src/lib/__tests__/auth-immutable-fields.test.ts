@@ -14,19 +14,9 @@ vi.hoisted(() => {
 		"test-better-auth-secret-with-32-plus-characters";
 });
 
-vi.mock("#/db/index", async () => {
-	const { PGlite } = await import("@electric-sql/pglite");
-	const { drizzle } = await import("drizzle-orm/pglite");
-	const { pushSchema } = await import("drizzle-kit/api");
-	const schema = await import("../../db/schema");
-	const db = drizzle(new PGlite(), { schema });
-	const { apply } = await pushSchema(
-		schema as unknown as Record<string, unknown>,
-		db as unknown as Parameters<typeof pushSchema>[1],
-	);
-	await apply();
-	return { db };
-});
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
 
 vi.mock("../email", () => ({ sendEmail: vi.fn(async () => undefined) }));
 

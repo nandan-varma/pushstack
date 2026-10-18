@@ -1,418 +1,258 @@
+/** Server functions for pull requests. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "../db";
-import { activities, issues, pullRequests } from "../db/app-schema";
-import { analyzeMerge, mergeBranches } from "./git-merge-iso";
+import { db } from "#/db";
+import { issues, pullRequests } from "#/db/app-schema";
+import { recordActivity } from "./activity";
+import { analyzeMerge } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
-import { getRepoStorageCoordinates } from "./git-storage-naming";
-import { perfContext, perfStep } from "./perf-log";
+import { ownerKeyOf } from "./git-storage-naming";
+import { mergeBranches } from "./git-write";
 import {
 	canMergePullRequest,
 	canWriteRepo,
-	getAccessForRepository,
-	getRepoWithWriteAccess,
 	readWithAccess,
-	requireWriteAccess,
+	writeWithAccess,
 } from "./repo-access";
-import { claimNextIssueOrPrNumber, findRepositoryByName } from "./repositories";
-import { getCurrentUser, getCurrentUserOptional } from "./session";
+import {
+	claimNextIssueOrPrNumber,
+	publicUserFields,
+	readRepoByName,
+} from "./repositories";
+import { getCurrentUser } from "./session";
 
-// ============ PULL REQUESTS ============
-
-// A repository currently gives issues and pull requests independent numeric
-// sequences. In a closing phrase, however, `#123` conventionally means an
-// issue. Restrict automatic state changes to those explicit verbs so ordinary
-// references never close anything by accident.
+/**
+ * Issue numbers a PR body closes on merge ("Closes #4", "fixes #12", …).
+ * Only these explicit verbs: a bare `#N` reference never closes anything.
+ */
 const CLOSING_ISSUE_REFERENCE =
 	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+(?:issue\s+)?#(\d+)\b/gi;
 
-export function getClosingIssueNumbers(
-	body: string | null | undefined,
-): number[] {
-	if (!body) return [];
+export function getClosingIssueNumbers(body: string | null): number[] {
 	const numbers = new Set<number>();
-	for (const match of body.matchAll(CLOSING_ISSUE_REFERENCE)) {
+	for (const match of body?.matchAll(CLOSING_ISSUE_REFERENCE) ?? []) {
 		const number = Number(match[1]);
 		if (Number.isSafeInteger(number) && number > 0) numbers.add(number);
 	}
 	return [...numbers];
 }
 
-// Create pull request
 export const createPullRequest = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				title: z.string().min(1),
-				body: z.string().optional(),
-				sourceBranchName: safeBranchNameSchema,
-				targetBranchName: safeBranchNameSchema,
-			})
-			.parse(data),
+	.validator(
+		z.object({
+			repoId: z.number(),
+			title: z.string().trim().min(1).max(256),
+			body: z.string().optional(),
+			sourceBranchName: safeBranchNameSchema,
+			targetBranchName: safeBranchNameSchema,
+		}),
 	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
+	.handler(({ data }) =>
+		writeWithAccess(data.repoId, async (repo, currentUser) => {
+			if (data.sourceBranchName === data.targetBranchName) {
+				throw new Error("A pull request needs two different branches");
+			}
+			const { canMerge } = await analyzeMerge(
+				ownerKeyOf(repo),
+				repo.name,
+				data.sourceBranchName,
+				data.targetBranchName,
+			);
+			if (!canMerge) throw new Error("Both branches must exist");
 
-		await requireWriteAccess(data.repoId, user.id);
+			const [pr] = await db
+				.insert(pullRequests)
+				.values({
+					repoId: repo.id,
+					number: await claimNextIssueOrPrNumber(repo.id),
+					authorId: currentUser.id,
+					title: data.title,
+					body: data.body || null,
+					sourceBranch: data.sourceBranchName,
+					targetBranch: data.targetBranchName,
+				})
+				.returning();
+			if (!pr) throw new Error("Pull request insert returned no row");
+			await recordActivity(currentUser.id, repo.id, {
+				type: "pr",
+				metadata: { number: pr.number, title: pr.title, action: "opened" },
+			});
+			return pr;
+		}),
+	);
 
-		// Validate branches exist - we now work with branch names directly
-		if (data.sourceBranchName === data.targetBranchName) {
-			throw new Error("Cannot create PR from same branch");
-		}
-
-		const number = await claimNextIssueOrPrNumber(data.repoId);
-
-		const [pr] = await db
-			.insert(pullRequests)
-			.values({
-				repoId: data.repoId,
-				number,
-				authorId: user.id,
-				title: data.title,
-				body: data.body || null,
-				sourceBranch: data.sourceBranchName,
-				targetBranch: data.targetBranchName,
-				status: "open",
-			})
-			.returning();
-
-		// Log activity
-		await db.insert(activities).values({
-			userId: user.id,
-			repoId: data.repoId,
-			type: "pr",
-			metadata: {
-				prId: pr.number,
-				title: pr.title,
-				action: "opened",
-			},
-		});
-
-		return pr;
-	});
-
-// Get pull requests
 export const getPullRequests = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				status: z
-					.enum(["open", "closed", "merged", "all"])
-					.optional()
-					.default("open"),
-				limit: z.number().max(100).optional().default(100),
-				skip: z.number().optional().default(0),
-			})
-			.parse(data),
+	.validator(
+		z.object({
+			repoId: z.number(),
+			status: z.enum(["open", "closed", "merged", "all"]).default("open"),
+			limit: z.number().int().min(1).max(100).default(100),
+			skip: z.number().int().min(0).default(0),
+		}),
 	)
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getPullRequests repo=${data.repoId} ${data.status}`,
-			data.repoId,
-			() =>
-				perfStep("db: pullRequests.findMany", () =>
-					db.query.pullRequests.findMany({
-						where: and(
-							eq(pullRequests.repoId, data.repoId),
-							data.status !== "all"
-								? eq(pullRequests.status, data.status)
-								: undefined,
-						),
-						with: {
-							author: true,
-						},
-						orderBy: [desc(pullRequests.createdAt)],
-						limit: data.limit,
-						offset: data.skip,
-					}),
+	.handler(({ data }) =>
+		readWithAccess(`getPullRequests ${data.status}`, data.repoId, () =>
+			db.query.pullRequests.findMany({
+				where: and(
+					eq(pullRequests.repoId, data.repoId),
+					data.status === "all"
+						? undefined
+						: eq(pullRequests.status, data.status),
 				),
+				with: { author: publicUserFields },
+				orderBy: [desc(pullRequests.createdAt)],
+				limit: data.limit,
+				offset: data.skip,
+			}),
 		),
 	);
 
-// Get all pull request numbers for a repo — used to resolve `#123`
-// references in markdown (commit messages, PR/issue bodies, comments) to PR
-// links, disambiguated from issue numbers.
+/** Every pull request number in a repository (resolves `#N` references in markdown). */
 export const getPullRequestNumbers = createServerFn({ method: "GET" })
-	.validator((data: unknown) => z.object({ repoId: z.number() }).parse(data))
-	.handler(async ({ data }) =>
-		readWithAccess(
-			`getPullRequestNumbers repo=${data.repoId}`,
-			data.repoId,
-			async () => {
-				const rows = await perfStep("db: pullRequests numbers", () =>
-					db
-						.select({ number: pullRequests.number })
-						.from(pullRequests)
-						.where(eq(pullRequests.repoId, data.repoId)),
-				);
-
-				return rows.map((row) => row.number);
-			},
-		),
+	.validator(z.object({ repoId: z.number() }))
+	.handler(({ data }) =>
+		readWithAccess("getPullRequestNumbers", data.repoId, async () => {
+			const rows = await db
+				.select({ number: pullRequests.number })
+				.from(pullRequests)
+				.where(eq(pullRequests.repoId, data.repoId));
+			return rows.map((row) => row.number);
+		}),
 	);
 
-// Get pull request by its repo-scoped display number (the `$id` route
-// param) — mirrors getIssueByNumber in issues.ts.
+/** A pull request by its repo-scoped number (the `#N` in URLs). */
 export const getPullRequestByNumber = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				owner: z.string(),
-				name: z.string(),
-				number: z.number(),
-			})
-			.parse(data),
+	.validator(
+		z.object({ owner: z.string(), name: z.string(), number: z.number().int() }),
 	)
-	.handler(async ({ data }) =>
-		perfContext(
+	.handler(({ data }) =>
+		readRepoByName(
 			`getPullRequestByNumber ${data.owner}/${data.name}#${data.number}`,
-			async () => {
-				const user = await perfStep("getCurrentUserOptional", () =>
-					getCurrentUserOptional(),
-				);
-
-				const repo = await perfStep("findRepositoryByName", () =>
-					findRepositoryByName(data.owner, data.name),
-				);
-				if (!repo) {
-					throw notFound();
-				}
-
-				const access = await perfStep("getAccessForRepository", () =>
-					getAccessForRepository(repo, user?.id),
-				);
-				if (!access.canRead) {
-					throw notFound();
-				}
-
-				const pr = await perfStep("db: pullRequests.findFirst", () =>
-					db.query.pullRequests.findFirst({
-						where: and(
-							eq(pullRequests.repoId, repo.id),
-							eq(pullRequests.number, data.number),
-						),
-						with: {
-							author: true,
-						},
-					}),
-				);
-
-				if (!pr) {
-					throw notFound();
-				}
-
+			data.owner,
+			data.name,
+			async (repo) => {
+				const pr = await db.query.pullRequests.findFirst({
+					where: and(
+						eq(pullRequests.repoId, repo.id),
+						eq(pullRequests.number, data.number),
+					),
+					with: { author: publicUserFields },
+				});
+				if (!pr) throw notFound();
 				return pr;
 			},
 		),
 	);
 
-// Get pull request by ID
-export const getPullRequest = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				prId: z.number(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		perfContext(`getPullRequest ${data.prId}`, async () => {
-			const user = await perfStep("getCurrentUserOptional", () =>
-				getCurrentUserOptional(),
-			);
-
-			const pr = await perfStep("db: pullRequests.findFirst", () =>
-				db.query.pullRequests.findFirst({
-					where: eq(pullRequests.id, data.prId),
-					with: {
-						author: true,
-						repository: true,
-					},
-				}),
-			);
-
-			if (!pr) {
-				throw new Error("Pull request not found");
-			}
-
-			// The query above already fetched the repository row via the
-			// relation — reuse it instead of canReadRepo's own repo fetch.
-			const access = await perfStep("getAccessForRepository", () =>
-				getAccessForRepository(pr.repository, user?.id),
-			);
-			if (!access.canRead) {
-				throw new Error("Access denied");
-			}
-
-			return pr;
-		}),
-	);
-
-// Update pull request
 export const updatePullRequest = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				prId: z.number(),
-				title: z.string().optional(),
-				body: z.string().optional(),
-				status: z.enum(["open", "closed"]).optional(),
-			})
-			.parse(data),
+	.validator(
+		z.object({
+			prId: z.number(),
+			title: z.string().trim().min(1).max(256).optional(),
+			body: z.string().optional(),
+			status: z.enum(["open", "closed"]).optional(),
+		}),
 	)
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		const pr = await db.query.pullRequests.findFirst({
 			where: eq(pullRequests.id, data.prId),
 		});
-
-		if (!pr) {
-			throw new Error("Pull request not found");
-		}
-
-		if (pr.authorId !== user.id && !(await canWriteRepo(pr.repoId, user.id))) {
+		if (!pr) throw notFound();
+		if (
+			pr.authorId !== currentUser.id &&
+			!(await canWriteRepo(pr.repoId, currentUser.id))
+		) {
 			throw new Error("Access denied");
 		}
-
+		if (pr.status === "merged")
+			throw new Error("A merged pull request can't be changed");
+		const { prId, ...fields } = data;
 		const [updated] = await db
 			.update(pullRequests)
-			.set({
-				...(data.title && { title: data.title }),
-				...(data.body !== undefined && { body: data.body }),
-				...(data.status && { status: data.status }),
-				updatedAt: new Date(),
-			})
-			.where(eq(pullRequests.id, data.prId))
+			.set({ ...fields, updatedAt: new Date() })
+			.where(eq(pullRequests.id, prId))
 			.returning();
-
+		if (data.status === "closed" && pr.status !== "closed") {
+			await recordActivity(currentUser.id, pr.repoId, {
+				type: "pr",
+				metadata: { number: pr.number, title: pr.title, action: "closed" },
+			});
+		}
 		return updated;
 	});
 
-// Merge pull request
 export const mergePullRequest = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				prId: z.number(),
-				commitMessage: z.string().optional(),
-				strategy: z
-					.enum(["merge", "ours", "theirs"])
-					.optional()
-					.default("merge"),
-			})
-			.parse(data),
+	.validator(
+		z.object({ prId: z.number(), commitMessage: z.string().trim().optional() }),
 	)
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		const pr = await db.query.pullRequests.findFirst({
 			where: eq(pullRequests.id, data.prId),
-			with: {
-				repository: {
-					with: {
-						owner: true,
-					},
-				},
-			},
 		});
-
-		if (!pr) {
-			throw new Error("Pull request not found");
-		}
-
-		if (!(await canMergePullRequest(pr.repoId, user.id))) {
+		if (!pr) throw notFound();
+		if (!(await canMergePullRequest(pr.repoId, currentUser.id))) {
 			throw new Error("Access denied");
 		}
+		if (pr.status !== "open") throw new Error("Pull request is not open");
 
-		if (pr.status !== "open") {
-			throw new Error("Pull request is not open");
-		}
-
-		// Get repository
-		const repo = await getRepoWithWriteAccess(pr.repoId, user.id);
-		const storage = getRepoStorageCoordinates(repo);
-
-		// Cheap pre-check: do both branches still exist? (analyzeMerge does NOT
-		// detect real content conflicts — see its doc comment in git-merge-iso.ts.
-		// Those are only discoverable by actually attempting the merge below.)
-		const analysis = await analyzeMerge(
-			storage.ownerKey,
-			repo.name,
-			pr.sourceBranch,
-			pr.targetBranch,
-		);
-
-		if (!analysis.canMerge) {
-			throw new Error("Cannot merge: source or target branch no longer exists");
-		}
-
-		// Perform the merge
-		const mergeMessage =
-			data.commitMessage || `Merge pull request #${pr.number}: ${pr.title}`;
-		const mergeResult = await mergeBranches(
-			storage.ownerKey,
-			repo.name,
-			pr.sourceBranch,
-			pr.targetBranch,
-			{
-				message: mergeMessage,
-				authorName: user.name || user.username || "Unknown",
-				authorEmail: user.email,
-				strategy: data.strategy,
-			},
-		);
-
-		if (!mergeResult.success) {
-			throw new Error(
-				`Merge failed: ${mergeResult.conflicts?.join(", ") || "Unknown error"}`,
+		return writeWithAccess(pr.repoId, async (repo) => {
+			const result = await mergeBranches(
+				ownerKeyOf(repo),
+				repo.name,
+				pr.sourceBranch,
+				pr.targetBranch,
+				{
+					message:
+						data.commitMessage ||
+						`Merge pull request #${pr.number}: ${pr.title}`,
+					authorName: currentUser.name,
+					authorEmail: currentUser.email,
+				},
 			);
-		}
+			if (!result.success) {
+				throw new Error(`Merge failed: ${result.conflicts.join(", ")}`);
+			}
 
-		// Update PR status
-		await db
-			.update(pullRequests)
-			.set({
-				status: "merged",
-				mergedAt: new Date(),
-				mergedBy: user.id,
-				mergeCommitSha: mergeResult.commitSha,
-			})
-			.where(eq(pullRequests.id, data.prId));
+			// Conditional on still being open: of two concurrent merges, only one
+			// records the merge (the other's merge was a no-op on git's side).
+			const [merged] = await db
+				.update(pullRequests)
+				.set({
+					status: "merged",
+					mergedAt: new Date(),
+					mergedBy: currentUser.id,
+					mergeCommitSha: result.commitSha,
+					updatedAt: new Date(),
+				})
+				.where(and(eq(pullRequests.id, pr.id), eq(pullRequests.status, "open")))
+				.returning({ id: pullRequests.id });
+			if (!merged) return { commitSha: result.commitSha };
 
-		const closingIssueNumbers = getClosingIssueNumbers(pr.body);
-		if (closingIssueNumbers.length > 0) {
-			await db
-				.update(issues)
-				.set({ status: "closed", closedAt: new Date(), updatedAt: new Date() })
-				.where(
-					and(
-						eq(issues.repoId, pr.repoId),
-						inArray(issues.number, closingIssueNumbers),
-						eq(issues.status, "open"),
-					),
-				);
-		}
-
-		// Log activity
-		await db.insert(activities).values({
-			userId: user.id,
-			repoId: pr.repoId,
-			type: "pr",
-			metadata: {
-				prId: pr.number,
-				title: pr.title,
-				action: "merged",
-				mergeCommitSha: mergeResult.commitSha,
-			},
+			const closing = getClosingIssueNumbers(pr.body);
+			if (closing.length > 0) {
+				await db
+					.update(issues)
+					.set({
+						status: "closed",
+						closedAt: new Date(),
+						updatedAt: new Date(),
+					})
+					.where(
+						and(
+							eq(issues.repoId, pr.repoId),
+							inArray(issues.number, closing),
+							eq(issues.status, "open"),
+						),
+					);
+			}
+			await recordActivity(currentUser.id, pr.repoId, {
+				type: "pr",
+				metadata: { number: pr.number, title: pr.title, action: "merged" },
+			});
+			return { commitSha: result.commitSha };
 		});
-
-		return {
-			success: true,
-			commitSha: mergeResult.commitSha,
-		};
 	});

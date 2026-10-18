@@ -1,7 +1,5 @@
 /**
- * Unit tests for git-manager-iso.ts — repository init and the `Repo` options
- * every git call uses. Storage is always gitFs (object storage); there is no
- * local-disk mode to select.
+ * git-repo.ts: the `Repo` handle every git call uses, and repository init.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,46 +20,40 @@ const mockRegisterRepoGitdir = vi.hoisted(() =>
 vi.mock("../git-fs", () => ({
 	gitFs: mockGitFs,
 	registerRepoGitdir: mockRegisterRepoGitdir,
+	deleteRepoStorage: vi.fn(),
+	moveRepoStorage: vi.fn(),
+	prefetchAllPacks: vi.fn(),
 }));
 
-vi.mock("../git-storage-naming", () => ({
-	getRepoGitStorageRoot: (owner: string, repo: string) =>
-		`repos/${owner}/${repo}/git`,
-}));
-
-const GitManager = await import("../git-manager-iso");
+const GitManager = await import("../git-repo");
 const git = mockGit.default;
 
-describe("git-manager-iso", () => {
+describe("git-repo", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	describe("getBareRepoOptions", () => {
+	describe("repoFor", () => {
 		it("returns gitFs, the registered gitdir, and a shared per-repo cache", () => {
-			const options = GitManager.getBareRepoOptions("alice", "blog");
+			const options = GitManager.repoFor("alice", "blog");
 			expect(options.fs).toBe(mockGitFs);
 			expect(options.gitdir).toBe("repos/alice/blog/git");
 			expect(mockRegisterRepoGitdir).toHaveBeenCalledWith("alice", "blog");
 			// Same cache object across calls: isomorphic-git's parsed pack
 			// indexes survive between operations on one repo.
-			expect(GitManager.getBareRepoOptions("alice", "blog").cache).toBe(
-				options.cache,
-			);
+			expect(GitManager.repoFor("alice", "blog").cache).toBe(options.cache);
 		});
 
 		it("gives different repos different caches", () => {
-			expect(GitManager.getBareRepoOptions("alice", "a").cache).not.toBe(
-				GitManager.getBareRepoOptions("alice", "b").cache,
+			expect(GitManager.repoFor("alice", "a").cache).not.toBe(
+				GitManager.repoFor("alice", "b").cache,
 			);
 		});
 
-		it("drops the shared cache on invalidateRepoGitCache", () => {
-			const before = GitManager.getBareRepoOptions("alice", "c").cache;
-			GitManager.invalidateRepoGitCache("alice", "c");
-			expect(GitManager.getBareRepoOptions("alice", "c").cache).not.toBe(
-				before,
-			);
+		it("drops the shared cache after a push", () => {
+			const before = GitManager.repoFor("alice", "c").cache;
+			GitManager.afterRepositoryPush("alice", "c");
+			expect(GitManager.repoFor("alice", "c").cache).not.toBe(before);
 		});
 	});
 
@@ -69,12 +61,11 @@ describe("git-manager-iso", () => {
 		it("initializes a bare repository in object storage", async () => {
 			git.init.mockResolvedValue(undefined);
 
-			const gitdir = await GitManager.initBareRepo("123", "test-repo", "main");
+			await GitManager.initBareRepo("u123", "test-repo", "main");
 
-			expect(gitdir).toBe("repos/123/test-repo/git");
 			expect(git.init).toHaveBeenCalledWith({
 				fs: mockGitFs,
-				dir: "repos/123/test-repo/git",
+				dir: "repos/u123/test-repo/git",
 				defaultBranch: "main",
 				bare: true,
 			});
@@ -82,7 +73,7 @@ describe("git-manager-iso", () => {
 
 		it("does not call git.setConfig", async () => {
 			git.init.mockResolvedValue(undefined);
-			await GitManager.initBareRepo("123", "test-repo", "main");
+			await GitManager.initBareRepo("u123", "test-repo", "main");
 			expect(git.setConfig).not.toHaveBeenCalled();
 		});
 	});

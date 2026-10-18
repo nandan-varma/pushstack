@@ -7,8 +7,8 @@ export const TOKEN_SCOPE_LABELS: Record<TokenScope, string> = {
 	"repo:write": "Read and write repositories (clone, fetch, push)",
 };
 
-/** Personal access tokens start with this, so git auth can tell them from passwords. */
-export const TOKEN_PREFIX = "ghp_";
+/** Personal access tokens start with this (recognizable to secret scanners). */
+export const TOKEN_PREFIX = "pst_";
 
 export function tokenAllows(
 	scopes: readonly TokenScope[],

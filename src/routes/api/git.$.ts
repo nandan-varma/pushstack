@@ -1,189 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
- * Git HTTP Protocol Catch-All Route
- * Handles all git smart HTTP protocol requests:
- * - GET /api/git/{owner}/{repo}.git/info/refs?service=git-upload-pack
- * - POST /api/git/{owner}/{repo}.git/git-upload-pack
- * - POST /api/git/{owner}/{repo}.git/git-receive-pack
- *
- * Uses the isomorphic-git HTTP backend (git-http-iso.ts) which reads/writes
- * directly to/from Cloudflare R2. No native git binary dependency.
+ * The git smart-HTTP endpoint (clone, fetch, push) — see
+ * src/server/git-http.ts. Dynamically imported so the server modules stay
+ * out of every other route's bundle.
  */
+async function serve(request: Request): Promise<Response> {
+	const { serveGitRequest } = await import("#/server/git-http");
+	return serveGitRequest(request);
+}
 
 export const Route = createFileRoute("/api/git/$")({
 	server: {
 		handlers: {
-			GET: async ({ request }) => {
-				try {
-					const [
-						{ parseGitUrl },
-						{ authenticateGitRequest },
-						{ handleInfoRefsIso },
-						{ getRepoStorageCoordinates },
-						{ findRepositoryByName },
-					] = await Promise.all([
-						import("#/lib/git-url-parser"),
-						import("#/server/git-auth"),
-						import("#/server/git-http-iso"),
-						import("#/server/git-storage-naming"),
-						import("#/server/repositories"),
-					]);
-					const url = request.url;
-					const parsed = parseGitUrl(url);
-
-					if (!parsed?.isInfoRefs || !parsed.service) {
-						return new Response("Invalid git request", { status: 400 });
-					}
-
-					const { owner, repo, service } = parsed;
-
-					const repository = await findRepositoryByName(owner, repo);
-					if (!repository) {
-						return new Response("Repository not found", { status: 404 });
-					}
-
-					const authContext = await authenticateGitRequest(
-						request,
-						owner,
-						repo,
-						service === "git-receive-pack",
-						repository,
-					);
-
-					const storage = getRepoStorageCoordinates(repository);
-
-					const result = await handleInfoRefsIso(
-						storage.ownerKey,
-						repo,
-						service,
-						authContext,
-						repository.defaultBranch,
-					);
-
-					return new Response(result.body, {
-						status: result.status,
-						headers: result.headers,
-					});
-				} catch (error) {
-					const [{ formatErrorResponse }, { logError }] = await Promise.all([
-						import("#/server/git-errors"),
-						import("#/server/perf-log"),
-					]);
-					const errorResponse = formatErrorResponse(error);
-					if (errorResponse.status >= 500) {
-						logError("git-http", "GET failed", error);
-					}
-					return new Response(JSON.stringify(errorResponse.body), {
-						status: errorResponse.status,
-						headers: {
-							"Content-Type": "application/json",
-							...errorResponse.headers,
-						},
-					});
-				}
-			},
-
-			POST: async ({ request }) => {
-				try {
-					const [
-						{ parseGitUrl },
-						{ authenticateGitRequest },
-						{ handleUploadPackIso, handleReceivePackIso, maxGitBodyBytes },
-						{ getRepoStorageCoordinates },
-						{ findRepositoryByName },
-					] = await Promise.all([
-						import("#/lib/git-url-parser"),
-						import("#/server/git-auth"),
-						import("#/server/git-http-iso"),
-						import("#/server/git-storage-naming"),
-						import("#/server/repositories"),
-					]);
-					// Fail fast on a declared oversize body; the cap itself is
-					// enforced while streaming (git-http-iso.ts's readGitRequestBody),
-					// since a chunked request declares no length.
-					const contentLength = Number.parseInt(
-						request.headers.get("content-length") || "",
-						10,
-					);
-					if (
-						Number.isFinite(contentLength) &&
-						contentLength > maxGitBodyBytes()
-					) {
-						return new Response("Git request body too large", { status: 413 });
-					}
-
-					const url = request.url;
-					const parsed = parseGitUrl(url);
-
-					if (!parsed?.service || parsed.isInfoRefs) {
-						return new Response("Invalid git request", { status: 400 });
-					}
-
-					const { owner, repo, service } = parsed;
-
-					const repository = await findRepositoryByName(owner, repo);
-					if (!repository) {
-						return new Response("Repository not found", { status: 404 });
-					}
-
-					const authContext = await authenticateGitRequest(
-						request,
-						owner,
-						repo,
-						service === "git-receive-pack",
-						repository,
-					);
-
-					const storage = getRepoStorageCoordinates(repository);
-
-					let result: {
-						status: number;
-						headers: Record<string, string>;
-						body: BodyInit;
-					};
-					if (service === "git-upload-pack") {
-						result = await handleUploadPackIso(
-							storage.ownerKey,
-							repo,
-							request,
-							authContext,
-						);
-					} else if (service === "git-receive-pack") {
-						result = await handleReceivePackIso(
-							storage.ownerKey,
-							repo,
-							request,
-							authContext,
-							repository.defaultBranch,
-							repository.ownerId,
-						);
-					} else {
-						return new Response("Invalid service", { status: 400 });
-					}
-
-					return new Response(result.body, {
-						status: result.status,
-						headers: result.headers,
-					});
-				} catch (error) {
-					const [{ formatErrorResponse }, { logError }] = await Promise.all([
-						import("#/server/git-errors"),
-						import("#/server/perf-log"),
-					]);
-					const errorResponse = formatErrorResponse(error);
-					if (errorResponse.status >= 500) {
-						logError("git-http", "POST failed", error);
-					}
-					return new Response(JSON.stringify(errorResponse.body), {
-						status: errorResponse.status,
-						headers: {
-							"Content-Type": "application/json",
-							...errorResponse.headers,
-						},
-					});
-				}
-			},
+			GET: ({ request }) => serve(request),
+			POST: ({ request }) => serve(request),
 		},
 	},
 });

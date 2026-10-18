@@ -14,12 +14,11 @@ whichever area you're touching.
   Covers pushstack's own integration layer — for the underlying library
   internals, see the [git-fs-s3](https://nandan-varma.github.io/git-fs-s3/)
   and [git-edge](https://nandan-varma.github.io/git-edge/) docs sites
-  (published packages this repo depends on, extracted from earlier versions
-  of this same codebase).
-- **[Database](./database.md)** — schema tables, relations, indices, and the
-  `db:push` vs. `db:generate`/`db:migrate` migration workflows.
+  (published packages this repo depends on).
+- **[Database](./database.md)** — schema tables, relations, indices, and
+  `db:push`.
 - **[Authentication & Access Control](./authentication.md)** — Better Auth
-  session auth, git-over-HTTPS auth (PATs, Basic Auth), and the single
+  session auth, git-over-HTTPS auth (personal access tokens), and the single
   `RepositoryAccess` computation everything else checks against.
 - **[Server Functions](./server-functions.md)** — a catalog of `src/server/`'s
   modules by resource (repositories, issues, PRs, comments, search, files) and

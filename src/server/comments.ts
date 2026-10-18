@@ -1,240 +1,77 @@
+/** Server functions for comments on issues and pull requests. */
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "../db";
-import { activities, comments, issues, pullRequests } from "../db/app-schema";
-import { perfContext, perfStep } from "./perf-log";
-import {
-	canModerateRepo,
-	canWriteRepo,
-	getAccessForRepository,
-	requireWriteAccess,
-} from "./repo-access";
+import { db } from "#/db";
+import { comments, issues, pullRequests } from "#/db/app-schema";
+import { recordActivity } from "./activity";
+import { getAccessForRepository, requireWriteAccess } from "./repo-access";
+import { publicUserFields } from "./repositories";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
-// ============ COMMENTS ============
+/** Exactly one of an issue id or a pull request id (row ids, not `#N`). */
+const threadSchema = z.union([
+	z.object({ issueId: z.number(), pullRequestId: z.undefined().optional() }),
+	z.object({ pullRequestId: z.number(), issueId: z.undefined().optional() }),
+]);
+type Thread = z.infer<typeof threadSchema>;
 
-// Create comment
+/** The thread's repository and `#N`; 404 when it doesn't exist. */
+async function findThread(thread: Thread) {
+	const row =
+		thread.issueId !== undefined
+			? await db.query.issues.findFirst({
+					columns: { number: true },
+					where: eq(issues.id, thread.issueId),
+					with: { repository: true },
+				})
+			: await db.query.pullRequests.findFirst({
+					columns: { number: true },
+					where: eq(pullRequests.id, thread.pullRequestId),
+					with: { repository: true },
+				});
+	if (!row) throw notFound();
+	return row;
+}
+
 export const createComment = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				issueId: z.number().optional(),
-				pullRequestId: z.number().optional(),
-				body: z.string().min(1),
-			})
-			.parse(data),
-	)
+	.validator(z.object({ body: z.string().trim().min(1) }).and(threadSchema))
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		await requireWriteAccess(data.repoId, user.id);
-
-		if (!data.issueId && !data.pullRequestId) {
-			throw new Error("Must specify issueId or pullRequestId");
-		}
-
-		let issueNumber: number | undefined;
-		let prNumber: number | undefined;
-
-		if (data.issueId) {
-			const issue = await db.query.issues.findFirst({
-				where: eq(issues.id, data.issueId),
-			});
-			if (!issue || issue.repoId !== data.repoId) {
-				throw new Error("Issue does not belong to the specified repository");
-			}
-			issueNumber = issue.number;
-		}
-
-		if (data.pullRequestId) {
-			const pullRequest = await db.query.pullRequests.findFirst({
-				where: eq(pullRequests.id, data.pullRequestId),
-			});
-			if (!pullRequest || pullRequest.repoId !== data.repoId) {
-				throw new Error(
-					"Pull request does not belong to the specified repository",
-				);
-			}
-			prNumber = pullRequest.number;
-		}
-
+		const currentUser = await getCurrentUser();
+		const { repository, number } = await findThread(data);
+		await requireWriteAccess(repository.id, currentUser.id);
 		const [comment] = await db
 			.insert(comments)
 			.values({
-				repoId: data.repoId,
-				issueId: data.issueId || null,
-				pullRequestId: data.pullRequestId || null,
-				authorId: user.id,
+				repoId: repository.id,
+				issueId: data.issueId ?? null,
+				pullRequestId: data.pullRequestId ?? null,
+				authorId: currentUser.id,
 				body: data.body,
 			})
 			.returning();
-
-		// Log activity — issueId/prId here are the repo-scoped display numbers
-		// (used only as route params by activity.ts), not the FK ids above.
-		await db.insert(activities).values({
-			userId: user.id,
-			repoId: data.repoId,
+		await recordActivity(currentUser.id, repository.id, {
 			type: "comment",
-			metadata: {
-				commentId: comment.id,
-				issueId: issueNumber,
-				prId: prNumber,
-			},
+			metadata: { on: data.issueId !== undefined ? "issue" : "pr", number },
 		});
-
 		return comment;
 	});
 
-// Get comments
 export const getComments = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				issueId: z.number().optional(),
-				pullRequestId: z.number().optional(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
-		perfContext(
-			`getComments issue=${data.issueId ?? "-"} pr=${data.pullRequestId ?? "-"}`,
-			async () => {
-				if (!data.issueId && !data.pullRequestId) {
-					throw new Error("Must specify issueId or pullRequestId");
-				}
-
-				const user = await perfStep("getCurrentUserOptional", () =>
-					getCurrentUserOptional(),
-				);
-
-				if (data.issueId) {
-					const issue = await perfStep("db: issues.findFirst", () =>
-						db.query.issues.findFirst({
-							where: eq(issues.id, data.issueId as number),
-							with: { repository: true },
-						}),
-					);
-
-					// Fetch the repository via the relation above instead of a
-					// second round trip inside canReadRepo.
-					const access =
-						issue &&
-						(await perfStep("getAccessForRepository", () =>
-							getAccessForRepository(issue.repository, user?.id),
-						));
-					if (!access?.canRead) {
-						throw new Error("Access denied");
-					}
-				}
-
-				if (data.pullRequestId) {
-					const pullRequest = await perfStep("db: pullRequests.findFirst", () =>
-						db.query.pullRequests.findFirst({
-							where: eq(pullRequests.id, data.pullRequestId as number),
-							with: { repository: true },
-						}),
-					);
-
-					const access =
-						pullRequest &&
-						(await perfStep("getAccessForRepository", () =>
-							getAccessForRepository(pullRequest.repository, user?.id),
-						));
-					if (!access?.canRead) {
-						throw new Error("Access denied");
-					}
-				}
-
-				const commentList = await perfStep("db: comments.findMany", () =>
-					db.query.comments.findMany({
-						where: data.issueId
-							? eq(comments.issueId, data.issueId as number)
-							: eq(comments.pullRequestId, data.pullRequestId as number),
-						with: {
-							author: true,
-						},
-						orderBy: [comments.createdAt],
-					}),
-				);
-
-				return commentList;
-			},
-		),
-	);
-
-// Update comment
-export const updateComment = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				commentId: z.number(),
-				body: z.string().min(1),
-			})
-			.parse(data),
-	)
+	.validator(threadSchema)
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		const comment = await db.query.comments.findFirst({
-			where: eq(comments.id, data.commentId),
+		const currentUser = await getCurrentUserOptional();
+		const { repository } = await findThread(data);
+		if (!(await getAccessForRepository(repository, currentUser?.id)).canRead) {
+			throw notFound();
+		}
+		return db.query.comments.findMany({
+			where:
+				data.issueId !== undefined
+					? eq(comments.issueId, data.issueId)
+					: eq(comments.pullRequestId, data.pullRequestId),
+			with: { author: publicUserFields },
+			orderBy: [comments.createdAt],
 		});
-
-		if (!comment) {
-			throw new Error("Comment not found");
-		}
-
-		if (
-			comment.authorId !== user.id &&
-			!(await canWriteRepo(comment.repoId, user.id))
-		) {
-			throw new Error("Only comment author can edit");
-		}
-
-		const [updated] = await db
-			.update(comments)
-			.set({
-				body: data.body,
-				updatedAt: new Date(),
-			})
-			.where(eq(comments.id, data.commentId))
-			.returning();
-
-		return updated;
-	});
-
-// Delete comment
-export const deleteComment = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				commentId: z.number(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		const comment = await db.query.comments.findFirst({
-			where: eq(comments.id, data.commentId),
-			with: {
-				repository: true,
-			},
-		});
-
-		if (!comment) {
-			throw new Error("Comment not found");
-		}
-
-		if (
-			comment.authorId !== user.id &&
-			!(await canModerateRepo(comment.repoId, user.id))
-		) {
-			throw new Error("Not authorized to delete this comment");
-		}
-
-		await db.delete(comments).where(eq(comments.id, data.commentId));
-
-		return { success: true };
 	});

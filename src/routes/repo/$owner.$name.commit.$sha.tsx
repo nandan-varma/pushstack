@@ -26,10 +26,7 @@ export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			// CommitMessage resolves `#123` references using these — previously only
-			// fetched client-side after mount (no loader prefetched them), tacking an
-			// extra round trip onto the header render. Fire-and-forget since the page
-			// is still useful without them resolved yet.
+			// CommitMessage autolinks `#123` with these; the page renders without them.
 			queryClient
 				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
 				.catch(() => {});
@@ -157,10 +154,10 @@ function CommitDetailPage() {
 						<code className="max-w-full truncate rounded border border-border bg-muted px-2 py-1 font-mono text-sm text-foreground">
 							{commit.sha}
 						</code>
-						{commit.parent && commit.parent.length > 0 && (
+						{commit.parents.length > 0 && (
 							<span className="text-xs text-muted-foreground">
-								Parent:{" "}
-								{commit.parent.map((p: string, i: number) => (
+								{commit.parents.length > 1 ? "Parents" : "Parent"}:{" "}
+								{commit.parents.map((p, i) => (
 									<span key={p}>
 										{i > 0 && ", "}
 										<Link
@@ -187,7 +184,7 @@ function CommitDetailPage() {
 					</Link>
 					<BackLink
 						to="/repo/$owner/$name/commits/$branch"
-						params={{ owner, name, branch: commit.branch }}
+						params={{ owner, name, branch: repo?.defaultBranch ?? "" }}
 						label="Back to Commits"
 					/>
 				</div>
@@ -197,23 +194,18 @@ function CommitDetailPage() {
 			<Card className="p-6">
 				<div className="flex items-start gap-4">
 					<Avatar className="h-12 w-12">
-						<AvatarFallback>
-							{getInitials(commit.author?.name || "U")}
-						</AvatarFallback>
+						<AvatarFallback>{getInitials(commit.author.name)}</AvatarFallback>
 					</Avatar>
 					<div className="min-w-0 flex-1">
 						<div className="mb-2 flex flex-wrap items-center gap-2">
 							<span className="font-medium text-foreground">
-								{commit.author?.name || "Unknown"}
+								{commit.author.name}
 							</span>
 							<span className="text-sm text-muted-foreground">
 								committed{" "}
-								{formatDistanceToNow(
-									new Date(commit.author?.date || new Date()),
-									{
-										addSuffix: true,
-									},
-								)}
+								{formatDistanceToNow(new Date(commit.author.date), {
+									addSuffix: true,
+								})}
 							</span>
 						</div>
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
@@ -226,7 +218,7 @@ function CommitDetailPage() {
 							<div>
 								<p className="text-muted-foreground">Timestamp</p>
 								<p className="font-medium text-foreground">
-									{format(new Date(commit.author?.date || new Date()), "PPp")}
+									{format(new Date(commit.author.date), "PPp")}
 								</p>
 							</div>
 							<div>
@@ -235,8 +227,8 @@ function CommitDetailPage() {
 									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-muted" />
 								) : (
 									<p className="font-medium text-foreground">
-										{diffData?.files?.length || 0} file
-										{diffData?.files?.length !== 1 ? "s" : ""}
+										{diffData?.totalFiles ?? 0} file
+										{diffData?.totalFiles === 1 ? "" : "s"}
 									</p>
 								)}
 							</div>
@@ -267,7 +259,7 @@ function CommitDetailPage() {
 				</h2>
 				<FileDiffViewer
 					files={diffData?.files}
-					sides={{ owner, name, oldRef: commit.parent?.[0], newRef: sha }}
+					sides={{ owner, name, oldRef: commit.parents[0], newRef: sha }}
 					isLoading={diffLoading}
 				/>
 			</div>

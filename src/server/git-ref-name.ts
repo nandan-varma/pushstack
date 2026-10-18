@@ -1,54 +1,35 @@
+/**
+ * Zod schemas for every branch/ref/path-shaped input. Several isomorphic-git
+ * primitives (commit, merge, deleteBranch, resolveRef, deleteRef) don't
+ * validate ref names, and gitFs resolves `..` in the paths it maps onto R2
+ * keys — an unvalidated name is a cross-repository traversal.
+ */
 import {
 	isFullSha,
 	isSafeBranchName,
-	isSafeFullRefName,
 	isSafeRefName,
 	isSafeRepoPath,
 } from "git-fs-s3";
 import { z } from "zod";
 
-// Git ref-name/path validation now lives in git-fs-s3's refs.ts
-// (extracted from an earlier version of this exact file — see that package's
-// own doc comment for the full rationale: several isomorphic-git primitives —
-// git.commit, git.merge, git.deleteBranch, and the top-level git.resolveRef/
-// git.deleteRef used directly by git-fs-s3's receive-pack handler — do NOT
-// validate ref names internally, so anything from request input must be
-// checked before it reaches any of them or a "../"-laden name lets a caller
-// with write access to any single repo read, corrupt, or delete another
-// repo's storage). Re-exported here so every branch-name-shaped field in this
-// app still imports from one place; only the zod-schema wrappers below are
-// pushstack-local additions.
-export {
-	isFullSha,
-	isSafeBranchName,
-	isSafeFullRefName,
-	isSafeRefName,
-	isSafeRepoPath,
-};
-
+/** A bare branch name (write paths: never a sha). */
 export const safeBranchNameSchema = z
 	.string()
 	.min(1)
 	.refine(isSafeBranchName, "Invalid branch name");
 
+/** A full 40-hex commit sha. */
 export const safeCommitShaSchema = z
 	.string()
 	.refine(isFullSha, "Invalid commit SHA");
 
+/** A branch name or a full commit sha (read paths, e.g. permalinks). */
 export const safeRefNameSchema = z
 	.string()
 	.min(1)
 	.refine(isSafeRefName, "Invalid ref name");
 
+/** A repository-relative path (`""` is the root). */
 export const safeRepoPathSchema = z
 	.string()
-	.refine((p) => !p.startsWith("/"), "Path must be relative")
-	.refine(
-		(p) => !p.split("/").some((segment) => segment === ".."),
-		"Path must not contain '..' segments",
-	)
-	.refine(
-		(p) => !/^\.git(\/|$)/i.test(p),
-		"Path must not reference git internals",
-	)
-	.refine((p) => !p.includes("\0"), "Path must not contain null bytes");
+	.refine(isSafeRepoPath, "Invalid path");

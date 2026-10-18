@@ -30,12 +30,7 @@ export function FileCommitBanner({
 			branchName: branch,
 			path: filePath,
 			limit: 1,
-			// This banner only ever shows the single latest commit — a shallow
-			// walk finds it in the common case without paying for the full
-			// 400-commit-deep floor the "History" tab below needs. Matches
-			// BANNER_WALK_DEPTH in server/git-file-history.ts (can't import a
-			// server-only constant from this client component).
-			maxDepth: 60,
+			depth: "banner",
 		}),
 		enabled: !!repoId,
 	});

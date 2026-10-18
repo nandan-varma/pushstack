@@ -11,7 +11,7 @@ interface Repo {
 	visibility: string;
 	defaultBranch: string;
 	updatedAt: string | Date;
-	owner?: { username?: string | null } | null;
+	owner: { username: string };
 }
 
 export function RepoList({
@@ -67,7 +67,7 @@ export function RepoList({
 	return (
 		<div className="space-y-3">
 			{repos.map((repo) => {
-				const ownerUsername = repo.owner?.username || "unknown";
+				const ownerUsername = repo.owner.username;
 				return (
 					<Link
 						key={repo.id}

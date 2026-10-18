@@ -1,6 +1,5 @@
 import { relations } from "drizzle-orm";
 import {
-	bigint,
 	boolean,
 	index,
 	integer,
@@ -11,12 +10,14 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
 import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
 
-// Repositories table - stores repository metadata
-// NOTE: Git operations (commits, branches, files) are now handled by actual git repositories on filesystem
-// This table only stores metadata for discovery and permissions
+/**
+ * Repository metadata; git data itself lives in R2 under
+ * `repos/{ownerKey}/{name}/git` (src/server/git-storage-naming.ts).
+ */
 export const repositories = pgTable(
 	"repositories",
 	{
@@ -26,53 +27,39 @@ export const repositories = pgTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		description: text("description"),
-		visibility: text("visibility").notNull().default("public"), // 'public' | 'private'
+		visibility: text("visibility")
+			.$type<"public" | "private">()
+			.notNull()
+			.default("public"),
 		defaultBranch: text("default_branch").notNull().default("main"),
-		diskUsage: bigint("disk_usage", { mode: "number" }), // Repository size in bytes
-		lastBackupAt: timestamp("last_backup_at"), // Last R2 backup timestamp
-		backupR2Key: text("backup_r2_key"), // R2 key for latest backup
-		// Both default false: each costs a real R2/CPU walk on every view they're
-		// on (see docs/performance.md) for cosmetic/convenience value, not core
-		// browsing — opt-in per repo rather than paid by every visitor by default.
+		/** The tree view's per-file "last commit" column — a history walk per view, so opt-in. */
 		showLastCommitColumn: boolean("show_last_commit_column")
 			.notNull()
-			.default(false), // tree view's per-file "last commit" column (git-last-commit.ts)
+			.default(false),
+		/** Poll an open PR's diff instead of loading it once. */
 		autoRefreshPrDiffs: boolean("auto_refresh_pr_diffs")
 			.notNull()
-			.default(false), // keep an open PR's file-diff live via polling vs. load-once
-		// The next number to hand out to a new issue or PR in this repo — issues
-		// and PRs share one sequence (GitHub's numbering model), claimed via an
-		// atomic `UPDATE ... SET next_issue_number = next_issue_number + 1
-		// RETURNING`. A repo imported from GitHub can seed this past the highest
-		// preserved original number instead of starting over at 1.
+			.default(false),
+		/**
+		 * The next `#N` for an issue or PR — one shared sequence per repo
+		 * (GitHub's model), claimed with an atomic increment.
+		 */
 		nextIssueNumber: integer("next_issue_number").notNull().default(1),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		ownerIdx: index("repo_owner_idx").on(table.ownerId),
-		nameIdx: index("repo_name_idx").on(table.name),
-		// Unique, not just indexed: a concurrent double-submit of createRepository
-		// must not be able to create two rows for the same (owner, name) — storage
-		// keys are name-derived, so duplicates would clobber each other's git data.
+		// Unique: storage keys derive from (owner, name), so a duplicate would
+		// share another repository's git data.
 		ownerNameIdx: uniqueIndex("repo_owner_name_idx").on(
 			table.ownerId,
 			table.name,
 		),
-		// Filtered on directly in 7 places (search.ts, users.ts,
-		// repositories.ts) — "public" repos, other users' visible profile
-		// repos, and every activity feed's visibility subquery all hit this
-		// with no index to use otherwise.
+		nameIdx: index("repo_name_idx").on(table.name),
 		visibilityIdx: index("repo_visibility_idx").on(table.visibility),
 	}),
 );
 
-// REMOVED: branches table - git refs handle branches
-// REMOVED: commits table - git objects handle commits
-// REMOVED: repositoryFiles table - git tree/blob objects handle files
-// All git operations now use nodegit to interact with real git repositories
-
-// Issues table - stores repository issues
 export const issues = pgTable(
 	"issues",
 	{
@@ -80,43 +67,31 @@ export const issues = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
-		// The repo-scoped "#N" shown in the UI — shares one sequence per repo
-		// with pullRequests.number (repositories.nextIssueNumber), matching
-		// GitHub's numbering model instead of this row's raw serial `id`.
+		/** The repo-scoped `#N` (shared with pull requests). */
 		number: integer("number").notNull(),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
 		title: text("title").notNull(),
 		body: text("body"),
-		status: text("status").notNull().default("open"), // 'open' | 'closed'
-		labels: jsonb("labels"), // Array of label strings
+		status: text("status").$type<"open" | "closed">().notNull().default("open"),
+		labels: jsonb("labels").$type<string[]>().notNull().default([]),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 		closedAt: timestamp("closed_at"),
 	},
 	(table) => ({
-		repoIdx: index("issue_repo_idx").on(table.repoId),
-		statusIdx: index("issue_status_idx").on(table.status),
-		// getIssues filters by (repoId, status) together on every issue-list
-		// page load — a composite index turns that into one index scan instead
-		// of intersecting two single-column indices.
-		repoStatusIdx: index("issue_repo_status_idx").on(
-			table.repoId,
-			table.status,
-		),
-		// Enforces uniqueness of the shared issue/PR number sequence on this
-		// side of it, and backs the (repoId, number) lookup every issue detail
-		// page and `#N` reference resolves against.
 		repoNumberIdx: uniqueIndex("issue_repo_number_idx").on(
 			table.repoId,
 			table.number,
 		),
+		repoStatusIdx: index("issue_repo_status_idx").on(
+			table.repoId,
+			table.status,
+		),
 	}),
 );
 
-// Pull requests table - stores pull requests
-// NOTE: sourceBranch and targetBranch are now text (branch names) instead of foreign keys
 export const pullRequests = pgTable(
 	"pull_requests",
 	{
@@ -124,36 +99,35 @@ export const pullRequests = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
-		// Shares the repo's issue/PR number sequence — see issues.number above.
+		/** The repo-scoped `#N` (shared with issues). */
 		number: integer("number").notNull(),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
 		title: text("title").notNull(),
 		body: text("body"),
-		sourceBranch: text("source_branch").notNull(), // Branch name (e.g., 'feature/new-feature')
-		targetBranch: text("target_branch").notNull(), // Branch name (e.g., 'main')
-		status: text("status").notNull().default("open"), // 'open' | 'closed' | 'merged'
+		sourceBranch: text("source_branch").notNull(),
+		targetBranch: text("target_branch").notNull(),
+		status: text("status")
+			.$type<"open" | "closed" | "merged">()
+			.notNull()
+			.default("open"),
 		mergedAt: timestamp("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
-		mergeCommitSha: text("merge_commit_sha"), // SHA of merge commit when merged
+		mergeCommitSha: text("merge_commit_sha"),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		repoIdx: index("pr_repo_idx").on(table.repoId),
-		statusIdx: index("pr_status_idx").on(table.status),
-		// getPullRequests filters by (repoId, status) together, same reasoning
-		// as issue_repo_status_idx above.
-		repoStatusIdx: index("pr_repo_status_idx").on(table.repoId, table.status),
 		repoNumberIdx: uniqueIndex("pr_repo_number_idx").on(
 			table.repoId,
 			table.number,
 		),
+		repoStatusIdx: index("pr_repo_status_idx").on(table.repoId, table.status),
 	}),
 );
 
-// Comments table - stores comments on issues and PRs
+/** A comment on exactly one issue or pull request. */
 export const comments = pgTable(
 	"comments",
 	{
@@ -181,7 +155,6 @@ export const comments = pgTable(
 	}),
 );
 
-// Stars table - stores repository stars
 export const stars = pgTable(
 	"stars",
 	{
@@ -195,16 +168,14 @@ export const stars = pgTable(
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		repoIdx: index("star_repo_idx").on(table.repoId),
+		repoUserIdx: uniqueIndex("star_repo_user_idx").on(
+			table.repoId,
+			table.userId,
+		),
 		userIdx: index("star_user_idx").on(table.userId),
-		// getRepository/getRepositoryByName check "did this user star this repo"
-		// via (repoId, userId) together on every repo page load, same pattern as
-		// repository_collaborators' collab_repo_user_idx.
-		repoUserIdx: index("star_repo_user_idx").on(table.repoId, table.userId),
 	}),
 );
 
-// Repository collaborators table - stores access control
 export const repositoryCollaborators = pgTable(
 	"repository_collaborators",
 	{
@@ -215,17 +186,21 @@ export const repositoryCollaborators = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		role: text("role").notNull().default("read"), // 'read' | 'write' | 'admin'
+		role: text("role")
+			.$type<"read" | "write" | "admin">()
+			.notNull()
+			.default("read"),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		repoIdx: index("collab_repo_idx").on(table.repoId),
+		repoUserIdx: uniqueIndex("collab_repo_user_idx").on(
+			table.repoId,
+			table.userId,
+		),
 		userIdx: index("collab_user_idx").on(table.userId),
-		repoUserIdx: index("collab_repo_user_idx").on(table.repoId, table.userId),
 	}),
 );
 
-// Activity feed table - stores user activity
 export const activities = pgTable(
 	"activities",
 	{
@@ -236,22 +211,16 @@ export const activities = pgTable(
 		repoId: integer("repo_id").references(() => repositories.id, {
 			onDelete: "cascade",
 		}),
-		type: text("type").notNull(), // 'commit' | 'issue' | 'pr' | 'star' | 'fork' | 'comment'
-		metadata: jsonb("metadata"), // Additional data specific to activity type
+		/** With `metadata`, one ActivityEvent — written only via recordActivity. */
+		type: text("type").$type<ActivityType>().notNull(),
+		metadata: jsonb("metadata").$type<ActivityMetadata>(),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		userIdx: index("activity_user_idx").on(table.userId),
-		repoIdx: index("activity_repo_idx").on(table.repoId),
-		typeIdx: index("activity_type_idx").on(table.type),
-		// composite indices for user feed queries (userId + createdAt, userId + repoId)
 		userCreatedIdx: index("activity_user_created_idx").on(
 			table.userId,
 			table.createdAt,
 		),
-		userRepoIdx: index("activity_user_repo_idx").on(table.userId, table.repoId),
-		// getRepositoryActivity filters by repoId and sorts by createdAt —
-		// same shape as userCreatedIdx above, just missing on the repo side.
 		repoCreatedIdx: index("activity_repo_created_idx").on(
 			table.repoId,
 			table.createdAt,
@@ -259,7 +228,40 @@ export const activities = pgTable(
 	}),
 );
 
-// Relations
+/** Personal access tokens for git over HTTPS; only the SHA-256 is stored. */
+export const tokens = pgTable(
+	"tokens",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		tokenHash: text("token_hash").notNull().unique(),
+		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
+		lastUsedAt: timestamp("last_used_at"),
+		expiresAt: timestamp("expires_at"),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		userIdx: index("token_user_idx").on(table.userId),
+	}),
+);
+
+/** Per-repository write lease (src/server/git-repo-lock.ts). */
+export const repoLocks = pgTable("repo_locks", {
+	/** `${ownerKey}/${repoName}` */
+	repoKey: text("repo_key").primaryKey(),
+	holder: text("holder").notNull(),
+	expiresAt: timestamp("expires_at").notNull(),
+});
+
+export type Repository = typeof repositories.$inferSelect;
+export type Issue = typeof issues.$inferSelect;
+export type PullRequest = typeof pullRequests.$inferSelect;
+export type CollaboratorRole =
+	(typeof repositoryCollaborators.$inferSelect)["role"];
+
 export const repositoriesRelations = relations(
 	repositories,
 	({ one, many }) => ({
@@ -280,10 +282,7 @@ export const issuesRelations = relations(issues, ({ one, many }) => ({
 		fields: [issues.repoId],
 		references: [repositories.id],
 	}),
-	author: one(user, {
-		fields: [issues.authorId],
-		references: [user.id],
-	}),
+	author: one(user, { fields: [issues.authorId], references: [user.id] }),
 	comments: many(comments),
 }));
 
@@ -307,18 +306,12 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 		fields: [comments.repoId],
 		references: [repositories.id],
 	}),
-	issue: one(issues, {
-		fields: [comments.issueId],
-		references: [issues.id],
-	}),
+	issue: one(issues, { fields: [comments.issueId], references: [issues.id] }),
 	pullRequest: one(pullRequests, {
 		fields: [comments.pullRequestId],
 		references: [pullRequests.id],
 	}),
-	author: one(user, {
-		fields: [comments.authorId],
-		references: [user.id],
-	}),
+	author: one(user, { fields: [comments.authorId], references: [user.id] }),
 }));
 
 export const starsRelations = relations(stars, ({ one }) => ({
@@ -326,10 +319,7 @@ export const starsRelations = relations(stars, ({ one }) => ({
 		fields: [stars.repoId],
 		references: [repositories.id],
 	}),
-	user: one(user, {
-		fields: [stars.userId],
-		references: [user.id],
-	}),
+	user: one(user, { fields: [stars.userId], references: [user.id] }),
 }));
 
 export const repositoryCollaboratorsRelations = relations(
@@ -347,91 +337,13 @@ export const repositoryCollaboratorsRelations = relations(
 );
 
 export const activitiesRelations = relations(activities, ({ one }) => ({
-	user: one(user, {
-		fields: [activities.userId],
-		references: [user.id],
-	}),
+	user: one(user, { fields: [activities.userId], references: [user.id] }),
 	repository: one(repositories, {
 		fields: [activities.repoId],
 		references: [repositories.id],
 	}),
 }));
 
-// Personal Access Tokens table - stores PATs for programmatic git access
-export const tokens = pgTable(
-	"tokens",
-	{
-		id: serial("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		/** SHA-256 hex of the token; the token itself is never stored. */
-		tokenHash: text("token_hash").notNull().unique(),
-		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
-		lastUsedAt: timestamp("last_used_at"),
-		expiresAt: timestamp("expires_at"),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-	},
-	(table) => ({
-		userIdx: index("token_user_idx").on(table.userId),
-		hashIdx: index("token_hash_idx").on(table.tokenHash),
-	}),
-);
-
-// Backs git-auth.ts's password-auth rate limiter. Deliberately not an
-// in-memory Map: the git HTTP endpoint can be served by multiple concurrent
-// (or frequently cold-starting) serverless instances, each with its own
-// process memory — an in-memory counter never accumulates a shared view of
-// failed attempts across them, which defeats the lockout it's meant to
-// enforce. Keyed by the attempted username/email (case-insensitive), same as
-// before; `key` is the primary key so recordFailedPasswordAttempt can upsert
-// atomically instead of racing a separate read-then-write.
-export const gitAuthAttempts = pgTable("git_auth_attempts", {
-	key: text("key").primaryKey(),
-	count: integer("count").notNull().default(1),
-	windowStart: timestamp("window_start").notNull().defaultNow(),
-});
-
-// Distributed per-repository write lock. Replaces an in-process Map mutex
-// that gave zero serialization across Vercel's ephemeral, per-invocation
-// serverless instances — two concurrent pushes to the same repo landing on
-// different instances could both write refs and packs with no arbitration
-// at all. A lease row + a single atomic `INSERT ... ON CONFLICT DO UPDATE ...
-// WHERE expires_at < now()` acquire (see acquireRepoLock in
-// git-repo-lock.ts) works over Neon's HTTP driver, which has no
-// persistent session and can't hold a `pg_advisory_lock` or a long
-// transaction — unlike those, this is a single stateless round trip.
-// expiresAt is a TTL, not a heartbeat-renewed lease: if a holder's function
-// is killed mid-critical-section (a real risk under Vercel's execution time
-// limit), the lease self-expires and the repo isn't permanently stuck locked.
-export const repoLocks = pgTable("repo_locks", {
-	repoKey: text("repo_key").primaryKey(), // `${ownerKey}/${repoName}`
-	holder: text("holder").notNull(),
-	expiresAt: timestamp("expires_at").notNull(),
-});
-
-// Git transactions table - tracks pending/abandoned transactions for cleanup
-export const gitTransactions = pgTable(
-	"git_transactions",
-	{
-		id: text("id").primaryKey(), // Transaction ID (e.g., 'txn_1234567890_abc123')
-		status: text("status").notNull().default("pending"), // 'pending' | 'committed' | 'rolled_back'
-		objectKeys: jsonb("object_keys").notNull(), // Array of R2 keys written in this transaction
-		metadata: jsonb("metadata"), // Additional transaction metadata
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		completedAt: timestamp("completed_at"),
-	},
-	(table) => ({
-		statusIdx: index("git_txn_status_idx").on(table.status),
-		createdIdx: index("git_txn_created_idx").on(table.createdAt),
-	}),
-);
-
-// Token relations
 export const tokensRelations = relations(tokens, ({ one }) => ({
-	user: one(user, {
-		fields: [tokens.userId],
-		references: [user.id],
-	}),
+	user: one(user, { fields: [tokens.userId], references: [user.id] }),
 }));

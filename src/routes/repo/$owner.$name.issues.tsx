@@ -65,7 +65,7 @@ function IssuesPage() {
 	const { owner, name } = Route.useParams();
 	const { status: filter } = Route.useSearch();
 	const { pathname } = useLocation();
-	const navigate = useNavigate();
+	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -195,8 +195,7 @@ function IssuesPage() {
 				]}
 				activeTab={filter ?? "open"}
 				onTabChange={(value) =>
-					// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
-					navigate({ search: { status: value } as any, replace: true })
+					navigate({ search: { status: value }, replace: true })
 				}
 			/>
 
@@ -248,7 +247,7 @@ function IssuesPage() {
 								<p className="text-xs text-muted-foreground">
 									#{issue.number} opened{" "}
 									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
-									{issue.author?.name || "Unknown"}
+									{issue.author.name}
 								</p>
 							</div>
 						</Link>

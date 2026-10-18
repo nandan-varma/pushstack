@@ -43,8 +43,8 @@ function RouteComponent() {
 		enabled: !!repo,
 	});
 
-	const cloneUrl = getCloneUrl(owner, name, "https");
-	const instructions = getSetupInstructions(owner, name, cloneUrl);
+	const cloneUrl = getCloneUrl(owner, name);
+	const instructions = getSetupInstructions(name, cloneUrl);
 	const isOwner = repo?.ownerId === session?.user?.id;
 
 	const handleCopy = async (value: string, key: string) => {

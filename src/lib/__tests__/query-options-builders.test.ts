@@ -30,10 +30,8 @@ const serverFnMocks = {
 	getIssueNumbers: vi.fn(() => "issue-numbers"),
 	getPullRequestNumbers: vi.fn(() => "pr-numbers"),
 	getIssues: vi.fn(() => "issues"),
-	getIssue: vi.fn(() => "issue"),
 	getComments: vi.fn(() => "comments"),
 	getPullRequests: vi.fn(() => "prs"),
-	getPullRequest: vi.fn(() => "pr"),
 	getBranchDiff: vi.fn(() => "branch-diff"),
 	getCollaborators: vi.fn(() => "collaborators"),
 };
@@ -65,7 +63,6 @@ vi.mock("@/server/files", () => ({
 vi.mock("@/server/issues", () => ({
 	getIssueNumbers: serverFnMocks.getIssueNumbers,
 	getIssues: serverFnMocks.getIssues,
-	getIssue: serverFnMocks.getIssue,
 }));
 vi.mock("@/server/comments", () => ({
 	getComments: serverFnMocks.getComments,
@@ -73,7 +70,6 @@ vi.mock("@/server/comments", () => ({
 vi.mock("@/server/pull-requests", () => ({
 	getPullRequestNumbers: serverFnMocks.getPullRequestNumbers,
 	getPullRequests: serverFnMocks.getPullRequests,
-	getPullRequest: serverFnMocks.getPullRequest,
 }));
 
 const {
@@ -96,10 +92,8 @@ const {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 	repositoryIssuesQueryOptions,
-	issueQueryOptions,
 	issueCommentsQueryOptions,
 	repositoryPullRequestsQueryOptions,
-	pullRequestQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestDiffQueryOptions,
 	repoCollaboratorsQueryOptions,
@@ -214,12 +208,12 @@ describe("file query options", () => {
 		});
 	});
 
-	it("repositoryFileHistoryQueryOptions defaults limit to 30 and passes maxDepth through", async () => {
+	it("repositoryFileHistoryQueryOptions defaults limit to 30 and passes depth through", async () => {
 		await repositoryFileHistoryQueryOptions({
 			repoId: 1,
 			branchName: "main",
 			path: "a.ts",
-			maxDepth: 5,
+			depth: "banner",
 		}).queryFn?.({} as never);
 		expect(serverFnMocks.getFileHistory).toHaveBeenCalledWith({
 			data: {
@@ -227,7 +221,7 @@ describe("file query options", () => {
 				branchName: "main",
 				path: "a.ts",
 				limit: 30,
-				maxDepth: 5,
+				depth: "banner",
 			},
 		});
 	});
@@ -308,13 +302,6 @@ describe("issues/comments query options", () => {
 		});
 	});
 
-	it("issueQueryOptions calls getIssue", async () => {
-		await issueQueryOptions(5).queryFn?.({} as never);
-		expect(serverFnMocks.getIssue).toHaveBeenCalledWith({
-			data: { issueId: 5 },
-		});
-	});
-
 	it("issueCommentsQueryOptions calls getComments with issueId", async () => {
 		await issueCommentsQueryOptions(5).queryFn?.({} as never);
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
@@ -331,13 +318,13 @@ describe("issues/comments query options", () => {
 });
 
 describe("pull request query options", () => {
-	it("repositoryPullRequestsQueryOptions omits status when 'all'", async () => {
+	it("repositoryPullRequestsQueryOptions passes status 'all' through", async () => {
 		await repositoryPullRequestsQueryOptions({
 			repoId: 1,
 			status: "all",
 		}).queryFn?.({} as never);
 		expect(serverFnMocks.getPullRequests).toHaveBeenCalledWith({
-			data: { repoId: 1 },
+			data: { repoId: 1, status: "all" },
 		});
 	});
 
@@ -348,13 +335,6 @@ describe("pull request query options", () => {
 		}).queryFn?.({} as never);
 		expect(serverFnMocks.getPullRequests).toHaveBeenCalledWith({
 			data: { repoId: 1, status: "open" },
-		});
-	});
-
-	it("pullRequestQueryOptions calls getPullRequest", async () => {
-		await pullRequestQueryOptions(9).queryFn?.({} as never);
-		expect(serverFnMocks.getPullRequest).toHaveBeenCalledWith({
-			data: { prId: 9 },
 		});
 	});
 });

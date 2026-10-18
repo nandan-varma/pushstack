@@ -1,125 +1,78 @@
 # Testing
 
-## Unit tests (Vitest)
+## Unit and behavior tests (Vitest)
 
-Live alongside the modules they cover, in `__tests__/` directories — almost
-all coverage is in `src/server/__tests__/`, since that's where the
-correctness-critical logic (git protocol implementation, access control,
-storage-path safety, CRUD server functions) lives.
+Live in `__tests__/` directories beside the code they cover; most are in
+`src/server/__tests__/`.
 
-**Git storage in tests is never local disk.** R2 isn't configured in the test
-env, so `git-fs.ts` backs the real storage stack with an in-memory object
-store — tests that exercise real git operations (`git-integration`,
-`git-repack`, `git-http-iso`, …) run the same `gitFs` code production runs
-against R2. `git-user-lifecycle.test.ts` goes one layer further: it hands
-`src/lib/r2.ts`'s real store a fake S3 endpoint
-(`helpers/fake-s3-fetch.ts`) as its `fetch`, so request signing,
-ListObjectsV2 parsing and server-side copy run for real too; `r2.test.ts`
-unit-tests that store directly.
+**Behavior tests use real infrastructure, not module mocks.** The server
+functions run for real against:
+
+- **pglite** (`src/test/pglite-db.ts`'s `createTestDb`) — an in-memory
+  Postgres with the real schema pushed into it, so every query, constraint
+  and the repo lock's lease SQL are real.
+- **the in-memory git store** — R2 isn't configured in tests, so `git-fs.ts`
+  backs the same storage stack production uses with an in-memory object
+  store.
+- **a faked session** — `src/test/app-harness.ts`'s `sessionModule`, with
+  `signIn(user)` / `signOut()` choosing the caller, `createUsers(...)` for
+  fixtures and `rejectsNotFound(promise)` for 404 assertions.
+
+The setup at the top of such a file:
+
+```ts
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
+vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
+vi.mock("#/server/session", async () => (await import("../../test/app-harness")).sessionModule);
+```
+
+`vi.mock` factories run before aliases resolve, so they import helpers by
+relative path. Write new server tests this way rather than mocking modules:
+a mock silently drifts from the code it replaces.
+
+`git-user-lifecycle.test.ts` goes one layer further: `src/lib/r2.ts`'s real
+store talks to a fake S3 endpoint (`helpers/fake-s3-fetch.ts`), so request
+signing, ListObjectsV2 parsing and server-side copy run too; it clones and
+pushes with isomorphic-git over a loopback server running `serveGitRequest`.
 
 **Native git (`pnpm smoke:git`)** — `scripts/smoke/git-cli.smoke.test.ts`
-drives the real `git` CLI against the real `/api/git/$` route handler on a
-loopback server (in-memory Postgres, fake S3 behind the real R2 client):
-clone, push, incremental fetch, repack, web commits, force-push, branch/tag
-create and delete, default-branch protection, object-level merges, bad
-tokens, and "no loose objects ever written". Every `git` call runs with a
-scratch `HOME`/`GIT_CONFIG_GLOBAL` and `GIT_CONFIG_NOSYSTEM=1` — it never
-reads or writes your own git configuration. Kept out of `pnpm test`, since the
-unit suite never depends on a native git binary.
+drives the real `git` CLI against the real `/api/git/$` route on a loopback
+server: clone, push, incremental fetch, repack, web commits, force-push,
+branch/tag create and delete, default-branch protection, merges, bad tokens,
+and "no loose objects ever written". Every `git` call runs with a scratch
+`HOME`/`GIT_CONFIG_GLOBAL` and `GIT_CONFIG_NOSYSTEM=1` — it never reads or
+writes your own git configuration. Kept out of `pnpm test`.
 
 Notable files:
 
-- `git-http-iso.test.ts`, `git-integration.test.ts` — the smart HTTP protocol
-  handlers and end-to-end git operations, including the receive-pack
-  ref-name traversal guard (see [security.md](./security.md)).
-- `git-user-lifecycle.test.ts` — a full user/repo lifecycle test: create,
-  commit, clone and push over real HTTP with a PAT, rename, delete.
-- `git-commit-write-consolidated.test.ts` — `withRepositoryLock` behavior,
-  error propagation, and the branch-name traversal guard for
-  `createCommit`/`deleteFile` (was two separate files,
-  `git-operations-locking.test.ts`/`git-operations-errors.test.ts`, merged
-  since they shared nearly all their mock setup).
-- `git-ref-name.test.ts` — the shared branch/ref-name/path validators
-  (`isSafeBranchName`/`isSafeFullRefName`/`isSafeRefName`/`isSafeRepoPath` and
-  their zod schema wrappers) directly, covering every rejected shape (`..`,
-  control chars, a `refs/`-prefixed name smuggled in as a bare branch name,
-  `.lock` suffix, etc.), plus `isSafeRefName`/`safeCommitShaSchema` accepting a
-  full 40-hex commit SHA where `isSafeBranchName` alone would reject it — see
-  [security.md](./security.md).
-- `git-branch-ops.test.ts`, `git-merge-iso.test.ts` — `createBranch`/
-  `deleteBranch`/`checkoutBranch` and `analyzeMerge`/`mergeBranches` reject a
-  path-traversal branch name before any isomorphic-git call runs.
-- `repo-access.test.ts` — the `RepositoryAccess` resolution logic (see
-  [authentication.md](./authentication.md)).
-- `git-storage-naming.test.ts` — storage key construction and the `.`/`..`
-  segment sanitizing (see [security.md](./security.md));
-  `git-manager-iso.test.ts` — the shared `Repo` options and repo init.
-- `git-repo-storage.test.ts` — `withRepositoryLock`'s Postgres-backed lease
-  CAS (acquire/expire/release, timeout), `afterRepositoryPush`'s
-  cache invalidation (regression-tested against the library's exact
-  result-cache key scheme), and `renameRepositoryStorage`/
-  `deleteRepositoryStorage` against the real in-memory store (see
-  [git-storage.md](./git-storage.md)). Its fake
-  lease-lock `db` mock is shared via `helpers/fake-repo-lock-db.ts` — any
-  test exercising a real write path (which now all go through the same
-  Postgres lock) needs this or a live database; reach for the shared helper
-  before hand-rolling another copy.
-- `git-transactions.test.ts` — the WAL `withRepositoryLock` writes to
-  (`git_transactions`): begin/commit/rollback and
-  `findAbandonedGitTransactions`'s filtering, against a real embedded
-  Postgres (pglite), same pattern as `repo-access.test.ts` below.
-- `git-auth-helpers.test.ts` — `authenticateGitRequest`'s full fallback chain
-  (session/PAT/password) and the DB-backed password rate limiter.
-- `files.test.ts`, `repositories.unit.test.ts`, `issues.test.ts`,
-  `pull-requests.test.ts`, `comments.test.ts`, `search.test.ts` — CRUD server
-  function behavior, including access-check rejection paths and the file-path/
-  branch-name traversal guards (`safeRepoPathSchema`/`safeBranchNameSchema`/
-  `safeRefNameSchema`/`safeCommitShaSchema`). `search.test.ts`'s session mock
-  exports both `getCurrentUser` and `getCurrentUserOptional` — most of
-  `search.ts`'s handlers use the latter (public data shouldn't require login;
-  see [server-functions.md](./server-functions.md)), so a mock missing either
-  export fails any test that hits the corresponding handler.
+- `repositories.test.ts`, `collaboration.test.ts` — the server functions end
+  to end: access rules, privacy (no emails leave the server), unsafe names
+  and paths, stars, collaborators, rename/delete, issues/PRs/comments, the
+  shared `#N` sequence, merging, search, profiles, PAT auth.
+- `git-http.test.ts` — URL routing, the streamed body cap, auth challenges.
+- `git-integration.test.ts`, `git-repack.test.ts` — git reads and writes
+  through `git-read.ts`/`git-write.ts`, and pack consolidation.
+- `git-repo-storage-ops.test.ts` — `withRepositoryLock` (serialization,
+  expiry takeover, timeout, heartbeat renewal), `afterRepositoryPush`'s cache
+  invalidation, storage rename/delete.
+- `git-ref-name.test.ts`, `git-storage-naming.test.ts` — the validators and
+  key construction that stop path traversal (see [security.md](./security.md)).
+- `repo-access.test.ts` — `RepositoryAccess` and its handler helpers.
 
-Run everything: `pnpm test` (or `pnpm test:watch` for watch mode, `pnpm
-test:coverage` for a coverage report). Run one file:
+Run everything with `pnpm test` (`pnpm test:watch`, `pnpm test:coverage`);
+one file with `pnpm test src/server/__tests__/repo-access.test.ts`.
 
-```bash
-pnpm test src/server/__tests__/repo-access.test.ts
-```
-
-Config: `vitest.config.ts` — `jsdom` environment (so component-adjacent code
-can run, even though there are currently no full component-render tests —
-see below), typecheck-on-test enabled, coverage via `v8`.
-
-### Mocking conventions
-
-Server function tests mock `@tanstack/react-start`'s `createServerFn` itself
-(so a handler's `.validator` and `.handler` chain can be invoked directly as a
-plain function in tests, without pulling in the real framework machinery),
-plus `../session`, `../../db`, and whatever git-layer modules the function
-under test calls. See `repositories.unit.test.ts` for the reference
-shape of this setup. One easy-to-miss gotcha: if a test file has a `vi.mock()`
-for a module and that module later gains a new export other code starts
-depending on, the mock needs the new export added too, or every test hitting
-that code path fails with `"No exported member ... on the mock"` — this isn't
-a real regression, just the mock needing to catch up.
+Config: `vitest.config.ts` — `jsdom` by default (server suites opt into
+`@vitest-environment node`), typecheck-on-test, `v8` coverage.
 
 ### What's not covered yet
 
-There are very few component-level render tests (using React Testing
-Library's render + assertions on markup) — coverage is overwhelmingly
-server-side logic, plus a handful of pure-function unit tests for client
-utilities (e.g. `src/components/__tests__/MarkdownRenderer.test.ts` tests the
-exported `isSafeHref`/`isSafeImageSrc` guard functions directly, not by
-rendering the component). In particular, none of the highest-churn
-user-facing routes (PR merge/update, tree/blob/commit viewers, file upload,
-comment forms) have any test coverage at all.
-
-A full render harness already exists for this, though — `src/test/
-router-utils.tsx` (`renderWithRouter`, `createTestRouter`,
-`createTestQueryClient`), built on `@testing-library/react` (already a
-devDependency). Route-level tests should use it rather than building a new
-pattern from scratch.
+Few component render tests: coverage is server logic plus pure client
+helpers (e.g. `MarkdownRenderer`'s `isSafeHref`/`isSafeImageSrc`). The
+high-churn routes (PR pages, tree/blob/commit viewers, upload, comment forms)
+are covered only by e2e.
 
 ## End-to-end tests (Playwright)
 
@@ -137,7 +90,8 @@ suite:
 - It **loads `.env.local`** directly (via `dotenv`) so both the dev server it
   spins up and the test files themselves (which need direct DB access to
   verify things like test-user email state) see the same environment `pnpm
-  dev` would.
+  dev` would. It creates and deletes users, so point `.env.local` at a dev
+  database before running it — never production.
 - It runs **serially, one worker** (`fullyParallel: false, workers: 1`) —
   deliberately, not for lack of trying parallelism elsewhere in this
   codebase. All specs share one dev server, one real database, and one auth
@@ -151,7 +105,6 @@ suite:
 
 ```bash
 pnpm check      # Biome lint + format check (CI gate)
-pnpm lint       # Biome lint only
 pnpm format     # Biome format, writes changes
 pnpm typecheck  # tsc --noEmit
 ```

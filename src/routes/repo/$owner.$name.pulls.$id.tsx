@@ -113,11 +113,8 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 				.catch(() => {});
 		}
 
-		// The "Files changed" diff previously only fired client-side after the
-		// component mounted and saw `pr` resolved — a visible waterfall on every
-		// PR view. We already know pr.sourceBranch/targetBranch here, so kick it
-		// off now too (fire-and-forget — the diff isn't needed for the loader's
-		// own response, just likely to be needed moments later).
+		// Start the "Files changed" diff now rather than after mount; the page
+		// renders without it.
 		if (pr) {
 			queryClient
 				.ensureQueryData(
@@ -248,7 +245,6 @@ function PullRequestDetailPage() {
 		if (!pr || !newComment.trim()) return;
 		commentMutation.mutate({
 			data: {
-				repoId: pr.repoId,
 				pullRequestId: pr.id,
 				body: newComment,
 			},
@@ -282,7 +278,7 @@ function PullRequestDetailPage() {
 					<p className="flex flex-wrap items-center gap-1 text-muted-foreground">
 						#{pr.number} opened{" "}
 						{formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{" "}
-						by {pr.author?.name || "Unknown"} •{" "}
+						by {pr.author.name} •{" "}
 						<span className="inline-flex items-center gap-1">
 							{pr.sourceBranch}
 							<ArrowRight className="size-3" />
@@ -344,7 +340,7 @@ function PullRequestDetailPage() {
 					<div className="flex-1">
 						<div className="flex items-center gap-2 mb-4">
 							<span className="font-medium text-foreground">
-								{pr.author?.name || "Unknown"}
+								{pr.author.name}
 							</span>
 							<span className="text-sm text-muted-foreground">
 								{formatDistanceToNow(new Date(pr.createdAt), {

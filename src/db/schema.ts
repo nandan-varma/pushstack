@@ -1,6 +1,7 @@
 import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-// Better Auth tables
+// Better Auth's tables, maintained by hand: diff against its core schema
+// (@better-auth/core's get-tables) before bumping better-auth.
 export const user = pgTable("user", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
@@ -9,7 +10,7 @@ export const user = pgTable("user", {
 	image: text("image"),
 	createdAt: timestamp("createdAt").notNull(),
 	updatedAt: timestamp("updatedAt").notNull(),
-	username: text("username").unique(),
+	username: text("username").notNull().unique(),
 	displayUsername: text("displayUsername"),
 });
 
@@ -25,7 +26,7 @@ export const session = pgTable(
 		userAgent: text("userAgent"),
 		userId: text("userId")
 			.notNull()
-			.references(() => user.id),
+			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => ({
 		// Postgres does not auto-index foreign key columns — session revocation
@@ -42,7 +43,7 @@ export const account = pgTable(
 		providerId: text("providerId").notNull(),
 		userId: text("userId")
 			.notNull()
-			.references(() => user.id),
+			.references(() => user.id, { onDelete: "cascade" }),
 		accessToken: text("accessToken"),
 		refreshToken: text("refreshToken"),
 		idToken: text("idToken"),
@@ -69,6 +70,3 @@ export const verification = pgTable("verification", {
 	createdAt: timestamp("createdAt"),
 	updatedAt: timestamp("updatedAt"),
 });
-
-// Export GitHub schema tables
-export * from "./app-schema";

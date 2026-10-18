@@ -138,7 +138,7 @@ describe("queryKeys", () => {
 	});
 
 	describe("repoFileHistory", () => {
-		it("defaults limit and uses 'default' for undefined maxDepth", () => {
+		it("defaults limit and depth", () => {
 			expect(queryKeys.repoFileHistory(1, "main", "file.ts")).toEqual([
 				"repos",
 				1,
@@ -146,19 +146,13 @@ describe("queryKeys", () => {
 				"main",
 				"file.ts",
 				30,
-				"default",
+				"full",
 			]);
 		});
-		it("uses actual maxDepth when provided", () => {
-			expect(queryKeys.repoFileHistory(1, "main", "file.ts", 10, 3)).toEqual([
-				"repos",
-				1,
-				"file-history",
-				"main",
-				"file.ts",
-				10,
-				3,
-			]);
+		it("uses the given depth", () => {
+			expect(
+				queryKeys.repoFileHistory(1, "main", "file.ts", 10, "banner"),
+			).toEqual(["repos", 1, "file-history", "main", "file.ts", 10, "banner"]);
 		});
 	});
 
@@ -217,16 +211,6 @@ describe("queryKeys", () => {
 				expect(key[0]).toBe("repos");
 				expect(key[1]).toBe(repoId);
 			}
-		});
-
-		it("issue keys are separate from repo keys", () => {
-			const issueKey = queryKeys.issue(1);
-			expect(issueKey[0]).toBe("issues");
-		});
-
-		it("PR keys are separate from repo keys", () => {
-			const prKey = queryKeys.pullRequest(1);
-			expect(prKey[0]).toBe("pull-requests");
 		});
 	});
 });

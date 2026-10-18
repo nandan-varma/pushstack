@@ -62,19 +62,9 @@ vi.mock("#/lib/r2", async (importOriginal) => {
 	};
 });
 
-vi.mock("#/db", async () => {
-	const { PGlite } = await import("@electric-sql/pglite");
-	const { drizzle } = await import("drizzle-orm/pglite");
-	const { pushSchema } = await import("drizzle-kit/api");
-	const schema = await import("../../src/db/schema");
-	const db = drizzle(new PGlite(), { schema });
-	const { apply } = await pushSchema(
-		schema as unknown as Record<string, unknown>,
-		db as unknown as Parameters<typeof pushSchema>[1],
-	);
-	await apply();
-	return { db };
-});
+vi.mock("#/db", async () => ({
+	db: await (await import("../../src/test/pglite-db")).createTestDb(),
+}));
 
 vi.mock("#/lib/auth", () => ({
 	auth: { api: { getSession: vi.fn(async () => null) } },
@@ -92,7 +82,7 @@ vi.mock("#/server/session", () => ({
 	getCurrentUserOptional: vi.fn(async () => USER),
 }));
 
-const PAT = "ghp_smoketestpersonalaccesstoken0000";
+const PAT = "pst_smoketestpersonalaccesstoken0000";
 const REPO = "smoke-repo";
 
 let server: Server;
@@ -164,7 +154,8 @@ beforeAll(async () => {
 	};
 
 	const { db } = await import("#/db");
-	const { user, tokens } = await import("../../src/db/schema");
+	const { user } = await import("../../src/db/schema");
+	const { tokens } = await import("../../src/db/app-schema");
 	const { hashToken } = await import("#/server/tokens");
 	await db.insert(user).values({
 		...USER,
@@ -265,7 +256,7 @@ describe("native git against the pushstack git endpoint", () => {
 	}, 60_000);
 
 	it("serves web-UI commits (packed writes) to fresh clones and fetches", async () => {
-		const { createCommit } = await import("#/server/git-commit-write");
+		const { createCommit } = await import("#/server/git-write");
 		await createCommit(USER.username, REPO, {
 			branch: "main",
 			message: "Edit from the web UI",
@@ -337,7 +328,7 @@ describe("native git against the pushstack git endpoint", () => {
 		await commitFile(a, "main-only.txt", "main\n");
 		await git(a, "push", "-q", "origin", "main");
 
-		const { mergeBranches } = await import("#/server/git-merge-iso");
+		const { mergeBranches } = await import("#/server/git-write");
 		const merged = await mergeBranches(USER.username, REPO, "topic", "main", {
 			message: "Merge topic",
 			authorName: USER.name,
@@ -354,7 +345,7 @@ describe("native git against the pushstack git endpoint", () => {
 	}, 60_000);
 
 	it("rejects a bad token", async () => {
-		const bad = remote.replace(PAT, "ghp_wrongwrongwrongwrongwrong0000");
+		const bad = remote.replace(PAT, "pst_wrongwrongwrongwrongwrong0000");
 		const out = await gitFails(work, "ls-remote", bad);
 		expect(out).toMatch(/401|Authentication failed|could not read/i);
 	}, 30_000);

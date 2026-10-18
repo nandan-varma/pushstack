@@ -6,13 +6,14 @@
  * Prints the PAT and clone URL. Safe to re-run — clears prior perf-test
  * fixtures first.
  */
-import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "#/db";
 import { repositories, tokens } from "#/db/app-schema";
 import { user } from "#/db/schema";
-import { initBareRepo } from "#/server/git-manager-iso";
-import { getStorageOwnerKey } from "#/server/git-storage-naming";
+import { bytesToBase64Url, randomBytes } from "#/lib/bytes";
+import { TOKEN_PREFIX } from "#/lib/token-scopes";
+import { initBareRepo } from "#/server/git-repo";
+import { hashToken } from "#/server/tokens";
 
 const USER_ID = "perf-test-user";
 const USERNAME = "perfuser";
@@ -35,8 +36,8 @@ async function main() {
 		updatedAt: now,
 	});
 
-	const pat = `ghp_${crypto.randomBytes(24).toString("hex")}`;
-	const tokenHash = crypto.createHash("sha256").update(pat).digest("hex");
+	const pat = `${TOKEN_PREFIX}${bytesToBase64Url(randomBytes(30))}`;
+	const tokenHash = await hashToken(pat);
 	await db.insert(tokens).values({
 		userId: USER_ID,
 		name: "perf-test-token",
@@ -44,12 +45,7 @@ async function main() {
 		scopes: ["repo:write"],
 	});
 
-	const ownerKey = getStorageOwnerKey({
-		id: USER_ID,
-		username: USERNAME,
-		email: EMAIL,
-	});
-	await initBareRepo(ownerKey, REPO_NAME, "main");
+	await initBareRepo(USERNAME, REPO_NAME, "main");
 	await db.insert(repositories).values({
 		ownerId: USER_ID,
 		name: REPO_NAME,

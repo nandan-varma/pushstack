@@ -1,55 +1,34 @@
-import type { repositories } from "#/db/app-schema";
+/**
+ * The R2 key layout: a repository's git data lives at
+ * `repos/{ownerKey}/{repoName}/git/…`, where `ownerKey` is the owner's
+ * (required, immutable) username. The only place keys are built.
+ */
 
-type OwnerLike = {
-	id: string;
-	username: string | null;
-	email: string;
-};
+/** Usernames and repository names: never ".", "..", or anything with a "/". */
+export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 
-type RepoLike = Pick<typeof repositories.$inferSelect, "ownerId" | "name"> & {
-	owner?: OwnerLike | null;
-};
-
-// Replacing slashes with "-" defeats a multi-segment traversal (e.g.
-// "../../etc"), but a segment that is *exactly* "." or ".." contains no slash
-// to replace and would otherwise pass through unchanged — and every consumer
-// of this value builds a gitFs path from it, which git-fs-s3 normalizes
-// (resolving ".." components) before mapping it onto an R2 key. Collapse
-// those to a literal placeholder so a stored value can never traverse into
-// another repository's prefix.
-export function sanitizeStorageSegment(value: string): string {
-	const cleaned = value
-		.trim()
-		.replace(/[\\/]+/g, "-")
-		.replace(/\s+/g, "-");
-	return cleaned === "." || cleaned === ".." ? "_" : cleaned;
-}
-
-export function getStorageOwnerKey(owner: OwnerLike): string {
-	const fallbackUsername = owner.email.split("@")[0] || owner.id;
-	return sanitizeStorageSegment(owner.username || fallbackUsername || owner.id);
-}
-
-export function getRepoStorageCoordinates(repo: RepoLike) {
-	if (!repo.owner) {
-		throw new Error(`Repository owner metadata missing for ${repo.name}`);
+/**
+ * Fails closed on a name that isn't a single safe segment: gitFs resolves
+ * `..` in the paths it maps onto keys, so one could address another
+ * repository's storage. Names are validated at input; this is the backstop.
+ */
+function segment(value: string, what: string): string {
+	if (!STORAGE_NAME_RE.test(value)) {
+		throw new Error(`Invalid ${what} for storage: ${JSON.stringify(value)}`);
 	}
-
-	return {
-		ownerKey: getStorageOwnerKey(repo.owner),
-		repoKey: sanitizeStorageSegment(repo.name),
-	};
+	return value;
 }
 
-export function getRepoStorageRoot(ownerKey: string, repoName: string): string {
-	return `repos/${sanitizeStorageSegment(ownerKey)}/${sanitizeStorageSegment(repoName)}`;
+/** The owner key of a repository whose owner relation is loaded. */
+export function ownerKeyOf(repo: { owner: { username: string } }): string {
+	return repo.owner.username;
 }
 
 export function getRepoGitStorageRoot(
 	ownerKey: string,
 	repoName: string,
 ): string {
-	return `${getRepoStorageRoot(ownerKey, repoName)}/git`;
+	return `repos/${segment(ownerKey, "owner")}/${segment(repoName, "repository name")}/git`;
 }
 
 export function getRepoGitStoragePrefix(
@@ -59,7 +38,7 @@ export function getRepoGitStoragePrefix(
 	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
 }
 
-/** A storage key inside some repo's gitdir, split along the key layout. */
+/** A storage key inside some repository's gitdir, split along the layout. */
 export interface RepoGitStorageKey {
 	ownerKey: string;
 	repoName: string;
@@ -67,11 +46,7 @@ export interface RepoGitStorageKey {
 	gitdirPath: string;
 }
 
-/**
- * Inverse of {@link getRepoGitStoragePrefix}: split a key (or listing
- * prefix) of the form `repos/{ownerKey}/{repoName}/git/{gitdirPath}`. `null`
- * for keys outside that layout.
- */
+/** Inverse of {@link getRepoGitStoragePrefix}; null for keys outside the layout. */
 export function parseRepoGitStorageKey(key: string): RepoGitStorageKey | null {
 	const [root, ownerKey, repoName, git, ...rest] = key.split("/");
 	if (

@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
+import { STORAGE_NAME_RE } from "#/server/git-storage-naming";
 import { sendEmail } from "./email";
 
 const authSecret = process.env.BETTER_AUTH_SECRET;
@@ -33,13 +34,12 @@ function escapeHtml(text: string): string {
 		.replace(/"/g, "&quot;");
 }
 
-// A user's repositories live under a storage prefix derived from their
-// username (or, without one, their email) — git-storage-naming.ts's
-// getStorageOwnerKey. Changing either after sign-up would orphan every
-// repository they own, and let whoever later takes the old name inherit that
-// storage under matching repository names. The username plugin exposes
-// username changes through update-user, so refuse them here, server-side.
-const IMMUTABLE_USER_FIELDS = ["username", "displayUsername", "email"];
+// A user's repositories live under `repos/{username}/` in storage
+// (git-storage-naming.ts), so the username is required and can't change:
+// changing it would orphan every repository the user owns, and let whoever
+// later took the old name inherit that storage. The username plugin exposes
+// username changes through update-user, so they're refused here, server-side.
+const IMMUTABLE_USER_FIELDS = ["username", "displayUsername"];
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -69,6 +69,15 @@ export const auth = betterAuth({
 	},
 	databaseHooks: {
 		user: {
+			create: {
+				before: async (data) => {
+					if (typeof data.username !== "string" || !data.username) {
+						throw new APIError("BAD_REQUEST", {
+							message: "A username is required",
+						});
+					}
+				},
+			},
 			update: {
 				before: async (data) => {
 					const changed = IMMUTABLE_USER_FIELDS.filter(
@@ -113,6 +122,9 @@ export const auth = betterAuth({
 		username({
 			minUsernameLength: 3,
 			maxUsernameLength: 30,
+			// One storage-path segment: letters, digits, ".", "_", "-", starting
+			// and ending alphanumeric — same rule as repository names.
+			usernameValidator: (name) => STORAGE_NAME_RE.test(name),
 		}),
 	],
 });

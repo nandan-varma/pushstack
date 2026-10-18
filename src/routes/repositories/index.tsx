@@ -63,7 +63,7 @@ function RepositoriesPage() {
 			) : repositories && repositories.length > 0 ? (
 				<div className="grid gap-3 md:grid-cols-2">
 					{repositories.map((repo) => {
-						const ownerUsername = repo.owner?.username || "unknown";
+						const ownerUsername = repo.owner.username;
 
 						return (
 							<Link

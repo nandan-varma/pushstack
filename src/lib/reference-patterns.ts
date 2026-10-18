@@ -1,4 +1,4 @@
-export type ReferenceKind = "issue" | "pull";
+type ReferenceKind = "issue" | "pull";
 
 export type ResolveReference = (num: number) => ReferenceKind | null;
 

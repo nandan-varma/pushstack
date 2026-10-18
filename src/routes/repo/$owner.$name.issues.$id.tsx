@@ -182,7 +182,6 @@ function IssueDetailPage() {
 		commentMutation.mutate({
 			data: {
 				issueId: issue.id,
-				repoId: issue.repoId,
 				body: newComment,
 			},
 		});
@@ -215,7 +214,7 @@ function IssueDetailPage() {
 						{formatDistanceToNow(new Date(issue.createdAt), {
 							addSuffix: true,
 						})}{" "}
-						by {issue.author?.name || "Unknown"}
+						by {issue.author.name}
 					</p>
 				}
 				actions={
@@ -250,7 +249,7 @@ function IssueDetailPage() {
 					<div className="flex-1">
 						<div className="flex items-center gap-2 mb-4">
 							<span className="font-medium text-foreground">
-								{issue.author?.name || "Unknown"}
+								{issue.author.name}
 							</span>
 							<span className="text-sm text-muted-foreground">
 								{formatDistanceToNow(new Date(issue.createdAt), {

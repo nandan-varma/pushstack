@@ -92,7 +92,7 @@ function UnpatchedDiff({
 				label="Before"
 				src={sideSrc(
 					sides.oldRef,
-					fileDiff.oldPath ?? fileDiff.path,
+					fileDiff.path,
 					fileDiff.oldSize !== undefined,
 				)}
 				size={fileDiff.oldSize}

@@ -21,8 +21,8 @@ export function RepoEmptyState({
 	name: string;
 	branch: string;
 }) {
-	const cloneUrl = getCloneUrl(owner, name, "https");
-	const instructions = getSetupInstructions(owner, name, cloneUrl);
+	const cloneUrl = getCloneUrl(owner, name);
+	const instructions = getSetupInstructions(name, cloneUrl);
 
 	return (
 		<div className="space-y-4">

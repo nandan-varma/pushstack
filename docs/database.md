@@ -1,136 +1,76 @@
 # Database
 
 Neon (serverless Postgres) via `@neondatabase/serverless`, accessed through
-Drizzle ORM. The schema is deliberately split into two files:
+Drizzle ORM. Two schema files, merged in `src/db/index.ts`:
 
-- **`src/db/schema.ts`** — Better Auth's own tables (`user`, `session`,
-  `account`, `verification`), plus a re-export of everything in
-  `app-schema.ts` so `import { ... } from "#/db/schema"` works as a single
-  entry point.
-- **`src/db/app-schema.ts`** — every app-specific table: repositories,
-  issues, pull requests, comments, stars, collaborators, activity feed, PATs,
-  git-write transaction tracking.
+- **`src/db/schema.ts`** — Better Auth's tables (`user`, `session`,
+  `account`, `verification`).
+- **`src/db/app-schema.ts`** — the app's tables, with typed `$type` columns
+  (visibility, status, role, labels, activity type/metadata) and the row
+  types `Repository`, `Issue`, `PullRequest`, `CollaboratorRole`.
 
-Git object data (commits, trees, blobs) is **not** stored here — that's
-Cloudflare R2 (see [git-storage.md](./git-storage.md)). Postgres only ever
-holds metadata: who owns what, what's public/private, issue/PR/comment
-content, and bookkeeping.
+Git data (commits, trees, blobs, refs) lives in R2, not here — see
+[git-storage.md](./git-storage.md). Postgres holds metadata only.
 
-**Better Auth's tables are hand-maintained here, not driven by its own
-migration CLI** — `schema.ts` is a plain Drizzle table definition kept in
-sync by hand with whatever the installed `better-auth` version's core
-schema actually expects. This drifted once already: bumping `better-auth`
-1.6.22 -> 1.7.2 added a required `account.issuer` field (a stable
-per-provider identity namespace, e.g. `"local:credential"` for password
-auth) with a unique `(issuer, accountId)` index, and every sign-in/sign-up
-started throwing `"The field issuer does not exist in the schema for the
-model account"` until the column was added and backfilled. Then 1.7.3 removed
-it again (accounts are identified by `(providerId, accountId)`, as in 1.6),
-and the 1.7.2 -> 1.7.4 bump broke every sign-in in the opposite direction:
-better-auth's request-time schema check rejected the now-unwritten
-`NOT NULL` column with `Drizzle schema mismatch — Required columns Better
-Auth never writes: account.issuer`. The column and its index were dropped.
-Drift is possible both ways — a field added *or* removed upstream. **Any future
-`better-auth` version bump needs its actual installed schema diffed against
-`schema.ts`** (check `node_modules/@better-auth/core/dist/db/get-tables.mjs`
-for the exact `user`/`session`/`account`/`verification` field lists that
-version expects) before it's considered safe to deploy — a passing
-`pnpm build`/`pnpm typecheck` won't catch this, since better-auth validates
-its configured adapter's schema at request time, not at build time.
+## Better Auth's tables are hand-maintained
+
+`schema.ts` is kept in sync by hand with what the installed `better-auth`
+expects. It has drifted both ways: 1.7.2 added a required `account.issuer`
+column (every sign-in threw until it was added), and 1.7.3 removed it again
+(every sign-in threw because better-auth refused a required column it never
+writes). better-auth checks the schema at request time, so `pnpm build`,
+`typecheck` and `test` all stay green through such a mismatch. **Before
+bumping `better-auth`, diff `node_modules/@better-auth/core/dist/db/get-tables.mjs`
+against `schema.ts`.**
+
+`user.username` is `NOT NULL` and never changes (`auth.ts`'s database hooks
+require it on create and refuse it on update): it's the first segment of
+every storage key.
 
 ## Tables
 
 | Table | Purpose |
 |---|---|
-| `user`, `session`, `account`, `verification` | Better Auth — accounts, sessions, credential/OAuth accounts, email verification tokens |
-| `repositories` | Name, owner, visibility, default branch, `gitPath` (informational), disk usage / last-backup bookkeeping, `nextIssueNumber` (see below) |
-| `issues` | Repo-scoped issues: title, body, status, labels (jsonb array), `number` |
-| `pullRequests` | Repo-scoped PRs: source/target branch **names** (not FKs — branches are git refs, not DB rows), status, merge metadata, `number` |
-| `comments` | Attached to either an issue or a PR (both nullable FKs, exactly one set) |
-| `stars` | User ↔ repository, one row per star |
-| `repositoryCollaborators` | Per-repo, per-user role (`read`/`write`/`admin`) — see [authentication.md](./authentication.md) for how this composes with ownership into `RepositoryAccess` |
-| `activities` | Activity feed events (commit/issue/pr/star/fork/comment) with a `metadata` jsonb blob shaped per `type` |
-| `tokens` | Personal Access Tokens — stores a SHA-256 `tokenHash`, never the raw token, plus scopes and expiry |
-| `gitAuthAttempts` | Failed-attempt counter + window start, keyed by username/email — backs `git-auth.ts`'s password-auth rate limiter (see [security.md](./security.md)); not app data, just rate-limit state |
-| `repoLocks` | One row per `{ownerKey}/{repoName}` currently being written to — the distributed lease-lock every write path (`withRepositoryLock`, `git-repo-lock.ts`) acquires before touching a repo's git storage. Not app data; see [git-storage.md](./git-storage.md) for why this exists (an in-process mutex gives zero protection across Vercel's ephemeral serverless instances) and how the lease/CAS mechanics work. |
-| `gitTransactions` | A write-ahead log: `withRepositoryLock` records one row per critical section (`pending` → `committed`/`rolled_back`), best-effort — a logging failure here never blocks the actual write. Not consulted on any read/write path; exists for provenance and for `findAbandonedGitTransactions` to identify a write whose holder crashed mid-flight (`git-transactions.ts`). |
+| `user`, `session`, `account`, `verification` | Better Auth. Sessions cascade on user delete. |
+| `repositories` | Name, owner, visibility, default branch, `nextIssueNumber` |
+| `issues` | Title, body, status, labels (`string[]`, default `[]`), `number` |
+| `pullRequests` | Source/target branch **names** (branches are git refs, not rows), status, merge metadata, `number` |
+| `comments` | On exactly one issue or pull request |
+| `stars` | Unique per (repo, user) |
+| `repositoryCollaborators` | Role `read`/`write`/`admin`, unique per (repo, user) — see [authentication.md](./authentication.md) |
+| `activities` | Feed events: `type` + `metadata` together form one `ActivityEvent` (`src/lib/activity-types.ts`) |
+| `tokens` | Personal access tokens: SHA-256 hash, scopes, expiry |
+| `repoLocks` | The per-repo write lease (`git-repo-lock.ts`); see [git-storage.md](./git-storage.md#locking) |
 
-**Issues and pull requests share one number sequence per repo** — `issues.number`/
-`pullRequests.number` (each unique per `(repoId, number)`), not the row's own
-`id`. This is the repo-scoped "#N" the UI shows and every `#N` markdown
-reference resolves against (`getIssueNumbers`/`getPullRequestNumbers` in
-`issues.ts`/`pull-requests.ts`), matching GitHub's numbering model instead of
-exposing the raw serial `id` (which is a single sequence per *table*, shared
-across every repo, and would produce colliding/non-sequential numbers per
-repo). `createIssue`/`createPullRequest` claim the next number atomically via
-`repositories.claimNextIssueOrPrNumber` (`repositories.ts`) — an
-`UPDATE ... SET next_issue_number = next_issue_number + 1 RETURNING`, safe
-under concurrent creation across Vercel's serverless instances without
-app-level locking. `$id` route params on `/issues/$id` and `/pulls/$id` are
-this `number`, not the internal `id` — `getIssueByNumber`/
-`getPullRequestByNumber` resolve `(owner, name, number)` server-side; mutation
-server functions (`updateIssue`, `mergePullRequest`, ...) still take the
-internal `id`, obtained from the already-loaded issue/PR row.
-
-Relations for all of these are defined via Drizzle's `relations()` alongside
-each table in `app-schema.ts`, so `db.query.X.findFirst({ with: {...} })`
-works for the usual joins (repo ↔ owner, issue ↔ author/repository/comments,
-etc.).
+**Issues and pull requests share one number sequence per repo**, like GitHub.
+`claimNextIssueOrPrNumber` (`repositories.ts`) claims one with
+`UPDATE … SET next_issue_number = next_issue_number + 1 RETURNING`, which is
+atomic across serverless instances without app-level locking; `(repoId,
+number)` is unique on both tables. Routes (`/issues/$id`, `/pulls/$id`) carry
+this number and resolve it with `getIssueByNumber`/`getPullRequestByNumber`;
+mutations take the row `id` from the loaded row. Activity metadata stores
+the number too.
 
 ## Indices
 
-Postgres does not automatically index foreign key columns, and several query
-patterns filter on more than one column together — so beyond the obvious
-single-column indices, there are composite ones matching actual query shapes
-in the server code:
+Postgres doesn't index foreign keys on its own; the indices match real query
+shapes:
 
-- `repo_owner_name_idx` — **unique**, not just indexed: a concurrent
-  double-submit of `createRepository` must not be able to create two rows for
-  the same `(ownerId, name)`, since storage keys are name-derived and
-  duplicates would clobber each other's git data.
-- `collab_repo_user_idx`, `star_repo_user_idx` — collaborator/star lookups are
-  always "does this specific user have a row for this specific repo,"
-  (repoId, userId) together, on every repo page load.
-- `issue_repo_status_idx`, `pr_repo_status_idx` — issue/PR list pages filter by
-  `(repoId, status)` together.
-- `activity_user_created_idx`, `activity_user_repo_idx`,
-  `activity_repo_created_idx` — the activity feed's three main query shapes (a
-  user's feed ordered by time; a user's activity scoped to one repo; a
-  repo's own feed ordered by time — `getRepositoryActivity` had only a bare
-  `repoId` index for years despite filtering and sorting the same way
-  `activity_user_created_idx` already did for the user-scoped case).
-- `repo_visibility_idx` — filtered on directly in 7 places (`search.ts`,
-  `users.ts`, both activity-feed visibility subqueries): "public" repo
-  search, another user's visible profile repos, and the activity feeds'
-  "public repos only" filter for non-owner viewers.
-- `session_user_idx`, `account_user_idx` — session revocation and the git
-  Basic-Auth credential lookup (`git-auth.ts`) both look up by `userId`, which
-  Better Auth's own schema doesn't index by default.
-
-If you add a new query that filters on more than one column of the same table
-together, check whether a composite index already covers it before assuming
-the existing single-column indices are enough — Postgres can use at most one
-index efficiently per table per query in the common case, so `(repoId,
-status)` benefits meaningfully from its own index rather than intersecting
-`repo_idx` and `status_idx`.
+- `repo_owner_name_idx` — **unique** (owner, name): storage keys derive from
+  the name, so two rows must never share one.
+- `star_repo_user_idx`, `collab_repo_user_idx` — **unique** (repo, user),
+  the lookup on every repo page, and what makes star/collaborator writes
+  idempotent.
+- `issue_repo_number_idx`, `pr_repo_number_idx` — unique (repo, number).
+- `issue_repo_status_idx`, `pr_repo_status_idx` — list pages filter by both.
+- `activity_user_created_idx`, `activity_repo_created_idx` — feeds by user
+  or repo, newest first.
+- `repo_visibility_idx`, `repo_name_idx` — search and public listings.
+- `session_user_idx`, `account_user_idx` — Better Auth doesn't index these.
 
 ## Migrations
 
-Two workflows, both via `drizzle-kit`:
-
-```bash
-pnpm db:push       # push schema.ts straight to Neon, no migration files — fast, for dev
-pnpm db:generate   # generate a migration file under drizzle/ from the current schema diff
-pnpm db:migrate    # apply generated migration files
-pnpm db:studio     # open Drizzle Studio (browse/edit data via a local UI)
-```
-
-`db:push` is the normal day-to-day flow for this project (introspects the live
-DB and diffs against `schema.ts` directly) — reach for `db:generate` +
-`db:migrate` only when you specifically want a committed migration file (e.g.
-for a change that needs to ship through a review/CI pipeline rather than being
-applied ad hoc).
-
-After any change to `schema.ts` or `app-schema.ts`, run one of these before
-the change takes effect against Neon — editing the Drizzle schema alone does
-not touch the database.
+`pnpm db:push` is the only path: drizzle-kit diffs both schema files against
+the live database and applies the difference. Editing the schema alone
+changes nothing in Neon. A change that drops or tightens columns (`NOT
+NULL`, unique) needs its data fixed first, then `db:push --force`.

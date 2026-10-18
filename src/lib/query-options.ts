@@ -14,14 +14,8 @@ import {
 	getTreePageData,
 	listFiles,
 } from "@/server/files";
+import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import {
-	getIssue,
-	getIssueByNumber,
-	getIssueNumbers,
-	getIssues,
-} from "@/server/issues";
-import {
-	getPullRequest,
 	getPullRequestByNumber,
 	getPullRequestNumbers,
 	getPullRequests,
@@ -76,17 +70,9 @@ export const queryKeys = {
 		branchName: string,
 		path: string,
 		limit = 30,
-		maxDepth?: number,
+		depth: "banner" | "full" = "full",
 	) =>
-		[
-			"repos",
-			repoId,
-			"file-history",
-			branchName,
-			path,
-			limit,
-			maxDepth ?? "default",
-		] as const,
+		["repos", repoId, "file-history", branchName, path, limit, depth] as const,
 	repoIssues: (repoId: number, status: "open" | "closed" | "all") =>
 		["repos", repoId, "issues", status] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
@@ -94,7 +80,6 @@ export const queryKeys = {
 		["repos", repoId, "issue-numbers"] as const,
 	repoPullRequestNumbers: (repoId: number) =>
 		["repos", repoId, "pull-request-numbers"] as const,
-	issue: (issueId: number) => ["issues", issueId] as const,
 	issueByNumber: (owner: string, name: string, number: number) =>
 		["repos", owner, name, "issues", number] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,
@@ -104,7 +89,6 @@ export const queryKeys = {
 	) => ["repos", repoId, "pull-requests", status] as const,
 	pullRequestsRoot: (repoId: number) =>
 		["repos", repoId, "pull-requests"] as const,
-	pullRequest: (prId: number) => ["pull-requests", prId] as const,
 	pullRequestByNumber: (owner: string, name: string, number: number) =>
 		["repos", owner, name, "pull-requests", number] as const,
 	pullRequestComments: (prId: number) =>
@@ -122,10 +106,8 @@ export const queryKeys = {
 const SESSION_STALE_TIME = 60_000;
 const DEFAULT_STALE_TIME = 2 * 60_000;
 const LONG_LIVED_STALE_TIME = 10 * 60_000;
-// React Query's default gcTime (5min) is shorter than LONG_LIVED_STALE_TIME, so
-// unobserved long-lived entries (e.g. a branch list, or a commit tab the user
-// tabbed away from) were getting garbage-collected before they ever went stale —
-// silently forcing a refetch that staleTime said shouldn't be needed yet.
+// Longer than LONG_LIVED_STALE_TIME: the default gcTime (5min) would collect an
+// unobserved entry before it ever went stale, forcing a pointless refetch.
 const LONG_LIVED_GC_TIME = 30 * 60_000;
 // Commits and their diffs are addressed by SHA — content-addressed and immutable,
 // so once fetched they never need a background refetch.
@@ -321,30 +303,23 @@ export function repositoryFileHistoryQueryOptions({
 	branchName,
 	path,
 	limit = 30,
-	maxDepth,
+	depth = "full",
 }: {
 	repoId: number;
 	branchName: string;
 	path: string;
 	limit?: number;
-	/** Pass a shallow value (see BANNER_WALK_DEPTH) for a single-latest-commit
-	 * lookup — leave unset for a caller that wants the full history depth. */
-	maxDepth?: number;
+	/** "banner" for a latest-commit-only lookup (a shallower first walk). */
+	depth?: "banner" | "full";
 }) {
 	return queryOptions({
-		queryKey: queryKeys.repoFileHistory(
-			repoId,
-			branchName,
-			path,
-			limit,
-			maxDepth,
-		),
+		queryKey: queryKeys.repoFileHistory(repoId, branchName, path, limit, depth),
 		queryFn: () =>
 			perfTime(
 				`query file history repo=${repoId} ${branchName}:${path} limit=${limit}`,
 				() =>
 					getFileHistory({
-						data: { repoId, branchName, path, limit, maxDepth },
+						data: { repoId, branchName, path, limit, depth },
 					}),
 			),
 		staleTime: LONG_LIVED_STALE_TIME,
@@ -375,17 +350,11 @@ export function repositoryCommitsQueryOptions({
 	});
 }
 
-// Single source of truth for "what is the tip commit of this branch right now" —
-// shared by CommitSummaryBar (display) and useBranchUpdateBanner (live polling
-// for new-push detection via BranchUpdateBanner), so both read the exact same
-// query/cache entry instead of resolving HEAD through two independent code
-// paths that could disagree. A depth-1 walk is as cheap as a bare ref resolve
-// (see git-history-ops.ts's PREFETCH_PACKS_MIN_DEPTH — limit=1 never triggers
-// the "prefetch every pack" path deeper walks pay for), so there's no perf
-// reason for a separate minimal endpoint here; the banner's observer adds
-// `refetchInterval` on top of this same query, and — because it's the same
-// cache entry — CommitSummaryBar picks up that live data for free with no
-// extra request of its own.
+/**
+ * A branch's tip commit — one cache entry shared by CommitSummaryBar and the
+ * branch-update banner's polling, so both always agree (the banner adds
+ * `refetchInterval` to this same query).
+ */
 export function repositoryLatestCommitQueryOptions({
 	repoId,
 	branchName,
@@ -477,14 +446,6 @@ export function repositoryIssuesQueryOptions({
 	});
 }
 
-export function issueQueryOptions(issueId: number) {
-	return queryOptions({
-		queryKey: queryKeys.issue(issueId),
-		queryFn: () => getIssue({ data: { issueId } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
 export function issueByNumberQueryOptions({
 	owner,
 	name,
@@ -518,18 +479,7 @@ export function repositoryPullRequestsQueryOptions({
 }) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequests(repoId, status),
-		queryFn: () =>
-			getPullRequests({
-				data: status === "all" ? { repoId } : { repoId, status },
-			}),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
-export function pullRequestQueryOptions(prId: number) {
-	return queryOptions({
-		queryKey: queryKeys.pullRequest(prId),
-		queryFn: () => getPullRequest({ data: { prId } }),
+		queryFn: () => getPullRequests({ data: { repoId, status } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
@@ -558,12 +508,10 @@ export function pullRequestCommentsQueryOptions(prId: number) {
 	});
 }
 
-// Unlike a single commit's diff (immutable, cached forever), a PR's diff is
-// keyed by branch *names*, which move — so by default it's loaded once and
-// left alone rather than re-walked and re-diffed on a timer. `autoRefresh`
-// (repo settings > Performance, off by default) opts a repo into polling this
-// query live so an open PR tab picks up new pushes to either branch, same
-// tradeoff as useBranchUpdateBanner's tree-page polling.
+/**
+ * A PR's diff is keyed by branch names, which move: loaded once by default;
+ * `autoRefresh` (a per-repo setting) polls it so an open tab sees new pushes.
+ */
 export function pullRequestDiffQueryOptions({
 	repoId,
 	sourceBranch,

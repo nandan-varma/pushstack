@@ -1,5 +1,6 @@
 /**
- * Tests for git-repo-storage.ts — the write-path foundation.
+ * The write-path foundation: git-repo-lock.ts (lease lock) and git-repo.ts
+ * (post-push bookkeeping, storage-level rename/delete).
  * Covers withRepositoryLock serialization (and its non-reentrancy
  * constraint), post-push bookkeeping, and the storage-level rename/delete —
  * the latter against git-fs.ts's real in-memory object store (R2 isn't
@@ -16,58 +17,19 @@ function resetLockTracking() {
 	maxLockConcurrency = 0;
 }
 
-// See helpers/fake-repo-lock-db.ts for what this fake db/lockStore actually
-// simulates and why `eq`/`and`/`lt` need mocking alongside it.
-const lockStore = vi.hoisted(
-	() => new Map<string, { holder: string; expiresAt: number }>(),
-);
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
 
-vi.mock("drizzle-orm", async (importOriginal) => {
-	const { fakeRepoLockDrizzleOrmOverrides } = await import(
-		"./helpers/fake-repo-lock-db"
-	);
-	const actual = await importOriginal<typeof import("drizzle-orm")>();
-	return { ...actual, ...fakeRepoLockDrizzleOrmOverrides() };
-});
-
-// File-wide: a stale/never-released entry from one test (e.g. the
-// deliberately-never-acquired lease in the "times out" test) must not leak
-// into unrelated tests using the same "owner/repo" key and make them hang
-// until the 60s lease TTL.
-beforeEach(() => {
-	lockStore.clear();
-});
-
-vi.mock("../git-manager-iso", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("../git-manager-iso")>();
-	return { ...actual, invalidateRepoGitCache: vi.fn() };
+vi.mock("git-edge", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("git-edge")>();
+	return { ...actual, invalidateRepoCache: vi.fn() };
 });
 
 vi.mock("../git-cache", () => ({
-	getCachedObject: vi.fn(),
-	setCachedObject: vi.fn(),
-	invalidateObjectCache: vi.fn(),
+	invalidateResultCache: vi.fn(),
+	opsHooksFor: vi.fn(),
 }));
-
-const dbUpdateSet = vi.hoisted(() => vi.fn());
-
-vi.mock("../../db", async () => {
-	const { createFakeRepoLockDb } = await import("./helpers/fake-repo-lock-db");
-	const db = createFakeRepoLockDb(lockStore);
-	return {
-		db: {
-			...db,
-			update: () => ({
-				set: (values: Record<string, unknown>) => {
-					// Lease renewals go to the fake lock table; everything else
-					// (storage-size bookkeeping) is recorded for assertions.
-					if (!("expiresAt" in values)) dbUpdateSet(values);
-					return db.update().set(values);
-				},
-			}),
-		},
-	};
-});
 
 vi.mock("../perf-log", () => ({
 	logError: vi.fn(),
@@ -79,23 +41,37 @@ vi.mock("../perf-log", () => ({
 	recordCacheMiss: vi.fn(),
 }));
 
+import { eq } from "drizzle-orm";
+import { invalidateRepoCache } from "git-edge";
 import { resultKeyPrefixes } from "git-fs-s3/ops";
-import { invalidateObjectCache } from "../git-cache";
+import { db } from "#/db";
+import { repoLocks } from "#/db/app-schema";
+import { invalidateResultCache } from "../git-cache";
 import { listRepoStorage, putStorageObject } from "../git-fs";
-import { invalidateRepoGitCache } from "../git-manager-iso";
 import {
 	afterRepositoryPush,
 	deleteRepositoryStorage,
 	renameRepositoryStorage,
-	withRepositoryLock,
-} from "../git-repo-storage";
+} from "../git-repo";
+import { withRepositoryLock } from "../git-repo-lock";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 } from "../git-storage-naming";
 
-const mockInvalidateObjectCache = vi.mocked(invalidateObjectCache);
-const mockInvalidateRepoGitCache = vi.mocked(invalidateRepoGitCache);
+const mockInvalidateObjectCache = vi.mocked(invalidateResultCache);
+const mockInvalidateRepoGitCache = vi.mocked(invalidateRepoCache);
+
+const lease = (repoKey: string) =>
+	db.query.repoLocks.findFirst({ where: eq(repoLocks.repoKey, repoKey) });
+const plantLease = (repoKey: string, holder: string, expiresAt: number) =>
+	db
+		.insert(repoLocks)
+		.values({ repoKey, holder, expiresAt: new Date(expiresAt) });
+
+beforeEach(async () => {
+	await db.delete(repoLocks);
+});
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
@@ -116,7 +92,6 @@ async function storedPaths(owner: string, repo: string): Promise<string[]> {
 describe("withRepositoryLock", () => {
 	beforeEach(() => {
 		resetLockTracking();
-		lockStore.clear();
 		vi.clearAllMocks();
 	});
 
@@ -183,12 +158,8 @@ describe("withRepositoryLock", () => {
 		expect(result).toBe("ok");
 	});
 
-	// The old in-process promise-chain mutex happened to serve queued waiters
-	// in strict FIFO order — a side effect of its implementation, not a
-	// documented guarantee. The DB-lease lock polls with jittered intervals
-	// (see acquireRepoLock), so ordering among waiters is no longer
-	// deterministic; what must still hold is mutual exclusion — no two
-	// critical sections ever overlap.
+	// Waiters poll with jitter, so their order isn't defined; only mutual
+	// exclusion is.
 	it("serializes 3 concurrent calls for the same repo with no overlap", async () => {
 		let active = 0;
 		let maxActive = 0;
@@ -214,17 +185,14 @@ describe("withRepositoryLock", () => {
 	it("cleans up the lock entry after the last call completes", async () => {
 		await withRepositoryLock("owner", "repo", async () => "done");
 
-		expect(lockStore.has("owner/repo")).toBe(false);
+		expect(await lease("owner/repo")).toBeUndefined();
 
 		const result = await withRepositoryLock("owner", "repo", async () => "ok");
 		expect(result).toBe("ok");
 	});
 
 	it("takes over a lease that already expired instead of waiting out the poll timeout", async () => {
-		lockStore.set("owner/repo", {
-			holder: "stale-holder",
-			expiresAt: Date.now() - 1000,
-		});
+		await plantLease("owner/repo", "stale-holder", Date.now() - 1000);
 
 		const result = await withRepositoryLock("owner", "repo", async () => "ok");
 		expect(result).toBe("ok");
@@ -232,10 +200,7 @@ describe("withRepositoryLock", () => {
 
 	it("times out waiting for a lease that never expires", async () => {
 		vi.useFakeTimers();
-		lockStore.set("owner/repo", {
-			holder: "other-holder",
-			expiresAt: Date.now() + 10 * 60_000,
-		});
+		await plantLease("owner/repo", "other-holder", Date.now() + 10 * 60_000);
 
 		const attempt = withRepositoryLock("owner", "repo", async () => "ok");
 		const assertion = expect(attempt).rejects.toThrow(
@@ -262,14 +227,14 @@ describe("withRepositoryLock — lease renewal", () => {
 		});
 		// Let the acquire land.
 		await vi.advanceTimersByTimeAsync(0);
-		const held = lockStore.get("o/long");
+		const held = await lease("o/long");
 		expect(held).toBeDefined();
 
 		// Well past the 60s lease: the heartbeat must have pushed expiry out.
 		await vi.advanceTimersByTimeAsync(150_000);
-		const row = lockStore.get("o/long");
+		const row = await lease("o/long");
 		expect(row?.holder).toBe(held?.holder);
-		expect(row?.expiresAt).toBeGreaterThan(Date.now());
+		expect(row?.expiresAt.getTime()).toBeGreaterThan(Date.now());
 
 		// A competing writer still can't get in.
 		let competitorEntered = false;
@@ -296,39 +261,13 @@ describe("afterRepositoryPush", () => {
 	it("invalidates the ops result caches under the exact gitdir reads use", () => {
 		afterRepositoryPush("o", "r");
 
-		// The ops.* result-cache keys are namespaced `<kind>:${gitdir}:...` by
-		// git-fs-s3/ops itself, not by this app — invalidation here must use
-		// the exact same gitdir getRepoOptions/getBareRepoOptions resolve for
-		// reads, or these calls silently clear nothing. Regression coverage
-		// for a real bug: this used to invalidate hand-rolled
-		// `result:tree:${owner}/${repo}/`-shaped prefixes that never matched
-		// the library's actual key scheme.
+		// git-fs-s3/ops keys results by gitdir; any other prefix clears nothing.
 		const prefixes = resultKeyPrefixes(getRepoGitStorageRoot("o", "r"));
 		expect(prefixes.length).toBeGreaterThan(0);
 		for (const prefix of prefixes) {
 			expect(mockInvalidateObjectCache).toHaveBeenCalledWith(prefix);
 		}
 		expect(mockInvalidateRepoGitCache).toHaveBeenCalledWith("o", "r");
-	});
-
-	it("records the repo's stored size when given its owner", async () => {
-		await seedRepo("sized", "r", ["HEAD", "objects/pack/a.pack"]);
-
-		afterRepositoryPush("sized", "r", "owner-db-id");
-
-		await vi.waitFor(() =>
-			expect(dbUpdateSet).toHaveBeenCalledWith(
-				expect.objectContaining({
-					diskUsage: "HEAD".length + "objects/pack/a.pack".length,
-					backupR2Key: "repos/sized/r",
-				}),
-			),
-		);
-	});
-
-	it("skips storage accounting without an owner", () => {
-		afterRepositoryPush("o", "r");
-		expect(dbUpdateSet).not.toHaveBeenCalled();
 	});
 });
 
@@ -383,28 +322,5 @@ describe("renameRepositoryStorage", () => {
 	it("no-ops when the old prefix has no objects", async () => {
 		await renameRepositoryStorage("mv", "empty", "still-empty");
 		expect(await storedPaths("mv", "still-empty")).toEqual([]);
-	});
-});
-
-describe("qualifyBranchRef", () => {
-	it("passes through refs/ prefix", async () => {
-		const { qualifyBranchRef } = await import("../git-repo-storage");
-		expect(qualifyBranchRef("refs/heads/main")).toBe("refs/heads/main");
-	});
-
-	it("passes through HEAD", async () => {
-		const { qualifyBranchRef } = await import("../git-repo-storage");
-		expect(qualifyBranchRef("HEAD")).toBe("HEAD");
-	});
-
-	it("passes through 40-char hex oids", async () => {
-		const { qualifyBranchRef } = await import("../git-repo-storage");
-		const oid = "a".repeat(40);
-		expect(qualifyBranchRef(oid)).toBe(oid);
-	});
-
-	it("qualifies bare branch names to refs/heads/", async () => {
-		const { qualifyBranchRef } = await import("../git-repo-storage");
-		expect(qualifyBranchRef("feature")).toBe("refs/heads/feature");
 	});
 });

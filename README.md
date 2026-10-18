@@ -81,9 +81,7 @@ pnpm test:e2e         # Run E2E tests (Playwright)
 pnpm check            # Biome lint + format check
 pnpm lint             # Biome lint only
 pnpm format           # Biome format (write)
-pnpm db:generate      # Generate Drizzle migration files
-pnpm db:push          # Push schema to the database directly (no migration files)
-pnpm db:migrate       # Run generated migrations
+pnpm db:push          # Push the schema to the database (the only migration path)
 pnpm db:studio        # Open Drizzle Studio
 ```
 

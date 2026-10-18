@@ -1,128 +1,130 @@
+/** Server functions for repositories: create, read, settings, stars, collaborators. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "../db";
+import { db } from "#/db";
 import {
-	activities,
+	type Repository,
 	repositories,
 	repositoryCollaborators,
 	stars,
-} from "../db/app-schema";
-import { user } from "../db/schema";
-import { setDefaultBranch } from "./git-branch-ops";
-import { repackRepositoryNow } from "./git-http-iso";
-import { initBareRepo } from "./git-manager-iso";
+} from "#/db/app-schema";
+import { user } from "#/db/schema";
+import { recordActivity } from "./activity";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
 	deleteRepositoryStorage,
+	initBareRepo,
 	renameRepositoryStorage,
-	withRepositoryLock,
-} from "./git-repo-storage";
-import { getStorageOwnerKey } from "./git-storage-naming";
+	repackRepositoryNow,
+} from "./git-repo";
+import { withRepositoryLock } from "./git-repo-lock";
+import { ownerKeyOf, STORAGE_NAME_RE } from "./git-storage-naming";
+import { setDefaultBranch } from "./git-write";
 import { logError, perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
 	canReadRepo,
 	getAccessForRepository,
-	getRepositoryAccess,
 	requireOwner,
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { createTtlCoalescedCache } from "./ttl-cache";
 
-// Repository name flows into R2 storage keys, which gitFs addresses as
-// path-normalized fs paths — must start/end with an alphanumeric so it can
-// never be "." or "..", and can't contain "/" or "\" so it can never smuggle
-// in a multi-segment traversal into another repository's prefix.
-const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
+/** Also a storage-path segment, so this is a security boundary, not cosmetics. */
 const repoNameSchema = z
 	.string()
-	.min(1)
 	.max(100)
 	.regex(
-		REPO_NAME_RE,
-		"Repository name may only contain letters, numbers, dots, hyphens, and underscores, and must start/end with a letter or number",
+		STORAGE_NAME_RE,
+		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",
 	);
 
-async function getStarCount(repoId: number): Promise<number> {
-	const [row] = await db
-		.select({ count: sql`count(*)` })
-		.from(stars)
-		.where(eq(stars.repoId, repoId));
-	return Number(row?.count || 0);
-}
-
-type RepoByNameRow = {
-	repo: typeof repositories.$inferSelect;
-	owner: typeof user.$inferSelect;
+/** The user columns safe to show anyone (never the email). */
+const publicUserColumns = {
+	id: user.id,
+	username: user.username,
+	name: user.name,
+	image: user.image,
+};
+/** The same projection for relational queries' `with: { author: … }`. */
+export const publicUserFields = {
+	columns: { id: true, username: true, name: true, image: true },
+} as const;
+type PublicUser = {
+	id: string;
+	username: string;
+	name: string;
+	image: string | null;
 };
 
-// getRepositoryByName's repo+owner join isn't user-specific (unlike the
-// starCount/isStarred it's combined with below), and it's the first thing every
-// single repo page load resolves — including every fresh SSR request from a
-// different visitor to the same public repo, which each pay for this query with
-// an empty QueryClient regardless of how "warm" the git-object caches are.
-// Measured 130-760ms per call against Neon. Short-TTL cache + in-flight
-// coalescing, invalidated explicitly on rename/visibility/delete below so
-// mutations aren't masked by the TTL window.
-const REPO_ROW_CACHE_TTL_MS = 5000;
-const repoRowCache = createTtlCoalescedCache<RepoByNameRow | null>({
-	ttlMs: REPO_ROW_CACHE_TTL_MS,
+const NEW_REPOSITORY_DEFAULT_BRANCH = "main";
+/** Postgres SQLSTATE 23505; drizzle wraps driver errors, keeping it on `cause`. */
+function isUniqueViolation(error: unknown): boolean {
+	const err = error as { code?: unknown; cause?: { code?: unknown } } | null;
+	return err?.code === "23505" || err?.cause?.code === "23505";
+}
+
+type RepositoryRowWithOwner = Repository & { owner: PublicUser };
+
+/**
+ * Repository + owner by URL coordinates. Every repo page and both requests of
+ * every git operation start here, so it's cached for a few seconds (and
+ * coalesced); renames, settings changes and deletes evict it.
+ */
+const repoByNameCache = createTtlCoalescedCache<RepositoryRowWithOwner | null>({
+	ttlMs: 5000,
 });
 
-function repoRowCacheKey(owner: string, name: string): string {
-	return `${owner}/${name}`;
-}
-
-function invalidateRepoRowCache(owner: string, name: string): void {
-	repoRowCache.delete(repoRowCacheKey(owner, name));
-}
-
-async function fetchRepoRowByName(
-	owner: string,
-	name: string,
-): Promise<RepoByNameRow | null> {
-	const key = repoRowCacheKey(owner, name);
-
-	return repoRowCache.get(key, () =>
-		db
-			.select({ repo: repositories, owner: user })
-			.from(repositories)
-			.innerJoin(user, eq(repositories.ownerId, user.id))
-			.where(and(eq(user.username, owner), eq(repositories.name, name)))
-			.limit(1)
-			.then(([row]) => row ?? null),
-	);
-}
-
-// Find repository by owner username and repo name (for git protocol - plain function, not serverFn).
-//
-// Every git HTTP operation (clone/fetch/push) makes at least two requests
-// (info/refs, then upload-pack/receive-pack), and git.$.ts calls this once per
-// request to resolve the repo before authenticating — this used to be two
-// sequential, uncached queries (owner-by-username, then repo-by-owner+name)
-// paid fresh on *every single one* of those requests. Routing through
-// fetchRepoRowByName instead gives it the same single-join query plus 5-second
-// cache and in-flight coalescing that getRepositoryByName already uses — so
-// the receive-pack request of a push typically gets a free cache hit from the
-// info/refs request moments earlier, instead of hitting Postgres again.
-export async function findRepositoryByName(
+export function findRepositoryByName(
 	ownerUsername: string,
 	repoName: string,
-) {
-	const row = await fetchRepoRowByName(ownerUsername, repoName);
-	if (!row) return undefined;
-	return { ...row.repo, owner: row.owner };
+): Promise<RepositoryRowWithOwner | null> {
+	return repoByNameCache.get(`${ownerUsername}/${repoName}`, async () => {
+		const [row] = await db
+			.select({ repo: repositories, owner: publicUserColumns })
+			.from(repositories)
+			.innerJoin(user, eq(repositories.ownerId, user.id))
+			.where(
+				and(eq(user.username, ownerUsername), eq(repositories.name, repoName)),
+			)
+			.limit(1);
+		return row ? { ...row.repo, owner: row.owner } : null;
+	});
 }
 
-// Issues and pull requests share one number sequence per repo (GitHub's
-// numbering model — see app-schema.ts's `nextIssueNumber` doc comment), so
-// createIssue/createPullRequest both claim from here. The row-level UPDATE
-// makes this safe under concurrent creation across Vercel's serverless
-// instances without app-level locking: Postgres serializes concurrent
-// updates to the same row, so two simultaneous claims can't return the same
-// number.
+/**
+ * A server function body for reads addressed by URL (`/repo/{owner}/{name}/…`):
+ * perf context, the repository, read access (404 when missing or unreadable),
+ * then `fn`.
+ */
+export function readRepoByName<T>(
+	label: string,
+	owner: string,
+	name: string,
+	fn: (repo: RepositoryRowWithOwner) => Promise<T>,
+): Promise<T> {
+	return perfContext(label, async () => {
+		const [currentUser, repo] = await Promise.all([
+			getCurrentUserOptional(),
+			findRepositoryByName(owner, name),
+		]);
+		if (!repo) throw notFound();
+		const access = await getAccessForRepository(repo, currentUser?.id);
+		if (!access.canRead) throw notFound();
+		return fn(repo);
+	});
+}
+
+function evictRepoByName(ownerUsername: string, repoName: string): void {
+	repoByNameCache.delete(`${ownerUsername}/${repoName}`);
+}
+
+/**
+ * Claim the next `#N` for an issue or PR (one shared sequence per repo). A
+ * single-row UPDATE … RETURNING, so concurrent claims never collide.
+ */
 export async function claimNextIssueOrPrNumber(
 	repoId: number,
 ): Promise<number> {
@@ -130,573 +132,320 @@ export async function claimNextIssueOrPrNumber(
 		.update(repositories)
 		.set({ nextIssueNumber: sql`${repositories.nextIssueNumber} + 1` })
 		.where(eq(repositories.id, repoId))
-		.returning({ nextIssueNumber: repositories.nextIssueNumber });
+		.returning({ next: repositories.nextIssueNumber });
 	if (!row) throw new Error("Repository not found");
-	return row.nextIssueNumber - 1;
+	return row.next - 1;
 }
 
-/** The branch a new repository's history starts on. */
-const NEW_REPOSITORY_DEFAULT_BRANCH = "main";
-
-// Create repository schema
-const createRepoSchema = z.object({
-	name: repoNameSchema,
-	description: z.string().optional(),
-	visibility: z.enum(["public", "private"]).default("public"),
-});
-
-// Create repository
 export const createRepository = createServerFn({ method: "POST" })
-	.validator((data: unknown) => createRepoSchema.parse(data))
-	.handler(async ({ data }) => {
-		try {
-			const user = await getCurrentUser();
-
-			// Check if repository name already exists for this user
-			const existing = await db.query.repositories.findFirst({
-				where: and(
-					eq(repositories.ownerId, user.id),
-					eq(repositories.name, data.name),
-				),
-			});
-
-			if (existing) {
-				throw new Error("Repository with this name already exists");
-			}
-
-			const ownerKey = getStorageOwnerKey({
-				id: user.id,
-				username: user.username || null,
-				email: user.email,
-			});
-			// Create repository record in database first. The existence check
-			// above is check-then-act (not atomic) — a concurrent double-submit
-			// can pass it twice, so the unique index on (ownerId, name) is the
-			// real guard; a violation here means we lost that race, not a server
-			// error — and since the row comes first, the loser never touches the
-			// winner's storage.
-			let repo: typeof repositories.$inferSelect;
-			try {
-				[repo] = await db
-					.insert(repositories)
-					.values({
-						ownerId: user.id,
-						name: data.name,
-						description: data.description || null,
-						visibility: data.visibility,
-						defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
-					})
-					.returning();
-			} catch (error) {
-				if ((error as { code?: string })?.code === "23505") {
-					throw new Error("Repository with this name already exists");
-				}
-				throw error;
-			}
-
-			// Now storage. Anything already under this prefix belongs to no
-			// repository (the row we just inserted is the only one with this
-			// name) — leftovers of a delete whose storage cleanup failed — and
-			// must not become this repository's history.
-			try {
-				await withRepositoryLock(ownerKey, data.name, async () => {
-					await deleteRepositoryStorage(ownerKey, data.name);
-					await initBareRepo(
-						ownerKey,
-						data.name,
-						NEW_REPOSITORY_DEFAULT_BRANCH,
-					);
-				});
-			} catch (error) {
-				await db
-					.delete(repositories)
-					.where(eq(repositories.id, repo.id))
-					.catch((cleanupError: unknown) =>
-						logError(
-							"repositories",
-							`Failed to roll back repository row ${repo.id} after storage init failed`,
-							cleanupError,
-						),
-					);
-				throw error;
-			}
-
-			// Log activity
-			await db.insert(activities).values({
-				userId: user.id,
-				repoId: repo.id,
-				type: "create_repo",
-				metadata: { repoName: repo.name },
-			});
-
-			// Return repo with owner info for navigation
-			return {
-				...repo,
-				owner: {
-					id: user.id,
-					username: user.username || user.email.split("@")[0], // Fallback to email prefix
-					email: user.email,
-					name: user.name,
-				},
-			};
-		} catch (error) {
-			logError("repositories", "Error creating repository", error);
-			throw error;
-		}
-	});
-
-// Get user repositories
-export const getUserRepositories = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				userId: z.string().optional(),
-				limit: z.number().max(100).optional().default(100),
-				skip: z.number().optional().default(0),
-			})
-			.parse(data),
+	.validator(
+		z.object({
+			name: repoNameSchema,
+			description: z.string().trim().max(500).optional(),
+			visibility: z.enum(["public", "private"]).default("public"),
+		}),
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const targetUserId = data.userId || currentUser.id;
-		const isOwnRepos = targetUserId === currentUser.id;
+		// The row first: the (owner, name) unique index settles a creation race
+		// before anything touches storage.
+		const repo = await db
+			.insert(repositories)
+			.values({
+				ownerId: currentUser.id,
+				name: data.name,
+				description: data.description || null,
+				visibility: data.visibility,
+				defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
+			})
+			.returning()
+			.then(([row]) => row)
+			.catch((error: unknown) => {
+				if (isUniqueViolation(error)) {
+					throw new Error("Repository with this name already exists");
+				}
+				throw error;
+			});
+		if (!repo) throw new Error("Repository insert returned no row");
 
-		// Visibility filtering used to happen in JS after the fetch —
-		// combined with a limit, that could silently return fewer repos than
-		// requested even when plenty of public ones existed further back (same
-		// issue search.ts's activity feeds fixed). Push it into the query instead.
-		const repos = await db.query.repositories.findMany({
-			where: isOwnRepos
-				? eq(repositories.ownerId, targetUserId)
-				: and(
-						eq(repositories.ownerId, targetUserId),
-						eq(repositories.visibility, "public"),
-					),
+		const ownerKey = currentUser.username;
+		try {
+			// Anything already under this prefix is a leftover of a delete whose
+			// storage cleanup failed; it must not become this repository's history.
+			await withRepositoryLock(ownerKey, repo.name, async () => {
+				await deleteRepositoryStorage(ownerKey, repo.name);
+				await initBareRepo(ownerKey, repo.name, NEW_REPOSITORY_DEFAULT_BRANCH);
+			});
+		} catch (error) {
+			await db.delete(repositories).where(eq(repositories.id, repo.id));
+			throw error;
+		}
+
+		await recordActivity(currentUser.id, repo.id, {
+			type: "create_repo",
+			metadata: { repoName: repo.name },
+		});
+		return { ...repo, owner: { username: ownerKey } };
+	});
+
+/** A user's repositories, newest first: all of them for the owner, public ones for others. */
+export const getUserRepositories = createServerFn({ method: "GET" })
+	.validator(
+		z.object({
+			userId: z.string().optional(),
+			limit: z.number().int().min(1).max(100).default(100),
+			skip: z.number().int().min(0).default(0),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const ownerId = data.userId ?? currentUser.id;
+		return db.query.repositories.findMany({
+			where:
+				ownerId === currentUser.id
+					? eq(repositories.ownerId, ownerId)
+					: and(
+							eq(repositories.ownerId, ownerId),
+							eq(repositories.visibility, "public"),
+						),
 			orderBy: [desc(repositories.updatedAt)],
-			with: {
-				owner: true,
-			},
+			with: { owner: publicUserFields },
 			limit: data.limit,
 			offset: data.skip,
 		});
-
-		return repos;
 	});
 
-// Get repository by ID
-export const getRepository = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				id: z.number(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUserOptional();
+async function starState(repoId: number, userId: string | undefined) {
+	const [[total], mine] = await Promise.all([
+		db.select({ value: count() }).from(stars).where(eq(stars.repoId, repoId)),
+		userId
+			? db.query.stars.findFirst({
+					columns: { id: true },
+					where: and(eq(stars.repoId, repoId), eq(stars.userId, userId)),
+				})
+			: undefined,
+	]);
+	return { starCount: total?.value ?? 0, isStarred: !!mine };
+}
 
-		// GetRepositoryAccess already fetches+caches the repo row as part
-		// of resolving access (see repo-access.ts's resolveRepositoryAccess) — a
-		// separate db.query.repositories.findFirst here used to duplicate that same
-		// fetch. Reuse access.repository instead; starCount/userStar don't depend on
-		// either, so they still run fully in parallel.
-		const [access, starCount, userStar] = await Promise.all([
-			getRepositoryAccess(data.id, currentUser?.id),
-			getStarCount(data.id),
-			currentUser
-				? db.query.stars.findFirst({
-						where: and(
-							eq(stars.repoId, data.id),
-							eq(stars.userId, currentUser.id),
-						),
-					})
-				: null,
-		]);
-
-		if (!access) throw new Error("Repository not found");
-		if (!access.canRead) throw new Error("Access denied");
-
-		return {
-			...access.repository,
-			starCount,
-			isStarred: !!userStar,
-		};
-	});
-
-// Get repository by owner and name
+/** A repository page's repository, with stars; 404 when missing or unreadable. */
 export const getRepositoryByName = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				owner: z.string(),
-				name: z.string(),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) =>
+	.validator(z.object({ owner: z.string(), name: z.string() }))
+	.handler(({ data }) =>
 		perfContext(`getRepositoryByName ${data.owner}/${data.name}`, async () => {
-			// Session resolution and the repo+owner join are independent
-			// (neither's input depends on the other's output) — they used to run
-			// sequentially, adding a full DB round trip's worth of pure waiting to
-			// every repo/tree page load's critical first request. Also matters most
-			// exactly when it's slowest: on Neon's scale-to-zero cold-compute wake,
-			// two queries fired together share that one wake instead of each paying
-			// it in series.
-			const [currentUser, row] = await perfStep(
-				"getCurrentUserOptional + db: repo+owner join",
-				() =>
-					Promise.all([
-						getCurrentUserOptional(),
-						fetchRepoRowByName(data.owner, data.name),
-					]),
+			const [currentUser, repo] = await perfStep("session + repository", () =>
+				Promise.all([
+					getCurrentUserOptional(),
+					findRepositoryByName(data.owner, data.name),
+				]),
 			);
-
-			if (!row) throw notFound();
-
-			const repo = { ...row.repo, owner: row.owner };
-
-			// Access check and star lookups only need repo.id / currentUser.id,
-			// which we already have — run them together instead of access-then-stars.
-			// Uses getAccessForRepository (not getRepositoryAccess) since we already have
-			// `repo` from the join above — getRepositoryAccess would re-fetch the same row
-			// again internally. This also primes repo-access.ts's short-TTL cache, so the
-			// tree page's follow-up getBranches/listFiles/getLastCommits/getCommits calls
-			// (which all resolve access for this same repoId+userId right after this
-			// resolves) hit that cache instead of each re-deriving it from scratch.
-			const [access, starCount, userStar] = await perfStep(
-				"db: access + starCount + userStar",
-				() =>
-					Promise.all([
-						getAccessForRepository(repo, currentUser?.id),
-						getStarCount(repo.id),
-						currentUser
-							? db.query.stars.findFirst({
-									where: and(
-										eq(stars.repoId, repo.id),
-										eq(stars.userId, currentUser.id),
-									),
-								})
-							: null,
-					]),
+			if (!repo) throw notFound();
+			// Also primes the access cache the page's follow-up reads hit.
+			const [access, stars] = await perfStep("access + stars", () =>
+				Promise.all([
+					getAccessForRepository(repo, currentUser?.id),
+					starState(repo.id, currentUser?.id),
+				]),
 			);
-			// Unreadable answers like missing, so private repos don't leak.
-			if (!access?.canRead) throw notFound();
-
-			return {
-				...repo,
-				starCount,
-				isStarred: !!userStar,
-			};
+			if (!access.canRead) throw notFound();
+			return { ...repo, ...stars };
 		}),
 	);
 
-// Update repository
 export const updateRepository = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				id: z.number(),
-				name: repoNameSchema.optional(),
-				description: z.string().optional(),
-				visibility: z.enum(["public", "private"]).optional(),
-				showLastCommitColumn: z.boolean().optional(),
-				autoRefreshPrDiffs: z.boolean().optional(),
-				defaultBranch: safeBranchNameSchema.optional(),
-			})
-			.parse(data),
+	.validator(
+		z.object({
+			id: z.number(),
+			name: repoNameSchema.optional(),
+			description: z.string().trim().max(500).optional(),
+			visibility: z.enum(["public", "private"]).optional(),
+			showLastCommitColumn: z.boolean().optional(),
+			autoRefreshPrDiffs: z.boolean().optional(),
+			defaultBranch: safeBranchNameSchema.optional(),
+		}),
 	)
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		const repo = await requireOwner(
 			data.id,
-			user.id,
-			"Only repository owner can update",
+			currentUser.id,
+			"Only the repository owner can change settings",
 		);
-		const ownerKey = getStorageOwnerKey({
-			id: repo.owner.id,
-			username: repo.owner.username,
-			email: repo.owner.email,
-		});
+		const ownerKey = ownerKeyOf(repo);
+		const { id, name, ...settings } = data;
 
-		// Git's HEAD first (it must name an existing branch, which this checks),
-		// then the row — so the row never names a branch git doesn't have.
-		// Before any rename, which moves HEAD along with the rest of storage.
-		if (data.defaultBranch && data.defaultBranch !== repo.defaultBranch) {
-			await setDefaultBranch(ownerKey, repo.name, data.defaultBranch);
+		// HEAD before the row, so the row never names a branch git lacks.
+		if (
+			settings.defaultBranch &&
+			settings.defaultBranch !== repo.defaultBranch
+		) {
+			await setDefaultBranch(ownerKey, repo.name, settings.defaultBranch);
 		}
 
-		const isRename = !!data.name && data.name !== repo.name;
-
-		if (isRename) {
-			const existing = await db.query.repositories.findFirst({
-				where: and(
-					eq(repositories.ownerId, user.id),
-					eq(repositories.name, data.name as string),
-				),
-			});
-			if (existing) {
-				throw new Error("Repository with this name already exists");
-			}
-		}
-
-		const applyUpdate = () =>
+		const update = () =>
 			db
 				.update(repositories)
-				.set({
-					...(data.name && { name: data.name }),
-					...(data.description !== undefined && {
-						description: data.description,
-					}),
-					...(data.visibility && { visibility: data.visibility }),
-					...(data.showLastCommitColumn !== undefined && {
-						showLastCommitColumn: data.showLastCommitColumn,
-					}),
-					...(data.autoRefreshPrDiffs !== undefined && {
-						autoRefreshPrDiffs: data.autoRefreshPrDiffs,
-					}),
-					...(data.defaultBranch && { defaultBranch: data.defaultBranch }),
-					updatedAt: new Date(),
+				.set({ ...settings, ...(name && { name }), updatedAt: new Date() })
+				.where(eq(repositories.id, id))
+				.returning()
+				.then(([row]) => row)
+				.catch((error: unknown) => {
+					if (isUniqueViolation(error)) {
+						throw new Error("Repository with this name already exists");
+					}
+					throw error;
+				});
+
+		// A rename moves the storage (keyed by name) and the row in one lock span,
+		// so nothing observes a half-renamed repository.
+		const isRename = !!name && name !== repo.name;
+		const updated = isRename
+			? await withRepositoryLock(ownerKey, repo.name, async () => {
+					await renameRepositoryStorage(ownerKey, repo.name, name);
+					try {
+						return await update();
+					} catch (error) {
+						await renameRepositoryStorage(ownerKey, name, repo.name);
+						throw error;
+					}
 				})
-				.where(eq(repositories.id, data.id))
-				.returning();
+			: await update();
 
-		let updated: typeof repositories.$inferSelect;
-		if (isRename) {
-			// Storage (R2 objects) is keyed by the repo's current name — move it
-			// to the new name before the DB row itself changes, all under the
-			// same repo lock a concurrent push would also wait on, so nothing can
-			// observe a half-renamed state.
-			[updated] = await withRepositoryLock(ownerKey, repo.name, async () => {
-				await renameRepositoryStorage(ownerKey, repo.name, data.name as string);
-				return applyUpdate();
-			});
-		} else {
-			[updated] = await applyUpdate();
-		}
-
-		// Invalidate under both the pre- and post-update name — a rename/visibility
-		// change would otherwise keep resolving to the stale row for up to
-		// REPO_ROW_CACHE_TTL_MS.
-		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
-		if (isRename) {
-			invalidateRepoRowCache(repo.owner.username ?? "", data.name as string);
-		}
-
+		evictRepoByName(ownerKey, repo.name);
+		if (isRename) evictRepoByName(ownerKey, name);
 		return updated;
 	});
 
-// Delete repository
 export const deleteRepository = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				id: z.number(),
-			})
-			.parse(data),
-	)
+	.validator(z.object({ id: z.number() }))
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		const repo = await requireOwner(
 			data.id,
-			user.id,
-			"Only repository owner can delete",
+			currentUser.id,
+			"Only the repository owner can delete it",
 		);
+		const ownerKey = ownerKeyOf(repo);
 
-		const ownerKey = getStorageOwnerKey({
-			id: repo.owner.id,
-			username: repo.owner.username,
-			email: repo.owner.email,
-		});
-		// The row first (cascades to related tables): once it's gone nothing
-		// can resolve this repository, so a failed storage cleanup afterwards
-		// only leaves unreachable objects — which the next repository created
-		// under this name clears before initializing. The other order could
-		// leave a live repository row with its storage deleted.
+		// The row first (cascading to issues, PRs, …): once it's gone nothing
+		// resolves this repository, so a failed storage cleanup only leaves
+		// unreachable objects, which the next create under this name clears.
 		await db.delete(repositories).where(eq(repositories.id, data.id));
-		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
-
-		// Under the write lock, so an in-flight push can't land objects in the
-		// prefix after it has been listed for deletion.
+		evictRepoByName(ownerKey, repo.name);
 		await withRepositoryLock(ownerKey, repo.name, () =>
 			deleteRepositoryStorage(ownerKey, repo.name),
-		).catch((error: unknown) => {
+		).catch((error: unknown) =>
 			logError(
 				"repositories",
-				`Deleted repository ${repo.id}, but its storage cleanup failed`,
+				`Repository ${repo.id} deleted, but its storage cleanup failed`,
 				error,
-			);
-		});
-
-		return { success: true };
+			),
+		);
 	});
 
-/**
- * Consolidates a repo's accumulated pack files into one, outside of a live
- * push. Every push already repacks past REPACK_PACK_COUNT_THRESHOLD and
- * cleans up the superseded packs it leaves behind in R2 (git-http-iso.ts's
- * handleReceivePackIso) — this is only for repos that built up a backlog of
- * orphaned packs *before* that R2 cleanup step existed and won't otherwise
- * get one until their next push crosses the threshold again. Each cold read
- * has to fetch every accumulated pack, so a repo stuck with many small packs
- * from early incremental pushes stays slow on every cache-cold visit until
- * this runs once.
- */
+/** Consolidate a repository's packs now (otherwise pushes do it past a threshold). */
 export const repackRepository = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				id: z.number(),
-			})
-			.parse(data),
-	)
+	.validator(z.object({ id: z.number() }))
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		const repo = await requireOwner(
 			data.id,
-			user.id,
-			"Only repository owner can repack",
+			currentUser.id,
+			"Only the repository owner can repack it",
 		);
-
-		const ownerKey = getStorageOwnerKey({
-			id: repo.owner.id,
-			username: repo.owner.username,
-			email: repo.owner.email,
-		});
-
-		const { removedFiles } = await repackRepositoryNow(
-			ownerKey,
-			repo.name,
-			repo.ownerId,
-		);
-
-		return { removedFiles };
+		return {
+			removedFiles: await repackRepositoryNow(ownerKeyOf(repo), repo.name),
+		};
 	});
 
-// Star/unstar repository
 export const toggleStar = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-			})
-			.parse(data),
-	)
+	.validator(z.object({ repoId: z.number() }))
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
+		const currentUser = await getCurrentUser();
+		if (!(await canReadRepo(data.repoId, currentUser.id))) throw notFound();
 
-		if (!(await canReadRepo(data.repoId, user.id))) {
-			throw new Error("Repository not found");
-		}
+		const removed = await db
+			.delete(stars)
+			.where(
+				and(eq(stars.repoId, data.repoId), eq(stars.userId, currentUser.id)),
+			)
+			.returning({ id: stars.id });
+		if (removed.length > 0) return { starred: false };
 
-		const existingStar = await db.query.stars.findFirst({
-			where: and(eq(stars.repoId, data.repoId), eq(stars.userId, user.id)),
-		});
-
-		if (existingStar) {
-			// Unstar
-			await db
-				.delete(stars)
-				.where(and(eq(stars.repoId, data.repoId), eq(stars.userId, user.id)));
-
-			return { starred: false };
-		} else {
-			// Star
-			await db.insert(stars).values({
-				repoId: data.repoId,
-				userId: user.id,
-			});
-
-			// Log activity
-			await db.insert(activities).values({
-				userId: user.id,
-				repoId: data.repoId,
+		const added = await db
+			.insert(stars)
+			.values({ repoId: data.repoId, userId: currentUser.id })
+			.onConflictDoNothing()
+			.returning({ id: stars.id });
+		if (added.length > 0) {
+			await recordActivity(currentUser.id, data.repoId, {
 				type: "star",
+				metadata: null,
 			});
-
-			return { starred: true };
 		}
+		return { starred: true };
 	});
 
-// Get repository collaborators
 export const getCollaborators = createServerFn({ method: "GET" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-			})
-			.parse(data),
-	)
+	.validator(z.object({ repoId: z.number() }))
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
-		if (!(await canModerateRepo(data.repoId, user.id))) {
+		const currentUser = await getCurrentUser();
+		if (!(await canModerateRepo(data.repoId, currentUser.id))) {
 			throw new Error("Access denied");
 		}
-
-		const collabs = await db.query.repositoryCollaborators.findMany({
+		return db.query.repositoryCollaborators.findMany({
 			where: eq(repositoryCollaborators.repoId, data.repoId),
-			with: {
-				user: true,
-			},
+			with: { user: publicUserFields },
 		});
-
-		return collabs;
 	});
 
-// Add collaborator
-export const addCollaborator = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				userId: z.string(),
-				role: z.enum(["read", "write", "admin"]).default("read"),
-			})
-			.parse(data),
+/** Add a collaborator by username, or change an existing one's role. */
+export const addCollaboratorByUsername = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			username: z.string().trim().min(1),
+			role: z.enum(["read", "write", "admin"]).default("read"),
+		}),
 	)
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		await requireOwner(
 			data.repoId,
-			user.id,
-			"Only repository owner can add collaborators",
+			currentUser.id,
+			"Only the repository owner can add collaborators",
 		);
+		const target = await db.query.user.findFirst({
+			columns: { id: true },
+			where: eq(user.username, data.username),
+		});
+		if (!target) throw new Error(`User "${data.username}" not found`);
+		if (target.id === currentUser.id)
+			throw new Error("You already own this repository");
 
-		const [collab] = await db
+		const [collaborator] = await db
 			.insert(repositoryCollaborators)
-			.values({
-				repoId: data.repoId,
-				userId: data.userId,
-				role: data.role,
+			.values({ repoId: data.repoId, userId: target.id, role: data.role })
+			.onConflictDoUpdate({
+				target: [
+					repositoryCollaborators.repoId,
+					repositoryCollaborators.userId,
+				],
+				set: { role: data.role },
 			})
 			.returning();
-
-		return collab;
+		return collaborator;
 	});
 
-// Remove collaborator
 export const removeCollaborator = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				userId: z.string(),
-			})
-			.parse(data),
-	)
+	.validator(z.object({ repoId: z.number(), userId: z.string() }))
 	.handler(async ({ data }) => {
-		const user = await getCurrentUser();
-
+		const currentUser = await getCurrentUser();
 		await requireOwner(
 			data.repoId,
-			user.id,
-			"Only repository owner can remove collaborators",
+			currentUser.id,
+			"Only the repository owner can remove collaborators",
 		);
-
 		await db
 			.delete(repositoryCollaborators)
 			.where(
@@ -705,56 +454,4 @@ export const removeCollaborator = createServerFn({ method: "POST" })
 					eq(repositoryCollaborators.userId, data.userId),
 				),
 			);
-
-		return { success: true };
-	});
-
-export const addCollaboratorByUsername = createServerFn({ method: "POST" })
-	.validator((data: unknown) =>
-		z
-			.object({
-				repoId: z.number(),
-				username: z.string(),
-				role: z.enum(["read", "write", "admin"]).default("read"),
-			})
-			.parse(data),
-	)
-	.handler(async ({ data }) => {
-		const currentUser = await getCurrentUser();
-
-		await requireOwner(
-			data.repoId,
-			currentUser.id,
-			"Only the owner can add collaborators",
-		);
-
-		const target = await db.query.user.findFirst({
-			where: eq(user.username, data.username),
-		});
-		if (!target) throw new Error(`User "${data.username}" not found`);
-		if (target.id === currentUser.id)
-			throw new Error("You are already the owner");
-
-		const existing = await db.query.repositoryCollaborators.findFirst({
-			where: and(
-				eq(repositoryCollaborators.repoId, data.repoId),
-				eq(repositoryCollaborators.userId, target.id),
-			),
-		});
-
-		if (existing) {
-			const [updated] = await db
-				.update(repositoryCollaborators)
-				.set({ role: data.role })
-				.where(eq(repositoryCollaborators.id, existing.id))
-				.returning();
-			return updated;
-		}
-
-		const [collab] = await db
-			.insert(repositoryCollaborators)
-			.values({ repoId: data.repoId, userId: target.id, role: data.role })
-			.returning();
-
-		return collab;
 	});

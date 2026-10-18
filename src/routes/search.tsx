@@ -12,7 +12,7 @@ import {
 	searchRepositoriesQueryOptions,
 	searchUsersQueryOptions,
 } from "@/lib/query-options";
-import type { searchRepositories } from "@/server/search";
+import type { searchRepositories, searchUsers } from "@/server/search";
 
 type SearchType = "repositories" | "users";
 
@@ -167,7 +167,7 @@ function RepositoryResults({
 	return (
 		<div className="grid gap-3 md:grid-cols-2">
 			{repositories.map((repo) => {
-				const ownerUsername = repo.owner?.username || "unknown";
+				const ownerUsername = repo.owner.username;
 				return (
 					<Link
 						key={repo.id}
@@ -210,13 +210,7 @@ function UserResults({
 	users,
 	query,
 }: {
-	users: {
-		id: string;
-		username: string | null;
-		displayUsername: string | null;
-		name: string;
-		image: string | null;
-	}[];
+	users: Awaited<ReturnType<typeof searchUsers>>;
 	query: string;
 }) {
 	if (users.length === 0) {
@@ -240,22 +234,12 @@ function UserResults({
 							<div className="truncate text-sm font-semibold text-foreground">
 								{person.name}
 							</div>
-							{person.username && (
-								<div className="truncate text-xs text-muted-foreground">
-									@{person.displayUsername || person.username}
-								</div>
-							)}
+							<div className="truncate text-xs text-muted-foreground">
+								@{person.username}
+							</div>
 						</div>
 					</div>
 				);
-
-				if (!person.username) {
-					return (
-						<div key={person.id} className="island-shell rounded-xl p-4">
-							{card}
-						</div>
-					);
-				}
 
 				return (
 					<Link

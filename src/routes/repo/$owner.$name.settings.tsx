@@ -24,9 +24,7 @@ export const Route = createFileRoute("/repo/$owner/$name/settings")({
 			queryClient.ensureQueryData(authSessionQueryOptions()),
 		]);
 
-		// CollaboratorsSection only renders for the owner and previously fetched
-		// its list client-side with no prefetch — fire-and-forget once we know
-		// they're the owner, so it's warm by the time that section mounts.
+		// Only the owner sees CollaboratorsSection; warm its list for them.
 		if (repo && session?.user?.id === repo.ownerId) {
 			queryClient
 				.ensureQueryData(repoCollaboratorsQueryOptions(repo.id))

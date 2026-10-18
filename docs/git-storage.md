@@ -41,24 +41,16 @@ e.g. `repos/alice/my-repo/git/refs/heads/main`,
 keys — never build an R2 key by hand elsewhere in the codebase. Its key
 functions:
 
-- `getStorageOwnerKey(owner)` — derives the owner segment from username (falls
-  back to the email's local part, then the user id).
-- `getRepoStorageCoordinates(repo)` — the usual entry point: given a
-  repository row (with its `owner` relation loaded), returns `{ ownerKey,
-  repoKey }`, both already sanitized.
-- `sanitizeStorageSegment(value)` — replaces `/`/`\` and whitespace runs with
-  `-`, and collapses a bare `.` or `..` segment to `_`. This exists because a
-  repo name or username becomes part of a gitFs path, which `git-fs-s3`
-  normalizes (resolving `..`) before mapping it onto an R2 key — an
-  unsanitized `..` there would traverse into another repository's prefix, not
-  just make an ugly key. Repo names are additionally restricted at input
-  validation (`repositories.ts`'s `repoNameSchema`) to a safe charset. See
-  [security.md](./security.md).
-
-There is **no legacy storage path handling** — `getRepoStorageCoordinates()`
-returns only `{ ownerKey, repoKey }`, no `legacyOwnerKeys` fallback array. If
-you're tempted to add one for a migration, don't; handle that migration
-explicitly instead.
+- `ownerKeyOf(repo)` — the owner segment: the owner's username, which is
+  required and immutable (see [authentication.md](./authentication.md)).
+- `getRepoGitStorageRoot(ownerKey, repoName)` / `getRepoGitStoragePrefix` —
+  the gitdir and its key prefix. Both check every segment against
+  `STORAGE_NAME_RE` and throw rather than build a key from anything else: a
+  segment becomes part of a gitFs path, which `git-fs-s3` normalizes
+  (resolving `..`) before mapping onto a key, so an unchecked `..` would reach
+  another repository's prefix. Repo names and usernames are restricted to the
+  same pattern at input. See [security.md](./security.md).
+- `parseRepoGitStorageKey(key)` — the inverse, for classifying keys.
 
 ## The storage stack: `git-fs.ts`
 
@@ -131,8 +123,7 @@ layer's job:
     gitdir on every command and probes `packed-refs` and `shallow` on
     essentially every ref resolution or merge. Nothing in this codebase ever
     writes either file (refs are always loose, never packed; shallow clones
-    are never created or advertised — see `handleInfoRefsIso`'s capabilities
-    line), and a repo's gitdir is known to exist once its DB row is found.
+    are never created or advertised), and a repo's gitdir is known to exist once its DB row is found.
     Registering the gitdir with `absentFiles: ["packed-refs", "shallow"]`
     answers all three with **zero** R2 calls — not even a cached miss, which
     wouldn't help a cold serverless invocation's empty cache (the common case
@@ -150,9 +141,8 @@ layer's job:
     has *any* loose objects at all; if not, every loose-object `readFile`
     short-circuits to an immediate `ENOENT` with zero network calls. Flips
     back to "present" the instant a loose write actually lands, so it can
-    never serve a false negative mid-push. Called from both `getCommitLog`
-    (commit-log browsing) *and* `handleUploadPackIso` (real `git clone`/`git
-    fetch` traffic, via `collectReachableOids`'s `beforeWalk` hook).
+    never serve a false negative mid-push. `git-http.ts` calls it before upload-pack's
+    reachability walk (`beforeWalk`).
 
 `prefetchAllPacks(ownerKey, repoName)` (`git-fs.ts`, wrapping `GitFs.prefetchPacks`)
 is the other major lever: since walking
@@ -166,42 +156,36 @@ in-memory reads." Bounded by `prefetchPacks`'s own `maxPacks` option (default
 pack history doesn't pull down far more data than a shallow request actually
 needs.
 
-**Qualify ref names before resolving them.** isomorphic-git's `resolveRef`
-(and `git.merge`'s own internal `GitRefManager.expand`) try several candidate
-paths in sequence for a bare ref name — `<ref>`, `refs/<ref>`,
-`refs/tags/<ref>`, `refs/heads/<ref>`, `refs/remotes/<ref>`,
-`refs/remotes/<ref>/HEAD` — 404ing (or stat-ing) the first three every time
-before reaching the one this app's ref model actually uses. This codebase's
-ref model is branch-only, never tags, so `qualifyBranchRef` (`git-repo-storage.ts`)
-maps a bare name straight to `refs/heads/<name>` up front; every call site
-that resolves a branch by name (`git-history-ops.ts`, `git-diff-iso.ts`,
-`git-merge-iso.ts`, including `git.merge`'s `ours`/`theirs`) should use it
-rather than passing the bare name through and letting isomorphic-git pay the
-scan. Left alone: already-qualified refs, `"HEAD"` (its own first candidate,
-already optimal), and 40-char oids (resolved locally, no I/O at all).
+**Ref names are qualified before resolving.** For a bare name,
+isomorphic-git's `resolveRef` tries `<ref>`, `refs/<ref>`, `refs/tags/<ref>`
+before `refs/heads/<ref>`, 404ing each time. This app's ref model is
+branch-only, so `git-fs-s3`'s ops qualify bare names to `refs/heads/<name>`
+(`qualifyBranchRef`) themselves; new code resolving a branch by name should
+go through `git-read.ts` rather than isomorphic-git directly.
 
-`getCommitLog()` (`git-history-ops.ts`) additionally caches the deepest
-commit-chain walk seen per resolved head SHA and slices/reuses it for
-shallower or repeated requests, so repeat visits to the same branch at
-different depths don't re-walk from scratch.
+`getCommitLog` caches the deepest walk seen per head SHA and slices it for
+shallower requests; commit history pages, file history and last-commit
+lookups all reuse that one walk.
 
 ## Writes: straight to R2, under the repo lock
 
 Writes use the same `gitFs` as reads — there is no local copy to hydrate or
 sync back. Each write path builds git objects and updates refs directly:
 
-- **Web-UI commits/deletes** (`git-commit-write.ts`) — `git-fs-s3/ops`'s
+- **Web-UI commits/deletes** (`git-write.ts`) — `git-fs-s3/ops`'s
   `commitFilesToBare`/`deleteFileFromBare`: blobs, then trees, then the commit,
   then the branch ref — no worktree, no index.
-- **Merges** (`git-merge-iso.ts`) — `git-fs-s3/ops`'s `fastForwardMerge`, else
-  `git-edge`'s `threeWayMerge` on the object graph.
-- **Branch/HEAD changes** (`git-branch-ops.ts`) — ref writes.
-- **Pushes and repacks** (`git-http-iso.ts`, below) — the incoming pack and its
+- **Merges** (`git-write.ts`'s `mergeBranches`) — `git-fs-s3/ops`'s
+  `fastForwardMerge`, else `git-edge`'s `threeWayMerge` on the object graph.
+- **Branch/HEAD changes** (`git-write.ts`) — ref writes.
+- **Pushes and repacks** (`git-http.ts`, below) — the incoming pack and its
   index, CAS ref updates, pack consolidation.
 
 The order makes every write safe to interrupt: objects land before any ref
 names them, so a killed function leaves at most unreferenced objects (which
 the next repack drops), never a ref pointing at something missing.
+
+### Locking
 
 Every write runs inside `withRepositoryLock(ownerKey, repoName, fn)`
 (`git-repo-lock.ts`) — a distributed lease-row lock backed by Postgres (the
@@ -219,28 +203,22 @@ so a long push or repack never has its lock taken over mid-write; if a
 holder's function is killed mid-critical-section (Vercel's execution limit),
 it stops renewing and the repo self-recovers within one TTL instead of
 staying locked forever. A renewal that finds the lease gone is logged as an
-error. See `acquireRepoLock`/`releaseRepoLock` in
-`git-repo-lock.ts`.
+error.
 
 **It is not reentrant**: a function already holding the lock must never call
 another function that tries to take it again for the same repo, or it
-deadlocks (now: times out after ~65s and throws, rather than hanging
-forever).
+times out after ~65s and throws.
 
-`getRepoOptions(ownerKey, repoName)` (`git-repo-storage.ts`, the same thing as
-`git-manager-iso.ts`'s `getBareRepoOptions`) is the shared entry point nearly
-everything in `src/server/git-*.ts` calls to get isomorphic-git's `{fs,
-gitdir, cache}` options — always `gitFs`, the registered gitdir, and the
-shared per-repo isomorphic-git cache.
+`repoFor(ownerKey, repoName)` (`git-repo.ts`) is the handle every git call
+takes: `gitFs`, the registered gitdir, and the shared per-repo
+isomorphic-git cache.
 
 Writes through `gitFs` keep this instance's caches current on their own (the
 cached store updates or drops the keys it writes and deletes). After a push
 or repack, `afterRepositoryPush` additionally drops the repo's `ops.*` result
 caches (keyed per head sha, so this frees superseded entries rather than
 fixing staleness) and isomorphic-git's per-repo pack-index cache
-(`invalidateRepoGitCache` — a repack replaces pack files), then records the
-repo's stored size (`repositories.diskUsage`, one `ListObjectsV2`) without
-delaying the response. Other warm instances pick up moved refs and new packs
+(a repack replaces pack files). Other warm instances pick up moved refs and new packs
 through the 5s ref-aware TTL (see "Ref-aware TTL" above).
 
 ### Renaming and deleting a repository
@@ -248,7 +226,7 @@ through the 5s ref-aware TTL (see "Ref-aware TTL" above).
 Every storage key in this layer is derived from the repository's *current*
 `name`, read fresh from the DB — so renaming a repository has to move its
 actual storage, not just update the DB row. `renameRepositoryStorage`
-(`git-repo-storage.ts`, via `git-fs.ts`'s `moveRepoStorage`) server-side-copies
+(`git-repo.ts`, via `git-fs.ts`'s `moveRepoStorage`) server-side-copies
 (`CopyObject`, no download/upload round trip) every object under the old
 name's prefix to the new one, then deletes the old keys only after every copy
 succeeds.
@@ -258,10 +236,7 @@ This function does **not** lock internally — `repositories.ts`'s
 single `withRepositoryLock(ownerKey, repo.name, ...)` call, so a concurrent
 write for the old name can't observe a half-renamed state (old storage
 partially copied, or DB already pointing at the new name while storage hasn't
-moved yet). Skipping this migration entirely used to be the bug: a rename
-changed only the DB row, so the very next access resolved storage under the
-new (empty) prefix, and permanently orphaned the old commit history under the
-old prefix.
+moved yet). If the row update fails, the storage move is reverted.
 
 `deleteRepositoryStorage` lists the repo's prefix and deletes every key.
 `deleteRepository` deletes the DB row first, then runs it under the repo lock
@@ -279,49 +254,37 @@ commits and merges (`git-fs-s3`'s `withPackedWrites` — one pack per
 operation, flushed before the ref moves), and repacks. That's what keeps the
 loose-object hint correct across instances: a warm instance that once saw "no
 loose objects" in a repo can't be told when another instance writes one, so
-nothing ever does (repositories that already have loose objects from before
-keep the hint "present" — correct, just not as fast). Wrap any new code that
+nothing ever does. Wrap any new code that
 writes objects in `withPackedWrites`. Web commits and merges call
 `repackIfNeededUnlocked` afterwards, inside their lock, so their one-pack-
 per-operation doesn't accumulate past the repack threshold.
 
-## The Git smart HTTP protocol (`git-http-iso.ts`)
+## The Git smart HTTP protocol (`git-http.ts`)
 
-This is what `git clone https://.../owner/repo.git`, `git fetch`, and `git
-push` actually talk to — the catch-all route `src/routes/api/git.$.ts`
-dispatches into it. The [Git HTTP smart protocol](https://git-scm.com/docs/http-protocol)
-implementation itself (pkt-line framing, `info/refs?service=...`
-advertisement, `upload-pack`/`receive-pack`, the reachability walk, ref-CAS
-logic, and pack consolidation) lives in the published `git-fs-s3/http`
-module now — `git-http-iso.ts` is a thin pushstack-specific wrapper around it
-(this file used to hand-roll all of it before that extraction). What stays
-here: auth checks, the repo lock around pushes, wiring `perfStep`/`logWarn`
-into the library's `HttpHooks`, and post-push bookkeeping. Every service runs
-against `gitFs`.
+This is what `git clone https://…/api/git/owner/repo.git`, `git fetch` and
+`git push` talk to; `src/routes/api/git.$.ts` calls `serveGitRequest`. The
+[protocol](https://git-scm.com/docs/http-protocol) itself (pkt-line framing,
+ref advertisement, upload-pack/receive-pack, the reachability walk, ref CAS,
+pack consolidation) is `git-fs-s3/http`. `serveGitRequest` does the rest:
+route parsing (`parseGitUrl`, which requires the `/api/git/` prefix), the
+streamed body cap, repo lookup, auth, the lock around pushes, perf hooks, and
+post-push bookkeeping. Every service runs against `gitFs`.
 
-- **`handleInfoRefsIso`** — auth check, then delegates to `git-fs-s3/http`'s
-  `handleInfoRefs`: lists all branches/tags/HEAD in parallel, resolves every
+- **info/refs** — `git-fs-s3/http`'s `handleInfoRefs`: lists all branches/tags/HEAD in parallel, resolves every
   ref's oid in parallel, and writes the pkt-line response.
-- **`handleUploadPackIso`** (clone/fetch) — auth check, then `handleUploadPack`
-  reads directly against `gitFs`, lock-free. Its response wraps the packfile in `side-band-64k`
+- **upload-pack** (clone/fetch) — `handleUploadPack` reads directly against `gitFs`, lock-free. Its response wraps the packfile in `side-band-64k`
   framing (`sideBandPackfile`), which `handleInfoRefs` advertises in the
   upload-pack capabilities line. Real native `git` tolerates a raw, unframed
   packfile stream when side-band isn't negotiated, but not every client does
   — isomorphic-git's own HTTP client (`GitSideBand.demux`) always assumes
   side-band framing regardless of what was negotiated, and silently spins
   forever parsing raw packfile bytes as bogus pkt-line headers if it isn't
-  there. (The same assumption breaks isomorphic-git *pushes*: its `push`
-  always requests and demuxes `side-band-64k` even though receive-pack never
-  advertises it, so it can't parse the plain report-status `receivePackResponse`
-  sends. Fixed in git-fs-s3 0.8: receive-pack now advertises side-band-64k
-  and frames its report when asked. `git-user-lifecycle.test.ts` pushes with
-  isomorphic-git, and `pnpm smoke:git` with native git.) `handleUploadPackIso` wires `detectLooseObjectsHint` +
-  `prefetchAllPacks` into `handleUploadPack`'s `beforeWalk` hook, so the
-  reachability walk it runs internally (`collectReachableOids`) gets the same
-  pack-prefetch/loose-hint treatment as the web UI's own history walks (see
-  "The storage stack" above).
-- **`handleReceivePackIso`** (push) — auth check, `parseReceivePackBody`, then
-  runs `git-fs-s3/http`'s `applyReceivePack` against `gitFs` under
+  there. Its pushes likewise always demux side-band, so receive-pack
+  advertises it too. `git-user-lifecycle.test.ts` clones and pushes with
+  isomorphic-git, `pnpm smoke:git` with native git. `detectLooseObjectsHint`
+  and `prefetchAllPacks` run in the `beforeWalk` hook, so the reachability
+  walk gets the same treatment as the web UI's history walks.
+- **receive-pack** (push) — `parseReceivePackBody`, then `git-fs-s3/http`'s `applyReceivePack` against `gitFs` under
   `withRepositoryLock`: write the incoming pack to R2 and index it
   (`indexPack` writes the `.idx` beside it), verify the pushed tips' object
   graph is complete, apply ref updates (compare-and-swap per ref, in parallel
@@ -335,7 +298,7 @@ against `gitFs`.
   indexed is reported as `unpack index-pack failed`. Branches must point at
   commits, and deleting the branch `HEAD` names is refused.
 
-  Every ref-update command's client-supplied `refName` is validated with
+  The library validates every client-supplied `refName` with
   `isSafeFullRefName` *before* any of `git.resolveRef`/`deleteRef`/`writeRef`
   runs on it — an invalid name gets `{ ok: false, reason: "invalid ref name"
   }` in the response instead of reaching those calls. This isn't redundant
@@ -349,7 +312,7 @@ against `gitFs`.
   The same validator (as `isSafeBranchName`, its bare-name variant, from
   `git-ref-name.ts`) guards every branch name accepted anywhere else in the
   app — `files.ts`/`pull-requests.ts`'s input schemas, and defense-in-depth
-  checks in `git-branch-ops.ts`/`git-commit-write.ts`/`git-merge-iso.ts` —
+  checks in `git-write.ts` —
   since `git.commit`/`git.merge`/`git.deleteBranch` have the same
   no-internal-validation gap and are reachable from ordinary web-UI actions
   (branch delete, PR merge), not just a raw git push.
@@ -367,41 +330,28 @@ against `gitFs`.
   Its safety check for whether the old packs are actually safe to delete is
   traversal **completeness** (did every object the reachability walk visited
   actually get read successfully — `collectReachableOids`'s `complete`
-  flag), not an object-count comparison. An earlier count-based check (new
-  consolidated pack's object count vs. sum of old packs' counts) was
-  structurally broken: once packs ever overlap in content, the old side
-  double-counts objects present in more than one old pack, so it almost
-  always came out higher than the new deduplicated count — which permanently
-  refused to ever consolidate again after the first time it happened. That's
-  exactly how a repo can end up with many packs despite this function running
-  on every push.
+  flag), not an object count: packs can overlap, so old packs' summed counts
+  overstate the deduplicated total.
 
   `repackRepository` writes and indexes the consolidated pack, verifies it
   holds every reachable object, and only then deletes the superseded
   `.pack`/`.idx` files — all through `gitFs`, so those deletes are the R2
   deletes; there's never a window where R2 has neither the old nor the new
-  pack. (This used to be a real bug in the hydrate/sync design: the repack
-  deleted old packs from the local copy, nothing told R2, and every push left
-  one more permanent pack file behind.)
+  pack.
 
   A lock-free clone/fetch can still race that delete: it may have listed
   `objects/pack/` just before a concurrent push's repack removed one of the
   listed packs. Reads never take the write lock, so `collectReachableOids`
   (serves clone/fetch) tolerates it instead — it retries once, after a short
   delay, before marking an object genuinely missing, so the retry observes the
-  current pack list rather than the mid-transition snapshot. Reproduced
-  directly under concurrent load before that tolerance existed (15 clones
-  racing a burst of pushes that kept crossing the repack threshold): most
-  clones failed with "remote did not send all necessary objects" for the same
-  oid that succeeded moments earlier or later, while `git fsck` on any
-  successful clone confirmed nothing was ever actually corrupted.
+  current pack list rather than the mid-transition snapshot.
 
 Auth for every git HTTP request goes through `src/server/git-auth.ts` — see
 [authentication.md](./authentication.md). Every git HTTP request (info/refs,
 then upload-pack/receive-pack — at least two per operation) resolves the
 target repository by owner+name; this goes through
-`repositories.ts`'s `findRepositoryByName`, which is the same cached,
-single-join `fetchRepoRowByName` the web UI's repo pages use — so the
+`repositories.ts`'s cached `findRepositoryByName`, shared with the web UI's
+repo pages — so the
 second request of a push typically gets a free cache hit instead of hitting
 Postgres again.
 

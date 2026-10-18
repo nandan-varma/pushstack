@@ -7,9 +7,9 @@
  *   - repositories.ts (createRepository / deleteRepository / findRepositoryByName)
  *   - git-auth.ts (PAT authentication + repo-access authorization)
  *   - repo-access.ts (real, DB-driven — not mocked)
- *   - git-http-iso.ts (info/refs, upload-pack and receive-pack over a real
- *     loopback HTTP server)
- *   - git-fs.ts / src/lib/r2.ts / git-commit-write.ts (the R2 storage stack —
+ *   - git-http.ts (serveGitRequest, the production route's handler, behind a
+ *     real loopback HTTP server)
+ *   - git-fs.ts / src/lib/r2.ts / git-write.ts (the R2 storage stack —
  *     real request signing and XML listing, all writes straight to R2)
  *
  * Only two things are faked, because they're external infrastructure that
@@ -125,29 +125,8 @@ vi.mock("#/lib/r2", async (importOriginal) => {
 
 // --- real Postgres (embedded, in-memory) replacing #/db, seeded with the
 // project's actual drizzle schema so every query below is real. ---
-vi.mock("../../db", async () => {
-	const { PGlite } = await import("@electric-sql/pglite");
-	const { drizzle } = await import("drizzle-orm/pglite");
-	const { pushSchema } = await import("drizzle-kit/api");
-	const schema = await import("../../db/schema");
-
-	const client = new PGlite();
-	const db = drizzle(client, { schema });
-	const { apply } = await pushSchema(
-		schema as unknown as Record<string, unknown>,
-		db as unknown as Parameters<typeof pushSchema>[1],
-	);
-	await apply();
-
-	return { db };
-});
-
-// git-auth.ts checks for a cookie header before calling into Better Auth's
-// session lookup; our clone request never sends one, so this is never
-// exercised — stub it the same way git-auth-helpers.test.ts does, to avoid
-// constructing a real Better Auth instance (which needs Resend config).
-vi.mock("../../lib/auth", () => ({
-	auth: { api: { getSession: vi.fn(async () => null) } },
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
 }));
 
 const TEST_USER = {
@@ -157,15 +136,10 @@ const TEST_USER = {
 	name: "Octo Cat",
 };
 
-// createRepository/deleteRepository are createServerFn-wrapped; unwrap them to
-// plain callables, same shim as repositories.integration.test.ts.
+vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 
-vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
-
-// createRepository/deleteRepository call getCurrentUser() for "who is the
-// caller" — this is Better Auth's cookie-session plumbing, orthogonal to the
-// PAT-based git auth this test exercises. Stub it, matching the existing
-// repositories.integration.test.ts convention.
+// The web session only decides who calls createRepository/deleteRepository;
+// git auth below is by PAT alone.
 vi.mock("../session", () => ({
 	getCurrentUser: vi.fn(async () => TEST_USER),
 	getCurrentUserOptional: vi.fn(async () => TEST_USER),
@@ -174,7 +148,7 @@ vi.mock("../session", () => ({
 const REPO_NAME = "hello-world";
 const RENAMED = "hello-renamed";
 const README_CONTENT = "# Hello World\n\nCreated in the lifecycle test.\n";
-const PAT = "ghp_lifecycletestpersonalaccesstoken";
+const PAT = "pst_lifecycletestpersonalaccesstoken";
 
 let server: Server;
 let baseUrl: string;
@@ -196,7 +170,8 @@ function gitClone(
 beforeAll(async () => {
 	// Import after env + mocks are wired up (matches git-integration.test.ts's pattern).
 	const { db } = await import("../../db");
-	const { user, tokens } = await import("../../db/schema");
+	const { user } = await import("../../db/schema");
+	const { tokens } = await import("../../db/app-schema");
 
 	await db.insert(user).values({
 		id: TEST_USER.id,
@@ -208,9 +183,7 @@ beforeAll(async () => {
 		updatedAt: new Date(),
 	});
 
-	// No PAT-issuing server function exists yet, so seed the token row the
-	// same way the real one eventually would: store only the hash, exactly as
-	// authenticateToken() in git-auth.ts looks it up.
+	// Seed the token row directly: only its hash is stored.
 	await db.insert(tokens).values({
 		userId: TEST_USER.id,
 		name: "lifecycle-test-token",
@@ -218,99 +191,23 @@ beforeAll(async () => {
 		scopes: ["repo:write"],
 	});
 
-	// Minimal HTTP server mirroring src/routes/api/git.$.ts's dispatch, using
-	// the same real handler functions the production route uses.
-	const { parseGitUrl } = await import("../../lib/git-url-parser");
-	const { authenticateGitRequest } = await import("../git-auth");
-	const { handleInfoRefsIso, handleReceivePackIso, handleUploadPackIso } =
-		await import("../git-http-iso");
-	const { getRepoStorageCoordinates } = await import("../git-storage-naming");
-	const { findRepositoryByName } = await import("../repositories");
-
+	const { serveGitRequest } = await import("../git-http");
 	server = createServer(async (req, res) => {
-		try {
-			const url = `http://127.0.0.1${req.url}`;
-			const chunks: Buffer[] = [];
-			for await (const chunk of req) chunks.push(chunk as Buffer);
-			const bodyBuffer = Buffer.concat(chunks);
-
-			const headers = new Headers();
-			for (const [k, v] of Object.entries(req.headers)) {
-				if (typeof v === "string") headers.set(k, v);
-			}
-
-			const request = new Request(url, {
+		const chunks: Buffer[] = [];
+		for await (const chunk of req) chunks.push(chunk as Buffer);
+		const headers = new Headers();
+		for (const [k, v] of Object.entries(req.headers)) {
+			if (typeof v === "string") headers.set(k, v);
+		}
+		const response = await serveGitRequest(
+			new Request(`http://127.0.0.1${req.url}`, {
 				method: req.method,
 				headers,
-				body:
-					req.method === "GET" || req.method === "HEAD"
-						? undefined
-						: bodyBuffer,
-			});
-
-			const parsed = parseGitUrl(url);
-			if (!parsed?.service) {
-				res.writeHead(400).end("Invalid git request");
-				return;
-			}
-
-			const repository = await findRepositoryByName(parsed.owner, parsed.repo);
-			if (!repository) {
-				res.writeHead(404).end("Repository not found");
-				return;
-			}
-
-			const authContext = await authenticateGitRequest(
-				request,
-				parsed.owner,
-				parsed.repo,
-				parsed.service === "git-receive-pack",
-				repository,
-			).catch((err) => {
-				res
-					.writeHead(401, {
-						"WWW-Authenticate": 'Basic realm="Git Repository"',
-					})
-					.end(err instanceof Error ? err.message : "Unauthorized");
-				return null;
-			});
-			if (!authContext) return;
-
-			const storage = getRepoStorageCoordinates(repository);
-
-			const result = parsed.isInfoRefs
-				? await handleInfoRefsIso(
-						storage.ownerKey,
-						parsed.repo,
-						parsed.service,
-						authContext,
-						repository.defaultBranch || "main",
-					)
-				: parsed.service === "git-receive-pack"
-					? await handleReceivePackIso(
-							storage.ownerKey,
-							parsed.repo,
-							request,
-							authContext,
-							repository.defaultBranch,
-							repository.ownerId,
-						)
-					: await handleUploadPackIso(
-							storage.ownerKey,
-							parsed.repo,
-							request,
-							authContext,
-						);
-
-			res.writeHead(result.status, result.headers);
-			res.end(
-				Buffer.isBuffer(result.body) ? result.body : Buffer.from(result.body),
-			);
-		} catch (err) {
-			res
-				.writeHead(500)
-				.end(err instanceof Error ? err.message : "Internal error");
-		}
+				body: req.method === "GET" ? undefined : Buffer.concat(chunks),
+			}),
+		);
+		res.writeHead(response.status, Object.fromEntries(response.headers));
+		res.end(Buffer.from(await response.arrayBuffer()));
 	});
 
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -355,7 +252,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("seeds an initial commit directly (as the first push would)", async () => {
-		const { createCommit } = await import("../git-commit-write");
+		const { createCommit } = await import("../git-write");
 
 		const sha = await createCommit(TEST_USER.username, REPO_NAME, {
 			branch: "main",
@@ -381,7 +278,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		await expect(
 			gitClone(url, `${ENV.cloneDir}-badtoken`, {
 				username: TEST_USER.username,
-				password: "ghp_wrongtoken000000",
+				password: "pst_wrongtoken000000",
 			}),
 		).rejects.toThrow();
 	});
@@ -431,7 +328,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(packFiles.some((key) => key.endsWith(".idx"))).toBe(true);
 
 		// ...and the app's own read path serves the pushed content.
-		const { getFileContent } = await import("../git-history-ops");
+		const { getFileContent } = await import("../git-read");
 		const content = await getFileContent(
 			TEST_USER.username,
 			REPO_NAME,
@@ -455,7 +352,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(keys.filter((key) => key.startsWith(oldPrefix))).toHaveLength(0);
 		expect(keys).toContain(`${newPrefix}git/HEAD`);
 
-		const { getFileContent } = await import("../git-history-ops");
+		const { getFileContent } = await import("../git-read");
 		const content = await getFileContent(
 			TEST_USER.username,
 			RENAMED,
@@ -482,11 +379,10 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		);
 		if (!repoBefore) throw new Error("repo should exist before delete");
 
-		const result = await deleteRepository({ data: { id: repoBefore.id } });
-		expect(result.success).toBe(true);
+		await deleteRepository({ data: { id: repoBefore.id } });
 
 		const repoAfter = await findRepositoryByName(TEST_USER.username, REPO_NAME);
-		expect(repoAfter).toBeUndefined();
+		expect(repoAfter).toBeNull();
 
 		// Repo's git data must actually be gone from storage (fake R2), not just the DB row.
 		const remaining = [...fakeS3.objects.keys()].filter((k) =>
@@ -507,7 +403,8 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 
 	it("deletes the user (and cascades their token)", async () => {
 		const { db } = await import("../../db");
-		const { user, tokens } = await import("../../db/schema");
+		const { user } = await import("../../db/schema");
+		const { tokens } = await import("../../db/app-schema");
 		const { eq } = await import("drizzle-orm");
 
 		await db.delete(user).where(eq(user.id, TEST_USER.id));

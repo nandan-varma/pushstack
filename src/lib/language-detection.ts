@@ -4,7 +4,7 @@
  */
 
 /** Above this size, auto-highlighting is skipped and the user must opt in. */
-export const MAX_AUTO_HIGHLIGHT_BYTES = 512 * 1024;
+const MAX_AUTO_HIGHLIGHT_BYTES = 512 * 1024;
 /** Above this line count, auto-highlighting is skipped and the user must opt in. */
 export const MAX_AUTO_HIGHLIGHT_LINES = 5000;
 
@@ -22,7 +22,7 @@ export function isLargeContent(code: string): boolean {
 	return false;
 }
 
-export const LANGUAGE_MAP: Record<string, string> = {
+const LANGUAGE_MAP: Record<string, string> = {
 	// JavaScript/TypeScript
 	js: "javascript",
 	mjs: "javascript",

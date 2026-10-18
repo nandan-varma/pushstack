@@ -76,24 +76,19 @@ restriction at all. That name becomes a segment of the repository's gitdir
 `gitFs` is normalized (`..` resolved) before it's mapped onto an R2 key — a
 repository named `..` would put its gitdir at `repos/git`, outside its owner's
 prefix; a name like `../victim/repo` would land inside another user's
-repository. (At the time, writes also hydrated to a real local directory via
-`path.join`, where the same name was an outright filesystem traversal; that
-local-disk path no longer exists — see [git-storage.md](./git-storage.md).)
+repository.
 
 **Fix, at two layers** (defense in depth — don't remove either on the
 assumption the other covers it):
 
-1. **Input validation** — `repositories.ts`'s `repoNameSchema` restricts names
-   to `/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/`: must start/end with an
-   alphanumeric, no `/`/`\`, and — because it must start and end with an
-   alphanumeric — can never be `.` or `..` on its own.
-2. **`sanitizeStorageSegment`** (`git-storage-naming.ts`) — used everywhere a
-   storage-key segment is built from a username or repo name. Replaces
-   `/`/`\` and whitespace with `-`, and additionally collapses a segment that
-   is *exactly* `.` or `..` to `_` (slash-replacement alone doesn't touch a
-   bare `..`, since there's no slash to replace). `getRepoStorageRoot` applies
-   it to both segments itself, so a caller that forgot to pre-sanitize can't
-   reintroduce the vulnerability by omission.
+1. **Input validation** — repository names (`repositories.ts`'s
+   `repoNameSchema`) and usernames (`auth.ts`'s `usernameValidator`) must
+   match `STORAGE_NAME_RE`, `/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/`:
+   alphanumeric at both ends, no `/` or `\`, so never `.` or `..`.
+2. **Key construction fails closed** — `git-storage-naming.ts` checks every
+   segment against the same pattern when building a key and throws instead
+   of sanitizing, so a caller that skipped validation can't reintroduce the
+   bug by omission. Usernames can't change, so a key never goes stale.
 
 S3 itself has no path resolution (`"repos/x/../y"` is a literal key), but
 `gitFs` does, and every git operation goes through it — so treat these
@@ -131,7 +126,7 @@ git CLI, no raw HTTP crafting needed for the second one):
 1. **`git push`'s receive-pack ref-update commands** — the client-supplied
    `refName` in each `<oldOid> <newOid> <refName>` command line was passed
    straight to `git.resolveRef`/`git.deleteRef`/`git.writeRef` in
-   `handleReceivePackIso`. `git.writeRef` happens to validate internally, but
+   the receive-pack handler. `git.writeRef` happens to validate internally, but
    `git.deleteRef` and `git.resolveRef` don't — a ref-delete command with
    `refName: "../../victim-owner/victim-repo/git/refs/heads/main"` and
    `oldOid` set to the all-zero oid trivially passes the compare-and-swap
@@ -157,40 +152,22 @@ matching the repository-name fix's defense-in-depth shape:
 1. **Input validation** — `files.ts` and `pull-requests.ts` validate every
    branch-name-shaped field with `safeBranchNameSchema` instead of a bare
    `z.string()`.
-2. **Point of use** — `git-branch-ops.ts` (`createBranch`/`deleteBranch`/
-   `checkoutBranch`), `git-commit-write.ts` (`createCommit`/`deleteFile`), and
-   `git-merge-iso.ts` (`analyzeMerge`/`mergeBranches`) each re-validate their
-   branch-name parameters immediately before calling into isomorphic-git —
-   so a future call site that reaches these functions some other way, without
-   going through the zod schema, can't reintroduce the bug by omission.
-3. **`git-http-iso.ts`'s receive-pack handler** validates every ref-update
-   command's `refName` with `isSafeFullRefName` before it touches
-   `resolveRef`/`deleteRef`/`writeRef` at all — rejecting the whole command
-   with `ok: false, reason: "invalid ref name"` rather than letting any of
-   those calls run.
+2. **Point of use** — `git-write.ts` re-validates every branch name
+   immediately before calling into isomorphic-git, so a future call site
+   that skips the zod schema can't reintroduce the bug by omission.
+3. **Receive-pack** — `git-fs-s3/http`'s `applyRefUpdates` validates every
+   ref-update command's `refName` with `isSafeFullRefName` before
+   `resolveRef`/`deleteRef`/`writeRef` run, rejecting the command with
+   `ok: false, reason: "invalid ref name"`.
 
-## Git password-auth rate limiting
+## Git auth takes tokens only
 
-`authenticateWithPassword` (`git-auth.ts`) verifies username/password
-credentials directly against the DB for git HTTP requests, entirely
-bypassing Better Auth's own rate limiter (which only wraps requests routed
-through `auth.handler`, i.e. `/api/auth/*`) — without a rate limit here, the
-git HTTP endpoint is an unthrottled password-guessing oracle against any
-user's account. Locks out an account/email key after 10 failed attempts
-within a 5-minute window; only failed attempts count, so a legitimate client
-re-authenticating many times (frequent CI fetches) never trips it.
-
-This is backed by a `git_auth_attempts` table, not an in-process `Map` —
-the git HTTP endpoint can be served by multiple concurrent (or frequently
-cold-starting) Vercel serverless instances, each with its own process
-memory. A per-instance in-memory counter never accumulates a shared view of
-failed attempts across them, which would let the lockout be bypassed for
-free just by distributing guesses across instances/restarts. The upsert that
-records a failed attempt (`recordFailedPasswordAttempt`) uses a single
-`INSERT ... ON CONFLICT DO UPDATE` with the window-expiry check embedded in
-the `SET` clause's `CASE` expression, so two concurrent failed attempts for
-the same key can't race each other into under-counting the way a
-read-then-write would.
+The git endpoint accepts personal access tokens and nothing else. It once
+also took account passwords (bypassing Better Auth's own rate limiter, so it
+needed its own DB-backed lockout) and session cookies (a CSRF target for a
+state-changing endpoint). A token is scoped, revocable and high-entropy, so
+neither a rate limiter nor CSRF protection is needed. See
+[authentication.md](./authentication.md).
 
 ## Personal Access Tokens
 
@@ -199,7 +176,7 @@ This is the correct approach specifically because PATs are high-entropy random
 strings — unlike password hashing (which needs a slow, salted algorithm like
 bcrypt/argon2 to resist brute-forcing low-entropy human passwords), a fast
 hash is fine for a token that's already unguessable. See
-[authentication.md](./authentication.md) for the full auth-fallback chain.
+[authentication.md](./authentication.md).
 
 ## Secrets
 
@@ -280,17 +257,15 @@ ones were.
 
 ## Path traversal via the raw-content route's ref/path
 
-`src/routes/api/raw.$.ts` (the `/api/raw/{owner}/{repo}/{ref}/{...path}` "Raw"
-link and permalink target) builds its `ref` and `path` straight off the URL's
-decoded segments and passed them directly into `getFileContent`/
-`resolveCommit` (`git-history-ops.ts`) — unlike every other entry point in the
+`/api/raw/{owner}/{repo}/{ref}/{...path}` (`src/server/raw.ts`, the "Raw"
+link and binary previews) reads its `ref` and `path` straight off the URL's
+decoded segments and passed them directly into `getFileContent` — unlike every other entry point in the
 app that accepts a branch-name- or path-shaped field, this route did **not**
 run them through `safeBranchNameSchema`/`safeRepoPathSchema` first, since it's
 a raw API route handler rather than one of `files.ts`'s validated
 `createServerFn`s.
 
-`resolveCommit` resolves `ref` via `qualifyBranchRef` + the top-level
-`git.resolveRef` — one of the isomorphic-git primitives that (like
+That resolves `ref` with the top-level `git.resolveRef` — one of the isomorphic-git primitives that (like
 `git.deleteRef`/`git.commit`/`git.merge` — see the ref-name section above)
 does not validate ref format internally. The read goes through `gitFs`, which
 resolves `../` components before mapping the path onto an R2 key (see the

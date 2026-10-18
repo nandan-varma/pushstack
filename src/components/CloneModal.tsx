@@ -20,7 +20,7 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 	const [open, setOpen] = useState(false);
 	const { copied, copy } = useCopyToClipboard();
 
-	const httpsUrl = getCloneUrl(owner, repoName, "https");
+	const httpsUrl = getCloneUrl(owner, repoName);
 	const cloneCommand = `git clone ${httpsUrl}`;
 
 	return (

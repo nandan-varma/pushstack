@@ -7,9 +7,7 @@ The deployment target is **Vercel**, via Nitro's `vercel` preset
 being used for object storage, this is **not** a Cloudflare Pages/Workers
 deployment. Cloudflare's role here is exclusively R2 object storage via its
 S3-compatible API, nothing else — there's no `@cloudflare/vite-plugin` in the
-dependency tree (it used to be listed but was never wired into the Vite
-config; removed as dead weight, see [security.md](./security.md)'s
-"Dependency vulnerabilities").
+dependency tree.
 
 Functions run on Vercel's **Node runtime** (Fluid compute). The app never
 writes to the function's filesystem — every git read and write goes straight
@@ -115,7 +113,5 @@ pnpm dev
 
 ## Database
 
-Migrations against the real database only happen via `pnpm db:push` (fast,
-no migration files — the normal day-to-day flow) or `pnpm db:generate &&
-pnpm db:migrate` (produces committed migration files under `drizzle/`). See
-[database.md](./database.md).
+Schema changes reach the database only through `pnpm db:push` (no migration
+files). See [database.md](./database.md).

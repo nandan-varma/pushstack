@@ -43,16 +43,15 @@ describe how pushstack *integrates* them, not how they work internally**:
   R2-backed isomorphic-git `fs` plugin, the git smart-HTTP protocol
   implementation (`git-fs-s3/http`), and a higher-level "git-hosting
   operations" layer (`git-fs-s3/ops`: commits, branches, trees, diffs,
-  fast-forward merges) built on top. `git-fs.ts`, `git-http-iso.ts`, and most
-  of the `git-*-ops.ts` files in `src/server/` are thin wrappers around this.
+  fast-forward merges) built on top. `git-fs.ts`, `git-http.ts`, `git-read.ts`
+  and `git-write.ts` in `src/server/` are thin wrappers around this.
 - **[`git-edge`](https://nandan-varma.github.io/git-edge/)** — an
   object-level three-way merge (`threeWayMerge`) that never needs a worktree,
-  plus a parsed-object cache. `git-merge-iso.ts`'s non-fast-forward merge
+  plus a parsed-object cache. `git-write.ts`'s non-fast-forward merge
   uses this instead of isomorphic-git's own `git.merge` (which needs a real
   checked-out working directory) — see [git-storage.md](./git-storage.md).
 
-Both were extracted *from* this app's own code in earlier work (e.g.
-`git-fs.ts`'s R2 backend used to be a local `git-r2-backend.ts`) — when you
+When you
 need the deep "why" behind a caching decision, a retry policy, or the merge
 algorithm's edge cases, check the linked package docs first; only the
 integration-specific glue (which object store backs `gitFs`, how

@@ -85,7 +85,7 @@ function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
 	const { status: filter } = Route.useSearch();
 	const { pathname } = useLocation();
-	const navigate = useNavigate();
+	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data: session } = useQuery(authSessionQueryOptions());
@@ -303,8 +303,7 @@ function PullRequestsPage() {
 				]}
 				activeTab={filter ?? "open"}
 				onTabChange={(value) =>
-					// biome-ignore lint/suspicious/noExplicitAny: TanStack Router same-route navigate types are overly strict
-					navigate({ search: { status: value } as any, replace: true })
+					navigate({ search: { status: value }, replace: true })
 				}
 			/>
 
@@ -357,7 +356,7 @@ function PullRequestsPage() {
 									<span>
 										#{pr.number} opened{" "}
 										{new Date(pr.createdAt).toLocaleDateString()} by{" "}
-										{pr.author?.name || "Unknown"}
+										{pr.author.name}
 									</span>
 									<span className="hidden sm:inline">&middot;</span>
 									<code className="inline-flex items-center gap-1 font-mono">

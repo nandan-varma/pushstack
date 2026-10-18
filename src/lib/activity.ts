@@ -1,86 +1,83 @@
-export function describeActivity(activity: {
-	type: string;
-	metadata: unknown;
-	repository?: {
-		name: string;
-		owner?: { username?: string | null } | null;
-	} | null;
-	id: number;
-}): {
-	text: string;
-	showRepo: boolean;
-	linkTo?: string;
-	linkParams?: Record<string, string>;
-} {
-	const meta = (activity.metadata ?? {}) as Record<string, unknown>;
-	const title = typeof meta.title === "string" ? meta.title : null;
-	const action = typeof meta.action === "string" ? meta.action : null;
-	const repoOwner = activity.repository?.owner?.username || "unknown";
-	const repoName = activity.repository?.name || "";
-	const repoParams = { owner: repoOwner, name: repoName };
+import type {
+	ActivityEvent,
+	ActivityMetadata,
+	ActivityType,
+} from "./activity-types";
 
-	switch (activity.type) {
+export interface ActivityRow {
+	id: number;
+	type: ActivityType;
+	metadata: ActivityMetadata | null;
+	createdAt: string | Date;
+	repository: { name: string; owner: { username: string | null } } | null;
+}
+
+type ActivityLink =
+	| { to: "/repo/$owner/$name"; params: { owner: string; name: string } }
+	| {
+			to: "/repo/$owner/$name/commit/$sha";
+			params: { owner: string; name: string; sha: string };
+	  }
+	| {
+			to: "/repo/$owner/$name/issues/$id" | "/repo/$owner/$name/pulls/$id";
+			params: { owner: string; name: string; id: string };
+	  };
+
+/** The sentence and link an activity-feed entry renders as. */
+export function describeActivity(row: ActivityRow): {
+	text: string;
+	link: ActivityLink | null;
+} {
+	// type and metadata are written together by recordActivity, so the row is
+	// one ActivityEvent; the database just can't express the correlation.
+	const event = { type: row.type, metadata: row.metadata } as ActivityEvent;
+	const owner = row.repository?.owner.username;
+	const name = row.repository?.name;
+	const repo = owner && name ? { owner, name } : null;
+	const thread = (kind: "issue" | "pr", number: number): ActivityLink | null =>
+		repo && {
+			to:
+				kind === "issue"
+					? "/repo/$owner/$name/issues/$id"
+					: "/repo/$owner/$name/pulls/$id",
+			params: { ...repo, id: String(number) },
+		};
+	const home: ActivityLink | null = repo && {
+		to: "/repo/$owner/$name",
+		params: repo,
+	};
+
+	switch (event.type) {
 		case "create_repo":
-			return {
-				text: "Created this repository",
-				showRepo: true,
-				linkTo: "/repo/$owner/$name",
-				linkParams: repoParams,
-			};
+			return { text: "Created this repository", link: home };
 		case "star":
-			return {
-				text: "Starred",
-				showRepo: true,
-				linkTo: "/repo/$owner/$name",
-				linkParams: repoParams,
-			};
+			return { text: "Starred", link: home };
 		case "commit":
 			return {
-				text:
-					typeof meta.message === "string"
-						? `Pushed a commit: "${meta.message}"`
-						: "Pushed a commit",
-				showRepo: true,
-				linkTo: "/repo/$owner/$name",
-				linkParams: repoParams,
+				text: `Committed "${event.metadata.message}"`,
+				link: repo && {
+					to: "/repo/$owner/$name/commit/$sha",
+					params: { ...repo, sha: event.metadata.commitSha },
+				},
 			};
 		case "issue": {
-			const issueId = typeof meta.issueId === "number" ? meta.issueId : null;
+			const verb = { opened: "Opened", closed: "Closed", reopened: "Reopened" };
 			return {
-				text: `${action === "closed" ? "Closed" : action === "reopened" ? "Reopened" : "Opened"} issue${title ? ` "${title}"` : ""}`,
-				showRepo: true,
-				linkTo: issueId
-					? "/repo/$owner/$name/issues/$id"
-					: "/repo/$owner/$name/issues",
-				linkParams: issueId
-					? { ...repoParams, id: String(issueId) }
-					: repoParams,
+				text: `${verb[event.metadata.action]} issue "${event.metadata.title}"`,
+				link: thread("issue", event.metadata.number),
 			};
 		}
 		case "pr": {
-			const prId = typeof meta.prId === "number" ? meta.prId : null;
+			const verb = { opened: "Opened", closed: "Closed", merged: "Merged" };
 			return {
-				text: `${action === "merged" ? "Merged" : action === "closed" ? "Closed" : "Opened"} pull request${title ? ` "${title}"` : ""}`,
-				showRepo: true,
-				linkTo: prId
-					? "/repo/$owner/$name/pulls/$id"
-					: "/repo/$owner/$name/pulls",
-				linkParams: prId ? { ...repoParams, id: String(prId) } : repoParams,
+				text: `${verb[event.metadata.action]} pull request "${event.metadata.title}"`,
+				link: thread("pr", event.metadata.number),
 			};
 		}
 		case "comment":
 			return {
-				text: `Commented on ${meta.prId ? "a pull request" : "an issue"}`,
-				showRepo: true,
-				linkTo: "/repo/$owner/$name",
-				linkParams: repoParams,
-			};
-		default:
-			return {
-				text: activity.type,
-				showRepo: true,
-				linkTo: "/repo/$owner/$name",
-				linkParams: repoParams,
+				text: `Commented on ${event.metadata.on === "pr" ? "a pull request" : "an issue"}`,
+				link: thread(event.metadata.on, event.metadata.number),
 			};
 	}
 }

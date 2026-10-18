@@ -11,8 +11,6 @@ vi.mock("../git-storage-naming", async (importOriginal) => ({
 const {
 	detectLooseObjectsHint,
 	gitFs,
-	invalidateGitStorageKeys,
-	invalidateRepoGitStorage,
 	prefetchAllPacks,
 	putStorageObject,
 	refAwareTtl,
@@ -37,30 +35,10 @@ describe("wrapper gitdir derivation", () => {
 		await prefetchAllPacks("alice", "blog");
 		expect(spy).toHaveBeenCalledWith("repos/alice/blog/git");
 	});
-
-	it("invalidateRepoGitStorage sweeps the repo's storage prefix", () => {
-		const spy = vi.spyOn(gitFs, "invalidate").mockReturnValue(undefined);
-		invalidateRepoGitStorage("alice", "blog");
-		expect(spy).toHaveBeenCalledWith("repos/alice/blog/git/");
-	});
-
-	it("invalidateGitStorageKeys evicts each key individually", () => {
-		const spy = vi.spyOn(gitFs, "invalidate").mockReturnValue(undefined);
-		invalidateGitStorageKeys([
-			"repos/alice/blog/git/objects/pack/pack-1.pack",
-			"repos/alice/blog/git/objects/pack/pack-1.idx",
-		]);
-		expect(spy).toHaveBeenCalledTimes(2);
-		expect(spy).toHaveBeenCalledWith(
-			"repos/alice/blog/git/objects/pack/pack-1.pack",
-		);
-	});
 });
 
 describe("registerRepoGitdir", () => {
-	it("returns the gitdir and makes packed-refs/shallow absent with zero R2 calls", async () => {
-		// R2 env is unset in unit tests: any path that reached the store would
-		// throw "R2 credentials not configured" instead of ENOENT.
+	it("returns the gitdir, which stats as a directory, with packed-refs/shallow absent", async () => {
 		expect(registerRepoGitdir("alice", "blog")).toBe("repos/alice/blog/git");
 		await expect(
 			gitFs.promises.readFile("repos/alice/blog/git/packed-refs"),

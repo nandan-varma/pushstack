@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-export type AppContext = {
+type AppContext = {
 	queryClient: QueryClient;
 };
 
@@ -25,7 +25,7 @@ function createQueryClient() {
 	});
 }
 
-export function createAppContext(): AppContext {
+function createAppContext(): AppContext {
 	return {
 		queryClient: createQueryClient(),
 	};

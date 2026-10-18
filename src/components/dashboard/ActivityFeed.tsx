@@ -2,18 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { describeActivity } from "@/lib/activity";
-
-interface Activity {
-	id: number;
-	type: string;
-	metadata: unknown;
-	createdAt: string | Date;
-	repository?: {
-		name: string;
-		owner?: { username?: string | null } | null;
-	} | null;
-}
+import { type ActivityRow, describeActivity } from "@/lib/activity";
 
 export function ActivityFeed({
 	activities,
@@ -21,7 +10,7 @@ export function ActivityFeed({
 	isError,
 	onRetry,
 }: {
-	activities?: Activity[];
+	activities?: ActivityRow[];
 	isLoading?: boolean;
 	isError?: boolean;
 	onRetry?: () => void;
@@ -59,15 +48,14 @@ export function ActivityFeed({
 	return (
 		<div className="space-y-2">
 			{activities.map((activity) => {
-				const { text, showRepo, linkTo, linkParams } =
-					describeActivity(activity);
+				const { text, link } = describeActivity(activity);
 				const content = (
 					<>
 						<div className="text-xs font-medium text-foreground">
 							{text}
-							{showRepo && activity.repository && (
+							{activity.repository && (
 								<span className="ml-1 font-normal text-muted-foreground">
-									in {activity.repository.owner?.username || "unknown"}/
+									in {activity.repository.owner.username}/
 									{activity.repository.name}
 								</span>
 							)}
@@ -78,12 +66,12 @@ export function ActivityFeed({
 					</>
 				);
 
-				if (linkTo && linkParams) {
+				if (link) {
 					return (
 						<Link
 							key={activity.id}
-							to={linkTo}
-							params={linkParams}
+							to={link.to}
+							params={link.params}
 							className="block rounded-lg border border-border bg-background p-3 no-underline transition hover:bg-card"
 						>
 							{content}

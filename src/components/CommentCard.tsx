@@ -17,7 +17,7 @@ export function CommentCard({
 		id: number;
 		body: string;
 		createdAt: string | Date;
-		author?: { name?: string | null; image?: string | null } | null;
+		author: { name: string; image: string | null };
 	};
 	owner: string;
 	name: string;
@@ -27,15 +27,13 @@ export function CommentCard({
 		<Card className="p-6">
 			<div className="flex items-start gap-4">
 				<Avatar>
-					<AvatarImage src={comment.author?.image || undefined} />
-					<AvatarFallback>
-						{getInitials(comment.author?.name || "U")}
-					</AvatarFallback>
+					<AvatarImage src={comment.author.image ?? undefined} />
+					<AvatarFallback>{getInitials(comment.author.name)}</AvatarFallback>
 				</Avatar>
 				<div className="flex-1">
 					<div className="flex items-center gap-2 mb-4">
 						<span className="font-medium text-foreground">
-							{comment.author?.name || "Unknown"}
+							{comment.author.name}
 						</span>
 						<span className="text-sm text-muted-foreground">
 							{formatDistanceToNow(new Date(comment.createdAt), {

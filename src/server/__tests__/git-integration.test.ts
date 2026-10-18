@@ -1,53 +1,38 @@
 /**
- * Real git integration tests — no mocks: isomorphic-git against the real
- * gitFs stack. R2 is not configured in the test env, so storage is
- * git-fs.ts's in-memory object store — no local disk anywhere.
- *
- * `db` is the one exception: every write here now goes through
- * withRepositoryLock (git-repo-storage.ts), which needs a reachable Postgres
- * for its lease-row CAS — see helpers/fake-repo-lock-db.ts for the in-memory
- * stand-in used instead of a live database.
+ * Real git integration tests: isomorphic-git against the real gitFs stack
+ * over git-fs.ts's in-memory object store (R2 isn't configured in tests);
+ * the repo lock runs over pglite.
  */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 
-const lockStore = vi.hoisted(() => new Map());
-
-vi.mock("../../db", async () => {
-	const { createFakeRepoLockDb } = await import("./helpers/fake-repo-lock-db");
-	return { db: createFakeRepoLockDb(lockStore as never) };
-});
-
-vi.mock("drizzle-orm", async (importOriginal) => {
-	const { fakeRepoLockDrizzleOrmOverrides } = await import(
-		"./helpers/fake-repo-lock-db"
-	);
-	const actual = await importOriginal<typeof import("drizzle-orm")>();
-	return { ...actual, ...fakeRepoLockDrizzleOrmOverrides() };
-});
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
 
 import {
-	createBranch,
-	deleteBranch,
+	analyzeMerge,
+	getBranchDiff,
 	getBranches,
-	setDefaultBranch,
-} from "../git-branch-ops";
-import { createCommit, deleteFile } from "../git-commit-write";
-import { getCommitDiff, getDiffBetweenBranches } from "../git-diff-iso";
-import { getFileHistory } from "../git-file-history";
-import {
-	getBlob,
 	getCommit,
+	getCommitDiff,
 	getCommitHistory,
 	getCommitLog,
 	getFileContent,
-	getFileFromBranch,
-	getTreeFromBranch,
-} from "../git-history-ops";
-// Import after env is set
-import { initBareRepo } from "../git-manager-iso";
-import { analyzeMerge, mergeBranches } from "../git-merge-iso";
+	getFileHistory,
+	getFileView,
+	getTree,
+} from "../git-read";
+import { initBareRepo } from "../git-repo";
+import {
+	createBranch,
+	createCommit,
+	deleteBranch,
+	deleteFile,
+	mergeBranches,
+	setDefaultBranch,
+} from "../git-write";
 
 const OWNER = "testowner";
 const REPO = "testrepo";
@@ -252,16 +237,16 @@ describe("getFileHistory", () => {
 
 // ── Trees & files ─────────────────────────────────────────────────────────────
 
-describe("getTreeFromBranch (root)", () => {
+describe("getTree (root)", () => {
 	it("lists root entries on main", async () => {
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
+		const entries = await getTree(OWNER, REPO, "main", "");
 		const names = entries.map((e) => e.path);
 		expect(names).toContain("README.md");
 		expect(names).toContain("src");
 	});
 
 	it("marks files as blob and dirs as tree", async () => {
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
+		const entries = await getTree(OWNER, REPO, "main", "");
 		const readme = entries.find((e) => e.path === "README.md");
 		const src = entries.find((e) => e.path === "src");
 		expect(readme?.type).toBe("blob");
@@ -269,16 +254,16 @@ describe("getTreeFromBranch (root)", () => {
 	});
 });
 
-describe("getTreeFromBranch (subdirectory)", () => {
+describe("getTree (subdirectory)", () => {
 	it("lists contents of src/", async () => {
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "src");
+		const entries = await getTree(OWNER, REPO, "main", "src");
 		expect(entries.map((e) => e.path)).toContain("src/index.js");
 	});
 
 	it("throws for non-existent path", async () => {
-		await expect(
-			getTreeFromBranch(OWNER, REPO, "main", "nonexistent"),
-		).rejects.toThrow(/does not exist/);
+		await expect(getTree(OWNER, REPO, "main", "nonexistent")).rejects.toThrow(
+			/does not exist/,
+		);
 	});
 });
 
@@ -302,9 +287,9 @@ describe("getFileContent", () => {
 	});
 });
 
-describe("getFileFromBranch", () => {
+describe("getFileView", () => {
 	it("returns small text inline", async () => {
-		const result = await getFileFromBranch(OWNER, REPO, "main", "README.md");
+		const result = await getFileView(OWNER, REPO, "main", "README.md");
 		expect(result.kind).toBe("text");
 		if (result.kind !== "text") return;
 		expect(result.content).toContain("Updated Repo");
@@ -323,7 +308,7 @@ describe("getFileFromBranch", () => {
 			],
 			author: { name: "Test User", email: "test@example.com" },
 		});
-		const result = await getFileFromBranch(OWNER, REPO, "main", "image.bin");
+		const result = await getFileView(OWNER, REPO, "main", "image.bin");
 		expect(result).toEqual({ kind: "binary", size: 4 });
 	});
 
@@ -336,22 +321,11 @@ describe("getFileFromBranch", () => {
 			],
 			author: { name: "Test User", email: "test@example.com" },
 		});
-		const result = await getFileFromBranch(OWNER, REPO, "main", "big.txt");
+		const result = await getFileView(OWNER, REPO, "main", "big.txt");
 		expect(result).toEqual({
 			kind: "too-large",
 			size: MAX_INLINE_TEXT_BYTES + 1,
 		});
-	});
-});
-
-describe("getBlob", () => {
-	it("returns blob buffer by OID", async () => {
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
-		const readme = entries.find((e) => e.path === "README.md");
-		expect(readme).toBeDefined();
-		if (!readme) throw new Error("unreachable");
-		const buf = await getBlob(OWNER, REPO, readme.oid);
-		expect(new TextDecoder().decode(buf)).toContain("Repo");
 	});
 });
 
@@ -391,7 +365,7 @@ describe("createCommit", () => {
 			files: [{ path: "new-file.txt", content: "new content\n" }],
 			author: { name: "Test User", email: "test@example.com" },
 		});
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
+		const entries = await getTree(OWNER, REPO, "main", "");
 		expect(entries.map((e) => e.path)).toContain("new-file.txt");
 	});
 
@@ -422,16 +396,14 @@ describe("deleteFile", () => {
 			author: { name: "Test User", email: "test@example.com" },
 		});
 
-		await deleteFile(
-			OWNER,
-			REPO,
-			"main",
-			"to-delete.txt",
-			"Remove to-delete.txt",
-			{ name: "Test User", email: "test@example.com" },
-		);
+		await deleteFile(OWNER, REPO, {
+			branch: "main",
+			filePath: "to-delete.txt",
+			message: "Remove to-delete.txt",
+			author: { name: "Test User", email: "test@example.com" },
+		});
 
-		const entries = await getTreeFromBranch(OWNER, REPO, "main", "");
+		const entries = await getTree(OWNER, REPO, "main", "");
 		expect(entries.map((e) => e.path)).not.toContain("to-delete.txt");
 	});
 
@@ -472,14 +444,9 @@ describe("getCommitDiff", () => {
 	});
 });
 
-describe("getDiffBetweenBranches", () => {
+describe("getBranchDiff", () => {
 	it("main vs feature-branch shows feature.txt added", async () => {
-		const diff = await getDiffBetweenBranches(
-			OWNER,
-			REPO,
-			"main",
-			"feature-branch",
-		);
+		const diff = await getBranchDiff(OWNER, REPO, "main", "feature-branch");
 		const paths = diff.files.map((f) => f.path);
 		expect(paths).toContain("feature.txt");
 		const featureFile = diff.files.find((f) => f.path === "feature.txt");
@@ -487,7 +454,7 @@ describe("getDiffBetweenBranches", () => {
 	});
 
 	it("same branch vs itself has no diff", async () => {
-		const diff = await getDiffBetweenBranches(OWNER, REPO, "main", "main");
+		const diff = await getBranchDiff(OWNER, REPO, "main", "main");
 		expect(diff.files).toHaveLength(0);
 		expect(diff.totalFiles).toBe(0);
 	});
@@ -531,7 +498,7 @@ describe("mergeBranches", () => {
 		expect(result.success).toBe(true);
 
 		// feature.txt should now be on merge-target
-		const entries = await getTreeFromBranch(OWNER, REPO, "merge-target", "");
+		const entries = await getTree(OWNER, REPO, "merge-target", "");
 		const names = entries.map((e) => e.path);
 		expect(names).toContain("feature.txt");
 	});

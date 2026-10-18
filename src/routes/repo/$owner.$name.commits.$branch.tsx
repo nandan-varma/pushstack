@@ -177,9 +177,7 @@ function CommitsPage() {
 							>
 								<Avatar className="h-8 w-8 shrink-0">
 									<AvatarFallback className="text-xs">
-										{getInitials(
-											commit.author?.name || commit.authorName || "U",
-										)}
+										{getInitials(commit.authorName)}
 									</AvatarFallback>
 								</Avatar>
 								<div className="min-w-0 flex-1 space-y-1">
@@ -190,8 +188,7 @@ function CommitsPage() {
 										{commit.message.split("\n")[0]}
 									</p>
 									<p className="text-xs leading-snug text-muted-foreground">
-										{commit.author?.name || commit.authorName || "Unknown"}{" "}
-										&middot;{" "}
+										{commit.authorName} &middot;{" "}
 										{formatDistanceToNow(new Date(commit.createdAt), {
 											addSuffix: true,
 										})}
