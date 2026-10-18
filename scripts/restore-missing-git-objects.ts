@@ -13,7 +13,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import { deflateSync } from "node:zlib";
-import { uploadToR2 } from "#/lib/r2-operations";
+import { putStorageObject } from "#/server/git-fs";
 import { getRepoGitStoragePrefix } from "#/server/git-storage-naming";
 
 const execFile = promisify(execFileCallback);
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
 		}
 
 		const key = `${prefix}objects/${oid.slice(0, 2)}/${oid.slice(2)}`;
-		await uploadToR2(key, deflateSync(wrapped));
+		await putStorageObject(key, deflateSync(wrapped));
 		console.log(`Restored ${oid} (${type}, ${content.length} bytes).`);
 	}
 }

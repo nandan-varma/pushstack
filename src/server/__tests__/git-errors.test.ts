@@ -10,9 +10,6 @@ import {
 	GitProtocolError,
 	GitRefNotFoundError,
 	GitRepositoryNotFoundError,
-	isRetryableError,
-	R2DownloadError,
-	R2UploadError,
 } from "../git-errors";
 
 describe("GitError hierarchy", () => {
@@ -58,14 +55,6 @@ describe("GitError hierarchy", () => {
 
 	it("GitProtocolError is 400", () => {
 		expect(new GitProtocolError("proto").statusCode).toBe(400);
-	});
-
-	it("R2 errors are 500 retryable by default", () => {
-		for (const Cls of [R2UploadError, R2DownloadError]) {
-			const e = new Cls("r2 failed");
-			expect(e.statusCode).toBe(500);
-			expect(e.retryable).toBe(true);
-		}
 	});
 
 	it("toJSON includes all base fields", () => {
@@ -125,32 +114,5 @@ describe("formatErrorResponse", () => {
 		const r = formatErrorResponse(new Error("Access denied: something"));
 		// plain Error is still 500 — but authenticateGitRequest no longer throws plain Errors
 		expect(r.status).toBe(500);
-	});
-});
-
-describe("isRetryableError", () => {
-	it("returns true for retryable GitError", () => {
-		expect(isRetryableError(new R2UploadError("upload fail"))).toBe(true);
-	});
-
-	it("returns false for non-retryable GitError", () => {
-		expect(isRetryableError(new GitObjectNotFoundError("404"))).toBe(false);
-	});
-
-	it("returns true for network-like Error messages", () => {
-		expect(isRetryableError(new Error("network timeout"))).toBe(true);
-		expect(isRetryableError(new Error("ECONNRESET"))).toBe(true);
-		expect(isRetryableError(new Error("ECONNREFUSED"))).toBe(true);
-	});
-
-	it("returns false for non-network errors", () => {
-		expect(
-			isRetryableError(new Error("TypeError: undefined is not a function")),
-		).toBe(false);
-	});
-
-	it("returns false for unknown values", () => {
-		expect(isRetryableError(null)).toBe(false);
-		expect(isRetryableError("string")).toBe(false);
 	});
 });

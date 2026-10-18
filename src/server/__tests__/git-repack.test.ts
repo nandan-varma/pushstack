@@ -2,42 +2,27 @@
  * @vitest-environment node
  *
  * Real isomorphic-git integration test for repackRepositoryNow (delegates
- * to git-fs-s3's repackRepository) — no mocks, actual
- * filesystem, no native `git` binary anywhere (including fixture setup).
- * This path has no coverage from git-http-iso.test.ts (which mocks
- * isomorphic-git and node:fs entirely, so the real read/verify/pack calls
- * never execute there — the pack-count threshold guard always short-circuits
- * first against mocked, empty fs state) — this file exists specifically to
- * exercise the real consolidation logic against real fragmented packs, the
- * exact scenario production hit. Needs the real `node` environment (not the
+ * to git-fs-s3's repackRepository) — no mocks: the real gitFs stack over
+ * git-fs.ts's in-memory object store (R2 isn't configured in tests), no
+ * native `git` binary anywhere (including fixture setup).
+ * This file exists specifically to exercise the real consolidation logic
+ * against real fragmented packs, the exact scenario production hit. Needs the real `node` environment (not the
  * project default `jsdom`): repackRepository's pack compression uses
  * `Blob.stream()` + `CompressionStream`, which jsdom's `Blob` polyfill
  * doesn't implement.
  */
 
-import fs, { promises as nodeFs } from "node:fs";
-import path from "node:path";
-import git from "isomorphic-git";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { authorNow, commitFilesToBare } from "git-fs-s3/ops";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
-// Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init.
-// DATABASE_URL is set here too: src/db/index.ts throws at import time if
-// it's unset, and under the `node` environment (see the docblock above)
-// Vite's .env.local auto-load into process.env doesn't reach this module
-// graph the way it does under the project's default jsdom environment. The
-// value itself doesn't matter — `db` is mocked below (withRepositoryLock, now
-// exercised via repackRepositoryNow's withReceivePackLock, needs a reachable
-// Postgres for its lease-row CAS; see helpers/fake-repo-lock-db.ts) — this
-// just satisfies the module-load-time presence check.
-const TEST_DIR = vi.hoisted(() => {
-	// eslint-disable-next-line @typescript-eslint/no-require-imports
-	const os = require("node:os");
-	// eslint-disable-next-line @typescript-eslint/no-require-imports
-	const p = require("node:path");
-	const dir = p.join(os.tmpdir(), `pushstack-repack-test-${Date.now()}`);
-	process.env.GIT_REPOS_PATH = dir;
+// DATABASE_URL: src/db/index.ts throws at import time if it's unset, and
+// under the `node` environment (see the docblock above) Vite's .env.local
+// auto-load into process.env doesn't reach this module graph the way it does
+// under the project's default jsdom environment. The value itself doesn't
+// matter — `db` is mocked below (withRepositoryLock needs a reachable
+// Postgres for its lease-row CAS; see helpers/fake-repo-lock-db.ts).
+vi.hoisted(() => {
 	process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test";
-	return dir;
 });
 
 const lockStore = vi.hoisted(() => new Map());
@@ -56,107 +41,54 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 });
 
 // Import after env is set
-import { createCommit } from "../git-commit-write";
 import { getCommitLog, getTreeFromBranch } from "../git-history-ops";
 import { repackRepositoryNow } from "../git-http-iso";
-import { getRepoPath, initBareRepo } from "../git-manager-iso";
+import { getBareRepoOptions, initBareRepo } from "../git-manager-iso";
 
 const OWNER = "repacktestowner";
 const REPO = "repacktestrepo";
 
-async function countLocalPacks(): Promise<number> {
-	const packDir = `${getRepoPath(OWNER, REPO)}/objects/pack`;
-	try {
-		const entries = await nodeFs.readdir(packDir);
-		return entries.filter((f) => f.endsWith(".pack")).length;
-	} catch {
-		return 0;
-	}
-}
+const repo = () => getBareRepoOptions(OWNER, REPO);
 
-// Two-level fanout dirs (00-ff) under objects/, excluding the "pack" and
-// "info" siblings that aren't loose-object dirs.
-async function listLooseOids(repoPath: string): Promise<string[]> {
-	const objectsDir = path.join(repoPath, "objects");
-	const fanoutDirs = await nodeFs.readdir(objectsDir).catch(() => []);
-	const oids: string[] = [];
-	for (const dir of fanoutDirs) {
-		if (!/^[0-9a-f]{2}$/.test(dir)) continue;
-		const files = await nodeFs
-			.readdir(path.join(objectsDir, dir))
-			.catch(() => []);
-		for (const file of files) {
-			if (/^[0-9a-f]{38}$/.test(file)) oids.push(dir + file);
-		}
-	}
-	return oids;
+async function countPacks(): Promise<number> {
+	const { fs, gitdir } = repo();
+	const entries = await fs.promises
+		.readdir(`${gitdir}/objects/pack`)
+		.catch(() => [] as string[]);
+	return entries.filter((f) => f.endsWith(".pack")).length;
 }
 
 beforeAll(async () => {
-	await nodeFs.mkdir(TEST_DIR, { recursive: true });
 	await initBareRepo(OWNER, REPO, "main");
 
-	const repoPath = getRepoPath(OWNER, REPO);
-
-	// Fragment into several packs the same way real pushes do: each commit
-	// writes loose objects (via isomorphic-git's writeBlob/writeTree/writeCommit
-	// inside createCommit), then we pack just the currently-loose objects into
-	// a *new* pack file (isomorphic-git's own packObjects — well-tested,
-	// already used elsewhere for real work) and delete the now-packed loose
-	// copies, leaving any earlier packs untouched — repeat a few times and
-	// packs accumulate exactly like consecutive `pushstack-recv-*.pack` files
-	// did in production.
+	// Fragment into several packs the way real writes do: every commit
+	// (git-fs-s3's commitFilesToBare) stores its objects as one new pack.
+	// Called directly rather than through createCommit, which would
+	// consolidate them again once they cross the repack threshold.
 	for (let i = 1; i <= 5; i++) {
-		await createCommit(OWNER, REPO, {
+		await commitFilesToBare(repo(), {
 			branch: "main",
 			message: `commit ${i}`,
+			author: authorNow("Test", "test@example.com"),
 			files: [{ path: `file${i}.txt`, content: `content ${i}\n` }],
-			author: { name: "Test", email: "test@example.com" },
 		});
-		const looseOids = await listLooseOids(repoPath);
-		const { filename } = await git.packObjects({
-			fs,
-			gitdir: repoPath,
-			oids: looseOids,
-			write: true,
-		});
-		// packObjects only writes the .pack — index it ourselves so it's
-		// actually discoverable by readObjectPacked (which only looks at
-		// objects/pack/*.idx), same as a real repack would leave behind.
-		await git.indexPack({
-			fs,
-			dir: path.join(repoPath, "objects", "pack"),
-			gitdir: repoPath,
-			filepath: filename,
-		});
-		await Promise.all(
-			looseOids.map((oid) =>
-				nodeFs
-					.unlink(path.join(repoPath, "objects", oid.slice(0, 2), oid.slice(2)))
-					.catch(() => {}),
-			),
-		);
 	}
-});
-
-afterAll(async () => {
-	await nodeFs.rm(TEST_DIR, { recursive: true, force: true });
 });
 
 describe("repackRepositoryNow", () => {
 	it("starts with multiple fragmented packs", async () => {
-		expect(await countLocalPacks()).toBeGreaterThanOrEqual(4);
+		expect(await countPacks()).toBeGreaterThanOrEqual(4);
 	});
 
 	it("consolidates to a single pack and reports the removed count", async () => {
-		const packsBefore = await countLocalPacks();
+		const packsBefore = await countPacks();
 
-		const result = await repackRepositoryNow(OWNER, REPO, "main");
+		const result = await repackRepositoryNow(OWNER, REPO);
 
 		expect(result.removedFiles).toBeGreaterThan(0);
 		// Each stale pack contributes both a .pack and a .idx path
 		expect(result.removedFiles).toBe(packsBefore * 2);
-		expect(await countLocalPacks()).toBe(1);
+		expect(await countPacks()).toBe(1);
 	});
 
 	it("preserves the exact commit history after consolidating", async () => {
@@ -183,8 +115,32 @@ describe("repackRepositoryNow", () => {
 	});
 
 	it("is a no-op (returns zero) when already consolidated", async () => {
-		const result = await repackRepositoryNow(OWNER, REPO, "main");
+		const result = await repackRepositoryNow(OWNER, REPO);
 		expect(result.removedFiles).toBe(0);
-		expect(await countLocalPacks()).toBe(1);
+		expect(await countPacks()).toBe(1);
+	});
+});
+
+describe("web-UI commits stay consolidated", () => {
+	it("repacks once commits cross the pack threshold, keeping history intact", async () => {
+		const { createCommit } = await import("../git-commit-write");
+		const owner = "repacktestowner";
+		const name = "webcommits";
+		await initBareRepo(owner, name, "main");
+		for (let i = 1; i <= 9; i++) {
+			await createCommit(owner, name, {
+				branch: "main",
+				message: `web ${i}`,
+				files: [{ path: `w${i}.txt`, content: `${i}\n` }],
+				author: { name: "Test", email: "test@example.com" },
+			});
+		}
+		const { fs, gitdir } = getBareRepoOptions(owner, name);
+		const packs = (await fs.promises.readdir(`${gitdir}/objects/pack`)).filter(
+			(f: string) => f.endsWith(".pack"),
+		);
+		expect(packs.length).toBeLessThan(4);
+		const log = await getCommitLog(owner, name, "main", 20);
+		expect(log).toHaveLength(9);
 	});
 });

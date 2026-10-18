@@ -89,7 +89,7 @@ export const Route = createFileRoute("/api/git/$")({
 					const [
 						{ parseGitUrl },
 						{ authenticateGitRequest },
-						{ handleUploadPackIso, handleReceivePackIso },
+						{ handleUploadPackIso, handleReceivePackIso, maxGitBodyBytes },
 						{ getRepoStorageCoordinates },
 						{ findRepositoryByName },
 					] = await Promise.all([
@@ -99,17 +99,16 @@ export const Route = createFileRoute("/api/git/$")({
 						import("#/server/git-storage-naming"),
 						import("#/server/repositories"),
 					]);
+					// Fail fast on a declared oversize body; the cap itself is
+					// enforced while streaming (git-http-iso.ts's readGitRequestBody),
+					// since a chunked request declares no length.
 					const contentLength = Number.parseInt(
 						request.headers.get("content-length") || "",
 						10,
 					);
-					const maxRequestBytes =
-						Number.parseInt(process.env.GIT_HTTP_MAX_BODY_BYTES || "", 10) ||
-						50 * 1024 * 1024;
-
 					if (
 						Number.isFinite(contentLength) &&
-						contentLength > maxRequestBytes
+						contentLength > maxGitBodyBytes()
 					) {
 						return new Response("Git request body too large", { status: 413 });
 					}

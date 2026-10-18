@@ -43,7 +43,6 @@ Visit [http://localhost:3000](http://localhost:3000) to get started.
    R2_SECRET_ACCESS_KEY=your_r2_secret
    R2_BUCKET_NAME=your_bucket_name
    R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-   GIT_REPOS_PATH=/path/to/local/hydration/dir   # optional, defaults to os.tmpdir()/pushstack-repos
    RESEND_API_KEY=your_resend_api_key            # transactional email: password reset, email verification
    RESEND_EMAIL_FROM=you@yourdomain.com          # optional, has a built-in fallback
    ```

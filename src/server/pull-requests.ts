@@ -365,7 +365,6 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 				authorEmail: user.email,
 				strategy: data.strategy,
 			},
-			repo.ownerId,
 		);
 
 		if (!mergeResult.success) {

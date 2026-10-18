@@ -11,10 +11,16 @@ dependency tree (it used to be listed but was never wired into the Vite
 config; removed as dead weight, see [security.md](./security.md)'s
 "Dependency vulnerabilities").
 
-This is also why `/tmp` matters so much throughout the codebase: it's the only
-writable directory available at runtime on Vercel, which is why
-`GIT_REPOS_PATH` (used for local git hydration during writes — see
-[git-storage.md](./git-storage.md)) defaults to `os.tmpdir()/pushstack-repos`.
+Functions run on Vercel's **Node runtime** (Fluid compute). The app never
+writes to the function's filesystem — every git read and write goes straight
+to R2 (see [git-storage.md](./git-storage.md)) — and server code relies on Web
+APIs (`fetch`, WebCrypto, `TextEncoder`, `CompressionStream`) plus
+`node:async_hooks` only. Vercel's Edge runtime isn't available through this
+stack: Nitro v3 removed the `vercel-edge` preset ("use `vercel` with Fluid
+compute"), and its per-route `functionRules` re-link the same Node bundle.
+Dependencies still assume Node in places (Better Auth's scrypt password
+hashing via `node:crypto`, the Sentry Node SDK, isomorphic-git's use of the
+global `Buffer`).
 
 ```bash
 pnpm build    # production build
@@ -23,9 +29,9 @@ pnpm deploy   # currently just runs the build — actual deployment is via the V
 
 ## `vite.config.ts` specifics worth knowing
 
-- `ssr.target: "node"` — git operations need real Node.js APIs (`node:fs`,
-  `node:path`), so the SSR target can't be `webworker`. Don't change this
-  without accounting for every `node:*` import in `src/server/`.
+- `ssr.target: "node"` — the functions run Node. The app's own server code
+  would build for `webworker` (it imports no `node:*` module except
+  `node:async_hooks`), but dependencies above still need Node.
 - `nitro` is pinned to an **exact** beta version (no `^`/`~` range) in
   `package.json` — deliberate, not a typo. Don't loosen it.
 - `nitro({ traceDeps: ["react*"] })` — required, not decorative. Vite/Nitro's
@@ -55,10 +61,8 @@ There's no native `git` binary dependency anywhere — all git operations go
 through isomorphic-git, with a custom `fs` plugin (`git-fs.ts`, built on the
 published `git-fs-s3` package) that reads/writes objects
 directly to/from R2. See [git-storage.md](./git-storage.md)
-for the full read/write model. `withRepositoryWorktree` (`git-repo-storage.ts`)
-materializes a temporary local checkout for operations that need a real
-working directory, but does so with isomorphic-git's own `git.checkout`/
-`git.commit`/`git.merge`, not a shelled-out CLI. The Vercel function
+for the full read/write model. No operation needs a working directory —
+commits and merges are built on the object graph. The Vercel function
 environment does not need a `git` binary on `PATH`.
 
 ## Environment variables
@@ -78,7 +82,6 @@ R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 GIT_HTTP_MAX_BODY_BYTES=52428800   # default 50MB — request body cap for git push
 GIT_CACHE_MAX_SIZE=1073741824      # default 1GB — shared budget for both in-process LRU caches
 GIT_CACHE_TTL=3600                 # default 1 hour (seconds)
-GIT_REPOS_PATH=/path/to/dir        # default os.tmpdir()/pushstack-repos — local git hydration dir
 
 # Transactional email (password reset, email verification) via Resend
 RESEND_API_KEY=...
@@ -92,10 +95,12 @@ SENTRY_PROJECT=...
 ```
 
 If any of the four `R2_*` variables above are unset, `isR2Configured()`
-(`src/lib/r2.ts`) returns `false` and the app falls back to storing git data
-directly on local disk (`GIT_REPOS_PATH`) instead of R2 — useful for local
-development without an R2 bucket, not recommended for a real deployment (local
-disk on Vercel doesn't persist between invocations).
+(`src/lib/r2.ts`) returns `false` and `git-fs.ts` keeps git data in an
+in-memory object store instead — fine for a quick local run (repositories
+vanish when the dev server restarts; use a dev R2 bucket or any
+S3-compatible endpoint such as MinIO via `R2_ENDPOINT` to keep them). With
+`NODE_ENV=production` it refuses instead: every git operation throws "R2 is
+not configured" rather than silently losing pushes.
 
 Local setup:
 

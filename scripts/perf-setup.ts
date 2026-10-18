@@ -1,8 +1,8 @@
 /**
  * One-off fixture setup for local performance profiling (not part of the
  * app). Creates a test user, a PAT for git CLI auth, and an empty
- * repository via the real initBareRepo path (writes straight to R2/local
- * disk per isR2Configured(), same as createRepository's handler does).
+ * repository via the real initBareRepo path (writes straight to R2, same as
+ * createRepository's handler does).
  * Prints the PAT and clone URL. Safe to re-run — clears prior perf-test
  * fixtures first.
  */

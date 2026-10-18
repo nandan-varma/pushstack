@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { APIError, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
@@ -24,6 +24,23 @@ const configuredAppUrl =
 // receive the session cookie for the preview origin.
 const APP_URL = vercelPreviewUrl ?? configuredAppUrl;
 
+/** Escape text interpolated into email HTML (user-controlled display names). */
+function escapeHtml(text: string): string {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
+}
+
+// A user's repositories live under a storage prefix derived from their
+// username (or, without one, their email) — git-storage-naming.ts's
+// getStorageOwnerKey. Changing either after sign-up would orphan every
+// repository they own, and let whoever later takes the old name inherit that
+// storage under matching repository names. The username plugin exposes
+// username changes through update-user, so refuse them here, server-side.
+const IMMUTABLE_USER_FIELDS = ["username", "displayUsername", "email"];
+
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
@@ -36,7 +53,7 @@ export const auth = betterAuth({
 			await sendEmail({
 				to: user.email,
 				subject: "Reset your PushStack password",
-				html: `<p>Hi ${user.name ?? user.email},</p><p>Click <a href="${url}">here</a> to reset your password. This link expires in 1 hour.</p><p>If you didn't request this, you can ignore this email.</p>`,
+				html: `<p>Hi ${escapeHtml(user.name || user.email)},</p><p>Click <a href="${escapeHtml(url)}">here</a> to reset your password. This link expires in 1 hour.</p><p>If you didn't request this, you can ignore this email.</p>`,
 			});
 		},
 	},
@@ -46,8 +63,24 @@ export const auth = betterAuth({
 			await sendEmail({
 				to: user.email,
 				subject: "Verify your PushStack email",
-				html: `<p>Hi ${user.name ?? user.email},</p><p>Click <a href="${url}">here</a> to verify your email address.</p>`,
+				html: `<p>Hi ${escapeHtml(user.name || user.email)},</p><p>Click <a href="${escapeHtml(url)}">here</a> to verify your email address.</p>`,
 			});
+		},
+	},
+	databaseHooks: {
+		user: {
+			update: {
+				before: async (data) => {
+					const changed = IMMUTABLE_USER_FIELDS.filter(
+						(field) => field in data && data[field] !== undefined,
+					);
+					if (changed.length > 0) {
+						throw new APIError("BAD_REQUEST", {
+							message: `${changed.join(", ")} can't be changed`,
+						});
+					}
+				},
+			},
 		},
 	},
 	secret: authSecret,

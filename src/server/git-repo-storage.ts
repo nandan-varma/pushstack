@@ -1,252 +1,29 @@
-import crypto from "node:crypto";
-import type { Dirent } from "node:fs";
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
+/**
+ * Repository storage orchestration around `gitFs`: every read and write goes
+ * straight to object storage (R2) through it — there is no hydrate-to-disk
+ * step, no sync-back step, and no scratch worktree. What's left here is the
+ * bookkeeping a write needs afterwards, and the storage-level rename/delete
+ * that act on a repo's whole prefix rather than through git.
+ */
 import { and, eq } from "drizzle-orm";
 import { qualifyBranchRef } from "git-fs-s3";
 import { resultKeyPrefixes } from "git-fs-s3/ops";
-import git from "isomorphic-git";
 import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
-import { isR2Configured } from "#/lib/r2";
-import {
-	bulkCopyInR2,
-	bulkDeleteFromR2,
-	bulkUploadToR2,
-	downloadFromR2,
-	listAllR2Files,
-} from "#/lib/r2-operations";
 import { invalidateObjectCache } from "./git-cache";
-import { GitRepositoryNotFoundError, isR2NotFoundError } from "./git-errors";
-import { invalidateRepoGitStorage } from "./git-fs";
 import {
-	ensureGitBaseDir,
-	getBareRepoOptions,
-	getRepoDiskUsage,
-	getRepoPath,
-	invalidateRepoGitCache,
-} from "./git-manager-iso";
-import { getRepoKey, withRepositoryLock } from "./git-repo-lock";
+	deleteRepoStorage,
+	getRepoStorageSize,
+	moveRepoStorage,
+} from "./git-fs";
+import { getBareRepoOptions, invalidateRepoGitCache } from "./git-manager-iso";
 import {
-	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	getRepoStorageRoot,
 } from "./git-storage-naming";
-import { logError, perfNote, perfStep } from "./perf-log";
+import { logError } from "./perf-log";
 
-export { withRepositoryLock, withRepositoryLockIfR2 } from "./git-repo-lock";
-
-type RepoState = {
-	hydratedAt?: number;
-	syncedAt?: number;
-};
-
-const repoState = new Map<string, RepoState>();
-
-// 5-second TTL avoids re-listing R2 when hydrate + sync run back-to-back in the same push
-type R2ListEntry = {
-	files: Awaited<ReturnType<typeof listAllR2Files>>;
-	at: number;
-};
-const r2ListCache = new Map<string, R2ListEntry>();
-const R2_LIST_TTL_MS = 5000;
-
-async function listAllR2FilesCached(
-	prefix: string,
-): Promise<Awaited<ReturnType<typeof listAllR2Files>>> {
-	const entry = r2ListCache.get(prefix);
-	if (entry && Date.now() - entry.at < R2_LIST_TTL_MS) return entry.files;
-	const files = await listAllR2Files(prefix);
-	r2ListCache.set(prefix, { files, at: Date.now() });
-	return files;
-}
-
-async function listLocalFiles(
-	dir: string,
-	baseDir: string = dir,
-): Promise<string[]> {
-	let entries: Dirent<string>[];
-
-	try {
-		entries = (await fs.readdir(dir, {
-			withFileTypes: true,
-		})) as Dirent<string>[];
-	} catch {
-		return [];
-	}
-
-	const files = await Promise.all(
-		entries.map(async (entry) => {
-			const fullPath = path.join(dir, entry.name);
-
-			if (entry.isDirectory()) {
-				return listLocalFiles(fullPath, baseDir);
-			}
-
-			if (entry.name.endsWith(".lock")) {
-				return [];
-			}
-
-			return [path.relative(baseDir, fullPath)];
-		}),
-	);
-
-	return files.flat().sort();
-}
-
-async function writeRemoteFilesToDisk(
-	repoPath: string,
-	remoteFiles: Awaited<ReturnType<typeof listAllR2Files>>,
-	sourcePrefix: string,
-) {
-	await fs.rm(repoPath, { recursive: true, force: true });
-	await fs.mkdir(repoPath, { recursive: true });
-
-	const BATCH_SIZE = 20;
-	for (let i = 0; i < remoteFiles.length; i += BATCH_SIZE) {
-		const batch = remoteFiles.slice(i, i + BATCH_SIZE);
-		await Promise.all(
-			batch.map(async (file) => {
-				const relativePath = file.key.slice(sourcePrefix.length);
-				const destination = path.join(repoPath, relativePath);
-				await fs.mkdir(path.dirname(destination), { recursive: true });
-				try {
-					const { content } = await downloadFromR2(file.key);
-					await fs.writeFile(destination, content);
-				} catch (err) {
-					// A pack/idx file that existed when listAllR2FilesCached ran but is
-					// gone by the time we go to download it means a concurrent push's
-					// repackLocal + deleteStalePacksFromR2 (see git-http-iso.ts) just
-					// deleted it as redundant — deleteStalePacksFromR2 only ever runs
-					// after the replacement consolidated pack it supersedes has already
-					// been uploaded, so that file's content is not lost, just not needed
-					// under this name. Reproduced directly under concurrent-push load:
-					// this 404 was previously unhandled, crashing the whole hydration
-					// (and the push serving it) with a 500 for a file this hydration
-					// never actually needed.
-					if (!isR2NotFoundError(err)) throw err;
-					perfNote(
-						`writeRemoteFilesToDisk: skipping ${file.key} — 404'd mid-hydration, ` +
-							"likely just deleted by a concurrent repack as redundant",
-					);
-				}
-			}),
-		);
-	}
-}
-
-async function ensureRepositoryHydratedUnlocked(
-	ownerKey: string,
-	repoName: string,
-	remoteUpdatedAt?: Date | null,
-): Promise<string> {
-	await ensureGitBaseDir();
-
-	const repoPath = getRepoPath(ownerKey, repoName);
-	const repoKey = getRepoKey(ownerKey, repoName);
-	const state = repoState.get(repoKey);
-	const remoteVersion = remoteUpdatedAt?.getTime();
-
-	if (state?.hydratedAt && remoteVersion && state.hydratedAt >= remoteVersion) {
-		return repoPath;
-	}
-
-	// Repositories get their storage from createRepository (initBareRepo);
-	// hydration never creates one. Missing storage is an error to surface,
-	// not something to paper over with a fresh empty repository.
-	const missing = () =>
-		new GitRepositoryNotFoundError(
-			`Storage for ${ownerKey}/${repoName} does not exist`,
-		);
-
-	if (!isR2Configured()) {
-		try {
-			await fs.access(path.join(repoPath, "HEAD"));
-		} catch {
-			throw missing();
-		}
-		return repoPath;
-	}
-
-	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	const remoteFiles = await listAllR2FilesCached(prefix);
-	if (remoteFiles.length === 0) throw missing();
-
-	await writeRemoteFilesToDisk(repoPath, remoteFiles, prefix);
-	repoState.set(repoKey, {
-		...state,
-		hydratedAt: remoteVersion ?? Date.now(),
-	});
-
-	// Native git clone requires objects/ and refs/heads/ to exist on local disk.
-	await Promise.all([
-		fs.mkdir(path.join(repoPath, "objects"), { recursive: true }),
-		fs.mkdir(path.join(repoPath, "refs", "heads"), { recursive: true }),
-		fs.mkdir(path.join(repoPath, "refs", "tags"), { recursive: true }),
-	]);
-
-	return repoPath;
-}
-
-export async function getRepoOptions(ownerKey: string, repoName: string) {
-	if (!isR2Configured()) {
-		perfNote(`getRepoOptions ${ownerKey}/${repoName}: local disk, hydrating`);
-		await perfStep(`ensureRepositoryHydrated ${ownerKey}/${repoName}`, () =>
-			ensureRepositoryHydrated(ownerKey, repoName),
-		);
-	} else {
-		perfNote(
-			`getRepoOptions ${ownerKey}/${repoName}: R2-direct, no hydration needed`,
-		);
-	}
-	return getBareRepoOptions(ownerKey, repoName);
-}
-
-export async function ensureRepositoryHydrated(
-	ownerKey: string,
-	repoName: string,
-	remoteUpdatedAt?: Date | null,
-): Promise<string> {
-	return withRepositoryLock(ownerKey, repoName, () =>
-		ensureRepositoryHydratedUnlocked(ownerKey, repoName, remoteUpdatedAt),
-	);
-}
-
-async function updateRepositoryBackupMetadata(
-	ownerDbId: string | undefined,
-	ownerKey: string,
-	repoName: string,
-	repoPath: string,
-): Promise<void> {
-	if (!ownerDbId) {
-		return;
-	}
-
-	const diskUsage = await getRepoDiskUsage(repoPath);
-
-	await db
-		.update(repositories)
-		.set({
-			diskUsage,
-			lastBackupAt: new Date(),
-			backupR2Key: getRepoStorageRoot(ownerKey, repoName),
-			updatedAt: new Date(),
-		})
-		.where(
-			and(eq(repositories.ownerId, ownerDbId), eq(repositories.name, repoName)),
-		);
-}
-
-export async function syncRepositoryToR2(
-	ownerKey: string,
-	repoName: string,
-	ownerDbId?: string,
-): Promise<void> {
-	await withRepositoryLock(ownerKey, repoName, () =>
-		syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId),
-	);
-}
+export { withRepositoryLock } from "./git-repo-lock";
 
 // isomorphic-git's resolveRef/expand try several candidate paths in sequence
 // for a bare ref name — ref, refs/ref, refs/tags/ref, refs/heads/ref,
@@ -263,330 +40,97 @@ export async function syncRepositoryToR2(
 // git-repo-storage.ts.
 export { qualifyBranchRef };
 
-async function branchExists(
-	gitdir: string,
-	branchName: string,
-): Promise<boolean> {
-	try {
-		await git.resolveRef({
-			fs,
-			gitdir,
-			ref: `refs/heads/${branchName}`,
-		});
-		return true;
-	} catch {
-		return false;
-	}
+/** The `Repo` (fs, gitdir, shared cache) every git call for a repo uses. */
+export function getRepoOptions(ownerKey: string, repoName: string) {
+	return getBareRepoOptions(ownerKey, repoName);
 }
 
-// Runs a receive-pack (push) body under a single lock spanning hydrate -> write -> sync,
-// so a concurrent hydrate/push on the same repo can't interleave and clobber
-// not-yet-synced local state (ensureRepositoryHydrated + syncRepositoryToR2 each take
-// the lock independently, which left a gap between them for exactly that race).
-//
-// `afterSync`, if given, runs after syncRepositoryToR2Unlocked but still
-// inside the lock — for cleanup (like git-http-iso.ts's
-// deleteStalePacksFromR2) that's only safe once the sync has confirmed the
-// replacement data is in R2. This used to run after the lock had already
-// released, trading a real (if narrow — see docs/performance.md's case
-// study) race against a *concurrent push's own hydration step* for lower
-// latency on the common case; that race is now closed, since hydration
-// always goes through this same lock. It does **not** close the separate,
-// still-intentional race against a concurrent lock-free clone/fetch's pack
-// listing (git-http-iso.ts's collectReachableOids reads straight from R2,
-// no lock) — that one is handled by tolerating a transient 404 there
-// instead, and stays that way; taking the write lock on every read would be
-// a much bigger change than this app's actual traffic needs.
-export async function withReceivePackLock<T>(
+async function updateRepositoryStorageMetadata(
+	ownerDbId: string,
 	ownerKey: string,
 	repoName: string,
-	fn: (localGitdir: string) => Promise<T>,
-	ownerDbId?: string,
-	afterSync?: (result: T) => Promise<void>,
-): Promise<T> {
-	return withRepositoryLock(ownerKey, repoName, async () => {
-		const gitdir = await ensureRepositoryHydratedUnlocked(
-			ownerKey,
-			repoName,
-			null,
+): Promise<void> {
+	const diskUsage = await getRepoStorageSize(ownerKey, repoName);
+	await db
+		.update(repositories)
+		.set({
+			diskUsage,
+			lastBackupAt: new Date(),
+			backupR2Key: getRepoStorageRoot(ownerKey, repoName),
+			updatedAt: new Date(),
+		})
+		.where(
+			and(eq(repositories.ownerId, ownerDbId), eq(repositories.name, repoName)),
 		);
-		const result = await fn(gitdir);
-		await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
-		if (afterSync) {
-			await afterSync(result);
-		}
-		return result;
-	});
 }
 
-// Materializes a scratch working directory (`dir`) checked out against the
-// bare repo (`gitdir`) directly — no clone, no push. `git.checkout`/
-// `git.commit`/`git.merge` all accept independent `dir`/`gitdir` params, and
-// `git.commit`/`git.merge` take an explicit target `ref`, so a mutation
-// against `{dir: worktreePath, gitdir}` writes straight into the bare repo;
-// there's no separate "push the worktree's result back" step the way a real
-// `git clone` + `git push` would need. `noUpdateHead: true` on the checkout
-// keeps the bare repo's own HEAD untouched (we're not making `worktreePath`
-// "the" checkout of this repo, just borrowing gitdir's object store).
-export async function withRepositoryWorktree<T>(
-	ownerKey: string,
-	repoName: string,
-	branchName: string,
-	fn: (context: { worktreePath: string; gitdir: string }) => Promise<T>,
-	ownerDbId?: string,
-): Promise<T> {
-	return withRepositoryLock(ownerKey, repoName, async () => {
-		const gitdir = await ensureRepositoryHydratedUnlocked(ownerKey, repoName);
-		const worktreeRoot = await fs.mkdtemp(
-			path.join(os.tmpdir(), `pushstack-${ownerKey}-${repoName}-`),
-		);
-		const worktreePath = path.join(worktreeRoot, "worktree");
-		await fs.mkdir(worktreePath, { recursive: true });
-
-		try {
-			// A missing branch only reaches here for the first commit of an empty
-			// repository (callers check, see git-commit-write.ts): leave the
-			// worktree empty.
-			if (await branchExists(gitdir, branchName)) {
-				await git.checkout({
-					fs,
-					dir: worktreePath,
-					gitdir,
-					ref: qualifyBranchRef(branchName),
-					noUpdateHead: true,
-				});
-			}
-
-			const result = await fn({ worktreePath, gitdir });
-			await syncRepositoryToR2Unlocked(ownerKey, repoName, ownerDbId);
-			return result;
-		} finally {
-			await fs.rm(worktreeRoot, { recursive: true, force: true });
-			// `git.checkout`/`git.commit` write a working-tree index at
-			// `gitdir/index`, which a bare repo doesn't conventionally have —
-			// don't let it leak into what gets synced to R2.
-			await fs.rm(path.join(gitdir, "index"), { force: true });
-		}
-	});
-}
-
-export async function deleteRepositoryFromR2(
-	ownerKey: string,
-	repoName: string,
-): Promise<void> {
-	if (!isR2Configured()) return;
-
-	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	const files = await listAllR2Files(prefix);
-	if (files.length > 0) {
-		await bulkDeleteFromR2(files.map((f) => f.key));
-	}
-
-	repoState.delete(getRepoKey(ownerKey, repoName));
-}
-
-// Moves a repository's actual git storage (R2 objects, or the local hydration
-// directory) from its old name to its new one. Every git storage path in this
-// app (getRepoGitStorageRoot/getRepoPath) is derived from the repository's
-// *current* `name` column read fresh from the DB — renaming the DB row alone,
-// without this, orphans all existing commits/branches/objects under the old
-// name's storage prefix forever, while the new name resolves to nothing and
-// silently gets initialized as a brand-new empty repo on next access.
-//
-// Callers must hold `withRepositoryLock(ownerKey, oldRepoName, ...)` around
-// both this call and the DB row update that follows it — this function does
-// not lock internally, so a rename that renamed storage but crashed before
-// committing the DB row (or a concurrent hydrate racing the in-flight rename)
-// can't observe a half-moved state.
-export async function renameRepositoryStorage(
-	ownerKey: string,
-	oldRepoName: string,
-	newRepoName: string,
-): Promise<void> {
-	if (isR2Configured()) {
-		const oldPrefix = getRepoGitStoragePrefix(ownerKey, oldRepoName);
-		const newPrefix = getRepoGitStoragePrefix(ownerKey, newRepoName);
-		const files = await listAllR2Files(oldPrefix);
-
-		if (files.length > 0) {
-			const copies = files.map((file) => ({
-				from: file.key,
-				to: `${newPrefix}${file.key.slice(oldPrefix.length)}`,
-			}));
-			const copyResults = await bulkCopyInR2(copies);
-			const failed = copyResults.filter((result) => !result.success);
-			if (failed.length > 0) {
-				throw new Error(
-					`Failed to copy ${failed.length} object(s) while renaming repository storage from ` +
-						`${oldRepoName} to ${newRepoName} — aborting rename, old storage left untouched`,
-				);
-			}
-			await bulkDeleteFromR2(files.map((f) => f.key));
-		}
-	} else {
-		const oldPath = getRepoPath(ownerKey, oldRepoName);
-		const newPath = getRepoPath(ownerKey, newRepoName);
-		try {
-			await fs.mkdir(path.dirname(newPath), { recursive: true });
-			await fs.rename(oldPath, newPath);
-		} catch (err) {
-			// Nothing hydrated locally yet under the old name (e.g. R2 was
-			// configured until now, or this repo was never read/written on this
-			// instance) — nothing to move.
-			if ((err as { code?: string }).code !== "ENOENT") throw err;
-		}
-	}
-
-	const oldRepoKey = getRepoKey(ownerKey, oldRepoName);
-	const newRepoKey = getRepoKey(ownerKey, newRepoName);
-	repoState.delete(oldRepoKey);
-	repoState.delete(newRepoKey);
-	r2ListCache.delete(getRepoGitStoragePrefix(ownerKey, oldRepoName));
-	r2ListCache.delete(getRepoGitStoragePrefix(ownerKey, newRepoName));
-	invalidateRepoGitStorage(ownerKey, oldRepoName);
-	invalidateRepoGitStorage(ownerKey, newRepoName);
-	invalidateRepoGitCache(ownerKey, oldRepoName);
-	invalidateRepoGitCache(ownerKey, newRepoName);
-}
-
-async function syncRepositoryToR2Unlocked(
+/**
+ * Bookkeeping after a push (or standalone repack), run inside its lock.
+ *
+ * Every ops.* result-cache entry for this repo (commit log, tree listings,
+ * commit history pages, last-commits-per-dir, file history) is keyed
+ * `<kind>:${gitdir}:...` by git-fs-s3/ops itself, and gitdir here must be
+ * exactly what getRepoOptions resolves (getRepoGitStorageRoot) or this
+ * silently invalidates nothing. Entries are keyed per resolved head sha, so a
+ * new head is never served stale content — this drops the superseded ones
+ * instead of leaking one orphaned set per push.
+ *
+ * A repack rewrites pack files out from under any already-parsed
+ * isomorphic-git pack index, so the shared per-repo git cache goes too.
+ *
+ * Storage-size accounting is informational, not required for git
+ * correctness — it never delays the push response or fails it.
+ */
+export function afterRepositoryPush(
 	ownerKey: string,
 	repoName: string,
 	ownerDbId?: string,
-): Promise<void> {
-	const repoPath = getRepoPath(ownerKey, repoName);
-	const repoKey = getRepoKey(ownerKey, repoName);
-
-	if (!isR2Configured()) {
-		repoState.set(repoKey, {
-			...repoState.get(repoKey),
-			syncedAt: Date.now(),
-		});
-		return;
-	}
-
-	const localFiles = await listLocalFiles(repoPath);
-	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	const remoteFiles = await listAllR2FilesCached(prefix);
-	const remoteKeys = new Set(remoteFiles.map((file) => file.key));
-	const remoteEtags = new Map(remoteFiles.map((file) => [file.key, file.etag]));
-
-	// Git objects are content-addressed — skip uploading any that already exist in R2
-	const newFiles = localFiles.filter(
-		(relativePath) =>
-			!relativePath.startsWith("objects/") ||
-			!remoteKeys.has(`${prefix}${relativePath}`),
-	);
-
-	const uploads = (
-		await Promise.all(
-			newFiles.map(async (relativePath) => {
-				const fullPath = path.join(repoPath, relativePath);
-				const content = await fs.readFile(fullPath);
-
-				// HEAD and config are written once at repo creation and almost
-				// never change again — without this, every single push re-uploads
-				// both, forever, for bytes identical to what's already in R2. A
-				// non-multipart PUT's ETag is the MD5 of the body, so compare
-				// against that instead of re-uploading blind. A multipart ETag
-				// (rare for files this small — contains a "-") can't be compared
-				// this way, so that case falls through and uploads as before.
-				if (relativePath === "HEAD" || relativePath === "config") {
-					const etag = remoteEtags.get(`${prefix}${relativePath}`);
-					if (etag && !etag.includes("-")) {
-						const md5 = crypto.createHash("md5").update(content).digest("hex");
-						if (etag.replace(/"/g, "") === md5) return null;
-					}
-				}
-
-				let contentType = "application/octet-stream";
-				if (
-					relativePath === "HEAD" ||
-					relativePath === "config" ||
-					relativePath === "packed-refs" ||
-					relativePath.startsWith("refs/")
-				) {
-					contentType = "text/plain";
-				}
-
-				return {
-					key: `${prefix}${relativePath}`,
-					data: content,
-					contentType,
-				};
-			}),
-		)
-	).filter((upload) => upload !== null);
-
-	for (let index = 0; index < uploads.length; index += 100) {
-		const chunk = uploads.slice(index, index + 100);
-		const results = await bulkUploadToR2(chunk);
-		const failed = results.filter((result) => !result.success);
-
-		if (failed.length > 0) {
-			throw new Error(`Failed to upload ${failed.length} git object(s) to R2`);
-		}
-	}
-
-	// Never delete anything under objects/ here: git objects are content-addressed and
-	// immutable, and the local checkout is not a reliable source of truth for what
-	// should exist remotely (R2 listing cache, a guarded repackLocal skip, or a
-	// mid-hydration race can all make local transiently incomplete). Treating a
-	// missing-locally object as "stale" and deleting it from R2 is permanent data
-	// loss. Only repackLocal — which has its own object-count safety check — may
-	// remove pack files. Stale-key cleanup here is for mutable refs/config/HEAD only.
-	const localKeys = new Set(localFiles.map((f) => `${prefix}${f}`));
-	const staleKeys = [...remoteKeys].filter(
-		(key) => !localKeys.has(key) && !key.startsWith(`${prefix}objects/`),
-	);
-
-	if (staleKeys.length > 0) {
-		await bulkDeleteFromR2(staleKeys);
-	}
-
-	// Disk-usage accounting is informational bookkeeping, not required for git
-	// correctness — don't hold the repo lock (or delay the push response) on a
-	// filesystem walk + DB write that nothing downstream depends on.
-	updateRepositoryBackupMetadata(ownerDbId, ownerKey, repoName, repoPath).catch(
-		(error: unknown) => {
-			logError(
-				"git-repo-storage",
-				`Failed to update backup metadata for ${ownerKey}/${repoName}`,
-				error,
-			);
-		},
-	);
-
-	// Invalidate the list cache so the next read sees the just-uploaded state
-	r2ListCache.delete(prefix);
-	// Invalidate the gitFs read caches (contents, negative markers, dir
-	// listings, loose-object hints) — bulkUploadToR2 bypasses gitFs entirely,
-	// so a warm instance keeps serving pre-push state without this.
-	invalidateRepoGitStorage(ownerKey, repoName);
-
-	// Every ops.* result-cache entry for this repo (commit log, tree listings,
-	// commit history pages, last-commits-per-dir, file history) is keyed
-	// `<kind>:${gitdir}:...` by git-fs-s3/ops itself — gitdir
-	// here must match what getRepoOptions/getBareRepoOptions resolves for
-	// reads (getRepoGitStorageRoot, since this function only reaches here
-	// when isR2Configured()), or these calls silently invalidate nothing.
-	// getCommitLog's own walk-result cache is included: getCommits,
-	// getLastCommits, and getFileHistory all build on it, and it's keyed per
-	// resolved head sha so a *new* head is never served stale content — but
-	// without this it leaks one orphaned entry per push instead of being
-	// cleared alongside the result caches built on top of it.
+): void {
 	for (const prefix of resultKeyPrefixes(
 		getRepoGitStorageRoot(ownerKey, repoName),
 	)) {
 		invalidateObjectCache(prefix);
 	}
-
-	// A repack rewrites pack files out from under any already-parsed isomorphic-git
-	// pack index, so drop the shared per-repo git cache too.
 	invalidateRepoGitCache(ownerKey, repoName);
 
-	repoState.set(repoKey, {
-		hydratedAt: Date.now(),
-		syncedAt: Date.now(),
-	});
+	if (ownerDbId) {
+		updateRepositoryStorageMetadata(ownerDbId, ownerKey, repoName).catch(
+			(error: unknown) => {
+				logError(
+					"git-repo-storage",
+					`Failed to update storage metadata for ${ownerKey}/${repoName}`,
+					error,
+				);
+			},
+		);
+	}
+}
+
+/** Deletes all of a repository's git storage. */
+export async function deleteRepositoryStorage(
+	ownerKey: string,
+	repoName: string,
+): Promise<void> {
+	await deleteRepoStorage(ownerKey, repoName);
+	invalidateRepoGitCache(ownerKey, repoName);
+}
+
+// Moves a repository's git storage from its old name to its new one. Every
+// storage key in this app (getRepoGitStorageRoot) is derived from the
+// repository's *current* `name` column — renaming the DB row alone, without
+// this, orphans all existing commits/branches/objects under the old name's
+// prefix forever, while the new name resolves to nothing.
+//
+// Callers must hold `withRepositoryLock(ownerKey, oldRepoName, ...)` around
+// both this call and the DB row update that follows it — this function does
+// not lock internally, so a rename that moved storage but crashed before
+// committing the DB row can't be observed half-done by another writer.
+export async function renameRepositoryStorage(
+	ownerKey: string,
+	oldRepoName: string,
+	newRepoName: string,
+): Promise<void> {
+	await moveRepoStorage(ownerKey, oldRepoName, newRepoName);
+	invalidateRepoGitCache(ownerKey, oldRepoName);
+	invalidateRepoGitCache(ownerKey, newRepoName);
 }

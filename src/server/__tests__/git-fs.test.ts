@@ -14,6 +14,7 @@ const {
 	invalidateGitStorageKeys,
 	invalidateRepoGitStorage,
 	prefetchAllPacks,
+	putStorageObject,
 	refAwareTtl,
 	registerRepoGitdir,
 } = await import("../git-fs");
@@ -74,11 +75,11 @@ describe("registerRepoGitdir", () => {
 
 	it("does not treat a branch named packed-refs as absent", async () => {
 		registerRepoGitdir("alice", "blog");
-		// This path is legal and must reach the store — the error is the
-		// unconfigured-R2 one, which also proves the store is built lazily.
-		await expect(
-			gitFs.promises.readFile("repos/alice/blog/git/refs/heads/packed-refs"),
-		).rejects.toThrow(/R2 credentials not configured/);
+		// This path is legal and must reach the store (in memory here, since
+		// R2 isn't configured in tests) rather than be answered as absent.
+		const key = "repos/alice/blog/git/refs/heads/packed-refs";
+		await putStorageObject(key, new TextEncoder().encode("abc\n"));
+		await expect(gitFs.promises.readFile(key, "utf8")).resolves.toBe("abc\n");
 	});
 });
 
@@ -105,5 +106,20 @@ describe("refAwareTtl", () => {
 			refAwareTtl("repos/alice/blog/git/objects/ab/cdef0123456789"),
 		).toBeUndefined();
 		expect(refAwareTtl("repos/alice/blog/git/config")).toBeUndefined();
+	});
+});
+
+describe("store selection", () => {
+	it("refuses to fall back to the in-memory store in production", async () => {
+		vi.resetModules();
+		vi.stubEnv("NODE_ENV", "production");
+		try {
+			const fresh = await import("../git-fs");
+			await expect(
+				fresh.gitFs.promises.readFile("repos/alice/blog/git/HEAD"),
+			).rejects.toThrow(/R2 is not configured/);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });

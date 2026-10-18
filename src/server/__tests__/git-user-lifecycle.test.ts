@@ -7,18 +7,21 @@
  *   - repositories.ts (createRepository / deleteRepository / findRepositoryByName)
  *   - git-auth.ts (PAT authentication + repo-access authorization)
  *   - repo-access.ts (real, DB-driven — not mocked)
- *   - git-http-iso.ts (info/refs + upload-pack over a real loopback HTTP server)
- *   - git-r2-backend.ts / git-commit-write.ts (write path used when R2 is "configured")
+ *   - git-http-iso.ts (info/refs, upload-pack and receive-pack over a real
+ *     loopback HTTP server)
+ *   - git-fs.ts / src/lib/r2.ts / git-commit-write.ts (the R2 storage stack —
+ *     real request signing and XML listing, all writes straight to R2)
  *
  * Only two things are faked, because they're external infrastructure that
  * doesn't exist in a test environment:
  *   - Postgres -> replaced with an in-memory embedded Postgres (pglite), using
  *     the project's real drizzle schema (src/db/schema.ts), so every query in
  *     the modules above runs against a real relational database.
- *   - R2 -> replaced with an in-memory Map behind #/lib/r2-operations, the one
- *     module boundary all R2 access already goes through.
+ *   - R2 -> an in-memory S3 endpoint (helpers/fake-s3-fetch.ts) handed to
+ *     src/lib/r2.ts's real store as its `fetch`, so everything above it —
+ *     SigV4 signing, ListObjectsV2 parsing, server-side copy — runs for real.
  *
- * The clone itself uses isomorphic-git's own client talking to a real Node
+ * The clone and push use isomorphic-git's own client talking to a real Node
  * http server over 127.0.0.1 — no native `git` binary anywhere. This still
  * exercises the real wire protocol (pkt-line framing, `info/refs`,
  * `upload-pack`, side-band-64k) end to end, since isomorphic-git implements
@@ -81,15 +84,12 @@ const nodeHttpClient: HttpClient = {
 	},
 };
 
-// Must be hoisted so git-manager-iso.ts (module-level GIT_BASE_PATH) and
-// r2.ts's isR2Configured() see these before any source module is imported.
+// Must be hoisted so r2.ts's isR2Configured() sees these before any source
+// module is imported.
 const ENV = vi.hoisted(() => {
 	const os = require("node:os");
 	const path = require("node:path");
 	const base = path.join(os.tmpdir(), `pushstack-lifecycle-${Date.now()}`);
-	process.env.GIT_REPOS_PATH = path.join(base, "local-git");
-	// isR2Configured() only checks presence of these — r2-operations is fully
-	// mocked below, so no real R2/S3 client is ever constructed.
 	process.env.R2_BUCKET_NAME = "test-bucket";
 	process.env.R2_ENDPOINT = "https://test-account.r2.cloudflarestorage.com";
 	process.env.R2_ACCESS_KEY_ID = "test-key";
@@ -97,163 +97,30 @@ const ENV = vi.hoisted(() => {
 	return { base, cloneDir: path.join(base, "clone") };
 });
 
-// --- fake R2: in-memory store backing #/lib/r2-operations ---
-const fakeR2 = vi.hoisted(
-	() => new Map<string, { content: Buffer; contentType?: string }>(),
-);
+// --- fake R2: an in-memory S3 endpoint behind src/lib/r2.ts's real store ---
+const fakeS3 = vi.hoisted(() => ({
+	objects: new Map<string, Uint8Array>(),
+}));
 
-vi.mock("#/lib/r2-operations", () => {
-	function notFound(key: string) {
-		return Object.assign(new Error(`NoSuchKey: ${key}`), { name: "NoSuchKey" });
-	}
+vi.mock("#/lib/r2", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#/lib/r2")>();
+	const { createFakeS3 } = await import("./helpers/fake-s3-fetch");
+	const s3 = createFakeS3({ bucket: "test-bucket" });
+	fakeS3.objects = s3.objects;
 	return {
-		uploadToR2: vi.fn(
-			async (key: string, body: Buffer | string, contentType?: string) => {
-				fakeR2.set(key, {
-					content:
-						typeof body === "string" ? Buffer.from(body) : Buffer.from(body),
-					contentType,
-				});
-				return { key, bucketName: "test-bucket" };
-			},
-		),
-		downloadFromR2: vi.fn(async (key: string) => {
-			const entry = fakeR2.get(key);
-			if (!entry) throw notFound(key);
-			return {
-				content: entry.content,
-				contentType: entry.contentType,
-				size: entry.content.length,
-				etag: "test-etag",
-			};
-		}),
-		getFileFromR2: vi.fn(async (key: string) => {
-			const entry = fakeR2.get(key);
-			if (!entry) throw notFound(key);
-			return entry.content;
-		}),
-		deleteFromR2: vi.fn(async (key: string) => {
-			fakeR2.delete(key);
-			return { deleted: true, key };
-		}),
-		fileExistsInR2: vi.fn(async (key: string) => fakeR2.has(key)),
-		headR2Object: vi.fn(async (key: string) => {
-			const entry = fakeR2.get(key);
-			if (!entry) return null;
-			return {
-				size: entry.content.length,
-				contentType: entry.contentType,
-				etag: "test-etag",
-			};
-		}),
-		listR2Files: vi.fn(async (prefix?: string, maxKeys = 100) => {
-			const out = [];
-			for (const [key, entry] of fakeR2) {
-				if (prefix && !key.startsWith(prefix)) continue;
-				out.push({
-					key,
-					size: entry.content.length,
-					lastModified: new Date(),
-					etag: "test-etag",
-				});
-				if (out.length >= maxKeys) break;
-			}
-			return out;
-		}),
-		listAllR2Files: vi.fn(async (prefix?: string) => {
-			const out = [];
-			for (const [key, entry] of fakeR2) {
-				if (prefix && !key.startsWith(prefix)) continue;
-				out.push({
-					key,
-					size: entry.content.length,
-					lastModified: new Date(),
-					etag: "test-etag",
-				});
-			}
-			return out;
-		}),
-		bulkUploadToR2: vi.fn(
-			async (
-				uploads: Array<{
-					key: string;
-					data: Buffer | string;
-					contentType?: string;
-				}>,
-			) => {
-				for (const { key, data, contentType } of uploads) {
-					fakeR2.set(key, {
-						content:
-							typeof data === "string" ? Buffer.from(data) : Buffer.from(data),
-						contentType,
-					});
-				}
-				return uploads.map(({ key }) => ({ key, success: true }));
-			},
-		),
-		bulkDeleteFromR2: vi.fn(async (keys: string[]) => {
-			let deleted = 0;
-			for (const key of keys) {
-				if (fakeR2.delete(key)) deleted++;
-			}
-			return { deleted, errors: 0 };
-		}),
+		...actual,
+		createR2ObjectStoreFromEnv: (
+			contentType?: (key: string) => string | undefined,
+		) =>
+			actual.createR2ObjectStore({
+				endpoint: "https://test-account.r2.cloudflarestorage.com",
+				bucket: "test-bucket",
+				accessKeyId: "test-key",
+				secretAccessKey: "test-secret",
+				contentType,
+				fetch: s3.fetch,
+			}),
 	};
-});
-
-// git-fs.ts talks to R2 through git-fs-s3's S3ObjectStore, not
-// #/lib/r2-operations — back it with the SAME fakeR2 map so the direct-read
-// path (gitFs) and the hydrate/sync path (r2-operations mock above) see one
-// consistent bucket. Iteration is sorted to match S3's lexicographic listing
-// (the library's loose-object detection relies on it).
-vi.mock("git-fs-s3/s3", () => {
-	class S3ObjectStore {
-		async get(key: string): Promise<Uint8Array | null> {
-			const entry = fakeR2.get(key);
-			return entry ? new Uint8Array(entry.content) : null;
-		}
-		async put(key: string, data: Uint8Array): Promise<void> {
-			fakeR2.set(key, { content: Buffer.from(data) });
-		}
-		async delete(key: string): Promise<void> {
-			fakeR2.delete(key);
-		}
-		async head(key: string): Promise<{ size: number } | null> {
-			const entry = fakeR2.get(key);
-			return entry ? { size: entry.content.length } : null;
-		}
-		async list(
-			prefix: string,
-			options?: { delimiter?: string; limit?: number },
-		): Promise<{
-			objects: { key: string; size: number }[];
-			prefixes: string[];
-		}> {
-			const objects: { key: string; size: number }[] = [];
-			const prefixes = new Set<string>();
-			const sorted = [...fakeR2.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
-			for (const [key, entry] of sorted) {
-				if (!key.startsWith(prefix)) continue;
-				const rest = key.slice(prefix.length);
-				const delimiterIndex = options?.delimiter
-					? rest.indexOf(options.delimiter)
-					: -1;
-				if (delimiterIndex !== -1) {
-					prefixes.add(prefix + rest.slice(0, delimiterIndex + 1));
-				} else {
-					objects.push({ key, size: entry.content.length });
-				}
-				if (
-					options?.limit !== undefined &&
-					objects.length + prefixes.size >= options.limit
-				) {
-					break;
-				}
-			}
-			return { objects, prefixes: [...prefixes] };
-		}
-	}
-	return { S3ObjectStore };
 });
 
 // --- real Postgres (embedded, in-memory) replacing #/db, seeded with the
@@ -305,6 +172,7 @@ vi.mock("../session", () => ({
 }));
 
 const REPO_NAME = "hello-world";
+const RENAMED = "hello-renamed";
 const README_CONTENT = "# Hello World\n\nCreated in the lifecycle test.\n";
 const PAT = "ghp_lifecycletestpersonalaccesstoken";
 
@@ -354,9 +222,8 @@ beforeAll(async () => {
 	// the same real handler functions the production route uses.
 	const { parseGitUrl } = await import("../../lib/git-url-parser");
 	const { authenticateGitRequest } = await import("../git-auth");
-	const { handleInfoRefsIso, handleUploadPackIso } = await import(
-		"../git-http-iso"
-	);
+	const { handleInfoRefsIso, handleReceivePackIso, handleUploadPackIso } =
+		await import("../git-http-iso");
 	const { getRepoStorageCoordinates } = await import("../git-storage-naming");
 	const { findRepositoryByName } = await import("../repositories");
 
@@ -419,12 +286,21 @@ beforeAll(async () => {
 						authContext,
 						repository.defaultBranch || "main",
 					)
-				: await handleUploadPackIso(
-						storage.ownerKey,
-						parsed.repo,
-						request,
-						authContext,
-					);
+				: parsed.service === "git-receive-pack"
+					? await handleReceivePackIso(
+							storage.ownerKey,
+							parsed.repo,
+							request,
+							authContext,
+							repository.defaultBranch,
+							repository.ownerId,
+						)
+					: await handleUploadPackIso(
+							storage.ownerKey,
+							parsed.repo,
+							request,
+							authContext,
+						);
 
 			res.writeHead(result.status, result.headers);
 			res.end(
@@ -469,7 +345,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 
 		// initBareRepo must leave HEAD/config in storage on its own — regression
 		// guard for the bug where a post-init sync call deleted them as "stale".
-		const keys = [...fakeR2.keys()].filter((k) =>
+		const keys = [...fakeS3.objects.keys()].filter((k) =>
 			k.startsWith(`repos/${TEST_USER.username}/${REPO_NAME}/`),
 		);
 		expect(keys).toContain(`repos/${TEST_USER.username}/${REPO_NAME}/git/HEAD`);
@@ -521,6 +397,80 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(readme).toBe(README_CONTENT);
 	});
 
+	it("pushes a new commit over HTTP with the PAT, straight into R2", async () => {
+		await nodeFs.writeFile(`${ENV.cloneDir}/NOTES.md`, "pushed\n");
+		await git.add({ fs, dir: ENV.cloneDir, filepath: "NOTES.md" });
+		const pushedSha = await git.commit({
+			fs,
+			dir: ENV.cloneDir,
+			message: "Add notes",
+			author: { name: TEST_USER.name, email: TEST_USER.email },
+		});
+
+		// isomorphic-git's push always asks for (and demuxes) side-band-64k.
+		const result = await git.push({
+			fs,
+			http: nodeHttpClient,
+			dir: ENV.cloneDir,
+			remote: "origin",
+			ref: "main",
+			onAuth: () => ({ username: TEST_USER.username, password: PAT }),
+		});
+		expect(result.ok).toBe(true);
+		expect(result.refs["refs/heads/main"]?.ok).toBe(true);
+
+		// The ref and the pack (with its index) landed in R2 itself.
+		const prefix = `repos/${TEST_USER.username}/${REPO_NAME}/git/`;
+		expect(
+			new TextDecoder().decode(fakeS3.objects.get(`${prefix}refs/heads/main`)),
+		).toBe(`${pushedSha}\n`);
+		const packFiles = [...fakeS3.objects.keys()].filter((key) =>
+			key.startsWith(`${prefix}objects/pack/`),
+		);
+		expect(packFiles.some((key) => key.endsWith(".pack"))).toBe(true);
+		expect(packFiles.some((key) => key.endsWith(".idx"))).toBe(true);
+
+		// ...and the app's own read path serves the pushed content.
+		const { getFileContent } = await import("../git-history-ops");
+		const content = await getFileContent(
+			TEST_USER.username,
+			REPO_NAME,
+			"NOTES.md",
+			"main",
+		);
+		expect(new TextDecoder().decode(content)).toBe("pushed\n");
+	});
+
+	it("renames the repository, moving its storage with it", async () => {
+		const { findRepositoryByName, updateRepository } = await import(
+			"../repositories"
+		);
+		const repo = await findRepositoryByName(TEST_USER.username, REPO_NAME);
+		if (!repo) throw new Error("repo should exist before rename");
+
+		await updateRepository({ data: { id: repo.id, name: RENAMED } });
+		const oldPrefix = `repos/${TEST_USER.username}/${REPO_NAME}/`;
+		const newPrefix = `repos/${TEST_USER.username}/${RENAMED}/`;
+		const keys = [...fakeS3.objects.keys()];
+		expect(keys.filter((key) => key.startsWith(oldPrefix))).toHaveLength(0);
+		expect(keys).toContain(`${newPrefix}git/HEAD`);
+
+		const { getFileContent } = await import("../git-history-ops");
+		const content = await getFileContent(
+			TEST_USER.username,
+			RENAMED,
+			"NOTES.md",
+			"main",
+		);
+		expect(new TextDecoder().decode(content)).toBe("pushed\n");
+
+		// Back to the original name for the remaining steps.
+		await updateRepository({ data: { id: repo.id, name: REPO_NAME } });
+		expect(
+			[...fakeS3.objects.keys()].some((key) => key.startsWith(oldPrefix)),
+		).toBe(true);
+	});
+
 	it("deletes the repository", async () => {
 		const { deleteRepository, findRepositoryByName } = await import(
 			"../repositories"
@@ -539,7 +489,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(repoAfter).toBeUndefined();
 
 		// Repo's git data must actually be gone from storage (fake R2), not just the DB row.
-		const remaining = [...fakeR2.keys()].filter((k) =>
+		const remaining = [...fakeS3.objects.keys()].filter((k) =>
 			k.startsWith(`repos/${TEST_USER.username}/${REPO_NAME}/`),
 		);
 		expect(remaining).toHaveLength(0);

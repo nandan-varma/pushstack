@@ -12,10 +12,10 @@ import {
 import { user } from "../db/schema";
 import { setDefaultBranch } from "./git-branch-ops";
 import { repackRepositoryNow } from "./git-http-iso";
-import { deleteRepo, initBareRepo } from "./git-manager-iso";
+import { initBareRepo } from "./git-manager-iso";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
-	deleteRepositoryFromR2,
+	deleteRepositoryStorage,
 	renameRepositoryStorage,
 	withRepositoryLock,
 } from "./git-repo-storage";
@@ -31,10 +31,10 @@ import {
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { createTtlCoalescedCache } from "./ttl-cache";
 
-// Repository name flows into a real filesystem path.join (getRepoPath, for
-// local disk hydration on write) and into R2 storage keys — must start/end
-// with an alphanumeric so it can never be "." or "..", and can't contain "/"
-// or "\" so it can never smuggle in a multi-segment traversal.
+// Repository name flows into R2 storage keys, which gitFs addresses as
+// path-normalized fs paths — must start/end with an alphanumeric so it can
+// never be "." or "..", and can't contain "/" or "\" so it can never smuggle
+// in a multi-segment traversal into another repository's prefix.
 const REPO_NAME_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
 const repoNameSchema = z
 	.string()
@@ -169,12 +169,12 @@ export const createRepository = createServerFn({ method: "POST" })
 				username: user.username || null,
 				email: user.email,
 			});
-			await initBareRepo(ownerKey, data.name, NEW_REPOSITORY_DEFAULT_BRANCH);
-
-			// Create repository record in database. The existence check above is
-			// check-then-act (not atomic) — a concurrent double-submit can pass it
-			// twice, so the unique index on (ownerId, name) is the real guard; a
-			// violation here means we lost that race, not a server error.
+			// Create repository record in database first. The existence check
+			// above is check-then-act (not atomic) — a concurrent double-submit
+			// can pass it twice, so the unique index on (ownerId, name) is the
+			// real guard; a violation here means we lost that race, not a server
+			// error — and since the row comes first, the loser never touches the
+			// winner's storage.
 			let repo: typeof repositories.$inferSelect;
 			try {
 				[repo] = await db
@@ -194,6 +194,33 @@ export const createRepository = createServerFn({ method: "POST" })
 				throw error;
 			}
 
+			// Now storage. Anything already under this prefix belongs to no
+			// repository (the row we just inserted is the only one with this
+			// name) — leftovers of a delete whose storage cleanup failed — and
+			// must not become this repository's history.
+			try {
+				await withRepositoryLock(ownerKey, data.name, async () => {
+					await deleteRepositoryStorage(ownerKey, data.name);
+					await initBareRepo(
+						ownerKey,
+						data.name,
+						NEW_REPOSITORY_DEFAULT_BRANCH,
+					);
+				});
+			} catch (error) {
+				await db
+					.delete(repositories)
+					.where(eq(repositories.id, repo.id))
+					.catch((cleanupError: unknown) =>
+						logError(
+							"repositories",
+							`Failed to roll back repository row ${repo.id} after storage init failed`,
+							cleanupError,
+						),
+					);
+				throw error;
+			}
+
 			// Log activity
 			await db.insert(activities).values({
 				userId: user.id,
@@ -201,11 +228,6 @@ export const createRepository = createServerFn({ method: "POST" })
 				type: "create_repo",
 				metadata: { repoName: repo.name },
 			});
-
-			// initBareRepo already wrote the bare repo straight to its storage backend
-			// (R2 or local disk, per isR2Configured()) — no separate sync step needed.
-			// Syncing here would treat the never-hydrated-locally repo as having zero
-			// local files and delete the HEAD/config it just wrote as "stale".
 
 			// Return repo with owner info for navigation
 			return {
@@ -401,12 +423,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 		// then the row — so the row never names a branch git doesn't have.
 		// Before any rename, which moves HEAD along with the rest of storage.
 		if (data.defaultBranch && data.defaultBranch !== repo.defaultBranch) {
-			await setDefaultBranch(
-				ownerKey,
-				repo.name,
-				data.defaultBranch,
-				repo.owner.id,
-			);
+			await setDefaultBranch(ownerKey, repo.name, data.defaultBranch);
 		}
 
 		const isRename = !!data.name && data.name !== repo.name;
@@ -446,10 +463,10 @@ export const updateRepository = createServerFn({ method: "POST" })
 
 		let updated: typeof repositories.$inferSelect;
 		if (isRename) {
-			// Storage (R2 objects / local hydration dir) is keyed by the repo's
-			// current name — move it to the new name before the DB row itself
-			// changes, all under the same repo lock a concurrent hydrate/push
-			// would also wait on, so nothing can observe a half-renamed state.
+			// Storage (R2 objects) is keyed by the repo's current name — move it
+			// to the new name before the DB row itself changes, all under the
+			// same repo lock a concurrent push would also wait on, so nothing can
+			// observe a half-renamed state.
 			[updated] = await withRepositoryLock(ownerKey, repo.name, async () => {
 				await renameRepositoryStorage(ownerKey, repo.name, data.name as string);
 				return applyUpdate();
@@ -492,14 +509,25 @@ export const deleteRepository = createServerFn({ method: "POST" })
 			username: repo.owner.username,
 			email: repo.owner.email,
 		});
-		// Delete git repository from filesystem and R2
-		await deleteRepo(ownerKey, repo.name);
-		await deleteRepositoryFromR2(ownerKey, repo.name);
-
-		// Delete from database (cascades to related tables)
+		// The row first (cascades to related tables): once it's gone nothing
+		// can resolve this repository, so a failed storage cleanup afterwards
+		// only leaves unreachable objects — which the next repository created
+		// under this name clears before initializing. The other order could
+		// leave a live repository row with its storage deleted.
 		await db.delete(repositories).where(eq(repositories.id, data.id));
-
 		invalidateRepoRowCache(repo.owner.username ?? "", repo.name);
+
+		// Under the write lock, so an in-flight push can't land objects in the
+		// prefix after it has been listed for deletion.
+		await withRepositoryLock(ownerKey, repo.name, () =>
+			deleteRepositoryStorage(ownerKey, repo.name),
+		).catch((error: unknown) => {
+			logError(
+				"repositories",
+				`Deleted repository ${repo.id}, but its storage cleanup failed`,
+				error,
+			);
+		});
 
 		return { success: true };
 	});

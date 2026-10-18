@@ -62,7 +62,7 @@ describe("personal access tokens", () => {
 		expect(token.startsWith(TOKEN_PREFIX)).toBe(true);
 
 		const [row] = await db.select().from(tokens);
-		expect(row?.tokenHash).toBe(hashToken(token));
+		expect(row?.tokenHash).toBe(await hashToken(token));
 		expect(JSON.stringify(row)).not.toContain(token);
 		const days =
 			((row?.expiresAt?.getTime() ?? 0) - Date.now()) / (24 * 60 * 60 * 1000);

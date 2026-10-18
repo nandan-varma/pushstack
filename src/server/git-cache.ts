@@ -1,7 +1,6 @@
 import type { ParsedObjectStore } from "git-edge";
 import { createParsedObjectCache } from "git-edge";
 import type { OpsHooks, ResultCache } from "git-fs-s3/ops";
-import { isR2Configured } from "#/lib/r2";
 import { prefetchAllPacks } from "./git-fs";
 import { perfNote, perfStep } from "./perf-log";
 
@@ -62,9 +61,7 @@ export function opsHooksFor(
 		resultCache,
 		step: perfStep,
 		onNote: perfNote,
-		prefetch: isR2Configured()
-			? () => prefetchAllPacks(ownerKey, repoName)
-			: undefined,
+		prefetch: () => prefetchAllPacks(ownerKey, repoName),
 		prefetchMinDepth: options?.prefetchMinDepth,
 	};
 }

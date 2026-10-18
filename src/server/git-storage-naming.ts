@@ -13,9 +13,10 @@ type RepoLike = Pick<typeof repositories.$inferSelect, "ownerId" | "name"> & {
 // Replacing slashes with "-" defeats a multi-segment traversal (e.g.
 // "../../etc"), but a segment that is *exactly* "." or ".." contains no slash
 // to replace and would otherwise pass through unchanged — and every consumer
-// of this value (getRepoPath in git-manager-iso.ts) joins it into a real
-// filesystem path via path.join, which does resolve ".." components. Collapse
-// those to a literal placeholder so a stored value can never traverse.
+// of this value builds a gitFs path from it, which git-fs-s3 normalizes
+// (resolving ".." components) before mapping it onto an R2 key. Collapse
+// those to a literal placeholder so a stored value can never traverse into
+// another repository's prefix.
 export function sanitizeStorageSegment(value: string): string {
 	const cleaned = value
 		.trim()

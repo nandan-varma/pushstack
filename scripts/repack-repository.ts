@@ -9,12 +9,12 @@
  * while the repository write lock is held.
  */
 import { parsePackFileName } from "git-fs-s3";
-import { listAllR2Files } from "#/lib/r2-operations";
+import { listRepoStorage } from "#/server/git-fs";
 import { repackRepositoryNow } from "#/server/git-http-iso";
 import { getRepoGitStoragePrefix } from "#/server/git-storage-naming";
 
 function packCount(
-	files: Awaited<ReturnType<typeof listAllR2Files>>,
+	files: { key: string }[],
 	prefix: string,
 ): number {
 	return files.filter(
@@ -31,13 +31,13 @@ async function main(): Promise<void> {
 	}
 
 	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	const before = await listAllR2Files(prefix);
+	const before = await listRepoStorage(ownerKey, repoName);
 	const beforePacks = packCount(before, prefix);
 	console.log(`Found ${beforePacks} pack(s) in ${ownerKey}/${repoName}.`);
 
 	const { removedFiles } = await repackRepositoryNow(ownerKey, repoName);
 
-	const after = await listAllR2Files(prefix);
+	const after = await listRepoStorage(ownerKey, repoName);
 	const afterPacks = packCount(after, prefix);
 	console.log(
 		`Repack removed ${removedFiles} file(s); ${afterPacks} pack(s) remain.`,

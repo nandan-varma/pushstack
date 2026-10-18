@@ -1,6 +1,7 @@
 /**
- * Real git integration tests — no mocks, actual filesystem + isomorphic-git.
- * R2 is not configured in test env, so all storage is local-only.
+ * Real git integration tests — no mocks: isomorphic-git against the real
+ * gitFs stack. R2 is not configured in the test env, so storage is
+ * git-fs.ts's in-memory object store — no local disk anywhere.
  *
  * `db` is the one exception: every write here now goes through
  * withRepositoryLock (git-repo-storage.ts), which needs a reachable Postgres
@@ -8,20 +9,8 @@
  * stand-in used instead of a live database.
  */
 
-import { promises as nodeFs } from "node:fs";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
-
-// Must be hoisted so git-manager-iso captures GIT_REPOS_PATH at module init
-const TEST_DIR = vi.hoisted(() => {
-	// eslint-disable-next-line @typescript-eslint/no-require-imports
-	const os = require("node:os");
-	// eslint-disable-next-line @typescript-eslint/no-require-imports
-	const p = require("node:path");
-	const dir = p.join(os.tmpdir(), `pushstack-git-test-${Date.now()}`);
-	process.env.GIT_REPOS_PATH = dir;
-	return dir;
-});
 
 const lockStore = vi.hoisted(() => new Map());
 
@@ -71,7 +60,6 @@ const shas = {
 };
 
 beforeAll(async () => {
-	await nodeFs.mkdir(TEST_DIR, { recursive: true });
 	await initBareRepo(OWNER, REPO, "main");
 
 	// Commit 1: initial README
@@ -104,10 +92,6 @@ beforeAll(async () => {
 		author: { name: "Test User", email: "test@example.com" },
 	});
 }, 60_000);
-
-afterAll(async () => {
-	await nodeFs.rm(TEST_DIR, { recursive: true, force: true });
-});
 
 // ── Branches ──────────────────────────────────────────────────────────────────
 
@@ -301,12 +285,14 @@ describe("getTreeFromBranch (subdirectory)", () => {
 describe("getFileContent", () => {
 	it("returns file buffer", async () => {
 		const buf = await getFileContent(OWNER, REPO, "README.md", "main");
-		expect(buf.toString()).toBe("# Updated Repo\n\nSome content.\n");
+		expect(new TextDecoder().decode(buf)).toBe(
+			"# Updated Repo\n\nSome content.\n",
+		);
 	});
 
 	it("reads initial content from first commit SHA", async () => {
 		const buf = await getFileContent(OWNER, REPO, "README.md", shas.initial);
-		expect(buf.toString()).toBe("# Test Repo\n");
+		expect(new TextDecoder().decode(buf)).toBe("# Test Repo\n");
 	});
 
 	it("throws for a missing file", async () => {
@@ -330,7 +316,10 @@ describe("getFileFromBranch", () => {
 			branch: "main",
 			message: "Add binary file",
 			files: [
-				{ path: "image.bin", content: Buffer.from([0x89, 0x50, 0x00, 0x00]) },
+				{
+					path: "image.bin",
+					content: new Uint8Array([0x89, 0x50, 0x00, 0x00]),
+				},
 			],
 			author: { name: "Test User", email: "test@example.com" },
 		});
@@ -362,7 +351,7 @@ describe("getBlob", () => {
 		expect(readme).toBeDefined();
 		if (!readme) throw new Error("unreachable");
 		const buf = await getBlob(OWNER, REPO, readme.oid);
-		expect(buf.toString()).toContain("Repo");
+		expect(new TextDecoder().decode(buf)).toContain("Repo");
 	});
 });
 
@@ -414,7 +403,7 @@ describe("createCommit", () => {
 			author: { name: "Test User", email: "test@example.com" },
 		});
 		const buf = await getFileContent(OWNER, REPO, "new-file.txt", "main");
-		expect(buf.toString()).toBe("updated content\n");
+		expect(new TextDecoder().decode(buf)).toBe("updated content\n");
 	});
 
 	it("commit appears at HEAD of log", async () => {

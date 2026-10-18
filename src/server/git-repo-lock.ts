@@ -1,14 +1,12 @@
 /**
  * Per-repo distributed lock — backed by a Postgres lease row (`repo_locks`),
  * not an in-process mutex, since Vercel serverless instances share no memory
- * across invocations. Extracted out of git-repo-storage.ts: this is the one
- * piece of that file with no shared state (repoState/r2ListCache) with the
- * hydrate/sync/worktree logic that lives there.
+ * across invocations. Every write (push, commit, branch/ref change, merge,
+ * rename) runs under it.
  */
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "#/db";
 import { repoLocks } from "#/db/app-schema";
-import { isR2Configured } from "#/lib/r2";
 import {
 	beginGitTransaction,
 	commitGitTransaction,
@@ -20,11 +18,12 @@ export function getRepoKey(ownerKey: string, repoName: string): string {
 	return `${ownerKey}/${repoName}`;
 }
 
-// Lease TTL, not a heartbeat-renewed lock — see repoLocks's comment in
-// app-schema.ts. Must comfortably exceed how long a real push/hydrate/
-// sync critical section can run; Vercel kills the function well before this
-// anyway, so a stuck holder's lease always clears on its own.
+// Lease TTL. A live holder renews it every LOCK_RENEW_MS (see
+// withRepositoryLock), so a long push or repack keeps its lock; a holder
+// whose function was killed stops renewing and its lease clears on its own
+// within one TTL.
 const LOCK_LEASE_MS = 60_000;
+const LOCK_RENEW_MS = 20_000;
 const LOCK_POLL_BASE_MS = 200;
 // Slightly over the lease so a caller that starts waiting right after
 // another holder's lease was minted is guaranteed to see it expire within
@@ -32,7 +31,7 @@ const LOCK_POLL_BASE_MS = 200;
 const LOCK_ACQUIRE_TIMEOUT_MS = 65_000;
 
 function randomLockHolderId(): string {
-	return `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+	return crypto.randomUUID();
 }
 
 // Atomic single-round-trip acquire: `INSERT ... ON CONFLICT DO UPDATE ...
@@ -86,6 +85,20 @@ async function releaseRepoLock(repoKey: string, holder: string): Promise<void> {
 		.where(and(eq(repoLocks.repoKey, repoKey), eq(repoLocks.holder, holder)));
 }
 
+// Extends our lease, only while we still hold it. False means the lease was
+// lost (expired and taken over) — another writer may now be running.
+async function renewRepoLock(
+	repoKey: string,
+	holder: string,
+): Promise<boolean> {
+	const rows = await db
+		.update(repoLocks)
+		.set({ expiresAt: new Date(Date.now() + LOCK_LEASE_MS) })
+		.where(and(eq(repoLocks.repoKey, repoKey), eq(repoLocks.holder, holder)))
+		.returning({ holder: repoLocks.holder });
+	return rows.length > 0;
+}
+
 export async function withRepositoryLock<T>(
 	ownerKey: string,
 	repoName: string,
@@ -93,6 +106,25 @@ export async function withRepositoryLock<T>(
 ): Promise<T> {
 	const repoKey = getRepoKey(ownerKey, repoName);
 	const holder = await acquireRepoLock(repoKey);
+	const heartbeat = setInterval(() => {
+		renewRepoLock(repoKey, holder)
+			.then((held) => {
+				if (!held) {
+					logError(
+						"git-repo-lock",
+						`Lost the repo lock for ${repoKey} mid-operation (lease expired before renewal)`,
+						new Error("repo lock lease lost"),
+					);
+				}
+			})
+			.catch((err: unknown) => {
+				logError(
+					"git-repo-lock",
+					`Failed to renew repo lock for ${repoKey}`,
+					err,
+				);
+			});
+	}, LOCK_RENEW_MS);
 	// Best-effort WAL entry — see git-transactions.ts. A logging failure here
 	// (txnId null) never blocks the actual write; only its own bookkeeping is
 	// skipped.
@@ -106,6 +138,7 @@ export async function withRepositoryLock<T>(
 		if (txnId) await rollbackGitTransaction(txnId);
 		throw err;
 	} finally {
+		clearInterval(heartbeat);
 		await releaseRepoLock(repoKey, holder).catch((err: unknown) => {
 			logError(
 				"git-repo-lock",
@@ -114,19 +147,4 @@ export async function withRepositoryLock<T>(
 			);
 		});
 	}
-}
-
-// Some writes (git-branch-ops.ts's createBranch/deleteBranch) go straight to
-// R2 when configured, but fall back to getRepoOptions/syncRepositoryToR2 —
-// which already take this same lock internally — on local disk. Since
-// withRepositoryLock isn't reentrant, only the R2-direct path may take it
-// here; call this instead of a hand-rolled `if (isR2Configured())` at each
-// write call site, so that rule lives in one place instead of being
-// re-derived (and re-risked) per call site.
-export async function withRepositoryLockIfR2<T>(
-	ownerKey: string,
-	repoName: string,
-	fn: () => Promise<T>,
-): Promise<T> {
-	return isR2Configured() ? withRepositoryLock(ownerKey, repoName, fn) : fn();
 }

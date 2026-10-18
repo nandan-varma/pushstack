@@ -1,8 +1,7 @@
 /**
  * Tests for git-last-commit.ts's wiring: resolving (ownerKey, repoName) to a
- * Repo, passing the fixed HISTORY_WALK_DEPTH, and only passing a prefetch
- * hook when R2 is configured (mirrors the same isR2Configured-gated prefetch
- * pattern as git-history-ops.ts). The walk algorithm itself lives in and is
+ * Repo, passing the fixed HISTORY_WALK_DEPTH, and the pack-prefetch hook
+ * (same opsHooksFor wiring as git-history-ops.ts). The walk algorithm itself lives in and is
  * tested by git-fs-s3/ops — this only checks the wrapper wiring.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,14 +19,7 @@ vi.mock("git-fs-s3/ops", () => ({
 	getLastCommitsForTree: opsGetLastCommitsForTreeMock,
 }));
 
-const isR2ConfiguredMock = vi.fn(() => true);
-vi.mock("#/lib/r2", () => ({
-	isR2Configured: isR2ConfiguredMock,
-}));
-
-const getRepoOptionsMock = vi.fn(() =>
-	Promise.resolve({ fs: {}, gitdir: "/fake/gitdir" }),
-);
+const getRepoOptionsMock = vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" }));
 vi.mock("../git-repo-storage", () => ({
 	getRepoOptions: getRepoOptionsMock,
 }));
@@ -40,7 +32,6 @@ vi.mock("../git-fs", () => ({
 describe("getLastCommitsForTree wrapper", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		isR2ConfiguredMock.mockReturnValue(true);
 		opsGetLastCommitsForTreeMock.mockResolvedValue({});
 	});
 
@@ -72,24 +63,12 @@ describe("getLastCommitsForTree wrapper", () => {
 		expect(result).toEqual({ "a.ts": { sha: "abc", message: "init" } });
 	});
 
-	it("passes a prefetch hook when R2 is configured, calling prefetchAllPacks for this repo", async () => {
-		isR2ConfiguredMock.mockReturnValue(true);
-
+	it("passes a prefetch hook calling prefetchAllPacks for this repo", async () => {
 		const { getLastCommitsForTree } = await import("../git-last-commit");
 		await getLastCommitsForTree("owner", "repo", "main", "");
 
 		const hooks = opsGetLastCommitsForTreeMock.mock.calls[0][2];
 		await hooks?.prefetch?.();
 		expect(prefetchAllPacksMock).toHaveBeenCalledWith("owner", "repo");
-	});
-
-	it("omits the prefetch hook when R2 is not configured", async () => {
-		isR2ConfiguredMock.mockReturnValue(false);
-
-		const { getLastCommitsForTree } = await import("../git-last-commit");
-		await getLastCommitsForTree("owner", "repo", "main", "");
-
-		const hooks = opsGetLastCommitsForTreeMock.mock.calls[0][2];
-		expect(hooks?.prefetch).toBeUndefined();
 	});
 });

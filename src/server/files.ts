@@ -8,6 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { base64ToBytes } from "#/lib/bytes";
 import { db } from "../db";
 import { activities, repositories } from "../db/app-schema";
 import {
@@ -69,24 +70,19 @@ export const uploadFile = createServerFn({ method: "POST" })
 		const repo = await getRepoWithWriteAccess(data.repoId, user.id);
 
 		// Decode content
-		const buffer = Buffer.from(data.content, "base64");
+		const content = base64ToBytes(data.content);
 		const storage = getStorage(repo);
 
 		// Create commit with the file
-		const commitSha = await createCommit(
-			storage.ownerKey,
-			repo.name,
-			{
-				branch: data.branchName,
-				message: data.commitMessage,
-				files: [{ path: data.path, content: buffer }],
-				author: {
-					name: user.name,
-					email: user.email,
-				},
+		const commitSha = await createCommit(storage.ownerKey, repo.name, {
+			branch: data.branchName,
+			message: data.commitMessage,
+			files: [{ path: data.path, content }],
+			author: {
+				name: user.name,
+				email: user.email,
 			},
-			repo.ownerId,
-		);
+		});
 
 		// Update repository updated_at
 		await db
@@ -325,7 +321,6 @@ export const deleteFile = createServerFn({ method: "POST" })
 			data.path,
 			data.commitMessage,
 			{ name: user.name || user.username || "Unknown", email: user.email },
-			repo.ownerId,
 		);
 
 		// Log activity
@@ -390,7 +385,6 @@ export const createBranch = createServerFn({ method: "POST" })
 			repo.name,
 			data.name,
 			data.fromBranch ?? repo.defaultBranch,
-			repo.ownerId,
 		);
 
 		return { success: true, name: data.name };
@@ -421,7 +415,7 @@ export const deleteBranch = createServerFn({ method: "POST" })
 		const storage = getStorage(repo);
 
 		// Delete branch from git
-		await gitDeleteBranch(storage.ownerKey, repo.name, data.name, repo.ownerId);
+		await gitDeleteBranch(storage.ownerKey, repo.name, data.name);
 
 		return { success: true };
 	});

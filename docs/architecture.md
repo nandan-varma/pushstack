@@ -19,13 +19,18 @@ pieces fit together. For deep dives on any one piece, see the other files in `do
 | Styling / UI | Tailwind CSS, shadcn/ui |
 | Testing | Vitest (unit), Playwright (e2e) |
 | Lint/format | Biome |
-| Deployment | Vercel, via Nitro's `vercel` preset |
+| Deployment | Vercel Functions (Node runtime, Fluid compute), via Nitro's `vercel` preset |
 
 Why isomorphic-git instead of shelling out to a real `git` binary: the deployment
 target is Vercel serverless functions, where a bundled native binary isn't a
 realistic option and the filesystem is ephemeral. isomorphic-git's `fs` plugin
-interface is also what makes it possible to read git objects directly from R2
-without ever touching local disk (see [git-storage.md](./git-storage.md)).
+interface is also what makes it possible to read *and write* git objects
+directly in R2 without ever touching local disk (see
+[git-storage.md](./git-storage.md)). Server code uses only Web APIs plus
+`node:async_hooks`, so it isn't tied to Node's filesystem, `Buffer`, or
+`node:crypto`; Vercel's Edge runtime isn't an option with this stack (Nitro v3
+dropped its `vercel-edge` preset in favor of Fluid compute), but nothing in
+the app's own code would stop a Workers-style runtime.
 
 ## Two extracted packages, not just app code
 
@@ -42,16 +47,15 @@ describe how pushstack *integrates* them, not how they work internally**:
   of the `git-*-ops.ts` files in `src/server/` are thin wrappers around this.
 - **[`git-edge`](https://nandan-varma.github.io/git-edge/)** — an
   object-level three-way merge (`threeWayMerge`) that never needs a worktree,
-  plus a parsed-object cache. `git-merge-iso.ts`'s R2-configured
-  non-fast-forward merge path uses this instead of isomorphic-git's own
-  `git.merge` (which needs a real checked-out working directory) — see
-  [git-storage.md](./git-storage.md).
+  plus a parsed-object cache. `git-merge-iso.ts`'s non-fast-forward merge
+  uses this instead of isomorphic-git's own `git.merge` (which needs a real
+  checked-out working directory) — see [git-storage.md](./git-storage.md).
 
 Both were extracted *from* this app's own code in earlier work (e.g.
 `git-fs.ts`'s R2 backend used to be a local `git-r2-backend.ts`) — when you
 need the deep "why" behind a caching decision, a retry policy, or the merge
 algorithm's edge cases, check the linked package docs first; only the
-integration-specific glue (which R2/local-disk backend gets chosen, how
+integration-specific glue (which object store backs `gitFs`, how
 pushstack wires its own caches/locks around library calls) belongs in this
 repo's docs. If something looks wrong in the *library's* behavior rather than
 in how pushstack calls it, the fix belongs in that package's own repo
@@ -99,9 +103,9 @@ to import from client code (it touches R2 credentials, the DB connection, and
 Node-only APIs like `node:fs`). Everything in it is reached exclusively through
 `createServerFn` handlers or the git HTTP route handler.
 
-## The three storage systems
+## The two storage systems
 
-PushStack deliberately keeps three separate persistence layers, each doing the
+PushStack deliberately keeps two separate persistence layers, each doing the
 job it's actually good at:
 
 - **Postgres (Neon)** — structured metadata: users, repositories (name, owner,
@@ -111,14 +115,10 @@ job it's actually good at:
   refs) for every repository, addressed by a canonical key scheme (see
   [git-storage.md](./git-storage.md)). This is what makes horizontal
   scaling/serverless deployment possible — no repository data lives on any
-  one machine's disk.
-- **Local `/tmp`** — a scratch layer. Write operations (push, in-browser file
-  edits, merges) can't be done purely against R2 object-by-object the way
-  isomorphic-git expects a real filesystem to behave, so they hydrate the
-  relevant repository down to local disk first, perform the write with a real
-  `fs`, then sync the result back up to R2. This is transient by design: `/tmp`
-  is the only writable directory on Vercel, and nothing durable is assumed to
-  survive there between requests.
+  one machine's disk. Writes (push, in-browser file edits, merges) go straight
+  to R2 too, under a per-repo Postgres lease lock — there is no local scratch
+  copy. Without R2 configured (tests, a quick local run) the same stack runs
+  over an in-memory store.
 
 ## Access control
 

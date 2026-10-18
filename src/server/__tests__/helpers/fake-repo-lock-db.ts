@@ -70,9 +70,25 @@ export function createFakeRepoLockDb(lockStore: Map<string, LockRow>) {
 				}
 			},
 		}),
+		// Lease renewal (withRepositoryLock's heartbeat): a holder-scoped
+		// UPDATE ... RETURNING. Other updates (WAL bookkeeping) just resolve.
 		update: () => ({
-			set: () => ({
-				where: () => Promise.resolve(),
+			set: (values: Record<string, unknown>) => ({
+				where: (condition: Condition) =>
+					Object.assign(Promise.resolve(undefined), {
+						returning: async () => {
+							const [repoKey, holder] = conditionValues(condition);
+							const row =
+								typeof repoKey === "string"
+									? lockStore.get(repoKey)
+									: undefined;
+							if (!row || row.holder !== holder) return [];
+							if (values.expiresAt instanceof Date) {
+								row.expiresAt = values.expiresAt.getTime();
+							}
+							return [{ holder }];
+						},
+					}),
 			}),
 		}),
 	};

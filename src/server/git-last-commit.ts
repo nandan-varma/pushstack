@@ -30,7 +30,7 @@ export async function getLastCommitsForTree(
 	branchName: string,
 	treePath: string,
 ): Promise<Record<string, LastCommitInfo>> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return opsGetLastCommitsForTree(
 		repo,
 		{ ref: branchName, treePath, depth: HISTORY_WALK_DEPTH },

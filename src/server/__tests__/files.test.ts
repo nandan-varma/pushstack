@@ -350,7 +350,6 @@ describe("file path traversal guard", () => {
 				"test-repo",
 				"feature",
 				"develop",
-				"user123",
 			);
 		});
 	});

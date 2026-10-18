@@ -48,21 +48,40 @@ href/src as a real attribute must go through these same two functions. Don't
 reintroduce a raw `<a href={href}>` fallback "just for this one case" without
 the check — that's exactly how the original bug existed.
 
+## Usernames are immutable (storage keys derive from them)
+
+A repository's storage prefix is `repos/{ownerKey}/{repoName}`, and `ownerKey`
+is the owner's username (or, without one, their email's local part). Better
+Auth's username plugin lets `update-user` change the username, which would
+orphan every repository the user owns — and let whoever later claims the old
+username inherit that storage under matching repository names, a
+cross-tenant read. `src/lib/auth.ts` refuses username, display-username and
+email changes in `databaseHooks.user.update.before`
+(`auth-immutable-fields.test.ts` runs it against real Better Auth). Allowing
+renames would first need storage keyed by user id, plus a migration.
+
+## Request body limits on the git endpoint
+
+`upload-pack` is reachable anonymously on public repositories, so its request
+body is attacker-controlled. `GIT_HTTP_MAX_BODY_BYTES` (default 50 MB) is
+enforced while the body streams in (`readGitRequestBody`), not just from a
+`Content-Length` header a chunked request never sends.
+
 ## Path traversal via repository name
 
 `repositories.ts`'s `createRepository`/`updateRepository` used to validate the
 repo `name` field with only `z.string().min(1).max(100)` — no character
-restriction at all. That name flows, eventually, into
-`getRepoPath(ownerKey, repoName)` (`git-manager-iso.ts`), which does a real
-`path.join(GIT_BASE_PATH, ownerKey, repoName)` for local-disk write hydration
-(see [git-storage.md](./git-storage.md)). `path.join` resolves `..`
-components — a repository named `..`, or (in the non-R2 / local-disk-only
-deployment mode) something like `../../../etc/cron.d/x`, could write bare-repo
-files (`HEAD`, `config`, `objects/`, `refs/`) outside the intended storage
-root.
+restriction at all. That name becomes a segment of the repository's gitdir
+(`repos/{ownerKey}/{repoName}/git`), and every path isomorphic-git hands
+`gitFs` is normalized (`..` resolved) before it's mapped onto an R2 key — a
+repository named `..` would put its gitdir at `repos/git`, outside its owner's
+prefix; a name like `../victim/repo` would land inside another user's
+repository. (At the time, writes also hydrated to a real local directory via
+`path.join`, where the same name was an outright filesystem traversal; that
+local-disk path no longer exists — see [git-storage.md](./git-storage.md).)
 
-**Fix, at three layers** (defense in depth — don't remove any one layer on the
-assumption another covers it):
+**Fix, at two layers** (defense in depth — don't remove either on the
+assumption the other covers it):
 
 1. **Input validation** — `repositories.ts`'s `repoNameSchema` restricts names
    to `/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/`: must start/end with an
@@ -72,20 +91,13 @@ assumption another covers it):
    storage-key segment is built from a username or repo name. Replaces
    `/`/`\` and whitespace with `-`, and additionally collapses a segment that
    is *exactly* `.` or `..` to `_` (slash-replacement alone doesn't touch a
-   bare `..`, since there's no slash to replace).
-3. **`getRepoPath` itself** (`git-manager-iso.ts`) — re-sanitizes both
-   `ownerKey` and `repoName` via `sanitizeStorageSegment`, then verifies with
-   `path.resolve` that the result is actually contained under
-   `GIT_BASE_PATH` before returning it, throwing rather than silently
-   returning an escaped path. This exists specifically so a caller that
-   forgot to pre-sanitize (or a future code path that introduces a new way to
-   reach this function) can't reintroduce the vulnerability by omission.
+   bare `..`, since there's no slash to replace). `getRepoStorageRoot` applies
+   it to both segments itself, so a caller that forgot to pre-sanitize can't
+   reintroduce the vulnerability by omission.
 
-R2 keys built from an unsanitized segment are lower-risk on their own (S3 has
-no path resolution — `"repos/x/../y"` is just a literal, harmless string key,
-not a traversal), but the local-disk hydration path that every write
-operation goes through, R2-configured or not, is real Node.js `path.join`
-against a real filesystem, and that's where this actually bites.
+S3 itself has no path resolution (`"repos/x/../y"` is a literal key), but
+`gitFs` does, and every git operation goes through it — so treat these
+segments as paths, not opaque strings.
 
 ## Path traversal via git branch/ref names
 
@@ -100,7 +112,7 @@ isomorphic-git primitives that, unlike `git.branch`/the top-level
 jail to the current repo's own directory.
 
 That alone would be contained if the storage layer re-verified containment
-the way `getRepoPath` does for repository names (see above) — but it doesn't.
+per repository — but it doesn't.
 The object-store `fs` (`git-fs.ts`, built on `git-fs-s3`'s `createGitFs`) has
 no notion of "which repo this request belongs to" — it's constructed with no
 key prefix (gitdirs are the full storage roots), and maps whatever path
@@ -111,8 +123,7 @@ isomorphic-git hands it straight onto an R2 key, normalized only to resolve
 `repos/{victim-owner}/{victim-repo}/git/refs/heads/main`, the store
 reads/writes/deletes exactly that key — the *victim's* real ref file — even
 though the operation started against the attacker's own repo's `gitdir`. This
-was directly exploitable in production (R2 configured is the deployed
-configuration, not just a local-disk-only edge case).
+was directly exploitable in production.
 
 Two concrete ways this was reachable, both through the ordinary web UI (no
 git CLI, no raw HTTP crafting needed for the second one):
@@ -281,13 +292,10 @@ a raw API route handler rather than one of `files.ts`'s validated
 `resolveCommit` resolves `ref` via `qualifyBranchRef` + the top-level
 `git.resolveRef` — one of the isomorphic-git primitives that (like
 `git.deleteRef`/`git.commit`/`git.merge` — see the ref-name section above)
-does not validate ref format internally. In R2-configured deployments this is
-contained (R2 keys are opaque strings with no path-navigation semantics — see
-above), but in a local-disk-configured deployment (`isR2Configured()` false),
-the read goes through real Node `fs` calls, where the OS itself resolves `../`
-components regardless of whether isomorphic-git's own JS-level path helper
-does — so a crafted `ref` could read another repository's ref/blob data
-straight off disk, bypassing that repository's own read-access check
+does not validate ref format internally. The read goes through `gitFs`, which
+resolves `../` components before mapping the path onto an R2 key (see the
+ref-name section above) — so a crafted `ref` could read another repository's
+ref/blob data, bypassing that repository's own read-access check
 entirely (the access check only ever validated access to the repo named in
 the URL's `{owner}/{repo}`, not whatever repo the traversal actually reads
 from).

@@ -5,15 +5,18 @@
  * git-fs-s3's `/http` module was extracted from an earlier version of this
  * exact file, the same way git-fs.ts was extracted from the old
  * git-r2-backend.ts). What stays here is pushstack-specific: auth checks,
- * choosing R2-backed gitFs (reads) vs local hydrated disk (writes), and R2
- * stale-pack cleanup after a repack.
+ * the per-repo write lock, and post-push bookkeeping.
  *
- * upload-pack (clone/fetch): reads directly from R2 via gitFs, no local disk.
- * receive-pack (push): writes incoming pack to /tmp gitdir, then syncs to R2.
+ * Every service runs straight against R2 through `gitFs` — no local disk:
+ * upload-pack (clone/fetch) reads lock-free; receive-pack (push) writes the
+ * incoming pack and its index, CAS-updates refs, and repacks, all under the
+ * repo lock. The order makes a push safe to interrupt at any point: objects
+ * land before any ref names them, and a repack deletes superseded packs only
+ * after the consolidated pack is written and indexed. A lock-free clone that
+ * listed packs just before a repack deleted one tolerates the transient 404
+ * (see collectReachableOids in git-fs-s3).
  */
 
-import fs from "node:fs";
-import { getRepoCache } from "git-edge";
 import {
 	applyReceivePack,
 	type GitHttpResult,
@@ -25,87 +28,103 @@ import {
 	receivePackResponse,
 	repackRepository,
 } from "git-fs-s3/http";
-import { bulkDeleteFromR2 } from "#/lib/r2-operations";
 import type { GitAuthContext } from "./git-auth";
-import { GitAuthorizationError } from "./git-errors";
-import {
-	detectLooseObjectsHint,
-	gitFs,
-	invalidateGitStorageKeys,
-	invalidateRepoGitStorage,
-	prefetchAllPacks,
-	registerRepoGitdir,
-} from "./git-fs";
-import { withReceivePackLock } from "./git-repo-storage";
-import { getRepoGitStoragePrefix } from "./git-storage-naming";
+import { GitAuthorizationError, GitError } from "./git-errors";
+import { detectLooseObjectsHint, prefetchAllPacks } from "./git-fs";
+import { getBareRepoOptions } from "./git-manager-iso";
+import { afterRepositoryPush, withRepositoryLock } from "./git-repo-storage";
 import { logWarn, perfContext, perfStep } from "./perf-log";
+
+/** Request body cap for upload-pack/receive-pack (GIT_HTTP_MAX_BODY_BYTES). */
+export function maxGitBodyBytes(): number {
+	return (
+		Number.parseInt(process.env.GIT_HTTP_MAX_BODY_BYTES || "", 10) ||
+		50 * 1024 * 1024
+	);
+}
+
+/**
+ * The request body, read with a hard cap enforced while streaming — a
+ * chunked request carries no Content-Length to check up front, and
+ * upload-pack is reachable anonymously on public repositories, so an
+ * unbounded `arrayBuffer()` would let anyone exhaust the function's memory.
+ */
+export async function readGitRequestBody(
+	request: Request,
+	maxBytes = maxGitBodyBytes(),
+): Promise<Uint8Array> {
+	const tooLarge = () =>
+		new GitError(`Git request body exceeds ${maxBytes} bytes`, 413);
+	const declared = Number.parseInt(
+		request.headers.get("content-length") ?? "",
+		10,
+	);
+	if (Number.isFinite(declared) && declared > maxBytes) throw tooLarge();
+	if (!request.body) return new Uint8Array();
+	const reader = request.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.byteLength;
+		if (total > maxBytes) {
+			await reader.cancel().catch(() => {});
+			throw tooLarge();
+		}
+		chunks.push(value);
+	}
+	const body = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		body.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return body;
+}
 
 const hooks: HttpHooks = {
 	step: perfStep,
 	onWarn: (message, err) => logWarn("git-http", message, err),
 };
 
-// repackRepository only removes pack/idx files *locally* — this is the other
-// half, shared by the live push path (handleReceivePackIso) and
-// repackRepositoryNow (the standalone maintenance entry point below): it
-// deletes the same gitdir-relative paths from R2 and invalidates the caches
-// that would otherwise keep serving the now-deleted names.
-async function deleteStalePacksFromR2(
-	ownerKey: string,
-	repoName: string,
-	staleRelativePaths: string[],
-): Promise<void> {
-	if (staleRelativePaths.length === 0) return;
-	const prefix = getRepoGitStoragePrefix(ownerKey, repoName);
-	await bulkDeleteFromR2(staleRelativePaths.map((p) => `${prefix}${p}`)).catch(
-		(err: unknown) => {
-			logWarn(
-				"git-http",
-				"failed to delete superseded packs from R2 (non-fatal)",
-				err,
-			);
-		},
-	);
-	// The repo's cached listings were already invalidated once by
-	// syncRepositoryToR2 (before these deletes ran) — invalidate again so a
-	// concurrent readdir can't have repopulated them with the now-stale names in
-	// the gap between that invalidation and this delete.
-	invalidateRepoGitStorage(ownerKey, repoName);
-	invalidateGitStorageKeys(staleRelativePaths.map((p) => `${prefix}${p}`));
-}
-
 /**
  * Consolidates a repository's packs on demand, outside of a live push —
- * for clearing a backlog that accumulated before the repack threshold (or the
- * R2 cleanup step in deleteStalePacksFromR2) existed, on a repo that won't
- * otherwise get a repack until its next push crosses the threshold again.
- * Runs the same repack + R2 cleanup a real push triggers, via its own
- * hydrate/sync cycle rather than piggybacking on an in-flight push's.
+ * for clearing a backlog on a repo that won't otherwise get a repack until
+ * its next push crosses the threshold. Same repack a real push triggers.
  */
 export async function repackRepositoryNow(
 	ownerKey: string,
 	repoName: string,
 	ownerDbId?: string,
 ): Promise<{ removedFiles: number }> {
-	let removedFiles = 0;
-	await withReceivePackLock(
-		ownerKey,
-		repoName,
-		(localGitdir) =>
-			repackRepository(
-				// Fresh isomorphic-git cache per operation: without one, every
-				// object read re-parses every pack index.
-				{ fs, gitdir: localGitdir, cache: {} },
-				{ threshold: REPACK_PACK_COUNT_THRESHOLD },
-				hooks,
-			),
-		ownerDbId,
-		async (stalePaths) => {
-			removedFiles = stalePaths.length;
-			await deleteStalePacksFromR2(ownerKey, repoName, stalePaths);
-		},
+	return withRepositoryLock(ownerKey, repoName, async () => {
+		const stalePaths = await repackRepository(
+			getBareRepoOptions(ownerKey, repoName),
+			{ threshold: REPACK_PACK_COUNT_THRESHOLD },
+			hooks,
+		);
+		afterRepositoryPush(ownerKey, repoName, ownerDbId);
+		return { removedFiles: stalePaths.length };
+	});
+}
+
+/**
+ * Consolidate packs once enough have accumulated — for write paths other
+ * than a push (web-UI commits and merges each add one pack). Call inside the
+ * repo lock, after the write; runs the same threshold-gated repack a push
+ * does, then the same bookkeeping.
+ */
+export async function repackIfNeededUnlocked(
+	ownerKey: string,
+	repoName: string,
+): Promise<void> {
+	const stalePaths = await repackRepository(
+		getBareRepoOptions(ownerKey, repoName),
+		{ threshold: REPACK_PACK_COUNT_THRESHOLD },
+		hooks,
 	);
-	return { removedFiles };
+	if (stalePaths.length > 0) afterRepositoryPush(ownerKey, repoName);
 }
 
 export async function handleInfoRefsIso(
@@ -129,9 +148,8 @@ export async function handleInfoRefsIso(
 				);
 			}
 
-			const gitdir = registerRepoGitdir(ownerKey, repoName);
 			return handleInfoRefs(
-				{ fs: gitFs, gitdir, cache: getRepoCache(ownerKey, repoName) },
+				getBareRepoOptions(ownerKey, repoName),
 				{ service, defaultBranch, agent: "pushstack/1.0" },
 				hooks,
 			);
@@ -152,14 +170,13 @@ export async function handleUploadPackIso(
 			);
 		}
 
-		const gitdir = registerRepoGitdir(ownerKey, repoName);
-		const body = new Uint8Array(await request.arrayBuffer());
+		const body = await readGitRequestBody(request);
 		return handleUploadPack(
 			// The shared per-repo cache keeps isomorphic-git's parsed pack
 			// indexes (and its one-time pack checksum) across object reads and
 			// requests — without it every object read re-parses every .idx and
 			// re-hashes every .pack.
-			{ fs: gitFs, gitdir, cache: getRepoCache(ownerKey, repoName) },
+			getBareRepoOptions(ownerKey, repoName),
 			body,
 			{
 				beforeWalk: () =>
@@ -203,46 +220,26 @@ export async function handleReceivePackIso(
 			);
 		}
 
-		const body = new Uint8Array(await request.arrayBuffer());
+		const body = await readGitRequestBody(request);
 		const parsed = parseReceivePackBody(body);
 
-		// The new consolidated pack is a normal new local file, so
-		// withReceivePackLock's automatic syncRepositoryToR2Unlocked (which runs
-		// before `afterSync`, below) already uploaded it — but that same sync
-		// deliberately never deletes anything under objects/ in R2 (git objects
-		// are content-addressed and assumed safe to keep). The repack already
-		// proved these specific old packs are redundant (reachability-
-		// completeness check), so it's safe — and necessary — to explicitly
-		// remove them from R2 here, now that the replacement pack they're
-		// redundant with is confirmed uploaded. Skipping this is what let every
-		// push leave one more permanent pack file in R2 forever. Running this
-		// inside `afterSync` (still under the lock) rather than after it
-		// releases closes the race against a *concurrent push's own hydration*
-		// (git-repo-storage.ts's writeRemoteFilesToDisk) entirely — it can no
-		// longer observe a deleted-but-not-yet-replaced pack listing, since
-		// hydration now can't even start until this whole push, cleanup
-		// included, is done. It does not (and isn't meant to) close the same
-		// race against a lock-free clone/fetch's collectReachableOids below,
-		// which still tolerates it by design — see withReceivePackLock's
-		// afterSync comment in git-repo-storage.ts.
-		const outcome = await withReceivePackLock(
-			ownerKey,
-			repoName,
-			(localGitdir) =>
-				applyReceivePack(
-					{ fs, gitdir: localGitdir, cache: {} },
-					parsed,
-					{
-						defaultBranch,
-						repack: { threshold: REPACK_PACK_COUNT_THRESHOLD },
-					},
-					hooks,
-				),
-			ownerDbId,
-			(applyOutcome) =>
-				deleteStalePacksFromR2(ownerKey, repoName, applyOutcome.stalePackPaths),
-		);
+		const outcome = await withRepositoryLock(ownerKey, repoName, async () => {
+			const result = await applyReceivePack(
+				getBareRepoOptions(ownerKey, repoName),
+				parsed,
+				{
+					defaultBranch,
+					repack: { threshold: REPACK_PACK_COUNT_THRESHOLD },
+				},
+				hooks,
+			);
+			afterRepositoryPush(ownerKey, repoName, ownerDbId);
+			return result;
+		});
 
-		return receivePackResponse(outcome.results);
+		return receivePackResponse(outcome.results, {
+			capabilities: parsed.capabilities,
+			unpackError: outcome.unpackError,
+		});
 	});
 }

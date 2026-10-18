@@ -1,7 +1,8 @@
 /**
  * Tests for git-http-iso.ts — the thin pushstack-specific wrapper (auth
- * gating, gitFs vs local-disk selection, R2 stale-pack cleanup) around
- * git-fs-s3's smart-HTTP module.
+ * gating, the write lock, post-push bookkeeping) around git-fs-s3's
+ * smart-HTTP module. Every service runs against an in-memory gitFs, the
+ * same way production runs against R2 — no local disk.
  *
  * Uses real isomorphic-git repos throughout rather than mocking
  * isomorphic-git: git-fs-s3 resolves its own "isomorphic-git" copy under
@@ -12,20 +13,15 @@
  * path-traversal rejection, multi-ref pushes, non-fast-forward rejection,
  * pack consolidation) has its own dedicated coverage in git-fs-s3's own
  * test/http/*.test.ts — these tests focus on the wiring pushstack itself
- * owns: auth gating, which fs backs which path, and the hooks/R2-cleanup
- * glue.
+ * owns: auth gating, locking, and the hooks/bookkeeping glue.
  */
 
-import nodeFs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { createGitFs, MemoryObjectStore } from "git-fs-s3";
 import git from "isomorphic-git";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Shared in-memory backing store for handleInfoRefsIso/handleUploadPackIso
-// (read-only paths) — each test uses its own owner/repo pair so gitdirs
-// never collide inside the one shared store.
+// Shared in-memory backing store for every service — each test uses its own
+// owner/repo pair so gitdirs never collide inside the one shared store.
 const memoryStore = new MemoryObjectStore();
 const memoryGitFs = createGitFs(memoryStore);
 
@@ -46,17 +42,18 @@ vi.mock("../git-storage-naming", () => ({
 		`repos/${owner}/${repo}/git/`,
 }));
 
-// handleReceivePackIso hydrates to local disk — each receive-pack test gets
-// its own real temp dir (set in beforeEach), routed through here.
-const receiveDirRef = vi.hoisted(() => ({ current: "" }));
-const withReceivePackLockMock = vi.hoisted(() => vi.fn());
+// The real lock needs Postgres; run the critical section inline instead.
+const withRepositoryLockMock = vi.hoisted(() =>
+	vi.fn(
+		async (_ownerKey: string, _repoName: string, fn: () => Promise<unknown>) =>
+			fn(),
+	),
+);
+const afterRepositoryPushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../git-repo-storage", () => ({
-	withReceivePackLock: withReceivePackLockMock,
-}));
-
-vi.mock("#/lib/r2-operations", () => ({
-	bulkDeleteFromR2: vi.fn().mockResolvedValue(undefined),
+	withRepositoryLock: withRepositoryLockMock,
+	afterRepositoryPush: afterRepositoryPushMock,
 }));
 
 const { handleInfoRefsIso, handleUploadPackIso, handleReceivePackIso } =
@@ -263,7 +260,7 @@ describe("handleUploadPackIso", () => {
 		const { headOid } = await seedMemoryRepo("upfull", "r", 2);
 
 		const reqBody = Buffer.concat([
-			pktLine(`want ${headOid}\n`),
+			pktLine(`want ${headOid} side-band-64k\n`),
 			Buffer.from("0000"),
 			pktLine("done\n"),
 		]);
@@ -291,7 +288,7 @@ describe("handleUploadPackIso", () => {
 
 		const { headOid } = await seedMemoryRepo("upprefetch", "r", 2);
 		const reqBody = Buffer.concat([
-			pktLine(`want ${headOid}\n`),
+			pktLine(`want ${headOid} side-band-64k\n`),
 			Buffer.from("0000"),
 			pktLine("done\n"),
 		]);
@@ -312,7 +309,7 @@ describe("handleUploadPackIso", () => {
 		const { headOid } = await seedMemoryRepo("uphave", "r", 1);
 
 		const reqBody = Buffer.concat([
-			pktLine(`want ${headOid}\n`),
+			pktLine(`want ${headOid} side-band-64k\n`),
 			pktLine("have 0000000000000000000000000000000000000000\n"),
 			Buffer.from("0000"),
 			pktLine("done\n"),
@@ -336,7 +333,7 @@ describe("handleUploadPackIso", () => {
 		const haveSha = "1".repeat(40);
 
 		const reqBody = Buffer.concat([
-			pktLine(`want ${sha}\n`),
+			pktLine(`want ${sha} side-band-64k\n`),
 			Buffer.from("0000"),
 			pktLine(`have ${haveSha}\n`),
 			Buffer.from("0000"),
@@ -356,26 +353,43 @@ describe("handleUploadPackIso", () => {
 });
 
 describe("handleReceivePackIso", () => {
-	let receiveTmpDir: string;
+	let repoCounter = 0;
+	let repoName: string;
+	let gitdir: string;
+	const repoFs = { fs: memoryGitFs };
 
 	beforeEach(() => {
-		receiveTmpDir = nodeFs.mkdtempSync(
-			path.join(os.tmpdir(), "git-http-iso-test-"),
-		);
-		receiveDirRef.current = receiveTmpDir;
-		withReceivePackLockMock.mockReset();
-		withReceivePackLockMock.mockImplementation(
-			async (
-				_ownerKey: string,
-				_repoName: string,
-				fn: (gitdir: string) => Promise<unknown>,
-			) => fn(receiveDirRef.current),
-		);
+		repoCounter += 1;
+		repoName = `recv${repoCounter}`;
+		gitdir = `repos/u/${repoName}/git`;
+		withRepositoryLockMock.mockClear();
+		afterRepositoryPushMock.mockClear();
 	});
 
-	afterEach(() => {
-		nodeFs.rmSync(receiveTmpDir, { recursive: true, force: true });
-	});
+	async function initRepo(): Promise<void> {
+		await git.init({
+			...repoFs,
+			dir: gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+	}
+
+	function push(body: Uint8Array, ownerDbId?: string) {
+		return handleReceivePackIso(
+			"u",
+			repoName,
+			new Request("http://x/git-receive-pack", {
+				method: "POST",
+				body: body as Uint8Array<ArrayBuffer>,
+			}),
+			AUTH_WRITE,
+			"main",
+			ownerDbId,
+		);
+	}
+
+	const zeroOid = "0".repeat(40);
 
 	it("returns 403 if no write access", async () => {
 		const req = new Request("http://x/git-receive-pack", {
@@ -387,12 +401,19 @@ describe("handleReceivePackIso", () => {
 		).rejects.toThrow(GitAuthorizationError);
 	});
 
-	/** Build a real packfile for a single new commit, the shape a real push sends. */
+	/**
+	 * Build a real packfile for a single new commit, the shape a real push
+	 * sends — staged in a separate in-memory repo, as a client's own would be.
+	 */
 	async function buildPushPack(
 		message: string,
 		parentOid?: string,
 	): Promise<{ packfile: Buffer; commitOid: string }> {
-		const staging = { fs: nodeFs, gitdir: receiveTmpDir };
+		const staging = {
+			fs: createGitFs(new MemoryObjectStore()),
+			gitdir: "staging",
+		};
+		await git.init({ ...staging, dir: staging.gitdir, bare: true });
 		const blobOid = await git.writeBlob({
 			...staging,
 			blob: new TextEncoder().encode(`${message}\n`),
@@ -418,32 +439,21 @@ describe("handleReceivePackIso", () => {
 		return { packfile: Buffer.from(packfile ?? new Uint8Array()), commitOid };
 	}
 
-	it("parses ref updates, indexes the pack, and writes the ref on a successful push", async () => {
-		await git.init({
-			fs: nodeFs,
-			dir: receiveTmpDir,
-			bare: true,
-			defaultBranch: "main",
-		});
-		const { packfile, commitOid } = await buildPushPack("first");
-		const zeroOid = "0".repeat(40);
-
-		const body = Buffer.concat([
-			pktLine(`${zeroOid} ${commitOid} refs/heads/main\n`),
+	// The first command line carries the client's capabilities, as git's do.
+	function pushBody(command: string, packfile?: Buffer): Buffer {
+		return Buffer.concat([
+			pktLine(command.replace(/\n$/, "\0report-status\n")),
 			Buffer.from("0000"),
-			packfile,
+			...(packfile ? [packfile] : []),
 		]);
+	}
 
-		const req = new Request("http://x/git-receive-pack", {
-			method: "POST",
-			body,
-		});
-		const result = await handleReceivePackIso(
-			"u",
-			"r",
-			req,
-			AUTH_WRITE,
-			"main",
+	it("parses ref updates, indexes the pack, and writes the ref on a successful push", async () => {
+		await initRepo();
+		const { packfile, commitOid } = await buildPushPack("first");
+
+		const result = await push(
+			pushBody(`${zeroOid} ${commitOid} refs/heads/main\n`, packfile),
 		);
 
 		expect(result.status).toBe(200);
@@ -455,192 +465,155 @@ describe("handleReceivePackIso", () => {
 		expect(responseBody).toContain("ok refs/heads/main");
 
 		const headOid = await git.resolveRef({
-			fs: nodeFs,
-			gitdir: receiveTmpDir,
+			...repoFs,
+			gitdir,
 			ref: "refs/heads/main",
 		});
 		expect(headOid).toBe(commitOid);
+		// The pack and its index went straight into object storage.
+		const packKeys = (
+			await memoryStore.list(`${gitdir}/objects/pack/`)
+		).objects.map((o) => o.key.split("/").pop() ?? "");
+		expect(packKeys.some((k) => k.endsWith(".pack"))).toBe(true);
+		expect(packKeys.some((k) => k.endsWith(".idx"))).toBe(true);
 	});
 
 	it("rejects a non-fast-forward push whose oldOid no longer matches the current ref", async () => {
-		await git.init({
-			fs: nodeFs,
-			dir: receiveTmpDir,
-			bare: true,
-			defaultBranch: "main",
-		});
-		const zeroOid = "0".repeat(40);
+		await initRepo();
 		const first = await buildPushPack("first");
-		await handleReceivePackIso(
-			"u",
-			"r",
-			new Request("http://x/git-receive-pack", {
-				method: "POST",
-				body: Buffer.concat([
-					pktLine(`${zeroOid} ${first.commitOid} refs/heads/main\n`),
-					Buffer.from("0000"),
-					first.packfile,
-				]),
-			}),
-			AUTH_WRITE,
-			"main",
+		await push(
+			pushBody(
+				`${zeroOid} ${first.commitOid} refs/heads/main\n`,
+				first.packfile,
+			),
 		);
 
 		// Client still thinks main is at zeroOid (stale) — server disagrees.
 		const second = await buildPushPack("second", first.commitOid);
-		const result = await handleReceivePackIso(
-			"u",
-			"r",
-			new Request("http://x/git-receive-pack", {
-				method: "POST",
-				body: Buffer.concat([
-					pktLine(`${zeroOid} ${second.commitOid} refs/heads/main\n`),
-					Buffer.from("0000"),
-					second.packfile,
-				]),
-			}),
-			AUTH_WRITE,
-			"main",
+		const result = await push(
+			pushBody(
+				`${zeroOid} ${second.commitOid} refs/heads/main\n`,
+				second.packfile,
+			),
 		);
 
 		const responseBody = Buffer.from(result.body).toString("utf8");
 		expect(responseBody).toContain("ng refs/heads/main");
 		const headOid = await git.resolveRef({
-			fs: nodeFs,
-			gitdir: receiveTmpDir,
+			...repoFs,
+			gitdir,
 			ref: "refs/heads/main",
 		});
 		expect(headOid).toBe(first.commitOid); // unchanged
 	});
 
 	it("deletes a ref when newOid is all-zero", async () => {
-		await git.init({
-			fs: nodeFs,
-			dir: receiveTmpDir,
-			bare: true,
-			defaultBranch: "main",
-		});
-		const zeroOid = "0".repeat(40);
+		await initRepo();
 		const { packfile, commitOid } = await buildPushPack("first");
-		await handleReceivePackIso(
-			"u",
-			"r",
-			new Request("http://x/git-receive-pack", {
-				method: "POST",
-				body: Buffer.concat([
-					pktLine(`${zeroOid} ${commitOid} refs/heads/doomed\n`),
-					Buffer.from("0000"),
-					packfile,
-				]),
-			}),
-			AUTH_WRITE,
-			"main",
+		await push(
+			pushBody(`${zeroOid} ${commitOid} refs/heads/doomed\n`, packfile),
 		);
 
-		const result = await handleReceivePackIso(
-			"u",
-			"r",
-			new Request("http://x/git-receive-pack", {
-				method: "POST",
-				body: Buffer.concat([
-					pktLine(`${commitOid} ${zeroOid} refs/heads/doomed\n`),
-					Buffer.from("0000"),
-				]),
-			}),
-			AUTH_WRITE,
-			"main",
+		const result = await push(
+			pushBody(`${commitOid} ${zeroOid} refs/heads/doomed\n`),
 		);
 
 		expect(Buffer.from(result.body).toString("utf8")).toContain(
 			"ok refs/heads/doomed",
 		);
 		await expect(
-			git.resolveRef({
-				fs: nodeFs,
-				gitdir: receiveTmpDir,
-				ref: "refs/heads/doomed",
-			}),
+			git.resolveRef({ ...repoFs, gitdir, ref: "refs/heads/doomed" }),
 		).rejects.toThrow();
 	});
 
-	it("initializes bare repo on disk if HEAD does not exist", async () => {
-		// No git.init on receiveTmpDir here — handleReceivePackIso's delegate
-		// (applyReceivePack) must initialize the repo itself on a first push.
-		// buildPushPack writes loose objects directly (isomorphic-git
-		// auto-creates missing directories), which doesn't require HEAD/refs
-		// to already exist.
-		const zeroOid = "0".repeat(40);
+	it("initializes the bare repo in storage if HEAD does not exist", async () => {
+		// No initRepo here — handleReceivePackIso's delegate (applyReceivePack)
+		// must initialize the repo itself on a first push.
 		const { packfile, commitOid } = await buildPushPack("first");
 
-		const result = await handleReceivePackIso(
-			"u",
-			"r",
-			new Request("http://x/git-receive-pack", {
-				method: "POST",
-				body: Buffer.concat([
-					pktLine(`${zeroOid} ${commitOid} refs/heads/main\n`),
-					Buffer.from("0000"),
-					packfile,
-				]),
-			}),
-			AUTH_WRITE,
-			"main",
+		const result = await push(
+			pushBody(`${zeroOid} ${commitOid} refs/heads/main\n`, packfile),
 			"owner-db-id",
 		);
 
 		expect(result.status).toBe(200);
-		expect(nodeFs.existsSync(path.join(receiveTmpDir, "HEAD"))).toBe(true);
+		expect(await memoryStore.head(`${gitdir}/HEAD`)).not.toBeNull();
 	});
 
-	it("acquires withReceivePackLock with correct parameters during push", async () => {
-		await git.init({
-			fs: nodeFs,
-			dir: receiveTmpDir,
-			bare: true,
-			defaultBranch: "main",
-		});
-		const zeroOid = "0".repeat(40);
+	it("runs the push under the repo lock, then does post-push bookkeeping", async () => {
+		await initRepo();
 		const { packfile, commitOid } = await buildPushPack("first");
 
-		await handleReceivePackIso(
-			"u",
-			"r",
-			new Request("http://x/git-receive-pack", {
-				method: "POST",
-				body: Buffer.concat([
-					pktLine(`${zeroOid} ${commitOid} refs/heads/main\n`),
-					Buffer.from("0000"),
-					packfile,
-				]),
-			}),
-			AUTH_WRITE,
-			"main",
+		await push(
+			pushBody(`${zeroOid} ${commitOid} refs/heads/main\n`, packfile),
 			"owner-id",
 		);
 
-		expect(withReceivePackLockMock).toHaveBeenCalledTimes(1);
-		expect(withReceivePackLockMock).toHaveBeenCalledWith(
+		expect(withRepositoryLockMock).toHaveBeenCalledTimes(1);
+		expect(withRepositoryLockMock).toHaveBeenCalledWith(
 			"u",
-			"r",
+			repoName,
 			expect.any(Function),
+		);
+		expect(afterRepositoryPushMock).toHaveBeenCalledWith(
+			"u",
+			repoName,
 			"owner-id",
-			expect.any(Function),
 		);
 	});
 
-	it("returns error response when receive-pack function throws", async () => {
-		withReceivePackLockMock.mockRejectedValueOnce(new Error("lock timeout"));
+	it("propagates a lock failure", async () => {
+		withRepositoryLockMock.mockRejectedValueOnce(new Error("lock timeout"));
 
-		const zeroOid = "0".repeat(40);
-		const req = new Request("http://x/git-receive-pack", {
-			method: "POST",
-			body: Buffer.concat([
-				pktLine(`${zeroOid} ${"g".repeat(40)} refs/heads/main\n`),
-				Buffer.from("0000"),
-			]),
-		});
 		await expect(
-			handleReceivePackIso("u", "r", req, AUTH_WRITE, "main"),
+			push(pushBody(`${zeroOid} ${"g".repeat(40)} refs/heads/main\n`)),
 		).rejects.toThrow("lock timeout");
+		expect(afterRepositoryPushMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("readGitRequestBody", () => {
+	it("enforces the cap on a chunked body with no Content-Length", async () => {
+		const { readGitRequestBody } = await import("../git-http-iso");
+		let sent = 0;
+		const stream = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				sent += 1024;
+				controller.enqueue(new Uint8Array(1024));
+				if (sent > 1024 * 1024) controller.close();
+			},
+		});
+		const request = new Request("http://x/git-upload-pack", {
+			method: "POST",
+			body: stream,
+			// @ts-expect-error -- Node's fetch requires this for stream bodies
+			duplex: "half",
+		});
+		await expect(readGitRequestBody(request, 64 * 1024)).rejects.toMatchObject({
+			statusCode: 413,
+		});
+		// Stopped reading shortly after the cap, not at the end of the stream.
+		expect(sent).toBeLessThan(200 * 1024);
+	});
+
+	it("rejects a declared oversize body without reading it", async () => {
+		const { readGitRequestBody } = await import("../git-http-iso");
+		const request = new Request("http://x/git-upload-pack", {
+			method: "POST",
+			body: "x".repeat(10),
+			headers: { "content-length": String(10 * 1024 * 1024) },
+		});
+		await expect(readGitRequestBody(request, 1024)).rejects.toMatchObject({
+			statusCode: 413,
+		});
+	});
+
+	it("returns the bytes of a body under the cap", async () => {
+		const { readGitRequestBody } = await import("../git-http-iso");
+		const body = await readGitRequestBody(
+			new Request("http://x/", { method: "POST", body: "0000" }),
+			1024,
+		);
+		expect(new TextDecoder().decode(body)).toBe("0000");
 	});
 });

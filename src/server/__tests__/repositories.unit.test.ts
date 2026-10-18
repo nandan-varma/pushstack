@@ -80,14 +80,11 @@ const mockDb = {
 vi.mock("../../db", () => ({ db: mockDb }));
 
 vi.mock("../git-manager-iso", () => ({
-	initBareRepo: vi.fn(() => Promise.resolve("/data/repos/123/test-repo")),
-	deleteRepo: vi.fn(() => Promise.resolve()),
-	getRepoPath: vi.fn(() => "/data/repos/123/test-repo"),
+	initBareRepo: vi.fn(() => Promise.resolve("repos/123/test-repo/git")),
 }));
 
 vi.mock("../git-repo-storage", () => ({
-	syncRepositoryToR2: vi.fn(() => Promise.resolve()),
-	deleteRepositoryFromR2: vi.fn(() => Promise.resolve()),
+	deleteRepositoryStorage: vi.fn(() => Promise.resolve()),
 	withRepositoryLock: vi.fn(
 		(_ownerKey: string, _repoName: string, fn: () => unknown) => fn(),
 	),
@@ -169,8 +166,44 @@ describe("Repository Unit Tests", () => {
 			).rejects.toThrow("already exists");
 		});
 
-		// Repository name flows into a real path.join for local disk hydration
-		// (getRepoPath) — a name of ".." or containing "/" must never reach there.
+		it("inserts the row before touching storage, and clears leftovers first", async () => {
+			const order: string[] = [];
+			const { initBareRepo } = await import("../git-manager-iso");
+			const { deleteRepositoryStorage } = await import("../git-repo-storage");
+			const insert = mockDb.insert.getMockImplementation();
+			mockDb.insert.mockImplementationOnce((...args: unknown[]) => {
+				order.push("insert row");
+				return insert?.(...(args as [])) as never;
+			});
+			vi.mocked(deleteRepositoryStorage).mockImplementationOnce(async () => {
+				order.push("clear storage");
+			});
+			vi.mocked(initBareRepo).mockImplementationOnce(async () => {
+				order.push("init storage");
+				return "repos/user123/test-repo/git";
+			});
+
+			const { createRepository } = await import("../repositories");
+			await createRepository({
+				data: { name: "test-repo", visibility: "public" },
+			});
+			expect(order).toEqual(["insert row", "clear storage", "init storage"]);
+		});
+
+		it("rolls the row back when storage init fails", async () => {
+			const { initBareRepo } = await import("../git-manager-iso");
+			vi.mocked(initBareRepo).mockRejectedValueOnce(new Error("R2 down"));
+			mockDb.delete.mockClear();
+
+			const { createRepository } = await import("../repositories");
+			await expect(
+				createRepository({ data: { name: "test-repo", visibility: "public" } }),
+			).rejects.toThrow();
+			expect(mockDb.delete).toHaveBeenCalled();
+		});
+
+		// Repository name flows into R2 storage keys via path-normalized gitFs
+		// paths — a name of ".." or containing "/" must never reach there.
 		it.each([[".."], ["."], ["../../etc"], ["a/b"], ["a\\b"], [""]])(
 			"rejects unsafe repository name %j",
 			async (name) => {
@@ -200,7 +233,7 @@ describe("Repository Unit Tests", () => {
 			);
 		});
 
-		it("deletes repo from filesystem, R2, and database", async () => {
+		it("deletes repo storage (under the repo lock) and the database row", async () => {
 			mockDb.query.repositories.findFirst.mockResolvedValue({
 				...mockRepo,
 				owner: mockUser,
@@ -212,8 +245,23 @@ describe("Repository Unit Tests", () => {
 			expect(result.success).toBe(true);
 			expect(mockDb.delete).toHaveBeenCalled();
 
-			const { deleteRepositoryFromR2 } = await import("../git-repo-storage");
-			expect(deleteRepositoryFromR2).toHaveBeenCalled();
+			const { deleteRepositoryStorage, withRepositoryLock } = await import(
+				"../git-repo-storage"
+			);
+			expect(deleteRepositoryStorage).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+			);
+			expect(withRepositoryLock).toHaveBeenCalledWith(
+				"user123",
+				"test-repo",
+				expect.any(Function),
+			);
+			// The row goes first, so a failed storage cleanup can never leave a
+			// live repository with no storage.
+			expect(mockDb.delete.mock.invocationCallOrder[0]).toBeLessThan(
+				vi.mocked(deleteRepositoryStorage).mock.invocationCallOrder.at(-1) ?? 0,
+			);
 		});
 	});
 
@@ -306,7 +354,6 @@ describe("Repository Unit Tests", () => {
 				"user123",
 				"test-repo",
 				"develop",
-				mockUser.id,
 			);
 			expect(
 				vi.mocked(setDefaultBranch).mock.invocationCallOrder[0],

@@ -31,7 +31,7 @@ export async function getFileHistory(
 	limit: number = 30,
 	maxDepth: number = HISTORY_WALK_DEPTH,
 ): Promise<FileHistoryResult> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	const hooks = opsHooksFor(ownerKey, repoName);
 	const result = await opsGetFileHistory(
 		repo,

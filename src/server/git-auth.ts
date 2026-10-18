@@ -5,6 +5,7 @@
 
 import { verifyPassword } from "better-auth/crypto";
 import { eq, or, sql } from "drizzle-orm";
+import { base64ToUtf8 } from "#/lib/bytes";
 import { TOKEN_PREFIX, type TokenScope, tokenAllows } from "#/lib/token-scopes";
 import { db } from "../db";
 import { gitAuthAttempts, tokens } from "../db/app-schema";
@@ -127,9 +128,7 @@ function parseBasicAuth(
 
 	try {
 		const base64Credentials = authHeader.slice(6);
-		const credentials = Buffer.from(base64Credentials, "base64").toString(
-			"utf-8",
-		);
+		const credentials = base64ToUtf8(base64Credentials);
 		const colonIdx = credentials.indexOf(":");
 		if (colonIdx === -1) return null;
 		const username = credentials.slice(0, colonIdx);
@@ -269,7 +268,7 @@ async function authenticateToken(
 	token: string,
 ): Promise<AuthenticatedGitUser | null> {
 	try {
-		const tokenHash = hashToken(token);
+		const tokenHash = await hashToken(token);
 
 		// Look up token in database
 		const foundToken = await db.query.tokens.findFirst({

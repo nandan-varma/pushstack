@@ -5,12 +5,35 @@
 Live alongside the modules they cover, in `__tests__/` directories — almost
 all coverage is in `src/server/__tests__/`, since that's where the
 correctness-critical logic (git protocol implementation, access control,
-storage-path safety, CRUD server functions) lives. Notable files:
+storage-path safety, CRUD server functions) lives.
+
+**Git storage in tests is never local disk.** R2 isn't configured in the test
+env, so `git-fs.ts` backs the real storage stack with an in-memory object
+store — tests that exercise real git operations (`git-integration`,
+`git-repack`, `git-http-iso`, …) run the same `gitFs` code production runs
+against R2. `git-user-lifecycle.test.ts` goes one layer further: it hands
+`src/lib/r2.ts`'s real store a fake S3 endpoint
+(`helpers/fake-s3-fetch.ts`) as its `fetch`, so request signing,
+ListObjectsV2 parsing and server-side copy run for real too; `r2.test.ts`
+unit-tests that store directly.
+
+**Native git (`pnpm smoke:git`)** — `scripts/smoke/git-cli.smoke.test.ts`
+drives the real `git` CLI against the real `/api/git/$` route handler on a
+loopback server (in-memory Postgres, fake S3 behind the real R2 client):
+clone, push, incremental fetch, repack, web commits, force-push, branch/tag
+create and delete, default-branch protection, object-level merges, bad
+tokens, and "no loose objects ever written". Every `git` call runs with a
+scratch `HOME`/`GIT_CONFIG_GLOBAL` and `GIT_CONFIG_NOSYSTEM=1` — it never
+reads or writes your own git configuration. Kept out of `pnpm test`, since the
+unit suite never depends on a native git binary.
+
+Notable files:
 
 - `git-http-iso.test.ts`, `git-integration.test.ts` — the smart HTTP protocol
   handlers and end-to-end git operations, including the receive-pack
   ref-name traversal guard (see [security.md](./security.md)).
-- `git-user-lifecycle.test.ts` — a full user/repo lifecycle test.
+- `git-user-lifecycle.test.ts` — a full user/repo lifecycle test: create,
+  commit, clone and push over real HTTP with a PAT, rename, delete.
 - `git-commit-write-consolidated.test.ts` — `withRepositoryLock` behavior,
   error propagation, and the branch-name traversal guard for
   `createCommit`/`deleteFile` (was two separate files,
@@ -28,13 +51,15 @@ storage-path safety, CRUD server functions) lives. Notable files:
   path-traversal branch name before any isomorphic-git call runs.
 - `repo-access.test.ts` — the `RepositoryAccess` resolution logic (see
   [authentication.md](./authentication.md)).
-- `git-storage-naming.test.ts`, `git-manager-iso.test.ts` — storage key
-  construction and path-traversal containment (`getRepoPath`'s
-  refuse-to-escape-storage-root check — see [security.md](./security.md)).
+- `git-storage-naming.test.ts` — storage key construction and the `.`/`..`
+  segment sanitizing (see [security.md](./security.md));
+  `git-manager-iso.test.ts` — the shared `Repo` options and repo init.
 - `git-repo-storage.test.ts` — `withRepositoryLock`'s Postgres-backed lease
-  CAS (acquire/expire/release, timeout), `ensureRepositoryHydrated`/
-  `syncRepositoryToR2`, plus `renameRepositoryStorage`'s R2-copy and
-  local-`fs.rename` paths (see [git-storage.md](./git-storage.md)). Its fake
+  CAS (acquire/expire/release, timeout), `afterRepositoryPush`'s
+  cache invalidation (regression-tested against the library's exact
+  result-cache key scheme), and `renameRepositoryStorage`/
+  `deleteRepositoryStorage` against the real in-memory store (see
+  [git-storage.md](./git-storage.md)). Its fake
   lease-lock `db` mock is shared via `helpers/fake-repo-lock-db.ts` — any
   test exercising a real write path (which now all go through the same
   Postgres lock) needs this or a live database; reach for the shared helper

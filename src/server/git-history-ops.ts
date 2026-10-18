@@ -2,8 +2,7 @@
  * Commit/blob/tree history reads — thin wrapper around
  * git-fs-s3/ops's history functions (extracted from an earlier
  * version of this exact file). What stays here: resolving
- * `(ownerKey, repoName)` to a `Repo`, converting the library's `Uint8Array`
- * returns to the `Buffer` this file's own callers expect, and wiring
+ * `(ownerKey, repoName)` to a `Repo`, and wiring
  * pushstack's own result cache (git-cache.ts) / perf hooks (perf-log.ts) /
  * pack-prefetch (git-fs.ts) into the library's `OpsHooks` — the library
  * implements the exact same result-cache-keyed-by-head-sha pattern this file
@@ -53,10 +52,8 @@ export async function getBlob(
 	ownerKey: string,
 	repoName: string,
 	sha: string,
-): Promise<Buffer> {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	const blob = await opsGetBlob(repo, sha);
-	return Buffer.from(blob);
+): Promise<Uint8Array> {
+	return opsGetBlob(getRepoOptions(ownerKey, repoName), sha);
 }
 
 export async function getFileContent(
@@ -64,15 +61,13 @@ export async function getFileContent(
 	repoName: string,
 	filePath: string,
 	ref: string,
-): Promise<Buffer> {
-	const repo = await getRepoOptions(ownerKey, repoName);
-	const blob = await opsGetFileContent(
-		repo,
+): Promise<Uint8Array> {
+	return opsGetFileContent(
+		getRepoOptions(ownerKey, repoName),
 		filePath,
 		ref,
 		hooksFor(ownerKey, repoName),
 	);
-	return Buffer.from(blob);
 }
 
 export async function getCommit(
@@ -80,7 +75,7 @@ export async function getCommit(
 	repoName: string,
 	sha: string,
 ): Promise<CommitInfo> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return opsGetCommit(repo, sha);
 }
 
@@ -96,7 +91,7 @@ export async function getCommitLog(
 	// branch name, which is pure waste when the sha is already known.
 	knownHeadSha?: string,
 ): Promise<CommitInfo[]> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return opsGetCommitLog(
 		repo,
 		{ ref, depth, knownHeadSha },
@@ -116,7 +111,7 @@ export async function getFileFromBranch(
 	// git's own heuristic: a NUL byte means binary.
 	if (bytes.includes(0)) return { kind: "binary", size };
 	if (size > MAX_INLINE_TEXT_BYTES) return { kind: "too-large", size };
-	return { kind: "text", size, content: bytes.toString("utf8") };
+	return { kind: "text", size, content: new TextDecoder().decode(bytes) };
 }
 
 export async function getTreeFromBranch(
@@ -125,7 +120,7 @@ export async function getTreeFromBranch(
 	branchName: string,
 	treePath: string = "",
 ): Promise<TreeEntry[]> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return getTreeFromRef(
 		repo,
 		{ ref: branchName, treePath },
@@ -147,7 +142,7 @@ export async function getRepositoryTreeData(
 	branchName: string,
 	treePath: string = "",
 ): Promise<RepositoryTreeData> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	const hooks = hooksFor(ownerKey, repoName);
 	const [branches, files, commits] = await Promise.all([
 		listBranches(repo),
@@ -165,7 +160,7 @@ export async function getCommitHistory(
 	limit: number = 50,
 	skip: number = 0,
 ): Promise<CommitInfo[]> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return opsGetCommitHistory(
 		repo,
 		{ ref: branchName, limit, skip },

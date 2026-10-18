@@ -6,8 +6,8 @@
  *
  * Parent-ref resolution error discrimination (NotFoundError = empty repo vs.
  * any other error propagates) now lives in git-fs-s3's own
- * test/ops.test.ts ("writeCommitToBare parent resolution") — createCommit's
- * R2 path delegates straight to that function.
+ * test/ops.test.ts ("writeCommitToBare parent resolution") — createCommit
+ * delegates straight to that function.
  *
  * Concurrency here is verified by mocking git-fs-s3/ops
  * directly (not isomorphic-git): that package resolves its own isomorphic-git
@@ -18,10 +18,6 @@
  * observes that directly.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("#/lib/r2", () => ({
-	isR2Configured: () => true,
-}));
 
 // withRepositoryLock (git-repo-storage.ts) now serializes through a
 // Postgres-backed lease row rather than an in-process mutex — this fake `db`
@@ -58,6 +54,11 @@ async function trackConcurrency<T>(result: T): Promise<T> {
 	concurrentCalls--;
 	return result;
 }
+
+// Post-commit consolidation is exercised by git-repack.test.ts.
+vi.mock("../git-http-iso", () => ({
+	repackIfNeededUnlocked: vi.fn(async () => undefined),
+}));
 
 vi.mock("git-fs-s3/ops", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("git-fs-s3/ops")>();
@@ -97,10 +98,9 @@ describe("createCommit — branch name guard", () => {
 		vi.clearAllMocks();
 	});
 
-	// git.commit's internal ref-write (used by the non-R2 worktree path,
-	// git-commit-write.ts) doesn't validate the ref itself the way
+	// A commit's ref write doesn't validate the ref itself the way
 	// git.branch/git.writeRef do — createCommit must reject a path-traversal
-	// branch name itself before any isomorphic-git call runs.
+	// branch name itself before any git call runs.
 	it("rejects a path-traversal branch name without writing anything", async () => {
 		const { commitFilesToBare } = await import("git-fs-s3/ops");
 		const { createCommit } = await import("../git-commit-write");

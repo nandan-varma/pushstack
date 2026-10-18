@@ -104,16 +104,14 @@ watch for when adding new code.
    them; routing it through the same cache the web pages already used means
    the second request of a push typically gets a free hit.
 
-8. **`syncRepositoryToR2Unlocked`'s ETag-compared skip for `HEAD`/`config`**
-   (`git-repo-storage.ts`) — the existing objects/ skip (item above) only
-   ever applied to content-addressed objects; `HEAD` and `config` are set
-   once at repo creation and essentially never change again, but were
-   re-uploaded unconditionally on *every* push regardless. A non-multipart
-   PUT's ETag (already returned by the `ListObjectsV2` call this function
-   already makes) is the MD5 of the body, so comparing against that catches
-   the common "unchanged" case without an extra R2 round trip to check.
-   Live-profiled: ~300ms saved per file, per push, for every push after the
-   first.
+8. **Writes go straight to R2** — pushes and web-UI writes used to
+   hydrate the whole repository from R2 into `/tmp`, write there, then
+   re-list and upload the difference (plus a per-push ETag comparison just to
+   skip re-uploading `HEAD`/`config`). Every write now goes through the same
+   `gitFs` as reads (see [git-storage.md](./git-storage.md)): a push costs the
+   pack + index uploads, a few ref reads/writes, and one listing for the
+   storage-size bookkeeping — independent of how big the repository already
+   is, apart from the threshold-gated repack.
 
 ## Parallelism over sequential waiting
 
@@ -169,13 +167,15 @@ sequential part, not fighting the dependency.
 
 `git-fs-s3/http`'s `repackRepository` (called from `handleReceivePackIso` via
 `applyReceivePack`) consolidates a push's fragmented pack files into one, but
-for a long time the consolidation only ever happened *locally* — nothing told
-R2 to delete the packs it had just made redundant (`syncRepositoryToR2Unlocked`
-deliberately never deletes anything under `objects/`, for good reason — see
-[git-storage.md](./git-storage.md)). The result: every single push left one
-more permanent pack file in R2, forever, making both future pushes (more to
-hydrate) and clones (more packs to prefetch) slower as history grew —
-completely defeating the point of consolidating in the first place.
+for a long time the consolidation only ever happened *locally* — back when
+pushes ran against a hydrated `/tmp` copy, nothing told R2 to delete the
+packs it had just made redundant (the sync-back step deliberately never
+deleted anything under `objects/`, for good reason). The result: every single
+push left one more permanent pack file in R2, forever, making both future
+pushes (more to hydrate) and clones (more packs to prefetch) slower as history
+grew — completely defeating the point of consolidating in the first place.
+(Pushes now run the repack directly against R2, so its deletes *are* the R2
+deletes — see [git-storage.md](./git-storage.md).)
 
 Fixing that alone wasn't enough, because `repackRepository`'s own safety check
 (only delete old packs if the new pack's object count is at least as high as
@@ -197,6 +197,10 @@ count comparison with a check on the actual property that matters
 successfully), which doesn't have that failure mode.
 
 ## Case study: a deliberate performance choice reopening a correctness gap
+
+*(Historical: this describes the hydrate/sync push path, since replaced by
+R2-direct pushes. The lock-free-reader lesson below still applies to
+`collectReachableOids`.)*
 
 `deleteStalePacksFromR2` (the R2 half of the fix above) used to run *after*
 `withReceivePackLock`'s lock was released, on purpose — so a push's HTTP
@@ -229,7 +233,7 @@ Two places read a pack listing this way, and the fix differs between them:
   actually hit it via this path anymore.
 - `collectReachableOids` (`git-fs-s3/http`, serves clone/fetch) races this
   window unavoidably: reads are deliberately lock-free (see
-  [git-storage.md](./git-storage.md)'s "Reads: `git-fs.ts`"), so no
+  [git-storage.md](./git-storage.md)), so no
   amount of moving cleanup around inside the *write* lock changes when a
   concurrent *read* observes it. Taking the write lock on every read would
   reintroduce exactly the latency read/write separation exists to avoid, for
@@ -295,7 +299,7 @@ Two modules, same idea, different sides of the request:
   calls don't need it threaded through every function signature);
   `perfStep(label, fn)` times an awaited sub-call, and anything that step
   starts is recorded one level deeper; `perfR2(label, fn)` (used inside
-  `r2-operations.ts` and `git-fs.ts`) also tallies R2 call count/time;
+  `git-fs.ts`) also tallies R2 call count/time;
   `perfNote(text)` adds a note at the current depth (`db/index.ts` routes
   every SQL statement — text only, never parameters — through it). When the
   request ends, its whole tree prints as one block:
@@ -375,17 +379,22 @@ that data doubles as its own freshness signal — only reach for a genuinely
 separate minimal query if the display data itself is too expensive to poll
 on a timer.
 
-## R2 resilience (`src/lib/r2-operations.ts`)
+## R2 resilience (`git-fs.ts` + `src/lib/r2.ts`)
 
-Every R2 call goes through retry-with-exponential-backoff-and-jitter
-(`withRetry`) and a circuit breaker (5 consecutive non-404 failures within 30s
-opens the circuit, failing fast instead of piling up retries against an R2
-outage). 404s are explicitly excluded from tripping the breaker — a missing
-object is expected, everyday behavior, not a sign R2 itself is unhealthy.
-`getR2Client()` (`src/lib/r2.ts`) is a lazily-created singleton `S3Client`
-with an explicit keep-alive `https.Agent` — a single page load can fire
-hundreds of object reads, so TCP connection reuse matters; never construct a
-second `S3Client`.
+Every R2 call goes through `git-fs-s3`'s `createRetryStore`: retry with
+exponential backoff and jitter (5xx, 429, a dropped connection, a timed-out
+attempt), and a circuit breaker (5 consecutive failures within 30s opens the
+circuit, failing fast instead of piling up retries against an R2 outage). A
+missing object is never a failure — the store maps 404 to `null` — so it
+can't trip the breaker. Each attempt is bounded by `AbortSignal.timeout`
+(30s for object bodies, 10s for metadata calls), so a stalled connection
+fails fast into the retry loop rather than hanging on the OS TCP timeout.
+
+`src/lib/r2.ts` signs requests with `aws4fetch` and sends them with plain
+`fetch` — Node's built-in fetch keeps connections alive and pools them on its
+own, which is what the old explicit keep-alive `https.Agent` existed for (a
+single page load can fire hundreds of object reads). `git-fs.ts` owns the
+app's one store instance; never construct a second one.
 
 ## Client bundle size
 

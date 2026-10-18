@@ -21,7 +21,7 @@ export async function getCommitDiff(
 	repoName: string,
 	commitSha: string,
 ): Promise<DiffResult> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return opsGetCommitDiff(repo, commitSha);
 }
 
@@ -31,6 +31,6 @@ export async function getDiffBetweenBranches(
 	baseBranch: string,
 	compareBranch: string,
 ): Promise<DiffResult> {
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 	return getDiffBetweenRefs(repo, baseBranch, compareBranch);
 }

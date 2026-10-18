@@ -1,9 +1,9 @@
-import crypto from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { tokens } from "#/db/app-schema";
+import { bytesToBase64Url, randomBytes, sha256Hex } from "#/lib/bytes";
 import { TOKEN_PREFIX, TOKEN_SCOPES } from "#/lib/token-scopes";
 import { perfContext, perfStep } from "./perf-log";
 import { getCurrentUser } from "./session";
@@ -11,8 +11,8 @@ import { getCurrentUser } from "./session";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** SHA-256 hex, the only form a token is stored in (see git-auth.ts). */
-export function hashToken(token: string): string {
-	return crypto.createHash("sha256").update(token).digest("hex");
+export function hashToken(token: string): Promise<string> {
+	return sha256Hex(token);
 }
 
 /** The signed-in user's tokens, newest first. Never includes token values. */
@@ -49,14 +49,15 @@ export const createToken = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		perfContext("createToken", async () => {
 			const user = await getCurrentUser();
-			const token = `${TOKEN_PREFIX}${crypto.randomBytes(30).toString("base64url")}`;
+			const token = `${TOKEN_PREFIX}${bytesToBase64Url(randomBytes(30))}`;
+			const tokenHash = await hashToken(token);
 			const [created] = await perfStep("db: tokens.insert", () =>
 				db
 					.insert(tokens)
 					.values({
 						userId: user.id,
 						name: data.name,
-						tokenHash: hashToken(token),
+						tokenHash,
 						scopes: [...new Set(data.scopes)],
 						expiresAt:
 							data.lifetimeDays === null

@@ -1,18 +1,15 @@
-import fs from "node:fs";
-import { GitMergeConflictError, threeWayMerge } from "git-edge";
+import { GitEdgeError, GitMergeConflictError, threeWayMerge } from "git-edge";
 import {
 	fastForwardMerge,
 	analyzeMerge as opsAnalyzeMerge,
 } from "git-fs-s3/ops";
-import git, { Errors } from "isomorphic-git";
-import { isR2Configured } from "#/lib/r2";
-import { getBareRepoOptions, getDefaultAuthor } from "./git-manager-iso";
+import { repackIfNeededUnlocked } from "./git-http-iso";
+import { getBareRepoOptions } from "./git-manager-iso";
 import { isSafeBranchName } from "./git-ref-name";
 import {
 	getRepoOptions,
 	qualifyBranchRef,
 	withRepositoryLock,
-	withRepositoryWorktree,
 } from "./git-repo-storage";
 import { logError } from "./perf-log";
 
@@ -49,7 +46,7 @@ export interface MergeOptions {
  * (isomorphic-git's `git.merge` doesn't expose a dry-run), they only ever
  * reflect "one of the branches couldn't be resolved" (`canMerge: false`).
  * Real merge conflicts are only discoverable by actually attempting the
- * merge — see `mergeBranches`'s `MergeConflictError` handling below, which
+ * merge — see `mergeBranches`'s `GitMergeConflictError` handling below, which
  * is the sole source of truth for whether content conflicts exist.
  */
 export async function analyzeMerge(
@@ -60,7 +57,7 @@ export async function analyzeMerge(
 ): Promise<MergeAnalysis> {
 	assertSafeBranchName(sourceBranch);
 	assertSafeBranchName(targetBranch);
-	const repo = await getRepoOptions(ownerKey, repoName);
+	const repo = getRepoOptions(ownerKey, repoName);
 
 	// Delegates to git-fs-s3/ops's analyzeMerge, which already
 	// returns this exact MergeAnalysis shape (canMerge/hasConflicts/
@@ -77,115 +74,54 @@ export async function mergeBranches(
 	sourceBranch: string,
 	targetBranch: string,
 	options: MergeOptions = {},
-	ownerDbId?: string,
 ): Promise<{ success: boolean; commitSha?: string; conflicts?: string[] }> {
 	assertSafeBranchName(sourceBranch);
 	assertSafeBranchName(targetBranch);
 
-	if (isR2Configured()) {
-		// FF merge = just update the ref; a real (non-FF) merge uses
-		// git-edge's threeWayMerge, which works directly on the object graph
-		// (trees, blobs, commits) with no worktree — a bare repo living entirely
-		// in R2 has no durable disk to check one out onto. Both cases run under
-		// one lock acquisition spanning the FF check through the merge itself,
-		// so a concurrent write can't land in between and make the "is this a
-		// fast-forward" determination stale by the time the non-FF merge runs.
-		try {
-			const result = await withRepositoryLock(ownerKey, repoName, async () => {
-				const repo = getBareRepoOptions(ownerKey, repoName);
-				const ffResult = await fastForwardMerge(
-					repo,
-					sourceBranch,
-					targetBranch,
-				);
-				if (ffResult) return ffResult;
-
-				const merged = await threeWayMerge(
-					repo,
-					qualifyBranchRef(sourceBranch),
-					qualifyBranchRef(targetBranch),
-					{
-						message:
-							options.message || `Merge ${sourceBranch} into ${targetBranch}`,
-						authorName: options.authorName,
-						authorEmail: options.authorEmail,
-					},
-				);
-				return { success: true as const, commitSha: merged.commitOid };
-			});
-			return result;
-		} catch (error) {
-			if (error instanceof GitMergeConflictError) {
-				return {
-					success: false,
-					conflicts: error.conflictingPaths.length
-						? error.conflictingPaths
-						: ["Merge conflicts detected"],
-				};
-			}
-			logError("git-merge", "mergeBranches failed unexpectedly", error);
-			throw error;
-		}
-	}
-
+	// FF merge = just update the ref; a real (non-FF) merge uses git-edge's
+	// threeWayMerge, which works directly on the object graph (trees, blobs,
+	// commits) with no worktree — a bare repo living entirely in R2 has no
+	// disk to check one out onto. Both cases run under one lock acquisition
+	// spanning the FF check through the merge itself, so a concurrent write
+	// can't land in between and make the "is this a fast-forward"
+	// determination stale by the time the non-FF merge runs.
 	try {
-		const commitOid = await withRepositoryWorktree(
-			ownerKey,
-			repoName,
-			targetBranch,
-			async ({ worktreePath, gitdir }) => {
-				// Both branches are real local refs in the same gitdir now — no
-				// remote-tracking indirection needed. Pre-qualified to
-				// refs/heads/<name>: git.merge's own ref expansion (GitRefManager.expand)
-				// does the identical bare-name candidate scan internally — passing an
-				// already-fully-qualified ref makes its first candidate the hit.
-				await git.merge({
-					fs,
-					dir: worktreePath,
-					gitdir,
-					ours: qualifyBranchRef(targetBranch),
-					theirs: qualifyBranchRef(sourceBranch),
-					author:
-						options.authorName && options.authorEmail
-							? {
-									name: options.authorName,
-									email: options.authorEmail,
-									timestamp: Math.floor(Date.now() / 1000),
-									timezoneOffset: 0,
-								}
-							: getDefaultAuthor(),
+		return await withRepositoryLock(ownerKey, repoName, async () => {
+			const repo = getBareRepoOptions(ownerKey, repoName);
+			const ffResult = await fastForwardMerge(repo, sourceBranch, targetBranch);
+			if (ffResult) return ffResult;
+
+			const merged = await threeWayMerge(
+				repo,
+				qualifyBranchRef(sourceBranch),
+				qualifyBranchRef(targetBranch),
+				{
 					message:
 						options.message || `Merge ${sourceBranch} into ${targetBranch}`,
-				});
-
-				// git.merge already updated refs/heads/<targetBranch> in gitdir directly
-				return git.resolveRef({
-					fs,
-					gitdir,
-					ref: qualifyBranchRef(targetBranch),
-				});
-			},
-			ownerDbId,
-		);
-
-		return {
-			success: true,
-			commitSha: commitOid,
-		};
+					authorName: options.authorName,
+					authorEmail: options.authorEmail,
+				},
+			);
+			await repackIfNeededUnlocked(ownerKey, repoName);
+			return { success: true as const, commitSha: merged.commitOid };
+		});
 	} catch (error) {
-		if (error instanceof Errors.MergeConflictError) {
+		if (error instanceof GitMergeConflictError) {
 			return {
 				success: false,
-				conflicts: error.data.filepaths.length
-					? error.data.filepaths
+				conflicts: error.conflictingPaths.length
+					? error.conflictingPaths
 					: ["Merge conflicts detected"],
 			};
 		}
-		// Anything other than a real MergeConflictError (R2/network failure,
-		// corrupted object, an internal bug) used to be relabeled as "merge
-		// conflicts detected" too — which hid the actual failure from both the
-		// user (misleading message) and the logs (nothing printed at all). Log
-		// it and let it propagate as a real error instead of a fake conflict.
+		// No common ancestor: nothing to merge against — a user-facing
+		// refusal, like git's "refusing to merge unrelated histories".
+		if (error instanceof GitEdgeError) {
+			return { success: false, conflicts: [error.message] };
+		}
+		// Anything other than a real conflict (R2/network failure, corrupted
+		// object, an internal bug) propagates as a real error instead of
+		// being relabeled as a fake conflict.
 		logError("git-merge", "mergeBranches failed unexpectedly", error);
 		throw error;
 	}

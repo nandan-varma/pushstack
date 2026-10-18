@@ -8,18 +8,18 @@
  * wrapped operation succeeds, `rolled_back` if it throws.
  *
  * This is provenance/diagnostics, not this app's durability mechanism —
- * git objects in R2 (or local disk) remain the actual source of truth, and
+ * git objects in R2 remain the actual source of truth, and
  * a WAL write failing here never blocks or fails the real git operation
  * (same "best-effort bookkeeping" pattern as
- * updateRepositoryBackupMetadata in git-repo-storage.ts). Its concrete
+ * afterRepositoryPush's storage accounting in git-repo-storage.ts). Its concrete
  * value: findAbandonedGitTransactions can point at exactly which repo had a
  * write in flight when its holder's function was killed mid-critical-section
  * (Vercel's execution limit) — a `pending` row older than the lock lease
  * itself ever legitimately outlives is unambiguous evidence of that, not a
  * race with an operation that might still be running.
  *
- * `objectKeys` isn't populated at this layer — only syncRepositoryToR2's
- * caller actually knows which R2 keys a given write touched, and threading
+ * `objectKeys` isn't populated at this layer — only the git operation inside
+ * the lock knows which R2 keys a given write touched, and threading
  * that back through every withRepositoryLock caller isn't worth it for what
  * this WAL is actually for here (crash detection + provenance, not
  * object-level replay). It's left `[]`, satisfying the column's NOT NULL

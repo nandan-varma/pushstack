@@ -72,8 +72,9 @@ export const Route = createFileRoute("/api/raw/$")({
 					// isomorphic-git's git.resolveRef. That primitive doesn't validate
 					// ref format internally (see git-ref-name.ts's comment), so an
 					// unvalidated "../"-laden ref here would be a cross-repo path
-					// traversal in a local-disk-configured deployment, same class as the
-					// branch-name traversal fixed elsewhere in the app.
+					// traversal into another repository's storage prefix (gitFs
+					// normalizes ".." in the paths it maps onto R2 keys), same class
+					// as the branch-name traversal fixed elsewhere in the app.
 					if (!isSafeRefName(ref) || !isSafeRepoPath(path)) {
 						return new Response("Not found", { status: 404 });
 					}
@@ -93,13 +94,13 @@ export const Route = createFileRoute("/api/raw/$")({
 					}
 
 					const storage = getRepoStorageCoordinates(repository);
-					const buffer = await getFileContent(
+					const bytes = await getFileContent(
 						storage.ownerKey,
 						repository.name,
 						path,
 						ref,
 					);
-					const isBinary = buffer.includes(0);
+					const isBinary = bytes.includes(0);
 
 					// `ref` is either a branch name (content can move under the same
 					// URL, so this response must be revalidated quickly) or a full
@@ -125,18 +126,18 @@ export const Route = createFileRoute("/api/raw/$")({
 					let offset = 0;
 					const body = new ReadableStream<Uint8Array>({
 						pull(controller) {
-							if (offset >= buffer.byteLength) {
+							if (offset >= bytes.byteLength) {
 								controller.close();
 								return;
 							}
-							controller.enqueue(buffer.subarray(offset, offset + CHUNK_BYTES));
+							controller.enqueue(bytes.subarray(offset, offset + CHUNK_BYTES));
 							offset += CHUNK_BYTES;
 						},
 					});
 
 					return new Response(body, {
 						headers: {
-							"Content-Length": String(buffer.byteLength),
+							"Content-Length": String(bytes.byteLength),
 							"Content-Type": safeContentType(path, isBinary, getMimeType),
 							"X-Content-Type-Options": "nosniff",
 							"Content-Disposition": "inline",

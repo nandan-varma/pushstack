@@ -13,10 +13,6 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("#/lib/r2", () => ({
-	isR2Configured: vi.fn(() => true),
-}));
-
 vi.mock("isomorphic-git", () => ({
 	default: {
 		listBranches: vi.fn(() => Promise.resolve([])),
@@ -28,10 +24,7 @@ vi.mock("isomorphic-git", () => ({
 }));
 
 vi.mock("../git-repo-storage", () => ({
-	getRepoOptions: vi.fn(() =>
-		Promise.resolve({ fs: {}, gitdir: "/fake/gitdir" }),
-	),
-	syncRepositoryToR2: vi.fn(() => Promise.resolve()),
+	getRepoOptions: vi.fn(() => ({ fs: {}, gitdir: "/fake/gitdir" })),
 	withRepositoryLock: vi.fn(
 		async (_owner: string, _repo: string, fn: () => Promise<unknown>) => fn(),
 	),

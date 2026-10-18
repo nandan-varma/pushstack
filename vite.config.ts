@@ -118,16 +118,6 @@ const config = defineConfig({
 				]
 			: []),
 	],
-	server: {
-		watch: {
-			ignored: [
-				"**/.git-repos/**",
-				"**/.git_repos/**",
-				"**/data/repos/**",
-				"**/.pushstack/repos/**",
-			],
-		},
-	},
 	build: {
 		rollupOptions: {
 			// Server-function files keep their top-level imports in the client
@@ -140,13 +130,7 @@ const config = defineConfig({
 				moduleSideEffects: (id) =>
 					!serverOnlyDirs.some((dir) => id.startsWith(dir)),
 			},
-			external: [
-				"node:async_hooks",
-				"node:stream",
-				"node:stream/web",
-				"node:fs",
-				"node:path",
-			],
+			external: ["node:async_hooks", "node:stream", "node:stream/web"],
 		},
 	},
 	// Default worker build format is 'iife', which can't code-split: shiki's
@@ -163,8 +147,10 @@ const config = defineConfig({
 	},
 	ssr: {
 		noExternal: ["@tanstack/react-start", "@tanstack/react-router"],
-		external: ["node:fs", "node:path", "node:fs/promises"],
-		target: "node", // Changed from 'webworker' to 'node' for git operations
+		// Vercel Functions run Node (nitro v3 dropped the vercel-edge preset in
+		// favor of Fluid compute). Server code itself only relies on Web APIs
+		// plus node:async_hooks (perf-log.ts's AsyncLocalStorage).
+		target: "node",
 	},
 });
 
