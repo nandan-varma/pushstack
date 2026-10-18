@@ -141,16 +141,16 @@ aimed at coding agents working in this repository.
 Copyright (C) 2026 Nandan Varma.
 
 PushStack is free software: you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
+terms of the GNU Affero General Public License as published by the Free Software
 Foundation, either version 3 of the License, or (at your option) any later
 version.
 
 It is distributed in the hope that it will be useful, but **without any
 warranty**; without even the implied warranty of merchantability or fitness for
-a particular purpose. See the [GNU General Public License](./LICENSE) for the
-full terms.
+a particular purpose. See the [GNU Affero General Public License](./LICENSE) for
+the full terms.
 
-Note that GPLv3 obliges you to offer the source when you *distribute* this
-software. Running it as a hosted service does not trigger that obligation — if
-that is the intent, [AGPLv3](https://www.gnu.org/licenses/agpl-3.0.html) is the
-licence that closes that gap.
+The Affero GPL is the network-use variant of the GPL: running a modified version
+as a network service obliges you (section 13) to offer that service's users the
+corresponding source. That is deliberate here — the hosted instance is the
+product.
