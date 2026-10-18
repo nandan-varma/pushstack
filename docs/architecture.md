@@ -83,7 +83,7 @@ There are three distinct kinds of requests this app serves:
 
 ## Directory map
 
-```
+```text
 src/
 ├── routes/            # File-based routing (TanStack Start). API routes under routes/api/.
 │   └── repo/           # Nested repo sub-routes (issues, pulls, blob, commit, settings, ...)

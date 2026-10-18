@@ -30,7 +30,7 @@ as the process; production refuses to start that way.
 
 All git data for a repository lives at:
 
-```
+```text
 repos/{ownerKey}/{repoName}/git/{path-inside-the-bare-repo}
 ```
 
@@ -57,7 +57,7 @@ functions:
 `git-fs.ts` composes pushstack's R2-backed isomorphic-git `fs` from decorators
 the published `git-fs-s3` package provides, network-outward to gitdir-facing:
 
-```
+```text
 R2 store (src/lib/r2.ts) → createRetryStore → perfR2 (perf-log.ts) → createCachedStore → createGitFs
 ```
 
@@ -114,7 +114,7 @@ layer's job:
     5-second override instead — cheap (each is one small object or a bounded
     listing) and safe (everything downstream, keyed by the sha a fresh ref
     resolves to, still gets the full-length cache benefit once the structure
-    itself is current). See [performance.md](./performance.md#ref-aware-ttl).
+    itself is current). See [performance.md](./performance.md#caching-layers-front-to-back).
 - **`createGitFs`** (`looseObjectHints: true`) — the actual `fs` interface
   isomorphic-git needs (`readFile`, `writeFile`, `unlink`, `readdir`, `mkdir`,
   `rmdir`, `stat`, `lstat`), plus:
@@ -308,7 +308,9 @@ post-push bookkeeping. Every service runs against `gitFs`.
   ref))` — a `"../"`-laden `refName` would otherwise let a push with write
   access to any one repo read, corrupt, or delete another repo's ref/object
   files that happen to sit under the same shared storage root (see
-  [security.md](./security.md)'s "Path traversal via git branch/ref names").
+  [security.md](./security.md)'s "Names are single safe segments" for the rule,
+  and [security-history.md](./security-history.md) for the incident that
+  established it).
   The same validator (as `isSafeBranchName`, its bare-name variant, from
   `git-ref-name.ts`) guards every branch name accepted anywhere else in the
   app — `files.ts`/`pull-requests.ts`'s input schemas, and defense-in-depth
@@ -357,7 +359,7 @@ Postgres again.
 
 ## Environment variables that tune this layer
 
-```
+```bash
 GIT_HTTP_MAX_BODY_BYTES=52428800   # optional, default 50MB — request body cap for push
 GIT_CACHE_MAX_SIZE=1073741824      # optional, default 1GB — sizes git-fs.ts's raw R2 object cache directly; git-cache.ts's separate parsed-object cache (tree/commit results) budgets a quarter of this value
 GIT_CACHE_TTL=3600                 # optional, default 1 hour (seconds)
@@ -368,4 +370,4 @@ content-addressed object reads, but `git-fs.ts`'s `refAwareTtl` overrides it
 down to a fixed 5s for the mutable parts of a gitdir (`HEAD`, `refs/*`, and
 the `objects/`/`objects/pack/` listings) via
 `git-fs-s3`'s `ttlForKey` option — not tunable by this env var.
-See [performance.md](./performance.md#ref-aware-ttl).
+See [performance.md](./performance.md#caching-layers-front-to-back).

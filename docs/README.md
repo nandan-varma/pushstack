@@ -1,45 +1,56 @@
-# PushStack Documentation
+# PushStack documentation
 
-In-depth documentation for contributors working in this codebase. Start with
-[architecture.md](./architecture.md) for the big picture, then go deeper on
-whichever area you're touching.
+In-depth documentation, for two audiences: people **using** the deployed app at
+[git.nandan.fyi](https://git.nandan.fyi), and people **changing** the code.
+
+## Using PushStack
+
+- **[Using PushStack](./using-pushstack.md)** — create an account and a
+  repository, clone it, push with a personal access token, work with issues and
+  pull requests, and the roles, limits and error responses you will meet.
+
+## Understanding the system
+
+Start with architecture if you are new to the codebase; the rest assume you have
+read it.
 
 - **[Architecture](./architecture.md)** — tech stack, request flow, directory
-  map, the two storage systems (Postgres/R2), the two
-  extracted git-on-R2 packages this app depends on, and where to go next.
-- **[Git Storage](./git-storage.md)** — how git repository data is stored in
-  Cloudflare R2 and served without a native `git` binary: the R2-backed `fs`
-  plugin, storage key scheme, the R2-direct write path, the
-  distributed per-repo lock, and the smart HTTP protocol implementation.
-  Covers pushstack's own integration layer — for the underlying library
-  internals, see the [git-fs-s3](https://nandan-varma.github.io/git-fs-s3/)
-  and [git-edge](https://nandan-varma.github.io/git-edge/) docs sites
-  (published packages this repo depends on).
-- **[Database](./database.md)** — schema tables, relations, indices, and
-  `db:push`.
+  map, the two storage systems (Postgres/R2), the two extracted git-on-R2
+  packages this app depends on, and where to go next.
+- **[Git Storage](./git-storage.md)** — how git data lives in Cloudflare R2 and
+  is served without a native `git` binary: the R2-backed `fs` plugin, the
+  storage key scheme, the R2-direct write path, the distributed per-repo lock,
+  and the smart HTTP protocol. This is pushstack's integration layer; for the
+  library internals see the
+  [git-fs-s3](https://nandan-varma.github.io/git-fs-s3/) and
+  [git-edge](https://nandan-varma.github.io/git-edge/) docs sites.
 - **[Authentication & Access Control](./authentication.md)** — Better Auth
-  session auth, git-over-HTTPS auth (personal access tokens), and the single
-  `RepositoryAccess` computation everything else checks against.
+  sessions, git-over-HTTPS tokens, and the single `RepositoryAccess`
+  computation everything else checks against.
+- **[Database](./database.md)** — tables, relations, indices, and `db:push`.
+
+## Working in the code
+
 - **[Server Functions](./server-functions.md)** — a catalog of `src/server/`'s
-  modules by resource (repositories, issues, PRs, comments, search, files) and
-  the conventions they all follow.
+  modules by resource, and the conventions they all follow.
+- **[Security](./security.md)** — the rules that must hold: access control,
+  attacker-controlled content, names and refs, auth surfaces, limits, secrets
+  and dependencies.
+- **[Security history](./security-history.md)** — how those rules were arrived
+  at, including the vulnerabilities that produced several of them.
 - **[Performance](./performance.md)** — the caching layers front to back, the
-  `perf-log` instrumentation convention used to diagnose slow requests, and
-  the biggest fixes made (with the reasoning behind them, as case studies).
-- **[Security](./security.md)** — the access-control model, the stored-XSS and
-  path-traversal vulnerabilities found and fixed (and why the fixes are
-  shaped the way they are), PAT hashing, and secret handling.
-- **[Testing](./testing.md)** — unit test (Vitest) and e2e test (Playwright)
-  layout, conventions, and known gaps.
-- **[Deployment](./deployment.md)** — Vercel/Nitro deployment specifics and
-  the full environment variable reference.
-
-For a terser, task-oriented reference (common commands, key constraints,
-gotchas), see [`../CLAUDE.md`](../CLAUDE.md) at the repo root — that file is
-optimized for quick lookup while working in the code; these docs are for
-understanding *why* the codebase is shaped the way it is.
-
-- [Submodules](./submodules.md) — clone URLs, private/nested submodules,
+  `perf-log` instrumentation convention, and the biggest fixes with their
+  reasoning.
+- **[Testing](./testing.md)** — Vitest and Playwright layout, conventions, the
+  manual dogfooding pass, and known gaps.
+- **[Submodules](./submodules.md)** — clone URLs, private and nested submodules,
   browsing, pointer diffs and merge behavior.
-- [Dogfood workflow](./dogfood-workflow.md) — the change that exercises the
-  issue and pull-request flow end to end.
+- **[Deployment](./deployment.md)** — Vercel/Nitro specifics and the full
+  environment variable reference.
+
+## Conventions and quick reference
+
+- **[CLAUDE.md](../CLAUDE.md)** — a terser, task-oriented reference: commands,
+  key constraints, and gotchas, aimed at coding agents working in this repo.
+- **[README.md](../README.md)** — what the project is, how to run it locally,
+  and the feature list.

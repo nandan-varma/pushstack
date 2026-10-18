@@ -26,8 +26,9 @@ coverage/
 # vitest's typecheck workspace
 .vitest/
 
-# AI agents
+# AI agents (harness state, never committed)
 .claude/
+.pi/
 
 # completed plans
 plans/

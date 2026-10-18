@@ -114,6 +114,20 @@ suite:
   input under load. If you're adding e2e coverage and tempted to speed things
   up with more workers, this is why that's currently off.
 
+## Dogfooding the issue and pull-request flow
+
+The unit and e2e suites cover the pieces; this is the manual pass that walks the
+flow the way a person does, on a real deployment:
+
+1. Open an issue, comment on it, close it, reopen it.
+2. Open a pull request, comment on it, close it, reopen it, merge it.
+3. Put `Closes #3` in a pull request body and confirm merging it closes issue 3
+   in the same repository.
+
+Step 3 is the one worth doing by hand: closing keywords, the shared `#N`
+sequence and the merge all have to agree, and a passing unit test for each of
+them does not prove they agree with each other.
+
 ## Lint / format / typecheck
 
 ```bash

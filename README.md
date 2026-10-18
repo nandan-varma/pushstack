@@ -1,129 +1,137 @@
 # PushStack
 
-A modern code repository platform for hosting, managing, and collaborating on your Git repositories.
+PushStack is a code-hosting platform: git repository hosting over the smart HTTP
+protocol (so `git clone`/`fetch`/`push` work with a normal client), plus issue
+tracking, pull requests, and a code and diff browser.
 
-## Quick Start
+It runs on serverless functions with no native `git` binary and no local disk.
+Every git object lives in Cloudflare R2, everything else in Postgres, which is
+what makes horizontal scaling possible: no repository data sits on any one
+machine. The live instance is [git.nandan.fyi](https://git.nandan.fyi).
+
+## What it does
+
+- **Git hosting** — the full smart HTTP protocol, implemented in-process with
+  isomorphic-git rather than shelling out to a binary. Clone, fetch, push,
+  branches, tags, merges and repacks all work against object storage.
+- **Repositories** — public or private, with collaborators at `read`, `write` or
+  `admin`, and a web UI for uploading, deleting, branching and browsing files.
+- **Issues and pull requests** — one shared `#N` sequence per repository,
+  comments, closing keywords (`Closes #4`), and merges that are fast-forward or
+  a real three-way merge.
+- **Reading code** — file tree, per-file history, commit history, diffs, syntax
+  highlighting, media previews, and submodules as pinned pointers.
+- **Access control** — one `RepositoryAccess` computation for every read, write
+  and moderation check, used by the web UI and the git endpoint alike.
+- **Auth** — Better Auth sessions for the browser; personal access tokens
+  (scoped, revocable, hashed at rest) for git over HTTPS.
+
+## Run it locally
+
+### Prerequisites
+
+- **Node 24** — what CI runs.
+- **pnpm 9** — pinned in `packageManager`; use `corepack enable` or install it
+  directly, so you get the same version the lockfile was written for.
+- **Postgres** — a local one, or a [Neon](https://neon.tech) branch. Nothing
+  connects until a query runs, but the app refuses to start without a URL.
+
+### Set up
 
 ```bash
 pnpm install
-pnpm dev
+cp .env.example .env.local
+pnpm dlx @better-auth/cli secret     # generate BETTER_AUTH_SECRET
+# fill in DATABASE_URL, BETTER_AUTH_SECRET and BETTER_AUTH_URL in .env.local
+pnpm db:push                         # create the schema
+pnpm dev                             # http://localhost:3000
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) to get started.
+`.env.example` lists every variable. `DATABASE_URL`, `BETTER_AUTH_SECRET` and
+`BETTER_AUTH_URL` are the ones you must set; email (Resend) and Sentry are
+optional, and the app runs without them.
 
-## Features
+**R2 is optional locally.** Without the four `R2_*` variables, git data is kept
+in memory for the life of the dev server, so repositories vanish when it
+restarts — fine for trying things out. With `NODE_ENV=production` the app
+refuses to start that way rather than silently losing pushes. Point `R2_ENDPOINT`
+at any S3-compatible endpoint (R2, MinIO, localstack) to keep repositories
+between restarts.
 
-- **Git Repository Hosting**: Full Git smart HTTP protocol (clone/fetch/push) with no native git binary — object storage lives in Cloudflare R2
-- **Authentication**: Secure user authentication using Better Auth, plus Personal Access Tokens for git-over-HTTPS
-- **Issue Tracking**: Track bugs, features, and tasks
-- **Pull Requests**: Collaborate on code with pull requests, merges, and review comments
-- **Code Viewer**: Browse code with syntax highlighting
-- **Diff Viewer**: View changes with side-by-side or unified diff views
-- **Database**: PostgreSQL database with Drizzle ORM
-- **Storage**: Cloudflare R2 for repository storage
+See [deployment.md](./docs/deployment.md) for the full environment reference and
+the Vercel-specific details.
 
-## Environment Setup
-
-1. Copy `.env.example` to `.env.local`:
-   ```bash
-   cp .env.example .env.local
-   ```
-
-2. Generate a Better Auth secret:
-   ```bash
-   pnpm dlx @better-auth/cli secret
-   ```
-
-3. Fill in `.env.local`:
-   ```env
-   DATABASE_URL=postgresql://...
-   BETTER_AUTH_SECRET=your_secret_key
-   BETTER_AUTH_URL=http://localhost:3000
-   R2_ACCESS_KEY_ID=your_r2_access_key
-   R2_SECRET_ACCESS_KEY=your_r2_secret
-   R2_BUCKET_NAME=your_bucket_name
-   R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-   RESEND_API_KEY=your_resend_api_key            # transactional email: password reset, email verification
-   RESEND_EMAIL_FROM=you@yourdomain.com          # optional, has a built-in fallback
-   ```
-
-4. Push the database schema:
-   ```bash
-   pnpm db:push
-   ```
-
-See `CLAUDE.md` for the full list of environment variables, including optional git-cache and request-size tuning knobs.
-
-## Project Structure
-
-```
-src/
-├── components/        # Reusable UI components (including shadcn/ui in components/ui)
-├── db/                # Drizzle schema (Better Auth tables + app tables) and client
-├── hooks/             # Custom React hooks
-├── integrations/      # Better Auth client and TanStack Query wiring
-├── lib/               # Client + shared utilities (query-options, email, git URL parsing, ...)
-├── routes/            # File-based routing (TanStack Start); API routes under routes/api/
-└── server/            # Server-only modules — git operations, access control, DB-backed CRUD
-```
-
-## Available Commands
+## Commands
 
 ```bash
-pnpm dev              # Start development server on :3000
-pnpm build            # Build for production
-pnpm preview          # Preview production build
+pnpm dev              # development server on :3000
+pnpm build            # production build
+pnpm preview          # preview the production build
 pnpm typecheck        # tsc --noEmit
-pnpm test             # Run unit tests (Vitest)
-pnpm test:watch       # Run unit tests in watch mode
-pnpm test:coverage    # Run unit tests with coverage
-pnpm test:e2e         # Run E2E tests (Playwright)
+pnpm test             # unit and behavior tests (Vitest)
+pnpm test:watch       # Vitest in watch mode
+pnpm test:coverage    # Vitest with coverage
+pnpm test:e2e         # end-to-end tests (Playwright)
+pnpm smoke:git        # the real git CLI against a live dev server
 pnpm check            # Biome lint + format check
 pnpm lint             # Biome lint only
-pnpm format           # Biome format (write)
-pnpm db:push          # Push the schema to the database (the only migration path)
-pnpm db:studio        # Open Drizzle Studio
+pnpm format           # Biome format (writes)
+pnpm db:push          # apply the schema to the database (the only migration path)
+pnpm db:studio        # Drizzle Studio
 ```
+
+Run one test file with `pnpm test src/server/__tests__/repo-access.test.ts`.
 
 ## Testing
 
-Unit tests (Vitest, jsdom) live alongside their modules in `__tests__/` directories — most coverage is in `src/server/__tests__/`, covering the git protocol implementation, access control, and CRUD server functions. End-to-end tests (Playwright) live in `e2e/`.
+Unit and behavior tests live beside the code they cover, mostly in
+`src/server/__tests__/`. They run the real server functions against an in-memory
+Postgres (pglite, with the real schema) and the same git storage stack
+production uses, faking only the session — so a test failure means the code is
+wrong, not that a mock drifted.
 
-Run a single unit test file: `pnpm test src/server/__tests__/repo-access.test.ts`
+End-to-end tests live in `e2e/` (Playwright) and drive a real dev server;
+`pnpm smoke:git` drives the real `git` binary against it. Both need a dev
+database and refuse to run against a remote one unless you ask them to. See
+[testing.md](./docs/testing.md).
 
-## Deployment
+## Deploying
 
 ```bash
 pnpm build
 ```
 
-The deployment target is Vercel, via Nitro's `vercel` preset (see `vite.config.ts`) — not Cloudflare, which is used only for R2 object storage. `pnpm deploy` runs the production build; deploying the build output is handled by the Vercel CLI/integration.
+The target is Vercel via Nitro's `vercel` preset (see `vite.config.ts`) — not
+Cloudflare, which is used only for R2 object storage. Deploying the build output
+is handled by the Vercel integration. Schema changes reach the database only
+through `pnpm db:push`, and a deploy that adds a table needs that run against
+the target database first.
 
-## Tech Stack
+## Tech stack
 
-- **Framework**: TanStack Start (file-based SSR router, server functions)
-- **Database**: PostgreSQL (Neon serverless)
-- **ORM**: Drizzle
-- **Authentication**: Better Auth
-- **Git**: isomorphic-git (no native git binary), Cloudflare R2 for object storage
-- **Email**: Resend
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui
-- **Testing**: Vitest, Playwright
-- **Lint/Format**: Biome
+| Concern | Choice |
+| --- | --- |
+| Framework | TanStack Start (file-based SSR router, server functions) |
+| Database | Postgres (Neon serverless) via Drizzle |
+| Auth | Better Auth |
+| Git | isomorphic-git, with the R2-backed storage layer extracted into `git-fs-s3` and the object-level merge into `git-edge` |
+| Object storage | Cloudflare R2 |
+| Email | Resend |
+| UI | React 19, Tailwind CSS, shadcn/ui |
+| Testing | Vitest, Playwright |
+| Lint / format | Biome |
 
 ## Documentation
 
-The codebase has grown large enough that in-depth docs live under [`docs/`](./docs/README.md):
+- **[docs/README.md](./docs/README.md)** — the map: what to read for
+  understanding the system, what to read before changing it.
+- **[Using PushStack](./docs/using-pushstack.md)** — for people using the hosted
+  app: accounts, repositories, cloning, tokens, issues and pull requests, roles
+  and limits.
+- **[Architecture](./docs/architecture.md)** — start here for the codebase.
+- **[Security](./docs/security.md)** and
+  **[security history](./docs/security-history.md)** — the rules that must hold,
+  and how they were arrived at.
 
-- [Architecture](./docs/architecture.md) — tech stack, request flow, directory map, storage systems
-- [Git Storage](./docs/git-storage.md) — the R2-backed git storage layer and smart HTTP protocol
-- [Database](./docs/database.md) — schema, indices, migrations
-- [Authentication & Access Control](./docs/authentication.md) — Better Auth, PATs, the `RepositoryAccess` model
-- [Server Functions](./docs/server-functions.md) — `src/server/` modules by resource
-- [Performance](./docs/performance.md) — caching layers and the `perf-log` instrumentation convention
-- [Security](./docs/security.md) — the security model and fixed vulnerabilities' reasoning
-- [Testing](./docs/testing.md) — unit/e2e test layout and conventions
-- [Deployment](./docs/deployment.md) — Vercel/Nitro specifics and the full environment variable reference
-
-See `CLAUDE.md` for a terser, task-oriented reference (commands, key constraints, gotchas) aimed at AI coding agents working in this codebase.
+`CLAUDE.md` is a terser, task-oriented reference (commands, constraints, gotchas)
+aimed at coding agents working in this repository.
