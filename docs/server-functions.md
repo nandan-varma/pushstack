@@ -66,18 +66,34 @@ and, with a `refetchInterval`, the poll that notices a push while a repo page
 is open (see [performance.md](./performance.md)'s "cache freshness
 signaling").
 
-### `issues.ts` / `pull-requests.ts` / `comments.ts`
-- `issues.ts` — `createIssue`, `getIssues`, `getIssueNumbers` (for `#123`
-  autolinking, `remark-autolink-references.ts`), `getIssueByNumber`,
-  `updateIssue` (author or a write collaborator).
+### `issues.ts` / `pull-requests.ts` / `comments.ts` / `timeline.ts`
+
+Permissions follow GitHub: any signed-in user who can read a repository may
+open issues and comment (`canParticipate`); labels, other people's issues,
+pull requests and merges need write access.
+
+- `issues.ts` — `createIssue` (a participant without write access opens it
+  unlabeled), `getIssues`, `getIssueNumbers` (for `#123` autolinking,
+  `remark-autolink-references.ts`), `getIssueByNumber`, `updateIssue` (the
+  author may edit, close and reopen; labels need write).
 - `pull-requests.ts` — `createPullRequest` (both branches must exist and
   differ), `getPullRequests`, `getPullRequestNumbers`,
-  `getPullRequestByNumber`, `updatePullRequest`, `mergePullRequest`.
-  Merging runs `git-write.ts`'s `mergeBranches`, then records the merge only
-  `WHERE status = 'open'` (a concurrent merge loses cleanly) and closes the
-  issues the body names ("Closes #4").
+  `getPullRequestByNumber`, `updatePullRequest`, `mergePullRequest`,
+  `deletePullRequestBranch`. Merging runs `git-write.ts`'s `mergeBranches`,
+  then records the merge only `WHERE status = 'open'` (a concurrent merge
+  loses cleanly) and closes the issues the body names ("Closes #4").
 - `comments.ts` — `createComment` on exactly one thread (`issueId` or
   `pullRequestId`, a zod union) and `getComments`.
+- `timeline.ts` — `getTimeline(repoId, number)`: the thread's events, which
+  the UI interleaves with its comments (`ThreadTimeline`).
+
+**Timeline events** (`src/lib/timeline-types.ts`, written by
+`timeline-store.ts`) use GitHub's issue-event names so imports and a
+GitHub-compatible API map one to one: `closed` (with `closer` when a merge
+closed it), `reopened`, `merged`, `cross-referenced` (another thread
+mentioned `#N` — `src/lib/issue-references.ts`, ignoring code, once per
+source thread) and `head_ref_deleted`. Every write that changes status or
+text calls the store after its own write.
 
 ### `search.ts`, `users.ts` — search, feeds, profiles
 `searchRepositories` and `searchUsers` (LIKE wildcards in the query are

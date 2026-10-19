@@ -27,6 +27,11 @@ type RepositoryRole = "anonymous" | CollaboratorRole | "owner";
 
 interface Permissions {
 	canRead: boolean;
+	/**
+	 * May open issues and comment — GitHub's rule: any signed-in user who can
+	 * read the repository, collaborator or not.
+	 */
+	canParticipate: boolean;
 	canWrite: boolean;
 	canModerate: boolean;
 	canMergePullRequest: boolean;
@@ -40,24 +45,28 @@ export interface RepositoryAccess extends Permissions {
 const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 	owner: {
 		canRead: true,
+		canParticipate: true,
 		canWrite: true,
 		canModerate: true,
 		canMergePullRequest: true,
 	},
 	admin: {
 		canRead: true,
+		canParticipate: true,
 		canWrite: true,
 		canModerate: true,
 		canMergePullRequest: true,
 	},
 	write: {
 		canRead: true,
+		canParticipate: true,
 		canWrite: true,
 		canModerate: false,
 		canMergePullRequest: true,
 	},
 	read: {
 		canRead: true,
+		canParticipate: true,
 		canWrite: false,
 		canModerate: false,
 		canMergePullRequest: false,
@@ -79,6 +88,7 @@ function buildAccess(
 		role === "anonymous"
 			? {
 					canRead: repository.visibility === "public",
+					canParticipate: !!userId && repository.visibility === "public",
 					canWrite: false,
 					canModerate: false,
 					canMergePullRequest: false,
@@ -182,6 +192,12 @@ export async function canModerateRepo(repoId: number, userId?: string | null) {
 	return (await getRepositoryAccess(repoId, userId))?.canModerate ?? false;
 }
 
+export async function requireParticipateAccess(repoId: number, userId: string) {
+	if (!(await getRepositoryAccess(repoId, userId))?.canParticipate) {
+		throw new Error("You can't open issues or comment in this repository");
+	}
+}
+
 export async function requireWriteAccess(repoId: number, userId: string) {
 	if (!(await canWriteRepo(repoId, userId))) {
 		throw new Error("No write access to repository");
@@ -197,19 +213,22 @@ export async function requireWriteAccess(repoId: number, userId: string) {
 export interface ViewerRepositoryAccess {
 	/** May merge a pull request in this repository. */
 	canMerge: boolean;
-	/** May write to this repository (commit, comment, open issues and PRs). */
+	/** May write to this repository (commit, push, open pull requests, triage). */
 	canWrite: boolean;
+	/** May open issues and comment (any signed-in reader). */
+	canParticipate: boolean;
 }
 
 export async function getViewerRepositoryAccess(
 	repoId: number,
 ): Promise<ViewerRepositoryAccess> {
 	const user = await getCurrentUserOptional();
-	const [canMerge, canWrite] = await Promise.all([
-		canMergePullRequest(repoId, user?.id),
-		canWriteRepo(repoId, user?.id),
-	]);
-	return { canMerge, canWrite };
+	const access = await getRepositoryAccess(repoId, user?.id);
+	return {
+		canMerge: access?.canMergePullRequest ?? false,
+		canWrite: access?.canWrite ?? false,
+		canParticipate: access?.canParticipate ?? false,
+	};
 }
 
 /** A repository with its owner — what storage coordinates are derived from. */

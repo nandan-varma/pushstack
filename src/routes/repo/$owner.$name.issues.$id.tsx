@@ -7,8 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { lazy, Suspense, useState } from "react";
-import { CommentCard } from "@/components/CommentCard";
-import { CommentForm } from "@/components/CommentForm";
+import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
@@ -16,6 +15,7 @@ import {
 } from "@/components/DetailHeader";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
+import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
+import { quoteForReply } from "@/lib/markdown-quote";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -145,10 +146,14 @@ function IssueDetailPage() {
 		),
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: issueQueryKey });
-			if (issue)
+			if (issue) {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.repoIssuesRoot(issue.repoId),
 				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(issue.repoId),
+				});
+			}
 		},
 	});
 
@@ -156,10 +161,14 @@ function IssueDetailPage() {
 		mutationFn: createComment,
 		onSuccess: async () => {
 			setNewComment("");
-			if (issue)
+			if (issue) {
 				await queryClient.invalidateQueries({
 					queryKey: queryKeys.issueComments(issue.id),
 				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(issue.repoId),
+				});
+			}
 			toast("Comment posted", "success");
 		},
 		onError: (err: Error) => {
@@ -281,39 +290,29 @@ function IssueDetailPage() {
 				</div>
 			</Card>
 
-			{/* Comments */}
-			{comments && comments.length > 0 && (
-				<div className="space-y-4">
-					<h2 className="text-xl font-semibold text-foreground">
-						Comments ({comments.length})
-					</h2>
-					{comments.map((comment) => (
-						<CommentCard
-							key={comment.id}
-							comment={comment}
-							owner={owner}
-							name={name}
-							repoId={issue.repoId}
-						/>
-					))}
-				</div>
-			)}
+			<ThreadTimeline
+				owner={owner}
+				name={name}
+				repoId={issue.repoId}
+				number={issue.number}
+				comments={comments ?? []}
+				onQuote={
+					issue.viewer.canParticipate
+						? (body) => setNewComment((draft) => draft + quoteForReply(body))
+						: undefined
+				}
+			/>
 
 			{/* Add Comment */}
-			{issue.viewer.canWrite ? (
+			{issue.viewer.canParticipate ? (
 				<CommentForm
 					value={newComment}
 					onChange={setNewComment}
 					onSubmit={handleAddComment}
 					isPending={commentMutation.isPending}
-					disabled={issue.status !== "open"}
 				/>
-			) : session?.user ? (
-				<Card className="p-6">
-					<p className="text-sm text-muted-foreground">
-						Only collaborators with write access can comment on this repository.
-					</p>
-				</Card>
+			) : !session?.user ? (
+				<SignInToComment />
 			) : null}
 		</div>
 	);

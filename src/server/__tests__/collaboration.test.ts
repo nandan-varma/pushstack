@@ -162,7 +162,7 @@ describe("issues and pull requests", () => {
 });
 
 describe("comments", () => {
-	it("attaches to one thread, requires write access, and hides author emails", async () => {
+	it("attaches to one thread, lets any signed-in reader comment, and hides author emails", async () => {
 		signIn(users.contributor);
 		const issue = await issues.getIssueByNumber({
 			data: { owner: "maintainer", name: "proj", number: 1 },
@@ -177,10 +177,24 @@ describe("comments", () => {
 		]);
 		expect(JSON.stringify(list)).not.toContain("@example.com");
 
+		// GitHub's rule: on a public repository anyone signed in may comment.
+		signIn(users.visitor);
+		await comments.createComment({
+			data: { issueId: issue.id, body: "Same here" },
+		});
+
+		// A private repository is closed to anyone who isn't a collaborator.
+		signIn(users.maintainer);
+		const secret = await repositories.createRepository({
+			data: { name: "secret", visibility: "private" },
+		});
+		const hidden = await issues.createIssue({
+			data: { repoId: secret.id, title: "Internal" },
+		});
 		signIn(users.visitor);
 		await expect(
-			comments.createComment({ data: { issueId: issue.id, body: "spam" } }),
-		).rejects.toThrow("No write access");
+			comments.createComment({ data: { issueId: hidden.id, body: "hi" } }),
+		).rejects.toThrow();
 		expect(
 			await rejectsNotFound(
 				comments.getComments({ data: { issueId: 999_999 } }),

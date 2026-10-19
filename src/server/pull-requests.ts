@@ -15,7 +15,7 @@ import { recordActivity } from "./activity";
 import { analyzeMerge } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
-import { mergeBranches } from "./git-write";
+import { deleteBranch, mergeBranches } from "./git-write";
 import {
 	canMergePullRequest,
 	canWriteRepo,
@@ -29,6 +29,11 @@ import {
 	readRepoByName,
 } from "./repository-lookup";
 import { getCurrentUser } from "./session";
+import {
+	recordCrossReferences,
+	recordTimelineEvent,
+	recordTimelineEvents,
+} from "./timeline-store";
 
 export const createPullRequest = createServerFn({ method: "POST" })
 	.validator(
@@ -66,6 +71,12 @@ export const createPullRequest = createServerFn({ method: "POST" })
 				})
 				.returning();
 			if (!pr) throw new Error("Pull request insert returned no row");
+			await recordCrossReferences(
+				repo.id,
+				{ kind: "pull_request", number: pr.number, title: pr.title },
+				pr.body,
+				currentUser.id,
+			);
 			await recordActivity(currentUser.id, repo.id, {
 				type: "pr",
 				metadata: { number: pr.number, title: pr.title, action: "opened" },
@@ -166,10 +177,23 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 			.set({ ...fields, updatedAt: new Date() })
 			.where(eq(pullRequests.id, prId))
 			.returning();
-		if (data.status === "closed" && pr.status !== "closed") {
+		if (!updated) throw notFound();
+		if (fields.body !== undefined) {
+			await recordCrossReferences(
+				pr.repoId,
+				{ kind: "pull_request", number: pr.number, title: updated.title },
+				fields.body,
+				currentUser.id,
+			);
+		}
+		if (data.status && data.status !== pr.status) {
+			const action = data.status === "closed" ? "closed" : "reopened";
+			await recordTimelineEvent(pr.repoId, pr.number, currentUser.id, {
+				event: action,
+			});
 			await recordActivity(currentUser.id, pr.repoId, {
 				type: "pr",
-				metadata: { number: pr.number, title: pr.title, action: "closed" },
+				metadata: { number: pr.number, title: pr.title, action },
 			});
 		}
 		return updated;
@@ -225,10 +249,15 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 				.where(and(eq(pullRequests.id, pr.id), eq(pullRequests.status, "open")))
 				.returning({ id: pullRequests.id });
 			if (!merged) return { commitSha: result.commitSha };
+			await recordTimelineEvent(pr.repoId, pr.number, currentUser.id, {
+				event: "merged",
+				commitSha: result.commitSha,
+				base: pr.targetBranch,
+			});
 
 			const closing = getClosingIssueNumbers(pr.body);
 			if (closing.length > 0) {
-				await db
+				const closedIssues = await db
 					.update(issues)
 					.set({
 						status: "closed",
@@ -241,12 +270,54 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 							inArray(issues.number, closing),
 							eq(issues.status, "open"),
 						),
-					);
+					)
+					.returning({ number: issues.number });
+				await recordTimelineEvents(
+					pr.repoId,
+					closedIssues.map((issue) => issue.number),
+					currentUser.id,
+					{
+						event: "closed",
+						closer: {
+							kind: "pull_request",
+							number: pr.number,
+							title: pr.title,
+						},
+					},
+				);
 			}
 			await recordActivity(currentUser.id, pr.repoId, {
 				type: "pr",
 				metadata: { number: pr.number, title: pr.title, action: "merged" },
 			});
 			return { commitSha: result.commitSha };
+		});
+	});
+
+/**
+ * Delete a merged or closed pull request's head branch, recording
+ * `head_ref_deleted` on its timeline (GitHub's "deleted the … branch").
+ */
+export const deletePullRequestBranch = createServerFn({ method: "POST" })
+	.validator(z.object({ prId: z.number() }))
+	.handler(async ({ data }) => {
+		const pr = await db.query.pullRequests.findFirst({
+			where: eq(pullRequests.id, data.prId),
+		});
+		if (!pr) throw notFound();
+		if (pr.status === "open") {
+			throw new Error(
+				"Close or merge the pull request before deleting its branch",
+			);
+		}
+		return writeWithAccess(pr.repoId, async (repo, currentUser) => {
+			if (pr.sourceBranch === repo.defaultBranch) {
+				throw new Error("Cannot delete the default branch");
+			}
+			await deleteBranch(ownerKeyOf(repo), repo.name, pr.sourceBranch);
+			await recordTimelineEvent(pr.repoId, pr.number, currentUser.id, {
+				event: "head_ref_deleted",
+				branch: pr.sourceBranch,
+			});
 		});
 	});

@@ -1,6 +1,8 @@
 import { formatDistanceToNow } from "date-fns";
+import { Quote } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getInitials } from "@/lib/utils/avatar";
@@ -12,6 +14,7 @@ export function CommentCard({
 	owner,
 	name,
 	repoId,
+	onQuote,
 }: {
 	comment: {
 		id: number;
@@ -22,6 +25,8 @@ export function CommentCard({
 	owner: string;
 	name: string;
 	repoId?: number;
+	/** Shows "Quote reply"; receives the body to quote into the reply box. */
+	onQuote?: (body: string) => void;
 }) {
 	return (
 		<Card className="p-6">
@@ -40,6 +45,16 @@ export function CommentCard({
 								addSuffix: true,
 							})}
 						</span>
+						{onQuote && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="ml-auto h-7 text-xs text-muted-foreground"
+								onClick={() => onQuote(comment.body)}
+							>
+								<Quote className="size-3.5" /> Quote reply
+							</Button>
+						)}
 					</div>
 					<Suspense fallback={<Skeleton className="h-20" />}>
 						<MarkdownRenderer

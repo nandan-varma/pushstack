@@ -2,15 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	isNotFound,
-	Link,
 	notFound,
 	redirect,
+	useNavigate,
 } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
-import { CommentCard } from "@/components/CommentCard";
-import { CommentForm } from "@/components/CommentForm";
+import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
@@ -18,7 +17,9 @@ import {
 } from "@/components/DetailHeader";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import { pullRequestStatusVariant } from "@/components/status-variants";
+import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
@@ -26,7 +27,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
+import { quoteForReply } from "@/lib/markdown-quote";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -47,7 +50,15 @@ import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 // eagerly ship them to every visitor.
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
+const PR_TABS = ["conversation", "files"] as const;
+type PrTab = (typeof PR_TABS)[number];
+
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
+	validateSearch: (search: Record<string, unknown>): { tab?: PrTab } => ({
+		tab: PR_TABS.includes(search.tab as PrTab)
+			? (search.tab as PrTab)
+			: undefined,
+	}),
 	loader: async ({ params, context: { queryClient } }) => {
 		const prNumber = Number(params.id);
 		if (!Number.isInteger(prNumber) || prNumber < 1) throw notFound();
@@ -134,6 +145,8 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 
 function PullRequestDetailPage() {
 	const { owner, name, id } = Route.useParams();
+	const { tab = "conversation" } = Route.useSearch();
+	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [newComment, setNewComment] = useState("");
@@ -186,6 +199,9 @@ function PullRequestDetailPage() {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.repoCommitsRoot(pr.repoId),
 				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(pr.repoId),
+				});
 			}
 		},
 	});
@@ -204,10 +220,14 @@ function PullRequestDetailPage() {
 		),
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: prQueryKey });
-			if (pr)
+			if (pr) {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
 				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(pr.repoId),
+				});
+			}
 		},
 	});
 
@@ -219,10 +239,14 @@ function PullRequestDetailPage() {
 		onSuccess: async () => {
 			toast("Comment posted", "success");
 			setNewComment("");
-			if (pr)
+			if (pr) {
 				await queryClient.invalidateQueries({
 					queryKey: queryKeys.pullRequestComments(pr.id),
 				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(pr.repoId),
+				});
+			}
 		},
 	});
 
@@ -333,115 +357,128 @@ function PullRequestDetailPage() {
 					</>
 				}
 			/>
+			{pr.status !== "open" && pr.viewer.canWrite && repo && (
+				<DeleteMergedBranchCard
+					repoId={repo.id}
+					prId={pr.id}
+					branch={pr.sourceBranch}
+					defaultBranch={repo.defaultBranch}
+				/>
+			)}
 
-			{/* Description */}
-			<Card className="p-6">
-				<div className="flex items-start gap-4">
-					<Avatar>
-						<AvatarImage src={pr.author?.image || undefined} />
-						<AvatarFallback>
-							{getInitials(pr.author?.name || "U")}
-						</AvatarFallback>
-					</Avatar>
-					<div className="flex-1">
-						<div className="flex items-center gap-2 mb-4">
-							<span className="font-medium text-foreground">
-								{pr.author.name}
+			<Tabs
+				value={tab}
+				onValueChange={(value) =>
+					navigate({
+						search: {
+							tab: value === "conversation" ? undefined : (value as PrTab),
+						},
+						replace: true,
+					})
+				}
+			>
+				<TabsList variant="line">
+					<TabsTrigger value="conversation">Conversation</TabsTrigger>
+					<TabsTrigger value="files">
+						Files changed
+						{diff?.files ? (
+							<span className="ml-1 rounded-full bg-muted px-1.5 text-xs">
+								{diff.files.length}
 							</span>
-							<span className="text-sm text-muted-foreground">
-								{formatDistanceToNow(new Date(pr.createdAt), {
-									addSuffix: true,
-								})}
-							</span>
+						) : null}
+					</TabsTrigger>
+				</TabsList>
+				<TabsContent value="conversation" className="space-y-6">
+					{/* Description */}
+					<Card className="p-6">
+						<div className="flex items-start gap-4">
+							<Avatar>
+								<AvatarImage src={pr.author?.image || undefined} />
+								<AvatarFallback>
+									{getInitials(pr.author?.name || "U")}
+								</AvatarFallback>
+							</Avatar>
+							<div className="flex-1">
+								<div className="flex items-center gap-2 mb-4">
+									<span className="font-medium text-foreground">
+										{pr.author.name}
+									</span>
+									<span className="text-sm text-muted-foreground">
+										{formatDistanceToNow(new Date(pr.createdAt), {
+											addSuffix: true,
+										})}
+									</span>
+								</div>
+								{pr.body ? (
+									<Suspense fallback={<Skeleton className="h-20" />}>
+										<MarkdownRenderer
+											content={pr.body}
+											owner={owner}
+											name={name}
+											repoId={pr.repoId}
+										/>
+									</Suspense>
+								) : (
+									<p className="text-muted-foreground italic">
+										No description provided
+									</p>
+								)}
+							</div>
 						</div>
-						{pr.body ? (
-							<Suspense fallback={<Skeleton className="h-20" />}>
-								<MarkdownRenderer
-									content={pr.body}
-									owner={owner}
-									name={name}
-									repoId={pr.repoId}
-								/>
-							</Suspense>
-						) : (
-							<p className="text-muted-foreground italic">
-								No description provided
-							</p>
-						)}
-					</div>
-				</div>
-			</Card>
+					</Card>
 
-			{/* Files changed */}
-			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-foreground">
-					Files changed{" "}
-					{diff?.files && (
-						<span className="text-sm font-normal text-muted-foreground">
-							({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
-							<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
-							<span className="text-red-600">-{diff.totalDeletions}</span>)
-						</span>
-					)}
-				</h3>
-				<FileDiffViewer
-					files={diff?.files}
-					sides={{
-						owner,
-						name,
-						oldRef: diff?.oldRef,
-						newRef: diff?.newRef ?? pr.sourceBranch,
-					}}
-					isLoading={diffLoading}
-					emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
-				/>
-			</Card>
+					<ThreadTimeline
+						owner={owner}
+						name={name}
+						repoId={pr.repoId}
+						number={pr.number}
+						comments={comments ?? []}
+						onQuote={
+							pr.viewer.canParticipate
+								? (body) =>
+										setNewComment((draft) => draft + quoteForReply(body))
+								: undefined
+						}
+					/>
 
-			{/* Comments */}
-			{comments && comments.length > 0 && (
-				<div className="space-y-4">
-					<h3 className="text-lg font-semibold text-foreground">
-						Comments ({comments.length})
-					</h3>
-					{comments.map((comment) => (
-						<CommentCard
-							key={comment.id}
-							comment={comment}
-							owner={owner}
-							name={name}
-							repoId={pr.repoId}
+					{pr.viewer.canParticipate ? (
+						<CommentForm
+							value={newComment}
+							onChange={setNewComment}
+							onSubmit={handleAddComment}
+							isPending={commentMutation.isPending}
 						/>
-					))}
-				</div>
-			)}
-
-			{/* Add Comment */}
-			{!session?.user ? (
-				<Card className="p-6">
-					<p className="text-sm text-muted-foreground">
-						<Link
-							to="/auth/login"
-							className="font-medium text-primary hover:underline"
-						>
-							Sign in
-						</Link>{" "}
-						to add a comment.
-					</p>
-				</Card>
-			) : pr.viewer.canWrite ? (
-				<CommentForm
-					value={newComment}
-					onChange={setNewComment}
-					onSubmit={handleAddComment}
-					isPending={commentMutation.isPending}
-				/>
-			) : (
-				<Card className="p-6">
-					<p className="text-sm text-muted-foreground">
-						Only collaborators with write access can comment on this repository.
-					</p>
-				</Card>
-			)}
+					) : !session?.user ? (
+						<SignInToComment />
+					) : null}
+				</TabsContent>
+				<TabsContent value="files">
+					{/* Files changed */}
+					<Card className="p-6">
+						<h3 className="text-lg font-semibold text-foreground">
+							Files changed{" "}
+							{diff?.files && (
+								<span className="text-sm font-normal text-muted-foreground">
+									({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
+									<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
+									<span className="text-red-600">-{diff.totalDeletions}</span>)
+								</span>
+							)}
+						</h3>
+						<FileDiffViewer
+							files={diff?.files}
+							sides={{
+								owner,
+								name,
+								oldRef: diff?.oldRef,
+								newRef: diff?.newRef ?? pr.sourceBranch,
+							}}
+							isLoading={diffLoading}
+							emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
+						/>
+					</Card>
+				</TabsContent>
+			</Tabs>
 		</div>
 	);
 }

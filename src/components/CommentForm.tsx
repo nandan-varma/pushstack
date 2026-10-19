@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +43,25 @@ export function CommentForm({
 						Post Comment
 					</LoadingButton>
 				</div>
+			</div>
+		</Card>
+	);
+}
+
+/** In place of the comment box for a signed-out reader, as on GitHub. */
+export function SignInToComment() {
+	return (
+		<Card className="flex flex-wrap items-center justify-between gap-3 p-6">
+			<p className="text-sm text-muted-foreground">
+				Sign in to join this conversation.
+			</p>
+			<div className="flex gap-2">
+				<Button size="sm" asChild>
+					<Link to="/auth/register">Sign up</Link>
+				</Button>
+				<Button size="sm" variant="outline" asChild>
+					<Link to="/auth/login">Sign in</Link>
+				</Button>
 			</div>
 		</Card>
 	);

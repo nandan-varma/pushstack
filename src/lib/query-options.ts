@@ -31,6 +31,7 @@ import {
 	searchRepositories,
 	searchUsers,
 } from "@/server/search";
+import { getTimeline } from "@/server/timeline";
 import { listTokens } from "@/server/tokens";
 import { getUserProfile } from "@/server/users";
 
@@ -51,6 +52,10 @@ export const queryKeys = {
 	searchUsers: (query: string) => ["search", "users", query] as const,
 	repoBranches: (repoId: number) => ["repos", repoId, "branches"] as const,
 	repoTags: (repoId: number) => ["repos", repoId, "tags"] as const,
+	/** Every timeline in a repo: a mention, merge or close can touch several. */
+	timelineRoot: (repoId: number) => ["repos", repoId, "timeline"] as const,
+	timeline: (repoId: number, number: number) =>
+		["repos", repoId, "timeline", number] as const,
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
 	repoFiles: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", branchName, path] as const,
@@ -252,6 +257,15 @@ export function repositoryTagsQueryOptions(repoId: number) {
 			perfTime(`query tags repo=${repoId}`, () =>
 				getTags({ data: { repoId } }),
 			),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** An issue's or pull request's timeline events (merge with its comments to render). */
+export function timelineQueryOptions(repoId: number, number: number) {
+	return queryOptions({
+		queryKey: queryKeys.timeline(repoId, number),
+		queryFn: () => getTimeline({ data: { repoId, number } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

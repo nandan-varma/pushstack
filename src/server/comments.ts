@@ -7,9 +7,13 @@ import { db } from "#/db";
 import { comments, issues, pullRequests } from "#/db/app-schema";
 import { MAX_BODY_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
-import { getAccessForRepository, requireWriteAccess } from "./repo-access";
+import {
+	getAccessForRepository,
+	requireParticipateAccess,
+} from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
+import { recordCrossReferences } from "./timeline-store";
 
 /** Exactly one of an issue id or a pull request id (row ids, not `#N`). */
 const threadSchema = z.union([
@@ -23,12 +27,12 @@ async function findThread(thread: Thread) {
 	const row =
 		thread.issueId !== undefined
 			? await db.query.issues.findFirst({
-					columns: { number: true },
+					columns: { number: true, title: true },
 					where: eq(issues.id, thread.issueId),
 					with: { repository: true },
 				})
 			: await db.query.pullRequests.findFirst({
-					columns: { number: true },
+					columns: { number: true, title: true },
 					where: eq(pullRequests.id, thread.pullRequestId),
 					with: { repository: true },
 				});
@@ -44,8 +48,8 @@ export const createComment = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const { repository, number } = await findThread(data);
-		await requireWriteAccess(repository.id, currentUser.id);
+		const { repository, number, title } = await findThread(data);
+		await requireParticipateAccess(repository.id, currentUser.id);
 		const [comment] = await db
 			.insert(comments)
 			.values({
@@ -56,6 +60,16 @@ export const createComment = createServerFn({ method: "POST" })
 				body: data.body,
 			})
 			.returning();
+		await recordCrossReferences(
+			repository.id,
+			{
+				kind: data.issueId !== undefined ? "issue" : "pull_request",
+				number,
+				title,
+			},
+			data.body,
+			currentUser.id,
+		);
 		await recordActivity(currentUser.id, repository.id, {
 			type: "comment",
 			metadata: { on: data.issueId !== undefined ? "issue" : "pr", number },

@@ -11,7 +11,7 @@ import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
-	requireWriteAccess,
+	requireParticipateAccess,
 } from "./repo-access";
 import {
 	claimNextIssueOrPrNumber,
@@ -19,6 +19,7 @@ import {
 	readRepoByName,
 } from "./repository-lookup";
 import { getCurrentUser } from "./session";
+import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
 
 const labelsSchema = z.array(z.string().trim().min(1).max(50)).max(20);
 
@@ -33,7 +34,12 @@ export const createIssue = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		await requireWriteAccess(data.repoId, currentUser.id);
+		await requireParticipateAccess(data.repoId, currentUser.id);
+		// Labels are triage: a participant without write access opens the issue
+		// unlabeled, as on GitHub.
+		const labels = (await canWriteRepo(data.repoId, currentUser.id))
+			? data.labels
+			: [];
 		const [issue] = await db
 			.insert(issues)
 			.values({
@@ -42,10 +48,16 @@ export const createIssue = createServerFn({ method: "POST" })
 				authorId: currentUser.id,
 				title: data.title,
 				body: data.body || null,
-				labels: data.labels,
+				labels,
 			})
 			.returning();
 		if (!issue) throw new Error("Issue insert returned no row");
+		await recordCrossReferences(
+			data.repoId,
+			{ kind: "issue", number: issue.number, title: issue.title },
+			issue.body,
+			currentUser.id,
+		);
 		await recordActivity(currentUser.id, data.repoId, {
 			type: "issue",
 			metadata: { number: issue.number, title: issue.title, action: "opened" },
@@ -130,10 +142,10 @@ export const updateIssue = createServerFn({ method: "POST" })
 			where: eq(issues.id, data.issueId),
 		});
 		if (!issue) throw notFound();
-		if (
-			issue.authorId !== currentUser.id &&
-			!(await canWriteRepo(issue.repoId, currentUser.id))
-		) {
+		// The author may edit, close and reopen their own issue; labels (and
+		// anyone else's issue) need write access.
+		const canWrite = await canWriteRepo(issue.repoId, currentUser.id);
+		if (!canWrite && (issue.authorId !== currentUser.id || data.labels)) {
 			throw new Error("Access denied");
 		}
 		const { issueId, status, ...fields } = data;
@@ -149,7 +161,19 @@ export const updateIssue = createServerFn({ method: "POST" })
 			})
 			.where(eq(issues.id, issueId))
 			.returning();
+		if (!updated) throw notFound();
+		if (fields.body !== undefined) {
+			await recordCrossReferences(
+				issue.repoId,
+				{ kind: "issue", number: issue.number, title: updated.title },
+				fields.body,
+				currentUser.id,
+			);
+		}
 		if (status && status !== issue.status) {
+			await recordTimelineEvent(issue.repoId, issue.number, currentUser.id, {
+				event: status === "closed" ? "closed" : "reopened",
+			});
 			await recordActivity(currentUser.id, issue.repoId, {
 				type: "issue",
 				metadata: {

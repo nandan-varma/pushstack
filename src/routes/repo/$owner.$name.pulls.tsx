@@ -117,7 +117,7 @@ function PullRequestsPage() {
 
 	const createMutation = useMutation({
 		mutationFn: createPullRequest,
-		onSuccess: async () => {
+		onSuccess: async (pr) => {
 			if (!repo) return;
 			await queryClient.invalidateQueries({
 				queryKey: queryKeys.pullRequestsRoot(repo.id),
@@ -130,6 +130,10 @@ function PullRequestsPage() {
 				headBranch: "",
 			});
 			toast("Pull request created", "success");
+			navigate({
+				to: "/repo/$owner/$name/pulls/$id",
+				params: { owner, name, id: String(pr.number) },
+			});
 		},
 		onError: (err: Error) => {
 			toast(err.message || "Failed to create pull request", "error");

@@ -20,7 +20,7 @@ export type ActivityEvent =
 			metadata: {
 				number: number;
 				title: string;
-				action: "opened" | "closed" | "merged";
+				action: "opened" | "closed" | "reopened" | "merged";
 			};
 	  }
 	| {

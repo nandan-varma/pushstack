@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
 	index,
@@ -11,6 +11,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
+import type { TimelineEvent, TimelineEventType } from "#/lib/timeline-types";
 import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
 
@@ -360,6 +361,48 @@ export const repositoryCollaboratorsRelations = relations(
 		}),
 	}),
 );
+
+/**
+ * Issue/PR timeline events (src/lib/timeline-types.ts), written only through
+ * src/server/timeline-store.ts. Issues and PRs share the `#N` sequence, so
+ * `number` names the thread either way. `payload` is the event minus its
+ * `event` name.
+ */
+export const timelineEvents = pgTable(
+	"timeline_events",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		number: integer("number").notNull(),
+		actorId: text("actor_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		event: text("event").$type<TimelineEventType>().notNull(),
+		payload: jsonb("payload")
+			.$type<Omit<TimelineEvent, "event">>()
+			.notNull()
+			.default({}),
+		/** For cross-references, the mentioning thread (`#M`): one event per pair. */
+		sourceNumber: integer("source_number"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		threadIdx: index("timeline_thread_idx").on(
+			table.repoId,
+			table.number,
+			table.createdAt,
+		),
+		crossReferenceIdx: uniqueIndex("timeline_cross_reference_idx")
+			.on(table.repoId, table.number, table.sourceNumber)
+			.where(sql`${table.event} = 'cross-referenced'`),
+	}),
+);
+
+export const timelineEventsRelations = relations(timelineEvents, ({ one }) => ({
+	actor: one(user, { fields: [timelineEvents.actorId], references: [user.id] }),
+}));
 
 export const activitiesRelations = relations(activities, ({ one }) => ({
 	user: one(user, { fields: [activities.userId], references: [user.id] }),

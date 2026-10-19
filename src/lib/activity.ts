@@ -68,7 +68,12 @@ export function describeActivity(row: ActivityRow): {
 			};
 		}
 		case "pr": {
-			const verb = { opened: "Opened", closed: "Closed", merged: "Merged" };
+			const verb = {
+				opened: "Opened",
+				closed: "Closed",
+				reopened: "Reopened",
+				merged: "Merged",
+			};
 			return {
 				text: `${verb[event.metadata.action]} pull request "${event.metadata.title}"`,
 				link: thread("pr", event.metadata.number),
