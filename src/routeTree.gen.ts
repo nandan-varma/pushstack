@@ -32,6 +32,7 @@ import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
 import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
 import { Route as RepoOwnerNameIssuesRouteImport } from './routes/repo/$owner.$name.issues'
+import { Route as RepoOwnerNameLabelsRouteImport } from './routes/repo/$owner.$name.labels'
 import { Route as RepoOwnerNamePullsRouteImport } from './routes/repo/$owner.$name.pulls'
 import { Route as RepoOwnerNameSettingsRouteImport } from './routes/repo/$owner.$name.settings'
 import { Route as RepoOwnerNameSetupRouteImport } from './routes/repo/$owner.$name.setup'
@@ -158,6 +159,11 @@ const RepoOwnerNameIssuesRoute = RepoOwnerNameIssuesRouteImport.update({
   path: '/issues',
   getParentRoute: () => RepoOwnerNameRoute,
 } as any)
+const RepoOwnerNameLabelsRoute = RepoOwnerNameLabelsRouteImport.update({
+  id: '/labels',
+  path: '/labels',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
 const RepoOwnerNamePullsRoute = RepoOwnerNamePullsRouteImport.update({
   id: '/pulls',
   path: '/pulls',
@@ -235,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
+  '/repo/$owner/$name/labels': typeof RepoOwnerNameLabelsRoute
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
+  '/repo/$owner/$name/labels': typeof RepoOwnerNameLabelsRoute
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
+  '/repo/$owner/$name/labels': typeof RepoOwnerNameLabelsRoute
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/api/v3/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/issues'
+    | '/repo/$owner/$name/labels'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/api/raw/$'
     | '/api/v3/$'
     | '/repo/$owner/$name/issues'
+    | '/repo/$owner/$name/labels'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/api/v3/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/issues'
+    | '/repo/$owner/$name/labels'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
@@ -603,6 +615,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RepoOwnerNameIssuesRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
+    '/repo/$owner/$name/labels': {
+      id: '/repo/$owner/$name/labels'
+      path: '/labels'
+      fullPath: '/repo/$owner/$name/labels'
+      preLoaderRoute: typeof RepoOwnerNameLabelsRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
     '/repo/$owner/$name/pulls': {
       id: '/repo/$owner/$name/pulls'
       path: '/pulls'
@@ -730,6 +749,7 @@ const RepoOwnerNamePullsRouteWithChildren =
 
 interface RepoOwnerNameRouteChildren {
   RepoOwnerNameIssuesRoute: typeof RepoOwnerNameIssuesRouteWithChildren
+  RepoOwnerNameLabelsRoute: typeof RepoOwnerNameLabelsRoute
   RepoOwnerNamePullsRoute: typeof RepoOwnerNamePullsRouteWithChildren
   RepoOwnerNameSettingsRoute: typeof RepoOwnerNameSettingsRoute
   RepoOwnerNameSetupRoute: typeof RepoOwnerNameSetupRoute
@@ -743,6 +763,7 @@ interface RepoOwnerNameRouteChildren {
 
 const RepoOwnerNameRouteChildren: RepoOwnerNameRouteChildren = {
   RepoOwnerNameIssuesRoute: RepoOwnerNameIssuesRouteWithChildren,
+  RepoOwnerNameLabelsRoute: RepoOwnerNameLabelsRoute,
   RepoOwnerNamePullsRoute: RepoOwnerNamePullsRouteWithChildren,
   RepoOwnerNameSettingsRoute: RepoOwnerNameSettingsRoute,
   RepoOwnerNameSetupRoute: RepoOwnerNameSetupRoute,
