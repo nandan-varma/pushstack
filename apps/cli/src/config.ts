@@ -1,7 +1,15 @@
-import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Io } from "./io";
+import { CliError, type Io } from "./io";
 
 export const DEFAULT_HOST = "git.nandan.fyi";
 
@@ -35,12 +43,18 @@ export async function readHosts(io: Io): Promise<Hosts> {
 export async function writeHosts(io: Io, hosts: Hosts) {
 	await mkdir(io.configDir, { recursive: true, mode: 0o700 });
 	const target = file(io);
-	const temp = `${target}.${process.pid}.tmp`;
-	await writeFile(temp, `${JSON.stringify(hosts, null, 2)}\n`, {
-		mode: 0o600,
-	});
-	await chmod(temp, 0o600);
-	await rename(temp, target);
+	await chmod(io.configDir, 0o700);
+	const temporaryDir = await mkdtemp(join(io.configDir, ".hosts-"));
+	try {
+		const temp = join(temporaryDir, "hosts.json");
+		await writeFile(temp, `${JSON.stringify(hosts, null, 2)}\n`, {
+			mode: 0o600,
+			flag: "wx",
+		});
+		await rename(temp, target);
+	} finally {
+		await rm(temporaryDir, { recursive: true, force: true });
+	}
 }
 
 export function hostsFile(io: Io) {
@@ -49,7 +63,9 @@ export function hostsFile(io: Io) {
 
 /** The host to talk to: `--hostname`, then `PST_HOST`, then the default. */
 export function resolveHost(io: Io, flag: string | undefined) {
-	return flag || io.env.PST_HOST || DEFAULT_HOST;
+	const host = flag || io.env.PST_HOST || DEFAULT_HOST;
+	baseUrl(host);
+	return host;
 }
 
 export interface Credentials {
@@ -71,6 +87,22 @@ export async function credentialsFor(
 }
 
 export function baseUrl(host: string) {
+	let url: URL;
+	try {
+		url = new URL(`https://${host}`);
+	} catch {
+		throw new CliError(`invalid hostname "${host}"`);
+	}
+	if (
+		url.host !== host ||
+		url.username ||
+		url.password ||
+		url.pathname !== "/" ||
+		url.search ||
+		url.hash
+	) {
+		throw new CliError(`invalid hostname "${host}"`);
+	}
 	const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host);
 	return `${local ? "http" : "https"}://${host}/api/v3`;
 }
