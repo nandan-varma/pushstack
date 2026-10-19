@@ -5,6 +5,7 @@ description: How threeWayMerge works — fast-forward shortcuts, tree-level cont
 
 
 ```typescript
+import { threeWayMerge } from 'git-edge';
 
 const { commitOid } = await threeWayMerge(repo, sourceRef, targetRef, opts?);
 ```
@@ -66,6 +67,7 @@ every path has been examined — `conflictingPaths: string[]` (sorted) lists
 them all. Nothing is written: no merged trees, no commit, no ref change.
 
 ```typescript
+import { GitMergeConflictError } from 'git-edge';
 
 try {
   await threeWayMerge(repo, 'refs/heads/feature', 'refs/heads/main');

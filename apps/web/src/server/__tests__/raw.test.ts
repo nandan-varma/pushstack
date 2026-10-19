@@ -4,7 +4,7 @@
  * `/api/raw` end to end: the size cap, and the checks this route has to do for
  * itself. It is a raw route handler rather than a server function, so it never
  * passes through `files.ts`'s validated schemas — the ref and path validators,
- * and the read-access check, are its own responsibility (see `docs/security.md`).
+ * and the read-access check, are its own responsibility (see `apps/docs/content/docs/internals/security.md`).
  *
  * The oversized object is written through the normal commit path with a
  * `Uint8Array`, not base64, so the test doesn't have to build a ~67 MB string to

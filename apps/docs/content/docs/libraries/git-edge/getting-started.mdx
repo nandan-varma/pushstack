@@ -70,6 +70,9 @@ Same call, backed by object storage instead of local disk — this is the pairin
 git-edge was extracted alongside.
 
 ```typescript
+import git from 'isomorphic-git';
+import { createGitFs, MemoryObjectStore } from 'git-fs-s3';
+import { threeWayMerge } from 'git-edge';
 
 const fs = createGitFs(new MemoryObjectStore());
 const repo = { fs, gitdir: '/repo.git', cache: {} };

@@ -82,6 +82,8 @@ description: Install git-fs-s3 and wire up your first R2/S3-backed or in-memory 
 No object storage needed — useful for unit tests and quick experiments.
 
 ```typescript
+import git from 'isomorphic-git';
+import { createGitFs, MemoryObjectStore } from 'git-fs-s3';
 
 const fs = createGitFs(new MemoryObjectStore());
 await git.init({ fs, gitdir: '/repo.git', bare: true });

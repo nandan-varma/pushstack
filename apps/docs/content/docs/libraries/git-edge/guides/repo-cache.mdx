@@ -7,6 +7,7 @@ description: getRepoCache/invalidateRepoCache for isomorphic-git's per-repo pack
 ## `getRepoCache(ownerKey, repoName)` / `invalidateRepoCache(ownerKey, repoName)`
 
 ```typescript
+import { getRepoCache, invalidateRepoCache } from 'git-edge';
 
 const repo = { fs, gitdir, cache: getRepoCache('alice', 'blog') };
 ```

@@ -9,6 +9,15 @@ Every git object lives in Cloudflare R2, everything else in Postgres, which is
 what makes horizontal scaling possible: no repository data sits on any one
 machine. The live instance is [git.nandan.fyi](https://git.nandan.fyi).
 
+## Repository layout
+
+- `apps/web` — the hosted product, REST API and git smart HTTP server.
+- `apps/docs` — this documentation site, built with Fumadocs and TanStack Start.
+- `packages/git-fs-s3` and `packages/git-edge` — published git libraries.
+
+Run workspace commands from the root with pnpm and Turborepo. Preview documentation
+with `pnpm --filter @pushstack/docs dev` on port 3001.
+
 ## What it does
 
 - **Git hosting** — the full smart HTTP protocol, implemented in-process with
@@ -35,10 +44,10 @@ pnpm install
 pnpm dev:local                       # http://localhost:3000
 ```
 
-`dev:local` keeps everything under `.pushstack-local/`: an on-disk pglite
+`dev:local` keeps everything under `apps/web/.pushstack-local/`: an on-disk pglite
 database (schema pushed on every start) and the git objects, so repositories
 survive restarts. Verification and password-reset emails print their links in
-the terminal. It blanks any R2, Resend and Sentry settings from `.env.local`,
+the terminal. It blanks any R2, Resend and Sentry settings from `apps/web/.env.local`,
 so it never reaches a real service. Delete `.pushstack-local/` to start over.
 
 To run against real services instead, set up as below.
@@ -46,7 +55,7 @@ To run against real services instead, set up as below.
 ### Prerequisites
 
 - **Node 24** — what CI runs.
-- **pnpm 9** — pinned in `packageManager`; use `corepack enable` or install it
+- **pnpm 12** — pinned in `packageManager`; use `corepack enable` or install it
   directly, so you get the same version the lockfile was written for.
 - **Postgres** — a local one, or a [Neon](https://neon.tech) branch. Nothing
   connects until a query runs, but the app refuses to start without a URL.
@@ -55,7 +64,7 @@ To run against real services instead, set up as below.
 
 ```bash
 pnpm install
-cp .env.example .env.local
+cp apps/web/.env.example apps/web/.env.local
 pnpm dlx @better-auth/cli secret     # generate BETTER_AUTH_SECRET
 # fill in DATABASE_URL, BETTER_AUTH_SECRET and BETTER_AUTH_URL in .env.local
 pnpm db:push                         # create the schema
@@ -73,7 +82,7 @@ refuses to start that way rather than silently losing pushes. Point `R2_ENDPOINT
 at any S3-compatible endpoint (R2, MinIO, localstack) to keep repositories
 between restarts.
 
-See [deployment.md](./docs/deployment.md) for the full environment reference and
+See [deployment.md](https://docs.git.nandan.fyi/docs/internals/deployment) for the full environment reference and
 the Vercel-specific details.
 
 ## Commands
@@ -96,20 +105,20 @@ pnpm db:push          # apply the schema to the database (the only migration pat
 pnpm db:studio        # Drizzle Studio
 ```
 
-Run one test file with `pnpm test src/server/__tests__/repo-access.test.ts`.
+Run one web test file with `pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts`.
 
 ## Testing
 
 Unit and behavior tests live beside the code they cover, mostly in
-`src/server/__tests__/`. They run the real server functions against an in-memory
+`apps/web/src/server/__tests__/`. They run the real server functions against an in-memory
 Postgres (pglite, with the real schema) and the same git storage stack
 production uses, faking only the session — so a test failure means the code is
 wrong, not that a mock drifted.
 
-End-to-end tests live in `e2e/` (Playwright) and drive a real dev server;
+End-to-end tests live in `apps/web/e2e/` (Playwright) and drive a real dev server;
 `pnpm smoke:git` drives the real `git` binary against it. Both need a dev
 database and refuse to run against a remote one unless you ask them to. See
-[testing.md](./docs/testing.md).
+[testing.md](https://docs.git.nandan.fyi/docs/internals/testing).
 
 ## Deploying
 
@@ -117,7 +126,7 @@ database and refuse to run against a remote one unless you ask them to. See
 pnpm build
 ```
 
-The target is Vercel via Nitro's `vercel` preset (see `vite.config.ts`) — not
+The target is Vercel via Nitro's `vercel` preset (see `apps/web/vite.config.ts`) — not
 Cloudflare, which is used only for R2 object storage. Deploying the build output
 is handled by the Vercel integration. Schema changes reach the database only
 through `pnpm db:push`, and a deploy that adds a table needs that run against
@@ -139,14 +148,14 @@ the target database first.
 
 ## Documentation
 
-- **[docs/README.md](./docs/README.md)** — the map: what to read for
+- **[Documentation](https://docs.git.nandan.fyi/docs)** — the map: what to read for
   understanding the system, what to read before changing it.
-- **[Using PushStack](./docs/using-pushstack.md)** — for people using the hosted
+- **[Using PushStack](https://docs.git.nandan.fyi/docs/guide)** — for people using the hosted
   app: accounts, repositories, cloning, tokens, issues and pull requests, roles
   and limits.
-- **[Architecture](./docs/architecture.md)** — start here for the codebase.
-- **[Security](./docs/security.md)** and
-  **[security history](./docs/security-history.md)** — the rules that must hold,
+- **[Architecture](https://docs.git.nandan.fyi/docs/internals)** — start here for the codebase.
+- **[Security](https://docs.git.nandan.fyi/docs/internals/security)** and
+  **[security history](https://docs.git.nandan.fyi/docs/internals/security-history)** — the rules that must hold,
   and how they were arrived at.
 
 `CLAUDE.md` is a terser, task-oriented reference (commands, constraints, gotchas)

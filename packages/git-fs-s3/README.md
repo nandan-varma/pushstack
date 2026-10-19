@@ -1,7 +1,7 @@
 # git-fs-s3
 
 [![npm version](https://img.shields.io/npm/v/git-fs-s3.svg)](https://www.npmjs.com/package/git-fs-s3)
-[![CI](https://github.com/nandan-varma/git-fs-s3/actions/workflows/ci.yml/badge.svg)](https://github.com/nandan-varma/git-fs-s3/actions/workflows/ci.yml)
+[![CI](https://github.com/nandan-varma/pushstack/actions/workflows/ci.yml/badge.svg)](https://github.com/nandan-varma/pushstack/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/git-fs-s3.svg)](LICENSE)
 
 An [isomorphic-git](https://isomorphic-git.org) filesystem backend for S3-compatible object storage — AWS S3, Cloudflare R2, MinIO, Backblaze B2. Run git repositories on serverless platforms with **no disk, no git binary, and no state between invocations**.
@@ -15,6 +15,8 @@ Extracted from the git layer of a production git-hosting service, where it serve
 - **root export** — the fs backend itself (`createGitFs`, stores, caching).
 - **`/http`** — a git smart-HTTP protocol handler (`upload-pack`/`receive-pack`) built on it.
 - **`/ops`** — higher-level git-hosting operations (branches, commits, diffs, history, merge) built on top of that.
+
+[Documentation](https://docs.git.nandan.fyi/docs/libraries/git-fs-s3) — guides, runtime support and API reference.
 
 ## Why
 
@@ -195,7 +197,7 @@ Wraps any store with an in-process LRU read cache (git objects are content-addre
 
 - `maxBytes` — cache budget, default 50 MiB. `maxEntryBytes` — largest admissible entry, default a tenth of `maxBytes`, so one huge pack can't evict the working set.
 - `ttlMs` — entry TTL, default 60 s
-- `ttlForKey(key)` — per-key/prefix TTL override in ms (applies to `get`/`head`/`list`); return `undefined` to fall back to `ttlMs`. A single long `ttlMs` is right for content-addressed object keys (the same key's bytes never change) but wrong for mutable ones — a ref's value moves on every push, and a directory listing (`objects/pack/`) grows on every push, while the *key* naming them stays the same. This cache is in-process with no cross-instance invalidation, so without an override a warm instance that already cached a ref, or a pack directory's listing, can keep serving that pre-push view for the rest of `ttlMs` even though nothing is wrong with its own invalidation logic — it just never re-checked. See the [caching guide](https://nandan-varma.github.io/git-fs-s3/guides/caching/) for the full reasoning.
+- `ttlForKey(key)` — per-key/prefix TTL override in ms (applies to `get`/`head`/`list`); return `undefined` to fall back to `ttlMs`. A single long `ttlMs` is right for content-addressed object keys (the same key's bytes never change) but wrong for mutable ones — a ref's value moves on every push, and a directory listing (`objects/pack/`) grows on every push, while the *key* naming them stays the same. This cache is in-process with no cross-instance invalidation, so without an override a warm instance that already cached a ref, or a pack directory's listing, can keep serving that pre-push view for the rest of `ttlMs` even though nothing is wrong with its own invalidation logic — it just never re-checked. See the [caching guide](https://docs.git.nandan.fyi/docs/libraries/git-fs-s3/guides/caching/) for the full reasoning.
 - `cacheMisses` — also cache "not found" results. Big win for loose-object probes on packed repos; only safe when this process is the sole writer.
 - `cacheLists` — also cache `list()` results (readdir + existence probes). Writes through the store keep listings consistent, with one deliberate asymmetry: a non-empty `limit: 1` probe ("this directory exists") survives writes underneath it, since a write can't make a directory stop existing. After external writes, call `invalidate(prefix)`.
 - `coalesce` — collapse concurrent `get`/`head`/`list` calls for the same key into one backend request. Default on.

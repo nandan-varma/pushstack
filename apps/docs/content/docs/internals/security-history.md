@@ -3,6 +3,8 @@ title: "Security history"
 description: "How the security rules were arrived at, including the vulnerabilities behind them."
 ---
 
+# Security history
+
 How the invariants in [security.md](/docs/internals/security) were arrived at. Each section
 is the investigation that produced one of them, kept because the reasoning is
 what tells you whether a rule still applies when you change the code around it.
@@ -15,7 +17,7 @@ the rule is what keeps it fixed.
 
 ## Stored XSS in markdown rendering
 
-`MarkdownRenderer` (`apps/web/src/components/MarkdownRenderer.tsx`) renders content
+`MarkdownRenderer` (`src/components/MarkdownRenderer.tsx`) renders content
 that is **fully attacker-controlled**: issue bodies, PR bodies, comments, and
 README files — anyone with write access to a repo can put arbitrary markdown in
 front of anyone who views that content.
@@ -141,7 +143,7 @@ git CLI, no raw HTTP crafting needed for the second one):
    `targetBranchName`, once merged by anyone with merge rights, reaches
    `git.merge`/`git.commit`.
 
-**Fix**: `apps/web/src/server/git-ref-name.ts` — `isSafeFullRefName` (for the
+**Fix**: `src/server/git-ref-name.ts` — `isSafeFullRefName` (for the
 `refs/heads/…`/`refs/tags/…` shape a push's `refName` takes) and
 `isSafeBranchName` (for the bare-name shape every other entry point takes,
 also rejecting anything that already looks like a full ref path, which would
@@ -162,7 +164,7 @@ matching the repository-name fix's defense-in-depth shape:
 
 ## Path traversal via the raw-content route's ref/path
 
-`/api/raw/{owner}/{repo}/{ref}/{...path}` (`apps/web/src/server/raw.ts`, the "Raw"
+`/api/raw/{owner}/{repo}/{ref}/{...path}` (`src/server/raw.ts`, the "Raw"
 link and binary previews) reads its `ref` and `path` straight off the URL's
 decoded segments and passed them directly into `getFileContent` — unlike every other entry point in the
 app that accepts a branch-name- or path-shaped field, this route did **not**
@@ -216,72 +218,37 @@ than trusted.
 
 ## Dependency vulnerabilities
 
-`pnpm audit --prod` is clean (0 findings) as of the last pass. It wasn't always —
-worth knowing both what was actually wrong and how it was fixed, since the
-same shape of problem can recur:
+As of 2026-10-19, pnpm 12 reports zero known vulnerabilities across both
+production and development dependencies, with no overrides or ignored
+advisories. The earlier remediation used overrides and advisory exclusions;
+those have all been removed.
 
-- `@cloudflare/vite-plugin` was a fully dead dependency (never wired into
-  `apps/web/vite.config.ts` — see [deployment.md](/docs/internals/deployment)) that dragged in
-  `wrangler`/`miniflare`'s own bundled `esbuild`/`undici`/`ws`/`sharp`
-  versions as real, vulnerable installs. Removed outright.
-- The remaining findings (`hono`, `@hono/node-server`, `lodash`,
-  `deepmerge-ts`, `effect`, `valibot`, `undici`) all traced through
-  `better-auth`'s optional multi-ORM peer graph pulling in `prisma`'s bundled
-  dev-studio tooling — never imported by this app's code, just present as
-  peer-dependency noise. Pinned via `pnpm.overrides` in `package.json`.
-- `@tanstack/react-start` <1.168.60 has an XSS CVE (CVE-2026-102989) that
-  Vercel's build refuses to deploy — bumped. `seroval`, `source-map-js`,
-  `proxy-addr`, `ip-address`, `fast-uri`, `brace-expansion`,
-  `@modelcontextprotocol/sdk` and `shell-quote` are pinned via overrides.
-  `shadcn` moved to `devDependencies` (it's only a build-time CSS `@import`
-  plus the component CLI); its `braces` finding has no patched release.
-- `pnpm audit --prod` is clean. Full `pnpm audit` still reports `braces`
-  (GHSA-vfj7-8cjw-p6xm, via `shadcn`; no fix exists) and
-  `postcss-selector-parser` (GHSA-rj75-hqrm-r3gf, via
-  `@tailwindcss/typography`; the fix is a major bump it doesn't support) —
-  both dev/build-time only. Those two advisory IDs are listed in
-  `package.json`'s `pnpm.auditConfig.ignoreGhsas` so CI's full `pnpm audit`
-  still fails on anything new; remove an entry once its fix is installable.
+The dependency graph was repaired at its owners:
 
-**The overrides need an explicit upper bound, not just a patched floor.**
-`pnpm audit --fix`'s auto-generated overrides default to an open-ended target
-(`">=7.29.0"`, no ceiling) — that resolved cleanly at the time, but the *next*
-`pnpm install` after a new major version of that package gets published will
-happily jump to it. This actually broke the whole test suite once: an
-open-ended `undici` override resolved to `undici@8.10.0` on a later install,
-and `jsdom` (which needs `undici@^7.x` — it requires an internal path,
-`undici/lib/handler/wrap-handler.js`, that doesn't exist in v8) crashed
-outright. Every override in `package.json` is capped below its next major
-(`">=7.29.0 <8.0.0"`) for exactly this reason — if you add a new one, cap it
-the same way, and re-run the full test suite (not just `pnpm audit`) before
-considering the fix done.
+- Removed the unused Cloudflare Vite plugin and its Wrangler/Miniflare graph.
+- Disabled automatic peer installation instead of installing Better Auth's
+  unused Prisma and other optional ORM peers.
+- Upgraded TanStack Start and the remaining direct dependencies to releases
+  that include patched transitive dependencies.
+- Replaced `@tailwindcss/typography` with app-owned Markdown CSS and removed
+  the installed `shadcn` CLI after vendoring its Tailwind utilities. This
+  removed the vulnerable selector-parser and braces chains.
+- Replaced tsup with tsdown in both library builds.
+- Upgraded Drizzle ORM and Kit together to 1.0.0-rc.4, removing the old
+  `@esbuild-kit` / esbuild dependency chain. Migrated relational queries and
+  programmatic schema pushes to the new APIs.
 
-**Don't move the overrides out of `package.json` on pnpm 9.15's say-so —
-verify first.** `pnpm install` on this pnpm version prints `The "pnpm" field
-in package.json is no longer read by pnpm... See pnpm.io/settings for the
-new home`, pointing at `pnpm-workspace.yaml`'s `overrides` key. That warning
-is wrong for this pnpm version: empirically, `pnpm-workspace.yaml`'s
-`overrides` key has **zero effect** here (tested directly — overriding a
-plain top-level dependency there did nothing), while `package.json`'s
-`"pnpm"` key still works exactly as before, warning aside. Moving the block
-anyway silently drops every cap: a full lockfile regeneration afterward
-converged on real, older, vulnerable versions of several of these packages
-through peer-dependency-driven duplicate resolution paths (wrangler's own
-bundled `miniflare`, prisma's peer chain) that weren't resolved before —
-`pnpm audit` went from 0 findings to 69 (14 high). If a future pnpm/Node
-upgrade repeats this warning, confirm which location actually works before
-touching anything: override some inert top-level dependency (not one of the
-real caps) to an arbitrary old version and check `pnpm ls <that package>`
-reflects it — don't trust the warning text or `pnpm why` alone, since `pnpm
-why` only traces one representative path per package and can look correct
-while a different peer-resolved instance of the same package silently isn't
-overridden at all.
+Two earlier failures explain this policy. An open-ended `undici` override
+resolved to a new major whose internal paths were incompatible with jsdom,
+breaking the suite. Separately, pnpm 9.15.5 claimed package.json settings had
+moved to the workspace file, but moving the overrides silently disabled them
+and reintroduced vulnerable versions. These are historical observations,
+not instructions for pnpm 12: current settings belong in
+`pnpm-workspace.yaml`, and there are no overrides to maintain.
 
-If `pnpm audit` shows a new finding, check `findings[].paths` in `pnpm audit
---json` to see whether the dependency chain is genuinely dev-only/unreachable
-from the deployed runtime before dismissing it the way the old findings were
-— don't assume every future finding is automatically noise just because past
-ones were.
+For future findings, inspect the complete dependency path, upgrade or remove
+its owning dependency, and run audit, typecheck, tests, build and native-git
+smoke checks. A clean audit alone does not establish API compatibility.
 
 ## A known, separate issue (not a vulnerability, but worth knowing)
 

@@ -58,6 +58,7 @@ built to compose with this package for repos that live entirely in object
 storage with no durable disk to check out onto.
 
 ```typescript
+import { threeWayMerge, GitMergeConflictError } from 'git-edge';
 
 try {
   const { commitOid } = await threeWayMerge(repo, sourceBranch, targetBranch);

@@ -3,6 +3,8 @@ title: "Security"
 description: "The rules that must hold: access control, hostile content, names and refs, auth, limits, secrets."
 ---
 
+# Security
+
 This document is the security model: the invariants that must hold, and why each
 one is shaped the way it is. It is written to be read before you change an auth
 path, a storage key, or anything that renders user content.
@@ -61,19 +63,19 @@ URL parser instead of trusting it. [The full story](/docs/internals/security-his
 
 `buildComponents` resolves a relative target against the containing document —
 `./diagram.png` written in `docs/README.md` names `docs/diagram.png`, the same
-as on any git host — via `apps/web/src/lib/repo-path.ts`. That module also refuses a
+as on any git host — via `src/lib/repo-path.ts`. That module also refuses a
 target that climbs above the repository root, so a `../../../../etc/passwd`
 image renders as nothing rather than as a request for a path no repository
-contains. `rawFileUrl` (`apps/web/src/lib/file-view.ts`) builds the raw-content URL with
+contains. `rawFileUrl` (`src/lib/file-view.ts`) builds the raw-content URL with
 per-segment `encodeURIComponent`, and it is the only URL builder for repo bytes
 — the previous `/api/repos/{owner}/{name}/blob/…` shape matched no route, so
 every relative image in every README 404'd.
 
 ## The Content-Security-Policy is per-request (nonce)
 
-`apps/web/src/server/csp.ts` runs as a global request middleware: it generates a nonce,
+`src/server/csp.ts` runs as a global request middleware: it generates a nonce,
 hands it to the router through the middleware context (read back in
-`apps/web/src/router.tsx` as `ssr.nonce`), and writes the header. TanStack Router stamps
+`src/router.tsx` as `ssr.nonce`), and writes the header. TanStack Router stamps
 that nonce on every script and style it renders, React's streamed renderer uses
 it for the bootstrap scripts, and both come from the same middleware call as the
 header, so the document and the policy cannot disagree.
@@ -83,7 +85,7 @@ injected inline script or event handler still runs, which made the policy — th
 last line of defence behind `isSafeHref` — decorative against exactly the attack
 it exists to stop. Three deliberate consequences:
 
-- **The theme script is allowed by hash, not by nonce.** `apps/web/src/lib/theme.ts` is
+- **The theme script is allowed by hash, not by nonce.** `src/lib/theme.ts` is
   a build-time constant and the policy carries its SHA-256, computed from that
   same constant, so the two cannot drift. A hash also needs nothing from the
   client render, where a per-request nonce does not exist.
@@ -136,7 +138,7 @@ A repository's storage prefix is `repos/{ownerKey}/{repoName}`, and `ownerKey`
 is the owner's username. Better Auth's username plugin lets `update-user` change
 the username, which would orphan every repository the user owns — and let
 whoever later claims the old username inherit that storage under matching
-repository names, a cross-tenant read. `apps/web/src/lib/auth.ts` refuses `username`,
+repository names, a cross-tenant read. `src/lib/auth.ts` refuses `username`,
 `displayUsername` and `email` changes in `databaseHooks.user.update.before`
 (`auth-immutable-fields.test.ts` runs it against real Better Auth). Allowing
 renames would first need storage keyed by user id, plus a migration.
@@ -170,11 +172,11 @@ hash is fine for a token that's already unguessable. See
 Better Auth's limiter keeps its counters in a module-level `Map` by default
 (`options.rateLimit.storage` resolves to `"memory"` when nothing else is
 configured). On Vercel that is one `Map` per warm instance, so the configured
-`20 requests / 60 s` (`apps/web/src/lib/auth.ts`) is really 20 × however many instances
+`20 requests / 60 s` (`src/lib/auth.ts`) is really 20 × however many instances
 are serving, and an attacker spreading requests across instances sees a ceiling
 far above what the configuration claims.
 
-`apps/web/src/server/rate-limit.ts` supplies Better Auth's `rateLimit.customStorage` with
+`src/server/rate-limit.ts` supplies Better Auth's `rateLimit.customStorage` with
 counters in the `rate_limits` table, so the window is shared. One statement does
 the whole decision — Postgres starts a new window or advances the current one,
 and reports whether the caller is inside the limit — so two concurrent requests
@@ -188,7 +190,7 @@ to the `Map` is the regression worth catching.
 
 Every string a caller controls that gets *persisted* — a commit message, an
 issue/PR/comment body, an uploaded file — has an explicit maximum in
-`apps/web/src/lib/limits.ts`, applied by the server function's validator. Without them
+`src/lib/limits.ts`, applied by the server function's validator. Without them
 the only bound was the platform's request-body size, which says nothing about
 how much storage or how much rendering work one request may cause, and a commit
 message is not rendered small. The upload bound is shared with the browser, so
@@ -242,22 +244,24 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependencies
 
-`pnpm audit --prod` is clean; the full audit reports one build-time-only
-advisory, `braces` via the `shadcn` CLI (GHSA-vfj7-8cjw-p6xm), which has no
-patched release. It's listed in `package.json`'s `pnpm.auditConfig.ignoreGhsas`
-so CI's full `pnpm audit` still fails on anything new. `postcss-selector-parser`
-(GHSA-rj75-hqrm-r3gf, pinned to 6.0.10 by `@tailwindcss/typography`) is
-overridden to 7.1.6 instead — the built CSS is byte-identical. Two rules matter more than the current state:
+Both `pnpm audit` and `pnpm audit --prod` report zero known vulnerabilities.
+There are no dependency overrides or ignored advisories. Upgrade or remove the
+package responsible for a vulnerable transitive dependency instead of forcing
+an unsupported version into its graph.
 
-- **Every override in `package.json` carries an explicit upper bound**, not just
-  a patched floor (`">=7.29.0 <8.0.0"`). An open-ended override resolved to
-  `undici@8` on a later install and broke the whole test suite, because `jsdom`
-  needs an internal path that no longer exists in v8.
-- **Overrides stay in `package.json`'s `pnpm` field on this pnpm version.**
-  `pnpm install` claims that field is no longer read and points at
-  `pnpm-workspace.yaml`; on 9.15.5 the warning is wrong, and moving the block
-  silently drops every cap. Verify empirically before acting on it.
+pnpm 12 settings live in `pnpm-workspace.yaml`: build scripts require an
+explicit `allowBuilds` entry, bundled agent skills are denied per package,
+and automatic peer installation is disabled. Install the drivers and adapters
+we actually use rather than every optional ORM peer.
 
-When a new finding appears, check `findings[].paths` in `pnpm audit --json` to
-see whether the chain is reachable from the deployed runtime before dismissing
-it. [The history behind these rules](/docs/internals/security-history#dependency-vulnerabilities).
+The app uses Drizzle ORM and Kit 1.0.0-rc.4 together. Relational queries use
+`defineRelations` and v2 filters; local schema pushes use
+`drizzle-kit/api-postgres`. The old Kit dependency pulled in a vulnerable
+esbuild release. Markdown styles and the shadcn Tailwind utilities live in the
+app's CSS, so the shadcn CLI and typography plugin aren't installed runtime
+or build dependencies. Add components with `pnpm dlx shadcn@latest add`.
+
+When a new finding appears, inspect its dependency path with `pnpm why` and
+`pnpm audit --json`, upgrade its owner, then run the full validation suite.
+[Earlier incidents](/docs/internals/security-history#dependency-vulnerabilities) explain
+why overrides and advisory exclusions were removed.

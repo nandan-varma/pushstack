@@ -79,6 +79,7 @@ named — still gets the full `ttlMs` cache benefit once the structure itself
 is current:
 
 ```typescript
+import { classifyGitdirPath, isMutableGitdirEntry } from 'git-fs-s3';
 
 // Keys here are `repos/<owner>/<repo>/git/<path inside the gitdir>`.
 const pathInGitdir = (key: string) => key.split('/').slice(4).join('/');

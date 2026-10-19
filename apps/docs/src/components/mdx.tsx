@@ -30,14 +30,14 @@ function ApiSignature({
 }) {
 	return (
 		<div
-			id={name}
+			id={name.toLowerCase()}
 			className="not-prose my-6 rounded-lg border bg-fd-card p-4 text-fd-card-foreground"
 		>
 			<div className="mb-2 flex items-center gap-2">
 				<span className="rounded bg-fd-muted px-1.5 py-0.5 text-xs text-fd-muted-foreground">
 					{kind}
 				</span>
-				<a href={`#${name}`}>
+				<a href={`#${name.toLowerCase()}`}>
 					<code className="font-semibold">{name}</code>
 				</a>
 			</div>

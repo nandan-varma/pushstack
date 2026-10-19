@@ -12,10 +12,12 @@ actually runs in, with the reasoning for each layer.
 ## The full stack
 
 ```typescript
+import {
   createCachedStore,
   createGitFs,
   createRetryStore,
 } from 'git-fs-s3';
+import { S3ObjectStore } from 'git-fs-s3/s3';
 
 const store = createCachedStore(
   createRetryStore(

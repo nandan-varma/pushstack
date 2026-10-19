@@ -14,7 +14,7 @@ import { baseOptions } from "@/lib/layout.shared";
 import { docs, source } from "@/lib/source";
 
 const serverLoader = createServerFn({ method: "GET" })
-	.inputValidator((slugs: string[]) => slugs)
+	.validator((slugs: string[]) => slugs)
 	.handler(async ({ data: slugs }) => {
 		const page = source.getPage(slugs);
 		if (!page) throw notFound();

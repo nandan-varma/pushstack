@@ -1,12 +1,14 @@
 # git-edge
 
 [![npm version](https://img.shields.io/npm/v/git-edge.svg)](https://www.npmjs.com/package/git-edge)
-[![CI](https://github.com/nandan-varma/git-edge/actions/workflows/ci.yml/badge.svg)](https://github.com/nandan-varma/git-edge/actions/workflows/ci.yml)
+[![CI](https://github.com/nandan-varma/pushstack/actions/workflows/ci.yml/badge.svg)](https://github.com/nandan-varma/pushstack/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/git-edge.svg)](LICENSE)
 
 High-level edge-compatible git operations on top of [isomorphic-git](https://isomorphic-git.org): a parsed-object LRU cache, an object-level three-way merge that never needs a worktree, and per-repo packfile-cache management. No `node:*` imports anywhere in `src/` — runs on Cloudflare Workers, Vercel Edge, Deno Deploy, and Node.
 
 Extracted from the same production git-hosting service as [`git-fs-s3`](https://www.npmjs.com/package/git-fs-s3) — the two compose (see below): both work on isomorphic-git's `{ fs, gitdir, cache? }` shape, and `threeWayMerge` stores its objects through git-fs-s3's `withPackedWrites`.
+
+[Documentation](https://docs.git.nandan.fyi/docs/libraries/git-edge) — guides, runtime support and API reference.
 
 ## Why
 
