@@ -179,6 +179,21 @@ importers:
         specifier: ^2.11.9
         version: 2.11.9
 
+  apps/cli:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+      tsdown:
+        specifier: ^0.23.1
+        version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
   apps/web:
     dependencies:
       '@base-ui/react':
@@ -299,6 +314,9 @@ importers:
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
+      '@pushstack/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@tanstack/devtools-vite':
         specifier: ^0.8.5
         version: 0.8.5(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
