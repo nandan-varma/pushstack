@@ -19,6 +19,10 @@ import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
+import {
+	GITIGNORE_TEMPLATE_NAMES,
+	LICENSE_TEMPLATE_KEYS,
+} from "#/lib/templates";
 import { perfStep } from "../perf-log";
 import {
 	createRepositoryForUser,
@@ -244,6 +248,9 @@ const createBodySchema = z.object({
 	name: repoNameSchema,
 	description: z.string().trim().max(500).nullish(),
 	private: z.boolean().default(false),
+	auto_init: z.boolean().default(false),
+	gitignore_template: z.enum(GITIGNORE_TEMPLATE_NAMES).optional(),
+	license_template: z.enum(LICENSE_TEMPLATE_KEYS).optional(),
 });
 
 /** GitHub's `errors[]` for a failed body parse: missing_field vs invalid. */
@@ -273,7 +280,7 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 		);
 	}
 	const [owner] = await db
-		.select(publicUserColumns)
+		.select({ ...publicUserColumns, email: user.email })
 		.from(user)
 		.where(eq(user.id, userId));
 	if (!owner) throw notFoundError();
@@ -284,6 +291,9 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 			name: parsed.data.name,
 			description: parsed.data.description ?? undefined,
 			visibility: parsed.data.private ? "private" : "public",
+			autoInit: parsed.data.auto_init,
+			gitignoreTemplate: parsed.data.gitignore_template,
+			licenseTemplate: parsed.data.license_template,
 		});
 	} catch (error) {
 		if (error instanceof RepositoryExistsError) {

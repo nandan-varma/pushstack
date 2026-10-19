@@ -1,0 +1,26 @@
+name: Feature
+description: A capability PushStack should have (usually GitHub parity)
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What users can do afterwards. If it mirrors GitHub, link the GitHub docs page.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What's in and out; GitHub names, shapes and permissions to match.
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Tests and docs that prove it.
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Vercel Hobby limits, R2 round trips, security notes.

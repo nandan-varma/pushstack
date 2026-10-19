@@ -511,3 +511,27 @@ describe("branches and tags", () => {
 		expect(headers.get("link")).toContain('rel="next"');
 	});
 });
+
+describe("repository initialization", () => {
+	it("initializes with auto_init, gitignore_template and license_template", async () => {
+		const { status } = await call(
+			"/user/repos",
+			post(alice, {
+				name: "inited",
+				auto_init: true,
+				gitignore_template: "Node",
+				license_template: "mit",
+			}),
+		);
+		expect(status).toBe(201);
+		const branch = await call("/repos/alice/inited/branches/main");
+		expect(branch.status).toBe(200);
+		expect(branch.body.commit.commit.message).toBe("Initial commit");
+		const bad = await call(
+			"/user/repos",
+			post(alice, { name: "bad-tpl", gitignore_template: "Nope" }),
+		);
+		expect(bad.status).toBe(422);
+		expect(bad.body.errors[0].field).toBe("gitignore_template");
+	});
+});

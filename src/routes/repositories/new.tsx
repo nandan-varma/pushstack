@@ -1,6 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { getSession } from "@/lib/auth-session";
 import { queryKeys } from "@/lib/query-options";
 import { Button } from "../../components/ui/button";
@@ -13,7 +20,16 @@ import {
 	STORAGE_NAME_HINT,
 	STORAGE_NAME_PATTERN,
 } from "../../lib/storage-name";
+import {
+	GITIGNORE_TEMPLATE_NAMES,
+	type GitignoreTemplateName,
+	LICENSE_TEMPLATE_KEYS,
+	LICENSE_TEMPLATE_LABELS,
+	type LicenseTemplateKey,
+} from "../../lib/templates/names";
 import { createRepository } from "../../server/repositories";
+
+const NONE = "none";
 
 export const Route = createFileRoute("/repositories/new")({
 	component: NewRepositoryPage,
@@ -33,6 +49,13 @@ function NewRepositoryPage() {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [visibility, setVisibility] = useState<"public" | "private">("public");
+	const [autoInit, setAutoInit] = useState(false);
+	const [gitignoreTemplate, setGitignoreTemplate] = useState<
+		GitignoreTemplateName | typeof NONE
+	>(NONE);
+	const [licenseTemplate, setLicenseTemplate] = useState<
+		LicenseTemplateKey | typeof NONE
+	>(NONE);
 	const [error, setError] = useState("");
 
 	const ownerHandle = user.username || user.email.split("@")[0];
@@ -63,7 +86,17 @@ function NewRepositoryPage() {
 			setError("Repository name is required");
 			return;
 		}
-		createRepoMutation.mutate({ data: { name, description, visibility } });
+		createRepoMutation.mutate({
+			data: {
+				name,
+				description,
+				visibility,
+				autoInit,
+				gitignoreTemplate:
+					gitignoreTemplate === NONE ? undefined : gitignoreTemplate,
+				licenseTemplate: licenseTemplate === NONE ? undefined : licenseTemplate,
+			},
+		});
 	};
 
 	return (
@@ -163,6 +196,70 @@ function NewRepositoryPage() {
 										</div>
 									</label>
 								))}
+							</div>
+						</fieldset>
+
+						<fieldset className="space-y-4">
+							<legend className="text-sm font-medium text-foreground">
+								Initialize this repository with
+							</legend>
+							<label className="flex cursor-pointer items-start gap-3">
+								<input
+									type="checkbox"
+									checked={autoInit}
+									onChange={(e) => setAutoInit(e.target.checked)}
+									className="mt-0.5 accent-[var(--primary)]"
+								/>
+								<div>
+									<div className="text-sm font-medium text-foreground">
+										Add a README file
+									</div>
+									<div className="mt-0.5 text-xs text-muted-foreground">
+										A good place to describe your project.
+									</div>
+								</div>
+							</label>
+							<div className="space-y-1.5">
+								<Label htmlFor="gitignore-template">.gitignore template</Label>
+								<Select
+									value={gitignoreTemplate}
+									onValueChange={(value) =>
+										setGitignoreTemplate(value as typeof gitignoreTemplate)
+									}
+								>
+									<SelectTrigger id="gitignore-template" className="w-full">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={NONE}>No .gitignore</SelectItem>
+										{GITIGNORE_TEMPLATE_NAMES.map((template) => (
+											<SelectItem key={template} value={template}>
+												{template}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="license-template">License</Label>
+								<Select
+									value={licenseTemplate}
+									onValueChange={(value) =>
+										setLicenseTemplate(value as typeof licenseTemplate)
+									}
+								>
+									<SelectTrigger id="license-template" className="w-full">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={NONE}>No license</SelectItem>
+										{LICENSE_TEMPLATE_KEYS.map((key) => (
+											<SelectItem key={key} value={key}>
+												{LICENSE_TEMPLATE_LABELS[key]}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 						</fieldset>
 
