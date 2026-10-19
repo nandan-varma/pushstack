@@ -25,6 +25,7 @@ import { Route as RepositoriesIndexRouteImport } from './routes/repositories/ind
 import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
 import { Route as UsersUsernameRouteImport } from './routes/users.$username'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiDebugPerfRouteImport } from './routes/api/debug.perf'
 import { Route as ApiGitSplatRouteImport } from './routes/api/git.$'
 import { Route as ApiRawSplatRouteImport } from './routes/api/raw.$'
 import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
@@ -120,6 +121,11 @@ const UsersUsernameRoute = UsersUsernameRouteImport.update({
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDebugPerfRoute = ApiDebugPerfRouteImport.update({
+  id: '/api/debug/perf',
+  path: '/api/debug/perf',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGitSplatRoute = ApiGitSplatRouteImport.update({
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/users/$username': typeof UsersUsernameRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/users/$username': typeof UsersUsernameRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
@@ -290,6 +298,7 @@ export interface FileRoutesById {
   '/users/$username': typeof UsersUsernameRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/users/$username'
     | '/repositories/'
     | '/api/auth/$'
+    | '/api/debug/perf'
     | '/api/git/$'
     | '/api/raw/$'
     | '/api/v3/$'
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/users/$username'
     | '/repositories'
     | '/api/auth/$'
+    | '/api/debug/perf'
     | '/api/git/$'
     | '/api/raw/$'
     | '/api/v3/$'
@@ -392,6 +403,7 @@ export interface FileRouteTypes {
     | '/users/$username'
     | '/repositories/'
     | '/api/auth/$'
+    | '/api/debug/perf'
     | '/api/git/$'
     | '/api/raw/$'
     | '/api/v3/$'
@@ -421,6 +433,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   UsersUsernameRoute: typeof UsersUsernameRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiDebugPerfRoute: typeof ApiDebugPerfRoute
   ApiGitSplatRoute: typeof ApiGitSplatRoute
   ApiRawSplatRoute: typeof ApiRawSplatRoute
   ApiV3SplatRoute: typeof ApiV3SplatRoute
@@ -539,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/debug/perf': {
+      id: '/api/debug/perf'
+      path: '/api/debug/perf'
+      fullPath: '/api/debug/perf'
+      preLoaderRoute: typeof ApiDebugPerfRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/git/$': {
@@ -749,6 +769,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   UsersUsernameRoute: UsersUsernameRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiDebugPerfRoute: ApiDebugPerfRoute,
   ApiGitSplatRoute: ApiGitSplatRoute,
   ApiRawSplatRoute: ApiRawSplatRoute,
   ApiV3SplatRoute: ApiV3SplatRoute,

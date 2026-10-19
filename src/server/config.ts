@@ -16,3 +16,6 @@ export const GIT_HTTP_MAX_BODY_BYTES = positiveInt(
 	"GIT_HTTP_MAX_BODY_BYTES",
 	50 * 1024 * 1024,
 );
+
+/** Requests slower than this are reported as slow (a warning, with the step breakdown). */
+export const SLOW_REQUEST_MS = positiveInt("SLOW_REQUEST_MS", 3000);

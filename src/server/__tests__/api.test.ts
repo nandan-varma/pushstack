@@ -197,6 +197,16 @@ describe("request handling", () => {
 		expect(sent).toBeLessThan(4 * 1024 * 1024);
 	});
 
+	it("sends a unique X-GitHub-Request-Id, on errors too", async () => {
+		const a = await call("/user");
+		const b = await call("/nope");
+		expect(a.headers.get("x-github-request-id")).toMatch(/^[0-9a-f]{32}$/);
+		expect(b.headers.get("x-github-request-id")).toMatch(/^[0-9a-f]{32}$/);
+		expect(a.headers.get("x-github-request-id")).not.toBe(
+			b.headers.get("x-github-request-id"),
+		);
+	});
+
 	it("answers HEAD like GET without a body", async () => {
 		const response = await handleApiRequest(
 			new Request(`${BASE}/users/alice`, { method: "HEAD" }),
