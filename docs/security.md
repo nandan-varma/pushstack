@@ -239,11 +239,12 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependencies
 
-`pnpm audit --prod` is clean; the full audit reports two build-time-only
-advisories (`braces` via `shadcn`, `postcss-selector-parser` via
-`@tailwindcss/typography`), both listed in `package.json`'s
-`pnpm.auditConfig.ignoreGhsas` so CI's full `pnpm audit` still fails on anything
-new. Two rules matter more than the current state:
+`pnpm audit --prod` is clean; the full audit reports one build-time-only
+advisory, `braces` via the `shadcn` CLI (GHSA-vfj7-8cjw-p6xm), which has no
+patched release. It's listed in `package.json`'s `pnpm.auditConfig.ignoreGhsas`
+so CI's full `pnpm audit` still fails on anything new. `postcss-selector-parser`
+(GHSA-rj75-hqrm-r3gf, pinned to 6.0.10 by `@tailwindcss/typography`) is
+overridden to 7.1.6 instead — the built CSS is byte-identical. Two rules matter more than the current state:
 
 - **Every override in `package.json` carries an explicit upper bound**, not just
   a patched floor (`">=7.29.0 <8.0.0"`). An open-ended override resolved to
