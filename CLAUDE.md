@@ -10,6 +10,8 @@ A pnpm + Turborepo monorepo:
 
 - `apps/web` — the product: TanStack Start app, `/api/v3` REST API, git smart-HTTP. Deployed to Vercel (project root `apps/web`, build `turbo run build --filter=@pushstack/web`, see `apps/web/vercel.json`). **Every app path in this file (`src/…`, `scripts/…`, `e2e/…`) is relative to `apps/web`.** Its env file is `apps/web/.env.local`.
 - `apps/docs` — Fumadocs documentation on TanStack Start, deployed separately to `docs.git.nandan.fyi`. All documentation source lives in `apps/docs/content/docs`; the site test checks internal links, navigation and code examples.
+- `apps/cli` — `@pushstack/cli`, bins `pushstack` and `pst`; auth, repository and API commands. Its unit tests mock fetch; web contract tests run it through the real REST dispatcher. npm publication is a separate pending release step.
+- `packages/tsconfig` — private shared compiler options. Runtime workspaces extend its base or Node config and declare it as a workspace dev dependency. `scripts/workspace.test.mjs` enforces scripts, links, shared versions and dependency policy.
 - `packages/git-fs-s3`, `packages/git-edge` — our git libraries (imported with full history; published to npm under those names). The app depends on them as `workspace:*` and imports their built `dist/`; turbo builds them first (`dependsOn: ["^build"]`).
 - Root: tooling only — `turbo.json` (task graph; build-time env vars must be listed there, turbo's strict env mode hides the rest), one `biome.json` for every workspace, husky + lint-staged.
 
@@ -25,6 +27,7 @@ pnpm typecheck     # tsc --noEmit everywhere
 pnpm test          # vitest everywhere (web: unit + behavior, jsdom/node)
 pnpm smoke:git     # native git CLI against the app's smart-HTTP route (scratch HOME; never touches your git config)
 pnpm check         # biome lint + format check, whole repo
+pnpm lint          # cached workspace Biome checks; shared config invalidates the cache
 pnpm format        # biome format (write)
 pnpm db:push       # push the schema to Neon — the only migration path (no migration files)
 pnpm db:studio     # drizzle studio UI

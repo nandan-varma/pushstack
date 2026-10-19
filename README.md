@@ -1,176 +1,107 @@
 # PushStack
 
-PushStack is a code-hosting platform: git repository hosting over the smart HTTP
-protocol (so `git clone`/`fetch`/`push` work with a normal client), plus issue
-tracking, pull requests, and a code and diff browser.
+A GitHub-compatible code forge: Git over HTTPS, repositories, issues, pull
+requests, code browsing, and a REST API at `/api/v3`.
 
-It runs on serverless functions with no native `git` binary and no local disk.
-Every git object lives in Cloudflare R2, everything else in Postgres, which is
-what makes horizontal scaling possible: no repository data sits on any one
-machine. The live instance is [git.nandan.fyi](https://git.nandan.fyi).
+The hosted app is [git.nandan.fyi](https://git.nandan.fyi). Git objects live in
+Cloudflare R2; application data lives in Neon Postgres. The server runs on
+Vercel's Node runtime without native Git or persistent disk.
 
-## Repository layout
+## Workspace
 
-- `apps/web` — the hosted product, REST API and git smart HTTP server.
-- `apps/docs` — this documentation site, built with Fumadocs and TanStack Start.
-- `packages/git-fs-s3` and `packages/git-edge` — published git libraries.
+| Path | Package | Purpose |
+| --- | --- | --- |
+| `apps/web` | `@pushstack/web` | Product UI, REST API and Git smart HTTP |
+| `apps/docs` | `@pushstack/docs` | Product, API, architecture and library documentation |
+| `apps/cli` | `@pushstack/cli` | `pushstack` / `pst`: auth, repositories and API requests |
+| `packages/git-fs-s3` | `git-fs-s3` | Git filesystem, operations and smart HTTP over object storage |
+| `packages/git-edge` | `git-edge` | Object-level three-way merging and repository caches |
+| `packages/tsconfig` | `@pushstack/tsconfig` | Shared TypeScript configuration |
 
-Run workspace commands from the root with pnpm and Turborepo. Preview documentation
-with `pnpm --filter @pushstack/docs dev` on port 3001.
+pnpm links internal packages explicitly with `workspace:*`. Turborepo builds
+libraries before their consumers and caches each workspace's tasks. Biome is
+configured once at the root. Workspace tests enforce shared dependency versions,
+TypeScript configuration and validation commands.
 
-## What it does
+## Run locally
 
-- **Git hosting** — the full smart HTTP protocol, implemented in-process with
-  isomorphic-git rather than shelling out to a binary. Clone, fetch, push,
-  branches, tags, merges and repacks all work against object storage.
-- **Repositories** — public or private, with collaborators at `read`, `write` or
-  `admin`, and a web UI for uploading, deleting, branching and browsing files.
-- **Issues and pull requests** — one shared `#N` sequence per repository,
-  comments, closing keywords (`Closes #4`), and merges that are fast-forward or
-  a real three-way merge.
-- **Reading code** — file tree, per-file history, commit history, diffs, syntax
-  highlighting, media previews, and submodules as pinned pointers.
-- **Access control** — one `RepositoryAccess` computation for every read, write
-  and moderation check, used by the web UI and the git endpoint alike.
-- **Auth** — Better Auth sessions for the browser; personal access tokens
-  (scoped, revocable, hashed at rest) for git over HTTPS.
-
-## Run it locally
-
-### Quick start — no accounts needed
+Use Node 24 (`.node-version`) and pnpm 12.14.0 (`packageManager`).
 
 ```bash
+npm install --global pnpm@12.14.0
 pnpm install
-pnpm dev:local                       # http://localhost:3000
+pnpm dev:local                         # http://localhost:3000
+pnpm --filter @pushstack/docs dev       # http://localhost:3001
 ```
 
-`dev:local` keeps everything under `apps/web/.pushstack-local/`: an on-disk pglite
-database (schema pushed on every start) and the git objects, so repositories
-survive restarts. Verification and password-reset emails print their links in
-the terminal. It blanks any R2, Resend and Sentry settings from `apps/web/.env.local`,
-so it never reaches a real service. Delete `.pushstack-local/` to start over.
+Local development uses PGlite and on-disk Git under
+`apps/web/.pushstack-local/`. It needs no cloud accounts, survives restarts,
+and prints verification/reset email links in the terminal. The launcher blanks
+R2, Resend and Sentry credentials so it does not contact those services.
 
-To run against real services instead, set up as below.
-
-### Prerequisites
-
-- **Node 24** — what CI runs.
-- **pnpm 12** — pinned in `packageManager`; use `corepack enable` or install it
-  directly, so you get the same version the lockfile was written for.
-- **Postgres** — a local one, or a [Neon](https://neon.tech) branch. Nothing
-  connects until a query runs, but the app refuses to start without a URL.
-
-### Set up
-
-```bash
-pnpm install
-cp apps/web/.env.example apps/web/.env.local
-pnpm dlx @better-auth/cli secret     # generate BETTER_AUTH_SECRET
-# fill in DATABASE_URL, BETTER_AUTH_SECRET and BETTER_AUTH_URL in .env.local
-pnpm db:push                         # create the schema
-pnpm dev                             # http://localhost:3000
-```
-
-`apps/web/.env.example` lists every variable. `DATABASE_URL`, `BETTER_AUTH_SECRET` and
-`BETTER_AUTH_URL` are the ones you must set; email (Resend) and Sentry are
-optional, and the app runs without them.
-
-**R2 is optional locally.** Without the four `R2_*` variables, git data is kept
-in memory for the life of the dev server, so repositories vanish when it
-restarts — fine for trying things out. With `NODE_ENV=production` the app
-refuses to start that way rather than silently losing pushes. Point `R2_ENDPOINT`
-at any S3-compatible endpoint (R2, MinIO, localstack) to keep repositories
-between restarts.
-
-See [deployment.md](https://docs.git.nandan.fyi/docs/internals/deployment) for the full environment reference and
-the Vercel-specific details.
+To use real services, copy `apps/web/.env.example` to `apps/web/.env.local`,
+set the database and auth variables, run `pnpm db:push`, then `pnpm dev`.
+See the [deployment guide](https://docs.git.nandan.fyi/docs/internals/deployment)
+for configuration and storage requirements.
 
 ## Commands
 
-```bash
-pnpm dev              # development server on :3000 (uses .env.local)
-pnpm dev:local        # same, fully local: pglite + on-disk git, no accounts
-pnpm build            # production build
-pnpm typecheck        # tsc --noEmit
-pnpm test             # unit and behavior tests (Vitest)
-pnpm smoke:git        # the real git CLI against a live dev server
-pnpm check            # Biome lint + format check
-pnpm format           # Biome format (writes)
-pnpm db:push          # apply the schema to the database (the only migration path)
-pnpm db:studio        # Drizzle Studio
-```
-
-Run one web test file with `pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts`.
-
-## Testing
-
-Unit and behavior tests live beside the code they cover, mostly in
-`apps/web/src/server/__tests__/`. They run the real server functions against an in-memory
-Postgres (pglite, with the real schema) and the same git storage stack
-production uses, faking only the session — so a test failure means the code is
-wrong, not that a mock drifted.
-
-End-to-end tests live in `apps/web/e2e/` (Playwright) and drive a real dev server;
-`pnpm smoke:git` drives the real `git` binary against it. Both need a dev
-database and refuse to run against a remote one unless you ask them to. See
-[testing.md](https://docs.git.nandan.fyi/docs/internals/testing).
-
-## Deploying
+Run from the repository root:
 
 ```bash
-pnpm build
+pnpm build              # build every application and library
+pnpm typecheck          # check every runtime workspace
+pnpm test               # workspace integrity + unit and behavior tests
+pnpm smoke:git          # real Git client against the smart HTTP endpoint
+pnpm check              # repository-wide Biome lint and format check
+pnpm lint               # workspace lint tasks
+pnpm format             # format with Biome
+pnpm db:push            # apply the web schema to the configured database
+pnpm db:studio          # inspect the configured database
 ```
 
-The target is Vercel via Nitro's `vercel` preset (see `apps/web/vite.config.ts`) — not
-Cloudflare, which is used only for R2 object storage. Deploying the build output
-is handled by the Vercel integration. Schema changes reach the database only
-through `pnpm db:push`, and a deploy that adds a table needs that run against
-the target database first.
+Target a workspace for development or a specific test:
 
-## Tech stack
+```bash
+pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts
+pnpm --filter git-fs-s3 test
+pnpm --filter @pushstack/web test:e2e
+pnpm --filter @pushstack/cli build
+node apps/cli/dist/bin.js --help
+```
 
-| Concern | Choice |
-| --- | --- |
-| Framework | TanStack Start (file-based SSR router, server functions) |
-| Database | Postgres (Neon serverless) via Drizzle |
-| Auth | Better Auth |
-| Git | isomorphic-git, with the R2-backed storage layer extracted into `git-fs-s3` and the object-level merge into `git-edge` |
-| Object storage | Cloudflare R2 |
-| Email | Resend |
-| UI | React 19, Tailwind CSS, shadcn/ui |
-| Testing | Vitest, Playwright |
-| Lint / format | Biome |
+The CLI is usable from this checkout. Its npm publication and trusted-publisher
+setup are separate release steps; see [the CLI README](apps/cli/README.md).
 
-## Documentation
+## Validation and dependency policy
 
-- **[Documentation](https://docs.git.nandan.fyi/docs)** — the map: what to read for
-  understanding the system, what to read before changing it.
-- **[Using PushStack](https://docs.git.nandan.fyi/docs/guide)** — for people using the hosted
-  app: accounts, repositories, cloning, tokens, issues and pull requests, roles
-  and limits.
-- **[Architecture](https://docs.git.nandan.fyi/docs/internals)** — start here for the codebase.
-- **[Security](https://docs.git.nandan.fyi/docs/internals/security)** and
-  **[security history](https://docs.git.nandan.fyi/docs/internals/security-history)** — the rules that must hold,
-  and how they were arrived at.
+Behavior tests run real server functions and API handlers against PGlite with
+the real schema and in-memory object storage. CLI contract tests use the same
+REST dispatcher with real personal access tokens. Native Git smoke tests use a
+scratch HOME and never modify the developer's global Git configuration.
 
-`CLAUDE.md` is a terser, task-oriented reference (commands, constraints, gotchas)
-aimed at coding agents working in this repository.
+CI runs typecheck, tests, production builds, Biome, the full dependency audit,
+secret scanning and native Git smoke tests. Dependencies have no overrides or
+ignored advisories. pnpm build scripts are explicitly allowed, bundled agent
+skills are denied, and optional peers are installed only when needed.
+
+## Documentation and releases
+
+Documentation is authored in `apps/docs/content/docs` and served by Fumadocs.
+Start with the [user guide](https://docs.git.nandan.fyi/docs/guide),
+[REST compatibility matrix](https://docs.git.nandan.fyi/docs/api), or
+[architecture](https://docs.git.nandan.fyi/docs/internals).
+`CLAUDE.md` contains repository-specific engineering instructions.
+
+Production deploys from `main`. Database changes use `pnpm db:push`; there are
+no migration files. Library releases use annotated tags such as
+`git-fs-s3@v0.15.3`, with matching package versions and changelogs, and npm trusted
+publishing through `.github/workflows/release-packages.yml`. Pushed tags are
+immutable: corrections get a new patch release.
 
 ## License
 
-Copyright (C) 2026 Nandan Varma.
-
-PushStack is free software: you can redistribute it and/or modify it under the
-terms of the GNU Affero General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version.
-
-It is distributed in the hope that it will be useful, but **without any
-warranty**; without even the implied warranty of merchantability or fitness for
-a particular purpose. See the [GNU Affero General Public License](./LICENSE) for
-the full terms.
-
-The Affero GPL is the network-use variant of the GPL: running a modified version
-as a network service obliges you (section 13) to offer that service's users the
-corresponding source. That is deliberate here — the hosted instance is the
-product.
+Copyright (C) 2026 Nandan Varma. Licensed under the
+[GNU Affero General Public License v3 or later](LICENSE). Running a modified
+version as a network service requires offering its corresponding source to
+that service's users.

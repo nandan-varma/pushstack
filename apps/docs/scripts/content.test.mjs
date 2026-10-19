@@ -104,3 +104,22 @@ test("all pages expose titles and descriptions for navigation and search", () =>
 		);
 	}
 });
+
+test("repository entrypoint documentation links resolve", async () => {
+	const root = path.resolve(app, "../..");
+	for (const relative of [
+		"README.md",
+		"CLAUDE.md",
+		"apps/cli/README.md",
+		"packages/git-fs-s3/README.md",
+		"packages/git-edge/README.md",
+	]) {
+		const text = await readFile(path.join(root, relative), "utf8");
+		for (const link of text.matchAll(
+			/https:\/\/docs\.git\.nandan\.fyi(\/docs[^\s)"<>]*)/g,
+		)) {
+			const pathname = new URL(link[0]).pathname.replace(/\/$/, "");
+			assert.ok(pages.has(pathname), `${relative}: missing ${pathname}`);
+		}
+	}
+});
