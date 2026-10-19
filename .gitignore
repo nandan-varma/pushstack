@@ -40,3 +40,6 @@ plans/
 .env*
 !.env.example
 !*.local.template
+
+# pnpm dev:local data (pglite + git objects)
+.pushstack-local/

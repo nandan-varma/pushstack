@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSend = vi.fn();
 
@@ -15,6 +15,36 @@ import { sendEmail } from "../email";
 describe("sendEmail", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubEnv("RESEND_API_KEY", "re_test");
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it("prints the email's links instead of sending when no API key is set outside production", async () => {
+		vi.stubEnv("RESEND_API_KEY", "");
+		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+
+		await sendEmail({
+			to: "user@example.com",
+			subject: "Verify",
+			html: '<a href="http://localhost:3000/verify?token=a&amp;next=%2F">here</a>',
+		});
+
+		expect(mockSend).not.toHaveBeenCalled();
+		expect(info.mock.calls[0][0]).toContain(
+			"http://localhost:3000/verify?token=a&next=%2F",
+		);
+	});
+
+	it("refuses to drop email in production without an API key", async () => {
+		vi.stubEnv("RESEND_API_KEY", "");
+		vi.stubEnv("NODE_ENV", "production");
+
+		await expect(
+			sendEmail({ to: "user@example.com", subject: "x", html: "" }),
+		).rejects.toThrow("RESEND_API_KEY");
 	});
 
 	it("calls Resend with correct parameters", async () => {

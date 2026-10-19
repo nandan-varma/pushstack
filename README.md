@@ -28,6 +28,21 @@ machine. The live instance is [git.nandan.fyi](https://git.nandan.fyi).
 
 ## Run it locally
 
+### Quick start — no accounts needed
+
+```bash
+pnpm install
+pnpm dev:local                       # http://localhost:3000
+```
+
+`dev:local` keeps everything under `.pushstack-local/`: an on-disk pglite
+database (schema pushed on every start) and the git objects, so repositories
+survive restarts. Verification and password-reset emails print their links in
+the terminal. It blanks any R2, Resend and Sentry settings from `.env.local`,
+so it never reaches a real service. Delete `.pushstack-local/` to start over.
+
+To run against real services instead, set up as below.
+
 ### Prerequisites
 
 - **Node 24** — what CI runs.
@@ -64,7 +79,8 @@ the Vercel-specific details.
 ## Commands
 
 ```bash
-pnpm dev              # development server on :3000
+pnpm dev              # development server on :3000 (uses .env.local)
+pnpm dev:local        # same, fully local: pglite + on-disk git, no accounts
 pnpm build            # production build
 pnpm preview          # preview the production build
 pnpm typecheck        # tsc --noEmit

@@ -7,6 +7,7 @@
  * (`repos/{ownerKey}/{repoName}/git`), so fs paths map 1:1 onto R2 keys.
  */
 
+import path from "node:path";
 import {
 	classifyGitdirPath,
 	createCachedStore,
@@ -28,6 +29,7 @@ import {
 	getRepoGitStorageRoot,
 	parseRepoGitStorageKey,
 } from "./git-storage-naming";
+import { LocalObjectStore } from "./local-object-store";
 import {
 	logWarn,
 	perfNote,
@@ -79,9 +81,9 @@ type RangeCapableStore = ObjectStore & {
 	getRange: NonNullable<ObjectStore["getRange"]>;
 };
 
-// Without R2 env (tests, a quick local run) repositories live in memory for
-// the life of the process; production refuses instead of silently losing
-// pushes. Built on first use, never at import time.
+// Without R2 env, repositories live on disk under PUSHSTACK_LOCAL_DIR
+// (`pnpm dev:local`) or, failing that (tests), in memory for the life of the
+// process; production refuses instead of silently losing pushes. Built on first use, never at import time.
 let backend: { store: RangeCapableStore; r2: R2ObjectStore | null } | null =
 	null;
 
@@ -95,6 +97,9 @@ function getBackend(): { store: RangeCapableStore; r2: R2ObjectStore | null } {
 			"R2 is not configured (R2_BUCKET_NAME/R2_ENDPOINT/R2_ACCESS_KEY_ID/" +
 				"R2_SECRET_ACCESS_KEY) — refusing to serve repositories from memory in production",
 		);
+	} else if (process.env.PUSHSTACK_LOCAL_DIR) {
+		const root = path.join(process.env.PUSHSTACK_LOCAL_DIR, "git");
+		backend = { store: new LocalObjectStore(root), r2: null };
 	} else {
 		logWarn(
 			"git-fs",

@@ -8,6 +8,7 @@ Never ever use agents and sub agents to keep all context inline.
 
 ```bash
 pnpm dev           # dev server on :3000
+pnpm dev:local     # fully local dev server: pglite + on-disk git under .pushstack-local/, emails print to the terminal
 pnpm build         # production build (Vercel, via nitro's "vercel" preset)
 pnpm typecheck     # tsc --noEmit
 pnpm test          # vitest (unit + behavior, jsdom/node)
@@ -48,10 +49,12 @@ Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 - `git-errors.ts` — `isGitNotFoundError` (maps library not-found errors to 404s).
 - `repo-access.ts` — the only place computing `RepositoryAccess` (role anonymous/read/write/admin/owner → flags, from one `PERMISSIONS` table). Handler helpers: `readWithAccess(label, repoId, fn)`, `writeWithAccess(repoId, fn(repo, user))`, `requireWriteAccess`, `requireOwner`. Use these rather than hand-rolling fetch-then-check. Already holding the repo row? Use `getAccessForRepository`.
 - `files.ts` — file/branch/commit server functions over `git-read.ts`/`git-write.ts`. `getFile` returns a `FileView` (`src/lib/file-view.ts`): inline content only for small text; binary/large blobs come from `/api/raw` (streamed — Vercel caps buffered responses at 4.5 MB). Submodules return `{ kind: "submodule", oid, url }` and render a pinned-repository card (never raw/download links). Diffs carry patches or pointer metadata, never full blob payloads.
-- `repositories.ts` — repo CRUD, stars, collaborators. `findRepositoryByName` is a plain cached function for server-side lookups. Create inserts the row, then inits storage under the lock (rolling the row back on failure); rename moves storage and updates the row in one lock span. `claimNextIssueOrPrNumber` hands out the shared issue/PR `#N` sequence.
+- `repositories.ts` — repo CRUD, stars, collaborators (server functions only). Create inserts the row, then inits storage under the lock (rolling the row back on failure); rename moves storage and updates the row in one lock span. `claimNextIssueOrPrNumber` hands out the shared issue/PR `#N` sequence.
+- `repository-lookup.ts` — plain server-only helpers shared by server functions and API routes: `findRepositoryByName` (cached), `readRepoByName`, `publicUserFields`, `claimNextIssueOrPrNumber`. **Server-function files export only `createServerFn`s and types** — any other runtime export drags the database into the browser bundle and breaks dev hydration (`server-fn-exports.test.ts` enforces it); put shared helpers here or, if pure, in `src/lib/`.
+- `local-object-store.ts` — the disk-backed store `pnpm dev:local` (`PUSHSTACK_LOCAL_DIR`) uses instead of R2; `src/db/index.ts` switches to pglite on the same variable.
 - `issues.ts`, `pull-requests.ts`, `comments.ts` — one per resource. Routes address issues/PRs by `number` (`getIssueByNumber`/`getPullRequestByNumber`), not DB id. Merging a PR closes the issues its body names (`getClosingIssueNumbers`, "Closes #4").
 - `activity.ts` — `recordActivity(userId, repoId, event)` with the typed `ActivityEvent` (`src/lib/activity-types.ts`); `describeActivity` (`src/lib/activity.ts`) renders it.
-- `search.ts`, `users.ts` — repo/user search and activity feeds, profiles. Anonymous-readable; only public fields of users (never email) leave the server — use `repositories.ts`'s `publicUserFields`.
+- `search.ts`, `users.ts` — repo/user search and activity feeds, profiles. Anonymous-readable; only public fields of users (never email) leave the server — use `repository-lookup.ts`'s `publicUserFields`.
 - `tokens.ts` — PATs (`pst_` + random bytes, shown once; only the SHA-256 is stored). Scopes `repo:read` | `repo:write` (write implies read).
 - `raw.ts` — `/api/raw` file bytes, ref and path validated, streamed.
 - `perf-log.ts` — request-scoped timing: wrap a read handler in `perfContext`, awaited sub-calls in `perfStep`; prints one tree per request when enabled (always in dev; `PUSHSTACK_PERF_LOG=1` in prod; `localStorage["pushstack:perf-log"] = "1"` in a browser). `logError`/`logWarn` always log and feed Sentry — use them, not `console.error`.

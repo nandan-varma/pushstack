@@ -25,11 +25,11 @@ const CLONE_URL = `${SITE_URL}/api/git/${owner}/${name}.git`;
  * the product before registering.
  */
 export function LiveRepoPreview() {
-	const { data: repo } = useQuery(
+	const { data: repo, isError: repoMissing } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 	const branch = repo?.defaultBranch ?? "main";
-	const { data: commits, isError } = useQuery({
+	const { data: commits, isError: commitsFailed } = useQuery({
 		...repositoryCommitsQueryOptions({
 			repoId: repo?.id ?? 0,
 			branchName: branch,
@@ -99,7 +99,7 @@ export function LiveRepoPreview() {
 									</code>
 								</Link>
 							))
-						) : isError ? (
+						) : repoMissing || commitsFailed ? (
 							<p className="text-sm text-muted-foreground">
 								Couldn't load commits right now.
 							</p>

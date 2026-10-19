@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:local": "tsx scripts/dev-local.ts",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
