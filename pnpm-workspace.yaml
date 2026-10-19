@@ -2,9 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
-  '@prisma/engines': false
   esbuild: true
-  prisma: false
 permissions:
   '@tanstack/devtools-vite':
     skills: false
