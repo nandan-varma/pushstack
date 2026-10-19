@@ -29,7 +29,7 @@ Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 
 ## Architecture
 
-**Framework**: TanStack Start (file-based SSR router, server functions via `createServerFn`). Routes in `src/routes/`; API routes under `src/routes/api/` are thin — `api/git.$.ts` calls `git-http.ts`'s `serveGitRequest`, `api/raw.$.ts` calls `raw.ts`'s `serveRawFile`.
+**Framework**: TanStack Start (file-based SSR router, server functions via `createServerFn`). Routes in `src/routes/`; API routes under `src/routes/api/` are thin — `api/git.$.ts` calls `git-http.ts`'s `serveGitRequest`, `api/raw.$.ts` calls `raw.ts`'s `serveRawFile`, `api/v3.$.ts` calls `server/api/index.ts`'s `handleApiRequest`.
 
 **Git**: isomorphic-git on R2, through the published `git-fs-s3` (fs + ops + smart-HTTP) and `git-edge` (three-way merge) packages. No native git, no local disk: every read and write goes straight to R2. Writes go through `git-fs-s3`'s packed writes (each write lands as one pack, before any ref moves), so nothing ever writes loose objects.
 
@@ -58,6 +58,8 @@ Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 - `search.ts`, `users.ts` — repo/user search and activity feeds, profiles. Anonymous-readable; only public fields of users (never email) leave the server — use `repository-lookup.ts`'s `publicUserFields`.
 - `tokens.ts` — PATs (`pst_` + random bytes, shown once; only the SHA-256 is stored). Scopes `repo:read` | `repo:write` (write implies read).
 - `raw.ts` — `/api/raw` file bytes, ref and path validated, streamed.
+- `api/` — the GitHub-compatible REST API at `/api/v3` (see `docs/api.md`, the compatibility matrix). `index.ts` is the dispatcher and route table (add an endpoint = a row there); `auth.ts` (`token`/`Bearer` PATs via `git-auth.ts`'s `authenticateToken`), `http.ts` (GitHub-shaped errors, `Link` pagination, URL builders), `serializers.ts` (GitHub JSON shapes), `repo-lookup.ts` (`readableRepository`: unreadable = 404), one module per resource (`users`, `repos`, `branches`, `tags`). Handlers call plain server modules, never `createServerFn`s.
+- `repository-create.ts` — `createRepositoryForUser`, shared by the `createRepository` server function and the API.
 - `perf-log.ts` — request-scoped timing: wrap a read handler in `perfContext`, awaited sub-calls in `perfStep`; prints one tree per request when enabled (always in dev; `PUSHSTACK_PERF_LOG=1` in prod; `localStorage["pushstack:perf-log"] = "1"` in a browser). `logError`/`logWarn` always log and feed Sentry — use them, not `console.error`.
 - `session.ts` — `getCurrentUser()` (throws) / `getCurrentUserOptional()`; `SessionUser.username` is always set.
 - `ttl-cache.ts` — bounded TTL cache with in-flight coalescing (access cache, repo-by-name cache).

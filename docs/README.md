@@ -24,6 +24,8 @@ read it.
   library internals see the
   [git-fs-s3](https://nandan-varma.github.io/git-fs-s3/) and
   [git-edge](https://nandan-varma.github.io/git-edge/) docs sites.
+- **[REST API](./api.md)** — the GitHub-compatible `/api/v3`: auth,
+  pagination, the endpoint compatibility matrix and differences from GitHub.
 - **[Authentication & Access Control](./authentication.md)** — Better Auth
   sessions, git-over-HTTPS tokens, and the single `RepositoryAccess`
   computation everything else checks against.

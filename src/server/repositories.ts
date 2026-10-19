@@ -7,25 +7,17 @@ import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { MAX_LIST_SKIP } from "#/lib/limits";
-import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
-import {
-	GITIGNORE_TEMPLATE_NAMES,
-	GITIGNORE_TEMPLATES,
-	LICENSE_TEMPLATE_KEYS,
-	renderLicense,
-	renderReadme,
-} from "#/lib/templates";
+import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
 	deleteRepositoryStorage,
-	initBareRepo,
 	renameRepositoryStorage,
 	repackRepositoryNow,
 } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
-import { createInitialCommitUnlocked, setDefaultBranch } from "./git-write";
+import { setDefaultBranch } from "./git-write";
 import { logError, perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
@@ -35,20 +27,17 @@ import {
 	requireOwner,
 } from "./repo-access";
 import {
+	createRepositoryForUser,
+	createRepositoryInputSchema,
+	isUniqueViolation,
+	repoNameSchema,
+} from "./repository-create";
+import {
 	evictRepoByName,
 	findRepositoryByName,
 	publicUserFields,
 } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
-
-/** Also a storage-path segment, so this is a security boundary, not cosmetics. */
-const repoNameSchema = z
-	.string()
-	.max(MAX_STORAGE_NAME_LENGTH)
-	.regex(
-		STORAGE_NAME_RE,
-		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",
-	);
 
 /**
  * A username used to look someone up. The same shape the username plugin
@@ -62,97 +51,12 @@ const usernameSchema = z
 	.max(30)
 	.regex(STORAGE_NAME_RE, "Not a valid username");
 
-const NEW_REPOSITORY_DEFAULT_BRANCH = "main";
-/** Postgres SQLSTATE 23505; drizzle wraps driver errors, keeping it on `cause`. */
-function isUniqueViolation(error: unknown): boolean {
-	const err = error as { code?: unknown; cause?: { code?: unknown } } | null;
-	return err?.code === "23505" || err?.cause?.code === "23505";
-}
-
 export const createRepository = createServerFn({ method: "POST" })
-	.validator(
-		z.object({
-			name: repoNameSchema,
-			description: z.string().trim().max(500).optional(),
-			visibility: z.enum(["public", "private"]).default("public"),
-			// GitHub's "Initialize this repository with" (REST auto_init,
-			// gitignore_template, license_template).
-			autoInit: z.boolean().default(false),
-			gitignoreTemplate: z.enum(GITIGNORE_TEMPLATE_NAMES).optional(),
-			licenseTemplate: z.enum(LICENSE_TEMPLATE_KEYS).optional(),
-		}),
-	)
+	.validator(createRepositoryInputSchema)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const initialFiles: Array<{ path: string; content: string }> = [];
-		if (data.autoInit) {
-			initialFiles.push({
-				path: "README.md",
-				content: renderReadme(data.name, data.description),
-			});
-		}
-		if (data.gitignoreTemplate) {
-			initialFiles.push({
-				path: ".gitignore",
-				content: GITIGNORE_TEMPLATES[data.gitignoreTemplate],
-			});
-		}
-		if (data.licenseTemplate) {
-			initialFiles.push({
-				path: "LICENSE",
-				content: renderLicense(data.licenseTemplate, {
-					year: new Date().getUTCFullYear(),
-					fullname: currentUser.name,
-				}),
-			});
-		}
-		// The row first: the (owner, name) unique index settles a creation race
-		// before anything touches storage.
-		const repo = await db
-			.insert(repositories)
-			.values({
-				ownerId: currentUser.id,
-				name: data.name,
-				description: data.description || null,
-				visibility: data.visibility,
-				defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
-			})
-			.returning()
-			.then(([row]) => row)
-			.catch((error: unknown) => {
-				if (isUniqueViolation(error)) {
-					throw new Error("Repository with this name already exists");
-				}
-				throw error;
-			});
-		if (!repo) throw new Error("Repository insert returned no row");
-
-		const ownerKey = currentUser.username;
-		try {
-			// Anything already under this prefix is a leftover of a delete whose
-			// storage cleanup failed; it must not become this repository's history.
-			await withRepositoryLock(ownerKey, repo.name, async () => {
-				await deleteRepositoryStorage(ownerKey, repo.name);
-				await initBareRepo(ownerKey, repo.name, NEW_REPOSITORY_DEFAULT_BRANCH);
-				if (initialFiles.length > 0) {
-					await createInitialCommitUnlocked(ownerKey, repo.name, {
-						branch: NEW_REPOSITORY_DEFAULT_BRANCH,
-						message: "Initial commit",
-						files: initialFiles,
-						author: { name: currentUser.name, email: currentUser.email },
-					});
-				}
-			});
-		} catch (error) {
-			await db.delete(repositories).where(eq(repositories.id, repo.id));
-			throw error;
-		}
-
-		await recordActivity(currentUser.id, repo.id, {
-			type: "create_repo",
-			metadata: { repoName: repo.name },
-		});
-		return { ...repo, owner: { username: ownerKey } };
+		const repo = await createRepositoryForUser(currentUser, data);
+		return { ...repo, owner: { username: currentUser.username } };
 	});
 
 /** A user's repositories, newest first: all of them for the owner, public ones for others. */

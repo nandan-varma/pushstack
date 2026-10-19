@@ -1,7 +1,7 @@
 /** Clone URLs and first-push instructions shown for a repository. */
 
 /** This deployment's origin: the page's in a browser, BETTER_AUTH_URL on the server. */
-function getGitBaseUrl(): string {
+export function getGitBaseUrl(): string {
 	if (typeof window !== "undefined") return window.location.origin;
 	const authUrl = process.env.BETTER_AUTH_URL;
 	if (!authUrl) {

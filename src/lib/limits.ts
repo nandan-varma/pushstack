@@ -63,3 +63,6 @@ export const MAX_HISTORY_WALK = MAX_LIST_SKIP + 100;
 export function maxBase64CharsForBytes(byteLength: number): number {
 	return 4 * Math.ceil(byteLength / 3);
 }
+
+/** The largest JSON body a REST API (`/api/v3`) write request may send. */
+export const MAX_API_BODY_BYTES = 1024 * 1024;
