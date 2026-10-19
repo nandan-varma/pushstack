@@ -4,7 +4,7 @@
  * GitHub-shaped errors. Add an endpoint by adding a row to {@link ROUTES}.
  */
 import { isGitNotFoundError } from "../git-errors";
-import { logError, perfContext } from "../perf-log";
+import { currentRequestId, logError, perfContext } from "../perf-log";
 import { type ApiContext, authenticateRequest } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import { API_PREFIX, ApiError, errorResponse, notFoundError } from "./http";
@@ -95,30 +95,45 @@ function matchRoute(method: string, pathname: string) {
 	return null;
 }
 
-export async function handleApiRequest(request: Request): Promise<Response> {
+export function handleApiRequest(request: Request): Promise<Response> {
 	const url = new URL(request.url);
 	const pathname = url.pathname.startsWith(API_PREFIX)
 		? url.pathname.slice(API_PREFIX.length)
 		: url.pathname;
+	const method = request.method === "HEAD" ? "GET" : request.method;
+	const matched = matchRoute(method, pathname);
+	// One request id from here on: the perf tree, logs, Sentry and the
+	// response header (GitHub's X-GitHub-Request-Id) all carry it.
+	return perfContext(
+		`api ${method} ${matched?.route.pattern ?? "(no route)"}`,
+		async () => {
+			const response = await dispatch(request, url, pathname, matched);
+			const requestId = currentRequestId();
+			if (requestId) response.headers.set("X-GitHub-Request-Id", requestId);
+			return response;
+		},
+	);
+}
+
+async function dispatch(
+	request: Request,
+	url: URL,
+	pathname: string,
+	matched: ReturnType<typeof matchRoute>,
+): Promise<Response> {
 	// HEAD is GET without the body.
 	const isHead = request.method === "HEAD";
-	const method = isHead ? "GET" : request.method;
-	const matched = matchRoute(method, pathname);
 	try {
 		// Credentials are checked even on unknown routes: a bad token is a 401
 		// everywhere, as on GitHub.
 		const caller = await authenticateRequest(request);
 		if (!matched) throw notFoundError();
-		const response = await perfContext(
-			`api ${method} ${matched.route.pattern}`,
-			() =>
-				matched.route.handler({
-					request,
-					url,
-					params: matched.params,
-					caller,
-				}),
-		);
+		const response = await matched.route.handler({
+			request,
+			url,
+			params: matched.params,
+			caller,
+		});
 		return isHead
 			? new Response(null, {
 					status: response.status,

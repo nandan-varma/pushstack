@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	currentRequestId,
 	perfContext,
 	perfNote,
 	perfR2,
 	perfStep,
+	recentPerfTrees,
 	recordCacheHit,
 	recordCacheMiss,
 	recordR2Call,
@@ -191,5 +193,29 @@ describe("perfNote", () => {
 			.find((l) => l.includes("something noteworthy"));
 		expect(noteLine).toBeDefined();
 		spy.mockRestore();
+	});
+});
+
+describe("request ids", () => {
+	it("gives each request an id that nested contexts share", async () => {
+		const ids: (string | undefined)[] = [];
+		await perfContext("a", async () => {
+			ids.push(currentRequestId());
+			await perfContext("inner", async () => {
+				ids.push(currentRequestId());
+			});
+		});
+		await perfContext("b", async () => {
+			ids.push(currentRequestId());
+		});
+		expect(ids[0]).toMatch(/^[0-9a-f]{32}$/);
+		expect(ids[1]).toBe(ids[0]);
+		expect(ids[2]).not.toBe(ids[0]);
+		expect(currentRequestId()).toBeUndefined();
+	});
+
+	it("keeps recent trees for the debug page", async () => {
+		await perfContext("debug-page", async () => undefined);
+		expect(recentPerfTrees()[0]).toContain("debug-page");
 	});
 });

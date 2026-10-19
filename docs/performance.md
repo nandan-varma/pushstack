@@ -184,6 +184,18 @@ R2, reading `perf-log.ts`'s breakdown from its stdout.
 
 ## The `perf-log` instrumentation convention
 
+**Request ids and structured logs.** A global request middleware
+(`src/server/request-id.ts`) runs every request inside a `perfContext`, so each
+has a unique id (32 hex chars) sent as `X-Request-Id`; `/api/v3` also sends it
+as `X-GitHub-Request-Id`. Nested `perfContext`s (server functions, the API
+dispatcher, git-http) become steps of the outer request and share its id.
+`logError` tags Sentry events with `request_id`. In production (perf-log
+off) every request prints one JSON line (`requestId`, `label`, `ms`, `r2Calls`,
+`r2Ms`, cache hits/misses, top-level `steps` such as git ops), as do
+`logError`/`logWarn`. A request slower than `SLOW_REQUEST_MS` (default 3000)
+always logs a `slow request` warning plus a Sentry breadcrumb. In dev,
+`GET /api/debug/perf` shows the last 50 request trees.
+
 Two modules, same idea, different sides of the request:
 
 - **`src/server/perf-log.ts`** (server): `perfContext(label, fn)` wraps a

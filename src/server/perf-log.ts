@@ -20,6 +20,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isPerfLogEnabled } from "#/lib/perf-log";
+import { SLOW_REQUEST_MS } from "./config";
 
 interface PerfEntry {
 	depth: number;
@@ -31,7 +32,9 @@ interface PerfEntry {
 }
 
 interface PerfRequest {
+	/** Unique per request: the correlation id in logs, Sentry and response headers. */
 	id: string;
+	label: string;
 	start: number;
 	entries: PerfEntry[];
 	r2Calls: number;
@@ -48,14 +51,30 @@ interface PerfScope {
 
 const als = new AsyncLocalStorage<PerfScope>();
 const enabled = isPerfLogEnabled();
-let counter = 0;
+/** One JSON object per line in production, so a log drain can index the fields. */
+const structured = process.env.NODE_ENV === "production" && !enabled;
+/** Bound on recorded entries per request (a pathological loop must not grow forever). */
+const MAX_ENTRIES = 500;
+/** Finished request trees kept for the dev debug page. */
+const RECENT_LIMIT = 50;
+const recent: string[] = [];
 
 function fmt(ms: number): string {
 	return `${ms.toFixed(1)}ms`;
 }
 
 function prefix(request: PerfRequest | undefined): string {
-	return request ? `[perf ${request.id}]` : "[perf]";
+	return request ? `[perf ${request.label}#${request.id}]` : "[perf]";
+}
+
+/** The id of the request being served, if any (for response headers and tags). */
+export function currentRequestId(): string | undefined {
+	return als.getStore()?.request.id;
+}
+
+/** Trees of the most recent requests, newest first (dev debug page). */
+export function recentPerfTrees(): string[] {
+	return [...recent].reverse();
 }
 
 function formatEntry(entry: PerfEntry): string {
@@ -70,19 +89,52 @@ function formatEntry(entry: PerfEntry): string {
 	return `${indent}· ${entry.text} ${time}`;
 }
 
-function flush(request: PerfRequest, outcome: string): void {
-	const total = fmt(performance.now() - request.start);
-	const header = `${prefix(request)} ${outcome} ${total} · r2 ${request.r2Calls} calls ${fmt(request.r2TimeMs)} · cache ${request.cacheHits} hit ${request.cacheMisses} miss`;
-	console.log([header, ...request.entries.map(formatEntry)].join("\n"));
+function flush(request: PerfRequest, outcome: string, error?: unknown): void {
+	const elapsed = performance.now() - request.start;
+	const failed = error !== undefined;
+	if (enabled) {
+		const header = `${prefix(request)} ${outcome} ${fmt(elapsed)} · r2 ${request.r2Calls} calls ${fmt(request.r2TimeMs)} · cache ${request.cacheHits} hit ${request.cacheMisses} miss`;
+		const tree = [header, ...request.entries.map(formatEntry)].join("\n");
+		recent.push(tree);
+		if (recent.length > RECENT_LIMIT) recent.shift();
+		console.log(tree);
+	}
+	const slow = elapsed >= SLOW_REQUEST_MS;
+	if (!structured && !slow) return;
+	const record = {
+		level: failed ? "error" : slow ? "warn" : "info",
+		msg: slow ? "slow request" : "request",
+		requestId: request.id,
+		label: request.label,
+		ms: Math.round(elapsed),
+		failed,
+		r2Calls: request.r2Calls,
+		r2Ms: Math.round(request.r2TimeMs),
+		cacheHits: request.cacheHits,
+		cacheMisses: request.cacheMisses,
+		// Top-level steps are the git ops and queries the request spent time on.
+		steps: request.entries
+			.filter((e) => !e.note && e.depth === 1 && e.ms !== undefined)
+			.map((e) => ({ step: e.text, ms: Math.round(e.ms ?? 0) })),
+	};
+	if (structured) console.log(JSON.stringify(record));
+	else console.warn(`${prefix(request)} slow request ${fmt(elapsed)}`);
+	if (slow) {
+		reportWithSentry((client) =>
+			client.addBreadcrumb({
+				category: "slow-request",
+				message: `${request.label} took ${fmt(elapsed)}`,
+				level: "warning",
+				data: record,
+			}),
+		);
+	}
 }
 
-export async function perfContext<T>(
-	label: string,
-	fn: () => Promise<T>,
-): Promise<T> {
-	if (!enabled) return fn();
-	const request: PerfRequest = {
-		id: `${label}#${(++counter).toString(36)}`,
+function newRequest(label: string): PerfRequest {
+	return {
+		id: crypto.randomUUID().replaceAll("-", ""),
+		label,
 		start: performance.now(),
 		entries: [],
 		r2Calls: 0,
@@ -90,6 +142,20 @@ export async function perfContext<T>(
 		cacheHits: 0,
 		cacheMisses: 0,
 	};
+}
+
+/**
+ * Run `fn` as one request: it gets an id, timing, R2 and cache tallies, and
+ * one log record when it finishes. Inside an existing request (a server
+ * function called while serving an API request) it is just a step of it, so
+ * a request has one id throughout.
+ */
+export async function perfContext<T>(
+	label: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	if (als.getStore()) return timed(label, fn);
+	const request = newRequest(label);
 	return als.run({ request, depth: 1 }, async () => {
 		try {
 			const result = await fn();
@@ -99,6 +165,7 @@ export async function perfContext<T>(
 			flush(
 				request,
 				`failed (${err instanceof Error ? err.message : String(err)}) after`,
+				err,
 			);
 			throw err;
 		}
@@ -114,10 +181,12 @@ async function timed<T>(
 	fn: () => Promise<T>,
 	onDone?: (ms: number) => void,
 ): Promise<T> {
-	if (!enabled) return fn();
 	const scope = als.getStore();
+	if (!scope && !enabled) return fn();
 	const entry: PerfEntry = { depth: scope?.depth ?? 0, text: step };
-	scope?.request.entries.push(entry);
+	if (scope && scope.request.entries.length < MAX_ENTRIES) {
+		scope.request.entries.push(entry);
+	}
 	const t0 = performance.now();
 	const finish = (failed: boolean) => {
 		entry.ms = performance.now() - t0;
@@ -152,11 +221,16 @@ export function perfR2<T>(step: string, fn: () => Promise<T>): Promise<T> {
 }
 
 export function perfNote(note: string): void {
-	if (!enabled) return;
 	const scope = als.getStore();
 	if (scope) {
-		scope.request.entries.push({ depth: scope.depth, text: note, note: true });
-	} else {
+		if (scope.request.entries.length < MAX_ENTRIES) {
+			scope.request.entries.push({
+				depth: scope.depth,
+				text: note,
+				note: true,
+			});
+		}
+	} else if (enabled) {
 		console.log(`[perf] • ${note}`);
 	}
 }
@@ -233,12 +307,20 @@ function reportWithSentry(
  */
 export function logError(scope: string, message: string, err: unknown): void {
 	const detail = err instanceof Error ? err.message : String(err);
-	console.error(
-		`${prefix(als.getStore()?.request)} [${scope}] ${message}: ${detail}`,
-	);
+	const requestId = currentRequestId();
+	if (structured) {
+		console.error(
+			JSON.stringify({ level: "error", scope, message, detail, requestId }),
+		);
+	} else {
+		console.error(
+			`${prefix(als.getStore()?.request)} [${scope}] ${message}: ${detail}`,
+		);
+	}
 	reportWithSentry((client) =>
 		client.captureException(err instanceof Error ? err : new Error(detail), {
 			extra: { scope, message },
+			tags: requestId ? { request_id: requestId } : undefined,
 		}),
 	);
 }
@@ -246,9 +328,21 @@ export function logError(scope: string, message: string, err: unknown): void {
 export function logWarn(scope: string, message: string, err?: unknown): void {
 	const detail =
 		err === undefined ? "" : `: ${err instanceof Error ? err.message : err}`;
-	console.warn(
-		`${prefix(als.getStore()?.request)} [${scope}] ${message}${detail}`,
-	);
+	if (structured) {
+		console.warn(
+			JSON.stringify({
+				level: "warn",
+				scope,
+				message,
+				detail: detail.slice(2) || undefined,
+				requestId: currentRequestId(),
+			}),
+		);
+	} else {
+		console.warn(
+			`${prefix(als.getStore()?.request)} [${scope}] ${message}${detail}`,
+		);
+	}
 	// Breadcrumb, not a captured event — warnings are expected/handled
 	// conditions (see call sites), not incidents worth alerting on by
 	// themselves, but useful context if a related error fires later.
