@@ -1,0 +1,16 @@
+name: Bug
+description: Something that doesn't work, or works differently from GitHub
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Observed vs expected (what GitHub does, if relevant).
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduce
+      description: Steps, URLs, git commands, request ids / perf-log output.
