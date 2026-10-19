@@ -96,12 +96,18 @@ async function list(io: Io, args: string[]) {
 	let path: string;
 	if (!owner) {
 		path = "user/repos";
-	} else if (client.credentials?.user === owner) {
-		// Your own listing includes private repositories, like gh.
-		path = "user/repos";
-		owner = undefined;
 	} else {
-		path = `users/${owner}/repos`;
+		// Resolve the active token's identity: an environment token may belong to
+		// a different user than the stored account, or have no stored account.
+		const login = client.credentials
+			? (await client.json<{ login: string }>("user")).data.login
+			: undefined;
+		if (login === owner) {
+			path = "user/repos";
+			owner = undefined;
+		} else {
+			path = `users/${encodeURIComponent(owner)}/repos`;
+		}
 	}
 	if (!owner && !client.credentials) {
 		throw new CliError(

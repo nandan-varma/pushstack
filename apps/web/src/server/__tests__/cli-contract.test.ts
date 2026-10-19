@@ -140,6 +140,31 @@ describe("CLI against the real REST dispatcher", () => {
 		expect(JSON.parse(privateOnly.stdout)).toEqual([{ name: "secret" }]);
 	});
 
+	it("lists the environment token owner's private repositories without stored credentials", async () => {
+		const environmentDir = await mkdtemp(join(tmpdir(), "pst-env-contract-"));
+		const storedDir = io.configDir;
+		try {
+			io.configDir = environmentDir;
+			io.env.PST_TOKEN = token;
+			const result = await invoke(
+				"repo",
+				"list",
+				"alice",
+				"--json",
+				"name,isPrivate",
+			);
+			expect(result.code, result.stderr).toBe(0);
+			expect(JSON.parse(result.stdout)).toEqual([
+				{ name: "public", isPrivate: false },
+				{ name: "secret", isPrivate: true },
+			]);
+		} finally {
+			io.configDir = storedDir;
+			delete io.env.PST_TOKEN;
+			await rm(environmentDir, { recursive: true, force: true });
+		}
+	});
+
 	it("follows real Link pagination and preserves authentication", async () => {
 		const result = await invoke("api", "user/repos?per_page=1", "--paginate");
 		expect(result.code, result.stderr).toBe(0);
