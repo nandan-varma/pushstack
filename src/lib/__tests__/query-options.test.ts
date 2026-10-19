@@ -163,12 +163,16 @@ describe("queryKeys", () => {
 				1,
 				"issues",
 				"open",
+				[],
+				null,
 			]);
 			expect(queryKeys.repoIssues(1, "all")).toEqual([
 				"repos",
 				1,
 				"issues",
 				"all",
+				[],
+				null,
 			]);
 		});
 	});
@@ -180,6 +184,7 @@ describe("queryKeys", () => {
 				1,
 				"pull-requests",
 				"merged",
+				[],
 			]);
 		});
 	});

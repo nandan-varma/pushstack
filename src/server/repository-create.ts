@@ -19,6 +19,7 @@ import { recordActivity } from "./activity";
 import { deleteRepositoryStorage, initBareRepo } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { createInitialCommitUnlocked } from "./git-write";
+import { createDefaultLabels } from "./label-store";
 import { evictRepoByName } from "./repository-lookup";
 
 /** Also a storage-path segment, so this is a security boundary, not cosmetics. */
@@ -127,6 +128,7 @@ export async function createRepositoryForUser(
 		throw error;
 	}
 
+	await createDefaultLabels(repo.id);
 	// A lookup that missed before the insert is cached as "not found".
 	evictRepoByName(owner.username, repo.name);
 	await recordActivity(owner.id, repo.id, {

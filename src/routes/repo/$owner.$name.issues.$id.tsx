@@ -15,8 +15,10 @@ import {
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
 import { EditableTitle } from "@/components/EditableTitle";
+import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
+import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
@@ -259,6 +261,22 @@ function IssueDetailPage() {
 				}
 			/>
 
+			<IssueAssignees
+				issueId={issue.id}
+				repoId={issue.repoId}
+				assignees={issue.assignees.map((a) => a.user)}
+				canEdit={issue.viewer.canWrite}
+				onChanged={() => {
+					queryClient.invalidateQueries({ queryKey: issueQueryKey });
+					queryClient.invalidateQueries({
+						queryKey: queryKeys.repoIssuesRoot(issue.repoId),
+					});
+					queryClient.invalidateQueries({
+						queryKey: queryKeys.timelineRoot(issue.repoId),
+					});
+				}}
+			/>
+
 			{/* Issue Body */}
 			<CommentCard
 				comment={issue}
@@ -275,6 +293,15 @@ function IssueDetailPage() {
 								})
 						: undefined
 				}
+			/>
+
+			<ThreadLabels
+				owner={owner}
+				name={name}
+				repoId={issue.repoId}
+				number={issue.number}
+				labels={issue.labels}
+				canEdit={issue.viewer.canWrite}
 			/>
 
 			<ThreadTimeline

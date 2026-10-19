@@ -10,8 +10,11 @@ import {
 	type LucideIcon,
 	MessageSquareQuote,
 	Pencil,
+	Tag,
+	UserRound,
 } from "lucide-react";
 import { CommentCard } from "@/components/CommentCard";
+import { LabelChip } from "@/components/LabelChip";
 import { useToast } from "@/components/toast-provider";
 import { queryKeys, timelineQueryOptions } from "@/lib/query-options";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
@@ -237,12 +240,41 @@ function describe(
 					</>
 				),
 			};
+		case "labeled":
+		case "unlabeled":
+			return {
+				icon: Tag,
+				text: (
+					<>
+						{event.event === "labeled" ? "added the" : "removed the"}{" "}
+						<LabelChip name={event.label.name} color={event.label.color} />{" "}
+						label
+					</>
+				),
+			};
 		case "head_ref_deleted":
 			return {
 				icon: GitBranch,
 				text: (
 					<>
 						deleted the <code className="font-mono">{event.branch}</code> branch
+					</>
+				),
+			};
+		case "assigned":
+		case "unassigned":
+			return {
+				icon: UserRound,
+				text: (
+					<>
+						{event.event === "assigned" ? "assigned" : "unassigned"}{" "}
+						<Link
+							to="/users/$username"
+							params={{ username: event.assignee.username }}
+							className="font-medium text-foreground"
+						>
+							{event.assignee.username}
+						</Link>
 					</>
 				),
 			};

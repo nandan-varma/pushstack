@@ -5,6 +5,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	serial,
 	text,
 	timestamp,
@@ -83,7 +84,6 @@ export const issues = pgTable(
 		title: text("title").notNull(),
 		body: text("body"),
 		status: text("status").$type<"open" | "closed">().notNull().default("open"),
-		labels: jsonb("labels").$type<string[]>().notNull().default([]),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 		/** When the body was last edited by hand (the "edited" marker); null if never. */
 		editedAt: timestamptz("edited_at"),
@@ -99,6 +99,69 @@ export const issues = pgTable(
 			table.repoId,
 			table.status,
 		),
+	}),
+);
+
+/** A repository's label (name, 6-digit hex color, description). */
+export const labels = pgTable(
+	"labels",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		/** Lowercase hex without `#`, as the REST API returns it. */
+		color: text("color").notNull(),
+		description: text("description"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		// Label names are unique per repository, ignoring case.
+		repoNameIdx: uniqueIndex("label_repo_name_idx").on(
+			table.repoId,
+			sql`lower(${table.name})`,
+		),
+	}),
+);
+
+/** A label applied to issue/PR `#number` (they share one number sequence). */
+export const threadLabels = pgTable(
+	"thread_labels",
+	{
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		number: integer("number").notNull(),
+		labelId: integer("label_id")
+			.notNull()
+			.references(() => labels.id, { onDelete: "cascade" }),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.repoId, table.number, table.labelId] }),
+		labelIdx: index("thread_label_label_idx").on(table.labelId),
+	}),
+);
+
+/** Who an issue is assigned to (GitHub: up to 10, each with write access). */
+export const issueAssignees = pgTable(
+	"issue_assignees",
+	{
+		id: serial("id").primaryKey(),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		issueUserIdx: uniqueIndex("issue_assignee_issue_user_idx").on(
+			table.issueId,
+			table.userId,
+		),
+		userIdx: index("issue_assignee_user_idx").on(table.userId),
 	}),
 );
 
@@ -319,6 +382,15 @@ export const issuesRelations = relations(issues, ({ one, many }) => ({
 	}),
 	author: one(user, { fields: [issues.authorId], references: [user.id] }),
 	comments: many(comments),
+	assignees: many(issueAssignees),
+}));
+
+export const issueAssigneesRelations = relations(issueAssignees, ({ one }) => ({
+	issue: one(issues, {
+		fields: [issueAssignees.issueId],
+		references: [issues.id],
+	}),
+	user: one(user, { fields: [issueAssignees.userId], references: [user.id] }),
 }));
 
 export const pullRequestsRelations = relations(

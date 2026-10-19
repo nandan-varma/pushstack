@@ -10,6 +10,8 @@ import { ArrowRight } from "lucide-react";
 import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
+import { LabelChip } from "@/components/LabelChip";
+import { LabelFilter } from "@/components/LabelFilter";
 import { pullRequestStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
@@ -50,13 +52,18 @@ type PullStatus = (typeof PULL_STATUS_VALUES)[number];
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { status?: PullStatus } => ({
+	): { status?: PullStatus; label?: string } => ({
 		status: (PULL_STATUS_VALUES.includes(search.status as PullStatus)
 			? search.status
 			: undefined) as PullStatus | undefined,
+		label:
+			typeof search.label === "string" && search.label
+				? search.label
+				: undefined,
 	}),
 	loaderDeps: ({ search }) => ({
 		status: search.status ?? ("open" as PullStatus),
+		label: search.label,
 	}),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
@@ -75,6 +82,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 			repositoryPullRequestsQueryOptions({
 				repoId: repo.id,
 				status: deps.status,
+				labels: deps.label ? [deps.label] : [],
 			}),
 		);
 	},
@@ -83,7 +91,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
-	const { status: filter } = Route.useSearch();
+	const { status: filter, label } = Route.useSearch();
 	const { pathname } = useLocation();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
@@ -106,6 +114,7 @@ function PullRequestsPage() {
 		...repositoryPullRequestsQueryOptions({
 			repoId: repo?.id ?? 0,
 			status: filter ?? "open",
+			labels: label ? [label] : [],
 		}),
 		enabled: !!repo,
 	});
@@ -307,7 +316,21 @@ function PullRequestsPage() {
 				]}
 				activeTab={filter ?? "open"}
 				onTabChange={(value) =>
-					navigate({ search: { status: value }, replace: true })
+					navigate({
+						search: (prev) => ({ ...prev, status: value }),
+						replace: true,
+					})
+				}
+			/>
+
+			<LabelFilter
+				repoId={repo?.id}
+				value={label}
+				onChange={(value) =>
+					navigate({
+						search: (prev) => ({ ...prev, label: value }),
+						replace: true,
+					})
 				}
 			/>
 
@@ -369,6 +392,13 @@ function PullRequestsPage() {
 										{pr.targetBranch}
 									</code>
 								</p>
+								{pr.labels.length > 0 && (
+									<div className="flex flex-wrap gap-1.5 pt-0.5">
+										{pr.labels.map((l) => (
+											<LabelChip key={l.id} {...l} />
+										))}
+									</div>
+								)}
 							</div>
 						</Link>
 					))}

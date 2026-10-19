@@ -55,7 +55,7 @@ describe("issues and pull requests", () => {
 	it("share one #N sequence per repository", async () => {
 		signIn(users.contributor);
 		const issue = await issues.createIssue({
-			data: { repoId, title: "Bug", labels: ["bug"] },
+			data: { repoId, title: "Bug" },
 		});
 		await files.createBranch({ data: { repoId, name: "fix" } });
 		await files.uploadFile({
@@ -77,7 +77,6 @@ describe("issues and pull requests", () => {
 			},
 		});
 		expect([issue.number, pr.number]).toEqual([1, 2]);
-		expect(issue.labels).toEqual(["bug"]);
 
 		signOut();
 		const byNumber = await pulls.getPullRequestByNumber({
