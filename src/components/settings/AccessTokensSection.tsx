@@ -13,6 +13,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { accessTokensQueryOptions, queryKeys } from "@/lib/query-options";
 import {
 	TOKEN_SCOPE_LABELS,
@@ -40,7 +41,8 @@ export function AccessTokensSection() {
 	const [scope, setScope] = useState<TokenScope>("repo:write");
 	const [lifetime, setLifetime] = useState<Lifetime>("90");
 	const [created, setCreated] = useState<string | null>(null);
-	const [copied, setCopied] = useState(false);
+	const [copyFailed, setCopyFailed] = useState(false);
+	const { copied, copy: copyToClipboard } = useCopyToClipboard();
 
 	const { data: tokens = [], isLoading } = useQuery(accessTokensQueryOptions());
 	const invalidate = () =>
@@ -50,7 +52,7 @@ export function AccessTokensSection() {
 		mutationFn: createToken,
 		onSuccess: ({ token }) => {
 			setCreated(token);
-			setCopied(false);
+			setCopyFailed(false);
 			setName("");
 			invalidate();
 		},
@@ -70,8 +72,8 @@ export function AccessTokensSection() {
 
 	const copy = async () => {
 		if (!created) return;
-		await navigator.clipboard.writeText(created);
-		setCopied(true);
+		const ok = await copyToClipboard(created);
+		if (!ok) setCopyFailed(true);
 	};
 
 	return (
@@ -86,11 +88,22 @@ export function AccessTokensSection() {
 							Copy your new token now — it won't be shown again.
 						</p>
 						<div className="flex gap-2">
-							<Input readOnly value={created} className="font-mono text-xs" />
+							<Input
+								readOnly
+								value={created}
+								className="font-mono text-xs"
+								onFocus={(e) => e.currentTarget.select()}
+							/>
 							<Button variant="outline" onClick={copy}>
 								{copied ? "Copied" : "Copy"}
 							</Button>
 						</div>
+						{copyFailed && (
+							<p className="text-xs text-muted-foreground">
+								Couldn't copy automatically — select the token and copy it
+								manually.
+							</p>
+						)}
 					</div>
 				)}
 

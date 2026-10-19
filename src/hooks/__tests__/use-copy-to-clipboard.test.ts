@@ -96,10 +96,31 @@ describe("useCopyToClipboard", () => {
 		);
 		const { result } = renderHook(() => useCopyToClipboard());
 
+		let ok: boolean | undefined;
 		await act(async () => {
-			await result.current.copy("text");
+			ok = await result.current.copy("text");
 		});
 
+		expect(ok).toBe(false);
 		expect(result.current.copied).toBe(false);
+	});
+
+	it("falls back to execCommand when clipboard.writeText rejects", async () => {
+		vi.mocked(navigator.clipboard.writeText).mockRejectedValue(
+			new Error("Document is not focused"),
+		);
+		const execCommand = vi.fn().mockReturnValue(true);
+		Object.assign(document, { execCommand });
+		const { result } = renderHook(() => useCopyToClipboard());
+
+		let ok: boolean | undefined;
+		await act(async () => {
+			ok = await result.current.copy("pst_abc");
+		});
+
+		expect(execCommand).toHaveBeenCalledWith("copy");
+		expect(ok).toBe(true);
+		expect(result.current.copied).toBe(true);
+		expect(document.querySelector("textarea")).toBeNull();
 	});
 });
