@@ -8,17 +8,11 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useCallback } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { RefSelect } from "@/components/repo/RefSelect";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	repositoryBranchesQueryOptions,
@@ -99,11 +93,6 @@ function CommitsPage() {
 		enabled: !!repo,
 	});
 
-	const { data: branches } = useQuery({
-		...repositoryBranchesQueryOptions(repo?.id ?? 0),
-		enabled: !!repo,
-	});
-
 	const handleBranchChange = useCallback(
 		(value: string) => {
 			navigate({
@@ -119,18 +108,13 @@ function CommitsPage() {
 			{/* Toolbar */}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<Select value={branch} onValueChange={handleBranchChange}>
-						<SelectTrigger size="sm">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{branches?.map((b) => (
-								<SelectItem key={b.name} value={b.name}>
-									{b.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					{repo && (
+						<RefSelect
+							repoId={repo.id}
+							value={branch}
+							onChange={handleBranchChange}
+						/>
+					)}
 					{commits && commits.length > 0 && (
 						<span className="text-xs text-muted-foreground">
 							{commits.length} commit{commits.length !== 1 ? "s" : ""}

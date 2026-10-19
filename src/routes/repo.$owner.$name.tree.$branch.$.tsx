@@ -8,18 +8,12 @@ import {
 import { useCallback, useEffect, useMemo } from "react";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { findReadmeFile, ReadmeCard } from "@/components/repo/ReadmeCard";
+import { RefSelect } from "@/components/repo/RefSelect";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button } from "@/components/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { perfMark, perfTime } from "@/lib/perf-log";
 import {
 	repositoryByNameQueryOptions,
@@ -232,6 +226,8 @@ function TreeBrowserPage() {
 	const isCommitView =
 		/^[0-9a-f]{40}$/i.test(activeBranch) &&
 		!branches?.some((b) => b.name === activeBranch);
+	// Only a branch can take a new commit; a tag or commit view is read-only.
+	const isBranchView = !!branches?.some((b) => b.name === activeBranch);
 
 	return (
 		<div className="space-y-4">
@@ -263,19 +259,11 @@ function TreeBrowserPage() {
 				) : isLoading ? (
 					<div className="h-8 w-32 animate-pulse rounded-md border border-border bg-muted" />
 				) : (
-					<Select value={activeBranch} onValueChange={handleBranchChange}>
-						<SelectTrigger size="sm">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{branches?.map((branch) => (
-								<SelectItem key={branch.name} value={branch.name}>
-									{branch.name}
-									{branch.isDefault ? " (default)" : ""}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<RefSelect
+						repoId={repo.id}
+						value={activeBranch}
+						onChange={handleBranchChange}
+					/>
 				)}
 
 				<div className="flex items-center gap-2">
@@ -286,7 +274,7 @@ function TreeBrowserPage() {
 							{files?.length || 0} files
 						</span>
 					)}
-					{!isCommitView && (
+					{isBranchView && (
 						<Link
 							to="/repo/$owner/$name/upload"
 							params={{ owner, name }}

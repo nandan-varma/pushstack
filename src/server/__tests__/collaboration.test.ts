@@ -327,3 +327,22 @@ describe("browsing a repository nobody has pushed to", () => {
 		);
 	});
 });
+
+describe("tags", () => {
+	it("lists tags and browses a tag like a branch", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { repoFor } = await import("../git-repo");
+		signIn(users.maintainer);
+		const repo = repoFor("maintainer", "proj");
+		const head = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		await git.tag({ ...repo, ref: "v1.0", object: head });
+
+		const tags = await files.getTags({ data: { repoId } });
+		expect(tags).toEqual([{ name: "v1.0", commit: head }]);
+
+		const page = await files.getTreePageData({
+			data: { repoId, branchName: "v1.0", path: "" },
+		});
+		expect(page.files.map((f) => f.path)).toContain("app.txt");
+	});
+});

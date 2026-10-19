@@ -15,6 +15,7 @@ import {
 	getTreeFromRef,
 	HISTORY_WALK_DEPTH,
 	listBranches,
+	listTags,
 	type OpsHooks,
 	analyzeMerge as opsAnalyzeMerge,
 	getCommit as opsGetCommit,
@@ -209,22 +210,30 @@ export async function getRepositoryTreeData(
 		Promise.all([
 			getTreeFromRef(repo, { ref, treePath }, hooks),
 			opsGetCommitHistory(repo, { ref, limit: 1 }, hooks),
-		]).catch((error: unknown) => error),
+		]).then(
+			([files, commits]) => ({ ok: true as const, files, commits }),
+			(error: unknown) => ({ ok: false as const, error }),
+		),
 	]);
-	if (page instanceof Array) {
-		const [files, commits] = page;
-		return { branches, files, latestCommit: commits[0] };
+	if (page.ok) {
+		return { branches, files: page.files, latestCommit: page.commits[0] };
 	}
 	// A repository nobody has pushed to yet has no branch to read: an empty
 	// page (the UI shows setup instructions), not a 404 for the default branch.
-	if (branches.length === 0 && isGitNotFoundError(page)) {
-		return { branches, files: [], latestCommit: undefined };
+	if (branches.length === 0 && isGitNotFoundError(page.error)) {
+		const files: Awaited<ReturnType<typeof getTreeFromRef>> = [];
+		return { branches, files, latestCommit: undefined };
 	}
-	throw page;
+	throw page.error;
 }
 
 export function getBranches(ownerKey: string, repoName: string) {
 	return listBranches(repoFor(ownerKey, repoName));
+}
+
+/** Tags with the commits they name (annotated tags peeled), in version order. */
+export function getTags(ownerKey: string, repoName: string) {
+	return listTags(repoFor(ownerKey, repoName));
 }
 
 /** For each entry of a directory, the last commit (within the walk depth) that changed it. */

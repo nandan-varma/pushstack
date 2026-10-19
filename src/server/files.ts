@@ -137,6 +137,14 @@ export const getBranches = createServerFn({ method: "GET" })
 		),
 	);
 
+export const getTags = createServerFn({ method: "GET" })
+	.validator(z.object({ repoId: z.number() }))
+	.handler(({ data }) =>
+		readGit("getTags", data.repoId, (owner, name) =>
+			gitRead.getTags(owner, name),
+		),
+	);
+
 export const getCommits = createServerFn({ method: "GET" })
 	.validator(
 		z.object({

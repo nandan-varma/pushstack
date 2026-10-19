@@ -11,6 +11,7 @@ import {
 	getFile,
 	getFileHistory,
 	getLastCommits,
+	getTags,
 	getTreePageData,
 	listFiles,
 } from "@/server/files";
@@ -49,6 +50,7 @@ export const queryKeys = {
 		["search", "repositories", query] as const,
 	searchUsers: (query: string) => ["search", "users", query] as const,
 	repoBranches: (repoId: number) => ["repos", repoId, "branches"] as const,
+	repoTags: (repoId: number) => ["repos", repoId, "tags"] as const,
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
 	repoFiles: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", branchName, path] as const,
@@ -240,6 +242,17 @@ export function repositoryBranchesQueryOptions(repoId: number) {
 			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,
+	});
+}
+
+export function repositoryTagsQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoTags(repoId),
+		queryFn: () =>
+			perfTime(`query tags repo=${repoId}`, () =>
+				getTags({ data: { repoId } }),
+			),
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 
