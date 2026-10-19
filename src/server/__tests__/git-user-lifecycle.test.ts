@@ -338,6 +338,58 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(new TextDecoder().decode(content)).toBe("pushed\n");
 	});
 
+	it("a pushed 'Fixes #N' closes the issue and mentions add 'referenced' events", async () => {
+		const { createIssue, getIssueByNumber } = await import("../issues");
+		const { getTimeline } = await import("../timeline");
+		const { findRepositoryByName } = await import("../repository-lookup");
+		const repo = await findRepositoryByName(TEST_USER.username, REPO_NAME);
+		if (!repo) throw new Error("repo missing");
+		const fixed = await createIssue({
+			data: { repoId: repo.id, title: "Broken" },
+		});
+		const related = await createIssue({
+			data: { repoId: repo.id, title: "Related" },
+		});
+
+		await nodeFs.writeFile(`${ENV.cloneDir}/FIX.md`, "fix\n");
+		await git.add({ fs, dir: ENV.cloneDir, filepath: "FIX.md" });
+		const sha = await git.commit({
+			fs,
+			dir: ENV.cloneDir,
+			message: `Fix the bug\n\nFixes #${fixed.number}, see also #${related.number}`,
+			author: { name: TEST_USER.name, email: TEST_USER.email },
+		});
+		const result = await git.push({
+			fs,
+			http: nodeHttpClient,
+			dir: ENV.cloneDir,
+			remote: "origin",
+			ref: "main",
+			onAuth: () => ({ username: TEST_USER.username, password: PAT }),
+		});
+		expect(result.ok).toBe(true);
+
+		const timeline = (number: number) =>
+			getTimeline({ data: { repoId: repo.id, number } });
+		const fixedEvents = await timeline(fixed.number);
+		expect(fixedEvents.map((entry) => entry.event)).toEqual([
+			"referenced",
+			"closed",
+		]);
+		expect(fixedEvents[1]).toMatchObject({ commitSha: sha });
+		expect((await timeline(related.number)).map((e) => e.event)).toEqual([
+			"referenced",
+		]);
+		const after = await getIssueByNumber({
+			data: {
+				owner: TEST_USER.username,
+				name: REPO_NAME,
+				number: fixed.number,
+			},
+		});
+		expect(after.status).toBe("closed");
+	});
+
 	it("renames the repository, moving its storage with it", async () => {
 		const { updateRepository } = await import("../repositories");
 		const { findRepositoryByName } = await import("../repository-lookup");

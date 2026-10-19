@@ -22,13 +22,14 @@ import {
 	REPACK_PACK_COUNT_THRESHOLD,
 	receivePackResponse,
 } from "git-fs-s3/http";
+import { recordPushReferences } from "./commit-references";
 import { GIT_HTTP_MAX_BODY_BYTES } from "./config";
 import { authorizeGitRequest } from "./git-auth";
 import { detectLooseObjectsHint, prefetchAllPacks } from "./git-fs";
 import { afterRepositoryPush, httpHooks as hooks, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
-import { logError, perfContext } from "./perf-log";
+import { logError, logWarn, perfContext } from "./perf-log";
 import { findRepositoryByName } from "./repository-lookup";
 
 type GitService = "git-upload-pack" | "git-receive-pack";
@@ -116,7 +117,9 @@ export async function readGitRequestBody(
 async function receivePack(
 	ownerKey: string,
 	repoName: string,
+	repoId: number,
 	defaultBranch: string,
+	pusherId: string | null,
 	body: Uint8Array,
 ) {
 	const parsed = parseReceivePackBody(body);
@@ -128,6 +131,22 @@ async function receivePack(
 			hooks,
 		);
 		afterRepositoryPush(ownerKey, repoName);
+		// Best effort: a failure here must not fail an already-applied push.
+		if (pusherId && !result.unpackError) {
+			try {
+				await recordPushReferences({
+					ownerKey,
+					repoName,
+					repoId,
+					defaultBranch,
+					actorId: pusherId,
+					updates: parsed.refUpdates,
+					results: result.results,
+				});
+			} catch (error) {
+				logWarn("git-http", "recording commit references failed", error);
+			}
+		}
 		return result;
 	});
 	return receivePackResponse(outcome.results, {
@@ -143,7 +162,7 @@ async function serve(request: Request, route: GitRoute) {
 	const repository = await findRepositoryByName(route.owner, route.repo);
 	if (!repository) throw new GitRepositoryNotFoundError("Repository not found");
 	const needsWrite = route.service === "git-receive-pack";
-	await authorizeGitRequest(request, repository, needsWrite);
+	const auth = await authorizeGitRequest(request, repository, needsWrite);
 
 	const ownerKey = ownerKeyOf(repository);
 	const repoName = repository.name;
@@ -160,7 +179,14 @@ async function serve(request: Request, route: GitRoute) {
 	}
 	const body = await readGitRequestBody(request);
 	if (needsWrite) {
-		return receivePack(ownerKey, repoName, repository.defaultBranch, body);
+		return receivePack(
+			ownerKey,
+			repoName,
+			repository.id,
+			repository.defaultBranch,
+			auth.userId,
+			body,
+		);
 	}
 	return handleUploadPack(
 		repoFor(ownerKey, repoName),
