@@ -1,4 +1,4 @@
-import { defineConfig } from "tsup";
+import { defineConfig } from "tsdown";
 
 export default defineConfig({
 	entry: {
@@ -12,8 +12,11 @@ export default defineConfig({
 	format: ["esm"],
 	// Declarations come from `tsc -p tsconfig.build.json` (see the build script).
 	dts: false,
+	target: "node22",
+	platform: "node",
+	// Keep `.js` (the package is `"type": "module"`); tsdown defaults to `.mjs`.
+	fixedExtension: false,
 	sourcemap: true,
 	clean: true,
-	target: "node22",
 	external: ["@aws-sdk/client-s3", "aws4fetch", "isomorphic-git", "diff"],
 });
