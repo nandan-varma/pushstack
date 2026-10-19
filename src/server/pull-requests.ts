@@ -12,7 +12,7 @@ import {
 	MAX_LIST_SKIP,
 } from "#/lib/limits";
 import { recordActivity } from "./activity";
-import { analyzeMerge, getCommit, getCommitsBetween } from "./git-read";
+import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
@@ -244,6 +244,8 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 					mergedAt: new Date(),
 					mergedBy: currentUser.id,
 					mergeCommitSha: result.commitSha,
+					baseSha: result.baseSha,
+					headSha: result.headSha,
 					updatedAt: new Date(),
 				})
 				.where(and(eq(pullRequests.id, pr.id), eq(pullRequests.status, "open")))
@@ -327,13 +329,11 @@ const PR_COMMITS_LIMIT = 250;
 
 /**
  * A pull request's Commits tab: commits on the head branch that aren't on
- * the base, newest first. A merged pull request uses the state recorded at
- * merge time: the merge commit's two parents are the base and head then. A
- * fast-forward merge makes no merge commit, so its range can't be recovered
- * and comes back empty with a note.
+ * the base, oldest first. A merged pull request uses the base and head tips
+ * recorded when it merged, so later pushes to either branch don't change it.
  */
 export const getPullRequestCommits = createServerFn({ method: "GET" })
-	.validator(z.object({ prId: z.number() }))
+	.validator(z.object({ prId: z.number().int().positive() }))
 	.handler(async ({ data }) => {
 		const pr = await db.query.pullRequests.findFirst({
 			where: eq(pullRequests.id, data.prId),
@@ -343,40 +343,17 @@ export const getPullRequestCommits = createServerFn({ method: "GET" })
 			`getPullRequestCommits #${pr.number}`,
 			pr.repoId,
 			async (repo) => {
-				const owner = ownerKeyOf(repo);
-				if (pr.status !== "merged") {
-					return {
-						...(await getCommitsBetween(
-							owner,
-							repo.name,
-							pr.targetBranch,
-							pr.sourceBranch,
-							PR_COMMITS_LIMIT,
-						)),
-						note: null,
-					};
+				if (pr.status === "merged" && !(pr.baseSha && pr.headSha)) {
+					throw new Error(`Merged pull request #${pr.number} has no range`);
 				}
-				const merge = pr.mergeCommitSha
-					? await getCommit(owner, repo.name, pr.mergeCommitSha)
-					: null;
-				const [mergeBase, mergeHead] = merge?.commit.parent ?? [];
-				if (!mergeBase || !mergeHead) {
-					return {
-						commits: [],
-						truncated: false,
-						note: "This pull request was fast-forward merged, so its commits weren't recorded.",
-					};
-				}
-				return {
-					...(await getCommitsBetween(
-						owner,
-						repo.name,
-						mergeBase,
-						mergeHead,
-						PR_COMMITS_LIMIT,
-					)),
-					note: null,
-				};
+				const merged = pr.status === "merged";
+				return getCommitsBetween(
+					ownerKeyOf(repo),
+					repo.name,
+					(merged ? pr.baseSha : pr.targetBranch) as string,
+					(merged ? pr.headSha : pr.sourceBranch) as string,
+					PR_COMMITS_LIMIT,
+				);
 			},
 		);
 	});

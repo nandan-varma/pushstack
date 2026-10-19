@@ -35,13 +35,13 @@ const commit = (branchName: string, path: string, message: string) =>
 		},
 	});
 
-const open = (source: string) =>
+const open = (source: string, target = "main") =>
 	pulls.createPullRequest({
 		data: {
 			repoId,
-			title: source,
+			title: `${source} into ${target}`,
 			sourceBranchName: source,
-			targetBranchName: "main",
+			targetBranchName: target,
 		},
 	});
 
@@ -57,37 +57,66 @@ beforeAll(async () => {
 });
 
 describe("getPullRequestCommits", () => {
-	it("lists exactly the head's commits, newest first, even after the base moves", async () => {
+	it("lists exactly the head's commits, oldest first, even after the base moves", async () => {
 		await files.createBranch({ data: { repoId, name: "feature" } });
 		await commit("feature", "f1.txt", "First");
 		await commit("feature", "f2.txt", "Second");
 		const pr = await open("feature");
-		expect(await messages(pr.id)).toEqual(["Second", "First"]);
+		expect(await messages(pr.id)).toEqual(["First", "Second"]);
 
 		await commit("main", "m.txt", "On main");
-		expect(await messages(pr.id)).toEqual(["Second", "First"]);
+		expect(await messages(pr.id)).toEqual(["First", "Second"]);
 		expect(
 			await pulls.getPullRequestCommits({ data: { prId: pr.id } }),
-		).toEqual(expect.objectContaining({ truncated: false, note: null }));
+		).toEqual(expect.objectContaining({ truncated: false, incomplete: false }));
 	});
 
-	it("keeps the merged range after a merge commit", async () => {
+	it("keeps the merged range after a three-way merge, whatever happens to the branches", async () => {
 		const [pr] = await pulls.getPullRequests({
 			data: { repoId, status: "open" },
 		});
 		if (!pr) throw new Error("expected the open pull request");
 		await pulls.mergePullRequest({ data: { prId: pr.id } });
-		expect(await messages(pr.id)).toEqual(["Second", "First"]);
+		await commit("feature", "f3.txt", "Pushed after the merge");
+		await commit("main", "m2.txt", "More on main");
+		expect(await messages(pr.id)).toEqual(["First", "Second"]);
 	});
 
-	it("explains a fast-forward merge, whose range isn't recorded", async () => {
+	it("keeps a fast-forward merged range", async () => {
 		await files.createBranch({ data: { repoId, name: "ff" } });
 		await commit("ff", "ff.txt", "Only");
 		const pr = await open("ff");
 		await pulls.mergePullRequest({ data: { prId: pr.id } });
-		const result = await pulls.getPullRequestCommits({ data: { prId: pr.id } });
-		expect(result.commits).toEqual([]);
-		expect(result.note).toMatch(/fast-forward/);
+		expect(await messages(pr.id)).toEqual(["Only"]);
+	});
+
+	it("is exact when the head tip is itself a merge commit", async () => {
+		await files.createBranch({ data: { repoId, name: "side" } });
+		await commit("side", "s.txt", "Side work");
+		await commit("main", "m3.txt", "Main moves on");
+		// Merge main into side: side's tip becomes a merge commit.
+		const sync = await open("main", "side");
+		await pulls.mergePullRequest({ data: { prId: sync.id } });
+
+		const pr = await open("side");
+		expect(await messages(pr.id)).toEqual([
+			"Side work",
+			"Merge pull request #" + sync.number + ": main into side",
+		]);
+		await pulls.mergePullRequest({ data: { prId: pr.id } });
+		await commit("main", "m4.txt", "After");
+		expect(await messages(pr.id)).toEqual([
+			"Side work",
+			"Merge pull request #" + sync.number + ": main into side",
+		]);
+	});
+
+	it("is empty, not an error, once an open pull request's head branch is gone", async () => {
+		await files.createBranch({ data: { repoId, name: "gone" } });
+		await commit("gone", "g.txt", "Soon deleted");
+		const pr = await open("gone");
+		await files.deleteBranch({ data: { repoId, name: "gone" } });
+		expect(await messages(pr.id)).toEqual([]);
 	});
 
 	it("is not readable without access to a private repository", async () => {

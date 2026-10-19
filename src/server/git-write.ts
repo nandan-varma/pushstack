@@ -17,6 +17,7 @@ import {
 	fastForwardMerge,
 	listBranches,
 	type Repo,
+	resolveCommit,
 } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { repackIfNeededUnlocked, repoFor } from "./git-repo";
@@ -171,7 +172,7 @@ export interface MergeOptions {
 }
 
 export type MergeOutcome =
-	| { success: true; commitSha: string }
+	| { success: true; commitSha: string; baseSha: string; headSha: string }
 	| { success: false; conflicts: string[] };
 
 /**
@@ -191,12 +192,16 @@ export async function mergeBranches(
 	assertSafeBranchName(targetBranch);
 	try {
 		return await writeUnderLock(ownerKey, repoName, async (repo) => {
+			// The tips being merged, resolved under the lock: the exact range a
+			// pull request merged.
+			const baseSha = (await resolveCommit(repo, targetBranch)).oid;
+			const headSha = (await resolveCommit(repo, sourceBranch)).oid;
 			const fastForward = await fastForwardMerge(
 				repo,
 				sourceBranch,
 				targetBranch,
 			);
-			if (fastForward) return fastForward;
+			if (fastForward) return { ...fastForward, baseSha, headSha };
 			const { commitOid } = await threeWayMerge(
 				repo,
 				qualifyBranchRef(sourceBranch),
@@ -208,7 +213,12 @@ export async function mergeBranches(
 					authorEmail: options.authorEmail,
 				},
 			);
-			return { success: true as const, commitSha: commitOid };
+			return {
+				success: true as const,
+				commitSha: commitOid,
+				baseSha,
+				headSha,
+			};
 		});
 	} catch (error) {
 		if (error instanceof GitMergeConflictError) {

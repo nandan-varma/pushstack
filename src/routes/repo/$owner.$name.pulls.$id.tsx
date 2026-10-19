@@ -127,17 +127,9 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 				.catch(() => {});
 		}
 
-		// Start the "Commits" list and "Files changed" diff now rather than
-		// after mount; the page renders without them.
+		// Start the "Files changed" diff now rather than after mount; the page
+		// renders without it.
 		if (pr) {
-			queryClient
-				.ensureQueryData(
-					pullRequestCommitsQueryOptions({
-						prId: pr.id,
-						autoRefresh: !!repo?.autoRefreshPrDiffs,
-					}),
-				)
-				.catch(() => {});
 			queryClient
 				.ensureQueryData(
 					pullRequestDiffQueryOptions({
@@ -191,7 +183,8 @@ function PullRequestDetailPage() {
 			prId: pr?.id ?? -1,
 			autoRefresh: !!repo?.autoRefreshPrDiffs,
 		}),
-		enabled: !!pr,
+		// Two bounded history walks: only when the tab is shown.
+		enabled: !!pr && tab === "commits",
 	});
 
 	const prQueryKey = queryKeys.pullRequestByNumber(owner, name, prNumber);
@@ -403,7 +396,7 @@ function PullRequestDetailPage() {
 						{prCommits ? (
 							<span className="ml-1 rounded-full bg-muted px-1.5 text-xs">
 								{prCommits.commits.length}
-								{prCommits.truncated ? "+" : ""}
+								{prCommits.truncated || prCommits.incomplete ? "+" : ""}
 							</span>
 						) : null}
 					</TabsTrigger>
@@ -494,18 +487,22 @@ function PullRequestDetailPage() {
 								name={name}
 								commits={prCommits.commits}
 							/>
-							{prCommits.truncated && (
+							{prCommits.incomplete ? (
 								<p className="text-center text-xs text-muted-foreground">
-									Showing the {prCommits.commits.length} most recent commits.
+									This list may be incomplete: {pr.targetBranch} has moved far
+									past where this branch started, so some commits shown may
+									already be on it.
 								</p>
-							)}
+							) : prCommits.truncated ? (
+								<p className="text-center text-xs text-muted-foreground">
+									Showing the first {prCommits.commits.length} commits; newer
+									ones are not listed.
+								</p>
+							) : null}
 						</>
 					) : (
 						<EmptyState
-							message={
-								prCommits?.note ??
-								`No commits on ${pr.sourceBranch} that aren't on ${pr.targetBranch}.`
-							}
+							message={`No commits on ${pr.sourceBranch} that aren't on ${pr.targetBranch}.`}
 						/>
 					)}
 				</TabsContent>

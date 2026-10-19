@@ -303,18 +303,23 @@ export function getBranchDiff(
 	return getDiffBetweenRefs(repoFor(ownerKey, repoName), baseRef, compareRef);
 }
 
-/** The commits `head` has that `base` doesn't, newest first. */
+/** The commits `head` has that `base` doesn't, oldest first (as GitHub lists them). */
 export type CommitsBetween = {
 	commits: CommitSummary[];
-	/** More commits exist than were returned, or the bounded walk ended before reaching base's history. */
+	/** More commits exist than `limit`; the newest are left out. */
 	truncated: boolean;
+	/**
+	 * The bounded walk ended before reaching base's history (base moved far
+	 * past the branch point), so the list may include commits that are on base.
+	 */
+	incomplete: boolean;
 };
 
 /**
  * `log base..head`, composed from two memoized bounded walks: head's history
  * minus every commit in base's. Each side is bounded by `HISTORY_WALK_DEPTH`
- * (Vercel time limits); `truncated` says when the answer may be partial. A
- * missing ref has an empty history, so the result is empty.
+ * (Vercel time limits). A missing ref has an empty history, so the result is
+ * empty. `base` and `head` may be branch names or commit shas.
  */
 export async function getCommitsBetween(
 	ownerKey: string,
@@ -329,11 +334,13 @@ export async function getCommitsBetween(
 	]);
 	const onBase = new Set(baseLog.map((commit) => commit.oid));
 	const exclusive = headLog.filter((commit) => !onBase.has(commit.oid));
-	const neverMetBase =
-		headLog.length >= HISTORY_WALK_DEPTH && exclusive.length === headLog.length;
+	const oldestFirst = exclusive.reverse();
 	return {
-		commits: exclusive.slice(0, limit).map(summarizeCommit),
-		truncated: exclusive.length > limit || neverMetBase,
+		commits: oldestFirst.slice(0, limit).map(summarizeCommit),
+		truncated: oldestFirst.length > limit,
+		incomplete:
+			headLog.length >= HISTORY_WALK_DEPTH &&
+			oldestFirst.length === headLog.length,
 	};
 }
 
