@@ -149,10 +149,16 @@ export const updateIssue = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		const { issueId, status, ...fields } = data;
+		const titleChanged =
+			fields.title !== undefined && fields.title !== issue.title;
+		const bodyChanged =
+			fields.body !== undefined && (fields.body || null) !== issue.body;
 		const [updated] = await db
 			.update(issues)
 			.set({
 				...fields,
+				...(fields.body !== undefined && { body: fields.body || null }),
+				...(bodyChanged && { editedAt: new Date() }),
 				...(status && {
 					status,
 					closedAt: status === "closed" ? new Date() : null,
@@ -162,7 +168,14 @@ export const updateIssue = createServerFn({ method: "POST" })
 			.where(eq(issues.id, issueId))
 			.returning();
 		if (!updated) throw notFound();
-		if (fields.body !== undefined) {
+		if (titleChanged) {
+			await recordTimelineEvent(issue.repoId, issue.number, currentUser.id, {
+				event: "renamed",
+				from: issue.title,
+				to: updated.title,
+			});
+		}
+		if (bodyChanged) {
 			await recordCrossReferences(
 				issue.repoId,
 				{ kind: "issue", number: issue.number, title: updated.title },
