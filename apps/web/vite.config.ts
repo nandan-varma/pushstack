@@ -68,7 +68,7 @@ const config = defineConfig({
 				// Static security headers for every response. The
 				// Content-Security-Policy is deliberately *not* here: it carries a
 				// per-request nonce, so it is set by the request middleware in
-				// src/server/csp.ts instead. See docs/security.md.
+				// src/server/csp.ts instead. See apps/docs/content/docs/internals/security.md.
 				"/**": {
 					headers: {
 						"X-Content-Type-Options": "nosniff",

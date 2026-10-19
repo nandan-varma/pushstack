@@ -1,0 +1,45 @@
+---
+title: CLI
+description: Authenticate, manage repositories, and call the REST API with pst or pushstack.
+---
+
+The `@pushstack/cli` workspace provides the `pst` and `pushstack` commands over
+the [REST API](/docs/api). It requires Node.js 22 or newer. npm publication is
+pending; build and run it from a checkout of the monorepo:
+
+```sh
+pnpm install
+pnpm --filter @pushstack/cli build
+node apps/cli/dist/bin.js --help
+node apps/cli/dist/bin.js auth login --with-token < token.txt
+node apps/cli/dist/bin.js auth status
+node apps/cli/dist/bin.js repo list
+node apps/cli/dist/bin.js repo view alice/project --json nameWithOwner,url
+node apps/cli/dist/bin.js repo create project --private --add-readme
+node apps/cli/dist/bin.js api repos/alice/project
+```
+
+Create a personal access token on your PushStack host. Login verifies the token
+and saves it in an owner-only `hosts.json` file. The token is stored as plain
+text. `auth status` masks it, `auth token` prints it, and `auth logout` removes
+the saved credential.
+
+The default host is `git.nandan.fyi`. Set `PST_HOST` or pass `--hostname` to
+select another host, including `localhost:3000` for local development.
+`PST_TOKEN` overrides saved credentials. `PST_REPO` supplies an `OWNER/REPO`
+when a command would otherwise infer it from git remotes. `PST_CONFIG_DIR`
+selects the configuration directory; the default is
+`$XDG_CONFIG_HOME/pushstack` or `~/.config/pushstack`.
+
+`repo create` requires `--public` or `--private` and creates repositories under
+the authenticated account. It supports `--description`, `--add-readme`,
+`--gitignore`, and `--license`. `repo list` accepts an owner, `--limit`,
+`--visibility public|private`, and `--json` fields.
+
+`api` supports `--method`, `--header`, raw `-f key=value` fields, typed
+`-F key=value` fields, `--input`, `--include`, and `--paginate`. Requests use
+the selected host's `/api/v3` API; pagination keeps credentials on that host.
+
+The current CLI covers authentication, repositories, and direct API requests.
+Interactive login, cloning, pushing, and issue or pull request commands are
+not implemented.

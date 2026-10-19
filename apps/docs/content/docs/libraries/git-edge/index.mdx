@@ -1,0 +1,67 @@
+---
+title: git-edge
+description: High-level edge-compatible git operations on top of isomorphic-git — an object-level three-way merge that never needs a worktree, a parsed-object cache, and per-repo packfile-cache management.
+---
+
+
+isomorphic-git's own `git.merge` needs a worktree — a real (or hydrated-to-`/tmp`)
+checkout to run its merge driver against. That's a problem for a bare repo living
+entirely in object storage with no durable disk: merging would mean materializing
+the whole tree locally first. **git-edge**'s `threeWayMerge` works directly on the
+object graph — trees, blobs, commits — no checkout required, safe to run inside a
+Lambda, Worker, or Edge function that only ever sees `{ fs, gitdir }`.
+
+Extracted from the same production git-hosting service as
+[`git-fs-s3`](https://github.com/nandan-varma/git-fs-s3) — the two
+compose (see [Getting started](/docs/libraries/git-edge/getting-started)): both work on
+isomorphic-git's `{ fs, gitdir, cache? }` shape, and `threeWayMerge` stores
+its objects through git-fs-s3's `withPackedWrites`.
+
+## What's in the package
+
+<PackageExports
+	exports={[
+		{
+			path: 'threeWayMerge',
+			description:
+				'The object-level merge itself — no worktree, no disk, no checkout.',
+			href: '/docs/libraries/git-edge/guides/three-way-merge',
+		},
+		{
+			path: 'createParsedObjectCache',
+			description:
+				'A generic LRU for parsed values (rendered commit lists, resolved merge bases) keyed however you like.',
+			href: '/docs/libraries/git-edge/guides/parsed-object-cache',
+		},
+		{
+			path: 'getRepoCache / invalidateRepoCache',
+			description:
+				'Per-repo isomorphic-git packfile cache management.',
+			href: '/docs/libraries/git-edge/guides/repo-cache',
+		},
+	]}
+/>
+
+## Why this shape
+
+<Cards>
+	<Card title="No worktree, ever">
+		Merges run entirely against the object graph — read trees, diff paths,
+		write blobs and a tree, write the commit. No checkout, no `/tmp`, no
+		cleanup.
+	</Card>
+	<Card title="Edge-compatible">
+		No `node:*` imports anywhere in `src/`. Runs on Cloudflare Workers,
+		Vercel Edge, Deno Deploy, and Node identically.
+	</Card>
+	<Card title="Composes with git-fs-s3">
+		Pass in any isomorphic-git-compatible `fs` — plain `node:fs`, or
+		`git-fs-s3`'s S3/R2-backed one. Neither package imports
+		the other.
+	</Card>
+	<Card title="Production-tested">
+		Extracted from the same git-hosting service's merge logic — the
+		fast-forward shortcut and the object-level tree merge exist because
+		real traffic needed them.
+	</Card>
+</Cards>

@@ -34,7 +34,7 @@ export const UPLOAD_WARNING_BYTES = 10 * 1024 * 1024;
  * file reaching it is a file held in the function's heap; this is the git push
  * body cap, and an object larger than it can only exist by growing through
  * successive deltas. Above it the honest answer is `git clone` (see
- * `docs/security.md`).
+ * `apps/docs/content/docs/internals/security.md`).
  */
 export const MAX_RAW_BYTES = 50 * 1024 * 1024;
 

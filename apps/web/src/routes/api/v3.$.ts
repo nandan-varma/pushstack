@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 /**
  * The GitHub-compatible REST API (`/api/v3/*`) — see src/server/api/index.ts
- * and docs/api.md. Dynamically imported so the server modules stay out of
+ * and apps/docs/content/docs/api/index.md. Dynamically imported so the server modules stay out of
  * every other route's bundle.
  */
 async function serve(request: Request): Promise<Response> {

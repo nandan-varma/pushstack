@@ -1,0 +1,129 @@
+---
+title: Reference — /ops
+description: Every export from git-fs-s3/ops.
+---
+
+
+```typescript
+import { /* ... */ } from 'git-fs-s3/ops';
+```
+
+See [the overview](/docs/libraries/git-fs-s3/ops/overview) for `OpsHooks`/`ResultCache`
+and the `Repo` shape shared by every function here.
+
+## Branches & commits
+
+`listBranches`, `createBranchFrom`, `deleteBranchByName`,
+`assertBranchExists`, `authorNow`, `commitFilesToBare`,
+`deleteFileFromBare`, `writeCommitToBare` — see
+[Branches & commits](/docs/libraries/git-fs-s3/ops/branches-and-commits) for full
+signatures.
+
+## Reading objects directly
+
+<ApiSignature
+	name="resolveCommit"
+	signature="resolveCommit(repo: Repo, ref: string): Promise<{ oid: string; commit: CommitObject }>"
+	returns="Promise<{ oid; commit }>"
+>
+	Resolves a branch name / full ref / sha to its commit object. The
+	primitive `getFileContent` and `getTreeFromRef` build on.
+</ApiSignature>
+
+<ApiSignature
+	name="getBlob"
+	signature="getBlob(repo: Repo, sha: string): Promise<Uint8Array>"
+	returns="Promise<Uint8Array>"
+>
+	A blob's raw bytes by oid. Throws `GitObjectNotFoundError` (not a raw
+	isomorphic-git `NotFoundError`) if the object is missing from storage —
+	distinct from "the file doesn't exist at this path," which is what
+	`getFileContent` throws `GitPathNotFoundError` for.
+</ApiSignature>
+
+<ApiSignature
+	name="getFileContent"
+	signature="getFileContent(repo: Repo, filePath: string, ref: string): Promise<Uint8Array>"
+	returns="Promise<Uint8Array>"
+>
+	A file's raw bytes at a ref (branch name or commit sha). Throws
+	`GitRefNotFoundError` when the ref doesn't resolve and
+	`GitPathNotFoundError` when the path doesn't exist.
+</ApiSignature>
+
+<ApiSignature
+	name="getCommit"
+	signature="getCommit(repo: Repo, sha: string): Promise<CommitInfo>"
+	returns="Promise<CommitInfo>"
+>
+	One commit by sha. `CommitInfo` is `{ oid, commit: { message, tree,
+	parent, author, committer }, payload }`.
+</ApiSignature>
+
+## Trees, history & diff
+
+Tree primitives (`upsertTree`, `deleteFromTree`, `findTreeEntry`,
+`listTreeEntries`), `getTreeFromRef`, `getCommitLog`, `getCommitHistory`,
+`getFileHistory`, `getLastCommitsForTree`, `getCommitDiff`,
+`getDiffBetweenRefs` — see
+[Trees, history & diff](/docs/libraries/git-fs-s3/ops/trees-history-and-diff) for full
+signatures, and don't miss the note on `getCommitLog`'s result-cache
+pattern.
+
+<ApiSignature
+	name="getTreeFromRef"
+	signature="getTreeFromRef(repo: Repo, options: { ref, treePath? }, hooks?: OpsHooks): Promise<TreeEntry[]>"
+	returns="Promise<TreeEntry[]>"
+>
+	List a directory at the tip of a ref. Throws `GitRefNotFoundError` when the
+	ref doesn't resolve (an empty repo's unborn branch included) and
+	`GitPathNotFoundError` when `treePath` doesn't exist. `getCommitLog`, by
+	contrast, returns `[]` for an unborn branch — an empty history is a real
+	answer. Results are memoized per head sha.
+</ApiSignature>
+
+## Merge
+
+`analyzeMerge`, `fastForwardMerge` — see [Merge](/docs/libraries/git-fs-s3/ops/merge).
+
+## Cache key management
+
+<ApiSignature
+	name="resultKeyPrefixes"
+	signature="resultKeyPrefixes(gitdir: string): string[]"
+	returns="string[]"
+>
+	The `ResultCache` key prefixes holding entries for `gitdir` — evict these
+	from your cache when a repo's storage was rewritten outside a normal push
+	(a bulk sync, a rename, a repack cleanup).
+</ApiSignature>
+
+<Callout type="error">
+	Always derive invalidation prefixes from this function — never hand-roll
+	your own prefix scheme. See the warning on
+	[the overview page](/docs/libraries/git-fs-s3/ops/overview#resultcache).
+</Callout>
+
+## Types
+
+| Export | Shape |
+| --- | --- |
+| `Repo` | `{ fs: IsoGitFs; gitdir: string; cache?: object }` |
+| `IsoGitFs` | The `fs` shape isomorphic-git itself accepts. |
+| `OpsHooks` | `{ resultCache?, step?, onNote?, prefetch? }` |
+| `ResultCache` | `{ get<T>(key): T \| null \| undefined; set(key, value): void }` |
+| `Branch` | `{ name: string; commit: string; isDefault: boolean }` |
+| `CommitAuthor` | `{ name, email, timestamp, timezoneOffset }` |
+| `CommitInfo` | `{ oid, commit: { message, tree, parent, author, committer }, payload }` |
+| `CommitLogOptions` | `{ ref?, depth?, knownHeadSha? }` |
+| `TreeEntry` | `{ path, mode, type: "blob" \| "tree", oid, size? }` |
+| `DiffFile` | `{ path, status: "added" \| "modified" \| "deleted", kind: "text" \| "binary" \| "too-large", additions, deletions, patch, oldSize?, newSize? }` — a file over `MAX_DIFF_TEXT_BYTES` is `too-large` and is never read: its size comes from its pack entry (`getObjectSize`). |
+| `DiffResult` | `{ files: DiffFile[]; totalAdditions; totalDeletions; totalFiles }` |
+| `CommitSummary` | `{ sha, message, authorName, authorEmail, createdAt }` — `summarizeCommit(commit)` builds one |
+| `FileHistoryResult` | `{ entries: CommitSummary[]; truncated: boolean }` |
+| `MergeAnalysis` | `{ canMerge, hasConflicts, conflictingFiles, fastForward }` |
+
+`HISTORY_WALK_DEPTH` (`= 400`) and `BANNER_WALK_DEPTH` (`= 60`) are the
+default/shallow walk-depth constants used by `getFileHistory` and
+`getLastCommitsForTree` — see
+[Trees, history & diff](/docs/libraries/git-fs-s3/ops/trees-history-and-diff).

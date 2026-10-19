@@ -63,7 +63,7 @@
 	"bugs": {
 		"url": "https://github.com/nandan-varma/pushstack/issues"
 	},
-	"homepage": "https://github.com/nandan-varma/git-fs-s3#readme",
+	"homepage": "https://docs.git.nandan.fyi/docs/libraries/git-fs-s3",
 	"publishConfig": {
 		"access": "public"
 	},

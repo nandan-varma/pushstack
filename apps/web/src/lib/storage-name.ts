@@ -6,7 +6,7 @@
  * resolves `..` in the paths it maps onto keys — so a name containing a
  * separator or a `..` addresses another repository's storage. Names are
  * validated at input and checked again when a key is built
- * (`src/server/git-storage-naming.ts`); see `docs/security.md`.
+ * (`src/server/git-storage-naming.ts`); see `apps/docs/content/docs/internals/security.md`.
  *
  * Client-safe on purpose (no imports, nothing server-only): the sign-up and
  * create-repository forms have to enforce the same rule the server does. A form

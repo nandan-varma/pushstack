@@ -1,0 +1,108 @@
+---
+title: Getting started
+description: Install git-fs-s3 and wire up your first R2/S3-backed or in-memory git repository.
+---
+
+
+## Install
+
+<Tabs items={["npm","pnpm","yarn"]}>
+	<Tab value="npm">
+		```sh
+		npm install git-fs-s3 isomorphic-git
+		# for the S3 store (any S3-compatible provider):
+		npm install @aws-sdk/client-s3
+		```
+	</Tab>
+	<Tab value="pnpm">
+		```sh
+		pnpm add git-fs-s3 isomorphic-git
+		pnpm add @aws-sdk/client-s3
+		```
+	</Tab>
+	<Tab value="yarn">
+		```sh
+		yarn add git-fs-s3 isomorphic-git
+		yarn add @aws-sdk/client-s3
+		```
+	</Tab>
+</Tabs>
+
+<Callout type="info">
+	`isomorphic-git` and `@aws-sdk/client-s3` are peer dependencies — install
+	them yourself. `@aws-sdk/client-s3` is only needed if you're using
+	[`S3ObjectStore`](/docs/libraries/git-fs-s3/guides/object-store); the in-memory store
+	needs nothing extra.
+</Callout>
+
+## Quick start: Cloudflare R2 / AWS S3 / MinIO
+
+1. Create an `S3Client` and wrap it in `S3ObjectStore`.
+
+   ```typescript
+   import { S3Client } from '@aws-sdk/client-s3';
+   import { S3ObjectStore } from 'git-fs-s3/s3';
+
+   const store = new S3ObjectStore({
+     client: new S3Client({
+       region: 'auto',
+       endpoint: process.env.R2_ENDPOINT, // omit for AWS S3
+       credentials: {
+         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+       },
+     }),
+     bucket: 'my-git-repos',
+   });
+   ```
+
+2. Turn the store into an isomorphic-git-compatible `fs`.
+
+   ```typescript
+   import { createGitFs } from 'git-fs-s3';
+
+   const fs = createGitFs(store, {
+     prefix: 'repos/alice/blog',
+   });
+   ```
+
+3. Use it exactly like you'd use `node:fs` with isomorphic-git — the bucket now
+   behaves like a directory containing a bare repo.
+
+   ```typescript
+   import git from 'isomorphic-git';
+
+   await git.init({ fs, gitdir: '/git', bare: true, defaultBranch: 'main' });
+   const oid = await git.resolveRef({ fs, gitdir: '/git', ref: 'main' });
+   const log = await git.log({ fs, gitdir: '/git', ref: 'main' });
+   ```
+
+## Quick start: in memory (tests, examples)
+
+No object storage needed — useful for unit tests and quick experiments.
+
+```typescript
+import git from 'isomorphic-git';
+import { createGitFs, MemoryObjectStore } from 'git-fs-s3';
+
+const fs = createGitFs(new MemoryObjectStore());
+await git.init({ fs, gitdir: '/repo.git', bare: true });
+```
+
+## Any other storage
+
+Implement the five-method [`ObjectStore`](/docs/libraries/git-fs-s3/guides/object-store)
+interface (`get`, `put`, `delete`, `head`, `list`) and pass it to `createGitFs`
+— that's the whole contract. Google Cloud Storage, Azure Blob, a database,
+anything.
+
+## Next steps
+
+- Wiring more than a handful of reads per page? Read
+  [the production stack guide](/docs/libraries/git-fs-s3/guides/production-stack) —
+  caching and retry aren't optional at that point.
+- Serving real `git clone`/`git push` traffic over HTTP? See
+  [Git smart-HTTP](/docs/libraries/git-fs-s3/http/overview).
+- Building a repo browser or PR flow? See
+  [app-layer operations](/docs/libraries/git-fs-s3/ops/overview) — branches, commits,
+  diffs, history, and merge, all built on this `fs`.

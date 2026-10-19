@@ -1,0 +1,77 @@
+---
+title: Semantics & limitations
+description: What this package assumes about your repos, and what it deliberately doesn't do.
+---
+
+
+## Bare repositories are the target
+
+Plumbing — `writeBlob`/`writeTree`/`writeCommit`/`readCommit`/`log`/refs/
+branches — is covered by the test suite and is what this whole package is
+built around. Worktree operations (`checkout`, `add`, `status`) want a real
+disk; if you need them, hydrate to a scratch directory (e.g. `/tmp` on a
+platform that offers one per invocation) and use `node:fs` there instead.
+
+## Directories are implicit
+
+There's no `mkdir` equivalent to call — `mkdir` is a no-op, and a directory
+"exists" exactly when keys live under it, the same way object storage
+itself works. `list()`'s delimiter semantics are what make `readdir()`
+possible on top of that — see
+[the ObjectStore guide](/docs/libraries/git-fs-s3/guides/object-store).
+
+## Symlinks are unsupported
+
+`readlink` → `ENOENT`, `symlink` → `EPERM`. Bare repositories don't contain
+symlinks as data (they're stored as blobs with a special mode, not real
+filesystem symlinks), so this is a non-issue in practice.
+
+## An empty repo and missing data are different failures
+
+Functions that read a ref (`getTreeFromRef`, `getCommitLog`, `listBranches`,
+...) treat the ref simply not resolving — an unborn branch, a genuinely
+empty repository — as a normal, expected condition: they return `[]` (or
+`null`), not an error. That's the *only* case they treat that way.
+
+Once a ref has resolved to a real commit sha, any object underneath it that
+turns out to be unreadable — the commit itself, a tree, a blob a stored
+pack doesn't actually contain — is a **different** failure: the repo's
+storage is inconsistent, not empty. That's surfaced as a thrown
+`GitObjectNotFoundError` (message: "...is missing from storage. The
+repository may need to be re-pushed to repair it."), not folded into the
+same `[]` a genuinely empty repo returns.
+
+<Callout type="warn">
+	If you're wrapping one of these functions yourself, don't catch *every*
+	`NotFoundError`-shaped error and treat it as "empty" — only do that around
+	the ref-resolution step. A commit/tree/blob read failing after the ref
+	already resolved is exactly the class of bug this distinction exists to
+	catch: silently reporting real data as absent (and, worse, letting a
+	caller cache that wrong "empty" result) is far more confusing to debug
+	than a clear, correctly-typed error.
+</Callout>
+
+## Unknown object sizes are not "too large"
+
+`getObjectSize(repo, oid)` returns a number for a packed object it can read,
+and `null` when it can't: a loose object, an object no pack indexes, a store
+without `getRange`, or a delta prefix too short to yield its header. `null`
+means *unknown*, and a caller must then read the object and apply its size
+limit to the result — never treat `null` as "too large". Reporting an unknown
+size as oversized would silently hide readable files, and the fallback is what
+keeps the limit correct on stores that can't serve byte ranges.
+
+## No rename, no multi-key transactions
+
+Object storage has neither. A caller that needs several keys to become
+visible together (or an atomic move) needs its own coordination layer on
+top — this package doesn't pretend otherwise.
+
+<Callout type="error">
+	Concurrent pushes to the same repo need external serialization — a
+	per-repo lock or a single-writer queue. Nothing in this package
+	serializes writes for you; `/http`'s `applyReceivePack` does
+	compare-and-swap ref updates (so a stale push is rejected rather than
+	silently overwriting concurrent work), but that's a correctness guard,
+	not a substitute for locking during the pack-write itself.
+</Callout>

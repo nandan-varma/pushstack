@@ -1,0 +1,170 @@
+---
+title: Reference — root export
+description: Every export from git-fs-s3 itself.
+---
+
+
+```typescript
+import { /* ... */ } from 'git-fs-s3';
+```
+
+## The fs backend
+
+<ApiSignature
+	name="createGitFs"
+	signature="createGitFs(store: ObjectStore, options?: GitFsOptions): GitFs"
+	params={[
+		{ name: 'store', type: 'ObjectStore', description: 'Any store — see the ObjectStore guide.' },
+		{ name: 'options', type: 'GitFsOptions', description: '<code>prefix</code>, <code>looseObjectHints</code>, <code>hintTtlMs</code>, <code>onNote</code>.', optional: true },
+	]}
+	returns="GitFs"
+>
+	Returns a promise-based `fs` client for isomorphic-git's `fs` option, plus
+	the git-aware maintenance methods below. See
+	[Getting started](/docs/libraries/git-fs-s3/getting-started) and
+	[the production stack guide](/docs/libraries/git-fs-s3/guides/production-stack).
+</ApiSignature>
+
+`GitFs` (the returned object) additionally exposes:
+
+| Method | Signature | What it does |
+| --- | --- | --- |
+| `registerGitdir` | `(gitdir: string, facts?: GitdirFacts) => void` | Declares an existing gitdir: `stat` answers "directory" and `facts.absentFiles` (e.g. `packed-refs`, `shallow`) answer ENOENT, all with zero store calls. |
+| `detectLooseObjects` | `(gitdir: string) => Promise<void>` | One bounded LIST that registers the loose-object hint for a gitdir (otherwise done on the first loose-object read). |
+| `prefetchPacks` | `(gitdir: string, opts?: { maxPacks? }) => Promise<void>` | Warms every `.pack`/`.idx` in parallel before a sequential walk. |
+| `invalidate` | `(pathPrefix: string) => void` | Drops hints and registered gitdirs under the prefix and forwards to the store's own `invalidate` if it has one. |
+| `getRange` | `(filepath: string, start: number, end: number) => Promise<Uint8Array \| null>` | Present only when the backing store implements `ObjectStore.getRange`; `getObjectSize` is its only caller. |
+
+## Object size
+
+<ApiSignature
+	name="getObjectSize"
+	signature="getObjectSize(repo: Repo, oid: string): Promise<number | null>"
+	params={[
+		{ name: 'repo', type: 'Repo', description: 'The same <code>{ fs, gitdir, cache? }</code> handle every op takes.' },
+		{ name: 'oid', type: 'string', description: 'The object to measure.' },
+	]}
+	returns="Promise<number | null>"
+>
+	The object's size in bytes **without inflating it**, from its pack entry:
+	the entry header for a whole object, and the delta header inside its
+	deflated data for a deltified one. `null` means the size isn't available —
+	a loose object, an object no pack indexes, a store without
+	<code>getRange</code>, or a delta prefix too short to read — so a caller
+	reads the object rather than treating `null` as "too large".
+
+	This is the cheapest way to answer "is this blob too large to render or
+	diff?" before paying for the object itself. Costs one `.idx` read plus one
+	or two small range reads.
+</ApiSignature>
+
+## Git layout
+
+Typed views of gitdir paths, instead of matching path strings.
+
+| Export | What it does |
+| --- | --- |
+| `classifyGitdirPath(path)` | Gitdir-relative path → `GitdirEntry` (`head`, `config`, `refs`, `objects-dir`, `pack-dir`, `pack-file`, `loose-object`, `other`). Listing prefixes end in `/`. |
+| `isMutableGitdirEntry(entry)` | True for entries that change between pushes: `HEAD`, refs, and the object/pack listings. |
+| `parseLooseObjectPath(path)` | `<gitdir>/objects/xx/<38 hex>` → `{ gitdir, oid }`, else `null`. |
+| `parsePackFileName(name)` / `parsePackDirectory(entries)` | Pack directory entries → `PackFileName` (`base`, `kind`, `name`); non-pack names are dropped. |
+| `packFileName(base, kind)` | Sibling file name of a pack, e.g. `packFileName(base, "idx")`. |
+| `PACK_FILE_KINDS` / `READABLE_PACK_FILE_KINDS` | All kinds git writes (`pack`, `idx`, `keep`, `bitmap`, `rev`) / the ones isomorphic-git reads. |
+
+## Stores
+
+<ApiSignature name="MemoryObjectStore" kind="class" signature="new MemoryObjectStore()">
+	In-memory `ObjectStore` — the reference implementation of list/delimiter
+	semantics, and what this package's own test suite runs on. See
+	[the ObjectStore guide](/docs/libraries/git-fs-s3/guides/object-store).
+</ApiSignature>
+
+<ApiSignature
+	name="createCachedStore"
+	signature="createCachedStore(store: ObjectStore, options?: CacheOptions): CachedObjectStore"
+	returns="CachedObjectStore"
+>
+	See [the caching guide](/docs/libraries/git-fs-s3/guides/caching).
+</ApiSignature>
+
+<ApiSignature
+	name="createRetryStore"
+	signature="createRetryStore(store: ObjectStore, options?: RetryOptions): ObjectStore"
+>
+	See [the retry & circuit breaker guide](/docs/libraries/git-fs-s3/guides/retry-and-circuit-breaker).
+	Throws `CircuitOpenError` (`code: "EUNAVAILABLE"`) while the breaker is
+	open.
+</ApiSignature>
+
+`S3ObjectStore` lives at the [`/s3` subpath](/docs/libraries/git-fs-s3/reference/s3), not
+the root export — it's only loaded when you actually import it, so
+`@aws-sdk/client-s3` stays an optional dependency.
+
+## Ref & path validation
+
+Shared by [`/http`](/docs/libraries/git-fs-s3/reference/http) internally and safe to reuse
+in your own request-handling code:
+
+| Export | Signature | What it validates |
+| --- | --- | --- |
+| `isSafeBranchName` | `(name: string) => boolean` | A bare branch name (no `refs/` prefix); rejects SHA-shaped values. |
+| `isSafeFullRefName` | `(ref: string) => boolean` | A fully-qualified ref (`refs/heads/…`/`refs/tags/…`). |
+| `isFullSha` | `(value: string) => boolean` | A full 40-hex-char commit sha. |
+| `isSafeRefName` | `(value: string) => boolean` | Branch name **or** full sha — for read paths that accept a pinned commit. |
+| `isSafeRepoPath` | `(p: string) => boolean` | A repo-relative file path: relative, no `..`, no `.git/` prefix, no null bytes. |
+| `isSafeTreePath` | `(p: string) => boolean` | A tree-relative path: relative, no empty/`.`/`..` segments, no `.git` anywhere. |
+| `qualifyBranchRef` | `(ref: string) => string` | Qualifies a bare name to `refs/heads/<name>`, left untouched if already qualified/`HEAD`/a sha. |
+
+<Callout type="error">
+	These mirror isomorphic-git's own internal `isValidRef` character-class
+	rules — several isomorphic-git primitives (`git.commit`, `git.merge`,
+	`git.deleteBranch`, top-level `git.resolveRef`/`git.deleteRef`) do
+	**not** validate ref names internally the way `git.branch`/`git.writeRef`
+	do. Any ref/branch name that originates from request input must be
+	validated against one of these before it reaches those primitives, or a
+	`"../"`-laden name is a path traversal on shared storage.
+</Callout>
+
+## Errors
+
+`GitError` (base class, carrying `statusCode`/`retryable`) and its
+subclasses map internal failures to HTTP-shaped responses:
+
+| Class | Status | Notes |
+| --- | --- | --- |
+| `GitPathNotFoundError` | 404 | A path within a tree doesn't exist. |
+| `GitObjectNotFoundError` | 404 | A git object is missing from storage. |
+| `GitRefNotFoundError` | 404 | A ref (branch/tag) doesn't exist. |
+| `GitRepositoryNotFoundError` | 404 | The repository itself doesn't exist. |
+| `GitConflictError` | 409 | Carries `conflicts: MergeConflictDetail[]`. |
+| `GitAuthenticationError` | 401 | |
+| `GitAuthorizationError` | 403 | |
+| `GitRateLimitError` | 429 | |
+| `GitInvalidRequestError` | 400 | |
+| `GitProtocolError` | 400 | A git wire-protocol violation. |
+| `FsError` | — | Filesystem-shaped errors (`ENOENT`, `EINVAL`, ...) the `fs` client itself throws. |
+
+<ApiSignature
+	name="formatErrorResponse"
+	signature="formatErrorResponse(error: unknown): { status: number; body: Record<string, unknown>; headers?: Record<string, string> }"
+>
+	Maps any error to an HTTP response shape. 401s carry the
+	`WWW-Authenticate` header git clients need before they'll prompt for
+	credentials. Non-`GitError` failures are masked as opaque 500s so
+	internal messages don't leak.
+</ApiSignature>
+
+## Edge-compatible utilities
+
+The primitives `/http` and `/ops` are built on — Web APIs only, no
+`node:crypto`/`node:zlib`/`Buffer`:
+
+| Export | Purpose |
+| --- | --- |
+| `encodeUtf8` / `decodeUtf8` / `decodeAscii` | Text ↔ bytes. |
+| `concat` | Join `Uint8Array`s. |
+| `toHex` / `fromHex` / `toBase64` | Encoding conversions. |
+| `sha1` | SHA-1 via Web Crypto, returns a hex string. |
+| `deflate` | Deflate compression via `CompressionStream`. |
+| `hasNullByte` | Binary-content heuristic. |
+| `readBlobContent` | `{ isBinary, text, bytes }` from a blob's raw bytes. |

@@ -1,0 +1,27 @@
+---
+title: PushStack documentation
+description: A GitHub-compatible code forge. User guide, REST API, internals and the libraries it is built on.
+---
+
+PushStack is a code forge that matches GitHub's behavior, names and API. These docs cover the
+hosted app at [git.nandan.fyi](https://git.nandan.fyi), the code behind it, and the libraries and
+tools around it.
+
+<Cards>
+  <Card title="User guide" href="/docs/guide">
+    Create an account and a repository, clone it, push with a personal access token, work with
+    issues and pull requests.
+  </Card>
+  <Card title="REST API" href="/docs/api">
+    The GitHub-compatible API at /api/v3: auth, pagination and the endpoint compatibility matrix.
+  </Card>
+  <Card title="Architecture and internals" href="/docs/internals">
+    Request flow, git storage on R2, the database, security rules, performance, testing and deployment.
+  </Card>
+  <Card title="Libraries" href="/docs/libraries">
+    git-fs-s3 and git-edge: git on S3-compatible storage, with no disk and no git binary.
+  </Card>
+  <Card title="CLI" href="/docs/cli">
+    The pushstack / pst command line. Coming soon.
+  </Card>
+</Cards>

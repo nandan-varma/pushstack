@@ -1,0 +1,3 @@
+{
+	"pages": ["index", "guide", "api", "internals", "libraries", "cli"]
+}
