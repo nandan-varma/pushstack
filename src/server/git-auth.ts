@@ -47,7 +47,8 @@ function tokenFromRequest(request: Request): string | null {
 	return null;
 }
 
-async function authenticateToken(
+/** The user and scopes behind a personal access token, or null when unknown or expired. */
+export async function authenticateToken(
 	token: string,
 ): Promise<{ userId: string; scopes: TokenScope[] } | null> {
 	const found = await db.query.tokens.findFirst({

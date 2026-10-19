@@ -27,6 +27,7 @@ import { Route as UsersUsernameRouteImport } from './routes/users.$username'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiGitSplatRouteImport } from './routes/api/git.$'
 import { Route as ApiRawSplatRouteImport } from './routes/api/raw.$'
+import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
 import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
 import { Route as RepoOwnerNameIssuesRouteImport } from './routes/repo/$owner.$name.issues'
@@ -131,6 +132,11 @@ const ApiRawSplatRoute = ApiRawSplatRouteImport.update({
   path: '/api/raw/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV3SplatRoute = ApiV3SplatRouteImport.update({
+  id: '/api/v3/$',
+  path: '/api/v3/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RepoOwnerNameRoute = RepoOwnerNameRouteImport.update({
   id: '/repo/$owner/$name',
   path: '/repo/$owner/$name',
@@ -219,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
+  '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
+  '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
@@ -284,6 +292,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
+  '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
@@ -319,6 +328,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/git/$'
     | '/api/raw/$'
+    | '/api/v3/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/git/$'
     | '/api/raw/$'
+    | '/api/v3/$'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
@@ -383,6 +394,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/git/$'
     | '/api/raw/$'
+    | '/api/v3/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/issues'
     | '/repo/$owner/$name/pulls'
@@ -411,6 +423,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiGitSplatRoute: typeof ApiGitSplatRoute
   ApiRawSplatRoute: typeof ApiRawSplatRoute
+  ApiV3SplatRoute: typeof ApiV3SplatRoute
   RepoOwnerNameRoute: typeof RepoOwnerNameRouteWithChildren
 }
 
@@ -540,6 +553,13 @@ declare module '@tanstack/react-router' {
       path: '/api/raw/$'
       fullPath: '/api/raw/$'
       preLoaderRoute: typeof ApiRawSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v3/$': {
+      id: '/api/v3/$'
+      path: '/api/v3/$'
+      fullPath: '/api/v3/$'
+      preLoaderRoute: typeof ApiV3SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repo/$owner/$name': {
@@ -731,6 +751,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiGitSplatRoute: ApiGitSplatRoute,
   ApiRawSplatRoute: ApiRawSplatRoute,
+  ApiV3SplatRoute: ApiV3SplatRoute,
   RepoOwnerNameRoute: RepoOwnerNameRouteWithChildren,
 }
 export const routeTree = rootRouteImport

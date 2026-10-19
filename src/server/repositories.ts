@@ -7,12 +7,11 @@ import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { MAX_LIST_SKIP } from "#/lib/limits";
-import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
+import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
 	deleteRepositoryStorage,
-	initBareRepo,
 	renameRepositoryStorage,
 	repackRepositoryNow,
 } from "./git-repo";
@@ -28,20 +27,17 @@ import {
 	requireOwner,
 } from "./repo-access";
 import {
+	createRepositoryForUser,
+	createRepositoryInputSchema,
+	isUniqueViolation,
+	repoNameSchema,
+} from "./repository-create";
+import {
 	evictRepoByName,
 	findRepositoryByName,
 	publicUserFields,
 } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
-
-/** Also a storage-path segment, so this is a security boundary, not cosmetics. */
-const repoNameSchema = z
-	.string()
-	.max(MAX_STORAGE_NAME_LENGTH)
-	.regex(
-		STORAGE_NAME_RE,
-		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",
-	);
 
 /**
  * A username used to look someone up. The same shape the username plugin
@@ -55,62 +51,12 @@ const usernameSchema = z
 	.max(30)
 	.regex(STORAGE_NAME_RE, "Not a valid username");
 
-const NEW_REPOSITORY_DEFAULT_BRANCH = "main";
-/** Postgres SQLSTATE 23505; drizzle wraps driver errors, keeping it on `cause`. */
-function isUniqueViolation(error: unknown): boolean {
-	const err = error as { code?: unknown; cause?: { code?: unknown } } | null;
-	return err?.code === "23505" || err?.cause?.code === "23505";
-}
-
 export const createRepository = createServerFn({ method: "POST" })
-	.validator(
-		z.object({
-			name: repoNameSchema,
-			description: z.string().trim().max(500).optional(),
-			visibility: z.enum(["public", "private"]).default("public"),
-		}),
-	)
+	.validator(createRepositoryInputSchema)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		// The row first: the (owner, name) unique index settles a creation race
-		// before anything touches storage.
-		const repo = await db
-			.insert(repositories)
-			.values({
-				ownerId: currentUser.id,
-				name: data.name,
-				description: data.description || null,
-				visibility: data.visibility,
-				defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
-			})
-			.returning()
-			.then(([row]) => row)
-			.catch((error: unknown) => {
-				if (isUniqueViolation(error)) {
-					throw new Error("Repository with this name already exists");
-				}
-				throw error;
-			});
-		if (!repo) throw new Error("Repository insert returned no row");
-
-		const ownerKey = currentUser.username;
-		try {
-			// Anything already under this prefix is a leftover of a delete whose
-			// storage cleanup failed; it must not become this repository's history.
-			await withRepositoryLock(ownerKey, repo.name, async () => {
-				await deleteRepositoryStorage(ownerKey, repo.name);
-				await initBareRepo(ownerKey, repo.name, NEW_REPOSITORY_DEFAULT_BRANCH);
-			});
-		} catch (error) {
-			await db.delete(repositories).where(eq(repositories.id, repo.id));
-			throw error;
-		}
-
-		await recordActivity(currentUser.id, repo.id, {
-			type: "create_repo",
-			metadata: { repoName: repo.name },
-		});
-		return { ...repo, owner: { username: ownerKey } };
+		const repo = await createRepositoryForUser(currentUser, data);
+		return { ...repo, owner: { username: currentUser.username } };
 	});
 
 /** A user's repositories, newest first: all of them for the owner, public ones for others. */
