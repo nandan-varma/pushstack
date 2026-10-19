@@ -10,6 +10,7 @@ import {
 	type LucideIcon,
 	MessageSquareQuote,
 	Pencil,
+	UserRound,
 } from "lucide-react";
 import { CommentCard } from "@/components/CommentCard";
 import { useToast } from "@/components/toast-provider";
@@ -243,6 +244,23 @@ function describe(
 				text: (
 					<>
 						deleted the <code className="font-mono">{event.branch}</code> branch
+					</>
+				),
+			};
+		case "assigned":
+		case "unassigned":
+			return {
+				icon: UserRound,
+				text: (
+					<>
+						{event.event === "assigned" ? "assigned" : "unassigned"}{" "}
+						<Link
+							to="/users/$username"
+							params={{ username: event.assignee.username }}
+							className="font-medium text-foreground"
+						>
+							{event.assignee.username}
+						</Link>
 					</>
 				),
 			};

@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
+import { getAssignableUsers } from "@/server/assignees";
 import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
@@ -81,9 +82,14 @@ export const queryKeys = {
 		depth: "banner" | "full" = "full",
 	) =>
 		["repos", repoId, "file-history", branchName, path, limit, depth] as const,
-	repoIssues: (repoId: number, status: "open" | "closed" | "all") =>
-		["repos", repoId, "issues", status] as const,
+	repoIssues: (
+		repoId: number,
+		status: "open" | "closed" | "all",
+		assignee?: string,
+	) => ["repos", repoId, "issues", status, assignee ?? null] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
+	repoAssignable: (repoId: number) =>
+		["repos", repoId, "assignable-users"] as const,
 	repoIssueNumbers: (repoId: number) =>
 		["repos", repoId, "issue-numbers"] as const,
 	repoPullRequestNumbers: (repoId: number) =>
@@ -462,6 +468,14 @@ export function repositoryIssueNumbersQueryOptions(repoId: number) {
 	});
 }
 
+export function assignableUsersQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoAssignable(repoId),
+		queryFn: () => getAssignableUsers({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
 export function repositoryPullRequestNumbersQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoPullRequestNumbers(repoId),
@@ -473,13 +487,16 @@ export function repositoryPullRequestNumbersQueryOptions(repoId: number) {
 export function repositoryIssuesQueryOptions({
 	repoId,
 	status,
+	assignee,
 }: {
 	repoId: number;
 	status: "open" | "closed" | "all";
+	/** A username, `none` or `*` (see getIssues). */
+	assignee?: string;
 }) {
 	return queryOptions({
-		queryKey: queryKeys.repoIssues(repoId, status),
-		queryFn: () => getIssues({ data: { repoId, status } }),
+		queryKey: queryKeys.repoIssues(repoId, status, assignee),
+		queryFn: () => getIssues({ data: { repoId, status, assignee } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

@@ -15,6 +15,12 @@ export interface ThreadRef {
 	title: string;
 }
 
+/** The person an `assigned`/`unassigned` event is about. */
+export interface TimelineUser {
+	username: string;
+	name: string;
+}
+
 export type TimelineEvent =
 	/**
 	 * Closed by hand, by merging the pull request `closer`, or by the pushed
@@ -29,7 +35,10 @@ export type TimelineEvent =
 	| { event: "cross-referenced"; source: ThreadRef }
 	| { event: "head_ref_deleted"; branch: string }
 	/** The title changed (GitHub's `renamed` issue event). */
-	| { event: "renamed"; from: string; to: string };
+	| { event: "renamed"; from: string; to: string }
+	/** Someone was assigned to / unassigned from the thread. */
+	| { event: "assigned"; assignee: TimelineUser }
+	| { event: "unassigned"; assignee: TimelineUser };
 
 export type TimelineEventType = TimelineEvent["event"];
 

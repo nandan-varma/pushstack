@@ -66,3 +66,6 @@ export function maxBase64CharsForBytes(byteLength: number): number {
 
 /** The largest JSON body a REST API (`/api/v3`) write request may send. */
 export const MAX_API_BODY_BYTES = 1024 * 1024;
+
+/** GitHub's cap on assignees per issue. */
+export const MAX_ASSIGNEES = 10;
