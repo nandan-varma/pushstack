@@ -99,6 +99,37 @@ export async function recordCrossReferences(
 		.onConflictDoNothing();
 }
 
+/**
+ * After text in thread `source` was removed (a deleted comment), drop the
+ * "mentioned in #source" event from each thread `removedText` mentioned,
+ * unless `remainingTexts` (the source's body and other comments) still
+ * mention it. Events are one per pair, so they can't be dropped blindly.
+ */
+export async function removeCrossReferences(
+	repoId: number,
+	sourceNumber: number,
+	removedText: string,
+	remainingTexts: (string | null | undefined)[],
+): Promise<void> {
+	const stillMentioned = new Set(
+		remainingTexts.flatMap((text) => getReferencedIssueNumbers(text ?? "")),
+	);
+	const dropped = getReferencedIssueNumbers(removedText).filter(
+		(number) => number !== sourceNumber && !stillMentioned.has(number),
+	);
+	if (dropped.length === 0) return;
+	await db
+		.delete(timelineEvents)
+		.where(
+			and(
+				eq(timelineEvents.repoId, repoId),
+				eq(timelineEvents.event, "cross-referenced"),
+				eq(timelineEvents.sourceNumber, sourceNumber),
+				inArray(timelineEvents.number, dropped),
+			),
+		);
+}
+
 /** Thread `#number`'s events, oldest first. */
 export async function listTimeline(
 	repoId: number,

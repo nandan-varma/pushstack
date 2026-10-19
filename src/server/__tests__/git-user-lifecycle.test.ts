@@ -388,6 +388,78 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 			},
 		});
 		expect(after.status).toBe("closed");
+
+		// The closing shows in the pusher's activity feed, as a manual close does.
+		const { listUserActivity } = await import("../activity");
+		const feed = await listUserActivity(TEST_USER.id, {
+			includePrivate: true,
+			limit: 20,
+		});
+		expect(feed).toContainEqual(
+			expect.objectContaining({
+				type: "issue",
+				metadata: expect.objectContaining({
+					number: fixed.number,
+					action: "closed",
+				}),
+			}),
+		);
+	});
+
+	it("a push to a non-default branch only references; re-pushing the commit adds nothing", async () => {
+		const { createIssue, getIssueByNumber } = await import("../issues");
+		const { getTimeline } = await import("../timeline");
+		const { findRepositoryByName } = await import("../repository-lookup");
+		const repo = await findRepositoryByName(TEST_USER.username, REPO_NAME);
+		if (!repo) throw new Error("repo missing");
+		const target = await createIssue({
+			data: { repoId: repo.id, title: "Branch only" },
+		});
+
+		await git.branch({ fs, dir: ENV.cloneDir, ref: "topic", checkout: true });
+		await nodeFs.writeFile(`${ENV.cloneDir}/TOPIC.md`, "topic\n");
+		await git.add({ fs, dir: ENV.cloneDir, filepath: "TOPIC.md" });
+		await git.commit({
+			fs,
+			dir: ENV.cloneDir,
+			message: `Work on it\n\nFixes #${target.number}`,
+			author: { name: TEST_USER.name, email: TEST_USER.email },
+		});
+		const push = async (remoteRef: string) => {
+			const result = await git.push({
+				fs,
+				http: nodeHttpClient,
+				dir: ENV.cloneDir,
+				remote: "origin",
+				ref: "topic",
+				remoteRef,
+				onAuth: () => ({ username: TEST_USER.username, password: PAT }),
+			});
+			expect(result.ok).toBe(true);
+		};
+		const timeline = () =>
+			getTimeline({ data: { repoId: repo.id, number: target.number } });
+		const status = () =>
+			getIssueByNumber({
+				data: {
+					owner: TEST_USER.username,
+					name: REPO_NAME,
+					number: target.number,
+				},
+			}).then((issue) => issue.status);
+
+		await push("topic");
+		expect((await timeline()).map((e) => e.event)).toEqual(["referenced"]);
+		expect(await status()).toBe("open");
+
+		// The same commit on another branch is not new to the repository's refs
+		// the second time around: still a single event.
+		await push("topic2");
+		await push("topic");
+		expect((await timeline()).map((e) => e.event)).toEqual(["referenced"]);
+		expect(await status()).toBe("open");
+
+		await git.checkout({ fs, dir: ENV.cloneDir, ref: "main" });
 	});
 
 	it("renames the repository, moving its storage with it", async () => {
