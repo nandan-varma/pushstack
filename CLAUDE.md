@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Never ever use agents and sub agents to keep all context inline.
+Read `CONTEXT.md` (gitignored, local) first: goal, constraints and how work is organized. The main agent orchestrates; implementation goes to subagents (Sonnet, in isolated worktrees) working from GitHub issues and opening PRs. **The product's goal is GitHub compatibility** — match GitHub's behavior, names and API.
 
 ## Commands
 

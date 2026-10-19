@@ -43,3 +43,6 @@ plans/
 
 # pnpm dev:local data (pglite + git objects)
 .pushstack-local/
+
+# Agent orchestration notes (see CONTEXT.md header)
+CONTEXT.md
