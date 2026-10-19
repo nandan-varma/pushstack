@@ -1,7 +1,7 @@
 /** Server functions for pull requests. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issues, pullRequests } from "#/db/app-schema";
@@ -104,20 +104,21 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			withLabels(
 				data.repoId,
 				await db.query.pullRequests.findMany({
-					where: and(
-						eq(pullRequests.repoId, data.repoId),
-						data.status === "all"
-							? undefined
-							: eq(pullRequests.status, data.status),
-						data.labels.length > 0
-							? inArray(
-									pullRequests.number,
-									threadsWithLabels(data.repoId, data.labels),
-								)
-							: undefined,
-					),
+					where: {
+						repoId: data.repoId,
+						...(data.status === "all" ? {} : { status: data.status }),
+						...(data.labels.length > 0
+							? {
+									RAW: (table) =>
+										inArray(
+											table.number,
+											threadsWithLabels(data.repoId, data.labels),
+										),
+								}
+							: {}),
+					},
 					with: { author: publicUserFields },
-					orderBy: [desc(pullRequests.createdAt)],
+					orderBy: { createdAt: "desc" },
 					limit: data.limit,
 					offset: data.skip,
 				}),
@@ -150,10 +151,10 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 			data.name,
 			async (repo) => {
 				const pr = await db.query.pullRequests.findFirst({
-					where: and(
-						eq(pullRequests.repoId, repo.id),
-						eq(pullRequests.number, data.number),
-					),
+					where: {
+						repoId: repo.id,
+						number: data.number,
+					},
 					with: { author: publicUserFields },
 				});
 				if (!pr) throw notFound();
@@ -179,7 +180,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const pr = await db.query.pullRequests.findFirst({
-			where: eq(pullRequests.id, data.prId),
+			where: { id: data.prId },
 		});
 		if (!pr) throw notFound();
 		if (
@@ -245,7 +246,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const pr = await db.query.pullRequests.findFirst({
-			where: eq(pullRequests.id, data.prId),
+			where: { id: data.prId },
 		});
 		if (!pr) throw notFound();
 		if (!(await canMergePullRequest(pr.repoId, currentUser.id))) {
@@ -340,7 +341,7 @@ export const deletePullRequestBranch = createServerFn({ method: "POST" })
 	.validator(z.object({ prId: z.number() }))
 	.handler(async ({ data }) => {
 		const pr = await db.query.pullRequests.findFirst({
-			where: eq(pullRequests.id, data.prId),
+			where: { id: data.prId },
 		});
 		if (!pr) throw notFound();
 		if (pr.status === "open") {
@@ -372,7 +373,7 @@ export const getPullRequestCommits = createServerFn({ method: "GET" })
 	.validator(z.object({ prId: z.number().int().positive() }))
 	.handler(async ({ data }) => {
 		const pr = await db.query.pullRequests.findFirst({
-			where: eq(pullRequests.id, data.prId),
+			where: { id: data.prId },
 		});
 		if (!pr) throw notFound();
 		return readWithAccess(

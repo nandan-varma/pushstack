@@ -4,10 +4,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { isPerfLogEnabled } from "#/lib/perf-log";
 import { perfNote } from "#/server/perf-log";
-import * as appSchema from "./app-schema";
-import * as authSchema from "./schema";
-
-const schema = { ...authSchema, ...appSchema };
+import { relations } from "./relations";
 
 // SQL text (never parameters — they can carry user data) as notes in the
 // current request's perf tree; see src/server/perf-log.ts.
@@ -28,8 +25,9 @@ function createLocalDb(dir: string) {
 	const require = createRequire(import.meta.url);
 	const { PGlite } = require("@electric-sql/pglite");
 	const { drizzle: drizzlePglite } = require("drizzle-orm/pglite");
-	return drizzlePglite(new PGlite(path.join(dir, "db")), {
-		schema,
+	return drizzlePglite({
+		client: new PGlite(path.join(dir, "db")),
+		relations,
 		logger,
 	}) as unknown as ReturnType<typeof createNeonDb>;
 }
@@ -40,7 +38,7 @@ function createNeonDb() {
 	if (!process.env.DATABASE_URL) {
 		throw new Error("DATABASE_URL environment variable is not set");
 	}
-	return drizzle(neon(process.env.DATABASE_URL), { schema, logger });
+	return drizzle({ client: neon(process.env.DATABASE_URL), relations, logger });
 }
 
 export const db = process.env.PUSHSTACK_LOCAL_DIR

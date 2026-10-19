@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
 	boolean,
 	index,
@@ -360,89 +360,6 @@ export type PullRequest = typeof pullRequests.$inferSelect;
 export type CollaboratorRole =
 	(typeof repositoryCollaborators.$inferSelect)["role"];
 
-export const repositoriesRelations = relations(
-	repositories,
-	({ one, many }) => ({
-		owner: one(user, {
-			fields: [repositories.ownerId],
-			references: [user.id],
-		}),
-		issues: many(issues),
-		pullRequests: many(pullRequests),
-		stars: many(stars),
-		collaborators: many(repositoryCollaborators),
-		activities: many(activities),
-	}),
-);
-
-export const issuesRelations = relations(issues, ({ one, many }) => ({
-	repository: one(repositories, {
-		fields: [issues.repoId],
-		references: [repositories.id],
-	}),
-	author: one(user, { fields: [issues.authorId], references: [user.id] }),
-	comments: many(comments),
-	assignees: many(issueAssignees),
-}));
-
-export const issueAssigneesRelations = relations(issueAssignees, ({ one }) => ({
-	issue: one(issues, {
-		fields: [issueAssignees.issueId],
-		references: [issues.id],
-	}),
-	user: one(user, { fields: [issueAssignees.userId], references: [user.id] }),
-}));
-
-export const pullRequestsRelations = relations(
-	pullRequests,
-	({ one, many }) => ({
-		repository: one(repositories, {
-			fields: [pullRequests.repoId],
-			references: [repositories.id],
-		}),
-		author: one(user, {
-			fields: [pullRequests.authorId],
-			references: [user.id],
-		}),
-		comments: many(comments),
-	}),
-);
-
-export const commentsRelations = relations(comments, ({ one }) => ({
-	repository: one(repositories, {
-		fields: [comments.repoId],
-		references: [repositories.id],
-	}),
-	issue: one(issues, { fields: [comments.issueId], references: [issues.id] }),
-	pullRequest: one(pullRequests, {
-		fields: [comments.pullRequestId],
-		references: [pullRequests.id],
-	}),
-	author: one(user, { fields: [comments.authorId], references: [user.id] }),
-}));
-
-export const starsRelations = relations(stars, ({ one }) => ({
-	repository: one(repositories, {
-		fields: [stars.repoId],
-		references: [repositories.id],
-	}),
-	user: one(user, { fields: [stars.userId], references: [user.id] }),
-}));
-
-export const repositoryCollaboratorsRelations = relations(
-	repositoryCollaborators,
-	({ one }) => ({
-		repository: one(repositories, {
-			fields: [repositoryCollaborators.repoId],
-			references: [repositories.id],
-		}),
-		user: one(user, {
-			fields: [repositoryCollaborators.userId],
-			references: [user.id],
-		}),
-	}),
-);
-
 /**
  * Issue/PR timeline events (src/lib/timeline-types.ts), written only through
  * src/server/timeline-store.ts. Issues and PRs share the `#N` sequence, so
@@ -480,19 +397,3 @@ export const timelineEvents = pgTable(
 			.where(sql`${table.event} = 'cross-referenced'`),
 	}),
 );
-
-export const timelineEventsRelations = relations(timelineEvents, ({ one }) => ({
-	actor: one(user, { fields: [timelineEvents.actorId], references: [user.id] }),
-}));
-
-export const activitiesRelations = relations(activities, ({ one }) => ({
-	user: one(user, { fields: [activities.userId], references: [user.id] }),
-	repository: one(repositories, {
-		fields: [activities.repoId],
-		references: [repositories.id],
-	}),
-}));
-
-export const tokensRelations = relations(tokens, ({ one }) => ({
-	user: one(user, { fields: [tokens.userId], references: [user.id] }),
-}));

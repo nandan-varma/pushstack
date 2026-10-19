@@ -3,7 +3,7 @@
  * Plain server-only helpers, called from the issue, pull request and comment
  * server functions after their own writes; never a server-function file.
  */
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, pullRequests, timelineEvents } from "#/db/app-schema";
 import { getReferencedIssueNumbers } from "#/lib/issue-references";
@@ -136,11 +136,11 @@ export async function listTimeline(
 	number: number,
 ): Promise<TimelineEntry[]> {
 	const rows = await db.query.timelineEvents.findMany({
-		where: and(
-			eq(timelineEvents.repoId, repoId),
-			eq(timelineEvents.number, number),
-		),
-		orderBy: [asc(timelineEvents.createdAt), asc(timelineEvents.id)],
+		where: {
+			repoId,
+			number,
+		},
+		orderBy: { createdAt: "asc", id: "asc" },
 		with: { actor: publicUserFields },
 	});
 	return rows.map(

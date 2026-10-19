@@ -18,5 +18,7 @@ export default defineConfig({
 	fixedExtension: false,
 	sourcemap: true,
 	clean: true,
-	external: ["@aws-sdk/client-s3", "aws4fetch", "isomorphic-git", "diff"],
+	deps: {
+		neverBundle: ["@aws-sdk/client-s3", "aws4fetch", "isomorphic-git", "diff"],
+	},
 });

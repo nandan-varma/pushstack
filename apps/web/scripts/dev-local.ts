@@ -12,7 +12,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
-import { pushSchema } from "drizzle-kit/api";
+import { pushSchema } from "drizzle-kit/api-postgres";
 import { drizzle } from "drizzle-orm/pglite";
 import * as appSchema from "../src/db/app-schema";
 import * as authSchema from "../src/db/schema";
@@ -26,13 +26,10 @@ mkdirSync(localDir, { recursive: true });
 // `pnpm db:push` does against Neon), then release it for the dev server.
 const client = new PGlite(path.join(localDir, "db"));
 const schema = { ...authSchema, ...appSchema };
-const { apply, hasDataLoss, warnings } = await pushSchema(
-	schema as unknown as Record<string, unknown>,
-	drizzle(client, { schema }) as unknown as Parameters<typeof pushSchema>[1],
-);
-if (hasDataLoss) {
+const { apply, hints } = await pushSchema(schema, drizzle({ client }));
+if (hints.length > 0) {
 	console.warn(
-		`[dev:local] schema change drops data:\n  ${warnings.join("\n  ")}\n` +
+		`[dev:local] schema change notes:\n  ${hints.map(({ hint }) => hint).join("\n  ")}\n` +
 			`[dev:local] applying anyway — delete ${localDir} if things look off`,
 	);
 }

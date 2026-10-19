@@ -41,7 +41,6 @@ vi.mock("../perf-log", () => ({
 	recordCacheMiss: vi.fn(),
 }));
 
-import { eq } from "drizzle-orm";
 import { invalidateRepoCache } from "git-edge";
 import { resultKeyPrefixes } from "git-fs-s3/ops";
 import { db } from "#/db";
@@ -63,7 +62,9 @@ const mockInvalidateObjectCache = vi.mocked(invalidateResultCache);
 const mockInvalidateRepoGitCache = vi.mocked(invalidateRepoCache);
 
 const lease = (repoKey: string) =>
-	db.query.repoLocks.findFirst({ where: eq(repoLocks.repoKey, repoKey) });
+	db.query.repoLocks.findFirst({
+		where: { repoKey: repoKey },
+	});
 const plantLease = (repoKey: string, holder: string, expiresAt: number) =>
 	db
 		.insert(repoLocks)

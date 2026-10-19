@@ -5,7 +5,6 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
-import { user } from "#/db/schema";
 import { MAX_LIST_SKIP } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
@@ -72,14 +71,11 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 		const currentUser = await getCurrentUser();
 		const ownerId = data.userId ?? currentUser.id;
 		return db.query.repositories.findMany({
-			where:
-				ownerId === currentUser.id
-					? eq(repositories.ownerId, ownerId)
-					: and(
-							eq(repositories.ownerId, ownerId),
-							eq(repositories.visibility, "public"),
-						),
-			orderBy: [desc(repositories.updatedAt)],
+			where: {
+				ownerId,
+				...(ownerId !== currentUser.id && { visibility: "public" }),
+			},
+			orderBy: (table) => [desc(table.updatedAt)],
 			with: { owner: publicUserFields },
 			limit: data.limit,
 			offset: data.skip,
@@ -92,7 +88,7 @@ async function starState(repoId: number, userId: string | undefined) {
 		userId
 			? db.query.stars.findFirst({
 					columns: { id: true },
-					where: and(eq(stars.repoId, repoId), eq(stars.userId, userId)),
+					where: { repoId: repoId, userId: userId },
 				})
 			: undefined,
 	]);
@@ -269,7 +265,7 @@ export const getCollaborators = createServerFn({ method: "GET" })
 			throw new Error("Access denied");
 		}
 		return db.query.repositoryCollaborators.findMany({
-			where: eq(repositoryCollaborators.repoId, data.repoId),
+			where: { repoId: data.repoId },
 			with: { user: publicUserFields },
 		});
 	});
@@ -292,7 +288,7 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 		);
 		const target = await db.query.user.findFirst({
 			columns: { id: true },
-			where: eq(user.username, data.username),
+			where: { username: data.username },
 		});
 		if (!target) throw new Error(`User "${data.username}" not found`);
 		if (target.id === currentUser.id)

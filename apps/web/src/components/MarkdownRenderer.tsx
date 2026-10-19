@@ -290,9 +290,7 @@ export default function MarkdownRenderer({
 	);
 
 	return (
-		<div
-			className={`markdown-body ${className}`}
-		>
+		<div className={`markdown-body ${className}`}>
 			<ReactMarkdown
 				remarkPlugins={remarkPlugins}
 				rehypePlugins={[rehypeHighlight]}

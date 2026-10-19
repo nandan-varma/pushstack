@@ -1,7 +1,7 @@
 /** Server functions for issues. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, exists, inArray, notExists, sql } from "drizzle-orm";
+import { and, eq, exists, inArray, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issueAssignees, issues } from "#/db/app-schema";
@@ -37,12 +37,11 @@ const withAssignees = {
  * GitHub's `assignee:` / `no:assignee` filter: a username, `none` (unassigned)
  * or `*` (assigned to anyone).
  */
-function assigneeCondition(assignee: string | undefined) {
-	if (!assignee) return undefined;
+function assigneeCondition(assignee: string, table: typeof issues) {
 	const rows = db
 		.select({ one: sql`1` })
 		.from(issueAssignees)
-		.where(eq(issueAssignees.issueId, issues.id));
+		.where(eq(issueAssignees.issueId, table.id));
 	if (assignee === "*") return exists(rows);
 	if (assignee === "none") return notExists(rows);
 	return exists(
@@ -51,7 +50,7 @@ function assigneeCondition(assignee: string | undefined) {
 			.from(issueAssignees)
 			.innerJoin(user, eq(user.id, issueAssignees.userId))
 			.where(
-				and(eq(issueAssignees.issueId, issues.id), eq(user.username, assignee)),
+				and(eq(issueAssignees.issueId, table.id), eq(user.username, assignee)),
 			),
 	);
 }
@@ -117,24 +116,38 @@ export const getIssues = createServerFn({ method: "GET" })
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
-	.handler(({ data }) =>
+	.handler(({ data: { assignee, ...data } }) =>
 		readWithAccess(`getIssues ${data.status}`, data.repoId, async () =>
 			withLabels(
 				data.repoId,
 				await db.query.issues.findMany({
-					where: and(
-						eq(issues.repoId, data.repoId),
-						data.status === "all" ? undefined : eq(issues.status, data.status),
-						assigneeCondition(data.assignee),
-						data.labels.length > 0
-							? inArray(
-									issues.number,
-									threadsWithLabels(data.repoId, data.labels),
-								)
-							: undefined,
-					),
+					where: {
+						repoId: data.repoId,
+						...(data.status === "all" ? {} : { status: data.status }),
+						AND: [
+							...(assignee
+								? [
+										{
+											RAW: (table: typeof issues) =>
+												assigneeCondition(assignee, table),
+										},
+									]
+								: []),
+							...(data.labels.length > 0
+								? [
+										{
+											RAW: (table: typeof issues) =>
+												inArray(
+													table.number,
+													threadsWithLabels(data.repoId, data.labels),
+												),
+										},
+									]
+								: []),
+						],
+					},
 					with: { author: publicUserFields, ...withAssignees },
-					orderBy: [desc(issues.createdAt)],
+					orderBy: { createdAt: "desc" },
 					limit: data.limit,
 					offset: data.skip,
 				}),
@@ -167,10 +180,10 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 			data.name,
 			async (repo) => {
 				const issue = await db.query.issues.findFirst({
-					where: and(
-						eq(issues.repoId, repo.id),
-						eq(issues.number, data.number),
-					),
+					where: {
+						repoId: repo.id,
+						number: data.number,
+					},
 					with: { author: publicUserFields, ...withAssignees },
 				});
 				if (!issue) throw notFound();
@@ -196,7 +209,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const issue = await db.query.issues.findFirst({
-			where: eq(issues.id, data.issueId),
+			where: { id: data.issueId },
 		});
 		if (!issue) throw notFound();
 		// The author may edit, close and reopen their own issue; anyone else's

@@ -1,11 +1,8 @@
 /** Public profile pages. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { repositories } from "#/db/app-schema";
-import { user } from "#/db/schema";
 import { listUserActivity } from "./activity";
 import { perfContext } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
@@ -30,7 +27,7 @@ export const getUserProfile = createServerFn({ method: "GET" })
 						image: true,
 						createdAt: true,
 					},
-					where: eq(user.username, data.username),
+					where: { username: data.username },
 				}),
 			]);
 			if (!profileUser) throw notFound();
@@ -38,14 +35,12 @@ export const getUserProfile = createServerFn({ method: "GET" })
 
 			const [repos, activities] = await Promise.all([
 				db.query.repositories.findMany({
-					where: isSelf
-						? eq(repositories.ownerId, profileUser.id)
-						: and(
-								eq(repositories.ownerId, profileUser.id),
-								eq(repositories.visibility, "public"),
-							),
+					where: {
+						ownerId: profileUser.id,
+						...(isSelf ? {} : { visibility: "public" as const }),
+					},
 					with: { owner: publicUserFields },
-					orderBy: [desc(repositories.updatedAt)],
+					orderBy: { updatedAt: "desc" },
 					limit: 100,
 				}),
 				listUserActivity(profileUser.id, { includePrivate: isSelf, limit: 30 }),

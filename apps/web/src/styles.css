@@ -137,6 +137,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@layer base {
 a {
   color: inherit;
 }
@@ -156,6 +157,8 @@ pre code {
   border-radius: 0;
   font-size: inherit;
   color: inherit;
+}
+
 }
 
 .shiki,

@@ -4,6 +4,8 @@ packages:
 allowBuilds:
   esbuild: true
 permissions:
+  drizzle-kit:
+    skills: false
   '@tanstack/devtools-vite':
     skills: false
   '@tanstack/react-start':

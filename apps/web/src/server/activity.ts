@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { activities, repositories } from "#/db/app-schema";
 import type { ActivityEvent } from "#/lib/activity-types";
@@ -26,12 +26,12 @@ export function listUserActivity(
 		.from(repositories)
 		.where(eq(repositories.visibility, "public"));
 	return db.query.activities.findMany({
-		where: options.includePrivate
-			? eq(activities.userId, userId)
-			: and(
-					eq(activities.userId, userId),
-					inArray(activities.repoId, publicRepoIds),
-				),
+		where: {
+			userId,
+			...(options.includePrivate
+				? {}
+				: { RAW: (table) => inArray(table.repoId, publicRepoIds) }),
+		},
 		columns: { id: true, type: true, metadata: true, createdAt: true },
 		with: {
 			repository: {
@@ -39,7 +39,7 @@ export function listUserActivity(
 				with: { owner: { columns: { username: true } } },
 			},
 		},
-		orderBy: [desc(activities.createdAt)],
+		orderBy: { createdAt: "desc" },
 		limit: options.limit,
 	});
 }

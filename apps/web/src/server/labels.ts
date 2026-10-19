@@ -78,7 +78,7 @@ export const updateLabel = createServerFn({ method: "POST" })
 			};
 			if (Object.keys(changes).length === 0) {
 				const existing = await db.query.labels.findFirst({
-					where: and(eq(labels.id, labelId), eq(labels.repoId, repoId)),
+					where: { id: labelId, repoId: repoId },
 				});
 				if (!existing) throw notFound();
 				return existing;

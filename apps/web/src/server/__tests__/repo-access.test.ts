@@ -196,7 +196,9 @@ describe("canReadRepo / canWriteRepo / canModerateRepo / canMergePullRequest", (
 describe("getAccessForRepository", () => {
 	it("returns owner access when userId matches repository ownerId", async () => {
 		const repo = await db.query.repositories.findFirst({
-			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			where: {
+				RAW: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			},
 		});
 		if (!repo) throw new Error("repo not found");
 
@@ -207,7 +209,9 @@ describe("getAccessForRepository", () => {
 
 	it("returns owner access without querying collaborators when userId matches ownerId", async () => {
 		const repo = await db.query.repositories.findFirst({
-			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			where: {
+				RAW: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			},
 		});
 		if (!repo) throw new Error("repo not found");
 
@@ -218,7 +222,9 @@ describe("getAccessForRepository", () => {
 
 	it("queries collaborators for non-owner userId", async () => {
 		const repo = await db.query.repositories.findFirst({
-			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			where: {
+				RAW: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			},
 		});
 		if (!repo) throw new Error("repo not found");
 
@@ -229,7 +235,9 @@ describe("getAccessForRepository", () => {
 
 	it("returns anonymous for null userId on private repo", async () => {
 		const repo = await db.query.repositories.findFirst({
-			where: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			where: {
+				RAW: (repos, { eq }) => eq(repos.id, PRIVATE_REPO_ID),
+			},
 		});
 		if (!repo) throw new Error("repo not found");
 
@@ -240,7 +248,9 @@ describe("getAccessForRepository", () => {
 
 	it("returns anonymous read for null userId on public repo", async () => {
 		const repo = await db.query.repositories.findFirst({
-			where: (repos, { eq }) => eq(repos.id, PUBLIC_REPO_ID),
+			where: {
+				RAW: (repos, { eq }) => eq(repos.id, PUBLIC_REPO_ID),
+			},
 		});
 		if (!repo) throw new Error("repo not found");
 

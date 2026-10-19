@@ -239,22 +239,24 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependencies
 
-`pnpm audit --prod` is clean; the full audit reports one build-time-only
-advisory, `braces` via the `shadcn` CLI (GHSA-vfj7-8cjw-p6xm), which has no
-patched release. It's listed in `package.json`'s `pnpm.auditConfig.ignoreGhsas`
-so CI's full `pnpm audit` still fails on anything new. `postcss-selector-parser`
-(GHSA-rj75-hqrm-r3gf, pinned to 6.0.10 by `@tailwindcss/typography`) is
-overridden to 7.1.6 instead — the built CSS is byte-identical. Two rules matter more than the current state:
+Both `pnpm audit` and `pnpm audit --prod` report zero known vulnerabilities.
+There are no dependency overrides or ignored advisories. Upgrade or remove the
+package responsible for a vulnerable transitive dependency instead of forcing
+an unsupported version into its graph.
 
-- **Every override in `package.json` carries an explicit upper bound**, not just
-  a patched floor (`">=7.29.0 <8.0.0"`). An open-ended override resolved to
-  `undici@8` on a later install and broke the whole test suite, because `jsdom`
-  needs an internal path that no longer exists in v8.
-- **Overrides stay in `package.json`'s `pnpm` field on this pnpm version.**
-  `pnpm install` claims that field is no longer read and points at
-  `pnpm-workspace.yaml`; on 9.15.5 the warning is wrong, and moving the block
-  silently drops every cap. Verify empirically before acting on it.
+pnpm 12 settings live in `pnpm-workspace.yaml`: build scripts require an
+explicit `allowBuilds` entry, bundled agent skills are denied per package,
+and automatic peer installation is disabled. Install the drivers and adapters
+we actually use rather than every optional ORM peer.
 
-When a new finding appears, check `findings[].paths` in `pnpm audit --json` to
-see whether the chain is reachable from the deployed runtime before dismissing
-it. [The history behind these rules](./security-history.md#dependency-vulnerabilities).
+The app uses Drizzle ORM and Kit 1.0.0-rc.4 together. Relational queries use
+`defineRelations` and v2 filters; local schema pushes use
+`drizzle-kit/api-postgres`. The old Kit dependency pulled in a vulnerable
+esbuild release. Markdown styles and the shadcn Tailwind utilities live in the
+app's CSS, so the shadcn CLI and typography plugin aren't installed runtime
+or build dependencies. Add components with `pnpm dlx shadcn@latest add`.
+
+When a new finding appears, inspect its dependency path with `pnpm why` and
+`pnpm audit --json`, upgrade its owner, then run the full validation suite.
+[Earlier incidents](./security-history.md#dependency-vulnerabilities) explain
+why overrides and advisory exclusions were removed.
