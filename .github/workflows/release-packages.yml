@@ -36,8 +36,7 @@ jobs:
           actual="$(node -p "require('./packages/$name/package.json').version")"
           test "$version" = "$actual" || { echo "tag $version != package.json $actual"; exit 1; }
           echo "name=$name" >> "$GITHUB_OUTPUT"
-      - working-directory: packages/${{ steps.pkg.outputs.name }}
-        run: pnpm typecheck && pnpm test && pnpm build
+      - run: pnpm exec turbo run typecheck test build --filter=${{ steps.pkg.outputs.name }}
       # pnpm pack rewrites workspace:* ranges to real versions; npm publishes
       # the tarball with OIDC.
       - working-directory: packages/${{ steps.pkg.outputs.name }}

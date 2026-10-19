@@ -30,7 +30,9 @@ async function main() {
 		getLastCommitsForTree(OWNER, REPO, "main", ""),
 	);
 
-	console.log("\n--- parallel, as a real page load fires them (warm cache) ---");
+	console.log(
+		"\n--- parallel, as a real page load fires them (warm cache) ---",
+	);
 	await Promise.all([
 		perfContext("PAGE: getBranches (warm, parallel)", () =>
 			getBranches(OWNER, REPO),

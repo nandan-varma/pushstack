@@ -1,0 +1,33 @@
+{
+	"$schema": "https://turborepo.com/schema.json",
+	"ui": "stream",
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": ["dist/**", ".output/**", ".vercel/output/**"],
+			"env": [
+				"VITE_SENTRY_DSN",
+				"SENTRY_AUTH_TOKEN",
+				"SENTRY_ORG",
+				"SENTRY_PROJECT",
+				"VERCEL_ENV",
+				"VERCEL_URL"
+			]
+		},
+		"typecheck": {
+			"dependsOn": ["^build"]
+		},
+		"test": {
+			"dependsOn": ["^build"]
+		},
+		"smoke:git": {
+			"dependsOn": ["^build"]
+		},
+		"dev": {
+			"dependsOn": ["^build"],
+			"cache": false,
+			"persistent": true
+		}
+	},
+	"globalEnv": ["NODE_ENV", "CI"]
+}
