@@ -15,8 +15,10 @@ import {
 	DetailHeader,
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
+import { EmptyState } from "@/components/EmptyState";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import { pullRequestStatusVariant } from "@/components/status-variants";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
@@ -35,6 +37,7 @@ import {
 	issueByNumberQueryOptions,
 	pullRequestByNumberQueryOptions,
 	pullRequestCommentsQueryOptions,
+	pullRequestCommitsQueryOptions,
 	pullRequestDiffQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
@@ -50,7 +53,7 @@ import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 // eagerly ship them to every visitor.
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
-const PR_TABS = ["conversation", "files"] as const;
+const PR_TABS = ["conversation", "commits", "files"] as const;
 type PrTab = (typeof PR_TABS)[number];
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
@@ -173,6 +176,15 @@ function PullRequestDetailPage() {
 			autoRefresh: !!repo?.autoRefreshPrDiffs,
 		}),
 		enabled: !!pr,
+	});
+
+	const { data: prCommits, isLoading: commitsLoading } = useQuery({
+		...pullRequestCommitsQueryOptions({
+			prId: pr?.id ?? -1,
+			autoRefresh: !!repo?.autoRefreshPrDiffs,
+		}),
+		// Two bounded history walks: only when the tab is shown.
+		enabled: !!pr && tab === "commits",
 	});
 
 	const prQueryKey = queryKeys.pullRequestByNumber(owner, name, prNumber);
@@ -379,6 +391,15 @@ function PullRequestDetailPage() {
 			>
 				<TabsList variant="line">
 					<TabsTrigger value="conversation">Conversation</TabsTrigger>
+					<TabsTrigger value="commits">
+						Commits
+						{prCommits ? (
+							<span className="ml-1 rounded-full bg-muted px-1.5 text-xs">
+								{prCommits.commits.length}
+								{prCommits.truncated || prCommits.incomplete ? "+" : ""}
+							</span>
+						) : null}
+					</TabsTrigger>
 					<TabsTrigger value="files">
 						Files changed
 						{diff?.files ? (
@@ -451,6 +472,39 @@ function PullRequestDetailPage() {
 					) : !session?.user ? (
 						<SignInToComment />
 					) : null}
+				</TabsContent>
+				<TabsContent value="commits" className="space-y-3">
+					{commitsLoading ? (
+						<div className="space-y-2">
+							{[1, 2, 3].map((i) => (
+								<Skeleton key={i} className="h-16" />
+							))}
+						</div>
+					) : prCommits?.commits.length ? (
+						<>
+							<CommitList
+								owner={owner}
+								name={name}
+								commits={prCommits.commits}
+							/>
+							{prCommits.incomplete ? (
+								<p className="text-center text-xs text-muted-foreground">
+									This list may be incomplete: {pr.targetBranch} has moved far
+									past where this branch started, so some commits shown may
+									already be on it.
+								</p>
+							) : prCommits.truncated ? (
+								<p className="text-center text-xs text-muted-foreground">
+									Showing the first {prCommits.commits.length} commits; newer
+									ones are not listed.
+								</p>
+							) : null}
+						</>
+					) : (
+						<EmptyState
+							message={`No commits on ${pr.sourceBranch} that aren't on ${pr.targetBranch}.`}
+						/>
+					)}
 				</TabsContent>
 				<TabsContent value="files">
 					{/* Files changed */}

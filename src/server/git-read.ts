@@ -27,6 +27,7 @@ import {
 	getLastCommitsForTree as opsGetLastCommitsForTree,
 	type Repo,
 	resolveCommit,
+	summarizeCommit,
 	type TreeEntry,
 } from "git-fs-s3/ops";
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
@@ -300,6 +301,47 @@ export function getBranchDiff(
 	compareRef: string,
 ): Promise<DiffResult> {
 	return getDiffBetweenRefs(repoFor(ownerKey, repoName), baseRef, compareRef);
+}
+
+/** The commits `head` has that `base` doesn't, oldest first (as GitHub lists them). */
+export type CommitsBetween = {
+	commits: CommitSummary[];
+	/** More commits exist than `limit`; the newest are left out. */
+	truncated: boolean;
+	/**
+	 * The bounded walk ended before reaching base's history (base moved far
+	 * past the branch point), so the list may include commits that are on base.
+	 */
+	incomplete: boolean;
+};
+
+/**
+ * `log base..head`, composed from two memoized bounded walks: head's history
+ * minus every commit in base's. Each side is bounded by `HISTORY_WALK_DEPTH`
+ * (Vercel time limits). A missing ref has an empty history, so the result is
+ * empty. `base` and `head` may be branch names or commit shas.
+ */
+export async function getCommitsBetween(
+	ownerKey: string,
+	repoName: string,
+	base: string,
+	head: string,
+	limit: number,
+): Promise<CommitsBetween> {
+	const [baseLog, headLog] = await Promise.all([
+		getCommitLog(ownerKey, repoName, base, HISTORY_WALK_DEPTH),
+		getCommitLog(ownerKey, repoName, head, HISTORY_WALK_DEPTH),
+	]);
+	const onBase = new Set(baseLog.map((commit) => commit.oid));
+	const exclusive = headLog.filter((commit) => !onBase.has(commit.oid));
+	const oldestFirst = exclusive.reverse();
+	return {
+		commits: oldestFirst.slice(0, limit).map(summarizeCommit),
+		truncated: oldestFirst.length > limit,
+		incomplete:
+			headLog.length >= HISTORY_WALK_DEPTH &&
+			oldestFirst.length === headLog.length,
+	};
 }
 
 /** Whether both branches exist and whether merging would be a fast-forward. */

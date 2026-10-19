@@ -12,7 +12,7 @@ import {
 	MAX_LIST_SKIP,
 } from "#/lib/limits";
 import { recordActivity } from "./activity";
-import { analyzeMerge } from "./git-read";
+import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
@@ -244,6 +244,8 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 					mergedAt: new Date(),
 					mergedBy: currentUser.id,
 					mergeCommitSha: result.commitSha,
+					baseSha: result.baseSha,
+					headSha: result.headSha,
 					updatedAt: new Date(),
 				})
 				.where(and(eq(pullRequests.id, pr.id), eq(pullRequests.status, "open")))
@@ -320,4 +322,38 @@ export const deletePullRequestBranch = createServerFn({ method: "POST" })
 				branch: pr.sourceBranch,
 			});
 		});
+	});
+
+/** The Commits tab is capped at 250 commits, as on GitHub. */
+const PR_COMMITS_LIMIT = 250;
+
+/**
+ * A pull request's Commits tab: commits on the head branch that aren't on
+ * the base, oldest first. A merged pull request uses the base and head tips
+ * recorded when it merged, so later pushes to either branch don't change it.
+ */
+export const getPullRequestCommits = createServerFn({ method: "GET" })
+	.validator(z.object({ prId: z.number().int().positive() }))
+	.handler(async ({ data }) => {
+		const pr = await db.query.pullRequests.findFirst({
+			where: eq(pullRequests.id, data.prId),
+		});
+		if (!pr) throw notFound();
+		return readWithAccess(
+			`getPullRequestCommits #${pr.number}`,
+			pr.repoId,
+			async (repo) => {
+				if (pr.status === "merged" && !(pr.baseSha && pr.headSha)) {
+					throw new Error(`Merged pull request #${pr.number} has no range`);
+				}
+				const merged = pr.status === "merged";
+				return getCommitsBetween(
+					ownerKeyOf(repo),
+					repo.name,
+					(merged ? pr.baseSha : pr.targetBranch) as string,
+					(merged ? pr.headSha : pr.sourceBranch) as string,
+					PR_COMMITS_LIMIT,
+				);
+			},
+		);
 	});

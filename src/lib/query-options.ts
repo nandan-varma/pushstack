@@ -18,6 +18,7 @@ import {
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import {
 	getPullRequestByNumber,
+	getPullRequestCommits,
 	getPullRequestNumbers,
 	getPullRequests,
 } from "@/server/pull-requests";
@@ -108,6 +109,8 @@ export const queryKeys = {
 		["repos", owner, name, "pull-requests", number] as const,
 	pullRequestComments: (prId: number) =>
 		["pull-requests", prId, "comments"] as const,
+	pullRequestCommits: (prId: number) =>
+		["pull-requests", prId, "commits"] as const,
 	pullRequestDiff: (
 		repoId: number,
 		sourceBranch: string,
@@ -540,6 +543,24 @@ export function pullRequestCommentsQueryOptions(prId: number) {
 		queryKey: queryKeys.pullRequestComments(prId),
 		queryFn: () => getComments({ data: { pullRequestId: prId } }),
 		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** A PR's Commits tab; the head branch moves, so it follows the diff's freshness. */
+export function pullRequestCommitsQueryOptions({
+	prId,
+	autoRefresh = false,
+}: {
+	prId: number;
+	autoRefresh?: boolean;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestCommits(prId),
+		queryFn: () => getPullRequestCommits({ data: { prId } }),
+		staleTime: autoRefresh ? DEFAULT_STALE_TIME : LONG_LIVED_STALE_TIME,
+		gcTime: autoRefresh ? undefined : LONG_LIVED_GC_TIME,
+		refetchOnWindowFocus: autoRefresh,
+		refetchInterval: autoRefresh ? 20_000 : false,
 	});
 }
 

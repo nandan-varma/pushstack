@@ -123,6 +123,9 @@ export const pullRequests = pgTable(
 		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
+		/** The base and head tips that were merged: the PR's exact commit range. */
+		baseSha: text("base_sha"),
+		headSha: text("head_sha"),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
