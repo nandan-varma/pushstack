@@ -31,6 +31,7 @@ import {
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 import { MAX_HISTORY_WALK, MAX_RAW_BYTES } from "#/lib/limits";
 import { opsHooksFor } from "./git-cache";
+import { isGitNotFoundError } from "./git-errors";
 import { repoFor } from "./git-repo";
 
 export { BANNER_WALK_DEPTH };
@@ -203,12 +204,23 @@ export async function getRepositoryTreeData(
 ) {
 	const repo = repoFor(ownerKey, repoName);
 	const hooks = opsHooksFor(ownerKey, repoName);
-	const [branches, files, commits] = await Promise.all([
+	const [branches, page] = await Promise.all([
 		listBranches(repo),
-		getTreeFromRef(repo, { ref, treePath }, hooks),
-		opsGetCommitHistory(repo, { ref, limit: 1 }, hooks),
+		Promise.all([
+			getTreeFromRef(repo, { ref, treePath }, hooks),
+			opsGetCommitHistory(repo, { ref, limit: 1 }, hooks),
+		]).catch((error: unknown) => error),
 	]);
-	return { branches, files, latestCommit: commits[0] };
+	if (page instanceof Array) {
+		const [files, commits] = page;
+		return { branches, files, latestCommit: commits[0] };
+	}
+	// A repository nobody has pushed to yet has no branch to read: an empty
+	// page (the UI shows setup instructions), not a 404 for the default branch.
+	if (branches.length === 0 && isGitNotFoundError(page)) {
+		return { branches, files: [], latestCommit: undefined };
+	}
+	throw page;
 }
 
 export function getBranches(ownerKey: string, repoName: string) {

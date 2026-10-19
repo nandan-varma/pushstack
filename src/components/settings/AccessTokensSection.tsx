@@ -78,6 +78,7 @@ export function AccessTokensSection() {
 
 	return (
 		<Section
+			id="tokens"
 			title="Personal access tokens"
 			description="Use a token instead of your password for git over HTTPS (git clone, fetch, push)."
 		>

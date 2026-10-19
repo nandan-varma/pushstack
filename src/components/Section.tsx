@@ -1,11 +1,14 @@
 import { Card } from "@/components/ui/card";
 
 export function Section({
+	id,
 	title,
 	description,
 	danger,
 	children,
 }: {
+	/** Anchor for deep links such as `/settings#tokens`. */
+	id?: string;
 	title: string;
 	description?: string;
 	danger?: boolean;
@@ -13,6 +16,7 @@ export function Section({
 }) {
 	return (
 		<Card
+			id={id}
 			className={`p-6 ${danger ? "border-red-300 dark:border-red-800/50" : ""}`}
 		>
 			<h2

@@ -39,6 +39,14 @@ export function RepoEmptyState({
 					/>
 					<CopyButton text={cloneUrl} />
 				</div>
+				<p className="mt-3 text-xs text-muted-foreground">
+					When git asks for a password, use a{" "}
+					<Link to="/settings" hash="tokens" className="underline">
+						personal access token
+					</Link>{" "}
+					with <code className="font-mono">repo:write</code> — your account
+					password won't work.
+				</p>
 			</div>
 
 			{(

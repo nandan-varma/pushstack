@@ -305,3 +305,25 @@ describe("getClosingIssueNumbers", () => {
 		expect(getClosingIssueNumbers(null)).toEqual([]);
 	});
 });
+
+describe("browsing a repository nobody has pushed to", () => {
+	it("returns an empty tree page instead of a 404 for the default branch", async () => {
+		signIn(users.maintainer);
+		const empty = await repositories.createRepository({
+			data: { name: "fresh" },
+		});
+		const page = await files.getTreePageData({
+			data: { repoId: empty.id, branchName: "main", path: "" },
+		});
+		expect(page).toEqual({ branches: [], files: [], latestCommit: undefined });
+	});
+
+	it("still 404s a missing branch once the repository has commits", async () => {
+		signIn(users.maintainer);
+		await rejectsNotFound(
+			files.getTreePageData({
+				data: { repoId, branchName: "no-such-branch", path: "" },
+			}),
+		);
+	});
+});
