@@ -75,6 +75,30 @@ export function createCommit(
 	});
 }
 
+/**
+ * A new repository's first commit, for callers already holding its lock
+ * (createRepository, in the same span as storage init — the lock is not
+ * reentrant). One packed write; nothing to repack yet.
+ */
+export function createInitialCommitUnlocked(
+	ownerKey: string,
+	repoName: string,
+	commit: {
+		branch: string;
+		message: string;
+		files: Array<{ path: string; content: string }>;
+		author: CommitAuthorInput;
+	},
+): Promise<string> {
+	assertSafeBranchName(commit.branch);
+	return commitFilesToBare(repoFor(ownerKey, repoName), {
+		branch: commit.branch,
+		message: commit.message,
+		author: authorNow(commit.author.name, commit.author.email),
+		files: commit.files,
+	});
+}
+
 export function deleteFile(
 	ownerKey: string,
 	repoName: string,
