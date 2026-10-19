@@ -18,6 +18,7 @@ import { EditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
+import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
@@ -292,6 +293,15 @@ function IssueDetailPage() {
 								})
 						: undefined
 				}
+			/>
+
+			<ThreadLabels
+				owner={owner}
+				name={name}
+				repoId={issue.repoId}
+				number={issue.number}
+				labels={issue.labels}
+				canEdit={issue.viewer.canWrite}
 			/>
 
 			<ThreadTimeline

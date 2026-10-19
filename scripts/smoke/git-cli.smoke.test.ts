@@ -40,6 +40,7 @@ const fakeS3 = vi.hoisted(() => ({
 
 vi.mock("#/lib/r2", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("#/lib/r2")>();
+	const { createFetchS3Store } = await import("git-fs-s3/fetch-s3");
 	const { createFakeS3 } = await import(
 		"../../src/server/__tests__/helpers/fake-s3-fetch"
 	);
@@ -51,7 +52,7 @@ vi.mock("#/lib/r2", async (importOriginal) => {
 		createR2ObjectStoreFromEnv: (
 			contentType?: (key: string) => string | undefined,
 		) =>
-			actual.createR2ObjectStore({
+			createFetchS3Store({
 				endpoint: "https://smoke.r2.cloudflarestorage.com",
 				bucket: "smoke-bucket",
 				accessKeyId: "smoke-key",

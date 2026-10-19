@@ -10,9 +10,11 @@ import {
 	type LucideIcon,
 	MessageSquareQuote,
 	Pencil,
+	Tag,
 	UserRound,
 } from "lucide-react";
 import { CommentCard } from "@/components/CommentCard";
+import { LabelChip } from "@/components/LabelChip";
 import { useToast } from "@/components/toast-provider";
 import { queryKeys, timelineQueryOptions } from "@/lib/query-options";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
@@ -235,6 +237,18 @@ function describe(
 						mentioned this in{" "}
 						{event.source.kind === "issue" ? "issue" : "pull request"}{" "}
 						<ThreadLink thread={event.source} owner={owner} name={name} />
+					</>
+				),
+			};
+		case "labeled":
+		case "unlabeled":
+			return {
+				icon: Tag,
+				text: (
+					<>
+						{event.event === "labeled" ? "added the" : "removed the"}{" "}
+						<LabelChip name={event.label.name} color={event.label.color} />{" "}
+						label
 					</>
 				),
 			};

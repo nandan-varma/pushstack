@@ -1,13 +1,19 @@
 /** Server functions for issues. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, exists, notExists, sql } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issueAssignees, issues } from "#/db/app-schema";
 import { user } from "#/db/schema";
-import { MAX_BODY_CHARS, MAX_LIST_SKIP } from "#/lib/limits";
+import { labelNameSchema } from "#/lib/labels";
+import {
+	MAX_BODY_CHARS,
+	MAX_LABELS_PER_THREAD,
+	MAX_LIST_SKIP,
+} from "#/lib/limits";
 import { recordActivity } from "./activity";
+import { setThreadLabels, threadsWithLabels, withLabels } from "./label-store";
 import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
@@ -50,7 +56,7 @@ function assigneeCondition(assignee: string | undefined) {
 	);
 }
 
-const labelsSchema = z.array(z.string().trim().min(1).max(50)).max(20);
+const labelsSchema = z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD);
 
 export const createIssue = createServerFn({ method: "POST" })
 	.validator(
@@ -66,7 +72,7 @@ export const createIssue = createServerFn({ method: "POST" })
 		await requireParticipateAccess(data.repoId, currentUser.id);
 		// Labels are triage: a participant without write access opens the issue
 		// unlabeled, as on GitHub.
-		const labels = (await canWriteRepo(data.repoId, currentUser.id))
+		const labelNames = (await canWriteRepo(data.repoId, currentUser.id))
 			? data.labels
 			: [];
 		const [issue] = await db
@@ -77,10 +83,15 @@ export const createIssue = createServerFn({ method: "POST" })
 				authorId: currentUser.id,
 				title: data.title,
 				body: data.body || null,
-				labels,
 			})
 			.returning();
 		if (!issue) throw new Error("Issue insert returned no row");
+		const labels = await setThreadLabels(
+			data.repoId,
+			issue.number,
+			labelNames,
+			currentUser.id,
+		);
 		await recordCrossReferences(
 			data.repoId,
 			{ kind: "issue", number: issue.number, title: issue.title },
@@ -91,7 +102,7 @@ export const createIssue = createServerFn({ method: "POST" })
 			type: "issue",
 			metadata: { number: issue.number, title: issue.title, action: "opened" },
 		});
-		return issue;
+		return { ...issue, labels };
 	});
 
 export const getIssues = createServerFn({ method: "GET" })
@@ -100,23 +111,34 @@ export const getIssues = createServerFn({ method: "GET" })
 			repoId: z.number(),
 			status: z.enum(["open", "closed", "all"]).default("open"),
 			assignee: z.string().max(100).optional(),
+			/** Only issues carrying every one of these labels (`label:` filter). */
+			labels: labelsSchema.default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
 	.handler(({ data }) =>
-		readWithAccess(`getIssues ${data.status}`, data.repoId, () =>
-			db.query.issues.findMany({
-				where: and(
-					eq(issues.repoId, data.repoId),
-					data.status === "all" ? undefined : eq(issues.status, data.status),
-					assigneeCondition(data.assignee),
-				),
-				with: { author: publicUserFields, ...withAssignees },
-				orderBy: [desc(issues.createdAt)],
-				limit: data.limit,
-				offset: data.skip,
-			}),
+		readWithAccess(`getIssues ${data.status}`, data.repoId, async () =>
+			withLabels(
+				data.repoId,
+				await db.query.issues.findMany({
+					where: and(
+						eq(issues.repoId, data.repoId),
+						data.status === "all" ? undefined : eq(issues.status, data.status),
+						assigneeCondition(data.assignee),
+						data.labels.length > 0
+							? inArray(
+									issues.number,
+									threadsWithLabels(data.repoId, data.labels),
+								)
+							: undefined,
+					),
+					with: { author: publicUserFields, ...withAssignees },
+					orderBy: [desc(issues.createdAt)],
+					limit: data.limit,
+					offset: data.skip,
+				}),
+			),
 		),
 	);
 
@@ -152,7 +174,12 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 					with: { author: publicUserFields, ...withAssignees },
 				});
 				if (!issue) throw notFound();
-				return { ...issue, viewer: await getViewerRepositoryAccess(repo.id) };
+				const [withIssueLabels] = await withLabels(repo.id, [issue]);
+				return {
+					...issue,
+					labels: withIssueLabels?.labels ?? [],
+					viewer: await getViewerRepositoryAccess(repo.id),
+				};
 			},
 		),
 	);
@@ -164,7 +191,6 @@ export const updateIssue = createServerFn({ method: "POST" })
 			title: z.string().trim().min(1).max(256).optional(),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
-			labels: labelsSchema.optional(),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -173,10 +199,10 @@ export const updateIssue = createServerFn({ method: "POST" })
 			where: eq(issues.id, data.issueId),
 		});
 		if (!issue) throw notFound();
-		// The author may edit, close and reopen their own issue; labels (and
-		// anyone else's issue) need write access.
+		// The author may edit, close and reopen their own issue; anyone else's
+		// needs write access.
 		const canWrite = await canWriteRepo(issue.repoId, currentUser.id);
-		if (!canWrite && (issue.authorId !== currentUser.id || data.labels)) {
+		if (!canWrite && issue.authorId !== currentUser.id) {
 			throw new Error("Access denied");
 		}
 		const { issueId, status, ...fields } = data;

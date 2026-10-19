@@ -101,4 +101,30 @@ describe("editing comments", () => {
 			[],
 		);
 	});
+
+	it("deleting a comment removes the cross-references it created", async () => {
+		signIn(users.author);
+		const gone = await issues.createIssue({ data: { repoId, title: "Gone" } });
+		const kept = await issues.createIssue({ data: { repoId, title: "Kept" } });
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Src", body: `body mentions #${kept.number}` },
+		});
+		const first = await comments.createComment({
+			data: {
+				issueId: issue.id,
+				body: `see #${gone.number} and #${kept.number}`,
+			},
+		});
+		const events = (number: number) =>
+			getTimeline({ data: { repoId, number } }).then((t) =>
+				t.map((e) => e.event),
+			);
+		expect(await events(gone.number)).toEqual(["cross-referenced"]);
+		expect(await events(kept.number)).toEqual(["cross-referenced"]);
+
+		await comments.deleteComment({ data: { commentId: first.id } });
+		expect(await events(gone.number)).toEqual([]);
+		// The issue body still mentions it, so that event stays.
+		expect(await events(kept.number)).toEqual(["cross-referenced"]);
+	});
 });

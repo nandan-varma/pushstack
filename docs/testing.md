@@ -32,7 +32,7 @@ vi.mock("#/server/session", async () => (await import("../../test/app-harness"))
 relative path. Write new server tests this way rather than mocking modules:
 a mock silently drifts from the code it replaces.
 
-`git-user-lifecycle.test.ts` goes one layer further: `src/lib/r2.ts`'s real
+`git-user-lifecycle.test.ts` goes one layer further: git-fs-s3's real fetch
 store talks to a fake S3 endpoint (`helpers/fake-s3-fetch.ts`), so request
 signing, ListObjectsV2 parsing and server-side copy run too; it clones and
 pushes with isomorphic-git over a loopback server running `serveGitRequest`.

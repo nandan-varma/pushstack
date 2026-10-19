@@ -18,6 +18,7 @@ import {
 	getReferencedIssueNumbers,
 } from "#/lib/issue-references";
 import type { TimelineEvent } from "#/lib/timeline-types";
+import { recordActivity } from "./activity";
 import { getCommitLog } from "./git-read";
 
 /** Newest commits examined per pushed ref. */
@@ -110,7 +111,11 @@ export async function recordPushReferences(input: {
 
 	const [issueRows, prRows] = await Promise.all([
 		db
-			.select({ number: issues.number, status: issues.status })
+			.select({
+				number: issues.number,
+				status: issues.status,
+				title: issues.title,
+			})
 			.from(issues)
 			.where(
 				and(eq(issues.repoId, input.repoId), inArray(issues.number, wanted)),
@@ -199,9 +204,16 @@ export async function recordPushReferences(input: {
 							eq(issues.status, "open"),
 						),
 					)
-					.returning({ number: issues.number });
+					.returning({ number: issues.number, title: issues.title });
 	for (const { number } of closed) {
 		add(number, { event: "closed", commitSha: closers.get(number) });
 	}
 	if (rows.length > 0) await db.insert(timelineEvents).values(rows);
+	// As the manual close path does, so the pusher's feed shows the closing.
+	for (const { number, title } of closed) {
+		await recordActivity(input.actorId, input.repoId, {
+			type: "issue",
+			metadata: { number, title, action: "closed" },
+		});
+	}
 }

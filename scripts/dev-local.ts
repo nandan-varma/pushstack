@@ -1,6 +1,6 @@
 /**
  * `pnpm dev:local`: run PushStack with no cloud accounts. Git objects live on
- * disk (src/server/local-object-store.ts) and the database is an on-disk
+ * disk (git-fs-s3's FileObjectStore) and the database is an on-disk
  * pglite (src/db/index.ts), both under `.pushstack-local/` (override with
  * PUSHSTACK_LOCAL_DIR). Emails print to the terminal (src/lib/email.ts).
  *

@@ -8,6 +8,12 @@
  * whichever kind the thread is.
  */
 
+/** A label as it was when an event happened (the label may be edited later). */
+export interface LabelSnapshot {
+	name: string;
+	color: string;
+}
+
 /** The issue or pull request an event points at (same repository). */
 export interface ThreadRef {
 	kind: "issue" | "pull_request";
@@ -36,6 +42,9 @@ export type TimelineEvent =
 	| { event: "head_ref_deleted"; branch: string }
 	/** The title changed (GitHub's `renamed` issue event). */
 	| { event: "renamed"; from: string; to: string }
+	/** A label was applied or removed; the name and color are a snapshot. */
+	| { event: "labeled"; label: LabelSnapshot }
+	| { event: "unlabeled"; label: LabelSnapshot }
 	/** Someone was assigned to / unassigned from the thread. */
 	| { event: "assigned"; assignee: TimelineUser }
 	| { event: "unassigned"; assignee: TimelineUser };

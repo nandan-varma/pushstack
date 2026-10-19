@@ -58,7 +58,7 @@ functions:
 the published `git-fs-s3` package provides, network-outward to gitdir-facing:
 
 ```text
-R2 store (src/lib/r2.ts) → createRetryStore → perfR2 (perf-log.ts) → createCachedStore → createGitFs
+R2 store (git-fs-s3/fetch-s3, wired in src/lib/r2.ts) → createRetryStore → perfR2 (perf-log.ts) → createCachedStore → createGitFs
 ```
 
 Every git operation — clone, fetch, push, web-UI commits, merges, branch
@@ -68,13 +68,13 @@ Gitdirs are the full storage roots (`repos/{ownerKey}/{repoName}/git`), so fs
 paths map 1:1 onto R2 keys — the store is built with no key prefix. Each
 layer's job:
 
-- **R2 store** (`src/lib/r2.ts`'s `createR2ObjectStore`) — the raw
+- **R2 store** (`git-fs-s3/fetch-s3`'s `createFetchS3Store`, configured from env by `src/lib/r2.ts`) — the raw
   `GetObject`/`PutObject`/`DeleteObject`/`HeadObject`/`ListObjectsV2` (plus
   server-side `CopyObject`, used by renames) calls against R2's S3 API, signed
   with `aws4fetch` and sent with plain `fetch`: no AWS SDK, no `node:https`
   agent. Node's built-in fetch pools keep-alive connections itself. Each
   attempt has a timeout (`AbortSignal.timeout`: 30s for bodies, 10s for
-  metadata calls); failures throw `R2HttpError` carrying
+  metadata calls); failures throw `S3HttpError` carrying
   `$metadata.httpStatusCode`, which the retry layer classifies. `git-fs.ts`
   owns the app's single instance.
 - **`createRetryStore`** — exponential backoff + jitter, plus a per-instance
@@ -82,9 +82,8 @@ layer's job:
   fast instead of piling up retries against an R2 outage). Placed directly
   above the network store so the cache above it never stores a transient
   failure, and callers coalesced onto one request (see below) share a single
-  retried attempt. `git-fs.ts` passes its own `isRetryable` (5xx, 429, fetch's
-  `TypeError` for a dropped connection, and `TimeoutError`) — the default
-  policy only knows Node socket error codes.
+  retried attempt. The default `isRetryable` (the library's `isRetryableError`: 5xx, 429, fetch's
+  `TypeError` for a dropped connection, `TimeoutError`, Node socket codes) is used as is.
 - **`createCachedStore`** — an in-process LRU read cache
   (`GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable, default 1GB / 1h), with:
   - **Request coalescing** (on by default) — if 100 concurrent object reads

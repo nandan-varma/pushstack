@@ -25,12 +25,14 @@ import { Route as RepositoriesIndexRouteImport } from './routes/repositories/ind
 import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
 import { Route as UsersUsernameRouteImport } from './routes/users.$username'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiDebugPerfRouteImport } from './routes/api/debug.perf'
 import { Route as ApiGitSplatRouteImport } from './routes/api/git.$'
 import { Route as ApiRawSplatRouteImport } from './routes/api/raw.$'
 import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
 import { Route as RepoOwnerNameRouteImport } from './routes/repo.$owner.$name'
 import { Route as RepoOwnerNameIndexRouteImport } from './routes/repo.$owner.$name.index'
 import { Route as RepoOwnerNameIssuesRouteImport } from './routes/repo/$owner.$name.issues'
+import { Route as RepoOwnerNameLabelsRouteImport } from './routes/repo/$owner.$name.labels'
 import { Route as RepoOwnerNamePullsRouteImport } from './routes/repo/$owner.$name.pulls'
 import { Route as RepoOwnerNameSettingsRouteImport } from './routes/repo/$owner.$name.settings'
 import { Route as RepoOwnerNameSetupRouteImport } from './routes/repo/$owner.$name.setup'
@@ -122,6 +124,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDebugPerfRoute = ApiDebugPerfRouteImport.update({
+  id: '/api/debug/perf',
+  path: '/api/debug/perf',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGitSplatRoute = ApiGitSplatRouteImport.update({
   id: '/api/git/$',
   path: '/api/git/$',
@@ -150,6 +157,11 @@ const RepoOwnerNameIndexRoute = RepoOwnerNameIndexRouteImport.update({
 const RepoOwnerNameIssuesRoute = RepoOwnerNameIssuesRouteImport.update({
   id: '/issues',
   path: '/issues',
+  getParentRoute: () => RepoOwnerNameRoute,
+} as any)
+const RepoOwnerNameLabelsRoute = RepoOwnerNameLabelsRouteImport.update({
+  id: '/labels',
+  path: '/labels',
   getParentRoute: () => RepoOwnerNameRoute,
 } as any)
 const RepoOwnerNamePullsRoute = RepoOwnerNamePullsRouteImport.update({
@@ -223,11 +235,13 @@ export interface FileRoutesByFullPath {
   '/users/$username': typeof UsersUsernameRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
+  '/repo/$owner/$name/labels': typeof RepoOwnerNameLabelsRoute
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
@@ -256,10 +270,12 @@ export interface FileRoutesByTo {
   '/users/$username': typeof UsersUsernameRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
+  '/repo/$owner/$name/labels': typeof RepoOwnerNameLabelsRoute
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
@@ -290,11 +306,13 @@ export interface FileRoutesById {
   '/users/$username': typeof UsersUsernameRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/git/$': typeof ApiGitSplatRoute
   '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/repo/$owner/$name': typeof RepoOwnerNameRouteWithChildren
   '/repo/$owner/$name/issues': typeof RepoOwnerNameIssuesRouteWithChildren
+  '/repo/$owner/$name/labels': typeof RepoOwnerNameLabelsRoute
   '/repo/$owner/$name/pulls': typeof RepoOwnerNamePullsRouteWithChildren
   '/repo/$owner/$name/settings': typeof RepoOwnerNameSettingsRoute
   '/repo/$owner/$name/setup': typeof RepoOwnerNameSetupRoute
@@ -326,11 +344,13 @@ export interface FileRouteTypes {
     | '/users/$username'
     | '/repositories/'
     | '/api/auth/$'
+    | '/api/debug/perf'
     | '/api/git/$'
     | '/api/raw/$'
     | '/api/v3/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/issues'
+    | '/repo/$owner/$name/labels'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
@@ -359,10 +379,12 @@ export interface FileRouteTypes {
     | '/users/$username'
     | '/repositories'
     | '/api/auth/$'
+    | '/api/debug/perf'
     | '/api/git/$'
     | '/api/raw/$'
     | '/api/v3/$'
     | '/repo/$owner/$name/issues'
+    | '/repo/$owner/$name/labels'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
@@ -392,11 +414,13 @@ export interface FileRouteTypes {
     | '/users/$username'
     | '/repositories/'
     | '/api/auth/$'
+    | '/api/debug/perf'
     | '/api/git/$'
     | '/api/raw/$'
     | '/api/v3/$'
     | '/repo/$owner/$name'
     | '/repo/$owner/$name/issues'
+    | '/repo/$owner/$name/labels'
     | '/repo/$owner/$name/pulls'
     | '/repo/$owner/$name/settings'
     | '/repo/$owner/$name/setup'
@@ -421,6 +445,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   UsersUsernameRoute: typeof UsersUsernameRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiDebugPerfRoute: typeof ApiDebugPerfRoute
   ApiGitSplatRoute: typeof ApiGitSplatRoute
   ApiRawSplatRoute: typeof ApiRawSplatRoute
   ApiV3SplatRoute: typeof ApiV3SplatRoute
@@ -541,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/debug/perf': {
+      id: '/api/debug/perf'
+      path: '/api/debug/perf'
+      fullPath: '/api/debug/perf'
+      preLoaderRoute: typeof ApiDebugPerfRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/git/$': {
       id: '/api/git/$'
       path: '/api/git/$'
@@ -581,6 +613,13 @@ declare module '@tanstack/react-router' {
       path: '/issues'
       fullPath: '/repo/$owner/$name/issues'
       preLoaderRoute: typeof RepoOwnerNameIssuesRouteImport
+      parentRoute: typeof RepoOwnerNameRoute
+    }
+    '/repo/$owner/$name/labels': {
+      id: '/repo/$owner/$name/labels'
+      path: '/labels'
+      fullPath: '/repo/$owner/$name/labels'
+      preLoaderRoute: typeof RepoOwnerNameLabelsRouteImport
       parentRoute: typeof RepoOwnerNameRoute
     }
     '/repo/$owner/$name/pulls': {
@@ -710,6 +749,7 @@ const RepoOwnerNamePullsRouteWithChildren =
 
 interface RepoOwnerNameRouteChildren {
   RepoOwnerNameIssuesRoute: typeof RepoOwnerNameIssuesRouteWithChildren
+  RepoOwnerNameLabelsRoute: typeof RepoOwnerNameLabelsRoute
   RepoOwnerNamePullsRoute: typeof RepoOwnerNamePullsRouteWithChildren
   RepoOwnerNameSettingsRoute: typeof RepoOwnerNameSettingsRoute
   RepoOwnerNameSetupRoute: typeof RepoOwnerNameSetupRoute
@@ -723,6 +763,7 @@ interface RepoOwnerNameRouteChildren {
 
 const RepoOwnerNameRouteChildren: RepoOwnerNameRouteChildren = {
   RepoOwnerNameIssuesRoute: RepoOwnerNameIssuesRouteWithChildren,
+  RepoOwnerNameLabelsRoute: RepoOwnerNameLabelsRoute,
   RepoOwnerNamePullsRoute: RepoOwnerNamePullsRouteWithChildren,
   RepoOwnerNameSettingsRoute: RepoOwnerNameSettingsRoute,
   RepoOwnerNameSetupRoute: RepoOwnerNameSetupRoute,
@@ -749,6 +790,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   UsersUsernameRoute: UsersUsernameRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiDebugPerfRoute: ApiDebugPerfRoute,
   ApiGitSplatRoute: ApiGitSplatRoute,
   ApiRawSplatRoute: ApiRawSplatRoute,
   ApiV3SplatRoute: ApiV3SplatRoute,
