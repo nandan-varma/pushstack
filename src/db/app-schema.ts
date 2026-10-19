@@ -15,6 +15,13 @@ import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
 
 /**
+ * Every app timestamp is `timestamp with time zone`. A plain `timestamp`
+ * filled by the database's `now()` stores the session's wall clock, which
+ * reads back shifted unless that session happens to be UTC.
+ */
+const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
+
+/**
  * Repository metadata; git data itself lives in R2 under
  * `repos/{ownerKey}/{name}/git` (src/server/git-storage-naming.ts).
  */
@@ -45,8 +52,8 @@ export const repositories = pgTable(
 		 * (GitHub's model), claimed with an atomic increment.
 		 */
 		nextIssueNumber: integer("next_issue_number").notNull().default(1),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		// Unique: storage keys derive from (owner, name), so a duplicate would
@@ -76,9 +83,9 @@ export const issues = pgTable(
 		body: text("body"),
 		status: text("status").$type<"open" | "closed">().notNull().default("open"),
 		labels: jsonb("labels").$type<string[]>().notNull().default([]),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
-		closedAt: timestamp("closed_at"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		closedAt: timestamptz("closed_at"),
 	},
 	(table) => ({
 		repoNumberIdx: uniqueIndex("issue_repo_number_idx").on(
@@ -112,11 +119,11 @@ export const pullRequests = pgTable(
 			.$type<"open" | "closed" | "merged">()
 			.notNull()
 			.default("open"),
-		mergedAt: timestamp("merged_at"),
+		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		repoNumberIdx: uniqueIndex("pr_repo_number_idx").on(
@@ -146,8 +153,8 @@ export const comments = pgTable(
 			.notNull()
 			.references(() => user.id),
 		body: text("body").notNull(),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		issueIdx: index("comment_issue_idx").on(table.issueId),
@@ -165,7 +172,7 @@ export const stars = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		repoUserIdx: uniqueIndex("star_repo_user_idx").on(
@@ -190,7 +197,7 @@ export const repositoryCollaborators = pgTable(
 			.$type<"read" | "write" | "admin">()
 			.notNull()
 			.default("read"),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		repoUserIdx: uniqueIndex("collab_repo_user_idx").on(
@@ -214,7 +221,7 @@ export const activities = pgTable(
 		/** With `metadata`, one ActivityEvent — written only via recordActivity. */
 		type: text("type").$type<ActivityType>().notNull(),
 		metadata: jsonb("metadata").$type<ActivityMetadata>(),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		userCreatedIdx: index("activity_user_created_idx").on(
@@ -239,9 +246,9 @@ export const tokens = pgTable(
 		name: text("name").notNull(),
 		tokenHash: text("token_hash").notNull().unique(),
 		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
-		lastUsedAt: timestamp("last_used_at"),
-		expiresAt: timestamp("expires_at"),
-		createdAt: timestamp("created_at").notNull().defaultNow(),
+		lastUsedAt: timestamptz("last_used_at"),
+		expiresAt: timestamptz("expires_at"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		userIdx: index("token_user_idx").on(table.userId),
@@ -253,7 +260,7 @@ export const repoLocks = pgTable("repo_locks", {
 	/** `${ownerKey}/${repoName}` */
 	repoKey: text("repo_key").primaryKey(),
 	holder: text("holder").notNull(),
-	expiresAt: timestamp("expires_at").notNull(),
+	expiresAt: timestamptz("expires_at").notNull(),
 });
 
 /**
@@ -266,7 +273,7 @@ export const rateLimits = pgTable(
 	{
 		key: text("key").primaryKey(),
 		count: integer("count").notNull(),
-		windowStartedAt: timestamp("window_started_at").notNull(),
+		windowStartedAt: timestamptz("window_started_at").notNull(),
 	},
 	(table) => ({
 		// Supports the periodic expiry prune; without it every prune is a scan.

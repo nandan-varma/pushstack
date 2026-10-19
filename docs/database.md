@@ -51,6 +51,17 @@ this number and resolve it with `getIssueByNumber`/`getPullRequestByNumber`;
 mutations take the row `id` from the loaded row. Activity metadata stores
 the number too.
 
+## Timestamps
+
+Every app timestamp is `timestamp with time zone` (`app-schema.ts`'s
+`timestamptz()` helper). A plain `timestamp` filled by the database's `now()`
+stores the session's wall-clock time, which reads back shifted by the session's
+UTC offset — Neon's session is GMT so production looked fine, but pglite (local
+dev, tests) and any non-UTC Postgres put every `created_at` hours off, and the
+repo lock compared JS-written `expires_at` against SQL `now()` across that
+offset. `src/db/__tests__/timestamps.test.ts` pins it. Better Auth's tables are
+written with JS `Date`s only and keep its own column types.
+
 ## Indices
 
 Postgres doesn't index foreign keys on its own; the indices match real query
