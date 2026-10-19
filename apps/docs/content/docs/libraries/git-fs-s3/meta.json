@@ -1,0 +1,28 @@
+{
+	"title": "git-fs-s3",
+	"pages": [
+		"index",
+		"getting-started",
+		"semantics-and-limitations",
+		"roadmap",
+		"---Guides---",
+		"guides/object-store",
+		"guides/production-stack",
+		"guides/caching",
+		"guides/retry-and-circuit-breaker",
+		"---Git smart-HTTP---",
+		"http/overview",
+		"http/serving-clones-and-pushes",
+		"http/repacking",
+		"---App-layer operations---",
+		"ops/overview",
+		"ops/branches-and-commits",
+		"ops/trees-history-and-diff",
+		"ops/merge",
+		"---Reference---",
+		"reference/index",
+		"reference/s3",
+		"reference/http",
+		"reference/ops"
+	]
+}

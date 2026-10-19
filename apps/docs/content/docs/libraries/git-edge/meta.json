@@ -1,0 +1,14 @@
+{
+	"title": "git-edge",
+	"pages": [
+		"index",
+		"getting-started",
+		"semantics-and-limitations",
+		"---Guides---",
+		"guides/three-way-merge",
+		"guides/parsed-object-cache",
+		"guides/repo-cache",
+		"---Reference---",
+		"reference/index"
+	]
+}

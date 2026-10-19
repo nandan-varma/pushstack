@@ -1,0 +1,17 @@
+{
+	"title": "Architecture and internals",
+	"root": true,
+	"pages": [
+		"index",
+		"git-storage",
+		"database",
+		"authentication",
+		"server-functions",
+		"performance",
+		"submodules",
+		"security",
+		"security-history",
+		"testing",
+		"deployment"
+	]
+}

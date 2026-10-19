@@ -1,0 +1,9 @@
+{
+	"title": "Libraries",
+	"root": true,
+	"pages": [
+		"index",
+		"git-fs-s3",
+		"git-edge"
+	]
+}

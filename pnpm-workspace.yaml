@@ -14,3 +14,7 @@ autoInstallPeers: false
 ignoredOptionalDependencies:
   # WASI fallback of oxc-parser (TanStack devtools); we only run on native linux/darwin.
   - "@oxc-parser/binding-wasm32-wasi"
+minimumReleaseAgeExclude:
+  - fumadocs-core@16.17.7
+  - fumadocs-mdx@15.4.8
+  - fumadocs-ui@16.17.7
