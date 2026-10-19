@@ -1,0 +1,112 @@
+{
+  "name": "git-fs-s3",
+  "version": "0.15.0",
+  "description": "isomorphic-git filesystem backend for S3-compatible object storage (AWS S3, Cloudflare R2, MinIO) \u2014 run git servers without a disk",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./s3": {
+      "types": "./dist/types/stores/s3.d.ts",
+      "import": "./dist/s3.js"
+    },
+    "./fetch-s3": {
+      "types": "./dist/types/stores/fetch-s3.d.ts",
+      "import": "./dist/fetch-s3.js"
+    },
+    "./node": {
+      "types": "./dist/types/stores/file.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./ops": {
+      "types": "./dist/types/ops/index.d.ts",
+      "import": "./dist/ops.js"
+    },
+    "./http": {
+      "types": "./dist/types/http/index.d.ts",
+      "import": "./dist/http.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/ test/",
+    "lint:fix": "biome check --write src/ test/",
+    "format": "biome format --write src/ test/",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "keywords": [
+    "git",
+    "isomorphic-git",
+    "s3",
+    "r2",
+    "cloudflare-r2",
+    "object-storage",
+    "serverless",
+    "git-server",
+    "filesystem",
+    "fs"
+  ],
+  "author": "Nandan Varma",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nandan-varma/git-fs-s3.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nandan-varma/git-fs-s3/issues"
+  },
+  "homepage": "https://github.com/nandan-varma/git-fs-s3#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "lru-cache": "^11.5.3"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": ">=3.0.0",
+    "aws4fetch": ">=1.0.0",
+    "isomorphic-git": ">=1.44.3",
+    "diff": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "aws4fetch": {
+      "optional": true
+    },
+    "isomorphic-git": {
+      "optional": true
+    },
+    "diff": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "aws4fetch": "^1.0.20",
+    "@biomejs/biome": "^2.5.15",
+    "@types/node": "^26.6.5",
+    "isomorphic-git": "^1.44.3",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3",
+    "diff": "^9.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true
+  }
+}
