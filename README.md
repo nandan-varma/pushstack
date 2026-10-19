@@ -71,7 +71,7 @@ pnpm db:push                         # create the schema
 pnpm dev                             # http://localhost:3000
 ```
 
-`.env.example` lists every variable. `DATABASE_URL`, `BETTER_AUTH_SECRET` and
+`apps/web/.env.example` lists every variable. `DATABASE_URL`, `BETTER_AUTH_SECRET` and
 `BETTER_AUTH_URL` are the ones you must set; email (Resend) and Sentry are
 optional, and the app runs without them.
 
@@ -91,15 +91,10 @@ the Vercel-specific details.
 pnpm dev              # development server on :3000 (uses .env.local)
 pnpm dev:local        # same, fully local: pglite + on-disk git, no accounts
 pnpm build            # production build
-pnpm preview          # preview the production build
 pnpm typecheck        # tsc --noEmit
 pnpm test             # unit and behavior tests (Vitest)
-pnpm test:watch       # Vitest in watch mode
-pnpm test:coverage    # Vitest with coverage
-pnpm test:e2e         # end-to-end tests (Playwright)
 pnpm smoke:git        # the real git CLI against a live dev server
 pnpm check            # Biome lint + format check
-pnpm lint             # Biome lint only
 pnpm format           # Biome format (writes)
 pnpm db:push          # apply the schema to the database (the only migration path)
 pnpm db:studio        # Drizzle Studio

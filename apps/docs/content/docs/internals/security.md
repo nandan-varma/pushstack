@@ -3,8 +3,6 @@ title: "Security"
 description: "The rules that must hold: access control, hostile content, names and refs, auth, limits, secrets."
 ---
 
-# Security
-
 This document is the security model: the invariants that must hold, and why each
 one is shaped the way it is. It is written to be read before you change an auth
 path, a storage key, or anything that renders user content.

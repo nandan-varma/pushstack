@@ -73,8 +73,11 @@ Notable files:
 - `repo-path.test.ts` — resolving a relative markdown target against its
   containing file, including refusal to climb above the repository root.
 
-Run everything with `pnpm test` (`pnpm test:watch`, `pnpm test:coverage`);
-one file with `pnpm test apps/web/src/server/__tests__/repo-access.test.ts`.
+Run every workspace suite with `pnpm test`; run one web file with
+`pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts`.
+Use `pnpm --filter @pushstack/web test:watch` or `test:coverage` for web watch/coverage runs.
+Documentation integrity tests run with `pnpm --filter @pushstack/docs test`;
+they check page links, navigation targets, reference examples and searchable metadata.
 
 Config: `apps/web/vitest.config.ts` — `jsdom` by default (server suites opt into
 `@vitest-environment node`), typecheck-on-test, `v8` coverage.

@@ -2,7 +2,7 @@
  * Resolving a markdown link/image target against the file it was written in.
  *
  * A relative target in markdown is relative to the containing document, the
- * same as on GitHub: `./diagram.png` written in `apps/docs/content/docs/index.mdx` names
+ * same as on GitHub: `./diagram.png` written in `docs/README.md` names
  * `docs/diagram.png`, not `diagram.png`. Targets here are repository-relative
  * paths rather than filesystem paths, so the only work to do is normalizing
  * `.`/`..` and refusing a target that climbs above the repository root.

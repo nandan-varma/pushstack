@@ -106,11 +106,11 @@ not configured" rather than silently losing pushes.
 Local setup:
 
 ```bash
-cp .env.example .env.local
-pnpm dlx @better-auth/cli secret   # generate BETTER_AUTH_SECRET
-# fill in .env.local
-pnpm db:push                       # apply schema to your database
 pnpm install
+cp apps/web/.env.example apps/web/.env.local
+pnpm dlx @better-auth/cli secret   # generate BETTER_AUTH_SECRET
+# fill in apps/web/.env.local
+pnpm db:push                       # apply schema to your database
 pnpm dev
 ```
 

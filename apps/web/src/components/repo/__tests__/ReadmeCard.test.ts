@@ -3,7 +3,7 @@ import { findReadmeFile } from "../ReadmeCard";
 
 // `files` is always scoped to a single directory (server lists entries for
 // whatever path was requested), so file.path is the full repo-relative path
-// (e.g. "apps/docs/content/docs/index.mdx") — matching had to be done against the basename to
+// (e.g. "docs/README.md") — matching had to be done against the basename to
 // find a README in any directory, not just when it sits at the repo root.
 describe("findReadmeFile", () => {
 	it("finds a README at the repo root", () => {
@@ -16,13 +16,11 @@ describe("findReadmeFile", () => {
 
 	it("finds a README nested inside a subdirectory", () => {
 		const files = [
-			{ type: "blob" as const, path: "apps/docs/content/docs/index.mdx" },
+			{ type: "blob" as const, path: "docs/README.md" },
 			{ type: "blob" as const, path: "docs/guide.md" },
 			{ type: "tree" as const, path: "docs/assets" },
 		];
-		expect(findReadmeFile(files)?.path).toBe(
-			"apps/docs/content/docs/index.mdx",
-		);
+		expect(findReadmeFile(files)?.path).toBe("docs/README.md");
 	});
 
 	it("matches case-insensitively", () => {

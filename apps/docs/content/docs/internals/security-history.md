@@ -3,8 +3,6 @@ title: "Security history"
 description: "How the security rules were arrived at, including the vulnerabilities behind them."
 ---
 
-# Security history
-
 How the invariants in [security.md](/docs/internals/security) were arrived at. Each section
 is the investigation that produced one of them, kept because the reasoning is
 what tells you whether a rule still applies when you change the code around it.

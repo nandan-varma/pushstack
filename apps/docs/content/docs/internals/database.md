@@ -4,7 +4,7 @@ description: "Tables, relations, indices and db:push."
 ---
 
 Neon (serverless Postgres) via `@neondatabase/serverless`, accessed through
-Drizzle ORM. Two schema files, merged in `apps/web/src/db/index.ts`:
+Drizzle ORM and Kit use the same 1.0 RC version. Two schema files define the tables:
 
 - **`apps/web/src/db/schema.ts`** — Better Auth's tables (`user`, `session`,
   `account`, `verification`).
@@ -14,6 +14,14 @@ Drizzle ORM. Two schema files, merged in `apps/web/src/db/index.ts`:
 
 Git data (commits, trees, blobs, refs) lives in R2, not here — see
 [git-storage.md](/docs/internals/git-storage). Postgres holds metadata only.
+
+`apps/web/src/db/relations.ts` combines the tables with `defineRelations`, using
+explicit joins and required relations for non-null foreign keys. Database
+initialization passes these relations to both Neon and local pglite. Relational
+queries use v2 object filters; raw subqueries must use the callback table for
+correlated columns because Drizzle aliases the outer table. Better Auth receives
+its auth schema explicitly in the adapter configuration. Local schema pushes use
+`drizzle-kit/api-postgres`.
 
 ## Better Auth's tables are hand-maintained
 
@@ -36,7 +44,9 @@ every storage key.
 |---|---|
 | `user`, `session`, `account`, `verification` | Better Auth. Sessions cascade on user delete. |
 | `repositories` | Name, owner, visibility, default branch, `nextIssueNumber` |
-| `issues` | Title, body, status, labels (`string[]`, default `[]`), `number` |
+| `issues` | Title, body, status and repository-scoped `number` |
+| `labels`, `threadLabels` | Repository labels and their application to the shared issue/PR number |
+| `issueAssignees` | Users assigned to an issue |
 | `pullRequests` | Source/target branch **names** (branches are git refs, not rows), status, merge metadata, `number` |
 | `comments` | On exactly one issue or pull request |
 | `stars` | Unique per (repo, user) |

@@ -9,4 +9,4 @@ Closes #
 <!-- Schema push needed? Library release? Follow-up issues? -->
 
 - [ ] `pnpm typecheck`, `pnpm check`, `pnpm test` pass
-- [ ] Docs updated (CLAUDE.md / docs/)
+- [ ] Docs updated (CLAUDE.md / apps/docs/content/docs/)
