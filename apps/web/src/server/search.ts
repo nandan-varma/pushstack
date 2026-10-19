@@ -1,10 +1,8 @@
 /** Search and activity-feed server functions; anonymous visitors see public data. */
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { repositories } from "#/db/app-schema";
-import { user } from "#/db/schema";
 import { listUserActivity } from "./activity";
 import { perfContext } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
@@ -23,16 +21,16 @@ export const searchRepositories = createServerFn({ method: "GET" })
 	.validator(searchSchema)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
-		const visible = currentUser
-			? or(
-					eq(repositories.visibility, "public"),
-					eq(repositories.ownerId, currentUser.id),
-				)
-			: eq(repositories.visibility, "public");
 		return db.query.repositories.findMany({
-			where: and(ilike(repositories.name, containing(data.query)), visible),
+			where: {
+				name: { ilike: containing(data.query) },
+				OR: [
+					{ visibility: "public" },
+					...(currentUser ? [{ ownerId: currentUser.id }] : []),
+				],
+			},
 			with: { owner: publicUserFields },
-			orderBy: [desc(repositories.updatedAt)],
+			orderBy: (table) => [desc(table.updatedAt)],
 			limit: data.limit,
 		});
 	});
@@ -43,10 +41,12 @@ export const searchUsers = createServerFn({ method: "GET" })
 	.handler(({ data }) =>
 		db.query.user.findMany({
 			...publicUserFields,
-			where: or(
-				ilike(user.name, containing(data.query)),
-				ilike(user.username, containing(data.query)),
-			),
+			where: {
+				OR: [
+					{ name: { ilike: containing(data.query) } },
+					{ username: { ilike: containing(data.query) } },
+				],
+			},
 			limit: data.limit,
 		}),
 	);

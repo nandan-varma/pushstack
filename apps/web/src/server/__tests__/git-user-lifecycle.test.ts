@@ -172,7 +172,6 @@ beforeAll(async () => {
 	// Import after env + mocks are wired up (matches git-integration.test.ts's pattern).
 	const { db } = await import("../../db");
 	const { user } = await import("../../db/schema");
-	const { tokens } = await import("../../db/app-schema");
 
 	await db.insert(user).values({
 		id: TEST_USER.id,
@@ -185,6 +184,7 @@ beforeAll(async () => {
 	});
 
 	// Seed the token row directly: only its hash is stored.
+	const { tokens } = await import("../../db/app-schema");
 	await db.insert(tokens).values({
 		userId: TEST_USER.id,
 		name: "lifecycle-test-token",
@@ -527,18 +527,17 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	it("deletes the user (and cascades their token)", async () => {
 		const { db } = await import("../../db");
 		const { user } = await import("../../db/schema");
-		const { tokens } = await import("../../db/app-schema");
 		const { eq } = await import("drizzle-orm");
 
 		await db.delete(user).where(eq(user.id, TEST_USER.id));
 
 		const remainingUser = await db.query.user.findFirst({
-			where: eq(user.id, TEST_USER.id),
+			where: { id: TEST_USER.id },
 		});
 		expect(remainingUser).toBeUndefined();
 
 		const remainingTokens = await db.query.tokens.findFirst({
-			where: eq(tokens.userId, TEST_USER.id),
+			where: { userId: TEST_USER.id },
 		});
 		expect(remainingTokens).toBeUndefined();
 	});

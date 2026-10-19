@@ -35,7 +35,7 @@ One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-acce
 
 **Adding a dependency**: edit the workspace's `package.json`, then `echo "Y" | pnpm install`.
 
-**Don't trust the pnpm deprecation warning about `package.json`'s `"pnpm"` field.** On the pinned `packageManager` version, `pnpm install` claims `The "pnpm" field in package.json is no longer read`, but `pnpm-workspace.yaml`'s `overrides` has no effect here while `package.json`'s `"pnpm": { "overrides": {...} }` (the CVE-cap pins — see `docs/security.md`) works. Moving it once reintroduced 14 high-severity transitive vulnerabilities. Re-verify (override a throwaway dep, check `pnpm ls`) before acting on that warning after any pnpm/Node upgrade.
+**pnpm settings** live in `pnpm-workspace.yaml` (pnpm 12): `autoInstallPeers: false` (peers are declared explicitly — auto-installing optional peers once pulled all of Prisma in through better-auth/drizzle), `allowBuilds` (only listed packages may run install scripts), `permissions` (agent skills shipped in dependencies stay denied). There are no `overrides` and no audit exceptions: a vulnerable transitive dependency is fixed by upgrading or replacing what pulls it in.
 
 ## Architecture
 
@@ -75,7 +75,7 @@ One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-acce
 - `session.ts` — `getCurrentUser()` (throws) / `getCurrentUserOptional()`; `SessionUser.username` is always set.
 - `ttl-cache.ts` — bounded TTL cache with in-flight coalescing (access cache, repo-by-name cache).
 
-**Database**: Neon via `@neondatabase/serverless`, Drizzle ORM. `src/db/schema.ts` (Better Auth tables, hand-maintained) and `src/db/app-schema.ts` (app tables, typed `$type` columns). `pnpm db:push` is the only migration path. Before bumping `better-auth`, diff its core schema (`node_modules/@better-auth/core/dist/db/get-tables.mjs`) against `schema.ts`: a mismatch breaks sign-in at request time while build/typecheck/tests stay green (see `docs/database.md`).
+**Database**: Drizzle ORM + Kit 1.0 RC (kept on the same version). `src/db/relations.ts` uses `defineRelations`; relational queries use v2 object filters, and local schema pushes import `drizzle-kit/api-postgres`. Better Auth receives its schema explicitly. Neon via `@neondatabase/serverless`, Drizzle ORM. `src/db/schema.ts` (Better Auth tables, hand-maintained) and `src/db/app-schema.ts` (app tables, typed `$type` columns). `pnpm db:push` is the only migration path. Before bumping `better-auth`, diff its core schema (`node_modules/@better-auth/core/dist/db/get-tables.mjs`) against `schema.ts`: a mismatch breaks sign-in at request time while build/typecheck/tests stay green (see `docs/database.md`).
 
 **Auth**: Better Auth (`src/lib/auth.ts`) with the username plugin; usernames must match `STORAGE_NAME_RE` and can't change (they key storage). Emails (Resend, `src/lib/email.ts`) escape user content.
 

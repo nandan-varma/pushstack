@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
+import * as authSchema from "#/db/schema";
 import { rateLimitStorage } from "#/server/rate-limit";
 import { sendEmail } from "./email";
 import { MAX_USERNAME_LENGTH, STORAGE_NAME_RE } from "./storage-name";
@@ -50,6 +51,7 @@ const IMMUTABLE_USER_FIELDS = ["username", "displayUsername", "email"];
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
+		schema: authSchema,
 		provider: "pg",
 	}),
 	emailAndPassword: {

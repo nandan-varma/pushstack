@@ -290,9 +290,7 @@ export default function MarkdownRenderer({
 	);
 
 	return (
-		<div
-			className={`prose prose-slate dark:prose-invert max-w-none ${className}`}
-		>
+		<div className={`markdown-body ${className}`}>
 			<ReactMarkdown
 				remarkPlugins={remarkPlugins}
 				rehypePlugins={[rehypeHighlight]}

@@ -51,8 +51,9 @@ function tokenFromRequest(request: Request): string | null {
 export async function authenticateToken(
 	token: string,
 ): Promise<{ userId: string; scopes: TokenScope[] } | null> {
+	const tokenHash = await hashToken(token);
 	const found = await db.query.tokens.findFirst({
-		where: eq(tokens.tokenHash, await hashToken(token)),
+		where: { tokenHash: tokenHash },
 	});
 	if (!found || (found.expiresAt && found.expiresAt < new Date())) return null;
 	if (

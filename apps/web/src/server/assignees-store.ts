@@ -6,12 +6,7 @@
  */
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
-import {
-	issueAssignees,
-	repositories,
-	repositoryCollaborators,
-} from "#/db/app-schema";
-import { user } from "#/db/schema";
+import { issueAssignees, repositoryCollaborators } from "#/db/app-schema";
 import { MAX_ASSIGNEES } from "#/lib/limits";
 import { type PublicUser, publicUserFields } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
@@ -22,7 +17,7 @@ export async function listAssignableUsers(
 ): Promise<PublicUser[]> {
 	const repo = await db.query.repositories.findFirst({
 		columns: { ownerId: true },
-		where: eq(repositories.id, repoId),
+		where: { id: repoId },
 	});
 	if (!repo) return [];
 	const collaborators = await db
@@ -37,7 +32,7 @@ export async function listAssignableUsers(
 	const ids = [repo.ownerId, ...collaborators.map((c) => c.userId)];
 	const users = await db.query.user.findMany({
 		...publicUserFields,
-		where: inArray(user.id, ids),
+		where: { id: { in: ids } },
 	});
 	return users.sort((a, b) => a.username.localeCompare(b.username));
 }
@@ -58,7 +53,7 @@ export async function replaceIssueAssignees(
 		throw new Error(`An issue can have at most ${MAX_ASSIGNEES} assignees`);
 	}
 	const current = await db.query.issueAssignees.findMany({
-		where: eq(issueAssignees.issueId, issue.id),
+		where: { issueId: issue.id },
 		with: { user: publicUserFields },
 	});
 	const currentIds = new Set(current.map((a) => a.userId));

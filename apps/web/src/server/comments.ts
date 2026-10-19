@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { comments, issues, pullRequests } from "#/db/app-schema";
+import { comments } from "#/db/app-schema";
 import { MAX_BODY_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import {
@@ -29,12 +29,12 @@ async function findThread(thread: Thread) {
 		thread.issueId !== undefined
 			? await db.query.issues.findFirst({
 					columns: { number: true, title: true, body: true },
-					where: eq(issues.id, thread.issueId),
+					where: { id: thread.issueId },
 					with: { repository: true },
 				})
 			: await db.query.pullRequests.findFirst({
 					columns: { number: true, title: true, body: true },
-					where: eq(pullRequests.id, thread.pullRequestId),
+					where: { id: thread.pullRequestId },
 					with: { repository: true },
 				});
 	if (!row) throw notFound();
@@ -87,12 +87,14 @@ export const getComments = createServerFn({ method: "GET" })
 			throw notFound();
 		}
 		return db.query.comments.findMany({
-			where:
-				data.issueId !== undefined
-					? eq(comments.issueId, data.issueId)
-					: eq(comments.pullRequestId, data.pullRequestId),
+			where: {
+				RAW: (table) =>
+					data.issueId !== undefined
+						? eq(table.issueId, data.issueId)
+						: eq(table.pullRequestId, data.pullRequestId),
+			},
 			with: { author: publicUserFields },
-			orderBy: [comments.createdAt],
+			orderBy: (table) => [table.createdAt],
 		});
 	});
 
@@ -102,7 +104,7 @@ export const getComments = createServerFn({ method: "GET" })
  */
 async function requireCommentEditor(commentId: number, userId: string) {
 	const comment = await db.query.comments.findFirst({
-		where: eq(comments.id, commentId),
+		where: { id: commentId },
 	});
 	if (!comment) throw notFound();
 	if (comment.authorId === userId) {
@@ -163,10 +165,12 @@ export const deleteComment = createServerFn({ method: "POST" })
 		);
 		const others = await db.query.comments.findMany({
 			columns: { body: true },
-			where:
-				comment.issueId !== null
-					? eq(comments.issueId, comment.issueId)
-					: eq(comments.pullRequestId, comment.pullRequestId as number),
+			where: {
+				RAW: (table) =>
+					comment.issueId !== null
+						? eq(table.issueId, comment.issueId)
+						: eq(table.pullRequestId, comment.pullRequestId as number),
+			},
 		});
 		await removeCrossReferences(
 			thread.repository.id,

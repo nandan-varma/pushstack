@@ -6,15 +6,9 @@
  * missing one (404), so private repositories don't reveal they exist.
  */
 import { notFound } from "@tanstack/react-router";
-import { and, eq } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
-import {
-	type CollaboratorRole,
-	type Repository,
-	repositories,
-	repositoryCollaborators,
-} from "#/db/app-schema";
+import type { CollaboratorRole, Repository } from "#/db/app-schema";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import {
 	getCurrentUser,
@@ -103,10 +97,7 @@ async function getCollaboratorRole(
 ): Promise<CollaboratorRole | null> {
 	const row = await db.query.repositoryCollaborators.findFirst({
 		columns: { role: true },
-		where: and(
-			eq(repositoryCollaborators.repoId, repoId),
-			eq(repositoryCollaborators.userId, userId),
-		),
+		where: { repoId: repoId, userId: userId },
 	});
 	return row?.role ?? null;
 }
@@ -147,7 +138,9 @@ export function getRepositoryAccess(
 		// The collaborator lookup runs alongside the repo fetch: most callers
 		// aren't owners, and for those that are it's one wasted query.
 		const [repository, collaboratorRole] = await Promise.all([
-			db.query.repositories.findFirst({ where: eq(repositories.id, repoId) }),
+			db.query.repositories.findFirst({
+				where: { id: repoId },
+			}),
 			userId ? getCollaboratorRole(repoId, userId) : null,
 		]);
 		return repository
@@ -238,7 +231,7 @@ export type RepositoryWithOwner = Repository & {
 
 async function withOwner(repoId: number): Promise<RepositoryWithOwner> {
 	const repository = await db.query.repositories.findFirst({
-		where: eq(repositories.id, repoId),
+		where: { id: repoId },
 		with: { owner: { columns: { id: true, username: true } } },
 	});
 	if (!repository) throw notFound();

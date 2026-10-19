@@ -1,10 +1,8 @@
 /** Server functions for issue assignees. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues } from "#/db/app-schema";
 import { MAX_ASSIGNEES } from "#/lib/limits";
 import { listAssignableUsers, replaceIssueAssignees } from "./assignees-store";
 import { readWithAccess, requireWriteAccess } from "./repo-access";
@@ -30,7 +28,7 @@ export const setIssueAssignees = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const issue = await db.query.issues.findFirst({
-			where: eq(issues.id, data.issueId),
+			where: { id: data.issueId },
 		});
 		if (!issue) throw notFound();
 		await requireWriteAccess(issue.repoId, currentUser.id);

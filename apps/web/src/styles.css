@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import "./shadcn-tailwind.css";
 @import "@fontsource-variable/geist";
-@plugin '@tailwindcss/typography';
+@import "./markdown-body.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -137,6 +137,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@layer base {
 a {
   color: inherit;
 }
@@ -156,6 +157,8 @@ pre code {
   border-radius: 0;
   font-size: inherit;
   color: inherit;
+}
+
 }
 
 .shiki,
@@ -348,32 +351,8 @@ pre code {
   color: color-mix(in oklab, #ef4444 72%, black 28%);
 }
 
-.prose pre {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  /* Keep syntax blocks distinct without introducing a competing blue theme. */
-  background: oklch(0.205 0 0);
-  color: oklch(0.985 0 0);
-  box-shadow: 0 1px 2px oklch(0 0 0 / 0.12);
-}
-
-/* Tailwind Typography wraps inline `code` in literal backticks via
-   ::before/::after content; suppress that and use a background instead. */
-.prose :not(pre) > code {
-  background: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0.15em 0.4em;
-  font-weight: 400;
-}
-
-.prose :not(pre) > code::before,
-.prose :not(pre) > code::after {
-  content: none;
-}
-
 /* rehype-highlight (highlight.js) token colors for fenced code blocks in
-   rendered markdown. `.prose pre` above is always dark, so this mirrors the
+   rendered markdown. `.markdown-body pre` is always dark, so this mirrors the
    github-dark palette unconditionally rather than gating on `.dark`. */
 .hljs-doctag,
 .hljs-keyword,
