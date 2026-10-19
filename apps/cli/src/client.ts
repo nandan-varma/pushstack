@@ -43,6 +43,14 @@ export async function connect(
 		const url = new URL(
 			/^https?:\/\//.test(path) ? path : `${root}/${path.replace(/^\/+/, "")}`,
 		);
+		if (
+			url.origin !== new URL(root).origin ||
+			!url.pathname.startsWith("/api/v3/")
+		) {
+			throw new CliError(
+				"request URL must belong to the selected host's /api/v3 API",
+			);
+		}
 		for (const [key, value] of Object.entries(options.query ?? {})) {
 			if (value !== undefined) url.searchParams.set(key, String(value));
 		}
@@ -61,7 +69,12 @@ export async function connect(
 			if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
 				headers["content-type"] = "application/json";
 		}
-		return io.fetch(url, { method: options.method ?? "GET", headers, body });
+		return io.fetch(url, {
+			method: options.method ?? "GET",
+			headers,
+			body,
+			redirect: "error",
+		});
 	}
 
 	async function json<T>(path: string, options: RequestOptions = {}) {

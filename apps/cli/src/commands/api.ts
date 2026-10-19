@@ -18,7 +18,9 @@ async function typed(value: string) {
 function splitField(field: string) {
 	const index = field.indexOf("=");
 	if (index < 1) {
-		throw new CliError(`field "${field}" requires a value separated by an '=' sign`);
+		throw new CliError(
+			`field "${field}" requires a value separated by an '=' sign`,
+		);
 	}
 	return [field.slice(0, index), field.slice(index + 1)] as const;
 }
@@ -62,7 +64,9 @@ export async function apiCommand(io: Io, args: string[]) {
 	if (values.input && hasFields) {
 		throw new CliError("--input cannot be combined with -f/-F");
 	}
-	const method = (values.method ?? (hasFields || values.input ? "POST" : "GET")).toUpperCase();
+	const method = (
+		values.method ?? (hasFields || values.input ? "POST" : "GET")
+	).toUpperCase();
 
 	const headers: Record<string, string> = {};
 	for (const h of values.header ?? []) {
@@ -74,9 +78,14 @@ export async function apiCommand(io: Io, args: string[]) {
 	let body: string | undefined;
 	let query: Record<string, string> | undefined;
 	if (values.input) {
-		body = values.input === "-" ? await io.readStdin() : await readFile(values.input, "utf8");
+		body =
+			values.input === "-"
+				? await io.readStdin()
+				: await readFile(values.input, "utf8");
 	} else if (hasFields && (method === "GET" || method === "HEAD")) {
-		query = Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, String(v)]));
+		query = Object.fromEntries(
+			Object.entries(fields).map(([k, v]) => [k, String(v)]),
+		);
 	} else if (hasFields) {
 		body = JSON.stringify(fields);
 	}
@@ -99,7 +108,8 @@ export async function apiCommand(io: Io, args: string[]) {
 			});
 			io.stdout(`${head}\n`);
 		}
-		if (!values.silent && text) io.stdout(text.endsWith("\n") ? text : `${text}\n`);
+		if (!values.silent && text)
+			io.stdout(text.endsWith("\n") ? text : `${text}\n`);
 		if (!response.ok) {
 			let message = response.statusText;
 			try {

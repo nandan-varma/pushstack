@@ -172,7 +172,13 @@ async function create(io: Io, args: string[]) {
 			"repository name required: pst repo create <name> --public|--private",
 		);
 	}
-	for (const flag of ["clone", "source", "remote", "push", "internal"] as const) {
+	for (const flag of [
+		"clone",
+		"source",
+		"remote",
+		"push",
+		"internal",
+	] as const) {
 		if (values[flag]) {
 			throw new CliError(`--${flag} is not supported yet`);
 		}
@@ -181,18 +187,29 @@ async function create(io: Io, args: string[]) {
 	if (visibilityFlags.length !== 1) {
 		throw new CliError("one of --public or --private required");
 	}
+	const argument = positionals[0] as string;
+	const parts = argument.split("/");
+	if (
+		parts.length > 2 ||
+		parts.some(
+			(part) =>
+				!/^[a-zA-Z0-9_.-]+$/.test(part) || part === "." || part === "..",
+		)
+	) {
+		throw new CliError(`invalid repository name "${argument}"`);
+	}
+	if (values.homepage !== undefined)
+		throw new CliError("--homepage is not supported yet");
+	const name = parts.at(-1) as string;
 	const host = resolveHost(io, values.hostname);
 	const client = await connect(io, host, true);
-	const [first, second] = (positionals[0] as string).split("/");
-	const name = second ?? first;
-	if (!name || (second && !first) || positionals[0]?.split("/").length! > 2) {
-		throw new CliError(`invalid repository name "${positionals[0]}"`);
-	}
-	const me = client.credentials?.user ?? (await client.json<{ login: string }>("user")).data.login;
-	if (second && first !== me) {
-		throw new CliError(
-			`cannot create ${first}/${second}: PushStack has no organizations, repositories can only be created under ${me}`,
-		);
+	if (parts.length === 2) {
+		const me = (await client.json<{ login: string }>("user")).data.login;
+		if (parts[0] !== me) {
+			throw new CliError(
+				`cannot create ${argument}: repositories can only be created under ${me}`,
+			);
+		}
 	}
 	const { data: repo } = await client.json<Repo>("user/repos", {
 		method: "POST",

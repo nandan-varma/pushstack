@@ -6,8 +6,14 @@ export interface RepoRef {
 }
 
 export function parseRepoArg(arg: string): RepoRef {
-	const match = arg.match(/^([^/\s]+)\/([^/\s]+)$/);
-	if (!match) {
+	const match = arg.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+	if (
+		!match ||
+		match[1] === "." ||
+		match[1] === ".." ||
+		match[2] === "." ||
+		match[2] === ".."
+	) {
 		throw new CliError(`expected the "OWNER/REPO" format, got "${arg}"`);
 	}
 	return { owner: match[1] as string, name: match[2] as string };

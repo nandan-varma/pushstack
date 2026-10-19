@@ -20,7 +20,7 @@ const options = {
 } as const;
 
 function mask(token: string) {
-	return `${token.slice(0, 4)}${"*".repeat(Math.max(0, token.length - 4))}`;
+	return `${token.length > 4 ? token.slice(0, 4) : ""}${"*".repeat(token.length > 4 ? token.length - 4 : token.length)}`;
 }
 
 async function login(io: Io, args: string[]) {
@@ -71,7 +71,12 @@ async function status(io: Io, args: string[]) {
 	const hosts = await readHosts(io);
 	const names = values.hostname
 		? [values.hostname]
-		: [...new Set([...Object.keys(hosts), ...(io.env.PST_TOKEN ? [resolveHost(io, undefined)] : [])])];
+		: [
+				...new Set([
+					...Object.keys(hosts),
+					...(io.env.PST_TOKEN ? [resolveHost(io, undefined)] : []),
+				]),
+			];
 	if (names.length === 0) {
 		throw new CliError(
 			"You are not logged into any PushStack hosts. To log in, run: pst auth login --with-token",
