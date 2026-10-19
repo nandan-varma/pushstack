@@ -4,28 +4,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Read `CONTEXT.md` (gitignored, local) first: goal, constraints, how work is organized (including the `git-fs-s3`/`git-edge` libraries, which are managed in the same loop) and the self-improvement rule: when a workflow step is slow or fails, fix the process (docs, tests, scripts) right away. The main agent orchestrates; implementation goes to subagents (Sonnet, in isolated worktrees) working from GitHub issues and opening PRs. **The product's goal is GitHub compatibility** — match GitHub's behavior, names and API.
 
+## Layout
+
+A pnpm + Turborepo monorepo:
+
+- `apps/web` — the product: TanStack Start app, `/api/v3` REST API, git smart-HTTP. Deployed to Vercel (project root `apps/web`, build `turbo run build --filter=@pushstack/web`, see `apps/web/vercel.json`). **Every app path in this file (`src/…`, `scripts/…`, `e2e/…`) is relative to `apps/web`.** Its env file is `apps/web/.env.local`.
+- `packages/git-fs-s3`, `packages/git-edge` — our git libraries (imported with full history; published to npm under those names). The app depends on them as `workspace:*` and imports their built `dist/`; turbo builds them first (`dependsOn: ["^build"]`).
+- Root: tooling only — `turbo.json` (task graph; build-time env vars must be listed there, turbo's strict env mode hides the rest), one `biome.json` for every workspace, husky + lint-staged.
+
 ## Commands
 
+Run from the root; turbo runs the task in every workspace that has it, dependencies first, with caching.
+
 ```bash
-pnpm dev           # dev server on :3000
-pnpm dev:local     # fully local dev server: pglite + on-disk git under .pushstack-local/, emails print to the terminal
-pnpm build         # production build (Vercel, via nitro's "vercel" preset)
-pnpm typecheck     # tsc --noEmit
-pnpm test          # vitest (unit + behavior, jsdom/node)
-pnpm test:watch    # vitest watch mode
-pnpm test:e2e      # playwright E2E
-pnpm smoke:git     # native git CLI against a live dev server (scratch HOME; never touches your git config)
-pnpm check         # biome lint + format check
+pnpm dev           # web dev server on :3000 (after building the packages)
+pnpm dev:local     # fully local dev server: pglite + on-disk git under apps/web/.pushstack-local/, emails print to the terminal
+pnpm build         # all builds; the web app's is the Vercel build (nitro's "vercel" preset)
+pnpm typecheck     # tsc --noEmit everywhere
+pnpm test          # vitest everywhere (web: unit + behavior, jsdom/node)
+pnpm smoke:git     # native git CLI against the app's smart-HTTP route (scratch HOME; never touches your git config)
+pnpm check         # biome lint + format check, whole repo
 pnpm format        # biome format (write)
 pnpm db:push       # push the schema to Neon — the only migration path (no migration files)
 pnpm db:studio     # drizzle studio UI
 ```
 
-Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
+One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts`, `pnpm --filter git-fs-s3 test`, `pnpm --filter @pushstack/web test:e2e`. After editing a library while `pnpm dev` runs, rebuild it (`pnpm exec turbo run build --filter=git-fs-s3`) and restart the dev server.
 
-**Workspace**: a pnpm workspace — the app at the root plus the libraries in `packages/git-fs-s3` and `packages/git-edge` (imported with history; still published to npm under those names). The app depends on them as `workspace:*` and imports their built `dist/`: `pnpm install` builds them (`prepare`); after editing a library run `pnpm build:packages` (and restart the dev server). Library checks: `pnpm check:packages`, `pnpm test:packages`; each package keeps its own biome/tsconfig/vitest. Release: bump the package's version and CHANGELOG, then `git tag -m "git-fs-s3 vX.Y.Z" git-fs-s3@vX.Y.Z` and push the tag — `.github/workflows/release-packages.yml` publishes with OIDC.
+**Releasing a library**: bump its `package.json` version and CHANGELOG, commit, then `git tag -m "git-fs-s3 vX.Y.Z" git-fs-s3@vX.Y.Z` and push the tag — `.github/workflows/release-packages.yml` checks, builds and publishes with npm trusted publishing (OIDC). Never delete or move a pushed tag; release a new patch instead.
 
-**pnpm install quirk**: `pnpm-workspace.yaml` must list `'.'` in `packages` or `pnpm add` / `pnpm install` fail with "packages field missing or empty". To add a dependency, edit `package.json` directly then run `echo "Y" | pnpm install`.
+**Adding a dependency**: edit the workspace's `package.json`, then `echo "Y" | pnpm install`.
 
 **Don't trust the pnpm deprecation warning about `package.json`'s `"pnpm"` field.** On the pinned `packageManager` version, `pnpm install` claims `The "pnpm" field in package.json is no longer read`, but `pnpm-workspace.yaml`'s `overrides` has no effect here while `package.json`'s `"pnpm": { "overrides": {...} }` (the CVE-cap pins — see `docs/security.md`) works. Moving it once reintroduced 14 high-severity transitive vulnerabilities. Re-verify (override a throwaway dep, check `pnpm ls`) before acting on that warning after any pnpm/Node upgrade.
 

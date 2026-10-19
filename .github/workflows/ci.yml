@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        script: [check, typecheck, test, build]
+        task: [typecheck, test, build]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -28,13 +28,11 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ${{ matrix.script }}
+      # Every workspace (apps/*, packages/*) through turbo's task graph.
+      - run: pnpm exec turbo run ${{ matrix.task }}
 
-  packages:
+  check:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        script: [check:packages, test:packages]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -43,7 +41,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ${{ matrix.script }}
+      # One biome config for the whole repository.
+      - run: pnpm check
 
   audit:
     runs-on: ubuntu-latest

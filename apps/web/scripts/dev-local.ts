@@ -55,7 +55,8 @@ const env: NodeJS.ProcessEnv = {
 	PUSHSTACK_LOCAL_DIR: localDir,
 	BETTER_AUTH_URL: "http://localhost:3000",
 	BETTER_AUTH_SECRET:
-		process.env.BETTER_AUTH_SECRET || "pushstack-local-dev-secret-not-for-production",
+		process.env.BETTER_AUTH_SECRET ||
+		"pushstack-local-dev-secret-not-for-production",
 };
 
 console.info(`[dev:local] data in ${localDir}`);

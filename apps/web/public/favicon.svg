@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+	<title>PushStack</title>
 	<circle cx="6" cy="5" r="2.4" fill="#0B7A70" />
 	<circle cx="6" cy="19" r="2.4" fill="#0B7A70" />
 	<circle cx="18" cy="12" r="2.4" fill="#0B7A70" />
