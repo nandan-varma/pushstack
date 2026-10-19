@@ -14,7 +14,7 @@ import {
 } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
-import { recordCrossReferences } from "./timeline-store";
+import { recordCrossReferences, removeCrossReferences } from "./timeline-store";
 
 /** Exactly one of an issue id or a pull request id (row ids, not `#N`). */
 const threadSchema = z.union([
@@ -28,12 +28,12 @@ async function findThread(thread: Thread) {
 	const row =
 		thread.issueId !== undefined
 			? await db.query.issues.findFirst({
-					columns: { number: true, title: true },
+					columns: { number: true, title: true, body: true },
 					where: eq(issues.id, thread.issueId),
 					with: { repository: true },
 				})
 			: await db.query.pullRequests.findFirst({
-					columns: { number: true, title: true },
+					columns: { number: true, title: true, body: true },
 					where: eq(pullRequests.id, thread.pullRequestId),
 					with: { repository: true },
 				});
@@ -155,5 +155,24 @@ export const deleteComment = createServerFn({ method: "POST" })
 		const currentUser = await getCurrentUser();
 		const comment = await requireCommentEditor(data.commentId, currentUser.id);
 		await db.delete(comments).where(eq(comments.id, comment.id));
+		// GitHub drops the "mentioned in" events a deleted comment created.
+		const thread = await findThread(
+			comment.issueId !== null
+				? { issueId: comment.issueId }
+				: { pullRequestId: comment.pullRequestId as number },
+		);
+		const others = await db.query.comments.findMany({
+			columns: { body: true },
+			where:
+				comment.issueId !== null
+					? eq(comments.issueId, comment.issueId)
+					: eq(comments.pullRequestId, comment.pullRequestId as number),
+		});
+		await removeCrossReferences(
+			thread.repository.id,
+			thread.number,
+			comment.body,
+			[thread.body, ...others.map((other) => other.body)],
+		);
 		return { success: true };
 	});
