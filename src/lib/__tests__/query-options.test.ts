@@ -164,6 +164,7 @@ describe("queryKeys", () => {
 				"issues",
 				"open",
 				[],
+				null,
 			]);
 			expect(queryKeys.repoIssues(1, "all")).toEqual([
 				"repos",
@@ -171,6 +172,7 @@ describe("queryKeys", () => {
 				"issues",
 				"all",
 				[],
+				null,
 			]);
 		});
 	});
