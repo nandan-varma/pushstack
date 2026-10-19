@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { BranchUpdateBanner } from "@/components/repo/BranchUpdateBanner";
+import { GuestSignupBanner } from "@/components/repo/GuestSignupBanner";
 import { RepoHeader, RepoHeaderSkeleton } from "@/components/repo/RepoHeader";
 import { RepoTabNav, RepoTabNavSkeleton } from "@/components/repo/RepoTabNav";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,7 @@ function RepositoryPage() {
 
 	return (
 		<div className="page-wrap px-4 py-8">
+			<GuestSignupBanner repoLabel={`${owner}/${name}`} />
 			<RepoHeader owner={owner} name={name} repo={repo} />
 			<RepoTabNav
 				owner={owner}

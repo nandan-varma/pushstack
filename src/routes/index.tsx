@@ -6,12 +6,11 @@ import {
 	GitBranch,
 	GitPullRequest,
 	LockKeyhole,
-	MessageSquare,
 	Sparkles,
-	Terminal,
 } from "lucide-react";
+import { LiveRepoPreview } from "../components/home/LiveRepoPreview";
 import { Button } from "../components/ui/button";
-import { SITE_URL } from "../lib/site";
+import { DEMO_REPO, SITE_URL } from "../lib/site";
 
 export const Route = createFileRoute("/")({
 	head: () => ({ links: [{ rel: "canonical", href: SITE_URL }] }),
@@ -83,14 +82,17 @@ function App() {
 								className="h-11 px-5 text-sm"
 								asChild
 							>
-								<Link to="/repositories">Explore repositories</Link>
+								<Link to="/repo/$owner/$name" params={DEMO_REPO}>
+									Explore a live repo
+								</Link>
 							</Button>
 						</div>
 						<p
 							className="rise-in mt-5 text-sm text-muted-foreground"
 							style={{ animationDelay: "320ms" }}
 						>
-							No migration ceremony. Just point your remote and push.
+							No sign-up needed to look around: browse our own source, issues
+							and pull requests below.
 						</p>
 					</div>
 
@@ -99,82 +101,7 @@ function App() {
 						style={{ animationDelay: "400ms" }}
 					>
 						<div className="absolute -inset-x-8 -bottom-12 -z-10 h-40 bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--foreground)_10%,transparent),transparent_65%)] blur-2xl" />
-						<div className="overflow-hidden rounded-xl border border-border bg-card text-left shadow-2xl shadow-foreground/10">
-							<div className="flex h-11 items-center justify-between border-b border-border bg-muted/60 px-4 sm:px-5">
-								<div className="flex items-center gap-2 text-sm font-medium">
-									<span className="size-2 rounded-full bg-emerald-500" />
-									pushstack / pushstack
-								</div>
-								<span className="hidden rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground sm:block">
-									main
-								</span>
-							</div>
-							<div className="grid lg:grid-cols-[1fr_1.12fr]">
-								<div className="border-b border-border p-5 sm:p-7 lg:border-r lg:border-b-0">
-									<p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-										Shipping now
-									</p>
-									<h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
-										Make code hosting feel like a tool, not a destination.
-									</h2>
-									<div className="mt-6 space-y-3">
-										<div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
-											<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
-												<GitPullRequest className="size-4" />
-											</span>
-											<div className="min-w-0">
-												<p className="truncate text-sm font-medium">
-													Improve the homepage conversion flow
-												</p>
-												<p className="mt-0.5 text-xs text-muted-foreground">
-													#42 · Ready for review
-												</p>
-											</div>
-											<span className="ml-auto size-2 shrink-0 rounded-full bg-amber-400" />
-										</div>
-										<div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
-											<span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
-												<MessageSquare className="size-4" />
-											</span>
-											<div>
-												<p className="text-sm font-medium">
-													One thoughtful review
-												</p>
-												<p className="mt-0.5 text-xs text-muted-foreground">
-													The context stays with the code.
-												</p>
-											</div>
-										</div>
-									</div>
-								</div>
-								<div className="bg-[#101110] p-5 font-mono text-xs leading-6 text-zinc-300 sm:p-7">
-									<div className="mb-5 flex items-center gap-2 text-zinc-500">
-										<Terminal className="size-4" /> Your existing workflow
-									</div>
-									<p>
-										<span className="text-emerald-400">$</span> git remote add
-										pushstack https://git.nandan.fyi/you/repo.git
-									</p>
-									<p>
-										<span className="text-emerald-400">$</span> git push
-										pushstack main
-									</p>
-									<p className="mt-3 text-zinc-500">
-										Enumerating objects: 18, done.
-									</p>
-									<p className="text-zinc-500">
-										Writing objects to R2: 100% (18/18), done.
-									</p>
-									<p className="mt-3 text-emerald-400">
-										✓ main updated · review ready
-									</p>
-									<p className="mt-4">
-										<span className="text-emerald-400">$</span>{" "}
-										<span className="animate-pulse">_</span>
-									</p>
-								</div>
-							</div>
-						</div>
+						<LiveRepoPreview />
 					</div>
 				</div>
 			</section>
