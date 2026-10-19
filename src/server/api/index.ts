@@ -3,7 +3,7 @@
  * authenticates, matches the route table, runs the handler and renders
  * GitHub-shaped errors. Add an endpoint by adding a row to {@link ROUTES}.
  */
-import { isGitNotFoundError } from "../git-errors";
+import { isNotFoundError } from "git-fs-s3";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import { type ApiContext, authenticateRequest } from "./auth";
 import { getBranch, listBranches } from "./branches";
@@ -142,7 +142,7 @@ async function dispatch(
 			: response;
 	} catch (error) {
 		if (error instanceof ApiError) return errorResponse(error);
-		if (isGitNotFoundError(error)) return errorResponse(notFoundError());
+		if (isNotFoundError(error)) return errorResponse(notFoundError());
 		logError("api", `${request.method} ${pathname} failed`, error);
 		return errorResponse(new ApiError(500, "Server Error"));
 	}
