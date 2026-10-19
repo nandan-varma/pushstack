@@ -147,11 +147,21 @@ async function collect(
 		>(
 			next,
 			first
-				? { query: { per_page: Math.min(100, limit), visibility } }
+				? {
+						query: {
+							per_page: Math.min(100, limit),
+							visibility,
+							affiliation: path === "user/repos" ? "owner" : undefined,
+						},
+					}
 				: undefined,
 		);
 		first = false;
-		repos.push(...page.data);
+		repos.push(
+			...page.data.filter(
+				(repo) => !visibility || repo.visibility === visibility,
+			),
+		);
 		next = nextLink(page.response);
 	}
 	return repos.slice(0, limit);

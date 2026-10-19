@@ -136,6 +136,24 @@ describe("CLI requests", () => {
 		await writeHosts(io, {});
 	});
 
+	it("auth status sends an environment token only to its selected host", async () => {
+		const { io, fetchMock } = await fixture();
+		await writeHosts(io, {
+			"git.nandan.fyi": { user: "alice", token: "saved-primary" },
+			"secondary.example": { user: "bob", token: "saved-secondary" },
+		});
+		io.env.PST_TOKEN = "environment-secret";
+		fetchMock.mockResolvedValue(json({ login: "alice" }));
+		expect(await run(["auth", "status"], io)).toBe(0);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+			"https://git.nandan.fyi/api/v3/user",
+		);
+		expect(io.stdout).not.toHaveBeenCalledWith(
+			expect.stringContaining("secondary.example"),
+		);
+	});
+
 	it.each(["evil.example/path", "user@evil.example", "evil.example?x=1"])(
 		"rejects invalid host %s",
 		async (host) => {

@@ -71,12 +71,9 @@ async function status(io: Io, args: string[]) {
 	const hosts = await readHosts(io);
 	const names = values.hostname
 		? [values.hostname]
-		: [
-				...new Set([
-					...Object.keys(hosts),
-					...(io.env.PST_TOKEN ? [resolveHost(io, undefined)] : []),
-				]),
-			];
+		: io.env.PST_TOKEN
+			? [resolveHost(io, undefined)]
+			: Object.keys(hosts);
 	if (names.length === 0) {
 		throw new CliError(
 			"You are not logged into any PushStack hosts. To log in, run: pst auth login --with-token",

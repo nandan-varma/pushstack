@@ -17,7 +17,7 @@ vi.mock(
 const { createUsers, signIn } = await import("../../test/app-harness");
 const { handleApiRequest } = await import("../api");
 const { createToken } = await import("../tokens");
-const users = await createUsers("alice");
+const users = await createUsers("alice", "bob");
 const configDir = await mkdtemp(join(tmpdir(), "pst-contract-"));
 let token: string;
 let stdout = "";
@@ -140,6 +140,76 @@ describe("CLI against the real REST dispatcher", () => {
 		expect(JSON.parse(privateOnly.stdout)).toEqual([{ name: "secret" }]);
 	});
 
+	it("limits own listings to owned repositories rather than collaborations", async () => {
+		signIn(users.bob);
+		const bobToken = (
+			await createToken({
+				data: {
+					name: "collaboration",
+					scopes: ["repo:write"],
+					lifetimeDays: null,
+				},
+			})
+		).token;
+		const response = await handleApiRequest(
+			new Request("http://localhost:3000/api/v3/user/repos", {
+				method: "POST",
+				headers: {
+					authorization: `token ${bobToken}`,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ name: "collaborated", private: true }),
+			}),
+		);
+		expect(response.status).toBe(201);
+		const repo = (await response.json()) as { id: number };
+		const publicResponse = await handleApiRequest(
+			new Request("http://localhost:3000/api/v3/user/repos", {
+				method: "POST",
+				headers: {
+					authorization: `token ${bobToken}`,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ name: "bob-public" }),
+			}),
+		);
+		expect(publicResponse.status).toBe(201);
+		const { addCollaboratorByUsername } = await import("../repositories");
+		await addCollaboratorByUsername({
+			data: { repoId: repo.id, username: "alice", role: "read" },
+		});
+		for (const args of [[], ["alice"]]) {
+			const result = await invoke(
+				"repo",
+				"list",
+				...args,
+				"--json",
+				"nameWithOwner",
+			);
+			expect(result.code, result.stderr).toBe(0);
+			expect(JSON.parse(result.stdout)).toEqual([
+				{ nameWithOwner: "alice/public" },
+				{ nameWithOwner: "alice/secret" },
+			]);
+		}
+	});
+
+	it("does not show public repositories when another owner's private visibility is requested", async () => {
+		const privateOnly = await invoke(
+			"repo",
+			"list",
+			"bob",
+			"--visibility",
+			"private",
+			"--json",
+			"name",
+		);
+		expect(privateOnly.code, privateOnly.stderr).toBe(0);
+		expect(JSON.parse(privateOnly.stdout)).toEqual([]);
+		// Alice can read Bob's shared private repository, but this API endpoint
+		// intentionally exposes only public repositories, matching GitHub.
+	});
+
 	it("lists the environment token owner's private repositories without stored credentials", async () => {
 		const environmentDir = await mkdtemp(join(tmpdir(), "pst-env-contract-"));
 		const storedDir = io.configDir;
@@ -166,7 +236,11 @@ describe("CLI against the real REST dispatcher", () => {
 	});
 
 	it("follows real Link pagination and preserves authentication", async () => {
-		const result = await invoke("api", "user/repos?per_page=1", "--paginate");
+		const result = await invoke(
+			"api",
+			"user/repos?per_page=1&affiliation=owner",
+			"--paginate",
+		);
 		expect(result.code, result.stderr).toBe(0);
 		const pages = result.stdout
 			.trim()
