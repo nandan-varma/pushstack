@@ -42,7 +42,7 @@
     "lint": "biome check src/ test/",
     "lint:fix": "biome check --write src/ test/",
     "format": "biome format --write src/ test/",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
   },
   "keywords": [
     "git",
@@ -60,10 +60,11 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nandan-varma/git-fs-s3.git"
+    "url": "git+https://github.com/nandan-varma/pushstack.git",
+    "directory": "packages/git-fs-s3"
   },
   "bugs": {
-    "url": "https://github.com/nandan-varma/git-fs-s3/issues"
+    "url": "https://github.com/nandan-varma/pushstack/issues"
   },
   "homepage": "https://github.com/nandan-varma/git-fs-s3#readme",
   "publishConfig": {

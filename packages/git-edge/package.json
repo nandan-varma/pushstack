@@ -22,7 +22,7 @@
     "lint": "biome check src/ test/",
     "lint:fix": "biome check --write src/ test/",
     "format": "biome format --write src/ test/",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
   },
   "keywords": [
     "git",
@@ -37,10 +37,11 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nandan-varma/git-edge.git"
+    "url": "git+https://github.com/nandan-varma/pushstack.git",
+    "directory": "packages/git-edge"
   },
   "bugs": {
-    "url": "https://github.com/nandan-varma/git-edge/issues"
+    "url": "https://github.com/nandan-varma/pushstack/issues"
   },
   "homepage": "https://github.com/nandan-varma/git-edge#readme",
   "publishConfig": {
@@ -61,7 +62,7 @@
     "@biomejs/biome": "^2.5.15",
     "@types/node": "^26.6.5",
     "diff": "^9.0.0",
-    "git-fs-s3": "^0.12.1",
+    "git-fs-s3": "workspace:*",
     "isomorphic-git": "^1.44.3",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
