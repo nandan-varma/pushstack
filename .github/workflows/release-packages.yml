@@ -42,8 +42,8 @@ jobs:
       # the tarball with OIDC.
       - working-directory: packages/${{ steps.pkg.outputs.name }}
         run: |
-          pnpm pack --out package.tgz
-          npm publish package.tgz --access public --provenance
+          pnpm pack --pack-destination "$RUNNER_TEMP/pkg"
+          npm publish "$RUNNER_TEMP"/pkg/*.tgz --access public --provenance
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"
         env:
           GH_TOKEN: ${{ github.token }}

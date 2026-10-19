@@ -2,7 +2,12 @@
 
 This changelog is derived from this repository's release history; it is ordered newest first.
 
-## [0.6.1] - 2026-10-19
+## [0.6.2] - 2026-10-19
+
+- First release published from the monorepo (0.6.1 was tagged but its
+  publish failed).
+
+## [0.6.1] - 2026-10-19 (not published)
 
 ### Changed
 
