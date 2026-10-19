@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Read `CONTEXT.md` (gitignored, local) first: goal, constraints and how work is organized. The main agent orchestrates; implementation goes to subagents (Sonnet, in isolated worktrees) working from GitHub issues and opening PRs. **The product's goal is GitHub compatibility** — match GitHub's behavior, names and API.
+Read `CONTEXT.md` (gitignored, local) first: goal, constraints, how work is organized (including the `git-fs-s3`/`git-edge` libraries, which are managed in the same loop) and the self-improvement rule: when a workflow step is slow or fails, fix the process (docs, tests, scripts) right away. The main agent orchestrates; implementation goes to subagents (Sonnet, in isolated worktrees) working from GitHub issues and opening PRs. **The product's goal is GitHub compatibility** — match GitHub's behavior, names and API.
 
 ## Commands
 
