@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -9,12 +9,17 @@ import {
 	GitMerge,
 	type LucideIcon,
 	MessageSquareQuote,
+	Pencil,
 } from "lucide-react";
 import { CommentCard } from "@/components/CommentCard";
-import { timelineQueryOptions } from "@/lib/query-options";
+import { useToast } from "@/components/toast-provider";
+import { queryKeys, timelineQueryOptions } from "@/lib/query-options";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
+import { deleteComment, updateComment } from "@/server/comments";
 
-type Comment = Parameters<typeof CommentCard>[0]["comment"];
+type Comment = Parameters<typeof CommentCard>[0]["comment"] & {
+	authorId: string;
+};
 
 /**
  * An issue's or pull request's conversation as GitHub shows it: comments and
@@ -27,6 +32,10 @@ export function ThreadTimeline({
 	number,
 	comments,
 	onQuote,
+	viewerId,
+	canParticipate,
+	canModerate,
+	commentsQueryKey,
 }: {
 	owner: string;
 	name: string;
@@ -35,7 +44,33 @@ export function ThreadTimeline({
 	comments: Comment[];
 	/** Called with a comment's body when its "Quote reply" is used. */
 	onQuote?: (body: string) => void;
+	/** The signed-in user, if any: their own comments get Edit and Delete. */
+	viewerId?: string;
+	canParticipate: boolean;
+	/** Write collaborators may edit and delete anyone's comments. */
+	canModerate: boolean;
+	/** The comments query to refresh after an edit or delete. */
+	commentsQueryKey: readonly unknown[];
 }) {
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const refresh = () => {
+		queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+		queryClient.invalidateQueries({ queryKey: queryKeys.timelineRoot(repoId) });
+	};
+	const updateMutation = useMutation({
+		mutationFn: updateComment,
+		onSuccess: refresh,
+		onError: (err: Error) => toast(err.message || "Failed to edit", "error"),
+	});
+	const deleteMutation = useMutation({
+		mutationFn: deleteComment,
+		onSuccess: () => {
+			refresh();
+			toast("Comment deleted", "success");
+		},
+		onError: (err: Error) => toast(err.message || "Failed to delete", "error"),
+	});
 	const { data: events = [] } = useQuery(timelineQueryOptions(repoId, number));
 	const items = [
 		...comments.map((comment) => ({ kind: "comment" as const, comment })),
@@ -56,6 +91,20 @@ export function ThreadTimeline({
 						name={name}
 						repoId={repoId}
 						onQuote={onQuote}
+						{...(canModerate ||
+						(canParticipate && item.comment.authorId === viewerId)
+							? {
+									onSave: (body: string) =>
+										updateMutation.mutateAsync({
+											data: { commentId: item.comment.id, body },
+										}),
+									onDelete: () =>
+										deleteMutation.mutate({
+											data: { commentId: item.comment.id },
+										}),
+									isSaving: updateMutation.isPending,
+								}
+							: {})}
 					/>
 				) : (
 					<TimelineEventRow
@@ -194,6 +243,15 @@ function describe(
 				text: (
 					<>
 						deleted the <code className="font-mono">{event.branch}</code> branch
+					</>
+				),
+			};
+		case "renamed":
+			return {
+				icon: Pencil,
+				text: (
+					<>
+						changed the title <s>{event.from}</s> <b>{event.to}</b>
 					</>
 				),
 			};

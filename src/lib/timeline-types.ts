@@ -27,7 +27,9 @@ export type TimelineEvent =
 	| { event: "merged"; commitSha: string; base: string }
 	/** Another thread mentioned this one (`#N` in its body or a comment). */
 	| { event: "cross-referenced"; source: ThreadRef }
-	| { event: "head_ref_deleted"; branch: string };
+	| { event: "head_ref_deleted"; branch: string }
+	/** The title changed (GitHub's `renamed` issue event). */
+	| { event: "renamed"; from: string; to: string };
 
 export type TimelineEventType = TimelineEvent["event"];
 

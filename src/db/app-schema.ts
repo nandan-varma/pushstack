@@ -85,6 +85,8 @@ export const issues = pgTable(
 		status: text("status").$type<"open" | "closed">().notNull().default("open"),
 		labels: jsonb("labels").$type<string[]>().notNull().default([]),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		/** When the body was last edited by hand (the "edited" marker); null if never. */
+		editedAt: timestamptz("edited_at"),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 		closedAt: timestamptz("closed_at"),
 	},
@@ -127,6 +129,8 @@ export const pullRequests = pgTable(
 		baseSha: text("base_sha"),
 		headSha: text("head_sha"),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		/** When the body was last edited by hand (the "edited" marker); null if never. */
+		editedAt: timestamptz("edited_at"),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
@@ -158,6 +162,8 @@ export const comments = pgTable(
 			.references(() => user.id),
 		body: text("body").notNull(),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		/** When the body was last edited by hand (the "edited" marker); null if never. */
+		editedAt: timestamptz("edited_at"),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({

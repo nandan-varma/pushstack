@@ -8,13 +8,15 @@ import {
 } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
+import { CommentCard } from "@/components/CommentCard";
 import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
+import { EditableTitle } from "@/components/EditableTitle";
 import { EmptyState } from "@/components/EmptyState";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
@@ -23,7 +25,6 @@ import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard
 import { pullRequestStatusVariant } from "@/components/status-variants";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -44,14 +45,8 @@ import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-import { getInitials } from "@/lib/utils/avatar";
 import { createComment } from "@/server/comments";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
-
-// react-markdown/remark-gfm/rehype-highlight are lazy-loaded here (same
-// pattern as CommentCard.tsx/FilePreview.tsx) so this route's chunk doesn't
-// eagerly ship them to every visitor.
-const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 const PR_TABS = ["conversation", "commits", "files"] as const;
 type PrTab = (typeof PR_TABS)[number];
@@ -302,6 +297,7 @@ function PullRequestDetailPage() {
 	// permissions is what keeps the page from offering an action that can only
 	// fail — a Merge button for someone who may not merge.
 	const canMerge = pr.status === "open" && pr.viewer.canMerge;
+	const canEdit = pr.viewer.canWrite || session?.user?.id === pr.authorId;
 	const canChangeStatus =
 		pr.status !== "merged" &&
 		(pr.viewer.canWrite || session?.user?.id === pr.authorId);
@@ -310,7 +306,20 @@ function PullRequestDetailPage() {
 		<div className="space-y-6">
 			{/* Header */}
 			<DetailHeader
-				title={pr.title}
+				title={
+					<EditableTitle
+						title={pr.title}
+						onSave={
+							canEdit
+								? (title) =>
+										updateMutation.mutateAsync({
+											data: { prId: pr.id, title },
+										})
+								: undefined
+						}
+						isSaving={updateMutation.isPending}
+					/>
+				}
 				badge={
 					<Badge variant={pullRequestStatusVariant(pr.status)}>
 						{pr.status}
@@ -411,42 +420,22 @@ function PullRequestDetailPage() {
 				</TabsList>
 				<TabsContent value="conversation" className="space-y-6">
 					{/* Description */}
-					<Card className="p-6">
-						<div className="flex items-start gap-4">
-							<Avatar>
-								<AvatarImage src={pr.author?.image || undefined} />
-								<AvatarFallback>
-									{getInitials(pr.author?.name || "U")}
-								</AvatarFallback>
-							</Avatar>
-							<div className="flex-1">
-								<div className="flex items-center gap-2 mb-4">
-									<span className="font-medium text-foreground">
-										{pr.author.name}
-									</span>
-									<span className="text-sm text-muted-foreground">
-										{formatDistanceToNow(new Date(pr.createdAt), {
-											addSuffix: true,
-										})}
-									</span>
-								</div>
-								{pr.body ? (
-									<Suspense fallback={<Skeleton className="h-20" />}>
-										<MarkdownRenderer
-											content={pr.body}
-											owner={owner}
-											name={name}
-											repoId={pr.repoId}
-										/>
-									</Suspense>
-								) : (
-									<p className="text-muted-foreground italic">
-										No description provided
-									</p>
-								)}
-							</div>
-						</div>
-					</Card>
+					<CommentCard
+						comment={pr}
+						owner={owner}
+						name={name}
+						repoId={pr.repoId}
+						allowEmpty
+						isSaving={updateMutation.isPending}
+						onSave={
+							canEdit
+								? (body) =>
+										updateMutation.mutateAsync({
+											data: { prId: pr.id, body },
+										})
+								: undefined
+						}
+					/>
 
 					<ThreadTimeline
 						owner={owner}
@@ -454,6 +443,10 @@ function PullRequestDetailPage() {
 						repoId={pr.repoId}
 						number={pr.number}
 						comments={comments ?? []}
+						viewerId={session?.user?.id}
+						canParticipate={pr.viewer.canParticipate}
+						canModerate={pr.viewer.canWrite}
+						commentsQueryKey={queryKeys.pullRequestComments(pr.id)}
 						onQuote={
 							pr.viewer.canParticipate
 								? (body) =>

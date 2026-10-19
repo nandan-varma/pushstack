@@ -169,16 +169,33 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 		) {
 			throw new Error("Access denied");
 		}
-		if (pr.status === "merged")
-			throw new Error("A merged pull request can't be changed");
+		// Title and body stay editable after a merge, as on GitHub; its status doesn't.
+		if (pr.status === "merged" && data.status !== undefined)
+			throw new Error("A merged pull request can't be closed or reopened");
 		const { prId, ...fields } = data;
+		const titleChanged =
+			fields.title !== undefined && fields.title !== pr.title;
+		const bodyChanged =
+			fields.body !== undefined && (fields.body || null) !== pr.body;
 		const [updated] = await db
 			.update(pullRequests)
-			.set({ ...fields, updatedAt: new Date() })
+			.set({
+				...fields,
+				...(fields.body !== undefined && { body: fields.body || null }),
+				...(bodyChanged && { editedAt: new Date() }),
+				updatedAt: new Date(),
+			})
 			.where(eq(pullRequests.id, prId))
 			.returning();
 		if (!updated) throw notFound();
-		if (fields.body !== undefined) {
+		if (titleChanged) {
+			await recordTimelineEvent(pr.repoId, pr.number, currentUser.id, {
+				event: "renamed",
+				from: pr.title,
+				to: updated.title,
+			});
+		}
+		if (bodyChanged) {
 			await recordCrossReferences(
 				pr.repoId,
 				{ kind: "pull_request", number: pr.number, title: updated.title },
