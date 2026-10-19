@@ -9,6 +9,8 @@ import {
 import { useCallback, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
+import { LabelChip } from "@/components/LabelChip";
+import { LabelFilter } from "@/components/LabelFilter";
 import { issueStatusVariant } from "@/components/status-variants";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
@@ -40,13 +42,18 @@ type IssueStatus = (typeof STATUS_VALUES)[number];
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { status?: IssueStatus } => ({
+	): { status?: IssueStatus; label?: string } => ({
 		status: (STATUS_VALUES.includes(search.status as IssueStatus)
 			? search.status
 			: undefined) as IssueStatus | undefined,
+		label:
+			typeof search.label === "string" && search.label
+				? search.label
+				: undefined,
 	}),
 	loaderDeps: ({ search }) => ({
 		status: search.status ?? ("open" as IssueStatus),
+		label: search.label,
 	}),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
@@ -54,7 +61,11 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 		);
 		if (repo) {
 			await queryClient.ensureQueryData(
-				repositoryIssuesQueryOptions({ repoId: repo.id, status: deps.status }),
+				repositoryIssuesQueryOptions({
+					repoId: repo.id,
+					status: deps.status,
+					labels: deps.label ? [deps.label] : [],
+				}),
 			);
 		}
 	},
@@ -63,7 +74,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
-	const { status: filter } = Route.useSearch();
+	const { status: filter, label } = Route.useSearch();
 	const { pathname } = useLocation();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
@@ -80,6 +91,7 @@ function IssuesPage() {
 		...repositoryIssuesQueryOptions({
 			repoId: repo?.id ?? 0,
 			status: filter ?? "open",
+			labels: label ? [label] : [],
 		}),
 		enabled: !!repo,
 	});
@@ -124,7 +136,16 @@ function IssuesPage() {
 	return (
 		<div className="space-y-5">
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="text-base font-semibold text-foreground">Issues</h2>
+				<div className="flex items-center gap-4">
+					<h2 className="text-base font-semibold text-foreground">Issues</h2>
+					<Link
+						to="/repo/$owner/$name/labels"
+						params={{ owner, name }}
+						className="text-sm text-muted-foreground hover:text-foreground"
+					>
+						Labels
+					</Link>
+				</div>
 				{!session?.user ? (
 					<Link to="/auth/login">
 						<Button size="sm" variant="outline">
@@ -195,7 +216,21 @@ function IssuesPage() {
 				]}
 				activeTab={filter ?? "open"}
 				onTabChange={(value) =>
-					navigate({ search: { status: value }, replace: true })
+					navigate({
+						search: (prev) => ({ ...prev, status: value }),
+						replace: true,
+					})
+				}
+			/>
+
+			<LabelFilter
+				repoId={repo?.id}
+				value={label}
+				onChange={(value) =>
+					navigate({
+						search: (prev) => ({ ...prev, label: value }),
+						replace: true,
+					})
 				}
 			/>
 
@@ -249,6 +284,13 @@ function IssuesPage() {
 									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
 									{issue.author.name}
 								</p>
+								{issue.labels.length > 0 && (
+									<div className="flex flex-wrap gap-1.5 pt-0.5">
+										{issue.labels.map((l) => (
+											<LabelChip key={l.id} {...l} />
+										))}
+									</div>
+								)}
 							</div>
 						</Link>
 					))}

@@ -298,7 +298,7 @@ describe("issues/comments query options", () => {
 			{} as never,
 		);
 		expect(serverFnMocks.getIssues).toHaveBeenCalledWith({
-			data: { repoId: 1, status: "open" },
+			data: { repoId: 1, status: "open", labels: [] },
 		});
 	});
 
@@ -324,7 +324,7 @@ describe("pull request query options", () => {
 			status: "all",
 		}).queryFn?.({} as never);
 		expect(serverFnMocks.getPullRequests).toHaveBeenCalledWith({
-			data: { repoId: 1, status: "all" },
+			data: { repoId: 1, status: "all", labels: [] },
 		});
 	});
 
@@ -334,7 +334,7 @@ describe("pull request query options", () => {
 			status: "open",
 		}).queryFn?.({} as never);
 		expect(serverFnMocks.getPullRequests).toHaveBeenCalledWith({
-			data: { repoId: 1, status: "open" },
+			data: { repoId: 1, status: "open", labels: [] },
 		});
 	});
 });

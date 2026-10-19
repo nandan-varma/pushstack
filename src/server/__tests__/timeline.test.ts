@@ -20,6 +20,7 @@ const { createUsers, signIn } = await import("../../test/app-harness");
 const repositories = await import("../repositories");
 const files = await import("../files");
 const issues = await import("../issues");
+const labelFns = await import("../labels");
 const pulls = await import("../pull-requests");
 const comments = await import("../comments");
 const { getTimeline } = await import("../timeline");
@@ -143,7 +144,9 @@ describe("timeline", () => {
 		});
 		expect(issue.labels).toEqual([]);
 		await expect(
-			issues.updateIssue({ data: { issueId: issue.id, labels: ["bug"] } }),
-		).rejects.toThrow("Access denied");
+			labelFns.setLabels({
+				data: { repoId, number: issue.number, labels: ["bug"] },
+			}),
+		).rejects.toThrow();
 	});
 });

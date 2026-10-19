@@ -8,6 +8,12 @@
  * whichever kind the thread is.
  */
 
+/** A label as it was when an event happened (the label may be edited later). */
+export interface LabelSnapshot {
+	name: string;
+	color: string;
+}
+
 /** The issue or pull request an event points at (same repository). */
 export interface ThreadRef {
 	kind: "issue" | "pull_request";
@@ -22,7 +28,10 @@ export type TimelineEvent =
 	| { event: "merged"; commitSha: string; base: string }
 	/** Another thread mentioned this one (`#N` in its body or a comment). */
 	| { event: "cross-referenced"; source: ThreadRef }
-	| { event: "head_ref_deleted"; branch: string };
+	| { event: "head_ref_deleted"; branch: string }
+	/** A label was applied or removed; the name and color are a snapshot. */
+	| { event: "labeled"; label: LabelSnapshot }
+	| { event: "unlabeled"; label: LabelSnapshot };
 
 export type TimelineEventType = TimelineEvent["event"];
 

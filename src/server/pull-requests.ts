@@ -6,9 +6,11 @@ import { z } from "zod";
 import { db } from "#/db";
 import { issues, pullRequests } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
+import { labelNameSchema } from "#/lib/labels";
 import {
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
 } from "#/lib/limits";
 import { recordActivity } from "./activity";
@@ -16,6 +18,7 @@ import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
+import { threadsWithLabels, withLabels } from "./label-store";
 import {
 	canMergePullRequest,
 	canWriteRepo,
@@ -90,24 +93,35 @@ export const getPullRequests = createServerFn({ method: "GET" })
 		z.object({
 			repoId: z.number(),
 			status: z.enum(["open", "closed", "merged", "all"]).default("open"),
+			/** Only pull requests carrying every one of these labels. */
+			labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
 		}),
 	)
 	.handler(({ data }) =>
-		readWithAccess(`getPullRequests ${data.status}`, data.repoId, () =>
-			db.query.pullRequests.findMany({
-				where: and(
-					eq(pullRequests.repoId, data.repoId),
-					data.status === "all"
-						? undefined
-						: eq(pullRequests.status, data.status),
-				),
-				with: { author: publicUserFields },
-				orderBy: [desc(pullRequests.createdAt)],
-				limit: data.limit,
-				offset: data.skip,
-			}),
+		readWithAccess(`getPullRequests ${data.status}`, data.repoId, async () =>
+			withLabels(
+				data.repoId,
+				await db.query.pullRequests.findMany({
+					where: and(
+						eq(pullRequests.repoId, data.repoId),
+						data.status === "all"
+							? undefined
+							: eq(pullRequests.status, data.status),
+						data.labels.length > 0
+							? inArray(
+									pullRequests.number,
+									threadsWithLabels(data.repoId, data.labels),
+								)
+							: undefined,
+					),
+					with: { author: publicUserFields },
+					orderBy: [desc(pullRequests.createdAt)],
+					limit: data.limit,
+					offset: data.skip,
+				}),
+			),
 		),
 	);
 
@@ -143,7 +157,12 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 					with: { author: publicUserFields },
 				});
 				if (!pr) throw notFound();
-				return { ...pr, viewer: await getViewerRepositoryAccess(repo.id) };
+				const [withPrLabels] = await withLabels(repo.id, [pr]);
+				return {
+					...pr,
+					labels: withPrLabels?.labels ?? [],
+					viewer: await getViewerRepositoryAccess(repo.id),
+				};
 			},
 		),
 	);

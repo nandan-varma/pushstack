@@ -15,6 +15,7 @@ import {
 } from "@/components/DetailHeader";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
+import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -289,6 +290,15 @@ function IssueDetailPage() {
 					</div>
 				</div>
 			</Card>
+
+			<ThreadLabels
+				owner={owner}
+				name={name}
+				repoId={issue.repoId}
+				number={issue.number}
+				labels={issue.labels}
+				canEdit={issue.viewer.canWrite}
+			/>
 
 			<ThreadTimeline
 				owner={owner}

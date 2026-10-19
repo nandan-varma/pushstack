@@ -21,6 +21,7 @@ import { NotFoundCard } from "@/components/NotFoundCard";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import { pullRequestStatusVariant } from "@/components/status-variants";
+import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -447,6 +448,15 @@ function PullRequestDetailPage() {
 							</div>
 						</div>
 					</Card>
+
+					<ThreadLabels
+						owner={owner}
+						name={name}
+						repoId={pr.repoId}
+						number={pr.number}
+						labels={pr.labels}
+						canEdit={pr.viewer.canWrite}
+					/>
 
 					<ThreadTimeline
 						owner={owner}
