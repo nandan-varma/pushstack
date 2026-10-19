@@ -40,6 +40,7 @@ vi.mock("@tanstack/react-router", () => ({
 	},
 }));
 
+import { queryKeys } from "@/lib/query-options";
 import MarkdownRenderer from "../MarkdownRenderer";
 
 function renderMarkdown(
@@ -282,5 +283,34 @@ describe("MarkdownRenderer basic rendering", () => {
 			className: "custom-md",
 		});
 		expect(container.querySelector(".custom-md")).toBeInTheDocument();
+	});
+});
+
+describe("MarkdownRenderer references", () => {
+	it("links a mention, #N and a SHA, but nothing inside a code span", () => {
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		queryClient.setQueryData(queryKeys.repoIssueNumbers(1), [7]);
+		queryClient.setQueryData(queryKeys.repoPullRequestNumbers(1), []);
+		render(
+			<QueryClientProvider client={queryClient}>
+				<MarkdownRenderer
+					content={"thanks @octocat, fixes #7 in abc1234 `@bob #7 abc1234`"}
+					owner="acme"
+					name="widgets"
+					repoId={1}
+				/>
+			</QueryClientProvider>,
+		);
+		const hrefs = screen
+			.getAllByRole("link")
+			.map((a) => a.getAttribute("href"));
+		expect(hrefs).toEqual([
+			"/users/octocat",
+			"/repo/acme/widgets/issues/7",
+			"/repo/acme/widgets/commit/abc1234",
+		]);
+		expect(screen.getByText("@bob #7 abc1234").tagName).toBe("CODE");
 	});
 });

@@ -31,6 +31,8 @@ interface MarkdownRendererProps {
 const REFERENCE_LINK_RE =
 	/^\/repo\/([^/]+)\/([^/]+)\/(commit|issues|pulls)\/(.+)$/;
 
+const USER_LINK_RE = /^\/users\/([^/]+)$/;
+
 function isExternalLink(href: string): boolean {
 	return /^(https?:\/\/|mailto:|#)/.test(href);
 }
@@ -166,6 +168,19 @@ function buildComponents(
 			}
 			if (!isSafeHref(href)) return <>{children}</>;
 
+			const userMatch = href.match(USER_LINK_RE);
+			if (userMatch) {
+				return (
+					<Link
+						to="/users/$username"
+						params={{ username: userMatch[1] }}
+						{...props}
+					>
+						{children}
+					</Link>
+				);
+			}
+
 			const refMatch = href.match(REFERENCE_LINK_RE);
 			if (refMatch) {
 				const [, refOwner, refName, kind, refId] = refMatch;
@@ -266,13 +281,13 @@ export default function MarkdownRenderer({
 		return createReferenceResolver(issueNumbers ?? [], prNumbers ?? []);
 	}, [issueNumbers, prNumbers]);
 
-	const remarkPlugins = useMemo(() => {
-		if (!owner || !name) return [remarkGfm];
-		return [
+	const remarkPlugins = useMemo(
+		() => [
 			remarkGfm,
 			createAutolinkReferencesPlugin({ owner, name, resolveReference }),
-		];
-	}, [owner, name, resolveReference]);
+		],
+		[owner, name, resolveReference],
+	);
 
 	return (
 		<div
