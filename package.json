@@ -8,13 +8,15 @@
 		"dev:local": "pnpm --filter @pushstack/web dev:local",
 		"build": "turbo run build",
 		"typecheck": "turbo run typecheck",
-		"test": "turbo run test",
+		"test": "pnpm test:workspace && turbo run test",
 		"smoke:git": "turbo run smoke:git",
 		"check": "biome check",
 		"format": "biome format --write",
 		"db:push": "pnpm --filter @pushstack/web db:push",
 		"db:studio": "pnpm --filter @pushstack/web db:studio",
-		"prepare": "husky"
+		"prepare": "husky",
+		"lint": "turbo run lint",
+		"test:workspace": "node --test scripts/workspace.test.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.15",
@@ -25,5 +27,8 @@
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx,json,css}": "biome check --write --no-errors-on-unmatched"
 	},
-	"packageManager": "pnpm@12.14.0"
+	"packageManager": "pnpm@12.14.0",
+	"engines": {
+		"node": ">=24"
+	}
 }

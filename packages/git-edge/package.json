@@ -19,7 +19,8 @@
 		"test:watch": "vitest",
 		"coverage": "vitest run --coverage",
 		"typecheck": "tsc --noEmit",
-		"prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
+		"prepublishOnly": "pnpm typecheck && pnpm test && pnpm build",
+		"lint": "biome check ."
 	},
 	"keywords": [
 		"git",
@@ -62,6 +63,7 @@
 		"isomorphic-git": "^1.44.3",
 		"tsdown": "^0.23.1",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.3"
+		"vitest": "^5.0.5",
+		"@pushstack/tsconfig": "workspace:*"
 	}
 }

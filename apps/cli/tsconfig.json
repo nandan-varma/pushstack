@@ -1,19 +1,8 @@
 {
 	"compilerOptions": {
-		"target": "ES2022",
-		"module": "ESNext",
-		"moduleResolution": "bundler",
 		"lib": ["ES2023"],
-		"types": ["node"],
-		"strict": true,
-		"noUncheckedIndexedAccess": true,
-		"noImplicitOverride": true,
-		"verbatimModuleSyntax": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"noEmit": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true
+		"resolveJsonModule": true
 	},
-	"include": ["src", "test", "tsdown.config.ts"]
+	"include": ["src", "test", "tsdown.config.ts"],
+	"extends": "@pushstack/tsconfig/node.json"
 }
