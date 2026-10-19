@@ -1,3 +1,16 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+allowBuilds:
+  '@prisma/engines': false
+  esbuild: true
+  prisma: false
+permissions:
+  '@tanstack/devtools-vite':
+    skills: false
+  '@tanstack/react-start':
+    skills: false
+autoInstallPeers: false
+ignoredOptionalDependencies:
+  # WASI fallback of oxc-parser (TanStack devtools); we only run on native linux/darwin.
+  - "@oxc-parser/binding-wasm32-wasi"

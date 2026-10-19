@@ -35,7 +35,7 @@ One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-acce
 
 **Adding a dependency**: edit the workspace's `package.json`, then `echo "Y" | pnpm install`.
 
-**Don't trust the pnpm deprecation warning about `package.json`'s `"pnpm"` field.** On the pinned `packageManager` version, `pnpm install` claims `The "pnpm" field in package.json is no longer read`, but `pnpm-workspace.yaml`'s `overrides` has no effect here while `package.json`'s `"pnpm": { "overrides": {...} }` (the CVE-cap pins — see `docs/security.md`) works. Moving it once reintroduced 14 high-severity transitive vulnerabilities. Re-verify (override a throwaway dep, check `pnpm ls`) before acting on that warning after any pnpm/Node upgrade.
+**pnpm settings** live in `pnpm-workspace.yaml` (pnpm 12): `autoInstallPeers: false` (peers are declared explicitly — auto-installing optional peers once pulled all of Prisma in through better-auth/drizzle), `allowBuilds` (only listed packages may run install scripts), `permissions` (agent skills shipped in dependencies stay denied). There are no `overrides` and no audit exceptions: a vulnerable transitive dependency is fixed by upgrading or replacing what pulls it in.
 
 ## Architecture
 
