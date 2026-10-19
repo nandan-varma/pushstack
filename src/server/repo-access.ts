@@ -7,6 +7,7 @@
  */
 import { notFound } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
+import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import {
 	type CollaboratorRole,
@@ -14,7 +15,6 @@ import {
 	repositories,
 	repositoryCollaborators,
 } from "#/db/app-schema";
-import { isGitNotFoundError } from "./git-errors";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import {
 	getCurrentUser,
@@ -267,7 +267,7 @@ export function readWithAccess<T>(
 		try {
 			return await fn(await withOwner(repoId));
 		} catch (error) {
-			if (isGitNotFoundError(error)) throw notFound();
+			if (isNotFoundError(error)) throw notFound();
 			throw error;
 		}
 	});

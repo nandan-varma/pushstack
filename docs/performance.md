@@ -280,7 +280,7 @@ that data doubles as its own freshness signal — only reach for a genuinely
 separate minimal query if the display data itself is too expensive to poll
 on a timer.
 
-## R2 resilience (`git-fs.ts` + `src/lib/r2.ts`)
+## R2 resilience (`git-fs.ts` + `git-fs-s3/fetch-s3`)
 
 Every R2 call goes through `git-fs-s3`'s `createRetryStore`: retry with
 exponential backoff and jitter (5xx, 429, a dropped connection, a timed-out
@@ -291,7 +291,7 @@ can't trip the breaker. Each attempt is bounded by `AbortSignal.timeout`
 (30s for object bodies, 10s for metadata calls), so a stalled connection
 fails fast into the retry loop rather than hanging on the OS TCP timeout.
 
-`src/lib/r2.ts` signs requests with `aws4fetch` and sends them with plain
+`git-fs-s3/fetch-s3` signs requests with `aws4fetch` and sends them with plain
 `fetch` — Node's built-in fetch keeps connections alive and pools them on its
 own, which is what the old explicit keep-alive `https.Agent` existed for (a
 single page load can fire hundreds of object reads). `git-fs.ts` owns the

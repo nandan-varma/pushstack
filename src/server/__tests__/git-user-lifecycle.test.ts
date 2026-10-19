@@ -97,13 +97,14 @@ const ENV = vi.hoisted(() => {
 	return { base, cloneDir: path.join(base, "clone") };
 });
 
-// --- fake R2: an in-memory S3 endpoint behind src/lib/r2.ts's real store ---
+// --- fake R2: an in-memory S3 endpoint behind git-fs-s3's real fetch store ---
 const fakeS3 = vi.hoisted(() => ({
 	objects: new Map<string, Uint8Array>(),
 }));
 
 vi.mock("#/lib/r2", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("#/lib/r2")>();
+	const { createFetchS3Store } = await import("git-fs-s3/fetch-s3");
 	const { createFakeS3 } = await import("./helpers/fake-s3-fetch");
 	const s3 = createFakeS3({ bucket: "test-bucket" });
 	fakeS3.objects = s3.objects;
@@ -112,7 +113,7 @@ vi.mock("#/lib/r2", async (importOriginal) => {
 		createR2ObjectStoreFromEnv: (
 			contentType?: (key: string) => string | undefined,
 		) =>
-			actual.createR2ObjectStore({
+			createFetchS3Store({
 				endpoint: "https://test-account.r2.cloudflarestorage.com",
 				bucket: "test-bucket",
 				accessKeyId: "test-key",

@@ -2,7 +2,11 @@
  * Git reads for the web UI: (ownerKey, repoName) → git-fs-s3/ops with the
  * app's result cache, perf hooks and pack prefetch wired in.
  */
-import { GitPathNotFoundError, getObjectSize } from "git-fs-s3";
+import {
+	GitPathNotFoundError,
+	getObjectSize,
+	isNotFoundError,
+} from "git-fs-s3";
 import {
 	BANNER_WALK_DEPTH,
 	type CommitInfo,
@@ -33,7 +37,6 @@ import {
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 import { MAX_HISTORY_WALK, MAX_RAW_BYTES } from "#/lib/limits";
 import { opsHooksFor } from "./git-cache";
-import { isGitNotFoundError } from "./git-errors";
 import { repoFor } from "./git-repo";
 
 export { BANNER_WALK_DEPTH };
@@ -221,7 +224,7 @@ export async function getRepositoryTreeData(
 	}
 	// A repository nobody has pushed to yet has no branch to read: an empty
 	// page (the UI shows setup instructions), not a 404 for the default branch.
-	if (branches.length === 0 && isGitNotFoundError(page.error)) {
+	if (branches.length === 0 && isNotFoundError(page.error)) {
 		const files: Awaited<ReturnType<typeof getTreeFromRef>> = [];
 		return { branches, files, latestCommit: undefined };
 	}

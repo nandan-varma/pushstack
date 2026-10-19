@@ -5,9 +5,8 @@
  * `text/plain` (an .html or .svg served as itself would run script with this
  * origin's cookies).
  */
-import { isSafeRefName, isSafeRepoPath } from "git-fs-s3";
+import { isNotFoundError, isSafeRefName, isSafeRepoPath } from "git-fs-s3";
 import { getMimeType } from "#/lib/language-detection";
-import { isGitNotFoundError } from "./git-errors";
 import { getRawFileContent } from "./git-read";
 import { logError } from "./perf-log";
 import { getAccessForRepository } from "./repo-access";
@@ -114,7 +113,7 @@ export async function serveRawFile(request: Request): Promise<Response> {
 			},
 		});
 	} catch (error) {
-		if (isGitNotFoundError(error)) return notFound();
+		if (isNotFoundError(error)) return notFound();
 		logError("raw", `GET ${owner}/${name}@${ref}:${path} failed`, error);
 		return new Response("Internal error", { status: 500 });
 	}
