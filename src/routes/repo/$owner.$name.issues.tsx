@@ -42,7 +42,7 @@ type IssueStatus = (typeof STATUS_VALUES)[number];
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { status?: IssueStatus; label?: string } => ({
+	): { status?: IssueStatus; label?: string; assignee?: string } => ({
 		status: (STATUS_VALUES.includes(search.status as IssueStatus)
 			? search.status
 			: undefined) as IssueStatus | undefined,
@@ -50,10 +50,16 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 			typeof search.label === "string" && search.label
 				? search.label
 				: undefined,
+		// A username, or "none" for unassigned issues (GitHub's `no:assignee`).
+		assignee:
+			typeof search.assignee === "string" && search.assignee
+				? search.assignee.slice(0, 100)
+				: undefined,
 	}),
 	loaderDeps: ({ search }) => ({
 		status: search.status ?? ("open" as IssueStatus),
 		label: search.label,
+		assignee: search.assignee,
 	}),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
@@ -65,6 +71,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 					repoId: repo.id,
 					status: deps.status,
 					labels: deps.label ? [deps.label] : [],
+					assignee: deps.assignee,
 				}),
 			);
 		}
@@ -74,7 +81,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
-	const { status: filter, label } = Route.useSearch();
+	const { status: filter, label, assignee } = Route.useSearch();
 	const { pathname } = useLocation();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
@@ -92,6 +99,7 @@ function IssuesPage() {
 			repoId: repo?.id ?? 0,
 			status: filter ?? "open",
 			labels: label ? [label] : [],
+			assignee,
 		}),
 		enabled: !!repo,
 	});
@@ -234,6 +242,22 @@ function IssuesPage() {
 				}
 			/>
 
+			{assignee && (
+				<p className="text-sm text-muted-foreground">
+					{assignee === "none"
+						? "Unassigned issues"
+						: `Assigned to ${assignee}`}{" "}
+					<Link
+						to="/repo/$owner/$name/issues"
+						params={{ owner, name }}
+						search={{ status: filter, label }}
+						className="text-foreground"
+					>
+						Clear filter
+					</Link>
+				</p>
+			)}
+
 			{/* Issues list */}
 			{isLoading ? (
 				<div className="space-y-2">
@@ -283,6 +307,8 @@ function IssuesPage() {
 									#{issue.number} opened{" "}
 									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
 									{issue.author.name}
+									{issue.assignees.length > 0 &&
+										` · assigned to ${issue.assignees.map((a) => a.user.username).join(", ")}`}
 								</p>
 								{issue.labels.length > 0 && (
 									<div className="flex flex-wrap gap-1.5 pt-0.5">

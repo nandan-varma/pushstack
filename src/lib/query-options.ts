@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
+import { getAssignableUsers } from "@/server/assignees";
 import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
@@ -86,7 +87,10 @@ export const queryKeys = {
 		repoId: number,
 		status: "open" | "closed" | "all",
 		labels: string[] = [],
-	) => ["repos", repoId, "issues", status, labels] as const,
+		assignee?: string,
+	) => ["repos", repoId, "issues", status, labels, assignee ?? null] as const,
+	repoAssignable: (repoId: number) =>
+		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
 	repoIssueNumbers: (repoId: number) =>
@@ -468,6 +472,14 @@ export function repositoryIssueNumbersQueryOptions(repoId: number) {
 	});
 }
 
+export function assignableUsersQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoAssignable(repoId),
+		queryFn: () => getAssignableUsers({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
 export function repositoryPullRequestNumbersQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoPullRequestNumbers(repoId),
@@ -488,14 +500,17 @@ export function repositoryIssuesQueryOptions({
 	repoId,
 	status,
 	labels = [],
+	assignee,
 }: {
 	repoId: number;
 	status: "open" | "closed" | "all";
 	labels?: string[];
+	/** A username, `none` or `*` (see getIssues). */
+	assignee?: string;
 }) {
 	return queryOptions({
-		queryKey: queryKeys.repoIssues(repoId, status, labels),
-		queryFn: () => getIssues({ data: { repoId, status, labels } }),
+		queryKey: queryKeys.repoIssues(repoId, status, labels, assignee),
+		queryFn: () => getIssues({ data: { repoId, status, labels, assignee } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

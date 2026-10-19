@@ -143,6 +143,28 @@ export const threadLabels = pgTable(
 	}),
 );
 
+/** Who an issue is assigned to (GitHub: up to 10, each with write access). */
+export const issueAssignees = pgTable(
+	"issue_assignees",
+	{
+		id: serial("id").primaryKey(),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		issueUserIdx: uniqueIndex("issue_assignee_issue_user_idx").on(
+			table.issueId,
+			table.userId,
+		),
+		userIdx: index("issue_assignee_user_idx").on(table.userId),
+	}),
+);
+
 export const pullRequests = pgTable(
 	"pull_requests",
 	{
@@ -360,6 +382,15 @@ export const issuesRelations = relations(issues, ({ one, many }) => ({
 	}),
 	author: one(user, { fields: [issues.authorId], references: [user.id] }),
 	comments: many(comments),
+	assignees: many(issueAssignees),
+}));
+
+export const issueAssigneesRelations = relations(issueAssignees, ({ one }) => ({
+	issue: one(issues, {
+		fields: [issueAssignees.issueId],
+		references: [issues.id],
+	}),
+	user: one(user, { fields: [issueAssignees.userId], references: [user.id] }),
 }));
 
 export const pullRequestsRelations = relations(

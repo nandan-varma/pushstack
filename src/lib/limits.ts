@@ -73,3 +73,6 @@ export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 
 /** Labels one issue or pull request may carry. */
 export const MAX_LABELS_PER_THREAD = 100;
+
+/** GitHub's cap on assignees per issue. */
+export const MAX_ASSIGNEES = 10;

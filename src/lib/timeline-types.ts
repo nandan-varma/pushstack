@@ -21,6 +21,12 @@ export interface ThreadRef {
 	title: string;
 }
 
+/** The person an `assigned`/`unassigned` event is about. */
+export interface TimelineUser {
+	username: string;
+	name: string;
+}
+
 export type TimelineEvent =
 	/**
 	 * Closed by hand, by merging the pull request `closer`, or by the pushed
@@ -38,7 +44,10 @@ export type TimelineEvent =
 	| { event: "renamed"; from: string; to: string }
 	/** A label was applied or removed; the name and color are a snapshot. */
 	| { event: "labeled"; label: LabelSnapshot }
-	| { event: "unlabeled"; label: LabelSnapshot };
+	| { event: "unlabeled"; label: LabelSnapshot }
+	/** Someone was assigned to / unassigned from the thread. */
+	| { event: "assigned"; assignee: TimelineUser }
+	| { event: "unassigned"; assignee: TimelineUser };
 
 export type TimelineEventType = TimelineEvent["event"];
 

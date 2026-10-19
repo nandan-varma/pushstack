@@ -15,6 +15,7 @@ import {
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
 import { EditableTitle } from "@/components/EditableTitle";
+import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
 import { ThreadLabels } from "@/components/ThreadLabels";
@@ -258,6 +259,22 @@ function IssueDetailPage() {
 						)}
 					</>
 				}
+			/>
+
+			<IssueAssignees
+				issueId={issue.id}
+				repoId={issue.repoId}
+				assignees={issue.assignees.map((a) => a.user)}
+				canEdit={issue.viewer.canWrite}
+				onChanged={() => {
+					queryClient.invalidateQueries({ queryKey: issueQueryKey });
+					queryClient.invalidateQueries({
+						queryKey: queryKeys.repoIssuesRoot(issue.repoId),
+					});
+					queryClient.invalidateQueries({
+						queryKey: queryKeys.timelineRoot(issue.repoId),
+					});
+				}}
 			/>
 
 			{/* Issue Body */}

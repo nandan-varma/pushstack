@@ -1,10 +1,11 @@
 /** Server functions for issues. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues } from "#/db/app-schema";
+import { issueAssignees, issues } from "#/db/app-schema";
+import { user } from "#/db/schema";
 import { labelNameSchema } from "#/lib/labels";
 import {
 	MAX_BODY_CHARS,
@@ -26,6 +27,34 @@ import {
 } from "./repository-lookup";
 import { getCurrentUser } from "./session";
 import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
+
+/** Assignees as list rows and the detail page show them. */
+const withAssignees = {
+	assignees: { with: { user: publicUserFields } },
+} as const;
+
+/**
+ * GitHub's `assignee:` / `no:assignee` filter: a username, `none` (unassigned)
+ * or `*` (assigned to anyone).
+ */
+function assigneeCondition(assignee: string | undefined) {
+	if (!assignee) return undefined;
+	const rows = db
+		.select({ one: sql`1` })
+		.from(issueAssignees)
+		.where(eq(issueAssignees.issueId, issues.id));
+	if (assignee === "*") return exists(rows);
+	if (assignee === "none") return notExists(rows);
+	return exists(
+		db
+			.select({ one: sql`1` })
+			.from(issueAssignees)
+			.innerJoin(user, eq(user.id, issueAssignees.userId))
+			.where(
+				and(eq(issueAssignees.issueId, issues.id), eq(user.username, assignee)),
+			),
+	);
+}
 
 const labelsSchema = z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD);
 
@@ -81,6 +110,7 @@ export const getIssues = createServerFn({ method: "GET" })
 		z.object({
 			repoId: z.number(),
 			status: z.enum(["open", "closed", "all"]).default("open"),
+			assignee: z.string().max(100).optional(),
 			/** Only issues carrying every one of these labels (`label:` filter). */
 			labels: labelsSchema.default([]),
 			limit: z.number().int().min(1).max(100).default(100),
@@ -95,6 +125,7 @@ export const getIssues = createServerFn({ method: "GET" })
 					where: and(
 						eq(issues.repoId, data.repoId),
 						data.status === "all" ? undefined : eq(issues.status, data.status),
+						assigneeCondition(data.assignee),
 						data.labels.length > 0
 							? inArray(
 									issues.number,
@@ -102,7 +133,7 @@ export const getIssues = createServerFn({ method: "GET" })
 								)
 							: undefined,
 					),
-					with: { author: publicUserFields },
+					with: { author: publicUserFields, ...withAssignees },
 					orderBy: [desc(issues.createdAt)],
 					limit: data.limit,
 					offset: data.skip,
@@ -140,7 +171,7 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 						eq(issues.repoId, repo.id),
 						eq(issues.number, data.number),
 					),
-					with: { author: publicUserFields },
+					with: { author: publicUserFields, ...withAssignees },
 				});
 				if (!issue) throw notFound();
 				const [withIssueLabels] = await withLabels(repo.id, [issue]);

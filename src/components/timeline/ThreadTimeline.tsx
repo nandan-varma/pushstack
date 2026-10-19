@@ -11,6 +11,7 @@ import {
 	MessageSquareQuote,
 	Pencil,
 	Tag,
+	UserRound,
 } from "lucide-react";
 import { CommentCard } from "@/components/CommentCard";
 import { LabelChip } from "@/components/LabelChip";
@@ -257,6 +258,23 @@ function describe(
 				text: (
 					<>
 						deleted the <code className="font-mono">{event.branch}</code> branch
+					</>
+				),
+			};
+		case "assigned":
+		case "unassigned":
+			return {
+				icon: UserRound,
+				text: (
+					<>
+						{event.event === "assigned" ? "assigned" : "unassigned"}{" "}
+						<Link
+							to="/users/$username"
+							params={{ username: event.assignee.username }}
+							className="font-medium text-foreground"
+						>
+							{event.assignee.username}
+						</Link>
 					</>
 				),
 			};
