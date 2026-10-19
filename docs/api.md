@@ -39,6 +39,8 @@ Authorization: Bearer pst_…
 JSON in snake_case, timestamps ISO-8601 UTC (`2026-10-19T12:00:00Z`). Every
 response carries `Content-Type: application/json; charset=utf-8` and
 `X-GitHub-Media-Type: github.v3; format=json`.
+Every response (errors included) carries `X-GitHub-Request-Id`, the same id
+that tags the request in server logs and Sentry.
 
 Errors follow GitHub's body:
 

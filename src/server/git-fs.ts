@@ -13,23 +13,22 @@ import {
 	createCachedStore,
 	createGitFs,
 	createRetryStore,
+	deletePrefix,
 	type GitdirEntry,
 	isMutableGitdirEntry,
 	MemoryObjectStore,
+	movePrefix,
 	type ObjectStore,
 } from "git-fs-s3";
-import {
-	createR2ObjectStoreFromEnv,
-	isR2Configured,
-	type R2ObjectStore,
-} from "#/lib/r2";
+import type { FetchS3ObjectStore } from "git-fs-s3/fetch-s3";
+import { FileObjectStore } from "git-fs-s3/node";
+import { createR2ObjectStoreFromEnv, isR2Configured } from "#/lib/r2";
 import { GIT_CACHE_MAX_BYTES, GIT_CACHE_TTL_MS } from "./config";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	parseRepoGitStorageKey,
 } from "./git-storage-naming";
-import { LocalObjectStore } from "./local-object-store";
 import {
 	logWarn,
 	perfNote,
@@ -84,10 +83,15 @@ type RangeCapableStore = ObjectStore & {
 // Without R2 env, repositories live on disk under PUSHSTACK_LOCAL_DIR
 // (`pnpm dev:local`) or, failing that (tests), in memory for the life of the
 // process; production refuses instead of silently losing pushes. Built on first use, never at import time.
-let backend: { store: RangeCapableStore; r2: R2ObjectStore | null } | null =
-	null;
+let backend: {
+	store: RangeCapableStore;
+	r2: FetchS3ObjectStore | null;
+} | null = null;
 
-function getBackend(): { store: RangeCapableStore; r2: R2ObjectStore | null } {
+function getBackend(): {
+	store: RangeCapableStore;
+	r2: FetchS3ObjectStore | null;
+} {
 	if (backend) return backend;
 	if (isR2Configured()) {
 		const r2 = createR2ObjectStoreFromEnv(gitContentType);
@@ -99,7 +103,7 @@ function getBackend(): { store: RangeCapableStore; r2: R2ObjectStore | null } {
 		);
 	} else if (process.env.PUSHSTACK_LOCAL_DIR) {
 		const root = path.join(process.env.PUSHSTACK_LOCAL_DIR, "git");
-		backend = { store: new LocalObjectStore(root), r2: null };
+		backend = { store: new FileObjectStore(root), r2: null };
 	} else {
 		logWarn(
 			"git-fs",
@@ -141,23 +145,8 @@ function withPerfLogging(store: ObjectStore): ObjectStore {
 	};
 }
 
-// Retry 5xx/429, and fetch's transient failures: a dropped connection is a
-// bare TypeError, a stalled attempt AbortSignal.timeout's TimeoutError.
-function isRetryableStoreError(error: unknown): boolean {
-	if (error instanceof TypeError) return true;
-	if (typeof error !== "object" || error === null) return false;
-	const err = error as {
-		name?: string;
-		$metadata?: { httpStatusCode?: number };
-	};
-	if (err.name === "TimeoutError" || err.name === "SlowDown") return true;
-	const status = err.$metadata?.httpStatusCode;
-	return status !== undefined && (status >= 500 || status === 429);
-}
-
 const networkStore = withPerfLogging(
 	createRetryStore(lazyStore, {
-		isRetryable: isRetryableStoreError,
 		onRetry: ({ op, key, attempt }) =>
 			perfNote(`R2 ${op} ${key}: retry ${attempt}`),
 	}),
@@ -235,24 +224,12 @@ export function putStorageObject(key: string, data: Uint8Array): Promise<void> {
 	return networkStore.put(key, data);
 }
 
-const STORAGE_BATCH = 20;
-
-async function inBatches<T>(
-	items: T[],
-	fn: (item: T) => Promise<void>,
-): Promise<void> {
-	for (let i = 0; i < items.length; i += STORAGE_BATCH) {
-		await Promise.all(items.slice(i, i + STORAGE_BATCH).map(fn));
-	}
-}
-
 /** Delete all of a repo's storage. Callers hold the repo lock. */
 export async function deleteRepoStorage(
 	ownerKey: string,
 	repoName: string,
 ): Promise<void> {
-	const objects = await listRepoStorage(ownerKey, repoName);
-	await inBatches(objects, (object) => networkStore.delete(object.key));
+	await deletePrefix(networkStore, getRepoGitStoragePrefix(ownerKey, repoName));
 	invalidateRepoGitStorage(ownerKey, repoName);
 }
 
@@ -268,20 +245,12 @@ export async function moveRepoStorage(
 ): Promise<void> {
 	const oldPrefix = getRepoGitStoragePrefix(ownerKey, oldRepoName);
 	const newPrefix = getRepoGitStoragePrefix(ownerKey, newRepoName);
-	const objects = await listRepoStorage(ownerKey, oldRepoName);
 	const { r2 } = getBackend();
-	const copy = r2
-		? (from: string, to: string) =>
-				perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
-		: async (from: string, to: string) => {
-				const data = await networkStore.get(from);
-				if (data) await networkStore.put(to, data);
-			};
-
-	await inBatches(objects, (object) =>
-		copy(object.key, `${newPrefix}${object.key.slice(oldPrefix.length)}`),
-	);
-	await inBatches(objects, (object) => networkStore.delete(object.key));
+	await movePrefix(networkStore, oldPrefix, newPrefix, {
+		copy: r2
+			? (from, to) => perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
+			: undefined,
+	});
 	invalidateRepoGitStorage(ownerKey, oldRepoName);
 	invalidateRepoGitStorage(ownerKey, newRepoName);
 }

@@ -6,24 +6,23 @@ import {
 	redirect,
 } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
+import { CommentCard } from "@/components/CommentCard";
 import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
+import { EditableTitle } from "@/components/EditableTitle";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
 import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { quoteForReply } from "@/lib/markdown-quote";
 import {
@@ -36,14 +35,8 @@ import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-import { getInitials } from "@/lib/utils/avatar";
 import { createComment } from "@/server/comments";
 import { updateIssue } from "@/server/issues";
-
-// react-markdown/remark-gfm/rehype-highlight are lazy-loaded here (same
-// pattern as CommentCard.tsx/FilePreview.tsx) so this route's chunk doesn't
-// eagerly ship them to every visitor.
-const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -213,12 +206,26 @@ function IssueDetailPage() {
 	// that can only fail.
 	const canToggleStatus =
 		issue.viewer.canWrite || session?.user?.id === issue.authorId;
+	const canEdit = canToggleStatus;
 
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<DetailHeader
-				title={issue.title}
+				title={
+					<EditableTitle
+						title={issue.title}
+						onSave={
+							canEdit
+								? (title) =>
+										updateMutation.mutateAsync({
+											data: { issueId: issue.id, title },
+										})
+								: undefined
+						}
+						isSaving={updateMutation.isPending}
+					/>
+				}
 				badge={
 					<Badge variant={issueStatusVariant(issue.status)}>
 						{issue.status}
@@ -254,42 +261,22 @@ function IssueDetailPage() {
 			/>
 
 			{/* Issue Body */}
-			<Card className="p-6">
-				<div className="flex items-start gap-4">
-					<Avatar>
-						<AvatarImage src={issue.author?.image || undefined} />
-						<AvatarFallback>
-							{getInitials(issue.author?.name || "U")}
-						</AvatarFallback>
-					</Avatar>
-					<div className="flex-1">
-						<div className="flex items-center gap-2 mb-4">
-							<span className="font-medium text-foreground">
-								{issue.author.name}
-							</span>
-							<span className="text-sm text-muted-foreground">
-								{formatDistanceToNow(new Date(issue.createdAt), {
-									addSuffix: true,
-								})}
-							</span>
-						</div>
-						{issue.body ? (
-							<Suspense fallback={<Skeleton className="h-20" />}>
-								<MarkdownRenderer
-									content={issue.body}
-									owner={owner}
-									name={name}
-									repoId={issue.repoId}
-								/>
-							</Suspense>
-						) : (
-							<p className="text-muted-foreground italic">
-								No description provided
-							</p>
-						)}
-					</div>
-				</div>
-			</Card>
+			<CommentCard
+				comment={issue}
+				owner={owner}
+				name={name}
+				repoId={issue.repoId}
+				allowEmpty
+				isSaving={updateMutation.isPending}
+				onSave={
+					canEdit
+						? (body) =>
+								updateMutation.mutateAsync({
+									data: { issueId: issue.id, body },
+								})
+						: undefined
+				}
+			/>
 
 			<ThreadLabels
 				owner={owner}
@@ -306,6 +293,10 @@ function IssueDetailPage() {
 				repoId={issue.repoId}
 				number={issue.number}
 				comments={comments ?? []}
+				viewerId={session?.user?.id}
+				canParticipate={issue.viewer.canParticipate}
+				canModerate={issue.viewer.canWrite}
+				commentsQueryKey={queryKeys.issueComments(issue.id)}
 				onQuote={
 					issue.viewer.canParticipate
 						? (body) => setNewComment((draft) => draft + quoteForReply(body))

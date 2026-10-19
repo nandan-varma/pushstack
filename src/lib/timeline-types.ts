@@ -22,13 +22,20 @@ export interface ThreadRef {
 }
 
 export type TimelineEvent =
-	/** Closed by hand, or — with `closer` — by merging that pull request. */
-	| { event: "closed"; closer?: ThreadRef }
+	/**
+	 * Closed by hand, by merging the pull request `closer`, or by the pushed
+	 * commit `commitSha` ("Fixes #N" on the default branch).
+	 */
+	| { event: "closed"; closer?: ThreadRef; commitSha?: string }
+	/** A pushed commit's message mentioned this thread (`#N`). */
+	| { event: "referenced"; commitSha: string; message: string }
 	| { event: "reopened" }
 	| { event: "merged"; commitSha: string; base: string }
 	/** Another thread mentioned this one (`#N` in its body or a comment). */
 	| { event: "cross-referenced"; source: ThreadRef }
 	| { event: "head_ref_deleted"; branch: string }
+	/** The title changed (GitHub's `renamed` issue event). */
+	| { event: "renamed"; from: string; to: string }
 	/** A label was applied or removed; the name and color are a snapshot. */
 	| { event: "labeled"; label: LabelSnapshot }
 	| { event: "unlabeled"; label: LabelSnapshot };

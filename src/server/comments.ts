@@ -8,12 +8,13 @@ import { comments, issues, pullRequests } from "#/db/app-schema";
 import { MAX_BODY_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import {
+	canWriteRepo,
 	getAccessForRepository,
 	requireParticipateAccess,
 } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
-import { recordCrossReferences } from "./timeline-store";
+import { recordCrossReferences, removeCrossReferences } from "./timeline-store";
 
 /** Exactly one of an issue id or a pull request id (row ids, not `#N`). */
 const threadSchema = z.union([
@@ -27,12 +28,12 @@ async function findThread(thread: Thread) {
 	const row =
 		thread.issueId !== undefined
 			? await db.query.issues.findFirst({
-					columns: { number: true, title: true },
+					columns: { number: true, title: true, body: true },
 					where: eq(issues.id, thread.issueId),
 					with: { repository: true },
 				})
 			: await db.query.pullRequests.findFirst({
-					columns: { number: true, title: true },
+					columns: { number: true, title: true, body: true },
 					where: eq(pullRequests.id, thread.pullRequestId),
 					with: { repository: true },
 				});
@@ -93,4 +94,85 @@ export const getComments = createServerFn({ method: "GET" })
 			with: { author: publicUserFields },
 			orderBy: [comments.createdAt],
 		});
+	});
+
+/**
+ * The comment, once the current user may change it: its author (while they can
+ * still participate) or a write collaborator moderating — GitHub's rule.
+ */
+async function requireCommentEditor(commentId: number, userId: string) {
+	const comment = await db.query.comments.findFirst({
+		where: eq(comments.id, commentId),
+	});
+	if (!comment) throw notFound();
+	if (comment.authorId === userId) {
+		await requireParticipateAccess(comment.repoId, userId);
+	} else if (!(await canWriteRepo(comment.repoId, userId))) {
+		throw new Error("Access denied");
+	}
+	return comment;
+}
+
+export const updateComment = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			commentId: z.number(),
+			body: z.string().trim().min(1).max(MAX_BODY_CHARS),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const comment = await requireCommentEditor(data.commentId, currentUser.id);
+		if (data.body === comment.body) return comment;
+		const now = new Date();
+		const [updated] = await db
+			.update(comments)
+			.set({ body: data.body, editedAt: now, updatedAt: now })
+			.where(eq(comments.id, comment.id))
+			.returning();
+		if (!updated) throw notFound();
+		const { repository, number, title } = await findThread(
+			comment.issueId !== null
+				? { issueId: comment.issueId }
+				: { pullRequestId: comment.pullRequestId as number },
+		);
+		await recordCrossReferences(
+			repository.id,
+			{
+				kind: comment.issueId !== null ? "issue" : "pull_request",
+				number,
+				title,
+			},
+			data.body,
+			currentUser.id,
+		);
+		return updated;
+	});
+
+export const deleteComment = createServerFn({ method: "POST" })
+	.validator(z.object({ commentId: z.number() }))
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const comment = await requireCommentEditor(data.commentId, currentUser.id);
+		await db.delete(comments).where(eq(comments.id, comment.id));
+		// GitHub drops the "mentioned in" events a deleted comment created.
+		const thread = await findThread(
+			comment.issueId !== null
+				? { issueId: comment.issueId }
+				: { pullRequestId: comment.pullRequestId as number },
+		);
+		const others = await db.query.comments.findMany({
+			columns: { body: true },
+			where:
+				comment.issueId !== null
+					? eq(comments.issueId, comment.issueId)
+					: eq(comments.pullRequestId, comment.pullRequestId as number),
+		});
+		await removeCrossReferences(
+			thread.repository.id,
+			thread.number,
+			comment.body,
+			[thread.body, ...others.map((other) => other.body)],
+		);
+		return { success: true };
 	});
