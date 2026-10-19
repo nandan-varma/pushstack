@@ -1,3 +1,4 @@
+import { sha256Hex } from "./bytes";
 /** Scopes a personal access token can carry. `repo:write` implies read. */
 export const TOKEN_SCOPES = ["repo:read", "repo:write"] as const;
 export type TokenScope = (typeof TOKEN_SCOPES)[number];
@@ -17,4 +18,9 @@ export function tokenAllows(
 	return required === "repo:read"
 		? scopes.length > 0
 		: scopes.includes("repo:write");
+}
+
+/** SHA-256 hex, the only form a token is stored in (see git-auth.ts). */
+export function hashToken(token: string): Promise<string> {
+	return sha256Hex(token);
 }

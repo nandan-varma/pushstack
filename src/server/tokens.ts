@@ -3,17 +3,12 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { tokens } from "#/db/app-schema";
-import { bytesToBase64Url, randomBytes, sha256Hex } from "#/lib/bytes";
-import { TOKEN_PREFIX, TOKEN_SCOPES } from "#/lib/token-scopes";
+import { bytesToBase64Url, randomBytes } from "#/lib/bytes";
+import { hashToken, TOKEN_PREFIX, TOKEN_SCOPES } from "#/lib/token-scopes";
 import { perfContext, perfStep } from "./perf-log";
 import { getCurrentUser } from "./session";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** SHA-256 hex, the only form a token is stored in (see git-auth.ts). */
-export function hashToken(token: string): Promise<string> {
-	return sha256Hex(token);
-}
 
 /** The signed-in user's tokens, newest first. Never includes token values. */
 export const listTokens = createServerFn({ method: "GET" }).handler(() =>

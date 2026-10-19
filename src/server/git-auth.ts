@@ -11,9 +11,13 @@ import { db } from "#/db";
 import type { Repository } from "#/db/app-schema";
 import { tokens } from "#/db/app-schema";
 import { base64ToUtf8 } from "#/lib/bytes";
-import { TOKEN_PREFIX, type TokenScope, tokenAllows } from "#/lib/token-scopes";
+import {
+	hashToken,
+	TOKEN_PREFIX,
+	type TokenScope,
+	tokenAllows,
+} from "#/lib/token-scopes";
 import { getAccessForRepository } from "./repo-access";
-import { hashToken } from "./tokens";
 
 export interface GitAccess {
 	/** null for an anonymous read of a public repository. */

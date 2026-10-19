@@ -11,7 +11,7 @@ import { isGitNotFoundError } from "./git-errors";
 import { getRawFileContent } from "./git-read";
 import { logError } from "./perf-log";
 import { getAccessForRepository } from "./repo-access";
-import { findRepositoryByName } from "./repositories";
+import { findRepositoryByName } from "./repository-lookup";
 import { getCurrentUserOptional } from "./session";
 
 const INLINE_MEDIA_PREFIXES = ["image/", "video/", "audio/"];

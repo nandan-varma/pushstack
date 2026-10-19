@@ -7,7 +7,7 @@ import { repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { listUserActivity } from "./activity";
 import { perfContext } from "./perf-log";
-import { publicUserFields } from "./repositories";
+import { publicUserFields } from "./repository-lookup";
 import { getCurrentUserOptional } from "./session";
 
 /** An ILIKE pattern matching `text` literally anywhere (escapes `%`, `_`, `\`). */

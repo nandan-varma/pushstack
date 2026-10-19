@@ -17,7 +17,7 @@ import {
 	claimNextIssueOrPrNumber,
 	publicUserFields,
 	readRepoByName,
-} from "./repositories";
+} from "./repository-lookup";
 import { getCurrentUser } from "./session";
 
 const labelsSchema = z.array(z.string().trim().min(1).max(50)).max(20);

@@ -11,9 +11,8 @@ import { db } from "#/db";
 import { repositories, tokens } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { bytesToBase64Url, randomBytes } from "#/lib/bytes";
-import { TOKEN_PREFIX } from "#/lib/token-scopes";
+import { hashToken, TOKEN_PREFIX } from "#/lib/token-scopes";
 import { initBareRepo } from "#/server/git-repo";
-import { hashToken } from "#/server/tokens";
 
 const USER_ID = "perf-test-user";
 const USERNAME = "perfuser";

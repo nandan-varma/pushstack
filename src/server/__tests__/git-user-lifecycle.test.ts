@@ -339,9 +339,8 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("renames the repository, moving its storage with it", async () => {
-		const { findRepositoryByName, updateRepository } = await import(
-			"../repositories"
-		);
+		const { updateRepository } = await import("../repositories");
+		const { findRepositoryByName } = await import("../repository-lookup");
 		const repo = await findRepositoryByName(TEST_USER.username, REPO_NAME);
 		if (!repo) throw new Error("repo should exist before rename");
 
@@ -369,9 +368,8 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("deletes the repository", async () => {
-		const { deleteRepository, findRepositoryByName } = await import(
-			"../repositories"
-		);
+		const { deleteRepository } = await import("../repositories");
+		const { findRepositoryByName } = await import("../repository-lookup");
 
 		const repoBefore = await findRepositoryByName(
 			TEST_USER.username,

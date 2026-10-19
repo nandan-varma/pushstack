@@ -156,7 +156,7 @@ beforeAll(async () => {
 	const { db } = await import("#/db");
 	const { user } = await import("../../src/db/schema");
 	const { tokens } = await import("../../src/db/app-schema");
-	const { hashToken } = await import("#/server/tokens");
+	const { hashToken } = await import("#/lib/token-scopes");
 	await db.insert(user).values({
 		...USER,
 		emailVerified: true,

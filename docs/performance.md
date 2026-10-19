@@ -84,7 +84,7 @@ watch for when adding new code.
    of firing one each — on a cold cache, none of them can see a result the
    others haven't produced yet.
 
-7. **`repositories.ts`'s repo-row cache** (`findRepositoryByName`, short TTL
+7. **`repository-lookup.ts`'s repo-row cache** (`findRepositoryByName`, short TTL
    + in-flight coalescing) — one single-join lookup shared by the web UI and
    the git endpoint. Every git operation makes at least two requests
    (info/refs, then upload-pack/receive-pack), so the second one typically

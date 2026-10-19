@@ -5,6 +5,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issues, pullRequests } from "#/db/app-schema";
+import { getClosingIssueNumbers } from "#/lib/issue-references";
 import {
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
@@ -26,24 +27,8 @@ import {
 	claimNextIssueOrPrNumber,
 	publicUserFields,
 	readRepoByName,
-} from "./repositories";
+} from "./repository-lookup";
 import { getCurrentUser } from "./session";
-
-/**
- * Issue numbers a PR body closes on merge ("Closes #4", "fixes #12", …).
- * Only these explicit verbs: a bare `#N` reference never closes anything.
- */
-const CLOSING_ISSUE_REFERENCE =
-	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+(?:issue\s+)?#(\d+)\b/gi;
-
-export function getClosingIssueNumbers(body: string | null): number[] {
-	const numbers = new Set<number>();
-	for (const match of body?.matchAll(CLOSING_ISSUE_REFERENCE) ?? []) {
-		const number = Number(match[1]);
-		if (Number.isSafeInteger(number) && number > 0) numbers.add(number);
-	}
-	return [...numbers];
-}
 
 export const createPullRequest = createServerFn({ method: "POST" })
 	.validator(

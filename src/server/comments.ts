@@ -8,7 +8,7 @@ import { comments, issues, pullRequests } from "#/db/app-schema";
 import { MAX_BODY_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { getAccessForRepository, requireWriteAccess } from "./repo-access";
-import { publicUserFields } from "./repositories";
+import { publicUserFields } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 /** Exactly one of an issue id or a pull request id (row ids, not `#N`). */

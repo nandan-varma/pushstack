@@ -44,7 +44,8 @@ describe("personal access tokens", () => {
 	});
 
 	it("creates a prefixed token, stores only its hash, and lists it without the value", async () => {
-		const { createToken, hashToken, listTokens } = await import("../tokens");
+		const { createToken, listTokens } = await import("../tokens");
+		const { hashToken } = await import("../../lib/token-scopes");
 		const { db } = await import("../../db");
 		const { tokens } = await import("../../db/app-schema");
 

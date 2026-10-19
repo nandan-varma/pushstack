@@ -28,7 +28,8 @@ const search = await import("../search");
 const { getUserProfile } = await import("../users");
 const tokens = await import("../tokens");
 const { authorizeGitRequest } = await import("../git-auth");
-const { findRepositoryByName } = await import("../repositories");
+const { findRepositoryByName } = await import("../repository-lookup");
+const { getClosingIssueNumbers } = await import("../../lib/issue-references");
 
 const users = await createUsers("maintainer", "contributor", "visitor");
 let repoId: number;
@@ -295,14 +296,12 @@ describe("git over HTTP auth (personal access tokens)", () => {
 describe("getClosingIssueNumbers", () => {
 	it("extracts explicit closing references without duplicates", () => {
 		expect(
-			pulls.getClosingIssueNumbers(
-				"Fixes #2, closes issue #3, and resolves #2.",
-			),
+			getClosingIssueNumbers("Fixes #2, closes issue #3, and resolves #2."),
 		).toEqual([2, 3]);
 	});
 
 	it("ignores ordinary references", () => {
-		expect(pulls.getClosingIssueNumbers("Related to #2.")).toEqual([]);
-		expect(pulls.getClosingIssueNumbers(null)).toEqual([]);
+		expect(getClosingIssueNumbers("Related to #2.")).toEqual([]);
+		expect(getClosingIssueNumbers(null)).toEqual([]);
 	});
 });

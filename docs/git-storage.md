@@ -352,7 +352,7 @@ Auth for every git HTTP request goes through `src/server/git-auth.ts` — see
 [authentication.md](./authentication.md). Every git HTTP request (info/refs,
 then upload-pack/receive-pack — at least two per operation) resolves the
 target repository by owner+name; this goes through
-`repositories.ts`'s cached `findRepositoryByName`, shared with the web UI's
+`repository-lookup.ts`'s cached `findRepositoryByName`, shared with the web UI's
 repo pages — so the
 second request of a push typically gets a free cache hit instead of hitting
 Postgres again.

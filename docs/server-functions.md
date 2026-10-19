@@ -8,6 +8,14 @@ into an RPC under the hood). This doc catalogs those modules by resource.
 
 ## Conventions every module follows
 
+- **A server-function file exports only server functions (and types).** The
+  client loads the file too, with each `createServerFn` swapped for an RPC
+  stub; any other runtime export keeps the file's top-level imports — the
+  database, `AsyncLocalStorage` — in the browser, which breaks hydration in
+  dev. Shared plain helpers go in a server-only module
+  (`repository-lookup.ts`) or, if pure, in `src/lib/`.
+  `server-fn-exports.test.ts` enforces this.
+
 - **Validation**: every `createServerFn` has a `.validator(...)` with a Zod
   schema — never trust `data` is already the right shape.
 - **Access through `repo-access.ts`'s helpers**: read handlers use
@@ -18,7 +26,7 @@ into an RPC under the hood). This doc catalogs those modules by resource.
 - **Activity**: mutations that belong in the feed call
   `recordActivity(userId, repoId, event)` with a typed `ActivityEvent`.
 - **Public fields only**: any user row leaving the server goes through
-  `repositories.ts`'s `publicUserFields` (id, username, name, image) — never
+  `repository-lookup.ts`'s `publicUserFields` (id, username, name, image) — never
   email.
 - **Missing is `notFound()`**: a missing row, or a private one the caller
   can't read, is a 404, never a 500 or a 403 that leaks existence.

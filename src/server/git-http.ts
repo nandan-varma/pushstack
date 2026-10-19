@@ -29,7 +29,7 @@ import { afterRepositoryPush, httpHooks as hooks, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logError, perfContext } from "./perf-log";
-import { findRepositoryByName } from "./repositories";
+import { findRepositoryByName } from "./repository-lookup";
 
 type GitService = "git-upload-pack" | "git-receive-pack";
 
