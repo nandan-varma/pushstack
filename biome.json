@@ -16,6 +16,7 @@
 			"!**/src/styles.css",
 			"!**/.claude/**/*",
 			"!**/plans/**/*",
+			"!**/packages/**/*",
 			"!**/playwright-report/**/*",
 			"!**/test-results/**/*",
 			"!**/coverage/**/*"

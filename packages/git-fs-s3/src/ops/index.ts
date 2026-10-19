@@ -1,0 +1,69 @@
+export {
+	assertBranchExists,
+	assertSafeBranchName,
+	type Branch,
+	createBranchFrom,
+	deleteBranchByName,
+	listBranches,
+	listTags,
+	resolveLooseRefFast,
+	type Tag,
+} from "./branch.js";
+export {
+	authorNow,
+	type CommitAuthor,
+	commitFilesToBare,
+	deleteFileFromBare,
+	writeCommitToBare,
+} from "./commit.js";
+export {
+	type DiffEntry,
+	type DiffFile,
+	type DiffResult,
+	getCommitDiff,
+	getDiffBetweenRefs,
+	MAX_DIFF_TEXT_BYTES,
+} from "./diff.js";
+export {
+	BANNER_WALK_DEPTH,
+	type FileHistoryResult,
+	getFileHistory,
+} from "./file-history.js";
+export {
+	type CommitInfo,
+	type CommitLogOptions,
+	type CommitSummary,
+	type GitIdentity,
+	getBlob,
+	getCommit,
+	getCommitHistory,
+	getCommitLog,
+	getFileContent,
+	getTreeFromRef,
+	HISTORY_WALK_DEPTH,
+	peelToCommit,
+	resolveCommit,
+	summarizeCommit,
+} from "./history.js";
+export { getLastCommitsForTree } from "./last-commit.js";
+export { analyzeMerge, fastForwardMerge, type MergeAnalysis } from "./merge.js";
+export { withPackedWrites } from "./packed-writes.js";
+export {
+	getSubmodules,
+	parseGitmodules,
+	type SubmoduleConfig,
+} from "./submodules.js";
+export {
+	deleteFromTree,
+	findTreeEntry,
+	listTreeEntries,
+	type TreeEntry,
+	upsertTree,
+} from "./tree.js";
+export {
+	type IsoGitFs,
+	type OpsHooks,
+	type Repo,
+	type ResultCache,
+	resultKeyPrefixes,
+} from "./types.js";

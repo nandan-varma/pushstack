@@ -23,7 +23,9 @@ pnpm db:studio     # drizzle studio UI
 
 Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 
-**pnpm install quirk**: `pnpm-workspace.yaml` must have `packages: ['.']` or `pnpm add` / `pnpm install` fail with "packages field missing or empty". To add a dependency, edit `package.json` directly then run `echo "Y" | pnpm install`.
+**Workspace**: a pnpm workspace — the app at the root plus the libraries in `packages/git-fs-s3` and `packages/git-edge` (imported with history; still published to npm under those names). The app depends on them as `workspace:*` and imports their built `dist/`: `pnpm install` builds them (`prepare`); after editing a library run `pnpm build:packages` (and restart the dev server). Library checks: `pnpm check:packages`, `pnpm test:packages`; each package keeps its own biome/tsconfig/vitest. Release: bump the package's version and CHANGELOG, then `git tag -m "git-fs-s3 vX.Y.Z" git-fs-s3@vX.Y.Z` and push the tag — `.github/workflows/release-packages.yml` publishes with OIDC.
+
+**pnpm install quirk**: `pnpm-workspace.yaml` must list `'.'` in `packages` or `pnpm add` / `pnpm install` fail with "packages field missing or empty". To add a dependency, edit `package.json` directly then run `echo "Y" | pnpm install`.
 
 **Don't trust the pnpm deprecation warning about `package.json`'s `"pnpm"` field.** On the pinned `packageManager` version, `pnpm install` claims `The "pnpm" field in package.json is no longer read`, but `pnpm-workspace.yaml`'s `overrides` has no effect here while `package.json`'s `"pnpm": { "overrides": {...} }` (the CVE-cap pins — see `docs/security.md`) works. Moving it once reintroduced 14 high-severity transitive vulnerabilities. Re-verify (override a throwaway dep, check `pnpm ls`) before acting on that warning after any pnpm/Node upgrade.
 
@@ -31,7 +33,7 @@ Run a single test file: `pnpm test src/server/__tests__/repo-access.test.ts`
 
 **Framework**: TanStack Start (file-based SSR router, server functions via `createServerFn`). Routes in `src/routes/`; API routes under `src/routes/api/` are thin — `api/git.$.ts` calls `git-http.ts`'s `serveGitRequest`, `api/raw.$.ts` calls `raw.ts`'s `serveRawFile`, `api/v3.$.ts` calls `server/api/index.ts`'s `handleApiRequest`.
 
-**Git**: isomorphic-git on R2, through the published `git-fs-s3` (fs + ops + smart-HTTP) and `git-edge` (three-way merge) packages. No native git, no local disk: every read and write goes straight to R2. Writes go through `git-fs-s3`'s packed writes (each write lands as one pack, before any ref moves), so nothing ever writes loose objects.
+**Git**: isomorphic-git on R2, through our workspace packages `git-fs-s3` (fs + ops + smart-HTTP; `packages/git-fs-s3`) and `git-edge` (three-way merge; `packages/git-edge`). No native git, no local disk: every read and write goes straight to R2. Writes go through `git-fs-s3`'s packed writes (each write lands as one pack, before any ref moves), so nothing ever writes loose objects.
 
 **Server modules** (`src/server/`, imported only by server functions and API handlers):
 - `config.ts` — env tuning knobs (`GIT_CACHE_MAX_BYTES`, `GIT_CACHE_TTL_MS`, `GIT_HTTP_MAX_BODY_BYTES`), parsed once.

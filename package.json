@@ -25,10 +25,13 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .output .nitro .vinxi dist node_modules/.cache",
     "deploy": "pnpm run build",
-    "prepare": "husky",
+    "prepare": "husky && pnpm build:packages",
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "build:packages": "pnpm --filter './packages/*' build",
+    "test:packages": "pnpm --filter './packages/*' test",
+    "check:packages": "pnpm --filter './packages/*' lint && pnpm --filter './packages/*' typecheck"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -50,8 +53,8 @@
     "diff": "^9.0.0",
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
-    "git-edge": "^0.6.0",
-    "git-fs-s3": "^0.15.0",
+    "git-edge": "workspace:*",
+    "git-fs-s3": "workspace:*",
     "isomorphic-git": "^1.44.3",
     "lucide-react": "^1.59.0",
     "mdast-util-find-and-replace": "^3.0.3",

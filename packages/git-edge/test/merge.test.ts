@@ -1,0 +1,399 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import git from "isomorphic-git";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { threeWayMerge } from "../src/merge.js";
+
+let tmpDir: string;
+
+const AUTHOR = "Test <test@test.com> 1000000000 +0000";
+
+beforeEach(() => {
+	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-edge-test-"));
+});
+
+afterEach(() => {
+	fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+async function createBareRepo(dir: string) {
+	fs.mkdirSync(dir, { recursive: true });
+	const cache = {};
+	await git.init({ fs, dir, defaultBranch: "main", bare: true });
+
+	const readmeOid = await git.writeBlob({
+		fs,
+		gitdir: dir,
+		blob: new TextEncoder().encode("# Test Repo"),
+	});
+	const treeOid = await git.writeTree({
+		fs,
+		gitdir: dir,
+		tree: [{ path: "README.md", type: "blob", oid: readmeOid, mode: "100644" }],
+	});
+	const commitOid = await git.writeObject({
+		fs,
+		gitdir: dir,
+		type: "commit",
+		object: new TextEncoder().encode(
+			`tree ${treeOid}\nauthor ${AUTHOR}\ncommitter ${AUTHOR}\n\nInitial commit`,
+		),
+		format: "content",
+	});
+	await git.writeRef({
+		fs,
+		gitdir: dir,
+		ref: "refs/heads/main",
+		value: commitOid,
+		force: true,
+	});
+
+	return { fs, gitdir: dir, cache };
+}
+
+async function makeCommit(
+	repo: { fs: typeof fs; gitdir: string; cache: object },
+	parentOid: string,
+	files: Array<{ path: string; content: string }>,
+	message: string,
+): Promise<string> {
+	// Start from parent's tree
+	const parentCommit = await git.readCommit({ ...repo, oid: parentOid });
+	const parentTree = await git.readTree({
+		...repo,
+		oid: parentCommit.commit.tree,
+	});
+	const fileMap = new Map<string, { oid: string; mode: string }>();
+	for (const entry of parentTree.tree) {
+		if (entry.type === "blob") {
+			fileMap.set(entry.path, { oid: entry.oid, mode: entry.mode });
+		}
+	}
+
+	// Overlay new files
+	for (const f of files) {
+		const oid = await git.writeBlob({
+			...repo,
+			blob: new TextEncoder().encode(f.content),
+		});
+		fileMap.set(f.path, { oid, mode: "100644" });
+	}
+
+	const treeEntries = Array.from(fileMap.entries()).map(
+		([name, { oid, mode }]) => ({
+			path: name,
+			type: "blob" as const,
+			oid,
+			mode,
+		}),
+	);
+	const treeOid = await git.writeTree({ ...repo, tree: treeEntries });
+
+	const { cache: _, ...repoNoCache } = repo;
+	const commitOid = await git.writeObject({
+		...repoNoCache,
+		type: "commit",
+		object: new TextEncoder().encode(
+			`tree ${treeOid}\nparent ${parentOid}\nauthor ${AUTHOR}\ncommitter ${AUTHOR}\n\n${message}`,
+		),
+		format: "content",
+	});
+
+	return commitOid;
+}
+
+describe("threeWayMerge", () => {
+	it("fast-forwards when source is ahead", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo4"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+
+		const featureOid = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "feature.txt", content: "feature content" }],
+			"Add feature",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: featureOid,
+			force: true,
+		});
+
+		const result = await threeWayMerge(
+			repo,
+			"refs/heads/feature",
+			"refs/heads/main",
+		);
+		expect(result.commitOid).toBe(featureOid);
+
+		const newMainOid = await git.resolveRef({
+			...repo,
+			ref: "refs/heads/main",
+		});
+		expect(newMainOid).toBe(featureOid);
+	});
+
+	it("merges non-conflicting changes", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo5"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+
+		const featureOid = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "feature.txt", content: "feature content" }],
+			"Add feature",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: featureOid,
+			force: true,
+		});
+
+		const mainOid2 = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "main.txt", content: "main content" }],
+			"Add main.txt",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: mainOid2,
+			force: true,
+		});
+
+		const result = await threeWayMerge(
+			repo,
+			"refs/heads/feature",
+			"refs/heads/main",
+		);
+		expect(result.commitOid).toBeDefined();
+		expect(result.commitOid).not.toBe(mainOid2);
+
+		const commit = await git.readCommit({ ...repo, oid: result.commitOid });
+		const mergedTree = await git.readTree({ ...repo, oid: commit.commit.tree });
+		const treePaths = mergedTree.tree.map((e) => e.path).sort();
+		expect(treePaths).toContain("feature.txt");
+		expect(treePaths).toContain("main.txt");
+		expect(treePaths).toContain("README.md");
+	});
+
+	it("returns same oid when source === target", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo6"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: mainOid,
+			force: true,
+		});
+
+		const result = await threeWayMerge(
+			repo,
+			"refs/heads/feature",
+			"refs/heads/main",
+		);
+		expect(result.commitOid).toBe(mainOid);
+	});
+
+	it("handles file modifications on one side only", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo7"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+
+		const featureOid = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "README.md", content: "# Updated README" }],
+			"Update README",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: featureOid,
+			force: true,
+		});
+
+		const result = await threeWayMerge(
+			repo,
+			"refs/heads/feature",
+			"refs/heads/main",
+		);
+		const commit = await git.readCommit({ ...repo, oid: result.commitOid });
+		const mergedTree = await git.readTree({ ...repo, oid: commit.commit.tree });
+		const readmeEntry = mergedTree.tree.find((e) => e.path === "README.md");
+		if (!readmeEntry) throw new Error("README.md missing from merged tree");
+
+		const { blob } = await git.readBlob({ ...repo, oid: readmeEntry.oid });
+		expect(new TextDecoder().decode(blob)).toBe("# Updated README");
+	});
+
+	// Regression coverage: a path with no entry in the merge-base tree at
+	// all (both sides independently added it after diverging) used to reach
+	// `readBlob(repo, baseOid!)` with a genuinely undefined baseOid — a
+	// real crash, not a safe assertion, since nothing upstream actually
+	// guaranteed a base entry exists for every path both sides touch.
+	it("merges identical content both sides independently added (no common ancestor)", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo8"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+
+		const featureOid = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "new-file.txt", content: "same content" }],
+			"Add new-file.txt on feature",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: featureOid,
+			force: true,
+		});
+
+		const mainOid2 = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "new-file.txt", content: "same content" }],
+			"Add new-file.txt on main",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: mainOid2,
+			force: true,
+		});
+
+		const result = await threeWayMerge(
+			repo,
+			"refs/heads/feature",
+			"refs/heads/main",
+		);
+		const commit = await git.readCommit({ ...repo, oid: result.commitOid });
+		const mergedTree = await git.readTree({ ...repo, oid: commit.commit.tree });
+		const entry = mergedTree.tree.find((e) => e.path === "new-file.txt");
+		if (!entry) throw new Error("new-file.txt missing from merged tree");
+
+		const { blob } = await git.readBlob({ ...repo, oid: entry.oid });
+		expect(new TextDecoder().decode(blob)).toBe("same content");
+	});
+
+	// Regression coverage for the previous hand-rolled lockstep merge: it
+	// compared base[i]/ours[i]/theirs[i] at the same index across all three,
+	// with no way to realign after an insertion shifted later indices. An
+	// insertion on one side, followed by an unrelated edit further down on
+	// the other side, used to misreport a conflict where none exists (the
+	// edits don't overlap) and lose/garble content in the process. A real
+	// diff3 merge realigns on content, not position, so this must produce a
+	// clean merge with both changes intact.
+	it("merges an insertion on one side with an unrelated edit further down on the other, with no false conflict", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo10"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+
+		const baseContent = "line1\nline2\nline3\nline4\nline5";
+		const baseCommitOid = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "file.txt", content: baseContent }],
+			"Add file.txt",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: baseCommitOid,
+			force: true,
+		});
+
+		// feature: inserts a line right after line1, doesn't touch line5.
+		const featureOid = await makeCommit(
+			repo,
+			baseCommitOid,
+			[
+				{
+					path: "file.txt",
+					content: "line1\nNEW\nline2\nline3\nline4\nline5",
+				},
+			],
+			"Insert NEW after line1",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: featureOid,
+			force: true,
+		});
+
+		// main: only changes line5, doesn't touch the top of the file.
+		const mainOid2 = await makeCommit(
+			repo,
+			baseCommitOid,
+			[
+				{
+					path: "file.txt",
+					content: "line1\nline2\nline3\nline4\nline5-changed",
+				},
+			],
+			"Change line5",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: mainOid2,
+			force: true,
+		});
+
+		const result = await threeWayMerge(
+			repo,
+			"refs/heads/feature",
+			"refs/heads/main",
+		);
+		const commit = await git.readCommit({ ...repo, oid: result.commitOid });
+		const mergedTree = await git.readTree({ ...repo, oid: commit.commit.tree });
+		const entry = mergedTree.tree.find((e) => e.path === "file.txt");
+		if (!entry) throw new Error("file.txt missing from merged tree");
+
+		const { blob } = await git.readBlob({ ...repo, oid: entry.oid });
+		expect(new TextDecoder().decode(blob)).toBe(
+			"line1\nNEW\nline2\nline3\nline4\nline5-changed",
+		);
+	});
+
+	it("reports a conflict when both sides independently add different content at the same path", async () => {
+		const repo = await createBareRepo(path.join(tmpDir, "repo9"));
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+
+		const featureOid = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "new-file.txt", content: "feature version" }],
+			"Add new-file.txt on feature",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: featureOid,
+			force: true,
+		});
+
+		const mainOid2 = await makeCommit(
+			repo,
+			mainOid,
+			[{ path: "new-file.txt", content: "main version" }],
+			"Add new-file.txt on main",
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: mainOid2,
+			force: true,
+		});
+
+		await expect(
+			threeWayMerge(repo, "refs/heads/feature", "refs/heads/main"),
+		).rejects.toMatchObject({
+			name: "GitMergeConflictError",
+			conflictingPaths: ["new-file.txt"],
+		});
+	});
+});
