@@ -44,7 +44,7 @@ describe("@mentions", () => {
 	});
 
 	it("drops trailing punctuation", () => {
-		expect(links("hi @bob.")).toEqual(["@bob→/users/bob"].map((l) => l));
+		expect(links("hi @bob.")).toEqual(["@bob→/users/bob"]);
 	});
 
 	it("links without a repository context", () => {
@@ -120,6 +120,12 @@ describe("commit SHAs", () => {
 		expect(links(`${SHA}a`)).toEqual([]);
 		expect(links("deadbeef cafebabe")).toEqual([]);
 		expect(links("abc123g")).toEqual([]);
+	});
+
+	it("ignores all-digit runs such as dates and ids", () => {
+		expect(links("released 20261019")).toEqual([]);
+		expect(links("size 1234567 bytes")).toEqual([]);
+		expect(links("other/lib@2026101")).toEqual([]);
 	});
 
 	it("ignores SHAs glued to words, paths or versions", () => {

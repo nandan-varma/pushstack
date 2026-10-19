@@ -24,7 +24,7 @@ describe("createReferencePattern", () => {
 
 	it("matches commit SHAs of 7-40 hex chars with at least one digit", () => {
 		expect(findAll("revert abc1234")).toEqual(["abc1234"]);
-		expect(findAll("commit 1234567")).toEqual(["1234567"]);
+		expect(findAll("commit 1234567")).toEqual([]);
 		expect(findAll("in a1b2c3d4e5f6")).toEqual(["a1b2c3d4e5f6"]);
 	});
 

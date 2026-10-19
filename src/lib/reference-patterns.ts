@@ -26,7 +26,7 @@ const OWNER = "[A-Za-z0-9][\\w.-]*";
 const REPO = "[A-Za-z0-9][\\w.-]*";
 /** Up to 30 chars (`MAX_USERNAME_LENGTH`), alphanumeric at both ends. */
 const LOGIN = "[A-Za-z0-9](?:[A-Za-z0-9._-]{0,28}[A-Za-z0-9])?";
-const SHA = "(?=[0-9a-f]*\\d)[0-9a-f]{7,40}";
+const SHA = "(?=[0-9a-f]*\\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}";
 
 /**
  * Matches `#123` style references and 7-40 char commit SHAs. Requires at
