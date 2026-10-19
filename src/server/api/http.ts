@@ -87,13 +87,17 @@ export interface PageParams {
 	page: number;
 	perPage: number;
 	offset: number;
+	/** False past `MAX_LIST_SKIP` items: such a page is empty. */
+	reachable: boolean;
 }
 
 /** `page` / `per_page` like GitHub: bad values fall back, `per_page` caps at 100. */
 export function pageParams(query: URLSearchParams): PageParams {
 	const positiveInt = (name: string) => {
-		const value = Number(query.get(name));
-		return Number.isInteger(value) && value >= 1 ? value : null;
+		const raw = query.get(name);
+		if (raw === null || !/^\d+$/.test(raw)) return null;
+		const value = Number(raw);
+		return value >= 1 ? value : null;
 	};
 	const perPage = Math.min(
 		positiveInt("per_page") ?? DEFAULT_PER_PAGE,
@@ -101,8 +105,8 @@ export function pageParams(query: URLSearchParams): PageParams {
 	);
 	const page = positiveInt("page") ?? 1;
 	// Bounded like every list endpoint (`MAX_LIST_SKIP`): a deeper page is empty.
-	const offset = Math.min((page - 1) * perPage, MAX_LIST_SKIP + 1);
-	return { page, perPage, offset };
+	const offset = (page - 1) * perPage;
+	return { page, perPage, offset, reachable: offset <= MAX_LIST_SKIP };
 }
 
 /**
@@ -114,7 +118,9 @@ export function linkHeader(
 	{ page, perPage }: PageParams,
 	total: number,
 ): Record<string, string> {
-	const lastPage = Math.max(1, Math.ceil(total / perPage));
+	// Never advertise a page past the reachable depth.
+	const deepest = Math.floor(MAX_LIST_SKIP / perPage) + 1;
+	const lastPage = Math.max(1, Math.min(Math.ceil(total / perPage), deepest));
 	if (lastPage === 1) return {};
 	const link = (target: number, rel: string) => {
 		const query = new URLSearchParams(url.search);
@@ -136,7 +142,9 @@ export function pagedList<T, R>(
 	serialize: (item: T) => R,
 ): Response {
 	const params = pageParams(url.searchParams);
-	const slice = items.slice(params.offset, params.offset + params.perPage);
+	const slice = params.reachable
+		? items.slice(params.offset, params.offset + params.perPage)
+		: [];
 	return json(slice.map(serialize), 200, linkHeader(url, params, items.length));
 }
 
@@ -145,17 +153,37 @@ export async function readJsonObject(
 	request: Request,
 ): Promise<Record<string, unknown>> {
 	const invalid = () => new ApiError(400, "Problems parsing JSON");
-	const declared = Number(request.headers.get("content-length") ?? 0);
-	if (declared > MAX_API_BODY_BYTES) {
-		throw new ApiError(413, "Request body too large");
+	const tooLarge = () => new ApiError(413, "Request body too large");
+	const declaredHeader = request.headers.get("content-length");
+	if (declaredHeader !== null) {
+		if (!/^\d+$/.test(declaredHeader)) throw invalid();
+		if (Number(declaredHeader) > MAX_API_BODY_BYTES) throw tooLarge();
 	}
-	const text = await request.text();
-	if (text.length > MAX_API_BODY_BYTES) {
-		throw new ApiError(413, "Request body too large");
+	// Counted while streaming: a chunked body declares no length at all.
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	if (request.body) {
+		const reader = request.body.getReader();
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			total += value.byteLength;
+			if (total > MAX_API_BODY_BYTES) {
+				await reader.cancel();
+				throw tooLarge();
+			}
+			chunks.push(value);
+		}
+	}
+	const bytes = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
 	}
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(text);
+		parsed = JSON.parse(new TextDecoder().decode(bytes));
 	} catch {
 		throw invalid();
 	}

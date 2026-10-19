@@ -1,5 +1,6 @@
 /** `GET /repos/{owner}/{repo}/branches` and `…/branches/{branch}`. */
 import type { CommitInfo } from "git-fs-s3/ops";
+import { getGitBaseUrl } from "#/lib/git-utils";
 import { getBranches, getCommit } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -18,9 +19,13 @@ import { branchHtmlUrl, commitRef } from "./serializers";
 
 type Identity = CommitInfo["commit"]["author"];
 
-const gitIdentity = ({ name, email, timestamp }: Identity) => ({
+/**
+ * Web-UI commits are stamped with the account's sign-in email, which must
+ * never leave the server, so every identity gets one noreply placeholder.
+ */
+const gitIdentity = ({ name, timestamp }: Identity) => ({
 	name,
-	email,
+	email: `noreply@${new URL(getGitBaseUrl()).host}`,
 	date: isoTimestamp(new Date(timestamp * 1000)),
 });
 
@@ -29,7 +34,7 @@ export async function listBranches(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	const branches = await getBranches(ownerKeyOf(repo), repo.name);
-	branches.sort((a, b) => a.name.localeCompare(b.name));
+	branches.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 	return pagedList(ctx.url, branches, (branch) => ({
 		name: branch.name,
 		commit: commitRef({ fullName }, branch.commit),
@@ -61,7 +66,7 @@ export async function getBranch(ctx: ApiContext) {
 				url: commitUrl,
 				author: gitIdentity(commit.author),
 				committer: gitIdentity(commit.committer),
-				message: commit.message.trimEnd(),
+				message: commit.message,
 				tree: {
 					sha: commit.tree,
 					url: apiUrl(`/repos/${fullName}/git/trees/${commit.tree}`),
@@ -74,6 +79,7 @@ export async function getBranch(ctx: ApiContext) {
 			parents: commit.parent.map((sha) => ({
 				sha,
 				url: apiUrl(`/repos/${fullName}/commits/${sha}`),
+				html_url: htmlUrl(`/repo/${fullName}/commit/${sha}`),
 			})),
 		},
 		_links: {

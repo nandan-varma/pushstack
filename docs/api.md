@@ -55,8 +55,8 @@ isn't a JSON object is `400 Problems parsing JSON`; a body over 1 MiB is `413`.
 List endpoints take `per_page` (default 30, max 100) and `page` (from 1);
 invalid values fall back to the defaults. The `Link` header carries
 `rel="prev"`, `"next"`, `"last"` and `"first"` (other query parameters are
-kept) and is absent when everything fits on one page. Pages deeper than
-10,000 items are empty.
+kept) and is absent when everything fits on one page. Items deeper than
+10,000 are unreachable: such a page is an empty list.
 
 ## Compatibility matrix
 
@@ -65,7 +65,7 @@ kept) and is absent when everything fits on one page. Pages deeper than
 | `GET /user` | supported | |
 | `GET /users/{username}` | supported | |
 | `GET /user/repos` | supported | `visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction` |
-| `POST /user/repos` | supported | `name`, `description`, `private`; other fields ignored |
+| `POST /user/repos` | supported | `name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored |
 | `GET /users/{username}/repos` | supported | public repositories only; `sort`, `direction` |
 | `GET /repos/{owner}/{repo}` | supported | |
 | `GET /repos/{owner}/{repo}/branches` | supported | sorted by name |
@@ -78,7 +78,9 @@ kept) and is absent when everything fits on one page. Pages deeper than
 - **User `id` is a string**, not an integer (PushStack's user ids are text).
   Repository `id` is an integer. `node_id` is omitted.
 - **`avatar_url` is `null`** when the user has no image (GitHub always has one).
-- `email` on a user is always `null`; the address is never exposed.
+- `email` on a user is always `null`, and the `email` of a commit author or
+  committer is always the placeholder `noreply@<host>`: web commits carry the
+  account's sign-in email, which is never exposed. Names and dates are real.
 - `pushed_at` is omitted and `sort=pushed` sorts by `updated_at`.
 - Repository objects carry the fields PushStack has an equivalent for:
   `id, name, full_name, private, owner, html_url, description, fork, url,
@@ -98,4 +100,7 @@ kept) and is absent when everything fits on one page. Pages deeper than
   anything valid there is valid here); repository names follow PushStack's
   rule (letters, digits, `.`, `-`, `_`) and an invalid name is a `422` rather
   than being rewritten to hyphens.
+- Repository lookups are cached per serverless instance for a few seconds, so
+  right after `POST /user/repos` another instance may briefly answer `404` for
+  the new repository.
 - No `X-RateLimit-*` headers, no ETag/conditional requests, no CORS headers.

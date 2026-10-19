@@ -22,6 +22,9 @@ const { handleApiRequest } = await import("../api");
 const tokens = await import("../tokens");
 const files = await import("../files");
 const repositories = await import("../repositories");
+const { db } = await import("../../db");
+const { repositories: repoTable } = await import("../../db/app-schema");
+const { eq } = await import("drizzle-orm");
 
 const users = await createUsers("alice", "bob");
 const BASE = "http://localhost:3000/api/v3";
@@ -54,11 +57,14 @@ async function call(path: string, options: CallOptions = {}) {
 			body: options.body,
 		}),
 	);
+	const text = await response.text();
+	// No response may ever carry an account email (the fixtures' domain).
+	expect(text).not.toContain("@example.com");
 	return {
 		status: response.status,
 		headers: response.headers,
 		// biome-ignore lint/suspicious/noExplicitAny: arbitrary JSON under test
-		body: (await response.json()) as any,
+		body: (text ? JSON.parse(text) : null) as any,
 	};
 }
 
@@ -127,6 +133,76 @@ describe("authentication", () => {
 		const { status, body } = await call("/nope");
 		expect(status).toBe(404);
 		expect(body).toMatchObject({ message: "Not Found", status: "404" });
+	});
+});
+
+describe("request handling", () => {
+	it("401s a bad token on an unknown route, and an expired token", async () => {
+		expect(
+			(await call("/nope", { authorization: "token pst_nope" })).status,
+		).toBe(401);
+		const expired = await mintToken(users.bob, ["repo:read"]);
+		const { tokens: tokenTable } = await import("../../db/app-schema");
+		const { hashToken } = await import("../../lib/token-scopes");
+		await db
+			.update(tokenTable)
+			.set({ expiresAt: new Date(Date.now() - 1000) })
+			.where(eq(tokenTable.tokenHash, await hashToken(expired)));
+		const { status, body } = await call("/user", asToken(expired));
+		expect(status).toBe(401);
+		expect(body.message).toBe("Bad credentials");
+	});
+
+	it("accepts Bearer on a write", async () => {
+		const { status } = await call("/user/repos", {
+			authorization: `Bearer ${alice}`,
+			method: "POST",
+			body: JSON.stringify({ name: "via-bearer" }),
+		});
+		expect(status).toBe(201);
+		await db.delete(repoTable).where(eq(repoTable.name, "via-bearer"));
+	});
+
+	it("413s an oversized body, declared or streamed", async () => {
+		const big = JSON.stringify({
+			name: "x",
+			description: "y".repeat(1_100_000),
+		});
+		const declared = await call("/user/repos", {
+			...asToken(alice),
+			method: "POST",
+			body: big,
+		});
+		expect(declared.status).toBe(413);
+
+		// A chunked body declares no length; the cap must stop the read itself.
+		const chunk = new TextEncoder().encode("y".repeat(256 * 1024));
+		let sent = 0;
+		const stream = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				sent += chunk.byteLength;
+				controller.enqueue(chunk);
+			},
+		});
+		const response = await handleApiRequest(
+			new Request(`${BASE}/user/repos`, {
+				method: "POST",
+				headers: { authorization: `token ${alice}` },
+				body: stream,
+				// @ts-expect-error Node's fetch requires this for stream bodies
+				duplex: "half",
+			}),
+		);
+		expect(response.status).toBe(413);
+		expect(sent).toBeLessThan(4 * 1024 * 1024);
+	});
+
+	it("answers HEAD like GET without a body", async () => {
+		const response = await handleApiRequest(
+			new Request(`${BASE}/users/alice`, { method: "HEAD" }),
+		);
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("");
 	});
 });
 
@@ -395,10 +471,25 @@ describe("listing repositories", () => {
 		expect(bad.body).toHaveLength(4);
 	});
 
-	it("caps per_page at 100", async () => {
-		const { status, body } = await call("/users/alice/repos?per_page=1000");
-		expect(status).toBe(200);
-		expect(body).toHaveLength(4);
+	it("caps per_page at 100 and rejects non-decimal paging values", async () => {
+		const { pageParams } = await import("../api/http");
+		const params = (query: string) => pageParams(new URLSearchParams(query));
+		expect(params("per_page=1000").perPage).toBe(100);
+		expect(params("per_page=1e1").perPage).toBe(30);
+		expect(params("per_page=0x10&page= 5")).toMatchObject({
+			perPage: 30,
+			page: 1,
+		});
+		expect(params("per_page=100&page=3").offset).toBe(200);
+		expect(params("per_page=100&page=102").reachable).toBe(false);
+	});
+
+	it("returns an empty list past the last page or the reachable depth", async () => {
+		const { body } = await call("/users/alice/repos?page=2");
+		expect(body).toEqual([]);
+		const deep = await call("/users/alice/repos?per_page=100&page=500");
+		expect(deep.body).toEqual([]);
+		expect(deep.headers.get("link")).toBeNull();
 	});
 });
 
@@ -453,7 +544,7 @@ describe("branches and tags", () => {
 			commit: {
 				sha: head,
 				commit: {
-					message: "Initial\n\nBody",
+					message: "Initial\n\nBody\n",
 					author: { name: expect.any(String), email: expect.any(String) },
 					tree: { sha: expect.stringMatching(/^[0-9a-f]{40}$/) },
 				},
@@ -493,14 +584,22 @@ describe("branches and tags", () => {
 		const { repoFor } = await import("../git-repo");
 		const repo = repoFor("alice", "proj");
 		await git.tag({ ...repo, ref: "v1.0", object: head });
+		await git.annotatedTag({
+			...repo,
+			ref: "v2.0",
+			object: head,
+			message: "Release",
+			tagger: { name: "T", email: "t@t.test" },
+		});
 		const { status, body } = await call("/repos/alice/proj/tags");
 		expect(status).toBe(200);
-		expect(body).toEqual([
-			{
-				name: "v1.0",
+		// Annotated tags are peeled to the commit they name.
+		expect(body).toEqual(
+			["v1.0", "v2.0"].map((name) => ({
+				name,
 				commit: { sha: head, url: `${BASE}/repos/alice/proj/commits/${head}` },
-			},
-		]);
+			})),
+		);
 	});
 
 	it("paginates branches", async () => {
@@ -526,7 +625,21 @@ describe("repository initialization", () => {
 		expect(status).toBe(201);
 		const branch = await call("/repos/alice/inited/branches/main");
 		expect(branch.status).toBe(200);
-		expect(branch.body.commit.commit.message).toBe("Initial commit");
+		expect(branch.body.commit.commit.message).toBe("Initial commit\n");
+		const { id } = (await call("/repos/alice/inited")).body;
+		signIn(users.alice);
+		const readme = await files.getFile({
+			data: { repoId: id, branchName: "main", path: "README.md" },
+		});
+		expect(JSON.stringify(readme)).toContain("inited");
+
+		// As on GitHub, templates alone (without auto_init) create nothing.
+		await call(
+			"/user/repos",
+			post(alice, { name: "tpl-only", license_template: "mit" }),
+		);
+		expect((await call("/repos/alice/tpl-only/branches")).body).toEqual([]);
+
 		const bad = await call(
 			"/user/repos",
 			post(alice, { name: "bad-tpl", gitignore_template: "Nope" }),

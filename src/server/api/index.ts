@@ -100,14 +100,17 @@ export async function handleApiRequest(request: Request): Promise<Response> {
 	const pathname = url.pathname.startsWith(API_PREFIX)
 		? url.pathname.slice(API_PREFIX.length)
 		: url.pathname;
-	const matched = matchRoute(request.method, pathname);
+	// HEAD is GET without the body.
+	const isHead = request.method === "HEAD";
+	const method = isHead ? "GET" : request.method;
+	const matched = matchRoute(method, pathname);
 	try {
 		// Credentials are checked even on unknown routes: a bad token is a 401
 		// everywhere, as on GitHub.
 		const caller = await authenticateRequest(request);
 		if (!matched) throw notFoundError();
-		return await perfContext(
-			`api ${request.method} ${matched.route.pattern}`,
+		const response = await perfContext(
+			`api ${method} ${matched.route.pattern}`,
 			() =>
 				matched.route.handler({
 					request,
@@ -116,6 +119,12 @@ export async function handleApiRequest(request: Request): Promise<Response> {
 					caller,
 				}),
 		);
+		return isHead
+			? new Response(null, {
+					status: response.status,
+					headers: response.headers,
+				})
+			: response;
 	} catch (error) {
 		if (error instanceof ApiError) return errorResponse(error);
 		if (isGitNotFoundError(error)) return errorResponse(notFoundError());

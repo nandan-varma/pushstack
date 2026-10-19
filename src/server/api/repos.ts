@@ -107,6 +107,7 @@ async function listRepositories(
 		eq(repositoryCollaborators.repoId, repositories.id),
 		eq(repositoryCollaborators.userId, callerId ?? ""),
 	);
+	if (!params.reachable) return { rows: [], params, total: 0 };
 	const [rows, [totalRow]] = await perfStep("db: list repositories", () =>
 		Promise.all([
 			db
@@ -292,8 +293,13 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 			description: parsed.data.description ?? undefined,
 			visibility: parsed.data.private ? "private" : "public",
 			autoInit: parsed.data.auto_init,
-			gitignoreTemplate: parsed.data.gitignore_template,
-			licenseTemplate: parsed.data.license_template,
+			// GitHub applies the templates only together with auto_init.
+			gitignoreTemplate: parsed.data.auto_init
+				? parsed.data.gitignore_template
+				: undefined,
+			licenseTemplate: parsed.data.auto_init
+				? parsed.data.license_template
+				: undefined,
 		});
 	} catch (error) {
 		if (error instanceof RepositoryExistsError) {
