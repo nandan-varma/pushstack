@@ -5,6 +5,7 @@ import {
 	CircleCheck,
 	CircleDot,
 	GitBranch,
+	GitCommitHorizontal,
 	GitMerge,
 	type LucideIcon,
 	MessageSquareQuote,
@@ -103,6 +104,26 @@ function ThreadLink({
 	);
 }
 
+function CommitLink({
+	sha,
+	owner,
+	name,
+}: {
+	sha: string;
+	owner: string;
+	name: string;
+}) {
+	return (
+		<Link
+			to="/repo/$owner/$name/commit/$sha"
+			params={{ owner, name, sha }}
+			className="font-mono text-foreground hover:underline"
+		>
+			{sha.slice(0, 7)}
+		</Link>
+	);
+}
+
 function describe(
 	event: TimelineEntry,
 	owner: string,
@@ -117,8 +138,24 @@ function describe(
 						closed this as completed in{" "}
 						<ThreadLink thread={event.closer} owner={owner} name={name} />
 					</>
+				) : event.commitSha ? (
+					<>
+						closed this as completed in commit{" "}
+						<CommitLink sha={event.commitSha} owner={owner} name={name} />
+					</>
 				) : (
 					"closed this"
+				),
+			};
+		case "referenced":
+			return {
+				icon: GitCommitHorizontal,
+				text: (
+					<>
+						referenced this in commit{" "}
+						<CommitLink sha={event.commitSha} owner={owner} name={name} />
+						{event.message ? <> {event.message}</> : null}
+					</>
 				),
 			};
 		case "reopened":
