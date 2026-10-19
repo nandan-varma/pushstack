@@ -12,7 +12,7 @@ import {
 	MAX_LIST_SKIP,
 } from "#/lib/limits";
 import { recordActivity } from "./activity";
-import { analyzeMerge } from "./git-read";
+import { analyzeMerge, getCommit, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
@@ -320,4 +320,63 @@ export const deletePullRequestBranch = createServerFn({ method: "POST" })
 				branch: pr.sourceBranch,
 			});
 		});
+	});
+
+/** The Commits tab is capped at 250 commits, as on GitHub. */
+const PR_COMMITS_LIMIT = 250;
+
+/**
+ * A pull request's Commits tab: commits on the head branch that aren't on
+ * the base, newest first. A merged pull request uses the state recorded at
+ * merge time: the merge commit's two parents are the base and head then. A
+ * fast-forward merge makes no merge commit, so its range can't be recovered
+ * and comes back empty with a note.
+ */
+export const getPullRequestCommits = createServerFn({ method: "GET" })
+	.validator(z.object({ prId: z.number() }))
+	.handler(async ({ data }) => {
+		const pr = await db.query.pullRequests.findFirst({
+			where: eq(pullRequests.id, data.prId),
+		});
+		if (!pr) throw notFound();
+		return readWithAccess(
+			`getPullRequestCommits #${pr.number}`,
+			pr.repoId,
+			async (repo) => {
+				const owner = ownerKeyOf(repo);
+				if (pr.status !== "merged") {
+					return {
+						...(await getCommitsBetween(
+							owner,
+							repo.name,
+							pr.targetBranch,
+							pr.sourceBranch,
+							PR_COMMITS_LIMIT,
+						)),
+						note: null,
+					};
+				}
+				const merge = pr.mergeCommitSha
+					? await getCommit(owner, repo.name, pr.mergeCommitSha)
+					: null;
+				const [mergeBase, mergeHead] = merge?.commit.parent ?? [];
+				if (!mergeBase || !mergeHead) {
+					return {
+						commits: [],
+						truncated: false,
+						note: "This pull request was fast-forward merged, so its commits weren't recorded.",
+					};
+				}
+				return {
+					...(await getCommitsBetween(
+						owner,
+						repo.name,
+						mergeBase,
+						mergeHead,
+						PR_COMMITS_LIMIT,
+					)),
+					note: null,
+				};
+			},
+		);
 	});

@@ -79,7 +79,11 @@ pull requests and merges need write access.
 - `pull-requests.ts` — `createPullRequest` (both branches must exist and
   differ), `getPullRequests`, `getPullRequestNumbers`,
   `getPullRequestByNumber`, `updatePullRequest`, `mergePullRequest`,
-  `deletePullRequestBranch`. Merging runs `git-write.ts`'s `mergeBranches`,
+  `deletePullRequestBranch`, `getPullRequestCommits` (the Commits tab: head's
+  commits not on base via `git-read.ts`'s bounded `getCommitsBetween`, capped
+  at 250 with a `truncated` flag; a merged PR uses its merge commit's two
+  parents, and a fast-forward merge returns an empty list with a `note`).
+  Merging runs `git-write.ts`'s `mergeBranches`,
   then records the merge only `WHERE status = 'open'` (a concurrent merge
   loses cleanly) and closes the issues the body names ("Closes #4").
 - `comments.ts` — `createComment` on exactly one thread (`issueId` or
