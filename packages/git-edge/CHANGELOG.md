@@ -2,6 +2,13 @@
 
 This changelog is derived from this repository's release history; it is ordered newest first.
 
+## [0.6.1] - 2026-10-19
+
+### Changed
+
+- Developed and published from the pushstack monorepo
+  (`packages/git-edge` in nandan-varma/pushstack); no code changes.
+
 ## [0.6.0] - 2026-10-19
 
 ### Changed

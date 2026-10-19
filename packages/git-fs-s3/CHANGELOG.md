@@ -3,6 +3,13 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.1] - 2026-10-19
+
+### Changed
+
+- Developed and published from the pushstack monorepo
+  (`packages/git-fs-s3` in nandan-varma/pushstack); no code changes.
+
 ## [0.15.0] - 2026-10-19
 
 ### Added
