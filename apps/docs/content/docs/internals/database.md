@@ -4,7 +4,7 @@ description: "Tables, relations, indices and db:push."
 ---
 
 Neon (serverless Postgres) via `@neondatabase/serverless`, accessed through
-Drizzle ORM and Kit use the same 1.0 RC version. Two schema files define the tables:
+Drizzle ORM. ORM and Kit use the same 1.0 RC version. Two schema files define the tables:
 
 - **`apps/web/src/db/schema.ts`** — Better Auth's tables (`user`, `session`,
   `account`, `verification`).

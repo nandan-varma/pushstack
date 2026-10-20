@@ -8,7 +8,8 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"typecheck": "fumadocs-mdx && tsc --noEmit",
-		"test": "node --test scripts/*.test.mjs"
+		"test": "node --test scripts/*.test.mjs",
+		"lint": "biome check ."
 	},
 	"dependencies": {
 		"@tailwindcss/vite": "^4.3.3",
@@ -29,6 +30,7 @@
 		"@types/react-dom": "^19.3.0",
 		"@vitejs/plugin-react": "^6.1.2",
 		"typescript": "^7.0.2",
-		"vite": "^8.3.4"
+		"vite": "^8.3.4",
+		"@pushstack/tsconfig": "workspace:*"
 	}
 }

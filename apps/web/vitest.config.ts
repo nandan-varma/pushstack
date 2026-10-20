@@ -5,6 +5,8 @@ export default defineConfig({
 	plugins: [react()],
 	resolve: { tsconfigPaths: true },
 	test: {
+		// Each behavior-test worker boots Postgres WASM; bound memory and startup contention.
+		maxWorkers: 2,
 		environment: "jsdom",
 		// src/db requires a URL at import; nothing connects until a query runs.
 		env: { DATABASE_URL: "postgresql://test@localhost/test" },

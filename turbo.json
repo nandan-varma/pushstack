@@ -27,7 +27,11 @@
 			"dependsOn": ["^build"],
 			"cache": false,
 			"persistent": true
+		},
+		"lint": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"]
 		}
 	},
-	"globalEnv": ["NODE_ENV", "CI"]
+	"globalEnv": ["NODE_ENV", "CI"],
+	"globalDependencies": ["packages/tsconfig/*.json"]
 }

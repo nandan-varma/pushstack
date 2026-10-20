@@ -6,7 +6,7 @@ description: "Tech stack, request flow, directory map and the two storage system
 PushStack is a code hosting platform: Git repository hosting (full smart HTTP protocol),
 issue tracking, pull requests, and a code/diff viewer. This document covers the
 system's overall shape — how a request flows through the app, and how the major
-pieces fit together. For deep dives on any one piece, see the other files in `docs/`.
+pieces fit together. For deep dives on any one piece, use the other pages in this section.
 
 ## Tech stack
 
@@ -145,3 +145,19 @@ full role/permission model.
 - [security.md](/docs/internals/security) — the security model and invariants that must not be violated
 - [testing.md](/docs/internals/testing) — test layout and conventions
 - [deployment.md](/docs/internals/deployment) — Vercel/Nitro/R2 deployment and environment variables
+
+## Workspace tooling
+
+The repository contains `apps/web`, `apps/docs`, `apps/cli`, the two Git libraries,
+and the private `packages/tsconfig` configuration package. Runtime workspaces
+share compiler options and expose `build`, `typecheck`, `test` and `lint`.
+Internal dependencies use `workspace:*`; Turbo builds dependencies before consumers.
+Lint tasks include the root Biome configuration in their cache inputs.
+
+Root `pnpm test` runs workspace integrity checks before the behavior suites.
+Those guards reject dependency version drift, missing validation commands and
+registry ranges for internal packages. Web test concurrency is bounded because
+each behavior worker starts a Postgres WASM instance.
+
+The CLI currently runs from the checkout. npm publication and trusted-publisher
+setup, and library patch releases for the new homepages, remain release steps.

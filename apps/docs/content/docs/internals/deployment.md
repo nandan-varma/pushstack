@@ -25,7 +25,6 @@ global `Buffer`).
 
 ```bash
 pnpm build    # production build
-pnpm deploy   # currently just runs the build — actual deployment is via the Vercel CLI/integration
 ```
 
 ## `apps/web/vite.config.ts` specifics worth knowing
@@ -122,3 +121,24 @@ rate-limiter counters ([security.md](/docs/internals/security)) — is part of t
 so a deploy that introduces it must have `pnpm db:push` run against the target
 database *before* the code that writes to it is live; otherwise the first
 rate-limited request fails against a missing table.
+
+## Monorepo hosting
+
+Two Vercel projects deploy from this repository's `main` branch:
+
+| Project | Root directory | Host |
+| --- | --- | --- |
+| `pushstack` | `apps/web` | `git.nandan.fyi` |
+| `pushstack-docs` | `apps/docs` | `docs.git.nandan.fyi` |
+
+Both use Node 24, include source files outside the project root, and build
+through the filtered Turbo command in their own `vercel.json`. Affected-project
+skipping avoids rebuilding an app when its dependency graph is unchanged.
+The docs host has an unproxied Cloudflare CNAME to Vercel. Documentation needs
+no database, auth secret or object-storage credentials.
+
+When using the Vercel API, create the project with its Git repository and root
+directory, then update project settings for `nodeVersion` and
+`sourceFilesOutsideRootDirectory`; those settings are accepted by the update
+endpoint rather than the create endpoint. Read the current API schema before
+changing hosting settings.

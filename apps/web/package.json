@@ -23,7 +23,8 @@
 		"db:push": "drizzle-kit push",
 		"db:pull": "drizzle-kit pull",
 		"db:studio": "drizzle-kit studio",
-		"clean": "rm -rf .output .nitro .vinxi dist node_modules/.cache"
+		"clean": "rm -rf .output .nitro .vinxi dist node_modules/.cache",
+		"lint": "biome check ."
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.9.0",
@@ -84,6 +85,7 @@
 		"typescript": "^7.0.2",
 		"vite": "^8.3.4",
 		"vitest": "^5.0.5",
-		"@pushstack/cli": "workspace:*"
+		"@pushstack/cli": "workspace:*",
+		"@pushstack/tsconfig": "workspace:*"
 	}
 }
