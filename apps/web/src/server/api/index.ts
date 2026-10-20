@@ -16,6 +16,16 @@ import {
 	listComments,
 	updateComment,
 } from "./comments";
+import { compareCommits, getCommitDetail, listCommits } from "./commits";
+import { getContents } from "./contents";
+import {
+	getGitBlob,
+	getGitCommit,
+	getGitTree,
+	getRef,
+	listMatchingRefs,
+	listRefs,
+} from "./git-data";
 import { API_PREFIX, ApiError, errorResponse, notFoundError } from "./http";
 import { createIssue, getIssue, listIssues, updateIssue } from "./issues";
 import {
@@ -98,6 +108,71 @@ const ROUTES: Route[] = [
 		handler: getBranch,
 	},
 	{ method: "GET", pattern: "/repos/:owner/:repo/tags", handler: listTags },
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/contents",
+		handler: getContents,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/contents/*path",
+		handler: getContents,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/commits",
+		handler: listCommits,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/commits/*ref",
+		handler: getCommitDetail,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/compare/*basehead",
+		handler: compareCommits,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/ref/*ref",
+		handler: getRef,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/refs",
+		handler: listRefs,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/refs/*ref",
+		handler: listRefs,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/matching-refs",
+		handler: listMatchingRefs,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/matching-refs/*ref",
+		handler: listMatchingRefs,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/commits/:sha",
+		handler: getGitCommit,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/trees/*sha",
+		handler: getGitTree,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/git/blobs/:sha",
+		handler: getGitBlob,
+	},
 	{ method: "GET", pattern: "/repos/:owner/:repo/issues", handler: listIssues },
 	{
 		method: "POST",

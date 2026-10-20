@@ -100,6 +100,14 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/branches` | supported | sorted by name |
 | `GET /repos/{owner}/{repo}/branches/{branch}` | supported | branch names may contain `/` |
 | `GET /repos/{owner}/{repo}/tags` | supported | version order |
+| `GET /repos/{owner}/{repo}/contents/{path}` | supported | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. `PUT`/`DELETE` not implemented yet |
+| `GET /repos/{owner}/{repo}/commits` | supported | `sha`, `path`, pagination; newest first; `409` for an empty repository |
+| `GET /repos/{owner}/{repo}/commits/{ref}` | supported | with `stats` and up to 300 `files`; unknown ref is `422` |
+| `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files` |
+| `GET /repos/{owner}/{repo}/git/ref/{ref}`, `.../git/matching-refs/{ref}`, `.../git/refs[/{ref}]` | supported | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
+| `GET /repos/{owner}/{repo}/git/commits/{sha}` | supported | full sha only |
+| `GET /repos/{owner}/{repo}/git/trees/{sha}` | supported | `recursive`; up to 10,000 entries, then `truncated` |
+| `GET /repos/{owner}/{repo}/git/blobs/{sha}` | supported | base64; up to 3 MB |
 | `GET /repos/{owner}/{repo}/issues` | supported | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
 | `POST /repos/{owner}/{repo}/issues` | supported | any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access) |
 | `GET /repos/{owner}/{repo}/issues/{number}` | supported | a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason` |
@@ -158,9 +166,30 @@ kept) and is absent when everything fits on one page. Items deeper than
   `id` is an integer.
 - Unsupported issue-list filters (`creator`, `mentioned`, `milestone`, `since`,
   `state_reason`) are ignored rather than rejected.
-- Commit `author`/`committer` (account links) in a branch response are `null`;
-  commits aren't linked to accounts by email. `commit.url`/`html_url` point at
-  endpoints/pages that aren't implemented yet.
+- Commit `author`/`committer` (account links) in branch, commit and compare
+  responses are `null`; commits aren't linked to accounts by email.
+  `comments_url` points at an endpoint that isn't implemented.
+- Contents: only JSON responses (the `raw`/`html` media types are not
+  supported; use `download_url`). Files over 1 MB have `content: ""` and
+  `encoding: "none"`; a directory lists at most 1000 entries. Symlinks return
+  `type: "symlink"` with `target` (`null` for a target over 4096 bytes, which
+  is never read), not the linked file's content; submodules `type: "submodule"` with
+  `submodule_git_url`.
+- Commits list: `sha`, `path` and pagination; `author`, `committer`, `since`
+  and `until` are ignored. Walks are bounded, so pages past ~10,000 commits are
+  empty, and `Link` advertises one page past the current one while more
+  commits exist (no exact `last`). An unknown `{ref}` on the single-commit
+  endpoint is `422 No commit found for SHA`, as on GitHub. A single commit or a
+  comparison lists at most 300 `files` (no file pagination) under the shared
+  2 MiB patch budget.
+- Compare: `base..head` is treated as `base...head`; an `owner:` prefix must
+  name the repository's owner (there are no forks). `ahead_by`/`behind_by`
+  come from bounded history walks (400 commits per side). `html_url`,
+  `diff_url` and `patch_url` point at pages the web UI doesn't serve yet.
+- Git database: trees list at most 10,000 entries (GitHub: 100,000) before
+  `truncated: true`; `/git/trees/{sha}` also accepts a branch, tag or commit;
+  blobs over 3 MB are `403` (GitHub: 100 MB), because responses are buffered.
+  Commit `verification` is always `unsigned`. Only branch and tag refs exist.
 - Pull requests: there are no forks, so `head.repo` and `base.repo` are the
   same repository and a `head` of another owner is `422`. `mergeable` is `null`
   for an open pull request (`false` once merged) and `mergeable_state` is always
@@ -171,8 +200,7 @@ kept) and is absent when everything fits on one page. Items deeper than
   between the branches (the web UI doesn't either). A closed pull request whose
   head branch was deleted reports `head.sha` as 40 zeros and empty files and
   commits. File `sha`s are the blob ids at the head; there is no rename
-  detection (`renamed` is never reported) and `contents_url` points at an
-  endpoint that isn't implemented. A pull request's own comments are on the
+  detection (`renamed` is never reported). A pull request's own comments are on the
   issues endpoints; review endpoints are not implemented yet.
 - Branch `protected` is always `false`; there is no branch protection.
 - Tags have no `zipball_url`/`tarball_url`.

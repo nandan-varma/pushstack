@@ -60,6 +60,15 @@ const DELTA_PROBE_BYTES = 4 * 1024;
 /** The most a delta header can occupy once inflated: two 10-byte varints. */
 const DELTA_HEADER_MAX_BYTES = 20;
 
+/**
+ * No pack directory yet means no packs; any other listing failure throws, so
+ * a storage outage is never mistaken for "no packed objects".
+ */
+function noPackDirectory(error: unknown): string[] {
+	if ((error as { code?: string } | null)?.code === "ENOENT") return [];
+	throw error;
+}
+
 /** The pack holding `oid`, with the offset of its entry. */
 async function locatePackedObject(
 	repo: Repo,
@@ -68,7 +77,7 @@ async function locatePackedObject(
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
 	const indexes = parsePackDirectory(
-		await fsp.readdir(packDir).catch(() => [] as string[]),
+		await fsp.readdir(packDir).catch(noPackDirectory),
 	).filter((file) => file.kind === "idx");
 
 	for (const { base } of indexes) {
@@ -167,6 +176,166 @@ export async function getObjectSize(
 		const base = readOfsDeltaOffset(probe, header.length);
 		if (header.length + base.length > probe.byteLength) return null;
 		dataStart = bodyStart + base.length;
+	}
+	return deltaResultSize(read, packKey, dataStart);
+}
+
+/** Gap between two entries that one batched read still spans. */
+const BATCH_MAX_GAP_BYTES = 64 * 1024;
+/** Range reads one batch keeps in flight at once. */
+export const BATCH_MAX_IN_FLIGHT = 8;
+
+/** Run `tasks`, at most `limit` at a time. */
+async function runPooled(
+	tasks: Array<() => Promise<void>>,
+	limit: number,
+): Promise<void> {
+	let next = 0;
+	const worker = async () => {
+		while (next < tasks.length) {
+			const task = tasks[next++];
+			if (task) await task();
+		}
+	};
+	await Promise.all(
+		Array.from({ length: Math.min(limit, tasks.length) }, worker),
+	);
+}
+
+/** The most one batched read fetches. */
+const BATCH_MAX_SPAN_BYTES = 1024 * 1024;
+
+/** Every pack index in the repo, read once. */
+async function packIndexes(
+	repo: Repo,
+): Promise<Array<{ packName: string; idx: Uint8Array }>> {
+	const fsp = rawFs(repo);
+	const packDir = `${repo.gitdir}/objects/pack`;
+	const files = parsePackDirectory(
+		await fsp.readdir(packDir).catch(noPackDirectory),
+	).filter((file) => file.kind === "idx");
+	const indexes = await Promise.all(
+		files.map(async ({ base }) => ({
+			packName: packFileName(base, "pack"),
+			idx: await fsp.readFile(`${packDir}/${packFileName(base, "idx")}`),
+		})),
+	);
+	return indexes.filter(
+		(entry): entry is { packName: string; idx: Uint8Array } =>
+			entry.idx instanceof Uint8Array,
+	);
+}
+
+/**
+ * {@link getObjectSize} for many objects at once, in few range reads: the
+ * pack indexes are read once, and entries that sit near each other in a pack
+ * (a tree's blobs usually do: they were written together) share one read of
+ * at most 1 MiB. A delta whose header runs past its window costs one more
+ * small read. Each oid maps to its size, or `null` exactly as
+ * {@link getObjectSize} would answer.
+ */
+export async function getObjectSizes(
+	repo: Repo,
+	oids: readonly string[],
+): Promise<Map<string, number | null>> {
+	const sizes = new Map<string, number | null>(oids.map((oid) => [oid, null]));
+	const read = rangeReader(repo);
+	if (!read || oids.length === 0) return sizes;
+
+	const byPack = new Map<string, Array<{ oid: string; offset: number }>>();
+	const indexes = await packIndexes(repo);
+	for (const oid of sizes.keys()) {
+		for (const { packName, idx } of indexes) {
+			const offset = findPackIndexOffset(idx, oid);
+			if (offset === null) continue;
+			const list = byPack.get(packName) ?? [];
+			list.push({ oid, offset });
+			byPack.set(packName, list);
+			break;
+		}
+	}
+
+	const work: Array<() => Promise<void>> = [];
+	for (const [packName, entries] of byPack) {
+		const packKey = `${repo.gitdir}/objects/pack/${packName}`;
+		entries.sort((a, b) => a.offset - b.offset);
+		// Coalesce neighbouring entries into windows.
+		const windows: Array<typeof entries> = [];
+		for (const entry of entries) {
+			const current = windows.at(-1);
+			const first = current?.[0];
+			const last = current?.at(-1);
+			if (
+				current &&
+				first &&
+				last &&
+				entry.offset - last.offset <= BATCH_MAX_GAP_BYTES &&
+				entry.offset + ENTRY_PROBE_BYTES - first.offset <= BATCH_MAX_SPAN_BYTES
+			) {
+				current.push(entry);
+			} else {
+				windows.push([entry]);
+			}
+		}
+		for (const window of windows) {
+			work.push(async () => {
+				const start = window[0]?.offset ?? 0;
+				const end = (window.at(-1)?.offset ?? start) + ENTRY_PROBE_BYTES;
+				const bytes = await read(packKey, start, end - 1);
+				if (!bytes) return;
+				// Sequential: a delta's follow-up read stays inside this slot.
+				for (const { oid, offset } of window) {
+					sizes.set(
+						oid,
+						await sizeFromWindow(read, packKey, bytes, start, offset),
+					);
+				}
+			});
+		}
+	}
+	await runPooled(work, BATCH_MAX_IN_FLIGHT);
+	return sizes;
+}
+
+/** One entry's size, parsed from a window read at `windowStart`. */
+async function sizeFromWindow(
+	read: NonNullable<ReturnType<typeof rangeReader>>,
+	packKey: string,
+	window: Uint8Array,
+	windowStart: number,
+	offset: number,
+): Promise<number | null> {
+	const at = offset - windowStart;
+	if (at >= window.byteLength) return null;
+	const probe = window.subarray(at, at + ENTRY_PROBE_BYTES);
+	const header = readEntryHeader(probe, 0);
+	if (header.length > probe.byteLength) return null;
+	if (header.type !== OBJ_OFS_DELTA && header.type !== OBJ_REF_DELTA) {
+		return header.size;
+	}
+	let bodyLength: number;
+	if (header.type === OBJ_REF_DELTA) {
+		bodyLength = OID_BYTES;
+	} else {
+		const base = readOfsDeltaOffset(probe, header.length);
+		if (header.length + base.length > probe.byteLength) return null;
+		bodyLength = base.length;
+	}
+	const dataStart = offset + header.length + bodyLength;
+	// The delta's opening bytes are often already in the window.
+	const local = window.subarray(
+		dataStart - windowStart,
+		dataStart - windowStart + DELTA_PROBE_BYTES,
+	);
+	if (local.byteLength > 0) {
+		const inflated = await inflatePrefix(
+			new Uint8Array(local),
+			DELTA_HEADER_MAX_BYTES,
+		);
+		if (inflated) {
+			const delta = readDeltaHeader(inflated, 0);
+			if (delta.length <= inflated.byteLength) return delta.resultSize;
+		}
 	}
 	return deltaResultSize(read, packKey, dataStart);
 }

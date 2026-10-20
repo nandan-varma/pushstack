@@ -3,6 +3,21 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `getObjectSizes(repo, oids)`: `getObjectSize` for many objects in few range
+  reads. Pack indexes are read once and neighbouring pack entries share one
+  read (gaps up to 64 KiB, at most 1 MiB per read); a 60-file directory listing
+  went from 61 storage calls to 2 (pushstack#124). At most 8 range reads are
+  in flight per call.
+
+### Fixed
+
+- `getObjectSize`/`getObjectSizes`: a failed pack directory listing now throws
+  instead of reading as "no packs" (only a missing directory is empty).
+
 ## [0.16.0] - 2026-10-20
 
 ### Added
