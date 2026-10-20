@@ -2,8 +2,8 @@ name: Release packages
 
 # Tag `<package>@v<version>` (e.g. `git-fs-s3@v0.16.0`, annotated: `git tag -m`)
 # to publish packages/<package> to npm with trusted publishing (OIDC): no
-# stored token. Each package's npm settings must list this repository and this
-# workflow file as its trusted publisher.
+# stored token and no NODE_AUTH_TOKEN — each package's npm settings list this
+# repository and this workflow file as its trusted publisher.
 on:
   push:
     tags:
@@ -19,15 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       # Trusted publishing needs npm >= 11.5.1.
       - run: npm install -g npm@latest
-      - run: pnpm install --frozen-lockfile
       - name: Check the tag matches the package version
         id: pkg
         run: |

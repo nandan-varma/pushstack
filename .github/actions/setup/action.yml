@@ -1,0 +1,27 @@
+name: Workspace setup
+description: >
+  Install pnpm, the pinned Node version, and the workspace dependencies from the
+  frozen lockfile. Every workflow uses this action so the pnpm version, the Node
+  pin (.node-version) and the install flags exist in exactly one place.
+
+runs:
+  using: composite
+  steps:
+    # Action refs are pinned to commit SHAs: a tag is mutable, so a moved or
+    # compromised tag would run different code with this repository's token.
+    # The trailing comment is the version, for whoever bumps them. Dependabot
+    # bumps them here too, which is why .github/dependabot.yml has an entry for
+    # this directory: a root entry does not scan .github/actions.
+    # `pnpm test` (scripts/workspace.test.mjs) enforces both.
+    #
+    # No `registry-url` here on purpose: npm's trusted publishing (OIDC)
+    # authenticates without an .npmrc token, and since setup-node v7 no longer
+    # exports a dummy NODE_AUTH_TOKEN, an .npmrc template referencing it would
+    # fail to resolve.
+    - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
