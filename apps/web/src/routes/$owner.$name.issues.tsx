@@ -39,7 +39,7 @@ import {
 import { parseSearchQuery, withoutSearchAssignee } from "@/lib/search-query";
 import { createIssue } from "@/server/issues";
 
-export const Route = createFileRoute("/repo/$owner/$name/issues")({
+export const Route = createFileRoute("/$owner/$name/issues")({
 	validateSearch: validateThreadSearch,
 	loaderDeps: threadSearchDeps,
 	loader: async ({ params, deps, context: { queryClient } }) => {
@@ -136,7 +136,7 @@ function IssuesPage() {
 				<div className="flex items-center gap-4">
 					<h2 className="text-base font-semibold text-foreground">Issues</h2>
 					<Link
-						to="/repo/$owner/$name/labels"
+						to="/$owner/$name/labels"
 						params={{ owner, name }}
 						className="text-sm text-muted-foreground hover:text-foreground"
 					>

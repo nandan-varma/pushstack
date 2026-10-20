@@ -6,6 +6,7 @@ import { db } from "#/db/index";
 import * as authSchema from "#/db/schema";
 import { rateLimitStorage } from "#/server/rate-limit";
 import { sendEmail } from "./email";
+import { isReservedName } from "./reserved-names";
 import { MAX_USERNAME_LENGTH, STORAGE_NAME_RE } from "./storage-name";
 
 const authSecret = process.env.BETTER_AUTH_SECRET;
@@ -136,8 +137,10 @@ export const auth = betterAuth({
 			minUsernameLength: 3,
 			maxUsernameLength: MAX_USERNAME_LENGTH,
 			// One storage-path segment: letters, digits, ".", "_", "-", starting
-			// and ending alphanumeric — same rule as repository names.
-			usernameValidator: (name) => STORAGE_NAME_RE.test(name),
+			// and ending alphanumeric — same rule as repository names. Users live
+			// at `/{username}`, so top-level route names are reserved.
+			usernameValidator: (name) =>
+				STORAGE_NAME_RE.test(name) && !isReservedName(name),
 		}),
 	],
 });

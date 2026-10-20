@@ -91,8 +91,8 @@ function DashboardPage() {
 									<Link
 										to={
 											thread.kind === "issue"
-												? "/repo/$owner/$name/issues/$id"
-												: "/repo/$owner/$name/pulls/$id"
+												? "/$owner/$name/issues/$id"
+												: "/$owner/$name/pulls/$id"
 										}
 										params={{
 											owner: thread.owner,

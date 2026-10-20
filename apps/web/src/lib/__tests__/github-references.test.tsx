@@ -39,16 +39,16 @@ function links(markdown: string, options?: Parameters<typeof render>[1]) {
 
 describe("@mentions", () => {
 	it("links a login to its profile", () => {
-		expect(links("thanks @octocat!")).toEqual(["@octocat→/users/octocat"]);
-		expect(links("@a-b_c.d works")).toEqual(["@a-b_c.d→/users/a-b_c.d"]);
+		expect(links("thanks @octocat!")).toEqual(["@octocat→/octocat"]);
+		expect(links("@a-b_c.d works")).toEqual(["@a-b_c.d→/a-b_c.d"]);
 	});
 
 	it("drops trailing punctuation", () => {
-		expect(links("hi @bob.")).toEqual(["@bob→/users/bob"]);
+		expect(links("hi @bob.")).toEqual(["@bob→/bob"]);
 	});
 
 	it("links without a repository context", () => {
-		expect(links("@octocat", {})).toEqual(["@octocat→/users/octocat"]);
+		expect(links("@octocat", {})).toEqual(["@octocat→/octocat"]);
 	});
 
 	it("ignores emails", () => {
@@ -72,8 +72,8 @@ describe("@mentions", () => {
 describe("#N and owner/repo#N", () => {
 	it("links known issues and pull requests in this repository", () => {
 		expect(links("fixes #7, see #8")).toEqual([
-			"#7→/repo/acme/repo/issues/7",
-			"#8→/repo/acme/repo/pulls/8",
+			"#7→/acme/repo/issues/7",
+			"#8→/acme/repo/pulls/8",
 		]);
 	});
 
@@ -83,20 +83,20 @@ describe("#N and owner/repo#N", () => {
 
 	it("links owner/repo#N to the other repository", () => {
 		expect(links("blocked by other/lib#12")).toEqual([
-			"other/lib#12→/repo/other/lib/issues/12",
+			"other/lib#12→/other/lib/issues/12",
 		]);
 	});
 
 	it("resolves owner/repo#N for the current repo like #N", () => {
 		expect(links("acme/repo#8 and acme/repo#99")).toEqual([
-			"acme/repo#8→/repo/acme/repo/pulls/8",
+			"acme/repo#8→/acme/repo/pulls/8",
 		]);
 	});
 
 	it("does not link #N glued to a word, path, or entity", () => {
 		expect(links("a#7 /#7 &#7;")).toEqual([]);
 		expect(render("see https://example.com/page#7")).not.toContain(
-			"/repo/acme/repo/issues/7",
+			"/acme/repo/issues/7",
 		);
 	});
 
@@ -108,10 +108,10 @@ describe("#N and owner/repo#N", () => {
 describe("commit SHAs", () => {
 	it("links short SHAs (7+ hex) to this repository's commit, shown as 7", () => {
 		expect(links("revert abc1234")).toEqual([
-			"abc1234→/repo/acme/repo/commit/abc1234",
+			"abc1234→/acme/repo/commit/abc1234",
 		]);
 		expect(links(`at ${SHA}`)).toEqual([
-			`${SHA.slice(0, 7)}→/repo/acme/repo/commit/${SHA}`,
+			`${SHA.slice(0, 7)}→/acme/repo/commit/${SHA}`,
 		]);
 	});
 
@@ -134,7 +134,7 @@ describe("commit SHAs", () => {
 
 	it("links owner/repo@sha to the other repository's commit", () => {
 		expect(links("from other/lib@abc1234")).toEqual([
-			"other/lib@abc1234→/repo/other/lib/commit/abc1234",
+			"other/lib@abc1234→/other/lib/commit/abc1234",
 		]);
 	});
 
@@ -165,7 +165,7 @@ describe("never inside code or existing links", () => {
 	it("emits no unsafe hrefs for hostile text", () => {
 		const html = render("@javascript:alert(1) x/y#1 <script>");
 		for (const m of html.matchAll(/href="([^"]*)"/g)) {
-			expect(m[1]).toMatch(/^\/(users|repo)\//);
+			expect(m[1]).toMatch(/^\/[A-Za-z0-9][A-Za-z0-9._-]*(\/|$)/);
 		}
 	});
 });

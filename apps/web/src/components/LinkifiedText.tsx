@@ -48,8 +48,8 @@ export function LinkifiedText({
 							key={`ref-${key++}`}
 							to={
 								kind === "pull"
-									? "/repo/$owner/$name/pulls/$id"
-									: "/repo/$owner/$name/issues/$id"
+									? "/$owner/$name/pulls/$id"
+									: "/$owner/$name/issues/$id"
 							}
 							params={{ owner, name, id: String(num) }}
 							className="font-medium text-primary hover:underline"
@@ -64,7 +64,7 @@ export function LinkifiedText({
 				result.push(
 					<Link
 						key={`sha-${key++}`}
-						to="/repo/$owner/$name/commit/$sha"
+						to="/$owner/$name/commit/$sha"
 						params={{ owner, name, sha: full }}
 						className="rounded bg-muted px-1 font-mono text-primary hover:underline"
 					>

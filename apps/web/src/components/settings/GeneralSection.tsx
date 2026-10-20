@@ -59,7 +59,7 @@ export function GeneralSection({
 			// A rename moves the repo: this page's URL no longer exists.
 			if (updated.name !== name) {
 				navigate({
-					to: "/repo/$owner/$name/settings",
+					to: "/$owner/$name/settings",
 					params: { owner, name: updated.name },
 					replace: true,
 				});

@@ -53,7 +53,7 @@ export function submoduleLinks(
 			pathname,
 		);
 		if (!match) return null;
-		const repository = `/repo/${match[1]}/${match[2]}`;
+		const repository = `/${match[1]}/${match[2]}`;
 		return { repository, commit: `${repository}/tree/${oid}` };
 	}
 	const repository = `${target.origin}${pathname}`;

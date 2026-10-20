@@ -55,7 +55,7 @@ export function CommitSummaryBar({
 					{commit.authorName || "Unknown"}
 				</span>
 				<Link
-					to="/repo/$owner/$name/commit/$sha"
+					to="/$owner/$name/commit/$sha"
 					params={{ owner, name, sha: commit.sha }}
 					title={commit.message}
 					className="truncate text-sm text-muted-foreground hover:text-foreground hover:underline"
@@ -70,7 +70,7 @@ export function CommitSummaryBar({
 					})}
 				</span>
 				<Link
-					to="/repo/$owner/$name/commits/$branch"
+					to="/$owner/$name/commits/$branch"
 					params={{ owner, name, branch }}
 					className="font-medium text-primary hover:underline"
 				>

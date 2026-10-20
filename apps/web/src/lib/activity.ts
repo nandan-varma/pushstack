@@ -13,13 +13,13 @@ export interface ActivityRow {
 }
 
 type ActivityLink =
-	| { to: "/repo/$owner/$name"; params: { owner: string; name: string } }
+	| { to: "/$owner/$name"; params: { owner: string; name: string } }
 	| {
-			to: "/repo/$owner/$name/commit/$sha";
+			to: "/$owner/$name/commit/$sha";
 			params: { owner: string; name: string; sha: string };
 	  }
 	| {
-			to: "/repo/$owner/$name/issues/$id" | "/repo/$owner/$name/pulls/$id";
+			to: "/$owner/$name/issues/$id" | "/$owner/$name/pulls/$id";
 			params: { owner: string; name: string; id: string };
 	  };
 
@@ -38,12 +38,12 @@ export function describeActivity(row: ActivityRow): {
 		repo && {
 			to:
 				kind === "issue"
-					? "/repo/$owner/$name/issues/$id"
-					: "/repo/$owner/$name/pulls/$id",
+					? "/$owner/$name/issues/$id"
+					: "/$owner/$name/pulls/$id",
 			params: { ...repo, id: String(number) },
 		};
 	const home: ActivityLink | null = repo && {
-		to: "/repo/$owner/$name",
+		to: "/$owner/$name",
 		params: repo,
 	};
 
@@ -56,7 +56,7 @@ export function describeActivity(row: ActivityRow): {
 			return {
 				text: `Committed "${event.metadata.message}"`,
 				link: repo && {
-					to: "/repo/$owner/$name/commit/$sha",
+					to: "/$owner/$name/commit/$sha",
 					params: { ...repo, sha: event.metadata.commitSha },
 				},
 			};

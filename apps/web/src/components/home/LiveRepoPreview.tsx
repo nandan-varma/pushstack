@@ -42,7 +42,7 @@ export function LiveRepoPreview() {
 		<div className="overflow-hidden rounded-xl border border-border bg-card text-left shadow-2xl shadow-foreground/10">
 			<div className="flex h-11 items-center justify-between gap-3 border-b border-border bg-muted/60 px-4 sm:px-5">
 				<Link
-					to="/repo/$owner/$name"
+					to="/$owner/$name"
 					params={{ owner, name }}
 					className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground no-underline hover:underline"
 				>
@@ -78,7 +78,7 @@ export function LiveRepoPreview() {
 							commits.map((commit) => (
 								<Link
 									key={commit.sha}
-									to="/repo/$owner/$name/commit/$sha"
+									to="/$owner/$name/commit/$sha"
 									params={{ owner, name, sha: commit.sha }}
 									className="flex items-center gap-3 rounded-lg border border-border bg-background p-2.5 no-underline transition hover:border-foreground/20 hover:bg-muted/40"
 								>
@@ -111,21 +111,21 @@ export function LiveRepoPreview() {
 					</div>
 					<div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-sm">
 						<Link
-							to="/repo/$owner/$name"
+							to="/$owner/$name"
 							params={{ owner, name }}
 							className="inline-flex items-center gap-1 font-medium text-foreground"
 						>
 							Browse the code <ArrowRight className="size-3.5" />
 						</Link>
 						<Link
-							to="/repo/$owner/$name/issues"
+							to="/$owner/$name/issues"
 							params={{ owner, name }}
 							className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
 						>
 							<CircleDot className="size-3.5" /> Issues
 						</Link>
 						<Link
-							to="/repo/$owner/$name/pulls"
+							to="/$owner/$name/pulls"
 							params={{ owner, name }}
 							className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
 						>

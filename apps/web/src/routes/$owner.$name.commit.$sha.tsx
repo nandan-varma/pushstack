@@ -22,7 +22,7 @@ import { getInitials } from "@/lib/utils/avatar";
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
 
-export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
+export const Route = createFileRoute("/$owner/$name/commit/$sha")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -149,7 +149,7 @@ function CommitDetailPage() {
 			<NotFoundCard
 				title="Commit Not Found"
 				message={`The commit with SHA "${sha}" does not exist.`}
-				backTo="/repo/$owner/$name"
+				backTo="/$owner/$name"
 				backParams={{ owner, name }}
 				backLabel="Back to repository"
 			/>
@@ -178,7 +178,7 @@ function CommitDetailPage() {
 									<span key={p}>
 										{i > 0 && ", "}
 										<Link
-											to="/repo/$owner/$name/commit/$sha"
+											to="/$owner/$name/commit/$sha"
 											params={{ owner, name, sha: p }}
 											className="font-mono text-primary hover:underline"
 										>
@@ -192,7 +192,7 @@ function CommitDetailPage() {
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 					<Link
-						to="/repo/$owner/$name/tree/$branch/$"
+						to="/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: commit.sha, _splat: "" }}
 					>
 						<Button size="sm" variant="outline">
@@ -200,7 +200,7 @@ function CommitDetailPage() {
 						</Button>
 					</Link>
 					<BackLink
-						to="/repo/$owner/$name/commits/$branch"
+						to="/$owner/$name/commits/$branch"
 						params={{ owner, name, branch: repo?.defaultBranch ?? "" }}
 						label="Back to Commits"
 					/>

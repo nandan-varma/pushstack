@@ -49,7 +49,7 @@ function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	);
 }
 
-export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
+export const Route = createFileRoute("/$owner/$name/tree/$branch/$")({
 	loader: async ({ params, context: { queryClient } }) =>
 		perfTime(
 			`loader tree ${params.owner}/${params.name}@${params.branch}:${params._splat || "/"}`,
@@ -104,7 +104,7 @@ export const Route = createFileRoute("/repo/$owner/$name/tree/$branch/$")({
 		),
 	head: ({ params }) => {
 		const path = params._splat ? `/${params._splat}` : "";
-		const url = `${SITE_URL}/repo/${params.owner}/${params.name}/tree/${params.branch}${path}`;
+		const url = `${SITE_URL}/${params.owner}/${params.name}/tree/${params.branch}${path}`;
 		return {
 			links: [{ rel: "canonical", href: url }],
 			meta: [{ property: "og:url", content: url }],
@@ -188,7 +188,7 @@ function TreeBrowserPage() {
 	const handleBranchChange = useCallback(
 		(value: string) => {
 			navigate({
-				to: "/repo/$owner/$name/tree/$branch/$",
+				to: "/$owner/$name/tree/$branch/$",
 				params: { owner, name, branch: value, _splat: activePath },
 				replace: true,
 			});
@@ -241,7 +241,7 @@ function TreeBrowserPage() {
 						, not the tip of a branch.
 					</span>
 					<Link
-						to="/repo/$owner/$name/tree/$branch/$"
+						to="/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: repo.defaultBranch, _splat: "" }}
 						className="shrink-0 font-medium underline"
 					>
@@ -276,7 +276,7 @@ function TreeBrowserPage() {
 					)}
 					{isBranchView && (
 						<Link
-							to="/repo/$owner/$name/upload"
+							to="/$owner/$name/upload"
 							params={{ owner, name }}
 							search={{ branch: activeBranch }}
 						>

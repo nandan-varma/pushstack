@@ -12,7 +12,7 @@ import {
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 
-export const Route = createFileRoute("/repo/$owner/$name/settings")({
+export const Route = createFileRoute("/$owner/$name/settings")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const [repo, session] = await Promise.all([
 			queryClient.ensureQueryData(
@@ -88,7 +88,7 @@ function RepoSettingsPage() {
 			<div className="mx-auto max-w-2xl space-y-6">
 				<div className="flex items-center justify-between gap-3">
 					<Link
-						to="/repo/$owner/$name"
+						to="/$owner/$name"
 						params={{ owner, name }}
 						className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 					>
@@ -96,7 +96,7 @@ function RepoSettingsPage() {
 						{owner}/{name}
 					</Link>
 					<Link
-						to="/repo/$owner/$name/setup"
+						to="/$owner/$name/setup"
 						params={{ owner, name }}
 						className="text-sm font-medium text-primary hover:underline"
 					>

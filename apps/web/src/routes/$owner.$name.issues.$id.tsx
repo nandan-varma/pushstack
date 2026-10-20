@@ -33,7 +33,7 @@ import {
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { updateIssue } from "@/server/issues";
 
-export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
+export const Route = createFileRoute("/$owner/$name/issues/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const issueNumber = Number(params.id);
 		if (!Number.isInteger(issueNumber) || issueNumber < 1) throw notFound();
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 									number: issueNumber,
 								}),
 							),
-						"/repo/$owner/$name/pulls/$id",
+						"/$owner/$name/pulls/$id",
 					),
 				),
 		]);
@@ -199,7 +199,7 @@ function IssueDetailPage() {
 				}
 				actions={
 					<>
-						<BackLink to="/repo/$owner/$name/issues" params={{ owner, name }} />
+						<BackLink to="/$owner/$name/issues" params={{ owner, name }} />
 						{canToggleStatus && (
 							<LoadingButton
 								variant={issue.status === "open" ? "outline" : "default"}
@@ -279,7 +279,7 @@ function IssueNotFound() {
 	return (
 		<NotFoundCard
 			title="Issue Not Found"
-			backTo="/repo/$owner/$name/issues"
+			backTo="/$owner/$name/issues"
 			backParams={{ owner, name }}
 			backLabel="Back to Issues"
 		/>

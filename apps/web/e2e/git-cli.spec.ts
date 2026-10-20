@@ -131,7 +131,7 @@ test.describe
 			await page.locator("input#name").fill(repoName);
 			await page.click('button[type="submit"]');
 			await expect(page).toHaveURL(
-				new RegExp(`/repo/${testUser.username}/${repoName}`),
+				new RegExp(`/${testUser.username}/${repoName}`),
 				{
 					timeout: 15000,
 				},
@@ -300,7 +300,7 @@ test.describe
 		test("cleans up: deletes the repository via the settings danger zone", async () => {
 			await gotoAndWaitForHydration(
 				page,
-				`/repo/${testUser.username}/${repoName}/settings`,
+				`/${testUser.username}/${repoName}/settings`,
 			);
 			await page
 				.getByPlaceholder(`Type "${repoName}" to confirm`)

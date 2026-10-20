@@ -6,11 +6,11 @@ const parent = { owner: "alice", name: "app" };
 describe("submodule repository links", () => {
 	it("resolves sibling and cross-owner clone URLs relative to the parent remote", () => {
 		expect(submoduleLinks("../lib.git", oid, parent)).toEqual({
-			repository: "/repo/alice/lib",
-			commit: `/repo/alice/lib/tree/${oid}`,
+			repository: "/alice/lib",
+			commit: `/alice/lib/tree/${oid}`,
 		});
 		expect(submoduleLinks("../../bob/lib.git", oid, parent)?.repository).toBe(
-			"/repo/bob/lib",
+			"/bob/lib",
 		);
 	});
 	it.each([

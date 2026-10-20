@@ -92,7 +92,7 @@ export function ThreadLabels({
 							<p className="px-2 py-1.5 text-sm text-muted-foreground">
 								No labels yet.{" "}
 								<Link
-									to="/repo/$owner/$name/labels"
+									to="/$owner/$name/labels"
 									params={{ owner, name }}
 									className="text-primary hover:underline"
 								>

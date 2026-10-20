@@ -6,6 +6,7 @@ import { ErrorAlert } from "@/components/ui/error-alert";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { isReservedName } from "@/lib/reserved-names";
 import { authClient } from "../../lib/auth-client";
 import { queryKeys } from "../../lib/query-options";
 import {
@@ -46,6 +47,11 @@ function RegisterPage() {
 		}
 		if (username.length < 3) {
 			setError("Username must be at least 3 characters");
+			return;
+		}
+
+		if (isReservedName(username)) {
+			setError(`"${username}" is reserved and cannot be used as a username`);
 			return;
 		}
 

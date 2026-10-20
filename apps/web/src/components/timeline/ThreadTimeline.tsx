@@ -185,8 +185,8 @@ function ThreadLink({
 		<Link
 			to={
 				thread.kind === "issue"
-					? "/repo/$owner/$name/issues/$id"
-					: "/repo/$owner/$name/pulls/$id"
+					? "/$owner/$name/issues/$id"
+					: "/$owner/$name/pulls/$id"
 			}
 			params={{ owner, name, id: String(thread.number) }}
 			className="font-medium text-foreground hover:underline"
@@ -207,7 +207,7 @@ function CommitLink({
 }) {
 	return (
 		<Link
-			to="/repo/$owner/$name/commit/$sha"
+			to="/$owner/$name/commit/$sha"
 			params={{ owner, name, sha }}
 			className="font-mono text-foreground hover:underline"
 		>
@@ -259,7 +259,7 @@ function describe(
 					<>
 						merged commit{" "}
 						<Link
-							to="/repo/$owner/$name/commit/$sha"
+							to="/$owner/$name/commit/$sha"
 							params={{ owner, name, sha: event.commitSha }}
 							className="font-mono text-foreground hover:underline"
 						>
@@ -309,8 +309,8 @@ function describe(
 					<>
 						{event.event === "assigned" ? "assigned" : "unassigned"}{" "}
 						<Link
-							to="/users/$username"
-							params={{ username: event.assignee.username }}
+							to="/$owner"
+							params={{ owner: event.assignee.username }}
 							className="font-medium text-foreground"
 						>
 							{event.assignee.username}
@@ -353,8 +353,8 @@ function TimelineEventRow({
 			</span>
 			<p className="min-w-0">
 				<Link
-					to="/users/$username"
-					params={{ username: event.actor.username }}
+					to="/$owner"
+					params={{ owner: event.actor.username }}
 					className="font-medium text-foreground hover:underline"
 				>
 					{event.actor.username}

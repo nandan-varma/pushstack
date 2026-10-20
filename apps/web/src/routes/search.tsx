@@ -214,8 +214,8 @@ function UserResults({
 				return (
 					<Link
 						key={person.id}
-						to="/users/$username"
-						params={{ username: person.username }}
+						to="/$owner"
+						params={{ owner: person.username }}
 						className="island-shell feature-card block rounded-xl p-4 no-underline"
 					>
 						{card}

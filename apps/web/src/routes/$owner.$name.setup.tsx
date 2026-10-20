@@ -12,7 +12,7 @@ import {
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 
-export const Route = createFileRoute("/repo/$owner/$name/setup")({
+export const Route = createFileRoute("/$owner/$name/setup")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -68,7 +68,7 @@ function RouteComponent() {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<Link
-					to="/repo/$owner/$name/tree/$branch/$"
+					to="/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch: defaultBranch, _splat: "" }}
 					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 				>
@@ -88,7 +88,7 @@ function RouteComponent() {
 						</p>
 					</div>
 					<Link
-						to="/repo/$owner/$name/tree/$branch/$"
+						to="/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: defaultBranch, _splat: "" }}
 					>
 						<Button variant="outline">Back to Code</Button>
@@ -150,20 +150,20 @@ function RouteComponent() {
 					</h3>
 					<div className="mt-4 flex flex-col gap-3">
 						<Link
-							to="/repo/$owner/$name/commits/$branch"
+							to="/$owner/$name/commits/$branch"
 							params={{ owner, name, branch: defaultBranch }}
 						>
 							<Button variant="outline" className="w-full justify-start">
 								View commit history
 							</Button>
 						</Link>
-						<Link to="/repo/$owner/$name/pulls" params={{ owner, name }}>
+						<Link to="/$owner/$name/pulls" params={{ owner, name }}>
 							<Button variant="outline" className="w-full justify-start">
 								Open pull requests
 							</Button>
 						</Link>
 						{isOwner && (
-							<Link to="/repo/$owner/$name/upload" params={{ owner, name }}>
+							<Link to="/$owner/$name/upload" params={{ owner, name }}>
 								<Button className="w-full justify-start">
 									Add files in the web UI
 								</Button>

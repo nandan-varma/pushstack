@@ -50,7 +50,7 @@ describe("RepositoryCard", () => {
 		).toBeInTheDocument();
 		expect(screen.getByRole("link")).toHaveAttribute(
 			"href",
-			"/repo/alice/app/tree/main/",
+			"/alice/app/tree/main/",
 		);
 	});
 
@@ -72,7 +72,7 @@ describe("RepositoryCard", () => {
 		expect(screen.queryByText("alice/app")).not.toBeInTheDocument();
 		expect(screen.getByRole("link")).toHaveAttribute(
 			"href",
-			"/repo/alice/app/tree/main/",
+			"/alice/app/tree/main/",
 		);
 	});
 

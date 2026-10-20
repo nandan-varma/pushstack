@@ -18,7 +18,7 @@ export function PathBreadcrumb({
 	return (
 		<div className="flex flex-wrap items-center gap-1.5 text-sm">
 			<Link
-				to="/repo/$owner/$name/tree/$branch/$"
+				to="/$owner/$name/tree/$branch/$"
 				params={{ owner, name, branch, _splat: "" }}
 				className="font-medium text-primary hover:underline"
 			>
@@ -34,7 +34,7 @@ export function PathBreadcrumb({
 							<span className="font-medium text-foreground">{segment}</span>
 						) : (
 							<Link
-								to="/repo/$owner/$name/tree/$branch/$"
+								to="/$owner/$name/tree/$branch/$"
 								params={{ owner, name, branch, _splat: pathSoFar }}
 								className="font-medium text-primary hover:underline"
 							>

@@ -20,7 +20,7 @@ describe("describeActivity", () => {
 			describeActivity(row("create_repo", { repoName: "my-repo" })),
 		).toEqual({
 			text: "Created this repository",
-			link: { to: "/repo/$owner/$name", params: repo },
+			link: { to: "/$owner/$name", params: repo },
 		});
 		expect(describeActivity(row("star", null)).text).toBe("Starred");
 	});
@@ -31,7 +31,7 @@ describe("describeActivity", () => {
 		).toEqual({
 			text: 'Committed "fix"',
 			link: {
-				to: "/repo/$owner/$name/commit/$sha",
+				to: "/$owner/$name/commit/$sha",
 				params: { ...repo, sha: "abc" },
 			},
 		});
@@ -47,7 +47,7 @@ describe("describeActivity", () => {
 		).toEqual({
 			text: `${verb} issue "Bug"`,
 			link: {
-				to: "/repo/$owner/$name/issues/$id",
+				to: "/$owner/$name/issues/$id",
 				params: { ...repo, id: "4" },
 			},
 		});
@@ -61,7 +61,7 @@ describe("describeActivity", () => {
 		).toEqual({
 			text: 'Merged pull request "Feat"',
 			link: {
-				to: "/repo/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pulls/$id",
 				params: { ...repo, id: "7" },
 			},
 		});
@@ -71,7 +71,7 @@ describe("describeActivity", () => {
 		expect(describeActivity(row("comment", { on: "pr", number: 3 }))).toEqual({
 			text: "Commented on a pull request",
 			link: {
-				to: "/repo/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pulls/$id",
 				params: { ...repo, id: "3" },
 			},
 		});

@@ -16,7 +16,7 @@ import {
 } from "@/lib/query-options";
 import { createLabel, deleteLabel, updateLabel } from "@/server/labels";
 
-export const Route = createFileRoute("/repo/$owner/$name/labels")({
+export const Route = createFileRoute("/$owner/$name/labels")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -236,7 +236,7 @@ function LabelsPage() {
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<h2 className="text-base font-semibold text-foreground">Labels</h2>
 				<div className="flex gap-2">
-					<Link to="/repo/$owner/$name/issues" params={{ owner, name }}>
+					<Link to="/$owner/$name/issues" params={{ owner, name }}>
 						<Button size="sm" variant="outline">
 							Issues
 						</Button>

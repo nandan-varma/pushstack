@@ -50,7 +50,7 @@ export function FileCommitBanner({
 				</AvatarFallback>
 			</Avatar>
 			<Link
-				to="/repo/$owner/$name/commit/$sha"
+				to="/$owner/$name/commit/$sha"
 				params={{ owner, name, sha: commit.sha }}
 				title={commit.message}
 				className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline"
@@ -63,7 +63,7 @@ export function FileCommitBanner({
 				{formatDistanceToNow(new Date(commit.createdAt), { addSuffix: true })}
 			</span>
 			<Link
-				to="/repo/$owner/$name/commit/$sha"
+				to="/$owner/$name/commit/$sha"
 				params={{ owner, name, sha: commit.sha }}
 				className="shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground"
 			>
@@ -125,7 +125,7 @@ export function FileHistoryList({
 				{entries.map((commit, idx) => (
 					<Link
 						key={commit.sha}
-						to="/repo/$owner/$name/commit/$sha"
+						to="/$owner/$name/commit/$sha"
 						params={{ owner, name, sha: commit.sha }}
 						className={`flex items-center gap-4 px-4 py-3 text-left no-underline transition hover:bg-card ${idx < entries.length - 1 ? "border-b border-border" : ""}`}
 					>

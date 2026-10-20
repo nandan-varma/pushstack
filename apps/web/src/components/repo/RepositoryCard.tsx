@@ -29,7 +29,7 @@ export function RepositoryCard({
 
 	return (
 		<Link
-			to="/repo/$owner/$name/tree/$branch/$"
+			to="/$owner/$name/tree/$branch/$"
 			params={{
 				owner,
 				name: repo.name,
