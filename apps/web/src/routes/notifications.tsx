@@ -6,8 +6,10 @@ import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth-session";
+import { MAX_LIST_SKIP } from "@/lib/limits";
 import {
 	NOTIFICATION_REASON_LABELS,
+	NOTIFICATIONS_PER_PAGE_MAX,
 	type NotificationItem,
 } from "@/lib/notifications";
 import { notificationsQueryOptions, queryKeys } from "@/lib/query-options";
@@ -20,15 +22,24 @@ import {
 interface NotificationsSearch {
 	all?: boolean;
 	participating?: boolean;
+	page?: number;
 }
 
+const MAX_PAGE = MAX_LIST_SKIP / NOTIFICATIONS_PER_PAGE_MAX + 1;
+
 export const Route = createFileRoute("/notifications")({
-	validateSearch: (search: Record<string, unknown>): NotificationsSearch => ({
-		...(search.all === true || search.all === "true" ? { all: true } : {}),
-		...(search.participating === true || search.participating === "true"
-			? { participating: true }
-			: {}),
-	}),
+	validateSearch: (search: Record<string, unknown>): NotificationsSearch => {
+		const page = Number(search.page);
+		return {
+			...(search.all === true || search.all === "true" ? { all: true } : {}),
+			...(search.participating === true || search.participating === "true"
+				? { participating: true }
+				: {}),
+			...(Number.isInteger(page) && page > 1
+				? { page: Math.min(page, MAX_PAGE) }
+				: {}),
+		};
+	},
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session?.user) throw redirect({ to: "/auth/login" });
@@ -36,6 +47,7 @@ export const Route = createFileRoute("/notifications")({
 	loaderDeps: ({ search }) => ({
 		all: search.all ?? false,
 		participating: search.participating ?? false,
+		page: search.page ?? 1,
 	}),
 	loader: ({ context: { queryClient }, deps }) =>
 		queryClient.ensureQueryData(notificationsQueryOptions(deps)),
@@ -54,12 +66,20 @@ function NotificationsPage() {
 	const filter = {
 		all: search.all ?? false,
 		participating: search.participating ?? false,
+		page: search.page ?? 1,
+	};
+	const filterSearch = {
+		...(search.all ? { all: true } : {}),
+		...(search.participating ? { participating: true } : {}),
 	};
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data, isError, refetch } = useQuery(
 		notificationsQueryOptions(filter),
 	);
+	const hasNextPage =
+		(data?.length ?? 0) === NOTIFICATIONS_PER_PAGE_MAX &&
+		filter.page < MAX_PAGE;
 	const refresh = () =>
 		queryClient.invalidateQueries({ queryKey: queryKeys.notificationsRoot });
 	const onError = (error: Error) =>
@@ -136,6 +156,41 @@ function NotificationsPage() {
 						/>
 					))}
 				</ul>
+			)}
+			{(filter.page > 1 || hasNextPage) && (
+				<nav
+					className="mt-4 flex items-center justify-between"
+					aria-label="Notification pages"
+				>
+					{filter.page > 1 ? (
+						<Link
+							to="/notifications"
+							search={{
+								...filterSearch,
+								...(filter.page > 2 ? { page: filter.page - 1 } : {}),
+							}}
+							className="text-sm"
+						>
+							Previous
+						</Link>
+					) : (
+						<span />
+					)}
+					<span className="text-sm text-muted-foreground">
+						Page {filter.page}
+					</span>
+					{hasNextPage ? (
+						<Link
+							to="/notifications"
+							search={{ ...filterSearch, page: filter.page + 1 }}
+							className="text-sm"
+						>
+							Next
+						</Link>
+					) : (
+						<span />
+					)}
+				</nav>
 			)}
 		</div>
 	);

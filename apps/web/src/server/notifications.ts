@@ -2,6 +2,7 @@ import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { MAX_LIST_SKIP } from "#/lib/limits";
+import { NOTIFICATIONS_PER_PAGE_MAX } from "#/lib/notifications";
 import {
 	countUnreadNotifications,
 	getThreadSubscriptionState,
@@ -17,15 +18,25 @@ import { findThreadByNumber } from "./thread-store";
 /**
  * The current user's inbox: unread only unless `all`, and with
  * `participating` only threads they're directly involved in (GitHub's
- * `all` / `participating` parameters).
+ * `all` / `participating` parameters), paged by `page`/`per_page`.
  */
 export const getNotifications = createServerFn({ method: "GET" })
 	.validator(
 		z.object({
 			all: z.boolean().default(false),
 			participating: z.boolean().default(false),
-			limit: z.number().int().min(1).max(50).default(50),
-			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
+			page: z
+				.number()
+				.int()
+				.min(1)
+				.max(MAX_LIST_SKIP / NOTIFICATIONS_PER_PAGE_MAX + 1)
+				.default(1),
+			per_page: z
+				.number()
+				.int()
+				.min(1)
+				.max(NOTIFICATIONS_PER_PAGE_MAX)
+				.default(NOTIFICATIONS_PER_PAGE_MAX),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -33,8 +44,8 @@ export const getNotifications = createServerFn({ method: "GET" })
 		return listNotificationsForUser(user.id, {
 			all: data.all,
 			participating: data.participating,
-			limit: data.limit,
-			offset: data.skip,
+			limit: data.per_page,
+			offset: Math.min((data.page - 1) * data.per_page, MAX_LIST_SKIP),
 		});
 	});
 

@@ -252,6 +252,13 @@ export async function mergePullRequestBranches(
 				stateReason: "completed",
 			},
 		);
+		// GitHub sends each closed issue's subscribers a state change.
+		for (const issue of closedIssues) {
+			await recordThreadActivity({
+				thread: { id: issue.id, repoId: pr.repoId },
+				actorId: user.id,
+			});
+		}
 	}
 	await recordActivity(user.id, pr.repoId, {
 		type: "pr",

@@ -6,28 +6,19 @@
  * own (so the REST API's writes notify too) and by notifications.ts.
  *
  * Recording is a fixed number of queries however many people are involved:
- * resolve mentions, upsert subscriptions, read subscribers, keep the readers,
- * upsert notifications. The actor is never notified.
+ * resolve mentions, keep the involved users who can read, upsert their
+ * subscriptions, read the subscribers who can read, upsert notifications.
+ * The actor is never notified. Read access is repo-access.ts's rule
+ * (`canReadRepositoryCondition`), checked again when the inbox is read so
+ * losing access hides old notifications.
  */
-import {
-	and,
-	count,
-	desc,
-	eq,
-	exists,
-	inArray,
-	ne,
-	or,
-	type SQL,
-	sql,
-} from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "#/db";
 import {
 	issues,
 	notifications,
 	repositories,
-	repositoryCollaborators,
 	threadSubscriptions,
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
@@ -38,6 +29,7 @@ import {
 	PARTICIPATING_REASONS,
 	type ThreadSubscriptionState,
 } from "#/lib/notifications";
+import { canReadRepositoryCondition } from "./repo-access";
 
 export interface ThreadActivity {
 	thread: { id: number; repoId: number };
@@ -66,45 +58,21 @@ const REASON_RANK: Record<NotificationReason, number> = {
 	subscribed: 7,
 };
 
-/** `userColumn` may read the repository in `repoColumn` (correlated SQL). */
-function canReadCondition(userColumn: SQL | typeof user.id, repoId: SQL) {
-	return or(
-		exists(
-			db
-				.select({ one: sql`1` })
-				.from(repositories)
-				.where(
-					and(
-						eq(repositories.id, repoId),
-						or(
-							eq(repositories.visibility, "public"),
-							eq(repositories.ownerId, userColumn),
-						),
-					),
-				),
-		),
-		exists(
-			db
-				.select({ one: sql`1` })
-				.from(repositoryCollaborators)
-				.where(
-					and(
-						eq(repositoryCollaborators.repoId, repoId),
-						eq(repositoryCollaborators.userId, userColumn),
-					),
-				),
-		),
-	);
-}
-
 /**
  * Subscribe the people `activity` involves and notify everyone who should
  * hear about it, except the actor and anyone who can't read the repository.
+ *
+ * Callers run this after their own write has committed rather than in one
+ * transaction with it, like `recordTimelineEvent` and `recordActivity`: the
+ * write is what the user asked for (and a merge's git side is already done,
+ * so it can't roll back with the row). A failure here is never swallowed; it
+ * surfaces as an error for a write that did land.
  */
 export async function recordThreadActivity(
 	activity: ThreadActivity,
 ): Promise<void> {
 	const { thread, actorId } = activity;
+	const repoId = sql`${thread.repoId}`;
 	const reasons = new Map<string, NotificationReason>();
 	const offer = (userId: string, reason: NotificationReason) => {
 		if (userId === actorId) return;
@@ -128,7 +96,7 @@ export async function recordThreadActivity(
 						.where(inArray(sql`lower(${user.username})`, mentioned))
 				).map((row) => row.id);
 
-	const newSubscriptions = [
+	const involved: { userId: string; reason: NotificationReason }[] = [
 		...(activity.actorReason
 			? [{ userId: actorId, reason: activity.actorReason }]
 			: []),
@@ -142,6 +110,25 @@ export async function recordThreadActivity(
 				reason: activity.direct?.reason ?? "manual",
 			})),
 	];
+	// Only readers are subscribed or notified directly: a non-reader mentioned
+	// or assigned gets no row, so granting access later doesn't start a feed.
+	const readers =
+		involved.length === 0
+			? new Set<string>()
+			: new Set(
+					(
+						await db
+							.select({ id: user.id })
+							.from(user)
+							.where(
+								and(
+									inArray(user.id, [...new Set(involved.map((i) => i.userId))]),
+									canReadRepositoryCondition(user.id, repoId),
+								),
+							)
+					).map((row) => row.id),
+				);
+	const newSubscriptions = involved.filter((i) => readers.has(i.userId));
 	if (newSubscriptions.length > 0) {
 		// An existing row wins: it keeps its first reason and an explicit
 		// unsubscribe stays one.
@@ -163,36 +150,24 @@ export async function recordThreadActivity(
 					eq(threadSubscriptions.issueId, thread.id),
 					eq(threadSubscriptions.subscribed, true),
 					ne(threadSubscriptions.userId, actorId),
+					// A subscriber who has since lost access hears nothing.
+					canReadRepositoryCondition(threadSubscriptions.userId, repoId),
 				),
 			);
 		for (const s of subscribers) offer(s.userId, s.reason);
 	}
-	for (const id of mentionedIds) offer(id, "mention");
-	for (const id of activity.direct?.userIds ?? []) {
-		offer(id, activity.direct?.reason ?? "manual");
-	}
+	for (const s of newSubscriptions) offer(s.userId, s.reason);
 	if (reasons.size === 0) return;
-
-	const readers = await db
-		.select({ id: user.id })
-		.from(user)
-		.where(
-			and(
-				inArray(user.id, [...reasons.keys()]),
-				canReadCondition(user.id, sql`${thread.repoId}`),
-			),
-		);
-	if (readers.length === 0) return;
 
 	const now = new Date();
 	await db
 		.insert(notifications)
 		.values(
-			readers.map(({ id }) => ({
-				userId: id,
+			[...reasons].map(([userId, reason]) => ({
+				userId,
 				repoId: thread.repoId,
 				issueId: thread.id,
-				reason: reasons.get(id) ?? "subscribed",
+				reason,
 				unread: true,
 				updatedAt: now,
 			})),
@@ -244,7 +219,7 @@ export async function listNotificationsForUser(
 				options.participating
 					? inArray(notifications.reason, [...PARTICIPATING_REASONS])
 					: undefined,
-				canReadCondition(sql`${userId}`, sql`${notifications.repoId}`),
+				canReadRepositoryCondition(sql`${userId}`, notifications.repoId),
 			),
 		)
 		.orderBy(desc(notifications.updatedAt), desc(notifications.id))
@@ -276,7 +251,7 @@ export async function countUnreadNotifications(
 			and(
 				eq(notifications.userId, userId),
 				eq(notifications.unread, true),
-				canReadCondition(sql`${userId}`, sql`${notifications.repoId}`),
+				canReadRepositoryCondition(sql`${userId}`, notifications.repoId),
 			),
 		);
 	return row?.total ?? 0;

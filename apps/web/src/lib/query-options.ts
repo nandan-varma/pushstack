@@ -80,8 +80,18 @@ export const queryKeys = {
 		["repos", repoId, "subscription", number] as const,
 	/** The inbox lists and the unread badge: every notification read. */
 	notificationsRoot: ["notifications"] as const,
-	notifications: (filter: { all: boolean; participating: boolean }) =>
-		["notifications", "list", filter.all, filter.participating] as const,
+	notifications: (filter: {
+		all: boolean;
+		participating: boolean;
+		page: number;
+	}) =>
+		[
+			"notifications",
+			"list",
+			filter.all,
+			filter.participating,
+			filter.page,
+		] as const,
 	unreadNotificationCount: ["notifications", "unread-count"] as const,
 	/**
 	 * Everything a write to a branch's content can change: file views, tree
@@ -585,6 +595,7 @@ export function threadSubscriptionQueryOptions(repoId: number, number: number) {
 export function notificationsQueryOptions(filter: {
 	all: boolean;
 	participating: boolean;
+	page: number;
 }) {
 	return queryOptions({
 		queryKey: queryKeys.notifications(filter),

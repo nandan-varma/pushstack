@@ -1,3 +1,5 @@
+import { createMentionPattern } from "./reference-patterns";
+
 /**
  * Parsing `#N` references out of issue, pull request and comment text, the
  * way GitHub does: references inside code (fenced blocks or inline spans)
@@ -100,15 +102,13 @@ export function getReferencedIssueNumbers(text: string | null): number[] {
 
 /**
  * `@login` mentions, as the Markdown renderer links them
- * (src/lib/reference-patterns.ts): not glued to a word (`a@b.com`), not a
- * scoped package (`@babel/core`), not inside code. Lowercased, each once.
+ * (`createMentionPattern`), outside code. Lowercased, each once.
  */
-const MENTION =
-	/(?<![\w@/.`&-])@([A-Za-z0-9](?:[A-Za-z0-9._-]{0,28}[A-Za-z0-9])?)(?![\w@/-])/g;
-
 export function getMentionedUsernames(text: string | null): string[] {
 	const names = new Set<string>();
-	for (const match of withoutCode(text ?? "").matchAll(MENTION)) {
+	for (const match of withoutCode(text ?? "").matchAll(
+		createMentionPattern(),
+	)) {
 		names.add(match[1].toLowerCase());
 	}
 	return [...names];

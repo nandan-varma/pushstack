@@ -42,6 +42,9 @@ export const NOTIFICATION_REASON_LABELS: Record<NotificationReason, string> = {
 };
 
 /** One inbox row: a thread the user is notified about. */
+/** GitHub's `per_page` cap for the notifications list, and the inbox's page size. */
+export const NOTIFICATIONS_PER_PAGE_MAX = 50;
+
 export interface NotificationItem {
 	id: number;
 	reason: NotificationReason;
