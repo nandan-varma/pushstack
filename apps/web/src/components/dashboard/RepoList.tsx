@@ -1,18 +1,11 @@
-import { Link } from "@tanstack/react-router";
 import { EmptyState } from "@/components/EmptyState";
+import {
+	RepositoryCard,
+	type RepositoryCardRepo,
+} from "@/components/repo/RepositoryCard";
+import { RepositoryListEmptyState } from "@/components/repo/RepositoryListEmptyState";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VisibilityBadge } from "@/components/ui/visibility-badge";
-
-interface Repo {
-	id: number;
-	name: string;
-	description: string | null;
-	visibility: string;
-	defaultBranch: string;
-	updatedAt: string | Date;
-	owner: { username: string };
-}
 
 export function RepoList({
 	repos,
@@ -20,7 +13,7 @@ export function RepoList({
 	isError,
 	onRetry,
 }: {
-	repos?: Repo[];
+	repos?: RepositoryCardRepo[];
 	isLoading?: boolean;
 	isError?: boolean;
 	onRetry?: () => void;
@@ -52,58 +45,14 @@ export function RepoList({
 	}
 
 	if (!repos || repos.length === 0) {
-		return (
-			<EmptyState
-				message="No repositories yet."
-				action={
-					<Link to="/repositories/new">
-						<Button size="sm">Create your first repository</Button>
-					</Link>
-				}
-			/>
-		);
+		return <RepositoryListEmptyState />;
 	}
 
 	return (
 		<div className="space-y-3">
-			{repos.map((repo) => {
-				const ownerUsername = repo.owner.username;
-				return (
-					<Link
-						key={repo.id}
-						to="/repo/$owner/$name/tree/$branch/$"
-						params={{
-							owner: ownerUsername,
-							name: repo.name,
-							branch: repo.defaultBranch,
-							_splat: "",
-						}}
-						className="island-shell feature-card block rounded-xl p-5 no-underline"
-					>
-						<div className="flex items-start justify-between gap-3">
-							<div className="min-w-0">
-								<div className="flex items-center gap-2">
-									<h3
-										title={`${ownerUsername}/${repo.name}`}
-										className="truncate text-sm font-semibold text-primary"
-									>
-										{ownerUsername}/{repo.name}
-									</h3>
-									<VisibilityBadge visibility={repo.visibility} />
-								</div>
-								{repo.description && (
-									<p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-										{repo.description}
-									</p>
-								)}
-							</div>
-							<span className="shrink-0 text-xs text-muted-foreground">
-								{new Date(repo.updatedAt).toLocaleDateString()}
-							</span>
-						</div>
-					</Link>
-				);
-			})}
+			{repos.map((repo) => (
+				<RepositoryCard key={repo.id} repo={repo} />
+			))}
 		</div>
 	);
 }
