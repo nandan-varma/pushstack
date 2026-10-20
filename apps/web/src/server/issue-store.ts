@@ -109,26 +109,27 @@ export async function updateIssueThreadFields(
 		fields.title !== undefined && fields.title !== issue.title;
 	const bodyChanged =
 		fields.body !== undefined && (fields.body || null) !== issue.body;
+	const statusChanged =
+		fields.status !== undefined && fields.status !== issue.status;
 	const [updated] = await db
 		.update(issues)
 		.set({
 			...(fields.title !== undefined && { title: fields.title }),
 			...(fields.body !== undefined && { body: fields.body || null }),
 			...(bodyChanged && { editedAt: new Date() }),
-			...(fields.status && {
+			...(statusChanged && {
 				status: fields.status,
 				closedAt: fields.status === "closed" ? new Date() : null,
-				// Reopening an issue that was closed records `reopened`; an issue
-				// that is already open keeps what it had.
+				// Closing takes the given reason (default completed); reopening
+				// records `reopened`.
 				stateReason:
 					fields.status === "closed"
 						? (fields.stateReason ?? "completed")
-						: issue.status === "closed"
-							? ("reopened" as const)
-							: issue.stateReason,
+						: ("reopened" as const),
 			}),
-			// A new reason on an issue that stays closed.
-			...(!fields.status &&
+			// An explicit reason on an issue that stays closed; a repeated close
+			// without one keeps what it had.
+			...(!statusChanged &&
 				fields.stateReason &&
 				issue.status === "closed" && { stateReason: fields.stateReason }),
 			updatedAt: new Date(),

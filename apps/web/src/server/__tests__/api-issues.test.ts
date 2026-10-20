@@ -872,6 +872,23 @@ describe("closed_by and state_reason", () => {
 		});
 	});
 
+	it("keeps not_planned on a repeated close", async () => {
+		await call(
+			url(),
+			patch(alice, { state: "closed", state_reason: "not_planned" }),
+		);
+		const again = await call(
+			url(),
+			patch(alice, { state: "closed", title: "Close me again" }),
+		);
+		expect(again.body.state_reason).toBe("not_planned");
+		const events = await call(`${url()}/events`);
+		const last = events.body
+			.filter((item: { event: string }) => item.event === "closed")
+			.at(-1);
+		expect(last.state_reason).toBe("not_planned");
+	});
+
 	it("rejects a reason that contradicts the state", async () => {
 		for (const bad of [
 			{ state: "closed", state_reason: "reopened" },
