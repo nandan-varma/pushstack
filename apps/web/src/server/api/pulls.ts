@@ -330,7 +330,7 @@ export async function listPulls(ctx: ApiContext) {
 
 export async function getPull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.number));
+	const record = await findPull(repo.id, threadNumber(ctx.params.pull_number));
 	if (!record) throw notFoundError();
 	return json(
 		await serializeDetail(repo, record, ctx.caller ? access.role : undefined),
@@ -457,7 +457,7 @@ export async function updatePull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.number),
+		threadNumber(ctx.params.pull_number),
 	);
 	if (!pr) throw notFoundError();
 	if (pr.authorId !== caller.userId && !access.canWrite) {
@@ -513,7 +513,7 @@ export async function checkPullMerged(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.number),
+		threadNumber(ctx.params.pull_number),
 	);
 	if (pr?.status !== "merged") throw notFoundError();
 	return noContent();
@@ -524,7 +524,7 @@ export async function mergePull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.number),
+		threadNumber(ctx.params.pull_number),
 	);
 	if (!pr) throw notFoundError();
 	if (!access.canMergePullRequest) {
@@ -600,7 +600,7 @@ export async function listPullCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.number),
+		threadNumber(ctx.params.pull_number),
 	);
 	if (!pr) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
@@ -634,7 +634,7 @@ export async function listPullFiles(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.number),
+		threadNumber(ctx.params.pull_number),
 	);
 	if (!pr) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);

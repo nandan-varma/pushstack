@@ -48,7 +48,7 @@ const bodyError = (
 
 export async function listComments(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.number);
+	const number = threadNumber(ctx.params.issue_number);
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
@@ -83,7 +83,7 @@ export async function createComment(ctx: ApiContext) {
 	if (!access.canParticipate) {
 		throw forbiddenError("You can't comment on this issue");
 	}
-	const number = threadNumber(ctx.params.number);
+	const number = threadNumber(ctx.params.issue_number);
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const body = await readJsonObject(ctx.request);

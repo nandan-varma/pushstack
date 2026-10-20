@@ -1,3 +1,4 @@
+import { type OperationId, routes } from "@pushstack/api-contract/client";
 import { isNotFoundError } from "git-fs-s3";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
@@ -57,298 +58,69 @@ import {
 	listAuthenticatedUserRepositories,
 	listUserRepositories,
 } from "./repos";
+import { matchApiRoute } from "./routing";
 import { listTags } from "./tags";
 import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser, getUserById } from "./users";
 
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
-interface Route {
-	method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-	/** `:name` matches one segment; a final `*name` matches the rest (slashes kept). */
-	pattern: string;
-	handler: Handler;
-}
-
-const ROUTES: Route[] = [
-	{ method: "GET", pattern: "/rate_limit", handler: getRateLimit },
-	{ method: "GET", pattern: "/user", handler: getAuthenticatedUser },
-	{
-		method: "GET",
-		pattern: "/user/repos",
-		handler: listAuthenticatedUserRepositories,
-	},
-	{
-		method: "POST",
-		pattern: "/user/repos",
-		handler: createAuthenticatedUserRepository,
-	},
-	{ method: "GET", pattern: "/user/:id", handler: getUserById },
-	{ method: "GET", pattern: "/users/:username", handler: getUser },
-	{
-		method: "GET",
-		pattern: "/users/:username/repos",
-		handler: listUserRepositories,
-	},
-	{ method: "GET", pattern: "/repos/:owner/:repo", handler: getRepository },
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/branches",
-		handler: listBranches,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/branches/*branch",
-		handler: getBranch,
-	},
-	{ method: "GET", pattern: "/repos/:owner/:repo/tags", handler: listTags },
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/contents",
-		handler: getContents,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/contents/*path",
-		handler: getContents,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/commits",
-		handler: listCommits,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/commits/*ref",
-		handler: getCommitDetail,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/compare/*basehead",
-		handler: compareCommits,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/ref/*ref",
-		handler: getRef,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/refs",
-		handler: listRefs,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/refs/*ref",
-		handler: listRefs,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/matching-refs",
-		handler: listMatchingRefs,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/matching-refs/*ref",
-		handler: listMatchingRefs,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/commits/:sha",
-		handler: getGitCommit,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/trees/*sha",
-		handler: getGitTree,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/git/blobs/:sha",
-		handler: getGitBlob,
-	},
-	{ method: "GET", pattern: "/repos/:owner/:repo/issues", handler: listIssues },
-	{
-		method: "POST",
-		pattern: "/repos/:owner/:repo/issues",
-		handler: createIssue,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/issues/comments/:comment_id",
-		handler: getComment,
-	},
-	{
-		method: "PATCH",
-		pattern: "/repos/:owner/:repo/issues/comments/:comment_id",
-		handler: updateComment,
-	},
-	{
-		method: "DELETE",
-		pattern: "/repos/:owner/:repo/issues/comments/:comment_id",
-		handler: deleteComment,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/issues/:number",
-		handler: getIssue,
-	},
-	{
-		method: "PATCH",
-		pattern: "/repos/:owner/:repo/issues/:number",
-		handler: updateIssue,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/issues/:number/comments",
-		handler: listComments,
-	},
-	{
-		method: "POST",
-		pattern: "/repos/:owner/:repo/issues/:number/comments",
-		handler: createComment,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/issues/:number/timeline",
-		handler: listTimelineItems,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/issues/:number/events",
-		handler: listEvents,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/issues/:number/labels",
-		handler: listIssueLabels,
-	},
-	{
-		method: "POST",
-		pattern: "/repos/:owner/:repo/issues/:number/labels",
-		handler: addIssueLabels,
-	},
-	{
-		method: "PUT",
-		pattern: "/repos/:owner/:repo/issues/:number/labels",
-		handler: setIssueLabels,
-	},
-	{
-		method: "DELETE",
-		pattern: "/repos/:owner/:repo/issues/:number/labels",
-		handler: deleteIssueLabels,
-	},
-	{
-		method: "DELETE",
-		pattern: "/repos/:owner/:repo/issues/:number/labels/:name",
-		handler: removeIssueLabel,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/pulls",
-		handler: listPulls,
-	},
-	{
-		method: "POST",
-		pattern: "/repos/:owner/:repo/pulls",
-		handler: createPull,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/pulls/:number",
-		handler: getPull,
-	},
-	{
-		method: "PATCH",
-		pattern: "/repos/:owner/:repo/pulls/:number",
-		handler: updatePull,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/pulls/:number/merge",
-		handler: checkPullMerged,
-	},
-	{
-		method: "PUT",
-		pattern: "/repos/:owner/:repo/pulls/:number/merge",
-		handler: mergePull,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/pulls/:number/commits",
-		handler: listPullCommits,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/pulls/:number/files",
-		handler: listPullFiles,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/labels",
-		handler: listRepoLabels,
-	},
-	{
-		method: "POST",
-		pattern: "/repos/:owner/:repo/labels",
-		handler: createLabel,
-	},
-	{
-		method: "GET",
-		pattern: "/repos/:owner/:repo/labels/:name",
-		handler: getLabel,
-	},
-	{
-		method: "PATCH",
-		pattern: "/repos/:owner/:repo/labels/:name",
-		handler: updateLabel,
-	},
-	{
-		method: "DELETE",
-		pattern: "/repos/:owner/:repo/labels/:name",
-		handler: deleteLabel,
-	},
-];
-
-function matchPattern(
-	pattern: string,
-	segments: string[],
-): Record<string, string> | null {
-	const parts = pattern.split("/").slice(1);
-	const params: Record<string, string> = {};
-	for (const [index, part] of parts.entries()) {
-		if (part.startsWith("*")) {
-			const rest = segments.slice(index);
-			if (rest.length === 0) return null;
-			params[part.slice(1)] = rest.join("/");
-			return params;
-		}
-		const segment = segments[index];
-		if (segment === undefined) return null;
-		if (part.startsWith(":")) params[part.slice(1)] = segment;
-		else if (part !== segment) return null;
-	}
-	return segments.length === parts.length ? params : null;
-}
-
-function matchRoute(method: string, pathname: string) {
-	let segments: string[];
-	try {
-		segments = pathname.split("/").filter(Boolean).map(decodeURIComponent);
-	} catch {
-		return null;
-	}
-	for (const route of ROUTES) {
-		if (route.method !== method) continue;
-		const params = matchPattern(route.pattern, segments);
-		if (params) return { route, params };
-	}
-	return null;
-}
+const HANDLERS = {
+	"rate-limit/get": getRateLimit,
+	"users/get-authenticated": getAuthenticatedUser,
+	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
+	"repos/create-for-authenticated-user": createAuthenticatedUserRepository,
+	"users/get-by-id": getUserById,
+	"users/get-by-username": getUser,
+	"repos/list-for-user": listUserRepositories,
+	"repos/get": getRepository,
+	"repos/list-branches": listBranches,
+	"repos/get-branch": getBranch,
+	"repos/list-tags": listTags,
+	"repos/get-content": getContents,
+	"repos/list-commits": listCommits,
+	"repos/get-commit": getCommitDetail,
+	"repos/compare-commits-with-basehead": compareCommits,
+	"git/get-ref": getRef,
+	"git/list-refs": listRefs,
+	"git/list-matching-refs": listMatchingRefs,
+	"git/get-commit": getGitCommit,
+	"git/get-tree": getGitTree,
+	"git/get-blob": getGitBlob,
+	"issues/list-for-repo": listIssues,
+	"issues/create": createIssue,
+	"issues/get-comment": getComment,
+	"issues/update-comment": updateComment,
+	"issues/delete-comment": deleteComment,
+	"issues/get": getIssue,
+	"issues/update": updateIssue,
+	"issues/list-comments": listComments,
+	"issues/create-comment": createComment,
+	"issues/list-events-for-timeline": listTimelineItems,
+	"issues/list-events": listEvents,
+	"issues/list-labels-on-issue": listIssueLabels,
+	"issues/add-labels": addIssueLabels,
+	"issues/set-labels": setIssueLabels,
+	"issues/remove-all-labels": deleteIssueLabels,
+	"issues/remove-label": removeIssueLabel,
+	"pulls/list": listPulls,
+	"pulls/create": createPull,
+	"pulls/get": getPull,
+	"pulls/update": updatePull,
+	"pulls/check-if-merged": checkPullMerged,
+	"pulls/merge": mergePull,
+	"pulls/list-commits": listPullCommits,
+	"pulls/list-files": listPullFiles,
+	"issues/list-labels-for-repo": listRepoLabels,
+	"issues/create-label": createLabel,
+	"issues/get-label": getLabel,
+	"issues/update-label": updateLabel,
+	"issues/delete-label": deleteLabel,
+} satisfies Record<OperationId, Handler>;
 
 /** Every method the route table uses; `routes/api/v3.$.ts` must serve each. */
 export const API_METHODS: ReadonlySet<string> = new Set(
-	ROUTES.map((route) => route.method),
+	Object.values(routes).map((route) => route.method),
 );
 
 export function handleApiRequest(request: Request): Promise<Response> {
@@ -357,11 +129,11 @@ export function handleApiRequest(request: Request): Promise<Response> {
 		? url.pathname.slice(API_PREFIX.length)
 		: url.pathname;
 	const method = request.method === "HEAD" ? "GET" : request.method;
-	const matched = matchRoute(method, pathname);
+	const matched = matchApiRoute(method, pathname);
 	// One request id from here on: the perf tree, logs, Sentry and the
 	// response header (GitHub's X-GitHub-Request-Id) all carry it.
 	return perfContext(
-		`api ${method} ${matched?.route.pattern ?? "(no route)"}`,
+		`api ${method} ${matched?.pattern ?? "(no route)"}`,
 		async () => {
 			const response = await dispatch(request, url, pathname, matched);
 			const requestId = currentRequestId();
@@ -375,7 +147,7 @@ async function dispatch(
 	request: Request,
 	url: URL,
 	pathname: string,
-	matched: ReturnType<typeof matchRoute>,
+	matched: ReturnType<typeof matchApiRoute>,
 ): Promise<Response> {
 	const isHead = request.method === "HEAD";
 	let rate: RateStatus | null = null;
@@ -384,11 +156,11 @@ async function dispatch(
 		// everywhere, as on GitHub.
 		const caller = await authenticateMetered(request);
 		// /rate_limit reports the buckets and is never counted, as on GitHub.
-		if (matched?.route.handler !== getRateLimit) {
+		if (matched?.id !== "rate-limit/get") {
 			rate = await meterApiRequest(request, caller);
 		}
 		if (!matched) throw notFoundError();
-		const response = await matched.route.handler({
+		const response = await HANDLERS[matched.id]({
 			request,
 			url,
 			params: matched.params,

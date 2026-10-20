@@ -49,7 +49,7 @@ export async function getAuthenticatedUser(ctx: ApiContext) {
 
 /** `GET /user/{account_id}`: a public profile by the integer `id`. */
 export async function getUserById(ctx: ApiContext) {
-	const raw = ctx.params.id ?? "";
+	const raw = ctx.params.account_id ?? "";
 	const apiId = /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : 0;
 	if (apiId === 0 || apiId > 2_147_483_647) throw notFoundError();
 	const [row] = await db.select().from(user).where(eq(user.apiId, apiId));
