@@ -60,9 +60,9 @@ algorithm's edge cases, check the linked package docs first; only the
 integration-specific glue (which object store backs `gitFs`, how
 pushstack wires its own caches/locks around library calls) belongs in this
 repo's docs. If something looks wrong in the *library's* behavior rather than
-in how pushstack calls it, the fix belongs in that package's own repo
-(`~/dev/git-fs-s3` or `~/dev/git-edge`, sibling checkouts next to this one),
-not here.
+in how pushstack calls it, the fix belongs in that package's own workspace
+(`packages/git-fs-s3` or `packages/git-edge`), managed in this repository and
+released from it — see [releasing.md](/docs/internals/releasing).
 
 ## Request flow
 
@@ -145,6 +145,7 @@ full role/permission model.
 - [security.md](/docs/internals/security) — the security model and invariants that must not be violated
 - [testing.md](/docs/internals/testing) — test layout and conventions
 - [deployment.md](/docs/internals/deployment) — Vercel/Nitro/R2 deployment and environment variables
+- [releasing.md](/docs/internals/releasing) — versioning, tagging and publishing the npm packages
 
 ## Workspace tooling
 
@@ -156,8 +157,11 @@ Lint tasks include the root Biome configuration in their cache inputs.
 
 Root `pnpm test` runs workspace integrity checks before the behavior suites.
 Those guards reject dependency version drift, missing validation commands and
-registry ranges for internal packages. Web test concurrency is bounded because
-each behavior worker starts a Postgres WASM instance.
+registry ranges for internal packages, and they check the workflow policy:
+every action pinned to a commit SHA, Node installed from `.node-version`, and
+dependencies installed through the shared `.github/actions/setup` action. Web
+test concurrency is bounded because each behavior worker starts a Postgres WASM
+instance.
 
-The CLI currently runs from the checkout. npm publication and trusted-publisher
-setup, and library patch releases for the new homepages, remain release steps.
+Three workspaces are published to npm; [releasing.md](/docs/internals/releasing)
+covers the tag formats, the trusted-publisher setup and the release workflow.

@@ -4,6 +4,12 @@
 	"description": "The PushStack command line: a gh-compatible CLI over the /api/v3 REST API.",
 	"license": "AGPL-3.0-or-later",
 	"author": "Nandan Varma",
+	"keywords": [
+		"pushstack",
+		"cli",
+		"git",
+		"github-compatible"
+	],
 	"type": "module",
 	"bin": {
 		"pushstack": "./dist/bin.js",
@@ -22,12 +28,17 @@
 		"build": "tsdown",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
+		"prepublishOnly": "pnpm typecheck && pnpm test && pnpm build",
 		"lint": "biome check ."
 	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/nandan-varma/pushstack.git",
 		"directory": "apps/cli"
+	},
+	"homepage": "https://docs.git.nandan.fyi/docs/cli",
+	"bugs": {
+		"url": "https://github.com/nandan-varma/pushstack/issues"
 	},
 	"publishConfig": {
 		"access": "public"

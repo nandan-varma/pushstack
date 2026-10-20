@@ -10,7 +10,7 @@ A pnpm + Turborepo monorepo:
 
 - `apps/web` — the product: TanStack Start app, `/api/v3` REST API, git smart-HTTP. Deployed to Vercel (project root `apps/web`, build `turbo run build --filter=@pushstack/web`, see `apps/web/vercel.json`). **Every app path in this file (`src/…`, `scripts/…`, `e2e/…`) is relative to `apps/web`.** Its env file is `apps/web/.env.local`.
 - `apps/docs` — Fumadocs documentation on TanStack Start, deployed separately to `docs.git.nandan.fyi`. All documentation source lives in `apps/docs/content/docs`; the site test checks internal links, navigation and code examples.
-- `apps/cli` — `@pushstack/cli`, bins `pushstack` and `pst`; auth, repository and API commands. Its unit tests mock fetch; web contract tests run it through the real REST dispatcher. npm publication is a separate pending release step.
+- `apps/cli` — `@pushstack/cli`, bins `pushstack` and `pst`; auth, repository and API commands. Its unit tests mock fetch; web contract tests run it through the real REST dispatcher. Published to npm from this repo like the libraries (`@pushstack/cli@v*`).
 - `packages/tsconfig` — private shared compiler options. Runtime workspaces extend its base or Node config and declare it as a workspace dev dependency. `scripts/workspace.test.mjs` enforces scripts, links, shared versions and dependency policy, plus that every workflow pins each external action to a commit SHA, installs Node from `.node-version`, and installs dependencies through the shared setup action.
 - `packages/git-fs-s3`, `packages/git-edge` — our git libraries (imported with full history; published to npm under those names). The app depends on them as `workspace:*` and imports their built `dist/`; turbo builds them first (`dependsOn: ["^build"]`).
 - Root: tooling only — `turbo.json` (task graph; build-time env vars must be listed there, turbo's strict env mode hides the rest), one `biome.json` for every workspace, `.yamllint.yml` (YAML conventions for editors and agents), husky + lint-staged. Workflows share one setup composite action (`.github/actions/setup`) and CI runs actionlint over them.
@@ -35,7 +35,7 @@ pnpm db:studio     # drizzle studio UI
 
 One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts`, `pnpm --filter git-fs-s3 test`, `pnpm --filter @pushstack/web test:e2e`. After editing a library while `pnpm dev` runs, rebuild it (`pnpm exec turbo run build --filter=git-fs-s3`) and restart the dev server.
 
-**Releasing a library**: bump its `package.json` version and CHANGELOG, commit, then `git tag -m "git-fs-s3 vX.Y.Z" git-fs-s3@vX.Y.Z` and push the tag — `.github/workflows/release-packages.yml` checks, builds and publishes with npm trusted publishing (OIDC). Never delete or move a pushed tag; release a new patch instead.
+**Releasing a package**: bump the workspace's `package.json` version and its CHANGELOG, commit, then `git tag -m "git-fs-s3 vX.Y.Z" git-fs-s3@vX.Y.Z` and push the tag — `.github/workflows/release-packages.yml` resolves the workspace from the package name (`scripts/workspace-directory.mjs`), checks the tag against the version, then runs its typecheck/test/build, packs and publishes with npm trusted publishing (OIDC). The CLI (`@pushstack/cli@vX.Y.Z`) releases the same way. Never delete or move a pushed tag; release a new patch instead. Full process in `apps/docs/content/docs/internals/releasing.md`.
 
 **Adding a dependency**: edit the workspace's `package.json`, then `echo "Y" | pnpm install`.
 

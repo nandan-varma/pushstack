@@ -4,8 +4,17 @@ description: Authenticate, manage repositories, and call the REST API with pst o
 ---
 
 The `@pushstack/cli` workspace provides the `pst` and `pushstack` commands over
-the [REST API](/docs/api). It requires Node.js 22 or newer. npm publication is
-pending; build and run it from a checkout of the monorepo:
+the [REST API](/docs/api). It requires Node.js 22 or newer and is published to
+npm as `@pushstack/cli`:
+
+```sh
+npm install -g @pushstack/cli
+pst --help
+```
+
+Until the first npm release lands (see
+[releasing.md](/docs/internals/releasing)), build and run it from a checkout of
+the monorepo:
 
 ```sh
 pnpm install

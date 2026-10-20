@@ -12,6 +12,7 @@
 		"security",
 		"security-history",
 		"testing",
-		"deployment"
+		"deployment",
+		"releasing"
 	]
 }
