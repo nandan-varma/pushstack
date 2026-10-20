@@ -6,6 +6,8 @@ import { repositories } from "../app-schema";
 import { user } from "../schema";
 
 describe("app timestamps", () => {
+	// This one boots Postgres WASM inside the test body rather than in a hook,
+	// so the shared hookTimeout does not cover it (see apps/web/vitest.config.ts).
 	it("read back correctly when the database fills them under a non-UTC session", async () => {
 		const db = await createTestDb();
 		await db.execute(sql`set timezone = 'America/Los_Angeles'`);
@@ -28,4 +30,4 @@ describe("app timestamps", () => {
 			Math.abs((repo?.createdAt.getTime() ?? 0) - Date.now()),
 		).toBeLessThan(60_000);
 	});
-});
+}, 30_000);
