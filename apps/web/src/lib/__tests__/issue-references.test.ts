@@ -3,6 +3,7 @@ import {
 	getClosingIssueNumbers,
 	getReferencedIssueNumbers,
 } from "../issue-references";
+import { MAX_BODY_CHARS } from "../limits";
 
 describe("getReferencedIssueNumbers", () => {
 	it("finds each #N once, in order", () => {
@@ -25,6 +26,36 @@ describe("getReferencedIssueNumbers", () => {
 	it("handles empty and null text", () => {
 		expect(getReferencedIssueNumbers(null)).toEqual([]);
 		expect(getReferencedIssueNumbers("")).toEqual([]);
+	});
+
+	it("ignores references in an unterminated fence at the end of the body", () => {
+		// CommonMark: an unclosed fence runs to the end of the text, including
+		// when its opening line is the last one and has no trailing newline.
+		expect(getReferencedIssueNumbers("before\n```\n#12")).toEqual([]);
+		expect(getReferencedIssueNumbers("before\n```#12")).toEqual([]);
+		expect(getReferencedIssueNumbers("before\n~~~\n#12")).toEqual([]);
+	});
+
+	it("parses a pathological body without quadratic work", () => {
+		// The pattern this replaced (/(`+)[\s\S]*?\1/g) backtracked over every
+		// opening run length, so a run of MAX_BODY_CHARS backticks cost ~4.5 s of
+		// CPU — and this runs on every comment, issue and PR write while the
+		// caller holds the repository lock, plus on every pushed commit message,
+		// which the request cap bounds at 50 MB. The margin is wide enough not to
+		// flake and narrow enough to fail loudly if that cost comes back.
+		const body = `see ${"`".repeat(MAX_BODY_CHARS)} then\nfixes #7`;
+		const started = performance.now();
+		expect(getClosingIssueNumbers(body)).toEqual([7]);
+		expect(performance.now() - started).toBeLessThan(500);
+	});
+
+	it("treats a long run of backticks as an unclosed fence, not inline code", () => {
+		// CommonMark: three or more backticks at the start of a line open a
+		// fence, and an unclosed fence runs to the end of the text, so nothing
+		// after it is a reference.
+		expect(
+			getReferencedIssueNumbers(`${"`".repeat(MAX_BODY_CHARS)}\n#7`),
+		).toEqual([]);
 	});
 });
 
