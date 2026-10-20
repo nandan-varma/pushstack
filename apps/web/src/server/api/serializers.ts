@@ -3,12 +3,12 @@
  * stores. Fields PushStack has no equivalent for are omitted, never renamed.
  */
 import type { CommitInfo } from "git-fs-s3/ops";
-import type { PullRequest, Repository } from "#/db/app-schema";
+import type { Repository } from "#/db/app-schema";
 import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import type { PublicUser } from "../repository-lookup";
-import type { ThreadKind } from "../thread-store";
+import type { PullRequest, ThreadKind } from "../thread-store";
 import { apiUrl, encodePath, htmlUrl, isoTimestamp } from "./http";
 
 export type RepoRole = "owner" | "admin" | "write" | "read" | "anonymous";
@@ -370,7 +370,9 @@ export function pullRequest(input: PullShapeInput): Record<string, unknown> {
 	});
 	const merged = row.status === "merged";
 	const closedAt =
-		row.status === "open" ? null : (row.mergedAt ?? row.updatedAt);
+		row.status === "open"
+			? null
+			: (row.closedAt ?? row.mergedAt ?? row.updatedAt);
 	const detail = input.detail;
 	return {
 		url,

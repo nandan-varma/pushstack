@@ -15,10 +15,6 @@ export const relations = defineRelations(
 				from: r.repositories.id,
 				to: r.issues.repoId,
 			}),
-			pullRequests: r.many.pullRequests({
-				from: r.repositories.id,
-				to: r.pullRequests.repoId,
-			}),
 			stars: r.many.stars({
 				from: r.repositories.id,
 				to: r.stars.repoId,
@@ -43,13 +39,17 @@ export const relations = defineRelations(
 				to: r.user.id,
 				optional: false,
 			}),
+			pullRequest: r.one.pullRequests({
+				from: r.issues.id,
+				to: r.pullRequests.issueId,
+			}),
 			comments: r.many.comments({
 				from: r.issues.id,
 				to: r.comments.issueId,
 			}),
 			assignees: r.many.threadAssignees({
-				from: [r.issues.repoId, r.issues.number],
-				to: [r.threadAssignees.repoId, r.threadAssignees.number],
+				from: r.issues.id,
+				to: r.threadAssignees.issueId,
 			}),
 		},
 		threadAssignees: {
@@ -60,37 +60,24 @@ export const relations = defineRelations(
 			}),
 		},
 		pullRequests: {
-			assignees: r.many.threadAssignees({
-				from: [r.pullRequests.repoId, r.pullRequests.number],
-				to: [r.threadAssignees.repoId, r.threadAssignees.number],
-			}),
-			repository: r.one.repositories({
-				from: r.pullRequests.repoId,
-				to: r.repositories.id,
+			issue: r.one.issues({
+				from: r.pullRequests.issueId,
+				to: r.issues.id,
 				optional: false,
-			}),
-			author: r.one.user({
-				from: r.pullRequests.authorId,
-				to: r.user.id,
-				optional: false,
-			}),
-			comments: r.many.comments({
-				from: r.pullRequests.id,
-				to: r.comments.pullRequestId,
 			}),
 			reviews: r.many.pullRequestReviews({
-				from: r.pullRequests.id,
+				from: r.pullRequests.issueId,
 				to: r.pullRequestReviews.pullRequestId,
 			}),
 			reviewComments: r.many.pullRequestReviewComments({
-				from: r.pullRequests.id,
+				from: r.pullRequests.issueId,
 				to: r.pullRequestReviewComments.pullRequestId,
 			}),
 		},
 		pullRequestReviews: {
 			pullRequest: r.one.pullRequests({
 				from: r.pullRequestReviews.pullRequestId,
-				to: r.pullRequests.id,
+				to: r.pullRequests.issueId,
 				optional: false,
 			}),
 			author: r.one.user({
@@ -106,7 +93,7 @@ export const relations = defineRelations(
 		pullRequestReviewComments: {
 			pullRequest: r.one.pullRequests({
 				from: r.pullRequestReviewComments.pullRequestId,
-				to: r.pullRequests.id,
+				to: r.pullRequests.issueId,
 				optional: false,
 			}),
 			review: r.one.pullRequestReviews({
@@ -129,10 +116,7 @@ export const relations = defineRelations(
 			issue: r.one.issues({
 				from: r.comments.issueId,
 				to: r.issues.id,
-			}),
-			pullRequest: r.one.pullRequests({
-				from: r.comments.pullRequestId,
-				to: r.pullRequests.id,
+				optional: false,
 			}),
 			author: r.one.user({
 				from: r.comments.authorId,

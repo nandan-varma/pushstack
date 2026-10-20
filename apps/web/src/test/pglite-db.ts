@@ -14,10 +14,15 @@ import { loadTestTemplate } from "./test-db-template";
 // One read per worker process; every instance is built from the same bytes.
 let template: Promise<Blob> | undefined;
 
-export async function createTestDb() {
+export async function createTestDb(options?: {
+	/** Called with every query's SQL text (query-count tests). */
+	onQuery?: (query: string) => void;
+}) {
 	template ??= loadTestTemplate().then((bytes) => new Blob([bytes]));
+	const onQuery = options?.onQuery;
 	return drizzle({
 		client: new PGlite({ loadDataDir: await template }),
 		relations,
+		...(onQuery && { logger: { logQuery: (query: string) => onQuery(query) } }),
 	});
 }

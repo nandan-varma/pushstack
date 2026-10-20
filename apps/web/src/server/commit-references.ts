@@ -12,7 +12,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
 import { db } from "#/db";
-import { issues, pullRequests, timelineEvents } from "#/db/app-schema";
+import { issues, timelineEvents } from "#/db/app-schema";
 import {
 	getClosingIssueNumbers,
 	getReferencedIssueNumbers,
@@ -109,30 +109,23 @@ export async function recordPushReferences(input: {
 	const wanted = [...new Set(mentions.flatMap((m) => m.numbers))];
 	if (wanted.length === 0) return;
 
-	const [issueRows, prRows] = await Promise.all([
-		db
-			.select({
-				number: issues.number,
-				status: issues.status,
-				title: issues.title,
-			})
-			.from(issues)
-			.where(
-				and(eq(issues.repoId, input.repoId), inArray(issues.number, wanted)),
-			),
-		db
-			.select({ number: pullRequests.number })
-			.from(pullRequests)
-			.where(
-				and(
-					eq(pullRequests.repoId, input.repoId),
-					inArray(pullRequests.number, wanted),
-				),
-			),
-	]);
-	const existing = new Set([...issueRows, ...prRows].map((row) => row.number));
+	const threads = await db
+		.select({
+			id: issues.id,
+			number: issues.number,
+			isPullRequest: issues.isPullRequest,
+			status: issues.status,
+		})
+		.from(issues)
+		.where(
+			and(eq(issues.repoId, input.repoId), inArray(issues.number, wanted)),
+		);
+	// `#N` → issue id, for every thread that exists.
+	const existing = new Map(threads.map((row) => [row.number, row.id]));
 	const openIssues = new Set(
-		issueRows.filter((row) => row.status === "open").map((row) => row.number),
+		threads
+			.filter((row) => !row.isPullRequest && row.status === "open")
+			.map((row) => row.number),
 	);
 	if (existing.size === 0) return;
 
@@ -140,30 +133,23 @@ export async function recordPushReferences(input: {
 	const shas = [...new Set(commits.map((commit) => commit.sha))];
 	const prior = await db
 		.select({
-			number: timelineEvents.number,
+			issueId: timelineEvents.issueId,
 			sha: sql<string>`${timelineEvents.payload}->>'commitSha'`,
 		})
 		.from(timelineEvents)
 		.where(
 			and(
-				eq(timelineEvents.repoId, input.repoId),
 				eq(timelineEvents.event, "referenced"),
-				inArray(timelineEvents.number, [...existing]),
+				inArray(timelineEvents.issueId, [...existing.values()]),
 				inArray(sql`${timelineEvents.payload}->>'commitSha'`, shas),
 			),
 		);
-	const recorded = new Set(prior.map((row) => `${row.number}:${row.sha}`));
+	const recorded = new Set(prior.map((row) => `${row.issueId}:${row.sha}`));
 
 	const rows: (typeof timelineEvents.$inferInsert)[] = [];
-	const add = (number: number, event: TimelineEvent) => {
+	const add = (issueId: number, event: TimelineEvent) => {
 		const { event: type, ...payload } = event;
-		rows.push({
-			repoId: input.repoId,
-			number,
-			actorId: input.actorId,
-			event: type,
-			payload,
-		});
+		rows.push({ issueId, actorId: input.actorId, event: type, payload });
 	};
 	// Oldest commit first, so a thread's events read in commit order.
 	const toClose = new Set<number>();
@@ -174,11 +160,12 @@ export async function recordPushReferences(input: {
 			MESSAGE_PREVIEW_CHARS,
 		);
 		for (const number of numbers) {
-			if (!existing.has(number)) continue;
-			const key = `${number}:${commit.sha}`;
+			const issueId = existing.get(number);
+			if (issueId === undefined) continue;
+			const key = `${issueId}:${commit.sha}`;
 			if (recorded.has(key)) continue;
 			recorded.add(key);
-			add(number, { event: "referenced", commitSha: commit.sha, message });
+			add(issueId, { event: "referenced", commitSha: commit.sha, message });
 		}
 		if (!commit.onDefault) continue;
 		for (const number of getClosingIssueNumbers(commit.message)) {
@@ -196,6 +183,7 @@ export async function recordPushReferences(input: {
 						status: "closed",
 						stateReason: "completed",
 						closedAt: new Date(),
+						closedById: input.actorId,
 						updatedAt: new Date(),
 					})
 					.where(
@@ -205,9 +193,13 @@ export async function recordPushReferences(input: {
 							eq(issues.status, "open"),
 						),
 					)
-					.returning({ number: issues.number, title: issues.title });
-	for (const { number } of closed) {
-		add(number, {
+					.returning({
+						id: issues.id,
+						number: issues.number,
+						title: issues.title,
+					});
+	for (const { id, number } of closed) {
+		add(id, {
 			event: "closed",
 			commitSha: closers.get(number),
 			stateReason: "completed",

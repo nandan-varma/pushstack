@@ -3,17 +3,11 @@
  * merge, files and commits. Pull requests share their `#N` (and their comments,
  * labels and timeline) with issues, so those live on the issues endpoints.
  */
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { z } from "zod";
 import { db } from "#/db";
-import {
-	comments,
-	type PullRequest,
-	pullRequestReviewComments,
-	pullRequestReviews,
-	pullRequests,
-} from "#/db/app-schema";
+import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import {
 	MAX_BODY_CHARS,
@@ -35,12 +29,16 @@ import {
 	mergePullRequestBranches,
 	updatePullRequestFields,
 } from "../pull-request-store";
-import {
-	type PublicUser,
-	publicUserColumns,
-	type RepositoryRowWithOwner,
-} from "../repository-lookup";
+import type { RepositoryRowWithOwner } from "../repository-lookup";
 import { reviewSummaryFor } from "../review-store";
+import {
+	findPullRequestByNumber,
+	findThread,
+	listThreads,
+	type PullRequest,
+	pullRequestOfThread,
+	type Thread,
+} from "../thread-store";
 import { createTtlCoalescedCache } from "../ttl-cache";
 import { type ApiContext, requireScope } from "./auth";
 import { diffFileObjects, UNKNOWN_SHA } from "./diff-files";
@@ -64,12 +62,7 @@ import {
 	pullRequest as pullRequestShape,
 	repository,
 } from "./serializers";
-import {
-	fullNameOf,
-	loadThreadMeta,
-	threadNumber,
-	threadRowsOf,
-} from "./threads";
+import { fullNameOf, threadNumber } from "./threads";
 
 /** The Commits tab and `GET …/commits` are capped at 250, as on GitHub. */
 const PULL_COMMITS_LIMIT = 250;
@@ -105,11 +98,6 @@ const sortSchema = z
 	.enum(["created", "updated", "popularity", "long-running"])
 	.catch("created");
 const directionSchema = z.enum(["asc", "desc"]);
-
-interface PullRecord {
-	row: PullRequest;
-	author: PublicUser;
-}
 
 const pullError = (field: string, code: FieldError["code"], message?: string) =>
 	({
@@ -162,29 +150,29 @@ async function orWhenGone<T>(read: () => Promise<T>, fallback: T): Promise<T> {
 	}
 }
 
-async function findPull(
-	repoId: number,
-	number: number,
-): Promise<PullRecord | null> {
-	const [found] = await db
-		.select({ row: pullRequests, author: publicUserColumns })
-		.from(pullRequests)
-		.innerJoin(user, eq(user.id, pullRequests.authorId))
-		.where(
-			and(eq(pullRequests.repoId, repoId), eq(pullRequests.number, number)),
-		)
-		.limit(1);
-	return found ?? null;
+/** Pull request `#number` with its labels, assignees and counts, or null. */
+function findPull(repoId: number, number: number): Promise<Thread | null> {
+	return findThread(repoId, number, "pull_request");
+}
+
+/** The serializer input every pull request shape shares. */
+function pullShapeOf(thread: Thread) {
+	return {
+		row: pullRequestOfThread(thread),
+		author: thread.author,
+		labels: thread.labels,
+		assignees: thread.assignees,
+		commentsCount: thread.commentsCount,
+	};
 }
 
 /** Serialize pull requests as list items (no per-pull git work beyond the tips). */
 async function serializeList(
 	repo: RepositoryRowWithOwner,
-	rows: PullRecord[],
+	threads: Thread[],
 	role: Parameters<typeof repository>[1]["role"],
 ) {
-	const [meta, tips, stargazers] = await Promise.all([
-		loadThreadMeta(repo.id, threadRowsOf([], rows)),
+	const [tips, stargazers] = await Promise.all([
 		branchTips(repo),
 		starCounts([repo.id]),
 	]);
@@ -192,46 +180,37 @@ async function serializeList(
 		stars: stargazers.get(repo.id) ?? 0,
 		role,
 	});
-	return rows.map(({ row, author }) =>
-		pullRequestShape({
+	return threads.map((thread) => {
+		const shape = pullShapeOf(thread);
+		return pullRequestShape({
 			repo,
 			repoShape,
-			row,
-			author,
-			labels: meta.labels.get(row.number) ?? [],
-			assignees: meta.assignees.get(row.number) ?? [],
-			commentsCount: meta.comments.get(row.number) ?? 0,
-			...tipShas(row, tips),
-		}),
-	);
+			...shape,
+			...tipShas(shape.row, tips),
+		});
+	});
 }
 
 /** A single pull request, with the counts GitHub adds to it. */
 async function serializeDetail(
 	repo: RepositoryRowWithOwner,
-	record: PullRecord,
+	thread: Thread,
 	role: Parameters<typeof repository>[1]["role"],
 ) {
-	const { row, author } = record;
+	const shape = pullShapeOf(thread);
+	const { row } = shape;
 	const ownerKey = ownerKeyOf(repo);
 	const range = pullRange(row);
 	const empty = {
 		commits: { commits: [], truncated: false, incomplete: false },
 		diff: { totalAdditions: 0, totalDeletions: 0, totalFiles: 0 },
 	};
-	const [meta, tips, stargazers, mergedBy, reviewComments, commits, diff] =
-		await perfStep("pull detail", () =>
+	const [tips, stargazers, reviewComments, commits, diff] = await perfStep(
+		"pull detail",
+		() =>
 			Promise.all([
-				loadThreadMeta(repo.id, threadRowsOf([], [record])),
 				branchTips(repo),
 				starCounts([repo.id]),
-				row.mergedBy
-					? db
-							.select(publicUserColumns)
-							.from(user)
-							.where(eq(user.id, row.mergedBy))
-							.then(([found]) => found ?? null)
-					: null,
 				db
 					.select({ total: count() })
 					.from(pullRequestReviewComments)
@@ -262,7 +241,7 @@ async function serializeDetail(
 					empty.diff,
 				),
 			]),
-		);
+	);
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
 		role,
@@ -270,14 +249,10 @@ async function serializeDetail(
 	return pullRequestShape({
 		repo,
 		repoShape,
-		row,
-		author,
-		labels: meta.labels.get(row.number) ?? [],
-		assignees: meta.assignees.get(row.number) ?? [],
-		commentsCount: meta.comments.get(row.number) ?? 0,
+		...shape,
 		...tipShas(row, tips),
 		detail: {
-			mergedBy,
+			mergedBy: thread.pullRequest?.mergedByUser ?? null,
 			reviewComments,
 			commits: commits.commits.length,
 			additions: diff.totalAdditions,
@@ -327,43 +302,35 @@ export async function listPulls(ctx: ApiContext) {
 
 	const head = branchFilter(query.get("head"), repo.owner.username);
 	const base = query.get("base") || undefined;
-	const where = and(
-		eq(pullRequests.repoId, repo.id),
-		state.data === "open" ? eq(pullRequests.status, "open") : undefined,
-		state.data === "closed" ? sql`${pullRequests.status} <> 'open'` : undefined,
-		head === null
-			? sql`false`
-			: head
-				? eq(pullRequests.sourceBranch, head)
-				: undefined,
-		base ? eq(pullRequests.targetBranch, base) : undefined,
-	);
-	const key =
-		sort === "updated"
-			? pullRequests.updatedAt
-			: sort === "popularity"
-				? sql`(select count(*) from ${comments} where ${comments.pullRequestId} = ${pullRequests.id})`
-				: pullRequests.createdAt;
-	const order = direction === "asc" ? asc : desc;
-
-	const [rows, [total]] = await perfStep("db: list pulls", () =>
-		Promise.all([
-			db
-				.select({ row: pullRequests, author: publicUserColumns })
-				.from(pullRequests)
-				.innerJoin(user, eq(user.id, pullRequests.authorId))
-				.where(where)
-				.orderBy(order(key), order(pullRequests.number))
-				.limit(params.perPage)
-				.offset(params.offset),
-			db.select({ total: count() }).from(pullRequests).where(where),
-		]),
+	const { threads, total } = await perfStep("db: list pulls", () =>
+		listThreads(
+			{
+				repoId: repo.id,
+				kind: "pull_request",
+				...(state.data !== "all" && { state: state.data }),
+				head,
+				base,
+			},
+			{
+				sort: {
+					by:
+						sort === "updated"
+							? "updated"
+							: sort === "popularity"
+								? "comments"
+								: "created",
+					direction,
+				},
+				limit: params.perPage,
+				offset: params.offset,
+			},
+		),
 	);
 	const role = ctx.caller ? access.role : undefined;
 	return json(
-		await serializeList(repo, rows, role),
+		await serializeList(repo, threads, role),
 		200,
-		linkHeader(ctx.url, params, total?.total ?? 0),
+		linkHeader(ctx.url, params, total),
 	);
 }
 
@@ -452,16 +419,17 @@ export async function createPull(ctx: ApiContext) {
 			customError(`No commits between ${targetBranch} and ${sourceBranch}`),
 		]);
 	}
-	const duplicate = await db.query.pullRequests.findFirst({
-		columns: { id: true },
-		where: {
+	const duplicate = await listThreads(
+		{
 			repoId: repo.id,
-			status: "open",
-			sourceBranch,
-			targetBranch,
+			kind: "pull_request",
+			state: "open",
+			head: sourceBranch,
+			base: targetBranch,
 		},
-	});
-	if (duplicate) {
+		{ limit: 1 },
+	);
+	if (duplicate.total > 0) {
 		throw validationFailedError("Validation Failed", [
 			customError(
 				`A pull request already exists for ${repo.owner.username}:${sourceBranch}.`,
@@ -498,9 +466,11 @@ export async function createPull(ctx: ApiContext) {
 export async function updatePull(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.number));
-	if (!record) throw notFoundError();
-	const pr = record.row;
+	const pr = await findPullRequestByNumber(
+		repo.id,
+		threadNumber(ctx.params.number),
+	);
+	if (!pr) throw notFoundError();
 	if (pr.authorId !== caller.userId && !access.canWrite) {
 		throw forbiddenError(
 			"You do not have permission to edit this pull request",
@@ -552,8 +522,11 @@ const notMergeable = () => new ApiError(405, "Pull Request is not mergeable");
 /** `GET /repos/{owner}/{repo}/pulls/{number}/merge`: 204 once merged, else 404. */
 export async function checkPullMerged(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.number));
-	if (record?.row.status !== "merged") throw notFoundError();
+	const pr = await findPullRequestByNumber(
+		repo.id,
+		threadNumber(ctx.params.number),
+	);
+	if (pr?.status !== "merged") throw notFoundError();
 	return noContent();
 }
 
@@ -561,9 +534,11 @@ export async function checkPullMerged(ctx: ApiContext) {
 export async function mergePull(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.number));
-	if (!record) throw notFoundError();
-	const pr = record.row;
+	const pr = await findPullRequestByNumber(
+		repo.id,
+		threadNumber(ctx.params.number),
+	);
+	if (!pr) throw notFoundError();
 	if (!access.canMergePullRequest) {
 		throw forbiddenError(
 			"You do not have permission to merge this pull request",
@@ -636,10 +611,13 @@ export async function mergePull(ctx: ApiContext) {
 /** `GET /repos/{owner}/{repo}/pulls/{number}/commits`, oldest first. */
 export async function listPullCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.number));
-	if (!record) throw notFoundError();
+	const pr = await findPullRequestByNumber(
+		repo.id,
+		threadNumber(ctx.params.number),
+	);
+	if (!pr) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
-	const range = pullRange(record.row);
+	const range = pullRange(pr);
 	const ownerKey = ownerKeyOf(repo);
 	const { commits } = await orWhenGone(
 		() =>
@@ -668,14 +646,17 @@ export async function listPullCommits(ctx: ApiContext) {
 /** `GET /repos/{owner}/{repo}/pulls/{number}/files` */
 export async function listPullFiles(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.number));
-	if (!record) throw notFoundError();
+	const pr = await findPullRequestByNumber(
+		repo.id,
+		threadNumber(ctx.params.number),
+	);
+	if (!pr) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
 	const ownerKey = ownerKeyOf(repo);
 	const fullName = fullNameOf(repo);
 	// Pin the diff to the tips so every page of one listing reads one result,
 	// kept briefly: the diff (patches included) is computed whole.
-	const { baseSha, headSha } = tipShas(record.row, await branchTips(repo));
+	const { baseSha, headSha } = tipShas(pr, await branchTips(repo));
 	const known = baseSha !== UNKNOWN_SHA && headSha !== UNKNOWN_SHA;
 	const diff = known
 		? await cachedDiff(`${repo.id}:${baseSha}..${headSha}`, () =>

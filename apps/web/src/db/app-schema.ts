@@ -75,6 +75,13 @@ export const repositories = pgTable(
 	}),
 );
 
+/**
+ * Every issue and pull request: GitHub's model, where a pull request *is* an
+ * issue (one `#N` sequence, one set of comments, labels, assignees and
+ * timeline events) and `pull_requests` holds only what a pull request adds,
+ * 1:1 by issue id. `status` is the issue state; a merged pull request is
+ * `closed` with `pull_requests.merged_at` set.
+ */
 export const issues = pgTable(
 	"issues",
 	{
@@ -82,8 +89,10 @@ export const issues = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
-		/** The repo-scoped `#N` (shared with pull requests). */
+		/** The repo-scoped `#N`, shared by issues and pull requests. */
 		number: integer("number").notNull(),
+		/** A pull request (its `pull_requests` row carries the branches). */
+		isPullRequest: boolean("is_pull_request").notNull().default(false),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
@@ -95,7 +104,11 @@ export const issues = pgTable(
 		editedAt: timestamptz("edited_at"),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 		closedAt: timestamptz("closed_at"),
-		/** GitHub's `state_reason`; null until the issue is first closed. */
+		/** GitHub's `closed_by`: who closed it (or merged it); null while open. */
+		closedById: text("closed_by_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		/** GitHub's `state_reason` (issues only); null until first closed. */
 		stateReason: text("state_reason").$type<IssueStateReason>(),
 	},
 	(table) => ({
@@ -103,9 +116,29 @@ export const issues = pgTable(
 			table.repoId,
 			table.number,
 		),
-		repoStatusIdx: index("issue_repo_status_idx").on(
+		// The list sorts: both kinds together (the REST issues list) and one
+		// kind (the web lists, the REST pulls list), by created and by updated.
+		repoStateCreatedIdx: index("issue_repo_state_created_idx").on(
 			table.repoId,
 			table.status,
+			table.createdAt,
+		),
+		repoStateUpdatedIdx: index("issue_repo_state_updated_idx").on(
+			table.repoId,
+			table.status,
+			table.updatedAt,
+		),
+		repoKindStateCreatedIdx: index("issue_repo_kind_state_created_idx").on(
+			table.repoId,
+			table.isPullRequest,
+			table.status,
+			table.createdAt,
+		),
+		repoKindStateUpdatedIdx: index("issue_repo_kind_state_updated_idx").on(
+			table.repoId,
+			table.isPullRequest,
+			table.status,
+			table.updatedAt,
 		),
 	}),
 );
@@ -133,20 +166,19 @@ export const labels = pgTable(
 	}),
 );
 
-/** A label applied to issue/PR `#number` (they share one number sequence). */
+/** A label applied to an issue or pull request. */
 export const threadLabels = pgTable(
 	"thread_labels",
 	{
-		repoId: integer("repo_id")
+		issueId: integer("issue_id")
 			.notNull()
-			.references(() => repositories.id, { onDelete: "cascade" }),
-		number: integer("number").notNull(),
+			.references(() => issues.id, { onDelete: "cascade" }),
 		labelId: integer("label_id")
 			.notNull()
 			.references(() => labels.id, { onDelete: "cascade" }),
 	},
 	(table) => ({
-		pk: primaryKey({ columns: [table.repoId, table.number, table.labelId] }),
+		pk: primaryKey({ columns: [table.issueId, table.labelId] }),
 		labelIdx: index("thread_label_label_idx").on(table.labelId),
 	}),
 );
@@ -156,66 +188,52 @@ export const threadAssignees = pgTable(
 	"thread_assignees",
 	{
 		id: serial("id").primaryKey(),
-		repoId: integer("repo_id")
+		issueId: integer("issue_id")
 			.notNull()
-			.references(() => repositories.id, { onDelete: "cascade" }),
-		number: integer("number").notNull(),
+			.references(() => issues.id, { onDelete: "cascade" }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		threadUserIdx: uniqueIndex("thread_assignee_thread_user_idx").on(
-			table.repoId,
-			table.number,
+		issueUserIdx: uniqueIndex("thread_assignee_issue_user_idx").on(
+			table.issueId,
 			table.userId,
 		),
 		userIdx: index("thread_assignee_user_idx").on(table.userId),
 	}),
 );
 
+/**
+ * What a pull request adds to its issue (1:1 by `issue_id`): the branches,
+ * and once merged, who merged it, when, and the exact commit range.
+ */
 export const pullRequests = pgTable(
 	"pull_requests",
 	{
-		id: serial("id").primaryKey(),
-		repoId: integer("repo_id")
-			.notNull()
-			.references(() => repositories.id, { onDelete: "cascade" }),
-		/** The repo-scoped `#N` (shared with issues). */
-		number: integer("number").notNull(),
-		authorId: text("author_id")
-			.notNull()
-			.references(() => user.id),
-		title: text("title").notNull(),
-		body: text("body"),
+		issueId: integer("issue_id")
+			.primaryKey()
+			.references(() => issues.id, { onDelete: "cascade" }),
 		sourceBranch: text("source_branch").notNull(),
 		targetBranch: text("target_branch").notNull(),
-		status: text("status")
-			.$type<"open" | "closed" | "merged">()
-			.notNull()
-			.default("open"),
 		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
 		/** The base and head tips that were merged: the PR's exact commit range. */
 		baseSha: text("base_sha"),
 		headSha: text("head_sha"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		/** When the body was last edited by hand (the "edited" marker); null if never. */
-		editedAt: timestamptz("edited_at"),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		repoNumberIdx: uniqueIndex("pr_repo_number_idx").on(
-			table.repoId,
-			table.number,
+		// The REST list's `head`/`base` filters and the duplicate-PR check.
+		branchesIdx: index("pr_branches_idx").on(
+			table.sourceBranch,
+			table.targetBranch,
 		),
-		repoStatusIdx: index("pr_repo_status_idx").on(table.repoId, table.status),
 	}),
 );
 
-/** A comment on exactly one issue or pull request. */
+/** A comment on an issue or pull request. */
 export const comments = pgTable(
 	"comments",
 	{
@@ -223,13 +241,9 @@ export const comments = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
-		issueId: integer("issue_id").references(() => issues.id, {
-			onDelete: "cascade",
-		}),
-		pullRequestId: integer("pull_request_id").references(
-			() => pullRequests.id,
-			{ onDelete: "cascade" },
-		),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
@@ -240,8 +254,10 @@ export const comments = pgTable(
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		issueIdx: index("comment_issue_idx").on(table.issueId),
-		prIdx: index("comment_pr_idx").on(table.pullRequestId),
+		issueCreatedIdx: index("comment_issue_created_idx").on(
+			table.issueId,
+			table.createdAt,
+		),
 	}),
 );
 
@@ -259,7 +275,7 @@ export const pullRequestReviews = pgTable(
 			.references(() => repositories.id, { onDelete: "cascade" }),
 		pullRequestId: integer("pull_request_id")
 			.notNull()
-			.references(() => pullRequests.id, { onDelete: "cascade" }),
+			.references(() => pullRequests.issueId, { onDelete: "cascade" }),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
@@ -301,7 +317,7 @@ export const pullRequestReviewComments = pgTable(
 			.references(() => repositories.id, { onDelete: "cascade" }),
 		pullRequestId: integer("pull_request_id")
 			.notNull()
-			.references(() => pullRequests.id, { onDelete: "cascade" }),
+			.references(() => pullRequests.issueId, { onDelete: "cascade" }),
 		reviewId: integer("review_id")
 			.notNull()
 			.references(() => pullRequestReviews.id, { onDelete: "cascade" }),
@@ -456,7 +472,6 @@ export const rateLimits = pgTable(
 
 export type Repository = typeof repositories.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
-export type PullRequest = typeof pullRequests.$inferSelect;
 export type PullRequestReview = typeof pullRequestReviews.$inferSelect;
 export type PullRequestReviewComment =
 	typeof pullRequestReviewComments.$inferSelect;
@@ -465,18 +480,16 @@ export type CollaboratorRole =
 
 /**
  * Issue/PR timeline events (src/lib/timeline-types.ts), written only through
- * src/server/timeline-store.ts. Issues and PRs share the `#N` sequence, so
- * `number` names the thread either way. `payload` is the event minus its
- * `event` name.
+ * src/server/timeline-store.ts, on the issue (or pull request) `issue_id`.
+ * `payload` is the event minus its `event` name.
  */
 export const timelineEvents = pgTable(
 	"timeline_events",
 	{
 		id: serial("id").primaryKey(),
-		repoId: integer("repo_id")
+		issueId: integer("issue_id")
 			.notNull()
-			.references(() => repositories.id, { onDelete: "cascade" }),
-		number: integer("number").notNull(),
+			.references(() => issues.id, { onDelete: "cascade" }),
 		actorId: text("actor_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -485,18 +498,16 @@ export const timelineEvents = pgTable(
 			.$type<Omit<TimelineEvent, "event">>()
 			.notNull()
 			.default({}),
-		/** For cross-references, the mentioning thread (`#M`): one event per pair. */
-		sourceNumber: integer("source_number"),
+		/** For cross-references, the mentioning thread: one event per pair. */
+		sourceIssueId: integer("source_issue_id").references(() => issues.id, {
+			onDelete: "cascade",
+		}),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		threadIdx: index("timeline_thread_idx").on(
-			table.repoId,
-			table.number,
-			table.createdAt,
-		),
+		issueIdx: index("timeline_issue_idx").on(table.issueId, table.createdAt),
 		crossReferenceIdx: uniqueIndex("timeline_cross_reference_idx")
-			.on(table.repoId, table.number, table.sourceNumber)
+			.on(table.issueId, table.sourceIssueId)
 			.where(sql`${table.event} = 'cross-referenced'`),
 	}),
 );

@@ -1,67 +1,22 @@
 /**
- * Issue writes and the assignee filter, shared by the issue server functions
- * and the REST API (plain server-only module — see repository-lookup.ts for
- * why this is not a server-function file). Permission checks stay with the
- * caller: the server functions throw their own errors, the API answers
- * 401/403/404.
+ * Issue writes shared by the issue server functions and the REST API (plain
+ * server-only module — see repository-lookup.ts for why this is not a
+ * server-function file). Reads go through thread-store.ts. Permission checks
+ * stay with the caller: the server functions throw their own errors, the API
+ * answers 401/403/404.
  */
-import { and, type Column, eq, exists, notExists, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues, threadAssignees } from "#/db/app-schema";
-import { user } from "#/db/schema";
+import { type Issue, issues } from "#/db/app-schema";
 import { labelNameSchema } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { setThreadLabels } from "./label-store";
-import {
-	claimNextIssueOrPrNumber,
-	publicUserFields,
-} from "./repository-lookup";
+import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
 
-export type Issue = typeof issues.$inferSelect;
-
-/** Assignees as list rows and the detail page show them. */
-export const withAssignees = {
-	assignees: { with: { user: publicUserFields } },
-} as const;
-
-/**
- * GitHub's `assignee:` / `no:assignee` filter: a username, `none` (unassigned)
- * or `*` (assigned to anyone).
- */
-export function assigneeCondition(
-	assignee: string,
-	table: { repoId: Column; number: Column },
-) {
-	const rows = db
-		.select({ one: sql`1` })
-		.from(threadAssignees)
-		.where(
-			and(
-				eq(threadAssignees.repoId, table.repoId),
-				eq(threadAssignees.number, table.number),
-			),
-		);
-	if (assignee === "*") return exists(rows);
-	if (assignee === "none") return notExists(rows);
-	return exists(
-		db
-			.select({ one: sql`1` })
-			.from(threadAssignees)
-			.innerJoin(user, eq(user.id, threadAssignees.userId))
-			.where(
-				and(
-					and(
-						eq(threadAssignees.repoId, table.repoId),
-						eq(threadAssignees.number, table.number),
-					),
-					eq(user.username, assignee),
-				),
-			),
-	);
-}
+export type { Issue };
 
 export const issueLabelsSchema = z
 	.array(labelNameSchema)
@@ -84,14 +39,10 @@ export async function createIssueForUser(
 		})
 		.returning();
 	if (!issue) throw new Error("Issue insert returned no row");
-	const labels = await setThreadLabels(
-		repoId,
-		issue.number,
-		data.labels,
-		userId,
-	);
+	const labels = await setThreadLabels(issue, data.labels, userId);
 	await recordCrossReferences(
 		repoId,
+		issue.id,
 		{ kind: "issue", number: issue.number, title: issue.title },
 		issue.body,
 		userId,
@@ -125,15 +76,17 @@ export async function updateIssueThreadFields(
 		fields.body !== undefined && (fields.body || null) !== issue.body;
 	const statusChanged =
 		fields.status !== undefined && fields.status !== issue.status;
+	const now = new Date();
 	const [updated] = await db
 		.update(issues)
 		.set({
 			...(fields.title !== undefined && { title: fields.title }),
 			...(fields.body !== undefined && { body: fields.body || null }),
-			...(bodyChanged && { editedAt: new Date() }),
+			...(bodyChanged && { editedAt: now }),
 			...(statusChanged && {
 				status: fields.status,
-				closedAt: fields.status === "closed" ? new Date() : null,
+				closedAt: fields.status === "closed" ? now : null,
+				closedById: fields.status === "closed" ? userId : null,
 				// Closing takes the given reason (default completed); reopening
 				// records `reopened`.
 				stateReason:
@@ -146,13 +99,13 @@ export async function updateIssueThreadFields(
 			...(!statusChanged &&
 				fields.stateReason &&
 				issue.status === "closed" && { stateReason: fields.stateReason }),
-			updatedAt: new Date(),
+			updatedAt: now,
 		})
 		.where(eq(issues.id, issue.id))
 		.returning();
 	if (!updated) throw new Error("Issue update returned no row");
 	if (titleChanged) {
-		await recordTimelineEvent(issue.repoId, issue.number, userId, {
+		await recordTimelineEvent(issue.id, userId, {
 			event: "renamed",
 			from: issue.title,
 			to: updated.title,
@@ -161,13 +114,14 @@ export async function updateIssueThreadFields(
 	if (bodyChanged) {
 		await recordCrossReferences(
 			issue.repoId,
+			issue.id,
 			{ kind: "issue", number: issue.number, title: updated.title },
 			fields.body,
 			userId,
 		);
 	}
 	if (fields.status && fields.status !== issue.status) {
-		await recordTimelineEvent(issue.repoId, issue.number, userId, {
+		await recordTimelineEvent(issue.id, userId, {
 			...(fields.status === "closed"
 				? {
 						event: "closed" as const,

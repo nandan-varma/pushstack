@@ -1,10 +1,10 @@
 /** Server functions for issues. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { comments, issues } from "#/db/app-schema";
+import { issues } from "#/db/app-schema";
 import {
 	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
@@ -14,14 +14,11 @@ import {
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import { replaceThreadAssignees } from "./assignees-store";
-import { andFilter } from "./db-filters";
 import {
 	createIssueForUser,
 	issueLabelsSchema,
 	updateIssueThreadFields,
-	withAssignees,
 } from "./issue-store";
-import { withLabels } from "./label-store";
 import { readInput, threadNumberSchema } from "./read-input";
 import {
 	canWriteRepo,
@@ -29,18 +26,15 @@ import {
 	readWithAccess,
 	requireParticipateAccess,
 } from "./repo-access";
-import { publicUserFields, readRepoByName } from "./repository-lookup";
+import { readRepoByName } from "./repository-lookup";
 import { getCurrentUser } from "./session";
+import { searchFilter, searchSort } from "./thread-search";
 import {
-	assigneesCondition,
-	authorCondition,
-	labelCondition,
-	mentionsCondition,
-	rawConditions,
-	type ThreadCondition,
-	textCondition,
-	threadOrderBy,
-} from "./thread-search";
+	findIssueById,
+	findThread,
+	issueView,
+	listThreads,
+} from "./thread-store";
 
 export const createIssue = createServerFn({ method: "POST" })
 	.validator(
@@ -85,40 +79,23 @@ export const getIssues = createServerFn({ method: "GET" })
 		// An issue can't be merged, and `is:pr` can't match the issues list.
 		const matchesNothing =
 			search.matchesNothing || search.type === "pr" || requested === "merged";
-		const status: "open" | "closed" | "all" =
-			requested === "merged" ? "open" : requested;
-		const assignees = [
-			...(search.noAssignee ? ["none"] : []),
-			...search.assignees,
-		];
-		const conditions: ThreadCondition[] = [];
-		const add = (condition: ThreadCondition | undefined) => {
-			if (condition) conditions.push(condition);
-		};
-		add(textCondition(search.terms));
-		add(authorCondition(search.authors));
-		add(mentionsCondition(search.mentions, comments.issueId));
-		add(labelCondition(data.repoId, search.labels, search.noLabel));
-		add(assigneesCondition(assignees));
+		const status = requested === "merged" ? "open" : requested;
 		return readWithAccess(`getIssues ${status}`, data.repoId, async () => {
 			if (matchesNothing) return [];
-			return withLabels(
-				data.repoId,
-				await db.query.issues.findMany({
-					where: {
-						repoId: data.repoId,
-						...(status === "all" ? {} : { status }),
-						// andFilter owns the "never pass an empty AND array" rule
-						// (Drizzle 1.0 rejects one); rawConditions maps the shared
-						// ThreadConditions onto relational RAW filters.
-						...andFilter(rawConditions(conditions)),
-					},
-					with: { author: publicUserFields, ...withAssignees },
-					orderBy: threadOrderBy(search.sort, comments.issueId),
+			const { threads } = await listThreads(
+				{
+					repoId: data.repoId,
+					kind: "issue",
+					...(status !== "all" && { state: status }),
+					...searchFilter(search),
+				},
+				{
+					sort: searchSort(search.sort),
 					limit: data.limit,
 					offset: data.skip,
-				}),
+				},
 			);
+			return threads.map(issueView);
 		});
 	});
 
@@ -130,7 +107,9 @@ export const getIssueNumbers = createServerFn({ method: "GET" })
 			const rows = await db
 				.select({ number: issues.number })
 				.from(issues)
-				.where(eq(issues.repoId, data.repoId));
+				.where(
+					and(eq(issues.repoId, data.repoId), eq(issues.isPullRequest, false)),
+				);
 			return rows.map((row) => row.number);
 		}),
 	);
@@ -152,20 +131,12 @@ export const getIssueByNumber = createServerFn({ method: "GET" })
 			data.owner,
 			data.name,
 			async (repo) => {
-				const issue = await db.query.issues.findFirst({
-					where: {
-						repoId: repo.id,
-						number: data.number,
-					},
-					with: { author: publicUserFields, ...withAssignees },
-				});
+				const [issue, viewer] = await Promise.all([
+					findThread(repo.id, data.number, "issue"),
+					getViewerRepositoryAccess(repo.id),
+				]);
 				if (!issue) throw notFound();
-				const [withIssueLabels] = await withLabels(repo.id, [issue]);
-				return {
-					...issue,
-					labels: withIssueLabels?.labels ?? [],
-					viewer: await getViewerRepositoryAccess(repo.id),
-				};
+				return { ...issueView(issue), viewer };
 			},
 		),
 	);
@@ -181,9 +152,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const issue = await db.query.issues.findFirst({
-			where: { id: data.issueId },
-		});
+		const issue = await findIssueById(data.issueId);
 		if (!issue) throw notFound();
 		// The author may edit, close and reopen their own issue; anyone else's
 		// needs write access.

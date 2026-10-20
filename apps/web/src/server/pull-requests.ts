@@ -1,10 +1,10 @@
 /** Server functions for pull requests. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { comments, pullRequests } from "#/db/app-schema";
+import { issues } from "#/db/app-schema";
 import {
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
@@ -13,13 +13,10 @@ import {
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
-import { andFilter } from "./db-filters";
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch } from "./git-write";
-import { withAssignees } from "./issue-store";
-import { withLabels } from "./label-store";
 import {
 	insertPullRequest,
 	mergePullRequestBranches,
@@ -34,19 +31,16 @@ import {
 	readWithAccess,
 	writeWithAccess,
 } from "./repo-access";
-import { publicUserFields, readRepoByName } from "./repository-lookup";
+import { readRepoByName } from "./repository-lookup";
 import { reviewSummaryFor } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
+import { searchFilter, searchSort } from "./thread-search";
 import {
-	assigneesCondition,
-	authorCondition,
-	labelCondition,
-	mentionsCondition,
-	rawConditions,
-	type ThreadCondition,
-	textCondition,
-	threadOrderBy,
-} from "./thread-search";
+	findPullRequestById,
+	findThread,
+	listThreads,
+	pullRequestView,
+} from "./thread-store";
 import { recordTimelineEvent } from "./timeline-store";
 
 export const createPullRequest = createServerFn({ method: "POST" })
@@ -96,41 +90,28 @@ export const getPullRequests = createServerFn({ method: "GET" })
 		// `is:issue` can't match the pull request list.
 		const matchesNothing = search.matchesNothing || search.type === "issue";
 		const status = search.status ?? "open";
-		const conditions: ThreadCondition[] = [];
-		const add = (condition: ThreadCondition | undefined) => {
-			if (condition) conditions.push(condition);
-		};
-		add(textCondition(search.terms));
-		add(authorCondition(search.authors));
-		add(mentionsCondition(search.mentions, comments.pullRequestId));
-		add(labelCondition(data.repoId, search.labels, search.noLabel));
-		add(
-			assigneesCondition([
-				...(search.noAssignee ? ["none"] : []),
-				...search.assignees,
-			]),
-		);
 		return readWithAccess(
 			`getPullRequests ${status}`,
 			data.repoId,
 			async () => {
 				if (matchesNothing) return [];
-				return withLabels(
-					data.repoId,
-					await db.query.pullRequests.findMany({
-						where: {
-							repoId: data.repoId,
-							...(status === "all" ? {} : { status }),
-							// Same idiom as getIssues: andFilter omits the key when
-							// there is no condition (Drizzle 1.0 rejects an empty AND).
-							...andFilter(rawConditions(conditions)),
-						},
-						with: { author: publicUserFields, ...withAssignees },
-						orderBy: threadOrderBy(search.sort, comments.pullRequestId),
+				const { threads } = await listThreads(
+					{
+						repoId: data.repoId,
+						kind: "pull_request",
+						// `closed` is closed without merging; `merged` is its own state.
+						...(status === "open" && { state: "open" }),
+						...(status === "closed" && { state: "closed", merged: false }),
+						...(status === "merged" && { state: "closed", merged: true }),
+						...searchFilter(search),
+					},
+					{
+						sort: searchSort(search.sort),
 						limit: data.limit,
 						offset: data.skip,
-					}),
+					},
 				);
+				return threads.map(pullRequestView);
 			},
 		);
 	});
@@ -141,9 +122,11 @@ export const getPullRequestNumbers = createServerFn({ method: "GET" })
 	.handler(({ data }) =>
 		readWithAccess("getPullRequestNumbers", data.repoId, async () => {
 			const rows = await db
-				.select({ number: pullRequests.number })
-				.from(pullRequests)
-				.where(eq(pullRequests.repoId, data.repoId));
+				.select({ number: issues.number })
+				.from(issues)
+				.where(
+					and(eq(issues.repoId, data.repoId), eq(issues.isPullRequest, true)),
+				);
 			return rows.map((row) => row.number);
 		}),
 	);
@@ -165,20 +148,15 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 			data.owner,
 			data.name,
 			async (repo) => {
-				const pr = await db.query.pullRequests.findFirst({
-					where: {
-						repoId: repo.id,
-						number: data.number,
-					},
-					with: { author: publicUserFields, ...withAssignees },
-				});
-				if (!pr) throw notFound();
-				const [withPrLabels] = await withLabels(repo.id, [pr]);
-				const viewerAccess = await getViewerRepositoryAccess(repo.id);
-				const viewer = await getCurrentUserOptional();
+				const [thread, viewerAccess, viewer] = await Promise.all([
+					findThread(repo.id, data.number, "pull_request"),
+					getViewerRepositoryAccess(repo.id),
+					getCurrentUserOptional(),
+				]);
+				if (!thread) throw notFound();
+				const pr = pullRequestView(thread);
 				return {
 					...pr,
-					labels: withPrLabels?.labels ?? [],
 					viewer: viewerAccess,
 					review: {
 						summary: await reviewSummaryFor(pr.id),
@@ -203,9 +181,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const pr = await db.query.pullRequests.findFirst({
-			where: { id: data.prId },
-		});
+		const pr = await findPullRequestById(data.prId);
 		if (!pr) throw notFound();
 		if (
 			pr.authorId !== currentUser.id &&
@@ -232,9 +208,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const pr = await db.query.pullRequests.findFirst({
-			where: { id: data.prId },
-		});
+		const pr = await findPullRequestById(data.prId);
 		if (!pr) throw notFound();
 		if (!(await canMergePullRequest(pr.repoId, currentUser.id))) {
 			throw new Error("Access denied");
@@ -270,9 +244,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 export const deletePullRequestBranch = createServerFn({ method: "POST" })
 	.validator(z.object({ prId: z.number() }))
 	.handler(async ({ data }) => {
-		const pr = await db.query.pullRequests.findFirst({
-			where: { id: data.prId },
-		});
+		const pr = await findPullRequestById(data.prId);
 		if (!pr) throw notFound();
 		if (pr.status === "open") {
 			throw new Error(
@@ -284,7 +256,7 @@ export const deletePullRequestBranch = createServerFn({ method: "POST" })
 				throw new Error("Cannot delete the default branch");
 			}
 			await deleteBranch(ownerKeyOf(repo), repo.name, pr.sourceBranch);
-			await recordTimelineEvent(pr.repoId, pr.number, currentUser.id, {
+			await recordTimelineEvent(pr.id, currentUser.id, {
 				event: "head_ref_deleted",
 				branch: pr.sourceBranch,
 			});
@@ -302,9 +274,7 @@ const PR_COMMITS_LIMIT = 250;
 export const getPullRequestCommits = createServerFn({ method: "GET" })
 	.validator(z.object({ prId: z.number().int().positive() }))
 	.handler(async ({ data }) => {
-		const pr = await db.query.pullRequests.findFirst({
-			where: { id: data.prId },
-		});
+		const pr = await findPullRequestById(data.prId);
 		if (!pr) throw notFound();
 		return readWithAccess(
 			`getPullRequestCommits #${pr.number}`,

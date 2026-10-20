@@ -11,7 +11,6 @@ import {
 	deleteCommentRow,
 	findComment,
 	listCommentsForThread,
-	threadIdOf,
 	updateCommentRow,
 } from "./comment-store";
 import { getRepositoryAccess, requireParticipateAccess } from "./repo-access";
@@ -19,7 +18,7 @@ import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { findThreadById, type ThreadRef } from "./thread-store";
 
 /**
- * Exactly one of an issue id or a pull request id (row ids, not `#N`).
+ * Exactly one of an issue id or a pull request id (its issue id; not `#N`).
  * A factory, not a module-level schema: only validators (stripped from the
  * client build) call it, so a top-level `z.union(...)` would be the one zod
  * call left in the browser bundle, pulling all of zod into the entry chunk.
@@ -31,10 +30,18 @@ const threadSchema = () =>
 	]);
 type Thread = z.infer<ReturnType<typeof threadSchema>>;
 
-/** The thread's repository and `#N`; 404 when it doesn't exist. */
+/**
+ * The thread's repository and `#N`; 404 when it doesn't exist. A pull request
+ * is an issue, so either id names an issue row, but `pullRequestId` must name
+ * a pull request and `issueId` an issue.
+ */
 async function requireThread(thread: Thread): Promise<ThreadRef> {
-	const found = await findThreadById(thread);
-	if (!found) throw notFound();
+	const found =
+		thread.issueId !== undefined
+			? await findThreadById(thread.issueId)
+			: await findThreadById(thread.pullRequestId);
+	const kind = thread.issueId !== undefined ? "issue" : "pull_request";
+	if (!found || found.kind !== kind) throw notFound();
 	return found;
 }
 
@@ -101,7 +108,8 @@ export const deleteComment = createServerFn({ method: "POST" })
 		const comment = await findComment(data.commentId);
 		if (!comment) throw notFound();
 		await requireCommentEditor(comment, currentUser.id);
-		const thread = await requireThread(threadIdOf(comment));
+		const thread = await findThreadById(comment.issueId);
+		if (!thread) throw notFound();
 		await deleteCommentRow(comment, thread);
 		return { success: true };
 	});

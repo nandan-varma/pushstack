@@ -88,10 +88,12 @@ pull requests and merges need write access.
   base moved past the walk bound. A merged PR uses the `base_sha`/`head_sha`
   that `mergePullRequest` records, so its range is fixed).
   Merging runs `git-write.ts`'s `mergeBranches`,
-  then records the merge only `WHERE status = 'open'` (a concurrent merge
-  loses cleanly) and closes the issues the body names ("Closes #4").
+  then closes its issue only `WHERE status = 'open'` (a concurrent merge
+  loses cleanly), records the merge on its `pull_requests` row and closes the
+  issues the body names ("Closes #4").
 - `comments.ts` — `createComment` on exactly one thread (`issueId` or
-  `pullRequestId`, a zod union) and `getComments`.
+  `pullRequestId` — both the thread's issue id, the union only checks the
+  kind) and `getComments`.
 - `timeline.ts` — `getTimeline(repoId, number)`: the thread's events, which
   the UI interleaves with its comments (`ThreadTimeline`).
 

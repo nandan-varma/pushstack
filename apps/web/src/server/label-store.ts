@@ -130,78 +130,27 @@ export function listLabels(repoId: number): Promise<LabelView[]> {
 		.orderBy(asc(sql`lower(${labels.name})`));
 }
 
-/** The labels on each of threads `numbers`, in one query. */
-export async function labelsByThread(
-	repoId: number,
-	numbers: number[],
-): Promise<Map<number, LabelView[]>> {
-	const byThread = new Map<number, LabelView[]>();
-	if (numbers.length === 0) return byThread;
-	const rows = await db
-		.select({ number: threadLabels.number, ...labelColumns })
-		.from(threadLabels)
-		.innerJoin(labels, eq(labels.id, threadLabels.labelId))
-		.where(
-			and(
-				eq(threadLabels.repoId, repoId),
-				inArray(threadLabels.number, numbers),
-			),
-		)
-		.orderBy(asc(sql`lower(${labels.name})`));
-	for (const { number, ...label } of rows) {
-		const list = byThread.get(number);
-		if (list) list.push(label);
-		else byThread.set(number, [label]);
-	}
-	return byThread;
-}
-
-/** Add `labels: LabelView[]` to each row of a list. */
-export async function withLabels<T extends { number: number }>(
-	repoId: number,
-	rows: T[],
-): Promise<(T & { labels: LabelView[] })[]> {
-	const byThread = await labelsByThread(
-		repoId,
-		rows.map((row) => row.number),
-	);
-	return rows.map((row) => ({
-		...row,
-		labels: byThread.get(row.number) ?? [],
-	}));
-}
-
-/**
- * A `number IN (…)` subquery of the threads carrying every one of `names`
- * (GitHub's `label:a label:b` is an AND), names matched ignoring case.
- */
-export function threadsWithLabels(repoId: number, names: string[]) {
-	const wanted = [...new Set(names.map((name) => name.toLowerCase()))];
+/** The labels on the thread with issue id `issueId`, by name. */
+export function labelsOfThread(issueId: number): Promise<LabelView[]> {
 	return db
-		.select({ number: threadLabels.number })
+		.select(labelColumns)
 		.from(threadLabels)
 		.innerJoin(labels, eq(labels.id, threadLabels.labelId))
-		.where(
-			and(
-				eq(threadLabels.repoId, repoId),
-				inArray(sql`lower(${labels.name})`, wanted),
-			),
-		)
-		.groupBy(threadLabels.number)
-		.having(sql`count(distinct ${labels.id}) = ${wanted.length}`);
+		.where(eq(threadLabels.issueId, issueId))
+		.orderBy(asc(sql`lower(${labels.name})`));
 }
 
 /**
- * Make thread `#number` carry exactly the labels named `names`, recording
- * `labeled`/`unlabeled` events for the difference. Unknown names throw.
- * The caller has checked write access and that the thread exists.
+ * Make `thread` (an issue or pull request) carry exactly the labels named
+ * `names`, recording `labeled`/`unlabeled` events for the difference. Unknown
+ * names throw. The caller has checked write access and that the thread exists.
  */
 export async function setThreadLabels(
-	repoId: number,
-	number: number,
+	thread: { id: number; repoId: number },
 	names: string[],
 	actorId: string,
 ): Promise<LabelView[]> {
+	const { id: issueId, repoId } = thread;
 	const wanted = [...new Set(names.map((name) => name.toLowerCase()))];
 	if (wanted.length > MAX_LABELS_PER_THREAD) {
 		throw new Error(`At most ${MAX_LABELS_PER_THREAD} labels per thread`);
@@ -224,7 +173,7 @@ export async function setThreadLabels(
 		throw new UnknownLabelError(unknown);
 	}
 
-	const current = (await labelsByThread(repoId, [number])).get(number) ?? [];
+	const current = await labelsOfThread(issueId);
 	const currentIds = new Set(current.map((label) => label.id));
 	const chosenIds = new Set(chosen.map((label) => label.id));
 	const added = chosen.filter((label) => !currentIds.has(label.id));
@@ -233,14 +182,13 @@ export async function setThreadLabels(
 	if (added.length > 0) {
 		await db
 			.insert(threadLabels)
-			.values(added.map((label) => ({ repoId, number, labelId: label.id })))
+			.values(added.map((label) => ({ issueId, labelId: label.id })))
 			.onConflictDoNothing();
 	}
 	if (removed.length > 0) {
 		await db.delete(threadLabels).where(
 			and(
-				eq(threadLabels.repoId, repoId),
-				eq(threadLabels.number, number),
+				eq(threadLabels.issueId, issueId),
 				inArray(
 					threadLabels.labelId,
 					removed.map((label) => label.id),
@@ -249,13 +197,13 @@ export async function setThreadLabels(
 		);
 	}
 	for (const label of added) {
-		await recordTimelineEvent(repoId, number, actorId, {
+		await recordTimelineEvent(issueId, actorId, {
 			event: "labeled",
 			label: { name: label.name, color: label.color },
 		});
 	}
 	for (const label of removed) {
-		await recordTimelineEvent(repoId, number, actorId, {
+		await recordTimelineEvent(issueId, actorId, {
 			event: "unlabeled",
 			label: { name: label.name, color: label.color },
 		});
