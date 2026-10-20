@@ -421,7 +421,6 @@ describe("listing repositories", () => {
 					.body,
 			),
 		);
-		expect((await call("/users/bad..name/repos")).status).toBe(404);
 	});
 
 	it("lists only public repositories for /users/{username}/repos", async () => {

@@ -2,7 +2,9 @@
  * GitHub's JSON shapes (snake_case, ISO-8601 timestamps) for what PushStack
  * stores. Fields PushStack has no equivalent for are omitted, never renamed.
  */
+import type { resources } from "@pushstack/api-contract";
 import type { CommitInfo } from "git-fs-s3/ops";
+import type { z } from "zod";
 import type { Repository } from "#/db/app-schema";
 import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
@@ -11,6 +13,11 @@ import type { PublicUser } from "../repository-lookup";
 import type { PullRequest, ThreadKind } from "../thread-store";
 import { apiUrl, encodePath, htmlUrl, isoTimestamp } from "./http";
 
+/** A GitHub resource shape from `@pushstack/api-contract`, as serialized. */
+export type Shape<K extends keyof typeof resources> = z.output<
+	(typeof resources)[K]
+>;
+
 export type RepoRole = "owner" | "admin" | "write" | "read" | "anonymous";
 
 /** GitHub's legacy global id for a user: base64 of `04:User<id>`. */
@@ -18,7 +25,7 @@ export function userNodeId(apiId: number) {
 	return Buffer.from(`04:User${apiId}`).toString("base64");
 }
 
-export function simpleUser(user: PublicUser) {
+export function simpleUser(user: PublicUser): Shape<"simpleUser"> {
 	return {
 		login: user.username,
 		id: user.apiId,
@@ -34,7 +41,7 @@ export function simpleUser(user: PublicUser) {
 export function publicUser(
 	user: PublicUser & { createdAt: Date; updatedAt: Date },
 	counts: { publicRepos: number },
-) {
+): Shape<"publicUser"> {
 	return {
 		...simpleUser(user),
 		name: user.name,
@@ -56,7 +63,7 @@ function permissionsFor(role: RepoRole) {
 export function repository(
 	repo: Repository & { owner: PublicUser },
 	options: { stars: number; role?: RepoRole },
-) {
+): Shape<"repository"> {
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return {
 		id: repo.id,
@@ -93,7 +100,7 @@ export function branchHtmlUrl(fullName: string, branch: string) {
 export function label(
 	repo: { fullName: string },
 	value: LabelView,
-): Record<string, unknown> {
+): Shape<"label"> {
 	return {
 		id: value.id,
 		url: apiUrl(
@@ -135,7 +142,7 @@ export interface IssueShapeInput {
  * (GitHub does the same), carrying a `pull_request` object; its web and diff
  * URLs point at the pull request page.
  */
-export function issue(input: IssueShapeInput): Record<string, unknown> {
+export function issue(input: IssueShapeInput): Shape<"issue"> {
 	const { fullName, kind, number } = input;
 	const webPath = kind === "issue" ? "issues" : "pulls";
 	return {
@@ -185,9 +192,7 @@ export interface CommentShapeInput {
 	author: PublicUser;
 }
 
-export function issueComment(
-	input: CommentShapeInput,
-): Record<string, unknown> {
+export function issueComment(input: CommentShapeInput): Shape<"issueComment"> {
 	const { fullName, kind, number } = input;
 	const webPath = kind === "issue" ? "issues" : "pulls";
 	return {
@@ -208,22 +213,27 @@ export function issueComment(
 export interface TimelineContext {
 	fullName: string;
 	/** The serialized thread (`issue`) each `#N` names, for `source` objects. */
-	threadByNumber: Map<number, unknown>;
+	threadByNumber: Map<number, Shape<"issue">>;
 }
 
 /**
  * GitHub's timeline event (`IssueEvent`) shape. Fields the stored event has no
  * equivalent for are `null` (or, for an `assigned` event's assignee, a partial
  * user: PushStack records the username and name, not the whole account).
+ * `reviewed` has no issue-event shape (GitHub serves reviews as their own
+ * timeline item, not yet in the contract), so it serializes to `null` and
+ * callers skip it.
  */
-export function timelineEvent(entry: TimelineEntry, ctx: TimelineContext) {
+export function timelineEvent(
+	entry: TimelineEntry,
+	ctx: TimelineContext,
+): Shape<"issueEvent"> | null {
 	const commitUrl = (sha: string) =>
 		apiUrl(`/repos/${ctx.fullName}/commits/${sha}`);
 	const base = {
 		id: entry.id,
 		url: apiUrl(`/repos/${ctx.fullName}/issues/events/${entry.id}`),
 		actor: simpleUser(entry.actor),
-		event: entry.event,
 		created_at: isoTimestamp(entry.createdAt),
 		commit_id: null as string | null,
 		commit_url: null as string | null,
@@ -233,15 +243,17 @@ export function timelineEvent(entry: TimelineEntry, ctx: TimelineContext) {
 		case "closed":
 			return {
 				...base,
+				event: entry.event,
 				commit_id: entry.commitSha ?? null,
 				commit_url: entry.commitSha ? commitUrl(entry.commitSha) : null,
 				state_reason: entry.stateReason ?? "completed",
 			};
 		case "reopened":
-			return { ...base, state_reason: "reopened" };
+			return { ...base, event: entry.event, state_reason: "reopened" };
 		case "merged":
 			return {
 				...base,
+				event: entry.event,
 				commit_id: entry.commitSha,
 				commit_url: commitUrl(entry.commitSha),
 				state_reason: null,
@@ -249,37 +261,47 @@ export function timelineEvent(entry: TimelineEntry, ctx: TimelineContext) {
 		case "referenced":
 			return {
 				...base,
+				event: entry.event,
 				commit_id: entry.commitSha,
 				commit_url: commitUrl(entry.commitSha),
 			};
 		case "cross-referenced":
 			return {
 				...base,
+				event: entry.event,
 				source: {
 					type: entry.source.kind,
 					issue: ctx.threadByNumber.get(entry.source.number) ?? null,
 				},
 			};
 		case "head_ref_deleted":
-			return base;
+			return { ...base, event: entry.event };
 		case "renamed":
-			return { ...base, rename: { from: entry.from, to: entry.to } };
+			return {
+				...base,
+				event: entry.event,
+				rename: { from: entry.from, to: entry.to },
+			};
 		case "labeled":
 		case "unlabeled":
 			return {
 				...base,
+				event: entry.event,
 				label: { name: entry.label.name, color: entry.label.color },
 			};
 		case "assigned":
 		case "unassigned":
 			return {
 				...base,
+				event: entry.event,
 				assignee: {
 					login: entry.assignee.username,
 					name: entry.assignee.name,
 					type: "User" as const,
 				},
 			};
+		case "reviewed":
+			return null;
 	}
 }
 
@@ -289,13 +311,19 @@ type Identity = CommitInfo["commit"]["author"];
  * Web-UI commits are stamped with the account's sign-in email, which must
  * never leave the server, so every identity gets one noreply placeholder.
  */
-export const gitIdentity = ({ name, timestamp }: Identity) => ({
+export const gitIdentity = ({
+	name,
+	timestamp,
+}: Identity): Shape<"gitIdentity"> => ({
 	name,
 	email: `noreply@${new URL(getGitBaseUrl()).host}`,
 	date: isoTimestamp(new Date(timestamp * 1000)),
 });
 
-export function commitObject(fullName: string, info: CommitInfo) {
+export function commitObject(
+	fullName: string,
+	info: CommitInfo,
+): Shape<"commit"> {
 	const { commit, oid } = info;
 	const url = apiUrl(`/repos/${fullName}/commits/${oid}`);
 	return {
@@ -328,7 +356,7 @@ export function commitObject(fullName: string, info: CommitInfo) {
 export interface PullShapeInput {
 	assignees: PublicUser[];
 	repo: Repository & { owner: PublicUser };
-	repoShape: Record<string, unknown>;
+	repoShape: Shape<"repository">;
 	row: PullRequest;
 	author: PublicUser;
 	labels: LabelView[];
@@ -346,7 +374,9 @@ export interface PullShapeInput {
 	};
 }
 
-export function pullRequest(input: PullShapeInput): Record<string, unknown> {
+export function pullRequest(
+	input: PullShapeInput,
+): Shape<"pullRequestSimple"> | Shape<"pullRequest"> {
 	const { repo, row } = input;
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	const number = row.number;
@@ -365,7 +395,7 @@ export function pullRequest(input: PullShapeInput): Record<string, unknown> {
 			? null
 			: (row.closedAt ?? row.mergedAt ?? row.updatedAt);
 	const detail = input.detail;
-	return {
+	const simple: Shape<"pullRequestSimple"> = {
 		url,
 		id: row.id,
 		html_url: web,
@@ -415,21 +445,23 @@ export function pullRequest(input: PullShapeInput): Record<string, unknown> {
 		},
 		auto_merge: null,
 		draft: false,
-		...(detail && {
-			merged,
-			// Conflicts aren't pre-computed: an open pull request's mergeability
-			// is "not yet known", which GitHub also reports while it computes.
-			mergeable: merged ? false : null,
-			rebaseable: false,
-			mergeable_state: "unknown",
-			merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
-			comments: input.commentsCount,
-			review_comments: detail.reviewComments,
-			maintainer_can_modify: false,
-			commits: detail.commits,
-			additions: detail.additions,
-			deletions: detail.deletions,
-			changed_files: detail.changedFiles,
-		}),
+	};
+	if (!detail) return simple;
+	return {
+		...simple,
+		merged,
+		// Conflicts aren't pre-computed: an open pull request's mergeability
+		// is "not yet known", which GitHub also reports while it computes.
+		mergeable: merged ? false : null,
+		rebaseable: false,
+		mergeable_state: "unknown",
+		merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
+		comments: input.commentsCount,
+		review_comments: detail.reviewComments,
+		maintainer_can_modify: false,
+		commits: detail.commits,
+		additions: detail.additions,
+		deletions: detail.deletions,
+		changed_files: detail.changedFiles,
 	};
 }
