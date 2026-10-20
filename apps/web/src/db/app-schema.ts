@@ -13,6 +13,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
+import type { ReactionContent } from "#/lib/reactions";
 import type { ReviewSide, ReviewState } from "#/lib/review-types";
 import type {
 	IssueStateReason,
@@ -249,6 +250,39 @@ export const comments = pgTable(
 			table.issueId,
 			table.createdAt,
 		),
+	}),
+);
+
+/**
+ * A user's reaction (GitHub's `content`: `+1`, `heart`, …) to an issue or pull
+ * request (`comment_id` null) or to one of its comments. `issue_id` is always
+ * the thread, so a thread's rollups are one indexed read. One row per user,
+ * subject and content.
+ */
+export const reactions = pgTable(
+	"reactions",
+	{
+		id: serial("id").primaryKey(),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		commentId: integer("comment_id").references(() => comments.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		content: text("content").$type<ReactionContent>().notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		issueUserContentIdx: uniqueIndex("reaction_issue_user_content_idx")
+			.on(table.issueId, table.userId, table.content)
+			.where(sql`${table.commentId} is null`),
+		commentUserContentIdx: uniqueIndex("reaction_comment_user_content_idx")
+			.on(table.commentId, table.userId, table.content)
+			.where(sql`${table.commentId} is not null`),
+		userIdx: index("reaction_user_idx").on(table.userId),
 	}),
 );
 
