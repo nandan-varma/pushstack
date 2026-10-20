@@ -1,6 +1,7 @@
 import pkg from "../package.json" with { type: "json" };
 import { apiCommand } from "./commands/api";
 import { authCommand } from "./commands/auth";
+import { issueCommand } from "./commands/issue";
 import { repoCommand } from "./commands/repo";
 import { CliError, type Io } from "./io";
 
@@ -14,6 +15,7 @@ USAGE
 COMMANDS
   auth:   Authenticate pst with a PushStack host (login --with-token, status, logout, token)
   repo:   Manage repositories (view, list, create)
+  issue:  Manage issues (list, view, create, close, reopen)
   api:    Make an authenticated request to the REST API (/api/v3)
 
 FLAGS
@@ -43,6 +45,9 @@ export async function run(argv: string[], io: Io): Promise<number> {
 				return 0;
 			case "auth":
 				await authCommand(io, rest);
+				return 0;
+			case "issue":
+				await issueCommand(io, rest);
 				return 0;
 			case "repo":
 				await repoCommand(io, rest);
