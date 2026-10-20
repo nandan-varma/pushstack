@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,36 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = (name) =>
 	JSON.parse(readFileSync(path.join(root, name), "utf8"));
+const readText = (name) => readFileSync(path.join(root, name), "utf8");
+const exists = (name) => existsSync(path.join(root, name));
+const github = ".github";
+const SETUP_ACTION = `${github}/actions/setup/action.yml`;
+// Our own composite actions: .github/actions/<name>/action.yml.
+const actionFiles = () => {
+	const actions = path.join(root, github, "actions");
+	if (!existsSync(actions)) return [];
+	const files = [];
+	for (const entry of readdirSync(actions, { withFileTypes: true })) {
+		if (!entry.isDirectory()) continue;
+		for (const name of ["action.yml", "action.yaml"]) {
+			const file = `${github}/actions/${entry.name}/${name}`;
+			if (exists(file)) files.push(file);
+		}
+	}
+	return files;
+};
+const workflowFiles = () =>
+	readdirSync(path.join(root, github, "workflows"))
+		.filter((file) => /\.ya?ml$/.test(file))
+		.map((file) => `${github}/workflows/${file}`);
+// Every file that may contain `uses:` steps.
+const stepFiles = () => [...workflowFiles(), ...actionFiles()];
+const usesLines = function* (file) {
+	for (const [index, line] of readText(file).split("\n").entries()) {
+		const match = line.match(/^\s*-?\s*uses:\s*(\S+)\s*(#\s*(.+))?$/);
+		if (match) yield { line: index + 1, ref: match[1], comment: match[3] };
+	}
+};
 const workspaces = ["apps", "packages"].flatMap((group) =>
 	readdirSync(path.join(root, group), { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())
@@ -85,4 +115,80 @@ test("dependency policy has no overrides or advisory exclusions", () => {
 		settings,
 		/^\s*(overrides|auditConfig|ignoreGhsas|ignoreCves):/m,
 	);
+});
+
+test("every external action is pinned to a commit SHA with a version comment", () => {
+	for (const file of stepFiles()) {
+		for (const step of usesLines(file)) {
+			const at = `${file}:${step.line}`;
+			if (step.ref.startsWith("./")) {
+				assert.ok(
+					existsSync(path.join(root, step.ref)),
+					`${at}: ${step.ref} does not exist`,
+				);
+				continue;
+			}
+			assert.match(
+				step.ref,
+				/@[0-9a-f]{40}$/,
+				`${at}: ${step.ref} must be pinned to a commit SHA, not a tag`,
+			);
+			assert.match(
+				step.comment ?? "",
+				/^v\d+\.\d+\.\d+/,
+				`${at}: ${step.ref} needs a trailing "# vX.Y.Z" comment`,
+			);
+		}
+	}
+});
+
+test("dependency installation goes through the shared setup action", () => {
+	for (const file of stepFiles()) {
+		if (file === SETUP_ACTION) continue;
+		assert.doesNotMatch(
+			readText(file),
+			/pnpm install/,
+			`${file}: install through ./.github/actions/setup instead`,
+		);
+	}
+	assert.match(readText(SETUP_ACTION), /pnpm install --frozen-lockfile/);
+});
+
+test("Node comes from .node-version, which agrees with engines", () => {
+	const pinned = readText(".node-version").trim();
+	assert.match(pinned, /^\d+(\.\d+){0,2}$/);
+	const major = pinned.split(".")[0];
+	assert.equal(readJson("package.json").engines?.node, `>=${major}`);
+	for (const file of stepFiles()) {
+		assert.doesNotMatch(
+			readText(file),
+			/^\s*node-version:/m,
+			`${file}: use node-version-file: .node-version, not a literal version`,
+		);
+	}
+	assert.match(readText(SETUP_ACTION), /node-version-file: \.node-version/);
+});
+
+test("every workflow declares its token permissions", () => {
+	for (const file of workflowFiles()) {
+		assert.match(
+			readText(file),
+			/^permissions:/m,
+			`${file}: declare least-privilege permissions explicitly`,
+		);
+	}
+});
+
+test("Dependabot watches each composite action directory", () => {
+	const config = readText(`${github}/dependabot.yml`);
+	const directories = [...config.matchAll(/^\s*directory:\s*(\S+)\s*$/gm)].map(
+		(match) => match[1],
+	);
+	for (const file of actionFiles()) {
+		const directory = `/${path.posix.dirname(file)}`;
+		assert.ok(
+			directories.includes(directory),
+			`${file}: add a github-actions entry for ${directory} to ${github}/dependabot.yml (a root entry does not scan it)`,
+		);
+	}
 });

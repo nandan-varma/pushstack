@@ -1,0 +1,19 @@
+# The repository's YAML conventions, read by yamllint (and by editors and
+# agents that lint on write). CI does not run yamllint: actionlint, which does
+# run there, is the meaningful check for workflows, and scripts/workspace.test.mjs
+# guards the policies that matter (SHA-pinned actions, Node pin, permissions).
+extends: default
+
+rules:
+  # A pinned action reference (`owner/repo@<40-character SHA>`) plus its version
+  # comment does not fit in 80 columns.
+  line-length:
+    max: 100
+  # Workflow files conventionally start with `name:`.
+  document-start: disable
+  # `uses: owner/repo@<sha> # v1.2.3`
+  comments:
+    min-spaces-from-content: 1
+  # `on:` is a workflow key, not a boolean.
+  truthy:
+    check-keys: false

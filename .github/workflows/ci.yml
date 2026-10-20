@@ -10,11 +10,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Nothing here writes to the repository; the release workflow is the only one
+# that needs more than read access. Every checkout below also turns off
+# credential persistence, so a step cannot push with this workflow's token.
+permissions:
+  contents: read
+
 jobs:
-  # Action references are pinned to commit SHAs: a tag is mutable, so a moved
-  # or compromised tag would run different code here with this repo's token.
-  # The trailing comment is the version, for whoever bumps them — bumping is
-  # manual until this repo has Dependabot or Renovate watching actions.
   ci:
     runs-on: ubuntu-latest
     strategy:
@@ -22,12 +24,10 @@ jobs:
         task: [typecheck, test, build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          persist-credentials: false
+      # pnpm, Node (from .node-version) and a frozen-lockfile install.
+      - uses: ./.github/actions/setup
       # Every workspace (apps/*, packages/*) through turbo's task graph.
       - run: pnpm ${{ matrix.task }}
 
@@ -35,12 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       # One biome config for the whole repository.
       - run: pnpm check
 
@@ -48,24 +45,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       - run: pnpm audit
 
   smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          persist-credentials: false
       # Drives the real `git` binary against the app's own smart-HTTP route.
       # pglite and a fake in-memory S3 stand in for the database and object
       # storage, and the suite writes its own git identity into a scratch HOME,
@@ -73,6 +63,7 @@ jobs:
       # the `git` binary ubuntu-latest already has. It is the only suite that
       # exercises the wire protocol rather than isomorphic-git talking to
       # itself.
+      - uses: ./.github/actions/setup
       - run: pnpm smoke:git
 
   secrets:
@@ -82,13 +73,34 @@ jobs:
         with:
           # Secrets live in history, not just at the tip.
           fetch-depth: 0
+          persist-credentials: false
       # The gitleaks CLI over the whole history, not gitleaks-action: the
       # action scans a PR's commit range with `git log base..head`, which
       # fails on the subtree-imported histories in packages/*. Fake test
       # tokens are allowlisted by fingerprint in .gitleaksignore.
       - name: gitleaks
         run: |
-          curl -sSfLo gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
-          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tgz" | sha256sum -c
+          curl -sSfLo gitleaks.tgz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tgz" \
+            | sha256sum -c
           tar -xzf gitleaks.tgz gitleaks
           ./gitleaks git . --no-banner --redact
+
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # actionlint checks the workflows and the composite actions themselves.
+      # A broken release workflow is otherwise only discovered by pushing a
+      # tag, which is exactly how 0.15.1 was tagged without publishing.
+      - name: actionlint
+        run: |
+          curl -sSfLo actionlint.tgz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tgz" \
+            | sha256sum -c
+          tar -xzf actionlint.tgz actionlint
+          ./actionlint
