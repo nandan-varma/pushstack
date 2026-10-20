@@ -10,6 +10,8 @@ export interface Io {
 	/** Fetch URLs of the current directory's git remotes, `origin` first. Empty outside a repository. */
 	remotes(): Promise<string[]>;
 	isTTY: boolean;
+	/** Runs git in the current directory; resolves stdout, rejects on a nonzero exit. */
+	git?(args: string[]): Promise<string>;
 }
 
 /** A failure to report as `pst: <message>` with an exit code. */
