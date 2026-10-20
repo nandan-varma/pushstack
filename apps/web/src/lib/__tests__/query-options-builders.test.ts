@@ -91,9 +91,9 @@ const {
 	repositoryLastCommitsQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
-	repositoryIssuesQueryOptions,
+	repositoryIssueSearchQueryOptions,
 	issueCommentsQueryOptions,
-	repositoryPullRequestsQueryOptions,
+	repositoryPullRequestSearchQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestDiffQueryOptions,
 	repoCollaboratorsQueryOptions,
@@ -293,12 +293,13 @@ describe("issue/PR number query options", () => {
 });
 
 describe("issues/comments query options", () => {
-	it("repositoryIssuesQueryOptions passes status through", async () => {
-		await repositoryIssuesQueryOptions({ repoId: 1, status: "open" }).queryFn?.(
-			{} as never,
-		);
+	it("repositoryIssueSearchQueryOptions passes the query through", async () => {
+		await repositoryIssueSearchQueryOptions({
+			repoId: 1,
+			query: "is:closed label:bug",
+		}).queryFn?.({} as never);
 		expect(serverFnMocks.getIssues).toHaveBeenCalledWith({
-			data: { repoId: 1, status: "open", labels: [] },
+			data: { repoId: 1, query: "is:closed label:bug" },
 		});
 	});
 
@@ -318,23 +319,13 @@ describe("issues/comments query options", () => {
 });
 
 describe("pull request query options", () => {
-	it("repositoryPullRequestsQueryOptions passes status 'all' through", async () => {
-		await repositoryPullRequestsQueryOptions({
+	it("repositoryPullRequestSearchQueryOptions passes the query through", async () => {
+		await repositoryPullRequestSearchQueryOptions({
 			repoId: 1,
-			status: "all",
+			query: "is:merged",
 		}).queryFn?.({} as never);
 		expect(serverFnMocks.getPullRequests).toHaveBeenCalledWith({
-			data: { repoId: 1, status: "all", labels: [] },
-		});
-	});
-
-	it("repositoryPullRequestsQueryOptions includes status otherwise", async () => {
-		await repositoryPullRequestsQueryOptions({
-			repoId: 1,
-			status: "open",
-		}).queryFn?.({} as never);
-		expect(serverFnMocks.getPullRequests).toHaveBeenCalledWith({
-			data: { repoId: 1, status: "open", labels: [] },
+			data: { repoId: 1, query: "is:merged" },
 		});
 	});
 });

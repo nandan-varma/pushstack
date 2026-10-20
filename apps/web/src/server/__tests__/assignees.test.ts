@@ -58,11 +58,13 @@ describe("assignees", () => {
 		expect(set.map((u) => u.username)).toEqual([users.writer.username]);
 
 		const mine = await issues.getIssues({
-			data: { repoId, assignee: users.writer.username },
+			data: { repoId, query: `assignee:${users.writer.username}` },
 		});
 		expect(mine.map((i) => i.number)).toEqual([issue.number]);
 		expect(mine[0]?.assignees[0]?.user.username).toBe(users.writer.username);
-		const none = await issues.getIssues({ data: { repoId, assignee: "none" } });
+		const none = await issues.getIssues({
+			data: { repoId, query: "no:assignee" },
+		});
 		expect(none.map((i) => i.number)).toEqual([other.number]);
 
 		await assignees.setIssueAssignees({
@@ -77,10 +79,10 @@ describe("assignees", () => {
 		});
 	});
 
-	it("combines the assignee and label filters", async () => {
+	it("combines the assignee and label qualifiers", async () => {
 		// Two conditions in one `AND`: with both present, neither filter may be
-		// dropped. The all-optional, no-condition case (Drizzle 1.0 rejects an
-		// empty `AND` array) is covered by labels.test.ts.
+		// dropped (Drizzle 1.0 rejects an empty `AND` array, and the helper that
+		// omits it must not swallow the conditions themselves).
 		signIn(users.author);
 		const both = await issues.createIssue({
 			data: { repoId, title: "Both", labels: [] },
@@ -102,8 +104,7 @@ describe("assignees", () => {
 		const filtered = await issues.getIssues({
 			data: {
 				repoId,
-				assignee: users.writer.username,
-				labels: ["bug"],
+				query: `assignee:${users.writer.username} label:"bug"`,
 			},
 		});
 		expect(filtered.map((i) => i.number)).toEqual([both.number]);
@@ -112,8 +113,7 @@ describe("assignees", () => {
 		const none = await issues.getIssues({
 			data: {
 				repoId,
-				assignee: users.writer.username,
-				labels: ["question"],
+				query: `assignee:${users.writer.username} label:"question"`,
 			},
 		});
 		expect(none).toEqual([]);

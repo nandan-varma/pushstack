@@ -102,6 +102,16 @@ describe("serveRawFile", () => {
 		expect(response.status).toBe(404);
 	});
 
+	it("404s a malformed percent-escape instead of throwing", async () => {
+		// decodeURIComponent throws URIError on these, and the route handler has
+		// no catch: an uncaught throw becomes a 500 (and Sentry noise) for a URL
+		// anyone can type.
+		const response = await raw(
+			`${users.owner.username}/${publicName}/main/%E0%A4%A`,
+		);
+		expect(response.status).toBe(404);
+	});
+
 	it("404s a private repository for an anonymous reader", async () => {
 		signOut();
 		const response = await raw(

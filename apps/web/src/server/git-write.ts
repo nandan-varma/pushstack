@@ -22,7 +22,7 @@ import {
 import git from "isomorphic-git";
 import { repackIfNeededUnlocked, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
-import { logError } from "./perf-log";
+import { logError, logWarn } from "./perf-log";
 
 export interface CommitAuthorInput {
 	name: string;
@@ -49,7 +49,19 @@ function writeUnderLock<T>(
 ): Promise<T> {
 	return withRepositoryLock(ownerKey, repoName, async () => {
 		const result = await fn(repoFor(ownerKey, repoName));
-		await repackIfNeededUnlocked(ownerKey, repoName);
+		// Best-effort: the write landed (objects packed, refs moved), so a failed
+		// consolidation must not report it as failed — the user would retry and
+		// create a second commit. Packs left unconsolidated only cost reads; the
+		// next write repacks.
+		try {
+			await repackIfNeededUnlocked(ownerKey, repoName);
+		} catch (error) {
+			logWarn(
+				"git-write",
+				"repack after write failed; packs left unconsolidated",
+				error,
+			);
+		}
 		return result;
 	});
 }

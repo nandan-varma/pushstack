@@ -1,20 +1,24 @@
 /** Server functions for issues. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues } from "#/db/app-schema";
-import { MAX_BODY_CHARS, MAX_LIST_SKIP } from "#/lib/limits";
+import { comments, issues } from "#/db/app-schema";
+import {
+	MAX_BODY_CHARS,
+	MAX_LIST_SKIP,
+	MAX_SEARCH_QUERY_CHARS,
+} from "#/lib/limits";
+import { parseSearchQuery } from "#/lib/search-query";
 import { andFilter } from "./db-filters";
 import {
-	assigneeCondition,
 	createIssueForUser,
 	issueLabelsSchema,
 	updateIssueThreadFields,
 	withAssignees,
 } from "./issue-store";
-import { threadsWithLabels, withLabels } from "./label-store";
+import { withLabels } from "./label-store";
 import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
@@ -23,6 +27,16 @@ import {
 } from "./repo-access";
 import { publicUserFields, readRepoByName } from "./repository-lookup";
 import { getCurrentUser } from "./session";
+import {
+	assigneesCondition,
+	authorCondition,
+	labelCondition,
+	mentionsCondition,
+	rawConditions,
+	type ThreadCondition,
+	textCondition,
+	threadOrderBy,
+} from "./thread-search";
 
 export const createIssue = createServerFn({ method: "POST" })
 	.validator(
@@ -52,52 +66,54 @@ export const getIssues = createServerFn({ method: "GET" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			status: z.enum(["open", "closed", "all"]).default("open"),
-			assignee: z.string().max(100).optional(),
-			/** Only issues carrying every one of these labels (`label:` filter). */
-			labels: issueLabelsSchema.default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
+			/** A GitHub query string (`?q=`); the only list filter. */
+			query: z.string().max(MAX_SEARCH_QUERY_CHARS).default(""),
 		}),
 	)
-	.handler(({ data: { assignee, ...data } }) =>
-		readWithAccess(`getIssues ${data.status}`, data.repoId, async () =>
-			withLabels(
+	.handler(({ data }) => {
+		const search = parseSearchQuery(data.query);
+		const requested = search.status ?? "open";
+		// An issue can't be merged, and `is:pr` can't match the issues list.
+		const matchesNothing =
+			search.matchesNothing || search.type === "pr" || requested === "merged";
+		const status: "open" | "closed" | "all" =
+			requested === "merged" ? "open" : requested;
+		const assignees = [
+			...(search.noAssignee ? ["none"] : []),
+			...search.assignees,
+		];
+		const conditions: ThreadCondition[] = [];
+		const add = (condition: ThreadCondition | undefined) => {
+			if (condition) conditions.push(condition);
+		};
+		add(textCondition(search.terms));
+		add(authorCondition(search.authors));
+		add(mentionsCondition(search.mentions, comments.issueId));
+		add(labelCondition(data.repoId, search.labels, search.noLabel));
+		add(assigneesCondition(assignees));
+		return readWithAccess(`getIssues ${status}`, data.repoId, async () => {
+			if (matchesNothing) return [];
+			return withLabels(
 				data.repoId,
 				await db.query.issues.findMany({
 					where: {
 						repoId: data.repoId,
-						...(data.status === "all" ? {} : { status: data.status }),
-						...andFilter([
-							...(assignee
-								? [
-										{
-											RAW: (table: typeof issues) =>
-												assigneeCondition(assignee, table),
-										},
-									]
-								: []),
-							...(data.labels.length > 0
-								? [
-										{
-											RAW: (table: typeof issues) =>
-												inArray(
-													table.number,
-													threadsWithLabels(data.repoId, data.labels),
-												),
-										},
-									]
-								: []),
-						]),
+						...(status === "all" ? {} : { status }),
+						// andFilter owns the "never pass an empty AND array" rule
+						// (Drizzle 1.0 rejects one); rawConditions maps the shared
+						// ThreadConditions onto relational RAW filters.
+						...andFilter(rawConditions(conditions)),
 					},
 					with: { author: publicUserFields, ...withAssignees },
-					orderBy: { createdAt: "desc" },
+					orderBy: threadOrderBy(search.sort, comments.issueId),
 					limit: data.limit,
 					offset: data.skip,
 				}),
-			),
-		),
-	);
+			);
+		});
+	});
 
 /** Every issue number in a repository (resolves `#N` references in markdown). */
 export const getIssueNumbers = createServerFn({ method: "GET" })

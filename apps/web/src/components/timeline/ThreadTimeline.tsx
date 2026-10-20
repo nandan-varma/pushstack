@@ -4,10 +4,12 @@ import { formatDistanceToNow } from "date-fns";
 import {
 	CircleCheck,
 	CircleDot,
+	CircleX,
 	GitBranch,
 	GitCommitHorizontal,
 	GitMerge,
 	type LucideIcon,
+	MessageSquare,
 	MessageSquareQuote,
 	Pencil,
 	Tag,
@@ -287,6 +289,12 @@ function describe(
 					</>
 				),
 			};
+		case "reviewed":
+			return event.state === "approved"
+				? { icon: CircleCheck, text: "approved these changes" }
+				: event.state === "changes_requested"
+					? { icon: CircleX, text: "requested changes" }
+					: { icon: MessageSquare, text: "reviewed" };
 	}
 }
 

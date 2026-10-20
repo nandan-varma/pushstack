@@ -4,23 +4,25 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues, pullRequests } from "#/db/app-schema";
+import { comments, issues, pullRequests } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
-import { labelNameSchema } from "#/lib/labels";
 import {
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
-	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
+	MAX_SEARCH_QUERY_CHARS,
 } from "#/lib/limits";
+import { parseSearchQuery } from "#/lib/search-query";
 import { recordActivity } from "./activity";
+import { andFilter } from "./db-filters";
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
-import { threadsWithLabels, withLabels } from "./label-store";
+import { withLabels } from "./label-store";
 import {
 	canMergePullRequest,
+	canModerateRepo,
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
@@ -31,7 +33,17 @@ import {
 	publicUserFields,
 	readRepoByName,
 } from "./repository-lookup";
-import { getCurrentUser } from "./session";
+import { reviewSummaryFor } from "./review-store";
+import { getCurrentUser, getCurrentUserOptional } from "./session";
+import {
+	authorCondition,
+	labelCondition,
+	mentionsCondition,
+	rawConditions,
+	type ThreadCondition,
+	textCondition,
+	threadOrderBy,
+} from "./thread-search";
 import {
 	recordCrossReferences,
 	recordTimelineEvent,
@@ -92,39 +104,49 @@ export const getPullRequests = createServerFn({ method: "GET" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			status: z.enum(["open", "closed", "merged", "all"]).default("open"),
-			/** Only pull requests carrying every one of these labels. */
-			labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
+			/** A GitHub query string (`?q=`); the only list filter. */
+			query: z.string().max(MAX_SEARCH_QUERY_CHARS).default(""),
 		}),
 	)
-	.handler(({ data }) =>
-		readWithAccess(`getPullRequests ${data.status}`, data.repoId, async () =>
-			withLabels(
-				data.repoId,
-				await db.query.pullRequests.findMany({
-					where: {
-						repoId: data.repoId,
-						...(data.status === "all" ? {} : { status: data.status }),
-						...(data.labels.length > 0
-							? {
-									RAW: (table) =>
-										inArray(
-											table.number,
-											threadsWithLabels(data.repoId, data.labels),
-										),
-								}
-							: {}),
-					},
-					with: { author: publicUserFields },
-					orderBy: { createdAt: "desc" },
-					limit: data.limit,
-					offset: data.skip,
-				}),
-			),
-		),
-	);
+	.handler(({ data }) => {
+		const search = parseSearchQuery(data.query);
+		// `is:issue` can't match the pull request list.
+		const matchesNothing = search.matchesNothing || search.type === "issue";
+		const status = search.status ?? "open";
+		const conditions: ThreadCondition[] = [];
+		const add = (condition: ThreadCondition | undefined) => {
+			if (condition) conditions.push(condition);
+		};
+		add(textCondition(search.terms));
+		add(authorCondition(search.authors));
+		add(mentionsCondition(search.mentions, comments.pullRequestId));
+		add(labelCondition(data.repoId, search.labels, search.noLabel));
+		return readWithAccess(
+			`getPullRequests ${status}`,
+			data.repoId,
+			async () => {
+				if (matchesNothing) return [];
+				return withLabels(
+					data.repoId,
+					await db.query.pullRequests.findMany({
+						where: {
+							repoId: data.repoId,
+							...(status === "all" ? {} : { status }),
+							// Same idiom as getIssues: andFilter omits the key when
+							// there is no condition (Drizzle 1.0 rejects an empty AND).
+							...andFilter(rawConditions(conditions)),
+						},
+						with: { author: publicUserFields },
+						orderBy: threadOrderBy(search.sort, comments.pullRequestId),
+						limit: data.limit,
+						offset: data.skip,
+					}),
+				);
+			},
+		);
+	});
 
 /** Every pull request number in a repository (resolves `#N` references in markdown). */
 export const getPullRequestNumbers = createServerFn({ method: "GET" })
@@ -159,10 +181,19 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 				});
 				if (!pr) throw notFound();
 				const [withPrLabels] = await withLabels(repo.id, [pr]);
+				const viewerAccess = await getViewerRepositoryAccess(repo.id);
+				const viewer = await getCurrentUserOptional();
 				return {
 					...pr,
 					labels: withPrLabels?.labels ?? [],
-					viewer: await getViewerRepositoryAccess(repo.id),
+					viewer: viewerAccess,
+					review: {
+						summary: await reviewSummaryFor(pr.id),
+						// Approving and requesting changes need write access, and GitHub
+						// forbids either on one's own pull request.
+						canApprove: viewerAccess.canWrite && viewer?.id !== pr.authorId,
+						canResolve: viewerAccess.canWrite || viewer?.id === pr.authorId,
+					},
 				};
 			},
 		),
@@ -253,6 +284,14 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		if (pr.status !== "open") throw new Error("Pull request is not open");
+		// GitHub blocks the merge while a reviewer's latest review requested
+		// changes; an owner/admin may override, as GitHub's admin permission can.
+		if (
+			(await reviewSummaryFor(pr.id)).blocksMerge &&
+			!(await canModerateRepo(pr.repoId, currentUser.id))
+		) {
+			throw new Error("Changes were requested on this pull request");
+		}
 
 		return writeWithAccess(pr.repoId, async (repo) => {
 			const result = await mergeBranches(

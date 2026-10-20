@@ -6,12 +6,13 @@ import {
 	useLocation,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
 import { LabelChip } from "@/components/LabelChip";
 import { LabelFilter } from "@/components/LabelFilter";
 import { issueStatusVariant } from "@/components/status-variants";
+import { ThreadSearchBox } from "@/components/ThreadSearchBox";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,51 +29,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { MAX_SEARCH_QUERY_CHARS } from "@/lib/limits";
 import {
 	authSessionQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
-	repositoryIssuesQueryOptions,
+	repositoryIssueSearchQueryOptions,
 } from "@/lib/query-options";
+import {
+	parseSearchQuery,
+	withoutSearchAssignee,
+	withSearchLabel,
+	withSearchStatus,
+} from "@/lib/search-query";
 import { createIssue } from "@/server/issues";
 
-const STATUS_VALUES = ["open", "closed", "all"] as const;
-type IssueStatus = (typeof STATUS_VALUES)[number];
-
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
-	validateSearch: (
-		search: Record<string, unknown>,
-	): { status?: IssueStatus; label?: string; assignee?: string } => ({
-		status: (STATUS_VALUES.includes(search.status as IssueStatus)
-			? search.status
-			: undefined) as IssueStatus | undefined,
-		label:
-			typeof search.label === "string" && search.label
-				? search.label
-				: undefined,
-		// A username, or "none" for unassigned issues (GitHub's `no:assignee`).
-		assignee:
-			typeof search.assignee === "string" && search.assignee
-				? search.assignee.slice(0, 100)
+	validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+		// The URL query string is the single source of truth (GitHub's `?q=`).
+		q:
+			typeof search.q === "string" && search.q
+				? search.q.slice(0, MAX_SEARCH_QUERY_CHARS)
 				: undefined,
 	}),
-	loaderDeps: ({ search }) => ({
-		status: search.status ?? ("open" as IssueStatus),
-		label: search.label,
-		assignee: search.assignee,
-	}),
+	loaderDeps: ({ search }) => ({ q: search.q ?? "" }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
 			await queryClient.ensureQueryData(
-				repositoryIssuesQueryOptions({
-					repoId: repo.id,
-					status: deps.status,
-					labels: deps.label ? [deps.label] : [],
-					assignee: deps.assignee,
-				}),
+				repositoryIssueSearchQueryOptions({ repoId: repo.id, query: deps.q }),
 			);
 		}
 	},
@@ -81,7 +68,8 @@ export const Route = createFileRoute("/repo/$owner/$name/issues")({
 
 function IssuesPage() {
 	const { owner, name } = Route.useParams();
-	const { status: filter, label, assignee } = Route.useSearch();
+	const { q = "" } = Route.useSearch();
+	const search = useMemo(() => parseSearchQuery(q), [q]);
 	const { pathname } = useLocation();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
@@ -89,17 +77,22 @@ function IssuesPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [newIssue, setNewIssue] = useState({ title: "", body: "" });
 
+	const setQuery = useCallback(
+		(next: string) => {
+			navigate({ search: { q: next || undefined }, replace: true });
+		},
+		[navigate],
+	);
+
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 
 	const { data: issues, isLoading } = useQuery({
-		...repositoryIssuesQueryOptions({
+		...repositoryIssueSearchQueryOptions({
 			repoId: repo?.id ?? 0,
-			status: filter ?? "open",
-			labels: label ? [label] : [],
-			assignee,
+			query: q,
 		}),
 		enabled: !!repo,
 	});
@@ -120,9 +113,14 @@ function IssuesPage() {
 		},
 	});
 
-	const openCount = filter === "open" ? issues?.length || 0 : undefined;
-	const closedCount = filter === "closed" ? issues?.length || 0 : undefined;
-	const allCount = filter === "all" ? issues?.length || 0 : undefined;
+	// The loaded page is the active tab's rows, so only its count is known.
+	const activeTab: "open" | "closed" | "all" =
+		search.status === "closed" || search.status === "all"
+			? search.status
+			: "open";
+	const openCount = activeTab === "open" ? issues?.length || 0 : undefined;
+	const closedCount = activeTab === "closed" ? issues?.length || 0 : undefined;
+	const allCount = activeTab === "all" ? issues?.length || 0 : undefined;
 
 	const handleCreateIssue = useCallback(() => {
 		if (!newIssue.title.trim() || !repo) return;
@@ -216,45 +214,41 @@ function IssuesPage() {
 				)}
 			</div>
 
+			<ThreadSearchBox
+				value={q}
+				onSearch={setQuery}
+				placeholder="Search issues… (is:open label:bug author:you)"
+				ariaLabel="Search issues"
+			/>
+
 			<FilterTabs
 				tabs={[
 					{ value: "open" as const, label: "Open", count: openCount },
 					{ value: "closed" as const, label: "Closed", count: closedCount },
 					{ value: "all" as const, label: "All", count: allCount },
 				]}
-				activeTab={filter ?? "open"}
-				onTabChange={(value) =>
-					navigate({
-						search: (prev) => ({ ...prev, status: value }),
-						replace: true,
-					})
-				}
+				activeTab={activeTab}
+				onTabChange={(value) => setQuery(withSearchStatus(q, value))}
 			/>
 
 			<LabelFilter
 				repoId={repo?.id}
-				value={label}
-				onChange={(value) =>
-					navigate({
-						search: (prev) => ({ ...prev, label: value }),
-						replace: true,
-					})
-				}
+				value={search.labels[0]}
+				onChange={(value) => setQuery(withSearchLabel(q, value))}
 			/>
 
-			{assignee && (
+			{(search.noAssignee || search.assignees.length > 0) && (
 				<p className="text-sm text-muted-foreground">
-					{assignee === "none"
+					{search.noAssignee
 						? "Unassigned issues"
-						: `Assigned to ${assignee}`}{" "}
-					<Link
-						to="/repo/$owner/$name/issues"
-						params={{ owner, name }}
-						search={{ status: filter, label }}
+						: `Assigned to ${search.assignees.join(", ")}`}{" "}
+					<button
+						type="button"
+						onClick={() => setQuery(withoutSearchAssignee(q))}
 						className="text-foreground"
 					>
 						Clear filter
-					</Link>
+					</button>
 				</p>
 			)}
 
@@ -267,7 +261,7 @@ function IssuesPage() {
 				</div>
 			) : !issues?.length ? (
 				<EmptyState
-					message={`No ${(filter ?? "open") !== "all" ? (filter ?? "open") : ""} issues found.`}
+					message={`No ${activeTab !== "all" ? activeTab : ""} issues found.`}
 					action={
 						session?.user ? (
 							<Button size="sm" onClick={() => setIsCreateOpen(true)}>

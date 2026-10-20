@@ -507,6 +507,87 @@ describe("applyReceivePack", () => {
 		expect(results).toEqual([{ refName: "refs/heads/pr-branch", ok: true }]);
 	});
 
+	it("keeps the push successful when the post-push repack fails", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		// One pack per commit, enough that the incoming push crosses the repack
+		// threshold so consolidation is attempted.
+		for (let i = 0; i < 4; i++) {
+			await commitFilesToBare(repo, {
+				branch: "main",
+				message: `seed ${i}\n`,
+				author,
+				files: [{ path: "file.txt", content: `${i}\n` }],
+			});
+		}
+		const parentOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		const staging = makeRepo();
+		await git.init({
+			...staging,
+			dir: staging.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const { packfile, commitOid } = await buildPushPack(
+			staging,
+			parentOid,
+			"pushed",
+		);
+
+		// The incoming pack indexes fine; only the consolidated pack the repack
+		// writes can't be stored. Arming at the repack step keeps the failure
+		// after the ref update, where it used to be reported as a failed push.
+		const fsp = rawFs(repo);
+		const writeFile = fsp.writeFile.bind(fsp);
+		let repacking = false;
+		const spy = vi
+			.spyOn(fsp, "writeFile")
+			.mockImplementation((path, data) =>
+				repacking && path.endsWith(".pack")
+					? Promise.reject(new Error("storage write failed"))
+					: writeFile(path, data),
+			);
+		const warnings: string[] = [];
+		let result: Awaited<ReturnType<typeof applyReceivePack>>;
+		try {
+			result = await applyReceivePack(
+				repo,
+				parseReceivePackBody(
+					concatBuffers(
+						pktLine(`${parentOid} ${commitOid} refs/heads/main\n`),
+						new TextEncoder().encode("0000"),
+						packfile,
+					),
+				),
+				{ defaultBranch: "main", repack: { threshold: 4 } },
+				{
+					step: (label, fn) => {
+						repacking = label === "repack";
+						return fn();
+					},
+					onWarn: (message) => warnings.push(message),
+				},
+			);
+		} finally {
+			spy.mockRestore();
+		}
+
+		// The refs moved and the response reports them accepted; the failure is
+		// only a warning the caller can surface.
+		expect(result.results).toEqual([{ refName: "refs/heads/main", ok: true }]);
+		expect(result.unpackError).toBeUndefined();
+		expect(result.stalePackPaths).toEqual([]);
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(
+			commitOid,
+		);
+		expect(warnings).toContain("repack after push failed (non-fatal)");
+	});
+
 	it("builds a report-status response from receivePackResponse", () => {
 		const result = receivePackResponse([
 			{ refName: "refs/heads/main", ok: true },
@@ -658,6 +739,172 @@ describe("receive-pack — protocol edge cases", () => {
 			"deletion of the current branch prohibited",
 		);
 		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
+	});
+
+	it("rejects a push when the ref read fails, instead of force-overwriting the ref", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "first\n",
+			author,
+			files: [{ path: "file.txt", content: "first\n" }],
+		});
+
+		const staging = await initRepo();
+		const { packfile, commitOid } = await buildPushPack(staging, tip, "second");
+
+		// The client believes main is still unborn (oldOid = 0000…) and sends a
+		// "create" command. The server's ref read fails, so without the fix the
+		// CAS resolves to ZERO_OID, passes, and `force: true` in applyRefUpdates
+		// overwrites main — making the first writer's commits unreachable.
+		const realResolveRef = git.resolveRef;
+		const spy = vi
+			.spyOn(git, "resolveRef")
+			.mockImplementation((args) =>
+				args.ref === "refs/heads/main"
+					? Promise.reject(new Error("storage read failed"))
+					: realResolveRef(args),
+			);
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					parseReceivePackBody(
+						body([`${ZERO_OID} ${commitOid} refs/heads/main\n`], packfile),
+					),
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
+	});
+
+	it("rejects a push that would delete the default branch when the HEAD read fails", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+
+		// A failed HEAD read must not be read as "detached, so nothing to
+		// protect": that lets this deletion through and leaves the repository
+		// with no default branch.
+		const spy = vi
+			.spyOn(git, "currentBranch")
+			.mockRejectedValue(new Error("storage read failed"));
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					parseReceivePackBody(body([`${tip} ${ZERO_OID} refs/heads/main\n`])),
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
+	});
+
+	it("still allows deleting a branch when HEAD is genuinely detached", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+		await git.writeRef({ ...repo, ref: "HEAD", value: tip, force: true });
+
+		const outcome = await applyReceivePack(
+			repo,
+			parseReceivePackBody(body([`${tip} ${ZERO_OID} refs/heads/main\n`])),
+			{ defaultBranch: "main", repack: false },
+		);
+
+		expect(outcome.results).toEqual([{ refName: "refs/heads/main", ok: true }]);
+		await expect(
+			git.resolveRef({ ...repo, ref: "refs/heads/main" }),
+		).rejects.toThrow();
+	});
+
+	it("rejects a push when deleting the ref fails, instead of reporting success", async () => {
+		const repo = await initRepo();
+		const tip = await commitFilesToBare(repo, {
+			branch: "doomed",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+
+		const spy = vi
+			.spyOn(git, "deleteRef")
+			.mockRejectedValue(new Error("storage write failed"));
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					parseReceivePackBody(
+						body([`${tip} ${ZERO_OID} refs/heads/doomed\n`]),
+					),
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage write failed");
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/doomed" })).toBe(
+			tip,
+		);
+	});
+
+	it("rejects a push when the init probe fails, instead of treating it as uninitialized", async () => {
+		const repo = await initRepo();
+		const fsp = rawFs(repo);
+		const stat = fsp.stat.bind(fsp);
+		const spy = vi
+			.spyOn(fsp, "stat")
+			.mockImplementation((path) =>
+				path.endsWith("/HEAD")
+					? Promise.reject(new Error("storage read failed"))
+					: stat(path),
+			);
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					{ refUpdates: [], packData: new Uint8Array() },
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
 	});
 
 	it("rejects two commands for the same ref", async () => {

@@ -3,6 +3,44 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.3] - 2026-10-20
+
+### Changed
+
+- `repackRepository` now rejects when consolidation fails instead of
+  swallowing the error and returning no stale paths — except when reading the
+  pack directory itself fails, which `readPackDirectory` still swallows and
+  reports as "nothing to consolidate" (#92). Best-effort is a call-site
+  decision: `applyReceivePack` still treats a repack after a push as best-effort
+  (the refs have moved, so a failed consolidation is reported through
+  `hooks.onWarn` and the push succeeds), while an explicit maintenance repack
+  now reports its failure. Silently returning `[]` made every caller — including
+  a post-write repack in pushstack, where a failure read as a failed commit —
+  unable to tell a failed consolidation from one with nothing to do.
+
+### Fixed
+
+- `receive-pack` no longer reads a failed ref or `HEAD` read as "absent". A
+  `resolveRef` failure other than a genuine not-found used to map to the zero
+  oid, so `force: true` in `applyRefUpdates` would overwrite a ref another
+  writer had moved (its commits became unreachable); a failed `HEAD` read used
+  to map to "detached", so a push could delete the branch HEAD named and leave
+  the repository without a default branch. Both, a failed `deleteRef`, and a
+  failed `HEAD` probe during first-push initialization now reject the push
+  (500) instead. `isNotFoundError` now also recognizes isomorphic-git's own
+  `NotFoundError` (`resolveRef`/`readObject`/`deleteRef`/`currentBranch` throw
+  that, not this package's typed errors).
+- `repackRepository` no longer drops a ref from the consolidated pack when
+  resolving its tip fails transiently. Dropping it excluded that ref's history
+  from the new pack while the cleanup deleted the packs that still held it,
+  leaving the ref dangling; the consolidation now rejects instead.
+- The package's `homepage` metadata now points at the docs site; 0.15.2 was
+  published before that field was corrected.
+- `applyReceivePack` no longer fails a push whose post-refs pack consolidation
+  failed. The refs were already updated, so the client-visible error was
+  spurious; the failure is reported through `hooks.onWarn` and the next push
+  retries the repack.
+
 ## [0.15.2] - 2026-10-19
 
 - First release published from the monorepo (0.15.1 was tagged but its
