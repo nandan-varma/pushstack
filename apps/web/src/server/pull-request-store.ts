@@ -162,7 +162,12 @@ export async function mergePullRequestBranches(
 	if (closing.length > 0) {
 		const closedIssues = await db
 			.update(issues)
-			.set({ status: "closed", closedAt: new Date(), updatedAt: new Date() })
+			.set({
+				status: "closed",
+				stateReason: "completed",
+				closedAt: new Date(),
+				updatedAt: new Date(),
+			})
 			.where(
 				and(
 					eq(issues.repoId, pr.repoId),
@@ -178,6 +183,7 @@ export async function mergePullRequestBranches(
 			{
 				event: "closed",
 				closer: { kind: "pull_request", number: pr.number, title: pr.title },
+				stateReason: "completed",
 			},
 		);
 	}

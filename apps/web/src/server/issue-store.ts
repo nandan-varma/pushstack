@@ -97,22 +97,41 @@ export async function createIssueForUser(
 export async function updateIssueThreadFields(
 	issue: Issue,
 	userId: string,
-	fields: { title?: string; body?: string; status?: "open" | "closed" },
+	fields: {
+		title?: string;
+		body?: string;
+		status?: "open" | "closed";
+		/** `completed` (default) or `not_planned` when closing. */
+		stateReason?: "completed" | "not_planned";
+	},
 ): Promise<Issue> {
 	const titleChanged =
 		fields.title !== undefined && fields.title !== issue.title;
 	const bodyChanged =
 		fields.body !== undefined && (fields.body || null) !== issue.body;
+	const statusChanged =
+		fields.status !== undefined && fields.status !== issue.status;
 	const [updated] = await db
 		.update(issues)
 		.set({
 			...(fields.title !== undefined && { title: fields.title }),
 			...(fields.body !== undefined && { body: fields.body || null }),
 			...(bodyChanged && { editedAt: new Date() }),
-			...(fields.status && {
+			...(statusChanged && {
 				status: fields.status,
 				closedAt: fields.status === "closed" ? new Date() : null,
+				// Closing takes the given reason (default completed); reopening
+				// records `reopened`.
+				stateReason:
+					fields.status === "closed"
+						? (fields.stateReason ?? "completed")
+						: ("reopened" as const),
 			}),
+			// An explicit reason on an issue that stays closed; a repeated close
+			// without one keeps what it had.
+			...(!statusChanged &&
+				fields.stateReason &&
+				issue.status === "closed" && { stateReason: fields.stateReason }),
 			updatedAt: new Date(),
 		})
 		.where(eq(issues.id, issue.id))
@@ -135,7 +154,12 @@ export async function updateIssueThreadFields(
 	}
 	if (fields.status && fields.status !== issue.status) {
 		await recordTimelineEvent(issue.repoId, issue.number, userId, {
-			event: fields.status === "closed" ? "closed" : "reopened",
+			...(fields.status === "closed"
+				? {
+						event: "closed" as const,
+						stateReason: fields.stateReason ?? "completed",
+					}
+				: { event: "reopened" as const }),
 		});
 		await recordActivity(userId, issue.repoId, {
 			type: "issue",

@@ -132,6 +132,7 @@ describe("timeline", () => {
 			{
 				event: "closed",
 				closer: { kind: "pull_request", number: pr.number, title: "Fix typo" },
+				stateReason: "completed",
 				actor: "owner",
 			},
 		]);

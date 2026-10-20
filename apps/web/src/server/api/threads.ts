@@ -9,6 +9,7 @@ import { db } from "#/db";
 import { issues, pullRequests } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import type { LabelView } from "#/lib/labels";
+import type { IssueStateReason } from "#/lib/timeline-types";
 import { assigneesByIssueIds } from "../assignees-store";
 import { commentCountsByNumbers } from "../comment-store";
 import { labelsByThread } from "../label-store";
@@ -32,6 +33,8 @@ export interface ThreadRow {
 	createdAt: Date;
 	updatedAt: Date;
 	closedAt: Date | null;
+	/** Issues only; a closed issue without a stored reason was completed. */
+	stateReason: IssueStateReason | null;
 	mergedAt: Date | null;
 	author: PublicUser;
 }
@@ -99,6 +102,10 @@ export function threadRowsOf(
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 			closedAt: row.closedAt,
+			stateReason:
+				row.status === "closed"
+					? (row.stateReason ?? "completed")
+					: row.stateReason,
 			mergedAt: null,
 			author,
 		})),
@@ -114,6 +121,7 @@ export function threadRowsOf(
 			updatedAt: row.updatedAt,
 			// There is no closed_at column: a merge's time, else the last change.
 			closedAt: row.status === "open" ? null : (row.mergedAt ?? row.updatedAt),
+			stateReason: null,
 			mergedAt: row.mergedAt,
 			author,
 		})),
@@ -145,6 +153,7 @@ export function serializeThread(
 	repo: RepositoryRowWithOwner,
 	row: ThreadRow,
 	meta: ThreadMeta,
+	closedBy?: PublicUser | null,
 ): Record<string, unknown> {
 	return issue({
 		fullName: fullNameOf(repo),
@@ -157,6 +166,8 @@ export function serializeThread(
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		closedAt: row.closedAt,
+		stateReason: row.stateReason,
+		closedBy,
 		mergedAt: row.mergedAt,
 		author: row.author,
 		labels: meta.labels.get(row.number) ?? [],

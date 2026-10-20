@@ -14,7 +14,11 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
 import type { ReviewSide, ReviewState } from "#/lib/review-types";
-import type { TimelineEvent, TimelineEventType } from "#/lib/timeline-types";
+import type {
+	IssueStateReason,
+	TimelineEvent,
+	TimelineEventType,
+} from "#/lib/timeline-types";
 import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
 
@@ -91,6 +95,8 @@ export const issues = pgTable(
 		editedAt: timestamptz("edited_at"),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 		closedAt: timestamptz("closed_at"),
+		/** GitHub's `state_reason`; null until the issue is first closed. */
+		stateReason: text("state_reason").$type<IssueStateReason>(),
 	},
 	(table) => ({
 		repoNumberIdx: uniqueIndex("issue_repo_number_idx").on(

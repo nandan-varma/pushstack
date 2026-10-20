@@ -7,7 +7,12 @@
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { comments, issues, pullRequests } from "#/db/app-schema";
+import {
+	comments,
+	issues,
+	pullRequests,
+	timelineEvents,
+} from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { labelNameSchema } from "#/lib/labels";
 import {
@@ -224,7 +229,26 @@ export async function getIssue(ctx: ApiContext) {
 	const [row] = await findThreadRowsByNumber(repo.id, [number]);
 	if (!row) throw notFoundError();
 	const meta = await loadThreadMeta(repo.id, [row]);
-	return json(serializeThread(repo, row, meta));
+	return json(serializeThread(repo, row, meta, await closedByOf(repo.id, row)));
+}
+
+/** Who closed `row`: the actor of its latest `closed` event; null when open. */
+async function closedByOf(repoId: number, row: ThreadRow) {
+	if (row.state !== "closed") return null;
+	const [event] = await db
+		.select({ actor: publicUserColumns })
+		.from(timelineEvents)
+		.innerJoin(user, eq(user.id, timelineEvents.actorId))
+		.where(
+			and(
+				eq(timelineEvents.repoId, repoId),
+				eq(timelineEvents.number, row.number),
+				eq(timelineEvents.event, "closed"),
+			),
+		)
+		.orderBy(desc(timelineEvents.createdAt), desc(timelineEvents.id))
+		.limit(1);
+	return event?.actor ?? null;
 }
 
 const createIssueSchema = z.object({
@@ -241,6 +265,7 @@ const updateIssueSchema = z.object({
 	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
 	body: z.string().max(MAX_BODY_CHARS).nullish(),
 	state: z.enum(["open", "closed"]).optional(),
+	state_reason: z.enum(["completed", "not_planned", "reopened"]).nullish(),
 	labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).optional(),
 	assignees: z
 		.array(z.string().trim().min(1).max(100))
@@ -324,7 +349,21 @@ export async function updateIssue(ctx: ApiContext) {
 		);
 	}
 	const data = parsed.data;
+	// The state the issue ends in decides which reasons make sense: `reopened`
+	// only on an open issue, `completed`/`not_planned` only on a closed one.
+	const finalState = data.state ?? issue.status;
+	const reason = data.state_reason ?? undefined;
+	if (
+		reason !== undefined &&
+		(reason === "reopened") !== (finalState === "open")
+	) {
+		throw validationFailedError("Validation Failed", [
+			{ resource: "Issue", field: "state_reason", code: "invalid" },
+		]);
+	}
 	await updateIssueThreadFields(issue, caller.userId, {
+		...(reason !== undefined &&
+			reason !== "reopened" && { stateReason: reason }),
 		...(data.title !== undefined && { title: data.title }),
 		...(data.body !== undefined && { body: data.body ?? "" }),
 		...(data.state !== undefined && { status: data.state }),
