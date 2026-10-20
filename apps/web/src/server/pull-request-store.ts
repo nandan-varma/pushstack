@@ -117,8 +117,10 @@ export async function mergePullRequestBranches(
 	pr: PullRequest,
 	user: { id: string; name: string; email: string },
 	commitMessage?: string,
+	expectedHeadSha?: string,
 ): Promise<
-	{ success: true; commitSha: string } | { success: false; conflicts: string[] }
+	| { success: true; commitSha: string }
+	| { success: false; conflicts: string[]; headModified?: true }
 > {
 	const result = await mergeBranches(
 		ownerKeyOf(repo),
@@ -129,6 +131,7 @@ export async function mergePullRequestBranches(
 			message: commitMessage || `Merge pull request #${pr.number}: ${pr.title}`,
 			authorName: user.name,
 			authorEmail: user.email,
+			expectedHeadSha,
 		},
 	);
 	if (!result.success) return result;

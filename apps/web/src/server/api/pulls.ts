@@ -41,6 +41,7 @@ import {
 	type RepositoryRowWithOwner,
 } from "../repository-lookup";
 import { reviewSummaryFor } from "../review-store";
+import { createTtlCoalescedCache } from "../ttl-cache";
 import { type ApiContext, requireScope } from "./auth";
 import {
 	ApiError,
@@ -75,6 +76,15 @@ import {
 const PULL_COMMITS_LIMIT = 250;
 /** `GET …/files` lists at most 3000 files, as on GitHub. */
 const PULL_FILES_LIMIT = 3000;
+/** Patch bytes one `GET …/files` response carries before omitting the rest. */
+export const PULL_PATCH_BUDGET_BYTES = 2 * 1024 * 1024;
+/** Recent pull request diffs, keyed by the tips they compare. */
+const diffCache = createTtlCoalescedCache<
+	Awaited<ReturnType<typeof getBranchDiff>>
+>({
+	ttlMs: 30_000,
+	maxEntries: 4,
+});
 /** Shown when a branch is gone and no tip was recorded. */
 const UNKNOWN_SHA = "0".repeat(40);
 
@@ -563,14 +573,14 @@ export async function mergePull(ctx: ApiContext) {
 		);
 	}
 	if (pr.status !== "open") throw notMergeable();
-	if (data.sha) {
-		const tips = await branchTips(repo);
-		if (tips.get(pr.sourceBranch) !== data.sha) {
-			throw new ApiError(
-				409,
-				"Head branch was modified. Review and try the merge again.",
-			);
-		}
+	const headModified = () =>
+		new ApiError(
+			409,
+			"Head branch was modified. Review and try the merge again.",
+		);
+	// A fast path; the merge re-checks under the repository lock.
+	if (data.sha && (await branchTips(repo)).get(pr.sourceBranch) !== data.sha) {
+		throw headModified();
 	}
 	// GitHub blocks the merge while changes are requested; an owner/admin may override.
 	if ((await reviewSummaryFor(pr.id)).blocksMerge && !access.canModerate) {
@@ -597,8 +607,11 @@ export async function mergePull(ctx: ApiContext) {
 		pr,
 		committer,
 		commitMessage,
+		data.sha ?? undefined,
 	);
-	if (!result.success) throw notMergeable();
+	if (!result.success) {
+		throw result.headModified ? headModified() : notMergeable();
+	}
 	return json({
 		sha: result.commitSha,
 		merged: true,
@@ -653,19 +666,36 @@ export async function listPullFiles(ctx: ApiContext) {
 	const record = await findPull(repo.id, threadNumber(ctx.params.number));
 	if (!record) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
-	const range = pullRange(record.row);
 	const ownerKey = ownerKeyOf(repo);
 	const fullName = fullNameOf(repo);
-	const diff = await orWhenGone(
-		() => getBranchDiff(ownerKey, repo.name, range.base, range.head),
-		null,
-	);
+	// Pin the diff to the tips so every page of one listing reads one result,
+	// kept briefly: the diff (patches included) is computed whole.
+	const { baseSha, headSha } = tipShas(record.row, await branchTips(repo));
+	const known = baseSha !== UNKNOWN_SHA && headSha !== UNKNOWN_SHA;
+	const diff = known
+		? await diffCache.get(`${repo.id}:${baseSha}..${headSha}`, () =>
+				getBranchDiff(ownerKey, repo.name, baseSha, headSha),
+			)
+		: null;
 	const files = (diff?.files ?? []).slice(0, PULL_FILES_LIMIT);
 	const page = params.reachable
 		? files.slice(params.offset, params.offset + params.perPage)
 		: [];
+	// Patches count against one budget per response (Vercel caps buffered
+	// responses at 4.5 MB); files past it list without a patch, as GitHub does
+	// for large diffs.
+	let patchBytes = 0;
+	const patchFor = (file: (typeof page)[number]) => {
+		if (file.kind !== "text" || !file.patch) return {};
+		const patch = hunksOf(file.patch);
+		const size = Buffer.byteLength(patch);
+		if (patchBytes + size > PULL_PATCH_BUDGET_BYTES) return {};
+		patchBytes += size;
+		return { patch };
+	};
+	const patches = page.map(patchFor);
 	const body = await Promise.all(
-		page.map(async (file) => {
+		page.map(async (file, index) => {
 			const removed = file.status === "deleted";
 			const ref = removed ? diff?.oldRef : diff?.newRef;
 			const sha = ref
@@ -687,9 +717,8 @@ export async function listPullFiles(ctx: ApiContext) {
 				contents_url: apiUrl(
 					`/repos/${fullName}/contents/${path}?ref=${ref ?? ""}`,
 				),
-				// Binary and oversized files carry no patch, as on GitHub.
-				...(file.kind === "text" &&
-					file.patch && { patch: hunksOf(file.patch) }),
+				// Binary, oversized and over-budget files carry no patch.
+				...patches[index],
 			};
 		}),
 	);

@@ -90,7 +90,7 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `POST /repos/{owner}/{repo}/pulls` | supported | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
 | `GET`/`PATCH /repos/{owner}/{repo}/pulls/{number}` | supported | `PATCH`: the author or a writer; `title`, `body`, `state`; changing `base` is `422` |
 | `GET`/`PUT /repos/{owner}/{repo}/pulls/{number}/merge` | supported | `GET` is `204` once merged, else `404`. `PUT`: `commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge` only; `squash`/`rebase` are `405`). A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }` |
-| `GET /repos/{owner}/{repo}/pulls/{number}/files` | supported | up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files) |
+| `GET /repos/{owner}/{repo}/pulls/{number}/files` | supported | up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips) |
 | `GET /repos/{owner}/{repo}/pulls/{number}/commits` | supported | oldest first, up to 250 |
 | everything else | not implemented | `404 Not Found` |
 

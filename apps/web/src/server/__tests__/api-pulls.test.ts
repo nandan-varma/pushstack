@@ -416,7 +416,7 @@ describe("merging pull requests", () => {
 			put(dave, { commit_title: "Merge left", commit_message: "details" }),
 		);
 		expect(first.status).toBe(200);
-		const log = await call("/repos/alice/proj/pulls/" + leftPull.body.number);
+		const log = await call(`/repos/alice/proj/pulls/${leftPull.body.number}`);
 		expect(log.body.merged).toBe(true);
 
 		const conflict = await call(
@@ -429,5 +429,86 @@ describe("merging pull requests", () => {
 			`/repos/alice/proj/pulls/${rightPull.body.number}`,
 		);
 		expect(still.body.state).toBe("open");
+	});
+});
+
+describe("response size and scopes", () => {
+	it("omits patches past a per-response budget but still lists every file", async () => {
+		await branchFrom("big");
+		const line = `${"x".repeat(98)}\n`;
+		const content = line.repeat(9000); // ~900 KB, under the per-file diff cap
+		for (const name of ["one.txt", "two.txt", "three.txt"]) {
+			await commitFile("big", name, content);
+		}
+		const created = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Big", head: "big", base: "main" }),
+		);
+		expect(created.status).toBe(201);
+		const listed = await call(
+			`/repos/alice/proj/pulls/${created.body.number}/files`,
+		);
+		expect(listed.status).toBe(200);
+		expect(listed.body).toHaveLength(3);
+		const withPatch = listed.body.filter(
+			(file: { patch?: string }) => file.patch !== undefined,
+		);
+		expect(withPatch.length).toBeGreaterThan(0);
+		expect(withPatch.length).toBeLessThan(3);
+		const patchBytes = withPatch.reduce(
+			(sum: number, file: { patch: string }) =>
+				sum + Buffer.byteLength(file.patch),
+			0,
+		);
+		expect(patchBytes).toBeLessThanOrEqual(2 * 1024 * 1024);
+		// Every file still reports its counts.
+		for (const file of listed.body) expect(file.additions).toBe(9000);
+	});
+
+	it("refuses a head that moved after the pre-check, under the lock", async () => {
+		const { mergePullRequestBranches } = await import("../pull-request-store");
+		const { findRepositoryByName } = await import("../repository-lookup");
+		const { db } = await import("#/db");
+		await branchFrom("racy");
+		await commitFile("racy", "racy.txt", "r\n");
+		const created = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Racy", head: "racy", base: "main" }),
+		);
+		const repo = await findRepositoryByName("alice", "proj");
+		const pr = await db.query.pullRequests.findFirst({
+			where: { repoId, number: created.body.number },
+		});
+		if (!repo || !pr) throw new Error("fixture missing");
+		const result = await mergePullRequestBranches(
+			repo,
+			pr,
+			{ id: users.alice.id, name: "alice", email: "alice@example.com" },
+			undefined,
+			"0".repeat(40),
+		);
+		expect(result).toMatchObject({ success: false, headModified: true });
+		const after = await call(`/repos/alice/proj/pulls/${created.body.number}`);
+		expect(after.body.state).toBe("open");
+		expect(after.body.merged).toBe(false);
+	});
+
+	it("gives a repo:read token 403 on every write", async () => {
+		const aliceRead = await mintToken(users.alice, ["repo:read"]);
+		const create = await call(
+			"/repos/alice/proj/pulls",
+			post(aliceRead, { title: "x", head: "topic", base: "main" }),
+		);
+		expect(create.status).toBe(403);
+		const update = await call(
+			"/repos/alice/proj/pulls/1",
+			patch(aliceRead, { title: "x" }),
+		);
+		expect(update.status).toBe(403);
+		const merge = await call("/repos/alice/proj/pulls/2/merge", put(aliceRead));
+		expect(merge.status).toBe(403);
+		expect(merge.body.message).toBe(
+			"Resource not accessible by personal access token",
+		);
 	});
 });
