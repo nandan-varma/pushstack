@@ -81,7 +81,7 @@ export function FileTable({
 		);
 	}
 
-	if (!files || files.length === 0) {
+	if (files.length === 0) {
 		return (
 			<EmptyState
 				message="This repository is empty."

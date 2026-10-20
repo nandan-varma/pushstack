@@ -297,13 +297,14 @@ function reportWithSentry(
 }
 
 /**
- * correlation id (the same `[perf <id>]` prefix used above) instead of each
- * call site inventing its own ad-hoc console.error/warn with inconsistent
- * prefixing. `scope` is the module/subsystem name (e.g. "git-auth"); when
- * called from inside an active perfContext, the log line carries that
- * request's id for free — when not (many auth/protocol call sites aren't
- * wrapped in perfContext), it still gets a consistent `[scope] message`
- * shape rather than no prefix at all.
+ * Logs an error through one consistent shape, and routes it to Sentry when a
+ * DSN is configured (without one the console line is still written).
+ * `scope` is the module or subsystem name (e.g. "git-auth"); inside an active
+ * perfContext the line also carries that request's correlation id (the same
+ * `[perf <id>]` prefix used above). Call sites use this instead of inventing
+ * their own console.error/warn with inconsistent prefixing — including the many
+ * auth and protocol call sites that aren't wrapped in a perfContext, which
+ * still get a consistent `[scope] message` line rather than no prefix at all.
  */
 export function logError(scope: string, message: string, err: unknown): void {
 	const detail = err instanceof Error ? err.message : String(err);
