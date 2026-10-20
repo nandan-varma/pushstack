@@ -31,6 +31,16 @@ import {
 	updateLabel,
 } from "./labels";
 import {
+	checkPullMerged,
+	createPull,
+	getPull,
+	listPullCommits,
+	listPullFiles,
+	listPulls,
+	mergePull,
+	updatePull,
+} from "./pulls";
+import {
 	applyRateHeaders,
 	authenticateMetered,
 	getRateLimit,
@@ -162,6 +172,46 @@ const ROUTES: Route[] = [
 		method: "DELETE",
 		pattern: "/repos/:owner/:repo/issues/:number/labels/:name",
 		handler: removeIssueLabel,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/pulls",
+		handler: listPulls,
+	},
+	{
+		method: "POST",
+		pattern: "/repos/:owner/:repo/pulls",
+		handler: createPull,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/pulls/:number",
+		handler: getPull,
+	},
+	{
+		method: "PATCH",
+		pattern: "/repos/:owner/:repo/pulls/:number",
+		handler: updatePull,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/pulls/:number/merge",
+		handler: checkPullMerged,
+	},
+	{
+		method: "PUT",
+		pattern: "/repos/:owner/:repo/pulls/:number/merge",
+		handler: mergePull,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/pulls/:number/commits",
+		handler: listPullCommits,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/pulls/:number/files",
+		handler: listPullFiles,
 	},
 	{
 		method: "GET",

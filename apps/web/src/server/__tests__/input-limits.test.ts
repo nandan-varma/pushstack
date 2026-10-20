@@ -194,12 +194,10 @@ describe("access changes take effect immediately", () => {
 describe("URL input that names nothing", () => {
 	// A loader surfaces a validator's plain Error as a 500; on a read, input
 	// that can't name anything is a 404, as on GitHub (src/server/read-input.ts).
-	it("404s a non-sha commit, an unsafe ref or path, and an out-of-range #N", async () => {
+	it("404s an unsafe commit revision, an unsafe ref or path, and an out-of-range #N", async () => {
 		signOut();
 		expect(
-			await rejectsNotFound(
-				files.getCommit({ data: { repoId, commitSha: "main" } }),
-			),
+			await rejectsNotFound(files.getCommit({ data: { repoId, rev: "a..b" } })),
 		).toBe(true);
 		expect(
 			await rejectsNotFound(

@@ -127,6 +127,17 @@ describe("/api/v3 limits", () => {
 		expect((await api("/user", { token: alice })).status).toBe(200);
 	});
 
+	it("meters pull request writes in the write bucket", async () => {
+		const merge = await api("/repos/alice/pub/pulls/1/merge", {
+			method: "PUT",
+			token: alice,
+			body: "{}",
+		});
+		expect(merge.headers.get("x-ratelimit-limit")).toBe("2");
+		const read = await api("/repos/alice/pub/pulls", { token: alice });
+		expect(read.headers.get("x-ratelimit-limit")).toBe("4");
+	});
+
 	it("starts a new window once the old one has elapsed", async () => {
 		for (let i = 0; i < 3; i++) await api("/users/alice", { ip: "4.4.4.4" });
 		expect((await api("/users/alice", { ip: "4.4.4.4" })).status).toBe(403);

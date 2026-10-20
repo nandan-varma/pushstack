@@ -14,6 +14,7 @@ import * as gitRead from "./git-read";
 import { BANNER_WALK_DEPTH } from "./git-read";
 import {
 	safeBranchNameSchema,
+	safeCommitRevSchema,
 	safeCommitShaSchema,
 	safeRefNameSchema,
 	safeRepoPathSchema,
@@ -172,17 +173,14 @@ const identity = (who: { name: string; email: string; timestamp: number }) => ({
 	date: new Date(who.timestamp * 1000).toISOString(),
 });
 
+/** A commit by branch, tag, `HEAD`, full or abbreviated sha; `sha` is the resolved oid. */
 export const getCommit = createServerFn({ method: "GET" })
 	.validator(
-		readInput(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema })),
+		readInput(z.object({ repoId: z.number(), rev: safeCommitRevSchema })),
 	)
 	.handler(({ data }) =>
-		readGit(`getCommit ${data.commitSha}`, data.repoId, async (owner, name) => {
-			const { oid, commit } = await gitRead.getCommit(
-				owner,
-				name,
-				data.commitSha,
-			);
+		readGit(`getCommit ${data.rev}`, data.repoId, async (owner, name) => {
+			const { oid, commit } = await gitRead.getCommit(owner, name, data.rev);
 			return {
 				sha: oid,
 				message: commit.message.trim(),

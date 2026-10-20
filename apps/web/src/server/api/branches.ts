@@ -1,6 +1,4 @@
 /** `GET /repos/{owner}/{repo}/branches` and `…/branches/{branch}`. */
-import type { CommitInfo } from "git-fs-s3/ops";
-import { getGitBaseUrl } from "#/lib/git-utils";
 import { getBranches, getCommit } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -9,25 +7,12 @@ import {
 	apiUrl,
 	encodePath,
 	htmlUrl,
-	isoTimestamp,
 	json,
 	notFoundError,
 	pagedList,
 } from "./http";
 import { readableRepository } from "./repo-lookup";
-import { branchHtmlUrl, commitRef } from "./serializers";
-
-type Identity = CommitInfo["commit"]["author"];
-
-/**
- * Web-UI commits are stamped with the account's sign-in email, which must
- * never leave the server, so every identity gets one noreply placeholder.
- */
-const gitIdentity = ({ name, timestamp }: Identity) => ({
-	name,
-	email: `noreply@${new URL(getGitBaseUrl()).host}`,
-	date: isoTimestamp(new Date(timestamp * 1000)),
-});
+import { branchHtmlUrl, commitRef, gitIdentity } from "./serializers";
 
 /** `GET /repos/{owner}/{repo}/branches` */
 export async function listBranches(ctx: ApiContext) {
