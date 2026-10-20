@@ -7,9 +7,10 @@ import { findThreadByNumber, type ThreadRef } from "../thread-store";
 import { countTimeline, listTimeline } from "../timeline-store";
 import type { ApiContext } from "./auth";
 import { json, linkHeader, notFoundError, pageParams } from "./http";
+import { pathParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { issueComment, simpleUser, timelineEvent } from "./serializers";
-import { fullNameOf, serializeThreadsByNumber, threadNumber } from "./threads";
+import { fullNameOf, serializeThreadsByNumber } from "./threads";
 
 type CommentRow = Awaited<ReturnType<typeof listCommentsForThread>>[number];
 
@@ -61,7 +62,10 @@ function commentedItem(
 
 export async function listTimelineItems(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.issue_number);
+	const number = pathParams(
+		ctx,
+		"issues/list-events-for-timeline",
+	).issue_number;
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
@@ -100,7 +104,7 @@ export async function listTimelineItems(ctx: ApiContext) {
 
 export async function listEvents(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.issue_number);
+	const number = pathParams(ctx, "issues/list-events").issue_number;
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);

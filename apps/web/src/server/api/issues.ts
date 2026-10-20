@@ -2,16 +2,9 @@
  * GitHub's issues surface at `/api/v3`: list, get, create and update issues.
  * The list returns pull requests too (each carrying a `pull_request` object),
  * exactly as GitHub's does, because issues and pull requests share one `#N`
- * sequence per repository.
+ * sequence per repository. Inputs are parsed with the contract's schemas
+ * (`./input`).
  */
-import { z } from "zod";
-import { labelNameSchema } from "#/lib/labels";
-import {
-	MAX_ASSIGNEES,
-	MAX_BODY_CHARS,
-	MAX_LABELS_PER_THREAD,
-	MAX_THREAD_TITLE_CHARS,
-} from "#/lib/limits";
 import { replaceThreadAssignees } from "../assignees-store";
 import { createIssueForUser, updateIssueThreadFields } from "../issue-store";
 import { setThreadLabels } from "../label-store";
@@ -20,57 +13,22 @@ import { findIssueByNumber, findThread, listThreads } from "../thread-store";
 import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
-	type FieldError,
 	forbiddenError,
 	json,
 	linkHeader,
 	notFoundError,
 	pageParams,
-	readJsonObject,
 	validationFailedError,
 } from "./http";
+import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
-import { fullNameOf, serializeThread, threadNumber } from "./threads";
-
-const stateSchema = z.enum(["open", "closed", "all"]);
-const sortSchema = z.enum(["created", "updated", "comments"]).catch("created");
-const directionSchema = z.enum(["asc", "desc"]).catch("desc");
-
-interface IssueFilters {
-	state: "open" | "closed" | "all";
-	assignee?: string;
-	labels: string[];
-	sort: "created" | "updated" | "comments";
-	direction: "asc" | "desc";
-}
-
-function issueFilters(query: URLSearchParams): IssueFilters {
-	// An invalid state is 422 (GitHub's rule); sort and direction fall back.
-	const rawState = query.get("state") ?? "open";
-	const state = stateSchema.safeParse(rawState);
-	if (!state.success) {
-		throw validationFailedError("Validation Failed", [
-			{ resource: "Issue", field: "state", code: "invalid", value: rawState },
-		]);
-	}
-	return {
-		state: state.data,
-		// A login, `none` (unassigned) or `*` (assigned to anyone).
-		assignee: query.get("assignee")?.slice(0, 100) || undefined,
-		labels: (query.get("labels") ?? "")
-			.split(",")
-			.map((name) => name.trim())
-			.filter(Boolean)
-			.slice(0, MAX_LABELS_PER_THREAD),
-		sort: sortSchema.parse(query.get("sort") ?? undefined),
-		direction: directionSchema.parse(query.get("direction") ?? undefined),
-	};
-}
+import { fullNameOf, serializeThread } from "./threads";
 
 export async function listIssues(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const params = pageParams(ctx.url.searchParams);
-	const filters = issueFilters(ctx.url.searchParams);
+	// An invalid state is 422 (GitHub's rule); sort and direction fall back.
+	const filters = queryParams(ctx, "issues/list-for-repo", "Issue");
 	if (!params.reachable) return json([], 200, {});
 	// Issues and pull requests together, one query: a merged pull request is
 	// `closed` here, as on GitHub.
@@ -80,7 +38,7 @@ export async function listIssues(ctx: ApiContext) {
 				repoId: repo.id,
 				...(filters.state !== "all" && { state: filters.state }),
 				...(filters.assignee && { assignees: [filters.assignee] }),
-				labels: filters.labels,
+				labels: filters.labels ?? [],
 			},
 			{
 				sort: { by: filters.sort, direction: filters.direction },
@@ -94,49 +52,11 @@ export async function listIssues(ctx: ApiContext) {
 }
 
 export async function getIssue(ctx: ApiContext) {
+	const { issue_number } = pathParams(ctx, "issues/get");
 	const { repo } = await readableRepository(ctx);
-	const thread = await findThread(
-		repo.id,
-		threadNumber(ctx.params.issue_number),
-	);
+	const thread = await findThread(repo.id, issue_number);
 	if (!thread) throw notFoundError();
 	return json(serializeThread(repo, thread, true));
-}
-
-const createIssueSchema = z.object({
-	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
-	body: z.string().max(MAX_BODY_CHARS).nullish(),
-	labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).optional(),
-	assignees: z
-		.array(z.string().trim().min(1).max(100))
-		.max(MAX_ASSIGNEES)
-		.optional(),
-});
-
-const updateIssueSchema = z.object({
-	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
-	body: z.string().max(MAX_BODY_CHARS).nullish(),
-	state: z.enum(["open", "closed"]).optional(),
-	state_reason: z.enum(["completed", "not_planned", "reopened"]).nullish(),
-	labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).optional(),
-	assignees: z
-		.array(z.string().trim().min(1).max(100))
-		.max(MAX_ASSIGNEES)
-		.optional(),
-});
-
-function issueErrors(
-	error: z.ZodError,
-	body: Record<string, unknown>,
-): FieldError[] {
-	return error.issues.map((issue) => {
-		const field = String(issue.path[0] ?? "");
-		return {
-			resource: "Issue",
-			field,
-			code: body[field] === undefined ? "missing_field" : "invalid",
-		};
-	});
 }
 
 export async function createIssue(ctx: ApiContext) {
@@ -145,17 +65,9 @@ export async function createIssue(ctx: ApiContext) {
 	if (!access.canParticipate) {
 		throw forbiddenError("You can't open issues in this repository");
 	}
-	const body = await readJsonObject(ctx.request);
-	const parsed = createIssueSchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError(
-			"Validation Failed",
-			issueErrors(parsed.error, body),
-		);
-	}
+	const data = await requestBody(ctx, "issues/create", "Issue");
 	// Labels and assignees are triage: a participant without write access opens
 	// the issue unlabeled and unassigned, as on GitHub.
-	const data = parsed.data;
 	const created = await createIssueForUser(repo.id, caller.userId, {
 		title: data.title,
 		body: data.body ?? undefined,
@@ -174,7 +86,7 @@ export async function createIssue(ctx: ApiContext) {
 export async function updateIssue(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.issue_number);
+	const { issue_number: number } = pathParams(ctx, "issues/update");
 	const issue = await findIssueByNumber(repo.id, number);
 	// Pull request numbers are readable through the issues endpoints but not
 	// editable through them; editing a pull request uses the pulls endpoints.
@@ -182,15 +94,7 @@ export async function updateIssue(ctx: ApiContext) {
 	if (issue.authorId !== caller.userId && !access.canWrite) {
 		throw forbiddenError("You do not have permission to edit this issue");
 	}
-	const body = await readJsonObject(ctx.request);
-	const parsed = updateIssueSchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError(
-			"Validation Failed",
-			issueErrors(parsed.error, body),
-		);
-	}
-	const data = parsed.data;
+	const data = await requestBody(ctx, "issues/update", "Issue");
 	// The state the issue ends in decides which reasons make sense: `reopened`
 	// only on an open issue, `completed`/`not_planned` only on a closed one.
 	const finalState = data.state ?? issue.status;

@@ -17,8 +17,19 @@ import {
 	STORAGE_NAME_RE,
 } from "./limits";
 
-/** A positive integer path or query value. */
-export const positiveInt = z.coerce.number<number>().int().positive();
+/** The largest id the database's `integer` columns hold. */
+export const MAX_INT32 = 2_147_483_647;
+
+/**
+ * A positive integer path or query value that fits an `integer` column.
+ * Strings must be canonical digits: `0x1`, `1e0`, `1.0` and ` 1` are rejected.
+ */
+// Typed as taking a number: clients pass numbers, servers parse URL strings.
+export const positiveInt = z
+	.union([z.number(), z.string().regex(/^[1-9]\d{0,9}$/)])
+	.pipe(
+		z.coerce.number<number>().int().positive().max(MAX_INT32),
+	) as unknown as z.ZodType<number, number>;
 
 /** `page` / `per_page`: bad values fall back, `per_page` caps at 100. */
 export const pagination = z.object({

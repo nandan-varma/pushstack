@@ -4,8 +4,6 @@
  * pull request's comments through the issues endpoints too); the single-comment
  * routes address it by id.
  */
-import { z } from "zod";
-import { MAX_BODY_CHARS } from "#/lib/limits";
 import {
 	canEditComment,
 	countCommentsForThread,
@@ -25,30 +23,15 @@ import {
 	noContent,
 	notFoundError,
 	pageParams,
-	readJsonObject,
-	validationFailedError,
 } from "./http";
+import { pathParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { issueComment } from "./serializers";
-import { fullNameOf, threadNumber } from "./threads";
-
-const commentBodySchema = z.object({
-	body: z.string().trim().min(1).max(MAX_BODY_CHARS),
-});
-
-const bodyError = (
-	body: Record<string, unknown>,
-): { resource: string; field: string; code: "missing_field" | "invalid" }[] => [
-	{
-		resource: "IssueComment",
-		field: "body",
-		code: body.body === undefined ? "missing_field" : "invalid",
-	},
-];
+import { fullNameOf } from "./threads";
 
 export async function listComments(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.issue_number);
+	const { issue_number: number } = pathParams(ctx, "issues/list-comments");
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
@@ -83,19 +66,15 @@ export async function createComment(ctx: ApiContext) {
 	if (!access.canParticipate) {
 		throw forbiddenError("You can't comment on this issue");
 	}
-	const number = threadNumber(ctx.params.issue_number);
+	const { issue_number: number } = pathParams(ctx, "issues/create-comment");
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
-	const body = await readJsonObject(ctx.request);
-	const parsed = commentBodySchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError("Validation Failed", bodyError(body));
-	}
-	const created = await createCommentForUser(
-		thread,
-		caller.userId,
-		parsed.data.body,
+	const { body } = await requestBody(
+		ctx,
+		"issues/create-comment",
+		"IssueComment",
 	);
+	const created = await createCommentForUser(thread, caller.userId, body);
 	const comment = await findCommentWithAuthor(created.id);
 	if (!comment) throw new Error("Comment missing after insert");
 	return json(
@@ -115,10 +94,13 @@ export async function createComment(ctx: ApiContext) {
 	);
 }
 
-async function requireComment(ctx: ApiContext, repoId: number) {
-	const raw = ctx.params.comment_id;
-	if (!raw || !/^\d+$/.test(raw)) throw notFoundError();
-	const comment = await findCommentWithAuthor(Number(raw));
+async function requireComment(
+	ctx: ApiContext,
+	id: "issues/get-comment" | "issues/update-comment" | "issues/delete-comment",
+	repoId: number,
+) {
+	const { comment_id } = pathParams(ctx, id);
+	const comment = await findCommentWithAuthor(comment_id);
 	if (!comment || comment.repoId !== repoId) throw notFoundError();
 	const thread = await findThreadById(comment.issueId);
 	if (!thread) throw notFoundError();
@@ -127,7 +109,11 @@ async function requireComment(ctx: ApiContext, repoId: number) {
 
 export async function getComment(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const { comment, thread } = await requireComment(ctx, repo.id);
+	const { comment, thread } = await requireComment(
+		ctx,
+		"issues/get-comment",
+		repo.id,
+	);
 	return json(
 		issueComment({
 			fullName: fullNameOf(repo),
@@ -142,20 +128,20 @@ export async function getComment(ctx: ApiContext) {
 export async function updateComment(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo } = await readableRepository(ctx);
-	const { comment, thread } = await requireComment(ctx, repo.id);
+	const { comment, thread } = await requireComment(
+		ctx,
+		"issues/update-comment",
+		repo.id,
+	);
 	if (!(await canEditComment(comment, caller.userId))) {
 		throw forbiddenError("You do not have permission to edit this comment");
 	}
-	const body = await readJsonObject(ctx.request);
-	const parsed = commentBodySchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError("Validation Failed", bodyError(body));
-	}
-	const updated = await updateCommentRow(
-		comment,
-		caller.userId,
-		parsed.data.body,
+	const { body } = await requestBody(
+		ctx,
+		"issues/update-comment",
+		"IssueComment",
 	);
+	const updated = await updateCommentRow(comment, caller.userId, body);
 	return json(
 		issueComment({
 			fullName: fullNameOf(repo),
@@ -170,7 +156,11 @@ export async function updateComment(ctx: ApiContext) {
 export async function deleteComment(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo } = await readableRepository(ctx);
-	const { comment, thread } = await requireComment(ctx, repo.id);
+	const { comment, thread } = await requireComment(
+		ctx,
+		"issues/delete-comment",
+		repo.id,
+	);
 	if (!(await canEditComment(comment, caller.userId))) {
 		throw forbiddenError("You do not have permission to delete this comment");
 	}

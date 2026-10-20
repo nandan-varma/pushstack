@@ -895,3 +895,56 @@ describe("closed_by and state_reason", () => {
 		}
 	});
 });
+
+describe("contract input validation", () => {
+	it("404s a path number the contract rejects", async () => {
+		for (const path of [
+			"/repos/alice/proj/issues/abc",
+			"/repos/alice/proj/issues/0",
+			"/repos/alice/proj/issues/x/comments",
+			"/repos/alice/proj/issues/comments/abc",
+			"/repos/alice/proj/issues/-1/labels",
+			"/repos/alice/proj/issues/abc/timeline",
+			// Past the integer columns: a 404, never a database error.
+			"/repos/alice/proj/issues/99999999999",
+			"/repos/alice/proj/issues/2147483648",
+			"/repos/alice/proj/issues/comments/99999999999",
+			// Only canonical digits name a number.
+			"/repos/alice/proj/issues/0x1",
+			"/repos/alice/proj/issues/1e0",
+			"/repos/alice/proj/issues/1.0",
+			"/repos/alice/proj/issues/%201",
+			"/repos/alice/proj/issues/01",
+		]) {
+			expect((await call(path)).status, path).toBe(404);
+		}
+	});
+
+	it("names the failing body field and whether it was missing", async () => {
+		const badColor = await call(
+			"/repos/alice/proj/labels",
+			post(dave, { name: "bad-color", color: "red" }),
+		);
+		expect(badColor.status).toBe(422);
+		expect(badColor.body.errors).toEqual([
+			{ resource: "Label", field: "color", code: "invalid" },
+		]);
+
+		const noLabels = await call(
+			"/repos/alice/proj/issues/1/labels",
+			post(dave, {}),
+		);
+		expect(noLabels.status).toBe(422);
+		expect(noLabels.body.errors).toEqual([
+			{ resource: "Label", field: "labels", code: "missing_field" },
+		]);
+	});
+
+	it("echoes an invalid strict query value", async () => {
+		const { status, body } = await call("/repos/alice/proj/issues?state=bad");
+		expect(status).toBe(422);
+		expect(body.errors).toEqual([
+			{ resource: "Issue", field: "state", code: "invalid", value: "bad" },
+		]);
+	});
+});
