@@ -35,14 +35,25 @@ function horizonOf<T extends { createdAt: Date | string }>({
  * unfetched comment would precede an event of that instant (the event waits),
  * while at the events' horizon an unfetched event would follow every comment
  * of that instant (the comments show).
+ *
+ * `posted` are comments the viewer just wrote: they show at the bottom whether
+ * or not the pages between have been loaded, and vanish from the tail once the
+ * paged comments include them.
  */
 export function mergeThreadItems<
-	C extends { createdAt: Date | string },
+	C extends { id: number; createdAt: Date | string },
 	E extends { createdAt: Date | string },
 >(
 	comments: Source<C>,
 	events: Source<E>,
+	posted: C[] = [],
 ): { items: ThreadItem<C, E>[]; hasMore: boolean } {
+	const loadedIds = new Set(comments.loaded.map((c) => c.id));
+	const unseen = posted.filter((c) => !loadedIds.has(c.id));
+	// With every comment loaded the viewer's new ones are simply the newest.
+	if (!comments.hasMore && unseen.length > 0) {
+		comments = { ...comments, loaded: [...comments.loaded, ...unseen] };
+	}
 	const commentHorizon = horizonOf(comments);
 	const eventHorizon = horizonOf(events);
 	const items = [
@@ -57,5 +68,11 @@ export function mergeThreadItems<
 			timeOf(a.kind === "comment" ? a.comment : a.event) -
 			timeOf(b.kind === "comment" ? b.comment : b.event),
 	);
+	// Otherwise they trail the visible thread, as on GitHub.
+	if (comments.hasMore) {
+		items.push(
+			...unseen.map((comment) => ({ kind: "comment" as const, comment })),
+		);
+	}
 	return { items, hasMore: comments.hasMore || events.hasMore };
 }

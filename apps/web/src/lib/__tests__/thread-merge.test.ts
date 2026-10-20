@@ -76,4 +76,27 @@ describe("mergeThreadItems", () => {
 			),
 		).toEqual({ items: [], hasMore: false });
 	});
+
+	it("appends the viewer's new comment after the visible thread while pages remain", () => {
+		const r = mergeThreadItems(
+			{ loaded: [c(1, 1)], hasMore: true },
+			{ loaded: [], hasMore: false },
+			[c(99, 50)],
+		);
+		expect(ids(r)).toEqual(["c1", "c99"]);
+	});
+
+	it("places it chronologically once every comment is loaded, and never twice", () => {
+		const done = { loaded: [c(1, 1)], hasMore: false };
+		const events = { loaded: [c(1, 7)], hasMore: false };
+		expect(ids(mergeThreadItems(done, events, [c(99, 9)]))).toEqual([
+			"c1",
+			"e1",
+			"c99",
+		]);
+		expect(ids(mergeThreadItems(done, events, [c(1, 1)]))).toEqual([
+			"c1",
+			"e1",
+		]);
+	});
 });

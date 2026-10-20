@@ -28,6 +28,7 @@ import {
 	reviewStatusVariant,
 } from "@/components/status-variants";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import type { ThreadComment } from "@/components/timeline/ThreadTimeline";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
@@ -38,9 +39,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { quoteForReply } from "@/lib/markdown-quote";
 import {
+	addPostedComment,
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
-	loadThreadThroughEnd,
 	pullRequestByNumberQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestCommitsQueryOptions,
@@ -49,7 +50,6 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
-	timelineQueryOptions,
 } from "@/lib/query-options";
 import { createComment } from "@/server/comments";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
@@ -244,18 +244,26 @@ function PullRequestDetailPage() {
 		onError: (err: Error) => {
 			toast(err.message || "Failed to post comment", "error");
 		},
-		onSuccess: async () => {
+		onSuccess: (created) => {
 			toast("Comment posted", "success");
 			setNewComment("");
 			if (pr) {
-				await loadThreadThroughEnd(
-					queryClient,
-					pullRequestCommentsQueryOptions(pr.id),
-					timelineQueryOptions(pr.repoId, pr.number),
-				);
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.timelineRoot(pr.repoId),
-				});
+				const user = session?.user;
+				if (user) {
+					addPostedComment<ThreadComment>(
+						queryClient,
+						pullRequestCommentsQueryOptions(pr.id).queryKey,
+						{
+							...created,
+							author: {
+								id: user.id,
+								name: user.name,
+								username: user.username ?? user.name,
+								image: user.image ?? null,
+							},
+						},
+					);
+				}
 			}
 		},
 	});

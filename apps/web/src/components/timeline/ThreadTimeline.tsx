@@ -1,6 +1,7 @@
 import {
 	useInfiniteQuery,
 	useMutation,
+	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -25,12 +26,17 @@ import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import {
 	type issueCommentsQueryOptions,
+	postedCommentsQueryOptions,
 	queryKeys,
 	timelineQueryOptions,
 } from "@/lib/query-options";
 import { mergeThreadItems } from "@/lib/thread-merge";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
+import type { getComments } from "@/server/comments";
 import { deleteComment, updateComment } from "@/server/comments";
+
+/** A comment as the thread view reads it, author included. */
+export type ThreadComment = Awaited<ReturnType<typeof getComments>>[number];
 
 /**
  * An issue's or pull request's conversation as GitHub shows it: comments and
@@ -63,18 +69,31 @@ export function ThreadTimeline({
 }) {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
+	const postedOptions = postedCommentsQueryOptions<ThreadComment>(
+		commentsOptions.queryKey,
+	);
 	const refresh = () => {
 		queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey });
 		queryClient.invalidateQueries({ queryKey: queryKeys.timelineRoot(repoId) });
 	};
 	const updateMutation = useMutation({
 		mutationFn: updateComment,
-		onSuccess: refresh,
+		onSuccess: (_, { data }) => {
+			queryClient.setQueryData(postedOptions.queryKey, (posted = []) =>
+				posted.map((c) =>
+					c.id === data.commentId ? { ...c, body: data.body } : c,
+				),
+			);
+			refresh();
+		},
 		onError: (err: Error) => toast(err.message || "Failed to edit", "error"),
 	});
 	const deleteMutation = useMutation({
 		mutationFn: deleteComment,
-		onSuccess: () => {
+		onSuccess: (_, { data }) => {
+			queryClient.setQueryData(postedOptions.queryKey, (posted = []) =>
+				posted.filter((c) => c.id !== data.commentId),
+			);
 			refresh();
 			toast("Comment deleted", "success");
 		},
@@ -83,6 +102,7 @@ export function ThreadTimeline({
 	const commentPages = useInfiniteQuery(commentsOptions);
 	const eventPages = useInfiniteQuery(timelineQueryOptions(repoId, number));
 	const sources = [commentPages, eventPages];
+	const { data: posted } = useQuery(postedOptions);
 	const { items, hasMore } = mergeThreadItems(
 		{
 			loaded: commentPages.data?.pages.flat() ?? [],
@@ -92,6 +112,7 @@ export function ThreadTimeline({
 			loaded: eventPages.data?.pages.flat() ?? [],
 			hasMore: eventPages.hasNextPage,
 		},
+		posted,
 	);
 	const loadingMore = sources.some((query) => query.isFetchingNextPage);
 

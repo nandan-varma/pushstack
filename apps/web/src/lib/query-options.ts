@@ -316,20 +316,35 @@ function threadPagesQueryOptions<T>(
 }
 
 /**
- * Reload a thread's comments and timeline through their last page, so a comment
- * the viewer just posted shows at the bottom straight away (as on GitHub)
- * instead of waiting behind "Load more".
+ * The comments the viewer posted in this session, kept apart from the paged
+ * query: later pages may still be unloaded, and refetching every page after
+ * each post would cost a request per page. They render as a tail after the
+ * thread (GitHub shows your new comment at the bottom), and drop out of it once
+ * the paged query has loaded them.
  */
-export async function loadThreadThroughEnd<C, E>(
+export function postedCommentsQueryOptions<C>(commentsKey: readonly unknown[]) {
+	return queryOptions({
+		queryKey: ["posted-comments", ...commentsKey] as const,
+		queryFn: (): C[] => [],
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+}
+
+/** Record a just-posted comment locally and mark the paged query stale, without refetching it. */
+export function addPostedComment<C>(
 	queryClient: QueryClient,
-	comments: ReturnType<typeof threadPagesQueryOptions<C>>,
-	timeline: ReturnType<typeof threadPagesQueryOptions<E>>,
+	commentsKey: readonly unknown[],
+	comment: C,
 ) {
-	const pages = Math.floor(MAX_LIST_SKIP / THREAD_PAGE_SIZE) + 1;
-	await Promise.all([
-		queryClient.fetchInfiniteQuery({ ...comments, staleTime: 0, pages }),
-		queryClient.fetchInfiniteQuery({ ...timeline, staleTime: 0, pages }),
+	const { queryKey } = postedCommentsQueryOptions<C>(commentsKey);
+	queryClient.setQueryData<C[]>(queryKey, (posted = []) => [
+		...posted,
+		comment,
 	]);
+	return queryClient.invalidateQueries({
+		queryKey: commentsKey,
+		refetchType: "none",
+	});
 }
 
 /** An issue's or pull request's timeline events (merge with its comments to render). */

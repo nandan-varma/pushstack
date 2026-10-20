@@ -19,6 +19,7 @@ import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import type { ThreadComment } from "@/components/timeline/ThreadTimeline";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
@@ -27,16 +28,15 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { quoteForReply } from "@/lib/markdown-quote";
 import {
+	addPostedComment,
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
-	loadThreadThroughEnd,
 	pullRequestByNumberQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
-	timelineQueryOptions,
 } from "@/lib/query-options";
 import { createComment } from "@/server/comments";
 import { updateIssue } from "@/server/issues";
@@ -151,17 +151,25 @@ function IssueDetailPage() {
 
 	const commentMutation = useMutation({
 		mutationFn: createComment,
-		onSuccess: async () => {
+		onSuccess: (created) => {
 			setNewComment("");
 			if (issue) {
-				await loadThreadThroughEnd(
-					queryClient,
-					issueCommentsQueryOptions(issue.id),
-					timelineQueryOptions(issue.repoId, issue.number),
-				);
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.timelineRoot(issue.repoId),
-				});
+				const user = session?.user;
+				if (user) {
+					addPostedComment<ThreadComment>(
+						queryClient,
+						issueCommentsQueryOptions(issue.id).queryKey,
+						{
+							...created,
+							author: {
+								id: user.id,
+								name: user.name,
+								username: user.username ?? user.name,
+								image: user.image ?? null,
+							},
+						},
+					);
+				}
 			}
 			toast("Comment posted", "success");
 		},
