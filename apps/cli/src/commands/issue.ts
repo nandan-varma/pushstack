@@ -40,6 +40,7 @@ const JSON_FIELDS = {
 	closedAt: (i: Issue) => i.closed_at,
 };
 const common = {
+	help: { type: "boolean", short: "h" },
 	hostname: { type: "string" },
 	repo: { type: "string", short: "R" },
 } as const;
@@ -123,6 +124,10 @@ async function list(io: Io, args: string[]) {
 		assignee: { type: "string", short: "a" },
 		json: { type: "string" },
 	});
+	if (values.help) {
+		io.stdout(HELP.list as string);
+		return;
+	}
 	if (positionals.length)
 		throw new CliError("issue list accepts no positional arguments");
 	const limit = Number(values.limit);
@@ -181,6 +186,10 @@ async function view(io: Io, args: string[]) {
 		...common,
 		json: { type: "string" },
 	});
+	if (values.help) {
+		io.stdout(HELP.view as string);
+		return;
+	}
 	const number = numberArg(positionals);
 	jsonFields(values.json);
 	const { client, path } = await context(io, values);
@@ -199,6 +208,10 @@ async function create(io: Io, args: string[]) {
 		label: { type: "string", short: "l", multiple: true },
 		assignee: { type: "string", short: "a", multiple: true },
 	});
+	if (values.help) {
+		io.stdout(HELP.create as string);
+		return;
+	}
 	if (positionals.length)
 		throw new CliError("issue create accepts no positional arguments");
 	if (!values.title?.trim()) throw new CliError("--title is required");
@@ -235,10 +248,15 @@ async function changeState(io: Io, args: string[], state: "open" | "closed") {
 				}
 			: {}),
 	});
+	if (values.help) {
+		io.stdout(HELP[state === "closed" ? "close" : "reopen"] as string);
+		return;
+	}
 	const number = numberArg(positionals);
 	if (
 		state === "closed" &&
-		!["completed", "not_planned"].includes(values.reason ?? "")
+		(typeof values.reason !== "string" ||
+			!["completed", "not_planned"].includes(values.reason))
 	)
 		throw new CliError("--reason must be completed or not_planned");
 	const { client, path } = await context(io, values, true);
@@ -268,10 +286,6 @@ export async function issueCommand(io: Io, args: string[]) {
 	}
 	if (!Object.hasOwn(HELP, sub))
 		throw new CliError(`unknown issue subcommand "${sub}"`);
-	if (rest.includes("--help") || rest.includes("-h")) {
-		io.stdout(HELP[sub] as string);
-		return;
-	}
 	switch (sub) {
 		case "list":
 			return list(io, rest);

@@ -39,6 +39,39 @@ owner, `--limit/-L`, `--visibility public|private`, and `--json` fields.
 `--description/-d`, `--add-readme`, `--gitignore/-g`, and `--license/-l`.
 Repositories can only be created under the authenticated user.
 
+`issue list` (`ls`) shows 30 open issues by default. Use `--limit/-L`
+(1–10000), `--state/-s open|closed|all`, repeatable `--label/-l`, and
+`--assignee/-a` to filter. Labels may be comma-separated and are combined as
+an AND filter. The assignee filter accepts a login, `@me`, `none`, or `*`.
+Pagination follows API Link headers and counts only issues, excluding pull
+requests from the shared issues API.
+
+`issue view <number>` displays an issue. Both list and view accept `--json`
+with comma-separated fields: `number`, `title`, `body`, `state`, `stateReason`,
+`url`, `author`, `assignees`, `labels`, `createdAt`, `updatedAt`, `closedAt`.
+State and reason values use uppercase GitHub CLI naming. Authors and assignees
+include `login`; labels include `name`, `color`, and `description`.
+
+`issue create` requires `--title/-t`; supply `--body/-b` or
+`--body-file/-F path` (`-` reads stdin). Labels and assignees support repeated
+flags or comma-separated names; `@me` resolves to the active token's account.
+`issue close <number>` accepts `--reason/-r completed|not_planned` (default
+`completed`), and `issue reopen <number>` reopens it. These commands print the
+issue URL. View, close and reopen reject pull request numbers.
+
+All issue commands accept `--repo/-R OWNER/REPO` and `--hostname`, using
+`PST_REPO` and then matching git remotes when `--repo` is omitted. Each
+subcommand supports `--help`. Creation is noninteractive; no editor or
+comment-on-close option is provided.
+
+```sh
+pst issue list -R alice/project -l bug -a @me --json number,title,url
+pst issue create -R alice/project -t "Fix login" -F description.md -l bug
+pst issue view 12 -R alice/project
+pst issue close 12 -R alice/project -r not_planned
+pst issue reopen 12 -R alice/project
+```
+
 `api` accepts relative API endpoints, `--method/-X`, `--header/-H`,
 `--raw-field/-f key=value`, and typed `--field/-F key=value`. Fields default to a
 POST body; GET/HEAD fields become query parameters. `--input file` (or `-` for
@@ -46,7 +79,7 @@ stdin), `--include/-i`, `--silent`, and `--paginate` are supported. Pagination
 stays on the selected host's API. Commands return 0 on success, 1 on failure,
 and 4 when authentication is required or rejected.
 
-This initial CLI covers auth, repositories, and direct API requests. It does not
+The CLI covers auth, repositories, issues, and direct API requests. It does not
 provide interactive login, organization creation, cloning, or pushing.
 
 From the monorepo root:
