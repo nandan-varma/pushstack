@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -18,13 +23,20 @@ import {
 import { CommentCard } from "@/components/CommentCard";
 import { LabelChip } from "@/components/LabelChip";
 import { useToast } from "@/components/toast-provider";
-import { queryKeys, timelineQueryOptions } from "@/lib/query-options";
+import { Button } from "@/components/ui/button";
+import {
+	type issueCommentsQueryOptions,
+	postedCommentsQueryOptions,
+	queryKeys,
+	timelineQueryOptions,
+} from "@/lib/query-options";
+import { mergeThreadItems } from "@/lib/thread-merge";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
+import type { getComments } from "@/server/comments";
 import { deleteComment, updateComment } from "@/server/comments";
 
-type Comment = Parameters<typeof CommentCard>[0]["comment"] & {
-	authorId: string;
-};
+/** A comment as the thread view reads it, author included. */
+export type ThreadComment = Awaited<ReturnType<typeof getComments>>[number];
 
 /**
  * An issue's or pull request's conversation as GitHub shows it: comments and
@@ -35,18 +47,18 @@ export function ThreadTimeline({
 	name,
 	repoId,
 	number,
-	comments,
+	commentsOptions,
 	onQuote,
 	viewerId,
 	canParticipate,
 	canModerate,
-	commentsQueryKey,
 }: {
 	owner: string;
 	name: string;
 	repoId: number;
 	number: number;
-	comments: Comment[];
+	/** The thread's comments, loaded a page at a time. */
+	commentsOptions: ReturnType<typeof issueCommentsQueryOptions>;
 	/** Called with a comment's body when its "Quote reply" is used. */
 	onQuote?: (body: string) => void;
 	/** The signed-in user, if any: their own comments get Edit and Delete. */
@@ -54,37 +66,59 @@ export function ThreadTimeline({
 	canParticipate: boolean;
 	/** Write collaborators may edit and delete anyone's comments. */
 	canModerate: boolean;
-	/** The comments query to refresh after an edit or delete. */
-	commentsQueryKey: readonly unknown[];
 }) {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
+	const postedOptions = postedCommentsQueryOptions<ThreadComment>(
+		commentsOptions.queryKey,
+	);
 	const refresh = () => {
-		queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+		queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey });
 		queryClient.invalidateQueries({ queryKey: queryKeys.timelineRoot(repoId) });
 	};
 	const updateMutation = useMutation({
 		mutationFn: updateComment,
-		onSuccess: refresh,
+		onSuccess: (_, { data }) => {
+			queryClient.setQueryData(postedOptions.queryKey, (posted = []) =>
+				posted.map((c) =>
+					c.id === data.commentId
+						? { ...c, body: data.body, editedAt: new Date() }
+						: c,
+				),
+			);
+			refresh();
+		},
 		onError: (err: Error) => toast(err.message || "Failed to edit", "error"),
 	});
 	const deleteMutation = useMutation({
 		mutationFn: deleteComment,
-		onSuccess: () => {
+		onSuccess: (_, { data }) => {
+			queryClient.setQueryData(postedOptions.queryKey, (posted = []) =>
+				posted.filter((c) => c.id !== data.commentId),
+			);
 			refresh();
 			toast("Comment deleted", "success");
 		},
 		onError: (err: Error) => toast(err.message || "Failed to delete", "error"),
 	});
-	const { data: events = [] } = useQuery(timelineQueryOptions(repoId, number));
-	const items = [
-		...comments.map((comment) => ({ kind: "comment" as const, comment })),
-		...events.map((event) => ({ kind: "event" as const, event })),
-	].sort(
-		(a, b) => new Date(itemTime(a)).getTime() - new Date(itemTime(b)).getTime(),
+	const commentPages = useInfiniteQuery(commentsOptions);
+	const eventPages = useInfiniteQuery(timelineQueryOptions(repoId, number));
+	const sources = [commentPages, eventPages];
+	const { data: posted } = useQuery(postedOptions);
+	const { items, hasMore } = mergeThreadItems(
+		{
+			loaded: commentPages.data?.pages.flat() ?? [],
+			hasMore: commentPages.hasNextPage,
+		},
+		{
+			loaded: eventPages.data?.pages.flat() ?? [],
+			hasMore: eventPages.hasNextPage,
+		},
+		posted,
 	);
+	const loadingMore = sources.some((query) => query.isFetchingNextPage);
 
-	if (items.length === 0) return null;
+	if (items.length === 0 && !hasMore) return null;
 	return (
 		<div className="space-y-4">
 			{items.map((item) =>
@@ -120,18 +154,22 @@ export function ThreadTimeline({
 					/>
 				),
 			)}
+			{hasMore && (
+				<Button
+					variant="outline"
+					className="w-full"
+					disabled={loadingMore}
+					onClick={() => {
+						for (const query of sources) {
+							if (query.hasNextPage) void query.fetchNextPage();
+						}
+					}}
+				>
+					{loadingMore ? "Loading…" : "Load more"}
+				</Button>
+			)}
 		</div>
 	);
-}
-
-function itemTime(
-	item:
-		| { kind: "comment"; comment: Comment }
-		| { kind: "event"; event: TimelineEntry },
-) {
-	return item.kind === "comment"
-		? item.comment.createdAt
-		: item.event.createdAt;
 }
 
 function ThreadLink({

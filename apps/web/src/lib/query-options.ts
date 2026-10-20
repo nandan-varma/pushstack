@@ -1,4 +1,9 @@
-import { queryOptions } from "@tanstack/react-query";
+import {
+	infiniteQueryOptions,
+	type QueryClient,
+	queryOptions,
+} from "@tanstack/react-query";
+import { MAX_LIST_SKIP, THREAD_PAGE_SIZE } from "#/lib/limits";
 import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
 import { getAssignableUsers } from "@/server/assignees";
@@ -287,13 +292,66 @@ export function repositoryTagsQueryOptions(repoId: number) {
 	});
 }
 
-/** An issue's or pull request's timeline events (merge with its comments to render). */
-export function timelineQueryOptions(repoId: number, number: number) {
-	return queryOptions({
-		queryKey: queryKeys.timeline(repoId, number),
-		queryFn: () => getTimeline({ data: { repoId, number } }),
+/**
+ * A thread's comments or timeline events, one `THREAD_PAGE_SIZE` page at a time
+ * (oldest first): a thread can outgrow what one response may carry. A short
+ * page is the last one.
+ */
+function threadPagesQueryOptions<T>(
+	queryKey: readonly unknown[],
+	fetchPage: (skip: number) => Promise<T[]>,
+) {
+	return infiniteQueryOptions({
+		queryKey,
+		queryFn: ({ pageParam }) => fetchPage(pageParam),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) => {
+			const next = pages.length * THREAD_PAGE_SIZE;
+			return lastPage.length < THREAD_PAGE_SIZE || next > MAX_LIST_SKIP
+				? undefined
+				: next;
+		},
 		staleTime: DEFAULT_STALE_TIME,
 	});
+}
+
+/**
+ * The comments the viewer posted in this session, kept apart from the paged
+ * query: later pages may still be unloaded, and refetching every page after
+ * each post would cost a request per page. They render as a tail after the
+ * thread (GitHub shows your new comment at the bottom), and drop out of it once
+ * the paged query has loaded them.
+ */
+export function postedCommentsQueryOptions<C>(commentsKey: readonly unknown[]) {
+	return queryOptions({
+		queryKey: ["posted-comments", ...commentsKey] as const,
+		queryFn: (): C[] => [],
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+}
+
+/** Record a just-posted comment locally and mark the paged query stale, without refetching it. */
+export function addPostedComment<C>(
+	queryClient: QueryClient,
+	commentsKey: readonly unknown[],
+	comment: C,
+) {
+	const { queryKey } = postedCommentsQueryOptions<C>(commentsKey);
+	queryClient.setQueryData<C[]>(queryKey, (posted = []) => [
+		...posted,
+		comment,
+	]);
+	return queryClient.invalidateQueries({
+		queryKey: commentsKey,
+		refetchType: "none",
+	});
+}
+
+/** An issue's or pull request's timeline events (merge with its comments to render). */
+export function timelineQueryOptions(repoId: number, number: number) {
+	return threadPagesQueryOptions(queryKeys.timeline(repoId, number), (skip) =>
+		getTimeline({ data: { repoId, number, skip } }),
+	);
 }
 
 /**
@@ -512,11 +570,9 @@ export function issueByNumberQueryOptions({
 }
 
 export function issueCommentsQueryOptions(issueId: number) {
-	return queryOptions({
-		queryKey: queryKeys.issueComments(issueId),
-		queryFn: () => getComments({ data: { issueId } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
+	return threadPagesQueryOptions(queryKeys.issueComments(issueId), (skip) =>
+		getComments({ data: { issueId, skip } }),
+	);
 }
 
 export function pullRequestByNumberQueryOptions({
@@ -536,11 +592,9 @@ export function pullRequestByNumberQueryOptions({
 }
 
 export function pullRequestCommentsQueryOptions(prId: number) {
-	return queryOptions({
-		queryKey: queryKeys.pullRequestComments(prId),
-		queryFn: () => getComments({ data: { pullRequestId: prId } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
+	return threadPagesQueryOptions(queryKeys.pullRequestComments(prId), (skip) =>
+		getComments({ data: { pullRequestId: prId, skip } }),
+	);
 }
 
 /** A PR's Commits tab; the head branch moves, so it follows the diff's freshness. */

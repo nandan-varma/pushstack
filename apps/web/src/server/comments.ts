@@ -3,6 +3,7 @@ import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { MAX_BODY_CHARS } from "#/lib/limits";
+import { threadPageSchema } from "#/lib/thread-page";
 import {
 	type Comment,
 	canEditComment,
@@ -59,14 +60,17 @@ export const createComment = createServerFn({ method: "POST" })
 	});
 
 export const getComments = createServerFn({ method: "GET" })
-	.validator(threadSchema)
+	.validator(threadPageSchema.and(threadSchema))
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 		const thread = await requireThread(data);
 		if (!(await getRepositoryAccess(thread.repoId, currentUser?.id))?.canRead) {
 			throw notFound();
 		}
-		return listCommentsForThread(thread);
+		return listCommentsForThread(thread, {
+			limit: data.limit,
+			offset: data.skip,
+		});
 	});
 
 export const updateComment = createServerFn({ method: "POST" })
