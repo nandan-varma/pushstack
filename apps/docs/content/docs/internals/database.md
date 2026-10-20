@@ -38,6 +38,12 @@ against `schema.ts`.**
 require it on create and refuse it on update): it's the first segment of
 every storage key.
 
+`user.apiId` is app-owned, outside Better Auth's schema: an
+`integer GENERATED ALWAYS AS IDENTITY` the REST API serves as GitHub's numeric
+user `id`. Better Auth never writes it (Drizzle's insert type omits it), so the
+`get-tables.mjs` diff above should show it as the one extra column. Push the
+schema before deploying code that selects it.
+
 ## Tables
 
 | Table | Purpose |
