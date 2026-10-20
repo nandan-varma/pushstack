@@ -23,10 +23,8 @@ import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-pas
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
-import { Route as RepoSplatRouteImport } from './routes/repo.$'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
 import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
-import { Route as UsersUsernameRouteImport } from './routes/users.$username'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
 import { Route as OwnerNameIssuesRouteImport } from './routes/$owner.$name.issues'
 import { Route as OwnerNameLabelsRouteImport } from './routes/$owner.$name.labels'
@@ -116,11 +114,6 @@ const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => AuthRoute,
 } as any)
-const RepoSplatRoute = RepoSplatRouteImport.update({
-  id: '/repo/$',
-  path: '/repo/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -130,11 +123,6 @@ const RepositoriesNewRoute = RepositoriesNewRouteImport.update({
   id: '/new',
   path: '/new',
   getParentRoute: () => RepositoriesRoute,
-} as any)
-const UsersUsernameRoute = UsersUsernameRouteImport.update({
-  id: '/users/$username',
-  path: '/users/$username',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const OwnerNameIndexRoute = OwnerNameIndexRouteImport.update({
   id: '/',
@@ -243,9 +231,7 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/repo/$': typeof RepoSplatRoute
   '/repositories/new': typeof RepositoriesNewRoute
-  '/users/$username': typeof UsersUsernameRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
@@ -279,9 +265,7 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/repo/$': typeof RepoSplatRoute
   '/repositories/new': typeof RepositoriesNewRoute
-  '/users/$username': typeof UsersUsernameRoute
   '/$owner': typeof OwnerIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
@@ -318,9 +302,7 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/repo/$': typeof RepoSplatRoute
   '/repositories/new': typeof RepositoriesNewRoute
-  '/users/$username': typeof UsersUsernameRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
@@ -358,9 +340,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/auth/reset-password'
-    | '/repo/$'
     | '/repositories/new'
-    | '/users/$username'
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/issues'
@@ -394,9 +374,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/auth/reset-password'
-    | '/repo/$'
     | '/repositories/new'
-    | '/users/$username'
     | '/$owner'
     | '/repositories'
     | '/$owner/$name/issues'
@@ -432,9 +410,7 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/auth/reset-password'
-    | '/repo/$'
     | '/repositories/new'
-    | '/users/$username'
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/issues'
@@ -467,8 +443,6 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   OwnerNameRoute: typeof OwnerNameRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
-  RepoSplatRoute: typeof RepoSplatRoute
-  UsersUsernameRoute: typeof UsersUsernameRoute
   OwnerIndexRoute: typeof OwnerIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiDebugPerfRoute: typeof ApiDebugPerfRoute
@@ -577,13 +551,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthResetPasswordRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/repo/$': {
-      id: '/repo/$'
-      path: '/repo/$'
-      fullPath: '/repo/$'
-      preLoaderRoute: typeof RepoSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/repositories/': {
       id: '/repositories/'
       path: '/'
@@ -597,13 +564,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/repositories/new'
       preLoaderRoute: typeof RepositoriesNewRouteImport
       parentRoute: typeof RepositoriesRoute
-    }
-    '/users/$username': {
-      id: '/users/$username'
-      path: '/users/$username'
-      fullPath: '/users/$username'
-      preLoaderRoute: typeof UsersUsernameRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/$owner/$name/': {
       id: '/$owner/$name/'
@@ -830,8 +790,6 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   OwnerNameRoute: OwnerNameRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
-  RepoSplatRoute: RepoSplatRoute,
-  UsersUsernameRoute: UsersUsernameRoute,
   OwnerIndexRoute: OwnerIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiDebugPerfRoute: ApiDebugPerfRoute,

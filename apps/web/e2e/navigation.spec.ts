@@ -1,6 +1,23 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Route Navigation E2E", () => {
+	for (const path of [
+		"/users/alice",
+		"/repo/alice/proj",
+		"/repo/%2F%2Fevil.com",
+		"/repo/%5Cevil.com",
+		"/repo",
+		"/users",
+	]) {
+		test(`obsolete web path ${path} returns 404 without redirecting`, async ({
+			request,
+		}) => {
+			const response = await request.get(path, { maxRedirects: 0 });
+			expect(response.status()).toBe(404);
+			expect(response.headers().location).toBeUndefined();
+		});
+	}
+
 	test("home page renders hero content", async ({ page }) => {
 		await page.goto("/");
 		await expect(page.locator("h1")).toContainText(

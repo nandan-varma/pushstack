@@ -181,7 +181,7 @@ describe("users", () => {
 			type: "User",
 			name: "Alice",
 			email: null,
-			html_url: "http://localhost:3000/users/alice",
+			html_url: "http://localhost:3000/alice",
 			url: `${BASE}/users/alice`,
 			public_repos: 0,
 			total_private_repos: 0,
@@ -237,7 +237,7 @@ describe("creating repositories", () => {
 			description: "A project",
 			default_branch: "main",
 			fork: false,
-			html_url: "http://localhost:3000/repo/alice/proj",
+			html_url: "http://localhost:3000/alice/proj",
 			url: `${BASE}/repos/alice/proj`,
 			clone_url: "http://localhost:3000/api/git/alice/proj.git",
 			stargazers_count: 0,
@@ -538,7 +538,7 @@ describe("branches and tags", () => {
 			},
 			_links: {
 				self: `${BASE}/repos/alice/proj/branches/main`,
-				html: "http://localhost:3000/repo/alice/proj/tree/main",
+				html: "http://localhost:3000/alice/proj/tree/main",
 			},
 		});
 		expect(body.commit.commit.author.date).toMatch(

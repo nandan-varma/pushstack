@@ -40,6 +40,9 @@ export async function call(path: string, options: CallOptions = {}) {
 	const text = await response.text();
 	// No response may ever carry an account email (the fixtures' domain).
 	expect(text).not.toContain("@example.com");
+	// Web URLs use the same canonical paths as the page router. REST URLs
+	// still retain `/api/v3/users` and `/api/v3/repos`.
+	expect(text).not.toMatch(/http:\/\/localhost:3000\/(?:repo|users)\//);
 	return {
 		status: response.status,
 		headers: response.headers,

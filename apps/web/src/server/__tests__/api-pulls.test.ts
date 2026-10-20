@@ -98,7 +98,7 @@ describe("creating pull requests", () => {
 			closed_at: null,
 			draft: false,
 			url: `${BASE}/repos/alice/proj/pulls/1`,
-			html_url: "http://localhost:3000/repo/alice/proj/pulls/1",
+			html_url: "http://localhost:3000/alice/proj/pulls/1",
 			issue_url: `${BASE}/repos/alice/proj/issues/1`,
 			commits_url: `${BASE}/repos/alice/proj/pulls/1/commits`,
 			head: { label: "alice:topic", ref: "topic", user: { login: "alice" } },

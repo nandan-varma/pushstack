@@ -92,9 +92,7 @@ describe("CLI pr commands against real REST dispatcher", () => {
 		await branch("topic", "topic.txt");
 		const created = await invoke("pr", "create", "-t", "Topic", "-F", "-");
 		expect(created.code, created.stderr).toBe(0);
-		expect(created.stdout).toBe(
-			"http://localhost:3000/repo/alice/pulls/pulls/1\n",
-		);
+		expect(created.stdout).toBe("http://localhost:3000/alice/pulls/pulls/1\n");
 		const viewed = await invoke(
 			"pr",
 			"view",

@@ -212,12 +212,12 @@ export async function compareCommits(ctx: ApiContext) {
 	return json(
 		{
 			url: apiUrl(`/repos/${fullName}/compare/${spec}`),
-			html_url: htmlUrl(`/repo/${fullName}/compare/${spec}`),
+			html_url: htmlUrl(`/${fullName}/compare/${spec}`),
 			permalink_url: htmlUrl(
-				`/repo/${fullName}/compare/${baseInfo.oid}...${headInfo.oid}`,
+				`/${fullName}/compare/${baseInfo.oid}...${headInfo.oid}`,
 			),
-			diff_url: htmlUrl(`/repo/${fullName}/compare/${spec}.diff`),
-			patch_url: htmlUrl(`/repo/${fullName}/compare/${spec}.patch`),
+			diff_url: htmlUrl(`/${fullName}/compare/${spec}.diff`),
+			patch_url: htmlUrl(`/${fullName}/compare/${spec}.patch`),
 			base_commit: commitObject(fullName, baseInfo),
 			merge_base_commit: commitObject(fullName, mergeBase),
 			status,

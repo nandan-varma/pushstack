@@ -33,7 +33,7 @@ const issue = {
 	body: "body text",
 	state: "open",
 	state_reason: null,
-	html_url: "https://git.nandan.fyi/repo/alice/project/issues/12",
+	html_url: "https://git.nandan.fyi/alice/project/issues/12",
 	user: { login: "alice" },
 	assignees: [{ login: "bob" }],
 	labels: [{ name: "bug", color: "ffffff", description: null }],

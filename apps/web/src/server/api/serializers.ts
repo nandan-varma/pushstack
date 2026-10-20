@@ -25,7 +25,7 @@ export function simpleUser(user: PublicUser) {
 		node_id: userNodeId(user.apiId),
 		avatar_url: user.image,
 		url: apiUrl(`/users/${user.username}`),
-		html_url: htmlUrl(`/users/${user.username}`),
+		html_url: htmlUrl(`/${user.username}`),
 		type: "User" as const,
 		site_admin: false,
 	};
@@ -64,7 +64,7 @@ export function repository(
 		full_name: fullName,
 		private: repo.visibility === "private",
 		owner: simpleUser(repo.owner),
-		html_url: htmlUrl(`/repo/${repo.owner.username}/${repo.name}`),
+		html_url: htmlUrl(`/${repo.owner.username}/${repo.name}`),
 		description: repo.description,
 		fork: false,
 		url: apiUrl(`/repos/${fullName}`),
@@ -87,7 +87,7 @@ export function commitRef(repo: { fullName: string }, sha: string) {
 }
 
 export function branchHtmlUrl(fullName: string, branch: string) {
-	return htmlUrl(`/repo/${fullName}/tree/${encodePath(branch)}`);
+	return htmlUrl(`/${fullName}/tree/${encodePath(branch)}`);
 }
 
 export function label(
@@ -145,7 +145,7 @@ export function issue(input: IssueShapeInput): Record<string, unknown> {
 		labels_url: apiUrl(`/repos/${fullName}/issues/${number}/labels{/name}`),
 		comments_url: apiUrl(`/repos/${fullName}/issues/${number}/comments`),
 		events_url: apiUrl(`/repos/${fullName}/issues/${number}/events`),
-		html_url: htmlUrl(`/repo/${fullName}/${webPath}/${number}`),
+		html_url: htmlUrl(`/${fullName}/${webPath}/${number}`),
 		number,
 		state: input.state,
 		title: input.title,
@@ -168,9 +168,9 @@ export function issue(input: IssueShapeInput): Record<string, unknown> {
 		...(kind === "pull_request" && {
 			pull_request: {
 				url: apiUrl(`/repos/${fullName}/pulls/${number}`),
-				html_url: htmlUrl(`/repo/${fullName}/pulls/${number}`),
-				diff_url: htmlUrl(`/repo/${fullName}/pulls/${number}.diff`),
-				patch_url: htmlUrl(`/repo/${fullName}/pulls/${number}.patch`),
+				html_url: htmlUrl(`/${fullName}/pulls/${number}`),
+				diff_url: htmlUrl(`/${fullName}/pulls/${number}.diff`),
+				patch_url: htmlUrl(`/${fullName}/pulls/${number}.patch`),
 				merged_at: input.mergedAt ? isoTimestamp(input.mergedAt) : null,
 			},
 		}),
@@ -194,7 +194,7 @@ export function issueComment(
 		id: input.comment.id,
 		url: apiUrl(`/repos/${fullName}/issues/comments/${input.comment.id}`),
 		html_url: htmlUrl(
-			`/repo/${fullName}/${webPath}/${number}#issuecomment-${input.comment.id}`,
+			`/${fullName}/${webPath}/${number}#issuecomment-${input.comment.id}`,
 		),
 		issue_url: apiUrl(`/repos/${fullName}/issues/${number}`),
 		user: simpleUser(input.author),
@@ -312,7 +312,7 @@ export function commitObject(fullName: string, info: CommitInfo) {
 			comment_count: 0,
 		},
 		url,
-		html_url: htmlUrl(`/repo/${fullName}/commit/${oid}`),
+		html_url: htmlUrl(`/${fullName}/commit/${oid}`),
 		comments_url: apiUrl(`/repos/${fullName}/commits/${oid}/comments`),
 		// Commits aren't linked to accounts by email (yet).
 		author: null,
@@ -320,7 +320,7 @@ export function commitObject(fullName: string, info: CommitInfo) {
 		parents: commit.parent.map((sha) => ({
 			sha,
 			url: apiUrl(`/repos/${fullName}/commits/${sha}`),
-			html_url: htmlUrl(`/repo/${fullName}/commit/${sha}`),
+			html_url: htmlUrl(`/${fullName}/commit/${sha}`),
 		})),
 	};
 }
@@ -351,7 +351,7 @@ export function pullRequest(input: PullShapeInput): Record<string, unknown> {
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	const number = row.number;
 	const url = apiUrl(`/repos/${fullName}/pulls/${number}`);
-	const web = htmlUrl(`/repo/${fullName}/pulls/${number}`);
+	const web = htmlUrl(`/${fullName}/pulls/${number}`);
 	const side = (ref: string, sha: string) => ({
 		label: `${repo.owner.username}:${ref}`,
 		ref,
