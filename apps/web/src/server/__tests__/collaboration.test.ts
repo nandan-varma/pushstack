@@ -220,6 +220,7 @@ describe("search, activity and profiles", () => {
 		expect(found).toEqual([
 			{
 				id: users.contributor.id,
+				apiId: expect.any(Number),
 				username: "contributor",
 				name: "Contributor",
 				image: null,

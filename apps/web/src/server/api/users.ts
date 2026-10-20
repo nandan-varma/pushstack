@@ -26,6 +26,7 @@ const serialize = (row: UserRow, publicRepos: number) =>
 	publicUser(
 		{
 			id: row.id,
+			apiId: row.apiId,
 			username: row.username,
 			name: row.name,
 			image: row.image,
@@ -46,6 +47,17 @@ export async function getAuthenticatedUser(ctx: ApiContext) {
 		total_private_repos: counts.privateRepos,
 		owned_private_repos: counts.privateRepos,
 	});
+}
+
+/** `GET /user/{account_id}`: a public profile by the integer `id`. */
+export async function getUserById(ctx: ApiContext) {
+	const raw = ctx.params.id ?? "";
+	const apiId = /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : 0;
+	if (apiId === 0 || apiId > 2_147_483_647) throw notFoundError();
+	const [row] = await db.select().from(user).where(eq(user.apiId, apiId));
+	if (!row) throw notFoundError();
+	const counts = await repositoryCounts(row.id);
+	return json(serialize(row, counts.publicRepos));
 }
 
 /** `GET /users/{username}` */

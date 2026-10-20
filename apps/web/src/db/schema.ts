@@ -1,4 +1,11 @@
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	index,
+	integer,
+	pgTable,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 
 // Better Auth's tables, maintained by hand: diff against its core schema
 // (@better-auth/core's get-tables) before bumping better-auth.
@@ -12,6 +19,9 @@ export const user = pgTable("user", {
 	updatedAt: timestamp("updatedAt").notNull(),
 	username: text("username").notNull().unique(),
 	displayUsername: text("displayUsername"),
+	// GitHub-style integer id for /api/v3 clients. Not a Better Auth field:
+	// the identity default fills it on insert and backfills existing rows.
+	apiId: integer("apiId").notNull().unique().generatedAlwaysAsIdentity(),
 });
 
 export const session = pgTable(

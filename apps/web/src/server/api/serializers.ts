@@ -13,10 +13,16 @@ import { apiUrl, encodePath, htmlUrl, isoTimestamp } from "./http";
 
 export type RepoRole = "owner" | "admin" | "write" | "read" | "anonymous";
 
+/** GitHub's legacy global id for a user: base64 of `04:User<id>`. */
+export function userNodeId(apiId: number) {
+	return Buffer.from(`04:User${apiId}`).toString("base64");
+}
+
 export function simpleUser(user: PublicUser) {
 	return {
 		login: user.username,
-		id: user.id,
+		id: user.apiId,
+		node_id: userNodeId(user.apiId),
 		avatar_url: user.image,
 		url: apiUrl(`/users/${user.username}`),
 		html_url: htmlUrl(`/users/${user.username}`),

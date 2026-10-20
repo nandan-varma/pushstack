@@ -59,5 +59,11 @@ export type TimelineEventType = TimelineEvent["event"];
 export type TimelineEntry = TimelineEvent & {
 	id: number;
 	createdAt: Date;
-	actor: { id: string; username: string; name: string; image: string | null };
+	actor: {
+		id: string;
+		apiId: number;
+		username: string;
+		name: string;
+		image: string | null;
+	};
 };

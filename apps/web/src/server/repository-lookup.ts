@@ -20,16 +20,19 @@ import { createTtlCoalescedCache } from "./ttl-cache";
 /** The user columns safe to show anyone (never the email). */
 export const publicUserColumns = {
 	id: user.id,
+	apiId: user.apiId,
 	username: user.username,
 	name: user.name,
 	image: user.image,
 };
 /** The same projection for relational queries' `with: { author: … }`. */
 export const publicUserFields = {
-	columns: { id: true, username: true, name: true, image: true },
+	columns: { id: true, apiId: true, username: true, name: true, image: true },
 } as const;
 export type PublicUser = {
 	id: string;
+	/** The integer id the REST API exposes. */
+	apiId: number;
 	username: string;
 	name: string;
 	image: string | null;
