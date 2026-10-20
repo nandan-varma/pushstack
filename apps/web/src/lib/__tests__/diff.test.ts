@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchorKey, collectDiffAnchors } from "../diff-anchors";
+import { anchorKey, collectDiffAnchors } from "../diff";
 
 const key = (path: string, side: "LEFT" | "RIGHT", line: number) =>
 	anchorKey({ path, side, line });

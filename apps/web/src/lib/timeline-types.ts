@@ -8,7 +8,7 @@
  * whichever kind the thread is.
  */
 
-import type { ReviewState } from "./review-types";
+import type { ReviewedState } from "./review-types";
 
 /** A label as it was when an event happened (the label may be edited later). */
 export interface LabelSnapshot {
@@ -28,9 +28,6 @@ export interface TimelineUser {
 	username: string;
 	name: string;
 }
-
-/** A submitted review's state (GitHub's `reviewed` event). */
-export type ReviewedState = Exclude<ReviewState, "pending">;
 
 export type TimelineEvent =
 	/**

@@ -4,7 +4,13 @@ import type { CSSProperties, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { BinaryPreview } from "@/components/BinaryPreview";
-import type { DiffAnchor } from "@/lib/diff-anchors";
+import {
+	anchorsForLine,
+	type DiffAnchor,
+	type ParsedDiffLine,
+	parsePatch,
+	primaryAnchor,
+} from "@/lib/diff";
 import { rawFileUrl } from "@/lib/file-view";
 import {
 	detectLanguage,
@@ -114,18 +120,6 @@ function UnpatchedDiff({
 	);
 }
 
-type DiffLineKind = "meta" | "hunk" | "add" | "remove" | "context";
-
-interface ParsedDiffLine {
-	raw: string;
-	kind: DiffLineKind;
-	prefix: string;
-	code: string;
-	highlightText: string;
-	oldLine: number | null;
-	newLine: number | null;
-}
-
 interface HunkSegment {
 	start: number;
 	end: number;
@@ -139,106 +133,6 @@ interface ParsedFileDiff extends FileDiff {
 	deletions: number;
 	hunks: number;
 	visibleLineCount: number;
-}
-
-const HUNK_HEADER_RE = /^@@\s-([0-9]+)(?:,[0-9]+)?\s\+([0-9]+)(?:,[0-9]+)?\s@@/;
-
-function classifyLine(raw: string): DiffLineKind {
-	if (raw.startsWith("@@")) return "hunk";
-
-	if (raw.startsWith("+")) return "add";
-	if (raw.startsWith("-")) return "remove";
-	if (raw.startsWith("\\")) return "meta";
-
-	return "context";
-}
-
-function parsePatch(patch: string): ParsedDiffLine[] {
-	const normalized = patch.replace(/\r\n/g, "\n");
-	if (!normalized) return [];
-	const rows = normalized.endsWith("\n")
-		? normalized.slice(0, -1).split("\n")
-		: normalized.split("\n");
-	let oldLine = 1;
-	let newLine = 1;
-	let inHunk = false;
-
-	const parsed: ParsedDiffLine[] = [];
-
-	for (const raw of rows) {
-		const kind = classifyLine(raw);
-
-		if (kind === "hunk") {
-			const match = raw.match(HUNK_HEADER_RE);
-			if (match) {
-				oldLine = Number(match[1]);
-				newLine = Number(match[2]);
-			}
-			inHunk = true;
-			parsed.push({
-				raw,
-				kind,
-				prefix: "",
-				code: raw,
-				highlightText: "",
-				oldLine: null,
-				newLine: null,
-			});
-			continue;
-		}
-
-		// Unified diff metadata (file headers, modes, rename info) always
-		// appears before hunks; skip it generically instead of hardcoding labels.
-		if (!inHunk || kind === "meta") {
-			continue;
-		}
-
-		if (kind === "add") {
-			const nextNew = newLine;
-			newLine += 1;
-			parsed.push({
-				raw,
-				kind,
-				prefix: "+",
-				code: raw.slice(1),
-				highlightText: raw.slice(1),
-				oldLine: null,
-				newLine: nextNew,
-			});
-			continue;
-		}
-
-		if (kind === "remove") {
-			const nextOld = oldLine;
-			oldLine += 1;
-			parsed.push({
-				raw,
-				kind,
-				prefix: "-",
-				code: raw.slice(1),
-				highlightText: raw.slice(1),
-				oldLine: nextOld,
-				newLine: null,
-			});
-			continue;
-		}
-
-		const nextOld = oldLine;
-		const nextNew = newLine;
-		oldLine += 1;
-		newLine += 1;
-		parsed.push({
-			raw,
-			kind,
-			prefix: raw.startsWith(" ") ? " " : "",
-			code: raw.startsWith(" ") ? raw.slice(1) : raw,
-			highlightText: raw.startsWith(" ") ? raw.slice(1) : raw,
-			oldLine: nextOld,
-			newLine: nextNew,
-		});
-	}
-
-	return parsed;
 }
 
 // Hunks aren't contiguous in the real file, so each hunk is tokenized on its
@@ -265,25 +159,6 @@ function getHunkSegments(lines: ParsedDiffLine[]): HunkSegment[] {
 }
 
 const NO_TOKENS: ThemedToken[] = [];
-
-/** Every side of a rendered diff line a comment can attach to. */
-function anchorsForLine(path: string, line: ParsedDiffLine): DiffAnchor[] {
-	const anchors: DiffAnchor[] = [];
-	if (line.oldLine !== null) {
-		anchors.push({ path, side: "LEFT", line: line.oldLine });
-	}
-	if (line.newLine !== null) {
-		anchors.push({ path, side: "RIGHT", line: line.newLine });
-	}
-	return anchors;
-}
-
-/** The anchor a line's "+" button uses: the new side, except on a removal. */
-function primaryAnchor(path: string, line: ParsedDiffLine): DiffAnchor | null {
-	if (line.newLine !== null) return { path, side: "RIGHT", line: line.newLine };
-	if (line.oldLine !== null) return { path, side: "LEFT", line: line.oldLine };
-	return null;
-}
 
 function tokenStyle(token: ThemedToken): CSSProperties {
 	return (token.htmlStyle ?? {}) as CSSProperties;

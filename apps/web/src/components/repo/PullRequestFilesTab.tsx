@@ -18,7 +18,7 @@ import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { anchorKey, type DiffAnchor } from "@/lib/diff-anchors";
+import { anchorKey, type DiffAnchor } from "@/lib/diff";
 import {
 	pullRequestPendingReviewQueryOptions,
 	pullRequestReviewThreadsQueryOptions,
@@ -27,7 +27,7 @@ import {
 import type {
 	PullRequestReviewSummary,
 	ReviewAuthor,
-	ReviewSide,
+	ReviewCommentView,
 	ReviewThread,
 } from "@/lib/review-types";
 import { getInitials } from "@/lib/utils/avatar";
@@ -39,18 +39,6 @@ import {
 } from "@/server/reviews";
 
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
-
-/** The fields a rendered comment needs (a thread comment or a pending one). */
-interface ReviewComment {
-	id: number;
-	body: string;
-	path: string;
-	side: ReviewSide;
-	line: number;
-	inReplyToId: number | null;
-	createdAt: Date;
-	author: ReviewAuthor;
-}
 
 interface PullRequestFilesTabProps {
 	owner: string;
@@ -166,8 +154,8 @@ export function PullRequestFilesTab({
 	}, [threads]);
 
 	const pendingByAnchor = useMemo(() => {
-		const map = new Map<string, ReviewComment[]>();
-		for (const comment of (pendingReview?.comments ?? []) as ReviewComment[]) {
+		const map = new Map<string, ReviewCommentView[]>();
+		for (const comment of pendingReview?.comments ?? []) {
 			const key = anchorKey(comment);
 			const list = map.get(key);
 			if (list) list.push(comment);
@@ -523,7 +511,7 @@ function PendingComments({
 	name,
 	repoId,
 }: {
-	comments: ReviewComment[];
+	comments: ReviewCommentView[];
 	owner: string;
 	name: string;
 	repoId: number;

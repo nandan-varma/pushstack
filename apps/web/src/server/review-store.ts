@@ -5,7 +5,7 @@
  */
 import { db } from "#/db";
 import type { PullRequest } from "#/db/app-schema";
-import { anchorKey, collectDiffAnchors } from "#/lib/diff-anchors";
+import { anchorKey, collectDiffAnchors } from "#/lib/diff";
 import type {
 	PullRequestReviewSummary,
 	ReviewCommentView,
@@ -19,9 +19,7 @@ import type { RepositoryWithOwner } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 
 /** A review comment with its author and the state of its review. */
-export type ReviewCommentRow = Awaited<
-	ReturnType<typeof listReviewComments>
->[number];
+type ReviewCommentRow = Awaited<ReturnType<typeof listReviewComments>>[number];
 
 /** Every review comment on a pull request, oldest first, with author + review. */
 export async function listReviewComments(pullRequestId: number) {
@@ -35,7 +33,8 @@ export async function listReviewComments(pullRequestId: number) {
 	});
 }
 
-function toView(row: ReviewCommentRow): ReviewCommentView {
+/** A review comment row as the UI and API see it. */
+export function toView(row: ReviewCommentRow): ReviewCommentView {
 	return {
 		id: row.id,
 		body: row.body,
@@ -43,6 +42,7 @@ function toView(row: ReviewCommentRow): ReviewCommentView {
 		side: row.side,
 		line: row.line,
 		commitSha: row.commitSha,
+		inReplyToId: row.inReplyToId,
 		createdAt: row.createdAt,
 		author: row.author,
 	};

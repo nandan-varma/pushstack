@@ -15,6 +15,9 @@ export type ReviewState =
 	| "approved"
 	| "changes_requested";
 
+/** A submitted review's state (a `pending` review has no state to show). */
+export type ReviewedState = Exclude<ReviewState, "pending">;
+
 /** The side of the diff a comment is anchored to. */
 export type ReviewSide = "LEFT" | "RIGHT";
 
@@ -35,6 +38,8 @@ export interface ReviewCommentView {
 	line: number;
 	/** The head tip the anchor was computed against. */
 	commitSha: string | null;
+	/** The comment this replies to; null for a thread root. */
+	inReplyToId: number | null;
 	createdAt: Date;
 	author: ReviewAuthor;
 }

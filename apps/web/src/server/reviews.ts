@@ -23,6 +23,7 @@ import {
 	headShaFor,
 	listReviewComments,
 	pendingReviewFor,
+	toView,
 } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { recordTimelineEvent } from "./timeline-store";
@@ -96,16 +97,7 @@ export const getMyPendingReview = createServerFn({ method: "GET" })
 				);
 				return {
 					...review,
-					comments: comments.map((row) => ({
-						id: row.id,
-						body: row.body,
-						path: row.path,
-						side: row.side,
-						line: row.line,
-						inReplyToId: row.inReplyToId,
-						createdAt: row.createdAt,
-						author: row.author,
-					})),
+					comments: comments.map(toView),
 				};
 			},
 		);
