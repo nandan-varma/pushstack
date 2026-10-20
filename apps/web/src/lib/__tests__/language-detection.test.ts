@@ -4,10 +4,8 @@ import {
 	formatFileSize,
 	getMimeType,
 	getPreviewKind,
-	isBinaryFile,
 	isLargeContent,
 	MAX_AUTO_HIGHLIGHT_LINES,
-	MIME_TYPE_MAP,
 } from "../language-detection";
 
 describe("isLargeContent", () => {
@@ -98,26 +96,6 @@ describe("detectLanguage", () => {
 	});
 });
 
-describe("isBinaryFile", () => {
-	it("returns true for known binary extensions", () => {
-		expect(isBinaryFile("photo.jpg")).toBe(true);
-		expect(isBinaryFile("image.PNG")).toBe(true);
-		expect(isBinaryFile("archive.zip")).toBe(true);
-		expect(isBinaryFile("font.woff2")).toBe(true);
-		expect(isBinaryFile("video.mp4")).toBe(true);
-	});
-
-	it("returns false for text extensions", () => {
-		expect(isBinaryFile("index.ts")).toBe(false);
-		expect(isBinaryFile("readme.md")).toBe(false);
-		expect(isBinaryFile("style.css")).toBe(false);
-	});
-
-	it("returns false for files with no extension", () => {
-		expect(isBinaryFile("Makefile")).toBe(false);
-	});
-});
-
 describe("getMimeType", () => {
 	it("returns correct MIME types for known extensions", () => {
 		expect(getMimeType("image.png")).toBe("image/png");
@@ -170,6 +148,18 @@ describe("getPreviewKind", () => {
 		expect(getPreviewKind("style.css")).toBe(null);
 		expect(getPreviewKind("archive.zip")).toBe(null);
 	});
+
+	it("classifies the extensions the old binary list disagreed about", () => {
+		// webp/avif/ogg/flac/m4a/webm/otf were missing from the deleted
+		// isBinaryFile list while MIME_TYPE_MAP knew them, so the two
+		// classifications disagreed about the same file. One table answers
+		// both now, and this pins the cases that used to drift.
+		expect(getPreviewKind("logo.avif")).toBe("image");
+		expect(getPreviewKind("clip.webm")).toBe("video");
+		expect(getPreviewKind("track.flac")).toBe("audio");
+		expect(getPreviewKind("voice.m4a")).toBe("audio");
+		expect(getPreviewKind("face.otf")).toBe("font");
+	});
 });
 
 describe("formatFileSize", () => {
@@ -187,40 +177,5 @@ describe("formatFileSize", () => {
 
 	it("rounds to two decimal places", () => {
 		expect(formatFileSize(1234567)).toBe("1.18 MB");
-	});
-});
-
-describe("MIME_TYPE_MAP completeness", () => {
-	it("covers all previewable extensions from PREVIEW_KIND_BY_EXTENSION", () => {
-		const previewableExtensions = [
-			"png",
-			"jpg",
-			"jpeg",
-			"gif",
-			"webp",
-			"avif",
-			"bmp",
-			"ico",
-			"svg",
-			"pdf",
-			"mp3",
-			"wav",
-			"ogg",
-			"flac",
-			"m4a",
-			"mp4",
-			"webm",
-			"mov",
-			"woff",
-			"woff2",
-			"ttf",
-			"otf",
-		];
-		for (const ext of previewableExtensions) {
-			expect(
-				MIME_TYPE_MAP[ext],
-				`MIME_TYPE_MAP missing "${ext}"`,
-			).toBeDefined();
-		}
 	});
 });

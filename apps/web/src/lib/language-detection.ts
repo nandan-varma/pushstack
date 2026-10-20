@@ -327,45 +327,8 @@ export function detectLanguage(filePath: string): string {
 	return LANGUAGE_MAP[extension] || "plaintext";
 }
 
-/**
- * Check if file is binary based on extension
- */
-export function isBinaryFile(filePath: string): boolean {
-	const binaryExtensions = [
-		"png",
-		"jpg",
-		"jpeg",
-		"gif",
-		"bmp",
-		"ico",
-		"svg",
-		"pdf",
-		"zip",
-		"tar",
-		"gz",
-		"rar",
-		"7z",
-		"exe",
-		"dll",
-		"so",
-		"dylib",
-		"mp3",
-		"mp4",
-		"avi",
-		"mov",
-		"wav",
-		"woff",
-		"woff2",
-		"ttf",
-		"eot",
-	];
-
-	const extension = filePath.split(".").pop()?.toLowerCase() || "";
-	return binaryExtensions.includes(extension);
-}
-
 /** Extension → real MIME type, for native browser preview elements. */
-export const MIME_TYPE_MAP: Record<string, string> = {
+const MIME_TYPE_MAP: Record<string, string> = {
 	// Images
 	png: "image/png",
 	jpg: "image/jpeg",
@@ -407,40 +370,22 @@ export function getMimeType(filePath: string): string {
 
 export type PreviewKind = "image" | "pdf" | "audio" | "video" | "font";
 
-const PREVIEW_KIND_BY_EXTENSION: Record<string, PreviewKind> = {
-	png: "image",
-	jpg: "image",
-	jpeg: "image",
-	gif: "image",
-	webp: "image",
-	avif: "image",
-	bmp: "image",
-	ico: "image",
-	svg: "image",
-	pdf: "pdf",
-	mp3: "audio",
-	wav: "audio",
-	ogg: "audio",
-	flac: "audio",
-	m4a: "audio",
-	mp4: "video",
-	webm: "video",
-	mov: "video",
-	woff: "font",
-	woff2: "font",
-	ttf: "font",
-	otf: "font",
-};
-
 /**
  * Extension-based preview classification, independent of the server's
  * content-based (null-byte) binary sniff — decides *how* to render a binary
  * file, not whether it's binary.
+ *
+ * Derived from `getMimeType` so the extension list exists once: the two tables
+ * used to be maintained by hand and had already drifted apart.
  */
 export function getPreviewKind(filePath: string): PreviewKind | null {
-	const extension =
-		(filePath.split("/").pop() || "").split(".").pop()?.toLowerCase() || "";
-	return PREVIEW_KIND_BY_EXTENSION[extension] || null;
+	const mimeType = getMimeType(filePath);
+	if (mimeType.startsWith("image/")) return "image";
+	if (mimeType === "application/pdf") return "pdf";
+	if (mimeType.startsWith("audio/")) return "audio";
+	if (mimeType.startsWith("video/")) return "video";
+	if (mimeType.startsWith("font/")) return "font";
+	return null;
 }
 
 /**
