@@ -81,7 +81,9 @@ export function ThreadTimeline({
 		onSuccess: (_, { data }) => {
 			queryClient.setQueryData(postedOptions.queryKey, (posted = []) =>
 				posted.map((c) =>
-					c.id === data.commentId ? { ...c, body: data.body } : c,
+					c.id === data.commentId
+						? { ...c, body: data.body, editedAt: new Date() }
+						: c,
 				),
 			);
 			refresh();

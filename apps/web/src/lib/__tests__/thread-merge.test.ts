@@ -99,4 +99,13 @@ describe("mergeThreadItems", () => {
 			"e1",
 		]);
 	});
+
+	it("tails the viewer's comment when comments are complete but events still page", () => {
+		const r = mergeThreadItems(
+			{ loaded: [c(1, 1)], hasMore: false },
+			{ loaded: [c(1, 2), c(2, 3)], hasMore: true },
+			[c(99, 100)],
+		);
+		expect(ids(r)).toEqual(["c1", "e1", "e2", "c99"]);
+	});
 });

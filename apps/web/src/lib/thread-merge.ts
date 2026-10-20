@@ -50,8 +50,10 @@ export function mergeThreadItems<
 ): { items: ThreadItem<C, E>[]; hasMore: boolean } {
 	const loadedIds = new Set(comments.loaded.map((c) => c.id));
 	const unseen = posted.filter((c) => !loadedIds.has(c.id));
-	// With every comment loaded the viewer's new ones are simply the newest.
-	if (!comments.hasMore && unseen.length > 0) {
+	// With nothing left to load the viewer's new comments are simply the newest.
+	// While events still page, the events horizon would hide them: tail instead.
+	const tail = comments.hasMore || events.hasMore;
+	if (!tail && unseen.length > 0) {
 		comments = { ...comments, loaded: [...comments.loaded, ...unseen] };
 	}
 	const commentHorizon = horizonOf(comments);
@@ -69,7 +71,7 @@ export function mergeThreadItems<
 			timeOf(b.kind === "comment" ? b.comment : b.event),
 	);
 	// Otherwise they trail the visible thread, as on GitHub.
-	if (comments.hasMore) {
+	if (tail) {
 		items.push(
 			...unseen.map((comment) => ({ kind: "comment" as const, comment })),
 		);
