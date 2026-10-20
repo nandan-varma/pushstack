@@ -1,0 +1,4 @@
+{
+	"include": ["src", "test", "tsdown.config.ts"],
+	"extends": "@pushstack/tsconfig/node.json"
+}
