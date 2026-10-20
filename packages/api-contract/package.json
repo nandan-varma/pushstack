@@ -1,0 +1,38 @@
+{
+	"name": "@pushstack/api-contract",
+	"version": "0.0.0",
+	"private": true,
+	"description": "The /api/v3 REST API contract: one declarative definition per endpoint (method, path, zod input and response schemas, GitHub docs link), shared by the web app and the CLI.",
+	"license": "AGPL-3.0-or-later",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./client": {
+			"types": "./dist/types/client.d.ts",
+			"import": "./dist/client.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"sideEffects": false,
+	"scripts": {
+		"build": "tsdown && tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"lint": "biome check ."
+	},
+	"dependencies": {
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"@pushstack/tsconfig": "workspace:*",
+		"tsdown": "^0.23.1",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
+	}
+}

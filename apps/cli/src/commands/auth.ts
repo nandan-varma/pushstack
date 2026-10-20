@@ -9,10 +9,6 @@ import {
 } from "../config";
 import { CliError, EXIT_AUTH, type Io } from "../io";
 
-interface User {
-	login: string;
-}
-
 const options = {
 	hostname: { type: "string", short: "h" },
 	"with-token": { type: "boolean" },
@@ -34,9 +30,9 @@ async function login(io: Io, args: string[]) {
 	const token = (await io.readStdin()).trim();
 	if (!token) throw new CliError("no token on stdin");
 	const client = await connect(io, host, false, token);
-	let user: User;
+	let user: { login: string };
 	try {
-		user = (await client.json<User>("user")).data;
+		user = (await client.call("users/get-authenticated")).data;
 	} catch (error) {
 		throw new CliError(
 			`could not log in to ${host}: ${(error as Error).message}`,
@@ -93,7 +89,7 @@ async function status(io: Io, args: string[]) {
 			credentials.source === "PST_TOKEN" ? "PST_TOKEN" : hostsFile(io);
 		const client = await connect(io, host);
 		try {
-			const { data } = await client.json<User>("user");
+			const { data } = await client.call("users/get-authenticated");
 			text += `${host}\n  ✓ Logged in to ${host} account ${data.login} (${where})\n  - Active account: true\n  - Git operations protocol: https\n  - Token: ${values["show-token"] ? credentials.token : mask(credentials.token)}\n`;
 		} catch (error) {
 			failed = true;
