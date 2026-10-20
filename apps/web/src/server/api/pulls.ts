@@ -78,13 +78,31 @@ const PULL_COMMITS_LIMIT = 250;
 const PULL_FILES_LIMIT = 3000;
 /** Patch bytes one `GET …/files` response carries before omitting the rest. */
 export const PULL_PATCH_BUDGET_BYTES = 2 * 1024 * 1024;
-/** Recent pull request diffs, keyed by the tips they compare. */
+/**
+ * Recent pull request diffs, keyed by the tips they compare. Entries are capped
+ * by count, so a diff whose patches exceed this is served but not kept: four
+ * pathological diffs must not pin hundreds of MB in a serverless instance.
+ */
+const DIFF_CACHE_MAX_PATCH_CHARS = 8 * 1024 * 1024;
 const diffCache = createTtlCoalescedCache<
 	Awaited<ReturnType<typeof getBranchDiff>>
 >({
 	ttlMs: 30_000,
 	maxEntries: 4,
 });
+async function cachedDiff(
+	key: string,
+	compute: () => ReturnType<typeof getBranchDiff>,
+) {
+	const diff = await diffCache.get(key, compute);
+	let patchChars = 0;
+	for (const file of diff.files) {
+		if (file.kind === "text") patchChars += file.patch?.length ?? 0;
+	}
+	if (patchChars > DIFF_CACHE_MAX_PATCH_CHARS) diffCache.delete(key);
+	return diff;
+}
+
 /** Shown when a branch is gone and no tip was recorded. */
 const UNKNOWN_SHA = "0".repeat(40);
 
@@ -673,7 +691,7 @@ export async function listPullFiles(ctx: ApiContext) {
 	const { baseSha, headSha } = tipShas(record.row, await branchTips(repo));
 	const known = baseSha !== UNKNOWN_SHA && headSha !== UNKNOWN_SHA;
 	const diff = known
-		? await diffCache.get(`${repo.id}:${baseSha}..${headSha}`, () =>
+		? await cachedDiff(`${repo.id}:${baseSha}..${headSha}`, () =>
 				getBranchDiff(ownerKey, repo.name, baseSha, headSha),
 			)
 		: null;
