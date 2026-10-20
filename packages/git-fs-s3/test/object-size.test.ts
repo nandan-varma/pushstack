@@ -11,6 +11,7 @@ import {
 	MemoryObjectStore,
 	type ObjectStore,
 } from "../src/index.js";
+import { BATCH_MAX_IN_FLIGHT } from "../src/object-size.js";
 import type { Repo } from "../src/ops/index.js";
 import { authorNow, commitFilesToBare } from "../src/ops/index.js";
 import {
@@ -247,5 +248,77 @@ describe("getObjectSizes", () => {
 		};
 		if (!first) throw new Error("fixture has no objects");
 		expect((await getObjectSizes(repo, [first.oid])).get(first.oid)).toBeNull();
+	});
+});
+
+describe("getObjectSizes bounds", () => {
+	it("keeps at most BATCH_MAX_IN_FLIGHT range reads in flight for scattered objects", async () => {
+		const store = new MemoryObjectStore();
+		let inFlight = 0;
+		let maxInFlight = 0;
+		let ranges = 0;
+		const counting: ObjectStore = {
+			get: (k) => store.get(k),
+			put: (k, d) => store.put(k, d),
+			delete: (k) => store.delete(k),
+			head: (k) => store.head(k),
+			list: (p, o) => store.list(p, o),
+			getRange: async (k, s, e) => {
+				ranges++;
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				await new Promise((resolve) => setTimeout(resolve, 2));
+				inFlight--;
+				return store.getRange(k, s, e);
+			},
+		};
+		const repo: Repo = { fs: createGitFs(counting), gitdir: "git", cache: {} };
+		// Incompressible 70 KiB blobs: every entry is more than 64 KiB from the
+		// next, so no two share a window.
+		const files = Array.from({ length: 30 }, (_, i) => {
+			const content = new Uint8Array(70 * 1024);
+			crypto.getRandomValues(content.subarray(0, 65536));
+			crypto.getRandomValues(content.subarray(65536));
+			return { path: `f${i}.bin`, content };
+		});
+		const commitOid = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "scattered",
+			author: authorNow("Test", "test@example.com"),
+			files,
+		});
+		const { commit } = await git.readCommit({ ...repo, oid: commitOid });
+		const { tree } = await git.readTree({ ...repo, oid: commit.tree });
+		ranges = 0;
+		maxInFlight = 0;
+		const sizes = await getObjectSizes(
+			repo,
+			tree.map((entry) => entry.oid),
+		);
+		for (const entry of tree) expect(sizes.get(entry.oid)).toBe(70 * 1024);
+		expect(ranges).toBeGreaterThanOrEqual(files.length);
+		expect(maxInFlight).toBeLessThanOrEqual(BATCH_MAX_IN_FLIGHT);
+		expect(maxInFlight).toBeGreaterThan(1);
+	});
+
+	it("throws when the pack directory listing fails, rather than answering null", async () => {
+		const { store } = await loadFixture();
+		const [first] = await indexedObjects(store);
+		if (!first) throw new Error("fixture has no objects");
+		const failingList: ObjectStore = {
+			get: (k) => store.get(k),
+			put: (k, d) => store.put(k, d),
+			delete: (k) => store.delete(k),
+			head: (k) => store.head(k),
+			list: () => Promise.reject(new Error("storage down")),
+			getRange: (k, s, e) => store.getRange(k, s, e),
+		};
+		const repo: Repo = {
+			fs: createGitFs(failingList),
+			gitdir: "git",
+			cache: {},
+		};
+		await expect(getObjectSizes(repo, [first.oid])).rejects.toThrow();
+		await expect(getObjectSize(repo, first.oid)).rejects.toThrow();
 	});
 });

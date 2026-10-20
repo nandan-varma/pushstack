@@ -60,6 +60,15 @@ const DELTA_PROBE_BYTES = 4 * 1024;
 /** The most a delta header can occupy once inflated: two 10-byte varints. */
 const DELTA_HEADER_MAX_BYTES = 20;
 
+/**
+ * No pack directory yet means no packs; any other listing failure throws, so
+ * a storage outage is never mistaken for "no packed objects".
+ */
+function noPackDirectory(error: unknown): string[] {
+	if ((error as { code?: string } | null)?.code === "ENOENT") return [];
+	throw error;
+}
+
 /** The pack holding `oid`, with the offset of its entry. */
 async function locatePackedObject(
 	repo: Repo,
@@ -68,7 +77,7 @@ async function locatePackedObject(
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
 	const indexes = parsePackDirectory(
-		await fsp.readdir(packDir).catch(() => [] as string[]),
+		await fsp.readdir(packDir).catch(noPackDirectory),
 	).filter((file) => file.kind === "idx");
 
 	for (const { base } of indexes) {
@@ -173,6 +182,26 @@ export async function getObjectSize(
 
 /** Gap between two entries that one batched read still spans. */
 const BATCH_MAX_GAP_BYTES = 64 * 1024;
+/** Range reads one batch keeps in flight at once. */
+export const BATCH_MAX_IN_FLIGHT = 8;
+
+/** Run `tasks`, at most `limit` at a time. */
+async function runPooled(
+	tasks: Array<() => Promise<void>>,
+	limit: number,
+): Promise<void> {
+	let next = 0;
+	const worker = async () => {
+		while (next < tasks.length) {
+			const task = tasks[next++];
+			if (task) await task();
+		}
+	};
+	await Promise.all(
+		Array.from({ length: Math.min(limit, tasks.length) }, worker),
+	);
+}
+
 /** The most one batched read fetches. */
 const BATCH_MAX_SPAN_BYTES = 1024 * 1024;
 
@@ -183,7 +212,7 @@ async function packIndexes(
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
 	const files = parsePackDirectory(
-		await fsp.readdir(packDir).catch(() => [] as string[]),
+		await fsp.readdir(packDir).catch(noPackDirectory),
 	).filter((file) => file.kind === "idx");
 	const indexes = await Promise.all(
 		files.map(async ({ base }) => ({
@@ -226,7 +255,7 @@ export async function getObjectSizes(
 		}
 	}
 
-	const work: Promise<void>[] = [];
+	const work: Array<() => Promise<void>> = [];
 	for (const [packName, entries] of byPack) {
 		const packKey = `${repo.gitdir}/objects/pack/${packName}`;
 		entries.sort((a, b) => a.offset - b.offset);
@@ -249,25 +278,22 @@ export async function getObjectSizes(
 			}
 		}
 		for (const window of windows) {
-			work.push(
-				(async () => {
-					const start = window[0]?.offset ?? 0;
-					const end = (window.at(-1)?.offset ?? start) + ENTRY_PROBE_BYTES;
-					const bytes = await read(packKey, start, end - 1);
-					if (!bytes) return;
-					await Promise.all(
-						window.map(async ({ oid, offset }) => {
-							sizes.set(
-								oid,
-								await sizeFromWindow(read, packKey, bytes, start, offset),
-							);
-						}),
+			work.push(async () => {
+				const start = window[0]?.offset ?? 0;
+				const end = (window.at(-1)?.offset ?? start) + ENTRY_PROBE_BYTES;
+				const bytes = await read(packKey, start, end - 1);
+				if (!bytes) return;
+				// Sequential: a delta's follow-up read stays inside this slot.
+				for (const { oid, offset } of window) {
+					sizes.set(
+						oid,
+						await sizeFromWindow(read, packKey, bytes, start, offset),
 					);
-				})(),
-			);
+				}
+			});
 		}
 	}
-	await Promise.all(work);
+	await runPooled(work, BATCH_MAX_IN_FLIGHT);
 	return sizes;
 }
 
