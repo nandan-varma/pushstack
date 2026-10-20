@@ -174,6 +174,9 @@ export function createCachedStore(
 	const rangePrefix = (key: string) => `${key}\0`;
 	const admitRange = (key: string, rangeKey: string, data: Uint8Array) => {
 		rangeCache.set(rangeKey, clone(data), { ttl: ttlForKey?.(key) });
+		// lru-cache silently rejects an entry larger than maxSize, without
+		// calling `dispose`; indexing it would leak.
+		if (!rangeCache.has(rangeKey)) return;
 		const keys = rangeKeysByObject.get(key) ?? new Set<string>();
 		keys.add(rangeKey);
 		rangeKeysByObject.set(key, keys);

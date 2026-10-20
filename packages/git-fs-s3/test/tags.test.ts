@@ -14,6 +14,7 @@ import {
 	listTags,
 	type Repo,
 	resolveCommit,
+	resolveCommitOid,
 } from "../src/ops/index.js";
 
 const author = authorNow("Test", "test@example.com");
@@ -98,5 +99,59 @@ describe("tags", () => {
 		]);
 		expect(tags[0]?.tagObject).toBeUndefined();
 		expect(tags[1]?.tagObject).toMatch(/^[0-9a-f]{40}$/);
+	});
+});
+
+describe("resolveCommitOid", () => {
+	it("resolves branches, tags, HEAD, full and abbreviated shas", async () => {
+		const { repo, first, second } = await repoWithTwoCommits();
+		await git.tag({ ...repo, ref: "v1", object: first });
+		await git.annotatedTag({
+			...repo,
+			ref: "v2",
+			object: second,
+			message: "release 2",
+			tagger: { ...author, timestamp: 0, timezoneOffset: 0 },
+		});
+
+		expect(await resolveCommitOid(repo, "main")).toBe(second);
+		expect(await resolveCommitOid(repo, "HEAD")).toBe(second);
+		expect(await resolveCommitOid(repo, "v1")).toBe(first);
+		expect(await resolveCommitOid(repo, "v2")).toBe(second);
+		expect(await resolveCommitOid(repo, first)).toBe(first);
+		expect(await resolveCommitOid(repo, first.slice(0, 7))).toBe(first);
+		expect(await resolveCommitOid(repo, first.slice(0, 7).toUpperCase())).toBe(
+			first,
+		);
+	});
+
+	it("accepts an uppercase sha and rejects shas of trees and blobs", async () => {
+		const { repo, second } = await repoWithTwoCommits();
+		expect(await resolveCommitOid(repo, second.toUpperCase())).toBe(second);
+		expect(await resolveCommitOid(repo, second.slice(0, 9).toUpperCase())).toBe(
+			second,
+		);
+
+		const { commit } = await git.readCommit({ ...repo, oid: second });
+		const { tree } = await git.readTree({ ...repo, oid: commit.tree });
+		const blob = tree[0]?.oid ?? "";
+		for (const oid of [commit.tree, blob]) {
+			await expect(resolveCommitOid(repo, oid)).rejects.toBeInstanceOf(
+				GitRefNotFoundError,
+			);
+			await expect(
+				resolveCommitOid(repo, oid.slice(0, 8)),
+			).rejects.toBeInstanceOf(GitRefNotFoundError);
+		}
+	});
+
+	it("reports unknown names and abbreviations as a missing ref", async () => {
+		const { repo } = await repoWithTwoCommits();
+		await expect(resolveCommitOid(repo, "nope")).rejects.toBeInstanceOf(
+			GitRefNotFoundError,
+		);
+		await expect(resolveCommitOid(repo, "0000000")).rejects.toBeInstanceOf(
+			GitRefNotFoundError,
+		);
 	});
 });
