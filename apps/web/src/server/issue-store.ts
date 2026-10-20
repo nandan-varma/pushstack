@@ -13,6 +13,7 @@ import { labelNameSchema } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { setThreadLabels } from "./label-store";
+import { recordThreadActivity } from "./notification-store";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
 
@@ -46,6 +47,12 @@ export async function createIssueForUser(
 		issue.body,
 		userId,
 	);
+	await recordThreadActivity({
+		thread: issue,
+		actorId: userId,
+		actorReason: "author",
+		text: issue.body,
+	});
 	await recordActivity(userId, repoId, {
 		type: "issue",
 		metadata: { number: issue.number, title: issue.title, action: "opened" },
@@ -118,6 +125,17 @@ export async function updateIssueThreadFields(
 			fields.body,
 			userId,
 		);
+	}
+	if (bodyChanged || statusChanged) {
+		// New @mentions in an edited body notify; a close or reopen tells
+		// every subscriber.
+		await recordThreadActivity({
+			thread: issue,
+			actorId: userId,
+			...(statusChanged && { actorReason: "state_change" as const }),
+			...(bodyChanged && { text: fields.body, previousText: issue.body }),
+			notifySubscribers: statusChanged,
+		});
 	}
 	if (fields.status && fields.status !== issue.status) {
 		await recordTimelineEvent(issue.id, userId, {

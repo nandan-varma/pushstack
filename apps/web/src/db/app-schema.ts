@@ -13,6 +13,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
+import type { NotificationReason } from "#/lib/notifications";
 import type { ReactionContent } from "#/lib/reactions";
 import type { ReviewSide, ReviewState } from "#/lib/review-types";
 import type {
@@ -283,6 +284,74 @@ export const reactions = pgTable(
 			.on(table.commentId, table.userId, table.content)
 			.where(sql`${table.commentId} is not null`),
 		userIdx: index("reaction_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * A user's subscription to an issue or pull request thread (GitHub's thread
+ * subscription). Written when they open, comment on, are mentioned in or
+ * assigned to the thread, or subscribe by hand; `subscribed = false` is an
+ * explicit unsubscribe, which later activity must not overwrite. Subscribers
+ * are notified of new activity (src/server/notification-store.ts).
+ */
+export const threadSubscriptions = pgTable(
+	"thread_subscriptions",
+	{
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		subscribed: boolean("subscribed").notNull().default(true),
+		reason: text("reason").$type<NotificationReason>().notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.issueId, table.userId] }),
+		userIdx: index("thread_subscription_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * One notification thread per user and issue/PR (GitHub's model): new
+ * activity bumps `updated_at`, marks it unread and sets the latest `reason`.
+ * The inbox reads `(user_id, updated_at)`, the unread badge and filter the
+ * partial `(user_id, updated_at) where unread`.
+ */
+export const notifications = pgTable(
+	"notifications",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		reason: text("reason").$type<NotificationReason>().notNull(),
+		unread: boolean("unread").notNull().default(true),
+		lastReadAt: timestamptz("last_read_at"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		userIssueIdx: uniqueIndex("notification_user_issue_idx").on(
+			table.userId,
+			table.issueId,
+		),
+		userUpdatedIdx: index("notification_user_updated_idx").on(
+			table.userId,
+			table.updatedAt,
+		),
+		userUnreadIdx: index("notification_user_unread_idx")
+			.on(table.userId, table.updatedAt)
+			.where(sql`${table.unread}`),
+		issueIdx: index("notification_issue_idx").on(table.issueId),
 	}),
 );
 

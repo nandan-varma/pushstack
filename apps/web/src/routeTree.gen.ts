@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RepositoriesRouteImport } from './routes/repositories'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -62,6 +63,11 @@ const AuthRoute = AuthRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RepositoriesRoute = RepositoriesRouteImport.update({
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/repositories': typeof RepositoriesRouteWithChildren
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/health': typeof ApiHealthRoute
@@ -293,6 +301,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/notifications': typeof NotificationsRoute
   '/repositories': typeof RepositoriesRouteWithChildren
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -331,6 +340,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/auth'
     | '/dashboard'
+    | '/notifications'
     | '/repositories'
     | '/search'
     | '/settings'
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/auth'
     | '/dashboard'
+    | '/notifications'
     | '/search'
     | '/settings'
     | '/api/health'
@@ -401,6 +412,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/auth'
     | '/dashboard'
+    | '/notifications'
     | '/repositories'
     | '/search'
     | '/settings'
@@ -438,6 +450,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRouteWithChildren
   DashboardRoute: typeof DashboardRoute
+  NotificationsRoute: typeof NotificationsRoute
   RepositoriesRoute: typeof RepositoriesRouteWithChildren
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -479,6 +492,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/repositories': {
@@ -785,6 +805,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   AuthRoute: AuthRouteWithChildren,
   DashboardRoute: DashboardRoute,
+  NotificationsRoute: NotificationsRoute,
   RepositoriesRoute: RepositoriesRouteWithChildren,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,

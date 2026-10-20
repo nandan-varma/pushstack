@@ -9,6 +9,7 @@ import { db } from "#/db";
 import { repositoryCollaborators, threadAssignees } from "#/db/app-schema";
 import { MAX_ASSIGNEES } from "#/lib/limits";
 import { withRepositoryLock } from "./git-repo-lock";
+import { recordThreadActivity } from "./notification-store";
 import { type PublicUser, publicUserFields } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
 
@@ -95,6 +96,14 @@ export async function replaceThreadAssignees(
 				await recordTimelineEvent(issue.id, actorId, {
 					event: "unassigned",
 					assignee: { username: a.user.username, name: a.user.name },
+				});
+			}
+			if (added.length > 0) {
+				await recordThreadActivity({
+					thread: issue,
+					actorId,
+					direct: { userIds: added.map((u) => u.id), reason: "assign" },
+					notifySubscribers: false,
 				});
 			}
 			return wanted;
