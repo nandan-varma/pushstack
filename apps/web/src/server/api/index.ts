@@ -55,7 +55,7 @@ import {
 } from "./repos";
 import { listTags } from "./tags";
 import { listEvents, listTimelineItems } from "./timeline";
-import { getAuthenticatedUser, getUser } from "./users";
+import { getAuthenticatedUser, getUser, getUserById } from "./users";
 
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
@@ -79,6 +79,7 @@ const ROUTES: Route[] = [
 		pattern: "/user/repos",
 		handler: createAuthenticatedUserRepository,
 	},
+	{ method: "GET", pattern: "/user/:id", handler: getUserById },
 	{ method: "GET", pattern: "/users/:username", handler: getUser },
 	{
 		method: "GET",

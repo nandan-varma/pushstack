@@ -176,7 +176,8 @@ describe("users", () => {
 		const { body } = await call("/user", asToken(alice));
 		expect(body).toMatchObject({
 			login: "alice",
-			id: users.alice.id,
+			id: expect.any(Number),
+			node_id: expect.any(String),
 			type: "User",
 			name: "Alice",
 			email: null,
@@ -196,6 +197,27 @@ describe("users", () => {
 		expect(body).not.toHaveProperty("total_private_repos");
 		expect((await call("/users/nobody")).status).toBe(404);
 		expect((await call("/users/..%2Fetc")).status).toBe(404);
+	});
+
+	it("gives users stable integer ids and looks them up by id", async () => {
+		const a = (await call("/users/alice")).body;
+		const b = (await call("/users/bob")).body;
+		expect(Number.isInteger(a.id)).toBe(true);
+		expect(a.id).not.toBe(b.id);
+		expect((await call("/user", asToken(alice))).body.id).toBe(a.id);
+		expect(Buffer.from(a.node_id, "base64").toString()).toBe(`04:User${a.id}`);
+		const byId = await call(`/user/${b.id}`);
+		expect(byId.status).toBe(200);
+		expect(byId.body).toMatchObject({ login: "bob", id: b.id });
+		expect(byId.body).not.toHaveProperty("total_private_repos");
+		for (const bad of ["0", "-1", "99999999", "abc", "99999999999999"])
+			expect((await call(`/user/${bad}`)).status).toBe(404);
+	});
+
+	it("serializes owners and authors with the integer id", async () => {
+		const aliceId = (await call("/users/alice")).body.id;
+		const repos = await call("/users/alice/repos", asToken(alice));
+		for (const r of repos.body) expect(r.owner.id).toBe(aliceId);
 	});
 });
 

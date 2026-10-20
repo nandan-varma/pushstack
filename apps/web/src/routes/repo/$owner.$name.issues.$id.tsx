@@ -163,6 +163,7 @@ function IssueDetailPage() {
 							...created,
 							author: {
 								id: user.id,
+								apiId: 0, // the web UI never shows it
 								name: user.name,
 								username: user.username ?? user.name,
 								image: user.image ?? null,

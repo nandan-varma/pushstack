@@ -30,7 +30,7 @@ import {
 	RepositoryExistsError,
 	repoNameSchema,
 } from "../repository-create";
-import { publicUserColumns } from "../repository-lookup";
+import { type PublicUser, publicUserColumns } from "../repository-lookup";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
 	apiUrl,
@@ -138,7 +138,7 @@ async function listRepositories(
 
 type Row = {
 	repo: typeof repositories.$inferSelect;
-	owner: { id: string; username: string; name: string; image: string | null };
+	owner: PublicUser;
 	collaboratorRole: "read" | "write" | "admin" | null;
 };
 

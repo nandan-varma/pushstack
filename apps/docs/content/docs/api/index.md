@@ -91,6 +91,7 @@ kept) and is absent when everything fits on one page. Items deeper than
 | Endpoint | Status | Notes |
 | --- | --- | --- |
 | `GET /user` | supported | |
+| `GET /user/{account_id}` | supported | public profile by integer id; `404` for an unknown or malformed id |
 | `GET /users/{username}` | supported | |
 | `GET /user/repos` | supported | `visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction` |
 | `POST /user/repos` | supported | `name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored |
@@ -120,8 +121,8 @@ kept) and is absent when everything fits on one page. Items deeper than
 
 ## Differences from GitHub
 
-- **User `id` is a string**, not an integer (PushStack's user ids are text).
-  Repository `id` is an integer. `node_id` is omitted.
+- User and repository `id` are integers, and a user's `node_id` is GitHub's
+  legacy form (`base64("04:User<id>")`); other objects omit `node_id`.
 - **`avatar_url` is `null`** when the user has no image (GitHub always has one).
 - `email` on a user is always `null`, and the `email` of a commit author or
   committer is always the placeholder `noreply@<host>`: web commits carry the

@@ -37,6 +37,7 @@ import {
 	updatePullRequestFields,
 } from "../pull-request-store";
 import {
+	type PublicUser,
 	publicUserColumns,
 	type RepositoryRowWithOwner,
 } from "../repository-lookup";
@@ -114,7 +115,7 @@ const directionSchema = z.enum(["asc", "desc"]);
 
 interface PullRecord {
 	row: PullRequest;
-	author: { id: string; username: string; name: string; image: string | null };
+	author: PublicUser;
 }
 
 const pullError = (field: string, code: FieldError["code"], message?: string) =>
