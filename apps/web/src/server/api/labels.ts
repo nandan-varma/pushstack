@@ -15,7 +15,7 @@ import {
 	DuplicateLabelError,
 	deleteRepoLabelById,
 	findLabelByName,
-	labelsByThread,
+	labelsOfThread,
 	listLabels,
 	setThreadLabels,
 	UnknownLabelError,
@@ -68,13 +68,12 @@ function labelWriteAccess(access: { canWrite: boolean }) {
 
 /** Apply `names` to `#number`, mapping unknown names to GitHub's 422. */
 async function applyThreadLabels(
-	repoId: number,
-	number: number,
+	thread: { id: number; repoId: number },
 	names: string[],
 	userId: string,
 ) {
 	try {
-		return await setThreadLabels(repoId, number, names, userId);
+		return await setThreadLabels(thread, names, userId);
 	} catch (error) {
 		if (error instanceof UnknownLabelError) {
 			throw validationFailedError(
@@ -190,18 +189,21 @@ export async function deleteLabel(ctx: ApiContext) {
 	return noContent();
 }
 
-/** The labels of the issue/PR the route's `:number` names. */
-async function requireThreadNumber(ctx: ApiContext, repoId: number) {
-	const number = threadNumber(ctx.params.number);
-	if (!(await findThreadByNumber(repoId, number))) throw notFoundError();
-	return number;
+/** The issue/PR the route's `:number` names. */
+async function requireThread(ctx: ApiContext, repoId: number) {
+	const thread = await findThreadByNumber(
+		repoId,
+		threadNumber(ctx.params.number),
+	);
+	if (!thread) throw notFoundError();
+	return thread;
 }
 
 /** `GET /repos/{owner}/{repo}/issues/{number}/labels` */
 export async function listIssueLabels(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = await requireThreadNumber(ctx, repo.id);
-	const labels = (await labelsByThread(repo.id, [number])).get(number) ?? [];
+	const thread = await requireThread(ctx, repo.id);
+	const labels = await labelsOfThread(thread.id);
 	const fullName = fullNameOf(repo);
 	return json(labels.map((value) => label({ fullName }, value)));
 }
@@ -211,13 +213,13 @@ export async function addIssueLabels(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
-	const number = await requireThreadNumber(ctx, repo.id);
+	const thread = await requireThread(ctx, repo.id);
 	const data = await parsedIssueLabels(ctx);
-	const current = (await labelsByThread(repo.id, [number])).get(number) ?? [];
+	const current = await labelsOfThread(thread.id);
 	const names = [
 		...new Set([...current.map((value) => value.name), ...data.labels]),
 	];
-	const labels = await applyThreadLabels(repo.id, number, names, caller.userId);
+	const labels = await applyThreadLabels(thread, names, caller.userId);
 	const fullName = fullNameOf(repo);
 	return json(labels.map((value) => label({ fullName }, value)));
 }
@@ -227,14 +229,9 @@ export async function setIssueLabels(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
-	const number = await requireThreadNumber(ctx, repo.id);
+	const thread = await requireThread(ctx, repo.id);
 	const data = await parsedIssueLabels(ctx);
-	const labels = await applyThreadLabels(
-		repo.id,
-		number,
-		data.labels,
-		caller.userId,
-	);
+	const labels = await applyThreadLabels(thread, data.labels, caller.userId);
 	const fullName = fullNameOf(repo);
 	return json(labels.map((value) => label({ fullName }, value)));
 }
@@ -244,8 +241,8 @@ export async function deleteIssueLabels(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
-	const number = await requireThreadNumber(ctx, repo.id);
-	await applyThreadLabels(repo.id, number, [], caller.userId);
+	const thread = await requireThread(ctx, repo.id);
+	await applyThreadLabels(thread, [], caller.userId);
 	return noContent();
 }
 
@@ -254,14 +251,13 @@ export async function removeIssueLabel(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
-	const number = await requireThreadNumber(ctx, repo.id);
+	const thread = await requireThread(ctx, repo.id);
 	const name = ctx.params.name;
 	if (!name) throw notFoundError();
-	const current = (await labelsByThread(repo.id, [number])).get(number) ?? [];
+	const current = await labelsOfThread(thread.id);
 	const wanted = name.toLowerCase();
 	const labels = await applyThreadLabels(
-		repo.id,
-		number,
+		thread,
 		current
 			.filter((value) => value.name.toLowerCase() !== wanted)
 			.map((value) => value.name),

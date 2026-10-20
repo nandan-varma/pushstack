@@ -88,7 +88,7 @@ beforeAll(async () => {
 });
 
 describe("database queries per thread read", () => {
-	it("stays bounded regardless of how many threads a page holds", async () => {
+	it("is one thread query per read, however many threads a page holds", async () => {
 		const auth = { authorization: `token ${token}` };
 		const counts = {
 			"web issues list": await count(() =>
@@ -118,6 +118,18 @@ describe("database queries per thread read", () => {
 			"api pull view": await count(() => call("/repos/owner/q/pulls/2", auth)),
 		};
 		console.log(`[db queries] ${JSON.stringify(counts, null, 2)}`);
-		for (const value of Object.values(counts)) expect(value).toBeLessThan(20);
+		// One thread query per read (rows, labels, assignees, comment counts and
+		// the total together); the rest is auth, access and the PR's extras.
+		expect(counts).toEqual({
+			"web issues list": 2,
+			"web pulls list": 2,
+			"web issue view": 2,
+			"web pull view": 2,
+			"api issues list": 5,
+			"api issues list page 2": 3,
+			"api pulls list": 4,
+			"api issue view": 3,
+			"api pull view": 5,
+		});
 	});
 });

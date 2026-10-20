@@ -89,8 +89,8 @@ export const setLabels = createServerFn({ method: "POST" })
 	)
 	.handler(({ data }) =>
 		writeWithAccess(data.repoId, async (_repo, user) => {
-			if (!(await findThreadByNumber(data.repoId, data.number)))
-				throw notFound();
-			return setThreadLabels(data.repoId, data.number, data.labels, user.id);
+			const thread = await findThreadByNumber(data.repoId, data.number);
+			if (!thread) throw notFound();
+			return setThreadLabels(thread, data.labels, user.id);
 		}),
 	);

@@ -4,7 +4,6 @@
  * pull-requests.ts's detail read; never a server-function file.
  */
 import { db } from "#/db";
-import type { PullRequest } from "#/db/app-schema";
 import { anchorKey, collectDiffAnchors } from "#/lib/diff";
 import type {
 	PullRequestReviewSummary,
@@ -17,6 +16,7 @@ import { getBranchDiff, getBranches } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import type { RepositoryWithOwner } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
+import type { PullRequest } from "./thread-store";
 
 /** A review comment with its author and the state of its review. */
 type ReviewCommentRow = Awaited<ReturnType<typeof listReviewComments>>[number];

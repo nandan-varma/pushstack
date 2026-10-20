@@ -77,9 +77,9 @@ export async function listTimelineItems(ctx: ApiContext) {
 	// Both sources are capped at the deepest item the page can need, then merged.
 	const cap = params.offset + params.perPage;
 	const [events, comments, eventTotal, commentTotal] = await Promise.all([
-		listTimeline(repo.id, number, { limit: cap }),
+		listTimeline(thread.id, { limit: cap }),
 		listCommentsForThread(thread, { limit: cap }),
-		countTimeline(repo.id, number),
+		countTimeline(thread.id),
 		countCommentsForThread(thread),
 	]);
 	const merged = mergeTimeline(events, comments).slice(
@@ -110,16 +110,17 @@ export async function listTimelineItems(ctx: ApiContext) {
 export async function listEvents(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const number = threadNumber(ctx.params.number);
-	if (!(await findThreadByNumber(repo.id, number))) throw notFoundError();
+	const thread = await findThreadByNumber(repo.id, number);
+	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
 	const [entries, total] = await Promise.all([
 		params.reachable
-			? listTimeline(repo.id, number, {
+			? listTimeline(thread.id, {
 					limit: params.perPage,
 					offset: params.offset,
 				})
 			: [],
-		countTimeline(repo.id, number),
+		countTimeline(thread.id),
 	]);
 	const fullName = fullNameOf(repo);
 	const threadByNumber = await serializeThreadsByNumber(

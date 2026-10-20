@@ -161,22 +161,13 @@ describe("shared thread assignments", () => {
 	});
 
 	it("shares PR assignees, filters and events without issue id collisions", async () => {
-		const { db } = await import("#/db");
-		const { pullRequests } = await import("#/db/app-schema");
-		const { claimNextIssueOrPrNumber } = await import("../repository-lookup");
+		const { insertPullRequest } = await import("../pull-request-store");
 		const pulls = await import("../pull-requests");
-		const [pr] = await db
-			.insert(pullRequests)
-			.values({
-				repoId,
-				number: await claimNextIssueOrPrNumber(repoId),
-				authorId: users.owner.id,
-				title: "Assigned PR",
-				sourceBranch: "topic",
-				targetBranch: "main",
-			})
-			.returning();
-		if (!pr) throw new Error("Missing PR");
+		const pr = await insertPullRequest(repoId, users.owner.id, {
+			title: "Assigned PR",
+			sourceBranch: "topic",
+			targetBranch: "main",
+		});
 		signIn(users.reader);
 		await expect(
 			assignees.setPullRequestAssignees({
@@ -311,13 +302,9 @@ it("bounds the dashboard and orders latest assignments before limiting", async (
 			})),
 		)
 		.returning();
-	await db.insert(threadAssignees).values(
-		rows.map((row) => ({
-			repoId,
-			number: row.number,
-			userId: users.owner.id,
-		})),
-	);
+	await db
+		.insert(threadAssignees)
+		.values(rows.map((row) => ({ issueId: row.id, userId: users.owner.id })));
 	signIn(users.owner);
 	const assigned = await assignees.getAssignedThreads();
 	expect(assigned).toHaveLength(20);

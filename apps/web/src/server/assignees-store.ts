@@ -38,32 +38,13 @@ export async function listAssignableUsers(
 	return users.sort((a, b) => a.username.localeCompare(b.username));
 }
 
-/** The assignees of each shared thread number, in one query (for list endpoints). */
-export async function assigneesByThread(
-	repoId: number,
-	numbers: number[],
-): Promise<Map<number, PublicUser[]>> {
-	const byThread = new Map<number, PublicUser[]>();
-	if (numbers.length === 0) return byThread;
-	const rows = await db.query.threadAssignees.findMany({
-		where: { repoId, number: { in: numbers } },
-		with: { user: publicUserFields },
-	});
-	for (const row of rows) {
-		const list = byThread.get(row.number);
-		if (list) list.push(row.user);
-		else byThread.set(row.number, [row.user]);
-	}
-	return byThread;
-}
-
 /**
  * Make `usernames` the thread's assignees: ineligible ones are dropped, the
  * rest beyond the cap are refused, and each addition or removal is recorded as
  * an `assigned`/`unassigned` timeline event by `actorId`.
  */
 export async function replaceThreadAssignees(
-	issue: { repoId: number; number: number },
+	issue: { id: number; repoId: number },
 	usernames: string[],
 	actorId: string,
 ): Promise<PublicUser[]> {
@@ -72,7 +53,7 @@ export async function replaceThreadAssignees(
 	// so this lease is independent of git writes and other threads.
 	return withRepositoryLock(
 		"@thread-assignees",
-		`${issue.repoId}-${issue.number}`,
+		`issue-${issue.id}`,
 		async () => {
 			const assignable = await listAssignableUsers(issue.repoId);
 			const wanted = assignable.filter((u) => usernames.includes(u.username));
@@ -80,7 +61,7 @@ export async function replaceThreadAssignees(
 				throw new Error(`A thread can have at most ${MAX_ASSIGNEES} assignees`);
 			}
 			const current = await db.query.threadAssignees.findMany({
-				where: { repoId: issue.repoId, number: issue.number },
+				where: { issueId: issue.id },
 				with: { user: publicUserFields },
 			});
 			const currentIds = new Set(current.map((a) => a.userId));
@@ -91,20 +72,13 @@ export async function replaceThreadAssignees(
 			if (added.length > 0) {
 				await db
 					.insert(threadAssignees)
-					.values(
-						added.map((u) => ({
-							repoId: issue.repoId,
-							number: issue.number,
-							userId: u.id,
-						})),
-					)
+					.values(added.map((u) => ({ issueId: issue.id, userId: u.id })))
 					.onConflictDoNothing();
 			}
 			if (removed.length > 0) {
 				await db.delete(threadAssignees).where(
 					and(
-						eq(threadAssignees.repoId, issue.repoId),
-						eq(threadAssignees.number, issue.number),
+						eq(threadAssignees.issueId, issue.id),
 						inArray(
 							threadAssignees.userId,
 							removed.map((a) => a.userId),
@@ -113,13 +87,13 @@ export async function replaceThreadAssignees(
 				);
 			}
 			for (const u of added) {
-				await recordTimelineEvent(issue.repoId, issue.number, actorId, {
+				await recordTimelineEvent(issue.id, actorId, {
 					event: "assigned",
 					assignee: { username: u.username, name: u.name },
 				});
 			}
 			for (const a of removed) {
-				await recordTimelineEvent(issue.repoId, issue.number, actorId, {
+				await recordTimelineEvent(issue.id, actorId, {
 					event: "unassigned",
 					assignee: { username: a.user.username, name: a.user.name },
 				});

@@ -4,16 +4,7 @@
  * exactly as GitHub's does, because issues and pull requests share one `#N`
  * sequence per repository.
  */
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "#/db";
-import {
-	comments,
-	issues,
-	pullRequests,
-	timelineEvents,
-} from "#/db/app-schema";
-import { user } from "#/db/schema";
 import { labelNameSchema } from "#/lib/labels";
 import {
 	MAX_ASSIGNEES,
@@ -22,15 +13,10 @@ import {
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { replaceThreadAssignees } from "../assignees-store";
-import { commentCountsByNumbers } from "../comment-store";
-import {
-	assigneeCondition,
-	createIssueForUser,
-	updateIssueThreadFields,
-} from "../issue-store";
-import { setThreadLabels, threadsWithLabels } from "../label-store";
+import { createIssueForUser, updateIssueThreadFields } from "../issue-store";
+import { setThreadLabels } from "../label-store";
 import { perfStep } from "../perf-log";
-import { publicUserColumns } from "../repository-lookup";
+import { findIssueByNumber, findThread, listThreads } from "../thread-store";
 import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
@@ -44,15 +30,7 @@ import {
 	validationFailedError,
 } from "./http";
 import { readableRepository } from "./repo-lookup";
-import {
-	findThreadRowsByNumber,
-	fullNameOf,
-	loadThreadMeta,
-	serializeThread,
-	type ThreadRow,
-	threadNumber,
-	threadRowsOf,
-} from "./threads";
+import { fullNameOf, serializeThread, threadNumber } from "./threads";
 
 const stateSchema = z.enum(["open", "closed", "all"]);
 const sortSchema = z.enum(["created", "updated", "comments"]).catch("created");
@@ -90,167 +68,39 @@ function issueFilters(query: URLSearchParams): IssueFilters {
 	};
 }
 
-/**
- * The column a page is ordered by. `comments` needs a correlated count, and is
- * supported so `sort=comments` behaves as on GitHub.
- */
-function sortColumn(
-	kind: "issue" | "pull_request",
-	sort: IssueFilters["sort"],
-) {
-	if (sort === "created")
-		return kind === "issue" ? issues.createdAt : pullRequests.createdAt;
-	if (sort === "updated")
-		return kind === "issue" ? issues.updatedAt : pullRequests.updatedAt;
-	return kind === "issue"
-		? sql`(select count(*) from ${comments} where ${comments.issueId} = ${issues.id})`
-		: sql`(select count(*) from ${comments} where ${comments.pullRequestId} = ${pullRequests.id})`;
-}
-
-const issueColumns = { row: issues, author: publicUserColumns };
-const pullRequestColumns = { row: pullRequests, author: publicUserColumns };
-
 /** `GET /repos/{owner}/{repo}/issues` */
 export async function listIssues(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const params = pageParams(ctx.url.searchParams);
 	const filters = issueFilters(ctx.url.searchParams);
 	if (!params.reachable) return json([], 200, {});
-
-	const issueWhere = and(
-		eq(issues.repoId, repo.id),
-		filters.state === "all" ? undefined : eq(issues.status, filters.state),
-		filters.assignee ? assigneeCondition(filters.assignee, issues) : undefined,
-		filters.labels.length > 0
-			? inArray(issues.number, threadsWithLabels(repo.id, filters.labels))
-			: undefined,
+	// Issues and pull requests together, one query: a merged pull request is
+	// `closed` here, as on GitHub.
+	const { threads, total } = await perfStep("db: list issues", () =>
+		listThreads(
+			{
+				repoId: repo.id,
+				...(filters.state !== "all" && { state: filters.state }),
+				...(filters.assignee && { assignees: [filters.assignee] }),
+				labels: filters.labels,
+			},
+			{
+				sort: { by: filters.sort, direction: filters.direction },
+				limit: params.perPage,
+				offset: params.offset,
+			},
+		),
 	);
-	// A merged pull request is closed for the issues surface; pull requests have
-	// are closed when merged.
-	const pullRequestStatuses =
-		filters.state === "open"
-			? (["open"] as const)
-			: filters.state === "closed"
-				? (["closed", "merged"] as const)
-				: null;
-	const pullRequestWhere = and(
-		eq(pullRequests.repoId, repo.id),
-		pullRequestStatuses
-			? inArray(pullRequests.status, [...pullRequestStatuses])
-			: undefined,
-		filters.assignee
-			? assigneeCondition(filters.assignee, pullRequests)
-			: undefined,
-		filters.labels.length > 0
-			? inArray(pullRequests.number, threadsWithLabels(repo.id, filters.labels))
-			: undefined,
-	);
-
-	// Each source is capped at the deepest row this page can need; merging the
-	// two ordered lists then yields the page without loading everything.
-	const cap = params.offset + params.perPage;
-	const [issueRows, pullRequestRows, [issueTotal], [pullRequestTotal]] =
-		await perfStep("db: list issues", () =>
-			Promise.all([
-				db
-					.select(issueColumns)
-					.from(issues)
-					.innerJoin(user, eq(user.id, issues.authorId))
-					.where(issueWhere)
-					.orderBy(
-						filters.direction === "asc"
-							? asc(sortColumn("issue", filters.sort))
-							: desc(sortColumn("issue", filters.sort)),
-						filters.direction === "asc"
-							? asc(issues.number)
-							: desc(issues.number),
-					)
-					.limit(cap),
-				db
-					.select(pullRequestColumns)
-					.from(pullRequests)
-					.innerJoin(user, eq(user.id, pullRequests.authorId))
-					.where(pullRequestWhere)
-					.orderBy(
-						filters.direction === "asc"
-							? asc(sortColumn("pull_request", filters.sort))
-							: desc(sortColumn("pull_request", filters.sort)),
-						filters.direction === "asc"
-							? asc(pullRequests.number)
-							: desc(pullRequests.number),
-					)
-					.limit(cap),
-				db.select({ total: count() }).from(issues).where(issueWhere),
-				db
-					.select({ total: count() })
-					.from(pullRequests)
-					.where(pullRequestWhere),
-			]),
-		);
-
-	const rows = threadRowsOf(issueRows, pullRequestRows);
-	const page = await paginateRows(repo.id, rows, filters, params);
-	const meta = await loadThreadMeta(repo.id, page);
-	const body = page.map((row) => serializeThread(repo, row, meta));
-	const total = (issueTotal?.total ?? 0) + (pullRequestTotal?.total ?? 0);
+	const body = threads.map((thread) => serializeThread(repo, thread));
 	return json(body, 200, linkHeader(ctx.url, params, total));
-}
-
-/** Sort the merged rows, then take the requested page. */
-async function paginateRows(
-	repoId: number,
-	rows: ThreadRow[],
-	filters: IssueFilters,
-	params: ReturnType<typeof pageParams>,
-): Promise<ThreadRow[]> {
-	const counts =
-		filters.sort === "comments"
-			? await commentCountsByNumbers(
-					repoId,
-					rows.map((row) => row.number),
-				)
-			: undefined;
-	const direction = filters.direction === "asc" ? 1 : -1;
-	const key = (row: ThreadRow) =>
-		filters.sort === "created"
-			? row.createdAt.getTime()
-			: filters.sort === "updated"
-				? row.updatedAt.getTime()
-				: (counts?.get(row.number) ?? 0);
-	rows.sort(
-		(a, b) =>
-			(key(a) - key(b)) * direction || (a.number - b.number) * direction,
-	);
-	return rows.slice(params.offset, params.offset + params.perPage);
 }
 
 /** `GET /repos/{owner}/{repo}/issues/{number}` */
 export async function getIssue(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.number);
-	const [row] = await findThreadRowsByNumber(repo.id, [number]);
-	if (!row) throw notFoundError();
-	const meta = await loadThreadMeta(repo.id, [row]);
-	return json(serializeThread(repo, row, meta, await closedByOf(repo.id, row)));
-}
-
-/** Who closed `row`: the actor of its latest `closed` event; null when open. */
-async function closedByOf(repoId: number, row: ThreadRow) {
-	if (row.state !== "closed") return null;
-	const [event] = await db
-		.select({ actor: publicUserColumns })
-		.from(timelineEvents)
-		.innerJoin(user, eq(user.id, timelineEvents.actorId))
-		.where(
-			and(
-				eq(timelineEvents.repoId, repoId),
-				eq(timelineEvents.number, row.number),
-				eq(timelineEvents.event, "closed"),
-			),
-		)
-		.orderBy(desc(timelineEvents.createdAt), desc(timelineEvents.id))
-		.limit(1);
-	return event?.actor ?? null;
+	const thread = await findThread(repo.id, threadNumber(ctx.params.number));
+	if (!thread) throw notFoundError();
+	return json(serializeThread(repo, thread, true));
 }
 
 const createIssueSchema = z.object({
@@ -314,16 +164,11 @@ export async function createIssue(ctx: ApiContext) {
 		labels: access.canWrite ? (data.labels ?? []) : [],
 	});
 	if (access.canWrite && data.assignees && data.assignees.length > 0) {
-		await replaceThreadAssignees(
-			{ repoId: repo.id, number: created.number },
-			data.assignees,
-			caller.userId,
-		);
+		await replaceThreadAssignees(created, data.assignees, caller.userId);
 	}
-	const [row] = await findThreadRowsByNumber(repo.id, [created.number]);
-	if (!row) throw new Error("Issue missing after insert");
-	const meta = await loadThreadMeta(repo.id, [row]);
-	return json(serializeThread(repo, row, meta), 201, {
+	const thread = await findThread(repo.id, created.number);
+	if (!thread) throw new Error("Issue missing after insert");
+	return json(serializeThread(repo, thread), 201, {
 		Location: apiUrl(`/repos/${fullNameOf(repo)}/issues/${created.number}`),
 	});
 }
@@ -333,9 +178,7 @@ export async function updateIssue(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	const number = threadNumber(ctx.params.number);
-	const issue = await db.query.issues.findFirst({
-		where: { repoId: repo.id, number },
-	});
+	const issue = await findIssueByNumber(repo.id, number);
 	// Pull request numbers are readable through the issues endpoints but not
 	// editable through them; editing a pull request uses the pulls endpoints.
 	if (!issue) throw notFoundError();
@@ -374,18 +217,13 @@ export async function updateIssue(ctx: ApiContext) {
 	// title, body and state but not its labels or assignees.
 	if (access.canWrite) {
 		if (data.labels !== undefined) {
-			await setThreadLabels(repo.id, number, data.labels, caller.userId);
+			await setThreadLabels(issue, data.labels, caller.userId);
 		}
 		if (data.assignees !== undefined) {
-			await replaceThreadAssignees(
-				{ repoId: repo.id, number },
-				data.assignees,
-				caller.userId,
-			);
+			await replaceThreadAssignees(issue, data.assignees, caller.userId);
 		}
 	}
-	const [row] = await findThreadRowsByNumber(repo.id, [number]);
-	if (!row) throw new Error("Issue missing after update");
-	const meta = await loadThreadMeta(repo.id, [row]);
-	return json(serializeThread(repo, row, meta));
+	const thread = await findThread(repo.id, number);
+	if (!thread) throw new Error("Issue missing after update");
+	return json(serializeThread(repo, thread));
 }

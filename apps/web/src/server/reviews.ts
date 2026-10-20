@@ -4,11 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import {
-	type PullRequest,
-	pullRequestReviewComments,
-	pullRequestReviews,
-} from "#/db/app-schema";
+import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { MAX_BODY_CHARS, MAX_REVIEW_PATH_CHARS } from "#/lib/limits";
 import type { ReviewState } from "#/lib/review-types";
 import { safeRepoPathSchema } from "./git-ref-name";
@@ -26,14 +22,15 @@ import {
 	toView,
 } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
+import { findPullRequestById, type PullRequest } from "./thread-store";
 import { recordTimelineEvent } from "./timeline-store";
 
 const reviewSideSchema = z.enum(["LEFT", "RIGHT"]);
 const reviewEventSchema = z.enum(["comment", "approve", "request_changes"]);
 
-/** A pull request by row id, or a 404. */
+/** A pull request by id (its issue id), or a 404. */
 async function findPullRequest(prId: number): Promise<PullRequest> {
-	const pr = await db.query.pullRequests.findFirst({ where: { id: prId } });
+	const pr = await findPullRequestById(prId);
 	if (!pr) throw notFound();
 	return pr;
 }
@@ -257,7 +254,7 @@ export const submitReview = createServerFn({ method: "POST" })
 					.returning();
 				if (!submitted) throw new Error("That review was already submitted");
 
-				await recordTimelineEvent(pr.repoId, pr.number, currentUser.id, {
+				await recordTimelineEvent(pr.id, currentUser.id, {
 					event: "reviewed",
 					state,
 				});

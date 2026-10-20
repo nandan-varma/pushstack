@@ -468,7 +468,6 @@ describe("response size and scopes", () => {
 	it("refuses a head that moved after the pre-check, under the lock", async () => {
 		const { mergePullRequestBranches } = await import("../pull-request-store");
 		const { findRepositoryByName } = await import("../repository-lookup");
-		const { db } = await import("#/db");
 		await branchFrom("racy");
 		await commitFile("racy", "racy.txt", "r\n");
 		const created = await call(
@@ -476,9 +475,8 @@ describe("response size and scopes", () => {
 			post(alice, { title: "Racy", head: "racy", base: "main" }),
 		);
 		const repo = await findRepositoryByName("alice", "proj");
-		const pr = await db.query.pullRequests.findFirst({
-			where: { repoId, number: created.body.number },
-		});
+		const { findPullRequestByNumber } = await import("../thread-store");
+		const pr = await findPullRequestByNumber(repoId, created.body.number);
 		if (!repo || !pr) throw new Error("fixture missing");
 		const result = await mergePullRequestBranches(
 			repo,
@@ -514,21 +512,12 @@ describe("response size and scopes", () => {
 });
 
 it("serializes PR assignees through both pulls and issues surfaces and filters", async () => {
-	const { db } = await import("#/db");
-	const { pullRequests } = await import("#/db/app-schema");
-	const { claimNextIssueOrPrNumber } = await import("../repository-lookup");
-	const [pr] = await db
-		.insert(pullRequests)
-		.values({
-			repoId,
-			number: await claimNextIssueOrPrNumber(repoId),
-			authorId: users.alice.id,
-			title: "Assignee REST shape",
-			sourceBranch: "topic",
-			targetBranch: "main",
-		})
-		.returning();
-	if (!pr) throw new Error("Missing PR");
+	const { insertPullRequest } = await import("../pull-request-store");
+	const pr = await insertPullRequest(repoId, users.alice.id, {
+		title: "Assignee REST shape",
+		sourceBranch: "topic",
+		targetBranch: "main",
+	});
 	signIn(users.alice);
 	const { setPullRequestAssignees } = await import("../assignees");
 	await setPullRequestAssignees({
