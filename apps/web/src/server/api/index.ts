@@ -7,7 +7,27 @@ import { isNotFoundError } from "git-fs-s3";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import { type ApiContext, authenticateRequest } from "./auth";
 import { getBranch, listBranches } from "./branches";
+import {
+	createComment,
+	deleteComment,
+	getComment,
+	listComments,
+	updateComment,
+} from "./comments";
 import { API_PREFIX, ApiError, errorResponse, notFoundError } from "./http";
+import { createIssue, getIssue, listIssues, updateIssue } from "./issues";
+import {
+	addIssueLabels,
+	createLabel,
+	deleteIssueLabels,
+	deleteLabel,
+	getLabel,
+	listIssueLabels,
+	listRepoLabels,
+	removeIssueLabel,
+	setIssueLabels,
+	updateLabel,
+} from "./labels";
 import {
 	createAuthenticatedUserRepository,
 	getRepository,
@@ -15,12 +35,13 @@ import {
 	listUserRepositories,
 } from "./repos";
 import { listTags } from "./tags";
+import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser } from "./users";
 
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
 interface Route {
-	method: "GET" | "POST";
+	method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 	/** `:name` matches one segment; a final `*name` matches the rest (slashes kept). */
 	pattern: string;
 	handler: Handler;
@@ -56,6 +77,107 @@ const ROUTES: Route[] = [
 		handler: getBranch,
 	},
 	{ method: "GET", pattern: "/repos/:owner/:repo/tags", handler: listTags },
+	{ method: "GET", pattern: "/repos/:owner/:repo/issues", handler: listIssues },
+	{
+		method: "POST",
+		pattern: "/repos/:owner/:repo/issues",
+		handler: createIssue,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/issues/comments/:comment_id",
+		handler: getComment,
+	},
+	{
+		method: "PATCH",
+		pattern: "/repos/:owner/:repo/issues/comments/:comment_id",
+		handler: updateComment,
+	},
+	{
+		method: "DELETE",
+		pattern: "/repos/:owner/:repo/issues/comments/:comment_id",
+		handler: deleteComment,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/issues/:number",
+		handler: getIssue,
+	},
+	{
+		method: "PATCH",
+		pattern: "/repos/:owner/:repo/issues/:number",
+		handler: updateIssue,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/issues/:number/comments",
+		handler: listComments,
+	},
+	{
+		method: "POST",
+		pattern: "/repos/:owner/:repo/issues/:number/comments",
+		handler: createComment,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/issues/:number/timeline",
+		handler: listTimelineItems,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/issues/:number/events",
+		handler: listEvents,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/issues/:number/labels",
+		handler: listIssueLabels,
+	},
+	{
+		method: "POST",
+		pattern: "/repos/:owner/:repo/issues/:number/labels",
+		handler: addIssueLabels,
+	},
+	{
+		method: "PUT",
+		pattern: "/repos/:owner/:repo/issues/:number/labels",
+		handler: setIssueLabels,
+	},
+	{
+		method: "DELETE",
+		pattern: "/repos/:owner/:repo/issues/:number/labels",
+		handler: deleteIssueLabels,
+	},
+	{
+		method: "DELETE",
+		pattern: "/repos/:owner/:repo/issues/:number/labels/:name",
+		handler: removeIssueLabel,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/labels",
+		handler: listRepoLabels,
+	},
+	{
+		method: "POST",
+		pattern: "/repos/:owner/:repo/labels",
+		handler: createLabel,
+	},
+	{
+		method: "GET",
+		pattern: "/repos/:owner/:repo/labels/:name",
+		handler: getLabel,
+	},
+	{
+		method: "PATCH",
+		pattern: "/repos/:owner/:repo/labels/:name",
+		handler: updateLabel,
+	},
+	{
+		method: "DELETE",
+		pattern: "/repos/:owner/:repo/labels/:name",
+		handler: deleteLabel,
+	},
 ];
 
 /** The route's parameters when `segments` match `pattern`, else null. */

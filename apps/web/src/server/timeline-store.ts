@@ -3,7 +3,7 @@
  * Plain server-only helpers, called from the issue, pull request and comment
  * server functions after their own writes; never a server-function file.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, pullRequests, timelineEvents } from "#/db/app-schema";
 import { getReferencedIssueNumbers } from "#/lib/issue-references";
@@ -130,10 +130,11 @@ export async function removeCrossReferences(
 		);
 }
 
-/** Thread `#number`'s events, oldest first. */
+/** Thread `#number`'s events, oldest first. `options` bound one API page. */
 export async function listTimeline(
 	repoId: number,
 	number: number,
+	options?: { limit?: number; offset?: number },
 ): Promise<TimelineEntry[]> {
 	const rows = await db.query.timelineEvents.findMany({
 		where: {
@@ -142,6 +143,8 @@ export async function listTimeline(
 		},
 		orderBy: { createdAt: "asc", id: "asc" },
 		with: { actor: publicUserFields },
+		...(options?.limit !== undefined && { limit: options.limit }),
+		...(options?.offset !== undefined && { offset: options.offset }),
 	});
 	return rows.map(
 		(row) =>
@@ -153,4 +156,18 @@ export async function listTimeline(
 				actor: row.actor,
 			}) as TimelineEntry,
 	);
+}
+
+/** How many events thread `#number` carries (for the API's `Link` header). */
+export async function countTimeline(
+	repoId: number,
+	number: number,
+): Promise<number> {
+	const [row] = await db
+		.select({ total: count() })
+		.from(timelineEvents)
+		.where(
+			and(eq(timelineEvents.repoId, repoId), eq(timelineEvents.number, number)),
+		);
+	return row?.total ?? 0;
 }

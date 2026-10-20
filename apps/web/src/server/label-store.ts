@@ -8,7 +8,22 @@ import { db } from "#/db";
 import { labels, threadLabels } from "#/db/app-schema";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
+import { isUniqueViolation } from "./db-errors";
 import { recordTimelineEvent } from "./timeline-store";
+
+/** A label name is already taken in the repository (ignoring case). */
+export class DuplicateLabelError extends Error {
+	constructor() {
+		super("A label with this name already exists");
+	}
+}
+
+/** One or more of the names don't name a label of the repository. */
+export class UnknownLabelError extends Error {
+	constructor(readonly names: string[]) {
+		super(`Unknown label: ${names.join(", ")}`);
+	}
+}
 
 const labelColumns = {
 	id: labels.id,
@@ -16,6 +31,87 @@ const labelColumns = {
 	color: labels.color,
 	description: labels.description,
 };
+
+/** Create a label; a duplicate name (ignoring case) is a `DuplicateLabelError`. */
+export async function createRepoLabel(
+	repoId: number,
+	data: { name: string; color: string; description?: string },
+): Promise<LabelView> {
+	const [label] = await db
+		.insert(labels)
+		.values({
+			repoId,
+			name: data.name,
+			color: data.color,
+			description: data.description || null,
+		})
+		.returning()
+		.catch((error: unknown) => {
+			throw isUniqueViolation(error) ? new DuplicateLabelError() : error;
+		});
+	if (!label) throw new Error("Label insert returned no row");
+	return label;
+}
+
+/** A repository's label by name, ignoring case. */
+export async function findLabelByName(
+	repoId: number,
+	name: string,
+): Promise<LabelView | null> {
+	const [row] = await db
+		.select(labelColumns)
+		.from(labels)
+		.where(
+			and(
+				eq(labels.repoId, repoId),
+				eq(sql`lower(${labels.name})`, name.toLowerCase()),
+			),
+		);
+	return row ?? null;
+}
+
+/** Rename or recolor; threads keep the label (they reference it by id). */
+export async function updateRepoLabelById(
+	repoId: number,
+	labelId: number,
+	fields: { name?: string; color?: string; description?: string },
+): Promise<LabelView | null> {
+	const changes = {
+		...(fields.name !== undefined && { name: fields.name }),
+		...(fields.color !== undefined && { color: fields.color }),
+		...(fields.description !== undefined && {
+			description: fields.description || null,
+		}),
+	};
+	if (Object.keys(changes).length === 0) {
+		const [existing] = await db
+			.select(labelColumns)
+			.from(labels)
+			.where(and(eq(labels.id, labelId), eq(labels.repoId, repoId)));
+		return existing ?? null;
+	}
+	const [label] = await db
+		.update(labels)
+		.set(changes)
+		.where(and(eq(labels.id, labelId), eq(labels.repoId, repoId)))
+		.returning()
+		.catch((error: unknown) => {
+			throw isUniqueViolation(error) ? new DuplicateLabelError() : error;
+		});
+	return label ?? null;
+}
+
+/** Delete a label (and, by cascade, its thread links). */
+export async function deleteRepoLabelById(
+	repoId: number,
+	labelId: number,
+): Promise<boolean> {
+	const deleted = await db
+		.delete(labels)
+		.where(and(eq(labels.id, labelId), eq(labels.repoId, repoId)))
+		.returning({ id: labels.id });
+	return deleted.length > 0;
+}
 
 /** GitHub's default label set, for a repository that was just created. */
 export async function createDefaultLabels(repoId: number): Promise<void> {
@@ -125,7 +221,7 @@ export async function setThreadLabels(
 	const known = new Set(chosen.map((label) => label.name.toLowerCase()));
 	const unknown = wanted.filter((name) => !known.has(name));
 	if (unknown.length > 0) {
-		throw new Error(`Unknown label: ${unknown.join(", ")}`);
+		throw new UnknownLabelError(unknown);
 	}
 
 	const current = (await labelsByThread(repoId, [number])).get(number) ?? [];
