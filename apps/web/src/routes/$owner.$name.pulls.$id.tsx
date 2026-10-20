@@ -13,6 +13,7 @@ import { EditableTitle } from "@/components/EditableTitle";
 import { EmptyState } from "@/components/EmptyState";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { ReactionBar } from "@/components/ReactionBar";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import {
@@ -405,6 +406,13 @@ function PullRequestDetailPage() {
 											data: { prId: pr.id, body },
 										})
 								: undefined
+						}
+						footer={
+							<ReactionBar
+								repoId={pr.repoId}
+								number={pr.number}
+								canReact={pr.viewer.canParticipate}
+							/>
 						}
 					/>
 

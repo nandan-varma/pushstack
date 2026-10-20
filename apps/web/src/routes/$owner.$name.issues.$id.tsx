@@ -10,6 +10,7 @@ import {
 import { EditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { ReactionBar } from "@/components/ReactionBar";
 import { issueStatusVariant } from "@/components/status-variants";
 import {
 	ThreadConversation,
@@ -243,6 +244,13 @@ function IssueDetailPage() {
 									data: { issueId: issue.id, body },
 								})
 						: undefined
+				}
+				footer={
+					<ReactionBar
+						repoId={issue.repoId}
+						number={issue.number}
+						canReact={issue.viewer.canParticipate}
+					/>
 				}
 			/>
 

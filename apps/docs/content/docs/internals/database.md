@@ -126,6 +126,11 @@ shapes:
   subquery. `thread_label_label_idx` and the (`issue_id`, …) primary/unique
   keys of `thread_labels`/`thread_assignees` serve the label and assignee
   filters.
+- `reaction_issue_user_content_idx`, `reaction_comment_user_content_idx` —
+  partial unique indexes (one reaction per user, subject and `content`; the
+  issue one covers rows with a null `comment_id`). Their `issue_id` prefix
+  serves the one grouped read of a thread's rollups; `reaction_user_idx`
+  serves user deletes.
 - `activity_user_created_idx`, `activity_repo_created_idx` — feeds by user
   or repo, newest first.
 - `repo_visibility_idx`, `repo_name_idx` — search and public listings.
