@@ -30,6 +30,10 @@ import {
 	getUserRepositories,
 } from "@/server/repositories";
 import {
+	getMyPendingReview,
+	getPullRequestReviewThreads,
+} from "@/server/reviews";
+import {
 	getUserActivity,
 	searchRepositories,
 	searchUsers,
@@ -129,6 +133,10 @@ export const queryKeys = {
 		["repos", repoId, "pull-request-diff", sourceBranch, targetBranch] as const,
 	repoCollaborators: (repoId: number) =>
 		["repos", repoId, "collaborators"] as const,
+	pullRequestReviewThreads: (prId: number) =>
+		["pull-requests", prId, "review-threads"] as const,
+	pullRequestPendingReview: (prId: number) =>
+		["pull-requests", prId, "pending-review"] as const,
 } as const;
 
 const SESSION_STALE_TIME = 60_000;
@@ -627,6 +635,22 @@ export function repoCollaboratorsQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoCollaborators(repoId),
 		queryFn: () => getCollaborators({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function pullRequestReviewThreadsQueryOptions(prId: number) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestReviewThreads(prId),
+		queryFn: () => getPullRequestReviewThreads({ data: { prId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function pullRequestPendingReviewQueryOptions(prId: number) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestPendingReview(prId),
+		queryFn: () => getMyPendingReview({ data: { prId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

@@ -1,9 +1,16 @@
 import type { DiffFile } from "git-fs-s3/ops";
 import { ChevronRight } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { BinaryPreview } from "@/components/BinaryPreview";
+import {
+	anchorsForLine,
+	type DiffAnchor,
+	type ParsedDiffLine,
+	parsePatch,
+	primaryAnchor,
+} from "@/lib/diff";
 import { rawFileUrl } from "@/lib/file-view";
 import {
 	detectLanguage,
@@ -113,18 +120,6 @@ function UnpatchedDiff({
 	);
 }
 
-type DiffLineKind = "meta" | "hunk" | "add" | "remove" | "context";
-
-interface ParsedDiffLine {
-	raw: string;
-	kind: DiffLineKind;
-	prefix: string;
-	code: string;
-	highlightText: string;
-	oldLine: number | null;
-	newLine: number | null;
-}
-
 interface HunkSegment {
 	start: number;
 	end: number;
@@ -138,106 +133,6 @@ interface ParsedFileDiff extends FileDiff {
 	deletions: number;
 	hunks: number;
 	visibleLineCount: number;
-}
-
-const HUNK_HEADER_RE = /^@@\s-([0-9]+)(?:,[0-9]+)?\s\+([0-9]+)(?:,[0-9]+)?\s@@/;
-
-function classifyLine(raw: string): DiffLineKind {
-	if (raw.startsWith("@@")) return "hunk";
-
-	if (raw.startsWith("+")) return "add";
-	if (raw.startsWith("-")) return "remove";
-	if (raw.startsWith("\\")) return "meta";
-
-	return "context";
-}
-
-function parsePatch(patch: string): ParsedDiffLine[] {
-	const normalized = patch.replace(/\r\n/g, "\n");
-	if (!normalized) return [];
-	const rows = normalized.endsWith("\n")
-		? normalized.slice(0, -1).split("\n")
-		: normalized.split("\n");
-	let oldLine = 1;
-	let newLine = 1;
-	let inHunk = false;
-
-	const parsed: ParsedDiffLine[] = [];
-
-	for (const raw of rows) {
-		const kind = classifyLine(raw);
-
-		if (kind === "hunk") {
-			const match = raw.match(HUNK_HEADER_RE);
-			if (match) {
-				oldLine = Number(match[1]);
-				newLine = Number(match[2]);
-			}
-			inHunk = true;
-			parsed.push({
-				raw,
-				kind,
-				prefix: "",
-				code: raw,
-				highlightText: "",
-				oldLine: null,
-				newLine: null,
-			});
-			continue;
-		}
-
-		// Unified diff metadata (file headers, modes, rename info) always
-		// appears before hunks; skip it generically instead of hardcoding labels.
-		if (!inHunk || kind === "meta") {
-			continue;
-		}
-
-		if (kind === "add") {
-			const nextNew = newLine;
-			newLine += 1;
-			parsed.push({
-				raw,
-				kind,
-				prefix: "+",
-				code: raw.slice(1),
-				highlightText: raw.slice(1),
-				oldLine: null,
-				newLine: nextNew,
-			});
-			continue;
-		}
-
-		if (kind === "remove") {
-			const nextOld = oldLine;
-			oldLine += 1;
-			parsed.push({
-				raw,
-				kind,
-				prefix: "-",
-				code: raw.slice(1),
-				highlightText: raw.slice(1),
-				oldLine: nextOld,
-				newLine: null,
-			});
-			continue;
-		}
-
-		const nextOld = oldLine;
-		const nextNew = newLine;
-		oldLine += 1;
-		newLine += 1;
-		parsed.push({
-			raw,
-			kind,
-			prefix: raw.startsWith(" ") ? " " : "",
-			code: raw.startsWith(" ") ? raw.slice(1) : raw,
-			highlightText: raw.startsWith(" ") ? raw.slice(1) : raw,
-			oldLine: nextOld,
-			newLine: nextNew,
-		});
-	}
-
-	return parsed;
 }
 
 // Hunks aren't contiguous in the real file, so each hunk is tokenized on its
@@ -303,6 +198,8 @@ export function FileDiffViewer({
 	isLoading,
 	emptyMessage,
 	summaryExtra,
+	renderLineActions,
+	renderThreads,
 }: {
 	files?: FileDiff[];
 	/** Needed to preview binary media; without it they're summarized. */
@@ -310,6 +207,10 @@ export function FileDiffViewer({
 	isLoading?: boolean;
 	emptyMessage?: string;
 	summaryExtra?: ReactNode;
+	/** A per-line control (e.g. a "comment" button), rendered after the code. */
+	renderLineActions?: (anchor: DiffAnchor) => ReactNode;
+	/** The threads anchored to a line, rendered as a full-width row below it. */
+	renderThreads?: (anchors: DiffAnchor[]) => ReactNode;
 }) {
 	const parsedFiles = useMemo<ParsedFileDiff[]>(
 		() =>
@@ -544,32 +445,49 @@ export function FileDiffViewer({
 							) : fileDiff.kind !== "text" ? (
 								<UnpatchedDiff fileDiff={fileDiff} sides={sides} />
 							) : (
-								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
-									<code>
-										{fileDiff.lines.map((line, lineIndex) =>
-											line.kind === "hunk" ? null : (
-												<div
+								<div className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
+									<div className="diff-patch-body">
+										{fileDiff.lines.map((line, lineIndex) => {
+											if (line.kind === "hunk") return null;
+											const anchors = anchorsForLine(fileDiff.path, line);
+											const primary = primaryAnchor(fileDiff.path, line);
+											const threadContent = renderThreads
+												? renderThreads(anchors)
+												: null;
+											return (
+												<Fragment
 													key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
-													className={`diff-line diff-line--${line.kind}`}
 												>
-													<span className="diff-gutter diff-gutter--old">
-														{line.oldLine ?? ""}
-													</span>
-													<span className="diff-gutter diff-gutter--new">
-														{line.newLine ?? ""}
-													</span>
-													<span className="diff-prefix">{line.prefix}</span>
-													<span className="diff-code">
-														{renderLineCode(
-															line,
-															lineTokensByPath[fileDiff.path]?.[lineIndex],
-														)}
-													</span>
-												</div>
-											),
-										)}
-									</code>
-								</pre>
+													<div className={`diff-line diff-line--${line.kind}`}>
+														<span className="diff-gutter diff-gutter--old">
+															{line.oldLine ?? ""}
+														</span>
+														<span className="diff-gutter diff-gutter--new">
+															{line.newLine ?? ""}
+														</span>
+														<span className="diff-prefix">{line.prefix}</span>
+														<span className="diff-code">
+															{renderLineCode(
+																line,
+																lineTokensByPath[fileDiff.path]?.[lineIndex],
+															)}
+														</span>
+														{renderLineActions && primary ? (
+															<span className="diff-line-actions">
+																{renderLineActions(primary)}
+															</span>
+														) : null}
+													</div>
+													{threadContent ? (
+														<div className="diff-thread-row">
+															{threadContent}
+														</div>
+													) : null}
+												</Fragment>
+											);
+										})}
+									</div>
+								</div>
 							)}
 						</div>
 					) : (

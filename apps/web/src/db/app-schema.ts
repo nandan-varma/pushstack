@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+	type AnyPgColumn,
 	boolean,
 	index,
 	integer,
@@ -12,6 +13,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
+import type { ReviewSide, ReviewState } from "#/lib/review-types";
 import type { TimelineEvent, TimelineEventType } from "#/lib/timeline-types";
 import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
@@ -235,6 +237,96 @@ export const comments = pgTable(
 	}),
 );
 
+/**
+ * A pull request review (src/server/reviews.ts). A `pending` review is the
+ * reviewer's unsubmitted draft; submitting sets one of the other states and
+ * `submittedAt`. At most one pending review per reviewer per pull request.
+ */
+export const pullRequestReviews = pgTable(
+	"pull_request_reviews",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		pullRequestId: integer("pull_request_id")
+			.notNull()
+			.references(() => pullRequests.id, { onDelete: "cascade" }),
+		authorId: text("author_id")
+			.notNull()
+			.references(() => user.id),
+		state: text("state").$type<ReviewState>().notNull().default("pending"),
+		/** The summary shown above the comments; null until submitted. */
+		body: text("body"),
+		/** The head tip the review was submitted against (GitHub's `commit_id`). */
+		commitSha: text("commit_sha"),
+		submittedAt: timestamptz("submitted_at"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		// One pending review per reviewer per pull request; submitted reviews
+		// accumulate. The partial index is what makes "find or create" safe
+		// under a concurrent double-click.
+		pendingIdx: uniqueIndex("review_pending_idx")
+			.on(table.repoId, table.pullRequestId, table.authorId)
+			.where(sql`${table.state} = 'pending'`),
+		prCreatedIdx: index("review_pr_created_idx").on(
+			table.pullRequestId,
+			table.createdAt,
+		),
+		authorIdx: index("review_author_idx").on(table.authorId),
+	}),
+);
+
+/**
+ * A line comment in a review. A thread is a root comment (`inReplyToId` null)
+ * plus its replies; `resolvedAt`/`resolvedById` live on the root. The anchor is
+ * `(path, side, line)`, validated against the pull request's diff when written.
+ */
+export const pullRequestReviewComments = pgTable(
+	"pull_request_review_comments",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		pullRequestId: integer("pull_request_id")
+			.notNull()
+			.references(() => pullRequests.id, { onDelete: "cascade" }),
+		reviewId: integer("review_id")
+			.notNull()
+			.references(() => pullRequestReviews.id, { onDelete: "cascade" }),
+		authorId: text("author_id")
+			.notNull()
+			.references(() => user.id),
+		body: text("body").notNull(),
+		path: text("path").notNull(),
+		side: text("side").$type<ReviewSide>().notNull().default("RIGHT"),
+		line: integer("line").notNull(),
+		/** The head tip the anchor was computed against. */
+		commitSha: text("commit_sha"),
+		/** The comment this replies to; null for a thread root. */
+		inReplyToId: integer("in_reply_to_id").references(
+			(): AnyPgColumn => pullRequestReviewComments.id,
+			{ onDelete: "cascade" },
+		),
+		/** Thread resolution, set on the root comment only. */
+		resolvedAt: timestamptz("resolved_at"),
+		resolvedById: text("resolved_by_id").references(() => user.id),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		prCreatedIdx: index("review_comment_pr_created_idx").on(
+			table.pullRequestId,
+			table.createdAt,
+		),
+		reviewIdx: index("review_comment_review_idx").on(table.reviewId),
+		replyIdx: index("review_comment_reply_idx").on(table.inReplyToId),
+	}),
+);
+
 export const stars = pgTable(
 	"stars",
 	{
@@ -357,6 +449,9 @@ export const rateLimits = pgTable(
 export type Repository = typeof repositories.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
 export type PullRequest = typeof pullRequests.$inferSelect;
+export type PullRequestReview = typeof pullRequestReviews.$inferSelect;
+export type PullRequestReviewComment =
+	typeof pullRequestReviewComments.$inferSelect;
 export type CollaboratorRole =
 	(typeof repositoryCollaborators.$inferSelect)["role"];
 

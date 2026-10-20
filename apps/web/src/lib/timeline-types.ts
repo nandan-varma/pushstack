@@ -8,6 +8,8 @@
  * whichever kind the thread is.
  */
 
+import type { ReviewedState } from "./review-types";
+
 /** A label as it was when an event happened (the label may be edited later). */
 export interface LabelSnapshot {
 	name: string;
@@ -47,7 +49,9 @@ export type TimelineEvent =
 	| { event: "unlabeled"; label: LabelSnapshot }
 	/** Someone was assigned to / unassigned from the thread. */
 	| { event: "assigned"; assignee: TimelineUser }
-	| { event: "unassigned"; assignee: TimelineUser };
+	| { event: "unassigned"; assignee: TimelineUser }
+	/** A review was submitted (GitHub's `reviewed` event). */
+	| { event: "reviewed"; state: ReviewedState };
 
 export type TimelineEventType = TimelineEvent["event"];
 
