@@ -1,6 +1,6 @@
 ---
 title: CLI
-description: Authenticate, manage repositories, and call the REST API with pst or pushstack.
+description: Authenticate, manage repositories and issues, and call the REST API with pst or pushstack.
 ---
 
 The `@pushstack/cli` workspace provides the `pst` and `pushstack` commands over
@@ -45,10 +45,42 @@ the authenticated account. It supports `--description`, `--add-readme`,
 `--gitignore`, and `--license`. `repo list` accepts an owner, `--limit`,
 `--visibility public|private`, and `--json` fields.
 
+`issue list` (`ls`) shows 30 open issues by default. Use `--limit/-L`
+(1–10000), `--state/-s open|closed|all`, repeatable `--label/-l`, and
+`--assignee/-a` to filter. Labels may be comma-separated and are combined as
+an AND filter. The assignee filter accepts a login, `@me`, `none`, or `*`.
+Pagination follows API Link headers and counts only issues, excluding pull
+requests from the shared issues API.
+
+`issue view <number>` displays an issue. Both list and view accept `--json`
+with comma-separated fields: `number`, `title`, `body`, `state`, `stateReason`,
+`url`, `author`, `assignees`, `labels`, `createdAt`, `updatedAt`, `closedAt`.
+State and reason values use uppercase GitHub CLI naming. Authors and assignees
+include `login`; labels include `name`, `color`, and `description`.
+
+`issue create` requires `--title/-t`; supply `--body/-b` or
+`--body-file/-F path` (`-` reads stdin). Labels and assignees support repeated
+flags or comma-separated names; `@me` resolves to the active token's account.
+`issue close <number>` accepts `--reason/-r completed|not_planned` (default
+`completed`), and `issue reopen <number>` reopens it. These commands print the
+issue URL. View, close and reopen reject pull request numbers.
+
+All issue commands accept `--repo/-R OWNER/REPO` and `--hostname`, using
+`PST_REPO` and then matching git remotes when `--repo` is omitted. Each
+subcommand supports `--help`. Creation is noninteractive; no editor or
+comment-on-close option is provided.
+
+```sh
+pst issue list -R alice/project -l bug -a @me --json number,title,url
+pst issue create -R alice/project -t "Fix login" -F description.md -l bug
+pst issue view 12 -R alice/project
+pst issue close 12 -R alice/project -r not_planned
+pst issue reopen 12 -R alice/project
+```
+
 `api` supports `--method`, `--header`, raw `-f key=value` fields, typed
 `-F key=value` fields, `--input`, `--include`, and `--paginate`. Requests use
 the selected host's `/api/v3` API; pagination keeps credentials on that host.
 
-The current CLI covers authentication, repositories, and direct API requests.
-Interactive login, cloning, pushing, and issue or pull request commands are
-not implemented.
+The CLI covers authentication, repositories, issues, and direct API requests.
+Interactive login, cloning, pushing, and pull request commands are not implemented.
