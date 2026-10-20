@@ -217,6 +217,11 @@ function matchRoute(method: string, pathname: string) {
 	return null;
 }
 
+/** Every method the route table uses; `routes/api/v3.$.ts` must serve each. */
+export const API_METHODS: ReadonlySet<string> = new Set(
+	ROUTES.map((route) => route.method),
+);
+
 export function handleApiRequest(request: Request): Promise<Response> {
 	const url = new URL(request.url);
 	const pathname = url.pathname.startsWith(API_PREFIX)

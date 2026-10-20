@@ -16,6 +16,9 @@ export const Route = createFileRoute("/api/v3/$")({
 			GET: ({ request }) => serve(request),
 			HEAD: ({ request }) => serve(request),
 			POST: ({ request }) => serve(request),
+			PUT: ({ request }) => serve(request),
+			PATCH: ({ request }) => serve(request),
+			DELETE: ({ request }) => serve(request),
 		},
 	},
 });
