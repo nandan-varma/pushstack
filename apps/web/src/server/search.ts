@@ -4,12 +4,10 @@ import { desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { listUserActivity } from "./activity";
+import { containing } from "./db-filters";
 import { perfContext } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
 import { getCurrentUserOptional } from "./session";
-
-/** An ILIKE pattern matching `text` literally anywhere (escapes `%`, `_`, `\`). */
-const containing = (text: string) => `%${text.replace(/[\\%_]/g, "\\$&")}%`;
 
 const searchSchema = z.object({
 	query: z.string().trim().min(1).max(100),

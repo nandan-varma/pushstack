@@ -148,7 +148,14 @@ describe("labels", () => {
 
 		// Filters: AND across labels, case-insensitive, issues and PRs.
 		const titles = async (labels: string[]) =>
-			(await issues.getIssues({ data: { repoId, status: "all", labels } }))
+			(
+				await issues.getIssues({
+					data: {
+						repoId,
+						query: ["is:all", ...labels.map((l) => `label:"${l}"`)].join(" "),
+					},
+				})
+			)
 				.map((i) => i.title)
 				.sort();
 		expect(await titles(["bug"])).toEqual(["Broken"]);
@@ -156,7 +163,7 @@ describe("labels", () => {
 		expect(await titles(["bug", "question"])).toEqual([]);
 		expect(await titles([])).toEqual(["Broken", "Plain"]);
 		const prs = await pulls.getPullRequests({
-			data: { repoId, status: "all", labels: ["bug", "enhancement"] },
+			data: { repoId, query: 'is:all label:"bug" label:"enhancement"' },
 		});
 		expect(prs.map((p) => p.title)).toEqual(["Side"]);
 		expect(prs[0]?.labels.map((l) => l.name)).toEqual(["bug", "enhancement"]);
@@ -175,7 +182,7 @@ describe("labels", () => {
 		if (!bug) throw new Error("bug label missing");
 		await labelFns.deleteLabel({ data: { repoId, labelId: bug.id } });
 		const all = await issues.getIssues({
-			data: { repoId, status: "all" },
+			data: { repoId, query: "is:all" },
 		});
 		expect(all.flatMap((i) => i.labels.map((l) => l.name))).not.toContain(
 			"bug",

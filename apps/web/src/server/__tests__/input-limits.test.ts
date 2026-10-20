@@ -30,6 +30,7 @@ const repositories = await import("../repositories");
 const {
 	MAX_BODY_CHARS,
 	MAX_LIST_SKIP,
+	MAX_SEARCH_QUERY_CHARS,
 	MAX_WEB_UPLOAD_BYTES,
 	maxBase64CharsForBytes,
 } = await import("#/lib/limits");
@@ -96,6 +97,14 @@ describe("input bounds", () => {
 		await expect(
 			issues.getIssues({
 				data: { repoId, skip: MAX_LIST_SKIP + 1 },
+			}),
+		).rejects.toThrow();
+	});
+
+	it("rejects a search query past the accepted maximum", async () => {
+		await expect(
+			issues.getIssues({
+				data: { repoId, query: "a".repeat(MAX_SEARCH_QUERY_CHARS + 1) },
 			}),
 		).rejects.toThrow();
 	});

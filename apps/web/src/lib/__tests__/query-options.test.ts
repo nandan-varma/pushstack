@@ -156,35 +156,21 @@ describe("queryKeys", () => {
 		});
 	});
 
-	describe("repoIssues", () => {
-		it("includes status filter", () => {
-			expect(queryKeys.repoIssues(1, "open")).toEqual([
+	describe("repoIssueSearch / pullRequestSearch", () => {
+		it("keys by the query string", () => {
+			expect(queryKeys.repoIssueSearch(1, "is:open label:bug")).toEqual([
 				"repos",
 				1,
 				"issues",
-				"open",
-				[],
-				null,
+				"search",
+				"is:open label:bug",
 			]);
-			expect(queryKeys.repoIssues(1, "all")).toEqual([
-				"repos",
-				1,
-				"issues",
-				"all",
-				[],
-				null,
-			]);
-		});
-	});
-
-	describe("pullRequests", () => {
-		it("includes status filter", () => {
-			expect(queryKeys.pullRequests(1, "merged")).toEqual([
+			expect(queryKeys.pullRequestSearch(1, "is:merged")).toEqual([
 				"repos",
 				1,
 				"pull-requests",
-				"merged",
-				[],
+				"search",
+				"is:merged",
 			]);
 		});
 	});
@@ -208,8 +194,8 @@ describe("queryKeys", () => {
 				queryKeys.repoBranches(repoId),
 				queryKeys.repoFiles(repoId, "main"),
 				queryKeys.repoCommits(repoId, "main"),
-				queryKeys.repoIssues(repoId, "open"),
-				queryKeys.pullRequests(repoId, "open"),
+				queryKeys.repoIssueSearch(repoId, "is:open"),
+				queryKeys.pullRequestSearch(repoId, "is:open"),
 				queryKeys.repoCollaborators(repoId),
 			];
 			for (const key of keys) {

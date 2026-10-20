@@ -87,12 +87,6 @@ export const queryKeys = {
 		depth: "banner" | "full" = "full",
 	) =>
 		["repos", repoId, "file-history", branchName, path, limit, depth] as const,
-	repoIssues: (
-		repoId: number,
-		status: "open" | "closed" | "all",
-		labels: string[] = [],
-		assignee?: string,
-	) => ["repos", repoId, "issues", status, labels, assignee ?? null] as const,
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
@@ -112,11 +106,6 @@ export const queryKeys = {
 	issueByNumber: (owner: string, name: string, number: number) =>
 		["repos", owner, name, "issues", number] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,
-	pullRequests: (
-		repoId: number,
-		status: "open" | "closed" | "merged" | "all",
-		labels: string[] = [],
-	) => ["repos", repoId, "pull-requests", status, labels] as const,
 	pullRequestsRoot: (repoId: number) =>
 		["repos", repoId, "pull-requests"] as const,
 	pullRequestByNumber: (owner: string, name: string, number: number) =>
@@ -137,6 +126,11 @@ export const queryKeys = {
 		["pull-requests", prId, "review-threads"] as const,
 	pullRequestPendingReview: (prId: number) =>
 		["pull-requests", prId, "pending-review"] as const,
+	/** The issue and pull-request lists as a GitHub query string (`?q=`). */
+	repoIssueSearch: (repoId: number, query: string) =>
+		["repos", repoId, "issues", "search", query] as const,
+	pullRequestSearch: (repoId: number, query: string) =>
+		["repos", repoId, "pull-requests", "search", query] as const,
 } as const;
 
 const SESSION_STALE_TIME = 60_000;
@@ -504,25 +498,6 @@ export function repositoryLabelsQueryOptions(repoId: number) {
 	});
 }
 
-export function repositoryIssuesQueryOptions({
-	repoId,
-	status,
-	labels = [],
-	assignee,
-}: {
-	repoId: number;
-	status: "open" | "closed" | "all";
-	labels?: string[];
-	/** A username, `none` or `*` (see getIssues). */
-	assignee?: string;
-}) {
-	return queryOptions({
-		queryKey: queryKeys.repoIssues(repoId, status, labels, assignee),
-		queryFn: () => getIssues({ data: { repoId, status, labels, assignee } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
 export function issueByNumberQueryOptions({
 	owner,
 	name,
@@ -543,22 +518,6 @@ export function issueCommentsQueryOptions(issueId: number) {
 	return queryOptions({
 		queryKey: queryKeys.issueComments(issueId),
 		queryFn: () => getComments({ data: { issueId } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
-export function repositoryPullRequestsQueryOptions({
-	repoId,
-	status,
-	labels = [],
-}: {
-	repoId: number;
-	status: "open" | "closed" | "merged" | "all";
-	labels?: string[];
-}) {
-	return queryOptions({
-		queryKey: queryKeys.pullRequests(repoId, status, labels),
-		queryFn: () => getPullRequests({ data: { repoId, status, labels } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
@@ -651,6 +610,40 @@ export function pullRequestPendingReviewQueryOptions(prId: number) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequestPendingReview(prId),
 		queryFn: () => getMyPendingReview({ data: { prId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/**
+ * The issues list filtered by a GitHub query string (`?q=`), parsed on the
+ * server with `#/lib/search-query`. The query string is the cache key, so
+ * back/forward between filters is instant.
+ */
+export function repositoryIssueSearchQueryOptions({
+	repoId,
+	query,
+}: {
+	repoId: number;
+	query: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoIssueSearch(repoId, query),
+		queryFn: () => getIssues({ data: { repoId, query } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** The pull-request list filtered by a GitHub query string (`?q=`). */
+export function repositoryPullRequestSearchQueryOptions({
+	repoId,
+	query,
+}: {
+	repoId: number;
+	query: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestSearch(repoId, query),
+		queryFn: () => getPullRequests({ data: { repoId, query } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
