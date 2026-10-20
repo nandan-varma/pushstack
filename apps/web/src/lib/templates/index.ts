@@ -43,9 +43,11 @@ export function renderLicense(
 	key: LicenseTemplateKey,
 	holder: { year: number; fullname: string },
 ): string {
+	// Replacer functions: the holder's name is user data, and a replacement
+	// string would interpret `$&`, `$1` and `$$` inside it.
 	return LICENSE_TEXTS[key]
-		.replaceAll("[year]", String(holder.year))
-		.replaceAll("[fullname]", holder.fullname);
+		.replaceAll("[year]", () => String(holder.year))
+		.replaceAll("[fullname]", () => holder.fullname);
 }
 
 /** `# name`, a blank line and the description, as GitHub's auto_init README. */

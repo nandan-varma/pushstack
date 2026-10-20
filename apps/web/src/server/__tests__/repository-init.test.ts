@@ -92,6 +92,25 @@ describe("createRepository initialization", () => {
 		expect(license).not.toContain("[fullname]");
 	});
 
+	it("renders `$` patterns in the owner name literally", async () => {
+		// `$&`, `$1` and `$$` are String.replace replacement patterns; a
+		// replacement string would mangle a display name that contains them.
+		const fullname = "A$&B$1C$$D";
+		signIn({ ...users.owner, name: fullname });
+		try {
+			const repo = await repositories.createRepository({
+				data: { name: "dollar-license", licenseTemplate: "mit" },
+			});
+			const license = await text(repo.id, "LICENSE");
+			expect(license).toContain(
+				`Copyright (c) ${new Date().getUTCFullYear()} ${fullname}`,
+			);
+			expect(license).not.toContain("[fullname]");
+		} finally {
+			signIn(users.owner);
+		}
+	});
+
 	it("all three options land in one commit", async () => {
 		const repo = await repositories.createRepository({
 			data: {
