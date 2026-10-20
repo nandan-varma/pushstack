@@ -125,6 +125,26 @@ describe("resolveCommitOid", () => {
 		);
 	});
 
+	it("accepts an uppercase sha and rejects shas of trees and blobs", async () => {
+		const { repo, second } = await repoWithTwoCommits();
+		expect(await resolveCommitOid(repo, second.toUpperCase())).toBe(second);
+		expect(await resolveCommitOid(repo, second.slice(0, 9).toUpperCase())).toBe(
+			second,
+		);
+
+		const { commit } = await git.readCommit({ ...repo, oid: second });
+		const { tree } = await git.readTree({ ...repo, oid: commit.tree });
+		const blob = tree[0]?.oid ?? "";
+		for (const oid of [commit.tree, blob]) {
+			await expect(resolveCommitOid(repo, oid)).rejects.toBeInstanceOf(
+				GitRefNotFoundError,
+			);
+			await expect(
+				resolveCommitOid(repo, oid.slice(0, 8)),
+			).rejects.toBeInstanceOf(GitRefNotFoundError);
+		}
+	});
+
 	it("reports unknown names and abbreviations as a missing ref", async () => {
 		const { repo } = await repoWithTwoCommits();
 		await expect(resolveCommitOid(repo, "nope")).rejects.toBeInstanceOf(

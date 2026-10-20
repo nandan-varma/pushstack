@@ -5,7 +5,6 @@
 import {
 	GitPathNotFoundError,
 	getObjectSize,
-	isFullSha,
 	isNotFoundError,
 } from "git-fs-s3";
 import {
@@ -160,8 +159,7 @@ export async function getCommit(
 	rev: string,
 ): Promise<CommitInfo> {
 	const repo = repoFor(ownerKey, repoName);
-	const oid = isFullSha(rev) ? rev : await resolveCommitOid(repo, rev);
-	return opsGetCommit(repo, oid);
+	return opsGetCommit(repo, await resolveCommitOid(repo, rev));
 }
 
 export function getCommitLog(

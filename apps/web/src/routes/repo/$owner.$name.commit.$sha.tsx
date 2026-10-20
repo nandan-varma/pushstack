@@ -20,6 +20,8 @@ import {
 import { createReferenceResolver } from "@/lib/reference-patterns";
 import { getInitials } from "@/lib/utils/avatar";
 
+const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
+
 export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
@@ -36,7 +38,18 @@ export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 
 			// Diff computation is comparatively expensive and not needed for the
 			// header — fetch it client-side (own loading state below) instead of
-			// blocking the route transition on it.
+			// blocking the route transition on it. A full sha already names the
+			// diff, so it starts now, alongside the commit.
+			if (FULL_SHA_RE.test(params.sha)) {
+				queryClient
+					.prefetchQuery(
+						repositoryCommitDiffQueryOptions({
+							repoId: repo.id,
+							commitSha: params.sha.toLowerCase(),
+						}),
+					)
+					.catch(() => {});
+			}
 			await queryClient.ensureQueryData(
 				repositoryCommitQueryOptions({
 					repoId: repo.id,
@@ -69,14 +82,16 @@ function CommitDetailPage() {
 		enabled: !!repo,
 	});
 
-	// The diff is read by the resolved oid, so a branch or abbreviated sha in
-	// the URL shares the cached diff of the commit it currently names.
+	// The diff is read by oid, so a branch or abbreviated sha in the URL shares
+	// the cached diff of the commit it names. A full sha is already the oid:
+	// the diff then loads in parallel with the commit, not after it.
+	const diffSha = FULL_SHA_RE.test(sha) ? sha.toLowerCase() : commit?.sha;
 	const { data: diffData, isLoading: diffLoading } = useQuery({
 		...repositoryCommitDiffQueryOptions({
 			repoId: repo?.id ?? 0,
-			commitSha: commit?.sha ?? "",
+			commitSha: diffSha ?? "",
 		}),
-		enabled: !!repo && !!commit,
+		enabled: !!repo && !!diffSha,
 	});
 
 	const { data: issueNumbers } = useQuery({

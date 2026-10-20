@@ -114,7 +114,7 @@ export async function peelToCommit(repo: Repo, oid: string): Promise<string> {
 	throw new GitRefNotFoundError(`Tag chain at ${oid} is too deep`);
 }
 
-const ABBREVIATED_SHA_RE = /^[0-9a-f]{4,39}$/i;
+const HEX_SHA_RE = /^[0-9a-f]{4,40}$/i;
 
 /**
  * The commit oid a revision names: a branch, tag, `HEAD`, a full ref, a full
@@ -127,30 +127,51 @@ export async function resolveCommitOid(
 	repo: Repo,
 	rev: string,
 ): Promise<string> {
+	const oid = await lookupCommitOid(repo, rev);
+	// A sha (or abbreviation) may name a tree or blob; only a commit counts.
+	// The parse lands in the repo cache, so the caller's read of it is free.
 	try {
-		return await resolveRefOid(repo, rev);
-	} catch (err) {
-		if (
-			!(err instanceof GitRefNotFoundError) ||
-			!ABBREVIATED_SHA_RE.test(rev)
-		) {
-			throw err;
-		}
-	}
-	try {
-		return await peelToCommit(
-			repo,
-			await git.expandOid({ ...repo, oid: rev.toLowerCase() }),
-		);
+		await git.readCommit({ ...repo, oid });
 	} catch (err) {
 		if (
 			isNotFound(err) ||
-			(err as { code?: string })?.code === "AmbiguousError"
+			(err as { code?: string })?.code === "ObjectTypeError"
 		) {
 			throw new GitRefNotFoundError(`Ref ${rev} does not exist`);
 		}
 		throw err;
 	}
+	return oid;
+}
+
+async function lookupCommitOid(repo: Repo, rev: string): Promise<string> {
+	try {
+		return await resolveRefOid(repo, rev);
+	} catch (err) {
+		if (!(err instanceof GitRefNotFoundError) || !HEX_SHA_RE.test(rev)) {
+			throw err;
+		}
+	}
+	// Refs are case-sensitive, shas are not: fall back to the lowercase sha.
+	const sha = rev.toLowerCase();
+	if (sha.length === 40)
+		return peelToCommit(repo, sha).catch(notFoundAsRef(rev));
+	return git
+		.expandOid({ ...repo, oid: sha })
+		.then((full) => peelToCommit(repo, full))
+		.catch(notFoundAsRef(rev));
+}
+
+function notFoundAsRef(rev: string) {
+	return (err: unknown): never => {
+		if (
+			isNotFound(err) ||
+			(err as { code?: string } | null)?.code === "AmbiguousError"
+		) {
+			throw new GitRefNotFoundError(`Ref ${rev} does not exist`);
+		}
+		throw err;
+	};
 }
 
 /** Resolve a branch name / full ref / sha to its commit. */
