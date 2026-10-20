@@ -1,4 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -18,13 +22,22 @@ import {
 import { CommentCard } from "@/components/CommentCard";
 import { LabelChip } from "@/components/LabelChip";
 import { useToast } from "@/components/toast-provider";
-import { queryKeys, timelineQueryOptions } from "@/lib/query-options";
+import { Button } from "@/components/ui/button";
+import {
+	type issueCommentsQueryOptions,
+	queryKeys,
+	timelineQueryOptions,
+} from "@/lib/query-options";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
 import { deleteComment, updateComment } from "@/server/comments";
 
 type Comment = Parameters<typeof CommentCard>[0]["comment"] & {
 	authorId: string;
 };
+
+type TimelineItem =
+	| { kind: "comment"; comment: Comment }
+	| { kind: "event"; event: TimelineEntry };
 
 /**
  * An issue's or pull request's conversation as GitHub shows it: comments and
@@ -35,18 +48,18 @@ export function ThreadTimeline({
 	name,
 	repoId,
 	number,
-	comments,
+	commentsOptions,
 	onQuote,
 	viewerId,
 	canParticipate,
 	canModerate,
-	commentsQueryKey,
 }: {
 	owner: string;
 	name: string;
 	repoId: number;
 	number: number;
-	comments: Comment[];
+	/** The thread's comments, loaded a page at a time. */
+	commentsOptions: ReturnType<typeof issueCommentsQueryOptions>;
 	/** Called with a comment's body when its "Quote reply" is used. */
 	onQuote?: (body: string) => void;
 	/** The signed-in user, if any: their own comments get Edit and Delete. */
@@ -54,13 +67,11 @@ export function ThreadTimeline({
 	canParticipate: boolean;
 	/** Write collaborators may edit and delete anyone's comments. */
 	canModerate: boolean;
-	/** The comments query to refresh after an edit or delete. */
-	commentsQueryKey: readonly unknown[];
 }) {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const refresh = () => {
-		queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+		queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey });
 		queryClient.invalidateQueries({ queryKey: queryKeys.timelineRoot(repoId) });
 	};
 	const updateMutation = useMutation({
@@ -76,15 +87,31 @@ export function ThreadTimeline({
 		},
 		onError: (err: Error) => toast(err.message || "Failed to delete", "error"),
 	});
-	const { data: events = [] } = useQuery(timelineQueryOptions(repoId, number));
-	const items = [
+	const commentPages = useInfiniteQuery(commentsOptions);
+	const eventPages = useInfiniteQuery(timelineQueryOptions(repoId, number));
+	const sources = [commentPages, eventPages];
+	const comments = commentPages.data?.pages.flat() ?? [];
+	const events = eventPages.data?.pages.flat() ?? [];
+	// Both sources are paged oldest first, so while one has more to load, items
+	// of the other that are newer than its last loaded item would sit before
+	// ones not yet fetched. Show only up to the earliest such horizon.
+	const horizon = Math.min(
+		...loadedUntil(commentPages.hasNextPage, comments),
+		...loadedUntil(eventPages.hasNextPage, events),
+	);
+	const items: TimelineItem[] = [
 		...comments.map((comment) => ({ kind: "comment" as const, comment })),
 		...events.map((event) => ({ kind: "event" as const, event })),
-	].sort(
-		(a, b) => new Date(itemTime(a)).getTime() - new Date(itemTime(b)).getTime(),
-	);
+	]
+		.filter((item) => new Date(itemTime(item)).getTime() <= horizon)
+		.sort(
+			(a, b) =>
+				new Date(itemTime(a)).getTime() - new Date(itemTime(b)).getTime(),
+		);
+	const hasMore = sources.some((query) => query.hasNextPage);
+	const loadingMore = sources.some((query) => query.isFetchingNextPage);
 
-	if (items.length === 0) return null;
+	if (items.length === 0 && !hasMore) return null;
 	return (
 		<div className="space-y-4">
 			{items.map((item) =>
@@ -120,15 +147,34 @@ export function ThreadTimeline({
 					/>
 				),
 			)}
+			{hasMore && (
+				<Button
+					variant="outline"
+					className="w-full"
+					disabled={loadingMore}
+					onClick={() => {
+						for (const query of sources) {
+							if (query.hasNextPage) void query.fetchNextPage();
+						}
+					}}
+				>
+					{loadingMore ? "Loading…" : "Load more"}
+				</Button>
+			)}
 		</div>
 	);
 }
 
-function itemTime(
-	item:
-		| { kind: "comment"; comment: Comment }
-		| { kind: "event"; event: TimelineEntry },
-) {
+/** The time a still-paging source is loaded up to (none once it is complete). */
+function loadedUntil(
+	hasNextPage: boolean,
+	loaded: { createdAt: Date }[],
+): number[] {
+	const last = loaded.at(-1);
+	return hasNextPage && last ? [new Date(last.createdAt).getTime()] : [];
+}
+
+function itemTime(item: TimelineItem) {
 	return item.kind === "comment"
 		? item.comment.createdAt
 		: item.event.createdAt;

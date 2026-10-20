@@ -99,3 +99,18 @@ export const MAX_REPO_DESCRIPTION_CHARS = 500;
 
 /** A personal access token's name. */
 export const MAX_TOKEN_NAME_CHARS = 100;
+
+/**
+ * Comments or timeline events one thread read returns (GitHub's default page
+ * is 30 too). The page is what the thread view loads at first and per "Load
+ * more".
+ */
+export const THREAD_PAGE_SIZE = 30;
+
+/**
+ * The most items a thread read may ask for. Sized by the worst case rather than
+ * the typical one: {@link MAX_BODY_CHARS} per comment times this must stay under
+ * Vercel's 4.5 MB buffered-response cap (50 x 64 KiB = 3.2 MB), which is what
+ * an unbounded read of a thread full of maximum-size comments broke.
+ */
+export const MAX_THREAD_PAGE_SIZE = 50;

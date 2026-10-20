@@ -88,7 +88,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 		// issue itself has resolved — can't start this in parallel with it.
 		if (issue) {
 			await queryClient
-				.ensureQueryData(issueCommentsQueryOptions(issue.id))
+				.ensureInfiniteQueryData(issueCommentsQueryOptions(issue.id))
 				.catch(() => {});
 		}
 
@@ -119,11 +119,6 @@ function IssueDetailPage() {
 	const { data: issue, isLoading } = useQuery(
 		issueByNumberQueryOptions({ owner, name, number: issueNumber }),
 	);
-
-	const { data: comments } = useQuery({
-		...issueCommentsQueryOptions(issue?.id ?? -1),
-		enabled: !!issue,
-	});
 
 	const issueQueryKey = queryKeys.issueByNumber(owner, name, issueNumber);
 
@@ -309,11 +304,10 @@ function IssueDetailPage() {
 				name={name}
 				repoId={issue.repoId}
 				number={issue.number}
-				comments={comments ?? []}
+				commentsOptions={issueCommentsQueryOptions(issue.id)}
 				viewerId={session?.user?.id}
 				canParticipate={issue.viewer.canParticipate}
 				canModerate={issue.viewer.canWrite}
-				commentsQueryKey={queryKeys.issueComments(issue.id)}
 				onQuote={
 					issue.viewer.canParticipate
 						? (body) => setNewComment((draft) => draft + quoteForReply(body))

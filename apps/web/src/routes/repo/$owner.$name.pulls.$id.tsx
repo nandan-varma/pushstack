@@ -110,7 +110,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 		// itself has resolved — can't start this in parallel with it.
 		if (pr) {
 			await queryClient
-				.ensureQueryData(pullRequestCommentsQueryOptions(pr.id))
+				.ensureInfiniteQueryData(pullRequestCommentsQueryOptions(pr.id))
 				.catch(() => {});
 		}
 
@@ -161,11 +161,6 @@ function PullRequestDetailPage() {
 	const { data: pr, isLoading } = useQuery(
 		pullRequestByNumberQueryOptions({ owner, name, number: prNumber }),
 	);
-
-	const { data: comments } = useQuery({
-		...pullRequestCommentsQueryOptions(pr?.id ?? -1),
-		enabled: !!pr,
-	});
 
 	const { data: diff, isLoading: diffLoading } = useQuery({
 		...pullRequestDiffQueryOptions({
@@ -462,11 +457,10 @@ function PullRequestDetailPage() {
 						name={name}
 						repoId={pr.repoId}
 						number={pr.number}
-						comments={comments ?? []}
+						commentsOptions={pullRequestCommentsQueryOptions(pr.id)}
 						viewerId={session?.user?.id}
 						canParticipate={pr.viewer.canParticipate}
 						canModerate={pr.viewer.canWrite}
-						commentsQueryKey={queryKeys.pullRequestComments(pr.id)}
 						onQuote={
 							pr.viewer.canParticipate
 								? (body) =>

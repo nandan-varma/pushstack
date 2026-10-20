@@ -290,18 +290,34 @@ describe("issues/comments query options", () => {
 		});
 	});
 
-	it("issueCommentsQueryOptions calls getComments with issueId", async () => {
-		await issueCommentsQueryOptions(5).queryFn?.({} as never);
+	it("issueCommentsQueryOptions pages getComments by skip", async () => {
+		const options = issueCommentsQueryOptions(5);
+		await options.queryFn?.({ pageParam: 0 } as never);
+		await options.queryFn?.({ pageParam: 30 } as never);
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
-			data: { issueId: 5 },
+			data: { issueId: 5, skip: 0 },
+		});
+		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
+			data: { issueId: 5, skip: 30 },
 		});
 	});
 
 	it("pullRequestCommentsQueryOptions calls getComments with pullRequestId", async () => {
-		await pullRequestCommentsQueryOptions(9).queryFn?.({} as never);
+		await pullRequestCommentsQueryOptions(9).queryFn?.({
+			pageParam: 0,
+		} as never);
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
-			data: { pullRequestId: 9 },
+			data: { pullRequestId: 9, skip: 0 },
 		});
+	});
+
+	it("stops paging at the first short page", () => {
+		const { getNextPageParam } = issueCommentsQueryOptions(5);
+		const page = (n: number) => Array.from({ length: n }, () => ({}) as never);
+		expect(getNextPageParam(page(30), [page(30)], 0, [0])).toBe(30);
+		expect(getNextPageParam(page(29), [page(30), page(29)], 30, [0, 30])).toBe(
+			undefined,
+		);
 	});
 });
 
