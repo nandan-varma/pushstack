@@ -31,6 +31,13 @@ vi.mock("@tanstack/react-router", () => ({
 import { LinkifiedText } from "../LinkifiedText";
 
 const owner = "acme";
+
+/** The router link `text` renders as, or a failure naming the text. */
+function hrefOf(text: string): string | null {
+	const link = screen.getByText(text).closest("[data-testid='router-link']");
+	expect(link, `${text} should render as a link`).not.toBeNull();
+	return link?.getAttribute("href") ?? null;
+}
 const name = "repo";
 
 describe("LinkifiedText", () => {
@@ -56,8 +63,7 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		const link = screen.getByText("#1");
-		expect(link.closest("[data-testid='router-link']")).toBeDefined();
+		expect(hrefOf("#1")).toBe("/repo/acme/repo/issues/1");
 	});
 
 	it("links #N as pull request when resolveReference returns 'pull'", () => {
@@ -69,8 +75,7 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		const link = screen.getByText("#2");
-		expect(link.closest("[data-testid='router-link']")).toBeDefined();
+		expect(hrefOf("#2")).toBe("/repo/acme/repo/pulls/2");
 	});
 
 	it("leaves unrecognized #N as plain text", () => {
@@ -88,8 +93,7 @@ describe("LinkifiedText", () => {
 
 	it("links commit SHAs", () => {
 		render(<LinkifiedText text="revert abc1234" owner={owner} name={name} />);
-		const link = screen.getByText("abc1234");
-		expect(link.closest("[data-testid='router-link']")).toBeDefined();
+		expect(hrefOf("abc1234")).toBe("/repo/acme/repo/commit/abc1234");
 	});
 
 	it("handles multiple references", () => {
@@ -101,12 +105,8 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		expect(
-			screen.getByText("#1").closest("[data-testid='router-link']"),
-		).toBeDefined();
-		expect(
-			screen.getByText("abc1234").closest("[data-testid='router-link']"),
-		).toBeDefined();
+		expect(hrefOf("#1")).toBe("/repo/acme/repo/issues/1");
+		expect(hrefOf("abc1234")).toBe("/repo/acme/repo/commit/abc1234");
 	});
 
 	it("applies custom className", () => {
@@ -118,6 +118,6 @@ describe("LinkifiedText", () => {
 				className="custom-class"
 			/>,
 		);
-		expect(container.querySelector(".custom-class")).toBeDefined();
+		expect(container.querySelector(".custom-class")).not.toBeNull();
 	});
 });

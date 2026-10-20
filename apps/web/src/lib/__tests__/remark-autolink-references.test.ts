@@ -116,9 +116,10 @@ describe("createAutolinkReferencesPlugin", () => {
 			name: "repo",
 			resolveReference,
 		});
-		const linkNode = getTextNodes(tree).find((n) => n.startsWith("[link:"));
-		// The full text value in the link should be the original, but display is truncated
-		expect(linkNode).toBeDefined();
+		// The link targets the full sha; its text is the 7-char short form.
+		expect(getTextNodes(tree)).toContain(
+			"[link:abc1234→/repo/acme/repo/commit/abc1234def]",
+		);
 	});
 
 	it("handles multiple references in one text", () => {
