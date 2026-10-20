@@ -5,6 +5,7 @@ import { CloneModal } from "@/components/CloneModal";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { VisibilityBadge } from "@/components/ui/visibility-badge";
+import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
 import { cn } from "@/lib/utils";
 import { toggleStar } from "@/server/repositories";
@@ -53,10 +54,9 @@ export function RepoHeader({
 
 	const starMutation = useMutation({
 		mutationFn: toggleStar,
-		onMutate: async () => {
-			await queryClient.cancelQueries({ queryKey: repoQueryKey });
-			const prev = queryClient.getQueryData(repoQueryKey);
-			queryClient.setQueryData(repoQueryKey, (old: typeof repo | undefined) =>
+		...useOptimisticUpdate<typeof repo>(
+			repoQueryKey,
+			(old) =>
 				old
 					? {
 							...old,
@@ -64,13 +64,8 @@ export function RepoHeader({
 							starCount: old.isStarred ? old.starCount - 1 : old.starCount + 1,
 						}
 					: old,
-			);
-			return { prev };
-		},
-		onError: (err: Error, _vars, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(repoQueryKey, ctx.prev);
-			toast(err.message || "Failed to update star", "error");
-		},
+			"Failed to update star",
+		),
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: repoQueryKey });
 			queryClient.invalidateQueries({ queryKey: queryKeys.repositoriesRoot });
