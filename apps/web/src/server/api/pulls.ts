@@ -5,15 +5,9 @@
  */
 import { and, count, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
-import { z } from "zod";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { user } from "#/db/schema";
-import {
-	MAX_BODY_CHARS,
-	MAX_COMMIT_MESSAGE_CHARS,
-	MAX_THREAD_TITLE_CHARS,
-} from "#/lib/limits";
 import {
 	analyzeMerge,
 	getBranchDiff,
@@ -52,9 +46,9 @@ import {
 	noContent,
 	notFoundError,
 	pageParams,
-	readJsonObject,
 	validationFailedError,
 } from "./http";
+import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { starCounts } from "./repos";
 import {
@@ -62,7 +56,7 @@ import {
 	pullRequest as pullRequestShape,
 	repository,
 } from "./serializers";
-import { fullNameOf, threadNumber } from "./threads";
+import { fullNameOf } from "./threads";
 
 /** The Commits tab and `GET …/commits` are capped at 250, as on GitHub. */
 const PULL_COMMITS_LIMIT = 250;
@@ -92,12 +86,6 @@ async function cachedDiff(
 	if (patchChars > DIFF_CACHE_MAX_PATCH_CHARS) diffCache.delete(key);
 	return diff;
 }
-
-const stateSchema = z.enum(["open", "closed", "all"]);
-const sortSchema = z
-	.enum(["created", "updated", "popularity", "long-running"])
-	.catch("created");
-const directionSchema = z.enum(["asc", "desc"]);
 
 const pullError = (field: string, code: FieldError["code"], message?: string) =>
 	({
@@ -259,7 +247,7 @@ async function serializeDetail(
 
 /** The `head` / `base` query filter: `branch` or `owner:branch`. */
 function branchFilter(
-	raw: string | null,
+	raw: string | undefined,
 	ownerUsername: string,
 ): string | null | undefined {
 	if (!raw) return undefined;
@@ -273,35 +261,21 @@ function branchFilter(
 
 export async function listPulls(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
-	const query = ctx.url.searchParams;
-	const params = pageParams(query);
-	const rawState = query.get("state") ?? "open";
-	const state = stateSchema.safeParse(rawState);
-	if (!state.success) {
-		throw validationFailedError("Validation Failed", [
-			{
-				resource: "PullRequest",
-				field: "state",
-				code: "invalid",
-				value: rawState,
-			},
-		]);
-	}
-	const sort = sortSchema.parse(query.get("sort") ?? undefined);
+	const params = pageParams(ctx.url.searchParams);
+	const query = queryParams(ctx, "pulls/list", "PullRequest");
+	const { state, sort } = query;
 	// GitHub: desc for `created` (and no sort), asc for the others.
-	const direction =
-		directionSchema.safeParse(query.get("direction") ?? undefined).data ??
-		(sort === "created" ? "desc" : "asc");
+	const direction = query.direction ?? (sort === "created" ? "desc" : "asc");
 	if (!params.reachable) return json([], 200, {});
 
-	const head = branchFilter(query.get("head"), repo.owner.username);
-	const base = query.get("base") || undefined;
+	const head = branchFilter(query.head, repo.owner.username);
+	const base = query.base || undefined;
 	const { threads, total } = await perfStep("db: list pulls", () =>
 		listThreads(
 			{
 				repoId: repo.id,
 				kind: "pull_request",
-				...(state.data !== "all" && { state: state.data }),
+				...(state !== "all" && { state }),
 				head,
 				base,
 			},
@@ -330,38 +304,12 @@ export async function listPulls(ctx: ApiContext) {
 
 export async function getPull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
-	const record = await findPull(repo.id, threadNumber(ctx.params.pull_number));
+	const { pull_number } = pathParams(ctx, "pulls/get");
+	const record = await findPull(repo.id, pull_number);
 	if (!record) throw notFoundError();
 	return json(
 		await serializeDetail(repo, record, ctx.caller ? access.role : undefined),
 	);
-}
-
-const createSchema = z.object({
-	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
-	body: z.string().max(MAX_BODY_CHARS).nullish(),
-	head: z.string().min(1).max(300),
-	base: z.string().min(1).max(300),
-});
-
-const updateSchema = z.object({
-	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
-	body: z.string().max(MAX_BODY_CHARS).nullish(),
-	state: z.enum(["open", "closed"]).optional(),
-	base: z.string().min(1).max(300).optional(),
-});
-
-function bodyErrors(
-	error: z.ZodError,
-	body: Record<string, unknown>,
-): FieldError[] {
-	return error.issues.map((issue) => {
-		const field = String(issue.path[0] ?? "");
-		return pullError(
-			field,
-			body[field] === undefined ? "missing_field" : "invalid",
-		);
-	});
 }
 
 export async function createPull(ctx: ApiContext) {
@@ -370,15 +318,7 @@ export async function createPull(ctx: ApiContext) {
 	if (!access.canWrite) {
 		throw forbiddenError("You do not have permission to create pull requests");
 	}
-	const body = await readJsonObject(ctx.request);
-	const parsed = createSchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError(
-			"Validation Failed",
-			bodyErrors(parsed.error, body),
-		);
-	}
-	const data = parsed.data;
+	const data = await requestBody(ctx, "pulls/create", "PullRequest");
 	// `head` is `branch` or `owner:branch`; there are no forks, so the owner
 	// can only be this repository's.
 	const colon = data.head.indexOf(":");
@@ -457,7 +397,7 @@ export async function updatePull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.pull_number),
+		pathParams(ctx, "pulls/update").pull_number,
 	);
 	if (!pr) throw notFoundError();
 	if (pr.authorId !== caller.userId && !access.canWrite) {
@@ -465,15 +405,7 @@ export async function updatePull(ctx: ApiContext) {
 			"You do not have permission to edit this pull request",
 		);
 	}
-	const body = await readJsonObject(ctx.request);
-	const parsed = updateSchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError(
-			"Validation Failed",
-			bodyErrors(parsed.error, body),
-		);
-	}
-	const data = parsed.data;
+	const data = await requestBody(ctx, "pulls/update", "PullRequest");
 	if (data.base !== undefined && data.base !== pr.targetBranch) {
 		throw validationFailedError("Validation Failed", [
 			customError("Changing the base branch is not supported"),
@@ -499,13 +431,6 @@ export async function updatePull(ctx: ApiContext) {
 	);
 }
 
-const mergeSchema = z.object({
-	commit_title: z.string().max(MAX_COMMIT_MESSAGE_CHARS).nullish(),
-	commit_message: z.string().max(MAX_COMMIT_MESSAGE_CHARS).nullish(),
-	sha: z.string().max(100).nullish(),
-	merge_method: z.enum(["merge", "squash", "rebase"]).nullish(),
-});
-
 const notMergeable = () => new ApiError(405, "Pull Request is not mergeable");
 
 /** `GET /repos/{owner}/{repo}/pulls/{number}/merge`: 204 once merged, else 404. */
@@ -513,7 +438,7 @@ export async function checkPullMerged(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.pull_number),
+		pathParams(ctx, "pulls/check-if-merged").pull_number,
 	);
 	if (pr?.status !== "merged") throw notFoundError();
 	return noContent();
@@ -524,7 +449,7 @@ export async function mergePull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.pull_number),
+		pathParams(ctx, "pulls/merge").pull_number,
 	);
 	if (!pr) throw notFoundError();
 	if (!access.canMergePullRequest) {
@@ -532,17 +457,9 @@ export async function mergePull(ctx: ApiContext) {
 			"You do not have permission to merge this pull request",
 		);
 	}
-	const body = await readJsonObject(ctx.request, { allowEmpty: true });
-	const parsed = mergeSchema.safeParse(body);
-	if (!parsed.success) {
-		throw validationFailedError(
-			"Validation Failed",
-			parsed.error.issues.map((issue) =>
-				pullError(String(issue.path[0] ?? ""), "invalid"),
-			),
-		);
-	}
-	const data = parsed.data;
+	const data = await requestBody(ctx, "pulls/merge", "PullRequest", {
+		allowEmpty: true,
+	});
 	if (data.merge_method === "squash" || data.merge_method === "rebase") {
 		throw new ApiError(
 			405,
@@ -600,7 +517,7 @@ export async function listPullCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.pull_number),
+		pathParams(ctx, "pulls/list-commits").pull_number,
 	);
 	if (!pr) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
@@ -634,7 +551,7 @@ export async function listPullFiles(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
 		repo.id,
-		threadNumber(ctx.params.pull_number),
+		pathParams(ctx, "pulls/list-files").pull_number,
 	);
 	if (!pr) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);

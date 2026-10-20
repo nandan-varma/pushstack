@@ -7,19 +7,10 @@
  */
 import type { PublicUser, RepositoryRowWithOwner } from "../repository-lookup";
 import { findThreads, type Thread } from "../thread-store";
-import { notFoundError } from "./http";
 import { issue } from "./serializers";
 
 export const fullNameOf = (repo: RepositoryRowWithOwner) =>
 	`${repo.owner.username}/${repo.name}`;
-
-/** The route's `:number`; anything that isn't a positive integer is a 404. */
-export function threadNumber(raw: string | undefined): number {
-	if (!raw || !/^\d+$/.test(raw)) throw notFoundError();
-	const number = Number(raw);
-	if (number < 1) throw notFoundError();
-	return number;
-}
 
 /** When a thread closed; a closed row without one closed at its last change. */
 function closedAtOf(thread: {

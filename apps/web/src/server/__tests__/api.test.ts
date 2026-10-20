@@ -398,6 +398,30 @@ describe("listing repositories", () => {
 		expect(
 			(await call("/user/repos?visibility=bogus", asToken(alice))).status,
 		).toBe(422);
+		for (const bad of ["", "owner,", "owner,bogus"]) {
+			const { status } = await call(
+				`/user/repos?affiliation=${bad}`,
+				asToken(alice),
+			);
+			expect(status, bad).toBe(422);
+		}
+		// Repeated values never push a later one out.
+		expect(
+			names(
+				(
+					await call(
+						"/user/repos?affiliation=owner,owner,owner,collaborator",
+						asToken(bob),
+					)
+				).body,
+			),
+		).toEqual(
+			names(
+				(await call("/user/repos?affiliation=owner,collaborator", asToken(bob)))
+					.body,
+			),
+		);
+		expect((await call("/users/bad..name/repos")).status).toBe(404);
 	});
 
 	it("lists only public repositories for /users/{username}/repos", async () => {

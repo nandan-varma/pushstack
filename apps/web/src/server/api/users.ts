@@ -5,6 +5,7 @@ import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { type ApiContext, requireCaller } from "./auth";
 import { json, notFoundError } from "./http";
+import { pathParams } from "./input";
 import { publicUser } from "./serializers";
 
 type UserRow = typeof user.$inferSelect;
@@ -49,9 +50,7 @@ export async function getAuthenticatedUser(ctx: ApiContext) {
 
 /** `GET /user/{account_id}`: a public profile by the integer `id`. */
 export async function getUserById(ctx: ApiContext) {
-	const raw = ctx.params.account_id ?? "";
-	const apiId = /^[1-9]\d{0,9}$/.test(raw) ? Number(raw) : 0;
-	if (apiId === 0 || apiId > 2_147_483_647) throw notFoundError();
+	const { account_id: apiId } = pathParams(ctx, "users/get-by-id");
 	const [row] = await db.select().from(user).where(eq(user.apiId, apiId));
 	if (!row) throw notFoundError();
 	const counts = await repositoryCounts(row.id);
@@ -59,7 +58,7 @@ export async function getUserById(ctx: ApiContext) {
 }
 
 export async function getUser(ctx: ApiContext) {
-	const username = ctx.params.username ?? "";
+	const { username } = pathParams(ctx, "users/get-by-username");
 	if (!STORAGE_NAME_RE.test(username)) throw notFoundError();
 	const [row] = await db.select().from(user).where(eq(user.username, username));
 	if (!row) throw notFoundError();

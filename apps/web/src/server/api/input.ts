@@ -77,13 +77,17 @@ export async function requestBody<Id extends OperationId>(
 	ctx: ApiContext,
 	id: Id,
 	resource: string,
-	options: { allowEmpty?: boolean } = {},
+	options: {
+		allowEmpty?: boolean;
+		/** The 422's message (GitHub varies it per endpoint). */
+		message?: string;
+	} = {},
 ): Promise<RequestBody<Id>> {
 	const body = await readJsonObject(ctx.request, options);
 	const parsed = schemaOf(id, "body").safeParse(body);
 	if (!parsed.success) {
 		throw validationFailedError(
-			"Validation Failed",
+			options.message ?? "Validation Failed",
 			fieldErrors(parsed.error, body, resource),
 		);
 	}

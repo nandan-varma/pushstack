@@ -3,6 +3,7 @@ import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import type { ApiContext } from "./auth";
 import { apiUrl, encodePath, json, notFoundError, pagedList } from "./http";
+import { pathParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { branchHtmlUrl, commitObject, commitRef } from "./serializers";
 
@@ -21,7 +22,7 @@ export async function listBranches(ctx: ApiContext) {
 /** `GET /repos/{owner}/{repo}/branches/{branch}` (the name may contain slashes). */
 export async function getBranch(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const name = ctx.params.branch ?? "";
+	const { branch: name } = pathParams(ctx, "repos/get-branch");
 	if (!safeBranchNameSchema.safeParse(name).success) throw notFoundError();
 	const ownerKey = ownerKeyOf(repo);
 	const fullName = `${repo.owner.username}/${repo.name}`;
