@@ -62,10 +62,7 @@ const del = (token: string) => ({ ...asToken(token), method: "DELETE" });
  * Where the server disagrees with the contract today. Each entry is fixed by
  * making the serializer return the contract type (phase 2 of #127).
  */
-const KNOWN_DRIFT: Record<string, RegExp> = {
-	// #133: `GET …/branches/{branch}`'s commit omits `comments_url`.
-	"repos/get-branch": /comments_url/,
-};
+const KNOWN_DRIFT: Record<string, RegExp> = {};
 
 let alice: string;
 
