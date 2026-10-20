@@ -10,12 +10,9 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { user } from "#/db/schema";
-import { MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
-import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
 	LICENSE_TEMPLATE_KEYS,
@@ -24,21 +21,19 @@ import { perfStep } from "../perf-log";
 import {
 	createRepositoryForUser,
 	RepositoryExistsError,
-	repoNameSchema,
 } from "../repository-create";
 import { type PublicUser, publicUserColumns } from "../repository-lookup";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
 	apiUrl,
-	type FieldError,
 	json,
 	linkHeader,
 	notFoundError,
 	type PageParams,
 	pageParams,
-	readJsonObject,
 	validationFailedError,
 } from "./http";
+import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { type RepoRole, repository } from "./serializers";
 
@@ -65,17 +60,15 @@ export async function getRepository(ctx: ApiContext) {
 	);
 }
 
-const sortSchema = z.enum(["created", "updated", "pushed", "full_name"]);
-const directionSchema = z.enum(["asc", "desc"]);
+interface Order {
+	sort?: "created" | "updated" | "pushed" | "full_name";
+	direction?: "asc" | "desc";
+}
 
 /** `sort` / `direction`: GitHub's defaults are name ascending, else newest first. */
-function ordering(query: URLSearchParams): SQL[] {
-	const sort = sortSchema
-		.catch("full_name")
-		.parse(query.get("sort") ?? undefined);
-	const direction = directionSchema
-		.catch(sort === "full_name" ? "asc" : "desc")
-		.parse(query.get("direction") ?? undefined);
+function ordering(order: Order): SQL[] {
+	const sort = order.sort ?? "full_name";
+	const direction = order.direction ?? (sort === "full_name" ? "asc" : "desc");
 	const column =
 		sort === "created"
 			? repositories.createdAt
@@ -91,13 +84,14 @@ function ordering(query: URLSearchParams): SQL[] {
 
 interface Listing {
 	where: SQL | undefined;
+	order: Order;
 	/** The caller's collaborator row is joined for `/user/repos`. */
 	callerId?: string;
 }
 
 async function listRepositories(
 	url: URL,
-	{ where, callerId }: Listing,
+	{ where, callerId, order }: Listing,
 ): Promise<{ rows: Row[]; params: PageParams; total: number }> {
 	const params = pageParams(url.searchParams);
 	const collaboratorJoin = and(
@@ -117,7 +111,7 @@ async function listRepositories(
 				.innerJoin(user, eq(repositories.ownerId, user.id))
 				.leftJoin(repositoryCollaborators, collaboratorJoin)
 				.where(where)
-				.orderBy(...ordering(url.searchParams))
+				.orderBy(...ordering(order))
 				.limit(params.perPage)
 				.offset(params.offset),
 			db
@@ -152,55 +146,34 @@ async function respondWithRepositories(
 	return json(body, 200, linkHeader(url, params, total));
 }
 
-const visibilitySchema = z.enum(["all", "public", "private"]);
-const affiliationSchema = z.enum([
-	"owner",
-	"collaborator",
-	"organization_member",
-]);
-const typeSchema = z.enum(["all", "owner", "public", "private", "member"]);
-
-function invalidParam(field: string): never {
-	throw validationFailedError("Validation Failed", [
-		{ resource: "Repository", field, code: "invalid" },
-	]);
-}
-
 /** `GET /user/repos`: owned and collaborated repositories, private included. */
 export async function listAuthenticatedUserRepositories(ctx: ApiContext) {
 	const { userId } = requireCaller(ctx);
-	const query = ctx.url.searchParams;
-	const visibilityParam = query.get("visibility");
-	const affiliationParam = query.get("affiliation");
-	const typeParam = query.get("type");
-	if (typeParam && (visibilityParam || affiliationParam)) {
+	const raw = ctx.url.searchParams;
+	if (raw.get("type") && (raw.get("visibility") || raw.get("affiliation"))) {
 		throw validationFailedError(
 			"If you specify visibility or affiliation, you cannot specify type.",
 			[],
 		);
 	}
 
-	const type = typeSchema.safeParse(typeParam ?? "all");
-	if (!type.success) invalidParam("type");
-	const visibility = visibilitySchema.safeParse(
-		visibilityParam ??
-			(type.data === "public" || type.data === "private" ? type.data : "all"),
+	const query = queryParams(
+		ctx,
+		"repos/list-for-authenticated-user",
+		"Repository",
 	);
-	if (!visibility.success) invalidParam("visibility");
-	const affiliations = new Set(
-		(
-			affiliationParam ??
-			(type.data === "owner"
-				? "owner"
-				: type.data === "member"
-					? "collaborator"
-					: "owner,collaborator")
-		).split(","),
+	const type = query.type ?? "all";
+	const visibility =
+		query.visibility ??
+		(type === "public" || type === "private" ? type : "all");
+	const affiliations = new Set<string>(
+		query.affiliation ??
+			(type === "owner"
+				? ["owner"]
+				: type === "member"
+					? ["collaborator"]
+					: ["owner", "collaborator"]),
 	);
-	for (const value of affiliations) {
-		if (!affiliationSchema.safeParse(value).success)
-			invalidParam("affiliation");
-	}
 
 	const owned = eq(repositories.ownerId, userId);
 	const collaborated = isNotNull(repositoryCollaborators.userId);
@@ -212,12 +185,13 @@ export async function listAuthenticatedUserRepositories(ctx: ApiContext) {
 		ctx.url,
 		{
 			callerId: userId,
+			order: query,
 			where: and(
 				// No matching affiliation (e.g. only organization_member) lists nothing.
 				affiliated ?? sql`false`,
-				visibility.data === "all"
+				visibility === "all"
 					? undefined
-					: eq(repositories.visibility, visibility.data),
+					: eq(repositories.visibility, visibility),
 			),
 		},
 		(row) =>
@@ -227,14 +201,15 @@ export async function listAuthenticatedUserRepositories(ctx: ApiContext) {
 
 /** `GET /users/{username}/repos`: the user's public repositories. */
 export async function listUserRepositories(ctx: ApiContext) {
-	const username = ctx.params.username ?? "";
-	if (!STORAGE_NAME_RE.test(username)) throw notFoundError();
+	const { username } = pathParams(ctx, "repos/list-for-user");
+	const order = queryParams(ctx, "repos/list-for-user", "Repository");
 	const [owner] = await db
 		.select({ id: user.id })
 		.from(user)
 		.where(eq(user.username, username));
 	if (!owner) throw notFoundError();
 	return respondWithRepositories(ctx.url, {
+		order,
 		where: and(
 			eq(repositories.ownerId, owner.id),
 			eq(repositories.visibility, "public"),
@@ -242,40 +217,43 @@ export async function listUserRepositories(ctx: ApiContext) {
 	});
 }
 
-const createBodySchema = z.object({
-	name: repoNameSchema,
-	description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
-	private: z.boolean().default(false),
-	auto_init: z.boolean().default(false),
-	gitignore_template: z.enum(GITIGNORE_TEMPLATE_NAMES).optional(),
-	license_template: z.enum(LICENSE_TEMPLATE_KEYS).optional(),
-});
+const TEMPLATES = {
+	gitignore_template: GITIGNORE_TEMPLATE_NAMES,
+	license_template: LICENSE_TEMPLATE_KEYS,
+} as const;
 
-/** GitHub's `errors[]` for a failed body parse: missing_field vs invalid. */
-function bodyErrors(
-	error: z.ZodError,
-	body: Record<string, unknown>,
-): FieldError[] {
-	return error.issues.map((issue) => {
-		const field = String(issue.path[0] ?? "");
-		return {
-			resource: "Repository",
-			field,
-			code: body[field] === undefined ? "missing_field" : "invalid",
-		};
-	});
-}
+const isTemplate = (known: readonly string[], value: string) =>
+	known.includes(value);
 
 export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 	const { userId } = requireScope(ctx, "repo:write");
-	const body = await readJsonObject(ctx.request);
-	const parsed = createBodySchema.safeParse(body);
-	if (!parsed.success) {
+	const data = await requestBody(
+		ctx,
+		"repos/create-for-authenticated-user",
+		"Repository",
+		{ message: "Repository creation failed." },
+	);
+	// The contract takes any template name; only ours exist.
+	const unknown = (["gitignore_template", "license_template"] as const).filter(
+		(field) =>
+			data[field] !== undefined && !isTemplate(TEMPLATES[field], data[field]),
+	);
+	if (unknown.length > 0) {
 		throw validationFailedError(
 			"Repository creation failed.",
-			bodyErrors(parsed.error, body),
+			unknown.map((field) => ({
+				resource: "Repository",
+				field,
+				code: "invalid",
+			})),
 		);
 	}
+	const gitignoreTemplate = data.gitignore_template as
+		| (typeof GITIGNORE_TEMPLATE_NAMES)[number]
+		| undefined;
+	const licenseTemplate = data.license_template as
+		| (typeof LICENSE_TEMPLATE_KEYS)[number]
+		| undefined;
 	const [owner] = await db
 		.select({ ...publicUserColumns, email: user.email })
 		.from(user)
@@ -285,17 +263,13 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 	let repo: Awaited<ReturnType<typeof createRepositoryForUser>>;
 	try {
 		repo = await createRepositoryForUser(owner, {
-			name: parsed.data.name,
-			description: parsed.data.description ?? undefined,
-			visibility: parsed.data.private ? "private" : "public",
-			autoInit: parsed.data.auto_init,
+			name: data.name,
+			description: data.description ?? undefined,
+			visibility: data.private ? "private" : "public",
+			autoInit: data.auto_init,
 			// GitHub applies the templates only together with auto_init.
-			gitignoreTemplate: parsed.data.auto_init
-				? parsed.data.gitignore_template
-				: undefined,
-			licenseTemplate: parsed.data.auto_init
-				? parsed.data.license_template
-				: undefined,
+			gitignoreTemplate: data.auto_init ? gitignoreTemplate : undefined,
+			licenseTemplate: data.auto_init ? licenseTemplate : undefined,
 		});
 	} catch (error) {
 		if (error instanceof RepositoryExistsError) {
