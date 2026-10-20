@@ -34,7 +34,7 @@ const pull = {
 	title: "Topic",
 	body: "body",
 	state: "open",
-	html_url: "https://git.nandan.fyi/repo/alice/project/pulls/7",
+	html_url: "https://git.nandan.fyi/alice/project/pulls/7",
 	user: { login: "alice" },
 	head: {
 		ref: "topic",

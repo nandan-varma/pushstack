@@ -79,7 +79,7 @@ describe("CLI issue commands against real REST dispatcher", () => {
 		);
 		expect(created.code, created.stderr).toBe(0);
 		expect(created.stdout).toBe(
-			"http://localhost:3000/repo/alice/issues/issues/1\n",
+			"http://localhost:3000/alice/issues/issues/1\n",
 		);
 		const viewed = await invoke(
 			"issue",

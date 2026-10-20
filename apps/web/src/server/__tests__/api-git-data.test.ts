@@ -80,7 +80,7 @@ describe("contents", () => {
 			path: "src/app.txt",
 			sha: expect.stringMatching(SHA),
 			url: `${BASE}/repos/alice/proj/contents/src/app.txt?ref=main`,
-			html_url: `${WEB}/repo/alice/proj/blob/main/src/app.txt`,
+			html_url: `${WEB}/alice/proj/blob/main/src/app.txt`,
 			download_url: `${WEB}/api/raw/alice/proj/main/src/app.txt`,
 		});
 		expect(body.git_url).toBe(`${BASE}/repos/alice/proj/git/blobs/${body.sha}`);
@@ -122,7 +122,7 @@ describe("contents", () => {
 			type: "dir",
 			size: 0,
 			download_url: null,
-			html_url: `${WEB}/repo/alice/proj/tree/main/src`,
+			html_url: `${WEB}/alice/proj/tree/main/src`,
 		});
 		expect(src.git_url).toBe(`${BASE}/repos/alice/proj/git/trees/${src.sha}`);
 		expect((await call("/repos/alice/proj/contents/")).body).toEqual(root.body);
@@ -326,7 +326,7 @@ describe("git database", () => {
 		expect(body).toMatchObject({
 			sha: second,
 			url: `${BASE}/repos/alice/proj/git/commits/${second}`,
-			html_url: `${WEB}/repo/alice/proj/commit/${second}`,
+			html_url: `${WEB}/alice/proj/commit/${second}`,
 			message: "Add src/app.txt\n",
 			tree: { sha: expect.stringMatching(SHA) },
 			parents: [{ sha: first }],

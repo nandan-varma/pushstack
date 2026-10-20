@@ -23,6 +23,37 @@ vi.mock("#/db", async () => ({
 vi.mock("../email", () => ({ sendEmail: vi.fn(async () => undefined) }));
 
 describe("immutable user fields", () => {
+	it.each(["repo", "users", "RePo", "UsErS"])(
+		"rejects reserved username %s through the auth handler",
+		async (username) => {
+			const { auth } = await import("../auth");
+			const response = await auth.handler(
+				new Request(`${auth.options.baseURL}/api/auth/sign-up/email`, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						origin: String(auth.options.baseURL),
+						"x-forwarded-for": `192.0.2.${["repo", "users", "RePo", "UsErS"].indexOf(username) + 1}`,
+					},
+					body: JSON.stringify({
+						name: "Reserved",
+						email: `${username}@example.com`,
+						password: "correct-horse-battery",
+						username,
+					}),
+				}),
+			);
+			expect(response.status).toBe(400);
+			expect(await response.json()).toMatchObject({ code: "INVALID_USERNAME" });
+			const { db } = await import("#/db/index");
+			expect(
+				await db.query.user.findFirst({
+					where: { username: username.toLowerCase() },
+				}),
+			).toBeUndefined();
+		},
+	);
+
 	it("keeps username and email fixed after sign-up, allows other profile edits", async () => {
 		const { auth } = await import("../auth");
 		const { db } = await import("#/db/index");

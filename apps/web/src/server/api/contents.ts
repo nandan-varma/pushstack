@@ -52,8 +52,8 @@ function baseShape(
 				: apiUrl(`/repos/${fullName}/git/blobs/${entry.oid}`);
 	const htmlPath =
 		kind === "dir"
-			? `/repo/${fullName}/tree/${encodePath(ref)}/${path}`
-			: `/repo/${fullName}/blob/${encodePath(ref)}/${path}`;
+			? `/${fullName}/tree/${encodePath(ref)}/${path}`
+			: `/${fullName}/blob/${encodePath(ref)}/${path}`;
 	const html = kind === "submodule" ? null : htmlUrl(htmlPath);
 	return {
 		type: kind,

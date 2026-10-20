@@ -112,7 +112,7 @@ describe("creating issues", () => {
 			state_reason: null,
 			url: `${BASE}/repos/alice/proj/issues/1`,
 			repository_url: `${BASE}/repos/alice/proj`,
-			html_url: "http://localhost:3000/repo/alice/proj/issues/1",
+			html_url: "http://localhost:3000/alice/proj/issues/1",
 		});
 		expect(body.created_at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
 		expect(body).not.toHaveProperty("pull_request");
@@ -294,10 +294,10 @@ describe("listing issues", () => {
 			number: pr.number,
 			title: "A pull request",
 			state: "open",
-			html_url: `http://localhost:3000/repo/alice/proj/pulls/${pr.number}`,
+			html_url: `http://localhost:3000/alice/proj/pulls/${pr.number}`,
 			pull_request: {
 				url: `${BASE}/repos/alice/proj/pulls/${pr.number}`,
-				html_url: `http://localhost:3000/repo/alice/proj/pulls/${pr.number}`,
+				html_url: `http://localhost:3000/alice/proj/pulls/${pr.number}`,
 				merged_at: null,
 			},
 		});
@@ -454,7 +454,7 @@ describe("issue comments", () => {
 			user: { login: "carol" },
 			issue_url: `${BASE}/repos/alice/proj/issues/${number}`,
 			url: `${BASE}/repos/alice/proj/issues/comments/${commentId}`,
-			html_url: `http://localhost:3000/repo/alice/proj/issues/${number}#issuecomment-${commentId}`,
+			html_url: `http://localhost:3000/alice/proj/issues/${number}#issuecomment-${commentId}`,
 		});
 
 		const list = await call(`/repos/alice/proj/issues/${number}/comments`);

@@ -92,7 +92,7 @@ describe("CLI against the real REST dispatcher", () => {
 				"CLI contract",
 			);
 			expect(result.code, result.stderr).toBe(0);
-			expect(result.stdout).toBe(`http://localhost:3000/repo/alice/${name}\n`);
+			expect(result.stdout).toBe(`http://localhost:3000/alice/${name}\n`);
 		}
 		const branches = await invoke("api", "repos/alice/public/branches");
 		expect(branches.code).toBe(0);

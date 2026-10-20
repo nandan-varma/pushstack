@@ -97,7 +97,7 @@ export function gitCommitObject(fullName: string, info: CommitInfo) {
 	return {
 		sha: oid,
 		url: apiUrl(`/repos/${fullName}/git/commits/${oid}`),
-		html_url: htmlUrl(`/repo/${fullName}/commit/${oid}`),
+		html_url: htmlUrl(`/${fullName}/commit/${oid}`),
 		author: gitIdentity(commit.author),
 		committer: gitIdentity(commit.committer),
 		tree: {
@@ -108,7 +108,7 @@ export function gitCommitObject(fullName: string, info: CommitInfo) {
 		parents: commit.parent.map((sha) => ({
 			sha,
 			url: apiUrl(`/repos/${fullName}/git/commits/${sha}`),
-			html_url: htmlUrl(`/repo/${fullName}/commit/${sha}`),
+			html_url: htmlUrl(`/${fullName}/commit/${sha}`),
 		})),
 		verification: {
 			verified: false,
