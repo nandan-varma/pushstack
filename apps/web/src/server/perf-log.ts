@@ -297,7 +297,8 @@ function reportWithSentry(
 }
 
 /**
- * Logs an error through one consistent shape and always reports it to Sentry.
+ * Logs an error through one consistent shape, and routes it to Sentry when a
+ * DSN is configured (without one the console line is still written).
  * `scope` is the module or subsystem name (e.g. "git-auth"); inside an active
  * perfContext the line also carries that request's correlation id (the same
  * `[perf <id>]` prefix used above). Call sites use this instead of inventing
