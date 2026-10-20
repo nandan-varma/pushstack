@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
 import { Pencil, Quote, Trash2 } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { lazy, type ReactNode, Suspense, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,7 @@ export function CommentCard({
 	onDelete,
 	isSaving,
 	allowEmpty,
+	footer,
 }: {
 	comment: {
 		id: number;
@@ -37,6 +38,8 @@ export function CommentCard({
 	onDelete?: () => void;
 	isSaving?: boolean;
 	allowEmpty?: boolean;
+	/** Rendered under the body, e.g. the reaction row. */
+	footer?: ReactNode;
 }) {
 	const [draft, setDraft] = useState<string | null>(null);
 	const body = comment.body ?? "";
@@ -154,6 +157,7 @@ export function CommentCard({
 							No description provided
 						</p>
 					)}
+					{draft === null && footer}
 				</div>
 			</div>
 		</Card>

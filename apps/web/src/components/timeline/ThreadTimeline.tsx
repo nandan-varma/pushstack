@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { CommentCard } from "@/components/CommentCard";
 import { LabelChip } from "@/components/LabelChip";
+import { ReactionBar } from "@/components/ReactionBar";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -137,6 +138,14 @@ export function ThreadTimeline({
 									isSaving: updateMutation.isPending,
 								}
 							: {})}
+						footer={
+							<ReactionBar
+								repoId={repoId}
+								number={number}
+								commentId={item.comment.id}
+								canReact={canParticipate}
+							/>
+						}
 					/>
 				) : (
 					<TimelineEventRow

@@ -13,6 +13,7 @@ import { EditableTitle } from "@/components/EditableTitle";
 import { EmptyState } from "@/components/EmptyState";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { ReactionBar } from "@/components/ReactionBar";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import {
@@ -43,6 +44,7 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
+	threadReactionsQueryOptions,
 } from "@/lib/query-options";
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
@@ -105,9 +107,14 @@ export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 		// Comments are keyed by the PR's internal id, only known once the PR
 		// itself has resolved — can't start this in parallel with it.
 		if (pr) {
-			await queryClient
-				.ensureInfiniteQueryData(pullRequestCommentsQueryOptions(pr.id))
-				.catch(() => {});
+			await Promise.all([
+				queryClient
+					.ensureInfiniteQueryData(pullRequestCommentsQueryOptions(pr.id))
+					.catch(() => {}),
+				queryClient
+					.ensureQueryData(threadReactionsQueryOptions(pr.repoId, pr.number))
+					.catch(() => {}),
+			]);
 		}
 
 		// MarkdownRenderer (PR body + comments) resolves `#123` references using
@@ -405,6 +412,13 @@ function PullRequestDetailPage() {
 											data: { prId: pr.id, body },
 										})
 								: undefined
+						}
+						footer={
+							<ReactionBar
+								repoId={pr.repoId}
+								number={pr.number}
+								canReact={pr.viewer.canParticipate}
+							/>
 						}
 					/>
 

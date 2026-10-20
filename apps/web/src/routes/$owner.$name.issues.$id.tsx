@@ -10,6 +10,7 @@ import {
 import { EditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { ReactionBar } from "@/components/ReactionBar";
 import { issueStatusVariant } from "@/components/status-variants";
 import {
 	ThreadConversation,
@@ -29,6 +30,7 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
+	threadReactionsQueryOptions,
 } from "@/lib/query-options";
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { updateIssue } from "@/server/issues";
@@ -74,9 +76,16 @@ export const Route = createFileRoute("/$owner/$name/issues/$id")({
 		// Comments are keyed by the issue's internal id, only known once the
 		// issue itself has resolved — can't start this in parallel with it.
 		if (issue) {
-			await queryClient
-				.ensureInfiniteQueryData(issueCommentsQueryOptions(issue.id))
-				.catch(() => {});
+			await Promise.all([
+				queryClient
+					.ensureInfiniteQueryData(issueCommentsQueryOptions(issue.id))
+					.catch(() => {}),
+				queryClient
+					.ensureQueryData(
+						threadReactionsQueryOptions(issue.repoId, issue.number),
+					)
+					.catch(() => {}),
+			]);
 		}
 
 		// MarkdownRenderer (issue body + comments) resolves `#123` references
@@ -243,6 +252,13 @@ function IssueDetailPage() {
 									data: { issueId: issue.id, body },
 								})
 						: undefined
+				}
+				footer={
+					<ReactionBar
+						repoId={issue.repoId}
+						number={issue.number}
+						canReact={issue.viewer.canParticipate}
+					/>
 				}
 			/>
 

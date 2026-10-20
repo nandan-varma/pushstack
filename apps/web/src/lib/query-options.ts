@@ -28,6 +28,7 @@ import {
 	getPullRequestNumbers,
 	getPullRequests,
 } from "@/server/pull-requests";
+import { getThreadReactions } from "@/server/reactions";
 import {
 	getCollaborators,
 	getRepositoryByName,
@@ -68,6 +69,8 @@ export const queryKeys = {
 	timelineRoot: (repoId: number) => ["repos", repoId, "timeline"] as const,
 	timeline: (repoId: number, number: number) =>
 		["repos", repoId, "timeline", number] as const,
+	threadReactions: (repoId: number, number: number) =>
+		["repos", repoId, "reactions", number] as const,
 	/**
 	 * Everything a write to a branch's content can change: file views, tree
 	 * pages, last commits and file history. An upload or a merge invalidates
@@ -546,6 +549,15 @@ export function repositoryLabelsQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoLabels(repoId),
 		queryFn: () => getLabels({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** Reaction rollups for a thread and all its comments: one request per page. */
+export function threadReactionsQueryOptions(repoId: number, number: number) {
+	return queryOptions({
+		queryKey: queryKeys.threadReactions(repoId, number),
+		queryFn: () => getThreadReactions({ data: { repoId, number } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
