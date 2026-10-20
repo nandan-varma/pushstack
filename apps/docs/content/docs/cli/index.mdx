@@ -1,6 +1,6 @@
 ---
 title: CLI
-description: Authenticate, manage repositories and issues, and call the REST API with pst or pushstack.
+description: Authenticate, manage repositories, issues and pull requests, and call the REST API with pst or pushstack.
 ---
 
 The `@pushstack/cli` workspace provides the `pst` and `pushstack` commands over
@@ -78,9 +78,38 @@ pst issue close 12 -R alice/project -r not_planned
 pst issue reopen 12 -R alice/project
 ```
 
+`pr list` (`ls`) shows 30 open pull requests by default, as number, title,
+head branch, state and creation time. It accepts `--limit/-L`,
+`--state/-s open|closed|merged|all` (closed includes merged, like gh),
+`--head/-H` and `--base/-B`. `pr view` and the other commands below take a
+number (`7`, `#7` or a pull request URL), a head branch name, or nothing for
+the current branch's open pull request. List and view accept `--json` with
+`number`, `title`, `body`, `state` (`OPEN`/`CLOSED`/`MERGED`), `url`,
+`author`, `headRefName`, `headRefOid`, `baseRefName`, `baseRefOid`, `isDraft`,
+`createdAt`, `updatedAt`, `closedAt`, `mergedAt`.
+
+`pr create` requires `--title/-t` and takes `--body/-b` or `--body-file/-F`;
+`--head/-H` defaults to the current branch and `--base/-B` to the repository's
+default branch. It prints the pull request URL. `pr merge` creates a merge
+commit (`--merge/-m`, the default; `--squash`/`--rebase` are rejected by the
+server) with optional `--subject/-t`, `--body/-b`/`--body-file/-F` and
+`--match-head-commit SHA`. `pr close` and `pr reopen` accept
+`--comment/-c TEXT`; merged pull requests can't be closed or reopened.
+`pr checkout` (`co`) fetches the head branch into a local branch of the same
+name (`--branch/-b NAME` to rename), fast-forwarding an existing one or
+resetting it with `--force/-f`. `pr merge --delete-branch` is not yet available.
+
+```sh
+pst pr create -t "Fix login" -F description.md
+pst pr list -s merged --json number,title,mergedAt
+pst pr merge 7 -t "Fix login (#7)"
+pst pr close 8 -c "Superseded by #7"
+pst pr checkout 7
+```
+
 `api` supports `--method`, `--header`, raw `-f key=value` fields, typed
 `-F key=value` fields, `--input`, `--include`, and `--paginate`. Requests use
 the selected host's `/api/v3` API; pagination keeps credentials on that host.
 
-The CLI covers authentication, repositories, issues, and direct API requests.
-Interactive login, cloning, pushing, and pull request commands are not implemented.
+The CLI covers authentication, repositories, issues, pull requests and direct
+API requests. Interactive login, cloning and pushing are not implemented.
