@@ -5,7 +5,7 @@
  * caller: the server functions throw their own errors, the API answers
  * 401/403/404.
  */
-import { and, eq, exists, notExists, sql } from "drizzle-orm";
+import { and, type Column, eq, exists, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { issues, threadAssignees } from "#/db/app-schema";
@@ -33,14 +33,7 @@ export const withAssignees = {
  */
 export function assigneeCondition(
 	assignee: string,
-	table: {
-		repoId:
-			| typeof issues.repoId
-			| typeof import("#/db/app-schema").pullRequests.repoId;
-		number:
-			| typeof issues.number
-			| typeof import("#/db/app-schema").pullRequests.number;
-	},
+	table: { repoId: Column; number: Column },
 ) {
 	const rows = db
 		.select({ one: sql`1` })

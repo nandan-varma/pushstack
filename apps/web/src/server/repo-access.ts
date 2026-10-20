@@ -6,9 +6,11 @@
  * missing one (404), so private repositories don't reveal they exist.
  */
 import { notFound } from "@tanstack/react-router";
+import { and, eq, exists, or, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import type { CollaboratorRole, Repository } from "#/db/app-schema";
+import { repositories, repositoryCollaborators } from "#/db/app-schema";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import {
 	getCurrentUser,
@@ -285,4 +287,23 @@ export async function requireOwner(
 	const repository = await withOwner(repoId);
 	if (repository.ownerId !== userId) throw new Error(message);
 	return repository;
+}
+
+/** SQL read access for cross-repository lists; apply before pagination. */
+export function readableRepositoriesCondition(userId: string) {
+	return or(
+		eq(repositories.visibility, "public"),
+		eq(repositories.ownerId, userId),
+		exists(
+			db
+				.select({ one: sql`1` })
+				.from(repositoryCollaborators)
+				.where(
+					and(
+						eq(repositoryCollaborators.repoId, repositories.id),
+						eq(repositoryCollaborators.userId, userId),
+					),
+				),
+		),
+	);
 }

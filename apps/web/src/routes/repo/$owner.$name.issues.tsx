@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MAX_ASSIGNEES } from "@/lib/limits";
 import {
 	assignableUsersQueryOptions,
 	authSessionQueryOptions,
@@ -189,6 +190,11 @@ function IssuesPage() {
 									>
 										<input
 											type="checkbox"
+											disabled={
+												createMutation.isPending ||
+												(!newIssue.assignees.includes(person.username) &&
+													newIssue.assignees.length >= MAX_ASSIGNEES)
+											}
 											checked={newIssue.assignees.includes(person.username)}
 											onChange={(e) =>
 												setNewIssue((p) => ({

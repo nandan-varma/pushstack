@@ -1,7 +1,7 @@
 /** Server functions for issue assignees. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq, exists, or, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { db } from "#/db";
@@ -9,14 +9,17 @@ import {
 	issues,
 	pullRequests,
 	repositories,
-	repositoryCollaborators,
 	threadAssignees,
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { MAX_ASSIGNEES } from "#/lib/limits";
 import { listAssignableUsers, replaceThreadAssignees } from "./assignees-store";
 import { perfContext } from "./perf-log";
-import { readWithAccess, requireWriteAccess } from "./repo-access";
+import {
+	readableRepositoriesCondition,
+	readWithAccess,
+	requireWriteAccess,
+} from "./repo-access";
 import { getCurrentUser } from "./session";
 
 /** Who can be assigned in a repository: its owner and write/admin collaborators. */
@@ -69,21 +72,7 @@ export const getAssignedThreads = createServerFn({ method: "GET" }).handler(
 	() =>
 		perfContext("getAssignedThreads", async () => {
 			const viewer = await getCurrentUser();
-			const readable = or(
-				eq(repositories.visibility, "public"),
-				eq(repositories.ownerId, viewer.id),
-				exists(
-					db
-						.select({ one: sql`1` })
-						.from(repositoryCollaborators)
-						.where(
-							and(
-								eq(repositoryCollaborators.repoId, repositories.id),
-								eq(repositoryCollaborators.userId, viewer.id),
-							),
-						),
-				),
-			);
+			const readable = readableRepositoriesCondition(viewer.id);
 			const selectThreads = (
 				table: typeof issues | typeof pullRequests,
 				kind: "issue" | "pull_request",

@@ -151,7 +151,7 @@ export const threadLabels = pgTable(
 	}),
 );
 
-/** Who an issue is assigned to (GitHub: up to 10, each with write access). */
+/** Who an issue or pull request is assigned to (GitHub: up to 10, each with write access). */
 export const threadAssignees = pgTable(
 	"thread_assignees",
 	{
@@ -166,7 +166,7 @@ export const threadAssignees = pgTable(
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		issueUserIdx: uniqueIndex("thread_assignee_thread_user_idx").on(
+		threadUserIdx: uniqueIndex("thread_assignee_thread_user_idx").on(
 			table.repoId,
 			table.number,
 			table.userId,

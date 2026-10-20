@@ -57,15 +57,14 @@ export const createIssue = createServerFn({ method: "POST" })
 		await requireParticipateAccess(data.repoId, currentUser.id);
 		// Labels are triage: a participant without write access opens the issue
 		// unlabeled, as on GitHub.
-		const labels = (await canWriteRepo(data.repoId, currentUser.id))
-			? data.labels
-			: [];
+		const canWrite = await canWriteRepo(data.repoId, currentUser.id);
+		const labels = canWrite ? data.labels : [];
 		const issue = await createIssueForUser(data.repoId, currentUser.id, {
 			title: data.title,
 			body: data.body,
 			labels,
 		});
-		if (await canWriteRepo(data.repoId, currentUser.id))
+		if (canWrite && data.assignees.length > 0)
 			await replaceThreadAssignees(issue, data.assignees, currentUser.id);
 		return issue;
 	});

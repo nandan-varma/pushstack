@@ -140,11 +140,11 @@ kept) and is absent when everything fits on one page. Items deeper than
 - `GET /repos/{owner}/{repo}/issues` returns issues and pull requests together,
   as the GitHub endpoint does. Get, comments, timeline, events and labels work
   on a pull request number too; editing one does not (`PATCH` at a pull request
-  number is `404`), since a pull request's fields and its separate assignee
-  model stay on the pulls endpoints.
-- Assignees are issues-only. A pull request is never assigned, so the
-  `assignee` filter's login and `*` match no pull requests, while `none` matches
-  them (they are all unassigned).
+  number is `404`), pull request field edits use the pulls endpoints.
+- Issues and pull requests both return `assignee` (first assigned user or
+  `null`) and `assignees` (all assigned users). The issues-list `assignee`
+  filter applies to both kinds. PR assignment is available in the web UI;
+  REST assignment mutation endpoints for PRs are not implemented.
 - A closed pull request's `closed_at` is its merge time when merged, otherwise
   its last update (there is no `closed_at` column); a merged pull request is
   `state: "closed"` in the issues surface, as on GitHub.
@@ -166,7 +166,7 @@ kept) and is absent when everything fits on one page. Items deeper than
   for an open pull request (`false` once merged) and `mergeable_state` is always
   `unknown`: conflicts are only detected by the merge itself, which then answers
   `405`. `rebaseable` is `false`, `draft` always `false`, `requested_reviewers`
-  and `assignees` empty, and `author_association`, `node_id` and `auto_merge`
+  empty, and `author_association`, `node_id` and `auto_merge`
   details are omitted or `null`. Creating a pull request doesn't require commits
   between the branches (the web UI doesn't either). A closed pull request whose
   head branch was deleted reports `head.sha` as 40 zeros and empty files and
