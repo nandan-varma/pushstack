@@ -37,6 +37,24 @@ export async function listAssignableUsers(
 	return users.sort((a, b) => a.username.localeCompare(b.username));
 }
 
+/** The assignees of each of `issueIds`, in one query (for list endpoints). */
+export async function assigneesByIssueIds(
+	issueIds: number[],
+): Promise<Map<number, PublicUser[]>> {
+	const byIssue = new Map<number, PublicUser[]>();
+	if (issueIds.length === 0) return byIssue;
+	const rows = await db.query.issueAssignees.findMany({
+		where: { issueId: { in: issueIds } },
+		with: { user: publicUserFields },
+	});
+	for (const row of rows) {
+		const list = byIssue.get(row.issueId);
+		if (list) list.push(row.user);
+		else byIssue.set(row.issueId, [row.user]);
+	}
+	return byIssue;
+}
+
 /**
  * Make `usernames` the issue's assignees: ineligible ones are dropped, the
  * rest beyond the cap are refused, and each addition or removal is recorded as

@@ -5,28 +5,27 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { comments, issues } from "#/db/app-schema";
-import { labelNameSchema } from "#/lib/labels";
 import {
 	MAX_BODY_CHARS,
-	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
-import { recordActivity } from "./activity";
 import { andFilter } from "./db-filters";
-import { setThreadLabels, withLabels } from "./label-store";
+import {
+	createIssueForUser,
+	issueLabelsSchema,
+	updateIssueThreadFields,
+	withAssignees,
+} from "./issue-store";
+import { withLabels } from "./label-store";
 import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
 	requireParticipateAccess,
 } from "./repo-access";
-import {
-	claimNextIssueOrPrNumber,
-	publicUserFields,
-	readRepoByName,
-} from "./repository-lookup";
+import { publicUserFields, readRepoByName } from "./repository-lookup";
 import { getCurrentUser } from "./session";
 import {
 	assigneesCondition,
@@ -38,14 +37,6 @@ import {
 	textCondition,
 	threadOrderBy,
 } from "./thread-search";
-import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
-
-/** Assignees as list rows and the detail page show them. */
-const withAssignees = {
-	assignees: { with: { user: publicUserFields } },
-} as const;
-
-const labelsSchema = z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD);
 
 export const createIssue = createServerFn({ method: "POST" })
 	.validator(
@@ -53,7 +44,7 @@ export const createIssue = createServerFn({ method: "POST" })
 			repoId: z.number(),
 			title: z.string().trim().min(1).max(256),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
-			labels: labelsSchema.default([]),
+			labels: issueLabelsSchema.default([]),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -61,37 +52,14 @@ export const createIssue = createServerFn({ method: "POST" })
 		await requireParticipateAccess(data.repoId, currentUser.id);
 		// Labels are triage: a participant without write access opens the issue
 		// unlabeled, as on GitHub.
-		const labelNames = (await canWriteRepo(data.repoId, currentUser.id))
+		const labels = (await canWriteRepo(data.repoId, currentUser.id))
 			? data.labels
 			: [];
-		const [issue] = await db
-			.insert(issues)
-			.values({
-				repoId: data.repoId,
-				number: await claimNextIssueOrPrNumber(data.repoId),
-				authorId: currentUser.id,
-				title: data.title,
-				body: data.body || null,
-			})
-			.returning();
-		if (!issue) throw new Error("Issue insert returned no row");
-		const labels = await setThreadLabels(
-			data.repoId,
-			issue.number,
-			labelNames,
-			currentUser.id,
-		);
-		await recordCrossReferences(
-			data.repoId,
-			{ kind: "issue", number: issue.number, title: issue.title },
-			issue.body,
-			currentUser.id,
-		);
-		await recordActivity(currentUser.id, data.repoId, {
-			type: "issue",
-			metadata: { number: issue.number, title: issue.title, action: "opened" },
+		return createIssueForUser(data.repoId, currentUser.id, {
+			title: data.title,
+			body: data.body,
+			labels,
 		});
-		return { ...issue, labels };
 	});
 
 export const getIssues = createServerFn({ method: "GET" })
@@ -211,52 +179,8 @@ export const updateIssue = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		const { issueId, status, ...fields } = data;
-		const titleChanged =
-			fields.title !== undefined && fields.title !== issue.title;
-		const bodyChanged =
-			fields.body !== undefined && (fields.body || null) !== issue.body;
-		const [updated] = await db
-			.update(issues)
-			.set({
-				...fields,
-				...(fields.body !== undefined && { body: fields.body || null }),
-				...(bodyChanged && { editedAt: new Date() }),
-				...(status && {
-					status,
-					closedAt: status === "closed" ? new Date() : null,
-				}),
-				updatedAt: new Date(),
-			})
-			.where(eq(issues.id, issueId))
-			.returning();
-		if (!updated) throw notFound();
-		if (titleChanged) {
-			await recordTimelineEvent(issue.repoId, issue.number, currentUser.id, {
-				event: "renamed",
-				from: issue.title,
-				to: updated.title,
-			});
-		}
-		if (bodyChanged) {
-			await recordCrossReferences(
-				issue.repoId,
-				{ kind: "issue", number: issue.number, title: updated.title },
-				fields.body,
-				currentUser.id,
-			);
-		}
-		if (status && status !== issue.status) {
-			await recordTimelineEvent(issue.repoId, issue.number, currentUser.id, {
-				event: status === "closed" ? "closed" : "reopened",
-			});
-			await recordActivity(currentUser.id, issue.repoId, {
-				type: "issue",
-				metadata: {
-					number: issue.number,
-					title: issue.title,
-					action: status === "closed" ? "closed" : "reopened",
-				},
-			});
-		}
-		return updated;
+		return updateIssueThreadFields(issue, currentUser.id, {
+			...fields,
+			status,
+		});
 	});

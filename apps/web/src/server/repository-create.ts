@@ -16,6 +16,7 @@ import {
 	renderReadme,
 } from "#/lib/templates";
 import { recordActivity } from "./activity";
+import { isUniqueViolation } from "./db-errors";
 import { deleteRepositoryStorage, initBareRepo } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { createInitialCommitUnlocked } from "./git-write";
@@ -50,12 +51,6 @@ export class RepositoryExistsError extends Error {
 	constructor() {
 		super("Repository with this name already exists");
 	}
-}
-
-/** Postgres SQLSTATE 23505; drizzle wraps driver errors, keeping it on `cause`. */
-export function isUniqueViolation(error: unknown): boolean {
-	const err = error as { code?: unknown; cause?: { code?: unknown } } | null;
-	return err?.code === "23505" || err?.cause?.code === "23505";
 }
 
 /** Insert the row, then init storage under the lock; rolls the row back on failure. */

@@ -14,6 +14,8 @@ export interface FieldError {
 	field?: string;
 	code: "missing" | "missing_field" | "invalid" | "already_exists" | "custom";
 	message?: string;
+	/** The rejected value, which GitHub includes for some `invalid` errors. */
+	value?: string;
 }
 
 /** Thrown by handlers; the dispatcher renders it as GitHub's error body. */
@@ -34,6 +36,8 @@ export const requiresAuthenticationError = () =>
 	new ApiError(401, "Requires authentication");
 export const insufficientScopeError = () =>
 	new ApiError(403, "Resource not accessible by personal access token");
+/** Authenticated, but not allowed to do this to this resource (GitHub: 403). */
+export const forbiddenError = (message: string) => new ApiError(403, message);
 export const validationFailedError = (message: string, errors: FieldError[]) =>
 	new ApiError(422, message, errors);
 
@@ -64,6 +68,17 @@ export function errorResponse(error: ApiError): Response {
 		},
 		error.status,
 	);
+}
+
+/** A bodiless response (`204`, a delete's shape on GitHub). */
+export function noContent(): Response {
+	return new Response(null, {
+		status: 204,
+		headers: {
+			"X-GitHub-Media-Type": "github.v3; format=json",
+			"Cache-Control": "private, no-cache",
+		},
+	});
 }
 
 /** An absolute API URL for `path` (which starts with "/"). */

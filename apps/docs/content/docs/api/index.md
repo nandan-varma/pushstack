@@ -76,6 +76,16 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/branches` | supported | sorted by name |
 | `GET /repos/{owner}/{repo}/branches/{branch}` | supported | branch names may contain `/` |
 | `GET /repos/{owner}/{repo}/tags` | supported | version order |
+| `GET /repos/{owner}/{repo}/issues` | supported | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
+| `POST /repos/{owner}/{repo}/issues` | supported | any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access) |
+| `GET /repos/{owner}/{repo}/issues/{number}` | supported | a pull request number returns the pull request |
+| `PATCH /repos/{owner}/{repo}/issues/{number}` | supported | the author or a writer; `title`, `body`, `state`, `labels`, `assignees`; issues only (a pull request number is `404`) |
+| `GET`/`POST /repos/{owner}/{repo}/issues/{number}/comments` | supported | comments of an issue or a pull request |
+| `GET`/`PATCH`/`DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | supported | `204` on delete |
+| `GET /repos/{owner}/{repo}/issues/{number}/timeline` | supported | comments and events, oldest first |
+| `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | events only, oldest first |
+| `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
+| `GET`/`POST`/`PUT`/`DELETE /repos/{owner}/{repo}/issues/{number}/labels` (+ `/{name}`) | supported | write access; add and set return every label, removing one returns the rest, removing all is `204` |
 | everything else | not implemented | `404 Not Found` |
 
 ## Differences from GitHub
@@ -96,6 +106,27 @@ kept) and is absent when everything fits on one page. Items deeper than
   `license`, `ssh_url`, …) is omitted.
 - `GET /users/{username}/repos` ignores `type`; there are no organizations, so
   `organization_member` affiliation matches nothing and every owner is a user.
+- `GET /repos/{owner}/{repo}/issues` returns issues and pull requests together,
+  as the GitHub endpoint does. Get, comments, timeline, events and labels work
+  on a pull request number too; editing one does not (`PATCH` at a pull request
+  number is `404`), since a pull request's fields and its separate assignee
+  model stay on the pulls endpoints.
+- Assignees are issues-only. A pull request is never assigned, so the
+  `assignee` filter's login and `*` match no pull requests, while `none` matches
+  them (they are all unassigned).
+- A closed pull request's `closed_at` is its merge time when merged, otherwise
+  its last update (there is no `closed_at` column); a merged pull request is
+  `state: "closed"` in the issues surface, as on GitHub.
+- Issue, comment and timeline objects omit `node_id`, `author_association`,
+  `reactions` and `performed_via_github_app`; `milestone` and
+  `active_lock_reason` are always `null`, `locked` always `false`. A
+  `labeled`/`unlabeled` event carries `{ name, color }`; an
+  `assigned`/`unassigned` event carries a partial assignee (`login`, `name`,
+  `type`) because the account isn't stored with the event.
+- A label's `default` is `true` for the names in GitHub's default set; a label's
+  `id` is an integer.
+- Unsupported issue-list filters (`creator`, `mentioned`, `milestone`, `since`,
+  `state_reason`) are ignored rather than rejected.
 - Commit `author`/`committer` (account links) in a branch response are `null`;
   commits aren't linked to accounts by email. `commit.url`/`html_url` point at
   endpoints/pages that aren't implemented yet.

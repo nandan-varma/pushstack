@@ -8,6 +8,7 @@ import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { MAX_LIST_SKIP } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
+import { isUniqueViolation } from "./db-errors";
 import { safeBranchNameSchema } from "./git-ref-name";
 import {
 	deleteRepositoryStorage,
@@ -28,7 +29,6 @@ import {
 import {
 	createRepositoryForUser,
 	createRepositoryInputSchema,
-	isUniqueViolation,
 	repoNameSchema,
 } from "./repository-create";
 import {
