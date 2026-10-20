@@ -1,25 +1,13 @@
 import { readFile } from "node:fs/promises";
+import type { Output } from "@pushstack/api-contract/client";
 import { parse, pickFields } from "../args";
-import { type Client, connect, nextLink } from "../client";
+import { type Client, connect } from "../client";
 import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
 import { resolveRepo } from "../repo-resolve";
 
-interface Issue {
-	number: number;
-	title: string;
-	body: string | null;
-	state: string;
-	state_reason: string | null;
-	html_url: string;
-	user: { login: string };
-	assignees: { login: string }[];
-	labels: { name: string; color: string; description: string | null }[];
-	created_at: string;
-	updated_at: string;
-	closed_at: string | null;
-	pull_request?: unknown;
-}
+/** An issue as the API returns it (pull requests carry `pull_request`). */
+type Issue = Output<"issues/get">;
 const JSON_FIELDS = {
 	number: (i: Issue) => i.number,
 	title: (i: Issue) => i.title,
@@ -99,20 +87,21 @@ async function context(
 	const host = resolveHost(io, values.hostname);
 	const ref = await resolveRepo(io, host, values.repo);
 	const client = await connect(io, host, auth);
-	return {
-		client,
-		path: `repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}/issues`,
-	};
+	return { client, repo: { owner: ref.owner, repo: ref.name } };
 }
-async function getIssue(client: Client, path: string, number: number) {
-	const { data } = await client.json<Issue>(`${path}/${number}`);
-	if ("pull_request" in data)
+type RepoInput = { owner: string; repo: string };
+async function getIssue(client: Client, repo: RepoInput, number: number) {
+	const { data } = await client.call("issues/get", {
+		...repo,
+		issue_number: number,
+	});
+	if (data.pull_request)
 		throw new CliError(`#${number} is a pull request, not an issue`);
 	return data;
 }
 async function assignees(client: Client, values: string[] | undefined) {
 	if (!values?.includes("@me")) return values;
-	const { data } = await client.json<{ login: string }>("user");
+	const { data } = await client.call("users/get-authenticated");
 	return values.map((value) => (value === "@me" ? data.login : value));
 }
 async function list(io: Io, args: string[]) {
@@ -139,40 +128,26 @@ async function list(io: Io, args: string[]) {
 	const labels = names(values.label, "label");
 	if (values.assignee !== undefined && !values.assignee.trim())
 		throw new CliError("--assignee requires a nonempty value");
-	const { client, path } = await context(io, values, values.assignee === "@me");
+	const { client, repo } = await context(io, values, values.assignee === "@me");
 	const [assignee] =
 		(await assignees(
 			client,
 			values.assignee ? [values.assignee] : undefined,
 		)) ?? [];
 	const issues: Issue[] = [];
-	let next: string | undefined = path;
-	const visited = new Set<string>();
-	while (next && issues.length < limit) {
-		if (visited.has(next))
-			throw new CliError("API returned a repeated pagination link");
-		visited.add(next);
-		const page: { data: Issue[]; response: Response } = await client.json<
-			Issue[]
-		>(
-			next,
-			visited.size === 1
-				? {
-						query: {
-							per_page: Math.min(limit, 100),
-							state: values.state,
-							labels: labels?.join(","),
-							assignee,
-						},
-					}
-				: undefined,
-		);
+	for await (const page of client.pages("issues/list-for-repo", {
+		...repo,
+		per_page: Math.min(limit, 100),
+		state: values.state as "open" | "closed" | "all",
+		labels,
+		assignee,
+	})) {
 		issues.push(
-			...page.data
-				.filter((issue) => !("pull_request" in issue))
+			...page
+				.filter((issue) => !issue.pull_request)
 				.slice(0, limit - issues.length),
 		);
-		next = nextLink(page.response);
+		if (issues.length >= limit) break;
 	}
 	if (values.json !== undefined) return print(io, values.json, issues);
 	for (const issue of issues)
@@ -192,8 +167,8 @@ async function view(io: Io, args: string[]) {
 	}
 	const number = numberArg(positionals);
 	jsonFields(values.json);
-	const { client, path } = await context(io, values);
-	const issue = await getIssue(client, path, number);
+	const { client, repo } = await context(io, values);
+	const issue = await getIssue(client, repo, number);
 	if (values.json !== undefined) return print(io, values.json, issue);
 	io.stdout(
 		`${issue.title} #${issue.number}\n${issue.state.toUpperCase()} • ${issue.user.login}\n${issue.html_url}\n\n${issue.body ?? ""}\n`,
@@ -227,15 +202,13 @@ async function create(io: Io, args: string[]) {
 				? await io.readStdin()
 				: await readFile(values["body-file"], "utf8")
 			: values.body;
-	const { client, path } = await context(io, values, true);
-	const { data } = await client.json<Issue>(path, {
-		method: "POST",
-		body: {
-			title: values.title,
-			body,
-			labels,
-			assignees: await assignees(client, assigned),
-		},
+	const { client, repo } = await context(io, values, true);
+	const { data } = await client.call("issues/create", {
+		...repo,
+		title: values.title,
+		body,
+		labels,
+		assignees: await assignees(client, assigned),
 	});
 	io.stdout(`${data.html_url}\n`);
 }
@@ -259,14 +232,16 @@ async function changeState(io: Io, args: string[], state: "open" | "closed") {
 			!["completed", "not_planned"].includes(values.reason))
 	)
 		throw new CliError("--reason must be completed or not_planned");
-	const { client, path } = await context(io, values, true);
-	await getIssue(client, path, number);
-	const { data } = await client.json<Issue>(`${path}/${number}`, {
-		method: "PATCH",
-		body: {
-			state,
-			state_reason: state === "open" ? "reopened" : values.reason,
-		},
+	const { client, repo } = await context(io, values, true);
+	await getIssue(client, repo, number);
+	const { data } = await client.call("issues/update", {
+		...repo,
+		issue_number: number,
+		state,
+		state_reason:
+			state === "open"
+				? "reopened"
+				: (values.reason as "completed" | "not_planned"),
 	});
 	io.stdout(`${data.html_url}\n`);
 }

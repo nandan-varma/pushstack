@@ -181,6 +181,9 @@ importers:
 
   apps/cli:
     devDependencies:
+      '@pushstack/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
       '@pushstack/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig

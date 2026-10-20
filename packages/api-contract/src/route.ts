@@ -1,13 +1,13 @@
 /**
- * The shape of one endpoint definition, and the two pure operations every
- * side needs: building a request from typed input (clients) and matching a
- * request path against a template (the server, tests).
+ * The shape of a route and of its schemas, and the two pure operations every
+ * side needs: building a request from input (clients) and matching a request
+ * path against a template (the server, tests). No runtime dependency on zod.
  */
 import type { z } from "zod";
 
 export type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
-export interface Endpoint {
+export interface Route {
 	method: Method;
 	/**
 	 * GitHub's path template. `{name}` is one segment; `{+name}` (RFC 6570
@@ -19,6 +19,9 @@ export interface Endpoint {
 	docs: string;
 	/** The success status (default 200; 204 has no body). */
 	status?: 200 | 201 | 204;
+}
+
+export interface Schemas {
 	params?: z.ZodType;
 	query?: z.ZodType;
 	body?: z.ZodType;
@@ -26,10 +29,7 @@ export interface Endpoint {
 	response: z.ZodType;
 }
 
-/** Keeps each definition's literal types while checking it is an {@link Endpoint}. */
-export const defineEndpoints = <const T extends Record<string, Endpoint>>(
-	endpoints: T,
-) => endpoints;
+export type Endpoint = Route & Schemas;
 
 type InputOf<S> = S extends z.ZodType ? z.input<S> : unknown;
 
@@ -60,7 +60,7 @@ export interface BuiltRequest {
  * `undefined` values are dropped.
  */
 export function buildRequest(
-	endpoint: Endpoint,
+	endpoint: Route,
 	input: Record<string, unknown> = {},
 ): BuiltRequest {
 	const rest: Record<string, unknown> = { ...input };

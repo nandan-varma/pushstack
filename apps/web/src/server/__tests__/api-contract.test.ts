@@ -6,7 +6,7 @@
  * its operation's response schema. Drift is listed in KNOWN_DRIFT until the
  * web side adopts the contract (#127, phase 2); a fix or new drift fails here.
  */
-import { endpoints, type Method, matchEndpoint } from "@pushstack/api-contract";
+import { endpoints, type Method, matchRoute } from "@pushstack/api-contract";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
@@ -33,12 +33,14 @@ const covered = new Set<string>();
 async function check(path: string, options: Parameters<typeof call>[1] = {}) {
 	const method = (options.method ?? "GET") as Method;
 	const result = await call(path, options);
-	const match = matchEndpoint(method, new URL(path, "http://x").pathname);
+	const match = matchRoute(method, new URL(path, "http://x").pathname);
 	if (!match) throw new Error(`no contract operation for ${method} ${path}`);
-	const expected = match.endpoint.status ?? 200;
-	expect(result.status, `${method} ${path}`).toBe(expected);
+	const endpoint = endpoints[match.id];
+	expect(result.status, `${method} ${path}`).toBe(
+		"status" in endpoint ? endpoint.status : 200,
+	);
 	covered.add(match.id);
-	const parsed = match.endpoint.response.safeParse(result.body);
+	const parsed = endpoint.response.safeParse(result.body);
 	if (!parsed.success && !drift.has(match.id)) {
 		drift.set(
 			match.id,

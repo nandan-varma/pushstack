@@ -1,20 +1,26 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
 	buildRequest,
 	endpoints,
 	type Input,
 	type ListOperationId,
-	matchEndpoint,
 	matchPath,
+	matchRoute,
 	type Output,
 	pathParamNames,
 	requestFor,
+	routes,
 } from "../src";
-import type { Endpoint } from "../src/endpoint";
+import type { Endpoint } from "../src/route";
 
 const table = Object.entries(endpoints) as [string, Endpoint][];
 
 describe("the endpoint table", () => {
+	it("gives every route its schemas", () => {
+		expect(Object.keys(endpoints)).toEqual(Object.keys(routes));
+	});
+
 	it("has one definition per method and path", () => {
 		const keys = table.map(([, e]) => `${e.method} ${e.path}`);
 		expect(new Set(keys).size).toBe(keys.length);
@@ -39,7 +45,7 @@ describe("the endpoint table", () => {
 	it("routes every template back to its own operation", () => {
 		for (const [id, endpoint] of table) {
 			const sample = endpoint.path.replace(/\{\+?([a-z_]+)\}/g, "x1");
-			expect(matchEndpoint(endpoint.method, sample)?.id, id).toBe(id);
+			expect(matchRoute(endpoint.method, sample)?.id, id).toBe(id);
 		}
 	});
 });
@@ -64,11 +70,11 @@ describe("matchPath", () => {
 	});
 
 	it("prefers literal routes listed first", () => {
-		expect(matchEndpoint("GET", "/user/repos")?.id).toBe(
+		expect(matchRoute("GET", "/user/repos")?.id).toBe(
 			"repos/list-for-authenticated-user",
 		);
-		expect(matchEndpoint("GET", "/user/7")?.id).toBe("users/get-by-id");
-		expect(matchEndpoint("GET", "/repos/a/b/issues/comments/3")?.id).toBe(
+		expect(matchRoute("GET", "/user/7")?.id).toBe("users/get-by-id");
+		expect(matchRoute("GET", "/repos/a/b/issues/comments/3")?.id).toBe(
 			"issues/get-comment",
 		);
 	});
@@ -126,7 +132,7 @@ describe("requestFor", () => {
 	});
 
 	it("refuses a missing path param", () => {
-		expect(() => buildRequest(endpoints["repos/get"], { owner: "a" })).toThrow(
+		expect(() => buildRequest(routes["repos/get"], { owner: "a" })).toThrow(
 			/repo/,
 		);
 	});
@@ -170,4 +176,25 @@ it("types inputs and outputs from the schemas", () => {
 	expectTypeOf<Output<"issues/delete-label">>().toEqualTypeOf<null>();
 	expectTypeOf<"pulls/list">().toExtend<ListOperationId>();
 	expectTypeOf<"pulls/get">().not.toExtend<ListOperationId>();
+});
+
+it("keeps the client entry free of zod at runtime", async () => {
+	const seen = new Set<string>();
+	const visit = async (file: string): Promise<void> => {
+		if (seen.has(file)) return;
+		seen.add(file);
+		const source = await readFile(
+			new URL(`../src/${file}.ts`, import.meta.url),
+			"utf8",
+		);
+		// Value imports and re-exports only: `import type` / `export type` are erased.
+		for (const [, from] of source.matchAll(
+			/^(?:import|export)(?! type)[^;]*?from "([^"]+)"/gm,
+		)) {
+			expect(from, `${file}.ts`).not.toBe("zod");
+			if (from?.startsWith("./")) await visit(from.slice(2));
+		}
+	};
+	await visit("client");
+	expect(seen).toEqual(new Set(["client", "route", "routes"]));
 });
