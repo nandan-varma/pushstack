@@ -16,7 +16,7 @@ import {
 	updateCommentRow,
 } from "../comment-store";
 import { findThreadById, findThreadByNumber } from "../thread-store";
-import { type ApiContext, requireCaller } from "./auth";
+import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
 	forbiddenError,
@@ -80,7 +80,7 @@ export async function listComments(ctx: ApiContext) {
 
 /** `POST /repos/{owner}/{repo}/issues/{number}/comments` */
 export async function createComment(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	if (!access.canParticipate) {
 		throw forbiddenError("You can't comment on this issue");
@@ -149,7 +149,7 @@ export async function getComment(ctx: ApiContext) {
 
 /** `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}` */
 export async function updateComment(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo } = await readableRepository(ctx);
 	const { comment, thread } = await requireComment(ctx, repo.id);
 	if (!(await canEditComment(comment, caller.userId))) {
@@ -178,7 +178,7 @@ export async function updateComment(ctx: ApiContext) {
 
 /** `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` */
 export async function deleteComment(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo } = await readableRepository(ctx);
 	const { comment, thread } = await requireComment(ctx, repo.id);
 	if (!(await canEditComment(comment, caller.userId))) {

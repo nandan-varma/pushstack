@@ -22,7 +22,7 @@ import {
 	updateRepoLabelById,
 } from "../label-store";
 import { findThreadByNumber } from "../thread-store";
-import { type ApiContext, requireCaller } from "./auth";
+import { type ApiContext, requireScope } from "./auth";
 import {
 	type FieldError,
 	forbiddenError,
@@ -104,7 +104,7 @@ export async function listRepoLabels(ctx: ApiContext) {
 
 /** `POST /repos/{owner}/{repo}/labels` */
 export async function createLabel(ctx: ApiContext) {
-	requireCaller(ctx);
+	requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const body = await readJsonObject(ctx.request);
@@ -150,7 +150,7 @@ export async function getLabel(ctx: ApiContext) {
 
 /** `PATCH /repos/{owner}/{repo}/labels/{name}` */
 export async function updateLabel(ctx: ApiContext) {
-	requireCaller(ctx);
+	requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const existing = await requireLabel(ctx, repo.id);
@@ -182,7 +182,7 @@ export async function updateLabel(ctx: ApiContext) {
 
 /** `DELETE /repos/{owner}/{repo}/labels/{name}` */
 export async function deleteLabel(ctx: ApiContext) {
-	requireCaller(ctx);
+	requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const existing = await requireLabel(ctx, repo.id);
@@ -208,7 +208,7 @@ export async function listIssueLabels(ctx: ApiContext) {
 
 /** `POST /repos/{owner}/{repo}/issues/{number}/labels` — add, return every label. */
 export async function addIssueLabels(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const number = await requireThreadNumber(ctx, repo.id);
@@ -224,7 +224,7 @@ export async function addIssueLabels(ctx: ApiContext) {
 
 /** `PUT /repos/{owner}/{repo}/issues/{number}/labels` — set exactly. */
 export async function setIssueLabels(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const number = await requireThreadNumber(ctx, repo.id);
@@ -241,7 +241,7 @@ export async function setIssueLabels(ctx: ApiContext) {
 
 /** `DELETE /repos/{owner}/{repo}/issues/{number}/labels` — remove every label. */
 export async function deleteIssueLabels(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const number = await requireThreadNumber(ctx, repo.id);
@@ -251,7 +251,7 @@ export async function deleteIssueLabels(ctx: ApiContext) {
 
 /** `DELETE /repos/{owner}/{repo}/issues/{number}/labels/{name}` — remove one. */
 export async function removeIssueLabel(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	labelWriteAccess(access);
 	const number = await requireThreadNumber(ctx, repo.id);

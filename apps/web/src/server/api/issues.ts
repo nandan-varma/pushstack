@@ -25,7 +25,7 @@ import { setThreadLabels, threadsWithLabels } from "../label-store";
 import { perfStep } from "../perf-log";
 import { publicUserColumns } from "../repository-lookup";
 import { commentCountsByNumbers } from "../thread-store";
-import { type ApiContext, requireCaller } from "./auth";
+import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
 	type FieldError,
@@ -290,7 +290,7 @@ function issueErrors(
 
 /** `POST /repos/{owner}/{repo}/issues` */
 export async function createIssue(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	if (!access.canParticipate) {
 		throw forbiddenError("You can't open issues in this repository");
@@ -328,7 +328,7 @@ export async function createIssue(ctx: ApiContext) {
 
 /** `PATCH /repos/{owner}/{repo}/issues/{number}` */
 export async function updateIssue(ctx: ApiContext) {
-	const caller = requireCaller(ctx);
+	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	const number = threadNumber(ctx.params.number);
 	const issue = await db.query.issues.findFirst({

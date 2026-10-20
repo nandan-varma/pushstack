@@ -195,12 +195,23 @@ describe("creating issues", () => {
 		);
 		expect(status).toBe(201);
 		expect(body.user.login).toBe("carol");
-		// A read-only token is enough: opening an issue is participation, not a write.
+		// As on GitHub, every write needs a write-scoped token, even one that
+		// only needs participation (opening an issue, commenting).
 		const readScoped = await call(
 			"/repos/alice/proj/issues",
 			post(aliceRead, { title: "From a read-scoped token" }),
 		);
-		expect(readScoped.status).toBe(201);
+		expect(readScoped.status).toBe(403);
+		const readScopedComment = await call(
+			"/repos/alice/proj/issues/1/comments",
+			post(aliceRead, { body: "From a read-scoped token" }),
+		);
+		expect(readScopedComment.status).toBe(403);
+		const readScopedLabel = await call(
+			"/repos/alice/proj/labels",
+			post(aliceRead, { name: "read-scoped", color: "ffffff" }),
+		);
+		expect(readScopedLabel.status).toBe(403);
 	});
 
 	it("requires authentication", async () => {
