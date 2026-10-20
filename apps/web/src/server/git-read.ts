@@ -5,6 +5,7 @@
 import {
 	GitPathNotFoundError,
 	getObjectSize,
+	isFullSha,
 	isNotFoundError,
 } from "git-fs-s3";
 import {
@@ -31,6 +32,7 @@ import {
 	getLastCommitsForTree as opsGetLastCommitsForTree,
 	type Repo,
 	resolveCommit,
+	resolveCommitOid,
 	summarizeCommit,
 	type TreeEntry,
 } from "git-fs-s3/ops";
@@ -147,12 +149,19 @@ export async function getRawFileContent(
 	return { kind: "bytes", bytes: await getBlob(repo, entry.oid) };
 }
 
-export function getCommit(
+/**
+ * One commit by sha, branch, tag, `HEAD` or abbreviated sha. The revision is
+ * resolved to an oid first and the commit read by that oid, so a moving
+ * branch tip is never cached as if it were the commit.
+ */
+export async function getCommit(
 	ownerKey: string,
 	repoName: string,
-	sha: string,
+	rev: string,
 ): Promise<CommitInfo> {
-	return opsGetCommit(repoFor(ownerKey, repoName), sha);
+	const repo = repoFor(ownerKey, repoName);
+	const oid = isFullSha(rev) ? rev : await resolveCommitOid(repo, rev);
+	return opsGetCommit(repo, oid);
 }
 
 export function getCommitLog(

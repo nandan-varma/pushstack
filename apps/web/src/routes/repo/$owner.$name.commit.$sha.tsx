@@ -40,7 +40,7 @@ export const Route = createFileRoute("/repo/$owner/$name/commit/$sha")({
 			await queryClient.ensureQueryData(
 				repositoryCommitQueryOptions({
 					repoId: repo.id,
-					commitSha: params.sha,
+					rev: params.sha,
 				}),
 			);
 		}
@@ -64,17 +64,19 @@ function CommitDetailPage() {
 	const { data: commit, isLoading: commitLoading } = useQuery({
 		...repositoryCommitQueryOptions({
 			repoId: repo?.id ?? 0,
-			commitSha: sha,
+			rev: sha,
 		}),
 		enabled: !!repo,
 	});
 
+	// The diff is read by the resolved oid, so a branch or abbreviated sha in
+	// the URL shares the cached diff of the commit it currently names.
 	const { data: diffData, isLoading: diffLoading } = useQuery({
 		...repositoryCommitDiffQueryOptions({
 			repoId: repo?.id ?? 0,
-			commitSha: sha,
+			commitSha: commit?.sha ?? "",
 		}),
-		enabled: !!repo,
+		enabled: !!repo && !!commit,
 	});
 
 	const { data: issueNumbers } = useQuery({
@@ -259,7 +261,7 @@ function CommitDetailPage() {
 				</h2>
 				<FileDiffViewer
 					files={diffData?.files}
-					sides={{ owner, name, oldRef: commit.parents[0], newRef: sha }}
+					sides={{ owner, name, oldRef: commit.parents[0], newRef: commit.sha }}
 					isLoading={diffLoading}
 				/>
 			</div>
