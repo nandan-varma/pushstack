@@ -20,6 +20,9 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
   # Actions used by our own composite action. A root entry does not scan
   # .github/actions, so this entry is what keeps the pins in
   # .github/actions/setup/action.yml fresh.
@@ -29,3 +32,6 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

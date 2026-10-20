@@ -17,57 +17,35 @@ permissions:
   contents: read
 
 jobs:
+  # Every workspace task through turbo's graph, one job per task so they run in
+  # parallel and each failure is reported. Turbo's cache is restored from the
+  # last run, so a PR only rebuilds and retests the workspaces it changed.
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
-        task: [typecheck, test, build]
+        # smoke:git drives the real `git` binary against the app's smart-HTTP
+        # route (pglite + in-memory S3, scratch HOME): the only suite that
+        # exercises the wire protocol. audit fails on any known advisory.
+        task: [check, typecheck, test, build, "smoke:git", audit]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # pnpm, Node (from .node-version) and a frozen-lockfile install.
       - uses: ./.github/actions/setup
-      # Every workspace (apps/*, packages/*) through turbo's task graph.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ matrix.task }}-${{ github.sha }}
+          restore-keys: turbo-${{ matrix.task }}-
       - run: pnpm ${{ matrix.task }}
-
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      # One biome config for the whole repository.
-      - run: pnpm check
-
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - run: pnpm audit
-
-  smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      # Drives the real `git` binary against the app's own smart-HTTP route.
-      # pglite and a fake in-memory S3 stand in for the database and object
-      # storage, and the suite writes its own git identity into a scratch HOME,
-      # so this needs no services, no secrets, and no runner git config — just
-      # the `git` binary ubuntu-latest already has. It is the only suite that
-      # exercises the wire protocol rather than isomorphic-git talking to
-      # itself.
-      - uses: ./.github/actions/setup
-      - run: pnpm smoke:git
 
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -89,6 +67,7 @@ jobs:
 
   workflows:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

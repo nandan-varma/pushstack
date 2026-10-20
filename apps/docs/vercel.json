@@ -1,4 +1,10 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
-	"buildCommand": "turbo run build --filter=@pushstack/docs"
+	"buildCommand": "turbo run build --filter=@pushstack/docs",
+	"git": {
+		"deploymentEnabled": {
+			"*": false,
+			"main": true
+		}
+	}
 }
