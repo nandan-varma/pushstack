@@ -15,7 +15,7 @@ vi.mock(
 	async () => (await import("../../test/app-harness")).sessionModule,
 );
 
-const { createUsers, signIn } = await import("../../test/app-harness");
+const { createUsers, signIn, signOut } = await import("../../test/app-harness");
 const repositories = await import("../repositories");
 const issues = await import("../issues");
 const assignees = await import("../assignees");
@@ -127,5 +127,140 @@ describe("assignees", () => {
 				data: { issueId: issue.id, usernames: [users.owner.username] },
 			}),
 		).rejects.toThrow("No write access");
+	});
+});
+
+describe("shared thread assignments", () => {
+	it("assigns at creation only for writers", async () => {
+		signIn(users.owner);
+		const created = await issues.createIssue({
+			data: {
+				repoId,
+				title: "Assigned at creation",
+				assignees: [users.writer.username, users.reader.username],
+			},
+		});
+		const detail = await issues.getIssueByNumber({
+			data: { owner: users.owner.username, name: "t", number: created.number },
+		});
+		expect(detail.assignees.map((a) => a.user.username)).toEqual([
+			users.writer.username,
+		]);
+		signIn(users.author);
+		const unassigned = await issues.createIssue({
+			data: { repoId, title: "Participant", assignees: [users.owner.username] },
+		});
+		const participant = await issues.getIssueByNumber({
+			data: {
+				owner: users.owner.username,
+				name: "t",
+				number: unassigned.number,
+			},
+		});
+		expect(participant.assignees).toEqual([]);
+	});
+
+	it("shares PR assignees, filters and events without issue id collisions", async () => {
+		const { db } = await import("#/db");
+		const { pullRequests } = await import("#/db/app-schema");
+		const { claimNextIssueOrPrNumber } = await import("../repository-lookup");
+		const pulls = await import("../pull-requests");
+		const [pr] = await db
+			.insert(pullRequests)
+			.values({
+				repoId,
+				number: await claimNextIssueOrPrNumber(repoId),
+				authorId: users.owner.id,
+				title: "Assigned PR",
+				sourceBranch: "topic",
+				targetBranch: "main",
+			})
+			.returning();
+		if (!pr) throw new Error("Missing PR");
+		signIn(users.reader);
+		await expect(
+			assignees.setPullRequestAssignees({
+				data: { pullRequestId: pr.id, usernames: [users.writer.username] },
+			}),
+		).rejects.toThrow("No write access");
+		signIn(users.owner);
+		await assignees.setPullRequestAssignees({
+			data: {
+				pullRequestId: pr.id,
+				usernames: [users.writer.username, users.reader.username],
+			},
+		});
+		const filtered = await pulls.getPullRequests({
+			data: { repoId, query: `assignee:${users.writer.username}` },
+		});
+		expect(filtered.map((row) => row.number)).toEqual([pr.number]);
+		expect(filtered[0]?.assignees[0]?.user.username).toBe(
+			users.writer.username,
+		);
+		expect(
+			await pulls.getPullRequests({ data: { repoId, query: "no:assignee" } }),
+		).toEqual([]);
+		const detail = await pulls.getPullRequestByNumber({
+			data: { owner: users.owner.username, name: "t", number: pr.number },
+		});
+		expect(detail.assignees.map((row) => row.user.username)).toEqual([
+			users.writer.username,
+		]);
+		await assignees.setPullRequestAssignees({
+			data: { pullRequestId: pr.id, usernames: [] },
+		});
+		expect(
+			(await getTimeline({ data: { repoId, number: pr.number } })).map(
+				(event) => event.event,
+			),
+		).toEqual(["assigned", "unassigned"]);
+	});
+
+	it("shows only open readable assignments and hides a private repo after access removal", async () => {
+		signIn(users.owner);
+		const privateRepo = await repositories.createRepository({
+			data: { name: "private-assigned", visibility: "private" },
+		});
+		await repositories.addCollaboratorByUsername({
+			data: {
+				repoId: privateRepo.id,
+				username: users.writer.username,
+				role: "write",
+			},
+		});
+		const issue = await issues.createIssue({
+			data: {
+				repoId: privateRepo.id,
+				title: "Private assignment",
+				assignees: [users.writer.username],
+			},
+		});
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).some(
+				(thread) => thread.name === privateRepo.name,
+			),
+		).toBe(true);
+		signIn(users.owner);
+		await issues.updateIssue({ data: { issueId: issue.id, status: "closed" } });
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).some(
+				(thread) => thread.name === privateRepo.name,
+			),
+		).toBe(false);
+		signIn(users.owner);
+		await issues.updateIssue({ data: { issueId: issue.id, status: "open" } });
+		await repositories.removeCollaborator({
+			data: { repoId: privateRepo.id, userId: users.writer.id },
+		});
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).some(
+				(thread) => thread.name === privateRepo.name,
+			),
+		).toBe(false);
+		signOut();
+		await expect(assignees.getAssignedThreads()).rejects.toThrow();
 	});
 });

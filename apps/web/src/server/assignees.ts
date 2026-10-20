@@ -114,8 +114,8 @@ export const getAssignedThreads = createServerFn({ method: "GET" }).handler(
 				selectThreads(pullRequests, "pull_request"),
 			)
 				.orderBy(
-					desc(sql`"updatedAt"`),
-					sql`"owner"`,
+					desc(sql`"updated_at"`),
+					sql`"username"`,
 					sql`"name"`,
 					sql`"number"`,
 				)
