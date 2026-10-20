@@ -3,10 +3,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { EmptyState } from "@/components/EmptyState";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { RepositoryCard } from "@/components/repo/RepositoryCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { VisibilityBadge } from "@/components/ui/visibility-badge";
 import { userProfileQueryOptions } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
 
@@ -136,42 +136,9 @@ function UserProfilePage() {
 							/>
 						) : (
 							<div className="grid gap-3 md:grid-cols-2">
-								{repositories.map((repo) => {
-									const ownerUsername = repo.owner?.username || username;
-									return (
-										<Link
-											key={repo.id}
-											to="/repo/$owner/$name/tree/$branch/$"
-											params={{
-												owner: ownerUsername,
-												name: repo.name,
-												branch: repo.defaultBranch,
-												_splat: "",
-											}}
-											className="island-shell feature-card block rounded-xl p-5 no-underline"
-										>
-											<div className="flex items-start justify-between gap-3">
-												<div className="min-w-0 flex-1">
-													<div className="flex items-center gap-2">
-														<h3
-															title={repo.name}
-															className="truncate text-sm font-semibold text-primary"
-														>
-															{repo.name}
-														</h3>
-														<VisibilityBadge visibility={repo.visibility} />
-													</div>
-													<p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-														{repo.description || "No description"}
-													</p>
-												</div>
-												<span className="shrink-0 text-xs text-muted-foreground">
-													{new Date(repo.updatedAt).toLocaleDateString()}
-												</span>
-											</div>
-										</Link>
-									);
-								})}
+								{repositories.map((repo) => (
+									<RepositoryCard key={repo.id} repo={repo} showOwner={false} />
+								))}
 							</div>
 						)}
 					</section>
