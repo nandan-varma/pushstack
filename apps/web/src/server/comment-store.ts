@@ -9,6 +9,7 @@ import { and, count, eq, ne } from "drizzle-orm";
 import { db } from "#/db";
 import { comments } from "#/db/app-schema";
 import { recordActivity } from "./activity";
+import { recordThreadActivity } from "./notification-store";
 import { canWriteRepo, getRepositoryAccess } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 import { findThreadById, type ThreadRef } from "./thread-store";
@@ -73,6 +74,12 @@ export async function createCommentForUser(
 		body,
 		userId,
 	);
+	await recordThreadActivity({
+		thread,
+		actorId: userId,
+		actorReason: "comment",
+		text: body,
+	});
 	await recordActivity(userId, thread.repoId, {
 		type: "comment",
 		metadata: {
@@ -122,6 +129,13 @@ export async function updateCommentRow(
 			body,
 			userId,
 		);
+		await recordThreadActivity({
+			thread,
+			actorId: userId,
+			text: body,
+			previousText: comment.body,
+			notifySubscribers: false,
+		});
 	}
 	return updated;
 }

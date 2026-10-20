@@ -7,6 +7,7 @@ import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { MAX_BODY_CHARS, MAX_REVIEW_PATH_CHARS } from "#/lib/limits";
 import type { ReviewState } from "#/lib/review-types";
 import { safeRepoPathSchema } from "./git-ref-name";
+import { recordThreadActivity } from "./notification-store";
 import {
 	canWriteRepo,
 	readWithAccess,
@@ -253,6 +254,12 @@ export const submitReview = createServerFn({ method: "POST" })
 				await recordTimelineEvent(pr.id, currentUser.id, {
 					event: "reviewed",
 					state,
+				});
+				await recordThreadActivity({
+					thread: pr,
+					actorId: currentUser.id,
+					actorReason: "comment",
+					text: submitted.body,
 				});
 				return submitted;
 			},

@@ -13,6 +13,7 @@ import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { recordActivity } from "./activity";
 import { ownerKeyOf } from "./git-storage-naming";
 import { mergeBranches } from "./git-write";
+import { recordThreadActivity } from "./notification-store";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { type PullRequest, pullRequestOf } from "./thread-store";
 import {
@@ -69,6 +70,12 @@ export async function insertPullRequest(
 		pr.body,
 		userId,
 	);
+	await recordThreadActivity({
+		thread: pr,
+		actorId: userId,
+		actorReason: "author",
+		text: pr.body,
+	});
 	await recordActivity(userId, repoId, {
 		type: "pr",
 		metadata: { number: pr.number, title: pr.title, action: "opened" },
@@ -123,6 +130,15 @@ export async function updatePullRequestFields(
 			fields.body,
 			userId,
 		);
+	}
+	if (bodyChanged || statusChanged) {
+		await recordThreadActivity({
+			thread: pr,
+			actorId: userId,
+			...(statusChanged && { actorReason: "state_change" as const }),
+			...(bodyChanged && { text: fields.body, previousText: pr.body }),
+			notifySubscribers: statusChanged,
+		});
 	}
 	if (statusChanged && fields.status) {
 		const action = fields.status === "closed" ? "closed" : "reopened";
@@ -201,6 +217,11 @@ export async function mergePullRequestBranches(
 		commitSha: result.commitSha,
 		base: pr.targetBranch,
 	});
+	await recordThreadActivity({
+		thread: pr,
+		actorId: user.id,
+		actorReason: "state_change",
+	});
 
 	const closing = getClosingIssueNumbers(pr.body);
 	if (closing.length > 0) {
@@ -231,6 +252,13 @@ export async function mergePullRequestBranches(
 				stateReason: "completed",
 			},
 		);
+		// GitHub sends each closed issue's subscribers a state change.
+		for (const issue of closedIssues) {
+			await recordThreadActivity({
+				thread: { id: issue.id, repoId: pr.repoId },
+				actorId: user.id,
+			});
+		}
 	}
 	await recordActivity(user.id, pr.repoId, {
 		type: "pr",

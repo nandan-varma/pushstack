@@ -6,7 +6,16 @@
  * missing one (404), so private repositories don't reveal they exist.
  */
 import { notFound } from "@tanstack/react-router";
-import { and, eq, exists, or, sql } from "drizzle-orm";
+import {
+	and,
+	type Column,
+	eq,
+	exists,
+	inArray,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import type { CollaboratorRole, Repository } from "#/db/app-schema";
@@ -282,6 +291,15 @@ export async function requireOwner(
 	return repository;
 }
 
+/**
+ * Collaborator roles that may read, straight from {@link PERMISSIONS}, so the
+ * SQL conditions below can't drift from {@link buildAccess}. The owner always
+ * reads, and anyone reads a public repository.
+ */
+const READ_ROLES = (["admin", "write", "read"] as const).filter(
+	(role) => PERMISSIONS[role].canRead,
+);
+
 /** SQL read access for cross-repository lists; apply before pagination. */
 export function readableRepositoriesCondition(userId: string) {
 	return or(
@@ -295,6 +313,46 @@ export function readableRepositoriesCondition(userId: string) {
 					and(
 						eq(repositoryCollaborators.repoId, repositories.id),
 						eq(repositoryCollaborators.userId, userId),
+						inArray(repositoryCollaborators.role, READ_ROLES),
+					),
+				),
+		),
+	);
+}
+
+/**
+ * `userId` may read the repository `repoId`: both SQL expressions or columns,
+ * so it correlates with an outer query (notification recipients and inboxes).
+ * Same rule as {@link buildAccess}'s `canRead`.
+ */
+export function canReadRepositoryCondition(
+	userId: SQL | Column,
+	repoId: SQL | Column,
+) {
+	return or(
+		exists(
+			db
+				.select({ one: sql`1` })
+				.from(repositories)
+				.where(
+					and(
+						eq(repositories.id, repoId),
+						or(
+							eq(repositories.visibility, "public"),
+							eq(repositories.ownerId, userId),
+						),
+					),
+				),
+		),
+		exists(
+			db
+				.select({ one: sql`1` })
+				.from(repositoryCollaborators)
+				.where(
+					and(
+						eq(repositoryCollaborators.repoId, repoId),
+						eq(repositoryCollaborators.userId, userId),
+						inArray(repositoryCollaborators.role, READ_ROLES),
 					),
 				),
 		),
