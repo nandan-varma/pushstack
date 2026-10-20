@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
+import { lazy, Suspense } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import {
 	AvatarBodySkeleton,
@@ -14,7 +15,6 @@ import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
-import { PullRequestFilesTab } from "@/components/repo/PullRequestFilesTab";
 import {
 	pullRequestStatusVariant,
 	reviewStatusLabel,
@@ -46,6 +46,14 @@ import {
 } from "@/lib/query-options";
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
+
+// The "Files changed" tab (diff viewer, review threads, language detection)
+// only downloads when that tab is opened.
+const PullRequestFilesTab = lazy(() =>
+	import("@/components/repo/PullRequestFilesTab").then((m) => ({
+		default: m.PullRequestFilesTab,
+	})),
+);
 
 const PR_TABS = ["conversation", "commits", "files"] as const;
 type PrTab = (typeof PR_TABS)[number];
@@ -475,13 +483,15 @@ function PullRequestDetailPage() {
 					)}
 				</TabsContent>
 				<TabsContent value="files">
-					<PullRequestFilesTab
-						owner={owner}
-						name={name}
-						pr={pr}
-						diff={diff}
-						diffLoading={diffLoading}
-					/>
+					<Suspense fallback={<Skeleton className="h-32" aria-busy="true" />}>
+						<PullRequestFilesTab
+							owner={owner}
+							name={name}
+							pr={pr}
+							diff={diff}
+							diffLoading={diffLoading}
+						/>
+					</Suspense>
 				</TabsContent>
 			</Tabs>
 		</div>

@@ -18,12 +18,18 @@ import { getRepositoryAccess, requireParticipateAccess } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { findThreadById, type ThreadRef } from "./thread-store";
 
-/** Exactly one of an issue id or a pull request id (row ids, not `#N`). */
-const threadSchema = z.union([
-	z.object({ issueId: z.number(), pullRequestId: z.undefined().optional() }),
-	z.object({ pullRequestId: z.number(), issueId: z.undefined().optional() }),
-]);
-type Thread = z.infer<typeof threadSchema>;
+/**
+ * Exactly one of an issue id or a pull request id (row ids, not `#N`).
+ * A factory, not a module-level schema: only validators (stripped from the
+ * client build) call it, so a top-level `z.union(...)` would be the one zod
+ * call left in the browser bundle, pulling all of zod into the entry chunk.
+ */
+const threadSchema = () =>
+	z.union([
+		z.object({ issueId: z.number(), pullRequestId: z.undefined().optional() }),
+		z.object({ pullRequestId: z.number(), issueId: z.undefined().optional() }),
+	]);
+type Thread = z.infer<ReturnType<typeof threadSchema>>;
 
 /** The thread's repository and `#N`; 404 when it doesn't exist. */
 async function requireThread(thread: Thread): Promise<ThreadRef> {
@@ -50,7 +56,7 @@ export const createComment = createServerFn({ method: "POST" })
 	.validator(
 		z
 			.object({ body: z.string().trim().min(1).max(MAX_BODY_CHARS) })
-			.and(threadSchema),
+			.and(threadSchema()),
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
@@ -60,7 +66,7 @@ export const createComment = createServerFn({ method: "POST" })
 	});
 
 export const getComments = createServerFn({ method: "GET" })
-	.validator(threadPageSchema.and(threadSchema))
+	.validator(threadPageSchema.and(threadSchema()))
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
 		const thread = await requireThread(data);
