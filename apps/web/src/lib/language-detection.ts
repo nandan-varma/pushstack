@@ -328,7 +328,7 @@ export function detectLanguage(filePath: string): string {
 }
 
 /** Extension → real MIME type, for native browser preview elements. */
-export const MIME_TYPE_MAP: Record<string, string> = {
+const MIME_TYPE_MAP: Record<string, string> = {
 	// Images
 	png: "image/png",
 	jpg: "image/jpeg",
