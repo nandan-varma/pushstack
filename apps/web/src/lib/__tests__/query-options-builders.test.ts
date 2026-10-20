@@ -243,10 +243,20 @@ describe("commit query options", () => {
 		expect(latest.queryKey).toEqual(commits.queryKey);
 	});
 
-	it("repositoryCommitQueryOptions is cached forever (immutable, content-addressed)", () => {
-		const opts = repositoryCommitQueryOptions({ repoId: 1, commitSha: "a" });
+	it("repositoryCommitQueryOptions caches a full sha forever (content-addressed)", () => {
+		const opts = repositoryCommitQueryOptions({
+			repoId: 1,
+			rev: "a".repeat(40),
+		});
 		expect(opts.staleTime).toBe(Number.POSITIVE_INFINITY);
 		expect(opts.gcTime).toBe(60 * 60_000);
+	});
+
+	it("repositoryCommitQueryOptions lets a branch, tag or short sha go stale", () => {
+		for (const rev of ["main", "v1", "abc1234", "HEAD"]) {
+			const opts = repositoryCommitQueryOptions({ repoId: 1, rev });
+			expect(opts.staleTime).not.toBe(Number.POSITIVE_INFINITY);
+		}
 	});
 
 	it("repositoryCommitDiffQueryOptions is cached forever", () => {

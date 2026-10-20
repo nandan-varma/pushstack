@@ -1,34 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
-	Link,
 	Outlet,
 	useLocation,
 	useNavigate,
 } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
-import { EmptyState } from "@/components/EmptyState";
-import { FilterTabs } from "@/components/FilterTabs";
-import { LabelChip } from "@/components/LabelChip";
-import { LabelFilter } from "@/components/LabelFilter";
-import { pullRequestStatusVariant } from "@/components/status-variants";
+import { useCallback, useState } from "react";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
-import { useToast } from "@/components/toast-provider";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog";
+	activeThreadTab,
+	PULL_REQUEST_STATUS_TABS,
+	ThreadFilters,
+} from "@/components/thread-list/ThreadFilters";
+import {
+	SignInButton,
+	ThreadList,
+	ThreadRow,
+} from "@/components/thread-list/ThreadList";
+import {
+	threadSearchDeps,
+	validateThreadSearch,
+} from "@/components/thread-list/thread-search";
+import { useToast } from "@/components/toast-provider";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,
@@ -36,9 +34,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_SEARCH_QUERY_CHARS } from "@/lib/limits";
 import {
 	authSessionQueryOptions,
 	queryKeys,
@@ -46,22 +42,11 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryPullRequestSearchQueryOptions,
 } from "@/lib/query-options";
-import {
-	parseSearchQuery,
-	withSearchLabel,
-	withSearchStatus,
-} from "@/lib/search-query";
 import { createPullRequest } from "@/server/pull-requests";
 
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
-	validateSearch: (search: Record<string, unknown>): { q?: string } => ({
-		// The URL query string is the single source of truth (GitHub's `?q=`).
-		q:
-			typeof search.q === "string" && search.q
-				? search.q.slice(0, MAX_SEARCH_QUERY_CHARS)
-				: undefined,
-	}),
-	loaderDeps: ({ search }) => ({ q: search.q ?? "" }),
+	validateSearch: validateThreadSearch,
+	loaderDeps: threadSearchDeps,
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -88,7 +73,6 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
 	const { q = "" } = Route.useSearch();
-	const search = useMemo(() => parseSearchQuery(q), [q]);
 	const { pathname } = useLocation();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
@@ -152,15 +136,7 @@ function PullRequestsPage() {
 		[navigate],
 	);
 
-	// The loaded page is the active tab's rows, so only its count is known.
-	const activeTab: "open" | "closed" | "merged" | "all" =
-		search.status ?? "open";
-	const counts = {
-		open: activeTab === "open" ? pullRequests?.length || 0 : undefined,
-		merged: activeTab === "merged" ? pullRequests?.length || 0 : undefined,
-		closed: activeTab === "closed" ? pullRequests?.length || 0 : undefined,
-		all: activeTab === "all" ? pullRequests?.length || 0 : undefined,
-	};
+	const activeTab = activeThreadTab(q, PULL_REQUEST_STATUS_TABS);
 
 	const handleCreatePR = useCallback(() => {
 		if (!newPR.title.trim() || !newPR.headBranch || !repo) return;
@@ -196,120 +172,96 @@ function PullRequestsPage() {
 					Pull Requests
 				</h2>
 				{!session?.user ? (
-					<Link to="/auth/login">
-						<Button size="sm" variant="outline">
-							Sign in to open a pull request
-						</Button>
-					</Link>
+					<SignInButton>Sign in to open a pull request</SignInButton>
 				) : (
-					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-						<DialogTrigger asChild>
-							<Button size="sm">New pull request</Button>
-						</DialogTrigger>
-						<DialogContent>
-							<DialogHeader>
-								<DialogTitle>Create pull request</DialogTitle>
-								<DialogDescription>
-									Merge changes from one branch into another
-								</DialogDescription>
-							</DialogHeader>
-							<div className="space-y-4">
-								<div className="space-y-1.5">
-									<Label htmlFor="title">Title</Label>
-									<Input
-										id="title"
-										value={newPR.title}
-										onChange={(e) =>
-											setNewPR((p) => ({ ...p, title: e.target.value }))
-										}
-										placeholder="Pull request title"
-									/>
-								</div>
-								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-									<div className="space-y-1.5">
-										<Label htmlFor="base">Base branch</Label>
-										<Select
-											value={baseBranch}
-											onValueChange={(value) =>
-												setNewPR((p) => ({ ...p, baseBranch: value }))
-											}
-										>
-											<SelectTrigger id="base" className="w-full">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{branches?.map((b) => (
-													<SelectItem key={b.name} value={b.name}>
-														{b.name}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-									<div className="space-y-1.5">
-										<Label htmlFor="head">Compare branch</Label>
-										<Select
-											value={newPR.headBranch}
-											onValueChange={(value) =>
-												setNewPR((p) => ({ ...p, headBranch: value }))
-											}
-										>
-											<SelectTrigger id="head" className="w-full">
-												<SelectValue placeholder="Select branch…" />
-											</SelectTrigger>
-											{/* alignItemWithTrigger positions the popup by aligning the
-											*selected* item over the trigger — with no branch chosen
-											yet (headBranch starts as ""), there's no selected item to
-											align against, which left the option(s) rendered with a
-											zero-size bounding box (unclickable, and any pointer event
-											that reached the popup at all fell through to the dialog's
-											own outside-click handler and closed the whole dialog).
-											Disabling it here falls back to normal anchored
-											positioning below the trigger. */}
-											<SelectContent alignItemWithTrigger={false}>
-												{branches
-													?.filter((b) => b.name !== baseBranch)
-													.map((b) => (
-														<SelectItem key={b.name} value={b.name}>
-															{b.name}
-														</SelectItem>
-													))}
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-								<div className="space-y-1.5">
-									<Label htmlFor="body">Description</Label>
-									<Textarea
-										id="body"
-										value={newPR.body}
-										onChange={(e) =>
-											setNewPR((p) => ({ ...p, body: e.target.value }))
-										}
-										placeholder="Describe your changes…"
-										rows={5}
-									/>
-								</div>
+					<NewThreadDialog
+						open={isCreateOpen}
+						onOpenChange={setIsCreateOpen}
+						triggerLabel="New pull request"
+						title="Create pull request"
+						description="Merge changes from one branch into another"
+						submitLabel="Create pull request"
+						canSubmit={!!newPR.title.trim() && !!newPR.headBranch}
+						isPending={createMutation.isPending}
+						onSubmit={handleCreatePR}
+					>
+						<div className="space-y-1.5">
+							<Label htmlFor="title">Title</Label>
+							<Input
+								id="title"
+								value={newPR.title}
+								onChange={(e) =>
+									setNewPR((p) => ({ ...p, title: e.target.value }))
+								}
+								placeholder="Pull request title"
+							/>
+						</div>
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div className="space-y-1.5">
+								<Label htmlFor="base">Base branch</Label>
+								<Select
+									value={baseBranch}
+									onValueChange={(value) =>
+										setNewPR((p) => ({ ...p, baseBranch: value }))
+									}
+								>
+									<SelectTrigger id="base" className="w-full">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{branches?.map((b) => (
+											<SelectItem key={b.name} value={b.name}>
+												{b.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
-							<DialogFooter>
-								<Button
-									variant="outline"
-									disabled={createMutation.isPending}
-									onClick={() => setIsCreateOpen(false)}
+							<div className="space-y-1.5">
+								<Label htmlFor="head">Compare branch</Label>
+								<Select
+									value={newPR.headBranch}
+									onValueChange={(value) =>
+										setNewPR((p) => ({ ...p, headBranch: value }))
+									}
 								>
-									Cancel
-								</Button>
-								<LoadingButton
-									onClick={handleCreatePR}
-									disabled={!newPR.title.trim() || !newPR.headBranch}
-									isLoading={createMutation.isPending}
-									loadingLabel="Creating…"
-								>
-									Create pull request
-								</LoadingButton>
-							</DialogFooter>
-						</DialogContent>
-					</Dialog>
+									<SelectTrigger id="head" className="w-full">
+										<SelectValue placeholder="Select branch…" />
+									</SelectTrigger>
+									{/* alignItemWithTrigger positions the popup by aligning the
+									*selected* item over the trigger — with no branch chosen
+									yet (headBranch starts as ""), there's no selected item to
+									align against, which left the option(s) rendered with a
+									zero-size bounding box (unclickable, and any pointer event
+									that reached the popup at all fell through to the dialog's
+									own outside-click handler and closed the whole dialog).
+									Disabling it here falls back to normal anchored
+									positioning below the trigger. */}
+									<SelectContent alignItemWithTrigger={false}>
+										{branches
+											?.filter((b) => b.name !== baseBranch)
+											.map((b) => (
+												<SelectItem key={b.name} value={b.name}>
+													{b.name}
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="body">Description</Label>
+							<Textarea
+								id="body"
+								value={newPR.body}
+								onChange={(e) =>
+									setNewPR((p) => ({ ...p, body: e.target.value }))
+								}
+								placeholder="Describe your changes…"
+								rows={5}
+							/>
+						</div>
+					</NewThreadDialog>
 				)}
 			</div>
 
@@ -320,93 +272,39 @@ function PullRequestsPage() {
 				ariaLabel="Search pull requests"
 			/>
 
-			<FilterTabs
-				tabs={[
-					{ value: "open" as const, label: "Open", count: counts.open },
-					{ value: "merged" as const, label: "Merged", count: counts.merged },
-					{ value: "closed" as const, label: "Closed", count: counts.closed },
-					{ value: "all" as const, label: "All", count: counts.all },
-				]}
-				activeTab={activeTab}
-				onTabChange={(value) => setQuery(withSearchStatus(q, value))}
-			/>
-
-			<LabelFilter
+			<ThreadFilters
+				q={q}
 				repoId={repo?.id}
-				value={search.labels[0]}
-				onChange={(value) => setQuery(withSearchLabel(q, value))}
+				tabs={PULL_REQUEST_STATUS_TABS}
+				loadedCount={pullRequests?.length ?? 0}
+				onQueryChange={setQuery}
 			/>
 
-			{/* PR list */}
-			{isLoading ? (
-				<div className="space-y-2">
-					{[1, 2, 3].map((i) => (
-						<Skeleton key={i} className="h-16" />
-					))}
-				</div>
-			) : !pullRequests?.length ? (
-				<EmptyState
-					message={`No ${activeTab !== "all" ? activeTab : ""} pull requests found.`}
-					action={
-						session?.user ? (
-							<Button size="sm" onClick={() => setIsCreateOpen(true)}>
-								Create first pull request
-							</Button>
-						) : (
-							<Link to="/auth/login">
-								<Button size="sm" variant="outline">
-									Sign in to open a pull request
-								</Button>
-							</Link>
-						)
-					}
-				/>
-			) : (
-				<div className="overflow-hidden rounded-xl border border-border">
-					{pullRequests.map((pr, idx) => (
-						<Link
-							key={pr.id}
-							to="/repo/$owner/$name/pulls/$id"
-							params={{ owner, name, id: pr.number.toString() }}
-							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card ${idx < pullRequests.length - 1 ? "border-b border-border" : ""}`}
-						>
-							<div className="min-w-0 flex-1 space-y-1">
-								<div className="flex min-w-0 items-center gap-2">
-									<span className="min-w-0 truncate text-sm font-medium text-foreground">
-										{pr.title}
-									</span>
-									<Badge
-										className="shrink-0"
-										variant={pullRequestStatusVariant(pr.status)}
-									>
-										{pr.status}
-									</Badge>
-								</div>
-								<p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
-									<span>
-										#{pr.number} opened{" "}
-										{new Date(pr.createdAt).toLocaleDateString()} by{" "}
-										{pr.author.name}
-									</span>
-									<span className="hidden sm:inline">&middot;</span>
-									<code className="inline-flex items-center gap-1 font-mono">
-										{pr.sourceBranch}
-										<ArrowRight className="size-3" />
-										{pr.targetBranch}
-									</code>
-								</p>
-								{pr.labels.length > 0 && (
-									<div className="flex flex-wrap gap-1.5 pt-0.5">
-										{pr.labels.map((l) => (
-											<LabelChip key={l.id} {...l} />
-										))}
-									</div>
-								)}
-							</div>
-						</Link>
-					))}
-				</div>
-			)}
+			<ThreadList
+				threads={pullRequests}
+				isLoading={isLoading}
+				emptyMessage={`No ${activeTab !== "all" ? activeTab : ""} pull requests found.`}
+				emptyAction={
+					session?.user ? (
+						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+							Create first pull request
+						</Button>
+					) : (
+						<SignInButton>Sign in to open a pull request</SignInButton>
+					)
+				}
+			>
+				{(pr) => (
+					<ThreadRow kind="pull" owner={owner} name={name} thread={pr}>
+						<span className="hidden sm:inline">&middot;</span>
+						<code className="inline-flex items-center gap-1 font-mono">
+							{pr.sourceBranch}
+							<ArrowRight className="size-3" />
+							{pr.targetBranch}
+						</code>
+					</ThreadRow>
+				)}
+			</ThreadList>
 		</div>
 	);
 }

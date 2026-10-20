@@ -77,7 +77,7 @@ describe("R2 round trips", () => {
 		expect(second.hits).toBeGreaterThan(0);
 	});
 
-	it("keeps a repeated file read inside one round trip", async () => {
+	it("serves a repeated file read without touching object storage", async () => {
 		const read = () =>
 			files.getFile({
 				data: { repoId, branchName: "main", path: "a.txt" },
@@ -88,11 +88,8 @@ describe("R2 round trips", () => {
 		// object layout.
 		expect(first.r2Calls).toBeLessThanOrEqual(20);
 
-		// One, not zero: the tree read is cached, but the blob content is still
-		// read from the pack on every view (#79). Tighten this to 0 with that
-		// issue — until then the bound still catches a second round trip being
-		// added here.
+		// The blob's pack slice is cached too (#79): a repeat view is free.
 		const second = await tally(read);
-		expect(second.r2Calls).toBeLessThanOrEqual(1);
+		expect(second.r2Calls).toBe(0);
 	});
 });

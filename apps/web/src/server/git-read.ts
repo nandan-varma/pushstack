@@ -31,6 +31,7 @@ import {
 	getLastCommitsForTree as opsGetLastCommitsForTree,
 	type Repo,
 	resolveCommit,
+	resolveCommitOid,
 	summarizeCommit,
 	type TreeEntry,
 } from "git-fs-s3/ops";
@@ -74,6 +75,22 @@ async function findFileEntry(
 		hooks,
 	);
 	return { entry: entries.find((entry) => entry.path === filePath), commitOid };
+}
+
+/** The oid of the blob or submodule at `filePath` in `ref`, or null when absent. */
+export async function getEntryOid(
+	ownerKey: string,
+	repoName: string,
+	ref: string,
+	filePath: string,
+): Promise<string | null> {
+	const { entry } = await findFileEntry(
+		repoFor(ownerKey, repoName),
+		ref,
+		filePath,
+		opsHooksFor(ownerKey, repoName),
+	);
+	return entry?.oid ?? null;
 }
 
 /** A blob or submodule at a revision; only small text blobs travel inline. */
@@ -147,12 +164,18 @@ export async function getRawFileContent(
 	return { kind: "bytes", bytes: await getBlob(repo, entry.oid) };
 }
 
-export function getCommit(
+/**
+ * One commit by sha, branch, tag, `HEAD` or abbreviated sha. The revision is
+ * resolved to an oid first and the commit read by that oid, so a moving
+ * branch tip is never cached as if it were the commit.
+ */
+export async function getCommit(
 	ownerKey: string,
 	repoName: string,
-	sha: string,
+	rev: string,
 ): Promise<CommitInfo> {
-	return opsGetCommit(repoFor(ownerKey, repoName), sha);
+	const repo = repoFor(ownerKey, repoName);
+	return opsGetCommit(repo, await resolveCommitOid(repo, rev));
 }
 
 export function getCommitLog(

@@ -181,11 +181,13 @@ export interface MergeOptions {
 	message?: string;
 	authorName?: string;
 	authorEmail?: string;
+	/** Refuse (before writing) unless the source tip, read under the lock, is this. */
+	expectedHeadSha?: string;
 }
 
 export type MergeOutcome =
 	| { success: true; commitSha: string; baseSha: string; headSha: string }
-	| { success: false; conflicts: string[] };
+	| { success: false; conflicts: string[]; headModified?: true };
 
 /**
  * Merge `sourceBranch` into `targetBranch`: a fast-forward when possible,
@@ -208,6 +210,13 @@ export async function mergeBranches(
 			// pull request merged.
 			const baseSha = (await resolveCommit(repo, targetBranch)).oid;
 			const headSha = (await resolveCommit(repo, sourceBranch)).oid;
+			if (options.expectedHeadSha && options.expectedHeadSha !== headSha) {
+				return {
+					success: false as const,
+					conflicts: [],
+					headModified: true as const,
+				};
+			}
 			const fastForward = await fastForwardMerge(
 				repo,
 				sourceBranch,

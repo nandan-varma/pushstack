@@ -80,8 +80,8 @@ export const queryKeys = {
 	repoCommitsRoot: (repoId: number) => ["repos", repoId, "commits"] as const,
 	repoCommits: (repoId: number, branchName: string, limit = 50, skip = 0) =>
 		["repos", repoId, "commits", branchName, limit, skip] as const,
-	repoCommit: (repoId: number, commitSha: string) =>
-		["repos", repoId, "commit", commitSha] as const,
+	repoCommit: (repoId: number, rev: string) =>
+		["repos", repoId, "commit", rev] as const,
 	repoCommitDiff: (repoId: number, commitSha: string) =>
 		["repos", repoId, "commit-diff", commitSha] as const,
 	repoLastCommits: (repoId: number, branchName: string, path = "") =>
@@ -465,18 +465,23 @@ export function repositoryLatestCommitQueryOptions({
 	return repositoryCommitsQueryOptions({ repoId, branchName, limit: 1 });
 }
 
+/**
+ * A commit by branch, tag, `HEAD` or (abbreviated) sha. Only a full sha is
+ * immutable; any other revision can move, so it refetches like other lists.
+ */
 export function repositoryCommitQueryOptions({
 	repoId,
-	commitSha,
+	rev,
 }: {
 	repoId: number;
-	commitSha: string;
+	rev: string;
 }) {
+	const immutable = /^[0-9a-f]{40}$/i.test(rev);
 	return queryOptions({
-		queryKey: queryKeys.repoCommit(repoId, commitSha),
-		queryFn: () => getCommit({ data: { repoId, commitSha } }),
-		staleTime: IMMUTABLE_STALE_TIME,
-		gcTime: IMMUTABLE_GC_TIME,
+		queryKey: queryKeys.repoCommit(repoId, rev),
+		queryFn: () => getCommit({ data: { repoId, rev } }),
+		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
+		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
 	});
 }
 

@@ -359,3 +359,37 @@ describe("tags", () => {
 		expect(page.files.map((f) => f.path)).toContain("app.txt");
 	});
 });
+
+describe("commit pages", () => {
+	it("resolve a branch, tag, HEAD or abbreviated sha to the same commit", async () => {
+		const git = (await import("isomorphic-git")).default;
+		const { repoFor } = await import("../git-repo");
+		signIn(users.maintainer);
+		const repo = repoFor("maintainer", "proj");
+		const head = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		await git.tag({ ...repo, ref: "v-commit", object: head });
+
+		for (const rev of ["main", "v-commit", "HEAD", head, head.slice(0, 7)]) {
+			const commit = await files.getCommit({ data: { repoId, rev } });
+			expect(commit.sha).toBe(head);
+		}
+		const diff = await files.getCommitDiff({
+			data: { repoId, commitSha: head },
+		});
+		expect(diff.files.length).toBeGreaterThan(0);
+	});
+
+	it("404 a revision that names nothing or is unsafe", async () => {
+		signIn(users.maintainer);
+		for (const rev of [
+			"no-such-branch",
+			"0000000",
+			"a..b",
+			"refs/heads/main",
+		]) {
+			expect(
+				await rejectsNotFound(files.getCommit({ data: { repoId, rev } })),
+			).toBe(true);
+		}
+	});
+});

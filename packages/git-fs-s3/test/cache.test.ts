@@ -398,4 +398,108 @@ describe("createCachedStore — reads racing writes", () => {
 			"dir/new",
 		]);
 	});
+
+	describe("range reads", () => {
+		const setup = async (options = {}) => {
+			const inner = new MemoryObjectStore();
+			await inner.put("pack", new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]));
+			const spy = vi.spyOn(inner, "getRange");
+			const cached = createCachedStore(inner, options);
+			return { inner, spy, cached };
+		};
+
+		it("serves a repeated small range from cache", async () => {
+			const { spy, cached } = await setup();
+			expect(await cached.getRange?.("pack", 2, 4)).toEqual(
+				new Uint8Array([2, 3, 4]),
+			);
+			expect(await cached.getRange?.("pack", 2, 4)).toEqual(
+				new Uint8Array([2, 3, 4]),
+			);
+			expect(spy).toHaveBeenCalledTimes(1);
+		});
+
+		it("keys by offsets and never serves a slice as the whole object", async () => {
+			const { spy, cached } = await setup();
+			await cached.getRange?.("pack", 0, 1);
+			expect(await cached.getRange?.("pack", 2, 3)).toEqual(
+				new Uint8Array([2, 3]),
+			);
+			expect(spy).toHaveBeenCalledTimes(2);
+			expect(await cached.get("pack")).toHaveLength(8);
+		});
+
+		it("bypasses the cache above maxRangeBytes", async () => {
+			const { spy, cached } = await setup({ maxRangeBytes: 2 });
+			await cached.getRange?.("pack", 0, 2);
+			await cached.getRange?.("pack", 0, 2);
+			expect(spy).toHaveBeenCalledTimes(2);
+		});
+
+		it("does not cache a missing key", async () => {
+			const { spy, cached } = await setup();
+			expect(await cached.getRange?.("nope", 0, 1)).toBeNull();
+			expect(await cached.getRange?.("nope", 0, 1)).toBeNull();
+			expect(spy).toHaveBeenCalledTimes(2);
+		});
+
+		it("drops cached ranges on put, delete and invalidate", async () => {
+			const { spy, cached } = await setup();
+			await cached.getRange?.("pack", 0, 1);
+			await cached.put("pack", new Uint8Array([9, 9, 9]));
+			expect(await cached.getRange?.("pack", 0, 1)).toEqual(
+				new Uint8Array([9, 9]),
+			);
+			await cached.delete("pack");
+			expect(await cached.getRange?.("pack", 0, 1)).toBeNull();
+			await cached.put("pack", new Uint8Array([5, 5]));
+			await cached.getRange?.("pack", 0, 0);
+			cached.invalidate("pa");
+			await cached.getRange?.("pack", 0, 0);
+			expect(spy).toHaveBeenCalledTimes(5);
+		});
+
+		it("does not cache a slice fetched before a write, nor join it afterwards", async () => {
+			const inner = new MemoryObjectStore();
+			await inner.put("pack", new Uint8Array([0, 1, 2, 3]));
+			const realRange = inner.getRange.bind(inner);
+			let release: () => void = () => {};
+			const gate = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			let first = true;
+			vi.spyOn(inner, "getRange").mockImplementation(async (k, s, e) => {
+				const old = await realRange(k, s, e);
+				if (first) {
+					first = false;
+					await gate;
+				}
+				return old;
+			});
+			const cached = createCachedStore(inner);
+
+			const stale = cached.getRange?.("pack", 0, 1);
+			await Promise.resolve();
+			await cached.put("pack", new Uint8Array([9, 9, 9, 9]));
+			// Arrives after the write: must not join the pre-write read.
+			expect(await cached.getRange?.("pack", 0, 1)).toEqual(
+				new Uint8Array([9, 9]),
+			);
+			release();
+			expect(await stale).toEqual(new Uint8Array([0, 1]));
+			// The stale result must not have overwritten the cache.
+			expect(await cached.getRange?.("pack", 0, 1)).toEqual(
+				new Uint8Array([9, 9]),
+			);
+		});
+
+		it("coalesces concurrent identical ranges", async () => {
+			const { spy, cached } = await setup();
+			await Promise.all([
+				cached.getRange?.("pack", 1, 2),
+				cached.getRange?.("pack", 1, 2),
+			]);
+			expect(spy).toHaveBeenCalledTimes(1);
+		});
+	});
 });

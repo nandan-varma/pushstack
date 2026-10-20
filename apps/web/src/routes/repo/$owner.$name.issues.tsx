@@ -7,52 +7,39 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
-import { EmptyState } from "@/components/EmptyState";
-import { FilterTabs } from "@/components/FilterTabs";
-import { LabelChip } from "@/components/LabelChip";
-import { LabelFilter } from "@/components/LabelFilter";
-import { issueStatusVariant } from "@/components/status-variants";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
-import { useToast } from "@/components/toast-provider";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog";
+	activeThreadTab,
+	ISSUE_STATUS_TABS,
+	ThreadFilters,
+} from "@/components/thread-list/ThreadFilters";
+import {
+	SignInButton,
+	ThreadList,
+	ThreadRow,
+} from "@/components/thread-list/ThreadList";
+import {
+	threadSearchDeps,
+	validateThreadSearch,
+} from "@/components/thread-list/thread-search";
+import { useToast } from "@/components/toast-provider";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_SEARCH_QUERY_CHARS } from "@/lib/limits";
 import {
 	authSessionQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssueSearchQueryOptions,
 } from "@/lib/query-options";
-import {
-	parseSearchQuery,
-	withoutSearchAssignee,
-	withSearchLabel,
-	withSearchStatus,
-} from "@/lib/search-query";
+import { parseSearchQuery, withoutSearchAssignee } from "@/lib/search-query";
 import { createIssue } from "@/server/issues";
 
 export const Route = createFileRoute("/repo/$owner/$name/issues")({
-	validateSearch: (search: Record<string, unknown>): { q?: string } => ({
-		// The URL query string is the single source of truth (GitHub's `?q=`).
-		q:
-			typeof search.q === "string" && search.q
-				? search.q.slice(0, MAX_SEARCH_QUERY_CHARS)
-				: undefined,
-	}),
-	loaderDeps: ({ search }) => ({ q: search.q ?? "" }),
+	validateSearch: validateThreadSearch,
+	loaderDeps: threadSearchDeps,
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -113,14 +100,7 @@ function IssuesPage() {
 		},
 	});
 
-	// The loaded page is the active tab's rows, so only its count is known.
-	const activeTab: "open" | "closed" | "all" =
-		search.status === "closed" || search.status === "all"
-			? search.status
-			: "open";
-	const openCount = activeTab === "open" ? issues?.length || 0 : undefined;
-	const closedCount = activeTab === "closed" ? issues?.length || 0 : undefined;
-	const allCount = activeTab === "all" ? issues?.length || 0 : undefined;
+	const activeTab = activeThreadTab(q, ISSUE_STATUS_TABS);
 
 	const handleCreateIssue = useCallback(() => {
 		if (!newIssue.title.trim() || !repo) return;
@@ -153,64 +133,43 @@ function IssuesPage() {
 					</Link>
 				</div>
 				{!session?.user ? (
-					<Link to="/auth/login">
-						<Button size="sm" variant="outline">
-							Sign in to create an issue
-						</Button>
-					</Link>
+					<SignInButton>Sign in to create an issue</SignInButton>
 				) : (
-					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-						<DialogTrigger asChild>
-							<Button size="sm">New issue</Button>
-						</DialogTrigger>
-						<DialogContent>
-							<DialogHeader>
-								<DialogTitle>Create new issue</DialogTitle>
-								<DialogDescription>
-									Report a bug, request a feature, or start a discussion
-								</DialogDescription>
-							</DialogHeader>
-							<div className="space-y-4">
-								<div className="space-y-1.5">
-									<Label htmlFor="title">Title</Label>
-									<Input
-										id="title"
-										value={newIssue.title}
-										onChange={(e) =>
-											setNewIssue((p) => ({ ...p, title: e.target.value }))
-										}
-										placeholder="Issue title"
-									/>
-								</div>
-								<div className="space-y-1.5">
-									<Label htmlFor="body">Description</Label>
-									<Textarea
-										id="body"
-										value={newIssue.body}
-										onChange={(e) =>
-											setNewIssue((p) => ({ ...p, body: e.target.value }))
-										}
-										placeholder="Describe the issue in detail…"
-										rows={6}
-									/>
-								</div>
-							</div>
-							<DialogFooter>
-								<Button
-									variant="outline"
-									onClick={() => setIsCreateOpen(false)}
-								>
-									Cancel
-								</Button>
-								<Button
-									onClick={handleCreateIssue}
-									disabled={!newIssue.title.trim() || createMutation.isPending}
-								>
-									{createMutation.isPending ? "Creating…" : "Create issue"}
-								</Button>
-							</DialogFooter>
-						</DialogContent>
-					</Dialog>
+					<NewThreadDialog
+						open={isCreateOpen}
+						onOpenChange={setIsCreateOpen}
+						triggerLabel="New issue"
+						title="Create new issue"
+						description="Report a bug, request a feature, or start a discussion"
+						submitLabel="Create issue"
+						canSubmit={!!newIssue.title.trim()}
+						isPending={createMutation.isPending}
+						onSubmit={handleCreateIssue}
+					>
+						<div className="space-y-1.5">
+							<Label htmlFor="title">Title</Label>
+							<Input
+								id="title"
+								value={newIssue.title}
+								onChange={(e) =>
+									setNewIssue((p) => ({ ...p, title: e.target.value }))
+								}
+								placeholder="Issue title"
+							/>
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="body">Description</Label>
+							<Textarea
+								id="body"
+								value={newIssue.body}
+								onChange={(e) =>
+									setNewIssue((p) => ({ ...p, body: e.target.value }))
+								}
+								placeholder="Describe the issue in detail…"
+								rows={6}
+							/>
+						</div>
+					</NewThreadDialog>
 				)}
 			</div>
 
@@ -221,20 +180,12 @@ function IssuesPage() {
 				ariaLabel="Search issues"
 			/>
 
-			<FilterTabs
-				tabs={[
-					{ value: "open" as const, label: "Open", count: openCount },
-					{ value: "closed" as const, label: "Closed", count: closedCount },
-					{ value: "all" as const, label: "All", count: allCount },
-				]}
-				activeTab={activeTab}
-				onTabChange={(value) => setQuery(withSearchStatus(q, value))}
-			/>
-
-			<LabelFilter
+			<ThreadFilters
+				q={q}
 				repoId={repo?.id}
-				value={search.labels[0]}
-				onChange={(value) => setQuery(withSearchLabel(q, value))}
+				tabs={ISSUE_STATUS_TABS}
+				loadedCount={issues?.length ?? 0}
+				onQueryChange={setQuery}
 			/>
 
 			{(search.noAssignee || search.assignees.length > 0) && (
@@ -252,70 +203,31 @@ function IssuesPage() {
 				</p>
 			)}
 
-			{/* Issues list */}
-			{isLoading ? (
-				<div className="space-y-2">
-					{[1, 2, 3].map((i) => (
-						<Skeleton key={i} className="h-16" />
-					))}
-				</div>
-			) : !issues?.length ? (
-				<EmptyState
-					message={`No ${activeTab !== "all" ? activeTab : ""} issues found.`}
-					action={
-						session?.user ? (
-							<Button size="sm" onClick={() => setIsCreateOpen(true)}>
-								Create first issue
-							</Button>
-						) : (
-							<Link to="/auth/login">
-								<Button size="sm" variant="outline">
-									Sign in to create an issue
-								</Button>
-							</Link>
-						)
-					}
-				/>
-			) : (
-				<div className="overflow-hidden rounded-xl border border-border">
-					{issues.map((issue, idx) => (
-						<Link
-							key={issue.id}
-							to="/repo/$owner/$name/issues/$id"
-							params={{ owner, name, id: issue.number.toString() }}
-							className={`flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card ${idx < issues.length - 1 ? "border-b border-border" : ""}`}
-						>
-							<div className="min-w-0 flex-1 space-y-1">
-								<div className="flex min-w-0 items-center gap-2">
-									<span className="min-w-0 truncate text-sm font-medium text-foreground">
-										{issue.title}
-									</span>
-									<Badge
-										className="shrink-0"
-										variant={issueStatusVariant(issue.status)}
-									>
-										{issue.status}
-									</Badge>
-								</div>
-								<p className="text-xs text-muted-foreground">
-									#{issue.number} opened{" "}
-									{new Date(issue.createdAt).toLocaleDateString()} by{" "}
-									{issue.author.name}
-									{issue.assignees.length > 0 &&
-										` · assigned to ${issue.assignees.map((a) => a.user.username).join(", ")}`}
-								</p>
-								{issue.labels.length > 0 && (
-									<div className="flex flex-wrap gap-1.5 pt-0.5">
-										{issue.labels.map((l) => (
-											<LabelChip key={l.id} {...l} />
-										))}
-									</div>
-								)}
-							</div>
-						</Link>
-					))}
-				</div>
-			)}
+			<ThreadList
+				threads={issues}
+				isLoading={isLoading}
+				emptyMessage={`No ${activeTab !== "all" ? activeTab : ""} issues found.`}
+				emptyAction={
+					session?.user ? (
+						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+							Create first issue
+						</Button>
+					) : (
+						<SignInButton>Sign in to create an issue</SignInButton>
+					)
+				}
+			>
+				{(issue) => (
+					<ThreadRow kind="issue" owner={owner} name={name} thread={issue}>
+						{issue.assignees.length > 0 && (
+							<span>
+								&middot; assigned to{" "}
+								{issue.assignees.map((a) => a.user.username).join(", ")}
+							</span>
+						)}
+					</ThreadRow>
+				)}
+			</ThreadList>
 		</div>
 	);
 }
