@@ -194,6 +194,7 @@ export async function recordPushReferences(input: {
 					.update(issues)
 					.set({
 						status: "closed",
+						stateReason: "completed",
 						closedAt: new Date(),
 						updatedAt: new Date(),
 					})
@@ -206,7 +207,11 @@ export async function recordPushReferences(input: {
 					)
 					.returning({ number: issues.number, title: issues.title });
 	for (const { number } of closed) {
-		add(number, { event: "closed", commitSha: closers.get(number) });
+		add(number, {
+			event: "closed",
+			commitSha: closers.get(number),
+			stateReason: "completed",
+		});
 	}
 	if (rows.length > 0) await db.insert(timelineEvents).values(rows);
 	// As the manual close path does, so the pusher's feed shows the closing.

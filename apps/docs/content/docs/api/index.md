@@ -101,8 +101,8 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/tags` | supported | version order |
 | `GET /repos/{owner}/{repo}/issues` | supported | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
 | `POST /repos/{owner}/{repo}/issues` | supported | any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access) |
-| `GET /repos/{owner}/{repo}/issues/{number}` | supported | a pull request number returns the pull request |
-| `PATCH /repos/{owner}/{repo}/issues/{number}` | supported | the author or a writer; `title`, `body`, `state`, `labels`, `assignees`; issues only (a pull request number is `404`) |
+| `GET /repos/{owner}/{repo}/issues/{number}` | supported | a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason` |
+| `PATCH /repos/{owner}/{repo}/issues/{number}` | supported | the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; issues only (a pull request number is `404`) |
 | `GET`/`POST /repos/{owner}/{repo}/issues/{number}/comments` | supported | comments of an issue or a pull request |
 | `GET`/`PATCH`/`DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | supported | `204` on delete |
 | `GET /repos/{owner}/{repo}/issues/{number}/timeline` | supported | comments and events, oldest first |

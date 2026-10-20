@@ -17,6 +17,9 @@ export interface LabelSnapshot {
 }
 
 /** The issue or pull request an event points at (same repository). */
+/** GitHub's issue `state_reason`. */
+export type IssueStateReason = "completed" | "not_planned" | "reopened";
+
 export interface ThreadRef {
 	kind: "issue" | "pull_request";
 	number: number;
@@ -34,7 +37,13 @@ export type TimelineEvent =
 	 * Closed by hand, by merging the pull request `closer`, or by the pushed
 	 * commit `commitSha` ("Fixes #N" on the default branch).
 	 */
-	| { event: "closed"; closer?: ThreadRef; commitSha?: string }
+	| {
+			event: "closed";
+			closer?: ThreadRef;
+			commitSha?: string;
+			/** Why it was closed; absent on older events (read as `completed`). */
+			stateReason?: "completed" | "not_planned";
+	  }
 	/** A pushed commit's message mentioned this thread (`#N`). */
 	| { event: "referenced"; commitSha: string; message: string }
 	| { event: "reopened" }

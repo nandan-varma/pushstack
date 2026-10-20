@@ -592,7 +592,7 @@ describe("timeline and events", () => {
 		const closed = body.find(
 			(item: { event: string }) => item.event === "closed",
 		);
-		expect(closed).toMatchObject({ state_reason: null });
+		expect(closed).toMatchObject({ state_reason: "completed" });
 	});
 
 	it("returns only events from /events", async () => {
@@ -798,5 +798,105 @@ describe("issue labels", () => {
 		expect(reader.status).toBe(403);
 		const missing = await call("/repos/alice/proj/issues/99999/labels");
 		expect(missing.status).toBe(404);
+	});
+});
+
+describe("closed_by and state_reason", () => {
+	let number: number;
+
+	beforeAll(async () => {
+		const created = await call(
+			"/repos/alice/proj/issues",
+			post(alice, { title: "Close me" }),
+		);
+		number = created.body.number;
+	});
+
+	const url = () => `/repos/alice/proj/issues/${number}`;
+
+	it("is null/absent while open and never on lists", async () => {
+		const one = await call(url());
+		expect(one.body).toMatchObject({ state_reason: null, closed_by: null });
+		const list = await call("/repos/alice/proj/issues");
+		expect(list.body[0]).not.toHaveProperty("closed_by");
+	});
+
+	it("records the closer and defaults the reason to completed", async () => {
+		const closed = await call(url(), patch(dave, { state: "closed" }));
+		expect(closed.status).toBe(200);
+		expect(closed.body.state_reason).toBe("completed");
+		const one = await call(url());
+		expect(one.body).toMatchObject({
+			state: "closed",
+			state_reason: "completed",
+			closed_by: { login: "dave" },
+		});
+		const events = await call(`${url()}/events`);
+		const event = events.body.find(
+			(item: { event: string }) => item.event === "closed",
+		);
+		expect(event.state_reason).toBe("completed");
+	});
+
+	it("reopening sets reopened and clears closed_by", async () => {
+		const reopened = await call(url(), patch(alice, { state: "open" }));
+		expect(reopened.body).toMatchObject({
+			state: "open",
+			state_reason: "reopened",
+		});
+		expect((await call(url())).body.closed_by).toBeNull();
+	});
+
+	it("closes as not_planned and changes the reason in place", async () => {
+		const closed = await call(
+			url(),
+			patch(alice, { state: "closed", state_reason: "not_planned" }),
+		);
+		expect(closed.body.state_reason).toBe("not_planned");
+		expect((await call(url())).body.closed_by).toMatchObject({
+			login: "alice",
+		});
+		const events = await call(`${url()}/events`);
+		const last = events.body
+			.filter((item: { event: string }) => item.event === "closed")
+			.at(-1);
+		expect(last.state_reason).toBe("not_planned");
+
+		const changed = await call(
+			url(),
+			patch(alice, { state_reason: "completed" }),
+		);
+		expect(changed.body).toMatchObject({
+			state: "closed",
+			state_reason: "completed",
+		});
+	});
+
+	it("keeps not_planned on a repeated close", async () => {
+		await call(
+			url(),
+			patch(alice, { state: "closed", state_reason: "not_planned" }),
+		);
+		const again = await call(
+			url(),
+			patch(alice, { state: "closed", title: "Close me again" }),
+		);
+		expect(again.body.state_reason).toBe("not_planned");
+		const events = await call(`${url()}/events`);
+		const last = events.body
+			.filter((item: { event: string }) => item.event === "closed")
+			.at(-1);
+		expect(last.state_reason).toBe("not_planned");
+	});
+
+	it("rejects a reason that contradicts the state", async () => {
+		for (const bad of [
+			{ state: "closed", state_reason: "reopened" },
+			{ state: "open", state_reason: "not_planned" },
+			{ state_reason: "bogus" },
+		]) {
+			const { status } = await call(url(), patch(alice, bad));
+			expect(status).toBe(422);
+		}
 	});
 });
