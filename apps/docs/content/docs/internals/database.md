@@ -52,7 +52,7 @@ schema before deploying code that selects it.
 | `repositories` | Name, owner, visibility, default branch, `nextIssueNumber` |
 | `issues` | Title, body, status and repository-scoped `number` |
 | `labels`, `threadLabels` | Repository labels and their application to the shared issue/PR number |
-| `issueAssignees` | Users assigned to an issue |
+| `threadAssignees` | Users assigned to an issue or pull request, keyed by (repository, shared thread number, user) |
 | `pullRequests` | Source/target branch **names** (branches are git refs, not rows), status, merge metadata, `number` |
 | `comments` | On exactly one issue or pull request |
 | `stars` | Unique per (repo, user) |
@@ -102,5 +102,14 @@ shapes:
 
 `pnpm db:push` is the only path: drizzle-kit diffs both schema files against
 the live database and applies the difference. Editing the schema alone
-changes nothing in Neon. A change that drops or tightens columns (`NOT
-NULL`, unique) needs its data fixed first, then `db:push --force`.
+changes nothing in Neon. Before applying a rollout, run
+`pnpm --filter @pushstack/web db:push --explain` against the intended rollout
+schema and database. It prints the SQL without applying changes; review the
+complete plan for unexpected drops, rewrites, and constraints before the actual
+push. For a staged replacement, keep tables still used by the deployed code in
+the rollout schema so the first push is additive. Remove them only after the
+replacement deployment is verified.
+
+A change that drops or tightens columns (`NOT NULL`, unique) needs its data
+fixed first. `--force` skips confirmation; it does not make destructive changes
+safe or replace reviewing the `--explain` plan.
