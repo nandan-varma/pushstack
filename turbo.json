@@ -21,7 +21,8 @@
 			"dependsOn": ["^build"]
 		},
 		"smoke:git": {
-			"dependsOn": ["^build"]
+			"dependsOn": ["^build"],
+			"cache": false
 		},
 		"dev": {
 			"dependsOn": ["^build"],
@@ -33,5 +34,5 @@
 		}
 	},
 	"globalEnv": ["NODE_ENV", "CI"],
-	"globalDependencies": ["packages/tsconfig/*.json"]
+	"globalDependencies": ["packages/tsconfig/*.json", ".node-version"]
 }
