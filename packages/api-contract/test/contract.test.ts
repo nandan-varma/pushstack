@@ -51,6 +51,17 @@ describe("the endpoint table", () => {
 });
 
 describe("matchPath", () => {
+	it("strips trailing slashes in linear time", () => {
+		expect(matchPath("/repos/{owner}/{repo}", "/repos/a/b///")).toEqual({
+			owner: "a",
+			repo: "b",
+		});
+		const hostile = `/${"/".repeat(200_000)}x`;
+		const started = performance.now();
+		expect(matchPath("/repos/{owner}/{repo}", hostile)).toBeNull();
+		expect(performance.now() - started).toBeLessThan(200);
+	});
+
 	it("decodes single segments and keeps slashes in rest params", () => {
 		expect(
 			matchPath(
