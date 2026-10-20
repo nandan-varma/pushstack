@@ -19,6 +19,7 @@ import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import type { ThreadComment } from "@/components/timeline/ThreadTimeline";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
@@ -27,6 +28,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { quoteForReply } from "@/lib/markdown-quote";
 import {
+	addPostedComment,
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
@@ -88,7 +90,7 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 		// issue itself has resolved — can't start this in parallel with it.
 		if (issue) {
 			await queryClient
-				.ensureQueryData(issueCommentsQueryOptions(issue.id))
+				.ensureInfiniteQueryData(issueCommentsQueryOptions(issue.id))
 				.catch(() => {});
 		}
 
@@ -120,11 +122,6 @@ function IssueDetailPage() {
 		issueByNumberQueryOptions({ owner, name, number: issueNumber }),
 	);
 
-	const { data: comments } = useQuery({
-		...issueCommentsQueryOptions(issue?.id ?? -1),
-		enabled: !!issue,
-	});
-
 	const issueQueryKey = queryKeys.issueByNumber(owner, name, issueNumber);
 
 	const updateMutation = useMutation({
@@ -154,15 +151,25 @@ function IssueDetailPage() {
 
 	const commentMutation = useMutation({
 		mutationFn: createComment,
-		onSuccess: async () => {
+		onSuccess: (created) => {
 			setNewComment("");
 			if (issue) {
-				await queryClient.invalidateQueries({
-					queryKey: queryKeys.issueComments(issue.id),
-				});
-				queryClient.invalidateQueries({
-					queryKey: queryKeys.timelineRoot(issue.repoId),
-				});
+				const user = session?.user;
+				if (user) {
+					addPostedComment<ThreadComment>(
+						queryClient,
+						issueCommentsQueryOptions(issue.id).queryKey,
+						{
+							...created,
+							author: {
+								id: user.id,
+								name: user.name,
+								username: user.username ?? user.name,
+								image: user.image ?? null,
+							},
+						},
+					);
+				}
 			}
 			toast("Comment posted", "success");
 		},
@@ -309,11 +316,10 @@ function IssueDetailPage() {
 				name={name}
 				repoId={issue.repoId}
 				number={issue.number}
-				comments={comments ?? []}
+				commentsOptions={issueCommentsQueryOptions(issue.id)}
 				viewerId={session?.user?.id}
 				canParticipate={issue.viewer.canParticipate}
 				canModerate={issue.viewer.canWrite}
-				commentsQueryKey={queryKeys.issueComments(issue.id)}
 				onQuote={
 					issue.viewer.canParticipate
 						? (body) => setNewComment((draft) => draft + quoteForReply(body))

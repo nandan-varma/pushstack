@@ -4,7 +4,10 @@
  * refetch config that determines cache/invalidation behavior. queryKeys
  * themselves are covered in query-options.test.ts.
  */
+
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { THREAD_PAGE_SIZE } from "#/lib/limits";
 
 vi.mock("@/lib/auth-session", () => ({ getSession: vi.fn(() => "session") }));
 vi.mock("@/lib/perf-log", () => ({
@@ -89,7 +92,9 @@ const {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 	repositoryIssueSearchQueryOptions,
+	addPostedComment,
 	issueCommentsQueryOptions,
+	postedCommentsQueryOptions,
 	repositoryPullRequestSearchQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestDiffQueryOptions,
@@ -300,18 +305,39 @@ describe("issues/comments query options", () => {
 		});
 	});
 
-	it("issueCommentsQueryOptions calls getComments with issueId", async () => {
-		await issueCommentsQueryOptions(5).queryFn?.({} as never);
+	it("issueCommentsQueryOptions pages getComments by skip", async () => {
+		const options = issueCommentsQueryOptions(5);
+		await options.queryFn?.({ pageParam: 0 } as never);
+		await options.queryFn?.({ pageParam: THREAD_PAGE_SIZE } as never);
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
-			data: { issueId: 5 },
+			data: { issueId: 5, skip: 0 },
+		});
+		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
+			data: { issueId: 5, skip: THREAD_PAGE_SIZE },
 		});
 	});
 
 	it("pullRequestCommentsQueryOptions calls getComments with pullRequestId", async () => {
-		await pullRequestCommentsQueryOptions(9).queryFn?.({} as never);
+		await pullRequestCommentsQueryOptions(9).queryFn?.({
+			pageParam: 0,
+		} as never);
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
-			data: { pullRequestId: 9 },
+			data: { pullRequestId: 9, skip: 0 },
 		});
+	});
+
+	it("stops paging at the first short page", () => {
+		const { getNextPageParam } = issueCommentsQueryOptions(5);
+		const page = (n: number) => Array.from({ length: n }, () => ({}) as never);
+		const full = page(THREAD_PAGE_SIZE);
+		expect(getNextPageParam(full, [full], 0, [0])).toBe(THREAD_PAGE_SIZE);
+		const short = page(THREAD_PAGE_SIZE - 1);
+		expect(
+			getNextPageParam(short, [full, short], THREAD_PAGE_SIZE, [
+				0,
+				THREAD_PAGE_SIZE,
+			]),
+		).toBe(undefined);
 	});
 });
 
@@ -370,6 +396,26 @@ describe("repoCollaboratorsQueryOptions", () => {
 		await repoCollaboratorsQueryOptions(1).queryFn?.({} as never);
 		expect(serverFnMocks.getCollaborators).toHaveBeenCalledWith({
 			data: { repoId: 1 },
+		});
+	});
+});
+
+describe("addPostedComment", () => {
+	it("keeps the posted comment locally and marks the pages stale without refetching", async () => {
+		const queryClient = new QueryClient();
+		const key = issueCommentsQueryOptions(5).queryKey;
+		queryClient.setQueryData(key, {
+			pages: [[{ id: 1 }]],
+			pageParams: [0],
+		} as never);
+		await addPostedComment(queryClient, key, { id: 2 } as never);
+		await addPostedComment(queryClient, key, { id: 3 } as never);
+		expect(
+			queryClient.getQueryData(postedCommentsQueryOptions(key).queryKey),
+		).toEqual([{ id: 2 }, { id: 3 }]);
+		expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+		expect(serverFnMocks.getComments).not.toHaveBeenCalledWith({
+			data: { issueId: 5, skip: 0 },
 		});
 	});
 });

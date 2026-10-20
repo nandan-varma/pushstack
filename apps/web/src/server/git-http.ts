@@ -10,6 +10,7 @@
  */
 import {
 	formatErrorResponse,
+	GitAuthenticationError,
 	GitError,
 	GitInvalidRequestError,
 	GitRepositoryNotFoundError,
@@ -30,6 +31,15 @@ import { afterRepositoryPush, httpHooks as hooks, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logError, logWarn, perfContext } from "./perf-log";
+import {
+	authFailuresExhausted,
+	hitRateLimit,
+	identityFor,
+	type RateStatus,
+	rateLimitExceededMessage,
+	rateLimitHeaders,
+	recordAuthFailure,
+} from "./rate-limit";
 import { findRepositoryByName } from "./repository-lookup";
 
 type GitService = "git-upload-pack" | "git-receive-pack";
@@ -155,14 +165,53 @@ async function receivePack(
 	});
 }
 
-async function serve(request: Request, route: GitRoute) {
+/** Over the limit: a plain 403 that git prints. */
+function rateLimited(rate: RateStatus) {
+	return {
+		status: 403,
+		body: `${rateLimitExceededMessage(rate)}\n`,
+		headers: {
+			"Content-Type": "text/plain; charset=utf-8",
+			...rateLimitHeaders(rate),
+		},
+	};
+}
+
+async function serve(
+	request: Request,
+	route: GitRoute,
+	meter: { rate: RateStatus | null },
+) {
 	if ((request.method === "GET") !== route.isInfoRefs) {
 		throw new GitInvalidRequestError("Invalid git request");
 	}
 	const repository = await findRepositoryByName(route.owner, route.repo);
 	if (!repository) throw new GitRepositoryNotFoundError("Repository not found");
 	const needsWrite = route.service === "git-receive-pack";
-	const auth = await authorizeGitRequest(request, repository, needsWrite);
+	const hasCredentials = request.headers.has("authorization");
+	if (hasCredentials) {
+		const exhausted = await authFailuresExhausted(request);
+		if (exhausted) return rateLimited(exhausted);
+	}
+	let auth: Awaited<ReturnType<typeof authorizeGitRequest>>;
+	try {
+		auth = await authorizeGitRequest(request, repository, needsWrite);
+	} catch (error) {
+		// Bad credentials count against the IP (token guessing).
+		if (hasCredentials && error instanceof GitAuthenticationError) {
+			await recordAuthFailure(request);
+		}
+		throw error;
+	}
+
+	// Metered by user when authenticated (so users behind one NAT don't share
+	// a bucket), else by client IP. Over the limit: a plain 403 git prints.
+	const rate = await hitRateLimit(
+		needsWrite ? "git-write" : "git",
+		identityFor(request, auth.userId),
+	);
+	meter.rate = rate;
+	if (rate?.exceeded) return rateLimited(rate);
 
 	const ownerKey = ownerKeyOf(repository);
 	const repoName = repository.name;
@@ -209,14 +258,18 @@ async function serve(request: Request, route: GitRoute) {
 export async function serveGitRequest(request: Request): Promise<Response> {
 	const route = parseGitUrl(request.url);
 	if (!route) return new Response("Invalid git request", { status: 400 });
+	const meter: { rate: RateStatus | null } = { rate: null };
 	try {
 		const result = await perfContext(
 			`git ${route.service}${route.isInfoRefs ? " info/refs" : ""} ${route.owner}/${route.repo}`,
-			() => serve(request, route),
+			() => serve(request, route, meter),
 		);
 		return new Response(result.body, {
 			status: result.status,
-			headers: result.headers,
+			headers: {
+				...result.headers,
+				...(meter.rate && rateLimitHeaders(meter.rate)),
+			},
 		});
 	} catch (error) {
 		const { status, body, headers } = formatErrorResponse(error);

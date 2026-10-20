@@ -5,8 +5,10 @@ import {
 	MAX_HISTORY_WALK,
 	MAX_LIST_SKIP,
 	MAX_RAW_BYTES,
+	MAX_THREAD_PAGE_SIZE,
 	MAX_WEB_UPLOAD_BYTES,
 	maxBase64CharsForBytes,
+	THREAD_PAGE_SIZE,
 	UPLOAD_WARNING_BYTES,
 } from "../limits";
 
@@ -59,5 +61,20 @@ describe("text bounds", () => {
 	it("keeps every persisted text bound positive and ordered sensibly", () => {
 		expect(MAX_BODY_CHARS).toBeGreaterThan(MAX_COMMIT_MESSAGE_CHARS);
 		expect(MAX_COMMIT_MESSAGE_CHARS).toBeGreaterThan(0);
+	});
+});
+
+describe("thread page bound", () => {
+	it("keeps a page of worst-case comments under Vercel's 4.5 MB cap", () => {
+		// Control characters are JSON's most expensive escape: 6 bytes each.
+		const page = Array.from({ length: MAX_THREAD_PAGE_SIZE }, (_, id) => ({
+			id,
+			body: "\u0001".repeat(MAX_BODY_CHARS),
+			author: { id: "x".repeat(32), username: "u".repeat(39), image: null },
+			createdAt: new Date(),
+			editedAt: new Date(),
+		}));
+		expect(JSON.stringify(page).length).toBeLessThan(4_500_000);
+		expect(THREAD_PAGE_SIZE).toBeLessThanOrEqual(MAX_THREAD_PAGE_SIZE);
 	});
 });
