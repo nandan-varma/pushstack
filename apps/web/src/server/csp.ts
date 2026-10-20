@@ -32,9 +32,6 @@ import { THEME_INIT_SCRIPT } from "#/lib/theme";
 /** Entropy for the per-request nonce, in bytes. */
 const NONCE_BYTES = 16;
 
-/** Paths of the CSP directives that need the nonce, in the order they appear. */
-const SENTRY_INGEST_FALLBACK = "";
-
 /** A fresh, unguessable nonce: 128 bits, base64. */
 export function generateNonce(): string {
 	const bytes = crypto.getRandomValues(new Uint8Array(NONCE_BYTES));
@@ -82,7 +79,9 @@ export async function contentSecurityPolicy(
 	// The browser SDK posts error envelopes straight to Sentry's origin, which
 	// must be in connect-src or every client-captured error is dropped silently.
 	const sentryDsn = process.env.VITE_SENTRY_DSN ?? "";
-	let sentryOrigin = SENTRY_INGEST_FALLBACK;
+	// With no DSN there is no ingest origin to allow, so connect-src keeps only
+	// the app's own origins.
+	let sentryOrigin = "";
 	if (sentryDsn) {
 		try {
 			sentryOrigin = new URL(sentryDsn).origin;
