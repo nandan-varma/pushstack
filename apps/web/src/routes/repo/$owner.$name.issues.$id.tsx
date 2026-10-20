@@ -30,11 +30,13 @@ import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
+	loadThreadThroughEnd,
 	pullRequestByNumberQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
+	timelineQueryOptions,
 } from "@/lib/query-options";
 import { createComment } from "@/server/comments";
 import { updateIssue } from "@/server/issues";
@@ -152,9 +154,11 @@ function IssueDetailPage() {
 		onSuccess: async () => {
 			setNewComment("");
 			if (issue) {
-				await queryClient.invalidateQueries({
-					queryKey: queryKeys.issueComments(issue.id),
-				});
+				await loadThreadThroughEnd(
+					queryClient,
+					issueCommentsQueryOptions(issue.id),
+					timelineQueryOptions(issue.repoId, issue.number),
+				);
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(issue.repoId),
 				});

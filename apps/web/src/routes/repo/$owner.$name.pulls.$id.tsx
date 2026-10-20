@@ -40,6 +40,7 @@ import { quoteForReply } from "@/lib/markdown-quote";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
+	loadThreadThroughEnd,
 	pullRequestByNumberQueryOptions,
 	pullRequestCommentsQueryOptions,
 	pullRequestCommitsQueryOptions,
@@ -48,6 +49,7 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
+	timelineQueryOptions,
 } from "@/lib/query-options";
 import { createComment } from "@/server/comments";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
@@ -246,9 +248,11 @@ function PullRequestDetailPage() {
 			toast("Comment posted", "success");
 			setNewComment("");
 			if (pr) {
-				await queryClient.invalidateQueries({
-					queryKey: queryKeys.pullRequestComments(pr.id),
-				});
+				await loadThreadThroughEnd(
+					queryClient,
+					pullRequestCommentsQueryOptions(pr.id),
+					timelineQueryOptions(pr.repoId, pr.number),
+				);
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(pr.repoId),
 				});

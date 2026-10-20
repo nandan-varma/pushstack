@@ -101,16 +101,29 @@ export const MAX_REPO_DESCRIPTION_CHARS = 500;
 export const MAX_TOKEN_NAME_CHARS = 100;
 
 /**
- * Comments or timeline events one thread read returns (GitHub's default page
- * is 30 too). The page is what the thread view loads at first and per "Load
- * more".
+ * What one function response may carry: Vercel's buffered-response cap is
+ * 4.5 MB; this leaves headroom for the rest of the payload and the framing.
  */
-export const THREAD_PAGE_SIZE = 30;
+export const RESPONSE_BUDGET_BYTES = 4_000_000;
 
 /**
- * The most items a thread read may ask for. Sized by the worst case rather than
- * the typical one: {@link MAX_BODY_CHARS} per comment times this must stay under
- * Vercel's 4.5 MB buffered-response cap (50 x 64 KiB = 3.2 MB), which is what
- * an unbounded read of a thread full of maximum-size comments broke.
+ * Serialized bytes a maximum-length comment can take, worst case. A body is
+ * counted in characters ({@link MAX_BODY_CHARS}), but JSON spends up to 6 bytes
+ * on one (a control character as `\u00XX`) and UTF-8 up to 3 on a CJK one, so
+ * the bound is `MAX_BODY_CHARS * 6`, not `* 1`. The 1,000 is a generous
+ * allowance for the author, timestamps and keys of the row around the body.
  */
-export const MAX_THREAD_PAGE_SIZE = 50;
+export const MAX_COMMENT_RESPONSE_BYTES = MAX_BODY_CHARS * 6 + 1_000;
+
+/**
+ * The most items a thread read (comments or timeline events) may ask for:
+ * `floor(4,000,000 / (65,536 * 6 + 1,000))` = 10 comments of 394,216 bytes
+ * each, so a page of worst-case comments stays under the 4.5 MB cap that an
+ * unbounded read of such a thread broke. `limits.test.ts` serializes one.
+ */
+export const MAX_THREAD_PAGE_SIZE = Math.floor(
+	RESPONSE_BUDGET_BYTES / MAX_COMMENT_RESPONSE_BYTES,
+);
+
+/** Items one thread read returns when it doesn't say; also the UI's page. */
+export const THREAD_PAGE_SIZE = MAX_THREAD_PAGE_SIZE;

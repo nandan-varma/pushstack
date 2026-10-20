@@ -1,4 +1,8 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import {
+	infiniteQueryOptions,
+	type QueryClient,
+	queryOptions,
+} from "@tanstack/react-query";
 import { MAX_LIST_SKIP, THREAD_PAGE_SIZE } from "#/lib/limits";
 import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
@@ -309,6 +313,23 @@ function threadPagesQueryOptions<T>(
 		},
 		staleTime: DEFAULT_STALE_TIME,
 	});
+}
+
+/**
+ * Reload a thread's comments and timeline through their last page, so a comment
+ * the viewer just posted shows at the bottom straight away (as on GitHub)
+ * instead of waiting behind "Load more".
+ */
+export async function loadThreadThroughEnd<C, E>(
+	queryClient: QueryClient,
+	comments: ReturnType<typeof threadPagesQueryOptions<C>>,
+	timeline: ReturnType<typeof threadPagesQueryOptions<E>>,
+) {
+	const pages = Math.floor(MAX_LIST_SKIP / THREAD_PAGE_SIZE) + 1;
+	await Promise.all([
+		queryClient.fetchInfiniteQuery({ ...comments, staleTime: 0, pages }),
+		queryClient.fetchInfiniteQuery({ ...timeline, staleTime: 0, pages }),
+	]);
 }
 
 /** An issue's or pull request's timeline events (merge with its comments to render). */

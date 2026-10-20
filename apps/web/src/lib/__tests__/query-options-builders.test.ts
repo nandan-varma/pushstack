@@ -4,7 +4,9 @@
  * refetch config that determines cache/invalidation behavior. queryKeys
  * themselves are covered in query-options.test.ts.
  */
+
 import { describe, expect, it, vi } from "vitest";
+import { THREAD_PAGE_SIZE } from "#/lib/limits";
 
 vi.mock("@/lib/auth-session", () => ({ getSession: vi.fn(() => "session") }));
 vi.mock("@/lib/perf-log", () => ({
@@ -293,12 +295,12 @@ describe("issues/comments query options", () => {
 	it("issueCommentsQueryOptions pages getComments by skip", async () => {
 		const options = issueCommentsQueryOptions(5);
 		await options.queryFn?.({ pageParam: 0 } as never);
-		await options.queryFn?.({ pageParam: 30 } as never);
+		await options.queryFn?.({ pageParam: THREAD_PAGE_SIZE } as never);
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
 			data: { issueId: 5, skip: 0 },
 		});
 		expect(serverFnMocks.getComments).toHaveBeenCalledWith({
-			data: { issueId: 5, skip: 30 },
+			data: { issueId: 5, skip: THREAD_PAGE_SIZE },
 		});
 	});
 
@@ -314,10 +316,15 @@ describe("issues/comments query options", () => {
 	it("stops paging at the first short page", () => {
 		const { getNextPageParam } = issueCommentsQueryOptions(5);
 		const page = (n: number) => Array.from({ length: n }, () => ({}) as never);
-		expect(getNextPageParam(page(30), [page(30)], 0, [0])).toBe(30);
-		expect(getNextPageParam(page(29), [page(30), page(29)], 30, [0, 30])).toBe(
-			undefined,
-		);
+		const full = page(THREAD_PAGE_SIZE);
+		expect(getNextPageParam(full, [full], 0, [0])).toBe(THREAD_PAGE_SIZE);
+		const short = page(THREAD_PAGE_SIZE - 1);
+		expect(
+			getNextPageParam(short, [full, short], THREAD_PAGE_SIZE, [
+				0,
+				THREAD_PAGE_SIZE,
+			]),
+		).toBe(undefined);
 	});
 });
 

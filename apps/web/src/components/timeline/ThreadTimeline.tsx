@@ -28,16 +28,9 @@ import {
 	queryKeys,
 	timelineQueryOptions,
 } from "@/lib/query-options";
+import { mergeThreadItems } from "@/lib/thread-merge";
 import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
 import { deleteComment, updateComment } from "@/server/comments";
-
-type Comment = Parameters<typeof CommentCard>[0]["comment"] & {
-	authorId: string;
-};
-
-type TimelineItem =
-	| { kind: "comment"; comment: Comment }
-	| { kind: "event"; event: TimelineEntry };
 
 /**
  * An issue's or pull request's conversation as GitHub shows it: comments and
@@ -90,25 +83,16 @@ export function ThreadTimeline({
 	const commentPages = useInfiniteQuery(commentsOptions);
 	const eventPages = useInfiniteQuery(timelineQueryOptions(repoId, number));
 	const sources = [commentPages, eventPages];
-	const comments = commentPages.data?.pages.flat() ?? [];
-	const events = eventPages.data?.pages.flat() ?? [];
-	// Both sources are paged oldest first, so while one has more to load, items
-	// of the other that are newer than its last loaded item would sit before
-	// ones not yet fetched. Show only up to the earliest such horizon.
-	const horizon = Math.min(
-		...loadedUntil(commentPages.hasNextPage, comments),
-		...loadedUntil(eventPages.hasNextPage, events),
+	const { items, hasMore } = mergeThreadItems(
+		{
+			loaded: commentPages.data?.pages.flat() ?? [],
+			hasMore: commentPages.hasNextPage,
+		},
+		{
+			loaded: eventPages.data?.pages.flat() ?? [],
+			hasMore: eventPages.hasNextPage,
+		},
 	);
-	const items: TimelineItem[] = [
-		...comments.map((comment) => ({ kind: "comment" as const, comment })),
-		...events.map((event) => ({ kind: "event" as const, event })),
-	]
-		.filter((item) => new Date(itemTime(item)).getTime() <= horizon)
-		.sort(
-			(a, b) =>
-				new Date(itemTime(a)).getTime() - new Date(itemTime(b)).getTime(),
-		);
-	const hasMore = sources.some((query) => query.hasNextPage);
 	const loadingMore = sources.some((query) => query.isFetchingNextPage);
 
 	if (items.length === 0 && !hasMore) return null;
@@ -163,21 +147,6 @@ export function ThreadTimeline({
 			)}
 		</div>
 	);
-}
-
-/** The time a still-paging source is loaded up to (none once it is complete). */
-function loadedUntil(
-	hasNextPage: boolean,
-	loaded: { createdAt: Date }[],
-): number[] {
-	const last = loaded.at(-1);
-	return hasNextPage && last ? [new Date(last.createdAt).getTime()] : [];
-}
-
-function itemTime(item: TimelineItem) {
-	return item.kind === "comment"
-		? item.comment.createdAt
-		: item.event.createdAt;
 }
 
 function ThreadLink({
