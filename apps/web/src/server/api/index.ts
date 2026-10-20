@@ -3,8 +3,10 @@
  * authenticates, matches the route table, runs the handler and renders
  * GitHub-shaped errors. Add an endpoint by adding a row to {@link ROUTES}.
  */
+
 import { isNotFoundError } from "git-fs-s3";
 import { currentRequestId, logError, perfContext } from "../perf-log";
+import type { RateStatus } from "../rate-limit";
 import { type ApiContext, authenticateRequest } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import {
@@ -29,6 +31,12 @@ import {
 	updateLabel,
 } from "./labels";
 import {
+	applyRateHeaders,
+	getRateLimit,
+	meterApiRequest,
+	RateLimitedError,
+} from "./rate-limit";
+import {
 	createAuthenticatedUserRepository,
 	getRepository,
 	listAuthenticatedUserRepositories,
@@ -48,6 +56,7 @@ interface Route {
 }
 
 const ROUTES: Route[] = [
+	{ method: "GET", pattern: "/rate_limit", handler: getRateLimit },
 	{ method: "GET", pattern: "/user", handler: getAuthenticatedUser },
 	{
 		method: "GET",
@@ -250,10 +259,15 @@ async function dispatch(
 ): Promise<Response> {
 	// HEAD is GET without the body.
 	const isHead = request.method === "HEAD";
+	let rate: RateStatus | null = null;
 	try {
 		// Credentials are checked even on unknown routes: a bad token is a 401
 		// everywhere, as on GitHub.
 		const caller = await authenticateRequest(request);
+		// /rate_limit reports the buckets and is never counted, as on GitHub.
+		if (matched?.route.handler !== getRateLimit) {
+			rate = await meterApiRequest(request, caller);
+		}
 		if (!matched) throw notFoundError();
 		const response = await matched.route.handler({
 			request,
@@ -261,16 +275,28 @@ async function dispatch(
 			params: matched.params,
 			caller,
 		});
-		return isHead
-			? new Response(null, {
-					status: response.status,
-					headers: response.headers,
-				})
-			: response;
+		return applyRateHeaders(
+			isHead
+				? new Response(null, {
+						status: response.status,
+						headers: response.headers,
+					})
+				: response,
+			rate,
+		);
 	} catch (error) {
-		if (error instanceof ApiError) return errorResponse(error);
-		if (isNotFoundError(error)) return errorResponse(notFoundError());
+		if (error instanceof RateLimitedError) {
+			return applyRateHeaders(errorResponse(error), error.rate);
+		}
+		if (error instanceof ApiError)
+			return applyRateHeaders(errorResponse(error), rate);
+		if (isNotFoundError(error)) {
+			return applyRateHeaders(errorResponse(notFoundError()), rate);
+		}
 		logError("api", `${request.method} ${pathname} failed`, error);
-		return errorResponse(new ApiError(500, "Server Error"));
+		return applyRateHeaders(
+			errorResponse(new ApiError(500, "Server Error")),
+			rate,
+		);
 	}
 }

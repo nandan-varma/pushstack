@@ -55,6 +55,28 @@ Validation failures are `422` with `errors: [{ resource, field, code }]`
 (`missing_field`, `invalid`, `custom` with a `message`). A request body that
 isn't a JSON object is `400 Problems parsing JSON`; a body over 1 MiB is `413`.
 
+## Rate limits
+
+As on GitHub, every response (errors included) carries `X-RateLimit-Limit`,
+`X-RateLimit-Remaining`, `X-RateLimit-Reset` (epoch seconds), `X-RateLimit-Used`
+and `X-RateLimit-Resource`. Counters are fixed windows (default one hour) shared
+by every server instance.
+
+| Caller | Budget (default per hour) |
+| --- | --- |
+| Authenticated reads, per user (all of a user's tokens share it) | 5000 |
+| Anonymous, per client IP | 60 |
+| Authenticated mutating calls (`POST`/`PATCH`/`PUT`/`DELETE`), per user | 1000, a separate bucket |
+
+Over the limit the answer is `403` with `Retry-After` and GitHub's body
+(`"API rate limit exceeded for user ID …."`, or for the IP address when
+anonymous). `GET /rate_limit` returns `{ resources: { core, git, core_write },
+rate }` (`limit`, `used`, `remaining`, `reset`) and is never counted. Git over
+HTTPS has its own buckets (see the internals security notes) and answers `403`
+with a plain-text message. Limits are env knobs (`RATE_LIMIT_*`,
+`apps/web/src/server/config.ts`). If the limiter's database is unreachable,
+requests are served unmetered.
+
 ## Pagination
 
 List endpoints take `per_page` (default 30, max 100) and `page` (from 1);
@@ -86,6 +108,7 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | events only, oldest first |
 | `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
 | `GET`/`POST`/`PUT`/`DELETE /repos/{owner}/{repo}/issues/{number}/labels` (+ `/{name}`) | supported | write access; add and set return every label, removing one returns the rest, removing all is `204` |
+| `GET /rate_limit` | supported | `resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql` |
 | everything else | not implemented | `404 Not Found` |
 
 ## Differences from GitHub

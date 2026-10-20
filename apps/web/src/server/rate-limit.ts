@@ -21,6 +21,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db } from "#/db";
+import * as config from "./config";
 import { logWarn } from "./perf-log";
 
 export interface RateLimitRule {
@@ -124,3 +125,191 @@ export const rateLimitStorage: RateLimitStorage = {
 		};
 	},
 };
+
+/* ------------------------------------------------------------------ *
+ * Request limits for /api/v3 and /api/git (GitHub-shaped).
+ *
+ * Same table and the same single-statement upsert as above, with keys in
+ * their own `gh:` namespace. One round trip per metered request.
+ * ------------------------------------------------------------------ */
+
+export type RateLimitResource = "core" | "core-write" | "git" | "git-write";
+
+export interface RateStatus {
+	resource: RateLimitResource;
+	limit: number;
+	used: number;
+	remaining: number;
+	/** Epoch seconds at which the window ends. */
+	reset: number;
+	exceeded: boolean;
+	/** "user ID 5" or an IP address, for GitHub's error message. */
+	identity: string;
+}
+
+/** Who is being metered: a user (authenticated) or a client IP (anonymous). */
+export interface RateIdentity {
+	kind: "user" | "ip";
+	id: string;
+}
+
+/**
+ * The client IP. Vercel overwrites `x-forwarded-for` with the connecting
+ * address, so its leftmost entry is trustworthy there. A request with no
+ * address shares one "unknown" bucket rather than being unlimited.
+ */
+export function clientIp(request: Request): string {
+	const forwarded = request.headers
+		.get("x-forwarded-for")
+		?.split(",")[0]
+		?.trim();
+	return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+export function identityFor(
+	request: Request,
+	userId: string | null,
+): RateIdentity {
+	return userId
+		? { kind: "user", id: userId }
+		: { kind: "ip", id: clientIp(request) };
+}
+
+const describeIdentity = (who: RateIdentity) =>
+	who.kind === "user" ? `user ID ${who.id}` : who.id;
+
+/** The limit for a resource and identity kind. */
+function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
+	switch (resource) {
+		case "core":
+			return kind === "user"
+				? config.RATE_LIMIT_API_AUTHENTICATED
+				: config.RATE_LIMIT_API_ANONYMOUS;
+		case "core-write":
+			return config.RATE_LIMIT_API_WRITE;
+		case "git":
+			return kind === "user"
+				? config.RATE_LIMIT_GIT_READ_AUTHENTICATED
+				: config.RATE_LIMIT_GIT_READ_ANONYMOUS;
+		case "git-write":
+			return config.RATE_LIMIT_GIT_WRITE;
+	}
+}
+
+const bucketKey = (resource: RateLimitResource, who: RateIdentity) =>
+	`gh:${resource}:${who.kind}:${who.id}`;
+
+interface StatusRow extends Record<string, unknown> {
+	count: number;
+	reset: number;
+}
+
+function toStatus(
+	resource: RateLimitResource,
+	who: RateIdentity,
+	row: StatusRow | undefined,
+): RateStatus {
+	const limit = limitFor(resource, who.kind);
+	const used = row ? Number(row.count) : 0;
+	return {
+		resource,
+		limit,
+		used: Math.min(used, limit),
+		remaining: Math.max(0, limit - used),
+		reset: row
+			? Number(row.reset)
+			: Math.ceil(Date.now() / 1000) + config.RATE_LIMIT_WINDOW_SECONDS,
+		exceeded: used > limit,
+		identity: describeIdentity(who),
+	};
+}
+
+/**
+ * Count one request against `resource` for `who` and report the bucket.
+ *
+ * Fails open: this is abuse mitigation, not authorization, so a limiter error
+ * (database down, table missing) logs and serves the request (returns null)
+ * instead of turning a Postgres hiccup into an outage. Do not "fix" it to
+ * fail closed.
+ */
+export async function hitRateLimit(
+	resource: RateLimitResource,
+	who: RateIdentity,
+): Promise<RateStatus | null> {
+	const window = config.RATE_LIMIT_WINDOW_SECONDS;
+	longestWindowSeconds = Math.max(longestWindowSeconds, window);
+	try {
+		const result = await db.execute<StatusRow>(sql`
+			insert into rate_limits (key, count, window_started_at)
+			values (${bucketKey(resource, who)}, 1, now())
+			on conflict (key) do update set
+				count = case
+					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
+						then 1
+					else rate_limits.count + 1
+				end,
+				window_started_at = case
+					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
+						then now()
+					else rate_limits.window_started_at
+				end
+			returning
+				count,
+				extract(epoch from (window_started_at + make_interval(secs => ${window})))::bigint as reset
+		`);
+		await pruneExpiredCounters();
+		return toStatus(resource, who, result.rows[0]);
+	} catch (error) {
+		logWarn("rate-limit", "Request limiter failed; serving the request", error);
+		return null;
+	}
+}
+
+/** The current state of several buckets, without counting a request. */
+export async function peekRateLimits(
+	resources: RateLimitResource[],
+	who: RateIdentity,
+): Promise<RateStatus[]> {
+	const window = config.RATE_LIMIT_WINDOW_SECONDS;
+	const keys = resources.map((resource) => bucketKey(resource, who));
+	const rows = new Map<string, StatusRow>();
+	try {
+		const result = await db.execute<StatusRow & { key: string }>(sql`
+			select key, count,
+				extract(epoch from (window_started_at + make_interval(secs => ${window})))::bigint as reset
+			from rate_limits
+			where key in (${sql.join(
+				keys.map((key) => sql`${key}`),
+				sql`, `,
+			)})
+				and window_started_at > now() - make_interval(secs => ${window})
+		`);
+		for (const row of result.rows) rows.set(row.key, row);
+	} catch (error) {
+		logWarn("rate-limit", "Request limiter peek failed", error);
+	}
+	return resources.map((resource, index) =>
+		toStatus(resource, who, rows.get(keys[index] as string)),
+	);
+}
+
+/** GitHub's `X-RateLimit-*` headers (and `Retry-After` once exceeded). */
+export function rateLimitHeaders(status: RateStatus): Record<string, string> {
+	const headers: Record<string, string> = {
+		"X-RateLimit-Limit": String(status.limit),
+		"X-RateLimit-Remaining": String(status.remaining),
+		"X-RateLimit-Reset": String(status.reset),
+		"X-RateLimit-Used": String(status.used),
+		"X-RateLimit-Resource": status.resource.startsWith("core") ? "core" : "git",
+	};
+	if (status.exceeded) {
+		headers["Retry-After"] = String(
+			Math.max(1, status.reset - Math.floor(Date.now() / 1000)),
+		);
+	}
+	return headers;
+}
+
+/** GitHub's message for an exhausted primary limit. */
+export const rateLimitExceededMessage = (status: RateStatus) =>
+	`API rate limit exceeded for ${status.identity}.`;

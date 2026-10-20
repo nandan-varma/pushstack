@@ -184,6 +184,24 @@ parsing is involved. `rate-limit.test.ts` runs the real SQL against pglite and
 asserts the auth config actually uses this storage, since quietly falling back
 to the `Map` is the regression worth catching.
 
+### Request limits on `/api/v3` and `/api/git`
+
+The same table and the same one-statement upsert also meter requests
+(`hitRateLimit` in `src/server/rate-limit.ts`, keys prefixed `gh:`): one cheap
+round trip per API or git request, never on SSR pages. Identity is the user once
+authenticated (so users behind one NAT do not share a bucket), else the client
+IP (leftmost `x-forwarded-for`, which Vercel overwrites; a request with no
+address shares one `unknown` bucket). Buckets: `core` reads (5000 authenticated,
+60 anonymous per hour), `core-write` mutating API calls (1000), `git` clone and
+fetch (2000 authenticated, 120 anonymous), `git-write` pushes (500). All are
+`RATE_LIMIT_*` knobs in `config.ts`. Over the limit: `403` with GitHub's
+`X-RateLimit-*` headers and `Retry-After` (a plain-text body on git so the
+client prints it). **The limiter fails open**: a database error is logged with
+`logWarn` and the request is served, because this is abuse mitigation, not
+authorization, and Postgres hiccups must not become outages. Not covered:
+bad-credential 401s on the API (no identity yet) and auth endpoints beyond Better
+Auth's own limiter. Tests: `api-rate-limit.test.ts`.
+
 ## Input bounds are explicit
 
 Every string a caller controls that gets *persisted* — a commit message, an

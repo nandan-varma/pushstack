@@ -11,7 +11,17 @@ export default defineConfig({
 		globalSetup: ["./src/test/global-setup.ts"],
 		environment: "jsdom",
 		// src/db requires a URL at import; nothing connects until a query runs.
-		env: { DATABASE_URL: "postgresql://test@localhost/test" },
+		env: {
+			DATABASE_URL: "postgresql://test@localhost/test",
+			// Out of the way of unrelated tests (they share one anonymous IP);
+			// rate-limit tests set their own small values.
+			RATE_LIMIT_API_ANONYMOUS: "1000000",
+			RATE_LIMIT_API_AUTHENTICATED: "1000000",
+			RATE_LIMIT_API_WRITE: "1000000",
+			RATE_LIMIT_GIT_READ_ANONYMOUS: "1000000",
+			RATE_LIMIT_GIT_READ_AUTHENTICATED: "1000000",
+			RATE_LIMIT_GIT_WRITE: "1000000",
+		},
 		setupFiles: ["./src/test/setup.ts"],
 		globals: true,
 		css: true,
