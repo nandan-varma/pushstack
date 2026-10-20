@@ -14,7 +14,6 @@ import {
 	getLastCommits,
 	getTags,
 	getTreePageData,
-	listFiles,
 } from "@/server/files";
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import { getLabels } from "@/server/labels";
@@ -63,11 +62,14 @@ export const queryKeys = {
 	timelineRoot: (repoId: number) => ["repos", repoId, "timeline"] as const,
 	timeline: (repoId: number, number: number) =>
 		["repos", repoId, "timeline", number] as const,
+	/**
+	 * Everything a write to a branch's content can change: file views, tree
+	 * pages, last commits and file history. An upload or a merge invalidates
+	 * this one root, so every key read from a branch's tree must sit under it.
+	 */
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
-	repoFiles: (repoId: number, branchName: string, path = "") =>
-		["repos", repoId, "files", branchName, path] as const,
 	repoTreePage: (repoId: number, branchName: string, path = "") =>
-		["repos", repoId, "tree-page", branchName, path] as const,
+		["repos", repoId, "files", "tree-page", branchName, path] as const,
 	repoFile: (repoId: number, branchName: string, path: string) =>
 		["repos", repoId, "files", "content", branchName, path] as const,
 	repoCommitsRoot: (repoId: number) => ["repos", repoId, "commits"] as const,
@@ -78,7 +80,7 @@ export const queryKeys = {
 	repoCommitDiff: (repoId: number, commitSha: string) =>
 		["repos", repoId, "commit-diff", commitSha] as const,
 	repoLastCommits: (repoId: number, branchName: string, path = "") =>
-		["repos", repoId, "last-commits", branchName, path] as const,
+		["repos", repoId, "files", "last-commits", branchName, path] as const,
 	repoFileHistory: (
 		repoId: number,
 		branchName: string,
@@ -86,7 +88,16 @@ export const queryKeys = {
 		limit = 30,
 		depth: "banner" | "full" = "full",
 	) =>
-		["repos", repoId, "file-history", branchName, path, limit, depth] as const,
+		[
+			"repos",
+			repoId,
+			"files",
+			"file-history",
+			branchName,
+			path,
+			limit,
+			depth,
+		] as const,
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
@@ -281,25 +292,6 @@ export function timelineQueryOptions(repoId: number, number: number) {
 	return queryOptions({
 		queryKey: queryKeys.timeline(repoId, number),
 		queryFn: () => getTimeline({ data: { repoId, number } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
-export function repositoryFilesQueryOptions({
-	repoId,
-	branchName,
-	path = "",
-}: {
-	repoId: number;
-	branchName: string;
-	path?: string;
-}) {
-	return queryOptions({
-		queryKey: queryKeys.repoFiles(repoId, branchName, path),
-		queryFn: () =>
-			perfTime(`query files repo=${repoId} ${branchName}:${path || "/"}`, () =>
-				listFiles({ data: { repoId, branchName, path } }),
-			),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

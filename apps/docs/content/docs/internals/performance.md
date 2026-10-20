@@ -105,7 +105,7 @@ have a real data dependency on each other. Some concrete examples already in
 the codebase, worth matching the shape of when adding new code:
 
 - The tree page's loader only `await`s `repositoryByNameQueryOptions` (fast —
-  one DB row) — `repositoryBranchesQueryOptions`, `repositoryFilesQueryOptions`,
+  one DB row) — `repositoryBranchesQueryOptions`, `repositoryTreePageQueryOptions`,
   `repositoryLastCommitsQueryOptions`, the `limit: 1`
   `repositoryCommitsQueryOptions` call, and the README content query are all
   **fire-and-forgotten** (`ensureQueryData(...).catch(() => {})`, not

@@ -123,7 +123,7 @@ Every server function that touches a repository calls through one of:
 
 ### Why there's a short-TTL cache in front of this
 
-A single tree-page load fans out to `getBranches`/`listFiles`/`getLastCommits`/`getCommits`
+A single tree-page load fans out to `getBranches`/`getTreePageData`/`getLastCommits`/`getCommits`
 in parallel, and each of them independently needs to answer "does this user
 have access to this repo" — same `(repoId, userId)`, computed redundantly 3-4x
 concurrently, on top of whatever `getRepositoryByName` already resolved just

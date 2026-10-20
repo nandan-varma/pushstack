@@ -48,24 +48,19 @@ describe("queryKeys", () => {
 		});
 	});
 
-	describe("repoFiles", () => {
-		it("defaults path to empty string", () => {
-			expect(queryKeys.repoFiles(1, "main")).toEqual([
-				"repos",
-				1,
-				"files",
-				"main",
-				"",
-			]);
-		});
-		it("includes path when given", () => {
-			expect(queryKeys.repoFiles(1, "main", "src/index.ts")).toEqual([
-				"repos",
-				1,
-				"files",
-				"main",
-				"src/index.ts",
-			]);
+	describe("repoFilesRoot", () => {
+		// Uploads and merges invalidate only this root, so a branch-content key
+		// outside it would serve a stale tree after the write.
+		it("prefixes every key read from a branch's tree", () => {
+			const root = queryKeys.repoFilesRoot(1);
+			for (const key of [
+				queryKeys.repoFile(1, "main", "README.md"),
+				queryKeys.repoTreePage(1, "main", "src"),
+				queryKeys.repoLastCommits(1, "main", "src"),
+				queryKeys.repoFileHistory(1, "main", "README.md"),
+			]) {
+				expect(key.slice(0, root.length)).toEqual([...root]);
+			}
 		});
 	});
 
@@ -121,6 +116,7 @@ describe("queryKeys", () => {
 			expect(queryKeys.repoLastCommits(1, "main")).toEqual([
 				"repos",
 				1,
+				"files",
 				"last-commits",
 				"main",
 				"",
@@ -130,6 +126,7 @@ describe("queryKeys", () => {
 			expect(queryKeys.repoLastCommits(1, "main", "src")).toEqual([
 				"repos",
 				1,
+				"files",
 				"last-commits",
 				"main",
 				"src",
@@ -142,6 +139,7 @@ describe("queryKeys", () => {
 			expect(queryKeys.repoFileHistory(1, "main", "file.ts")).toEqual([
 				"repos",
 				1,
+				"files",
 				"file-history",
 				"main",
 				"file.ts",
@@ -152,7 +150,16 @@ describe("queryKeys", () => {
 		it("uses the given depth", () => {
 			expect(
 				queryKeys.repoFileHistory(1, "main", "file.ts", 10, "banner"),
-			).toEqual(["repos", 1, "file-history", "main", "file.ts", 10, "banner"]);
+			).toEqual([
+				"repos",
+				1,
+				"files",
+				"file-history",
+				"main",
+				"file.ts",
+				10,
+				"banner",
+			]);
 		});
 	});
 
@@ -192,7 +199,7 @@ describe("queryKeys", () => {
 			const repoId = 7;
 			const keys = [
 				queryKeys.repoBranches(repoId),
-				queryKeys.repoFiles(repoId, "main"),
+				queryKeys.repoTreePage(repoId, "main"),
 				queryKeys.repoCommits(repoId, "main"),
 				queryKeys.repoIssueSearch(repoId, "is:open"),
 				queryKeys.pullRequestSearch(repoId, "is:open"),

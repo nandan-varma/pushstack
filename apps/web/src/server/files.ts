@@ -61,16 +61,6 @@ export const getFile = createServerFn({ method: "GET" })
 		),
 	);
 
-export const listFiles = createServerFn({ method: "GET" })
-	.validator(readInput(refPath))
-	.handler(({ data }) =>
-		readGit(
-			`listFiles ${data.branchName}:${data.path}`,
-			data.repoId,
-			(owner, name) => gitRead.getTree(owner, name, data.branchName, data.path),
-		),
-	);
-
 /** A directory page's branches, entries and latest commit, in one round trip. */
 export const getTreePageData = createServerFn({ method: "GET" })
 	.validator(readInput(refPath))

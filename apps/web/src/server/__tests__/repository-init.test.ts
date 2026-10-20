@@ -34,10 +34,10 @@ async function text(repoId: number, path: string): Promise<string> {
 }
 
 async function rootNames(repoId: number): Promise<string[]> {
-	const tree = await files.listFiles({
+	const page = await files.getTreePageData({
 		data: { repoId, branchName: "main", path: "" },
 	});
-	return tree.map((entry) => entry.path).sort();
+	return page.files.map((entry) => entry.path).sort();
 }
 
 describe("createRepository initialization", () => {

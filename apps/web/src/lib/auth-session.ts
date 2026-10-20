@@ -5,7 +5,7 @@ import type { auth } from "@/lib/auth";
 type Session = Awaited<ReturnType<typeof auth.api.getSession>>;
 
 // A single repo/tree page load fires several server functions in parallel
-// (getBranches/listFiles/getLastCommits/getCommits), and each independently calls
+// (getBranches/getTreePageData/getLastCommits/getCommits), and each independently calls
 // getCurrentUserOptional -> getSession for the exact same request cookie. Single-flight
 // by cookie value so those concurrent calls share one Better Auth session validation
 // instead of each doing their own — cleared as soon as it resolves, so this never

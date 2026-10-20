@@ -20,7 +20,6 @@ const serverFnMocks = {
 	searchUsers: vi.fn(() => "search-users"),
 	getRepositoryByName: vi.fn(() => "repo-by-name"),
 	getBranches: vi.fn(() => "branches"),
-	listFiles: vi.fn(() => "files"),
 	getFile: vi.fn(() => "file"),
 	getFileHistory: vi.fn(() => "file-history"),
 	getCommits: vi.fn(() => "commits"),
@@ -51,7 +50,6 @@ vi.mock("@/server/users", () => ({
 }));
 vi.mock("@/server/files", () => ({
 	getBranches: serverFnMocks.getBranches,
-	listFiles: serverFnMocks.listFiles,
 	getFile: serverFnMocks.getFile,
 	getFileHistory: serverFnMocks.getFileHistory,
 	getCommits: serverFnMocks.getCommits,
@@ -81,7 +79,6 @@ const {
 	searchUsersQueryOptions,
 	repositoryByNameQueryOptions,
 	repositoryBranchesQueryOptions,
-	repositoryFilesQueryOptions,
 	repositoryFileQueryOptions,
 	repositoryFileHistoryQueryOptions,
 	repositoryCommitsQueryOptions,
@@ -187,16 +184,6 @@ describe("repositoryBranchesQueryOptions", () => {
 });
 
 describe("file query options", () => {
-	it("repositoryFilesQueryOptions defaults path to empty string", async () => {
-		await repositoryFilesQueryOptions({
-			repoId: 1,
-			branchName: "main",
-		}).queryFn?.({} as never);
-		expect(serverFnMocks.listFiles).toHaveBeenCalledWith({
-			data: { repoId: 1, branchName: "main", path: "" },
-		});
-	});
-
 	it("repositoryFileQueryOptions calls getFile", async () => {
 		await repositoryFileQueryOptions({
 			repoId: 1,

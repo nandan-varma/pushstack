@@ -49,7 +49,7 @@ for other server modules: `findRepositoryByName` (cached) and
 [security.md](/docs/internals/security).
 
 ### `files.ts` — files, branches, commits
-Reads (`getFile`, `listFiles`, `getTreePageData`, `getLastCommits`,
+Reads (`getFile`, `getTreePageData`, `getLastCommits`,
 `getFileHistory` with `depth: "banner" | "full"`, `getBranches`,
 `getCommits`, `getCommit`, `getCommitDiff`, `getBranchDiff`) go through
 `git-read.ts`; writes (`uploadFile`, `deleteFile`, `createBranch`,
