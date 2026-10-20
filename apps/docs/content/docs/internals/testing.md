@@ -12,8 +12,11 @@ Live in `__tests__/` directories beside the code they cover; most are in
 functions run for real against:
 
 - **pglite** (`apps/web/src/test/pglite-db.ts`'s `createTestDb`) — an in-memory
-  Postgres with the real schema pushed into it, so every query, constraint
-  and the repo lock's lease SQL are real.
+  Postgres holding the real schema, loaded from the template `globalSetup`
+  (`apps/web/src/test/test-db-template.ts`) builds once per run, so every
+  query, constraint and the repo lock's lease SQL are real. A new schema file
+  must be added to that module's `SCHEMA_SOURCE_FILES`, or the cached template
+  isn't rebuilt when it changes.
 - **the in-memory git store** — R2 isn't configured in tests, so `git-fs.ts`
   backs the same storage stack production uses with an in-memory object
   store.
