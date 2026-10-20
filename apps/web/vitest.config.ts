@@ -7,6 +7,13 @@ export default defineConfig({
 	test: {
 		// Each behavior-test worker boots Postgres WASM; bound memory and startup contention.
 		maxWorkers: 2,
+		// `createTestDb` pushes the whole schema with drizzle-kit per test file:
+		// ~0.8s alone, but several seconds when workers and other processes contend
+		// for CPU (measured 4-7s; hooks exceeded the 10s default while agents ran
+		// concurrently). The tests themselves never wait, so these bound the setup
+		// rather than hide a hang — a stuck test still fails within 30s.
+		testTimeout: 30_000,
+		hookTimeout: 30_000,
 		environment: "jsdom",
 		// src/db requires a URL at import; nothing connects until a query runs.
 		env: { DATABASE_URL: "postgresql://test@localhost/test" },

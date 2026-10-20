@@ -6,12 +6,7 @@ import { repositories } from "../app-schema";
 import { user } from "../schema";
 
 describe("app timestamps", () => {
-	// `createTestDb` pushes the whole schema with drizzle-kit: ~0.8s alone, but
-	// several seconds when the workers contend for CPU, which tripped the default
-	// 5s timeout. The test itself never waits, so this stays tight.
-	it("read back correctly when the database fills them under a non-UTC session", {
-		timeout: 20_000,
-	}, async () => {
+	it("read back correctly when the database fills them under a non-UTC session", async () => {
 		const db = await createTestDb();
 		await db.execute(sql`set timezone = 'America/Los_Angeles'`);
 		const now = new Date();
