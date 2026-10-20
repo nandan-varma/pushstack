@@ -12,6 +12,7 @@ import { ownerKeyOf } from "../git-storage-naming";
 import type { ApiContext } from "./auth";
 import { apiCaps } from "./caps";
 import { apiUrl, encodePath, htmlUrl, json, notFoundError } from "./http";
+import { pathParams, queryParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { fullNameOf } from "./threads";
 
@@ -74,8 +75,10 @@ function baseShape(
 
 export async function getContents(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const path = (ctx.params.path ?? "").replace(/\/+$/, "");
-	const ref = ctx.url.searchParams.get("ref") || repo.defaultBranch;
+	const { path: rawPath } = pathParams(ctx, "repos/get-content");
+	const path = rawPath.replace(/\/+$/, "");
+	const ref =
+		queryParams(ctx, "repos/get-content", "Content").ref || repo.defaultBranch;
 	if (
 		!safeRepoPathSchema.safeParse(path).success ||
 		!safeCommitRevSchema.safeParse(ref).success

@@ -21,6 +21,7 @@ import {
 	json,
 	notFoundError,
 } from "./http";
+import { pathParams, queryParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { gitIdentity } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -52,7 +53,7 @@ async function refsOf(ctx: ApiContext) {
 
 /** `GET /repos/{owner}/{repo}/git/ref/{ref}`: exactly one ref, else 404. */
 export async function getRef(ctx: ApiContext) {
-	const name = qualified(ctx.params.ref ?? "");
+	const name = qualified(pathParams(ctx, "git/get-ref").ref);
 	if (!name) throw notFoundError();
 	const { fullName, refs } = await refsOf(ctx);
 	const target = refs.find((candidate) => candidate.ref === name);
@@ -62,7 +63,7 @@ export async function getRef(ctx: ApiContext) {
 
 /** `GET /repos/{owner}/{repo}/git/matching-refs/{ref}`: refs starting with `ref` (`[]` when none). */
 export async function listMatchingRefs(ctx: ApiContext) {
-	const raw = ctx.params.ref ?? "";
+	const { ref: raw } = pathParams(ctx, "git/list-matching-refs");
 	const prefix = raw === "" ? "refs/" : qualified(raw);
 	const { fullName, refs } = await refsOf(ctx);
 	if (!prefix) return json([]);
@@ -78,7 +79,7 @@ export async function listMatchingRefs(ctx: ApiContext) {
  * one object, a prefix match an array, nothing a 404.
  */
 export async function listRefs(ctx: ApiContext) {
-	const raw = ctx.params.ref;
+	const { ref: raw } = pathParams(ctx, "git/list-refs");
 	const { fullName, refs } = await refsOf(ctx);
 	if (raw === undefined) {
 		return json(refs.map((target) => refObject(fullName, target)));
@@ -123,7 +124,7 @@ export function gitCommitObject(fullName: string, info: CommitInfo) {
 /** `GET /repos/{owner}/{repo}/git/commits/{commit_sha}`: a full sha only. */
 export async function getGitCommit(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const sha = ctx.params.commit_sha ?? "";
+	const { commit_sha: sha } = pathParams(ctx, "git/get-commit");
 	if (!isFullSha(sha)) throw notFoundError();
 	const info = await getCommit(ownerKeyOf(repo), repo.name, sha);
 	return json(gitCommitObject(fullNameOf(repo), info));
@@ -135,7 +136,7 @@ export async function getGitCommit(ctx: ApiContext) {
  */
 export async function getGitTree(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const rev = ctx.params.tree_sha ?? "";
+	const { tree_sha: rev } = pathParams(ctx, "git/get-tree");
 	if (!safeCommitRevSchema.safeParse(rev).success) throw notFoundError();
 	const ownerKey = ownerKeyOf(repo);
 	const fullName = fullNameOf(repo);
@@ -144,7 +145,8 @@ export async function getGitTree(ctx: ApiContext) {
 		? rev
 		: (await getCommit(ownerKey, repo.name, rev)).commit.tree;
 	// GitHub treats any `recursive` value as true.
-	const recursive = ctx.url.searchParams.has("recursive");
+	const recursive =
+		queryParams(ctx, "git/get-tree", "Tree").recursive !== undefined;
 	const tree = await getTreeByOid(ownerKey, repo.name, oid, {
 		recursive,
 		limit: apiCaps.treeEntries,
@@ -179,7 +181,7 @@ export async function getGitTree(ctx: ApiContext) {
 
 export async function getGitBlob(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const sha = ctx.params.file_sha ?? "";
+	const { file_sha: sha } = pathParams(ctx, "git/get-blob");
 	if (!isFullSha(sha)) throw notFoundError();
 	const ownerKey = ownerKeyOf(repo);
 	const size = await getBlobSize(ownerKey, repo.name, sha);

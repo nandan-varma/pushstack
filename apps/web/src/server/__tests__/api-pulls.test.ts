@@ -547,3 +547,28 @@ it("serializes PR assignees through both pulls and issues surfaces and filters",
 		none.body.some((row: { number: number }) => row.number === pr.number),
 	).toBe(false);
 });
+
+describe("contract input validation", () => {
+	it("404s numbers the contract rejects and 422s an invalid state", async () => {
+		for (const path of [
+			"/repos/alice/proj/pulls/0x1",
+			"/repos/alice/proj/pulls/99999999999",
+			"/repos/alice/proj/pulls/1.0/files",
+			"/repos/alice/proj/pulls/abc/merge",
+			"/user/99999999999",
+			"/user/1e0",
+		]) {
+			expect((await call(path)).status, path).toBe(404);
+		}
+		const { status, body } = await call("/repos/alice/proj/pulls?state=bad");
+		expect(status).toBe(422);
+		expect(body.errors).toEqual([
+			{
+				resource: "PullRequest",
+				field: "state",
+				code: "invalid",
+				value: "bad",
+			},
+		]);
+	});
+});

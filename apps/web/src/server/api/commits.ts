@@ -25,6 +25,7 @@ import {
 	notFoundError,
 	pageParams,
 } from "./http";
+import { pathParams, queryParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { commitObject } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -42,8 +43,9 @@ async function assertNotEmpty(repo: RepositoryRowWithOwner) {
 export async function listCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const query = ctx.url.searchParams;
-	const rev = query.get("sha") || repo.defaultBranch;
-	const path = (query.get("path") ?? "").replace(/^\/+|\/+$/g, "");
+	const filters = queryParams(ctx, "repos/list-commits", "Commit");
+	const rev = filters.sha || repo.defaultBranch;
+	const path = (filters.path ?? "").replace(/^\/+|\/+$/g, "");
 	if (
 		!safeCommitRevSchema.safeParse(rev).success ||
 		!safeRepoPathSchema.safeParse(path).success
@@ -116,7 +118,7 @@ async function diffSummary(repo: RepositoryRowWithOwner, diff: DiffResult) {
 
 export async function getCommitDetail(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const rev = ctx.params.ref ?? "";
+	const { ref: rev } = pathParams(ctx, "repos/get-commit");
 	if (!safeCommitRevSchema.safeParse(rev).success) throw noCommitError(rev);
 	await assertNotEmpty(repo);
 	const ownerKey = ownerKeyOf(repo);
@@ -148,7 +150,7 @@ function compareSide(side: string, repo: RepositoryRowWithOwner): string {
 
 export async function compareCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const basehead = ctx.params.basehead ?? "";
+	const { basehead } = pathParams(ctx, "repos/compare-commits-with-basehead");
 	const separator = basehead.includes("...") ? "..." : "..";
 	const at = basehead.indexOf(separator);
 	if (at <= 0 || at + separator.length >= basehead.length) {
