@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Globe, Lock } from "lucide-react";
 import { useState } from "react";
 import { Section } from "@/components/Section";
+import { FieldError } from "@/components/ui/field-error";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -147,9 +148,7 @@ export function GeneralSection({
 					</div>
 				</div>
 				{updateMutation.isError && (
-					<p className="text-sm text-red-600 dark:text-red-400">
-						{(updateMutation.error as Error).message}
-					</p>
+					<FieldError>{(updateMutation.error as Error).message}</FieldError>
 				)}
 				<div className="flex items-center gap-3">
 					<LoadingButton

@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Section } from "@/components/Section";
+import { FieldError } from "@/components/ui/field-error";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -54,9 +55,7 @@ export function ProfileSection({
 						Change your email in the Email section below.
 					</p>
 				</FormField>
-				{error && (
-					<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-				)}
+				{error && <FieldError>{error}</FieldError>}
 				<div className="flex items-center gap-3">
 					<LoadingButton
 						isLoading={loading}

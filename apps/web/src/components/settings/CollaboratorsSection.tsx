@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 import {
@@ -135,9 +136,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 						Add
 					</LoadingButton>
 				</div>
-				{addError && (
-					<p className="text-sm text-red-600 dark:text-red-400">{addError}</p>
-				)}
+				{addError && <FieldError>{addError}</FieldError>}
 			</div>
 		</Section>
 	);

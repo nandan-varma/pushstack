@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "@/lib/auth-client";
 import { authSessionsQueryOptions, queryKeys } from "@/lib/query-options";
@@ -88,9 +89,9 @@ export function SessionsSection({ currentToken }: { currentToken: string }) {
 					</LoadingButton>
 				)}
 				{(revoke.error || revokeOthers.error) && (
-					<p className="text-sm text-red-600 dark:text-red-400">
+					<FieldError>
 						{(revoke.error ?? revokeOthers.error)?.message}
-					</p>
+					</FieldError>
 				)}
 			</div>
 		</Section>

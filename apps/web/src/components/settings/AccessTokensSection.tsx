@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -205,9 +206,7 @@ export function AccessTokensSection() {
 						</LoadingButton>
 					</div>
 					{createMutation.error && (
-						<p className="text-sm text-red-600 dark:text-red-400">
-							{createMutation.error.message}
-						</p>
+						<FieldError>{createMutation.error.message}</FieldError>
 					)}
 				</div>
 			</div>

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Section } from "@/components/Section";
+import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { queryKeys } from "@/lib/query-options";
@@ -36,9 +37,7 @@ export function DangerSection({
 			title="Danger zone"
 			description={`Permanently delete ${owner}/${name} and all its data. This cannot be undone.`}
 		>
-			{error && (
-				<p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>
-			)}
+			{error && <FieldError className="mb-3">{error}</FieldError>}
 			<div className="space-y-3">
 				<div className="flex gap-3">
 					<Input
@@ -65,9 +64,9 @@ export function DangerSection({
 					</p>
 				)}
 				{confirm === name && (
-					<p className="text-xs text-red-600 dark:text-red-400">
+					<FieldError className="text-xs">
 						Type confirmed. Click "Delete repository" to proceed.
-					</p>
+					</FieldError>
 				)}
 			</div>
 		</Section>

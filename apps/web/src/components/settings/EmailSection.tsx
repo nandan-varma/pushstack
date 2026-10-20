@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Section } from "@/components/Section";
+import { FieldError } from "@/components/ui/field-error";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -50,9 +51,7 @@ export function EmailSection({ currentEmail }: { currentEmail: string }) {
 							onKeyDown={(e) => e.key === "Enter" && change()}
 						/>
 					</FormField>
-					{error && (
-						<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-					)}
+					{error && <FieldError>{error}</FieldError>}
 					<LoadingButton
 						isLoading={loading}
 						loadingLabel="Sending…"

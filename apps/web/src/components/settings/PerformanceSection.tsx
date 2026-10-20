@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Section } from "@/components/Section";
+import { FieldError } from "@/components/ui/field-error";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Switch } from "@/components/ui/switch";
 import { queryKeys } from "@/lib/query-options";
@@ -99,9 +100,9 @@ export function PerformanceSection({
 				/>
 			</div>
 			{mutation.isError && (
-				<p className="mt-3 text-sm text-red-600 dark:text-red-400">
+				<FieldError className="mt-3">
 					{(mutation.error as Error).message}
-				</p>
+				</FieldError>
 			)}
 			<div className="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4">
 				<div className="min-w-0">
@@ -128,9 +129,9 @@ export function PerformanceSection({
 				</LoadingButton>
 			</div>
 			{repackMutation.isError && (
-				<p className="mt-2 text-sm text-red-600 dark:text-red-400">
+				<FieldError className="mt-2">
 					{(repackMutation.error as Error).message}
-				</p>
+				</FieldError>
 			)}
 			{repackMutation.isSuccess && (
 				<p className="mt-2 text-sm text-muted-foreground">

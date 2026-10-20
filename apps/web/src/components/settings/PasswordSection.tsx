@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Section } from "@/components/Section";
+import { FieldError } from "@/components/ui/field-error";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -72,14 +73,12 @@ export function PasswordSection() {
 						onKeyDown={(e) => e.key === "Enter" && save()}
 					/>
 					{mismatch && (
-						<p className="mt-1 text-xs text-red-600 dark:text-red-400">
+						<FieldError className="mt-1 text-xs">
 							Passwords don't match
-						</p>
+						</FieldError>
 					)}
 				</FormField>
-				{error && (
-					<p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-				)}
+				{error && <FieldError>{error}</FieldError>}
 				<div className="flex items-center gap-3">
 					<LoadingButton
 						isLoading={loading}
