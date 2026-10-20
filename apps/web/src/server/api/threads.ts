@@ -5,6 +5,12 @@
  * `pull_request` object for a pull request. Rows come from thread-store.ts's
  * `listThreads`, already carrying labels, assignees and comment counts.
  */
+
+import {
+	emptyReactionRollup as emptyRollup,
+	type ReactionRollup,
+} from "#/lib/reactions";
+import { issueReactionRollups } from "../reaction-store";
 import type { PublicUser, RepositoryRowWithOwner } from "../repository-lookup";
 import { findThreads, type Thread } from "../thread-store";
 import { issue, type Shape } from "./serializers";
@@ -24,12 +30,13 @@ function closedAtOf(thread: {
 }
 
 /**
- * GitHub's issue shape for `thread`. `withClosedBy` adds `closed_by`, which
- * GitHub returns on a single issue only.
+ * GitHub's issue shape for `thread` with its own reaction rollup. `withClosedBy`
+ * adds `closed_by`, which GitHub returns on a single issue only.
  */
-export function serializeThread(
+function serializeThreadWith(
 	repo: RepositoryRowWithOwner,
 	thread: Thread,
+	reactions: ReactionRollup,
 	withClosedBy = false,
 ): Shape<"issue"> {
 	const closed = thread.status === "closed";
@@ -58,7 +65,34 @@ export function serializeThread(
 		labels: thread.labels,
 		assignees: thread.assignees,
 		commentsCount: thread.commentsCount,
+		reactions,
 	});
+}
+
+/** GitHub's issue shapes for `threads`, their reaction rollups in one read. */
+export async function serializeThreads(
+	repo: RepositoryRowWithOwner,
+	threads: Thread[],
+): Promise<Shape<"issue">[]> {
+	const rollups = await issueReactionRollups(threads.map((t) => t.id));
+	return threads.map((thread) =>
+		serializeThreadWith(repo, thread, rollups.get(thread.id) ?? emptyRollup()),
+	);
+}
+
+/** One thread's issue shape; `withClosedBy` for single-issue reads. */
+export async function serializeThread(
+	repo: RepositoryRowWithOwner,
+	thread: Thread,
+	withClosedBy = false,
+): Promise<Shape<"issue">> {
+	const rollups = await issueReactionRollups([thread.id]);
+	return serializeThreadWith(
+		repo,
+		thread,
+		rollups.get(thread.id) ?? emptyRollup(),
+		withClosedBy,
+	);
 }
 
 export async function serializeThreadsByNumber(
@@ -66,7 +100,6 @@ export async function serializeThreadsByNumber(
 	numbers: number[],
 ): Promise<Map<number, Shape<"issue">>> {
 	const threads = await findThreads(repo.id, numbers);
-	return new Map(
-		threads.map((thread) => [thread.number, serializeThread(repo, thread)]),
-	);
+	const shapes = await serializeThreads(repo, threads);
+	return new Map(shapes.map((shape) => [shape.number, shape]));
 }

@@ -116,6 +116,8 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET`/`PATCH`/`DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | supported | `204` on delete |
 | `GET /repos/{owner}/{repo}/issues/{number}/timeline` | supported | comments and events, oldest first |
 | `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | events only, oldest first |
+| `GET`/`POST /repos/{owner}/{repo}/issues/{number}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | reactions on an issue or pull request; list filters by `content` and paginates; create is any signed-in reader (`repo:write` token), `201` when new and `200` with the existing reaction; delete (`204`) only your own reaction |
+| `GET`/`POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | the same for an issue or pull request comment |
 | `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
 | `GET`/`POST`/`PUT`/`DELETE /repos/{owner}/{repo}/issues/{number}/labels` (+ `/{name}`) | supported | write access; add and set return every label, removing one returns the rest, removing all is `204` |
 | `GET /rate_limit` | supported | `resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql` |
@@ -130,7 +132,8 @@ kept) and is absent when everything fits on one page. Items deeper than
 ## Differences from GitHub
 
 - User and repository `id` are integers, and a user's `node_id` is GitHub's
-  legacy form (`base64("04:User<id>")`); other objects omit `node_id`.
+  legacy form (`base64("04:User<id>")`), as is a reaction's
+  (`base64("08:Reaction<id>")`); other objects omit `node_id`.
 - **`avatar_url` is `null`** when the user has no image (GitHub always has one).
 - `email` on a user is always `null`, and the `email` of a commit author or
   committer is always the placeholder `noreply@<host>`: web commits carry the
@@ -156,8 +159,10 @@ kept) and is absent when everything fits on one page. Items deeper than
 - A closed pull request's `closed_at` is its merge time when merged, otherwise
   its last update (there is no `closed_at` column); a merged pull request is
   `state: "closed"` in the issues surface, as on GitHub.
-- Issue, comment and timeline objects omit `node_id`, `author_association`,
-  `reactions` and `performed_via_github_app`; `milestone` and
+- Issue, comment and timeline objects carry the `reactions` rollup (`url`,
+  `total_count` and one count per content), as on GitHub; an issue's rollup
+  counts its own reactions, not its comments'. They omit `node_id`,
+  `author_association` and `performed_via_github_app`; `milestone` and
   `active_lock_reason` are always `null`, `locked` always `false`. A
   `labeled`/`unlabeled` event carries `{ name, color }`; an
   `assigned`/`unassigned` event carries a partial assignee (`login`, `name`,

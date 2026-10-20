@@ -154,6 +154,24 @@ export const routes = {
 		docs: `${DOCS}/issues/comments#delete-an-issue-comment`,
 		status: 204,
 	},
+	"reactions/list-for-issue-comment": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions",
+		docs: `${DOCS}/reactions/reactions#list-reactions-for-an-issue-comment`,
+	},
+	"reactions/create-for-issue-comment": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions",
+		docs: `${DOCS}/reactions/reactions#create-reaction-for-an-issue-comment`,
+		/** 201 when created, 200 when the caller already had that reaction. */
+		status: 201,
+	},
+	"reactions/delete-for-issue-comment": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}",
+		docs: `${DOCS}/reactions/reactions#delete-an-issue-comment-reaction`,
+		status: 204,
+	},
 	"issues/get": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/issues/{issue_number}",
@@ -184,6 +202,24 @@ export const routes = {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/issues/{issue_number}/events",
 		docs: `${DOCS}/issues/events#list-issue-events`,
+	},
+	"reactions/list-for-issue": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/issues/{issue_number}/reactions",
+		docs: `${DOCS}/reactions/reactions#list-reactions-for-an-issue`,
+	},
+	"reactions/create-for-issue": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/issues/{issue_number}/reactions",
+		docs: `${DOCS}/reactions/reactions#create-reaction-for-an-issue`,
+		/** 201 when created, 200 when the caller already had that reaction. */
+		status: 201,
+	},
+	"reactions/delete-for-issue": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}",
+		docs: `${DOCS}/reactions/reactions#delete-an-issue-reaction`,
+		status: 204,
 	},
 	"issues/list-labels-on-issue": {
 		method: "GET",

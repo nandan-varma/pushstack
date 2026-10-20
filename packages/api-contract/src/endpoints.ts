@@ -47,6 +47,8 @@ import {
 	pullRequest,
 	pullRequestSimple,
 	rateLimitOverview,
+	reaction,
+	reactionContent,
 	repository,
 	shortBranch,
 	stateReason,
@@ -71,6 +73,11 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 const noContent = z.null();
 const listState = z.enum(["open", "closed", "all"]).default("open");
 const commentParams = repoParams.extend({ comment_id: positiveInt });
+const reactionList = {
+	query: pagination.extend({ content: reactionContent.optional() }),
+	response: z.array(reaction),
+};
+const reactionBody = z.object({ content: reactionContent });
 const labelParams = repoParams.extend({ name: z.string().min(1) });
 const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
@@ -245,6 +252,19 @@ export const endpoints = defineEndpoints({
 		params: commentParams,
 		response: noContent,
 	},
+	"reactions/list-for-issue-comment": {
+		params: commentParams,
+		...reactionList,
+	},
+	"reactions/create-for-issue-comment": {
+		params: commentParams,
+		body: reactionBody,
+		response: reaction,
+	},
+	"reactions/delete-for-issue-comment": {
+		params: commentParams.extend({ reaction_id: positiveInt }),
+		response: noContent,
+	},
 	"issues/get": {
 		params: issueParams,
 		response: issue,
@@ -280,6 +300,16 @@ export const endpoints = defineEndpoints({
 		params: issueParams,
 		query: pagination,
 		response: z.array(issueEvent),
+	},
+	"reactions/list-for-issue": { params: issueParams, ...reactionList },
+	"reactions/create-for-issue": {
+		params: issueParams,
+		body: reactionBody,
+		response: reaction,
+	},
+	"reactions/delete-for-issue": {
+		params: issueParams.extend({ reaction_id: positiveInt }),
+		response: noContent,
 	},
 	"issues/list-labels-on-issue": {
 		params: issueParams,

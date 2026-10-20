@@ -125,7 +125,23 @@ beforeAll(async () => {
 		`/repos/alice/proj/issues/comments/${comment.id}`,
 		patch(alice, { body: "Seen twice" }),
 	);
+	const commentReactions = `/repos/alice/proj/issues/comments/${comment.id}/reactions`;
+	const commentReaction = await check(
+		commentReactions,
+		post(alice, { content: "heart" }),
+	);
+	await check(commentReactions);
+	await check(`${commentReactions}/${commentReaction.id}`, del(alice));
 	await check(`/repos/alice/proj/issues/comments/${comment.id}`, del(alice));
+	const issueReaction = await check(
+		"/repos/alice/proj/issues/1/reactions",
+		post(alice, { content: "+1" }),
+	);
+	await check("/repos/alice/proj/issues/1/reactions");
+	await check(
+		`/repos/alice/proj/issues/1/reactions/${issueReaction.id}`,
+		del(alice),
+	);
 	await check(
 		"/repos/alice/proj/issues/1/labels",
 		post(alice, { labels: ["triage"] }),

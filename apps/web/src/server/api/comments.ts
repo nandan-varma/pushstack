@@ -4,6 +4,8 @@
  * pull request's comments through the issues endpoints too); the single-comment
  * routes address it by id.
  */
+
+import { emptyReactionRollup } from "#/lib/reactions";
 import {
 	canEditComment,
 	countCommentsForThread,
@@ -13,6 +15,7 @@ import {
 	listCommentsForThread,
 	updateCommentRow,
 } from "../comment-store";
+import { commentReactionRollups } from "../reaction-store";
 import { findThreadById, findThreadByNumber } from "../thread-store";
 import { type ApiContext, requireScope } from "./auth";
 import {
@@ -45,6 +48,7 @@ export async function listComments(ctx: ApiContext) {
 		countCommentsForThread(thread),
 	]);
 	const fullName = fullNameOf(repo);
+	const rollups = await commentReactionRollups(comments.map((c) => c.id));
 	return json(
 		comments.map((comment) =>
 			issueComment({
@@ -53,6 +57,7 @@ export async function listComments(ctx: ApiContext) {
 				number,
 				comment,
 				author: comment.author,
+				reactions: rollups.get(comment.id) ?? emptyReactionRollup(),
 			}),
 		),
 		200,
@@ -84,6 +89,7 @@ export async function createComment(ctx: ApiContext) {
 			number,
 			comment,
 			author: comment.author,
+			reactions: emptyReactionRollup(),
 		}),
 		201,
 		{
@@ -107,6 +113,11 @@ async function requireComment(
 	return { comment, thread };
 }
 
+async function commentRollup(commentId: number) {
+	const rollups = await commentReactionRollups([commentId]);
+	return rollups.get(commentId) ?? emptyReactionRollup();
+}
+
 export async function getComment(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const { comment, thread } = await requireComment(
@@ -121,6 +132,7 @@ export async function getComment(ctx: ApiContext) {
 			number: thread.number,
 			comment,
 			author: comment.author,
+			reactions: await commentRollup(comment.id),
 		}),
 	);
 }
@@ -149,6 +161,7 @@ export async function updateComment(ctx: ApiContext) {
 			number: thread.number,
 			comment: updated,
 			author: comment.author,
+			reactions: await commentRollup(comment.id),
 		}),
 	);
 }
