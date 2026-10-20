@@ -18,7 +18,7 @@ import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
 
-export const Route = createFileRoute("/repo/$owner/$name")({
+export const Route = createFileRoute("/$owner/$name")({
 	loader: ({ params, context: { queryClient } }) =>
 		perfTime(`loader repo-layout ${params.owner}/${params.name}`, () =>
 			queryClient.ensureQueryData(
@@ -57,7 +57,7 @@ export const Route = createFileRoute("/repo/$owner/$name")({
 						"@type": "SoftwareSourceCode",
 						name: params.name,
 						description,
-						codeRepository: `${SITE_URL}/repo/${params.owner}/${params.name}`,
+						codeRepository: `${SITE_URL}/${params.owner}/${params.name}`,
 						author: {
 							"@type": "Person",
 							name: params.owner,
@@ -126,11 +126,11 @@ function RepositoryPage() {
 	);
 
 	const isCodeActive = Boolean(
-		matchRoute({ to: "/repo/$owner/$name/tree/$branch/$", fuzzy: true }) ||
-			matchRoute({ to: "/repo/$owner/$name/blob/$branch/$", fuzzy: true }),
+		matchRoute({ to: "/$owner/$name/tree/$branch/$", fuzzy: true }) ||
+			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }),
 	);
 	const isCommitsActive = Boolean(
-		matchRoute({ to: "/repo/$owner/$name/commits/$branch", fuzzy: true }),
+		matchRoute({ to: "/$owner/$name/commits/$branch", fuzzy: true }),
 	);
 
 	if (isLoading) {

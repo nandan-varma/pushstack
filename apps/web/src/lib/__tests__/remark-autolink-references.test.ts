@@ -77,7 +77,7 @@ describe("createAutolinkReferencesPlugin", () => {
 			resolveReference,
 		});
 		const nodes = getTextNodes(tree);
-		expect(nodes).toContain("[link:#42→/repo/acme/repo/issues/42]");
+		expect(nodes).toContain("[link:#42→/acme/repo/issues/42]");
 	});
 
 	it("turns #N into pull request links when resolveReference returns 'pull'", () => {
@@ -87,7 +87,7 @@ describe("createAutolinkReferencesPlugin", () => {
 			resolveReference,
 		});
 		const nodes = getTextNodes(tree);
-		expect(nodes).toContain("[link:#99→/repo/acme/repo/pulls/99]");
+		expect(nodes).toContain("[link:#99→/acme/repo/pulls/99]");
 	});
 
 	it("leaves #N as plain text when resolveReference returns null", () => {
@@ -107,7 +107,7 @@ describe("createAutolinkReferencesPlugin", () => {
 			resolveReference,
 		});
 		const nodes = getTextNodes(tree);
-		expect(nodes).toContain("[link:abc1234→/repo/acme/repo/commit/abc1234]");
+		expect(nodes).toContain("[link:abc1234→/acme/repo/commit/abc1234]");
 	});
 
 	it("shortens SHA display to 7 chars", () => {
@@ -118,7 +118,7 @@ describe("createAutolinkReferencesPlugin", () => {
 		});
 		// The link targets the full sha; its text is the 7-char short form.
 		expect(getTextNodes(tree)).toContain(
-			"[link:abc1234→/repo/acme/repo/commit/abc1234def]",
+			"[link:abc1234→/acme/repo/commit/abc1234def]",
 		);
 	});
 

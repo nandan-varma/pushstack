@@ -34,7 +34,7 @@ function encodePath(path: string) {
 	return path.split("/").map(encodeURIComponent).join("/");
 }
 
-export const Route = createFileRoute("/repo/$owner/$name/blob/$branch/$")({
+export const Route = createFileRoute("/$owner/$name/blob/$branch/$")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -109,7 +109,7 @@ function FileBlobPage() {
 			<NotFoundCard
 				title="File Not Found"
 				message={`The file "${filePath}" does not exist in the ${branch} branch.`}
-				backTo="/repo/$owner/$name/tree/$branch/$"
+				backTo="/$owner/$name/tree/$branch/$"
 				backParams={{ owner, name, branch, _splat: "" }}
 				backLabel="Back to Files"
 			/>
@@ -124,7 +124,7 @@ function FileBlobPage() {
 						{filePath}
 					</h1>
 					<BackLink
-						to="/repo/$owner/$name/tree/$branch/$"
+						to="/$owner/$name/tree/$branch/$"
 						params={{
 							owner,
 							name,
@@ -183,7 +183,7 @@ function FileBlobPage() {
 				</div>
 				<div className="flex shrink-0 flex-wrap items-center gap-2">
 					<BackLink
-						to="/repo/$owner/$name/tree/$branch/$"
+						to="/$owner/$name/tree/$branch/$"
 						params={{
 							owner,
 							name,
@@ -206,7 +206,7 @@ function FileBlobPage() {
 						onClick={() => {
 							if (!latestSha) return;
 							copy(
-								`${window.location.origin}/repo/${owner}/${name}/blob/${latestSha}/${encodePath(filePath)}`,
+								`${window.location.origin}/${owner}/${name}/blob/${latestSha}/${encodePath(filePath)}`,
 							);
 						}}
 					>
@@ -247,7 +247,7 @@ function FileBlobPage() {
 					</span>
 					{repo?.defaultBranch ? (
 						<Link
-							to="/repo/$owner/$name/blob/$branch/$"
+							to="/$owner/$name/blob/$branch/$"
 							params={{
 								owner,
 								name,

@@ -67,7 +67,7 @@ export function findRepositoryByName(
 }
 
 /**
- * A server function body for reads addressed by URL (`/repo/{owner}/{name}/…`):
+ * A server function body for reads addressed by URL (`/{owner}/{name}/…`):
  * perf context, the repository, read access (404 when missing or unreadable),
  * then `fn`.
  */

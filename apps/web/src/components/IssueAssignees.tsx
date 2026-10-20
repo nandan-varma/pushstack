@@ -85,8 +85,8 @@ export function IssueAssignees({
 				assignees.map((a) => (
 					<Link
 						key={a.id}
-						to="/users/$username"
-						params={{ username: a.username }}
+						to="/$owner"
+						params={{ owner: a.username }}
 						className="font-medium text-foreground"
 					>
 						{a.username}

@@ -92,13 +92,13 @@ test.describe
 			await page.click('button[type="submit"]');
 
 			await expect(page).toHaveURL(
-				new RegExp(`/repo/${testUser.username}/${repoName}`),
+				new RegExp(`/${testUser.username}/${repoName}`),
 				{ timeout: 15000 },
 			);
 		});
 
 		test("should display repository details", async () => {
-			await page.goto(`/repo/${testUser.username}/${repoName}`);
+			await page.goto(`/${testUser.username}/${repoName}`);
 			await expect(page.getByText(repoName).first()).toBeVisible();
 			await expect(
 				page.getByRole("link", { name: "Create new file" }),
@@ -106,17 +106,17 @@ test.describe
 		});
 
 		test("should navigate to repository issues tab and show the empty state", async () => {
-			await page.goto(`/repo/${testUser.username}/${repoName}/issues`);
+			await page.goto(`/${testUser.username}/${repoName}/issues`);
 			await expect(page).toHaveURL(
-				new RegExp(`/repo/${testUser.username}/${repoName}/issues`),
+				new RegExp(`/${testUser.username}/${repoName}/issues`),
 			);
 			await expect(page.getByText(/no issues|no open issues/i)).toBeVisible();
 		});
 
 		test("should navigate to repository pull requests tab and show the empty state", async () => {
-			await page.goto(`/repo/${testUser.username}/${repoName}/pulls`);
+			await page.goto(`/${testUser.username}/${repoName}/pulls`);
 			await expect(page).toHaveURL(
-				new RegExp(`/repo/${testUser.username}/${repoName}/pulls`),
+				new RegExp(`/${testUser.username}/${repoName}/pulls`),
 			);
 			await expect(
 				page.getByText(/no pull requests|no open pull requests/i),
@@ -126,7 +126,7 @@ test.describe
 		test("should delete the repository via the settings danger zone", async () => {
 			await gotoAndWaitForHydration(
 				page,
-				`/repo/${testUser.username}/${repoName}/settings`,
+				`/${testUser.username}/${repoName}/settings`,
 			);
 			await page
 				.getByPlaceholder(`Type "${repoName}" to confirm`)
@@ -137,7 +137,7 @@ test.describe
 			// The repo (and its git storage) should really be gone, not just hidden
 			// from this page — a stale row would silently orphan its R2/local
 			// storage per git-repo-storage.ts's rename/delete cleanup contract.
-			await page.goto(`/repo/${testUser.username}/${repoName}`);
+			await page.goto(`/${testUser.username}/${repoName}`);
 			await expect(page.getByText(/not found/i)).toBeVisible();
 		});
 	});

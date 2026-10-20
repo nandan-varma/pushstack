@@ -35,8 +35,8 @@ export function SubmoduleDiff({
 								<Link
 									to={
 										entry.type === "tree"
-											? "/repo/$owner/$name/tree/$branch/$"
-											: "/repo/$owner/$name/blob/$branch/$"
+											? "/$owner/$name/tree/$branch/$"
+											: "/$owner/$name/blob/$branch/$"
 									}
 									params={{
 										owner: sides.owner,

@@ -68,7 +68,7 @@ released from it — see [releasing.md](/docs/internals/releasing).
 
 There are three distinct kinds of requests this app serves:
 
-1. **Page requests** (`/repo/:owner/:name/...`, `/dashboard`, etc.) — handled by
+1. **Page requests** (`/:owner/:name/...`, `/dashboard`, etc.) — handled by
    TanStack Start's file-based router (`apps/web/src/routes/`). Each route can define a
    `loader` that runs server-side during SSR and populates the TanStack Query
    cache before the page ever reaches the client, so pages arrive with data

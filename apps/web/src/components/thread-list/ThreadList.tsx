@@ -127,7 +127,7 @@ export function ThreadRow({
 	const id = thread.number.toString();
 	return kind === "issue" ? (
 		<Link
-			to="/repo/$owner/$name/issues/$id"
+			to="/$owner/$name/issues/$id"
 			params={{ owner, name, id }}
 			className={rowClass}
 		>
@@ -135,7 +135,7 @@ export function ThreadRow({
 		</Link>
 	) : (
 		<Link
-			to="/repo/$owner/$name/pulls/$id"
+			to="/$owner/$name/pulls/$id"
 			params={{ owner, name, id }}
 			className={rowClass}
 		>

@@ -45,7 +45,7 @@ function readFileAsBase64(file: File): Promise<string> {
 	});
 }
 
-export const Route = createFileRoute("/repo/$owner/$name/upload")({
+export const Route = createFileRoute("/$owner/$name/upload")({
 	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
 		branch: (search.branch as string) || undefined,
 	}),
@@ -119,7 +119,7 @@ function FileUploadPage() {
 			]);
 			toast("File uploaded", "success");
 			navigate({
-				to: "/repo/$owner/$name/tree/$branch/$",
+				to: "/$owner/$name/tree/$branch/$",
 				params: { owner, name, branch, _splat: "" },
 			});
 		},
@@ -191,7 +191,7 @@ function FileUploadPage() {
 		<div className="mx-auto max-w-2xl">
 			<div className="mb-6">
 				<Link
-					to="/repo/$owner/$name/tree/$branch/$"
+					to="/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch, _splat: "" }}
 					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 				>
@@ -334,7 +334,7 @@ function FileUploadPage() {
 							disabled={isSubmitting}
 							onClick={() =>
 								navigate({
-									to: "/repo/$owner/$name/tree/$branch/$",
+									to: "/$owner/$name/tree/$branch/$",
 									params: { owner, name, branch, _splat: "" },
 								})
 							}

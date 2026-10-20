@@ -44,7 +44,7 @@ import {
 } from "@/lib/query-options";
 import { createPullRequest } from "@/server/pull-requests";
 
-export const Route = createFileRoute("/repo/$owner/$name/pulls")({
+export const Route = createFileRoute("/$owner/$name/pulls")({
 	validateSearch: validateThreadSearch,
 	loaderDeps: threadSearchDeps,
 	loader: async ({ params, deps, context: { queryClient } }) => {
@@ -120,7 +120,7 @@ function PullRequestsPage() {
 			});
 			toast("Pull request created", "success");
 			navigate({
-				to: "/repo/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pulls/$id",
 				params: { owner, name, id: String(pr.number) },
 			});
 		},

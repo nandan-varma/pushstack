@@ -50,7 +50,7 @@ import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 const PR_TABS = ["conversation", "commits", "files"] as const;
 type PrTab = (typeof PR_TABS)[number];
 
-export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
+export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 	validateSearch: (search: Record<string, unknown>): { tab?: PrTab } => ({
 		tab: PR_TABS.includes(search.tab as PrTab)
 			? (search.tab as PrTab)
@@ -89,7 +89,7 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 									number: prNumber,
 								}),
 							),
-						"/repo/$owner/$name/issues/$id",
+						"/$owner/$name/issues/$id",
 					),
 				),
 		]);
@@ -308,7 +308,7 @@ function PullRequestDetailPage() {
 				}
 				actions={
 					<>
-						<BackLink to="/repo/$owner/$name/pulls" params={{ owner, name }} />
+						<BackLink to="/$owner/$name/pulls" params={{ owner, name }} />
 						{canMerge && (
 							<LoadingButton
 								variant="default"
@@ -493,7 +493,7 @@ function PullRequestNotFound() {
 	return (
 		<NotFoundCard
 			title="Pull Request Not Found"
-			backTo="/repo/$owner/$name/pulls"
+			backTo="/$owner/$name/pulls"
 			backParams={{ owner, name }}
 			backLabel="Back to Pull Requests"
 		/>

@@ -63,7 +63,7 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		expect(hrefOf("#1")).toBe("/repo/acme/repo/issues/1");
+		expect(hrefOf("#1")).toBe("/acme/repo/issues/1");
 	});
 
 	it("links #N as pull request when resolveReference returns 'pull'", () => {
@@ -75,7 +75,7 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		expect(hrefOf("#2")).toBe("/repo/acme/repo/pulls/2");
+		expect(hrefOf("#2")).toBe("/acme/repo/pulls/2");
 	});
 
 	it("leaves unrecognized #N as plain text", () => {
@@ -93,7 +93,7 @@ describe("LinkifiedText", () => {
 
 	it("links commit SHAs", () => {
 		render(<LinkifiedText text="revert abc1234" owner={owner} name={name} />);
-		expect(hrefOf("abc1234")).toBe("/repo/acme/repo/commit/abc1234");
+		expect(hrefOf("abc1234")).toBe("/acme/repo/commit/abc1234");
 	});
 
 	it("handles multiple references", () => {
@@ -105,8 +105,8 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		expect(hrefOf("#1")).toBe("/repo/acme/repo/issues/1");
-		expect(hrefOf("abc1234")).toBe("/repo/acme/repo/commit/abc1234");
+		expect(hrefOf("#1")).toBe("/acme/repo/issues/1");
+		expect(hrefOf("abc1234")).toBe("/acme/repo/commit/abc1234");
 	});
 
 	it("applies custom className", () => {

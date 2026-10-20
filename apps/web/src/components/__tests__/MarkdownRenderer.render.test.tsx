@@ -116,18 +116,18 @@ describe("MarkdownRenderer link safety", () => {
 		const link = screen.getByTestId("router-link");
 		expect(link).toHaveAttribute(
 			"href",
-			"/repo/acme/widgets/blob/main/docs/readme.md",
+			"/acme/widgets/blob/main/docs/readme.md",
 		);
 	});
 
 	it("rewrites a cross-entity reference link (#N style) to the router Link for that resource", () => {
 		renderMarkdown({
-			content: "[see PR](/repo/acme/widgets/pulls/42)",
+			content: "[see PR](/acme/widgets/pulls/42)",
 			owner: "acme",
 			name: "widgets",
 		});
 		const link = screen.getByTestId("router-link");
-		expect(link).toHaveAttribute("href", "/repo/acme/widgets/pulls/42");
+		expect(link).toHaveAttribute("href", "/acme/widgets/pulls/42");
 	});
 
 	it("does not render a relative link as an unsafe raw anchor even without branch context", () => {
@@ -229,7 +229,7 @@ describe("MarkdownRenderer image safety", () => {
 		});
 		expect(screen.getByTestId("router-link")).toHaveAttribute(
 			"href",
-			"/repo/acme/widgets/blob/main/docs/other/y.md",
+			"/acme/widgets/blob/main/docs/other/y.md",
 		);
 	});
 
@@ -307,9 +307,9 @@ describe("MarkdownRenderer references", () => {
 			.getAllByRole("link")
 			.map((a) => a.getAttribute("href"));
 		expect(hrefs).toEqual([
-			"/users/octocat",
-			"/repo/acme/widgets/issues/7",
-			"/repo/acme/widgets/commit/abc1234",
+			"/octocat",
+			"/acme/widgets/issues/7",
+			"/acme/widgets/commit/abc1234",
 		]);
 		expect(screen.getByText("@bob #7 abc1234").tagName).toBe("CODE");
 	});

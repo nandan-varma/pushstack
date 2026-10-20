@@ -28,10 +28,11 @@ interface MarkdownRendererProps {
 	repoId?: number;
 }
 
-const REFERENCE_LINK_RE =
-	/^\/repo\/([^/]+)\/([^/]+)\/(commit|issues|pulls)\/(.+)$/;
+import { isReservedName } from "@/lib/reserved-names";
 
-const USER_LINK_RE = /^\/users\/([^/]+)$/;
+const REFERENCE_LINK_RE = /^\/([^/]+)\/([^/]+)\/(commit|issues|pulls)\/(.+)$/;
+
+const USER_LINK_RE = /^\/([^/]+)$/;
 
 function isExternalLink(href: string): boolean {
 	return /^(https?:\/\/|mailto:|#)/.test(href);
@@ -169,25 +170,21 @@ function buildComponents(
 			if (!isSafeHref(href)) return <>{children}</>;
 
 			const userMatch = href.match(USER_LINK_RE);
-			if (userMatch) {
+			if (userMatch?.[1] && !isReservedName(userMatch[1])) {
 				return (
-					<Link
-						to="/users/$username"
-						params={{ username: userMatch[1] }}
-						{...props}
-					>
+					<Link to="/$owner" params={{ owner: userMatch[1] }} {...props}>
 						{children}
 					</Link>
 				);
 			}
 
 			const refMatch = href.match(REFERENCE_LINK_RE);
-			if (refMatch) {
+			if (refMatch?.[1] && !isReservedName(refMatch[1])) {
 				const [, refOwner, refName, kind, refId] = refMatch;
 				if (kind === "commit") {
 					return (
 						<Link
-							to="/repo/$owner/$name/commit/$sha"
+							to="/$owner/$name/commit/$sha"
 							params={{ owner: refOwner, name: refName, sha: refId }}
 							{...props}
 						>
@@ -199,8 +196,8 @@ function buildComponents(
 					<Link
 						to={
 							kind === "pulls"
-								? "/repo/$owner/$name/pulls/$id"
-								: "/repo/$owner/$name/issues/$id"
+								? "/$owner/$name/pulls/$id"
+								: "/$owner/$name/issues/$id"
 						}
 						params={{ owner: refOwner, name: refName, id: refId }}
 						{...props}
@@ -227,7 +224,7 @@ function buildComponents(
 			if (target === null) return <>{children}</>;
 			return (
 				<Link
-					to="/repo/$owner/$name/blob/$branch/$"
+					to="/$owner/$name/blob/$branch/$"
 					params={{ owner, name, branch, _splat: target }}
 					{...props}
 				>

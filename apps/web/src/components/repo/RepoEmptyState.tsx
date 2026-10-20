@@ -76,7 +76,7 @@ export function RepoEmptyState({
 					Upload or create files directly from your browser.
 				</p>
 				<Link
-					to="/repo/$owner/$name/upload"
+					to="/$owner/$name/upload"
 					params={{ owner, name }}
 					search={{ branch }}
 				>

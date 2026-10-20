@@ -36,7 +36,7 @@ export function RepoTabNav({
 		<div className="mb-6 border-b border-border">
 			<nav className="flex gap-6 overflow-x-auto">
 				<Link
-					to="/repo/$owner/$name/tree/$branch/$"
+					to="/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch: currentBranch, _splat: "" }}
 					className={isCodeActive ? `${tabLinkBase} active` : tabLinkBase}
 					activeProps={{ className: "active" }}
@@ -44,7 +44,7 @@ export function RepoTabNav({
 					Code
 				</Link>
 				<Link
-					to="/repo/$owner/$name/issues"
+					to="/$owner/$name/issues"
 					params={{ owner, name }}
 					className={tabLinkBase}
 					activeProps={{ className: "active" }}
@@ -52,7 +52,7 @@ export function RepoTabNav({
 					Issues
 				</Link>
 				<Link
-					to="/repo/$owner/$name/pulls"
+					to="/$owner/$name/pulls"
 					params={{ owner, name }}
 					className={tabLinkBase}
 					activeProps={{ className: "active" }}
@@ -60,7 +60,7 @@ export function RepoTabNav({
 					Pull Requests
 				</Link>
 				<Link
-					to="/repo/$owner/$name/commits/$branch"
+					to="/$owner/$name/commits/$branch"
 					params={{ owner, name, branch: currentBranch }}
 					className={isCommitsActive ? `${tabLinkBase} active` : tabLinkBase}
 					activeProps={{ className: "active" }}

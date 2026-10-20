@@ -77,8 +77,8 @@ export function RepoHeader({
 			<div>
 				<div className="flex flex-wrap items-center gap-1.5 text-sm">
 					<Link
-						to="/users/$username"
-						params={{ username: owner }}
+						to="/$owner"
+						params={{ owner: owner }}
 						className="font-medium text-muted-foreground hover:text-foreground"
 					>
 						{owner}
@@ -123,7 +123,7 @@ export function RepoHeader({
 					</span>
 				</Button>
 				{isOwner && (
-					<Link to="/repo/$owner/$name/settings" params={{ owner, name }}>
+					<Link to="/$owner/$name/settings" params={{ owner, name }}>
 						<Button variant="outline" size="sm">
 							Settings
 						</Button>

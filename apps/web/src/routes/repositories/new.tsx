@@ -70,7 +70,7 @@ function NewRepositoryPage() {
 				}),
 			]);
 			navigate({
-				to: "/repo/$owner/$name",
+				to: "/$owner/$name",
 				params: { owner: repo.owner.username || ownerHandle, name: repo.name },
 			});
 		},

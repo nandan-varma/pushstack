@@ -22,7 +22,10 @@ Everything here is about the hosted instance at
 Your **username is permanent**: it appears in your repository URLs and is the
 first segment of every storage key your repositories live under, so it cannot be
 changed after sign-up. Pick one you're happy with. Your display name, avatar and
-password can all change later in `/settings`.
+password can all change later in `/settings`. Repositories live at
+`/{username}/{repository}` like on GitHub, so names of top-level pages and
+files (`settings`, `search`, `api`, `login`, `favicon.ico`, …) can't be
+usernames.
 
 Forgot your password? `/auth/forgot-password` emails a reset link that expires
 after one hour.
@@ -47,14 +50,14 @@ Go to `/repositories/new`. You choose:
 New repositories start empty, on a default branch called `main`. The first push
 or web upload creates that branch.
 
-Later, `/repo/{owner}/{name}/settings` → **General** renames the repository,
+Later, `/{owner}/{name}/settings` → **General** renames the repository,
 changes its description, visibility and default branch; **Danger zone** deletes
 it (type the name to confirm). Renaming moves the repository's stored data, so
 existing clones keep working through the new URL after a `git remote set-url`.
 
 ## Clone a repository
 
-Every repository's clone URL is shown on `/repo/{owner}/{name}/setup`:
+Every repository's clone URL is shown on `/{owner}/{name}/setup`:
 
 ```bash
 git clone https://git.nandan.fyi/api/git/<owner>/<repository>.git
@@ -118,7 +121,7 @@ name has to be a valid git ref (no spaces, no `..`, no leading or trailing `.`).
 
 The web UI can do most of what the CLI can, without a clone:
 
-- **Upload a file** — `/repo/{owner}/{name}/upload`, up to 25 MB per file. Larger
+- **Upload a file** — `/{owner}/{name}/upload`, up to 25 MB per file. Larger
   files should go through `git push`.
 - **Delete a file** — from the file's page.
 - **Create a branch** — from the branch picker; **delete** one too, except the
@@ -162,7 +165,7 @@ again. A merged pull request can no longer be edited or reopened.
 
 ## Collaborate
 
-Add collaborators from `/repo/{owner}/{name}/settings` → **Collaborators**, by
+Add collaborators from `/{owner}/{name}/settings` → **Collaborators**, by
 username, with one of three roles:
 
 | Role | Can do |
@@ -186,7 +189,7 @@ but cannot change them.
 
 - `/search` finds repositories (public ones, plus your own private ones) and
   users by name or username.
-- `/users/{username}` is a public profile: repositories, and recent activity in
+- `/{username}` is a public profile: repositories, and recent activity in
   public repositories. Your own profile shows your private activity too.
 - Starring a repository is per-account and shown on its page.
 - `/dashboard` lists your repositories, your activity feed, and **Assigned to

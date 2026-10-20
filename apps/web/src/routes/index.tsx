@@ -82,7 +82,7 @@ function App() {
 								className="h-11 px-5 text-sm"
 								asChild
 							>
-								<Link to="/repo/$owner/$name" params={DEMO_REPO}>
+								<Link to="/$owner/$name" params={DEMO_REPO}>
 									Explore a live repo
 								</Link>
 							</Button>

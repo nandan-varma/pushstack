@@ -21,7 +21,7 @@ import {
 
 const PAGE_SIZE = 25;
 
-export const Route = createFileRoute("/repo/$owner/$name/commits/$branch")({
+export const Route = createFileRoute("/$owner/$name/commits/$branch")({
 	validateSearch: (search: Record<string, unknown>): { page?: number } => ({
 		page: (search.page as number) || undefined,
 	}),
@@ -94,7 +94,7 @@ function CommitsPage() {
 	const handleBranchChange = useCallback(
 		(value: string) => {
 			navigate({
-				to: "/repo/$owner/$name/commits/$branch",
+				to: "/$owner/$name/commits/$branch",
 				params: { owner, name, branch: value },
 			});
 		},
@@ -120,7 +120,7 @@ function CommitsPage() {
 					)}
 				</div>
 				<BackLink
-					to="/repo/$owner/$name/tree/$branch/$"
+					to="/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch, _splat: "" }}
 					label="Back to files"
 				/>
@@ -138,7 +138,7 @@ function CommitsPage() {
 					message="No commits found in this branch."
 					action={
 						<Link
-							to="/repo/$owner/$name/tree/$branch/$"
+							to="/$owner/$name/tree/$branch/$"
 							params={{ owner, name, branch, _splat: "" }}
 						>
 							<Button variant="outline" size="sm">
@@ -159,7 +159,7 @@ function CommitsPage() {
 							disabled={currentPage <= 1}
 							onClick={() =>
 								navigate({
-									to: "/repo/$owner/$name/commits/$branch",
+									to: "/$owner/$name/commits/$branch",
 									params: { owner, name, branch },
 									search: { page: Math.max(1, currentPage - 1) },
 								})
@@ -176,7 +176,7 @@ function CommitsPage() {
 							disabled={commits.length < PAGE_SIZE}
 							onClick={() =>
 								navigate({
-									to: "/repo/$owner/$name/commits/$branch",
+									to: "/$owner/$name/commits/$branch",
 									params: { owner, name, branch },
 									search: { page: currentPage + 1 },
 								})

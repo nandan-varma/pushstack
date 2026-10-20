@@ -87,7 +87,7 @@ export function FileTable({
 				message="This repository is empty."
 				action={
 					<Link
-						to="/repo/$owner/$name/upload"
+						to="/$owner/$name/upload"
 						params={{ owner, name }}
 						search={{ branch }}
 					>
@@ -107,7 +107,7 @@ export function FileTable({
 							<td className="w-8 py-2.5 pl-4" />
 							<td className="py-2.5 pr-4">
 								<Link
-									to="/repo/$owner/$name/tree/$branch/$"
+									to="/$owner/$name/tree/$branch/$"
 									params={{
 										owner,
 										name,
@@ -148,7 +148,7 @@ export function FileTable({
 								<td className="py-2.5 pr-4 align-middle">
 									{file.type === "tree" ? (
 										<Link
-											to="/repo/$owner/$name/tree/$branch/$"
+											to="/$owner/$name/tree/$branch/$"
 											params={{
 												owner,
 												name,
@@ -162,7 +162,7 @@ export function FileTable({
 										</Link>
 									) : (
 										<Link
-											to="/repo/$owner/$name/blob/$branch/$"
+											to="/$owner/$name/blob/$branch/$"
 											params={{
 												owner,
 												name,
@@ -193,7 +193,7 @@ export function FileTable({
 												return (
 													<div className="flex items-center justify-end gap-2">
 														<Link
-															to="/repo/$owner/$name/commit/$sha"
+															to="/$owner/$name/commit/$sha"
 															params={{ owner, name, sha: lastCommit.sha }}
 															title={lastCommit.message}
 															className="max-w-[220px] truncate text-xs text-muted-foreground hover:text-primary hover:underline"

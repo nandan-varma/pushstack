@@ -3,6 +3,7 @@ import {
 	createMarkdownReferencePattern,
 	type ResolveReference,
 } from "@/lib/reference-patterns";
+import { isReservedName } from "@/lib/reserved-names";
 import { STORAGE_NAME_RE } from "@/lib/storage-name";
 
 export interface AutolinkReferencesOptions {
@@ -54,7 +55,7 @@ export function createAutolinkReferencesPlugin(
 			if (!kind) return false;
 			if (kind === "pull") segment = "pulls";
 		}
-		return link(`/repo/${o}/${n}/${segment}/${num}`, text);
+		return link(`/${o}/${n}/${segment}/${num}`, text);
 	}
 
 	return () => (tree: Parameters<typeof findAndReplace>[0]) => {
@@ -75,7 +76,9 @@ export function createAutolinkReferencesPlugin(
 					sha?: string,
 				) => {
 					if (login !== undefined) {
-						return isName(login) ? link(`/users/${login}`, full) : false;
+						return isName(login) && !isReservedName(login)
+							? link(`/${login}`, full)
+							: false;
 					}
 					if (xOwner !== undefined && xRepo !== undefined && xNum) {
 						if (!isName(xOwner) || !isName(xRepo)) return false;
@@ -83,17 +86,14 @@ export function createAutolinkReferencesPlugin(
 					}
 					if (sOwner !== undefined && sRepo !== undefined && sSha) {
 						if (!isName(sOwner) || !isName(sRepo)) return false;
-						return link(`/repo/${sOwner}/${sRepo}/commit/${sSha}`, full);
+						return link(`/${sOwner}/${sRepo}/commit/${sSha}`, full);
 					}
 					if (owner === undefined || name === undefined) return false;
 					if (num !== undefined) {
 						return numberLink(owner, name, Number(num), full);
 					}
 					if (sha !== undefined) {
-						return link(
-							`/repo/${owner}/${name}/commit/${sha}`,
-							sha.slice(0, 7),
-						);
+						return link(`/${owner}/${name}/commit/${sha}`, sha.slice(0, 7));
 					}
 					return false;
 				},

@@ -25,7 +25,7 @@ export function CommitList({
 			{commits.map((commit, idx) => (
 				<Link
 					key={commit.sha}
-					to="/repo/$owner/$name/commit/$sha"
+					to="/$owner/$name/commit/$sha"
 					params={{ owner, name, sha: commit.sha }}
 					className={`flex w-full items-center gap-4 px-4 py-3.5 text-left no-underline transition hover:bg-card ${idx < commits.length - 1 ? "border-b border-border" : ""}`}
 				>

@@ -14,7 +14,7 @@ describe("submodule views", () => {
 		expect(screen.getByText(a)).toBeInTheDocument();
 		expect(
 			screen.getByRole("link", { name: "Browse pinned commit" }),
-		).toHaveAttribute("href", `/repo/alice/lib/tree/${a}`);
+		).toHaveAttribute("href", `/alice/lib/tree/${a}`);
 		expect(
 			screen.queryByRole("link", { name: "Download" }),
 		).not.toBeInTheDocument();

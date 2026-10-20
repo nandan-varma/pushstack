@@ -9,12 +9,12 @@ export function RepoResourceNotFound({
 	title: string;
 	message: string;
 }) {
-	const { owner, name } = useParams({ from: "/repo/$owner/$name" });
+	const { owner, name } = useParams({ from: "/$owner/$name" });
 	return (
 		<NotFoundCard
 			title={title}
 			message={message}
-			backTo="/repo/$owner/$name"
+			backTo="/$owner/$name"
 			backParams={{ owner, name }}
 			backLabel="Back to repository"
 		/>

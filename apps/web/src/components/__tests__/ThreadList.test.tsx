@@ -88,7 +88,7 @@ describe("ThreadList", () => {
 			</ThreadList>,
 		);
 		const link = screen.getByRole("link");
-		expect(link).toHaveAttribute("href", "/repo/o/n/pulls/7");
+		expect(link).toHaveAttribute("href", "/o/n/pulls/7");
 		expect(link).toHaveTextContent("Broken thing");
 		expect(link).toHaveTextContent("#7 opened");
 		expect(link).toHaveTextContent("by alice");
@@ -98,10 +98,7 @@ describe("ThreadList", () => {
 
 	it("links issue rows to the issue route", () => {
 		render(<ThreadRow kind="issue" owner="o" name="n" thread={thread} />);
-		expect(screen.getByRole("link")).toHaveAttribute(
-			"href",
-			"/repo/o/n/issues/7",
-		);
+		expect(screen.getByRole("link")).toHaveAttribute("href", "/o/n/issues/7");
 	});
 });
 
