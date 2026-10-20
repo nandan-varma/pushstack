@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { Menu, X } from "lucide-react";
 import { type ComponentType, useEffect, useRef, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import { Button } from "./ui/button";
@@ -152,35 +153,9 @@ export default function Header() {
 						aria-expanded={menuOpen}
 					>
 						{menuOpen ? (
-							<svg
-								aria-hidden="true"
-								className="h-5 w-5"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M6 18L18 6M6 6l12 12"
-								/>
-							</svg>
+							<X aria-hidden="true" className="h-5 w-5" />
 						) : (
-							<svg
-								aria-hidden="true"
-								className="h-5 w-5"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M4 6h16M4 12h16M4 18h16"
-								/>
-							</svg>
+							<Menu aria-hidden="true" className="h-5 w-5" />
 						)}
 					</Button>
 				</div>
