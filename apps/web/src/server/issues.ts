@@ -13,6 +13,7 @@ import {
 	MAX_LIST_SKIP,
 } from "#/lib/limits";
 import { recordActivity } from "./activity";
+import { andFilter } from "./db-filters";
 import { setThreadLabels, threadsWithLabels, withLabels } from "./label-store";
 import {
 	canWriteRepo,
@@ -124,7 +125,7 @@ export const getIssues = createServerFn({ method: "GET" })
 					where: {
 						repoId: data.repoId,
 						...(data.status === "all" ? {} : { status: data.status }),
-						AND: [
+						...andFilter([
 							...(assignee
 								? [
 										{
@@ -144,7 +145,7 @@ export const getIssues = createServerFn({ method: "GET" })
 										},
 									]
 								: []),
-						],
+						]),
 					},
 					with: { author: publicUserFields, ...withAssignees },
 					orderBy: { createdAt: "desc" },

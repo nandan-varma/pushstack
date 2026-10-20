@@ -45,7 +45,7 @@
 		"date-fns": "^4.4.0",
 		"diff": "^9.0.0",
 		"drizzle-kit": "1.0.0-rc.5-5935859",
-		"drizzle-orm": "1.0.0-rc.4",
+		"drizzle-orm": "1.0.0-rc.5-5935859",
 		"git-edge": "workspace:*",
 		"git-fs-s3": "workspace:*",
 		"isomorphic-git": "^1.44.3",
