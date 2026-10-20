@@ -8,7 +8,9 @@ import type { z } from "zod";
 import type { Repository } from "#/db/app-schema";
 import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
+import type { ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
+import type { ReactionWithUser } from "../reaction-store";
 import type { PublicUser } from "../repository-lookup";
 import type { PullRequest, ThreadKind } from "../thread-store";
 import { apiUrl, encodePath, htmlUrl, isoTimestamp } from "./http";
@@ -135,6 +137,37 @@ export interface IssueShapeInput {
 	labels: LabelView[];
 	assignees: PublicUser[];
 	commentsCount: number;
+	reactions: ReactionRollup;
+}
+
+/** GitHub's `reactions` rollup; `url` lists the subject's reactions. */
+export function reactionRollup(
+	url: string,
+	counts: ReactionRollup,
+): Shape<"reactionRollup"> {
+	return {
+		url,
+		total_count: counts.total_count,
+		"+1": counts["+1"],
+		"-1": counts["-1"],
+		laugh: counts.laugh,
+		confused: counts.confused,
+		heart: counts.heart,
+		hooray: counts.hooray,
+		rocket: counts.rocket,
+		eyes: counts.eyes,
+	};
+}
+
+/** GitHub's legacy global id for a reaction: base64 of `08:Reaction<id>`. */
+export function reaction(value: ReactionWithUser): Shape<"reaction"> {
+	return {
+		id: value.id,
+		node_id: Buffer.from(`08:Reaction${value.id}`).toString("base64"),
+		user: simpleUser(value.user),
+		content: value.content,
+		created_at: isoTimestamp(value.createdAt),
+	};
 }
 
 /**
@@ -169,6 +202,10 @@ export function issue(input: IssueShapeInput): Shape<"issue"> {
 		updated_at: isoTimestamp(input.updatedAt),
 		closed_at: input.closedAt ? isoTimestamp(input.closedAt) : null,
 		state_reason: input.stateReason,
+		reactions: reactionRollup(
+			apiUrl(`/repos/${fullName}/issues/${number}/reactions`),
+			input.reactions,
+		),
 		...(input.closedBy !== undefined && {
 			closed_by: input.closedBy ? simpleUser(input.closedBy) : null,
 		}),
@@ -190,6 +227,7 @@ export interface CommentShapeInput {
 	number: number;
 	comment: { id: number; body: string; createdAt: Date; updatedAt: Date };
 	author: PublicUser;
+	reactions: ReactionRollup;
 }
 
 export function issueComment(input: CommentShapeInput): Shape<"issueComment"> {
@@ -206,6 +244,12 @@ export function issueComment(input: CommentShapeInput): Shape<"issueComment"> {
 		created_at: isoTimestamp(input.comment.createdAt),
 		updated_at: isoTimestamp(input.comment.updatedAt),
 		body: input.comment.body,
+		reactions: reactionRollup(
+			apiUrl(
+				`/repos/${fullName}/issues/comments/${input.comment.id}/reactions`,
+			),
+			input.reactions,
+		),
 	};
 }
 

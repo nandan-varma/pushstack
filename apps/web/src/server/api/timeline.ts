@@ -1,8 +1,10 @@
+import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import {
 	countCommentsForThread,
 	listCommentsForThread,
 } from "../comment-store";
+import { commentReactionRollups } from "../reaction-store";
 import { findThreadByNumber, type ThreadRef } from "../thread-store";
 import { countTimeline, listTimeline } from "../timeline-store";
 import type { ApiContext } from "./auth";
@@ -51,6 +53,7 @@ function commentedItem(
 	fullName: string,
 	thread: ThreadRef,
 	comment: CommentRow,
+	reactions: ReactionRollup,
 ): Shape<"timelineItem"> {
 	return {
 		...issueComment({
@@ -59,6 +62,7 @@ function commentedItem(
 			number: thread.number,
 			comment,
 			author: comment.author,
+			reactions,
 		}),
 		event: "commented" as const,
 		actor: simpleUser(comment.author),
@@ -88,6 +92,11 @@ export async function listTimelineItems(ctx: ApiContext) {
 		params.offset + params.perPage,
 	);
 	const fullName = fullNameOf(repo);
+	const rollups = await commentReactionRollups(
+		merged.flatMap((item) =>
+			item.kind === "comment" ? [item.comment.id] : [],
+		),
+	);
 	const threadByNumber = await serializeThreadsByNumber(
 		repo,
 		merged.flatMap((item) =>
@@ -99,7 +108,14 @@ export async function listTimelineItems(ctx: ApiContext) {
 	return json(
 		merged.flatMap((item) => {
 			if (item.kind === "comment") {
-				return [commentedItem(fullName, thread, item.comment)];
+				return [
+					commentedItem(
+						fullName,
+						thread,
+						item.comment,
+						rollups.get(item.comment.id) ?? emptyReactionRollup(),
+					),
+				];
 			}
 			const event = timelineEvent(item.entry, { fullName, threadByNumber });
 			return event ? [event] : [];

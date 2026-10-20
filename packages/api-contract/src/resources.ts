@@ -72,6 +72,40 @@ export const label = z.strictObject({
 	description: z.string().nullable(),
 });
 
+/** GitHub's reaction `content` values. */
+export const reactionContent = z.enum([
+	"+1",
+	"-1",
+	"laugh",
+	"confused",
+	"heart",
+	"hooray",
+	"rocket",
+	"eyes",
+]);
+
+/** The `reactions` rollup on an issue or comment. */
+export const reactionRollup = z.strictObject({
+	url,
+	total_count: count,
+	"+1": count,
+	"-1": count,
+	laugh: count,
+	confused: count,
+	heart: count,
+	hooray: count,
+	rocket: count,
+	eyes: count,
+});
+
+export const reaction = z.strictObject({
+	id: z.number().int(),
+	node_id: z.string(),
+	user: simpleUser.nullable(),
+	content: reactionContent,
+	created_at: timestamp,
+});
+
 export const issueState = z.enum(["open", "closed"]);
 export const stateReason = z.enum(["completed", "not_planned", "reopened"]);
 
@@ -100,6 +134,7 @@ export const issue = z.strictObject({
 	updated_at: timestamp,
 	closed_at: timestamp.nullable(),
 	state_reason: stateReason.nullable(),
+	reactions: reactionRollup,
 	/** Single-issue reads only. */
 	closed_by: simpleUser.nullable().optional(),
 	pull_request: z
@@ -122,6 +157,7 @@ export const issueComment = z.strictObject({
 	created_at: timestamp,
 	updated_at: timestamp,
 	body: z.string(),
+	reactions: reactionRollup,
 });
 
 const eventBase = {

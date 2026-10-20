@@ -3,15 +3,19 @@
  * `content` values), shared by the server functions and, later, the REST API.
  * Plain server-only module: no permission checks here.
  */
-import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { reactions } from "#/db/app-schema";
+import { user } from "#/db/schema";
 import {
+	emptyReactionRollup,
 	emptyReactionSummary,
 	type ReactionContent,
+	type ReactionRollup,
 	type ReactionSummary,
 	type ThreadReactions,
 } from "#/lib/reactions";
+import type { PublicUser } from "./repository-lookup";
 
 export type Reaction = typeof reactions.$inferSelect;
 
@@ -118,4 +122,106 @@ export async function removeReaction(
 		)
 		.returning({ id: reactions.id });
 	return deleted.length > 0;
+}
+
+/** Rollups grouped by subject (issues/PRs themselves, or comments), one read. */
+async function rollupsBy(
+	key: "issue" | "comment",
+	ids: number[],
+): Promise<Map<number, ReactionRollup>> {
+	const result = new Map<number, ReactionRollup>(
+		ids.map((id) => [id, emptyReactionRollup()]),
+	);
+	if (ids.length === 0) return result;
+	const column = key === "issue" ? reactions.issueId : reactions.commentId;
+	const rows = await db
+		.select({ id: column, content: reactions.content, total: count() })
+		.from(reactions)
+		.where(
+			key === "issue"
+				? and(inArray(reactions.issueId, ids), isNull(reactions.commentId))
+				: inArray(reactions.commentId, ids),
+		)
+		.groupBy(column, reactions.content);
+	for (const row of rows) {
+		const rollup = row.id === null ? undefined : result.get(row.id);
+		if (!rollup) continue;
+		rollup[row.content] += row.total;
+		rollup.total_count += row.total;
+	}
+	return result;
+}
+
+/** Each issue's/PR's own reaction rollup (not its comments'), by issue id. */
+export const issueReactionRollups = (issueIds: number[]) =>
+	rollupsBy("issue", issueIds);
+
+/** Each comment's reaction rollup, by comment id. */
+export const commentReactionRollups = (commentIds: number[]) =>
+	rollupsBy("comment", commentIds);
+
+export type ReactionWithUser = Reaction & { user: PublicUser };
+
+/** A subject's reactions, oldest first, optionally of one `content`. */
+export async function listReactions(
+	subject: ReactionSubject,
+	options: { content?: ReactionContent; limit: number; offset: number },
+): Promise<{ reactions: ReactionWithUser[]; total: number }> {
+	const where = and(
+		subjectFilter(subject),
+		options.content ? eq(reactions.content, options.content) : undefined,
+	);
+	const [rows, [counted]] = await Promise.all([
+		selectWithUser()
+			.where(where)
+			.orderBy(asc(reactions.id))
+			.limit(options.limit)
+			.offset(options.offset),
+		db.select({ total: count() }).from(reactions).where(where),
+	]);
+	return {
+		reactions: rows.map((row) => ({ ...row.reaction, user: row.user })),
+		total: counted?.total ?? 0,
+	};
+}
+
+function selectWithUser() {
+	return db
+		.select({
+			reaction: reactions,
+			user: {
+				id: user.id,
+				apiId: user.apiId,
+				username: user.username,
+				name: user.name,
+				image: user.image,
+			},
+		})
+		.from(reactions)
+		.innerJoin(user, eq(user.id, reactions.userId));
+}
+
+/** One reaction with its author's public fields. */
+export async function findReactionWithUser(
+	id: number,
+): Promise<ReactionWithUser | undefined> {
+	const [row] = await selectWithUser().where(eq(reactions.id, id)).limit(1);
+	return row && { ...row.reaction, user: row.user };
+}
+
+/** One reaction by id, only when it belongs to `subject`. */
+export async function findReaction(
+	subject: ReactionSubject,
+	id: number,
+): Promise<Reaction | undefined> {
+	const [row] = await db
+		.select()
+		.from(reactions)
+		.where(and(subjectFilter(subject), eq(reactions.id, id)))
+		.limit(1);
+	return row;
+}
+
+export async function deleteReactionById(id: number): Promise<void> {
+	await db.delete(reactions).where(eq(reactions.id, id));
 }

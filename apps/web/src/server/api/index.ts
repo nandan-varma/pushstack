@@ -53,6 +53,14 @@ import {
 	RateLimitedError,
 } from "./rate-limit";
 import {
+	createCommentReaction,
+	createIssueReaction,
+	deleteCommentReaction,
+	deleteIssueReaction,
+	listCommentReactions,
+	listIssueReactions,
+} from "./reactions";
+import {
 	createAuthenticatedUserRepository,
 	getRepository,
 	listAuthenticatedUserRepositories,
@@ -92,12 +100,18 @@ const HANDLERS = {
 	"issues/get-comment": getComment,
 	"issues/update-comment": updateComment,
 	"issues/delete-comment": deleteComment,
+	"reactions/list-for-issue-comment": listCommentReactions,
+	"reactions/create-for-issue-comment": createCommentReaction,
+	"reactions/delete-for-issue-comment": deleteCommentReaction,
 	"issues/get": getIssue,
 	"issues/update": updateIssue,
 	"issues/list-comments": listComments,
 	"issues/create-comment": createComment,
 	"issues/list-events-for-timeline": listTimelineItems,
 	"issues/list-events": listEvents,
+	"reactions/list-for-issue": listIssueReactions,
+	"reactions/create-for-issue": createIssueReaction,
+	"reactions/delete-for-issue": deleteIssueReaction,
 	"issues/list-labels-on-issue": listIssueLabels,
 	"issues/add-labels": addIssueLabels,
 	"issues/set-labels": setIssueLabels,

@@ -22,7 +22,7 @@ import {
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
-import { fullNameOf, serializeThread } from "./threads";
+import { fullNameOf, serializeThread, serializeThreads } from "./threads";
 
 export async function listIssues(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
@@ -47,7 +47,7 @@ export async function listIssues(ctx: ApiContext) {
 			},
 		),
 	);
-	const body = threads.map((thread) => serializeThread(repo, thread));
+	const body = await serializeThreads(repo, threads);
 	return json(body, 200, linkHeader(ctx.url, params, total));
 }
 
@@ -56,7 +56,7 @@ export async function getIssue(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const thread = await findThread(repo.id, issue_number);
 	if (!thread) throw notFoundError();
-	return json(serializeThread(repo, thread, true));
+	return json(await serializeThread(repo, thread, true));
 }
 
 export async function createIssue(ctx: ApiContext) {
@@ -78,7 +78,7 @@ export async function createIssue(ctx: ApiContext) {
 	}
 	const thread = await findThread(repo.id, created.number);
 	if (!thread) throw new Error("Issue missing after insert");
-	return json(serializeThread(repo, thread), 201, {
+	return json(await serializeThread(repo, thread), 201, {
 		Location: apiUrl(`/repos/${fullNameOf(repo)}/issues/${created.number}`),
 	});
 }
@@ -126,5 +126,5 @@ export async function updateIssue(ctx: ApiContext) {
 	}
 	const thread = await findThread(repo.id, number);
 	if (!thread) throw new Error("Issue missing after update");
-	return json(serializeThread(repo, thread));
+	return json(await serializeThread(repo, thread));
 }
