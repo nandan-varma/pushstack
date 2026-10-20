@@ -50,25 +50,48 @@ schema before deploying code that selects it.
 |---|---|
 | `user`, `session`, `account`, `verification` | Better Auth. Sessions cascade on user delete. |
 | `repositories` | Name, owner, visibility, default branch, `nextIssueNumber` |
-| `issues` | Title, body, status and repository-scoped `number` |
-| `labels`, `threadLabels` | Repository labels and their application to the shared issue/PR number |
-| `threadAssignees` | Users assigned to an issue or pull request, keyed by (repository, shared thread number, user) |
-| `pullRequests` | Source/target branch **names** (branches are git refs, not rows), status, merge metadata, `number` |
-| `comments` | On exactly one issue or pull request |
+| `issues` | **Every issue and pull request**: title, body, status (`open`/`closed`), `state_reason`, `closed_at`, `closed_by_id`, repository-scoped `number`, `is_pull_request` |
+| `pullRequests` | Only what a pull request adds, 1:1 by `issue_id`: source/target branch **names** (branches are git refs, not rows) and merge metadata (`merged_at`, `merged_by`, merge commit, merged range) |
+| `labels`, `threadLabels` | Repository labels and their application to an issue (`issue_id`) |
+| `threadAssignees` | Users assigned to an issue or pull request, unique per (`issue_id`, user) |
+| `comments`, `timelineEvents` | On an issue or pull request (`issue_id`) |
+| `pullRequestReviews`, `pullRequestReviewComments` | On a pull request (`pull_request_id` → `pull_requests.issue_id`) |
 | `stars` | Unique per (repo, user) |
 | `repositoryCollaborators` | Role `read`/`write`/`admin`, unique per (repo, user) — see [authentication.md](/docs/internals/authentication) |
 | `activities` | Feed events: `type` + `metadata` together form one `ActivityEvent` (`apps/web/src/lib/activity-types.ts`) |
 | `tokens` | Personal access tokens: SHA-256 hash, scopes, expiry |
 | `repoLocks` | The per-repo write lease (`git-repo-lock.ts`); see [git-storage.md](/docs/internals/git-storage#locking) |
 
-**Issues and pull requests share one number sequence per repo**, like GitHub.
-`claimNextIssueOrPrNumber` (`repositories.ts`) claims one with
+**A pull request is an issue**, as in GitHub's data model: one `issues` row
+per thread (with `is_pull_request`), plus a `pull_requests` row keyed by the
+issue id for a pull request. Comments, labels, assignees and timeline events
+reference `issues.id` with real foreign keys (cascading), so one set of
+helpers serves both kinds and deleting a thread or repository cleans up
+everything under it. A merged pull request's issue is `closed`;
+`pull_requests.merged_at` is what makes it merged (the composed
+`PullRequest` record in `thread-store.ts` reports `status: "merged"`).
+
+They share one number sequence per repo. `claimNextIssueOrPrNumber`
+(`repository-lookup.ts`) claims one with
 `UPDATE … SET next_issue_number = next_issue_number + 1 RETURNING`, which is
-atomic across serverless instances without app-level locking; `(repoId,
-number)` is unique on both tables. Routes (`/issues/$id`, `/pulls/$id`) carry
+atomic across serverless instances without app-level locking; `(repo_id,
+number)` is unique on `issues`. Routes (`/issues/$id`, `/pulls/$id`) carry
 this number and resolve it with `getIssueByNumber`/`getPullRequestByNumber`;
-mutations take the row `id` from the loaded row. Activity metadata stores
-the number too.
+mutations take the issue `id` from the loaded row (a pull request's `id` is
+its issue id). Activity metadata stores the number too.
+
+**Reads go through `thread-store.ts`.** `listThreads(filter, { sort, limit,
+offset })` is the one list query, used by the web lists (`getIssues`,
+`getPullRequests`) and the REST lists (`GET …/issues`, `GET …/pulls`) alike:
+a single indexed `SELECT` per page joining the author and the
+`pull_requests` row, with labels, assignees, `closed_by`, `merged_by` and the
+comment count as correlated subqueries and the total as `count(*) over ()`
+(a separate count runs only for a page past the end). `findThread`/
+`findThreads` are the same query by number. The filter covers GitHub's
+query syntax (`thread-search.ts` maps a parsed `?q=` onto it) and the REST
+parameters (`state`, `labels`, `assignee`, `head`, `base`, `sort`,
+`direction`). `thread-query-count.test.ts` pins the database round trips
+per list and detail read.
 
 ## Timestamps
 
@@ -91,8 +114,18 @@ shapes:
 - `star_repo_user_idx`, `collab_repo_user_idx` — **unique** (repo, user),
   the lookup on every repo page, and what makes star/collaborator writes
   idempotent.
-- `issue_repo_number_idx`, `pr_repo_number_idx` — unique (repo, number).
-- `issue_repo_status_idx`, `pr_repo_status_idx` — list pages filter by both.
+- `issue_repo_number_idx` — unique (repo, number): the shared `#N`.
+- `issue_repo_state_created_idx`, `issue_repo_state_updated_idx` — the REST
+  issues list (both kinds) by state, sorted by created or updated.
+- `issue_repo_kind_state_created_idx`, `issue_repo_kind_state_updated_idx` —
+  the one-kind lists (web issues/pulls, REST pulls), same sorts.
+- `pr_branches_idx` — the pulls list's `head`/`base` filters and the
+  duplicate-PR check.
+- `comment_issue_created_idx`, `timeline_issue_idx` — a thread's comments
+  and events, oldest first; the comment index also serves the comment-count
+  subquery. `thread_label_label_idx` and the (`issue_id`, …) primary/unique
+  keys of `thread_labels`/`thread_assignees` serve the label and assignee
+  filters.
 - `activity_user_created_idx`, `activity_repo_created_idx` — feeds by user
   or repo, newest first.
 - `repo_visibility_idx`, `repo_name_idx` — search and public listings.
