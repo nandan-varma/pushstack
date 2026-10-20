@@ -1,31 +1,13 @@
 import { readFile } from "node:fs/promises";
+import type { Output } from "@pushstack/api-contract/client";
 import { parse, pickFields } from "../args";
-import { type Client, connect, nextLink } from "../client";
+import { type Client, connect } from "../client";
 import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
 import { resolveRepo } from "../repo-resolve";
 
-interface Side {
-	ref: string;
-	sha: string;
-	repo?: { clone_url?: string } | null;
-}
-interface Pull {
-	number: number;
-	title: string;
-	body: string | null;
-	state: string;
-	html_url: string;
-	user: { login: string };
-	head: Side;
-	base: Side;
-	draft?: boolean;
-	merged?: boolean;
-	created_at: string;
-	updated_at: string;
-	closed_at: string | null;
-	merged_at: string | null;
-}
+/** A pull request as lists return it (a single read adds merge state). */
+type Pull = Output<"pulls/list">[number];
 /** gh's `state`: OPEN, CLOSED or MERGED. */
 const stateOf = (p: Pull) => (p.merged_at ? "MERGED" : p.state.toUpperCase());
 const JSON_FIELDS = {
@@ -93,6 +75,7 @@ async function readBody(
 		? io.readStdin()
 		: readFile(values["body-file"], "utf8");
 }
+type RepoInput = { owner: string; repo: string };
 async function context(
 	io: Io,
 	values: { hostname?: string; repo?: string },
@@ -101,8 +84,7 @@ async function context(
 	const host = resolveHost(io, values.hostname);
 	const ref = await resolveRepo(io, host, values.repo);
 	const client = await connect(io, host, auth);
-	const repoPath = `repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
-	return { client, repoPath, path: `${repoPath}/pulls` };
+	return { client, repo: { owner: ref.owner, repo: ref.name } };
 }
 function requireGit(io: Io) {
 	if (!io.git) throw new CliError("git is not available");
@@ -123,9 +105,9 @@ async function currentBranch(io: Io) {
 async function findPull(
 	io: Io,
 	client: Client,
-	path: string,
+	repo: RepoInput,
 	positionals: string[],
-) {
+): Promise<Pull> {
 	if (positionals.length > 1)
 		throw new CliError("expected at most one pull request argument");
 	const raw = positionals[0];
@@ -134,13 +116,16 @@ async function findPull(
 		const n = Number(number[1] ?? number[2]);
 		if (!Number.isSafeInteger(n))
 			throw new CliError("invalid pull request number");
-		return (await client.json<Pull>(`${path}/${n}`)).data;
+		return (await client.call("pulls/get", { ...repo, pull_number: n })).data;
 	}
 	if (raw === "")
 		throw new CliError("expected a pull request number or branch");
 	const branch = raw ?? (await currentBranch(io));
-	const { data } = await client.json<Pull[]>(path, {
-		query: { head: branch, state: "open", per_page: 1 },
+	const { data } = await client.call("pulls/list", {
+		...repo,
+		head: branch,
+		state: "open",
+		per_page: 1,
 	});
 	const [found] = data;
 	if (!found)
@@ -171,36 +156,22 @@ async function list(io: Io, args: string[]) {
 		if (values[flag] !== undefined && !values[flag].trim())
 			throw new CliError(`--${flag} requires a nonempty value`);
 	jsonFields(values.json);
-	const { client, path } = await context(io, values);
+	const { client, repo } = await context(io, values);
 	const merged = values.state === "merged";
 	const pulls: Pull[] = [];
-	let next: string | undefined = path;
-	const visited = new Set<string>();
-	while (next && pulls.length < limit) {
-		if (visited.has(next))
-			throw new CliError("API returned a repeated pagination link");
-		visited.add(next);
-		const page: { data: Pull[]; response: Response } = await client.json<
-			Pull[]
-		>(
-			next,
-			visited.size === 1
-				? {
-						query: {
-							per_page: merged ? 100 : Math.min(limit, 100),
-							state: merged ? "closed" : values.state,
-							head: values.head,
-							base: values.base,
-						},
-					}
-				: undefined,
-		);
+	for await (const page of client.pages("pulls/list", {
+		...repo,
+		per_page: merged ? 100 : Math.min(limit, 100),
+		state: merged ? "closed" : (values.state as "open" | "closed" | "all"),
+		head: values.head,
+		base: values.base,
+	})) {
 		pulls.push(
-			...page.data
+			...page
 				.filter((pull) => !merged || pull.merged_at)
 				.slice(0, limit - pulls.length),
 		);
-		next = nextLink(page.response);
+		if (pulls.length >= limit) break;
 	}
 	if (values.json !== undefined) return print(io, values.json, pulls);
 	for (const pull of pulls)
@@ -219,8 +190,8 @@ async function view(io: Io, args: string[]) {
 		return;
 	}
 	jsonFields(values.json);
-	const { client, path } = await context(io, values);
-	const pull = await findPull(io, client, path, positionals);
+	const { client, repo } = await context(io, values);
+	const pull = await findPull(io, client, repo, positionals);
 	if (values.json !== undefined) return print(io, values.json, pull);
 	io.stdout(
 		`${pull.title} #${pull.number}\n${stateOf(pull)} • ${pull.user.login} wants to merge into ${pull.base.ref} from ${pull.head.ref}\n${pull.html_url}\n\n${pull.body ?? ""}\n`,
@@ -247,16 +218,17 @@ async function create(io: Io, args: string[]) {
 			throw new CliError(`--${flag} requires a nonempty value`);
 	const body = await readBody(io, values);
 	const head = values.head ?? (await currentBranch(io));
-	const { client, path, repoPath } = await context(io, values, true);
+	const { client, repo } = await context(io, values, true);
 	const base =
-		values.base ??
-		(await client.json<{ default_branch: string }>(repoPath)).data
-			.default_branch;
+		values.base ?? (await client.call("repos/get", repo)).data.default_branch;
 	if (head === base)
 		throw new CliError(`head branch "${head}" is the same as base branch`);
-	const { data } = await client.json<Pull>(path, {
-		method: "POST",
-		body: { title: values.title, body, head, base },
+	const { data } = await client.call("pulls/create", {
+		...repo,
+		title: values.title,
+		body,
+		head,
+		base,
 	});
 	io.stdout(`${data.html_url}\n`);
 }
@@ -281,20 +253,19 @@ async function merge(io: Io, args: string[]) {
 	if (methods.length > 1)
 		throw new CliError("only one of --merge, --squash or --rebase may be used");
 	const body = await readBody(io, values);
-	const { client, path } = await context(io, values, true);
-	const pull = await findPull(io, client, path, positionals);
+	const { client, repo } = await context(io, values, true);
+	const pull = await findPull(io, client, repo, positionals);
 	if (pull.merged_at)
 		throw new CliError(`pull request #${pull.number} was already merged`);
 	if (pull.state !== "open")
 		throw new CliError(`pull request #${pull.number} is closed`);
-	await client.json(`${path}/${pull.number}/merge`, {
-		method: "PUT",
-		body: {
-			merge_method: methods[0] ?? "merge",
-			commit_title: values.subject,
-			commit_message: body,
-			sha: values["match-head-commit"],
-		},
+	await client.call("pulls/merge", {
+		...repo,
+		pull_number: pull.number,
+		merge_method: methods[0] ?? "merge",
+		commit_title: values.subject,
+		commit_message: body,
+		sha: values["match-head-commit"],
 	});
 	io.stderr(`✓ Merged pull request #${pull.number} (${pull.title})\n`);
 }
@@ -310,8 +281,8 @@ async function changeState(io: Io, args: string[], state: "open" | "closed") {
 	}
 	if (values.comment !== undefined && !values.comment.trim())
 		throw new CliError("--comment requires a nonempty value");
-	const { client, path, repoPath } = await context(io, values, true);
-	const pull = await findPull(io, client, path, positionals);
+	const { client, repo } = await context(io, values, true);
+	const pull = await findPull(io, client, repo, positionals);
 	if (pull.merged_at)
 		throw new CliError(
 			`pull request #${pull.number} can't be ${sub === "close" ? "closed" : "reopened"} because it was already merged`,
@@ -323,13 +294,15 @@ async function changeState(io: Io, args: string[], state: "open" | "closed") {
 		return;
 	}
 	if (values.comment !== undefined)
-		await client.json(`${repoPath}/issues/${pull.number}/comments`, {
-			method: "POST",
-			body: { body: values.comment },
+		await client.call("issues/create-comment", {
+			...repo,
+			issue_number: pull.number,
+			body: values.comment,
 		});
-	await client.json<Pull>(`${path}/${pull.number}`, {
-		method: "PATCH",
-		body: { state },
+	await client.call("pulls/update", {
+		...repo,
+		pull_number: pull.number,
+		state,
 	});
 	io.stderr(
 		`✓ ${state === "closed" ? "Closed" : "Reopened"} pull request #${pull.number} (${pull.title})\n`,
@@ -370,8 +343,8 @@ async function checkout(io: Io, args: string[]) {
 	if (values.branch !== undefined && !values.branch.trim())
 		throw new CliError("--branch requires a nonempty value");
 	const git = requireGit(io);
-	const { client, path } = await context(io, values);
-	const pull = await findPull(io, client, path, positionals);
+	const { client, repo } = await context(io, values);
+	const pull = await findPull(io, client, repo, positionals);
 	const url = pull.head.repo?.clone_url;
 	if (!url) throw new CliError("the pull request's head repository is unknown");
 	let protocol: string;

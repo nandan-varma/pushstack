@@ -1,3 +1,10 @@
+import {
+	type InputArgs,
+	type ListOperationId,
+	type OperationId,
+	type Output,
+	requestFor,
+} from "@pushstack/api-contract/client";
 import { baseUrl, type Credentials, credentialsFor } from "./config";
 import { CliError, EXIT_AUTH, type Io } from "./io";
 
@@ -94,7 +101,30 @@ export async function connect(
 		return { data: (text ? JSON.parse(text) : null) as T, response };
 	}
 
-	return { host, credentials, raw, json };
+	/** Operation `id` of the API contract; input and response are typed by it. */
+	function call<Id extends OperationId>(id: Id, ...input: InputArgs<Id>) {
+		const { method, path, body } = requestFor(id, ...input);
+		return json<Output<Id>>(path, { method, body });
+	}
+
+	/** Each page of list operation `id`, following the `Link` header. */
+	async function* pages<Id extends ListOperationId>(
+		id: Id,
+		...input: InputArgs<Id>
+	): AsyncGenerator<Output<Id>> {
+		let next: string | undefined = requestFor(id, ...input).path;
+		const visited = new Set<string>();
+		while (next) {
+			if (visited.has(next))
+				throw new CliError("API returned a repeated pagination link");
+			visited.add(next);
+			const { data, response } = await json<Output<Id>>(next);
+			yield data;
+			next = nextLink(response);
+		}
+	}
+
+	return { host, credentials, raw, call, pages };
 }
 
 export type Client = Awaited<ReturnType<typeof connect>>;

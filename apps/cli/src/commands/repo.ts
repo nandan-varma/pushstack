@@ -1,24 +1,12 @@
+import type { Output } from "@pushstack/api-contract/client";
 import { parse, pickFields } from "../args";
-import { type Client, connect, nextLink } from "../client";
+import { type Client, connect } from "../client";
 import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
 import { parseRepoArg, resolveRepo } from "../repo-resolve";
 
-/** The slice of the /api/v3 repository object the CLI reads. */
-interface Repo {
-	name: string;
-	full_name: string;
-	private: boolean;
-	owner: { login: string };
-	html_url: string;
-	description: string | null;
-	default_branch: string;
-	visibility: string;
-	archived: boolean;
-	stargazers_count: number;
-	created_at: string;
-	updated_at: string;
-}
+/** A repository as the API returns it. */
+type Repo = Output<"repos/get">;
 
 /** `--json` fields, named as in `gh repo view --json`. */
 const JSON_FIELDS = {
@@ -58,9 +46,10 @@ async function view(io: Io, args: string[]) {
 		? parseRepoArg(positionals[0])
 		: await resolveRepo(io, host, values.repo);
 	const client = await connect(io, host);
-	const { data: repo } = await client.json<Repo>(
-		`repos/${ref.owner}/${ref.name}`,
-	);
+	const { data: repo } = await client.call("repos/get", {
+		owner: ref.owner,
+		repo: ref.name,
+	});
 	if (values.json) return printJson(io, values.json, repo);
 	if (io.isTTY) {
 		io.stdout(
@@ -93,21 +82,11 @@ async function list(io: Io, args: string[]) {
 	const host = resolveHost(io, values.hostname);
 	const client = await connect(io, host);
 	let owner = positionals[0];
-	let path: string;
-	if (!owner) {
-		path = "user/repos";
-	} else {
-		// Resolve the active token's identity: an environment token may belong to
-		// a different user than the stored account, or have no stored account.
-		const login = client.credentials
-			? (await client.json<{ login: string }>("user")).data.login
-			: undefined;
-		if (login === owner) {
-			path = "user/repos";
-			owner = undefined;
-		} else {
-			path = `users/${encodeURIComponent(owner)}/repos`;
-		}
+	// Resolve the active token's identity: an environment token may belong to
+	// a different user than the stored account, or have no stored account.
+	if (owner && client.credentials) {
+		const { login } = (await client.call("users/get-authenticated")).data;
+		if (login === owner) owner = undefined;
 	}
 	if (!owner && !client.credentials) {
 		throw new CliError(
@@ -115,7 +94,12 @@ async function list(io: Io, args: string[]) {
 			4,
 		);
 	}
-	const repos = await collect(client, path, limit, values.visibility);
+	const repos = await collect(
+		client,
+		owner,
+		limit,
+		values.visibility as "public" | "private" | undefined,
+	);
 	if (values.json) return printJson(io, values.json, repos);
 	for (const repo of repos) {
 		io.stdout(
@@ -131,38 +115,27 @@ async function list(io: Io, args: string[]) {
 	}
 }
 
-/** Up to `limit` repositories, following the Link header's next pages. */
+/** Up to `limit` of `owner`'s repositories (the caller's own when unset). */
 async function collect(
 	client: Client,
-	path: string,
+	owner: string | undefined,
 	limit: number,
-	visibility: string | undefined,
+	visibility: "public" | "private" | undefined,
 ) {
+	const per_page = Math.min(100, limit);
+	const pages = owner
+		? client.pages("repos/list-for-user", { username: owner, per_page })
+		: client.pages("repos/list-for-authenticated-user", {
+				per_page,
+				visibility,
+				affiliation: ["owner"],
+			});
 	const repos: Repo[] = [];
-	let next: string | undefined = path;
-	let first = true;
-	while (next && repos.length < limit) {
-		const page: { data: Repo[]; response: Response } = await client.json<
-			Repo[]
-		>(
-			next,
-			first
-				? {
-						query: {
-							per_page: Math.min(100, limit),
-							visibility,
-							affiliation: path === "user/repos" ? "owner" : undefined,
-						},
-					}
-				: undefined,
-		);
-		first = false;
+	for await (const page of pages) {
 		repos.push(
-			...page.data.filter(
-				(repo) => !visibility || repo.visibility === visibility,
-			),
+			...page.filter((repo) => !visibility || repo.visibility === visibility),
 		);
-		next = nextLink(page.response);
+		if (repos.length >= limit) break;
 	}
 	return repos.slice(0, limit);
 }
@@ -220,16 +193,16 @@ async function create(io: Io, args: string[]) {
 	const host = resolveHost(io, values.hostname);
 	const client = await connect(io, host, true);
 	if (parts.length === 2) {
-		const me = (await client.json<{ login: string }>("user")).data.login;
+		const me = (await client.call("users/get-authenticated")).data.login;
 		if (parts[0] !== me) {
 			throw new CliError(
 				`cannot create ${argument}: repositories can only be created under ${me}`,
 			);
 		}
 	}
-	const { data: repo } = await client.json<Repo>("user/repos", {
-		method: "POST",
-		body: {
+	const { data: repo } = await client.call(
+		"repos/create-for-authenticated-user",
+		{
 			name,
 			description: values.description,
 			private: Boolean(values.private),
@@ -237,7 +210,7 @@ async function create(io: Io, args: string[]) {
 			gitignore_template: values.gitignore,
 			license_template: values.license,
 		},
-	});
+	);
 	io.stdout(
 		io.isTTY
 			? `✓ Created repository ${repo.full_name} on PushStack\n  ${repo.html_url}\n`

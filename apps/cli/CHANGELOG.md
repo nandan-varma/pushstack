@@ -12,3 +12,6 @@ Releases of `@pushstack/cli`. The format follows
   `PST_HOST`, `PST_REPO` and `PST_CONFIG_DIR` override stored state.
 - Requests paginate along the `Link` header and never follow a link to another
   host.
+- Requests are built from `@pushstack/api-contract` (bundled through its
+  zod-free client entry): operation ids, paths and response types are shared
+  with the server instead of hand-written.
