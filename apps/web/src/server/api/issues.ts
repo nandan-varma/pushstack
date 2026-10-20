@@ -21,7 +21,7 @@ import {
 	MAX_LABELS_PER_THREAD,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
-import { replaceIssueAssignees } from "../assignees-store";
+import { replaceThreadAssignees } from "../assignees-store";
 import { commentCountsByNumbers } from "../comment-store";
 import {
 	assigneeCondition,
@@ -126,7 +126,7 @@ export async function listIssues(ctx: ApiContext) {
 			: undefined,
 	);
 	// A merged pull request is closed for the issues surface; pull requests have
-	// no assignees here, so an assignee filter only matches `none`.
+	// are closed when merged.
 	const pullRequestStatuses =
 		filters.state === "open"
 			? (["open"] as const)
@@ -138,7 +138,9 @@ export async function listIssues(ctx: ApiContext) {
 		pullRequestStatuses
 			? inArray(pullRequests.status, [...pullRequestStatuses])
 			: undefined,
-		filters.assignee && filters.assignee !== "none" ? sql`false` : undefined,
+		filters.assignee
+			? assigneeCondition(filters.assignee, pullRequests)
+			: undefined,
 		filters.labels.length > 0
 			? inArray(pullRequests.number, threadsWithLabels(repo.id, filters.labels))
 			: undefined,
@@ -312,8 +314,8 @@ export async function createIssue(ctx: ApiContext) {
 		labels: access.canWrite ? (data.labels ?? []) : [],
 	});
 	if (access.canWrite && data.assignees && data.assignees.length > 0) {
-		await replaceIssueAssignees(
-			{ id: created.id, repoId: repo.id, number: created.number },
+		await replaceThreadAssignees(
+			{ repoId: repo.id, number: created.number },
 			data.assignees,
 			caller.userId,
 		);
@@ -375,8 +377,8 @@ export async function updateIssue(ctx: ApiContext) {
 			await setThreadLabels(repo.id, number, data.labels, caller.userId);
 		}
 		if (data.assignees !== undefined) {
-			await replaceIssueAssignees(
-				{ id: issue.id, repoId: repo.id, number },
+			await replaceThreadAssignees(
+				{ repoId: repo.id, number },
 				data.assignees,
 				caller.userId,
 			);

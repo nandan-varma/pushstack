@@ -5,6 +5,7 @@ import { RepoList } from "@/components/dashboard/RepoList";
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth-session";
 import {
+	assignedThreadsQueryOptions,
 	userActivityQueryOptions,
 	userRepositoriesQueryOptions,
 } from "@/lib/query-options";
@@ -25,12 +26,18 @@ export const Route = createFileRoute("/dashboard")({
 	loader: async ({ context: { queryClient } }) =>
 		Promise.all([
 			queryClient.ensureQueryData(userRepositoriesQueryOptions()),
+			queryClient.ensureQueryData(assignedThreadsQueryOptions()),
 			queryClient.ensureQueryData(userActivityQueryOptions({ limit: 20 })),
 		]),
 });
 
 function DashboardPage() {
 	const { user } = Route.useRouteContext();
+	const {
+		data: assigned,
+		isError: assignedError,
+		refetch: refetchAssigned,
+	} = useQuery(assignedThreadsQueryOptions());
 
 	const {
 		data: repositories,
@@ -62,6 +69,48 @@ function DashboardPage() {
 			</div>
 
 			<div className="grid gap-8 lg:grid-cols-3">
+				<section className="lg:col-span-3" aria-labelledby="assigned-heading">
+					<h2 id="assigned-heading" className="mb-4 text-base font-semibold">
+						Assigned to you
+					</h2>
+					{assignedError ? (
+						<div role="alert">
+							Could not load assignments.{" "}
+							<Button variant="ghost" onClick={() => refetchAssigned()}>
+								Retry
+							</Button>
+						</div>
+					) : assigned?.length === 0 ? (
+						<p className="text-sm text-muted-foreground">
+							No open issues or pull requests assigned to you.
+						</p>
+					) : (
+						<ul className="space-y-2">
+							{assigned?.map((thread) => (
+								<li key={`${thread.owner}/${thread.name}/${thread.number}`}>
+									<Link
+										to={
+											thread.kind === "issue"
+												? "/repo/$owner/$name/issues/$id"
+												: "/repo/$owner/$name/pulls/$id"
+										}
+										params={{
+											owner: thread.owner,
+											name: thread.name,
+											id: String(thread.number),
+										}}
+										className="text-sm hover:underline"
+									>
+										{thread.title}{" "}
+										<span className="text-muted-foreground">
+											{thread.owner}/{thread.name} #{thread.number}
+										</span>
+									</Link>
+								</li>
+							))}
+						</ul>
+					)}
+				</section>
 				{/* Repositories */}
 				<div className="lg:col-span-2">
 					<div className="mb-4 flex items-center justify-between">

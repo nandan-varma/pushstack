@@ -1,11 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { MAX_ASSIGNEES } from "@/lib/limits";
-import { assignableUsersQueryOptions } from "@/lib/query-options";
-import { setIssueAssignees } from "@/server/assignees";
+import { assignableUsersQueryOptions, queryKeys } from "@/lib/query-options";
+import { setIssueAssignees, setPullRequestAssignees } from "@/server/assignees";
 
 interface Person {
 	id: string;
@@ -14,32 +14,55 @@ interface Person {
 }
 
 /**
- * An issue's assignees. Anyone sees them; with write access (`canEdit`) the
+ * An issue or pull request's assignees. Anyone sees them; with write access (`canEdit`) the
  * viewer can pick from the repository's assignable users — its owner and
  * write/admin collaborators — as on GitHub.
  */
 export function IssueAssignees({
 	issueId,
+	pullRequestId,
 	repoId,
 	assignees,
 	canEdit,
 	onChanged,
 }: {
-	issueId: number;
+	issueId?: number;
+	pullRequestId?: number;
 	repoId: number;
 	assignees: Person[];
 	canEdit: boolean;
 	onChanged: () => void;
 }) {
 	const { toast } = useToast();
+	const queryClient = useQueryClient();
 	const [isEditing, setIsEditing] = useState(false);
 	const { data: assignable } = useQuery({
 		...assignableUsersQueryOptions(repoId),
 		enabled: canEdit && isEditing,
 	});
 	const mutation = useMutation({
-		mutationFn: setIssueAssignees,
-		onSuccess: onChanged,
+		mutationFn: (usernames: string[]) => {
+			if (pullRequestId !== undefined)
+				return setPullRequestAssignees({ data: { pullRequestId, usernames } });
+			if (issueId !== undefined)
+				return setIssueAssignees({ data: { issueId, usernames } });
+			throw new Error("Missing thread");
+		},
+		onSuccess: async () => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: queryKeys.assignedThreads }),
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.pullRequestsRoot(repoId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repoIssuesRoot(repoId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(repoId),
+				}),
+			]);
+			onChanged();
+		},
 		onError: (err: Error) => toast(err.message || "Failed to assign", "error"),
 	});
 	const selected = new Set(assignees.map((a) => a.username));
@@ -48,7 +71,7 @@ export function IssueAssignees({
 		const next = new Set(selected);
 		if (next.has(username)) next.delete(username);
 		else next.add(username);
-		mutation.mutate({ data: { issueId, usernames: [...next] } });
+		mutation.mutate([...next]);
 	};
 
 	if (!canEdit && assignees.length === 0) return null;

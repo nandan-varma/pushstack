@@ -512,3 +512,52 @@ describe("response size and scopes", () => {
 		);
 	});
 });
+
+it("serializes PR assignees through both pulls and issues surfaces and filters", async () => {
+	const { db } = await import("#/db");
+	const { pullRequests } = await import("#/db/app-schema");
+	const { claimNextIssueOrPrNumber } = await import("../repository-lookup");
+	const [pr] = await db
+		.insert(pullRequests)
+		.values({
+			repoId,
+			number: await claimNextIssueOrPrNumber(repoId),
+			authorId: users.alice.id,
+			title: "Assignee REST shape",
+			sourceBranch: "topic",
+			targetBranch: "main",
+		})
+		.returning();
+	if (!pr) throw new Error("Missing PR");
+	signIn(users.alice);
+	const { setPullRequestAssignees } = await import("../assignees");
+	await setPullRequestAssignees({
+		data: { pullRequestId: pr.id, usernames: ["dave"] },
+	});
+	for (const path of [
+		`/repos/alice/proj/pulls/${pr.number}`,
+		`/repos/alice/proj/issues/${pr.number}`,
+	]) {
+		const response = await call(path);
+		expect(response.status).toBe(200);
+		expect(response.body).toMatchObject({
+			assignee: { login: "dave" },
+			assignees: [{ login: "dave" }],
+		});
+	}
+	const list = await call("/repos/alice/proj/pulls?state=all");
+	expect(
+		list.body.find((row: { number: number }) => row.number === pr.number),
+	).toMatchObject({
+		assignee: { login: "dave" },
+		assignees: [{ login: "dave" }],
+	});
+	const assigned = await call("/repos/alice/proj/issues?assignee=dave");
+	expect(
+		assigned.body.some((row: { number: number }) => row.number === pr.number),
+	).toBe(true);
+	const none = await call("/repos/alice/proj/issues?assignee=none");
+	expect(
+		none.body.some((row: { number: number }) => row.number === pr.number),
+	).toBe(false);
+});

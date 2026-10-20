@@ -10,6 +10,7 @@ import {
 } from "@/components/DetailHeader";
 import { EditableTitle } from "@/components/EditableTitle";
 import { EmptyState } from "@/components/EmptyState";
+import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
@@ -405,6 +406,21 @@ function PullRequestDetailPage() {
 						}
 					/>
 
+					<IssueAssignees
+						pullRequestId={pr.id}
+						repoId={pr.repoId}
+						assignees={pr.assignees.map((a) => a.user)}
+						canEdit={pr.viewer.canWrite}
+						onChanged={() => {
+							queryClient.invalidateQueries({
+								queryKey: pullRequestByNumberQueryOptions({
+									owner,
+									name,
+									number: pr.number,
+								}).queryKey,
+							});
+						}}
+					/>
 					<ThreadLabels
 						owner={owner}
 						name={name}

@@ -176,6 +176,12 @@ Only the **owner** changes settings, collaborators and deletion — `admin` is
 currently limited to seeing who the collaborators are. Removing a collaborator
 takes effect immediately.
 
+Writers can assign issues and pull requests to the repository owner or a
+write/admin collaborator, up to 10 assignees per thread. Assign issues while
+creating them or use **Assignees → Edit** on an existing issue or pull request.
+Assignment changes appear in the thread timeline. Readers can see assignments
+but cannot change them.
+
 ## Find things
 
 - `/search` finds repositories (public ones, plus your own private ones) and
@@ -183,7 +189,9 @@ takes effect immediately.
 - `/users/{username}` is a public profile: repositories, and recent activity in
   public repositories. Your own profile shows your private activity too.
 - Starring a repository is per-account and shown on its page.
-- `/dashboard` lists your repositories and your activity feed.
+- `/dashboard` lists your repositories, your activity feed, and **Assigned to
+  you**: your latest 20 open assigned issues and pull requests across
+  repositories you can read. Closed and merged threads are excluded.
 
 ## Limits, in one place
 

@@ -15,7 +15,7 @@ vi.mock(
 	async () => (await import("../../test/app-harness")).sessionModule,
 );
 
-const { createUsers, signIn } = await import("../../test/app-harness");
+const { createUsers, signIn, signOut } = await import("../../test/app-harness");
 const repositories = await import("../repositories");
 const issues = await import("../issues");
 const assignees = await import("../assignees");
@@ -128,4 +128,199 @@ describe("assignees", () => {
 			}),
 		).rejects.toThrow("No write access");
 	});
+});
+
+describe("shared thread assignments", () => {
+	it("assigns at creation only for writers", async () => {
+		signIn(users.owner);
+		const created = await issues.createIssue({
+			data: {
+				repoId,
+				title: "Assigned at creation",
+				assignees: [users.writer.username, users.reader.username],
+			},
+		});
+		const detail = await issues.getIssueByNumber({
+			data: { owner: users.owner.username, name: "t", number: created.number },
+		});
+		expect(detail.assignees.map((a) => a.user.username)).toEqual([
+			users.writer.username,
+		]);
+		signIn(users.author);
+		const unassigned = await issues.createIssue({
+			data: { repoId, title: "Participant", assignees: [users.owner.username] },
+		});
+		const participant = await issues.getIssueByNumber({
+			data: {
+				owner: users.owner.username,
+				name: "t",
+				number: unassigned.number,
+			},
+		});
+		expect(participant.assignees).toEqual([]);
+	});
+
+	it("shares PR assignees, filters and events without issue id collisions", async () => {
+		const { db } = await import("#/db");
+		const { pullRequests } = await import("#/db/app-schema");
+		const { claimNextIssueOrPrNumber } = await import("../repository-lookup");
+		const pulls = await import("../pull-requests");
+		const [pr] = await db
+			.insert(pullRequests)
+			.values({
+				repoId,
+				number: await claimNextIssueOrPrNumber(repoId),
+				authorId: users.owner.id,
+				title: "Assigned PR",
+				sourceBranch: "topic",
+				targetBranch: "main",
+			})
+			.returning();
+		if (!pr) throw new Error("Missing PR");
+		signIn(users.reader);
+		await expect(
+			assignees.setPullRequestAssignees({
+				data: { pullRequestId: pr.id, usernames: [users.writer.username] },
+			}),
+		).rejects.toThrow("No write access");
+		signIn(users.owner);
+		await assignees.setPullRequestAssignees({
+			data: {
+				pullRequestId: pr.id,
+				usernames: [users.writer.username, users.reader.username],
+			},
+		});
+		const filtered = await pulls.getPullRequests({
+			data: { repoId, query: `assignee:${users.writer.username}` },
+		});
+		expect(filtered.map((row) => row.number)).toEqual([pr.number]);
+		expect(filtered[0]?.assignees[0]?.user.username).toBe(
+			users.writer.username,
+		);
+		expect(
+			await pulls.getPullRequests({ data: { repoId, query: "no:assignee" } }),
+		).toEqual([]);
+		const detail = await pulls.getPullRequestByNumber({
+			data: { owner: users.owner.username, name: "t", number: pr.number },
+		});
+		expect(detail.assignees.map((row) => row.user.username)).toEqual([
+			users.writer.username,
+		]);
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).find(
+				(thread) => thread.number === pr.number && thread.name === "t",
+			),
+		).toMatchObject({ kind: "pull_request", title: "Assigned PR" });
+		signIn(users.owner);
+		await assignees.setPullRequestAssignees({
+			data: { pullRequestId: pr.id, usernames: [] },
+		});
+		expect(
+			(await getTimeline({ data: { repoId, number: pr.number } })).map(
+				(event) => event.event,
+			),
+		).toEqual(["assigned", "unassigned"]);
+	});
+
+	it("shows only open readable assignments and hides a private repo after access removal", async () => {
+		signIn(users.owner);
+		const privateRepo = await repositories.createRepository({
+			data: { name: "private-assigned", visibility: "private" },
+		});
+		await repositories.addCollaboratorByUsername({
+			data: {
+				repoId: privateRepo.id,
+				username: users.writer.username,
+				role: "write",
+			},
+		});
+		const issue = await issues.createIssue({
+			data: {
+				repoId: privateRepo.id,
+				title: "Private assignment",
+				assignees: [users.writer.username],
+			},
+		});
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).some(
+				(thread) => thread.name === privateRepo.name,
+			),
+		).toBe(true);
+		signIn(users.owner);
+		await issues.updateIssue({ data: { issueId: issue.id, status: "closed" } });
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).some(
+				(thread) => thread.name === privateRepo.name,
+			),
+		).toBe(false);
+		signIn(users.owner);
+		await issues.updateIssue({ data: { issueId: issue.id, status: "open" } });
+		await repositories.removeCollaborator({
+			data: { repoId: privateRepo.id, userId: users.writer.id },
+		});
+		signIn(users.writer);
+		expect(
+			(await assignees.getAssignedThreads()).some(
+				(thread) => thread.name === privateRepo.name,
+			),
+		).toBe(false);
+		signOut();
+		await expect(assignees.getAssignedThreads()).rejects.toThrow();
+	});
+});
+
+it("serializes concurrent replacements instead of combining assignment sets", async () => {
+	signIn(users.owner);
+	const issue = await issues.createIssue({
+		data: { repoId, title: "Concurrent assignment" },
+	});
+	await Promise.all([
+		assignees.setIssueAssignees({
+			data: { issueId: issue.id, usernames: [users.owner.username] },
+		}),
+		assignees.setIssueAssignees({
+			data: { issueId: issue.id, usernames: [users.writer.username] },
+		}),
+	]);
+	const detail = await issues.getIssueByNumber({
+		data: { owner: users.owner.username, name: "t", number: issue.number },
+	});
+	expect(detail.assignees).toHaveLength(1);
+	const events = await getTimeline({ data: { repoId, number: issue.number } });
+	expect(events.filter((event) => event.event === "assigned")).toHaveLength(2);
+	expect(events.filter((event) => event.event === "unassigned")).toHaveLength(
+		1,
+	);
+});
+
+it("bounds the dashboard and orders latest assignments before limiting", async () => {
+	const { db } = await import("#/db");
+	const { issues: table, threadAssignees } = await import("#/db/app-schema");
+	const rows = await db
+		.insert(table)
+		.values(
+			Array.from({ length: 25 }, (_, i) => ({
+				repoId,
+				number: 10000 + i,
+				authorId: users.owner.id,
+				title: `Bounded ${i}`,
+				updatedAt: new Date(Date.UTC(2030, 0, 1, 0, i)),
+			})),
+		)
+		.returning();
+	await db.insert(threadAssignees).values(
+		rows.map((row) => ({
+			repoId,
+			number: row.number,
+			userId: users.owner.id,
+		})),
+	);
+	signIn(users.owner);
+	const assigned = await assignees.getAssignedThreads();
+	expect(assigned).toHaveLength(20);
+	expect(assigned[0]?.title).toBe("Bounded 24");
+	expect(assigned[19]?.title).toBe("Bounded 5");
 });

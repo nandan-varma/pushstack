@@ -18,6 +18,7 @@ import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch } from "./git-write";
+import { withAssignees } from "./issue-store";
 import { withLabels } from "./label-store";
 import {
 	insertPullRequest,
@@ -37,6 +38,7 @@ import { publicUserFields, readRepoByName } from "./repository-lookup";
 import { reviewSummaryFor } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import {
+	assigneesCondition,
 	authorCondition,
 	labelCondition,
 	mentionsCondition,
@@ -102,6 +104,12 @@ export const getPullRequests = createServerFn({ method: "GET" })
 		add(authorCondition(search.authors));
 		add(mentionsCondition(search.mentions, comments.pullRequestId));
 		add(labelCondition(data.repoId, search.labels, search.noLabel));
+		add(
+			assigneesCondition([
+				...(search.noAssignee ? ["none"] : []),
+				...search.assignees,
+			]),
+		);
 		return readWithAccess(
 			`getPullRequests ${status}`,
 			data.repoId,
@@ -117,7 +125,7 @@ export const getPullRequests = createServerFn({ method: "GET" })
 							// there is no condition (Drizzle 1.0 rejects an empty AND).
 							...andFilter(rawConditions(conditions)),
 						},
-						with: { author: publicUserFields },
+						with: { author: publicUserFields, ...withAssignees },
 						orderBy: threadOrderBy(search.sort, comments.pullRequestId),
 						limit: data.limit,
 						offset: data.skip,
@@ -162,7 +170,7 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 						repoId: repo.id,
 						number: data.number,
 					},
-					with: { author: publicUserFields },
+					with: { author: publicUserFields, ...withAssignees },
 				});
 				if (!pr) throw notFound();
 				const [withPrLabels] = await withLabels(repo.id, [pr]);

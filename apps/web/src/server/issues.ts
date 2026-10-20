@@ -6,12 +6,14 @@ import { z } from "zod";
 import { db } from "#/db";
 import { comments, issues } from "#/db/app-schema";
 import {
+	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
+import { replaceThreadAssignees } from "./assignees-store";
 import { andFilter } from "./db-filters";
 import {
 	createIssueForUser,
@@ -47,6 +49,7 @@ export const createIssue = createServerFn({ method: "POST" })
 			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			labels: issueLabelsSchema.default([]),
+			assignees: z.array(z.string().max(100)).max(MAX_ASSIGNEES).default([]),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -54,14 +57,16 @@ export const createIssue = createServerFn({ method: "POST" })
 		await requireParticipateAccess(data.repoId, currentUser.id);
 		// Labels are triage: a participant without write access opens the issue
 		// unlabeled, as on GitHub.
-		const labels = (await canWriteRepo(data.repoId, currentUser.id))
-			? data.labels
-			: [];
-		return createIssueForUser(data.repoId, currentUser.id, {
+		const canWrite = await canWriteRepo(data.repoId, currentUser.id);
+		const labels = canWrite ? data.labels : [];
+		const issue = await createIssueForUser(data.repoId, currentUser.id, {
 			title: data.title,
 			body: data.body,
 			labels,
 		});
+		if (canWrite && data.assignees.length > 0)
+			await replaceThreadAssignees(issue, data.assignees, currentUser.id);
+		return issue;
 	});
 
 export const getIssues = createServerFn({ method: "GET" })

@@ -151,25 +151,27 @@ export const threadLabels = pgTable(
 	}),
 );
 
-/** Who an issue is assigned to (GitHub: up to 10, each with write access). */
-export const issueAssignees = pgTable(
-	"issue_assignees",
+/** Who an issue or pull request is assigned to (GitHub: up to 10, each with write access). */
+export const threadAssignees = pgTable(
+	"thread_assignees",
 	{
 		id: serial("id").primaryKey(),
-		issueId: integer("issue_id")
+		repoId: integer("repo_id")
 			.notNull()
-			.references(() => issues.id, { onDelete: "cascade" }),
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		number: integer("number").notNull(),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		issueUserIdx: uniqueIndex("issue_assignee_issue_user_idx").on(
-			table.issueId,
+		threadUserIdx: uniqueIndex("thread_assignee_thread_user_idx").on(
+			table.repoId,
+			table.number,
 			table.userId,
 		),
-		userIdx: index("issue_assignee_user_idx").on(table.userId),
+		userIdx: index("thread_assignee_user_idx").on(table.userId),
 	}),
 );
 
