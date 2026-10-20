@@ -61,7 +61,7 @@ function commentedItem(
 
 export async function listTimelineItems(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.number);
+	const number = threadNumber(ctx.params.issue_number);
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
@@ -100,7 +100,7 @@ export async function listTimelineItems(ctx: ApiContext) {
 
 export async function listEvents(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.number);
+	const number = threadNumber(ctx.params.issue_number);
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);

@@ -123,7 +123,7 @@ export function gitCommitObject(fullName: string, info: CommitInfo) {
 /** `GET /repos/{owner}/{repo}/git/commits/{commit_sha}`: a full sha only. */
 export async function getGitCommit(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const sha = ctx.params.sha ?? "";
+	const sha = ctx.params.commit_sha ?? "";
 	if (!isFullSha(sha)) throw notFoundError();
 	const info = await getCommit(ownerKeyOf(repo), repo.name, sha);
 	return json(gitCommitObject(fullNameOf(repo), info));
@@ -135,7 +135,7 @@ export async function getGitCommit(ctx: ApiContext) {
  */
 export async function getGitTree(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const rev = ctx.params.sha ?? "";
+	const rev = ctx.params.tree_sha ?? "";
 	if (!safeCommitRevSchema.safeParse(rev).success) throw notFoundError();
 	const ownerKey = ownerKeyOf(repo);
 	const fullName = fullNameOf(repo);
@@ -179,7 +179,7 @@ export async function getGitTree(ctx: ApiContext) {
 
 export async function getGitBlob(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const sha = ctx.params.sha ?? "";
+	const sha = ctx.params.file_sha ?? "";
 	if (!isFullSha(sha)) throw notFoundError();
 	const ownerKey = ownerKeyOf(repo);
 	const size = await getBlobSize(ownerKey, repo.name, sha);

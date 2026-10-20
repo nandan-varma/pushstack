@@ -186,7 +186,7 @@ export async function deleteLabel(ctx: ApiContext) {
 async function requireThread(ctx: ApiContext, repoId: number) {
 	const thread = await findThreadByNumber(
 		repoId,
-		threadNumber(ctx.params.number),
+		threadNumber(ctx.params.issue_number),
 	);
 	if (!thread) throw notFoundError();
 	return thread;

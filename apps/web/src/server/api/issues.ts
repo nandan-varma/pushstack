@@ -95,7 +95,10 @@ export async function listIssues(ctx: ApiContext) {
 
 export async function getIssue(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const thread = await findThread(repo.id, threadNumber(ctx.params.number));
+	const thread = await findThread(
+		repo.id,
+		threadNumber(ctx.params.issue_number),
+	);
 	if (!thread) throw notFoundError();
 	return json(serializeThread(repo, thread, true));
 }
@@ -171,7 +174,7 @@ export async function createIssue(ctx: ApiContext) {
 export async function updateIssue(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
-	const number = threadNumber(ctx.params.number);
+	const number = threadNumber(ctx.params.issue_number);
 	const issue = await findIssueByNumber(repo.id, number);
 	// Pull request numbers are readable through the issues endpoints but not
 	// editable through them; editing a pull request uses the pulls endpoints.
