@@ -1,20 +1,23 @@
 /**
- * An in-memory Postgres (pglite) with the app's real schema pushed, for
- * tests that run real queries. Use from a `vi.mock("#/db", …)` factory:
+ * An in-memory Postgres (pglite) holding the app's real schema, loaded from the
+ * template `globalSetup` built once for the whole run (see
+ * test-db-template.ts). Every call loads its own instance from that template,
+ * so each test file starts from an empty database. Use from a
+ * `vi.mock("#/db", …)` factory:
  *   vi.mock("#/db", async () => ({ db: await (await import("<relative path to src/test/pglite-db>")).createTestDb() }));
  */
 import { PGlite } from "@electric-sql/pglite";
-import { pushSchema } from "drizzle-kit/api-postgres";
 import { drizzle } from "drizzle-orm/pglite";
-import * as appSchema from "#/db/app-schema";
 import { relations } from "#/db/relations";
-import * as authSchema from "#/db/schema";
+import { loadTestTemplate } from "./test-db-template";
 
-const schema = { ...authSchema, ...appSchema };
+// One read per worker process; every instance is built from the same bytes.
+let template: Promise<Blob> | undefined;
 
 export async function createTestDb() {
-	const db = drizzle({ client: new PGlite(), relations });
-	const { apply } = await pushSchema(schema, db);
-	await apply();
-	return db;
+	template ??= loadTestTemplate().then((bytes) => new Blob([bytes]));
+	return drizzle({
+		client: new PGlite({ loadDataDir: await template }),
+		relations,
+	});
 }
