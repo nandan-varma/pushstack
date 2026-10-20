@@ -184,6 +184,15 @@ describe("/api/v3 limits", () => {
 });
 
 describe("failed credentials", () => {
+	it("cost a clean authenticated request exactly one limiter query", async () => {
+		const execute = vi.spyOn(db, "execute");
+		const response = await api("/user", { ip: "10.9.9.9", token: alice });
+		const limiterCalls = execute.mock.calls.length;
+		execute.mockRestore();
+		expect(response.status).toBe(200);
+		expect(limiterCalls).toBe(1);
+	});
+
 	it("are counted per IP and then refused before any lookup", async () => {
 		const ip = "10.1.1.1";
 		for (let i = 0; i < 2; i++) {

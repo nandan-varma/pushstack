@@ -186,11 +186,43 @@ export function clientIp(request: Request): string {
 	);
 }
 
-/** Whether this IP has used up its failed-credential budget (no counting). */
+/**
+ * IPs that failed credentials recently on THIS instance. Only they pay the
+ * database read before authenticating, so clean requests stay at one limiter
+ * round trip. Bounded; a flood from many instances is still counted (and
+ * hinted) on each instance it reaches.
+ */
+const FAILURE_HINT_TTL_MS = 5 * 60_000;
+const FAILURE_HINT_MAX = 5_000;
+const recentFailures = new Map<string, number>();
+
+function hintFailure(ip: string): void {
+	recentFailures.delete(ip);
+	recentFailures.set(ip, Date.now() + FAILURE_HINT_TTL_MS);
+	while (recentFailures.size > FAILURE_HINT_MAX) {
+		const oldest = recentFailures.keys().next().value;
+		if (oldest === undefined) break;
+		recentFailures.delete(oldest);
+	}
+}
+
+function recentlyFailed(ip: string): boolean {
+	const expires = recentFailures.get(ip);
+	if (expires === undefined) return false;
+	if (expires > Date.now()) return true;
+	recentFailures.delete(ip);
+	return false;
+}
+
+/**
+ * Whether this IP has used up its failed-credential budget (no counting).
+ * Free (no database) unless this instance saw the IP fail recently.
+ */
 export async function authFailuresExhausted(
 	request: Request,
 ): Promise<RateStatus | null> {
 	const who = identityFor(request, null);
+	if (!recentlyFailed(who.id)) return null;
 	const [status] = await peekRateLimits(["auth-failure"], who);
 	return status && status.remaining === 0 ? status : null;
 }
@@ -199,7 +231,9 @@ export async function authFailuresExhausted(
 export function recordAuthFailure(
 	request: Request,
 ): Promise<RateStatus | null> {
-	return hitRateLimit("auth-failure", identityFor(request, null));
+	const who = identityFor(request, null);
+	hintFailure(who.id);
+	return hitRateLimit("auth-failure", who);
 }
 
 export function identityFor(

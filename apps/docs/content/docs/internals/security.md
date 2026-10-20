@@ -200,7 +200,9 @@ client prints it). **The limiter fails open**: a database error is logged with
 `logWarn` and the request is served, because this is abuse mitigation, not
 authorization, and Postgres hiccups must not become outages. Failed credentials (bad token on the API or git) are counted per client IP
 (`auth-failure`, 30 per window); once spent, requests carrying credentials are
-refused before the token is hashed. The client IP is read from
+refused before the token is hashed. That pre-auth check reads the database only
+for IPs that failed recently on the same instance (an in-memory hint), so clean
+requests stay at one limiter round trip. The client IP is read from
 `x-vercel-forwarded-for`, then `x-real-ip`, then the leftmost `x-forwarded-for`.
 Pruning is per key family (`gh:` by the configured window, Better Auth's by its
 own), so neither deletes the other's live buckets. Auth endpoints beyond Better
