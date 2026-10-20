@@ -20,6 +20,7 @@ import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
 import { withLabels } from "./label-store";
+import { readInput, threadNumberSchema } from "./read-input";
 import {
 	canMergePullRequest,
 	canModerateRepo,
@@ -164,7 +165,13 @@ export const getPullRequestNumbers = createServerFn({ method: "GET" })
 /** A pull request by its repo-scoped number (the `#N` in URLs). */
 export const getPullRequestByNumber = createServerFn({ method: "GET" })
 	.validator(
-		z.object({ owner: z.string(), name: z.string(), number: z.number().int() }),
+		readInput(
+			z.object({
+				owner: z.string(),
+				name: z.string(),
+				number: threadNumberSchema,
+			}),
+		),
 	)
 	.handler(({ data }) =>
 		readRepoByName(

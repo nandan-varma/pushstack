@@ -190,3 +190,37 @@ describe("access changes take effect immediately", () => {
 		).resolves.toMatchObject({ id: repoId });
 	});
 });
+
+describe("URL input that names nothing", () => {
+	// A loader surfaces a validator's plain Error as a 500; on a read, input
+	// that can't name anything is a 404, as on GitHub (src/server/read-input.ts).
+	it("404s a non-sha commit, an unsafe ref or path, and an out-of-range #N", async () => {
+		signOut();
+		expect(
+			await rejectsNotFound(
+				files.getCommit({ data: { repoId, commitSha: "main" } }),
+			),
+		).toBe(true);
+		expect(
+			await rejectsNotFound(
+				files.getTreePageData({
+					data: { repoId, branchName: "a..b", path: "" },
+				}),
+			),
+		).toBe(true);
+		expect(
+			await rejectsNotFound(
+				files.getFile({
+					data: { repoId, branchName: "main", path: "../../x" },
+				}),
+			),
+		).toBe(true);
+		expect(
+			await rejectsNotFound(
+				issues.getIssueByNumber({
+					data: { owner: "owner", name: repoName, number: 2 ** 40 },
+				}),
+			),
+		).toBe(true);
+	});
+});

@@ -21,6 +21,7 @@ import {
 import { ownerKeyOf } from "./git-storage-naming";
 import * as gitWrite from "./git-write";
 import { perfStep } from "./perf-log";
+import { readInput } from "./read-input";
 import {
 	type RepositoryWithOwner,
 	readWithAccess,
@@ -50,7 +51,7 @@ const refPath = z.object({
 });
 
 export const getFile = createServerFn({ method: "GET" })
-	.validator(refPath)
+	.validator(readInput(refPath))
 	.handler(({ data }) =>
 		readGit(
 			`getFile ${data.branchName}:${data.path}`,
@@ -61,7 +62,7 @@ export const getFile = createServerFn({ method: "GET" })
 	);
 
 export const listFiles = createServerFn({ method: "GET" })
-	.validator(refPath)
+	.validator(readInput(refPath))
 	.handler(({ data }) =>
 		readGit(
 			`listFiles ${data.branchName}:${data.path}`,
@@ -72,7 +73,7 @@ export const listFiles = createServerFn({ method: "GET" })
 
 /** A directory page's branches, entries and latest commit, in one round trip. */
 export const getTreePageData = createServerFn({ method: "GET" })
-	.validator(refPath)
+	.validator(readInput(refPath))
 	.handler(({ data }) =>
 		readGit(
 			`getTreePageData ${data.branchName}:${data.path}`,
@@ -94,7 +95,7 @@ export const getTreePageData = createServerFn({ method: "GET" })
 
 /** Per directory entry, the latest commit that touched it (the "last commit" column). */
 export const getLastCommits = createServerFn({ method: "GET" })
-	.validator(refPath)
+	.validator(readInput(refPath))
 	.handler(({ data }) =>
 		readGit(
 			`getLastCommits ${data.branchName}:${data.path}`,
@@ -107,11 +108,13 @@ export const getLastCommits = createServerFn({ method: "GET" })
 /** Commits that touched one file: the blob page's banner and History tab. */
 export const getFileHistory = createServerFn({ method: "GET" })
 	.validator(
-		refPath.extend({
-			limit: z.number().int().min(1).max(100).default(30),
-			/** "banner": only the latest commit is shown, so walk shallowly first. */
-			depth: z.enum(["banner", "full"]).default("full"),
-		}),
+		readInput(
+			refPath.extend({
+				limit: z.number().int().min(1).max(100).default(30),
+				/** "banner": only the latest commit is shown, so walk shallowly first. */
+				depth: z.enum(["banner", "full"]).default("full"),
+			}),
+		),
 	)
 	.handler(({ data }) =>
 		readGit(
@@ -130,7 +133,7 @@ export const getFileHistory = createServerFn({ method: "GET" })
 	);
 
 export const getBranches = createServerFn({ method: "GET" })
-	.validator(z.object({ repoId: z.number() }))
+	.validator(readInput(z.object({ repoId: z.number() })))
 	.handler(({ data }) =>
 		readGit("getBranches", data.repoId, (owner, name) =>
 			gitRead.getBranches(owner, name),
@@ -138,7 +141,7 @@ export const getBranches = createServerFn({ method: "GET" })
 	);
 
 export const getTags = createServerFn({ method: "GET" })
-	.validator(z.object({ repoId: z.number() }))
+	.validator(readInput(z.object({ repoId: z.number() })))
 	.handler(({ data }) =>
 		readGit("getTags", data.repoId, (owner, name) =>
 			gitRead.getTags(owner, name),
@@ -147,12 +150,14 @@ export const getTags = createServerFn({ method: "GET" })
 
 export const getCommits = createServerFn({ method: "GET" })
 	.validator(
-		z.object({
-			repoId: z.number(),
-			branchName: safeRefNameSchema,
-			limit: z.number().int().min(1).max(100).default(50),
-			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
-		}),
+		readInput(
+			z.object({
+				repoId: z.number(),
+				branchName: safeRefNameSchema,
+				limit: z.number().int().min(1).max(100).default(50),
+				skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
+			}),
+		),
 	)
 	.handler(({ data }) =>
 		readGit(
@@ -178,7 +183,9 @@ const identity = (who: { name: string; email: string; timestamp: number }) => ({
 });
 
 export const getCommit = createServerFn({ method: "GET" })
-	.validator(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema }))
+	.validator(
+		readInput(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema })),
+	)
 	.handler(({ data }) =>
 		readGit(`getCommit ${data.commitSha}`, data.repoId, async (owner, name) => {
 			const { oid, commit } = await gitRead.getCommit(
@@ -197,7 +204,9 @@ export const getCommit = createServerFn({ method: "GET" })
 	);
 
 export const getCommitDiff = createServerFn({ method: "GET" })
-	.validator(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema }))
+	.validator(
+		readInput(z.object({ repoId: z.number(), commitSha: safeCommitShaSchema })),
+	)
 	.handler(({ data }) =>
 		readGit(`getCommitDiff ${data.commitSha}`, data.repoId, (owner, name) =>
 			gitRead.getCommitDiff(owner, name, data.commitSha),
@@ -207,11 +216,13 @@ export const getCommitDiff = createServerFn({ method: "GET" })
 /** A pull request's diff: what `sourceBranch` changed since branching from `targetBranch`. */
 export const getBranchDiff = createServerFn({ method: "GET" })
 	.validator(
-		z.object({
-			repoId: z.number(),
-			sourceBranch: safeBranchNameSchema,
-			targetBranch: safeBranchNameSchema,
-		}),
+		readInput(
+			z.object({
+				repoId: z.number(),
+				sourceBranch: safeBranchNameSchema,
+				targetBranch: safeBranchNameSchema,
+			}),
+		),
 	)
 	.handler(({ data }) =>
 		readGit(

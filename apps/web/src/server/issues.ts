@@ -19,6 +19,7 @@ import {
 	withAssignees,
 } from "./issue-store";
 import { withLabels } from "./label-store";
+import { readInput, threadNumberSchema } from "./read-input";
 import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
@@ -131,7 +132,13 @@ export const getIssueNumbers = createServerFn({ method: "GET" })
 /** An issue by its repo-scoped number (the `#N` in URLs). */
 export const getIssueByNumber = createServerFn({ method: "GET" })
 	.validator(
-		z.object({ owner: z.string(), name: z.string(), number: z.number().int() }),
+		readInput(
+			z.object({
+				owner: z.string(),
+				name: z.string(),
+				number: threadNumberSchema,
+			}),
+		),
 	)
 	.handler(({ data }) =>
 		readRepoByName(

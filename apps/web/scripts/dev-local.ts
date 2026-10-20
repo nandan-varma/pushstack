@@ -26,7 +26,22 @@ mkdirSync(localDir, { recursive: true });
 // `pnpm db:push` does against Neon), then release it for the dev server.
 const client = new PGlite(path.join(localDir, "db"));
 const schema = { ...authSchema, ...appSchema };
-const { apply, hints } = await pushSchema(schema, drizzle({ client }));
+const { apply, hints } = await pushSchema(schema, drizzle({ client })).catch(
+	(error: unknown) => {
+		// drizzle-kit's programmatic push can't ask whether a column or table
+		// was renamed or dropped, so an ambiguous change throws an internal
+		// "called without a HintsHandler" error. Say what to do instead.
+		if (error instanceof Error && error.message.includes("HintsHandler")) {
+			console.error(
+				`[dev:local] the schema renamed or dropped a column/table that ${localDir} still has, ` +
+					"and a non-interactive push can't tell which.\n" +
+					`[dev:local] delete ${localDir} (or set PUSHSTACK_LOCAL_DIR to a new directory) to start over.`,
+			);
+			process.exit(1);
+		}
+		throw error;
+	},
+);
 if (hints.length > 0) {
 	console.warn(
 		`[dev:local] schema change notes:\n  ${hints.map(({ hint }) => hint).join("\n  ")}\n` +
