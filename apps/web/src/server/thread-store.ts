@@ -4,9 +4,7 @@
  * (the REST API's `/issues/{number}` looks both up). Plain server-only module
  * (see repository-lookup.ts for why this is not a server-function file).
  */
-import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
-import { comments, issues, pullRequests } from "#/db/app-schema";
 
 export type ThreadKind = "issue" | "pull_request";
 
@@ -62,33 +60,4 @@ export async function findThreadByNumber(
 		where: { repoId, number },
 	});
 	return pullRequest ? { kind: "pull_request", ...pullRequest } : null;
-}
-
-/** How many comments each of `numbers` carries (one query per thread kind). */
-export async function commentCountsByNumbers(
-	repoId: number,
-	numbers: number[],
-): Promise<Map<number, number>> {
-	const counts = new Map<number, number>();
-	if (numbers.length === 0) return counts;
-	const [issueCounts, pullRequestCounts] = await Promise.all([
-		db
-			.select({ number: issues.number, total: count() })
-			.from(comments)
-			.innerJoin(issues, eq(issues.id, comments.issueId))
-			.where(and(eq(comments.repoId, repoId), inArray(issues.number, numbers)))
-			.groupBy(issues.number),
-		db
-			.select({ number: pullRequests.number, total: count() })
-			.from(comments)
-			.innerJoin(pullRequests, eq(pullRequests.id, comments.pullRequestId))
-			.where(
-				and(eq(comments.repoId, repoId), inArray(pullRequests.number, numbers)),
-			)
-			.groupBy(pullRequests.number),
-	]);
-	for (const row of [...issueCounts, ...pullRequestCounts]) {
-		counts.set(row.number, (counts.get(row.number) ?? 0) + row.total);
-	}
-	return counts;
 }

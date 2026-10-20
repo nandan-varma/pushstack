@@ -18,65 +18,14 @@ vi.mock(
 );
 
 const { createUsers, signIn } = await import("../../test/app-harness");
-const { handleApiRequest } = await import("../api");
-const tokens = await import("../tokens");
 const files = await import("../files");
 const pulls = await import("../pull-requests");
 const repositories = await import("../repositories");
 
 const users = await createUsers("alice", "bob", "carol", "dave");
-const BASE = "http://localhost:3000/api/v3";
-
-async function mintToken(
-	who: (typeof users)["alice"],
-	scopes: ("repo:read" | "repo:write")[],
-) {
-	signIn(who);
-	return (
-		await tokens.createToken({
-			data: { name: "t", scopes, lifetimeDays: null },
-		})
-	).token;
-}
-
-interface CallOptions {
-	authorization?: string;
-	method?: string;
-	body?: string;
-}
-
-async function call(path: string, options: CallOptions = {}) {
-	const headers: Record<string, string> = {};
-	if (options.authorization) headers.authorization = options.authorization;
-	const response = await handleApiRequest(
-		new Request(`${BASE}${path}`, {
-			method: options.method ?? "GET",
-			headers,
-			body: options.body,
-		}),
-	);
-	const text = await response.text();
-	// No response may ever carry an account email (the fixtures' domain).
-	expect(text).not.toContain("@example.com");
-	return {
-		status: response.status,
-		headers: response.headers,
-		// biome-ignore lint/suspicious/noExplicitAny: arbitrary JSON under test
-		body: (text ? JSON.parse(text) : null) as any,
-	};
-}
-
-const asToken = (token: string) => ({ authorization: `token ${token}` });
-const post = (token: string, body: unknown) => ({
-	...asToken(token),
-	method: "POST",
-	body: JSON.stringify(body),
-});
-const patch = (token: string, body: unknown) => ({
-	...asToken(token),
-	method: "PATCH",
-	body: JSON.stringify(body),
-});
+const { BASE, asToken, call, mintToken, patch, post } = await import(
+	"../../test/api-client"
+);
 
 let alice: string;
 let aliceRead: string;
@@ -359,6 +308,41 @@ describe("listing issues", () => {
 		const one = await call(`/repos/alice/proj/issues/${pr.number}`);
 		expect(one.status).toBe(200);
 		expect(one.body).toHaveProperty("pull_request");
+	});
+
+	it("reports a merged pull request as closed, at its merge time", async () => {
+		signIn(users.alice);
+		await files.createBranch({ data: { repoId, name: "to-merge" } });
+		await files.uploadFile({
+			data: {
+				repoId,
+				branchName: "to-merge",
+				path: "merged.txt",
+				content: btoa("m\n"),
+				commitMessage: "To merge",
+			},
+		});
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Merged",
+				body: "",
+				sourceBranchName: "to-merge",
+				targetBranchName: "main",
+			},
+		});
+		await pulls.mergePullRequest({ data: { prId: pr.id } });
+
+		// GitHub's issues surface has no "merged" state: a merged pull request
+		// is closed, and ?state=closed lists it.
+		const closed = await call("/repos/alice/proj/issues?state=closed");
+		expect(closed.body.map((i: { number: number }) => i.number)).toContain(
+			pr.number,
+		);
+		const one = await call(`/repos/alice/proj/issues/${pr.number}`);
+		expect(one.body.state).toBe("closed");
+		expect(one.body.closed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+		expect(one.body.pull_request.merged_at).toBe(one.body.closed_at);
 	});
 });
 

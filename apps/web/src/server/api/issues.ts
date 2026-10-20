@@ -14,8 +14,10 @@ import {
 	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
 	MAX_LABELS_PER_THREAD,
+	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { replaceIssueAssignees } from "../assignees-store";
+import { commentCountsByNumbers } from "../comment-store";
 import {
 	assigneeCondition,
 	createIssueForUser,
@@ -24,7 +26,6 @@ import {
 import { setThreadLabels, threadsWithLabels } from "../label-store";
 import { perfStep } from "../perf-log";
 import { publicUserColumns } from "../repository-lookup";
-import { commentCountsByNumbers } from "../thread-store";
 import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
@@ -45,6 +46,7 @@ import {
 	serializeThread,
 	type ThreadRow,
 	threadNumber,
+	threadRowsOf,
 } from "./threads";
 
 const stateSchema = z.enum(["open", "closed", "all"]);
@@ -179,34 +181,7 @@ export async function listIssues(ctx: ApiContext) {
 			]),
 		);
 
-	const rows: ThreadRow[] = [
-		...issueRows.map(({ row, author }) => ({
-			kind: "issue" as const,
-			id: row.id,
-			number: row.number,
-			title: row.title,
-			body: row.body,
-			state: row.status,
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
-			closedAt: row.closedAt,
-			mergedAt: null,
-			author,
-		})),
-		...pullRequestRows.map(({ row, author }) => ({
-			kind: "pull_request" as const,
-			id: row.id,
-			number: row.number,
-			title: row.title,
-			body: row.body,
-			state: row.status === "open" ? ("open" as const) : ("closed" as const),
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
-			closedAt: row.status === "open" ? null : (row.mergedAt ?? row.updatedAt),
-			mergedAt: row.mergedAt,
-			author,
-		})),
-	];
+	const rows = threadRowsOf(issueRows, pullRequestRows);
 	const page = await paginateRows(repo.id, rows, filters, params);
 	const meta = await loadThreadMeta(repo.id, page);
 	const body = page.map((row) => serializeThread(repo, row, meta));
@@ -253,7 +228,7 @@ export async function getIssue(ctx: ApiContext) {
 }
 
 const createIssueSchema = z.object({
-	title: z.string().trim().min(1).max(256),
+	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
 	body: z.string().max(MAX_BODY_CHARS).nullish(),
 	labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).optional(),
 	assignees: z
@@ -263,7 +238,7 @@ const createIssueSchema = z.object({
 });
 
 const updateIssueSchema = z.object({
-	title: z.string().trim().min(1).max(256).optional(),
+	title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
 	body: z.string().max(MAX_BODY_CHARS).nullish(),
 	state: z.enum(["open", "closed"]).optional(),
 	labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).optional(),

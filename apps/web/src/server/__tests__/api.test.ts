@@ -19,7 +19,6 @@ vi.mock(
 
 const { createUsers, signIn } = await import("../../test/app-harness");
 const { handleApiRequest } = await import("../api");
-const tokens = await import("../tokens");
 const files = await import("../files");
 const repositories = await import("../repositories");
 const { db } = await import("../../db");
@@ -27,53 +26,9 @@ const { repositories: repoTable } = await import("../../db/app-schema");
 const { eq } = await import("drizzle-orm");
 
 const users = await createUsers("alice", "bob");
-const BASE = "http://localhost:3000/api/v3";
-
-async function mintToken(
-	who: (typeof users)["alice"],
-	scopes: ("repo:read" | "repo:write")[],
-) {
-	signIn(who);
-	return (
-		await tokens.createToken({
-			data: { name: "t", scopes, lifetimeDays: null },
-		})
-	).token;
-}
-
-interface CallOptions {
-	authorization?: string;
-	method?: string;
-	body?: string;
-}
-
-async function call(path: string, options: CallOptions = {}) {
-	const headers: Record<string, string> = {};
-	if (options.authorization) headers.authorization = options.authorization;
-	const response = await handleApiRequest(
-		new Request(`${BASE}${path}`, {
-			method: options.method ?? "GET",
-			headers,
-			body: options.body,
-		}),
-	);
-	const text = await response.text();
-	// No response may ever carry an account email (the fixtures' domain).
-	expect(text).not.toContain("@example.com");
-	return {
-		status: response.status,
-		headers: response.headers,
-		// biome-ignore lint/suspicious/noExplicitAny: arbitrary JSON under test
-		body: (text ? JSON.parse(text) : null) as any,
-	};
-}
-
-const asToken = (token: string) => ({ authorization: `token ${token}` });
-const post = (token: string, body: unknown) => ({
-	...asToken(token),
-	method: "POST",
-	body: JSON.stringify(body),
-});
+const { BASE, asToken, call, mintToken, post } = await import(
+	"../../test/api-client"
+);
 
 let alice: string;
 let aliceRead: string;

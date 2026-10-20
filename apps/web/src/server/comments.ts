@@ -10,6 +10,7 @@ import {
 	deleteCommentRow,
 	findComment,
 	listCommentsForThread,
+	threadIdOf,
 	updateCommentRow,
 } from "./comment-store";
 import { getRepositoryAccess, requireParticipateAccess } from "./repo-access";
@@ -42,13 +43,6 @@ async function requireCommentEditor(
 		throw new Error("Access denied");
 	}
 	return comment;
-}
-
-/** The comment's thread (for cross-reference cleanup). */
-function threadOf(comment: Comment): Thread {
-	return comment.issueId !== null
-		? { issueId: comment.issueId }
-		: { pullRequestId: comment.pullRequestId as number };
 }
 
 export const createComment = createServerFn({ method: "POST" })
@@ -97,7 +91,7 @@ export const deleteComment = createServerFn({ method: "POST" })
 		const comment = await findComment(data.commentId);
 		if (!comment) throw notFound();
 		await requireCommentEditor(comment, currentUser.id);
-		const thread = await requireThread(threadOf(comment));
+		const thread = await requireThread(threadIdOf(comment));
 		await deleteCommentRow(comment, thread);
 		return { success: true };
 	});

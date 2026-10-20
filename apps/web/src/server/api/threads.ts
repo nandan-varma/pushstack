@@ -10,13 +10,14 @@ import { issues, pullRequests } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import type { LabelView } from "#/lib/labels";
 import { assigneesByIssueIds } from "../assignees-store";
+import { commentCountsByNumbers } from "../comment-store";
 import { labelsByThread } from "../label-store";
 import {
 	type PublicUser,
 	publicUserColumns,
 	type RepositoryRowWithOwner,
 } from "../repository-lookup";
-import { commentCountsByNumbers, type ThreadKind } from "../thread-store";
+import type { ThreadKind } from "../thread-store";
 import { notFoundError } from "./http";
 import { issue } from "./serializers";
 
@@ -75,6 +76,18 @@ export async function findThreadRowsByNumber(
 				),
 			),
 	]);
+	return threadRowsOf(issueRows, pullRequestRows);
+}
+
+type IssueRecord = typeof issues.$inferSelect;
+type PullRequestRecord = typeof pullRequests.$inferSelect;
+type ThreadAuthor = ThreadRow["author"];
+
+/** Issue and pull-request rows (with their authors) as the issues surface sees them. */
+export function threadRowsOf(
+	issueRows: { row: IssueRecord; author: ThreadAuthor }[],
+	pullRequestRows: { row: PullRequestRecord; author: ThreadAuthor }[],
+): ThreadRow[] {
 	return [
 		...issueRows.map(({ row, author }) => ({
 			kind: "issue" as const,

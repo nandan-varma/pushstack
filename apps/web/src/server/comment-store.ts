@@ -5,9 +5,9 @@
  * turns that into its own error (the server functions throw, the API answers
  * 403).
  */
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
-import { comments } from "#/db/app-schema";
+import { comments, issues, pullRequests } from "#/db/app-schema";
 import { recordActivity } from "./activity";
 import { canWriteRepo, getRepositoryAccess } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
@@ -26,6 +26,15 @@ export function findCommentWithAuthor(commentId: number) {
 		where: { id: commentId },
 		with: { author: publicUserFields },
 	});
+}
+
+/** The row id of the thread a comment belongs to. */
+export function threadIdOf(
+	comment: Pick<Comment, "issueId" | "pullRequestId">,
+): { issueId: number } | { pullRequestId: number } {
+	return comment.issueId !== null
+		? { issueId: comment.issueId }
+		: { pullRequestId: comment.pullRequestId as number };
 }
 
 /** A thread's comments, oldest first. `options` bound one page for the API. */
@@ -125,11 +134,7 @@ export async function updateCommentRow(
 		.where(eq(comments.id, comment.id))
 		.returning();
 	if (!updated) throw new Error("Comment update returned no row");
-	const thread = await findThreadById(
-		comment.issueId !== null
-			? { issueId: comment.issueId }
-			: { pullRequestId: comment.pullRequestId as number },
-	);
+	const thread = await findThreadById(threadIdOf(comment));
 	if (thread) {
 		await recordCrossReferences(
 			thread.repoId,
@@ -163,4 +168,33 @@ export async function deleteCommentRow(
 		thread.body,
 		...others.map((other) => other.body),
 	]);
+}
+
+/** How many comments each of `numbers` carries (one query per thread kind). */
+export async function commentCountsByNumbers(
+	repoId: number,
+	numbers: number[],
+): Promise<Map<number, number>> {
+	const counts = new Map<number, number>();
+	if (numbers.length === 0) return counts;
+	const [issueCounts, pullRequestCounts] = await Promise.all([
+		db
+			.select({ number: issues.number, total: count() })
+			.from(comments)
+			.innerJoin(issues, eq(issues.id, comments.issueId))
+			.where(and(eq(comments.repoId, repoId), inArray(issues.number, numbers)))
+			.groupBy(issues.number),
+		db
+			.select({ number: pullRequests.number, total: count() })
+			.from(comments)
+			.innerJoin(pullRequests, eq(pullRequests.id, comments.pullRequestId))
+			.where(
+				and(eq(comments.repoId, repoId), inArray(pullRequests.number, numbers)),
+			)
+			.groupBy(pullRequests.number),
+	]);
+	for (const row of [...issueCounts, ...pullRequestCounts]) {
+		counts.set(row.number, (counts.get(row.number) ?? 0) + row.total);
+	}
+	return counts;
 }

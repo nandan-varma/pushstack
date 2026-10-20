@@ -13,6 +13,7 @@ import {
 	deleteCommentRow,
 	findCommentWithAuthor,
 	listCommentsForThread,
+	threadIdOf,
 	updateCommentRow,
 } from "../comment-store";
 import { findThreadById, findThreadByNumber } from "../thread-store";
@@ -123,11 +124,7 @@ async function requireComment(ctx: ApiContext, repoId: number) {
 	if (!raw || !/^\d+$/.test(raw)) throw notFoundError();
 	const comment = await findCommentWithAuthor(Number(raw));
 	if (!comment || comment.repoId !== repoId) throw notFoundError();
-	const thread = await findThreadById(
-		comment.issueId !== null
-			? { issueId: comment.issueId }
-			: { pullRequestId: comment.pullRequestId as number },
-	);
+	const thread = await findThreadById(threadIdOf(comment));
 	if (!thread) throw notFoundError();
 	return { comment, thread };
 }
