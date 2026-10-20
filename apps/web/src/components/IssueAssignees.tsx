@@ -5,7 +5,7 @@ import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { MAX_ASSIGNEES } from "@/lib/limits";
 import { assignableUsersQueryOptions } from "@/lib/query-options";
-import { setIssueAssignees } from "@/server/assignees";
+import { setIssueAssignees, setPullRequestAssignees } from "@/server/assignees";
 
 interface Person {
 	id: string;
@@ -20,12 +20,14 @@ interface Person {
  */
 export function IssueAssignees({
 	issueId,
+	pullRequestId,
 	repoId,
 	assignees,
 	canEdit,
 	onChanged,
 }: {
-	issueId: number;
+	issueId?: number;
+	pullRequestId?: number;
 	repoId: number;
 	assignees: Person[];
 	canEdit: boolean;
@@ -38,7 +40,13 @@ export function IssueAssignees({
 		enabled: canEdit && isEditing,
 	});
 	const mutation = useMutation({
-		mutationFn: setIssueAssignees,
+		mutationFn: (usernames: string[]) => {
+			if (pullRequestId !== undefined)
+				return setPullRequestAssignees({ data: { pullRequestId, usernames } });
+			if (issueId !== undefined)
+				return setIssueAssignees({ data: { issueId, usernames } });
+			throw new Error("Missing thread");
+		},
 		onSuccess: onChanged,
 		onError: (err: Error) => toast(err.message || "Failed to assign", "error"),
 	});
@@ -48,7 +56,7 @@ export function IssueAssignees({
 		const next = new Set(selected);
 		if (next.has(username)) next.delete(username);
 		else next.add(username);
-		mutation.mutate({ data: { issueId, usernames: [...next] } });
+		mutation.mutate([...next]);
 	};
 
 	if (!canEdit && assignees.length === 0) return null;

@@ -10,7 +10,7 @@ import { issues, pullRequests } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import type { LabelView } from "#/lib/labels";
 import type { IssueStateReason } from "#/lib/timeline-types";
-import { assigneesByIssueIds } from "../assignees-store";
+import { assigneesByThread } from "../assignees-store";
 import { commentCountsByNumbers } from "../comment-store";
 import { labelsByThread } from "../label-store";
 import {
@@ -138,8 +138,9 @@ export async function loadThreadMeta(
 			repoId,
 			rows.map((row) => row.number),
 		),
-		assigneesByIssueIds(
-			rows.filter((row) => row.kind === "issue").map((row) => row.id),
+		assigneesByThread(
+			repoId,
+			rows.map((row) => row.number),
 		),
 		commentCountsByNumbers(
 			repoId,
@@ -171,7 +172,7 @@ export function serializeThread(
 		mergedAt: row.mergedAt,
 		author: row.author,
 		labels: meta.labels.get(row.number) ?? [],
-		assignees: meta.assignees.get(row.id) ?? [],
+		assignees: meta.assignees.get(row.number) ?? [],
 		commentsCount: meta.comments.get(row.number) ?? 0,
 	});
 }

@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	assignableUsersQueryOptions,
 	authSessionQueryOptions,
 	queryKeys,
 	repositoryByNameQueryOptions,
@@ -62,7 +63,11 @@ function IssuesPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [newIssue, setNewIssue] = useState({ title: "", body: "" });
+	const [newIssue, setNewIssue] = useState({
+		title: "",
+		body: "",
+		assignees: [] as string[],
+	});
 
 	const setQuery = useCallback(
 		(next: string) => {
@@ -84,6 +89,10 @@ function IssuesPage() {
 		enabled: !!repo,
 	});
 
+	const { data: assignable } = useQuery({
+		...assignableUsersQueryOptions(repo?.id ?? 0),
+		enabled: !!repo?.viewer.canWrite && isCreateOpen,
+	});
 	const createMutation = useMutation({
 		mutationFn: createIssue,
 		onSuccess: async () => {
@@ -92,7 +101,7 @@ function IssuesPage() {
 				queryKey: queryKeys.repoIssuesRoot(repo.id),
 			});
 			setIsCreateOpen(false);
-			setNewIssue({ title: "", body: "" });
+			setNewIssue({ title: "", body: "", assignees: [] });
 			toast("Issue created", "success");
 		},
 		onError: (err: Error) => {
@@ -109,9 +118,10 @@ function IssuesPage() {
 				repoId: repo.id,
 				title: newIssue.title,
 				body: newIssue.body,
+				assignees: newIssue.assignees,
 			},
 		});
-	}, [newIssue.title, newIssue.body, repo, createMutation]);
+	}, [newIssue.title, newIssue.body, newIssue.assignees, repo, createMutation]);
 
 	// The issues list is the parent of /issues/:id. Rendering the detail
 	// Outlet here keeps list and detail routes independently addressable.
@@ -169,6 +179,33 @@ function IssuesPage() {
 								rows={6}
 							/>
 						</div>
+						{repo?.viewer.canWrite && (
+							<fieldset className="space-y-2">
+								<legend className="text-sm font-medium">Assignees</legend>
+								{(assignable ?? []).map((person) => (
+									<label
+										key={person.id}
+										className="flex items-center gap-2 text-sm"
+									>
+										<input
+											type="checkbox"
+											checked={newIssue.assignees.includes(person.username)}
+											onChange={(e) =>
+												setNewIssue((p) => ({
+													...p,
+													assignees: e.target.checked
+														? [...p.assignees, person.username]
+														: p.assignees.filter(
+																(name) => name !== person.username,
+															),
+												}))
+											}
+										/>
+										{person.username}
+									</label>
+								))}
+							</fieldset>
+						)}
 					</NewThreadDialog>
 				)}
 			</div>

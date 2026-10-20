@@ -333,6 +333,7 @@ export function commitObject(fullName: string, info: CommitInfo) {
 
 /** What the pull request serializer needs beyond the stored row. */
 export interface PullShapeInput {
+	assignees: PublicUser[];
 	repo: Repository & { owner: PublicUser };
 	/** The repository object both `head.repo` and `base.repo` carry. */
 	repoShape: Record<string, unknown>;
@@ -397,8 +398,8 @@ export function pullRequest(input: PullShapeInput): Record<string, unknown> {
 		closed_at: closedAt ? isoTimestamp(closedAt) : null,
 		merged_at: row.mergedAt ? isoTimestamp(row.mergedAt) : null,
 		merge_commit_sha: row.mergeCommitSha,
-		assignee: null,
-		assignees: [],
+		assignee: input.assignees[0] ? simpleUser(input.assignees[0]) : null,
+		assignees: input.assignees.map(simpleUser),
 		requested_reviewers: [],
 		requested_teams: [],
 		head: side(row.sourceBranch, input.headSha),

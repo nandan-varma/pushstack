@@ -21,7 +21,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import { db } from "#/db";
-import { comments, issueAssignees, threadLabels } from "#/db/app-schema";
+import { comments, threadAssignees, threadLabels } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import type { SearchSort } from "#/lib/search-query";
 import { containing } from "./db-filters";
@@ -30,6 +30,7 @@ import { threadsWithLabels } from "./label-store";
 /** The columns a thread (issue or pull request) list can filter and order on. */
 export interface SearchableThread {
 	id: Column;
+	repoId: Column;
 	number: Column;
 	title: Column;
 	body: Column;
@@ -152,18 +153,26 @@ export function assigneesCondition(
 			...assignees.map((assignee) => {
 				const rows = db
 					.select({ one: sql`1` })
-					.from(issueAssignees)
-					.where(eq(issueAssignees.issueId, table.id));
+					.from(threadAssignees)
+					.where(
+						and(
+							eq(threadAssignees.repoId, table.repoId),
+							eq(threadAssignees.number, table.number),
+						),
+					);
 				if (assignee === "*") return exists(rows);
 				if (assignee === "none") return notExists(rows);
 				return exists(
 					db
 						.select({ one: sql`1` })
-						.from(issueAssignees)
-						.innerJoin(user, eq(user.id, issueAssignees.userId))
+						.from(threadAssignees)
+						.innerJoin(user, eq(user.id, threadAssignees.userId))
 						.where(
 							and(
-								eq(issueAssignees.issueId, table.id),
+								and(
+									eq(threadAssignees.repoId, table.repoId),
+									eq(threadAssignees.number, table.number),
+								),
 								eq(user.username, assignee),
 							),
 						),

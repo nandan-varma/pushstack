@@ -6,7 +6,7 @@ import {
 import { MAX_LIST_SKIP, THREAD_PAGE_SIZE } from "#/lib/limits";
 import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
-import { getAssignableUsers } from "@/server/assignees";
+import { getAssignableUsers, getAssignedThreads } from "@/server/assignees";
 import { getComments } from "@/server/comments";
 import {
 	getBranchDiff,
@@ -47,6 +47,7 @@ import { listTokens } from "@/server/tokens";
 import { getUserProfile } from "@/server/users";
 
 export const queryKeys = {
+	assignedThreads: ["threads", "assigned", "self"] as const,
 	authSession: ["auth", "session"] as const,
 	accessTokens: ["auth", "access-tokens"] as const,
 	authSessions: ["auth", "sessions"] as const,
@@ -698,3 +699,9 @@ export function repositoryPullRequestSearchQueryOptions({
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
+
+export const assignedThreadsQueryOptions = () =>
+	queryOptions({
+		queryKey: queryKeys.assignedThreads,
+		queryFn: () => getAssignedThreads(),
+	});

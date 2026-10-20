@@ -6,7 +6,7 @@
  */
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
-import { issueAssignees, repositoryCollaborators } from "#/db/app-schema";
+import { repositoryCollaborators, threadAssignees } from "#/db/app-schema";
 import { MAX_ASSIGNEES } from "#/lib/limits";
 import { type PublicUser, publicUserFields } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
@@ -38,19 +38,20 @@ export async function listAssignableUsers(
 }
 
 /** The assignees of each of `issueIds`, in one query (for list endpoints). */
-export async function assigneesByIssueIds(
-	issueIds: number[],
+export async function assigneesByThread(
+	repoId: number,
+	numbers: number[],
 ): Promise<Map<number, PublicUser[]>> {
 	const byIssue = new Map<number, PublicUser[]>();
-	if (issueIds.length === 0) return byIssue;
-	const rows = await db.query.issueAssignees.findMany({
-		where: { issueId: { in: issueIds } },
+	if (numbers.length === 0) return byIssue;
+	const rows = await db.query.threadAssignees.findMany({
+		where: { repoId, number: { in: numbers } },
 		with: { user: publicUserFields },
 	});
 	for (const row of rows) {
-		const list = byIssue.get(row.issueId);
+		const list = byIssue.get(row.number);
 		if (list) list.push(row.user);
-		else byIssue.set(row.issueId, [row.user]);
+		else byIssue.set(row.number, [row.user]);
 	}
 	return byIssue;
 }
@@ -60,8 +61,8 @@ export async function assigneesByIssueIds(
  * rest beyond the cap are refused, and each addition or removal is recorded as
  * an `assigned`/`unassigned` timeline event by `actorId`.
  */
-export async function replaceIssueAssignees(
-	issue: { id: number; repoId: number; number: number },
+export async function replaceThreadAssignees(
+	issue: { repoId: number; number: number },
 	usernames: string[],
 	actorId: string,
 ): Promise<PublicUser[]> {
@@ -70,8 +71,8 @@ export async function replaceIssueAssignees(
 	if (wanted.length > MAX_ASSIGNEES) {
 		throw new Error(`An issue can have at most ${MAX_ASSIGNEES} assignees`);
 	}
-	const current = await db.query.issueAssignees.findMany({
-		where: { issueId: issue.id },
+	const current = await db.query.threadAssignees.findMany({
+		where: { repoId: issue.repoId, number: issue.number },
 		with: { user: publicUserFields },
 	});
 	const currentIds = new Set(current.map((a) => a.userId));
@@ -81,16 +82,23 @@ export async function replaceIssueAssignees(
 
 	if (added.length > 0) {
 		await db
-			.insert(issueAssignees)
-			.values(added.map((u) => ({ issueId: issue.id, userId: u.id })))
+			.insert(threadAssignees)
+			.values(
+				added.map((u) => ({
+					repoId: issue.repoId,
+					number: issue.number,
+					userId: u.id,
+				})),
+			)
 			.onConflictDoNothing();
 	}
 	if (removed.length > 0) {
-		await db.delete(issueAssignees).where(
+		await db.delete(threadAssignees).where(
 			and(
-				eq(issueAssignees.issueId, issue.id),
+				eq(threadAssignees.repoId, issue.repoId),
+				eq(threadAssignees.number, issue.number),
 				inArray(
-					issueAssignees.userId,
+					threadAssignees.userId,
 					removed.map((a) => a.userId),
 				),
 			),

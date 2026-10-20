@@ -115,7 +115,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 				]),
 			);
 			if (!access.canRead) throw notFound();
-			return { ...repo, ...stars };
+			return { ...repo, ...stars, viewer: { canWrite: access.canWrite } };
 		}),
 	);
 

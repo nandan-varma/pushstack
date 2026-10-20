@@ -47,24 +47,23 @@ export const relations = defineRelations(
 				from: r.issues.id,
 				to: r.comments.issueId,
 			}),
-			assignees: r.many.issueAssignees({
-				from: r.issues.id,
-				to: r.issueAssignees.issueId,
+			assignees: r.many.threadAssignees({
+				from: [r.issues.repoId, r.issues.number],
+				to: [r.threadAssignees.repoId, r.threadAssignees.number],
 			}),
 		},
-		issueAssignees: {
-			issue: r.one.issues({
-				from: r.issueAssignees.issueId,
-				to: r.issues.id,
-				optional: false,
-			}),
+		threadAssignees: {
 			user: r.one.user({
-				from: r.issueAssignees.userId,
+				from: r.threadAssignees.userId,
 				to: r.user.id,
 				optional: false,
 			}),
 		},
 		pullRequests: {
+			assignees: r.many.threadAssignees({
+				from: [r.pullRequests.repoId, r.pullRequests.number],
+				to: [r.threadAssignees.repoId, r.threadAssignees.number],
+			}),
 			repository: r.one.repositories({
 				from: r.pullRequests.repoId,
 				to: r.repositories.id,

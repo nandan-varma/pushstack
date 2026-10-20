@@ -206,6 +206,7 @@ async function serializeList(
 			row,
 			author,
 			labels: meta.labels.get(row.number) ?? [],
+			assignees: meta.assignees.get(row.number) ?? [],
 			commentsCount: meta.comments.get(row.number) ?? 0,
 			...tipShas(row, tips),
 		}),
@@ -279,6 +280,7 @@ async function serializeDetail(
 		row,
 		author,
 		labels: meta.labels.get(row.number) ?? [],
+		assignees: meta.assignees.get(row.number) ?? [],
 		commentsCount: meta.comments.get(row.number) ?? 0,
 		...tipShas(row, tips),
 		detail: {
