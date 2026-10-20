@@ -59,20 +59,6 @@ const put = (token: string, body?: unknown) => ({
 });
 const del = (token: string) => ({ ...asToken(token), method: "DELETE" });
 
-/** Operations served only once #124 (contents, commits, git data) lands. */
-const PENDING = new Set([
-	"repos/get-content",
-	"repos/list-commits",
-	"repos/get-commit",
-	"repos/compare-commits-with-basehead",
-	"git/get-ref",
-	"git/list-refs",
-	"git/list-matching-refs",
-	"git/get-commit",
-	"git/get-tree",
-	"git/get-blob",
-]);
-
 /**
  * Where the server disagrees with the contract today. Each entry is fixed by
  * making the serializer return the contract type (phase 2 of #127).
@@ -190,13 +176,31 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/issues/1/timeline");
 	await check("/repos/alice/proj/issues/1/events");
 	await check("/repos/alice/proj/issues/2/timeline");
+
+	// Contents, commits and git data
+	await check("/repos/alice/proj/contents");
+	await check("/repos/alice/proj/contents/b.txt");
+	const commits = await check("/repos/alice/proj/commits");
+	const head = commits[0];
+	await check(`/repos/alice/proj/commits/${head.sha}`);
+	await check("/repos/alice/proj/compare/topic...main");
+	await check("/repos/alice/proj/git/ref/heads/main");
+	await check("/repos/alice/proj/git/refs");
+	await check("/repos/alice/proj/git/refs/heads/main");
+	await check("/repos/alice/proj/git/matching-refs/heads");
+	await check(`/repos/alice/proj/git/commits/${head.sha}`);
+	const tree = await check(
+		`/repos/alice/proj/git/trees/${head.sha}?recursive=1`,
+	);
+	const file = tree.tree.find(
+		(entry: { type: string }) => entry.type === "blob",
+	);
+	await check(`/repos/alice/proj/git/blobs/${file.sha}`);
 });
 
 describe("the dispatcher against the contract", () => {
 	it("exercises every served operation", () => {
-		const unserved = Object.keys(endpoints).filter(
-			(id) => !covered.has(id) && !PENDING.has(id),
-		);
+		const unserved = Object.keys(endpoints).filter((id) => !covered.has(id));
 		expect(unserved).toEqual([]);
 	});
 
