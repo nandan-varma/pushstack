@@ -9,7 +9,12 @@ import type { ApiContext } from "./auth";
 import { json, linkHeader, notFoundError, pageParams } from "./http";
 import { pathParams } from "./input";
 import { readableRepository } from "./repo-lookup";
-import { issueComment, simpleUser, timelineEvent } from "./serializers";
+import {
+	issueComment,
+	type Shape,
+	simpleUser,
+	timelineEvent,
+} from "./serializers";
 import { fullNameOf, serializeThreadsByNumber } from "./threads";
 
 type CommentRow = Awaited<ReturnType<typeof listCommentsForThread>>[number];
@@ -46,7 +51,7 @@ function commentedItem(
 	fullName: string,
 	thread: ThreadRef,
 	comment: CommentRow,
-): Record<string, unknown> {
+): Shape<"timelineItem"> {
 	return {
 		...issueComment({
 			fullName,
@@ -55,7 +60,7 @@ function commentedItem(
 			comment,
 			author: comment.author,
 		}),
-		event: "commented",
+		event: "commented" as const,
 		actor: simpleUser(comment.author),
 	};
 }
@@ -92,11 +97,13 @@ export async function listTimelineItems(ctx: ApiContext) {
 		),
 	);
 	return json(
-		merged.map((item) =>
-			item.kind === "comment"
-				? commentedItem(fullName, thread, item.comment)
-				: timelineEvent(item.entry, { fullName, threadByNumber }),
-		),
+		merged.flatMap((item) => {
+			if (item.kind === "comment") {
+				return [commentedItem(fullName, thread, item.comment)];
+			}
+			const event = timelineEvent(item.entry, { fullName, threadByNumber });
+			return event ? [event] : [];
+		}),
 		200,
 		linkHeader(ctx.url, params, eventTotal + commentTotal),
 	);
@@ -125,7 +132,10 @@ export async function listEvents(ctx: ApiContext) {
 		),
 	);
 	return json(
-		entries.map((entry) => timelineEvent(entry, { fullName, threadByNumber })),
+		entries.flatMap((entry) => {
+			const event = timelineEvent(entry, { fullName, threadByNumber });
+			return event ? [event] : [];
+		}),
 		200,
 		linkHeader(ctx.url, params, total),
 	);

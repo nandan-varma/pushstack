@@ -7,7 +7,7 @@
  */
 import type { PublicUser, RepositoryRowWithOwner } from "../repository-lookup";
 import { findThreads, type Thread } from "../thread-store";
-import { issue } from "./serializers";
+import { issue, type Shape } from "./serializers";
 
 export const fullNameOf = (repo: RepositoryRowWithOwner) =>
 	`${repo.owner.username}/${repo.name}`;
@@ -31,7 +31,7 @@ export function serializeThread(
 	repo: RepositoryRowWithOwner,
 	thread: Thread,
 	withClosedBy = false,
-): Record<string, unknown> {
+): Shape<"issue"> {
 	const closed = thread.status === "closed";
 	const closedBy: PublicUser | null = closed ? thread.closedBy : null;
 	return issue({
@@ -64,7 +64,7 @@ export function serializeThread(
 export async function serializeThreadsByNumber(
 	repo: RepositoryRowWithOwner,
 	numbers: number[],
-): Promise<Map<number, unknown>> {
+): Promise<Map<number, Shape<"issue">>> {
 	const threads = await findThreads(repo.id, numbers);
 	return new Map(
 		threads.map((thread) => [thread.number, serializeThread(repo, thread)]),

@@ -3,8 +3,8 @@
  *
  * The real `/api/v3` dispatcher's responses against `@pushstack/api-contract`:
  * one scenario touches every endpoint, and each success body is parsed with
- * its operation's response schema. Drift is listed in KNOWN_DRIFT until the
- * web side adopts the contract (#127, phase 2); a fix or new drift fails here.
+ * its operation's response schema. Every other API test validates its success
+ * responses too (`test/api-client.ts`); this one guarantees full coverage.
  */
 import { endpoints, type Method, matchRoute } from "@pushstack/api-contract";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -20,6 +20,7 @@ vi.mock(
 
 const { createUsers, signIn } = await import("../../test/app-harness");
 const files = await import("../files");
+const { recordTimelineEvent } = await import("../timeline-store");
 const { asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
@@ -59,8 +60,8 @@ const put = (token: string, body?: unknown) => ({
 const del = (token: string) => ({ ...asToken(token), method: "DELETE" });
 
 /**
- * Where the server disagrees with the contract today. Each entry is fixed by
- * making the serializer return the contract type (phase 2 of #127).
+ * Where the server disagrees with the contract today. Serializers return the
+ * contract's types, so new drift is usually a type error before it gets here.
  */
 const KNOWN_DRIFT: Record<string, RegExp> = {};
 
@@ -168,7 +169,15 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/issues?state=all", auth);
 	await check("/repos/alice/proj/issues/1/timeline");
 	await check("/repos/alice/proj/issues/1/events");
-	await check("/repos/alice/proj/issues/2/timeline");
+	// A review has no issue-event shape yet: the timeline skips it rather
+	// than serving a null item.
+	const pull = await check("/repos/alice/proj/issues/2", auth);
+	await recordTimelineEvent(pull.id, users.alice.id, {
+		event: "reviewed",
+		state: "approved",
+	});
+	const timeline = await check("/repos/alice/proj/issues/2/timeline");
+	expect(timeline).not.toContain(null);
 
 	await check("/repos/alice/proj/contents");
 	await check("/repos/alice/proj/contents/b.txt");
