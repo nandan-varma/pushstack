@@ -401,12 +401,19 @@ export async function applyReceivePack(
 		return { results, stalePackPaths: [] };
 	}
 	const repackOptions = options.repack;
-	// Reached only when at least one ref update was applied above.
-	const stalePackPaths =
-		repackOptions === false
-			? []
-			: await runStep(hooks, "repack", () =>
-					repackRepository(repo, repackOptions, hooks),
-				);
+	// Reached only when at least one ref update was applied above. Best-effort:
+	// the refs have already moved, so a consolidation failure must not turn the
+	// push into an error response the client will retry — the refs it pushed are
+	// durable, and the next push repacks.
+	let stalePackPaths: string[] = [];
+	if (repackOptions !== false) {
+		try {
+			stalePackPaths = await runStep(hooks, "repack", () =>
+				repackRepository(repo, repackOptions, hooks),
+			);
+		} catch (error) {
+			hooks?.onWarn?.("repack after push failed (non-fatal)", error);
+		}
+	}
 	return { results, stalePackPaths };
 }

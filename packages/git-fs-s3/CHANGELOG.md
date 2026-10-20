@@ -3,6 +3,26 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.15.3] - 2026-10-20
+
+### Changed
+
+- `repackRepository` now rejects when consolidation fails instead of
+  swallowing the error and returning no stale paths. Best-effort is a call-site
+  decision: `applyReceivePack` still treats a repack after a push as best-effort
+  (the refs have moved, so a failed consolidation is reported through
+  `hooks.onWarn` and the push succeeds), while an explicit maintenance repack
+  now reports its failure. Silently returning `[]` made every caller — including
+  a post-write repack in pushstack, where a failure read as a failed commit —
+  unable to tell a failed consolidation from one with nothing to do.
+
+### Fixed
+
+- `applyReceivePack` no longer fails a push whose post-refs pack consolidation
+  failed. The refs were already updated, so the client-visible error was
+  spurious; the failure is reported through `hooks.onWarn` and the next push
+  retries the repack.
+
 ## [0.15.2] - 2026-10-19
 
 - First release published from the monorepo (0.15.1 was tagged but its

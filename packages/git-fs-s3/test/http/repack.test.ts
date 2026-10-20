@@ -12,7 +12,7 @@
  * hide.
  */
 import git from "isomorphic-git";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { repackRepository } from "../../src/http/repack.js";
 import { rawFs } from "../../src/http/types.js";
 import { createGitFs, MemoryObjectStore } from "../../src/index.js";
@@ -238,6 +238,33 @@ describe("repackRepository", () => {
 			filepath: "f3.txt",
 		});
 		expect(blob.length).toBeGreaterThan(1000);
+	});
+
+	it("propagates a failed consolidation instead of reporting success", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 3); // one pack per commit
+		await addDummyPackFiles(repo, 4);
+
+		// Storage fails on the new, consolidated pack — after every pack was
+		// read, so the only thing that breaks is the write.
+		const fsp = rawFs(repo);
+		const writeFile = fsp.writeFile.bind(fsp);
+		const spy = vi
+			.spyOn(fsp, "writeFile")
+			.mockImplementation((path, data) =>
+				path.endsWith(".pack")
+					? Promise.reject(new Error("storage write failed"))
+					: writeFile(path, data),
+			);
+		try {
+			// Swallowing this would make callers (a web commit, a push, an explicit
+			// maintenance repack) believe consolidation succeeded.
+			await expect(repackRepository(repo, { threshold: 4 })).rejects.toThrow(
+				"storage write failed",
+			);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 
 	it("removes .bitmap/.rev files of packs it replaces", async () => {

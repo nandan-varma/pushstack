@@ -86,3 +86,95 @@ describe("web-UI commits", () => {
 		expect(await getCommitLog(OWNER, "web", "main", 20)).toHaveLength(9);
 	});
 });
+
+/**
+ * Consolidation runs after the refs have moved, so its failure must never be
+ * reported as a failed write — a user retry would then create a second commit.
+ * The storage fault stands in for an R2 write whose retries were exhausted.
+ */
+describe("a failed post-write repack", () => {
+	const author = { name: "Test", email: "test@example.com" };
+
+	/** Fail `.pack` writes from the `after`th one on, and count them. */
+	function failPackWrites(after: number): {
+		restore: () => void;
+		packWrites: () => number;
+	} {
+		const fsp = gitFs.promises;
+		const writeFile = fsp.writeFile.bind(fsp);
+		let count = 0;
+		const spy = vi.spyOn(fsp, "writeFile").mockImplementation((path, data) => {
+			if (path.endsWith(".pack") && ++count > after) {
+				return Promise.reject(new Error("storage write failed"));
+			}
+			return writeFile(path, data);
+		});
+		return { restore: () => spy.mockRestore(), packWrites: () => count };
+	}
+
+	it("returns the commit that already landed and warns", async () => {
+		await initBareRepo(OWNER, "repackfail", "main");
+		// Three packs; the commit under test crosses the repack threshold (4).
+		for (let i = 1; i <= 3; i++) {
+			await createCommit(OWNER, "repackfail", {
+				branch: "main",
+				message: `seed ${i}`,
+				files: [{ path: `s${i}.txt`, content: `${i}\n` }],
+				author,
+			});
+		}
+
+		// The commit's own packed write is the first .pack (its objects must land
+		// for the commit to exist); the consolidated pack is the second and fails.
+		const fault = failPackWrites(1);
+		const warned: string[] = [];
+		const warn = vi
+			.spyOn(console, "warn")
+			.mockImplementation((message?: unknown) => warned.push(String(message)));
+		let sha: string;
+		try {
+			sha = await createCommit(OWNER, "repackfail", {
+				branch: "main",
+				message: "survives a failed repack",
+				files: [{ path: "keep.txt", content: "kept\n" }],
+				author,
+			});
+		} finally {
+			fault.restore();
+			warn.mockRestore();
+		}
+
+		expect(fault.packWrites()).toBe(2); // the commit's pack, then the repack's
+		expect(sha).toMatch(/^[0-9a-f]{40}$/);
+		const log = await getCommitLog(OWNER, "repackfail", "main", 5);
+		expect(log.map((entry) => entry.commit.message.trim())).toContain(
+			"survives a failed repack",
+		);
+		expect(
+			warned.some((message) => message.includes("repack after write failed")),
+		).toBe(true);
+	});
+
+	it("fails an explicit maintenance repack instead of reporting zero", async () => {
+		await initBareRepo(OWNER, "manual", "main");
+		for (let i = 1; i <= 5; i++) {
+			await commitFilesToBare(repoFor(OWNER, "manual"), {
+				branch: "main",
+				message: `manual ${i}`,
+				author: authorNow(author.name, author.email),
+				files: [{ path: `m${i}.txt`, content: `${i}\n` }],
+			});
+		}
+
+		// Unlike the post-write path, an operator's explicit repack must report
+		// its failure — "removed 0 files" would read as success.
+		const fault = failPackWrites(0);
+		try {
+			await expect(repackRepositoryNow(OWNER, "manual")).rejects.toThrow(
+				"storage write failed",
+			);
+		} finally {
+			fault.restore();
+		}
+	});
+});
