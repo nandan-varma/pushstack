@@ -232,7 +232,7 @@ describe("pr commands", () => {
 		});
 		expect(await run(["pr", "checkout", "7"], io)).toBe(0);
 		expect(git.mock.calls.map(([args]) => args)).toEqual([
-			["fetch", pull.head.repo.clone_url, "refs/heads/topic"],
+			["fetch", "--", pull.head.repo.clone_url, "refs/heads/topic"],
 			["rev-parse", "--verify", "--quiet", "refs/heads/topic"],
 			["checkout", "-b", "topic", "FETCH_HEAD"],
 		]);
@@ -249,9 +249,24 @@ describe("pr commands", () => {
 				await run(["pr", "checkout", "7", "-b", "local", ...(flag ?? [])], io),
 			).toBe(0);
 			expect(git.mock.calls.map(([args]) => args).slice(2)).toEqual([
-				["checkout", "local"],
+				["checkout", "local", "--"],
 				last,
 			]);
 		}
+	});
+	it.each([
+		[{ head: { ...pull.head, ref: "a:b" } }, []],
+		[{ head: { ...pull.head, ref: "-upload-pack=x" } }, []],
+		[{ head: { ...pull.head, ref: "a..b" } }, []],
+		[{}, ["-b", "x y"]],
+		[{}, ["-b", "x.lock"]],
+		[{}, ["--branch=-f"]],
+		[{ head: { ...pull.head, repo: { clone_url: "ext::sh -c id" } } }, []],
+		[{ head: { ...pull.head, repo: { clone_url: "file:///etc" } } }, []],
+	])("never runs git for unsafe input %j %j", async (patch, flags) => {
+		const { io, fetch, git } = await fixture();
+		fetch.mockResolvedValueOnce(json({ ...pull, ...patch }));
+		expect(await run(["pr", "checkout", "7", ...flags], io)).toBe(1);
+		expect(git).not.toHaveBeenCalled();
 	});
 });

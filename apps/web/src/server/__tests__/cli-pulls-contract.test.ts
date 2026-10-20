@@ -161,6 +161,7 @@ describe("CLI pr commands against real REST dispatcher", () => {
 		expect(checkout.code, checkout.stderr).toBe(0);
 		expect(gitCalls[0]).toEqual([
 			"fetch",
+			"--",
 			"http://localhost:3000/api/git/alice/pulls.git",
 			"refs/heads/second",
 		]);

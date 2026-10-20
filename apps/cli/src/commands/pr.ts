@@ -335,6 +335,26 @@ async function changeState(io: Io, args: string[], state: "open" | "closed") {
 		`✓ ${state === "closed" ? "Closed" : "Reopened"} pull request #${pull.number} (${pull.title})\n`,
 	);
 }
+/** Git's check-ref-format rules for a branch, checked before any git call. */
+export function isBranchName(name: string) {
+	return (
+		name.length > 0 &&
+		name.length <= 255 &&
+		name !== "@" &&
+		!name.startsWith("-") &&
+		!name.startsWith("/") &&
+		!name.endsWith("/") &&
+		!name.endsWith(".") &&
+		!name.includes("..") &&
+		!name.includes("//") &&
+		!name.includes("@{") &&
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: git forbids them
+		!/[\x00-\x20\x7f~^:?*[\\]/.test(name) &&
+		name
+			.split("/")
+			.every((part) => !part.startsWith(".") && !part.endsWith(".lock"))
+	);
+}
 async function checkout(io: Io, args: string[]) {
 	const { values, positionals } = parse(args, {
 		...common,
@@ -354,11 +374,19 @@ async function checkout(io: Io, args: string[]) {
 	const pull = await findPull(io, client, path, positionals);
 	const url = pull.head.repo?.clone_url;
 	if (!url) throw new CliError("the pull request's head repository is unknown");
+	let protocol: string;
+	try {
+		protocol = new URL(url).protocol;
+	} catch {
+		protocol = "";
+	}
+	if (protocol !== "https:" && protocol !== "http:")
+		throw new CliError(`refusing to fetch from non-HTTP URL "${url}"`);
 	const local = values.branch ?? pull.head.ref;
-	// Plain names only: git would read a leading "-" as an option.
-	if (local.startsWith("-") || pull.head.ref.startsWith("-"))
-		throw new CliError(`invalid branch name "${local}"`);
-	await git(["fetch", url, `refs/heads/${pull.head.ref}`]);
+	for (const name of [pull.head.ref, local])
+		if (!isBranchName(name))
+			throw new CliError(`invalid branch name "${name}"`);
+	await git(["fetch", "--", url, `refs/heads/${pull.head.ref}`]);
 	let exists = true;
 	try {
 		await git(["rev-parse", "--verify", "--quiet", `refs/heads/${local}`]);
@@ -369,7 +397,7 @@ async function checkout(io: Io, args: string[]) {
 		await git(["checkout", "-b", local, "FETCH_HEAD"]);
 		return;
 	}
-	await git(["checkout", local]);
+	await git(["checkout", local, "--"]);
 	await git(
 		values.force
 			? ["reset", "--hard", "FETCH_HEAD"]
