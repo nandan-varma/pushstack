@@ -78,7 +78,13 @@ beforeAll(async () => {
 		})
 	).id;
 	const plainId = (
-		await issues.createIssue({ data: { repoId, title: "Plain idea" } })
+		await issues.createIssue({
+			data: {
+				repoId,
+				title: "Plain idea",
+				body: "See http://example.com for context",
+			},
+		})
 	).id;
 	signIn(users.alice);
 	await issues.createIssue({
@@ -243,17 +249,12 @@ describe("issue search", () => {
 		);
 	});
 
-	it("ignores an unknown qualifier instead of breaking the list", async () => {
-		expect(sorted(await issueTitles("is:all milestone:v1"))).toEqual(
-			sorted(await issueTitles("is:all")),
-		);
-	});
-
-	it("keeps the structured filters working alongside a query", async () => {
-		const rows = await issues.getIssues({
-			data: { repoId, status: "all", labels: ["bug"], query: "is:open" },
-		});
-		expect(rows.map((i) => i.title)).toEqual(["Crash on start"]);
+	it("searches an unknown qualifier as text instead of dropping it", async () => {
+		// An unquoted URL is not a qualifier: it is searched for.
+		expect(await issueTitles("http://example.com")).toEqual(["Plain idea"]);
+		// A token that matches nothing filters the list; it does not silently
+		// match everything.
+		expect(await issueTitles("is:all milestone:v1")).toEqual([]);
 	});
 });
 

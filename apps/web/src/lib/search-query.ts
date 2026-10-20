@@ -8,9 +8,9 @@
  *
  * GitHub's rules are followed where they are observable: qualifiers are ANDed,
  * `label:` repeats AND, values may be quoted (`label:"help wanted"`), the
- * default sort is `created-desc`, and unknown qualifiers are ignored rather
- * than treated as text. Negation (`-label:x`) is not supported yet, so such a
- * token is ignored like any other unknown qualifier.
+ * default sort is `created-desc`, and only the known qualifier names below are
+ * qualifiers — anything else (a URL, `a:b`) is searched as free text.
+ * Negation (`-label:x`) is not supported yet, so it is searched as text too.
  */
 
 /** The sorts GitHub's `sort:` accepts (and the default). */
@@ -48,7 +48,11 @@ export interface SearchQuery {
 	labels: string[];
 	/** `no:label` was given. */
 	noLabel: boolean;
-	/** `author:` usernames; every one must match (impossible unless repeated). */
+	/**
+	 * `author:` usernames. GitHub ANDs repeated qualifiers, so repeating a
+	 * different `author:` matches nothing (one author can't be two people);
+	 * that is by design.
+	 */
 	authors: string[];
 	/** `assignee:` values: a username, `none` or `*`. */
 	assignees: string[];
@@ -69,6 +73,21 @@ interface Token {
 }
 
 const QUOTE = /["']/;
+
+/**
+ * The qualifier names GitHub's issue/PR search understands. A token whose name
+ * is not one of these is free text, not a dropped unknown qualifier — so a URL
+ * or `a:b` in the box is searched for rather than silently matching everything.
+ */
+const KNOWN_QUALIFIERS = new Set([
+	"is",
+	"label",
+	"no",
+	"author",
+	"assignee",
+	"mentions",
+	"sort",
+]);
 
 /** Remove the surrounding quotes from a qualifier value, if any. */
 function unquote(value: string): string {
@@ -126,18 +145,12 @@ function tokenize(input: string): Token[] {
 function parseToken(raw: string): Token {
 	const colon = raw.indexOf(":");
 	const quote = raw.search(QUOTE);
-	// A colon before any quote and after an identifier is a qualifier; a free
-	// word that merely contains `:` (`"a:b"`, `http://x`) stays text. A leading
-	// `-` (GitHub negation) is accepted as a name so the token is ignored as an
-	// unknown qualifier rather than searched as text.
+	// Only a known qualifier name before the first quote makes this a qualifier;
+	// anything else (`http://x`, `a:b`, `"a:b"`) is free text.
 	if (colon > 0 && (quote === -1 || colon < quote)) {
-		const name = raw.slice(0, colon);
-		if (/^-?[A-Za-z][A-Za-z0-9_-]*$/.test(name)) {
-			return {
-				raw,
-				name: name.toLowerCase(),
-				value: unquote(raw.slice(colon + 1)),
-			};
+		const name = raw.slice(0, colon).toLowerCase();
+		if (KNOWN_QUALIFIERS.has(name)) {
+			return { raw, name, value: unquote(raw.slice(colon + 1)) };
 		}
 	}
 	return { raw, value: unquote(raw) };
@@ -213,9 +226,6 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case "sort":
 				if ((SEARCH_SORTS as readonly string[]).includes(value.toLowerCase()))
 					sort = value.toLowerCase() as SearchSort;
-				break;
-			default:
-				// Unknown qualifier: ignored, as GitHub does.
 				break;
 		}
 	}

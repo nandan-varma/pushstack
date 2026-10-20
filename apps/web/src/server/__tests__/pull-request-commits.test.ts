@@ -73,7 +73,7 @@ describe("getPullRequestCommits", () => {
 
 	it("keeps the merged range after a three-way merge, whatever happens to the branches", async () => {
 		const [pr] = await pulls.getPullRequests({
-			data: { repoId, status: "open" },
+			data: { repoId, query: "is:open" },
 		});
 		if (!pr) throw new Error("expected the open pull request");
 		await pulls.mergePullRequest({ data: { prId: pr.id } });
@@ -124,7 +124,7 @@ describe("getPullRequestCommits", () => {
 			data: { id: repoId, visibility: "private" },
 		});
 		const [pr] = await pulls.getPullRequests({
-			data: { repoId, status: "all" },
+			data: { repoId, query: "is:all" },
 		});
 		signOut();
 		await expect(

@@ -24,6 +24,7 @@ import { db } from "#/db";
 import { comments, issueAssignees, threadLabels } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import type { SearchSort } from "#/lib/search-query";
+import { containing } from "./db-filters";
 import { threadsWithLabels } from "./label-store";
 
 /** The columns a thread (issue or pull request) list can filter and order on. */
@@ -40,8 +41,12 @@ export interface SearchableThread {
 /** A condition builder, as Drizzle's relational `where` `RAW` expects. */
 export type ThreadCondition = (table: SearchableThread) => SQL;
 
-/** An ILIKE pattern matching `text` literally anywhere (`%`, `_`, `\` escaped). */
-const containing = (text: string) => `%${text.replace(/[\\%_]/g, "\\$&")}%`;
+/** The relational `where` `AND` entries for a list of conditions. */
+export function rawConditions(conditions: ThreadCondition[]) {
+	return conditions.map((condition) => ({
+		RAW: (table: SearchableThread) => condition(table),
+	}));
+}
 
 /** A Postgres regex matching `@username` as a whole mention. */
 const mentionPattern = (username: string) =>

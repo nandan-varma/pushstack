@@ -33,6 +33,7 @@ import {
 	authorCondition,
 	labelCondition,
 	mentionsCondition,
+	rawConditions,
 	type ThreadCondition,
 	textCondition,
 	threadOrderBy,
@@ -97,39 +98,32 @@ export const getIssues = createServerFn({ method: "GET" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			status: z.enum(["open", "closed", "all"]).default("open"),
-			assignee: z.string().max(100).optional(),
-			/** Only issues carrying every one of these labels (`label:` filter). */
-			labels: labelsSchema.default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
-			/** A GitHub query string (`?q=`); merged with the filters above. */
-			query: z.string().max(MAX_SEARCH_QUERY_CHARS).optional(),
+			/** A GitHub query string (`?q=`); the only list filter. */
+			query: z.string().max(MAX_SEARCH_QUERY_CHARS).default(""),
 		}),
 	)
 	.handler(({ data }) => {
-		const search = data.query ? parseSearchQuery(data.query) : undefined;
-		const requested = search?.status ?? data.status;
+		const search = parseSearchQuery(data.query);
+		const requested = search.status ?? "open";
 		// An issue can't be merged, and `is:pr` can't match the issues list.
 		const matchesNothing =
-			search?.matchesNothing === true ||
-			search?.type === "pr" ||
-			requested === "merged";
-		const status = requested === "merged" ? "open" : requested;
-		const labels = [...data.labels, ...(search?.labels ?? [])];
+			search.matchesNothing || search.type === "pr" || requested === "merged";
+		const status: "open" | "closed" | "all" =
+			requested === "merged" ? "open" : requested;
 		const assignees = [
-			...(data.assignee ? [data.assignee] : []),
-			...(search?.noAssignee ? ["none"] : []),
-			...(search?.assignees ?? []),
+			...(search.noAssignee ? ["none"] : []),
+			...search.assignees,
 		];
 		const conditions: ThreadCondition[] = [];
 		const add = (condition: ThreadCondition | undefined) => {
 			if (condition) conditions.push(condition);
 		};
-		add(textCondition(search?.terms ?? []));
-		add(authorCondition(search?.authors ?? []));
-		add(mentionsCondition(search?.mentions ?? [], comments.issueId));
-		add(labelCondition(data.repoId, labels, search?.noLabel ?? false));
+		add(textCondition(search.terms));
+		add(authorCondition(search.authors));
+		add(mentionsCondition(search.mentions, comments.issueId));
+		add(labelCondition(data.repoId, search.labels, search.noLabel));
 		add(assigneesCondition(assignees));
 		return readWithAccess(`getIssues ${status}`, data.repoId, async () => {
 			if (matchesNothing) return [];
@@ -139,20 +133,13 @@ export const getIssues = createServerFn({ method: "GET" })
 					where: {
 						repoId: data.repoId,
 						...(status === "all" ? {} : { status }),
-						// The shared helper owns the "never pass an empty AND array"
-						// rule (Drizzle 1.0 rejects one), which the query path needs
-						// exactly as much as the structured filters did.
-						...andFilter(
-							conditions.map((condition) => ({
-								RAW: (table: typeof issues) => condition(table),
-							})),
-						),
+						// andFilter owns the "never pass an empty AND array" rule
+						// (Drizzle 1.0 rejects one); rawConditions maps the shared
+						// ThreadConditions onto relational RAW filters.
+						...andFilter(rawConditions(conditions)),
 					},
 					with: { author: publicUserFields, ...withAssignees },
-					orderBy: threadOrderBy(
-						search?.sort ?? "created-desc",
-						comments.issueId,
-					),
+					orderBy: threadOrderBy(search.sort, comments.issueId),
 					limit: data.limit,
 					offset: data.skip,
 				}),

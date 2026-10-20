@@ -6,16 +6,15 @@ import { z } from "zod";
 import { db } from "#/db";
 import { comments, issues, pullRequests } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
-import { labelNameSchema } from "#/lib/labels";
 import {
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
-	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import { recordActivity } from "./activity";
+import { andFilter } from "./db-filters";
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
@@ -40,6 +39,7 @@ import {
 	authorCondition,
 	labelCondition,
 	mentionsCondition,
+	rawConditions,
 	type ThreadCondition,
 	textCondition,
 	threadOrderBy,
@@ -104,30 +104,25 @@ export const getPullRequests = createServerFn({ method: "GET" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			status: z.enum(["open", "closed", "merged", "all"]).default("open"),
-			/** Only pull requests carrying every one of these labels. */
-			labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
-			/** A GitHub query string (`?q=`); merged with the filters above. */
-			query: z.string().max(MAX_SEARCH_QUERY_CHARS).optional(),
+			/** A GitHub query string (`?q=`); the only list filter. */
+			query: z.string().max(MAX_SEARCH_QUERY_CHARS).default(""),
 		}),
 	)
 	.handler(({ data }) => {
-		const search = data.query ? parseSearchQuery(data.query) : undefined;
+		const search = parseSearchQuery(data.query);
 		// `is:issue` can't match the pull request list.
-		const matchesNothing =
-			search?.matchesNothing === true || search?.type === "issue";
-		const status = search?.status ?? data.status;
-		const labels = [...data.labels, ...(search?.labels ?? [])];
+		const matchesNothing = search.matchesNothing || search.type === "issue";
+		const status = search.status ?? "open";
 		const conditions: ThreadCondition[] = [];
 		const add = (condition: ThreadCondition | undefined) => {
 			if (condition) conditions.push(condition);
 		};
-		add(textCondition(search?.terms ?? []));
-		add(authorCondition(search?.authors ?? []));
-		add(mentionsCondition(search?.mentions ?? [], comments.pullRequestId));
-		add(labelCondition(data.repoId, labels, search?.noLabel ?? false));
+		add(textCondition(search.terms));
+		add(authorCondition(search.authors));
+		add(mentionsCondition(search.mentions, comments.pullRequestId));
+		add(labelCondition(data.repoId, search.labels, search.noLabel));
 		return readWithAccess(
 			`getPullRequests ${status}`,
 			data.repoId,
@@ -139,19 +134,12 @@ export const getPullRequests = createServerFn({ method: "GET" })
 						where: {
 							repoId: data.repoId,
 							...(status === "all" ? {} : { status }),
-							...(conditions.length > 0
-								? {
-										AND: conditions.map((condition) => ({
-											RAW: (table) => condition(table),
-										})),
-									}
-								: {}),
+							// Same idiom as getIssues: andFilter omits the key when
+							// there is no condition (Drizzle 1.0 rejects an empty AND).
+							...andFilter(rawConditions(conditions)),
 						},
 						with: { author: publicUserFields },
-						orderBy: threadOrderBy(
-							search?.sort ?? "created-desc",
-							comments.pullRequestId,
-						),
+						orderBy: threadOrderBy(search.sort, comments.pullRequestId),
 						limit: data.limit,
 						offset: data.skip,
 					}),

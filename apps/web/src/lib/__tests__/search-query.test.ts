@@ -103,15 +103,21 @@ describe("parseSearchQuery", () => {
 		expect(parseSearchQuery("sort:bogus").sort).toBe("created-desc");
 	});
 
-	it("ignores unknown qualifiers rather than searching them", () => {
-		expect(parseSearchQuery("milestone:v1 whatever:x is:open")).toMatchObject({
-			status: "open",
+	it("treats an unknown qualifier as free text, not a dropped token", () => {
+		expect(parseSearchQuery("http://x")).toMatchObject({ terms: ["http://x"] });
+		expect(parseSearchQuery("a:b")).toMatchObject({ terms: ["a:b"] });
+		expect(parseSearchQuery('"a:b"')).toMatchObject({ terms: ["a:b"] });
+		expect(parseSearchQuery("label:x")).toMatchObject({
 			terms: [],
+			labels: ["x"],
 		});
-		// Negation is not supported: the token is ignored, not searched as text.
-		expect(parseSearchQuery("-label:bug is:open")).toMatchObject({
+		expect(parseSearchQuery("milestone:v1 is:open")).toMatchObject({
 			status: "open",
-			terms: [],
+			terms: ["milestone:v1"],
+		});
+		// Negation is not supported: it is searched as text.
+		expect(parseSearchQuery("-label:bug")).toMatchObject({
+			terms: ["-label:bug"],
 		});
 	});
 

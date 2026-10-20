@@ -87,12 +87,6 @@ export const queryKeys = {
 		depth: "banner" | "full" = "full",
 	) =>
 		["repos", repoId, "file-history", branchName, path, limit, depth] as const,
-	repoIssues: (
-		repoId: number,
-		status: "open" | "closed" | "all",
-		labels: string[] = [],
-		assignee?: string,
-	) => ["repos", repoId, "issues", status, labels, assignee ?? null] as const,
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
@@ -112,11 +106,6 @@ export const queryKeys = {
 	issueByNumber: (owner: string, name: string, number: number) =>
 		["repos", owner, name, "issues", number] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,
-	pullRequests: (
-		repoId: number,
-		status: "open" | "closed" | "merged" | "all",
-		labels: string[] = [],
-	) => ["repos", repoId, "pull-requests", status, labels] as const,
 	pullRequestsRoot: (repoId: number) =>
 		["repos", repoId, "pull-requests"] as const,
 	pullRequestByNumber: (owner: string, name: string, number: number) =>
@@ -509,25 +498,6 @@ export function repositoryLabelsQueryOptions(repoId: number) {
 	});
 }
 
-export function repositoryIssuesQueryOptions({
-	repoId,
-	status,
-	labels = [],
-	assignee,
-}: {
-	repoId: number;
-	status: "open" | "closed" | "all";
-	labels?: string[];
-	/** A username, `none` or `*` (see getIssues). */
-	assignee?: string;
-}) {
-	return queryOptions({
-		queryKey: queryKeys.repoIssues(repoId, status, labels, assignee),
-		queryFn: () => getIssues({ data: { repoId, status, labels, assignee } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
 export function issueByNumberQueryOptions({
 	owner,
 	name,
@@ -548,22 +518,6 @@ export function issueCommentsQueryOptions(issueId: number) {
 	return queryOptions({
 		queryKey: queryKeys.issueComments(issueId),
 		queryFn: () => getComments({ data: { issueId } }),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-}
-
-export function repositoryPullRequestsQueryOptions({
-	repoId,
-	status,
-	labels = [],
-}: {
-	repoId: number;
-	status: "open" | "closed" | "merged" | "all";
-	labels?: string[];
-}) {
-	return queryOptions({
-		queryKey: queryKeys.pullRequests(repoId, status, labels),
-		queryFn: () => getPullRequests({ data: { repoId, status, labels } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
