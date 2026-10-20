@@ -2,8 +2,9 @@
  * GitHub's JSON shapes (snake_case, ISO-8601 timestamps) for what PushStack
  * stores. Fields PushStack has no equivalent for are omitted, never renamed.
  */
-import type { Repository } from "#/db/app-schema";
-import { getCloneUrl } from "#/lib/git-utils";
+import type { CommitInfo } from "git-fs-s3/ops";
+import type { PullRequest, Repository } from "#/db/app-schema";
+import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import type { PublicUser } from "../repository-lookup";
@@ -273,4 +274,156 @@ export function timelineEvent(entry: TimelineEntry, ctx: TimelineContext) {
 				},
 			};
 	}
+}
+
+type Identity = CommitInfo["commit"]["author"];
+
+/**
+ * Web-UI commits are stamped with the account's sign-in email, which must
+ * never leave the server, so every identity gets one noreply placeholder.
+ */
+export const gitIdentity = ({ name, timestamp }: Identity) => ({
+	name,
+	email: `noreply@${new URL(getGitBaseUrl()).host}`,
+	date: isoTimestamp(new Date(timestamp * 1000)),
+});
+
+/** GitHub's commit object (as `GET /pulls/{n}/commits` lists it). */
+export function commitObject(fullName: string, info: CommitInfo) {
+	const { commit, oid } = info;
+	const url = apiUrl(`/repos/${fullName}/commits/${oid}`);
+	return {
+		sha: oid,
+		commit: {
+			url,
+			author: gitIdentity(commit.author),
+			committer: gitIdentity(commit.committer),
+			message: commit.message,
+			tree: {
+				sha: commit.tree,
+				url: apiUrl(`/repos/${fullName}/git/trees/${commit.tree}`),
+			},
+			comment_count: 0,
+		},
+		url,
+		html_url: htmlUrl(`/repo/${fullName}/commit/${oid}`),
+		comments_url: apiUrl(`/repos/${fullName}/commits/${oid}/comments`),
+		// Commits aren't linked to accounts by email (yet).
+		author: null,
+		committer: null,
+		parents: commit.parent.map((sha) => ({
+			sha,
+			url: apiUrl(`/repos/${fullName}/commits/${sha}`),
+			html_url: htmlUrl(`/repo/${fullName}/commit/${sha}`),
+		})),
+	};
+}
+
+/** What the pull request serializer needs beyond the stored row. */
+export interface PullShapeInput {
+	repo: Repository & { owner: PublicUser };
+	/** The repository object both `head.repo` and `base.repo` carry. */
+	repoShape: Record<string, unknown>;
+	row: PullRequest;
+	author: PublicUser;
+	labels: LabelView[];
+	commentsCount: number;
+	headSha: string;
+	baseSha: string;
+	/** Present on a single pull request (GitHub omits these from lists). */
+	detail?: {
+		mergedBy: PublicUser | null;
+		reviewComments: number;
+		commits: number;
+		additions: number;
+		deletions: number;
+		changedFiles: number;
+	};
+}
+
+/** GitHub's pull request shape; the single-resource extras come with `detail`. */
+export function pullRequest(input: PullShapeInput): Record<string, unknown> {
+	const { repo, row } = input;
+	const fullName = `${repo.owner.username}/${repo.name}`;
+	const number = row.number;
+	const url = apiUrl(`/repos/${fullName}/pulls/${number}`);
+	const web = htmlUrl(`/repo/${fullName}/pulls/${number}`);
+	const side = (ref: string, sha: string) => ({
+		label: `${repo.owner.username}:${ref}`,
+		ref,
+		sha,
+		user: simpleUser(repo.owner),
+		repo: input.repoShape,
+	});
+	const merged = row.status === "merged";
+	const closedAt =
+		row.status === "open" ? null : (row.mergedAt ?? row.updatedAt);
+	const detail = input.detail;
+	return {
+		url,
+		id: row.id,
+		html_url: web,
+		diff_url: `${web}.diff`,
+		patch_url: `${web}.patch`,
+		issue_url: apiUrl(`/repos/${fullName}/issues/${number}`),
+		commits_url: `${url}/commits`,
+		review_comments_url: `${url}/comments`,
+		review_comment_url: apiUrl(`/repos/${fullName}/pulls/comments{/number}`),
+		comments_url: apiUrl(`/repos/${fullName}/issues/${number}/comments`),
+		statuses_url: apiUrl(`/repos/${fullName}/statuses/${input.headSha}`),
+		number,
+		state: row.status === "open" ? "open" : "closed",
+		locked: false,
+		title: row.title,
+		user: simpleUser(input.author),
+		body: row.body,
+		labels: input.labels.map((value) => label({ fullName }, value)),
+		milestone: null,
+		active_lock_reason: null,
+		created_at: isoTimestamp(row.createdAt),
+		updated_at: isoTimestamp(row.updatedAt),
+		closed_at: closedAt ? isoTimestamp(closedAt) : null,
+		merged_at: row.mergedAt ? isoTimestamp(row.mergedAt) : null,
+		merge_commit_sha: row.mergeCommitSha,
+		assignee: null,
+		assignees: [],
+		requested_reviewers: [],
+		requested_teams: [],
+		head: side(row.sourceBranch, input.headSha),
+		base: side(row.targetBranch, input.baseSha),
+		_links: {
+			self: { href: url },
+			html: { href: web },
+			issue: { href: apiUrl(`/repos/${fullName}/issues/${number}`) },
+			comments: {
+				href: apiUrl(`/repos/${fullName}/issues/${number}/comments`),
+			},
+			review_comments: { href: `${url}/comments` },
+			review_comment: {
+				href: apiUrl(`/repos/${fullName}/pulls/comments{/number}`),
+			},
+			commits: { href: `${url}/commits` },
+			statuses: {
+				href: apiUrl(`/repos/${fullName}/statuses/${input.headSha}`),
+			},
+		},
+		auto_merge: null,
+		draft: false,
+		...(detail && {
+			merged,
+			// Conflicts aren't pre-computed: an open pull request's mergeability
+			// is "not yet known", which GitHub also reports while it computes.
+			mergeable: merged ? false : null,
+			rebaseable: false,
+			mergeable_state: "unknown",
+			merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
+			comments: input.commentsCount,
+			review_comments: detail.reviewComments,
+			maintainer_can_modify: false,
+			commits: detail.commits,
+			additions: detail.additions,
+			deletions: detail.deletions,
+			changed_files: detail.changedFiles,
+		}),
+	};
 }

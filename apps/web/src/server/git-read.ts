@@ -76,6 +76,22 @@ async function findFileEntry(
 	return { entry: entries.find((entry) => entry.path === filePath), commitOid };
 }
 
+/** The oid of the blob or submodule at `filePath` in `ref`, or null when absent. */
+export async function getEntryOid(
+	ownerKey: string,
+	repoName: string,
+	ref: string,
+	filePath: string,
+): Promise<string | null> {
+	const { entry } = await findFileEntry(
+		repoFor(ownerKey, repoName),
+		ref,
+		filePath,
+		opsHooksFor(ownerKey, repoName),
+	);
+	return entry?.oid ?? null;
+}
+
 /** A blob or submodule at a revision; only small text blobs travel inline. */
 export async function getFileView(
 	ownerKey: string,

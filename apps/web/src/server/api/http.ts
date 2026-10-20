@@ -163,9 +163,13 @@ export function pagedList<T, R>(
 	return json(slice.map(serialize), 200, linkHeader(url, params, items.length));
 }
 
-/** The request's JSON object body; 400 like GitHub when it isn't one. */
+/**
+ * The request's JSON object body; 400 like GitHub when it isn't one (or, when
+ * `allowEmpty`, when it is neither empty nor one).
+ */
 export async function readJsonObject(
 	request: Request,
+	options: { allowEmpty?: boolean } = {},
 ): Promise<Record<string, unknown>> {
 	const invalid = () => new ApiError(400, "Problems parsing JSON");
 	const tooLarge = () => new ApiError(413, "Request body too large");
@@ -196,6 +200,8 @@ export async function readJsonObject(
 		bytes.set(chunk, offset);
 		offset += chunk.byteLength;
 	}
+	// Some GitHub endpoints (a merge) take an optional body.
+	if (total === 0 && options.allowEmpty) return {};
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(new TextDecoder().decode(bytes));
