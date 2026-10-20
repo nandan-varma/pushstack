@@ -76,3 +76,10 @@ export const MAX_LABELS_PER_THREAD = 100;
 
 /** GitHub's cap on assignees per issue. */
 export const MAX_ASSIGNEES = 10;
+
+/**
+ * A review comment's diff path. A git path is far shorter than this in
+ * practice; the bound exists so an unvalidated-looking path can't be persisted
+ * as an unbounded string.
+ */
+export const MAX_REVIEW_PATH_CHARS = 4096;

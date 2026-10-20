@@ -18,17 +18,20 @@ import {
 } from "@/components/DetailHeader";
 import { EditableTitle } from "@/components/EditableTitle";
 import { EmptyState } from "@/components/EmptyState";
-import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
-import { pullRequestStatusVariant } from "@/components/status-variants";
+import { PullRequestFilesTab } from "@/components/repo/PullRequestFilesTab";
+import {
+	pullRequestStatusVariant,
+	reviewStatusLabel,
+	reviewStatusVariant,
+} from "@/components/status-variants";
 import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -322,9 +325,16 @@ function PullRequestDetailPage() {
 					/>
 				}
 				badge={
-					<Badge variant={pullRequestStatusVariant(pr.status)}>
-						{pr.status}
-					</Badge>
+					<div className="flex items-center gap-2">
+						<Badge variant={pullRequestStatusVariant(pr.status)}>
+							{pr.status}
+						</Badge>
+						{pr.review.summary.state && (
+							<Badge variant={reviewStatusVariant(pr.review.summary.state)}>
+								{reviewStatusLabel(pr.review.summary.state)}
+							</Badge>
+						)}
+					</div>
 				}
 				meta={
 					<p className="flex flex-wrap items-center gap-1 text-muted-foreground">
@@ -510,30 +520,13 @@ function PullRequestDetailPage() {
 					)}
 				</TabsContent>
 				<TabsContent value="files">
-					{/* Files changed */}
-					<Card className="p-6">
-						<h3 className="text-lg font-semibold text-foreground">
-							Files changed{" "}
-							{diff?.files && (
-								<span className="text-sm font-normal text-muted-foreground">
-									({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
-									<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
-									<span className="text-red-600">-{diff.totalDeletions}</span>)
-								</span>
-							)}
-						</h3>
-						<FileDiffViewer
-							files={diff?.files}
-							sides={{
-								owner,
-								name,
-								oldRef: diff?.oldRef,
-								newRef: diff?.newRef ?? pr.sourceBranch,
-							}}
-							isLoading={diffLoading}
-							emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
-						/>
-					</Card>
+					<PullRequestFilesTab
+						owner={owner}
+						name={name}
+						pr={pr}
+						diff={diff}
+						diffLoading={diffLoading}
+					/>
 				</TabsContent>
 			</Tabs>
 		</div>

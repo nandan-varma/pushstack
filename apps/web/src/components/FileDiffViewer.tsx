@@ -1,9 +1,10 @@
 import type { DiffFile } from "git-fs-s3/ops";
 import { ChevronRight } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { BinaryPreview } from "@/components/BinaryPreview";
+import type { DiffAnchor } from "@/lib/diff-anchors";
 import { rawFileUrl } from "@/lib/file-view";
 import {
 	detectLanguage,
@@ -265,6 +266,25 @@ function getHunkSegments(lines: ParsedDiffLine[]): HunkSegment[] {
 
 const NO_TOKENS: ThemedToken[] = [];
 
+/** Every side of a rendered diff line a comment can attach to. */
+function anchorsForLine(path: string, line: ParsedDiffLine): DiffAnchor[] {
+	const anchors: DiffAnchor[] = [];
+	if (line.oldLine !== null) {
+		anchors.push({ path, side: "LEFT", line: line.oldLine });
+	}
+	if (line.newLine !== null) {
+		anchors.push({ path, side: "RIGHT", line: line.newLine });
+	}
+	return anchors;
+}
+
+/** The anchor a line's "+" button uses: the new side, except on a removal. */
+function primaryAnchor(path: string, line: ParsedDiffLine): DiffAnchor | null {
+	if (line.newLine !== null) return { path, side: "RIGHT", line: line.newLine };
+	if (line.oldLine !== null) return { path, side: "LEFT", line: line.oldLine };
+	return null;
+}
+
 function tokenStyle(token: ThemedToken): CSSProperties {
 	return (token.htmlStyle ?? {}) as CSSProperties;
 }
@@ -303,6 +323,8 @@ export function FileDiffViewer({
 	isLoading,
 	emptyMessage,
 	summaryExtra,
+	renderLineActions,
+	renderThreads,
 }: {
 	files?: FileDiff[];
 	/** Needed to preview binary media; without it they're summarized. */
@@ -310,6 +332,10 @@ export function FileDiffViewer({
 	isLoading?: boolean;
 	emptyMessage?: string;
 	summaryExtra?: ReactNode;
+	/** A per-line control (e.g. a "comment" button), rendered after the code. */
+	renderLineActions?: (anchor: DiffAnchor) => ReactNode;
+	/** The threads anchored to a line, rendered as a full-width row below it. */
+	renderThreads?: (anchors: DiffAnchor[]) => ReactNode;
 }) {
 	const parsedFiles = useMemo<ParsedFileDiff[]>(
 		() =>
@@ -544,32 +570,49 @@ export function FileDiffViewer({
 							) : fileDiff.kind !== "text" ? (
 								<UnpatchedDiff fileDiff={fileDiff} sides={sides} />
 							) : (
-								<pre className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
-									<code>
-										{fileDiff.lines.map((line, lineIndex) =>
-											line.kind === "hunk" ? null : (
-												<div
+								<div className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
+									<div className="diff-patch-body">
+										{fileDiff.lines.map((line, lineIndex) => {
+											if (line.kind === "hunk") return null;
+											const anchors = anchorsForLine(fileDiff.path, line);
+											const primary = primaryAnchor(fileDiff.path, line);
+											const threadContent = renderThreads
+												? renderThreads(anchors)
+												: null;
+											return (
+												<Fragment
 													key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
-													className={`diff-line diff-line--${line.kind}`}
 												>
-													<span className="diff-gutter diff-gutter--old">
-														{line.oldLine ?? ""}
-													</span>
-													<span className="diff-gutter diff-gutter--new">
-														{line.newLine ?? ""}
-													</span>
-													<span className="diff-prefix">{line.prefix}</span>
-													<span className="diff-code">
-														{renderLineCode(
-															line,
-															lineTokensByPath[fileDiff.path]?.[lineIndex],
-														)}
-													</span>
-												</div>
-											),
-										)}
-									</code>
-								</pre>
+													<div className={`diff-line diff-line--${line.kind}`}>
+														<span className="diff-gutter diff-gutter--old">
+															{line.oldLine ?? ""}
+														</span>
+														<span className="diff-gutter diff-gutter--new">
+															{line.newLine ?? ""}
+														</span>
+														<span className="diff-prefix">{line.prefix}</span>
+														<span className="diff-code">
+															{renderLineCode(
+																line,
+																lineTokensByPath[fileDiff.path]?.[lineIndex],
+															)}
+														</span>
+														{renderLineActions && primary ? (
+															<span className="diff-line-actions">
+																{renderLineActions(primary)}
+															</span>
+														) : null}
+													</div>
+													{threadContent ? (
+														<div className="diff-thread-row">
+															{threadContent}
+														</div>
+													) : null}
+												</Fragment>
+											);
+										})}
+									</div>
+								</div>
 							)}
 						</div>
 					) : (

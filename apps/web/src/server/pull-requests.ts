@@ -21,6 +21,7 @@ import { deleteBranch, mergeBranches } from "./git-write";
 import { threadsWithLabels, withLabels } from "./label-store";
 import {
 	canMergePullRequest,
+	canModerateRepo,
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
@@ -31,7 +32,8 @@ import {
 	publicUserFields,
 	readRepoByName,
 } from "./repository-lookup";
-import { getCurrentUser } from "./session";
+import { reviewSummaryFor } from "./review-store";
+import { getCurrentUser, getCurrentUserOptional } from "./session";
 import {
 	recordCrossReferences,
 	recordTimelineEvent,
@@ -159,10 +161,19 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 				});
 				if (!pr) throw notFound();
 				const [withPrLabels] = await withLabels(repo.id, [pr]);
+				const viewerAccess = await getViewerRepositoryAccess(repo.id);
+				const viewer = await getCurrentUserOptional();
 				return {
 					...pr,
 					labels: withPrLabels?.labels ?? [],
-					viewer: await getViewerRepositoryAccess(repo.id),
+					viewer: viewerAccess,
+					review: {
+						summary: await reviewSummaryFor(pr.id),
+						// Approving and requesting changes need write access, and GitHub
+						// forbids either on one's own pull request.
+						canApprove: viewerAccess.canWrite && viewer?.id !== pr.authorId,
+						canResolve: viewerAccess.canWrite || viewer?.id === pr.authorId,
+					},
 				};
 			},
 		),
@@ -253,6 +264,14 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		if (pr.status !== "open") throw new Error("Pull request is not open");
+		// GitHub blocks the merge while a reviewer's latest review requested
+		// changes; an owner/admin may override, as GitHub's admin permission can.
+		if (
+			(await reviewSummaryFor(pr.id)).blocksMerge &&
+			!(await canModerateRepo(pr.repoId, currentUser.id))
+		) {
+			throw new Error("Changes were requested on this pull request");
+		}
 
 		return writeWithAccess(pr.repoId, async (repo) => {
 			const result = await mergeBranches(

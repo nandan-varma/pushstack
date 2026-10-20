@@ -264,7 +264,7 @@ pre code {
    off the parent grid's own max-content track, which is unreliable once
    that width depends on asynchronously-streamed syntax-highlight tokens —
    rows would end up sized to their own content instead of the widest line.) */
-.diff-patch code {
+.diff-patch .diff-patch-body {
   display: block;
   width: max-content;
   min-width: 100%;
@@ -272,10 +272,30 @@ pre code {
 
 .diff-line {
   display: grid;
-  grid-template-columns: 3.5rem 3.5rem 1.25rem minmax(0, 1fr);
+  grid-template-columns: 3.5rem 3.5rem 1.25rem minmax(0, 1fr) auto;
   align-items: baseline;
   min-height: 1.5rem;
   background: var(--row-bg, transparent);
+}
+
+/* A per-line control (the review "comment" button); empty unless the viewer
+   is looking at a pull request's diff. */
+.diff-line-actions {
+  padding: 0 0.4rem;
+  user-select: none;
+}
+
+/* A review thread under the line it is anchored to. The diff body is
+   max-content wide, so the thread card caps its own width instead. */
+.diff-thread-row {
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
+}
+
+.diff-thread-row > * {
+  max-width: 46rem;
 }
 
 /* Gutter/prefix cells stick to the left edge while the code column scrolls

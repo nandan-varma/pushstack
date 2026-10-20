@@ -79,6 +79,47 @@ export const relations = defineRelations(
 				from: r.pullRequests.id,
 				to: r.comments.pullRequestId,
 			}),
+			reviews: r.many.pullRequestReviews({
+				from: r.pullRequests.id,
+				to: r.pullRequestReviews.pullRequestId,
+			}),
+			reviewComments: r.many.pullRequestReviewComments({
+				from: r.pullRequests.id,
+				to: r.pullRequestReviewComments.pullRequestId,
+			}),
+		},
+		pullRequestReviews: {
+			pullRequest: r.one.pullRequests({
+				from: r.pullRequestReviews.pullRequestId,
+				to: r.pullRequests.id,
+				optional: false,
+			}),
+			author: r.one.user({
+				from: r.pullRequestReviews.authorId,
+				to: r.user.id,
+				optional: false,
+			}),
+			comments: r.many.pullRequestReviewComments({
+				from: r.pullRequestReviews.id,
+				to: r.pullRequestReviewComments.reviewId,
+			}),
+		},
+		pullRequestReviewComments: {
+			pullRequest: r.one.pullRequests({
+				from: r.pullRequestReviewComments.pullRequestId,
+				to: r.pullRequests.id,
+				optional: false,
+			}),
+			review: r.one.pullRequestReviews({
+				from: r.pullRequestReviewComments.reviewId,
+				to: r.pullRequestReviews.id,
+				optional: false,
+			}),
+			author: r.one.user({
+				from: r.pullRequestReviewComments.authorId,
+				to: r.user.id,
+				optional: false,
+			}),
 		},
 		comments: {
 			repository: r.one.repositories({
