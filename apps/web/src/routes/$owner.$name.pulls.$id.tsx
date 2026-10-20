@@ -44,6 +44,7 @@ import {
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
+	threadReactionsQueryOptions,
 } from "@/lib/query-options";
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
@@ -106,9 +107,14 @@ export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 		// Comments are keyed by the PR's internal id, only known once the PR
 		// itself has resolved — can't start this in parallel with it.
 		if (pr) {
-			await queryClient
-				.ensureInfiniteQueryData(pullRequestCommentsQueryOptions(pr.id))
-				.catch(() => {});
+			await Promise.all([
+				queryClient
+					.ensureInfiniteQueryData(pullRequestCommentsQueryOptions(pr.id))
+					.catch(() => {}),
+				queryClient
+					.ensureQueryData(threadReactionsQueryOptions(pr.repoId, pr.number))
+					.catch(() => {}),
+			]);
 		}
 
 		// MarkdownRenderer (PR body + comments) resolves `#123` references using

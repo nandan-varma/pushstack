@@ -9,7 +9,7 @@ import {
 	type ReactionSubject,
 	removeReaction,
 } from "./reaction-store";
-import { readWithAccess, requireParticipateAccess } from "./repo-access";
+import { getRepositoryAccess, readWithAccess } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { findThreadByNumber } from "./thread-store";
 
@@ -43,7 +43,11 @@ export const toggleReaction = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
-		await requireParticipateAccess(data.repoId, user.id);
+		const access = await getRepositoryAccess(data.repoId, user.id);
+		if (!access?.canRead) throw notFound();
+		if (!access.canParticipate) {
+			throw new Error("You can't react in this repository");
+		}
 		const thread = await findThreadByNumber(data.repoId, data.number);
 		if (!thread) throw notFound();
 		const subject: ReactionSubject = { issueId: thread.id };

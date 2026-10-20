@@ -13,6 +13,7 @@ import {
 	emptyReactionSummary,
 	REACTION_CONTENTS,
 	REACTION_EMOJI,
+	REACTION_LABEL,
 	type ReactionContent,
 } from "@/lib/reactions";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,8 @@ export function ReactionBar({
 						{REACTION_CONTENTS.map((content) => (
 							<DropdownMenuItem
 								key={content}
-								aria-label={content}
+								aria-label={REACTION_LABEL[content]}
+								disabled={mutation.isPending}
 								className={cn(
 									"justify-center px-2 text-lg",
 									viewer.has(content) && "bg-accent",
@@ -95,25 +97,33 @@ export function ReactionBar({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			)}
-			{shown.map((content) => (
-				<Button
-					key={content}
-					variant="outline"
-					size="sm"
-					aria-label={`${content} reaction, ${summary.reactions[content]}`}
-					aria-pressed={viewer.has(content)}
-					disabled={!canReact || mutation.isPending}
-					className={cn(
-						"h-7 gap-1 rounded-full px-2 text-xs",
-						viewer.has(content) &&
-							"border-primary/50 bg-primary/10 text-foreground",
-					)}
-					onClick={() => mutation.mutate(content)}
-				>
-					<span>{REACTION_EMOJI[content]}</span>
-					{summary.reactions[content]}
-				</Button>
-			))}
+			{shown.map((content) => {
+				const label = `${REACTION_LABEL[content]} reaction, ${summary.reactions[content]}`;
+				// Signed out: aria-disabled, not disabled, so the count stays focusable.
+				return (
+					<Button
+						key={content}
+						variant="outline"
+						size="sm"
+						aria-label={label}
+						title={label}
+						aria-pressed={canReact ? viewer.has(content) : undefined}
+						aria-disabled={!canReact || mutation.isPending}
+						className={cn(
+							"h-7 gap-1 rounded-full px-2 text-xs",
+							!canReact && "cursor-default",
+							viewer.has(content) &&
+								"border-primary/50 bg-primary/10 text-foreground",
+						)}
+						onClick={() => {
+							if (canReact && !mutation.isPending) mutation.mutate(content);
+						}}
+					>
+						<span aria-hidden>{REACTION_EMOJI[content]}</span>
+						{summary.reactions[content]}
+					</Button>
+				);
+			})}
 		</div>
 	);
 }

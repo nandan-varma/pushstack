@@ -4,6 +4,7 @@
  * Reactions: per-user toggles on issues, pull requests and comments, GitHub's
  * `reactions` rollup with `total_count`, and who may react.
  */
+import { isNotFound } from "@tanstack/react-router";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
@@ -26,6 +27,7 @@ const { getThreadReactions, toggleReaction } = await import("../reactions");
 const users = await createUsers("owner", "reader", "stranger");
 let repoId: number;
 let privateRepoId: number;
+let privateNumber: number;
 let issueNumber: number;
 let issueId: number;
 let commentId: number;
@@ -39,6 +41,11 @@ beforeAll(async () => {
 			data: { name: "p", visibility: "private" },
 		})
 	).id;
+	privateNumber = (
+		await issues.createIssue({
+			data: { repoId: privateRepoId, title: "Secret", body: "" },
+		})
+	).number;
 	await files.uploadFile({
 		data: {
 			repoId,
@@ -177,17 +184,26 @@ describe("reactions", () => {
 		});
 		expect(issue.reactions.total_count).toBeGreaterThan(0);
 		expect(issue.viewerReactions).toEqual([]);
-		await expect(react({ content: "eyes" })).rejects.toThrow();
+		await expect(react({ content: "eyes" })).rejects.toThrow("Unauthorized");
+	});
 
+	it("hides a private repository's thread from non-readers", async () => {
+		const privateThread = { repoId: privateRepoId, number: privateNumber };
 		signIn(users.stranger);
 		await expect(
-			toggleReaction({
-				data: { repoId: privateRepoId, number: 1, content: "eyes" },
-			}),
-		).rejects.toThrow();
-		await expect(
-			getThreadReactions({ data: { repoId: privateRepoId, number: 1 } }),
-		).rejects.toBeTruthy();
+			toggleReaction({ data: { ...privateThread, content: "eyes" } }),
+		).rejects.toSatisfy(isNotFound);
+		await expect(getThreadReactions({ data: privateThread })).rejects.toSatisfy(
+			isNotFound,
+		);
+
+		signIn(users.owner);
+		expect(
+			await toggleReaction({ data: { ...privateThread, content: "eyes" } }),
+		).toEqual({ reacted: true });
+		const { issue } = await getThreadReactions({ data: privateThread });
+		expect(issue.reactions.eyes).toBe(1);
+		expect(issue.viewerReactions).toEqual(["eyes"]);
 	});
 
 	it("drops a comment's reactions with the comment", async () => {

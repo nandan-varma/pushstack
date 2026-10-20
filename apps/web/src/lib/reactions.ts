@@ -23,6 +23,18 @@ export const REACTION_EMOJI: Record<ReactionContent, string> = {
 	eyes: "👀",
 };
 
+/** Human names for screen readers. */
+export const REACTION_LABEL: Record<ReactionContent, string> = {
+	"+1": "thumbs up",
+	"-1": "thumbs down",
+	laugh: "laugh",
+	hooray: "hooray",
+	confused: "confused",
+	heart: "heart",
+	rocket: "rocket",
+	eyes: "eyes",
+};
+
 export function isReactionContent(value: string): value is ReactionContent {
 	return (REACTION_CONTENTS as readonly string[]).includes(value);
 }
