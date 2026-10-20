@@ -55,11 +55,21 @@ function stream(bytes: Uint8Array): ReadableStream<Uint8Array> {
 }
 
 export async function serveRawFile(request: Request): Promise<Response> {
-	const [owner, name, ref, ...rest] = new URL(request.url).pathname
-		.replace(/^\/api\/raw\//, "")
-		.split("/")
-		.filter(Boolean)
-		.map(decodeURIComponent);
+	// A malformed percent-escape (`%`, `%E0%A4%A`) makes `decodeURIComponent`
+	// throw `URIError`, and the route handler has no catch, so it would surface
+	// as a 500 and Sentry noise for a trivially crafted URL. This route promises
+	// 404 for anything it cannot serve, and api/index.ts returns 404 here too.
+	let decoded: string[];
+	try {
+		decoded = new URL(request.url).pathname
+			.replace(/^\/api\/raw\//, "")
+			.split("/")
+			.filter(Boolean)
+			.map(decodeURIComponent);
+	} catch {
+		return notFound();
+	}
+	const [owner, name, ref, ...rest] = decoded;
 	const path = rest.join("/");
 	// Validated here because these come straight off the URL: an unvalidated
 	// ref or path could traverse into another repository's storage.
