@@ -23,6 +23,11 @@ import {
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import { getLabels } from "@/server/labels";
 import {
+	getNotifications,
+	getThreadSubscription,
+	getUnreadNotificationCount,
+} from "@/server/notifications";
+import {
 	getPullRequestByNumber,
 	getPullRequestCommits,
 	getPullRequestNumbers,
@@ -71,6 +76,13 @@ export const queryKeys = {
 		["repos", repoId, "timeline", number] as const,
 	threadReactions: (repoId: number, number: number) =>
 		["repos", repoId, "reactions", number] as const,
+	threadSubscription: (repoId: number, number: number) =>
+		["repos", repoId, "subscription", number] as const,
+	/** The inbox lists and the unread badge: every notification read. */
+	notificationsRoot: ["notifications"] as const,
+	notifications: (filter: { all: boolean; participating: boolean }) =>
+		["notifications", "list", filter.all, filter.participating] as const,
+	unreadNotificationCount: ["notifications", "unread-count"] as const,
 	/**
 	 * Everything a write to a branch's content can change: file views, tree
 	 * pages, last commits and file history. An upload or a merge invalidates
@@ -559,6 +571,35 @@ export function threadReactionsQueryOptions(repoId: number, number: number) {
 		queryKey: queryKeys.threadReactions(repoId, number),
 		queryFn: () => getThreadReactions({ data: { repoId, number } }),
 		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function threadSubscriptionQueryOptions(repoId: number, number: number) {
+	return queryOptions({
+		queryKey: queryKeys.threadSubscription(repoId, number),
+		queryFn: () => getThreadSubscription({ data: { repoId, number } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function notificationsQueryOptions(filter: {
+	all: boolean;
+	participating: boolean;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.notifications(filter),
+		queryFn: () => getNotifications({ data: filter }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** The header badge; refreshed every minute while a tab is open. */
+export function unreadNotificationCountQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.unreadNotificationCount,
+		queryFn: () => getUnreadNotificationCount(),
+		staleTime: 30_000,
+		refetchInterval: 60_000,
 	});
 }
 

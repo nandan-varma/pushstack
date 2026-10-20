@@ -26,6 +26,7 @@ import {
 	useThreadComments,
 } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
@@ -445,6 +446,9 @@ function PullRequestDetailPage() {
 						labels={pr.labels}
 						canEdit={pr.viewer.canWrite}
 					/>
+					{pr.viewer.canParticipate && (
+						<ThreadSubscriptionButton repoId={pr.repoId} number={pr.number} />
+					)}
 
 					<ThreadConversation
 						owner={owner}

@@ -17,6 +17,7 @@ import {
 	useThreadComments,
 } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -270,6 +271,9 @@ function IssueDetailPage() {
 				labels={issue.labels}
 				canEdit={issue.viewer.canWrite}
 			/>
+			{issue.viewer.canParticipate && (
+				<ThreadSubscriptionButton repoId={issue.repoId} number={issue.number} />
+			)}
 
 			<ThreadConversation
 				owner={owner}
