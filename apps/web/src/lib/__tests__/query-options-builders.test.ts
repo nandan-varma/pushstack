@@ -394,7 +394,10 @@ describe("addPostedComment", () => {
 	it("keeps the posted comment locally and marks the pages stale without refetching", async () => {
 		const queryClient = new QueryClient();
 		const key = issueCommentsQueryOptions(5).queryKey;
-		queryClient.setQueryData(key, { pages: [[{ id: 1 }]], pageParams: [0] });
+		queryClient.setQueryData(key, {
+			pages: [[{ id: 1 }]],
+			pageParams: [0],
+		} as never);
 		await addPostedComment(queryClient, key, { id: 2 } as never);
 		await addPostedComment(queryClient, key, { id: 3 } as never);
 		expect(
