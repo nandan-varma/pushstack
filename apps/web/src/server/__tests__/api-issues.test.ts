@@ -905,6 +905,16 @@ describe("contract input validation", () => {
 			"/repos/alice/proj/issues/comments/abc",
 			"/repos/alice/proj/issues/-1/labels",
 			"/repos/alice/proj/issues/abc/timeline",
+			// Past the integer columns: a 404, never a database error.
+			"/repos/alice/proj/issues/99999999999",
+			"/repos/alice/proj/issues/2147483648",
+			"/repos/alice/proj/issues/comments/99999999999",
+			// Only canonical digits name a number.
+			"/repos/alice/proj/issues/0x1",
+			"/repos/alice/proj/issues/1e0",
+			"/repos/alice/proj/issues/1.0",
+			"/repos/alice/proj/issues/%201",
+			"/repos/alice/proj/issues/01",
 		]) {
 			expect((await call(path)).status, path).toBe(404);
 		}

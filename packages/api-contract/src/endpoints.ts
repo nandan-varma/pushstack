@@ -111,7 +111,7 @@ export const endpoints = defineEndpoints({
 		response: repository,
 	},
 	"users/get-by-id": {
-		params: z.object({ account_id: positiveInt.max(2_147_483_647) }),
+		params: z.object({ account_id: positiveInt }),
 		response: publicUser,
 	},
 	"users/get-by-username": {
