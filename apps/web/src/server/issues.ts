@@ -9,6 +9,7 @@ import {
 	MAX_BODY_CHARS,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
+	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import { andFilter } from "./db-filters";
@@ -43,7 +44,7 @@ export const createIssue = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			title: z.string().trim().min(1).max(256),
+			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			labels: issueLabelsSchema.default([]),
 		}),
@@ -168,7 +169,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			issueId: z.number(),
-			title: z.string().trim().min(1).max(256).optional(),
+			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
 		}),

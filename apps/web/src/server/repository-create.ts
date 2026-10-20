@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
+import { MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
 import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
@@ -34,7 +35,7 @@ export const repoNameSchema = z
 
 export const createRepositoryInputSchema = z.object({
 	name: repoNameSchema,
-	description: z.string().trim().max(500).optional(),
+	description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).optional(),
 	visibility: z.enum(["public", "private"]).default("public"),
 	// GitHub's "Initialize this repository with" (REST auto_init,
 	// gitignore_template, license_template).

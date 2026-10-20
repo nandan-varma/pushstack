@@ -11,6 +11,7 @@ import {
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
+	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import { recordActivity } from "./activity";
@@ -55,7 +56,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			title: z.string().trim().min(1).max(256),
+			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			sourceBranchName: safeBranchNameSchema,
 			targetBranchName: safeBranchNameSchema,
@@ -210,7 +211,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			prId: z.number(),
-			title: z.string().trim().min(1).max(256).optional(),
+			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
 		}),

@@ -90,3 +90,12 @@ export const MAX_ASSIGNEES = 10;
  * as an unbounded string.
  */
 export const MAX_REVIEW_PATH_CHARS = 4096;
+
+/** An issue or pull request title (GitHub's limit). */
+export const MAX_THREAD_TITLE_CHARS = 256;
+
+/** A repository description. */
+export const MAX_REPO_DESCRIPTION_CHARS = 500;
+
+/** A personal access token's name. */
+export const MAX_TOKEN_NAME_CHARS = 100;

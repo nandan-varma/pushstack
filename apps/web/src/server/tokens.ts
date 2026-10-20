@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "#/db";
 import { tokens } from "#/db/app-schema";
 import { bytesToBase64Url, randomBytes } from "#/lib/bytes";
+import { MAX_TOKEN_NAME_CHARS } from "#/lib/limits";
 import { hashToken, TOKEN_PREFIX, TOKEN_SCOPES } from "#/lib/token-scopes";
 import { perfContext, perfStep } from "./perf-log";
 import { getCurrentUser } from "./session";
@@ -35,7 +36,7 @@ export const listTokens = createServerFn({ method: "GET" }).handler(() =>
 export const createToken = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
-			name: z.string().trim().min(1).max(100),
+			name: z.string().trim().min(1).max(MAX_TOKEN_NAME_CHARS),
 			scopes: z.array(z.enum(TOKEN_SCOPES)).min(1),
 			/** Days until expiry; `null` never expires. */
 			lifetimeDays: z.number().int().min(1).max(365).nullable(),

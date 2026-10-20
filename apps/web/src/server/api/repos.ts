@@ -18,6 +18,7 @@ import { z } from "zod";
 import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
@@ -247,7 +248,7 @@ export async function listUserRepositories(ctx: ApiContext) {
 
 const createBodySchema = z.object({
 	name: repoNameSchema,
-	description: z.string().trim().max(500).nullish(),
+	description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
 	private: z.boolean().default(false),
 	auto_init: z.boolean().default(false),
 	gitignore_template: z.enum(GITIGNORE_TEMPLATE_NAMES).optional(),

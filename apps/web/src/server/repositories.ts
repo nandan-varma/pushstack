@@ -5,7 +5,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
-import { MAX_LIST_SKIP } from "#/lib/limits";
+import { MAX_LIST_SKIP, MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
 import { isUniqueViolation } from "./db-errors";
@@ -124,7 +124,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 		z.object({
 			id: z.number(),
 			name: repoNameSchema.optional(),
-			description: z.string().trim().max(500).optional(),
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).optional(),
 			visibility: z.enum(["public", "private"]).optional(),
 			showLastCommitColumn: z.boolean().optional(),
 			autoRefreshPrDiffs: z.boolean().optional(),
