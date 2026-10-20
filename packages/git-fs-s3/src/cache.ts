@@ -154,19 +154,40 @@ export function createCachedStore(
 
 	// Range slices, keyed `${key}\0${start}\0${end}`. Separate from `cache`
 	// because a slice is not the whole object: `get`/`head` must never see it.
+	// `rangeKeysByObject` indexes them by object key so a write to one object
+	// drops only that object's slices; `dispose` keeps it in step with LRU
+	// eviction and TTL expiry.
+	const rangeKeysByObject = new Map<string, Set<string>>();
 	const rangeCache = new LRUCache<string, Uint8Array>({
 		maxSize: Math.max(1, Math.ceil(maxBytes / 4)),
 		sizeCalculation: (value) => value.byteLength || 1,
 		ttl,
+		dispose: (_value, rangeKey) => {
+			const key = rangeKey.slice(0, rangeKey.indexOf("\0"));
+			const keys = rangeKeysByObject.get(key);
+			if (keys?.delete(rangeKey) && keys.size === 0) {
+				rangeKeysByObject.delete(key);
+			}
+		},
 	});
 	const pendingRanges = new Map<string, Promise<Uint8Array | null>>();
 	const rangePrefix = (key: string) => `${key}\0`;
-	const dropRanges = (match: (rangeKey: string) => boolean) => {
-		for (const rangeKey of [...rangeCache.keys()]) {
-			if (match(rangeKey)) rangeCache.delete(rangeKey);
+	const admitRange = (key: string, rangeKey: string, data: Uint8Array) => {
+		rangeCache.set(rangeKey, clone(data), { ttl: ttlForKey?.(key) });
+		const keys = rangeKeysByObject.get(key) ?? new Set<string>();
+		keys.add(rangeKey);
+		rangeKeysByObject.set(key, keys);
+	};
+	const pendingRangeObjects = () =>
+		[...pendingRanges.keys()].map((k) => k.slice(0, k.indexOf("\0")));
+	/** Drop every slice (cached or in flight) of the object at `key`. */
+	const dropRanges = (key: string) => {
+		for (const rangeKey of [...(rangeKeysByObject.get(key) ?? [])]) {
+			rangeCache.delete(rangeKey);
 		}
+		const prefix = rangePrefix(key);
 		for (const rangeKey of [...pendingRanges.keys()]) {
-			if (match(rangeKey)) pendingRanges.delete(rangeKey);
+			if (rangeKey.startsWith(prefix)) pendingRanges.delete(rangeKey);
 		}
 	};
 
@@ -211,7 +232,7 @@ export function createCachedStore(
 		generation++;
 		pendingGets.delete(key);
 		pendingHeads.delete(key);
-		dropRanges((rangeKey) => rangeKey.startsWith(rangePrefix(key)));
+		dropRanges(key);
 	}
 
 	function coalesced<T>(
@@ -349,9 +370,7 @@ export function createCachedStore(
 							const gen = generation;
 							const fetched = await range(key, start, end);
 							if (fetched !== null && unchangedSince(gen)) {
-								rangeCache.set(rangeKey, clone(fetched), {
-									ttl: ttlForKey?.(key),
-								});
+								admitRange(key, rangeKey, fetched);
 							}
 							return fetched;
 						});
@@ -362,7 +381,12 @@ export function createCachedStore(
 
 		invalidate(prefix: string): void {
 			generation++;
-			dropRanges((rangeKey) => rangeKey.startsWith(prefix));
+			for (const key of [
+				...rangeKeysByObject.keys(),
+				...pendingRangeObjects(),
+			]) {
+				if (key.startsWith(prefix)) dropRanges(key);
+			}
 			for (const key of [...pendingGets.keys()]) {
 				if (key.startsWith(prefix)) pendingGets.delete(key);
 			}

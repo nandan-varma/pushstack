@@ -459,6 +459,40 @@ describe("createCachedStore — reads racing writes", () => {
 			expect(spy).toHaveBeenCalledTimes(5);
 		});
 
+		it("does not cache a slice fetched before a write, nor join it afterwards", async () => {
+			const inner = new MemoryObjectStore();
+			await inner.put("pack", new Uint8Array([0, 1, 2, 3]));
+			const realRange = inner.getRange.bind(inner);
+			let release: () => void = () => {};
+			const gate = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			let first = true;
+			vi.spyOn(inner, "getRange").mockImplementation(async (k, s, e) => {
+				const old = await realRange(k, s, e);
+				if (first) {
+					first = false;
+					await gate;
+				}
+				return old;
+			});
+			const cached = createCachedStore(inner);
+
+			const stale = cached.getRange?.("pack", 0, 1);
+			await Promise.resolve();
+			await cached.put("pack", new Uint8Array([9, 9, 9, 9]));
+			// Arrives after the write: must not join the pre-write read.
+			expect(await cached.getRange?.("pack", 0, 1)).toEqual(
+				new Uint8Array([9, 9]),
+			);
+			release();
+			expect(await stale).toEqual(new Uint8Array([0, 1]));
+			// The stale result must not have overwritten the cache.
+			expect(await cached.getRange?.("pack", 0, 1)).toEqual(
+				new Uint8Array([9, 9]),
+			);
+		});
+
 		it("coalesces concurrent identical ranges", async () => {
 			const { spy, cached } = await setup();
 			await Promise.all([
