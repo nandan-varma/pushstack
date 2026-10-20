@@ -78,9 +78,9 @@ describe("assignees", () => {
 	});
 
 	it("combines the assignee and label filters", async () => {
-		// Two conditions in one `AND`: a list query whose filters are all
-		// optional must omit the key when none apply (Drizzle 1.0 rejects an
-		// empty `AND` array) and must keep both when they do.
+		// Two conditions in one `AND`: with both present, neither filter may be
+		// dropped. The all-optional, no-condition case (Drizzle 1.0 rejects an
+		// empty `AND` array) is covered by labels.test.ts.
 		signIn(users.author);
 		const both = await issues.createIssue({
 			data: { repoId, title: "Both", labels: [] },
