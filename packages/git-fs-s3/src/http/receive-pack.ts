@@ -1,5 +1,6 @@
 import git from "isomorphic-git";
 import { concat, decodeAscii, decodeUtf8 } from "../edge-utils.js";
+import { isNotFoundError } from "../git-errors.js";
 import type { Repo } from "../ops/types.js";
 import { storePack } from "../pack-write.js";
 import { isSafeFullRefName } from "../refs.js";
@@ -80,7 +81,11 @@ export async function ensureRepoInitialized(
 	const fsp = rawFs(repo);
 	try {
 		await fsp.stat(`${repo.gitdir}/HEAD`);
-	} catch {
+	} catch (error) {
+		// Only a genuinely missing HEAD means "not initialized". Any other probe
+		// failure must reject the push rather than fall through to init on a
+		// repo that is merely unreadable right now (#91).
+		if ((error as { code?: string } | null)?.code !== "ENOENT") throw error;
 		await fsp.mkdir(repo.gitdir, { recursive: true }).catch(() => {});
 		await git.init({ ...repo, dir: repo.gitdir, defaultBranch, bare: true });
 	}
@@ -126,9 +131,19 @@ async function checkRefCas(
 	if (!isSafeFullRefName(refName)) {
 		return { refName, ok: false, reason: "invalid ref name" };
 	}
-	const currentOid = await git
-		.resolveRef({ ...repo, ref: refName })
-		.catch(() => ZERO_OID);
+	let currentOid: string;
+	try {
+		currentOid = await git.resolveRef({ ...repo, ref: refName });
+	} catch (error) {
+		// A ref that doesn't resolve yet is exactly what creating one looks
+		// like (oldOid === ZERO_OID), so only a genuine not-found maps to
+		// ZERO_OID. Any other read failure must reject the push: this CAS is
+		// the only protection against `force: true` in applyRefUpdates, so
+		// swallowing it would let a stale create claim overwrite a ref another
+		// writer has since moved (see #91).
+		if (!isNotFoundError(error)) throw error;
+		currentOid = ZERO_OID;
+	}
 	return currentOid === oldOid
 		? null
 		: {
@@ -150,17 +165,36 @@ async function collectExistingRefTips(repo: Repo): Promise<Set<string>> {
 		...tags.map((t) => `refs/tags/${t}`),
 	];
 	const oids = await Promise.all(
-		refs.map((ref) => git.resolveRef({ ...repo, ref }).catch(() => null)),
+		refs.map(async (ref) => {
+			try {
+				return await git.resolveRef({ ...repo, ref });
+			} catch (error) {
+				// A tip that disappeared between list and resolve is a race; dropping
+				// it can only widen the walk below (conservative), so skip it. A real
+				// read failure must reject the push rather than silently turn a
+				// storage error into a spurious "incomplete object graph".
+				if (isNotFoundError(error)) return null;
+				throw error;
+			}
+		}),
 	);
 	return new Set(oids.filter((oid): oid is string => oid !== null));
 }
 
-/** The branch HEAD names, or null when HEAD is detached/unreadable. */
+/**
+ * The branch HEAD names, or null when HEAD is detached or unborn. A HEAD read
+ * that *failed* must reject the push: `validateRefUpdates` reads null as "no
+ * default branch to protect", so swallowing a real failure would let a push
+ * delete the branch HEAD points at, leaving the repository with no default
+ * branch (see #91).
+ */
 async function currentBranchRef(repo: Repo): Promise<string | null> {
-	return git
-		.currentBranch({ ...repo, fullname: true })
-		.then((ref) => ref ?? null)
-		.catch(() => null);
+	try {
+		return (await git.currentBranch({ ...repo, fullname: true })) ?? null;
+	} catch (error) {
+		if (!isNotFoundError(error)) throw error;
+		return null;
+	}
 }
 
 async function validateRefUpdates(
@@ -209,13 +243,32 @@ export async function applyRefUpdates(
 				if (failure) return failure;
 
 				if (newOid === ZERO_OID) {
-					await git.deleteRef({ ...repo, ref: refName }).catch(() => {});
+					try {
+						await git.deleteRef({ ...repo, ref: refName });
+					} catch (error) {
+						// Already gone is the goal state (the CAS just saw it, so this is
+						// a concurrent delete). Any other failure means the ref is still
+						// there: reporting success would tell the client a deletion
+						// happened that didn't, so reject the push instead.
+						if (!isNotFoundError(error)) throw error;
+					}
 				} else {
 					// A branch must name a commit; a tag may name anything.
 					if (refName.startsWith("refs/heads/")) {
-						const { type } = await git
-							.readObject({ ...repo, oid: newOid, format: "content" })
-							.catch(() => ({ type: "missing" }));
+						let type: string;
+						try {
+							({ type } = await git.readObject({
+								...repo,
+								oid: newOid,
+								format: "content",
+							}));
+						} catch (error) {
+							// A missing object means the pushed oid isn't there — a real
+							// rejection. A read failure is not the same thing and must not
+							// masquerade as one.
+							if (!isNotFoundError(error)) throw error;
+							type = "missing";
+						}
 						if (type !== "commit") {
 							return {
 								refName,

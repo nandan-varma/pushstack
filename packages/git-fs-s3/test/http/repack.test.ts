@@ -267,6 +267,45 @@ describe("repackRepository", () => {
 		}
 	});
 
+	it("keeps every ref's history when one ref read fails during consolidation", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 2); // one pack per commit
+		const featureTip = await commitFilesToBare(repo, {
+			branch: "feature",
+			message: "feature\n",
+			author,
+			files: [{ path: "feature.txt", content: "feature\n" }],
+		});
+		await addDummyPackFiles(repo, 4);
+
+		const packDir = `${repo.gitdir}/objects/pack`;
+		const before = (await rawFs(repo).readdir(packDir)).sort();
+
+		// Treating an unreadable tip as "this ref has nothing to keep" drops
+		// feature's history from the consolidated pack, and the cleanup below
+		// then deletes the pack that still held it — a dangling branch.
+		const realResolveRef = git.resolveRef;
+		const spy = vi
+			.spyOn(git, "resolveRef")
+			.mockImplementation((args) =>
+				args.ref === "refs/heads/feature"
+					? Promise.reject(new Error("storage read failed"))
+					: realResolveRef(args),
+			);
+		try {
+			await expect(repackRepository(repo, { threshold: 4 })).rejects.toThrow(
+				"storage read failed",
+			);
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect((await rawFs(repo).readdir(packDir)).sort()).toEqual(before);
+		await expect(
+			git.readCommit({ ...repo, oid: featureTip }),
+		).resolves.toBeDefined();
+	});
+
 	it("removes .bitmap/.rev files of packs it replaces", async () => {
 		const { repo } = makeRepo();
 		await seed(repo, 2);
