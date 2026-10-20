@@ -112,6 +112,17 @@ describe("CLI requests", () => {
 		});
 	});
 
+	it("resolves `$` patterns in repository placeholders literally", async () => {
+		const { io, fetchMock } = await fixture();
+		io.env.PST_TOKEN = "secret";
+		io.remotes = async () => ["https://git.nandan.fyi/a$&b/project.git"];
+		fetchMock.mockResolvedValue(json({ ok: true }));
+		expect(await run(["api", "repos/{owner}/{repo}"], io)).toBe(0);
+		const call = fetchMock.mock.calls[0];
+		if (!call) throw new Error("expected a request");
+		expect(String(call[0])).toContain("/repos/a$&b/project");
+	});
+
 	it("returns authentication exit code for HTTP 401", async () => {
 		const { io, fetchMock } = await fixture();
 		fetchMock.mockResolvedValue(

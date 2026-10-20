@@ -46,9 +46,11 @@ export async function apiCommand(io: Io, args: string[]) {
 	let endpoint = positionals[0] as string;
 	if (/\{(owner|repo)\}/.test(endpoint)) {
 		const ref = await resolveRepo(io, host, undefined);
+		// Replacer functions: the resolved owner/name comes from a remote URL and
+		// a replacement string would interpret `$&`, `$1` and `$$` inside it.
 		endpoint = endpoint
-			.replaceAll("{owner}", ref.owner)
-			.replaceAll("{repo}", ref.name);
+			.replaceAll("{owner}", () => ref.owner)
+			.replaceAll("{repo}", () => ref.name);
 	}
 
 	const fields: Record<string, unknown> = {};
