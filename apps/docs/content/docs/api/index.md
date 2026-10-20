@@ -86,6 +86,12 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | events only, oldest first |
 | `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
 | `GET`/`POST`/`PUT`/`DELETE /repos/{owner}/{repo}/issues/{number}/labels` (+ `/{name}`) | supported | write access; add and set return every label, removing one returns the rest, removing all is `204` |
+| `GET /repos/{owner}/{repo}/pulls` | supported | `state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults) |
+| `POST /repos/{owner}/{repo}/pulls` | supported | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
+| `GET`/`PATCH /repos/{owner}/{repo}/pulls/{number}` | supported | `PATCH`: the author or a writer; `title`, `body`, `state`; changing `base` is `422` |
+| `GET`/`PUT /repos/{owner}/{repo}/pulls/{number}/merge` | supported | `GET` is `204` once merged, else `404`. `PUT`: `commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge` only; `squash`/`rebase` are `405`). A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }` |
+| `GET /repos/{owner}/{repo}/pulls/{number}/files` | supported | up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips) |
+| `GET /repos/{owner}/{repo}/pulls/{number}/commits` | supported | oldest first, up to 250 |
 | everything else | not implemented | `404 Not Found` |
 
 ## Differences from GitHub
@@ -130,6 +136,19 @@ kept) and is absent when everything fits on one page. Items deeper than
 - Commit `author`/`committer` (account links) in a branch response are `null`;
   commits aren't linked to accounts by email. `commit.url`/`html_url` point at
   endpoints/pages that aren't implemented yet.
+- Pull requests: there are no forks, so `head.repo` and `base.repo` are the
+  same repository and a `head` of another owner is `422`. `mergeable` is `null`
+  for an open pull request (`false` once merged) and `mergeable_state` is always
+  `unknown`: conflicts are only detected by the merge itself, which then answers
+  `405`. `rebaseable` is `false`, `draft` always `false`, `requested_reviewers`
+  and `assignees` empty, and `author_association`, `node_id` and `auto_merge`
+  details are omitted or `null`. Creating a pull request doesn't require commits
+  between the branches (the web UI doesn't either). A closed pull request whose
+  head branch was deleted reports `head.sha` as 40 zeros and empty files and
+  commits. File `sha`s are the blob ids at the head; there is no rename
+  detection (`renamed` is never reported) and `contents_url` points at an
+  endpoint that isn't implemented. A pull request's own comments are on the
+  issues endpoints; review endpoints are not implemented yet.
 - Branch `protected` is always `false`; there is no branch protection.
 - Tags have no `zipball_url`/`tarball_url`.
 - `description` is limited to 500 characters (GitHub: 350 on creation, so

@@ -46,7 +46,9 @@ import {
 import { readableRepository } from "./repo-lookup";
 import { type RepoRole, repository } from "./serializers";
 
-async function starCounts(repoIds: number[]): Promise<Map<number, number>> {
+export async function starCounts(
+	repoIds: number[],
+): Promise<Map<number, number>> {
 	if (repoIds.length === 0) return new Map();
 	const rows = await db
 		.select({ repoId: stars.repoId, total: count() })
