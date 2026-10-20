@@ -118,16 +118,17 @@ describe("database queries per thread read", () => {
 		};
 		console.log(`[db queries] ${JSON.stringify(counts, null, 2)}`);
 		// One thread query per read (rows, labels, assignees, comment counts and
-		// the total together); the rest is auth, access and the PR's extras.
+		// the total together); the rest is auth, access and the PR's extras. API
+		// issue reads add one grouped query for the page's reaction rollups.
 		expect(counts).toEqual({
 			"web issues list": 2,
 			"web pulls list": 2,
 			"web issue view": 2,
 			"web pull view": 2,
-			"api issues list": 5,
-			"api issues list page 2": 3,
+			"api issues list": 6,
+			"api issues list page 2": 4,
 			"api pulls list": 4,
-			"api issue view": 3,
+			"api issue view": 4,
 			"api pull view": 5,
 		});
 	});
