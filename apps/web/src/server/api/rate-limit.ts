@@ -5,14 +5,16 @@
  * the buckets without counting itself.
  */
 import {
+	authFailuresExhausted,
 	hitRateLimit,
 	identityFor,
 	peekRateLimits,
 	type RateStatus,
 	rateLimitExceededMessage,
 	rateLimitHeaders,
+	recordAuthFailure,
 } from "../rate-limit";
-import type { ApiContext, Caller } from "./auth";
+import { type ApiContext, authenticateRequest, type Caller } from "./auth";
 import { ApiError, json } from "./http";
 
 const READ_METHODS = new Set(["GET", "HEAD"]);
@@ -78,4 +80,25 @@ export async function getRateLimit(ctx: ApiContext): Promise<Response> {
 		200,
 		rateLimitHeaders(core as RateStatus),
 	);
+}
+
+/**
+ * {@link authenticateRequest}, with failed credentials counted per client IP.
+ * Once an IP has used its budget, requests carrying credentials are refused
+ * before the token is even hashed and looked up, so guessing is bounded.
+ */
+export async function authenticateMetered(
+	request: Request,
+): Promise<Caller | null> {
+	if (!request.headers.has("authorization")) return null;
+	const exhausted = await authFailuresExhausted(request);
+	if (exhausted) throw new RateLimitedError(exhausted);
+	try {
+		return await authenticateRequest(request);
+	} catch (error) {
+		if (error instanceof ApiError && error.status === 401) {
+			await recordAuthFailure(request);
+		}
+		throw error;
+	}
 }

@@ -21,6 +21,7 @@ export default defineConfig({
 			RATE_LIMIT_GIT_READ_ANONYMOUS: "1000000",
 			RATE_LIMIT_GIT_READ_AUTHENTICATED: "1000000",
 			RATE_LIMIT_GIT_WRITE: "1000000",
+			RATE_LIMIT_AUTH_FAILURES: "1000000",
 		},
 		setupFiles: ["./src/test/setup.ts"],
 		globals: true,

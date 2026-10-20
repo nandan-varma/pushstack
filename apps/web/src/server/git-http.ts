@@ -10,6 +10,7 @@
  */
 import {
 	formatErrorResponse,
+	GitAuthenticationError,
 	GitError,
 	GitInvalidRequestError,
 	GitRepositoryNotFoundError,
@@ -31,11 +32,13 @@ import { withRepositoryLock } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logError, logWarn, perfContext } from "./perf-log";
 import {
+	authFailuresExhausted,
 	hitRateLimit,
 	identityFor,
 	type RateStatus,
 	rateLimitExceededMessage,
 	rateLimitHeaders,
+	recordAuthFailure,
 } from "./rate-limit";
 import { findRepositoryByName } from "./repository-lookup";
 
@@ -162,6 +165,18 @@ async function receivePack(
 	});
 }
 
+/** Over the limit: a plain 403 that git prints. */
+function rateLimited(rate: RateStatus) {
+	return {
+		status: 403,
+		body: `${rateLimitExceededMessage(rate)}\n`,
+		headers: {
+			"Content-Type": "text/plain; charset=utf-8",
+			...rateLimitHeaders(rate),
+		},
+	};
+}
+
 async function serve(
 	request: Request,
 	route: GitRoute,
@@ -173,7 +188,21 @@ async function serve(
 	const repository = await findRepositoryByName(route.owner, route.repo);
 	if (!repository) throw new GitRepositoryNotFoundError("Repository not found");
 	const needsWrite = route.service === "git-receive-pack";
-	const auth = await authorizeGitRequest(request, repository, needsWrite);
+	const hasCredentials = request.headers.has("authorization");
+	if (hasCredentials) {
+		const exhausted = await authFailuresExhausted(request);
+		if (exhausted) return rateLimited(exhausted);
+	}
+	let auth: Awaited<ReturnType<typeof authorizeGitRequest>>;
+	try {
+		auth = await authorizeGitRequest(request, repository, needsWrite);
+	} catch (error) {
+		// Bad credentials count against the IP (token guessing).
+		if (hasCredentials && error instanceof GitAuthenticationError) {
+			await recordAuthFailure(request);
+		}
+		throw error;
+	}
 
 	// Metered by user when authenticated (so users behind one NAT don't share
 	// a bucket), else by client IP. Over the limit: a plain 403 git prints.
@@ -182,16 +211,7 @@ async function serve(
 		identityFor(request, auth.userId),
 	);
 	meter.rate = rate;
-	if (rate?.exceeded) {
-		return {
-			status: 403,
-			body: `${rateLimitExceededMessage(rate)}\n`,
-			headers: {
-				"Content-Type": "text/plain; charset=utf-8",
-				...rateLimitHeaders(rate),
-			},
-		};
-	}
+	if (rate?.exceeded) return rateLimited(rate);
 
 	const ownerKey = ownerKeyOf(repository);
 	const repoName = repository.name;

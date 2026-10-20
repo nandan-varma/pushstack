@@ -53,3 +53,8 @@ export const RATE_LIMIT_GIT_READ_ANONYMOUS = positiveInt(
 );
 /** Git push requests (info/refs and receive-pack), per authenticated user. */
 export const RATE_LIMIT_GIT_WRITE = positiveInt("RATE_LIMIT_GIT_WRITE", 500);
+/** Failed credential checks per client IP per window, on /api/v3 and /api/git. */
+export const RATE_LIMIT_AUTH_FAILURES = positiveInt(
+	"RATE_LIMIT_AUTH_FAILURES",
+	30,
+);

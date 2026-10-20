@@ -61,6 +61,9 @@ const PRUNE_INTERVAL_MS = 60_000;
  * first — the same thing Better Auth's database-backed limiter tracks.
  */
 let longestWindowSeconds = 0;
+
+/** Request-limit keys (`gh:…`) all use the one configured window. */
+const REQUEST_KEY_PATTERN = "gh:%";
 let lastPrunedAt = 0;
 
 /**
@@ -72,9 +75,18 @@ async function pruneExpiredCounters(): Promise<void> {
 	if (now - lastPrunedAt < PRUNE_INTERVAL_MS) return;
 	lastPrunedAt = now;
 	try {
-		await db.execute(
-			sql`delete from rate_limits where window_started_at < now() - make_interval(secs => ${longestWindowSeconds})`,
-		);
+		// The table is shared by two families with different windows: Better
+		// Auth's (high-water mark of the rules seen here) and the `gh:` request
+		// limits (config). Each is pruned by its own window, so one family's
+		// short window never deletes the other's live buckets.
+		await db.execute(sql`
+			delete from rate_limits where
+				(key like ${REQUEST_KEY_PATTERN}
+					and window_started_at < now() - make_interval(secs => ${config.RATE_LIMIT_WINDOW_SECONDS}))
+				or (key not like ${REQUEST_KEY_PATTERN}
+					and ${longestWindowSeconds} > 0
+					and window_started_at < now() - make_interval(secs => ${longestWindowSeconds}))
+		`);
 	} catch (error) {
 		logWarn("rate-limit", "Failed to prune expired rate-limit counters", error);
 	}
@@ -133,7 +145,13 @@ export const rateLimitStorage: RateLimitStorage = {
  * their own `gh:` namespace. One round trip per metered request.
  * ------------------------------------------------------------------ */
 
-export type RateLimitResource = "core" | "core-write" | "git" | "git-write";
+export type RateLimitResource =
+	| "core"
+	| "core-write"
+	| "git"
+	| "git-write"
+	/** Failed credentials per client IP (token guessing). */
+	| "auth-failure";
 
 export interface RateStatus {
 	resource: RateLimitResource;
@@ -154,16 +172,34 @@ export interface RateIdentity {
 }
 
 /**
- * The client IP. Vercel overwrites `x-forwarded-for` with the connecting
- * address, so its leftmost entry is trustworthy there. A request with no
- * address shares one "unknown" bucket rather than being unlimited.
+ * The client IP: `x-vercel-forwarded-for` (set by Vercel, not by the caller),
+ * then `x-real-ip`, then the leftmost `x-forwarded-for` entry. A request with
+ * no address shares one "unknown" bucket rather than being unlimited.
  */
 export function clientIp(request: Request): string {
-	const forwarded = request.headers
-		.get("x-forwarded-for")
-		?.split(",")[0]
-		?.trim();
-	return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
+	const { headers } = request;
+	return (
+		headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||
+		headers.get("x-real-ip")?.trim() ||
+		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+		"unknown"
+	);
+}
+
+/** Whether this IP has used up its failed-credential budget (no counting). */
+export async function authFailuresExhausted(
+	request: Request,
+): Promise<RateStatus | null> {
+	const who = identityFor(request, null);
+	const [status] = await peekRateLimits(["auth-failure"], who);
+	return status && status.remaining === 0 ? status : null;
+}
+
+/** Count one failed credential check against the caller's IP. */
+export function recordAuthFailure(
+	request: Request,
+): Promise<RateStatus | null> {
+	return hitRateLimit("auth-failure", identityFor(request, null));
 }
 
 export function identityFor(
@@ -193,6 +229,8 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 				: config.RATE_LIMIT_GIT_READ_ANONYMOUS;
 		case "git-write":
 			return config.RATE_LIMIT_GIT_WRITE;
+		case "auth-failure":
+			return config.RATE_LIMIT_AUTH_FAILURES;
 	}
 }
 
@@ -237,7 +275,6 @@ export async function hitRateLimit(
 	who: RateIdentity,
 ): Promise<RateStatus | null> {
 	const window = config.RATE_LIMIT_WINDOW_SECONDS;
-	longestWindowSeconds = Math.max(longestWindowSeconds, window);
 	try {
 		const result = await db.execute<StatusRow>(sql`
 			insert into rate_limits (key, count, window_started_at)
@@ -300,7 +337,10 @@ export function rateLimitHeaders(status: RateStatus): Record<string, string> {
 		"X-RateLimit-Remaining": String(status.remaining),
 		"X-RateLimit-Reset": String(status.reset),
 		"X-RateLimit-Used": String(status.used),
-		"X-RateLimit-Resource": status.resource.startsWith("core") ? "core" : "git",
+		"X-RateLimit-Resource":
+			status.resource === "git" || status.resource === "git-write"
+				? "git"
+				: "core",
 	};
 	if (status.exceeded) {
 		headers["Retry-After"] = String(

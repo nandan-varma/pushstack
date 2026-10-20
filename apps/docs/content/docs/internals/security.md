@@ -198,9 +198,13 @@ fetch (2000 authenticated, 120 anonymous), `git-write` pushes (500). All are
 `X-RateLimit-*` headers and `Retry-After` (a plain-text body on git so the
 client prints it). **The limiter fails open**: a database error is logged with
 `logWarn` and the request is served, because this is abuse mitigation, not
-authorization, and Postgres hiccups must not become outages. Not covered:
-bad-credential 401s on the API (no identity yet) and auth endpoints beyond Better
-Auth's own limiter. Tests: `api-rate-limit.test.ts`.
+authorization, and Postgres hiccups must not become outages. Failed credentials (bad token on the API or git) are counted per client IP
+(`auth-failure`, 30 per window); once spent, requests carrying credentials are
+refused before the token is hashed. The client IP is read from
+`x-vercel-forwarded-for`, then `x-real-ip`, then the leftmost `x-forwarded-for`.
+Pruning is per key family (`gh:` by the configured window, Better Auth's by its
+own), so neither deletes the other's live buckets. Auth endpoints beyond Better
+Auth's own limiter are not covered. Tests: `api-rate-limit.test.ts`.
 
 ## Input bounds are explicit
 

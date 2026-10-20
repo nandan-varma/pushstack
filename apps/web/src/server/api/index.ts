@@ -7,7 +7,7 @@
 import { isNotFoundError } from "git-fs-s3";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
-import { type ApiContext, authenticateRequest } from "./auth";
+import type { ApiContext } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import {
 	createComment,
@@ -32,6 +32,7 @@ import {
 } from "./labels";
 import {
 	applyRateHeaders,
+	authenticateMetered,
 	getRateLimit,
 	meterApiRequest,
 	RateLimitedError,
@@ -263,7 +264,7 @@ async function dispatch(
 	try {
 		// Credentials are checked even on unknown routes: a bad token is a 401
 		// everywhere, as on GitHub.
-		const caller = await authenticateRequest(request);
+		const caller = await authenticateMetered(request);
 		// /rate_limit reports the buckets and is never counted, as on GitHub.
 		if (matched?.route.handler !== getRateLimit) {
 			rate = await meterApiRequest(request, caller);

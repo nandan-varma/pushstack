@@ -14,6 +14,7 @@ vi.hoisted(() => {
 	process.env.RATE_LIMIT_GIT_READ_ANONYMOUS = "2";
 	process.env.RATE_LIMIT_GIT_READ_AUTHENTICATED = "3";
 	process.env.RATE_LIMIT_GIT_WRITE = "1";
+	process.env.RATE_LIMIT_AUTH_FAILURES = "2";
 });
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb(),
@@ -179,6 +180,40 @@ describe("/api/v3 limits", () => {
 		const response = await api("/rate_limit", { ip: "7.7.7.7" });
 		expect(response.status).toBe(200);
 		expect((await response.json()).resources.core.remaining).toBe(0);
+	});
+});
+
+describe("failed credentials", () => {
+	it("are counted per IP and then refused before any lookup", async () => {
+		const ip = "10.1.1.1";
+		for (let i = 0; i < 2; i++) {
+			expect((await api("/user", { ip, token: "pst_nope" })).status).toBe(401);
+		}
+		// Budget spent: even a valid token from this IP is refused.
+		const refused = await api("/user", { ip, token: alice });
+		expect(refused.status).toBe(403);
+		expect((await refused.json()).message).toContain(ip);
+		// Anonymous requests and other IPs are unaffected.
+		expect((await api("/users/alice", { ip })).status).toBe(200);
+		expect((await api("/user", { ip: "10.1.1.2", token: alice })).status).toBe(
+			200,
+		);
+	});
+
+	it("also bound bad git credentials per IP", async () => {
+		const bad = {
+			authorization: `Basic ${btoa("x:pst_nope")}`,
+			"x-vercel-forwarded-for": "10.2.2.2",
+		};
+		const refs = () =>
+			serveGitRequest(
+				new Request(`${GIT}/alice/pub.git/info/refs?service=git-upload-pack`, {
+					headers: bad,
+				}),
+			);
+		expect((await refs()).status).toBe(401);
+		expect((await refs()).status).toBe(401);
+		expect((await refs()).status).toBe(403);
 	});
 });
 
