@@ -29,6 +29,16 @@ export const safeRefNameSchema = z
 	.min(1)
 	.refine(isSafeRefName, "Invalid ref name");
 
+/**
+ * What GitHub's `/commit/{rev}` accepts: a branch, tag, `HEAD`, a full sha or
+ * an abbreviated sha. Abbreviations (4+ hex) pass as ref names; the tag/branch
+ * spelling is checked against the same traversal rules as any ref.
+ */
+export const safeCommitRevSchema = z
+	.string()
+	.min(1)
+	.refine((rev) => rev === "HEAD" || isSafeRefName(rev), "Invalid revision");
+
 /** A repository-relative path (`""` is the root). */
 export const safeRepoPathSchema = z
 	.string()

@@ -43,6 +43,7 @@ export {
 	HISTORY_WALK_DEPTH,
 	peelToCommit,
 	resolveCommit,
+	resolveCommitOid,
 	summarizeCommit,
 } from "./history.js";
 export { getLastCommitsForTree } from "./last-commit.js";

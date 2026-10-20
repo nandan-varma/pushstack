@@ -3,6 +3,14 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `resolveCommitOid(repo, rev)` in `git-fs-s3/ops`: resolves a branch, tag,
+  `HEAD`, full ref, full sha or abbreviated sha (4+ hex digits) to a commit
+  oid, so callers can read and cache by the immutable oid (pushstack#104).
+
 ## [0.15.3] - 2026-10-20
 
 ### Changed
