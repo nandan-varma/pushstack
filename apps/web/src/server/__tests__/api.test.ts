@@ -528,6 +528,7 @@ describe("branches and tags", () => {
 			protected: false,
 			commit: {
 				sha: head,
+				comments_url: `${BASE}/repos/alice/proj/commits/${head}/comments`,
 				commit: {
 					message: "Initial\n\nBody\n",
 					author: { name: expect.any(String), email: expect.any(String) },
@@ -549,6 +550,9 @@ describe("branches and tags", () => {
 		const { status, body } = await call("/repos/alice/proj/branches/feature/x");
 		expect(status).toBe(200);
 		expect(body.name).toBe("feature/x");
+		expect(body.commit.comments_url).toBe(
+			`${BASE}/repos/alice/proj/commits/${body.commit.sha}/comments`,
+		);
 		const encoded = await call("/repos/alice/proj/branches/feature%2Fx");
 		expect(encoded.status).toBe(200);
 	});
