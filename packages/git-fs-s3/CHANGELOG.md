@@ -8,7 +8,9 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - `repackRepository` now rejects when consolidation fails instead of
-  swallowing the error and returning no stale paths. Best-effort is a call-site
+  swallowing the error and returning no stale paths — except when reading the
+  pack directory itself fails, which `readPackDirectory` still swallows and
+  reports as "nothing to consolidate" (#92). Best-effort is a call-site
   decision: `applyReceivePack` still treats a repack after a push as best-effort
   (the refs have moved, so a failed consolidation is reported through
   `hooks.onWarn` and the push succeeds), while an explicit maintenance repack
@@ -18,6 +20,8 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The package's `homepage` metadata now points at the docs site; 0.15.2 was
+  published before that field was corrected.
 - `applyReceivePack` no longer fails a push whose post-refs pack consolidation
   failed. The refs were already updated, so the client-visible error was
   spurious; the failure is reported through `hooks.onWarn` and the next push
