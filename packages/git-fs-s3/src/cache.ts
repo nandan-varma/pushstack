@@ -14,6 +14,15 @@ export interface CacheOptions {
 	 * `maxBytes` so one huge packfile cannot evict the whole working set.
 	 */
 	maxEntryBytes?: number;
+	/**
+	 * Largest range read (`getRange`) admitted to the cache, in bytes. A range
+	 * read is a slice of a pack at a known offset: a header probe, or a small
+	 * object's bytes. Slices up to this size are cached; larger slices always
+	 * go to the backing store so a big blob cannot churn the cache. Range
+	 * entries have their own LRU, capped at a quarter of `maxBytes`. Default
+	 * 64 KiB; 0 disables range caching.
+	 */
+	maxRangeBytes?: number;
 	/** Entry time-to-live in milliseconds. Default 60 000. */
 	ttlMs?: number;
 	/**
@@ -125,6 +134,7 @@ export function createCachedStore(
 	const cacheMisses = options.cacheMisses ?? false;
 	const cacheLists = options.cacheLists ?? false;
 	const range = store.getRange?.bind(store);
+	const maxRangeBytes = options.maxRangeBytes ?? 64 * 1024;
 	const coalesce = options.coalesce ?? true;
 	const copy = options.copy ?? true;
 	const clone = (data: Uint8Array) => (copy ? data.slice() : data);
@@ -141,6 +151,24 @@ export function createCachedStore(
 		sizeCalculation: listEntrySize,
 		ttl,
 	});
+
+	// Range slices, keyed `${key}\0${start}\0${end}`. Separate from `cache`
+	// because a slice is not the whole object: `get`/`head` must never see it.
+	const rangeCache = new LRUCache<string, Uint8Array>({
+		maxSize: Math.max(1, Math.ceil(maxBytes / 4)),
+		sizeCalculation: (value) => value.byteLength || 1,
+		ttl,
+	});
+	const pendingRanges = new Map<string, Promise<Uint8Array | null>>();
+	const rangePrefix = (key: string) => `${key}\0`;
+	const dropRanges = (match: (rangeKey: string) => boolean) => {
+		for (const rangeKey of [...rangeCache.keys()]) {
+			if (match(rangeKey)) rangeCache.delete(rangeKey);
+		}
+		for (const rangeKey of [...pendingRanges.keys()]) {
+			if (match(rangeKey)) pendingRanges.delete(rangeKey);
+		}
+	};
 
 	const pendingGets = new Map<string, Promise<Uint8Array | null>>();
 	const pendingHeads = new Map<string, Promise<ObjectStat | null>>();
@@ -183,6 +211,7 @@ export function createCachedStore(
 		generation++;
 		pendingGets.delete(key);
 		pendingHeads.delete(key);
+		dropRanges((rangeKey) => rangeKey.startsWith(rangePrefix(key)));
 	}
 
 	function coalesced<T>(
@@ -299,18 +328,41 @@ export function createCachedStore(
 			return copyListResult(result);
 		},
 
-		// Forwarded straight to the backing store: a range read is a handful of
-		// bytes at a known offset, so caching one buys nothing, and bypassing the
-		// cache here keeps this wrapper's read paths unchanged.
+		// Small slices are cached (see `maxRangeBytes`); larger ones go straight
+		// to the backing store.
 		...(range
 			? {
-					getRange: (key: string, start: number, end: number) =>
-						range(key, start, end),
+					async getRange(
+						key: string,
+						start: number,
+						end: number,
+					): Promise<Uint8Array | null> {
+						if (end - start + 1 > maxRangeBytes) return range(key, start, end);
+						const rangeKey = `${rangePrefix(key)}${start}\0${end}`;
+						const cached = rangeCache.get(rangeKey);
+						if (cached !== undefined) {
+							onHit?.(key);
+							return clone(cached);
+						}
+						const data = await coalesced(pendingRanges, rangeKey, async () => {
+							onMiss?.(key);
+							const gen = generation;
+							const fetched = await range(key, start, end);
+							if (fetched !== null && unchangedSince(gen)) {
+								rangeCache.set(rangeKey, clone(fetched), {
+									ttl: ttlForKey?.(key),
+								});
+							}
+							return fetched;
+						});
+						return data === null ? null : clone(data);
+					},
 				}
 			: {}),
 
 		invalidate(prefix: string): void {
 			generation++;
+			dropRanges((rangeKey) => rangeKey.startsWith(prefix));
 			for (const key of [...pendingGets.keys()]) {
 				if (key.startsWith(prefix)) pendingGets.delete(key);
 			}

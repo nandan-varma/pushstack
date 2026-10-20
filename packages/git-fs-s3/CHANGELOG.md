@@ -3,6 +3,16 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `createCachedStore` now caches small `getRange` reads (new `maxRangeBytes`
+  option, default 64 KiB, `0` disables), in their own LRU capped at a quarter
+  of `maxBytes`. Range reads used to bypass the cache entirely, so every view
+  of a packed blob cost one R2 range GET even when repeated (#79). Slices are
+  keyed by offsets, coalesced, and dropped by `put`, `delete` and `invalidate`.
+
 ## [0.15.3] - 2026-10-20
 
 ### Changed
