@@ -3,7 +3,7 @@
 	"buildCommand": "turbo run build --filter=@pushstack/web",
 	"git": {
 		"deploymentEnabled": {
-			"*": false,
+			"**": false,
 			"main": true
 		}
 	}
