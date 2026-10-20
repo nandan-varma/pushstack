@@ -261,6 +261,13 @@ writes objects in `withPackedWrites`. Web commits and merges call
 `repackIfNeededUnlocked` afterwards, inside their lock, so their one-pack-
 per-operation doesn't accumulate past the repack threshold.
 
+Consolidation is best-effort on both write paths: it runs *after* the refs
+have moved, so a failure is logged (`logWarn` in the app, `hooks.onWarn` in
+`applyReceivePack`) and the commit or push stands — the next write retries the
+repack. Only the explicit `repackRepositoryNow` maintenance action (the owner's
+repository settings button) reports a failure to its caller; `repackRepository`
+itself rejects so each caller makes that choice.
+
 ## The Git smart HTTP protocol (`git-http.ts`)
 
 This is what `git clone https://…/api/git/owner/repo.git`, `git fetch` and
@@ -292,10 +299,11 @@ post-push bookkeeping. Every service runs against `gitFs`.
   graph is complete, apply ref updates (compare-and-swap per ref, in parallel
   — a multi-ref push like `git push --all` applies all of them concurrently
   since each only touches its own ref file), then `repackRepository` (also
-  from `git-fs-s3/http`), then `afterRepositoryPush`. The whole push body is
-  held in memory, capped by `GIT_HTTP_MAX_BODY_BYTES` — enforced while
-  streaming (`readGitRequestBody`), not just from `Content-Length`, which a
-  chunked request doesn't send. The report is side-band-64k framed when the
+  from `git-fs-s3/http`) — best-effort, so a failed consolidation is reported
+  through `hooks.onWarn` and the push still succeeds — then
+  `afterRepositoryPush`. The whole push body is held in memory, capped by
+  `GIT_HTTP_MAX_BODY_BYTES` — enforced while streaming (`readGitRequestBody`),
+  not just from `Content-Length`, which a chunked request doesn't send. The report is side-band-64k framed when the
   client asked for it (git and isomorphic-git both do); a pack that can't be
   indexed is reported as `unpack index-pack failed`. Branches must point at
   commits, and deleting the branch `HEAD` names is refused.

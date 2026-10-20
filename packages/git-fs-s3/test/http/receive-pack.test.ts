@@ -507,6 +507,87 @@ describe("applyReceivePack", () => {
 		expect(results).toEqual([{ refName: "refs/heads/pr-branch", ok: true }]);
 	});
 
+	it("keeps the push successful when the post-push repack fails", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		// One pack per commit, enough that the incoming push crosses the repack
+		// threshold so consolidation is attempted.
+		for (let i = 0; i < 4; i++) {
+			await commitFilesToBare(repo, {
+				branch: "main",
+				message: `seed ${i}\n`,
+				author,
+				files: [{ path: "file.txt", content: `${i}\n` }],
+			});
+		}
+		const parentOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		const staging = makeRepo();
+		await git.init({
+			...staging,
+			dir: staging.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const { packfile, commitOid } = await buildPushPack(
+			staging,
+			parentOid,
+			"pushed",
+		);
+
+		// The incoming pack indexes fine; only the consolidated pack the repack
+		// writes can't be stored. Arming at the repack step keeps the failure
+		// after the ref update, where it used to be reported as a failed push.
+		const fsp = rawFs(repo);
+		const writeFile = fsp.writeFile.bind(fsp);
+		let repacking = false;
+		const spy = vi
+			.spyOn(fsp, "writeFile")
+			.mockImplementation((path, data) =>
+				repacking && path.endsWith(".pack")
+					? Promise.reject(new Error("storage write failed"))
+					: writeFile(path, data),
+			);
+		const warnings: string[] = [];
+		let result: Awaited<ReturnType<typeof applyReceivePack>>;
+		try {
+			result = await applyReceivePack(
+				repo,
+				parseReceivePackBody(
+					concatBuffers(
+						pktLine(`${parentOid} ${commitOid} refs/heads/main\n`),
+						new TextEncoder().encode("0000"),
+						packfile,
+					),
+				),
+				{ defaultBranch: "main", repack: { threshold: 4 } },
+				{
+					step: (label, fn) => {
+						repacking = label === "repack";
+						return fn();
+					},
+					onWarn: (message) => warnings.push(message),
+				},
+			);
+		} finally {
+			spy.mockRestore();
+		}
+
+		// The refs moved and the response reports them accepted; the failure is
+		// only a warning the caller can surface.
+		expect(result.results).toEqual([{ refName: "refs/heads/main", ok: true }]);
+		expect(result.unpackError).toBeUndefined();
+		expect(result.stalePackPaths).toEqual([]);
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(
+			commitOid,
+		);
+		expect(warnings).toContain("repack after push failed (non-fatal)");
+	});
+
 	it("builds a report-status response from receivePackResponse", () => {
 		const result = receivePackResponse([
 			{ refName: "refs/heads/main", ok: true },

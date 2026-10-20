@@ -98,6 +98,10 @@ export async function renameRepositoryStorage(
  * Consolidate packs once enough have accumulated (every write adds one).
  * Call inside the repo lock, after the write; returns how many pack files
  * the repack removed.
+ *
+ * A failure rejects: callers decide whether it is fatal. Post-write callers
+ * (git-write.ts) treat it as best-effort — the write is already durable —
+ * while the explicit maintenance call (repackRepositoryNow) reports it.
  */
 export async function repackIfNeededUnlocked(
 	ownerKey: string,
@@ -112,7 +116,11 @@ export async function repackIfNeededUnlocked(
 	return stalePaths.length;
 }
 
-/** Consolidate a repository's packs now (threshold-gated), under its lock. */
+/**
+ * Consolidate a repository's packs now (threshold-gated), under its lock.
+ * Unlike the post-write path this propagates a failure: an explicit
+ * maintenance action must report that it did nothing, not "removed 0 files".
+ */
 export function repackRepositoryNow(
 	ownerKey: string,
 	repoName: string,

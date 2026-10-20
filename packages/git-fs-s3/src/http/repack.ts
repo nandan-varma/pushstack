@@ -93,6 +93,13 @@ export interface RepackOptions {
  * Consolidate all pack files into one, returning the gitdir-relative paths
  * of the old .pack/.idx files it removed — after syncing the new pack to any
  * secondary storage, delete those same paths there too.
+ *
+ * A failure rejects rather than being swallowed: whether a failed
+ * consolidation is fatal depends on the caller — a post-write repack must
+ * not fail an already-durable write, an explicit maintenance repack must
+ * report its failure — so the decision belongs at the call site. Leaving a
+ * failed run behind is safe (an unconsolidated repo still reads correctly),
+ * which is what lets those callers treat it as best-effort.
  */
 export async function repackRepository(
 	repo: Repo,
@@ -101,109 +108,102 @@ export async function repackRepository(
 ): Promise<string[]> {
 	const threshold = options?.threshold ?? REPACK_PACK_COUNT_THRESHOLD;
 	const fsp = rawFs(repo);
-	try {
-		if ((await countPacks(repo)) < threshold) {
-			return [];
-		}
-
-		const [branches, tags] = await Promise.all([
-			git.listBranches(repo),
-			git.listTags(repo),
-		]);
-		const refNames = [
-			...branches.map((b) => `refs/heads/${b}`),
-			...tags.map((t) => `refs/tags/${t}`),
-		];
-		const tipOids = (
-			await Promise.all(
-				refNames.map((ref) =>
-					git.resolveRef({ ...repo, ref }).catch(() => null),
-				),
-			)
-		).filter((oid): oid is string => oid !== null);
-		if (tipOids.length === 0) return [];
-
-		// Blobs aren't read here: indexPack below re-hashes every object the
-		// new pack holds and the reachable-set check rejects a pack missing any,
-		// so inflating every blob in history during the walk too would only
-		// double the cost.
-		const { oids: reachable, complete } = await collectReachableOids(
-			repo,
-			tipOids,
-			hooks,
-			undefined,
-			{ verifyBlobs: false },
-		);
-		if (!complete || reachable.length === 0) return [];
-
-		const packDir = `${repo.gitdir}/objects/pack`;
-		// Copy stored entries when everything is packed: keeps deltas, so
-		// the consolidated pack is as compact as its sources. Loose objects
-		// fall back to a verified, non-deltified rebuild.
-		const packBuffer =
-			(await buildPackFromExistingPacks(repo, reachable)) ??
-			(await (async () => {
-				const objects = await readAndVerifyObjects(repo, reachable);
-				return encodePack(
-					reachable.map((oid) => {
-						const object = objects.get(oid);
-						if (!object) {
-							throw new Error(`repack: missing verified object for ${oid}`);
-						}
-						return object;
-					}),
-				);
-			})());
-
-		await fsp.mkdir(packDir, { recursive: true });
-		const newBase = packBaseName(packBuffer);
-		const newPackFile = packFileName(newBase, "pack");
-		// Checksum-named, so an identical pack may already be stored — never
-		// delete that one on the abort path below.
-		const preexisting = (await readPackDirectory(repo)).some(
-			(file) => file.base === newBase,
-		);
-		await fsp.writeFile(`${packDir}/${newPackFile}`, packBuffer);
-
-		const { oids: indexedOids } = await git.indexPack({
-			...repo,
-			dir: packDir,
-			filepath: newPackFile,
-		});
-
-		// indexPack re-hashes every object it indexes, so this also verifies
-		// the content. Reused packs may carry extra delta bases: superset is fine.
-		const indexed = new Set(indexedOids);
-		if (reachable.some((oid) => !indexed.has(oid))) {
-			if (!preexisting)
-				await Promise.all(
-					(["pack", "idx"] as const).map((kind) =>
-						fsp
-							.unlink(`${packDir}/${packFileName(newBase, kind)}`)
-							.catch(() => {}),
-					),
-				);
-			throw new Error(
-				"repack: indexed pack is missing reachable objects — aborting",
-			);
-		}
-
-		const stale = (await readPackDirectory(repo)).filter(
-			(file) => file.base !== newBase,
-		);
-		// Indexes first: readers find packs through their .idx, so a reader
-		// listing mid-cleanup sees either a complete old pack or none of it.
-		const unlinkAll = (files: PackFileName[]) =>
-			Promise.all(
-				files.map((file) =>
-					fsp.unlink(`${packDir}/${file.name}`).catch(() => {}),
-				),
-			);
-		await unlinkAll(stale.filter((file) => file.kind === "idx"));
-		await unlinkAll(stale.filter((file) => file.kind !== "idx"));
-		return stale.map((file) => `objects/pack/${file.name}`);
-	} catch (err) {
-		hooks?.onWarn?.("repack failed (non-fatal)", err);
+	if ((await countPacks(repo)) < threshold) {
 		return [];
 	}
+
+	const [branches, tags] = await Promise.all([
+		git.listBranches(repo),
+		git.listTags(repo),
+	]);
+	const refNames = [
+		...branches.map((b) => `refs/heads/${b}`),
+		...tags.map((t) => `refs/tags/${t}`),
+	];
+	const tipOids = (
+		await Promise.all(
+			refNames.map((ref) => git.resolveRef({ ...repo, ref }).catch(() => null)),
+		)
+	).filter((oid): oid is string => oid !== null);
+	if (tipOids.length === 0) return [];
+
+	// Blobs aren't read here: indexPack below re-hashes every object the
+	// new pack holds and the reachable-set check rejects a pack missing any,
+	// so inflating every blob in history during the walk too would only
+	// double the cost.
+	const { oids: reachable, complete } = await collectReachableOids(
+		repo,
+		tipOids,
+		hooks,
+		undefined,
+		{ verifyBlobs: false },
+	);
+	if (!complete || reachable.length === 0) return [];
+
+	const packDir = `${repo.gitdir}/objects/pack`;
+	// Copy stored entries when everything is packed: keeps deltas, so
+	// the consolidated pack is as compact as its sources. Loose objects
+	// fall back to a verified, non-deltified rebuild.
+	const packBuffer =
+		(await buildPackFromExistingPacks(repo, reachable)) ??
+		(await (async () => {
+			const objects = await readAndVerifyObjects(repo, reachable);
+			return encodePack(
+				reachable.map((oid) => {
+					const object = objects.get(oid);
+					if (!object) {
+						throw new Error(`repack: missing verified object for ${oid}`);
+					}
+					return object;
+				}),
+			);
+		})());
+
+	await fsp.mkdir(packDir, { recursive: true });
+	const newBase = packBaseName(packBuffer);
+	const newPackFile = packFileName(newBase, "pack");
+	// Checksum-named, so an identical pack may already be stored — never
+	// delete that one on the abort path below.
+	const preexisting = (await readPackDirectory(repo)).some(
+		(file) => file.base === newBase,
+	);
+	await fsp.writeFile(`${packDir}/${newPackFile}`, packBuffer);
+
+	const { oids: indexedOids } = await git.indexPack({
+		...repo,
+		dir: packDir,
+		filepath: newPackFile,
+	});
+
+	// indexPack re-hashes every object it indexes, so this also verifies
+	// the content. Reused packs may carry extra delta bases: superset is fine.
+	const indexed = new Set(indexedOids);
+	if (reachable.some((oid) => !indexed.has(oid))) {
+		if (!preexisting)
+			await Promise.all(
+				(["pack", "idx"] as const).map((kind) =>
+					fsp
+						.unlink(`${packDir}/${packFileName(newBase, kind)}`)
+						.catch(() => {}),
+				),
+			);
+		throw new Error(
+			"repack: indexed pack is missing reachable objects — aborting",
+		);
+	}
+
+	const stale = (await readPackDirectory(repo)).filter(
+		(file) => file.base !== newBase,
+	);
+	// Indexes first: readers find packs through their .idx, so a reader
+	// listing mid-cleanup sees either a complete old pack or none of it.
+	const unlinkAll = (files: PackFileName[]) =>
+		Promise.all(
+			files.map((file) =>
+				fsp.unlink(`${packDir}/${file.name}`).catch(() => {}),
+			),
+		);
+	await unlinkAll(stale.filter((file) => file.kind === "idx"));
+	await unlinkAll(stale.filter((file) => file.kind !== "idx"));
+	return stale.map((file) => `objects/pack/${file.name}`);
 }
