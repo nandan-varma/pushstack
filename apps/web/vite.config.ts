@@ -101,12 +101,6 @@ const config = defineConfig({
 			// every browser. Nothing in these directories has a side effect a
 			// client needs: once their exports are unused, drop them.
 			treeshake: {
-				// Zod schema builders are pure. A module-level schema in a
-				// server-function file (only read by a stripped handler) otherwise
-				// stays in the client build as a bare `z.union(...)` call and drags
-				// all of zod (~23 kB gzipped) into the entry chunk. Nothing in the
-				// app calls zod for its side effects (no `z.config`/registries).
-				manualPureFunctions: ["z"],
 				moduleSideEffects: (id) =>
 					!serverOnlyDirs.some((dir) => id.startsWith(dir)),
 			},

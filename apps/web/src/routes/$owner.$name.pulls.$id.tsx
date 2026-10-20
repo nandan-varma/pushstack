@@ -483,7 +483,7 @@ function PullRequestDetailPage() {
 					)}
 				</TabsContent>
 				<TabsContent value="files">
-					<Suspense fallback={<Skeleton className="h-32" />}>
+					<Suspense fallback={<Skeleton className="h-32" aria-busy="true" />}>
 						<PullRequestFilesTab
 							owner={owner}
 							name={name}
