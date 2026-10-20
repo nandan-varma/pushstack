@@ -8,19 +8,20 @@ const ROUTES = Object.entries(routes).flatMap(([id, route]) => {
 		(_, plus: string, name: string) => `${plus ? "*" : ":"}${name}`,
 	);
 	const base = { id: id as OperationId, method: route.method };
+	const compiled = (pattern: string) => ({
+		...base,
+		pattern,
+		parts: pattern.split("/").slice(1),
+	});
 	return pattern.includes("*")
-		? [
-				{ ...base, pattern: pattern.slice(0, pattern.lastIndexOf("/")) },
-				{ ...base, pattern },
-			]
-		: [{ ...base, pattern }];
+		? [compiled(pattern.slice(0, pattern.lastIndexOf("/"))), compiled(pattern)]
+		: [compiled(pattern)];
 });
 
 function matchPattern(
-	pattern: string,
+	parts: string[],
 	segments: string[],
 ): Record<string, string> | null {
-	const parts = pattern.split("/").slice(1);
 	const params: Record<string, string> = {};
 	for (const [index, part] of parts.entries()) {
 		if (part.startsWith("*")) {
@@ -46,7 +47,7 @@ export function matchApiRoute(method: string, pathname: string) {
 	}
 	for (const route of ROUTES) {
 		if (route.method !== method) continue;
-		const params = matchPattern(route.pattern, segments);
+		const params = matchPattern(route.parts, segments);
 		if (params) return { id: route.id, pattern: route.pattern, params };
 	}
 	return null;
