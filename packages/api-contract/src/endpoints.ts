@@ -88,10 +88,20 @@ export const endpoints = defineEndpoints({
 	"repos/list-for-authenticated-user": {
 		query: pagination.extend({
 			visibility: z.enum(["all", "public", "private"]).optional(),
-			affiliation: commaList(
-				z.enum(["owner", "collaborator", "organization_member"]),
-				3,
-			).optional(),
+			/** Every comma-separated value must be valid (an empty one too). */
+			affiliation: z
+				.union([z.array(z.string()), z.string()])
+				.transform((value) =>
+					(Array.isArray(value) ? value : value.split(",")).map((part) =>
+						part.trim(),
+					),
+				)
+				.pipe(
+					z
+						.array(z.enum(["owner", "collaborator", "organization_member"]))
+						.min(1),
+				)
+				.optional(),
 			type: z.enum(["all", "owner", "public", "private", "member"]).optional(),
 			sort: repoListSort,
 			direction,

@@ -13,6 +13,7 @@ import {
 import { db } from "#/db";
 import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
 	LICENSE_TEMPLATE_KEYS,
@@ -202,6 +203,7 @@ export async function listAuthenticatedUserRepositories(ctx: ApiContext) {
 /** `GET /users/{username}/repos`: the user's public repositories. */
 export async function listUserRepositories(ctx: ApiContext) {
 	const { username } = pathParams(ctx, "repos/list-for-user");
+	if (!STORAGE_NAME_RE.test(username)) throw notFoundError();
 	const order = queryParams(ctx, "repos/list-for-user", "Repository");
 	const [owner] = await db
 		.select({ id: user.id })
