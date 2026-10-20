@@ -26,7 +26,6 @@ import {
 	getBranches,
 	getCommit,
 	getCommitsBetween,
-	getEntryOid,
 } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -44,13 +43,12 @@ import {
 import { reviewSummaryFor } from "../review-store";
 import { createTtlCoalescedCache } from "../ttl-cache";
 import { type ApiContext, requireScope } from "./auth";
+import { diffFileObjects, UNKNOWN_SHA } from "./diff-files";
 import {
 	ApiError,
 	apiUrl,
-	encodePath,
 	type FieldError,
 	forbiddenError,
-	htmlUrl,
 	json,
 	linkHeader,
 	noContent,
@@ -77,8 +75,6 @@ import {
 const PULL_COMMITS_LIMIT = 250;
 /** `GET …/files` lists at most 3000 files, as on GitHub. */
 const PULL_FILES_LIMIT = 3000;
-/** Patch bytes one `GET …/files` response carries before omitting the rest. */
-export const PULL_PATCH_BUDGET_BYTES = 2 * 1024 * 1024;
 /**
  * Recent pull request diffs, keyed by the tips they compare. Entries are capped
  * by count, so a diff whose patches exceed this is served but not kept: four
@@ -103,9 +99,6 @@ async function cachedDiff(
 	if (patchChars > DIFF_CACHE_MAX_PATCH_CHARS) diffCache.delete(key);
 	return diff;
 }
-
-/** Shown when a branch is gone and no tip was recorded. */
-const UNKNOWN_SHA = "0".repeat(40);
 
 const stateSchema = z.enum(["open", "closed", "all"]);
 const sortSchema = z
@@ -672,15 +665,6 @@ export async function listPullCommits(ctx: ApiContext) {
 	);
 }
 
-/** GitHub's file `status` for a diff entry (there is no rename detection). */
-const fileStatus = { added: "added", deleted: "removed", modified: "modified" };
-
-/** The patch GitHub shows: hunks only, without git's `diff --git`/`---`/`+++` header. */
-function hunksOf(patch: string): string {
-	const start = patch.indexOf("\n@@");
-	return start === -1 ? "" : patch.slice(start + 1).replace(/\n$/, "");
-}
-
 /** `GET /repos/{owner}/{repo}/pulls/{number}/files` */
 export async function listPullFiles(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
@@ -702,46 +686,6 @@ export async function listPullFiles(ctx: ApiContext) {
 	const page = params.reachable
 		? files.slice(params.offset, params.offset + params.perPage)
 		: [];
-	// Patches count against one budget per response (Vercel caps buffered
-	// responses at 4.5 MB); files past it list without a patch, as GitHub does
-	// for large diffs.
-	let patchBytes = 0;
-	const patchFor = (file: (typeof page)[number]) => {
-		if (file.kind !== "text" || !file.patch) return {};
-		const patch = hunksOf(file.patch);
-		const size = Buffer.byteLength(patch);
-		if (patchBytes + size > PULL_PATCH_BUDGET_BYTES) return {};
-		patchBytes += size;
-		return { patch };
-	};
-	const patches = page.map(patchFor);
-	const body = await Promise.all(
-		page.map(async (file, index) => {
-			const removed = file.status === "deleted";
-			const ref = removed ? diff?.oldRef : diff?.newRef;
-			const sha = ref
-				? await orWhenGone(
-						() => getEntryOid(ownerKey, repo.name, ref, file.path),
-						null,
-					)
-				: null;
-			const path = encodePath(file.path);
-			return {
-				sha: sha ?? UNKNOWN_SHA,
-				filename: file.path,
-				status: fileStatus[file.status],
-				additions: file.additions,
-				deletions: file.deletions,
-				changes: file.additions + file.deletions,
-				blob_url: htmlUrl(`/repo/${fullName}/blob/${ref ?? ""}/${path}`),
-				raw_url: htmlUrl(`/api/raw/${fullName}/${ref ?? ""}/${path}`),
-				contents_url: apiUrl(
-					`/repos/${fullName}/contents/${path}?ref=${ref ?? ""}`,
-				),
-				// Binary, oversized and over-budget files carry no patch.
-				...patches[index],
-			};
-		}),
-	);
+	const body = await diffFileObjects(ownerKey, repo.name, fullName, diff, page);
 	return json(body, 200, linkHeader(ctx.url, params, files.length));
 }

@@ -3,6 +3,7 @@
  * app's result cache, perf hooks and pack prefetch wired in.
  */
 import {
+	GitObjectNotFoundError,
 	GitPathNotFoundError,
 	getObjectSize,
 	isNotFoundError,
@@ -35,6 +36,7 @@ import {
 	summarizeCommit,
 	type TreeEntry,
 } from "git-fs-s3/ops";
+import git from "isomorphic-git";
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 import { MAX_HISTORY_WALK, MAX_RAW_BYTES } from "#/lib/limits";
 import { opsHooksFor } from "./git-cache";
@@ -382,4 +384,143 @@ export function analyzeMerge(
 		sourceBranch,
 		targetBranch,
 	);
+}
+
+/**
+ * The entry at `filePath` in `ref` (`undefined` when absent); the root (`""`)
+ * is the commit's tree. Used by the REST contents endpoint.
+ */
+export async function getPathEntry(
+	ownerKey: string,
+	repoName: string,
+	ref: string,
+	filePath: string,
+): Promise<{ entry: TreeEntry | undefined; commitOid: string }> {
+	const repo = repoFor(ownerKey, repoName);
+	const hooks = opsHooksFor(ownerKey, repoName);
+	if (filePath === "") {
+		const { oid, commit } = await resolveCommit(repo, ref);
+		return {
+			commitOid: oid,
+			entry: { path: "", mode: "040000", type: "tree", oid: commit.tree },
+		};
+	}
+	return findFileEntry(repo, ref, filePath, hooks);
+}
+
+/** A blob's bytes by oid. */
+export function getBlobByOid(
+	ownerKey: string,
+	repoName: string,
+	oid: string,
+): Promise<Uint8Array> {
+	return getBlob(repoFor(ownerKey, repoName), oid);
+}
+
+/** A blob's size from its pack entry, else by reading it. */
+export async function getBlobSize(
+	ownerKey: string,
+	repoName: string,
+	oid: string,
+): Promise<number> {
+	const repo = repoFor(ownerKey, repoName);
+	const known = await getObjectSize(repo, oid);
+	return known ?? (await getBlob(repo, oid)).byteLength;
+}
+
+/** The submodule URLs root `.gitmodules` declares at a commit, by path. */
+export async function getSubmoduleUrls(
+	ownerKey: string,
+	repoName: string,
+	commitOid: string,
+): Promise<Map<string, string>> {
+	const modules = await getSubmodules(repoFor(ownerKey, repoName), commitOid);
+	return new Map(modules.map((module) => [module.path, module.url]));
+}
+
+export interface TreeListing {
+	sha: string;
+	entries: TreeEntry[];
+	truncated: boolean;
+}
+
+/**
+ * A tree by oid (a commit oid names its tree), optionally flattened with full
+ * paths. At most `limit` entries; `truncated` says more exist.
+ */
+export async function getTreeByOid(
+	ownerKey: string,
+	repoName: string,
+	oid: string,
+	{ recursive = false, limit = 10_000 } = {},
+): Promise<TreeListing> {
+	const repo = repoFor(ownerKey, repoName);
+	const read = async (treeOid: string) => {
+		try {
+			return await git.readTree({ ...repo, oid: treeOid });
+		} catch (error) {
+			const code = (error as { code?: string })?.code;
+			if (
+				isNotFoundError(error) ||
+				code === "ObjectTypeError" ||
+				code === "NotFoundError"
+			) {
+				throw new GitObjectNotFoundError(`Tree ${treeOid} not found`);
+			}
+			throw error;
+		}
+	};
+	const root = await read(oid);
+	const entries: TreeEntry[] = [];
+	let truncated = false;
+	const queue = [{ prefix: "", tree: root.tree }];
+	for (let next = queue.shift(); next && !truncated; next = queue.shift()) {
+		for (const item of next.tree) {
+			if (entries.length >= limit) {
+				truncated = true;
+				break;
+			}
+			const path = next.prefix ? `${next.prefix}/${item.path}` : item.path;
+			entries.push({ path, mode: item.mode, type: item.type, oid: item.oid });
+			if (recursive && item.type === "tree") {
+				queue.push({ prefix: path, tree: (await read(item.oid)).tree });
+			}
+		}
+	}
+	if (recursive) {
+		entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+	}
+	return { sha: root.oid, entries, truncated };
+}
+
+/** A ref and the object it points at, unpeeled (an annotated tag is its tag object). */
+export interface RefTarget {
+	ref: string;
+	sha: string;
+	type: "commit" | "tag";
+}
+
+/** Every branch and tag ref, sorted by full name. */
+export async function getAllRefs(
+	ownerKey: string,
+	repoName: string,
+): Promise<RefTarget[]> {
+	const repo = repoFor(ownerKey, repoName);
+	const [branches, tags] = await Promise.all([
+		listBranches(repo),
+		listTags(repo),
+	]);
+	const refs: RefTarget[] = [
+		...branches.map((branch) => ({
+			ref: `refs/heads/${branch.name}`,
+			sha: branch.commit,
+			type: "commit" as const,
+		})),
+		...tags.map((tag) => ({
+			ref: `refs/tags/${tag.name}`,
+			sha: tag.tagObject ?? tag.commit,
+			type: tag.tagObject ? ("tag" as const) : ("commit" as const),
+		})),
+	];
+	return refs.sort((a, b) => (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0));
 }
