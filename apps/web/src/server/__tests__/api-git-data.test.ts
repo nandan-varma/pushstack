@@ -5,7 +5,7 @@
  * compare and the Git database reads, end to end over pglite and git-fs.ts's
  * in-memory store.
  */
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb(),
@@ -18,6 +18,7 @@ vi.mock(
 
 const { createUsers, signIn } = await import("../../test/app-harness");
 const files = await import("../files");
+const caps = await import("../api/caps");
 const users = await createUsers("alice", "bob");
 const { BASE, asToken, call, mintToken, post } = await import(
 	"../../test/api-client"
@@ -380,5 +381,182 @@ describe("git database", () => {
 		expect(
 			(await call("/repos/alice/secret/git/refs", asToken(bob))).status,
 		).toBe(404);
+	});
+});
+
+describe("caps (lowered for the test)", () => {
+	const { apiCaps, DEFAULT_API_CAPS } = caps;
+	afterEach(() => {
+		Object.assign(apiCaps, DEFAULT_API_CAPS);
+	});
+
+	it("returns encoding none for files over the inline cap", async () => {
+		apiCaps.contentsInlineBytes = 5;
+		const { status, body } = await call(
+			"/repos/alice/proj/contents/src/app.txt",
+		);
+		expect(status).toBe(200);
+		expect(body).toMatchObject({ size: 12, content: "", encoding: "none" });
+	});
+
+	it("caps a directory listing", async () => {
+		apiCaps.directoryEntries = 1;
+		expect((await call("/repos/alice/proj/contents")).body).toHaveLength(1);
+	});
+
+	it("truncates trees", async () => {
+		apiCaps.treeEntries = 2;
+		const { body } = await call("/repos/alice/proj/git/trees/main?recursive=1");
+		expect(body.tree).toHaveLength(2);
+		expect(body.truncated).toBe(true);
+	});
+
+	it("403s blobs over the cap", async () => {
+		const file = await call("/repos/alice/proj/contents/src/app.txt");
+		apiCaps.blobBytes = 5;
+		const { status, body } = await call(
+			`/repos/alice/proj/git/blobs/${file.body.sha}`,
+		);
+		expect(status).toBe(403);
+		expect(body.message).toContain("blobs up to 5 bytes");
+	});
+
+	it("omits patches past the patch budget", async () => {
+		apiCaps.patchBudgetBytes = 1;
+		const { body } = await call(`/repos/alice/proj/commits/${second}`);
+		expect(body.files).toHaveLength(1);
+		expect(body.files[0].patch).toBeUndefined();
+		expect(body.files[0].additions).toBeGreaterThan(0);
+	});
+
+	it("caps files and commits of a comparison and a commit", async () => {
+		const full = await call(`/repos/alice/proj/compare/${first}...main`);
+		expect(full.body.files).toHaveLength(2);
+		expect(full.body.commits).toHaveLength(2);
+		apiCaps.diffFiles = 1;
+		apiCaps.compareCommits = 1;
+		const capped = await call(`/repos/alice/proj/compare/${first}...main`);
+		expect(capped.body.files).toHaveLength(1);
+		expect(capped.body.commits).toHaveLength(1);
+		// The counts still describe the whole comparison.
+		expect(capped.body.ahead_by).toBe(2);
+		expect(capped.body.total_commits).toBe(2);
+		const paged = await call(
+			`/repos/alice/proj/compare/${first}...main?per_page=1&page=2`,
+		);
+		expect(paged.body.commits).toEqual([]);
+	});
+});
+
+describe("symlinks and submodules", () => {
+	const SUB = "a".repeat(40);
+
+	beforeAll(async () => {
+		await call("/user/repos", post(alice, { name: "links" }));
+		const git = (await import("isomorphic-git")).default;
+		const { repoFor } = await import("../git-repo");
+		const repo = repoFor("alice", "links");
+		const blob = (text: string) =>
+			git.writeBlob({ ...repo, blob: new TextEncoder().encode(text) });
+		const tree = await git.writeTree({
+			...repo,
+			tree: [
+				{
+					mode: "100644",
+					path: ".gitmodules",
+					type: "blob",
+					oid: await blob(
+						'[submodule "lib"]\n\tpath = lib\n\turl = https://example.org/lib.git\n',
+					),
+				},
+				{ mode: "160000", path: "lib", type: "commit", oid: SUB },
+				{
+					mode: "120000",
+					path: "link",
+					type: "blob",
+					oid: await blob(".gitmodules"),
+				},
+			],
+		});
+		const author = {
+			name: "A",
+			email: "a@a.test",
+			timestamp: 0,
+			timezoneOffset: 0,
+		};
+		const commit = await git.writeCommit({
+			...repo,
+			commit: {
+				message: "links\n",
+				tree,
+				parent: [],
+				author,
+				committer: author,
+			},
+		});
+		await git.writeRef({ ...repo, ref: "refs/heads/main", value: commit });
+	});
+
+	it("returns a symlink with its target", async () => {
+		const { status, body } = await call("/repos/alice/links/contents/link");
+		expect(status).toBe(200);
+		expect(body).toMatchObject({
+			type: "symlink",
+			target: ".gitmodules",
+			size: 11,
+			path: "link",
+		});
+		expect(body.content).toBeUndefined();
+	});
+
+	it("does not read a symlink target over the cap", async () => {
+		const { apiCaps, DEFAULT_API_CAPS } = caps;
+		apiCaps.symlinkTargetBytes = 4;
+		try {
+			const { body } = await call("/repos/alice/links/contents/link");
+			expect(body).toMatchObject({ type: "symlink", target: null });
+		} finally {
+			Object.assign(apiCaps, DEFAULT_API_CAPS);
+		}
+	});
+
+	it("returns a submodule with its URL", async () => {
+		const { status, body } = await call("/repos/alice/links/contents/lib");
+		expect(status).toBe(200);
+		expect(body).toMatchObject({
+			type: "submodule",
+			sha: SUB,
+			submodule_git_url: "https://example.org/lib.git",
+			download_url: null,
+			git_url: null,
+			html_url: null,
+		});
+		const root = await call("/repos/alice/links/contents");
+		expect(root.body.map((e: { type: string }) => e.type).sort()).toEqual([
+			"file",
+			"submodule",
+			"symlink",
+		]);
+	});
+});
+
+describe("private repositories", () => {
+	it("404s commits and compare for non-readers", async () => {
+		await call(
+			"/user/repos",
+			post(alice, { name: "hidden", private: true, auto_init: true }),
+		);
+		for (const path of [
+			"/repos/alice/hidden/commits",
+			"/repos/alice/hidden/commits/main",
+			"/repos/alice/hidden/compare/main...main",
+			"/repos/alice/hidden/git/trees/main",
+		]) {
+			expect((await call(path)).status).toBe(404);
+			expect((await call(path, asToken(bob))).status).toBe(404);
+		}
+		expect(
+			(await call("/repos/alice/hidden/commits", asToken(alice))).status,
+		).toBe(200);
 	});
 });

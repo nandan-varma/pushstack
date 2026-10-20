@@ -6,6 +6,7 @@ import {
 	GitObjectNotFoundError,
 	GitPathNotFoundError,
 	getObjectSize,
+	getObjectSizes,
 	isNotFoundError,
 } from "git-fs-s3";
 import {
@@ -426,6 +427,35 @@ export async function getBlobSize(
 	const repo = repoFor(ownerKey, repoName);
 	const known = await getObjectSize(repo, oid);
 	return known ?? (await getBlob(repo, oid)).byteLength;
+}
+
+/**
+ * Many blobs' sizes in few range reads (the library batches entries that sit
+ * near each other in a pack). A size the pack can't answer (a loose object, a
+ * store without range reads) is read, at most `concurrency` at a time.
+ */
+export async function getBlobSizes(
+	ownerKey: string,
+	repoName: string,
+	oids: readonly string[],
+	concurrency = 8,
+): Promise<Map<string, number>> {
+	const repo = repoFor(ownerKey, repoName);
+	const known = await getObjectSizes(repo, oids);
+	const sizes = new Map<string, number>();
+	const unknown: string[] = [];
+	for (const [oid, size] of known) {
+		if (size === null) unknown.push(oid);
+		else sizes.set(oid, size);
+	}
+	for (let at = 0; at < unknown.length; at += concurrency) {
+		await Promise.all(
+			unknown.slice(at, at + concurrency).map(async (oid) => {
+				sizes.set(oid, (await getBlob(repo, oid)).byteLength);
+			}),
+		);
+	}
+	return sizes;
 }
 
 /** The submodule URLs root `.gitmodules` declares at a commit, by path. */

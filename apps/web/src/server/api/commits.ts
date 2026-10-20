@@ -17,6 +17,7 @@ import { safeCommitRevSchema, safeRepoPathSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import type { RepositoryRowWithOwner } from "../repository-lookup";
 import type { ApiContext } from "./auth";
+import { apiCaps } from "./caps";
 import { diffFileObjects } from "./diff-files";
 import {
 	ApiError,
@@ -31,11 +32,6 @@ import {
 import { readableRepository } from "./repo-lookup";
 import { commitObject } from "./serializers";
 import { fullNameOf } from "./threads";
-
-/** A single commit or a comparison lists at most 300 files, as GitHub does. */
-export const MAX_DIFF_FILES = 300;
-/** A comparison lists at most 250 commits, as GitHub does. */
-export const MAX_COMPARE_COMMITS = 250;
 
 const noCommitError = (rev: string) =>
 	new ApiError(422, `No commit found for SHA: ${rev}`);
@@ -112,7 +108,7 @@ async function diffSummary(repo: RepositoryRowWithOwner, diff: DiffResult) {
 		repo.name,
 		fullNameOf(repo),
 		diff,
-		diff.files.slice(0, MAX_DIFF_FILES),
+		diff.files.slice(0, apiCaps.diffFiles),
 	);
 	return {
 		stats: {
@@ -210,7 +206,7 @@ export async function compareCommits(ctx: ApiContext) {
 	const query = ctx.url.searchParams;
 	const paginated = query.has("page") || query.has("per_page");
 	const params = pageParams(query);
-	const listed = ahead.commits.slice(0, MAX_COMPARE_COMMITS);
+	const listed = ahead.commits.slice(0, apiCaps.compareCommits);
 	const pageItems = paginated
 		? params.reachable
 			? listed.slice(params.offset, params.offset + params.perPage)

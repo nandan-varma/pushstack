@@ -5,10 +5,8 @@
 import { isNotFoundError } from "git-fs-s3";
 import type { DiffResult } from "git-fs-s3/ops";
 import { getEntryOid } from "../git-read";
+import { apiCaps } from "./caps";
 import { apiUrl, encodePath, htmlUrl } from "./http";
-
-/** Patch bytes one response carries before omitting the rest. */
-export const PATCH_BUDGET_BYTES = 2 * 1024 * 1024;
 
 /** Shown when a sha is unknown (a deleted branch with no recorded tip). */
 export const UNKNOWN_SHA = "0".repeat(40);
@@ -26,7 +24,7 @@ type DiffFile = DiffResult["files"][number];
 
 /**
  * The given files of `diff` as GitHub diff entries. Patches count against one
- * {@link PATCH_BUDGET_BYTES} budget per call (Vercel caps buffered responses at
+ * `apiCaps.patchBudgetBytes` budget per call (Vercel caps buffered responses at
  * 4.5 MB); files past it, binary and oversized ones list without a patch.
  */
 export async function diffFileObjects(
@@ -41,7 +39,7 @@ export async function diffFileObjects(
 		if (file.kind !== "text" || !file.patch) return {};
 		const patch = hunksOf(file.patch);
 		const size = Buffer.byteLength(patch);
-		if (patchBytes + size > PATCH_BUDGET_BYTES) return {};
+		if (patchBytes + size > apiCaps.patchBudgetBytes) return {};
 		patchBytes += size;
 		return { patch };
 	};

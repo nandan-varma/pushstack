@@ -7,6 +7,7 @@ import {
 	createGitFs,
 	createRetryStore,
 	getObjectSize,
+	getObjectSizes,
 	MemoryObjectStore,
 	type ObjectStore,
 } from "../src/index.js";
@@ -195,5 +196,56 @@ describe("getObjectSize", () => {
 	it("returns null for an object no pack lists", async () => {
 		const { repo } = await loadFixture();
 		expect(await getObjectSize(repo, "0".repeat(40))).toBeNull();
+	});
+});
+
+describe("getObjectSizes", () => {
+	it("matches getObjectSize for every object, in one range read per window", async () => {
+		const { store } = await loadFixture();
+		const objects = await indexedObjects(store);
+		let ranges = 0;
+		const counting: ObjectStore = {
+			get: (k) => store.get(k),
+			put: (k, d) => store.put(k, d),
+			delete: (k) => store.delete(k),
+			head: (k) => store.head(k),
+			list: (p, o) => store.list(p, o),
+			getRange: (k, s, e) => {
+				ranges++;
+				return store.getRange(k, s, e);
+			},
+		};
+		const repo: Repo = { fs: createGitFs(counting), gitdir: "git", cache: {} };
+		const oids = objects.map((o) => o.oid);
+		const missing = "0".repeat(40);
+		const sizes = await getObjectSizes(repo, [...oids, missing]);
+		const batched = ranges;
+		for (const oid of oids) {
+			expect(sizes.get(oid)).toBe(await getObjectSize(repo, oid));
+			expect(sizes.get(oid)).toBeTypeOf("number");
+		}
+		expect(sizes.get(missing)).toBeNull();
+		// The fixture pack is small: one window covers it.
+		expect(batched).toBeLessThanOrEqual(2);
+		expect(batched).toBeLessThan(oids.length);
+	});
+
+	it("answers null for everything without range support", async () => {
+		const { store } = await loadFixture();
+		const [first] = await indexedObjects(store);
+		const withoutRange: ObjectStore = {
+			get: (k) => store.get(k),
+			put: (k, d) => store.put(k, d),
+			delete: (k) => store.delete(k),
+			head: (k) => store.head(k),
+			list: (p, o) => store.list(p, o),
+		};
+		const repo: Repo = {
+			fs: createGitFs(withoutRange),
+			gitdir: "git",
+			cache: {},
+		};
+		if (!first) throw new Error("fixture has no objects");
+		expect((await getObjectSizes(repo, [first.oid])).get(first.oid)).toBeNull();
 	});
 });

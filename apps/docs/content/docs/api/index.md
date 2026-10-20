@@ -172,7 +172,8 @@ kept) and is absent when everything fits on one page. Items deeper than
 - Contents: only JSON responses (the `raw`/`html` media types are not
   supported; use `download_url`). Files over 1 MB have `content: ""` and
   `encoding: "none"`; a directory lists at most 1000 entries. Symlinks return
-  `type: "symlink"` with `target`; submodules `type: "submodule"` with
+  `type: "symlink"` with `target` (`null` for a target over 4096 bytes, which
+  is never read), not the linked file's content; submodules `type: "submodule"` with
   `submodule_git_url`.
 - Commits list: `sha`, `path` and pagination; `author`, `committer`, `since`
   and `until` are ignored. Walks are bounded, so pages past ~10,000 commits are

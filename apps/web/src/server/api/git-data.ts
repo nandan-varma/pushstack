@@ -9,6 +9,7 @@ import {
 	getAllRefs,
 	getBlobByOid,
 	getBlobSize,
+	getBlobSizes,
 	getCommit,
 	getTreeByOid,
 	type RefTarget,
@@ -16,6 +17,7 @@ import {
 import { safeCommitRevSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import type { ApiContext } from "./auth";
+import { apiCaps } from "./caps";
 import {
 	ApiError,
 	apiUrl,
@@ -27,14 +29,6 @@ import {
 import { readableRepository } from "./repo-lookup";
 import { gitIdentity } from "./serializers";
 import { fullNameOf } from "./threads";
-
-/** Recursive trees list at most this many entries, then set `truncated`. */
-export const MAX_TREE_ENTRIES = 10_000;
-/**
- * Blobs over this are refused (GitHub: 100 MB): base64 JSON must stay under
- * Vercel's 4.5 MB buffered response cap.
- */
-export const MAX_API_BLOB_BYTES = 3 * 1024 * 1024;
 
 function refObject(fullName: string, target: RefTarget) {
 	const objectKind = target.type === "tag" ? "tags" : "commits";
@@ -159,25 +153,27 @@ export async function getGitTree(ctx: ApiContext) {
 	const recursive = ctx.url.searchParams.has("recursive");
 	const tree = await getTreeByOid(ownerKey, repo.name, oid, {
 		recursive,
-		limit: MAX_TREE_ENTRIES,
+		limit: apiCaps.treeEntries,
 	});
-	const sizes = await Promise.all(
-		tree.entries.map((entry) =>
-			entry.type === "blob"
-				? getBlobSize(ownerKey, repo.name, entry.oid)
-				: Promise.resolve(null),
-		),
+	// One batched size read for the whole tree, not one per entry.
+	const sizes = await getBlobSizes(
+		ownerKey,
+		repo.name,
+		tree.entries
+			.filter((entry) => entry.type === "blob")
+			.map((entry) => entry.oid),
+		apiCaps.sizeReadConcurrency,
 	);
 	return json({
 		sha: tree.sha,
 		url: apiUrl(`/repos/${fullName}/git/trees/${tree.sha}`),
-		tree: tree.entries.map((entry, index) => ({
+		tree: tree.entries.map((entry) => ({
 			path: entry.path,
 			mode: entry.mode,
 			type: entry.type,
 			sha: entry.oid,
 			...(entry.type === "blob" && {
-				size: sizes[index],
+				size: sizes.get(entry.oid) ?? 0,
 				url: apiUrl(`/repos/${fullName}/git/blobs/${entry.oid}`),
 			}),
 			...(entry.type === "tree" && {
@@ -195,10 +191,10 @@ export async function getGitBlob(ctx: ApiContext) {
 	if (!isFullSha(sha)) throw notFoundError();
 	const ownerKey = ownerKeyOf(repo);
 	const size = await getBlobSize(ownerKey, repo.name, sha);
-	if (size > MAX_API_BLOB_BYTES) {
+	if (size > apiCaps.blobBytes) {
 		throw new ApiError(
 			403,
-			`This API returns blobs up to ${MAX_API_BLOB_BYTES} bytes in size`,
+			`This API returns blobs up to ${apiCaps.blobBytes} bytes in size`,
 		);
 	}
 	const bytes = await getBlobByOid(ownerKey, repo.name, sha).catch(

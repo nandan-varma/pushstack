@@ -3,6 +3,7 @@ import type { TreeEntry } from "git-fs-s3/ops";
 import {
 	getBlobByOid,
 	getBlobSize,
+	getBlobSizes,
 	getPathEntry,
 	getSubmoduleUrls,
 	getTreeByOid,
@@ -10,14 +11,10 @@ import {
 import { safeCommitRevSchema, safeRepoPathSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import type { ApiContext } from "./auth";
+import { apiCaps } from "./caps";
 import { apiUrl, encodePath, htmlUrl, json, notFoundError } from "./http";
 import { readableRepository } from "./repo-lookup";
 import { fullNameOf } from "./threads";
-
-/** Files over this have `content: ""` and `encoding: "none"`, as on GitHub (1 MB). */
-export const MAX_CONTENTS_INLINE_BYTES = 1024 * 1024;
-/** A directory listing returns at most 1000 entries, as on GitHub. */
-const MAX_DIRECTORY_ENTRIES = 1000;
 
 /** Base64 wrapped at 60 characters per line, as GitHub encodes `content`. */
 function wrappedBase64(bytes: Uint8Array): string {
@@ -99,21 +96,23 @@ export async function getContents(ctx: ApiContext) {
 
 	if (entry.type === "tree") {
 		const { entries } = await getTreeByOid(ownerKey, repo.name, entry.oid, {
-			limit: MAX_DIRECTORY_ENTRIES,
+			limit: apiCaps.directoryEntries,
 		});
 		const listed = entries.map((child) => ({
 			...child,
 			path: path ? `${path}/${child.path}` : child.path,
 		}));
-		const sizes = await Promise.all(
-			listed.map((child) =>
-				child.type === "blob"
-					? getBlobSize(ownerKey, repo.name, child.oid)
-					: Promise.resolve(0),
-			),
+		// One batched size read for the whole listing, not one per entry.
+		const sizes = await getBlobSizes(
+			ownerKey,
+			repo.name,
+			listed.filter((child) => child.type === "blob").map((child) => child.oid),
+			apiCaps.sizeReadConcurrency,
 		);
 		return json(
-			listed.map((child, index) => baseShape(child, sizes[index], location)),
+			listed.map((child) =>
+				baseShape(child, sizes.get(child.oid) ?? 0, location),
+			),
 		);
 	}
 
@@ -127,13 +126,16 @@ export async function getContents(ctx: ApiContext) {
 
 	const size = await getBlobSize(ownerKey, repo.name, entry.oid);
 	if (entry.mode === "120000") {
-		const target = await getBlobByOid(ownerKey, repo.name, entry.oid);
-		return json({
-			...baseShape(entry, size, location),
-			target: new TextDecoder().decode(target),
-		});
+		// A target longer than any real path is not read (`target: null`).
+		const target =
+			size <= apiCaps.symlinkTargetBytes
+				? new TextDecoder().decode(
+						await getBlobByOid(ownerKey, repo.name, entry.oid),
+					)
+				: null;
+		return json({ ...baseShape(entry, size, location), target });
 	}
-	if (size > MAX_CONTENTS_INLINE_BYTES) {
+	if (size > apiCaps.contentsInlineBytes) {
 		return json({
 			...baseShape(entry, size, location),
 			content: "",
