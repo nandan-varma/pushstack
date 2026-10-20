@@ -52,6 +52,12 @@ export function IssueAssignees({
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: queryKeys.assignedThreads }),
 				queryClient.invalidateQueries({
+					queryKey: queryKeys.pullRequestsRoot(repoId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repoIssuesRoot(repoId),
+				}),
+				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(repoId),
 				}),
 			]);
