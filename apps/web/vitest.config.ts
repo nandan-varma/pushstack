@@ -7,12 +7,8 @@ export default defineConfig({
 	test: {
 		// Each behavior-test worker boots Postgres WASM; bound memory and startup contention.
 		maxWorkers: 2,
-		// Seeding hooks push the whole schema with drizzle-kit into a fresh
-		// Postgres WASM instance: measured 545-908ms warm per file, several
-		// seconds when workers and other processes contend for CPU, which crossed
-		// vitest's 10s default. Only the hooks get the wider bound — test bodies
-		// keep the default so a slow body still fails fast.
-		hookTimeout: 30_000,
+		// Builds the database every test file starts from; see src/test/test-db-template.ts.
+		globalSetup: ["./src/test/global-setup.ts"],
 		environment: "jsdom",
 		// src/db requires a URL at import; nothing connects until a query runs.
 		env: { DATABASE_URL: "postgresql://test@localhost/test" },
