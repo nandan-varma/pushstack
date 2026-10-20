@@ -7,6 +7,7 @@
  */
 
 import git from "isomorphic-git";
+import { isNotFoundError } from "../git-errors.js";
 import type { Repo } from "../ops/types.js";
 import {
 	type PackFileName,
@@ -122,7 +123,19 @@ export async function repackRepository(
 	];
 	const tipOids = (
 		await Promise.all(
-			refNames.map((ref) => git.resolveRef({ ...repo, ref }).catch(() => null)),
+			refNames.map(async (ref) => {
+				try {
+					return await git.resolveRef({ ...repo, ref });
+				} catch (error) {
+					// Only a ref that genuinely vanished between list and resolve
+					// (nothing reachable from it is worth keeping) may be skipped.
+					// Swallowing the rest would drop that ref's history from the
+					// consolidated pack and then delete the packs that still held it —
+					// leaving the ref dangling after a transient read failure (#91).
+					if (isNotFoundError(error)) return null;
+					throw error;
+				}
+			}),
 		)
 	).filter((oid): oid is string => oid !== null);
 	if (tipOids.length === 0) return [];

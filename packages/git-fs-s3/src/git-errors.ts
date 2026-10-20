@@ -172,6 +172,12 @@ export function isNotFoundError(error: unknown): boolean {
 		error instanceof GitPathNotFoundError ||
 		error instanceof GitObjectNotFoundError ||
 		error instanceof GitRefNotFoundError ||
-		error instanceof GitRepositoryNotFoundError
+		error instanceof GitRepositoryNotFoundError ||
+		// isomorphic-git's own primitives (resolveRef, readObject, deleteRef,
+		// currentBranch) reject with `code: "NotFoundError"` for a missing
+		// ref/object instead of this package's typed errors. Treating only the
+		// typed ones as not-found made "nothing there" and "read failed"
+		// indistinguishable at every call site that checks this predicate.
+		(error as { code?: string } | null)?.code === "NotFoundError"
 	);
 }

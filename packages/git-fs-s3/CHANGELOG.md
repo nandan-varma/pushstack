@@ -20,6 +20,20 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `receive-pack` no longer reads a failed ref or `HEAD` read as "absent". A
+  `resolveRef` failure other than a genuine not-found used to map to the zero
+  oid, so `force: true` in `applyRefUpdates` would overwrite a ref another
+  writer had moved (its commits became unreachable); a failed `HEAD` read used
+  to map to "detached", so a push could delete the branch HEAD named and leave
+  the repository without a default branch. Both, a failed `deleteRef`, and a
+  failed `HEAD` probe during first-push initialization now reject the push
+  (500) instead. `isNotFoundError` now also recognizes isomorphic-git's own
+  `NotFoundError` (`resolveRef`/`readObject`/`deleteRef`/`currentBranch` throw
+  that, not this package's typed errors).
+- `repackRepository` no longer drops a ref from the consolidated pack when
+  resolving its tip fails transiently. Dropping it excluded that ref's history
+  from the new pack while the cleanup deleted the packs that still held it,
+  leaving the ref dangling; the consolidation now rejects instead.
 - The package's `homepage` metadata now points at the docs site; 0.15.2 was
   published before that field was corrected.
 - `applyReceivePack` no longer fails a push whose post-refs pack consolidation

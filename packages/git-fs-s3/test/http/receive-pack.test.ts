@@ -741,6 +741,172 @@ describe("receive-pack — protocol edge cases", () => {
 		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
 	});
 
+	it("rejects a push when the ref read fails, instead of force-overwriting the ref", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "first\n",
+			author,
+			files: [{ path: "file.txt", content: "first\n" }],
+		});
+
+		const staging = await initRepo();
+		const { packfile, commitOid } = await buildPushPack(staging, tip, "second");
+
+		// The client believes main is still unborn (oldOid = 0000…) and sends a
+		// "create" command. The server's ref read fails, so without the fix the
+		// CAS resolves to ZERO_OID, passes, and `force: true` in applyRefUpdates
+		// overwrites main — making the first writer's commits unreachable.
+		const realResolveRef = git.resolveRef;
+		const spy = vi
+			.spyOn(git, "resolveRef")
+			.mockImplementation((args) =>
+				args.ref === "refs/heads/main"
+					? Promise.reject(new Error("storage read failed"))
+					: realResolveRef(args),
+			);
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					parseReceivePackBody(
+						body([`${ZERO_OID} ${commitOid} refs/heads/main\n`], packfile),
+					),
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
+	});
+
+	it("rejects a push that would delete the default branch when the HEAD read fails", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+
+		// A failed HEAD read must not be read as "detached, so nothing to
+		// protect": that lets this deletion through and leaves the repository
+		// with no default branch.
+		const spy = vi
+			.spyOn(git, "currentBranch")
+			.mockRejectedValue(new Error("storage read failed"));
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					parseReceivePackBody(body([`${tip} ${ZERO_OID} refs/heads/main\n`])),
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
+	});
+
+	it("still allows deleting a branch when HEAD is genuinely detached", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+		await git.writeRef({ ...repo, ref: "HEAD", value: tip, force: true });
+
+		const outcome = await applyReceivePack(
+			repo,
+			parseReceivePackBody(body([`${tip} ${ZERO_OID} refs/heads/main\n`])),
+			{ defaultBranch: "main", repack: false },
+		);
+
+		expect(outcome.results).toEqual([{ refName: "refs/heads/main", ok: true }]);
+		await expect(
+			git.resolveRef({ ...repo, ref: "refs/heads/main" }),
+		).rejects.toThrow();
+	});
+
+	it("rejects a push when deleting the ref fails, instead of reporting success", async () => {
+		const repo = await initRepo();
+		const tip = await commitFilesToBare(repo, {
+			branch: "doomed",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+
+		const spy = vi
+			.spyOn(git, "deleteRef")
+			.mockRejectedValue(new Error("storage write failed"));
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					parseReceivePackBody(
+						body([`${tip} ${ZERO_OID} refs/heads/doomed\n`]),
+					),
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage write failed");
+		} finally {
+			spy.mockRestore();
+		}
+
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/doomed" })).toBe(
+			tip,
+		);
+	});
+
+	it("rejects a push when the init probe fails, instead of treating it as uninitialized", async () => {
+		const repo = await initRepo();
+		const fsp = rawFs(repo);
+		const stat = fsp.stat.bind(fsp);
+		const spy = vi
+			.spyOn(fsp, "stat")
+			.mockImplementation((path) =>
+				path.endsWith("/HEAD")
+					? Promise.reject(new Error("storage read failed"))
+					: stat(path),
+			);
+		try {
+			await expect(
+				applyReceivePack(
+					repo,
+					{ refUpdates: [], packData: new Uint8Array() },
+					{ defaultBranch: "main", repack: false },
+				),
+			).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
 	it("rejects two commands for the same ref", async () => {
 		const repo = await initRepo();
 		const staging = await initRepo();

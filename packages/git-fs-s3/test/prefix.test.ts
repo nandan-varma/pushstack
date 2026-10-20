@@ -60,6 +60,15 @@ describe("isNotFoundError", () => {
 		expect(isNotFoundError(new GitConflictError("c"))).toBe(false);
 		expect(isNotFoundError(null)).toBe(false);
 	});
+
+	it("is true for isomorphic-git's own NotFoundError", () => {
+		// resolveRef/readObject/deleteRef/currentBranch reject with this code
+		// rather than this package's typed errors, so a predicate that only
+		// knew the typed ones made "missing" and "read failed" identical.
+		const notFound = new Error("missing") as Error & { code: string };
+		notFound.code = "NotFoundError";
+		expect(isNotFoundError(notFound)).toBe(true);
+	});
 });
 
 describe("isRetryableError", () => {
