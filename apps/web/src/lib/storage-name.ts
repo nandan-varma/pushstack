@@ -26,12 +26,9 @@ export const STORAGE_NAME_PATTERN = STORAGE_NAME_RE.source
 	.replace(/^\^/, "")
 	.replace(/\$$/, "");
 
-/** Longest accepted name — the server's zod schema caps names at this. */
 export const MAX_STORAGE_NAME_LENGTH = 100;
 
-/** Longest accepted username — Better Auth's `maxUsernameLength` in `lib/auth.ts`. */
 export const MAX_USERNAME_LENGTH = 30;
 
-/** The rule in words, for a form hint or a `title` attribute. */
 export const STORAGE_NAME_HINT =
 	"Letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number";

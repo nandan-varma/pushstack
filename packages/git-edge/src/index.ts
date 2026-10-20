@@ -1,10 +1,3 @@
-/**
- * git-edge
- *
- * High-level edge-compatible git operations.
- * Composes with git-fs-s3 for storage.
- */
-
 export {
 	createParsedObjectCache,
 	type ParsedObjectCacheOptions,

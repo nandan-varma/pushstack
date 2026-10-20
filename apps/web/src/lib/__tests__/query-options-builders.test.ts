@@ -1,10 +1,3 @@
-/**
- * Tests for query-options.ts's *QueryOptions builders: queryFn wiring (calls
- * the right server function with the right args) and the staleTime/gcTime/
- * refetch config that determines cache/invalidation behavior. queryKeys
- * themselves are covered in query-options.test.ts.
- */
-
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { THREAD_PAGE_SIZE } from "#/lib/limits";

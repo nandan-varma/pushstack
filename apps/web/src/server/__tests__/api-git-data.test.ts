@@ -438,7 +438,6 @@ describe("caps (lowered for the test)", () => {
 		const capped = await call(`/repos/alice/proj/compare/${first}...main`);
 		expect(capped.body.files).toHaveLength(1);
 		expect(capped.body.commits).toHaveLength(1);
-		// The counts still describe the whole comparison.
 		expect(capped.body.ahead_by).toBe(2);
 		expect(capped.body.total_commits).toBe(2);
 		const paged = await call(

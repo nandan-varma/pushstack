@@ -23,7 +23,6 @@ import { SubmoduleDiff } from "./SubmoduleDiff";
 
 type FileDiff = DiffFile;
 
-/** Where each side of the diff lives, so media can be fetched from /api/raw. */
 export interface DiffSides {
 	owner: string;
 	name: string;
@@ -69,7 +68,6 @@ function sizeChange(fileDiff: FileDiff): string {
 	return `${size(fileDiff.oldSize)} → ${size(fileDiff.newSize)}`;
 }
 
-/** A diff with no patch: binary (previewed side by side) or too large. */
 function UnpatchedDiff({
 	fileDiff,
 	sides,
@@ -207,9 +205,7 @@ export function FileDiffViewer({
 	isLoading?: boolean;
 	emptyMessage?: string;
 	summaryExtra?: ReactNode;
-	/** A per-line control (e.g. a "comment" button), rendered after the code. */
 	renderLineActions?: (anchor: DiffAnchor) => ReactNode;
-	/** The threads anchored to a line, rendered as a full-width row below it. */
 	renderThreads?: (anchors: DiffAnchor[]) => ReactNode;
 }) {
 	const parsedFiles = useMemo<ParsedFileDiff[]>(
@@ -281,9 +277,7 @@ export function FileDiffViewer({
 								for (let i = 0; i < tokens.length && start + i < end; i++) {
 									tokenLines[start + i] = tokens[i];
 								}
-							} catch {
-								// leave this segment's lines unhighlighted
-							}
+							} catch {}
 						}),
 					);
 

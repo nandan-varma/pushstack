@@ -24,12 +24,6 @@ export function findReadmeFile<T extends FileEntry>(
 	);
 }
 
-/**
- * Renders the README for the current directory, same as GitHub's repo/tree
- * "readme below the file list" panel. Reused by the tree page at every depth
- * — root and nested directories alike — so it only depends on the resolved
- * readme file entry, not on being at the repo root.
- */
 export function ReadmeCard({
 	owner,
 	name,
@@ -73,7 +67,6 @@ export function ReadmeCard({
 		);
 	}
 
-	// Only a README small enough to show inline is rendered.
 	if (!readmeFile || (readmeContent && readmeContent.kind !== "text")) {
 		return null;
 	}

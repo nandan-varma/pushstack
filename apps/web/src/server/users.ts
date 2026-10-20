@@ -1,4 +1,3 @@
-/** Public profile pages. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";

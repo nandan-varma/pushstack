@@ -132,7 +132,6 @@ describe("access changes take effect immediately", () => {
 			},
 		});
 
-		// Read once as the collaborator: this is what populates the access cache.
 		signIn(users.reader);
 		await expect(
 			repositories.getRepositoryByName({

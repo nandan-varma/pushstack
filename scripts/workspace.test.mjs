@@ -9,8 +9,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = (name) =>
 	JSON.parse(readFileSync(path.join(root, name), "utf8"));
 const readText = (name) => readFileSync(path.join(root, name), "utf8");
-// Runs the script the release workflow uses to turn a package name into its
-// workspace directory.
 const packageDirectory = (name) =>
 	execFileSync(process.execPath, ["scripts/workspace-directory.mjs", name], {
 		cwd: root,
@@ -19,7 +17,6 @@ const packageDirectory = (name) =>
 const exists = (name) => existsSync(path.join(root, name));
 const github = ".github";
 const SETUP_ACTION = `${github}/actions/setup/action.yml`;
-// Our own composite actions: .github/actions/<name>/action.yml.
 const actionFiles = () => {
 	const actions = path.join(root, github, "actions");
 	if (!existsSync(actions)) return [];
@@ -37,7 +34,6 @@ const workflowFiles = () =>
 	readdirSync(path.join(root, github, "workflows"))
 		.filter((file) => /\.ya?ml$/.test(file))
 		.map((file) => `${github}/workflows/${file}`);
-// Every file that may contain `uses:` steps.
 const stepFiles = () => [...workflowFiles(), ...actionFiles()];
 const usesLines = function* (file) {
 	for (const [index, line] of readText(file).split("\n").entries()) {

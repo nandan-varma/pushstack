@@ -42,8 +42,6 @@ function SearchPage() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const [inputValue, setInputValue] = useState(q);
 
-	// Keep the input in sync when the query changes via back/forward or the
-	// header search box.
 	useEffect(() => {
 		setInputValue(q);
 	}, [q]);

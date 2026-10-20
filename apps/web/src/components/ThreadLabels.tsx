@@ -6,10 +6,6 @@ import type { LabelView } from "@/lib/labels";
 
 const ThreadLabelPicker = lazy(() => import("@/components/ThreadLabelPicker"));
 
-/**
- * An issue's or pull request's labels, with a picker for people who can
- * triage (write access). Everyone else just sees the chips.
- */
 export function ThreadLabels({
 	owner,
 	name,

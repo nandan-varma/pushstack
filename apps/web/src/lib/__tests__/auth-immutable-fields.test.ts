@@ -41,7 +41,6 @@ describe("immutable user fields", () => {
 		const [created] = await db.select().from(user).where(eq(user.id, userId));
 		expect(created?.username).toBe("octocat");
 
-		// Sign-in requires a verified email; flip it the way the verify link would.
 		await db
 			.update(user)
 			.set({ emailVerified: true })

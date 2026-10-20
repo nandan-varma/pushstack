@@ -8,7 +8,6 @@ vi.mock("@/lib/syntax-highlight-client", () => ({
 	requestHighlightTokens: vi.fn(),
 }));
 
-/** Two hunks, a removal, additions, context and a no-newline marker. */
 const patch =
 	"--- a/a.txt\n+++ b/a.txt\n@@ -1,4 +1,4 @@\n context\n-removed\n+added\n more\n last\n@@ -20,2 +20,3 @@\n twenty\n+twenty-one\n twenty-two\n\\ No newline at end of file\n";
 

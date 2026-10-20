@@ -1,7 +1,6 @@
 import { useId } from "react";
 import type { PreviewKind } from "@/lib/language-detection";
 
-/** Renders media from `src` (the raw endpoint, or an object URL for text media). */
 export function BinaryPreview({
 	src,
 	previewKind,

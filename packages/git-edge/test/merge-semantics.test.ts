@@ -1,8 +1,3 @@
-/**
- * threeWayMerge semantics: one-sided changes (deletions included), modes,
- * binary files, structural conflicts, no-op merges, and which refs move.
- * Runs against git-fs-s3's in-memory object store.
- */
 import git from "isomorphic-git";
 import { describe, expect, it } from "vitest";
 import { GitEdgeError, GitMergeConflictError } from "../src/errors.js";
@@ -21,7 +16,7 @@ describe("threeWayMerge semantics", () => {
 		const { repo } = await diverge(
 			{ "a.txt": "a\n", "b.txt": "b\n" },
 			{ "a.txt": "a\n", "b.txt": "b\n", "c.txt": "c\n" },
-			{ "a.txt": "a\n" }, // feature deleted b.txt
+			{ "a.txt": "a\n" },
 		);
 		const { commitOid } = await merge(repo);
 		expect(Object.keys(await mergedFiles(repo, commitOid)).sort()).toEqual([

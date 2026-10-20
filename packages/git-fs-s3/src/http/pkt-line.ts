@@ -9,7 +9,7 @@ import { concat, decodeAscii, decodeUtf8, encodeUtf8 } from "../edge-utils.js";
 /** Flush packet: exactly four zero bytes. */
 export const FLUSH: Uint8Array<ArrayBuffer> = new Uint8Array([
 	0x30, 0x30, 0x30, 0x30,
-]); // "0000"
+]);
 
 /**
  * A pkt-line length prefix is four hex digits, so 0xffff (65535) bytes total

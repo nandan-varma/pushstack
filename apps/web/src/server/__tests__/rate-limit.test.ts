@@ -83,7 +83,6 @@ describe("rateLimitStorage", () => {
 		}
 		expect((await rateLimitStorage.consume(key, RULE)).allowed).toBe(false);
 
-		// Age the counter past its window instead of waiting a real minute.
 		await db.execute(
 			sql`update rate_limits set window_started_at = now() - interval '10 minutes'`,
 		);

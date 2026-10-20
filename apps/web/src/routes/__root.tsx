@@ -144,9 +144,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 	errorComponent: RootErrorComponent,
 });
 
-// Last-resort fallback so an unhandled error (e.g. a server function throwing
-// a raw git error) renders a recoverable page instead of a blank/crashed app.
-// Route-specific errorComponents (e.g. the repo layout) take precedence over this.
 function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 	// Middleware in src/start.ts covers thrown server-function/request errors,
 	// but not exceptions raised during route rendering (SSR or client) — this

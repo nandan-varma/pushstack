@@ -109,7 +109,6 @@ describe("assignees", () => {
 		});
 		expect(filtered.map((i) => i.number)).toEqual([both.number]);
 
-		// A label the issue does not carry, with the same assignee: no rows.
 		const none = await issues.getIssues({
 			data: {
 				repoId,

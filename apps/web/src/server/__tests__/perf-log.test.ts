@@ -172,7 +172,6 @@ describe("perfR2", () => {
 				});
 			}),
 		).rejects.toThrow("network");
-		// On error, perfContext logs the failure line which includes r2 call stats
 		const logLines = spy.mock.calls.map((c) => String(c[0]));
 		const errorLine = logLines.find(
 			(l) => l.includes("r2-fail") && l.includes("failed"),

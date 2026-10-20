@@ -85,7 +85,7 @@ export async function withPackedWrites<T>(
 	fn: (packedRepo: Repo) => Promise<T>,
 ): Promise<T> {
 	const base = (repo.fs as unknown as { promises: PromiseFs }).promises;
-	const pending = new Map<string, Uint8Array<ArrayBuffer>>(); // path → deflated loose bytes
+	const pending = new Map<string, Uint8Array<ArrayBuffer>>();
 
 	async function flush(): Promise<void> {
 		if (pending.size === 0) return;

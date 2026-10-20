@@ -158,16 +158,12 @@ function IssueDetailPage() {
 
 	if (!issue) return <IssueNotFound />;
 
-	// The mutations re-check both of these server-side; deriving the controls
-	// from the same permissions is what keeps the page from offering an action
-	// that can only fail.
 	const canToggleStatus =
 		issue.viewer.canWrite || session?.user?.id === issue.authorId;
 	const canEdit = canToggleStatus;
 
 	return (
 		<div className="space-y-6">
-			{/* Header */}
 			<DetailHeader
 				title={
 					<EditableTitle
@@ -233,7 +229,6 @@ function IssueDetailPage() {
 				}}
 			/>
 
-			{/* Issue Body */}
 			<CommentCard
 				comment={issue}
 				owner={owner}

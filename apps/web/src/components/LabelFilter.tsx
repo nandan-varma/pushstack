@@ -10,7 +10,6 @@ import { repositoryLabelsQueryOptions } from "@/lib/query-options";
 
 const ALL = "__all__";
 
-/** The issue/PR lists' label filter (the `?label=` search param). */
 export function LabelFilter({
 	repoId,
 	value,

@@ -6,7 +6,6 @@ import {
 	verifyUserEmail,
 } from "./helpers";
 
-// Generate unique test credentials for each test run
 const timestamp = Date.now();
 const testUser = {
 	name: `Test User`,
@@ -21,10 +20,8 @@ test.describe("Authentication Flow E2E", () => {
 		test("should redirect to login when accessing protected routes", async ({
 			page,
 		}) => {
-			// Try to access dashboard without authentication
 			await page.goto("/dashboard");
 
-			// Should redirect to login
 			await expect(page).toHaveURL(/\/auth\/login/);
 			await expect(page.locator("h1")).toContainText("Welcome back");
 		});
@@ -41,7 +38,6 @@ test.describe("Authentication Flow E2E", () => {
 		test("should show registration form with all fields", async ({ page }) => {
 			await page.goto("/auth/register");
 
-			// Check for registration form elements
 			await expect(page.locator("h1")).toContainText("Create your account");
 			await expect(page.locator("input#name")).toBeVisible();
 			await expect(page.locator("input#username")).toBeVisible();
@@ -54,7 +50,6 @@ test.describe("Authentication Flow E2E", () => {
 		test("should show all login form elements", async ({ page }) => {
 			await page.goto("/auth/login");
 
-			// Check for login form elements
 			await expect(page.locator("h1")).toContainText("Welcome back");
 			await expect(page.locator("input#identifier")).toBeVisible();
 			await expect(page.locator("input#password")).toBeVisible();
@@ -66,15 +61,12 @@ test.describe("Authentication Flow E2E", () => {
 		test("should reject invalid credentials", async ({ page }) => {
 			await gotoAndWaitForHydration(page, "/auth/login");
 
-			// Fill in invalid credentials
 			const invalidEmail = `nonexistent${Date.now()}@testmail.com`;
 			await page.locator("input#identifier").fill(invalidEmail);
 			await page.locator("input#password").fill("wrongpassword123");
 
-			// Submit form
 			await page.click('button[type="submit"]');
 
-			// Should stay on login page
 			await expect(page).toHaveURL(/\/auth\/login/, { timeout: 5000 });
 		});
 	});
@@ -89,7 +81,6 @@ test.describe("Authentication Flow E2E", () => {
 			test("should successfully register a new user", async ({ page }) => {
 				await gotoAndWaitForHydration(page, "/auth/register");
 
-				// Fill in registration form
 				await page.locator("input#name").fill(testUser.name);
 				await page.locator("input#username").fill(testUser.username);
 				await page.locator("input#email").fill(testUser.email);
@@ -107,13 +98,11 @@ test.describe("Authentication Flow E2E", () => {
 				});
 				await expect(page.getByText(testUser.email)).toBeVisible();
 
-				// Confirm the account actually exists in the real DB before verifying it.
 				const sql = dbClient();
 				const rows =
 					await sql`SELECT email FROM "user" WHERE email = ${testUser.email}`;
 				expect(rows).toHaveLength(1);
 
-				// Verify the email the same way clicking the emailed link would.
 				await verifyUserEmail(testUser.email);
 			});
 
@@ -133,25 +122,21 @@ test.describe("Authentication Flow E2E", () => {
 					page.click('button[type="submit"]'),
 				]);
 
-				// Logged in
 				await expect(
 					page.locator('button[aria-label="Account menu"]'),
 				).toBeVisible();
 
-				// Session persists across a reload
 				await page.reload();
 				await expect(page).toHaveURL("/dashboard");
 				await expect(
 					page.locator('button[aria-label="Account menu"]'),
 				).toBeVisible();
 
-				// Log out via the account menu
 				await page.click('button[aria-label="Account menu"]');
 				await page.click('[role="menuitem"]:has-text("Sign out")');
 				await page.waitForURL("/", { timeout: 10000 });
 				await expect(page.locator('a:has-text("Sign in")')).toBeVisible();
 
-				// Protected routes are no longer reachable
 				await page.goto("/dashboard");
 				await expect(page).toHaveURL(/\/auth\/login/);
 			});
@@ -161,7 +146,6 @@ test.describe("Authentication Flow E2E", () => {
 		test("should show forgot password form", async ({ page }) => {
 			await page.goto("/auth/forgot-password");
 
-			// Check for forgot password form
 			await expect(page.locator("h1")).toContainText(/reset.*password/i);
 			await expect(page.locator('input[type="email"]')).toBeVisible();
 			await expect(page.locator('button[type="submit"]')).toBeVisible();
@@ -170,10 +154,8 @@ test.describe("Authentication Flow E2E", () => {
 		test("should navigate to forgot password from login", async ({ page }) => {
 			await page.goto("/auth/login");
 
-			// Click forgot password link
 			await page.click("text=/forgot password/i");
 
-			// Should navigate to forgot password page
 			await expect(page).toHaveURL("/auth/forgot-password");
 			await expect(page.locator("h1")).toContainText(/reset.*password/i);
 		});
@@ -183,10 +165,8 @@ test.describe("Authentication Flow E2E", () => {
 		test("should navigate from login to registration", async ({ page }) => {
 			await page.goto("/auth/login");
 
-			// Click create account link
 			await page.click("text=/create one/i");
 
-			// Should navigate to registration page
 			await expect(page).toHaveURL("/auth/register");
 			await expect(page.locator("h1")).toContainText("Create your account");
 		});
@@ -194,10 +174,8 @@ test.describe("Authentication Flow E2E", () => {
 		test("should navigate from registration to login", async ({ page }) => {
 			await page.goto("/auth/register");
 
-			// Click sign in link
 			await page.click('a:has-text("Sign in")');
 
-			// Should navigate to login page
 			await expect(page).toHaveURL("/auth/login");
 			await expect(page.locator("h1")).toContainText("Welcome back");
 		});

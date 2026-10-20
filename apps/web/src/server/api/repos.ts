@@ -1,7 +1,3 @@
-/**
- * `GET /repos/{owner}/{repo}`, `GET /user/repos`, `POST /user/repos` and
- * `GET /users/{username}/repos`.
- */
 import {
 	and,
 	asc,
@@ -58,7 +54,6 @@ export async function starCounts(
 	return new Map(rows.map((row) => [row.repoId, row.total]));
 }
 
-/** `GET /repos/{owner}/{repo}` */
 export async function getRepository(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const stargazers = await starCounts([repo.id]);
@@ -100,7 +95,6 @@ interface Listing {
 	callerId?: string;
 }
 
-/** One page of repositories (with the total, for `Link`) matching `where`. */
 async function listRepositories(
 	url: URL,
 	{ where, callerId }: Listing,
@@ -272,7 +266,6 @@ function bodyErrors(
 	});
 }
 
-/** `POST /user/repos` */
 export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 	const { userId } = requireScope(ctx, "repo:write");
 	const body = await readJsonObject(ctx.request);

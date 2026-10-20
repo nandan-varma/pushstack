@@ -26,7 +26,6 @@ const { asToken, call, mintToken, patch, post } = await import(
 
 const users = await createUsers("alice");
 
-/** Operation id → the schema issues of its first mismatching response. */
 const drift = new Map<string, string>();
 const covered = new Set<string>();
 
@@ -101,7 +100,6 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/branches/main");
 	await check("/repos/alice/proj/tags");
 
-	// Labels
 	await check("/repos/alice/proj/labels");
 	await check(
 		"/repos/alice/proj/labels",
@@ -113,7 +111,6 @@ beforeAll(async () => {
 		patch(alice, { description: "Needs a look" }),
 	);
 
-	// Issues, comments, issue labels
 	await check(
 		"/repos/alice/proj/issues",
 		post(alice, { title: "Bug", body: "It breaks", labels: ["bug"] }),
@@ -149,7 +146,6 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/issues/1", patch(alice, { state: "open" }));
 	await check("/repos/alice/proj/labels/triage", del(alice));
 
-	// Pull requests
 	await check(
 		"/repos/alice/proj/pulls",
 		post(alice, {
@@ -177,7 +173,6 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/issues/1/events");
 	await check("/repos/alice/proj/issues/2/timeline");
 
-	// Contents, commits and git data
 	await check("/repos/alice/proj/contents");
 	await check("/repos/alice/proj/contents/b.txt");
 	const commits = await check("/repos/alice/proj/commits");

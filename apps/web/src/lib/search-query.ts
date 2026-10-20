@@ -13,7 +13,6 @@
  * Negation (`-label:x`) is not supported yet, so it is searched as text too.
  */
 
-/** The sorts GitHub's `sort:` accepts (and the default). */
 export const SEARCH_SORTS = [
 	"created-desc",
 	"created-asc",
@@ -27,17 +26,12 @@ export type SearchSort = (typeof SEARCH_SORTS)[number];
 
 export const DEFAULT_SEARCH_SORT: SearchSort = "created-desc";
 
-/** The `is:` state tokens. */
 export type SearchStatus = "open" | "closed" | "merged" | "all";
-/** The `is:` type tokens. */
 export type SearchType = "issue" | "pr";
 
 export interface SearchQuery {
-	/** Free-text terms: each must appear in the thread's title or body. */
 	terms: string[];
-	/** `is:` state, resolved; undefined when unspecified. */
 	status?: SearchStatus;
-	/** `is:` type, resolved; undefined when unspecified or contradictory. */
 	type?: SearchType;
 	/**
 	 * The `is:` filters contradict each other (`is:open is:closed`,
@@ -46,7 +40,6 @@ export interface SearchQuery {
 	matchesNothing: boolean;
 	/** `label:` names; every one must be present (GitHub's AND). */
 	labels: string[];
-	/** `no:label` was given. */
 	noLabel: boolean;
 	/**
 	 * `author:` usernames. GitHub ANDs repeated qualifiers, so repeating a
@@ -56,7 +49,6 @@ export interface SearchQuery {
 	authors: string[];
 	/** `assignee:` values: a username, `none` or `*`. */
 	assignees: string[];
-	/** `no:assignee` was given. */
 	noAssignee: boolean;
 	/** `mentions:` usernames; every one must be mentioned. */
 	mentions: string[];
@@ -64,11 +56,8 @@ export interface SearchQuery {
 }
 
 interface Token {
-	/** The token exactly as written, quotes included. */
 	raw: string;
-	/** A lowercased qualifier name (`label:bug` → `label`), or undefined. */
 	name?: string;
-	/** The unquoted value, or the unquoted free-text word. */
 	value: string;
 }
 
@@ -89,7 +78,6 @@ const KNOWN_QUALIFIERS = new Set([
 	"sort",
 ]);
 
-/** Remove the surrounding quotes from a qualifier value, if any. */
 function unquote(value: string): string {
 	if (value.length >= 2) {
 		const quote = value[0];
@@ -107,7 +95,6 @@ function formatValue(value: string): string {
 		: value;
 }
 
-/** Split a query into words, keeping quoted runs (and their spaces) intact. */
 function tokenize(input: string): Token[] {
 	const tokens: Token[] = [];
 	let i = 0;
@@ -156,7 +143,6 @@ function parseToken(raw: string): Token {
 	return { raw, value: unquote(raw) };
 }
 
-/** The `is:` state tokens a query carries, for editing a URL query string. */
 function isStateToken(value: string): value is SearchStatus {
 	return (
 		value === "open" ||
@@ -178,10 +164,6 @@ function dedupe(values: string[]): string[] {
 	return out;
 }
 
-/**
- * Parse a GitHub query string into a typed, database-independent result.
- * Unknown qualifiers are dropped, as GitHub drops them.
- */
 export function parseSearchQuery(input: string): SearchQuery {
 	const terms: string[] = [];
 	const statuses = new Set<SearchStatus>();
@@ -259,7 +241,6 @@ export function parseSearchQuery(input: string): SearchQuery {
 	};
 }
 
-/** Rebuild a token list into a query string, preserving unknown qualifiers. */
 function join(tokens: Token[]): string {
 	return tokens.map((token) => token.raw).join(" ");
 }
@@ -277,7 +258,6 @@ export function withSearchStatus(query: string, status: SearchStatus): string {
 	return join(tokens);
 }
 
-/** Replace the `label:` qualifiers (all of them) with `label`, or remove them. */
 export function withSearchLabel(query: string, label?: string): string {
 	const tokens = tokenize(query).filter((token) => token.name !== "label");
 	if (label) {
@@ -287,7 +267,6 @@ export function withSearchLabel(query: string, label?: string): string {
 	return join(tokens);
 }
 
-/** Drop the assignee filters (`assignee:` and `no:assignee`) from a query. */
 export function withoutSearchAssignee(query: string): string {
 	return join(
 		tokenize(query).filter(

@@ -25,7 +25,6 @@ export function createTtlCoalescedCache<V>(options: {
 }): TtlCoalescedCache<V> {
 	const { ttlMs, onHit, onMiss, onCoalesce } = options;
 	const maxEntries = options.maxEntries ?? 10_000;
-	// Map iteration is insertion order, so the first key is the oldest.
 	const cache = new Map<string, { value: V; expiresAt: number }>();
 	const inFlight = new Map<string, Promise<V>>();
 

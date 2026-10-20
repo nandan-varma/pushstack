@@ -44,7 +44,6 @@ interface IssueFilters {
 	direction: "asc" | "desc";
 }
 
-/** `state`, `labels`, `assignee`, `sort` and `direction`, GitHub's defaults. */
 function issueFilters(query: URLSearchParams): IssueFilters {
 	// An invalid state is 422 (GitHub's rule); sort and direction fall back.
 	const rawState = query.get("state") ?? "open";
@@ -68,7 +67,6 @@ function issueFilters(query: URLSearchParams): IssueFilters {
 	};
 }
 
-/** `GET /repos/{owner}/{repo}/issues` */
 export async function listIssues(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const params = pageParams(ctx.url.searchParams);
@@ -95,7 +93,6 @@ export async function listIssues(ctx: ApiContext) {
 	return json(body, 200, linkHeader(ctx.url, params, total));
 }
 
-/** `GET /repos/{owner}/{repo}/issues/{number}` */
 export async function getIssue(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const thread = await findThread(repo.id, threadNumber(ctx.params.number));
@@ -125,7 +122,6 @@ const updateIssueSchema = z.object({
 		.optional(),
 });
 
-/** GitHub's `errors[]` for a failed issue body parse. */
 function issueErrors(
 	error: z.ZodError,
 	body: Record<string, unknown>,
@@ -140,7 +136,6 @@ function issueErrors(
 	});
 }
 
-/** `POST /repos/{owner}/{repo}/issues` */
 export async function createIssue(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -173,7 +168,6 @@ export async function createIssue(ctx: ApiContext) {
 	});
 }
 
-/** `PATCH /repos/{owner}/{repo}/issues/{number}` */
 export async function updateIssue(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);

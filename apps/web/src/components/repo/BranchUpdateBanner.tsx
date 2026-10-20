@@ -1,7 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** GitHub-style "this branch has new commits" notice — see useBranchUpdateBanner. */
 export function BranchUpdateBanner({
 	branchName,
 	onReload,

@@ -176,13 +176,11 @@ describe("comments", () => {
 		]);
 		expect(JSON.stringify(list)).not.toContain("@example.com");
 
-		// GitHub's rule: on a public repository anyone signed in may comment.
 		signIn(users.visitor);
 		await comments.createComment({
 			data: { issueId: issue.id, body: "Same here" },
 		});
 
-		// A private repository is closed to anyone who isn't a collaborator.
 		signIn(users.maintainer);
 		const secret = await repositories.createRepository({
 			data: { name: "secret", visibility: "private" },

@@ -177,7 +177,6 @@ function PullRequestDetailPage() {
 			prId: pr?.id ?? -1,
 			autoRefresh: !!repo?.autoRefreshPrDiffs,
 		}),
-		// Two bounded history walks: only when the tab is shown.
 		enabled: !!pr && tab === "commits",
 	});
 
@@ -263,9 +262,6 @@ function PullRequestDetailPage() {
 
 	if (!pr) return <PullRequestNotFound />;
 
-	// The mutations re-check these server-side; deriving the buttons from the same
-	// permissions is what keeps the page from offering an action that can only
-	// fail — a Merge button for someone who may not merge.
 	const canMerge = pr.status === "open" && pr.viewer.canMerge;
 	const canEdit = pr.viewer.canWrite || session?.user?.id === pr.authorId;
 	const canChangeStatus =
@@ -274,7 +270,6 @@ function PullRequestDetailPage() {
 
 	return (
 		<div className="space-y-6">
-			{/* Header */}
 			<DetailHeader
 				title={
 					<EditableTitle
@@ -396,7 +391,6 @@ function PullRequestDetailPage() {
 					</TabsTrigger>
 				</TabsList>
 				<TabsContent value="conversation" className="space-y-6">
-					{/* Description */}
 					<CommentCard
 						comment={pr}
 						owner={owner}

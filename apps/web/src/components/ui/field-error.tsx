@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "#/lib/utils";
 
-/** An inline validation or request error under a form field or section. */
 export function FieldError({
 	children,
 	className,

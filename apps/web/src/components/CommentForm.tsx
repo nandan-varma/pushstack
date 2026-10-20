@@ -48,7 +48,6 @@ export function CommentForm({
 	);
 }
 
-/** In place of the comment box for a signed-out reader, as on GitHub. */
 export function SignInToComment() {
 	return (
 		<Card className="flex flex-wrap items-center justify-between gap-3 p-6">

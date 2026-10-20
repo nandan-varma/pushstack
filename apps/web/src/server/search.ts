@@ -1,4 +1,3 @@
-/** Search and activity-feed server functions; anonymous visitors see public data. */
 import { createServerFn } from "@tanstack/react-start";
 import { desc } from "drizzle-orm";
 import { z } from "zod";
@@ -49,7 +48,6 @@ export const searchUsers = createServerFn({ method: "GET" })
 		}),
 	);
 
-/** A user's activity feed (the caller's own by default). */
 export const getUserActivity = createServerFn({ method: "GET" })
 	.validator(
 		z.object({

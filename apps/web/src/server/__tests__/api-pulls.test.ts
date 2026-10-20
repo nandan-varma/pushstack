@@ -114,7 +114,6 @@ describe("creating pull requests", () => {
 		expect(body.head.sha).toMatch(/^[0-9a-f]{40}$/);
 		expect(body.head.repo.full_name).toBe("alice/proj");
 		expect(body._links.self.href).toBe(`${BASE}/repos/alice/proj/pulls/1`);
-		// The issues surface sees the same thread.
 		const asIssue = await call("/repos/alice/proj/issues/1");
 		expect(asIssue.body.pull_request.url).toBe(
 			`${BASE}/repos/alice/proj/pulls/1`,
@@ -382,7 +381,6 @@ describe("merging pull requests", () => {
 		expect(again.status).toBe(405);
 		expect(again.body.message).toBe("Pull Request is not mergeable");
 
-		// A merged pull request keeps its range after the base moved on.
 		const filesAfter = await call("/repos/alice/proj/pulls/1/files");
 		expect(
 			filesAfter.body.map((f: { filename: string }) => f.filename),
@@ -436,7 +434,7 @@ describe("response size and scopes", () => {
 	it("omits patches past a per-response budget but still lists every file", async () => {
 		await branchFrom("big");
 		const line = `${"x".repeat(98)}\n`;
-		const content = line.repeat(9000); // ~900 KB, under the per-file diff cap
+		const content = line.repeat(9000);
 		for (const name of ["one.txt", "two.txt", "three.txt"]) {
 			await commitFile("big", name, content);
 		}
@@ -461,7 +459,6 @@ describe("response size and scopes", () => {
 			0,
 		);
 		expect(patchBytes).toBeLessThanOrEqual(2 * 1024 * 1024);
-		// Every file still reports its counts.
 		for (const file of listed.body) expect(file.additions).toBe(9000);
 	});
 

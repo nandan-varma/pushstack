@@ -32,7 +32,6 @@ function classifyLine(raw: string): DiffLineKind {
 	return "context";
 }
 
-/** Parse a unified patch into its lines, numbering each side as git does. */
 export function parsePatch(patch: string): ParsedDiffLine[] {
 	const normalized = patch.replace(/\r\n/g, "\n");
 	if (!normalized) return [];
@@ -121,7 +120,6 @@ export function parsePatch(patch: string): ParsedDiffLine[] {
 	return parsed;
 }
 
-/** Where a review comment can be anchored: a diff path, side and line. */
 export interface DiffAnchor {
 	path: string;
 	side: ReviewSide;
@@ -133,7 +131,6 @@ export function anchorKey(anchor: DiffAnchor): string {
 	return `${anchor.path}\u0000${anchor.side}\u0000${anchor.line}`;
 }
 
-/** Every side of a parsed diff line a comment can attach to. */
 export function anchorsForLine(
 	path: string,
 	line: ParsedDiffLine,
@@ -158,7 +155,6 @@ export function primaryAnchor(
 	return null;
 }
 
-/** The part of a diff file anchor collection needs. */
 interface AnchorableDiffFile {
 	path: string;
 	kind: string;

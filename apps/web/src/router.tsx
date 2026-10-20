@@ -4,7 +4,6 @@ import { NotFoundCard } from "./components/NotFoundCard";
 import { getContext } from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
-/** The request middleware context, as src/server/csp.ts sends it. */
 interface StartRequestContext {
 	nonce?: string;
 }
@@ -36,8 +35,6 @@ export function getRouter() {
 		// request the loader already made.
 		context: getContext(),
 
-		// Unknown URLs, and anything a loader reports missing via notFound()
-		// (repositories, issues, branches, files, commits, users) — a 404.
 		defaultNotFoundComponent: () => (
 			<div className="page-wrap px-4 py-16">
 				<div className="mx-auto max-w-md">
@@ -56,8 +53,6 @@ export function getRouter() {
 		defaultPreloadStaleTime: 30_000,
 	});
 
-	// Client-only: the server side is initialized in instrument.server.mjs.
-	// No-ops if VITE_SENTRY_DSN isn't set.
 	if (!router.isServer && import.meta.env.VITE_SENTRY_DSN) {
 		void import("@sentry/tanstackstart-react").then((Sentry) => {
 			Sentry.init({

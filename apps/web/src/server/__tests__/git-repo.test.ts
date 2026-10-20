@@ -1,7 +1,3 @@
-/**
- * git-repo.ts: the `Repo` handle every git call uses, and repository init.
- */
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGit = vi.hoisted(() => ({

@@ -22,7 +22,6 @@ export const PULL_REQUEST_STATUS_TABS: ThreadStatusTab[] = [
 	{ value: "all", label: "All" },
 ];
 
-/** The tab a query selects; anything the list has no tab for reads as "open". */
 export function activeThreadTab(
 	q: string,
 	tabs: ThreadStatusTab[],

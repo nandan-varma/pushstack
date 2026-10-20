@@ -53,7 +53,6 @@ export interface GitRoute {
 }
 
 const GIT_ROUTE_PREFIX = "/api/git/";
-// Same shape as usernames and repository names: never "." or "..".
 const NAME_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const SERVICES = new Set<string>(["git-upload-pack", "git-receive-pack"]);
 const isService = (value: string | null): value is GitService =>
@@ -165,7 +164,6 @@ async function receivePack(
 	});
 }
 
-/** Over the limit: a plain 403 that git prints. */
 function rateLimited(rate: RateStatus) {
 	return {
 		status: 403,
@@ -254,7 +252,6 @@ async function serve(
 	);
 }
 
-/** Serve one request to the git endpoint; never throws. */
 export async function serveGitRequest(request: Request): Promise<Response> {
 	const route = parseGitUrl(request.url);
 	if (!route) return new Response("Invalid git request", { status: 400 });

@@ -229,7 +229,6 @@ describe("isomorphic-git through the full optimized stack", () => {
 			value: commitOid,
 			force: true,
 		});
-		// Prime the caches with the current ref and a doomed loose probe.
 		expect(await git.resolveRef({ fs, gitdir, ref: "main" })).toBe(commitOid);
 		await fs.detectLooseObjects(gitdir);
 

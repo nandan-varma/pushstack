@@ -1,10 +1,3 @@
-/**
- * Render-level tests for MarkdownRenderer's link/image handling. The pure
- * isSafeHref/isSafeImageSrc guards are covered in MarkdownRenderer.test.ts —
- * these tests confirm buildComponents' `a`/`img` renderers actually apply
- * those guards at render time (so a future refactor that forgets to call
- * them, or reorders the checks, breaks a test instead of shipping an XSS).
- */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";

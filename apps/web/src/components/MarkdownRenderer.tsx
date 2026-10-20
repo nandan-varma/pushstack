@@ -60,11 +60,9 @@ function isExternalLink(href: string): boolean {
 // place — the markdown parser percent-encodes them before this ever sees the
 // value.
 
-/** C0 controls (tab, CR, LF and the rest), space, and DEL. */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: the C0 range is exactly what the URL parser strips before it reads a scheme, so this check has to match those code points.
 const URL_UNSAFE_CHARS = /[\u0000-\u0020\u007f]/;
 
-/** The scheme of a value that starts with one (`https:`, `data:`, `javascript:`). */
 const URL_SCHEME_RE = /^([a-z][a-z0-9+.-]*):/i;
 
 const SAFE_URL_SCHEMES: ReadonlySet<string> = new Set([
@@ -73,7 +71,6 @@ const SAFE_URL_SCHEMES: ReadonlySet<string> = new Set([
 	"mailto",
 ]);
 
-/** Whether `value` is a URL whose scheme is safe in the attribute using it. */
 function hasSafeScheme(value: string, allowDataImage: boolean): boolean {
 	if (URL_UNSAFE_CHARS.test(value)) return false;
 	const scheme = URL_SCHEME_RE.exec(value)?.[1]?.toLowerCase();

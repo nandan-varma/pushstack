@@ -1,4 +1,3 @@
-/** `GET /repos/{owner}/{repo}/contents/{path}`: a file (base64), a directory listing, a symlink or a submodule. */
 import type { TreeEntry } from "git-fs-s3/ops";
 import {
 	getBlobByOid,
@@ -36,7 +35,6 @@ interface Location {
 	ref: string;
 }
 
-/** The fields every contents object carries. */
 function baseShape(
 	entry: TreeEntry,
 	size: number,
@@ -102,7 +100,6 @@ export async function getContents(ctx: ApiContext) {
 			...child,
 			path: path ? `${path}/${child.path}` : child.path,
 		}));
-		// One batched size read for the whole listing, not one per entry.
 		const sizes = await getBlobSizes(
 			ownerKey,
 			repo.name,
@@ -126,7 +123,6 @@ export async function getContents(ctx: ApiContext) {
 
 	const size = await getBlobSize(ownerKey, repo.name, entry.oid);
 	if (entry.mode === "120000") {
-		// A target longer than any real path is not read (`target: null`).
 		const target =
 			size <= apiCaps.symlinkTargetBytes
 				? new TextDecoder().decode(

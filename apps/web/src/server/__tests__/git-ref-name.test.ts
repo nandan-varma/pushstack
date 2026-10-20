@@ -28,11 +28,11 @@ describe("isSafeBranchName", () => {
 		"refs/heads/main",
 		"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
 		"HEAD",
-		"a".repeat(40), // looks like an oid
+		"a".repeat(40),
 		"branch.lock",
 		"foo/.lock",
 		"branch\0name",
-		"branch name", // control/space char
+		"branch name",
 		"branch~1",
 		"branch^",
 		"branch:x",
@@ -61,10 +61,10 @@ describe("isSafeFullRefName", () => {
 	);
 
 	it.each([
-		"main", // missing refs/ prefix
+		"main",
 		"refs/heads/../../other-owner/other-repo/git/refs/heads/main",
 		"refs/heads/..",
-		"refs/notes/foo", // not heads or tags
+		"refs/notes/foo",
 		"refs/heads/",
 		"refs/heads/foo.lock",
 		"refs/heads/foo bar",

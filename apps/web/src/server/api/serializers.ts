@@ -82,7 +82,6 @@ export function repository(
 	};
 }
 
-/** The `{ sha, url }` pair branches and tags use for their commit. */
 export function commitRef(repo: { fullName: string }, sha: string) {
 	return { sha, url: apiUrl(`/repos/${repo.fullName}/commits/${sha}`) };
 }
@@ -91,7 +90,6 @@ export function branchHtmlUrl(fullName: string, branch: string) {
 	return htmlUrl(`/repo/${fullName}/tree/${encodePath(branch)}`);
 }
 
-/** A repository label, GitHub's `Label` shape. */
 export function label(
 	repo: { fullName: string },
 	value: LabelView,
@@ -110,7 +108,6 @@ export function label(
 	};
 }
 
-/** What the issue serializer needs beyond the stored row. */
 export interface IssueShapeInput {
 	fullName: string;
 	kind: ThreadKind;
@@ -180,7 +177,6 @@ export function issue(input: IssueShapeInput): Record<string, unknown> {
 	};
 }
 
-/** What the comment serializer needs. */
 export interface CommentShapeInput {
 	fullName: string;
 	kind: ThreadKind;
@@ -189,7 +185,6 @@ export interface CommentShapeInput {
 	author: PublicUser;
 }
 
-/** GitHub's issue-comment shape (PR comments share it). */
 export function issueComment(
 	input: CommentShapeInput,
 ): Record<string, unknown> {
@@ -300,7 +295,6 @@ export const gitIdentity = ({ name, timestamp }: Identity) => ({
 	date: isoTimestamp(new Date(timestamp * 1000)),
 });
 
-/** GitHub's commit object (as `GET /pulls/{n}/commits` lists it). */
 export function commitObject(fullName: string, info: CommitInfo) {
 	const { commit, oid } = info;
 	const url = apiUrl(`/repos/${fullName}/commits/${oid}`);
@@ -331,11 +325,9 @@ export function commitObject(fullName: string, info: CommitInfo) {
 	};
 }
 
-/** What the pull request serializer needs beyond the stored row. */
 export interface PullShapeInput {
 	assignees: PublicUser[];
 	repo: Repository & { owner: PublicUser };
-	/** The repository object both `head.repo` and `base.repo` carry. */
 	repoShape: Record<string, unknown>;
 	row: PullRequest;
 	author: PublicUser;
@@ -354,7 +346,6 @@ export interface PullShapeInput {
 	};
 }
 
-/** GitHub's pull request shape; the single-resource extras come with `detail`. */
 export function pullRequest(input: PullShapeInput): Record<string, unknown> {
 	const { repo, row } = input;
 	const fullName = `${repo.owner.username}/${repo.name}`;

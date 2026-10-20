@@ -1,4 +1,3 @@
-/** Server functions for browsing and editing a repository's files, branches and commits. */
 import { createServerFn } from "@tanstack/react-start";
 import { summarizeCommit } from "git-fs-s3/ops";
 import { z } from "zod";
@@ -62,7 +61,6 @@ export const getFile = createServerFn({ method: "GET" })
 		),
 	);
 
-/** A directory page's branches, entries and latest commit, in one round trip. */
 export const getTreePageData = createServerFn({ method: "GET" })
 	.validator(readInput(refPath))
 	.handler(({ data }) =>
@@ -84,7 +82,6 @@ export const getTreePageData = createServerFn({ method: "GET" })
 		),
 	);
 
-/** Per directory entry, the latest commit that touched it (the "last commit" column). */
 export const getLastCommits = createServerFn({ method: "GET" })
 	.validator(readInput(refPath))
 	.handler(({ data }) =>
@@ -96,7 +93,6 @@ export const getLastCommits = createServerFn({ method: "GET" })
 		),
 	);
 
-/** Commits that touched one file: the blob page's banner and History tab. */
 export const getFileHistory = createServerFn({ method: "GET" })
 	.validator(
 		readInput(
@@ -226,7 +222,6 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 		),
 	);
 
-/** Commit one file (base64 content) onto a branch. */
 export const uploadFile = createServerFn({ method: "POST" })
 	.validator(
 		z.object({

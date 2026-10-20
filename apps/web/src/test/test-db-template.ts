@@ -83,7 +83,6 @@ export function templateCacheKey(
 	return hash.digest("hex");
 }
 
-/** The key the current checkout's schema files and tool versions imply. */
 export function currentTemplateKey(root = WEB_ROOT): string {
 	return templateCacheKey([
 		...SCHEMA_SOURCE_FILES.map((file) => ({
@@ -108,7 +107,6 @@ function packageVersion(root: string, pkg: string): string {
 	return version;
 }
 
-/** Pushes the schema into a throwaway PGlite and returns that data directory. */
 export async function buildTestTemplate(): Promise<Uint8Array<ArrayBuffer>> {
 	const client = new PGlite();
 	try {

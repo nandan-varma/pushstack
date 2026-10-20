@@ -1,4 +1,3 @@
-/** Black or white text, whichever reads better on `color` (hex, no `#`). */
 export function labelTextColor(color: string): "#000000" | "#ffffff" {
 	const r = Number.parseInt(color.slice(0, 2), 16);
 	const g = Number.parseInt(color.slice(2, 4), 16);

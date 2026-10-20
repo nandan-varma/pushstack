@@ -18,9 +18,7 @@ export const DEFAULT_API_CAPS = {
 	diffFiles: 300,
 	/** A comparison lists at most this many commits (GitHub: 250). */
 	compareCommits: 250,
-	/** Patch bytes one response carries before omitting the rest. */
 	patchBudgetBytes: 2 * 1024 * 1024,
-	/** Concurrent fallback blob reads when pack sizes are unavailable. */
 	sizeReadConcurrency: 8,
 };
 

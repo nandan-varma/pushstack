@@ -8,9 +8,7 @@ export type ThreadItem<C, E> =
 	| { kind: "event"; event: E };
 
 interface Source<T> {
-	/** The pages loaded so far, flattened, oldest first. */
 	loaded: T[];
-	/** Whether more remain to load after `loaded`. */
 	hasMore: boolean;
 }
 
@@ -70,7 +68,6 @@ export function mergeThreadItems<
 			timeOf(a.kind === "comment" ? a.comment : a.event) -
 			timeOf(b.kind === "comment" ? b.comment : b.event),
 	);
-	// Otherwise they trail the visible thread, as on GitHub.
 	if (tail) {
 		items.push(
 			...unseen.map((comment) => ({ kind: "comment" as const, comment })),

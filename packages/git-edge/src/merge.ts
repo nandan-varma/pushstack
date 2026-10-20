@@ -27,7 +27,6 @@ export type { Repo };
  */
 export const MAX_CONCURRENT_READS = 16;
 
-/** Options for threeWayMerge. */
 export interface MergeOpts {
 	/** Merge commit message (default: "Merge <source> into <target>"). */
 	message?: string;
@@ -53,7 +52,6 @@ const isTree = (entry: Entry | undefined): entry is Entry =>
 const isFile = (entry: Entry | undefined): entry is Entry =>
 	entry?.type === "blob";
 
-/** Same tree entry: both absent, or identical oid and mode. */
 function same(a: Entry | undefined, b: Entry | undefined): boolean {
 	if (a === undefined || b === undefined) return a === b;
 	return a.oid === b.oid && a.mode === b.mode;

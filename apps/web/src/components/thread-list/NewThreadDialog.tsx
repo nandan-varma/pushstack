@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { LoadingButton } from "@/components/ui/loading-button";
 
-/** The "New issue" / "New pull request" dialog; `children` are the form fields. */
 export function NewThreadDialog({
 	open,
 	onOpenChange,

@@ -15,35 +15,25 @@ __unconfig*
 todos.json
 *.tsbuildinfo
 
-# git repo storage (local dev)
 .git-repos/
 
-# test artifacts
 test-results/
 playwright-report/
 coverage/
 
-# vitest's typecheck workspace
 .vitest/
 
-# AI agents (harness state, never committed)
 .claude/
 .pi/
 
-# completed plans
 plans/
 .vercel
 
-# Files under here are ignored, except the templates that are meant to be
-# committed — negations must come after the pattern they refine, since the last
-# matching pattern wins.
 .env*
 !.env.example
 !*.local.template
 
-# pnpm dev:local data (pglite + git objects)
 .pushstack-local/
 
-# Agent orchestration notes (see CONTEXT.md header)
 CONTEXT.md
 .turbo

@@ -43,7 +43,6 @@ export interface RawFsPromises {
 	stat(path: string): Promise<unknown>;
 }
 
-/** Duck-type the `.promises` surface off a repo's fs. */
 export function rawFs(repo: Repo): RawFsPromises {
 	const fs = repo.fs as { promises?: RawFsPromises };
 	if (!fs?.promises) {

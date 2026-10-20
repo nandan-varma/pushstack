@@ -8,7 +8,6 @@
  * is listed; GitHub's own reservations are added so imported links behave.
  */
 const RESERVED = new Set([
-	// App routes (src/routes) and server paths.
 	"about",
 	"api",
 	"assets",
@@ -19,7 +18,6 @@ const RESERVED = new Set([
 	"search",
 	"settings",
 	"users",
-	// Public files (public/).
 	"apple-touch-icon.png",
 	"favicon.ico",
 	"favicon.svg",
@@ -30,7 +28,6 @@ const RESERVED = new Set([
 	"og-image.png",
 	"robots.txt",
 	"sitemap.xml",
-	// GitHub's top-level paths.
 	"account",
 	"admin",
 	"contact",
@@ -55,7 +52,6 @@ const RESERVED = new Set([
 	"trending",
 ]);
 
-/** Whether `name` is a reserved top-level path (case-insensitive). */
 export function isReservedName(name: string) {
 	return RESERVED.has(name.toLowerCase());
 }

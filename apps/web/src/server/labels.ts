@@ -1,4 +1,3 @@
-/** Server functions for repository labels. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -67,7 +66,6 @@ export const updateLabel = createServerFn({ method: "POST" })
 		}),
 	);
 
-/** Deleting a label removes it from every issue and pull request. */
 export const deleteLabel = createServerFn({ method: "POST" })
 	.validator(z.object({ repoId: z.number(), labelId: z.number() }))
 	.handler(({ data }) =>

@@ -10,7 +10,6 @@ export type CommitListItem = {
 	createdAt: string;
 };
 
-/** A bordered list of commits, each linking to its commit page. */
 export function CommitList({
 	owner,
 	name,

@@ -1,4 +1,3 @@
-/** Server functions for pull request reviews: line comments, threads, submits. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
@@ -28,7 +27,6 @@ import { recordTimelineEvent } from "./timeline-store";
 const reviewSideSchema = z.enum(["LEFT", "RIGHT"]);
 const reviewEventSchema = z.enum(["comment", "approve", "request_changes"]);
 
-/** A pull request by id (its issue id), or a 404. */
 async function findPullRequest(prId: number): Promise<PullRequest> {
 	const pr = await findPullRequestById(prId);
 	if (!pr) throw notFound();
@@ -54,7 +52,6 @@ async function findOrCreatePendingReview(pr: PullRequest, authorId: string) {
 	return raced;
 }
 
-/** Every thread on a pull request (root comment, replies, resolution). */
 export const getPullRequestReviewThreads = createServerFn({ method: "GET" })
 	.validator(z.object({ prId: z.number().int().positive() }))
 	.handler(async ({ data }) => {
@@ -77,7 +74,6 @@ export const getPullRequestReviewThreads = createServerFn({ method: "GET" })
 		);
 	});
 
-/** The viewer's unsubmitted review with its comments, or null. */
 export const getMyPendingReview = createServerFn({ method: "GET" })
 	.validator(z.object({ prId: z.number().int().positive() }))
 	.handler(async ({ data }) => {
@@ -263,7 +259,6 @@ export const submitReview = createServerFn({ method: "POST" })
 		);
 	});
 
-/** Discard the viewer's pending review and its comments. */
 export const discardPendingReview = createServerFn({ method: "POST" })
 	.validator(z.object({ prId: z.number().int().positive() }))
 	.handler(async ({ data }) => {

@@ -6,11 +6,6 @@ import {
 	type ResolveReference,
 } from "@/lib/reference-patterns";
 
-/**
- * Renders plain text (e.g. a commit message) with `#123` and commit SHA
- * references turned into links, without interpreting the rest as markdown —
- * matches how GitHub autolinks commit messages while leaving formatting alone.
- */
 export function LinkifiedText({
 	text,
 	owner,

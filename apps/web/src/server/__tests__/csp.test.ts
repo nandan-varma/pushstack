@@ -12,7 +12,6 @@ import { describe, expect, it } from "vitest";
 import { THEME_INIT_SCRIPT } from "#/lib/theme";
 import { contentSecurityPolicy, generateNonce } from "../csp";
 
-/** The cited base64 SHA-256 of `source`, as a CSP hash source. */
 async function sha256Source(source: string): Promise<string> {
 	const digest = await crypto.subtle.digest(
 		"SHA-256",
@@ -110,7 +109,6 @@ describe("generateNonce", () => {
 		expect(nonces.size).toBe(64);
 		for (const nonce of nonces) {
 			expect(nonce).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
-			// 16 bytes of entropy.
 			expect(atob(nonce)).toHaveLength(16);
 		}
 	});

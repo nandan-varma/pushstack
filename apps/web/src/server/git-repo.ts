@@ -22,7 +22,6 @@ import { withRepositoryLock } from "./git-repo-lock";
 import { getRepoGitStorageRoot } from "./git-storage-naming";
 import { logWarn, perfStep } from "./perf-log";
 
-/** git-fs-s3/http's instrumentation hooks, wired to perf-log. */
 export const httpHooks: HttpHooks = {
 	step: perfStep,
 	onWarn: (message, err) => logWarn("git-http", message, err),
@@ -42,7 +41,6 @@ export function repoFor(ownerKey: string, repoName: string): Repo {
 	};
 }
 
-/** Initialize a new, empty bare repository in storage. */
 export async function initBareRepo(
 	ownerKey: string,
 	repoName: string,

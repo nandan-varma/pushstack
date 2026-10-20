@@ -5,7 +5,6 @@ export interface Io {
 	readStdin(): Promise<string>;
 	env: Record<string, string | undefined>;
 	fetch: typeof fetch;
-	/** Directory holding hosts.json. */
 	configDir: string;
 	/** Fetch URLs of the current directory's git remotes, `origin` first. Empty outside a repository. */
 	remotes(): Promise<string[]>;

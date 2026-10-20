@@ -174,7 +174,6 @@ describe("ops end-to-end over MemoryObjectStore", () => {
 		const log = await getCommitLog(repo, { ref: "main", depth: 10 }, hooks);
 		expect(log.map((c) => c.commit.message)).toEqual(["second\n", "first\n"]);
 
-		// Deepest walk is memoized and sliced for shallower requests.
 		const shallow = await getCommitLog(repo, { ref: "main", depth: 1 }, hooks);
 		expect(shallow).toHaveLength(1);
 		expect([...resultCache.store.keys()][0]).toMatch(
@@ -256,7 +255,7 @@ describe("ops end-to-end over MemoryObjectStore", () => {
 
 	it("doesn't re-list a file in commits that left it unchanged", async () => {
 		const repo = makeRepo();
-		await seed(repo); // "first": README.md; "second": src/index.ts
+		await seed(repo);
 		await commitFilesToBare(repo, {
 			branch: "main",
 			message: "third\n",
@@ -274,7 +273,7 @@ describe("ops end-to-end over MemoryObjectStore", () => {
 
 	it("reports truncated when the depth cap is hit before the chain is exhausted", async () => {
 		const repo = makeRepo();
-		await seed(repo); // 2 commits: "first", "second"
+		await seed(repo);
 
 		// walkDepth is max(maxDepth, limit) — both need to be small to actually
 		// cap the walk at 1 commit ("second"), whose parent ("first") then falls
@@ -458,7 +457,6 @@ describe("ops end-to-end over MemoryObjectStore", () => {
 		expect(diff.files[0]?.patch).not.toContain("Index:");
 		expect(diff.files[0]?.patch).not.toContain("===");
 
-		// Root commit: everything is an addition.
 		const rootSha = log[1]?.oid as string;
 		const rootDiff = await getCommitDiff(repo, rootSha);
 		expect(rootDiff.totalFiles).toBe(2);
@@ -515,7 +513,6 @@ describe("ops end-to-end over MemoryObjectStore", () => {
 		const mainLog = await getCommitLog(repo, { ref: "main", depth: 1 });
 		expect(mainLog[0]?.commit.message).toBe("ahead\n");
 
-		// Diverged branches are not fast-forwardable.
 		await commitFilesToBare(repo, {
 			branch: "feature",
 			message: "f2\n",
@@ -605,7 +602,7 @@ describe("writeCommitToBare parent resolution", () => {
 describe("getLastCommitsForTree edge cases", () => {
 	it("attributes each entry to the commit that actually changed it, skipping ones that didn't", async () => {
 		const repo = makeRepo();
-		await seed(repo); // "first": README.md + src/index.ts; "second": src/index.ts
+		await seed(repo);
 		await commitFilesToBare(repo, {
 			branch: "main",
 			message: "third\n",
@@ -617,7 +614,6 @@ describe("getLastCommitsForTree edge cases", () => {
 			ref: "main",
 			treePath: "",
 		});
-		// README.md changed again in "third" — not still attributed to "first".
 		expect(last["README.md"]?.message).toBe("third");
 		// src/index.ts wasn't touched by "third" — still attributed to "second",
 		// not incorrectly bumped to the newest commit that happened to touch a

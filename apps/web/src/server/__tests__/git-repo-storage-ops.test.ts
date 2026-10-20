@@ -1,12 +1,3 @@
-/**
- * The write-path foundation: git-repo-lock.ts (lease lock) and git-repo.ts
- * (post-push bookkeeping, storage-level rename/delete).
- * Covers withRepositoryLock serialization (and its non-reentrancy
- * constraint), post-push bookkeeping, and the storage-level rename/delete —
- * the latter against git-fs.ts's real in-memory object store (R2 isn't
- * configured in tests), so they exercise the actual list/copy/delete calls.
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let lockCalls = 0;
@@ -226,7 +217,6 @@ describe("withRepositoryLock — lease renewal", () => {
 			});
 			return "done";
 		});
-		// Let the acquire land.
 		await vi.advanceTimersByTimeAsync(0);
 		const held = await lease("o/long");
 		expect(held).toBeDefined();
@@ -237,7 +227,6 @@ describe("withRepositoryLock — lease renewal", () => {
 		expect(row?.holder).toBe(held?.holder);
 		expect(row?.expiresAt.getTime()).toBeGreaterThan(Date.now());
 
-		// A competing writer still can't get in.
 		let competitorEntered = false;
 		const competitor = withRepositoryLock("o", "long", async () => {
 			competitorEntered = true;

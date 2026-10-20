@@ -1,8 +1,3 @@
-/**
- * Pull request reviews and review comments (src/lib/review-types.ts). Plain
- * server-only helpers, called from reviews.ts's server functions and from
- * pull-requests.ts's detail read; never a server-function file.
- */
 import { db } from "#/db";
 import { anchorKey, collectDiffAnchors } from "#/lib/diff";
 import type {
@@ -18,10 +13,8 @@ import type { RepositoryWithOwner } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 import type { PullRequest } from "./thread-store";
 
-/** A review comment with its author and the state of its review. */
 type ReviewCommentRow = Awaited<ReturnType<typeof listReviewComments>>[number];
 
-/** Every review comment on a pull request, oldest first, with author + review. */
 export async function listReviewComments(pullRequestId: number) {
 	return db.query.pullRequestReviewComments.findMany({
 		where: { pullRequestId },
@@ -33,7 +26,6 @@ export async function listReviewComments(pullRequestId: number) {
 	});
 }
 
-/** A review comment row as the UI and API see it. */
 export function toView(row: ReviewCommentRow): ReviewCommentView {
 	return {
 		id: row.id,
@@ -88,7 +80,6 @@ export function buildReviewThreads(rows: ReviewCommentRow[]): ReviewThread[] {
 	);
 }
 
-/** The viewer's unsubmitted review, if they have one. */
 export function pendingReviewFor(pullRequestId: number, authorId: string) {
 	return db.query.pullRequestReviews.findFirst({
 		where: { pullRequestId, authorId, state: "pending" },
@@ -110,7 +101,6 @@ export async function reviewSummaryFor(
 	const latest = new Map<string, ReviewState>();
 	for (const row of rows) {
 		if (row.state === "pending") continue;
-		// Ordered oldest first, so the last write is the newest review.
 		latest.set(row.authorId, row.state);
 	}
 
@@ -160,7 +150,6 @@ export async function assertReviewAnchor(
 	return diff.newRef;
 }
 
-/** The head branch's tip commit, or null when the branch is gone. */
 export async function headShaFor(
 	repo: RepositoryWithOwner,
 	sourceBranch: string,

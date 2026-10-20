@@ -91,7 +91,6 @@ describe("createCachedStore", () => {
 		expect(getSpy).not.toHaveBeenCalled();
 		await cached.get("huge");
 		expect(getSpy).toHaveBeenCalledTimes(1);
-		// And a repeat read of the huge object still goes to the backend.
 		await cached.get("huge");
 		expect(getSpy).toHaveBeenCalledTimes(2);
 	});
@@ -131,10 +130,10 @@ describe("createCachedStore", () => {
 		await new Promise((r) => setTimeout(r, 50));
 
 		await cached.get("repo/refs/heads/main");
-		expect(getSpy).toHaveBeenCalledTimes(3); // ref re-fetched
+		expect(getSpy).toHaveBeenCalledTimes(3);
 
 		await cached.get("repo/objects/aa/bb");
-		expect(getSpy).toHaveBeenCalledTimes(3); // object still cached
+		expect(getSpy).toHaveBeenCalledTimes(3);
 	});
 
 	it("ttlForKey overrides ttlMs for matching keys (list)", async () => {
@@ -255,7 +254,6 @@ describe("createCachedStore list caching", () => {
 		await inner.put("repo/objects/aa/x", new Uint8Array([1]));
 		const cached = createCachedStore(inner, { cacheLists: true });
 
-		// Prime a non-empty "directory exists" probe.
 		await cached.list("repo/", { limit: 1 });
 		const spy = vi.spyOn(inner, "list");
 
@@ -268,7 +266,6 @@ describe("createCachedStore list caching", () => {
 		const inner = new MemoryObjectStore();
 		const cached = createCachedStore(inner, { cacheLists: true });
 
-		// Prime an empty probe (a "missing" marker) and a full listing.
 		expect((await cached.list("repo/", { limit: 1 })).objects).toHaveLength(0);
 		await inner.put("other/seed", new Uint8Array([0]));
 		await cached.list("other/", { delimiter: "/" });
@@ -294,7 +291,6 @@ describe("createCachedStore list caching", () => {
 		await cached.get("repo/missing");
 		await cached.list("repo/", { limit: 1 });
 
-		// Simulate an external writer replacing the repo contents.
 		await inner.delete("repo/objects/aa/x");
 		cached.invalidate("repo/");
 

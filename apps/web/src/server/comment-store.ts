@@ -20,7 +20,6 @@ export function findComment(commentId: number): Promise<Comment | undefined> {
 	return db.query.comments.findFirst({ where: { id: commentId } });
 }
 
-/** The comment with its author, for the API's response shape. */
 export function findCommentWithAuthor(commentId: number) {
 	return db.query.comments.findFirst({
 		where: { id: commentId },
@@ -52,7 +51,6 @@ export async function countCommentsForThread(
 	return row?.total ?? 0;
 }
 
-/** Add a comment to `thread` as `userId` (the caller checked participation). */
 export async function createCommentForUser(
 	thread: ThreadRef,
 	userId: string,
@@ -102,7 +100,6 @@ export async function canEditComment(
 	return canWriteRepo(comment.repoId, userId);
 }
 
-/** Update a comment's body and re-run its cross-references. */
 export async function updateCommentRow(
 	comment: Comment,
 	userId: string,

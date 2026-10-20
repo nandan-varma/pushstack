@@ -37,7 +37,6 @@ let repoId: number;
 let token: string;
 const THREADS = 12;
 
-/** Queries `fn` runs. */
 async function count(fn: () => Promise<unknown>): Promise<number> {
 	const before = queries.count;
 	await fn();

@@ -117,7 +117,6 @@ function RepositoryNotFound() {
 
 function RepositoryPage() {
 	const { owner, name } = Route.useParams();
-	// The branch-scoped child routes (tree, blob, commits) all carry `$branch`.
 	const { branch } = useParams({ strict: false });
 	const matchRoute = useMatchRoute();
 

@@ -3,7 +3,6 @@ import { CliError } from "./io";
 
 type Options = NonNullable<Parameters<typeof parseArgs>[0]>["options"];
 
-/** `parseArgs` with usage errors turned into CliErrors. */
 export function parse<O extends NonNullable<Options>>(
 	args: string[],
 	options: O,

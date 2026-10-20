@@ -89,7 +89,6 @@ describe("/api/v3 limits", () => {
 		const body = await refused.json();
 		expect(body.message).toBe("API rate limit exceeded for 2.2.2.2.");
 		expect(body.documentation_url).toContain("docs.github.com");
-		// Another address is unaffected.
 		expect((await api("/users/alice", { ip: "3.3.3.3" })).status).toBe(200);
 	});
 
@@ -107,7 +106,6 @@ describe("/api/v3 limits", () => {
 		const bobOk = await api("/user", { ip: "9.9.9.9", token: bob });
 		expect(bobOk.status).toBe(200);
 		expect(bobOk.headers.get("x-ratelimit-limit")).toBe("4");
-		// The shared IP's anonymous bucket is untouched too.
 		expect((await api("/users/alice", { ip: "9.9.9.9" })).status).toBe(200);
 	});
 
@@ -123,7 +121,6 @@ describe("/api/v3 limits", () => {
 		expect(second.status).toBe(201);
 		expect(second.headers.get("x-ratelimit-limit")).toBe("2");
 		expect((await create("c")).status).toBe(403);
-		// Reads still have budget.
 		expect((await api("/user", { token: alice })).status).toBe(200);
 	});
 
@@ -209,11 +206,9 @@ describe("failed credentials", () => {
 		for (let i = 0; i < 2; i++) {
 			expect((await api("/user", { ip, token: "pst_nope" })).status).toBe(401);
 		}
-		// Budget spent: even a valid token from this IP is refused.
 		const refused = await api("/user", { ip, token: alice });
 		expect(refused.status).toBe(403);
 		expect((await refused.json()).message).toContain(ip);
-		// Anonymous requests and other IPs are unaffected.
 		expect((await api("/users/alice", { ip })).status).toBe(200);
 		expect((await api("/user", { ip: "10.1.1.2", token: alice })).status).toBe(
 			200,

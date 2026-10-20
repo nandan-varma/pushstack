@@ -23,7 +23,6 @@ import {
 
 export type { PullRequest };
 
-/** Open a pull request as `userId` (the caller checked access and both branches). */
 export async function insertPullRequest(
 	repoId: number,
 	userId: string,

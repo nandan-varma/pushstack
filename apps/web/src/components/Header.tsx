@@ -161,7 +161,6 @@ export default function Header() {
 				</div>
 			</div>
 
-			{/* Mobile nav */}
 			{menuOpen && (
 				<nav
 					className="border-t border-border bg-background px-4 py-3 sm:hidden"

@@ -1,9 +1,3 @@
-/**
- * Tests for query-options.ts — query key factories and query option builders.
- * Keys must be deterministic, hierarchical, and correctly scoped so that
- * invalidation (e.g. queryClient.invalidateQueries({ queryKey: ["repos", id] }))
- * targets exactly the right subset of cached queries.
- */
 import { describe, expect, it } from "vitest";
 import { queryKeys } from "../query-options";
 

@@ -12,7 +12,6 @@ import { type GitHttpResult, type HttpHooks, runStep } from "./types.js";
 
 export type GitService = "git-upload-pack" | "git-receive-pack";
 
-/** All refs with resolved oids, plus the symref HEAD should advertise. */
 export async function listAllRefs(repo: Repo, defaultBranch: string) {
 	const [branches, tagNames] = await Promise.all([
 		listBranches(repo),

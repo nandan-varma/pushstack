@@ -35,7 +35,6 @@ async function seed(repo: Repo, commitCount: number) {
 	}
 }
 
-/** Decode side-band-64k-framed packfile bytes back to the raw packfile. */
 function decodeSideBandPackfile(buf: Uint8Array): Uint8Array {
 	const chunks: Uint8Array[] = [];
 	let pos = 0;
@@ -176,7 +175,6 @@ describe("handleUploadPack", () => {
 			packfile.byteOffset + 8,
 			4,
 		).getUint32(0);
-		// New commit, its root tree, and the one changed blob.
 		expect(count).toBe(3);
 	});
 
@@ -192,7 +190,7 @@ describe("handleUploadPack", () => {
 			new TextEncoder().encode("0000"),
 		);
 		const result = await handleUploadPack(repo, body);
-		expect(result.body.length).toBe(8); // pktLine("NAK\n") only
+		expect(result.body.length).toBe(8);
 	});
 });
 
@@ -220,7 +218,6 @@ function cloneRequest(wantOid: string, caps = " side-band-64k") {
 	);
 }
 
-/** Write a commit as loose objects (plain isomorphic-git), moving `main`. */
 async function looseCommit(repo: Repo, message: string): Promise<string> {
 	const parent = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
 	const blob = await git.writeBlob({
@@ -372,8 +369,6 @@ describe("handleUploadPack — edge cases", () => {
 		const repo = makeRepo();
 		await seed(repo, 2);
 		const base = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
-		// The client has `base`; the server then gains two commits, one of
-		// which touches a nested directory.
 		await commitFilesToBare(repo, {
 			branch: "main",
 			message: "nested\n",
@@ -387,7 +382,6 @@ describe("handleUploadPack — edge cases", () => {
 			files: [{ path: "dir/b.txt", content: "b\n" }],
 		});
 
-		// Client side: a full clone at `base`, then fetch with have=base.
 		const clone = makeRepo();
 		const first = await handleUploadPack(repo, cloneRequest(base));
 		await cloneInto(

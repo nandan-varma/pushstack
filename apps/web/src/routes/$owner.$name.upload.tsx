@@ -35,7 +35,6 @@ function readFileAsBase64(file: File): Promise<string> {
 		const reader = new FileReader();
 		reader.onload = () => {
 			const result = reader.result as string;
-			// readAsDataURL yields "data:<mime>;base64,<data>" — strip the prefix.
 			const commaIndex = result.indexOf(",");
 			resolve(commaIndex === -1 ? result : result.slice(commaIndex + 1));
 		};
@@ -78,7 +77,6 @@ function FileUploadPage() {
 	const [file, setFile] = useState<File | null>(null);
 	const [path, setPath] = useState("");
 	const [commitMessage, setCommitMessage] = useState("");
-	// null = the repository's default branch, once it's known.
 	const [selectedBranch, setBranch] = useState<string | null>(
 		searchBranch ?? null,
 	);
@@ -209,7 +207,6 @@ function FileUploadPage() {
 					</p>
 				</div>
 				<form onSubmit={handleSubmit} className="space-y-5">
-					{/* Branch Selection */}
 					<div className="space-y-1.5">
 						<Label htmlFor="branch">Branch</Label>
 						<Select value={branch} onValueChange={setBranch}>
@@ -226,7 +223,6 @@ function FileUploadPage() {
 						</Select>
 					</div>
 
-					{/* File Drop Zone */}
 					<label
 						htmlFor="file-input"
 						className={`block cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
@@ -293,7 +289,6 @@ function FileUploadPage() {
 						)}
 					</label>
 
-					{/* File Path */}
 					<div className="space-y-1.5">
 						<Label htmlFor="path">File path</Label>
 						<Input
@@ -305,7 +300,6 @@ function FileUploadPage() {
 						/>
 					</div>
 
-					{/* Commit Message */}
 					<div className="space-y-1.5">
 						<Label htmlFor="message">Commit message</Label>
 						<Textarea
@@ -318,7 +312,6 @@ function FileUploadPage() {
 						/>
 					</div>
 
-					{/* Submit */}
 					<div className="flex gap-3 pt-1">
 						<LoadingButton
 							type="submit"

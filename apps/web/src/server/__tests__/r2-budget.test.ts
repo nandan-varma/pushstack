@@ -32,7 +32,6 @@ const { perfContext, recentPerfTrees } = await import("../perf-log");
 const users = await createUsers("owner");
 let repoId: number;
 
-/** Runs `fn` as one perf request and returns that request's tallies. */
 const tally = async (fn: () => Promise<unknown>) => {
 	await perfContext("budget", fn);
 	const header = recentPerfTrees()[0] ?? "";
@@ -88,7 +87,6 @@ describe("R2 round trips", () => {
 		// object layout.
 		expect(first.r2Calls).toBeLessThanOrEqual(20);
 
-		// The blob's pack slice is cached too (#79): a repeat view is free.
 		const second = await tally(read);
 		expect(second.r2Calls).toBe(0);
 	});

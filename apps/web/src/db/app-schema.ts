@@ -29,10 +29,6 @@ import { user } from "./schema";
  */
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
 
-/**
- * Repository metadata; git data itself lives in R2 under
- * `repos/{ownerKey}/{name}/git` (src/server/git-storage-naming.ts).
- */
 export const repositories = pgTable(
 	"repositories",
 	{
@@ -51,7 +47,6 @@ export const repositories = pgTable(
 		showLastCommitColumn: boolean("show_last_commit_column")
 			.notNull()
 			.default(false),
-		/** Poll an open PR's diff instead of loading it once. */
 		autoRefreshPrDiffs: boolean("auto_refresh_pr_diffs")
 			.notNull()
 			.default(false),
@@ -143,7 +138,6 @@ export const issues = pgTable(
 	}),
 );
 
-/** A repository's label (name, 6-digit hex color, description). */
 export const labels = pgTable(
 	"labels",
 	{
@@ -158,7 +152,6 @@ export const labels = pgTable(
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		// Label names are unique per repository, ignoring case.
 		repoNameIdx: uniqueIndex("label_repo_name_idx").on(
 			table.repoId,
 			sql`lower(${table.name})`,
@@ -166,7 +159,6 @@ export const labels = pgTable(
 	}),
 );
 
-/** A label applied to an issue or pull request. */
 export const threadLabels = pgTable(
 	"thread_labels",
 	{
@@ -233,7 +225,6 @@ export const pullRequests = pgTable(
 	}),
 );
 
-/** A comment on an issue or pull request. */
 export const comments = pgTable(
 	"comments",
 	{
@@ -280,7 +271,6 @@ export const pullRequestReviews = pgTable(
 			.notNull()
 			.references(() => user.id),
 		state: text("state").$type<ReviewState>().notNull().default("pending"),
-		/** The summary shown above the comments; null until submitted. */
 		body: text("body"),
 		/** The head tip the review was submitted against (GitHub's `commit_id`). */
 		commitSha: text("commit_sha"),
@@ -444,7 +434,6 @@ export const tokens = pgTable(
 	}),
 );
 
-/** Per-repository write lease (src/server/git-repo-lock.ts). */
 export const repoLocks = pgTable("repo_locks", {
 	/** `${ownerKey}/${repoName}` */
 	repoKey: text("repo_key").primaryKey(),

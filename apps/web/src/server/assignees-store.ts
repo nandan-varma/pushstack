@@ -12,7 +12,6 @@ import { withRepositoryLock } from "./git-repo-lock";
 import { type PublicUser, publicUserFields } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
 
-/** Users who can be assigned to a thread in the repository. */
 export async function listAssignableUsers(
 	repoId: number,
 ): Promise<PublicUser[]> {

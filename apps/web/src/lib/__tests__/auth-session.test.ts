@@ -1,9 +1,3 @@
-/**
- * Tests for auth-session.ts's getSession: the per-cookie single-flight
- * coalescing that lets several server functions in one page load share a
- * single Better Auth session validation instead of each doing their own.
- */
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));

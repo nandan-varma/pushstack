@@ -82,7 +82,6 @@ function PullRequestsPage() {
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	// baseBranch null = the repo's default branch, whenever it's known.
 	const [newPR, setNewPR] = useState<{
 		title: string;
 		body: string;

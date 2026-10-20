@@ -131,7 +131,6 @@ export function invalidateRepositoryAccess(repoId: number): void {
 	accessCache.deletePrefix(`${repoId}:`);
 }
 
-/** The caller's access to a repository by id, or null when it doesn't exist. */
 export function getRepositoryAccess(
 	repoId: number,
 	userId?: string | null,
@@ -151,7 +150,6 @@ export function getRepositoryAccess(
 	});
 }
 
-/** Access for a repository row already in hand (no re-fetch). */
 export async function getAccessForRepository(
 	repository: Repository,
 	userId?: string | null,
@@ -206,11 +204,8 @@ export async function requireWriteAccess(repoId: number, userId: string) {
  * page cannot grant anything.
  */
 export interface ViewerRepositoryAccess {
-	/** May merge a pull request in this repository. */
 	canMerge: boolean;
-	/** May write to this repository (commit, push, open pull requests, triage). */
 	canWrite: boolean;
-	/** May open issues and comment (any signed-in reader). */
 	canParticipate: boolean;
 }
 
@@ -226,7 +221,6 @@ export async function getViewerRepositoryAccess(
 	};
 }
 
-/** A repository with its owner — what storage coordinates are derived from. */
 export type RepositoryWithOwner = Repository & {
 	owner: { id: string; username: string };
 };
@@ -278,7 +272,6 @@ export async function writeWithAccess<T>(
 	return fn(await withOwner(repoId), user);
 }
 
-/** The repository, if `userId` owns it; throws `message` otherwise. */
 export async function requireOwner(
 	repoId: number,
 	userId: string,

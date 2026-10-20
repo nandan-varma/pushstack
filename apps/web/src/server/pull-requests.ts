@@ -1,4 +1,3 @@
-/** Server functions for pull requests. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
@@ -81,7 +80,6 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			repoId: z.number(),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
-			/** A GitHub query string (`?q=`); the only list filter. */
 			query: z.string().max(MAX_SEARCH_QUERY_CHARS).default(""),
 		}),
 	)
@@ -116,7 +114,6 @@ export const getPullRequests = createServerFn({ method: "GET" })
 		);
 	});
 
-/** Every pull request number in a repository (resolves `#N` references in markdown). */
 export const getPullRequestNumbers = createServerFn({ method: "GET" })
 	.validator(z.object({ repoId: z.number() }))
 	.handler(({ data }) =>
@@ -131,7 +128,6 @@ export const getPullRequestNumbers = createServerFn({ method: "GET" })
 		}),
 	);
 
-/** A pull request by its repo-scoped number (the `#N` in URLs). */
 export const getPullRequestByNumber = createServerFn({ method: "GET" })
 	.validator(
 		readInput(

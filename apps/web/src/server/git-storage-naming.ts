@@ -18,7 +18,6 @@ function segment(value: string, what: string): string {
 	return value;
 }
 
-/** The owner key of a repository whose owner relation is loaded. */
 export function ownerKeyOf(repo: { owner: { username: string } }): string {
 	return repo.owner.username;
 }
@@ -37,7 +36,6 @@ export function getRepoGitStoragePrefix(
 	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
 }
 
-/** A storage key inside some repository's gitdir, split along the layout. */
 export interface RepoGitStorageKey {
 	ownerKey: string;
 	repoName: string;

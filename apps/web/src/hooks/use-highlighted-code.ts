@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { requestHighlight } from "@/lib/syntax-highlight-client";
 
-/** Runs Shiki highlighting for `code` in the background worker when `enabled`. */
 export function useHighlightedCode(
 	code: string,
 	language: string,

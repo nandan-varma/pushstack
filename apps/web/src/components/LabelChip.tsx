@@ -1,6 +1,5 @@
 import { labelTextColor } from "@/lib/label-color";
 
-/** A label as GitHub draws it: a pill filled with the label's color. */
 export function LabelChip({
 	name,
 	color,

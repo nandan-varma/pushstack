@@ -20,7 +20,6 @@ if (!packageName) {
 	process.exit(2);
 }
 
-/** Reads a workspace manifest, or returns undefined for a non-workspace dir. */
 const manifestName = (directory) => {
 	try {
 		return JSON.parse(

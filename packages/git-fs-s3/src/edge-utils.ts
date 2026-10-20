@@ -9,10 +9,6 @@
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-// ---------------------------------------------------------------------------
-// Text
-// ---------------------------------------------------------------------------
-
 /**
  * Encode a UTF-8 string to bytes.
  *
@@ -38,10 +34,6 @@ export function decodeAscii(data: Uint8Array): string {
 	return s;
 }
 
-// ---------------------------------------------------------------------------
-// Array manipulation
-// ---------------------------------------------------------------------------
-
 /** Concatenate any number of Uint8Arrays into one. */
 export function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
 	let total = 0;
@@ -54,10 +46,6 @@ export function concat(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
 	}
 	return out;
 }
-
-// ---------------------------------------------------------------------------
-// Encoding
-// ---------------------------------------------------------------------------
 
 /** Uint8Array → lowercase hex string. */
 export function toHex(data: Uint8Array): string {
@@ -84,10 +72,6 @@ export function fromHex(hex: string): Uint8Array<ArrayBuffer> {
 	return bytes;
 }
 
-// ---------------------------------------------------------------------------
-// Crypto
-// ---------------------------------------------------------------------------
-
 /** SHA-1 hash via Web Crypto API. Returns a hex string. */
 export async function sha1(
 	data: Uint8Array<ArrayBuffer> | string,
@@ -96,10 +80,6 @@ export async function sha1(
 	const hash = await globalThis.crypto.subtle.digest("SHA-1", bytes);
 	return toHex(new Uint8Array(hash));
 }
-
-// ---------------------------------------------------------------------------
-// Compression
-// ---------------------------------------------------------------------------
 
 /** Deflate (zlib) via the CompressionStream Web API. */
 export async function deflate(
@@ -162,10 +142,6 @@ export async function inflate(
 	);
 	return new Uint8Array(await new Response(stream).arrayBuffer());
 }
-
-// ---------------------------------------------------------------------------
-// Binary detection (replaces Buffer.includes(0) pattern)
-// ---------------------------------------------------------------------------
 
 /** Check if a Uint8Array contains a null byte. */
 export function hasNullByte(data: Uint8Array): boolean {

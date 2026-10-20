@@ -49,13 +49,11 @@ function gitdirEntryOf(key: string): GitdirEntry | null {
 	return parsed ? classifyGitdirPath(parsed.gitdirPath) : null;
 }
 
-/** Exported for tests. */
 export function refAwareTtl(key: string): number | undefined {
 	const entry = gitdirEntryOf(key);
 	return entry && isMutableGitdirEntry(entry) ? STRUCTURE_TTL_MS : undefined;
 }
 
-/** HEAD, config and refs are text; everything else is binary. */
 function gitContentType(key: string): string | undefined {
 	switch (gitdirEntryOf(key)?.kind) {
 		case "head":
@@ -123,7 +121,6 @@ const lazyStore: RangeCapableStore = {
 	getRange: (key, start, end) => getBackend().store.getRange(key, start, end),
 };
 
-// Every backend call shows in the request's perf tree (perf-log.ts).
 function withPerfLogging(store: ObjectStore): ObjectStore {
 	// Forwarded explicitly: this returns a new object, and a dropped `getRange`
 	// would not fail — `getObjectSize` reports "unknown size" instead, so every
@@ -183,7 +180,6 @@ export function registerRepoGitdir(ownerKey: string, repoName: string): string {
 	return gitdir;
 }
 
-/** Cheap one-time-per-repo check so reads can skip doomed loose-object GETs. */
 export function detectLooseObjectsHint(
 	ownerKey: string,
 	repoName: string,
@@ -191,7 +187,6 @@ export function detectLooseObjectsHint(
 	return gitFs.detectLooseObjects(getRepoGitStorageRoot(ownerKey, repoName));
 }
 
-/** Warm all pack files in parallel before a sequential commit walk. */
 export function prefetchAllPacks(
 	ownerKey: string,
 	repoName: string,
@@ -208,7 +203,6 @@ function invalidateRepoGitStorage(ownerKey: string, repoName: string): void {
 	gitFs.invalidate(getRepoGitStoragePrefix(ownerKey, repoName));
 }
 
-/** Every object stored under a repo's gitdir (one uncached LIST, paginated). */
 export async function listRepoStorage(
 	ownerKey: string,
 	repoName: string,
@@ -219,7 +213,6 @@ export async function listRepoStorage(
 	return objects;
 }
 
-/** Writes one raw storage object (uncached; operator scripts). */
 export function putStorageObject(key: string, data: Uint8Array): Promise<void> {
 	return networkStore.put(key, data);
 }

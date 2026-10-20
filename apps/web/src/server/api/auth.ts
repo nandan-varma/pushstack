@@ -17,7 +17,6 @@ export interface Caller {
 	scopes: TokenScope[];
 }
 
-/** What every handler receives. */
 export interface ApiContext {
 	request: Request;
 	url: URL;

@@ -11,7 +11,6 @@ import { signIn, type TestUser } from "./app-harness";
 
 export const BASE = "http://localhost:3000/api/v3";
 
-/** A fresh token for `who`, minted through the real tokens server function. */
 export async function mintToken(
 	who: TestUser,
 	scopes: ("repo:read" | "repo:write")[],

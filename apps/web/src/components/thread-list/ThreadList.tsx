@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** A "Sign in to …" button for signed-out visitors. */
 export function SignInButton({ children }: { children: ReactNode }) {
 	return (
 		<Link to="/auth/login">
@@ -21,7 +20,6 @@ export function SignInButton({ children }: { children: ReactNode }) {
 	);
 }
 
-/** Skeleton rows while loading, the empty state when there are none, else the rows. */
 export function ThreadList<T extends { id: number }>({
 	threads,
 	isLoading,
@@ -73,10 +71,6 @@ type ThreadSummary = {
 const rowClass =
 	"flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card";
 
-/**
- * One list row: title, status badge, "#N opened … by …" line (`children` adds
- * trailing items to it) and label chips. `kind` picks the detail route.
- */
 export function ThreadRow({
 	kind,
 	owner,

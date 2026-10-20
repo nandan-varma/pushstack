@@ -1,7 +1,3 @@
-/**
- * GitHub's diff entry ("file") shape, shared by pull request files, a single
- * commit and compare.
- */
 import { isNotFoundError } from "git-fs-s3";
 import type { DiffResult } from "git-fs-s3/ops";
 import { getEntryOid } from "../git-read";

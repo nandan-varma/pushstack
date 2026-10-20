@@ -27,20 +27,17 @@ import { rawFs } from "./types.js";
 
 const PACK_TRAILER_BYTES = 20;
 
-/** One object's stored entry inside a pack. */
 interface PackEntry {
 	readonly pack: Uint8Array;
 	readonly start: number;
 	readonly end: number;
 }
 
-/** Every object stored in a pack, by oid, plus its offset → oid inverse. */
 interface IndexedPack {
 	readonly entries: Map<string, PackEntry>;
 	readonly oidAtOffset: Map<number, string>;
 }
 
-/** Locate every entry of `pack` using its `.idx`. */
 function indexPack(idx: Uint8Array, pack: Uint8Array): IndexedPack | null {
 	const located = readPackIndex(idx);
 	if (!located) return null;
@@ -59,7 +56,6 @@ function indexPack(idx: Uint8Array, pack: Uint8Array): IndexedPack | null {
 	return { entries, oidAtOffset };
 }
 
-/** A pack entry ready to copy, with the oid of its delta base if any. */
 interface ReusableEntry {
 	readonly bytes: Uint8Array;
 	readonly baseOid: string | null;

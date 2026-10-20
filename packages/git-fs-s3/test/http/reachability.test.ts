@@ -13,7 +13,6 @@ function makeRepo(store: MemoryObjectStore = new MemoryObjectStore()): Repo {
 	return { fs: createGitFs(store), gitdir: "git", cache: {} };
 }
 
-/** A root commit whose tree holds `fileCount` blobs. */
 async function commitWithFiles(
 	repo: Repo,
 	fileCount: number,

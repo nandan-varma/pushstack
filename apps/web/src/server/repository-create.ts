@@ -1,8 +1,3 @@
-/**
- * Creating a repository, shared by the `createRepository` server function and
- * the REST API (plain server-only module — see repository-lookup.ts for why
- * this is not in repositories.ts).
- */
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
@@ -37,8 +32,6 @@ export const createRepositoryInputSchema = z.object({
 	name: repoNameSchema,
 	description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).optional(),
 	visibility: z.enum(["public", "private"]).default("public"),
-	// GitHub's "Initialize this repository with" (REST auto_init,
-	// gitignore_template, license_template).
 	autoInit: z.boolean().default(false),
 	gitignoreTemplate: z.enum(GITIGNORE_TEMPLATE_NAMES).optional(),
 	licenseTemplate: z.enum(LICENSE_TEMPLATE_KEYS).optional(),
@@ -47,7 +40,6 @@ export type CreateRepositoryInput = z.infer<typeof createRepositoryInputSchema>;
 
 const NEW_REPOSITORY_DEFAULT_BRANCH = "main";
 
-/** The caller already owns a repository with this name. */
 export class RepositoryExistsError extends Error {
 	constructor() {
 		super("Repository with this name already exists");

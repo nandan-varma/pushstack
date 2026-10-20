@@ -1,6 +1,5 @@
 import { isNotFound, redirect } from "@tanstack/react-router";
 
-/** Issues and pull requests share one number sequence. */
 export async function ensureThreadNumberRedirect(
 	error: unknown,
 	params: { owner: string; name: string; id: string },

@@ -4,14 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 
-/** A thread's title; with `onSave` the viewer can rename it in place. */
 export function EditableTitle({
 	title,
 	onSave,
 	isSaving,
 }: {
 	title: string;
-	/** Omitted when the viewer may not rename; resolves when saved. */
 	onSave?: (title: string) => Promise<unknown>;
 	isSaving?: boolean;
 }) {

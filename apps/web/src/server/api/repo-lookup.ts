@@ -1,4 +1,3 @@
-/** Resolving `/repos/:owner/:repo` to a repository the caller may read. */
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { getAccessForRepository, type RepositoryAccess } from "../repo-access";
 import {

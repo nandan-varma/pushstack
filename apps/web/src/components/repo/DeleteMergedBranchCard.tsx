@@ -6,11 +6,6 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { queryKeys, repositoryBranchesQueryOptions } from "@/lib/query-options";
 import { deletePullRequestBranch } from "@/server/pull-requests";
 
-/**
- * After a pull request is merged or closed, offer to delete its source
- * branch — the usual cleanup step. Renders nothing once the branch is gone,
- * or when it's the default branch (which can't be deleted).
- */
 export function DeleteMergedBranchCard({
 	repoId,
 	prId,

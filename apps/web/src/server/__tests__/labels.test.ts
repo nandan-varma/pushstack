@@ -127,7 +127,6 @@ describe("labels", () => {
 			data: { repoId, number: pr.number, labels: ["enhancement", "bug"] },
 		});
 
-		// Replace the set: add one, keep one, drop one.
 		await labelFns.setLabels({
 			data: { repoId, number: issue.number, labels: ["bug", "help wanted"] },
 		});
@@ -146,7 +145,6 @@ describe("labels", () => {
 			labelFns.setLabels({ data: { repoId, number: 999, labels: [] } }),
 		).rejects.toThrow();
 
-		// Filters: AND across labels, case-insensitive, issues and PRs.
 		const titles = async (labels: string[]) =>
 			(
 				await issues.getIssues({

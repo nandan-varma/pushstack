@@ -26,10 +26,8 @@ export interface GitAccess {
 	canWrite: boolean;
 }
 
-/** Refresh `tokens.last_used_at` at most this often. */
 const LAST_USED_RESOLUTION_MS = 60 * 60_000;
 
-/** The token in a Basic `Authorization` header (password slot, else username). */
 function tokenFromRequest(request: Request): string | null {
 	const header = request.headers.get("authorization");
 	if (!header?.startsWith("Basic ")) return null;
@@ -47,7 +45,6 @@ function tokenFromRequest(request: Request): string | null {
 	return null;
 }
 
-/** The user and scopes behind a personal access token, or null when unknown or expired. */
 export async function authenticateToken(
 	token: string,
 ): Promise<{ userId: string; scopes: TokenScope[] } | null> {

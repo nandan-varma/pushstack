@@ -20,7 +20,6 @@ function fatalError(): Error {
 	return err;
 }
 
-/** A store whose `get` fails `failures` times before succeeding. */
 function flakyStore(failures: number, error: () => Error = transientError) {
 	const inner = new MemoryObjectStore();
 	let remaining = failures;

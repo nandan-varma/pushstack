@@ -69,7 +69,6 @@ function noPackDirectory(error: unknown): string[] {
 	throw error;
 }
 
-/** The pack holding `oid`, with the offset of its entry. */
 async function locatePackedObject(
 	repo: Repo,
 	oid: string,
@@ -91,7 +90,6 @@ async function locatePackedObject(
 	return null;
 }
 
-/** The store's range reader, or `null` when it has none. */
 function rangeReader(repo: Repo) {
 	const promises = rawFs(repo) as {
 		getRange?: (
@@ -185,7 +183,6 @@ const BATCH_MAX_GAP_BYTES = 64 * 1024;
 /** Range reads one batch keeps in flight at once. */
 export const BATCH_MAX_IN_FLIGHT = 8;
 
-/** Run `tasks`, at most `limit` at a time. */
 async function runPooled(
 	tasks: Array<() => Promise<void>>,
 	limit: number,
@@ -205,7 +202,6 @@ async function runPooled(
 /** The most one batched read fetches. */
 const BATCH_MAX_SPAN_BYTES = 1024 * 1024;
 
-/** Every pack index in the repo, read once. */
 async function packIndexes(
 	repo: Repo,
 ): Promise<Array<{ packName: string; idx: Uint8Array }>> {
@@ -259,7 +255,6 @@ export async function getObjectSizes(
 	for (const [packName, entries] of byPack) {
 		const packKey = `${repo.gitdir}/objects/pack/${packName}`;
 		entries.sort((a, b) => a.offset - b.offset);
-		// Coalesce neighbouring entries into windows.
 		const windows: Array<typeof entries> = [];
 		for (const entry of entries) {
 			const current = windows.at(-1);
@@ -297,7 +292,6 @@ export async function getObjectSizes(
 	return sizes;
 }
 
-/** One entry's size, parsed from a window read at `windowStart`. */
 async function sizeFromWindow(
 	read: NonNullable<ReturnType<typeof rangeReader>>,
 	packKey: string,

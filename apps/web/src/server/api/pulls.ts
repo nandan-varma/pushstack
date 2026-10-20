@@ -113,7 +113,6 @@ const customError = (message: string): FieldError => ({
 	message,
 });
 
-/** Branch name → tip sha, for `head.sha` / `base.sha` of open and closed pulls. */
 async function branchTips(
 	repo: RepositoryRowWithOwner,
 ): Promise<Map<string, string>> {
@@ -150,12 +149,10 @@ async function orWhenGone<T>(read: () => Promise<T>, fallback: T): Promise<T> {
 	}
 }
 
-/** Pull request `#number` with its labels, assignees and counts, or null. */
 function findPull(repoId: number, number: number): Promise<Thread | null> {
 	return findThread(repoId, number, "pull_request");
 }
 
-/** The serializer input every pull request shape shares. */
 function pullShapeOf(thread: Thread) {
 	return {
 		row: pullRequestOfThread(thread),
@@ -166,7 +163,6 @@ function pullShapeOf(thread: Thread) {
 	};
 }
 
-/** Serialize pull requests as list items (no per-pull git work beyond the tips). */
 async function serializeList(
 	repo: RepositoryRowWithOwner,
 	threads: Thread[],
@@ -191,7 +187,6 @@ async function serializeList(
 	});
 }
 
-/** A single pull request, with the counts GitHub adds to it. */
 async function serializeDetail(
 	repo: RepositoryRowWithOwner,
 	thread: Thread,
@@ -276,7 +271,6 @@ function branchFilter(
 		: null;
 }
 
-/** `GET /repos/{owner}/{repo}/pulls` */
 export async function listPulls(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const query = ctx.url.searchParams;
@@ -334,7 +328,6 @@ export async function listPulls(ctx: ApiContext) {
 	);
 }
 
-/** `GET /repos/{owner}/{repo}/pulls/{number}` */
 export async function getPull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const record = await findPull(repo.id, threadNumber(ctx.params.number));
@@ -358,7 +351,6 @@ const updateSchema = z.object({
 	base: z.string().min(1).max(300).optional(),
 });
 
-/** GitHub's `errors[]` for a failed pull request body parse. */
 function bodyErrors(
 	error: z.ZodError,
 	body: Record<string, unknown>,
@@ -372,7 +364,6 @@ function bodyErrors(
 	});
 }
 
-/** `POST /repos/{owner}/{repo}/pulls` */
 export async function createPull(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -436,7 +427,6 @@ export async function createPull(ctx: ApiContext) {
 			),
 		]);
 	}
-	// Same check the web UI makes before opening one.
 	const { canMerge } = await analyzeMerge(
 		ownerKeyOf(repo),
 		repo.name,
@@ -462,7 +452,6 @@ export async function createPull(ctx: ApiContext) {
 	});
 }
 
-/** `PATCH /repos/{owner}/{repo}/pulls/{number}` */
 export async function updatePull(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -530,7 +519,6 @@ export async function checkPullMerged(ctx: ApiContext) {
 	return noContent();
 }
 
-/** `PUT /repos/{owner}/{repo}/pulls/{number}/merge` */
 export async function mergePull(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -608,7 +596,6 @@ export async function mergePull(ctx: ApiContext) {
 	});
 }
 
-/** `GET /repos/{owner}/{repo}/pulls/{number}/commits`, oldest first. */
 export async function listPullCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(
@@ -643,7 +630,6 @@ export async function listPullCommits(ctx: ApiContext) {
 	);
 }
 
-/** `GET /repos/{owner}/{repo}/pulls/{number}/files` */
 export async function listPullFiles(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const pr = await findPullRequestByNumber(

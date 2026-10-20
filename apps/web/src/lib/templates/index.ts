@@ -50,7 +50,6 @@ export function renderLicense(
 		.replaceAll("[fullname]", () => holder.fullname);
 }
 
-/** `# name`, a blank line and the description, as GitHub's auto_init README. */
 export function renderReadme(
 	name: string,
 	description?: string | null,

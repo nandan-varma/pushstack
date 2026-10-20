@@ -11,12 +11,6 @@ export function isMarkdownFile(filePath: string): boolean {
 
 export type PreviewMode = "markdown" | "media" | null;
 
-/**
- * Decides whether a file gets a rendered "Preview" tab alongside "Code" —
- * "markdown" renders through MarkdownRenderer (only text that's displayed
- * inline), "media" through BinaryPreview (image/pdf/audio/video/font, keyed
- * off extension via getPreviewKind).
- */
 export function getPreviewMode(
 	filePath: string,
 	kind: FileView["kind"],

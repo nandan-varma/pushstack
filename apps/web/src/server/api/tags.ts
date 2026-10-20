@@ -1,4 +1,3 @@
-/** `GET /repos/{owner}/{repo}/tags` */
 import { getTags } from "../git-read";
 import { ownerKeyOf } from "../git-storage-naming";
 import type { ApiContext } from "./auth";

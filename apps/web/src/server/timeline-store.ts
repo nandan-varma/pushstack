@@ -25,7 +25,6 @@ function toRow(
 	return { issueId, actorId, event, payload, sourceIssueId };
 }
 
-/** Record one event on the thread with issue id `issueId`. */
 export async function recordTimelineEvent(
 	issueId: number,
 	actorId: string,
@@ -34,7 +33,6 @@ export async function recordTimelineEvent(
 	await db.insert(timelineEvents).values(toRow(issueId, actorId, event));
 }
 
-/** Record the same event on several threads (e.g. every issue a merge closes). */
 export async function recordTimelineEvents(
 	issueIds: number[],
 	actorId: string,
@@ -46,7 +44,6 @@ export async function recordTimelineEvents(
 		.values(issueIds.map((issueId) => toRow(issueId, actorId, event)));
 }
 
-/** The ids of the threads `#numbers` in `repoId`, other than `exceptId`. */
 async function threadIds(
 	repoId: number,
 	numbers: number[],
@@ -134,7 +131,6 @@ export async function removeCrossReferences(
 		);
 }
 
-/** A thread's events, oldest first. `options` bound one API page. */
 export async function listTimeline(
 	issueId: number,
 	options?: { limit?: number; offset?: number },
@@ -158,7 +154,6 @@ export async function listTimeline(
 	);
 }
 
-/** How many events a thread carries (for the API's `Link` header). */
 export async function countTimeline(issueId: number): Promise<number> {
 	const [row] = await db
 		.select({ total: count() })

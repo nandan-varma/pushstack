@@ -92,7 +92,6 @@ async function applyThreadLabels(
 	}
 }
 
-/** `GET /repos/{owner}/{repo}/labels` */
 export async function listRepoLabels(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const labels = await listLabels(repo.id);
@@ -101,7 +100,6 @@ export async function listRepoLabels(ctx: ApiContext) {
 	);
 }
 
-/** `POST /repos/{owner}/{repo}/labels` */
 export async function createLabel(ctx: ApiContext) {
 	requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -129,7 +127,6 @@ export async function createLabel(ctx: ApiContext) {
 	}
 }
 
-/** The label named by the route's `:name`. */
 async function requireLabel(ctx: ApiContext, repoId: number) {
 	const name = ctx.params.name;
 	if (!name) throw notFoundError();
@@ -138,7 +135,6 @@ async function requireLabel(ctx: ApiContext, repoId: number) {
 	return label;
 }
 
-/** `GET /repos/{owner}/{repo}/labels/{name}` */
 export async function getLabel(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const value = await requireLabel(ctx, repo.id);
@@ -147,7 +143,6 @@ export async function getLabel(ctx: ApiContext) {
 	);
 }
 
-/** `PATCH /repos/{owner}/{repo}/labels/{name}` */
 export async function updateLabel(ctx: ApiContext) {
 	requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -179,7 +174,6 @@ export async function updateLabel(ctx: ApiContext) {
 	}
 }
 
-/** `DELETE /repos/{owner}/{repo}/labels/{name}` */
 export async function deleteLabel(ctx: ApiContext) {
 	requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -189,7 +183,6 @@ export async function deleteLabel(ctx: ApiContext) {
 	return noContent();
 }
 
-/** The issue/PR the route's `:number` names. */
 async function requireThread(ctx: ApiContext, repoId: number) {
 	const thread = await findThreadByNumber(
 		repoId,
@@ -199,7 +192,6 @@ async function requireThread(ctx: ApiContext, repoId: number) {
 	return thread;
 }
 
-/** `GET /repos/{owner}/{repo}/issues/{number}/labels` */
 export async function listIssueLabels(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const thread = await requireThread(ctx, repo.id);
@@ -246,7 +238,6 @@ export async function deleteIssueLabels(ctx: ApiContext) {
 	return noContent();
 }
 
-/** `DELETE /repos/{owner}/{repo}/issues/{number}/labels/{name}` — remove one. */
 export async function removeIssueLabel(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);

@@ -168,7 +168,6 @@ function FileBlobPage() {
 
 	return (
 		<div className="space-y-4">
-			{/* File Header */}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<h1
@@ -297,7 +296,6 @@ function FileBlobPage() {
 				)}
 
 				<TabsContent value="code" className="space-y-4">
-					{/* File Content */}
 					{file.kind === "text" ? (
 						<Suspense fallback={<Skeleton className="h-96" />}>
 							<CodeViewer
@@ -328,7 +326,6 @@ function FileBlobPage() {
 						</Card>
 					)}
 
-					{/* File Info */}
 					<Card className="p-4">
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
 							<div>

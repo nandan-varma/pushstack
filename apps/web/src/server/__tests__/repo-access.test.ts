@@ -1,17 +1,4 @@
 import { isNotFound } from "@tanstack/react-router";
-/**
- * Tests for repo-access.ts — the single place that computes RepositoryAccess
- * (owner/admin/write/read/anonymous role, canRead/canWrite/canModerate flags)
- * for every repo read/write/moderate check across the app (git-auth, files,
- * issues, repositories). A regression here is a silent authz bug, so this
- * exercises the real role matrix against a real relational database rather
- * than mocking db.query return values by hand.
- *
- * Postgres is replaced with an in-memory embedded Postgres (pglite), seeded
- * with the project's real drizzle schema — same pattern as
- * git-user-lifecycle.test.ts — so every query in repo-access.ts runs for
- * real, including the where-clause logic itself.
- */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
