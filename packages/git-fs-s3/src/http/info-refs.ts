@@ -1,5 +1,6 @@
 import git from "isomorphic-git";
 import { concat } from "../edge-utils.js";
+import { isAbsentError } from "../git-errors.js";
 import {
 	listBranches,
 	listLooseRefNames,
@@ -24,7 +25,12 @@ export async function listAllRefs(repo: Repo, defaultBranch: string) {
 			const name = `refs/tags/${tag}`;
 			return resolveLooseRefFast(repo, name)
 				.then((oid) => ({ name, oid }))
-				.catch(() => null);
+				.catch((error: unknown) => {
+					// A tag deleted since the listing isn't advertised; a failed
+					// read fails the request rather than hiding the tag (#93).
+					if (isAbsentError(error)) return null;
+					throw error;
+				});
 		}),
 	);
 	const branchRefs = branches.map((b) => ({

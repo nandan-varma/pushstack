@@ -181,3 +181,15 @@ export function isNotFoundError(error: unknown): boolean {
 		(error as { code?: string } | null)?.code === "NotFoundError"
 	);
 }
+
+/**
+ * Nothing there: a not-found ref/object/path, or an fs `ENOENT` (no `HEAD`
+ * file, no `objects/pack` directory). Any other read failure is not absence,
+ * and a caller that reads it as absence changes what a write does (#91, #93).
+ */
+export function isAbsentError(error: unknown): boolean {
+	return (
+		isNotFoundError(error) ||
+		(error as { code?: string } | null)?.code === "ENOENT"
+	);
+}

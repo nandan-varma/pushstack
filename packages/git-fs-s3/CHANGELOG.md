@@ -8,9 +8,9 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - `repackRepository` now rejects when consolidation fails instead of
-  swallowing the error and returning no stale paths — except when reading the
-  pack directory itself fails, which `readPackDirectory` still swallows and
-  reports as "nothing to consolidate" (#92). Best-effort is a call-site
+  swallowing the error and returning no stale paths, including when listing
+  the pack directory fails (#92; only a missing directory — an empty
+  repository — still reads as "nothing to consolidate"). Best-effort is a call-site
   decision: `applyReceivePack` still treats a repack after a push as best-effort
   (the refs have moved, so a failed consolidation is reported through
   `hooks.onWarn` and the push succeeds), while an explicit maintenance repack
@@ -20,6 +20,13 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Ref and `HEAD` reads in `ops` no longer turn a failed read into "absent"
+  (#93): `deleteBranchByName` used to skip its default-branch guard when
+  `HEAD` couldn't be read (isomorphic-git's `deleteBranch` then detaches
+  `HEAD` instead of refusing), and `listTags`, `listBranches`'
+  `packed-refs`/`HEAD` reads and the info-refs advertisement silently dropped
+  a tag or branch whose read failed. Only a not-found or `ENOENT` (the new
+  `isAbsentError`) reads as absent; anything else rejects.
 - `receive-pack` no longer reads a failed ref or `HEAD` read as "absent". A
   `resolveRef` failure other than a genuine not-found used to map to the zero
   oid, so `force: true` in `applyRefUpdates` would overwrite a ref another

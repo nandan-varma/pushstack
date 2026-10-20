@@ -1,5 +1,9 @@
 import git from "isomorphic-git";
-import { GitConflictError, GitInvalidRequestError } from "../git-errors.js";
+import {
+	GitConflictError,
+	GitInvalidRequestError,
+	isAbsentError,
+} from "../git-errors.js";
 import { isSafeBranchName } from "../refs.js";
 import { peelToCommit } from "./history.js";
 import type { Repo } from "./types.js";
@@ -111,8 +115,9 @@ async function readPackedBranches(repo: Repo): Promise<Map<string, string>> {
 			}
 		}
 		return refs;
-	} catch {
-		return new Map();
+	} catch (error) {
+		if (isAbsentError(error)) return new Map();
+		throw error;
 	}
 }
 
@@ -126,8 +131,10 @@ async function getCurrentLooseBranch(repo: Repo): Promise<string | null> {
 		const head = decodeFileContent(content).trim();
 		const match = /^ref: refs\/heads\/(.+)$/.exec(head);
 		return match?.[1] && isSafeBranchName(match[1]) ? match[1] : null;
-	} catch {
-		return null;
+	} catch (error) {
+		// No HEAD file is "no branch"; a failed read is not (#93).
+		if (isAbsentError(error)) return null;
+		throw error;
 	}
 }
 
@@ -179,7 +186,10 @@ export async function listBranches(repo: Repo): Promise<Branch[]> {
 			looseBranches === null
 				? await git
 						.currentBranch({ ...repo, fullname: false })
-						.catch(() => null)
+						.catch((error: unknown) => {
+							if (isAbsentError(error)) return null;
+							throw error;
+						})
 				: looseCurrentBranch;
 
 		return Promise.all(
@@ -230,7 +240,14 @@ export async function deleteBranchByName(
 	// clone without a default branch.
 	const current =
 		(await getCurrentLooseBranch(repo)) ??
-		(await git.currentBranch({ ...repo, fullname: false }).catch(() => null));
+		(await git
+			.currentBranch({ ...repo, fullname: false })
+			.catch((error: unknown) => {
+				// A failed HEAD read must not skip this guard: isomorphic-git's
+				// deleteBranch would then detach HEAD instead of refusing (#93).
+				if (isAbsentError(error)) return null;
+				throw error;
+			}));
 	if (current === name) {
 		throw new GitInvalidRequestError(
 			`Cannot delete ${name}: it is the default branch`,
@@ -253,7 +270,10 @@ export async function listTags(repo: Repo): Promise<Tag[]> {
 	const names = (await listLooseRefNames(repo, "refs/tags")) ?? [];
 	const all = new Set([
 		...names,
-		...(await git.listTags(repo).catch(() => [] as string[])),
+		...(await git.listTags(repo).catch((error: unknown) => {
+			if (isAbsentError(error)) return [] as string[];
+			throw error;
+		})),
 	]);
 	const tags = await Promise.all(
 		[...all].filter(isSafeBranchName).map(async (name): Promise<Tag | null> => {
@@ -263,8 +283,12 @@ export async function listTags(repo: Repo): Promise<Tag[]> {
 				return commit === oid
 					? { name, commit }
 					: { name, commit, tagObject: oid };
-			} catch {
-				return null;
+			} catch (error) {
+				// A tag deleted since the listing, or naming a missing object, is
+				// not listed; a failed read fails the listing instead of
+				// silently shortening it (#93).
+				if (isAbsentError(error)) return null;
+				throw error;
 			}
 		}),
 	);

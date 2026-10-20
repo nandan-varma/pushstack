@@ -326,3 +326,27 @@ describe("repackRepository", () => {
 		expect(stale).toContain("objects/pack/dummy-0.rev");
 	});
 });
+
+describe("repackRepository — pack listing failures (#92)", () => {
+	it("rejects when the pack directory can't be listed, instead of reporting nothing to do", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 4);
+		const fsp = rawFs(repo);
+		const spy = vi
+			.spyOn(fsp, "readdir")
+			.mockRejectedValue(new Error("storage listing failed"));
+		try {
+			await expect(repackRepository(repo, { threshold: 4 })).rejects.toThrow(
+				"storage listing failed",
+			);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("still treats an empty repository's missing pack directory as nothing to do", async () => {
+		const { repo } = makeRepo();
+		await git.init({ ...repo, dir: repo.gitdir, bare: true });
+		await expect(repackRepository(repo, { threshold: 1 })).resolves.toEqual([]);
+	});
+});

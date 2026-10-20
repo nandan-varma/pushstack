@@ -7,7 +7,7 @@
  */
 
 import git from "isomorphic-git";
-import { isNotFoundError } from "../git-errors.js";
+import { isAbsentError, isNotFoundError } from "../git-errors.js";
 import type { Repo } from "../ops/types.js";
 import {
 	type PackFileName,
@@ -74,9 +74,14 @@ async function readAndVerifyObjects(
 export const REPACK_PACK_COUNT_THRESHOLD = 4;
 
 async function readPackDirectory(repo: Repo): Promise<PackFileName[]> {
+	// An empty repository has no pack directory; any other listing failure
+	// must fail the repack, not read as "nothing to consolidate" (#92).
 	const entries = await rawFs(repo)
 		.readdir(`${repo.gitdir}/objects/pack`)
-		.catch(() => [] as string[]);
+		.catch((error: unknown) => {
+			if (isAbsentError(error)) return [] as string[];
+			throw error;
+		});
 	return parsePackDirectory(entries);
 }
 

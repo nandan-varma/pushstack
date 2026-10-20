@@ -30,6 +30,7 @@ export {
 	GitRateLimitError,
 	GitRefNotFoundError,
 	GitRepositoryNotFoundError,
+	isAbsentError,
 	isNotFoundError,
 	type MergeConflictDetail,
 } from "./git-errors.js";

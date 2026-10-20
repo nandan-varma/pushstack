@@ -1,5 +1,5 @@
 import git from "isomorphic-git";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	createGitFs,
 	GitInvalidRequestError,
@@ -345,5 +345,69 @@ describe("getDiffBetweenRefs (pull request diff)", () => {
 		await expect(getCommitDiff(repo, "a".repeat(40))).rejects.toBeInstanceOf(
 			GitObjectNotFoundError,
 		);
+	});
+});
+
+describe("ref read failures are not absence (#93)", () => {
+	function failReads(repo: Repo, match: (path: string) => boolean) {
+		const promises = (
+			repo.fs as unknown as {
+				promises: { readFile: (path: string, ...rest: unknown[]) => unknown };
+			}
+		).promises;
+		const readFile = promises.readFile.bind(promises);
+		return vi
+			.spyOn(promises, "readFile")
+			.mockImplementation((path: string, ...rest: unknown[]) =>
+				match(path)
+					? Promise.reject(new Error("storage read failed"))
+					: readFile(path, ...rest),
+			);
+	}
+
+	it("refuses to delete a branch when HEAD can't be read", async () => {
+		const { deleteBranchByName } = await import("../src/ops/index.js");
+		const { repo } = await makeRepo();
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+		const spy = failReads(repo, (path) => path.endsWith("/HEAD"));
+		try {
+			await expect(deleteBranchByName(repo, "main")).rejects.toThrow(
+				"storage read failed",
+			);
+		} finally {
+			spy.mockRestore();
+		}
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(tip);
+	});
+
+	it("fails a tag listing whose tag can't be read, instead of dropping the tag", async () => {
+		const { listTags } = await import("../src/ops/index.js");
+		const { repo } = await makeRepo();
+		const tip = await commitFilesToBare(repo, {
+			branch: "main",
+			message: "m\n",
+			author,
+			files: [{ path: "f", content: "f\n" }],
+		});
+		await git.writeRef({ ...repo, ref: "refs/tags/v1", value: tip });
+		expect((await listTags(repo)).map((tag) => tag.name)).toEqual(["v1"]);
+		const realReadObject = git.readObject;
+		const spy = vi
+			.spyOn(git, "readObject")
+			.mockImplementation((args) =>
+				args.oid === tip
+					? Promise.reject(new Error("storage read failed"))
+					: realReadObject(args),
+			);
+		try {
+			await expect(listTags(repo)).rejects.toThrow("storage read failed");
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });
