@@ -1,14 +1,15 @@
 name: Release packages
 
-# Tag `<package>@v<version>` (e.g. `git-fs-s3@v0.16.0`, annotated: `git tag -m`)
-# to publish packages/<package> to npm with trusted publishing (OIDC): no
-# stored token and no NODE_AUTH_TOKEN — each package's npm settings list this
-# repository and this workflow file as its trusted publisher.
+# Tag `<package>@v<version>` (e.g. `git-fs-s3@v0.16.0`, `@pushstack/cli@v0.1.0`;
+# annotated: `git tag -m`) to publish that workspace to npm with trusted
+# publishing (OIDC): no stored token and no NODE_AUTH_TOKEN — each package's npm
+# settings list this repository and this workflow file as its trusted publisher.
 on:
   push:
     tags:
       - "git-fs-s3@v*"
       - "git-edge@v*"
+      - "@pushstack/cli@v*"
 
 permissions:
   contents: write
@@ -24,18 +25,24 @@ jobs:
       - uses: ./.github/actions/setup
       # Trusted publishing needs npm >= 11.5.1.
       - run: npm install -g npm@latest
-      - name: Check the tag matches the package version
+      # The tag names the package; the workspace directory comes from the
+      # manifest, so `apps/cli` and `packages/*` publish the same way.
+      - name: Resolve the package and check the tag against its version
         id: pkg
         run: |
           name="${GITHUB_REF_NAME%@v*}"
           version="${GITHUB_REF_NAME##*@v}"
-          actual="$(node -p "require('./packages/$name/package.json').version")"
+          directory="$(node scripts/workspace-directory.mjs "$name")"
+          actual="$(node -p "require('./$directory/package.json').version")"
           test "$version" = "$actual" || { echo "tag $version != package.json $actual"; exit 1; }
-          echo "name=$name" >> "$GITHUB_OUTPUT"
+          {
+            echo "name=$name"
+            echo "directory=$directory"
+          } >> "$GITHUB_OUTPUT"
       - run: pnpm exec turbo run typecheck test build --filter=${{ steps.pkg.outputs.name }}
       # pnpm pack rewrites workspace:* ranges to real versions; npm publishes
       # the tarball with OIDC.
-      - working-directory: packages/${{ steps.pkg.outputs.name }}
+      - working-directory: ${{ steps.pkg.outputs.directory }}
         run: |
           pnpm pack --pack-destination "$RUNNER_TEMP/pkg"
           npm publish "$RUNNER_TEMP"/pkg/*.tgz --access public --provenance

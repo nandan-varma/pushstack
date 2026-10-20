@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
@@ -8,6 +9,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const readJson = (name) =>
 	JSON.parse(readFileSync(path.join(root, name), "utf8"));
 const readText = (name) => readFileSync(path.join(root, name), "utf8");
+// Runs the script the release workflow uses to turn a package name into its
+// workspace directory.
+const packageDirectory = (name) =>
+	execFileSync(process.execPath, ["scripts/workspace-directory.mjs", name], {
+		cwd: root,
+		encoding: "utf8",
+	}).trim();
 const exists = (name) => existsSync(path.join(root, name));
 const github = ".github";
 const SETUP_ACTION = `${github}/actions/setup/action.yml`;
@@ -191,4 +199,13 @@ test("Dependabot watches each composite action directory", () => {
 			`${file}: add a github-actions entry for ${directory} to ${github}/dependabot.yml (a root entry does not scan it)`,
 		);
 	}
+});
+
+test("every workspace resolves to its directory by package name", () => {
+	for (const workspace of workspaces) {
+		assert.equal(packageDirectory(workspace.name), workspace.directory);
+	}
+	// A tag naming a workspace that doesn't exist must fail the release, not
+	// silently pack nothing.
+	assert.throws(() => packageDirectory("not-a-workspace"));
 });
