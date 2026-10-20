@@ -58,7 +58,6 @@ async function makeCommit(
 	files: Array<{ path: string; content: string }>,
 	message: string,
 ): Promise<string> {
-	// Start from parent's tree
 	const parentCommit = await git.readCommit({ ...repo, oid: parentOid });
 	const parentTree = await git.readTree({
 		...repo,
@@ -71,7 +70,6 @@ async function makeCommit(
 		}
 	}
 
-	// Overlay new files
 	for (const f of files) {
 		const oid = await git.writeBlob({
 			...repo,
@@ -305,7 +303,6 @@ describe("threeWayMerge", () => {
 			force: true,
 		});
 
-		// feature: inserts a line right after line1, doesn't touch line5.
 		const featureOid = await makeCommit(
 			repo,
 			baseCommitOid,
@@ -324,7 +321,6 @@ describe("threeWayMerge", () => {
 			force: true,
 		});
 
-		// main: only changes line5, doesn't touch the top of the file.
 		const mainOid2 = await makeCommit(
 			repo,
 			baseCommitOid,

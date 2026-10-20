@@ -82,7 +82,6 @@ describe("serveRawFile", () => {
 			`${users.owner.username}/${publicName}/main/big.bin`,
 		);
 		expect(response.status).toBe(413);
-		// The refusal has to say what to do instead, since the file does exist.
 		expect(await response.text()).toMatch(/clone/i);
 	});
 

@@ -1,9 +1,3 @@
-/**
- * The fetch-based S3 store against a fake S3 endpoint
- * (helpers/fake-s3-fetch.ts): signing, 404 → null mapping, error statuses,
- * ListObjectsV2 XML parsing with delimiters and pagination, and server-side
- * copy.
- */
 import { describe, expect, it, vi } from "vitest";
 import {
 	createFetchS3Store,

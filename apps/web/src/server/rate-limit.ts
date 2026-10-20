@@ -37,7 +37,6 @@ export interface RateLimitDecision {
 	retryAfter: number | null;
 }
 
-/** The shape Better Auth's `rateLimit.customStorage` must provide. */
 export interface RateLimitStorage {
 	consume(key: string, rule: RateLimitRule): Promise<RateLimitDecision>;
 }
@@ -150,7 +149,6 @@ export type RateLimitResource =
 	| "core-write"
 	| "git"
 	| "git-write"
-	/** Failed credentials per client IP (token guessing). */
 	| "auth-failure";
 
 export interface RateStatus {
@@ -161,11 +159,9 @@ export interface RateStatus {
 	/** Epoch seconds at which the window ends. */
 	reset: number;
 	exceeded: boolean;
-	/** "user ID 5" or an IP address, for GitHub's error message. */
 	identity: string;
 }
 
-/** Who is being metered: a user (authenticated) or a client IP (anonymous). */
 export interface RateIdentity {
 	kind: "user" | "ip";
 	id: string;
@@ -227,7 +223,6 @@ export async function authFailuresExhausted(
 	return status && status.remaining === 0 ? status : null;
 }
 
-/** Count one failed credential check against the caller's IP. */
 export function recordAuthFailure(
 	request: Request,
 ): Promise<RateStatus | null> {
@@ -248,7 +243,6 @@ export function identityFor(
 const describeIdentity = (who: RateIdentity) =>
 	who.kind === "user" ? `user ID ${who.id}` : who.id;
 
-/** The limit for a resource and identity kind. */
 function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 	switch (resource) {
 		case "core":
@@ -336,7 +330,6 @@ export async function hitRateLimit(
 	}
 }
 
-/** The current state of several buckets, without counting a request. */
 export async function peekRateLimits(
 	resources: RateLimitResource[],
 	who: RateIdentity,
@@ -364,7 +357,6 @@ export async function peekRateLimits(
 	);
 }
 
-/** GitHub's `X-RateLimit-*` headers (and `Retry-After` once exceeded). */
 export function rateLimitHeaders(status: RateStatus): Record<string, string> {
 	const headers: Record<string, string> = {
 		"X-RateLimit-Limit": String(status.limit),
@@ -384,6 +376,5 @@ export function rateLimitHeaders(status: RateStatus): Record<string, string> {
 	return headers;
 }
 
-/** GitHub's message for an exhausted primary limit. */
 export const rateLimitExceededMessage = (status: RateStatus) =>
 	`API rate limit exceeded for ${status.identity}.`;

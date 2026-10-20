@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSemaphore } from "../src/semaphore.js";
 
-/** A promise plus the handles to settle it, so a test can hold a task in
- * flight and observe which other tasks the semaphore admits meanwhile. */
 function deferred<T = void>() {
 	let resolve!: (value: T) => void;
 	let reject!: (error: unknown) => void;
@@ -13,7 +11,6 @@ function deferred<T = void>() {
 	return { promise, resolve, reject };
 }
 
-/** Let queued microtasks run, so tasks blocked on a deferred can start. */
 const tick = (): Promise<void> =>
 	new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -87,7 +84,6 @@ describe("createSemaphore", () => {
 			}),
 		).rejects.toBe(boom);
 
-		// A rejected run must release its permit just like a resolved one.
 		const gate = deferred();
 		const blocked = sem.run(() => gate.promise);
 		await expect(sem.run(async () => "still admitted")).resolves.toBe(

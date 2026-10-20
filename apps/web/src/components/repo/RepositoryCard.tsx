@@ -11,12 +11,6 @@ export interface RepositoryCardRepo {
 	owner: { username: string };
 }
 
-/**
- * The repository card shared by the dashboard, `/repositories`, search and
- * profile pages. GitHub titles list cards `owner/name` and a profile's cards
- * `name` (its owner is the page subject), so `showOwner` picks the mode rather
- * than forking the markup. An empty description renders nothing, as on GitHub.
- */
 export function RepositoryCard({
 	repo,
 	showOwner = true,

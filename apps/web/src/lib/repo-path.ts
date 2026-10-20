@@ -8,7 +8,6 @@
  * `.`/`..` and refusing a target that climbs above the repository root.
  */
 
-/** The directory part of a repository-relative file path (`""` at the root). */
 function directoryOf(filePath: string): string {
 	const slash = filePath.lastIndexOf("/");
 	return slash === -1 ? "" : filePath.slice(0, slash);

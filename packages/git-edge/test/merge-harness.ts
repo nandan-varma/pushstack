@@ -1,8 +1,3 @@
-/**
- * Shared fixture harness for threeWayMerge tests: a bare repo on git-fs-s3's
- * in-memory object store, plus a path → content "spec" builder for writing
- * trees and commits.
- */
 import { createGitFs, MemoryObjectStore, type ObjectStore } from "git-fs-s3";
 import type { Repo } from "git-fs-s3/ops";
 import git from "isomorphic-git";
@@ -35,7 +30,6 @@ export async function makeRepo(
 	return { repo, store };
 }
 
-/** Write a tree for a full path → content spec (nested paths allowed). */
 export async function writeSpec(repo: Repo, spec: Spec): Promise<string> {
 	const files = new Map<string, Spec[string]>();
 	const dirs = new Map<string, Spec>();
@@ -107,7 +101,6 @@ export async function commit(
 	return oid;
 }
 
-/** base on main, then `ours` on main and `theirs` on feature. */
 export async function diverge(
 	base: Spec,
 	ours: Spec,
@@ -122,7 +115,6 @@ export async function diverge(
 	return made;
 }
 
-/** Every blob in a commit's tree, keyed by full path. */
 export async function mergedFiles(repo: Repo, oid: string) {
 	const out: Record<string, { mode: string; text: string }> = {};
 	await git.walk({
@@ -141,7 +133,6 @@ export async function mergedFiles(repo: Repo, oid: string) {
 	return out;
 }
 
-/** Every entry (blob, tree, commit/submodule) in a commit's full tree. */
 export async function treeEntries(
 	repo: Repo,
 	oid: string,
@@ -162,7 +153,6 @@ export async function treeEntries(
 	return out;
 }
 
-/** Merge `feature` into `main`, the layout `diverge` sets up. */
 export const merge = (repo: Repo) =>
 	threeWayMerge(repo, "refs/heads/feature", "refs/heads/main", {
 		authorName: "M",

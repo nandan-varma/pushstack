@@ -17,7 +17,6 @@ import {
 
 const author = authorNow("Test", "test@example.com");
 
-/** A repo whose store records the order of every put. */
 async function makeRepo(): Promise<{
 	repo: Repo;
 	store: MemoryObjectStore;
@@ -316,7 +315,6 @@ describe("getDiffBetweenRefs (pull request diff)", () => {
 			author,
 			files: [{ path: "feature.txt", content: "f\n" }],
 		});
-		// main moves on after the branch point.
 		await commitFilesToBare(repo, {
 			branch: "main",
 			message: "main moves\n",
@@ -329,7 +327,6 @@ describe("getDiffBetweenRefs (pull request diff)", () => {
 			["feature.txt", "added"],
 		]);
 
-		// A root commit's diff adds every file, nested ones included.
 		const root = (await git.log({ ...repo, ref: "main" })).at(-1);
 		if (!root) throw new Error("no root");
 		const rootDiff = await getCommitDiff(repo, root.oid);

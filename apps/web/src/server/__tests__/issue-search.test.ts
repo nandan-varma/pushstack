@@ -56,7 +56,6 @@ beforeAll(async () => {
 		},
 	});
 
-	// Issues, oldest first: crash, feature, plain, alice's, bob's, carol2's.
 	crashId = (
 		await issues.createIssue({
 			data: {
@@ -98,7 +97,6 @@ beforeAll(async () => {
 		data: { repoId, title: "Carol2 report", body: "cc @carol2" },
 	});
 
-	// Assign one issue; comment on two (feature gets two, plain one).
 	signIn(users.owner);
 	await assignees.setIssueAssignees({
 		data: { issueId: crashId, usernames: [users.alice.username] },
@@ -111,10 +109,8 @@ beforeAll(async () => {
 	});
 	await comments.createComment({ data: { issueId: plainId, body: "noted" } });
 
-	// Close feature last, so it also has the newest `updatedAt`.
 	await issues.updateIssue({ data: { issueId: featureId, status: "closed" } });
 
-	// Pull requests: one merged, one open.
 	await files.createBranch({ data: { repoId, name: "merged" } });
 	await files.uploadFile({
 		data: {
@@ -178,7 +174,6 @@ describe("issue search", () => {
 			]),
 		);
 		expect(await issueTitles("is:open is:closed")).toEqual([]);
-		// A pull request is not an issue.
 		expect(await issueTitles("is:pr")).toEqual([]);
 	});
 
@@ -209,7 +204,6 @@ describe("issue search", () => {
 		expect(sorted(await issueTitles("is:all mentions:carol"))).toEqual(
 			sorted(["Add search", "Bob report"]),
 		);
-		// `@carol2` is a different mention, not `@carol`.
 		expect(await issueTitles("mentions:carol2")).toEqual(["Carol2 report"]);
 	});
 
@@ -250,7 +244,6 @@ describe("issue search", () => {
 	});
 
 	it("searches an unknown qualifier as text instead of dropping it", async () => {
-		// An unquoted URL is not a qualifier: it is searched for.
 		expect(await issueTitles("http://example.com")).toEqual(["Plain idea"]);
 		// A token that matches nothing filters the list; it does not silently
 		// match everything.
@@ -265,7 +258,6 @@ describe("pull request search", () => {
 		);
 		expect(await pullTitles("is:merged")).toEqual(["Merged PR"]);
 		expect(await pullTitles("is:open")).toEqual(["Open PR"]);
-		// An issue is not a pull request.
 		expect(await pullTitles("is:issue")).toEqual([]);
 	});
 

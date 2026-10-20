@@ -11,7 +11,6 @@ process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
 // runs there (setupFiles apply regardless of per-file environment), but
 // `window` doesn't exist, so the DOM-only mocks below must be skipped.
 if (typeof window !== "undefined") {
-	// Mock window.matchMedia
 	Object.defineProperty(window, "matchMedia", {
 		writable: true,
 		value: (query: string) => ({

@@ -9,7 +9,6 @@
 import type { SearchQuery, SearchSort } from "#/lib/search-query";
 import type { ThreadFilter, ThreadSort } from "./thread-store";
 
-/** The filter fields a parsed query sets (kind and state are the caller's). */
 export function searchFilter(
 	search: SearchQuery,
 ): Omit<ThreadFilter, "repoId" | "kind" | "state"> {

@@ -22,8 +22,6 @@ function makeRepo(): Repo {
 	return { fs, gitdir: "git", cache: {} };
 }
 
-/** Like {@link makeRepo}, but also exposes the backing store for tests that
- * need to simulate an unreadable object somewhere in pre-existing history. */
 function makeRepoWithStore(): { repo: Repo; store: MemoryObjectStore } {
 	const store = new MemoryObjectStore();
 	return { repo: { fs: createGitFs(store), gitdir: "git", cache: {} }, store };
@@ -143,7 +141,7 @@ describe("applyReceivePack", () => {
 		expect(results[0]?.ok).toBe(false);
 		expect(results[0]?.reason).toContain("non-fast-forward");
 		const headOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
-		expect(headOid).toBe(first.commitOid); // unchanged
+		expect(headOid).toBe(first.commitOid);
 	});
 
 	it("rejects a path-traversing ref name without touching the filesystem", async () => {
@@ -653,7 +651,6 @@ describe("receive-pack — protocol edge cases", () => {
 			},
 		);
 		const bytes = response.body;
-		// pkt-line header, then band 1, then the inner report-status pkt-lines.
 		expect(bytes[4]).toBe(1);
 		const inner = new TextDecoder().decode(bytes.subarray(5));
 		expect(inner).toContain("unpack ok");

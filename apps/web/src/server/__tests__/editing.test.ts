@@ -124,7 +124,6 @@ describe("editing comments", () => {
 
 		await comments.deleteComment({ data: { commentId: first.id } });
 		expect(await events(gone.number)).toEqual([]);
-		// The issue body still mentions it, so that event stays.
 		expect(await events(kept.number)).toEqual(["cross-referenced"]);
 	});
 });

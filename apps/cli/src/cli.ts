@@ -30,7 +30,6 @@ ENVIRONMENT
   PST_REPO     The default OWNER/REPO
 `;
 
-/** Runs one invocation; returns the process exit code. */
 export async function run(argv: string[], io: Io): Promise<number> {
 	try {
 		const [command, ...rest] = argv;

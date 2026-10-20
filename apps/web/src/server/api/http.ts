@@ -1,8 +1,3 @@
-/**
- * The REST API's HTTP layer: GitHub-shaped errors and responses, `Link`
- * header pagination, URL builders and JSON body parsing. Nothing here knows
- * about a resource.
- */
 import { getGitBaseUrl } from "#/lib/git-utils";
 import { MAX_API_BODY_BYTES, MAX_LIST_SKIP } from "#/lib/limits";
 
@@ -70,7 +65,6 @@ export function errorResponse(error: ApiError): Response {
 	);
 }
 
-/** A bodiless response (`204`, a delete's shape on GitHub). */
 export function noContent(): Response {
 	return new Response(null, {
 		status: 204,
@@ -81,13 +75,10 @@ export function noContent(): Response {
 	});
 }
 
-/** An absolute API URL for `path` (which starts with "/"). */
 export const apiUrl = (path: string) =>
 	`${getGitBaseUrl()}${API_PREFIX}${path}`;
-/** An absolute web UI URL for `path` (which starts with "/"). */
 export const htmlUrl = (path: string) => `${getGitBaseUrl()}${path}`;
 
-/** Percent-encode each segment of a slash-separated ref or path. */
 export const encodePath = (path: string) =>
 	path.split("/").map(encodeURIComponent).join("/");
 
@@ -119,7 +110,6 @@ export function pageParams(query: URLSearchParams): PageParams {
 		MAX_PER_PAGE,
 	);
 	const page = positiveInt("page") ?? 1;
-	// Bounded like every list endpoint (`MAX_LIST_SKIP`): a deeper page is empty.
 	const offset = (page - 1) * perPage;
 	return { page, perPage, offset, reachable: offset <= MAX_LIST_SKIP };
 }
@@ -133,7 +123,6 @@ export function linkHeader(
 	{ page, perPage }: PageParams,
 	total: number,
 ): Record<string, string> {
-	// Never advertise a page past the reachable depth.
 	const deepest = Math.floor(MAX_LIST_SKIP / perPage) + 1;
 	const lastPage = Math.max(1, Math.min(Math.ceil(total / perPage), deepest));
 	if (lastPage === 1) return {};
@@ -150,7 +139,6 @@ export function linkHeader(
 	return { Link: links.join(", ") };
 }
 
-/** A page of an in-memory list as a response with `Link` headers. */
 export function pagedList<T, R>(
 	url: URL,
 	items: T[],

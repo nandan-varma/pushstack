@@ -1,6 +1,3 @@
-/**
- * Tests for LinkifiedText component — renders #N and SHA references as links.
- */
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,7 +29,6 @@ import { LinkifiedText } from "../LinkifiedText";
 
 const owner = "acme";
 
-/** The router link `text` renders as, or a failure naming the text. */
 function hrefOf(text: string): string | null {
 	const link = screen.getByText(text).closest("[data-testid='router-link']");
 	expect(link, `${text} should render as a link`).not.toBeNull();

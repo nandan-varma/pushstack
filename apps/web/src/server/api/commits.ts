@@ -1,7 +1,3 @@
-/**
- * `GET /repos/{owner}/{repo}/commits`, `…/commits/{ref}` and
- * `…/compare/{basehead}`, in GitHub's shapes.
- */
 import type { CommitInfo, DiffResult } from "git-fs-s3/ops";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import {
@@ -43,7 +39,6 @@ async function assertNotEmpty(repo: RepositoryRowWithOwner) {
 		throw new ApiError(409, "Git Repository is empty.");
 }
 
-/** `GET /repos/{owner}/{repo}/commits`: `sha` (a branch, tag or sha), `path`, pagination. */
 export async function listCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const query = ctx.url.searchParams;
@@ -101,7 +96,6 @@ export async function listCommits(ctx: ApiContext) {
 	);
 }
 
-/** Totals and files of a diff, as a single commit and compare carry them. */
 async function diffSummary(repo: RepositoryRowWithOwner, diff: DiffResult) {
 	const files = await diffFileObjects(
 		ownerKeyOf(repo),
@@ -120,7 +114,6 @@ async function diffSummary(repo: RepositoryRowWithOwner, diff: DiffResult) {
 	};
 }
 
-/** `GET /repos/{owner}/{repo}/commits/{ref}`: the commit with `stats` and `files`. */
 export async function getCommitDetail(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const rev = ctx.params.ref ?? "";
@@ -153,7 +146,6 @@ function compareSide(side: string, repo: RepositoryRowWithOwner): string {
 	return rev;
 }
 
-/** `GET /repos/{owner}/{repo}/compare/{base}...{head}` (`..` is accepted too). */
 export async function compareCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const basehead = ctx.params.basehead ?? "";

@@ -17,7 +17,6 @@ import {
 	writeSpec,
 } from "./merge-harness.js";
 
-/** A store that records the peak number of simultaneous operations. */
 class CountingStore implements ObjectStore {
 	private readonly inner: MemoryObjectStore;
 	private inFlight = 0;
@@ -68,7 +67,6 @@ class CountingStore implements ObjectStore {
 
 const pad = (n: number) => String(n).padStart(3, "0");
 
-/** One directory with `count` files, every file changed on both sides. */
 function wideSpecs(count: number) {
 	const base: Spec = {};
 	const ours: Spec = {};
@@ -82,7 +80,6 @@ function wideSpecs(count: number) {
 	return { base, ours, theirs };
 }
 
-/** `count` top-level sibling dirs, plus a chain reached only by recursion. */
 function wideAndDeepSpecs(count: number) {
 	const base: Spec = {};
 	const ours: Spec = {};
@@ -105,7 +102,6 @@ function wideAndDeepSpecs(count: number) {
 	return { base, ours, theirs, deep };
 }
 
-/** Sorted path → entry pair, so Map insertion order isn't compared. */
 async function sortedEntries(repo: Repo, tree: string) {
 	return [...(await treeEntries(repo, tree)).entries()].sort(([a], [b]) =>
 		a < b ? -1 : a > b ? 1 : 0,
@@ -150,7 +146,6 @@ describe("threeWayMerge concurrency", () => {
 		expect(
 			[...actual.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
 		).toEqual(await sortedEntries(repo, expectedTree));
-		// leaf.txt sits five levels down; only recursion can reach it.
 		expect(actual.get(deep)).toMatchObject({ mode: "100644", type: "blob" });
 		expect(actual.get("deep/a/b/c/d")).toMatchObject({
 			mode: "40000",

@@ -29,7 +29,6 @@ function render(
 	);
 }
 
-/** `[text](href)` for every anchor in the output. */
 function links(markdown: string, options?: Parameters<typeof render>[1]) {
 	const html = options ? render(markdown, options) : render(markdown);
 	return [...html.matchAll(/<a href="([^"]*)"[^>]*>(.*?)<\/a>/g)].map(

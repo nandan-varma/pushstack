@@ -1,7 +1,3 @@
-/**
- * Tests for use-branch-update-banner hook — polling, baseline detection,
- * and reload behavior.
- */
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -88,7 +84,6 @@ describe("useBranchUpdateBanner", () => {
 	});
 
 	it("detects update when sha changes from baseline", () => {
-		// First render: baseline = "abc123"
 		mockUseQuery.mockReturnValue({
 			data: [{ sha: "abc123" }],
 		} as never);
@@ -99,7 +94,6 @@ describe("useBranchUpdateBanner", () => {
 		);
 		expect(result.current.hasUpdate).toBe(false);
 
-		// Simulate poll returning different sha
 		mockUseQuery.mockReturnValue({
 			data: [{ sha: "def456" }],
 		} as never);
@@ -117,14 +111,12 @@ describe("useBranchUpdateBanner", () => {
 			useBranchUpdateBanner(1, "main"),
 		);
 
-		// Trigger update
 		mockUseQuery.mockReturnValue({
 			data: [{ sha: "def456" }],
 		} as never);
 		rerender();
 		expect(result.current.hasUpdate).toBe(true);
 
-		// After reload, getQueryData returns new sha
 		qc.getQueryData.mockReturnValue([{ sha: "def456" }] as never);
 
 		await act(async () => {
@@ -150,7 +142,6 @@ describe("useBranchUpdateBanner", () => {
 		);
 		expect(result.current.hasUpdate).toBe(false);
 
-		// Change repo — should reset baseline, no update detected
 		mockUseQuery.mockReturnValue({
 			data: [{ sha: "xyz789" }],
 		} as never);
@@ -160,7 +151,6 @@ describe("useBranchUpdateBanner", () => {
 
 	it("does not reload when already reloading", async () => {
 		const qc = setupQueryClient();
-		// Make invalidateQueries slow
 		qc.invalidateQueries.mockImplementation(
 			() => new Promise((resolve) => setTimeout(resolve, 100)),
 		);
@@ -171,14 +161,11 @@ describe("useBranchUpdateBanner", () => {
 
 		const { result } = renderHook(() => useBranchUpdateBanner(1, "main"));
 
-		// First reload — act runs the callback synchronously, so reloadPromise
-		// is assigned before we await it below.
 		let reloadPromise: Promise<void> | undefined;
 		act(() => {
 			reloadPromise = result.current.reload();
 		});
 
-		// Second reload should be a no-op
 		act(() => {
 			result.current.reload();
 		});

@@ -1,9 +1,3 @@
-/**
- * Error types for git-edge.
- *
- * Edge-compatible: no node: imports.
- */
-
 /** Base class for all git-edge errors. */
 export class GitEdgeError extends Error {
 	constructor(message: string) {

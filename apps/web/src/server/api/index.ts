@@ -1,9 +1,3 @@
-/**
- * The REST API dispatcher behind `/api/v3/*` (src/routes/api/v3.$.ts):
- * authenticates, matches the route table, runs the handler and renders
- * GitHub-shaped errors. Add an endpoint by adding a row to {@link ROUTES}.
- */
-
 import { isNotFoundError } from "git-fs-s3";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
@@ -316,7 +310,6 @@ const ROUTES: Route[] = [
 	},
 ];
 
-/** The route's parameters when `segments` match `pattern`, else null. */
 function matchPattern(
 	pattern: string,
 	segments: string[],
@@ -384,7 +377,6 @@ async function dispatch(
 	pathname: string,
 	matched: ReturnType<typeof matchRoute>,
 ): Promise<Response> {
-	// HEAD is GET without the body.
 	const isHead = request.method === "HEAD";
 	let rate: RateStatus | null = null;
 	try {

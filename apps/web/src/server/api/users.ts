@@ -1,4 +1,3 @@
-/** `GET /user` and `GET /users/{username}`. */
 import { count, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
@@ -10,7 +9,6 @@ import { publicUser } from "./serializers";
 
 type UserRow = typeof user.$inferSelect;
 
-/** Repository counts by visibility for a user's own repositories. */
 async function repositoryCounts(ownerId: string) {
 	const rows = await db
 		.select({ visibility: repositories.visibility, total: count() })
@@ -60,7 +58,6 @@ export async function getUserById(ctx: ApiContext) {
 	return json(serialize(row, counts.publicRepos));
 }
 
-/** `GET /users/{username}` */
 export async function getUser(ctx: ApiContext) {
 	const username = ctx.params.username ?? "";
 	if (!STORAGE_NAME_RE.test(username)) throw notFoundError();

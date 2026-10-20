@@ -12,7 +12,6 @@ const serverOnlyDirs = ["db", "server"].map(
 );
 
 const config = defineConfig({
-	// `#/*` and `@/*` come from tsconfig.json's `paths`, resolved natively.
 	resolve: { tsconfigPaths: true },
 	plugins: [
 		devtools(),

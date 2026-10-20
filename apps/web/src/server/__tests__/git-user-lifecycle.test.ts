@@ -1,34 +1,3 @@
-/**
- * Full lifecycle integration test:
- *   create user -> create repo -> clone it over the real git smart-HTTP
- *   protocol using the user's PAT -> delete repo -> delete user.
- *
- * This runs the real business logic end to end:
- *   - repositories.ts (createRepository / deleteRepository / findRepositoryByName)
- *   - git-auth.ts (PAT authentication + repo-access authorization)
- *   - repo-access.ts (real, DB-driven — not mocked)
- *   - git-http.ts (serveGitRequest, the production route's handler, behind a
- *     real loopback HTTP server)
- *   - git-fs.ts / src/lib/r2.ts / git-write.ts (the R2 storage stack —
- *     real request signing and XML listing, all writes straight to R2)
- *
- * Only two things are faked, because they're external infrastructure that
- * doesn't exist in a test environment:
- *   - Postgres -> replaced with an in-memory embedded Postgres (pglite), using
- *     the project's real drizzle schema (src/db/schema.ts), so every query in
- *     the modules above runs against a real relational database.
- *   - R2 -> an in-memory S3 endpoint (helpers/fake-s3-fetch.ts) handed to
- *     src/lib/r2.ts's real store as its `fetch`, so everything above it —
- *     SigV4 signing, ListObjectsV2 parsing, server-side copy — runs for real.
- *
- * The clone and push use isomorphic-git's own client talking to a real Node
- * http server over 127.0.0.1 — no native `git` binary anywhere. This still
- * exercises the real wire protocol (pkt-line framing, `info/refs`,
- * `upload-pack`, side-band-64k) end to end, since isomorphic-git implements
- * that protocol independently rather than shelling out; it's just a JS
- * client instead of a native one.
- */
-
 import { createHash } from "node:crypto";
 import fs, { promises as nodeFs } from "node:fs";
 import nodeHttp, { createServer, type Server } from "node:http";
@@ -97,7 +66,6 @@ const ENV = vi.hoisted(() => {
 	return { base, cloneDir: path.join(base, "clone") };
 });
 
-// --- fake R2: an in-memory S3 endpoint behind git-fs-s3's real fetch store ---
 const fakeS3 = vi.hoisted(() => ({
 	objects: new Map<string, Uint8Array>(),
 }));
@@ -124,8 +92,6 @@ vi.mock("#/lib/r2", async (importOriginal) => {
 	};
 });
 
-// --- real Postgres (embedded, in-memory) replacing #/db, seeded with the
-// project's actual drizzle schema so every query below is real. ---
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb(),
 }));
@@ -169,7 +135,6 @@ function gitClone(
 }
 
 beforeAll(async () => {
-	// Import after env + mocks are wired up (matches git-integration.test.ts's pattern).
 	const { db } = await import("../../db");
 	const { user } = await import("../../db/schema");
 
@@ -183,7 +148,6 @@ beforeAll(async () => {
 		updatedAt: new Date(),
 	});
 
-	// Seed the token row directly: only its hash is stored.
 	const { tokens } = await import("../../db/app-schema");
 	await db.insert(tokens).values({
 		userId: TEST_USER.id,
@@ -317,7 +281,6 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(result.ok).toBe(true);
 		expect(result.refs["refs/heads/main"]?.ok).toBe(true);
 
-		// The ref and the pack (with its index) landed in R2 itself.
 		const prefix = `repos/${TEST_USER.username}/${REPO_NAME}/git/`;
 		expect(
 			new TextDecoder().decode(fakeS3.objects.get(`${prefix}refs/heads/main`)),
@@ -328,7 +291,6 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		expect(packFiles.some((key) => key.endsWith(".pack"))).toBe(true);
 		expect(packFiles.some((key) => key.endsWith(".idx"))).toBe(true);
 
-		// ...and the app's own read path serves the pushed content.
 		const { getFileContent } = await import("../git-read");
 		const content = await getFileContent(
 			TEST_USER.username,
@@ -390,7 +352,6 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		});
 		expect(after.status).toBe("closed");
 
-		// The closing shows in the pusher's activity feed, as a manual close does.
 		const { listUserActivity } = await import("../activity");
 		const feed = await listUserActivity(TEST_USER.id, {
 			includePrivate: true,
@@ -485,7 +446,6 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		);
 		expect(new TextDecoder().decode(content)).toBe("pushed\n");
 
-		// Back to the original name for the remaining steps.
 		await updateRepository({ data: { id: repo.id, name: REPO_NAME } });
 		expect(
 			[...fakeS3.objects.keys()].some((key) => key.startsWith(oldPrefix)),
@@ -507,7 +467,6 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		const repoAfter = await findRepositoryByName(TEST_USER.username, REPO_NAME);
 		expect(repoAfter).toBeNull();
 
-		// Repo's git data must actually be gone from storage (fake R2), not just the DB row.
 		const remaining = [...fakeS3.objects.keys()].filter((k) =>
 			k.startsWith(`repos/${TEST_USER.username}/${REPO_NAME}/`),
 		);

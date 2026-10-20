@@ -1,7 +1,3 @@
-/**
- * Tests for remark-autolink-references.ts — the remark plugin that turns
- * #N references and commit SHAs in markdown text into links.
- */
 import { describe, expect, it } from "vitest";
 import { createAutolinkReferencesPlugin } from "../remark-autolink-references";
 
@@ -116,7 +112,6 @@ describe("createAutolinkReferencesPlugin", () => {
 			name: "repo",
 			resolveReference,
 		});
-		// The link targets the full sha; its text is the 7-char short form.
 		expect(getTextNodes(tree)).toContain(
 			"[link:abc1234→/acme/repo/commit/abc1234def]",
 		);
@@ -139,8 +134,6 @@ describe("createAutolinkReferencesPlugin", () => {
 			name: "repo",
 		});
 		const nodes = getTextNodes(tree);
-		// #42 should not become a link without resolveReference
-		// but the SHA should still become a link
 		const links = nodes.filter((n) => n.startsWith("[link:"));
 		expect(links.some((l) => l.includes("/commit/abc1234"))).toBe(true);
 	});
@@ -170,7 +163,6 @@ describe("createAutolinkReferencesPlugin", () => {
 		const transformer = plugin();
 		transformer(tree);
 
-		// The code span should be untouched
 		const para = tree.children[0];
 		if (para.type === "paragraph") {
 			const codeSpan = para.children.find((c) => c.type === "inlineCode");

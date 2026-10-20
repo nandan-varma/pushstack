@@ -35,16 +35,11 @@ export function FileTable({
 	branch: string;
 	activePath: string;
 	isLoading?: boolean;
-	/** Repo setting (Settings > Performance), off by default — see FileTable's row rendering below. */
 	showLastCommit?: boolean;
 	lastCommits?: Record<string, LastCommitInfo>;
 	lastCommitsLoading?: boolean;
 }) {
 	if (isLoading) {
-		// Row count/width pattern mimics a typical directory listing (a few
-		// folders first, then files of varying name length) so the skeleton
-		// reads as "file list" rather than a generic block, and settles into
-		// real rows without a jarring size change once data arrives.
 		const rowWidths = ["45%", "60%", "38%", "70%", "50%", "42%", "65%", "35%"];
 		return (
 			<div className="overflow-hidden rounded-xl border border-border">

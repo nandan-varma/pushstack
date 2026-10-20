@@ -25,14 +25,12 @@ import { SLOW_REQUEST_MS } from "./config";
 interface PerfEntry {
 	depth: number;
 	text: string;
-	/** Undefined for notes and for steps still running when the request ends. */
 	ms?: number;
 	failed?: boolean;
 	note?: boolean;
 }
 
 interface PerfRequest {
-	/** Unique per request: the correlation id in logs, Sentry and response headers. */
 	id: string;
 	label: string;
 	start: number;
@@ -45,7 +43,6 @@ interface PerfRequest {
 
 interface PerfScope {
 	request: PerfRequest;
-	/** Depth new entries are recorded at. */
 	depth: number;
 }
 
@@ -55,7 +52,6 @@ const enabled = isPerfLogEnabled();
 const structured = process.env.NODE_ENV === "production" && !enabled;
 /** Bound on recorded entries per request (a pathological loop must not grow forever). */
 const MAX_ENTRIES = 500;
-/** Finished request trees kept for the dev debug page. */
 const RECENT_LIMIT = 50;
 const recent: string[] = [];
 
@@ -67,12 +63,10 @@ function prefix(request: PerfRequest | undefined): string {
 	return request ? `[perf ${request.label}#${request.id}]` : "[perf]";
 }
 
-/** The id of the request being served, if any (for response headers and tags). */
 export function currentRequestId(): string | undefined {
 	return als.getStore()?.request.id;
 }
 
-/** Trees of the most recent requests, newest first (dev debug page). */
 export function recentPerfTrees(): string[] {
 	return [...recent].reverse();
 }
@@ -112,7 +106,6 @@ function flush(request: PerfRequest, outcome: string, error?: unknown): void {
 		r2Ms: Math.round(request.r2TimeMs),
 		cacheHits: request.cacheHits,
 		cacheMisses: request.cacheMisses,
-		// Top-level steps are the git ops and queries the request spent time on.
 		steps: request.entries
 			.filter((e) => !e.note && e.depth === 1 && e.ms !== undefined)
 			.map((e) => ({ step: e.text, ms: Math.round(e.ms ?? 0) })),

@@ -22,7 +22,6 @@ export const issueLabelsSchema = z
 	.array(labelNameSchema)
 	.max(MAX_LABELS_PER_THREAD);
 
-/** Open an issue as `userId` (the caller checked participation and labels). */
 export async function createIssueForUser(
 	repoId: number,
 	userId: string,

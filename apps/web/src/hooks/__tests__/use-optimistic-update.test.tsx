@@ -88,7 +88,6 @@ describe("useOptimisticUpdate", () => {
 			result.current.optimistic.onError(new Error(""), undefined, ctx);
 		});
 
-		// Rolled back to the pre-mutation snapshot, not left on the optimistic value.
 		expect(queryClient.getQueryData(queryKey)).toEqual({
 			id: 2,
 			status: "open",

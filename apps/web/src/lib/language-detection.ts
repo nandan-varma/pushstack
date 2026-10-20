@@ -3,9 +3,7 @@
  * Ids must match https://shiki.style/languages (or "plaintext" for unmapped files).
  */
 
-/** Above this size, auto-highlighting is skipped and the user must opt in. */
 const MAX_AUTO_HIGHLIGHT_BYTES = 512 * 1024;
-/** Above this line count, auto-highlighting is skipped and the user must opt in. */
 export const MAX_AUTO_HIGHLIGHT_LINES = 5000;
 
 /** Cheap large-file check (avoids allocating a full split() array for huge content). */
@@ -23,7 +21,6 @@ export function isLargeContent(code: string): boolean {
 }
 
 const LANGUAGE_MAP: Record<string, string> = {
-	// JavaScript/TypeScript
 	js: "javascript",
 	mjs: "javascript",
 	cjs: "javascript",
@@ -34,7 +31,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	tsx: "tsx",
 	coffee: "coffee",
 
-	// Web
 	html: "html",
 	htm: "html",
 	xhtml: "html",
@@ -59,12 +55,10 @@ const LANGUAGE_MAP: Record<string, string> = {
 	marko: "marko",
 	imba: "imba",
 
-	// Python
 	py: "python",
 	pyw: "python",
 	pyi: "python",
 
-	// Java/JVM
 	java: "java",
 	kt: "kotlin",
 	kts: "kotlin",
@@ -77,7 +71,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	cljs: "clojure",
 	cljc: "clojure",
 
-	// C/C++
 	c: "c",
 	h: "c",
 	cpp: "cpp",
@@ -88,7 +81,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	hh: "cpp",
 	hxx: "cpp",
 
-	// C#/.NET
 	cs: "csharp",
 	csx: "csharp",
 	vb: "vb",
@@ -96,20 +88,16 @@ const LANGUAGE_MAP: Record<string, string> = {
 	fsx: "fsharp",
 	fsi: "fsharp",
 
-	// Objective-C/Swift
 	m: "objective-c",
 	mm: "objective-cpp",
 	swift: "swift",
 
-	// Go
 	go: "go",
 	"go.mod": "go",
 	"go.sum": "go",
 
-	// Rust
 	rs: "rust",
 
-	// PHP
 	php: "php",
 	php3: "php",
 	php4: "php",
@@ -117,13 +105,11 @@ const LANGUAGE_MAP: Record<string, string> = {
 	phtml: "php",
 	blade: "blade",
 
-	// Ruby
 	rb: "ruby",
 	rbw: "ruby",
 	gemspec: "ruby",
 	rake: "ruby",
 
-	// Shell
 	sh: "shellscript",
 	bash: "shellscript",
 	zsh: "shellscript",
@@ -137,7 +123,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	awk: "awk",
 	nu: "nushell",
 
-	// Config / data
 	json: "json",
 	json5: "json5",
 	jsonc: "jsonc",
@@ -161,7 +146,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	kdl: "kdl",
 	ron: "ron",
 
-	// Markup / docs
 	md: "markdown",
 	markdown: "markdown",
 	mdx: "mdx",
@@ -180,7 +164,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	wikitext: "wikitext",
 	textile: "wikitext",
 
-	// SQL / query languages
 	sql: "sql",
 	psql: "plsql",
 	plsql: "plsql",
@@ -191,7 +174,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	kusto: "kusto",
 	kql: "kusto",
 
-	// Infra / build
 	dockerfile: "docker",
 	makefile: "make",
 	mk: "make",
@@ -202,7 +184,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	proto: "proto",
 	thrift: "proto",
 
-	// Functional / other languages
 	hs: "haskell",
 	lhs: "haskell",
 	elm: "elm",
@@ -275,7 +256,6 @@ const LANGUAGE_MAP: Record<string, string> = {
 	applescript: "applescript",
 	as: "actionscript-3",
 
-	// Misc / version control
 	diff: "diff",
 	patch: "diff",
 	log: "log",
@@ -310,9 +290,6 @@ const SPECIAL_FILENAMES: Record<string, string> = {
 	".prettierrc": "json",
 };
 
-/**
- * Detect Shiki language id from a file path.
- */
 export function detectLanguage(filePath: string): string {
 	const baseName = (filePath.split("/").pop() || "").toLowerCase();
 
@@ -327,9 +304,7 @@ export function detectLanguage(filePath: string): string {
 	return LANGUAGE_MAP[extension] || "plaintext";
 }
 
-/** Extension → real MIME type, for native browser preview elements. */
 const MIME_TYPE_MAP: Record<string, string> = {
-	// Images
 	png: "image/png",
 	jpg: "image/jpeg",
 	jpeg: "image/jpeg",
@@ -340,22 +315,18 @@ const MIME_TYPE_MAP: Record<string, string> = {
 	ico: "image/x-icon",
 	svg: "image/svg+xml",
 
-	// Documents
 	pdf: "application/pdf",
 
-	// Audio
 	mp3: "audio/mpeg",
 	wav: "audio/wav",
 	ogg: "audio/ogg",
 	flac: "audio/flac",
 	m4a: "audio/mp4",
 
-	// Video
 	mp4: "video/mp4",
 	webm: "video/webm",
 	mov: "video/quicktime",
 
-	// Fonts
 	woff: "font/woff",
 	woff2: "font/woff2",
 	ttf: "font/ttf",
@@ -388,9 +359,6 @@ export function getPreviewKind(filePath: string): PreviewKind | null {
 	return null;
 }
 
-/**
- * Format file size for display
- */
 export function formatFileSize(bytes: number): string {
 	if (bytes === 0) return "0 B";
 

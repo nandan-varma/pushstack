@@ -22,8 +22,6 @@ const localDir = path.resolve(
 );
 mkdirSync(localDir, { recursive: true });
 
-// Bring the on-disk database up to the current schema (the same push
-// `pnpm db:push` does against Neon), then release it for the dev server.
 const client = new PGlite(path.join(localDir, "db"));
 const schema = { ...authSchema, ...appSchema };
 const { apply, hints } = await pushSchema(schema, drizzle({ client })).catch(

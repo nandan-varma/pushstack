@@ -22,7 +22,6 @@ export const routes = {
 		docs: `${DOCS}/rate-limit/rate-limit#get-rate-limit-status-for-the-authenticated-user`,
 	},
 
-	// Users
 	"users/get-authenticated": {
 		method: "GET",
 		path: "/user",
@@ -55,7 +54,6 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
 	},
 
-	// Repositories, branches, tags
 	"repos/get": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}",
@@ -77,7 +75,6 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#list-repository-tags`,
 	},
 
-	// Contents and commits
 	"repos/get-content": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/contents/{+path}",
@@ -99,7 +96,6 @@ export const routes = {
 		docs: `${DOCS}/commits/commits#compare-two-commits`,
 	},
 
-	// Git database (read-only)
 	"git/get-ref": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/git/ref/{+ref}",
@@ -131,7 +127,6 @@ export const routes = {
 		docs: `${DOCS}/git/blobs#get-a-blob`,
 	},
 
-	// Issues
 	"issues/list-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/issues",
@@ -217,7 +212,6 @@ export const routes = {
 		docs: `${DOCS}/issues/labels#remove-a-label-from-an-issue`,
 	},
 
-	// Pull requests
 	"pulls/list": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/pulls",
@@ -262,7 +256,6 @@ export const routes = {
 		docs: `${DOCS}/pulls/pulls#list-pull-requests-files`,
 	},
 
-	// Labels
 	"issues/list-labels-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/labels",

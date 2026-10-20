@@ -1,8 +1,3 @@
-/**
- * GitHub's issue timeline (`/issues/{number}/timeline`, events and comments
- * interleaved) and events (`/issues/{number}/events`, events only) at
- * `/api/v3`.
- */
 import type { TimelineEntry } from "#/lib/timeline-types";
 import {
 	countCommentsForThread,
@@ -22,7 +17,6 @@ type TimelineItem =
 	| { createdAt: Date; id: number; kind: "event"; entry: TimelineEntry }
 	| { createdAt: Date; id: number; kind: "comment"; comment: CommentRow };
 
-/** Oldest first, the order GitHub returns both endpoints in. */
 function mergeTimeline(
 	events: TimelineEntry[],
 	comments: CommentRow[],
@@ -47,7 +41,6 @@ function mergeTimeline(
 	return items;
 }
 
-/** A comment as GitHub's timeline renders it: the comment plus a `commented` event. */
 function commentedItem(
 	fullName: string,
 	thread: ThreadRef,
@@ -66,7 +59,6 @@ function commentedItem(
 	};
 }
 
-/** `GET /repos/{owner}/{repo}/issues/{number}/timeline` */
 export async function listTimelineItems(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const number = threadNumber(ctx.params.number);
@@ -106,7 +98,6 @@ export async function listTimelineItems(ctx: ApiContext) {
 	);
 }
 
-/** `GET /repos/{owner}/{repo}/issues/{number}/events` */
 export async function listEvents(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const number = threadNumber(ctx.params.number);

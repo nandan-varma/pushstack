@@ -68,7 +68,6 @@ describe("isSafeRepoPath", () => {
 		expect(isSafeRepoPath(".git/config")).toBe(false);
 		expect(isSafeRepoPath(".GIT/config")).toBe(false);
 		expect(isSafeRepoPath("a\0b")).toBe(false);
-		// A directory merely *containing* .git midway is fine.
 		expect(isSafeRepoPath("vendor/.gitignore")).toBe(true);
 	});
 });

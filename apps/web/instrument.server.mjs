@@ -2,8 +2,6 @@
 // without one — the fetch wrapper (src/server.ts), the global middlewares
 // (src/start.ts) and perf-log's reporter are gated the same way — so importing
 // the SDK would be cold-start cost on every serverless instance for nothing.
-// Top-level await is fine here: this module is ESM and is loaded before the
-// server entry (src/server.ts already awaits its own Sentry import).
 if (process.env.VITE_SENTRY_DSN) {
 	const Sentry = await import("@sentry/tanstackstart-react");
 	Sentry.init({

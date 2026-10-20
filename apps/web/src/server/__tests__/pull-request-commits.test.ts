@@ -94,7 +94,6 @@ describe("getPullRequestCommits", () => {
 		await files.createBranch({ data: { repoId, name: "side" } });
 		await commit("side", "s.txt", "Side work");
 		await commit("main", "m3.txt", "Main moves on");
-		// Merge main into side: side's tip becomes a merge commit.
 		const sync = await open("main", "side");
 		await pulls.mergePullRequest({ data: { prId: sync.id } });
 

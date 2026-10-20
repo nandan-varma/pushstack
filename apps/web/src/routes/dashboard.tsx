@@ -19,10 +19,6 @@ export const Route = createFileRoute("/dashboard")({
 		}
 		return { user: session.user };
 	},
-	// Unlike every other page in the app, this had no loader — it fetched both
-	// queries client-side after hydration, meaning the dashboard (the first thing
-	// most users see after logging in) always showed loading skeletons before
-	// popping in content, instead of arriving with it already rendered.
 	loader: async ({ context: { queryClient } }) =>
 		Promise.all([
 			queryClient.ensureQueryData(userRepositoriesQueryOptions()),
@@ -55,7 +51,6 @@ function DashboardPage() {
 
 	return (
 		<div className="page-wrap px-4 py-10">
-			{/* Welcome */}
 			<div className="mb-8 flex items-center justify-between gap-4">
 				<div>
 					<h1 className="text-3xl font-bold text-foreground">
@@ -111,7 +106,6 @@ function DashboardPage() {
 						</ul>
 					)}
 				</section>
-				{/* Repositories */}
 				<div className="lg:col-span-2">
 					<div className="mb-4 flex items-center justify-between">
 						<h2 className="text-base font-semibold text-foreground">
@@ -132,7 +126,6 @@ function DashboardPage() {
 					/>
 				</div>
 
-				{/* Activity */}
 				<div>
 					<h2 className="mb-4 text-base font-semibold text-foreground">
 						Recent activity

@@ -26,7 +26,6 @@ const { call, mintToken, post } = await import("../../test/api-client");
 
 const FILES = 60;
 
-/** Storage calls of the most recent request, from its perf tree header. */
 function lastStorageCalls(): number {
 	const header = recentPerfTrees()[0]?.split("\n")[0] ?? "";
 	const match = /r2 (\d+) calls/.exec(header);
@@ -36,7 +35,6 @@ function lastStorageCalls(): number {
 describe("listing cost", () => {
 	let alice: string;
 
-	/** A fresh repository whose one commit adds FILES files under `dir/`. */
 	async function seed(name: string) {
 		alice ??= await mintToken(users.alice, ["repo:write"]);
 		await call("/user/repos", post(alice, { name }));

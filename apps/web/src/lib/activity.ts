@@ -23,7 +23,6 @@ type ActivityLink =
 			params: { owner: string; name: string; id: string };
 	  };
 
-/** The sentence and link an activity-feed entry renders as. */
 export function describeActivity(row: ActivityRow): {
 	text: string;
 	link: ActivityLink | null;

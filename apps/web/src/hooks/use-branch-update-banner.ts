@@ -44,8 +44,6 @@ export function useBranchUpdateBanner(repoId: number, branchName: string) {
 	const [hasUpdate, setHasUpdate] = useState(false);
 	const [isReloading, setIsReloading] = useState(false);
 
-	// A different repo/branch is a different "session" to watch — forget
-	// whatever baseline the previous one had.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset-on-prop-change effect; the body doesn't need to read repoId/branchName, only re-run when they change.
 	useEffect(() => {
 		baselineRef.current = null;

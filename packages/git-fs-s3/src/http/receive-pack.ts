@@ -44,7 +44,7 @@ export function parseReceivePackBody(body: Uint8Array): ParsedReceivePack {
 		const len = Number.parseInt(decodeAscii(body.subarray(pos, pos + 4)), 16);
 		if (len === 0) {
 			pos += 4;
-			break; // flush = end of ref update commands
+			break;
 		}
 		if (len < 4) break;
 		// The first command line carries NUL-separated capabilities.
@@ -73,7 +73,6 @@ export function parseReceivePackBody(body: Uint8Array): ParsedReceivePack {
 	};
 }
 
-/** Initialize the repo when its HEAD doesn't exist yet (first push). */
 export async function ensureRepoInitialized(
 	repo: Repo,
 	defaultBranch: string,
@@ -91,7 +90,6 @@ export async function ensureRepoInitialized(
 	}
 }
 
-/** Write the incoming PACK into objects/pack/ and index it. */
 export async function indexIncomingPack(
 	repo: Repo,
 	packData: Uint8Array,

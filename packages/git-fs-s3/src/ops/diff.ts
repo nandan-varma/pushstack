@@ -218,7 +218,6 @@ async function diffTrees(
 				]);
 				return buildSubmoduleDiff(filepath, before, after);
 			}
-			// Directories recurse; blobs become content diff entries.
 			if (oldType !== "blob" && newType !== "blob") return undefined;
 			if (oldEntry && newEntry && oldType === newType) {
 				const [oldOid, newOid] = await Promise.all([

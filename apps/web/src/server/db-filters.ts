@@ -1,10 +1,4 @@
 /**
- * Helpers for building Drizzle relational `where` objects, shared by the server
- * modules that build list queries. Plain server-only module, not a
- * server-function file.
- */
-
-/**
  * Drizzle 1.0 rejects an empty `AND` array — "Unexpected empty array in
  * filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to
  * be skipped" — where earlier versions ignored it. A list query whose filters

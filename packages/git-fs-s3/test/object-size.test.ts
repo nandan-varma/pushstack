@@ -52,7 +52,6 @@ async function loadFixture(): Promise<{
 	return { repo: { fs: createGitFs(store), gitdir: "git", cache: {} }, store };
 }
 
-/** Every oid the fixture's pack indexes, with the entry header type of each. */
 async function indexedObjects(
 	store: MemoryObjectStore,
 ): Promise<Array<{ oid: string; type: number }>> {

@@ -5,7 +5,6 @@ import {
 	THREAD_PAGE_SIZE,
 } from "#/lib/limits";
 
-/** `limit` / `skip` of a thread's comments or timeline read, both bounded. */
 export const threadPageSchema = z.object({
 	limit: z
 		.number()

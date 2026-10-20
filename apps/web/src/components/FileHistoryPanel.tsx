@@ -10,7 +10,6 @@ import { getInitials } from "@/lib/utils/avatar";
 
 const PAGE_SIZE = 30;
 
-/** GitHub-style "latest commit" strip shown above a file's content. */
 export function FileCommitBanner({
 	owner,
 	name,
@@ -73,7 +72,6 @@ export function FileCommitBanner({
 	);
 }
 
-/** Full, paginated list of commits that touched this exact file. */
 export function FileHistoryList({
 	owner,
 	name,

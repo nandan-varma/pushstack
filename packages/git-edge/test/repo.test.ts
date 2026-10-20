@@ -10,7 +10,7 @@ describe("getRepoCache", () => {
 		const caches = Array.from({ length: 32 }, (_, i) =>
 			getRepoCache("lru", `r${i}`),
 		);
-		getRepoCache("lru", "r0"); // touch: r1 is now least recently used
+		getRepoCache("lru", "r0");
 		getRepoCache("lru", "overflow");
 		expect(getRepoCache("lru", "r0")).toBe(caches[0]);
 		expect(getRepoCache("lru", "r1")).not.toBe(caches[1]);

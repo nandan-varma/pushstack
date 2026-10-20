@@ -5,10 +5,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { authSessionQueryOptions } from "@/lib/query-options";
 
-/**
- * Shown above a public repository to signed-out visitors: they can already
- * browse everything here, so this invites them to host their own.
- */
 export function GuestSignupBanner({ repoLabel }: { repoLabel: string }) {
 	const { data: session, isPending } = useQuery(authSessionQueryOptions());
 	const [dismissed, setDismissed] = useState(false);

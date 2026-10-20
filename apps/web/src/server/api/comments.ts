@@ -46,7 +46,6 @@ const bodyError = (
 	},
 ];
 
-/** `GET /repos/{owner}/{repo}/issues/{number}/comments` */
 export async function listComments(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const number = threadNumber(ctx.params.number);
@@ -78,7 +77,6 @@ export async function listComments(ctx: ApiContext) {
 	);
 }
 
-/** `POST /repos/{owner}/{repo}/issues/{number}/comments` */
 export async function createComment(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
@@ -117,7 +115,6 @@ export async function createComment(ctx: ApiContext) {
 	);
 }
 
-/** The comment named by `:comment_id`, scoped to the repository, with its thread. */
 async function requireComment(ctx: ApiContext, repoId: number) {
 	const raw = ctx.params.comment_id;
 	if (!raw || !/^\d+$/.test(raw)) throw notFoundError();
@@ -128,7 +125,6 @@ async function requireComment(ctx: ApiContext, repoId: number) {
 	return { comment, thread };
 }
 
-/** `GET /repos/{owner}/{repo}/issues/comments/{comment_id}` */
 export async function getComment(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const { comment, thread } = await requireComment(ctx, repo.id);
@@ -143,7 +139,6 @@ export async function getComment(ctx: ApiContext) {
 	);
 }
 
-/** `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}` */
 export async function updateComment(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo } = await readableRepository(ctx);
@@ -172,7 +167,6 @@ export async function updateComment(ctx: ApiContext) {
 	);
 }
 
-/** `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` */
 export async function deleteComment(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo } = await readableRepository(ctx);

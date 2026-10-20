@@ -12,13 +12,10 @@
  * warns about and what the server accepts can't drift apart.
  */
 
-/** A commit message entered through the web UI. Git itself allows more. */
 export const MAX_COMMIT_MESSAGE_CHARS = 10_000;
 
-/** An issue, pull request or comment body (GitHub's comment limit). */
 export const MAX_BODY_CHARS = 65_536;
 
-/** Bytes one web-UI file upload may decode to before it is committed. */
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**
@@ -64,14 +61,11 @@ export function maxBase64CharsForBytes(byteLength: number): number {
 	return 4 * Math.ceil(byteLength / 3);
 }
 
-/** The largest JSON body a REST API (`/api/v3`) write request may send. */
 export const MAX_API_BODY_BYTES = 1024 * 1024;
 
-/** A label's name and description. */
 export const MAX_LABEL_NAME_CHARS = 50;
 export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 
-/** Labels one issue or pull request may carry. */
 export const MAX_LABELS_PER_THREAD = 100;
 
 /**
@@ -91,13 +85,10 @@ export const MAX_ASSIGNEES = 10;
  */
 export const MAX_REVIEW_PATH_CHARS = 4096;
 
-/** An issue or pull request title (GitHub's limit). */
 export const MAX_THREAD_TITLE_CHARS = 256;
 
-/** A repository description. */
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
 
-/** A personal access token's name. */
 export const MAX_TOKEN_NAME_CHARS = 100;
 
 /**

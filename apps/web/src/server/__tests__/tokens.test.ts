@@ -1,7 +1,3 @@
-/**
- * Personal access tokens: real queries against in-memory Postgres (pglite).
- * git-auth looks tokens up by the same `hashToken`.
- */
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TOKEN_PREFIX } from "#/lib/token-scopes";

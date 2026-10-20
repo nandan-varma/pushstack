@@ -1,7 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 import { NotFoundCard } from "@/components/NotFoundCard";
 
-/** Not-found card for a page inside a repository: links back to the repo. */
 export function RepoResourceNotFound({
 	title,
 	message,

@@ -1,9 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-/**
- * Dev-only debug page: the perf trees of the most recent requests, newest
- * first (GET /api/debug/perf). 404 outside development.
- */
 export const Route = createFileRoute("/api/debug/perf")({
 	server: {
 		handlers: {

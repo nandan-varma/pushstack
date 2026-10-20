@@ -16,8 +16,6 @@ export interface LabelSnapshot {
 	color: string;
 }
 
-/** The issue or pull request an event points at (same repository). */
-/** GitHub's issue `state_reason`. */
 export type IssueStateReason = "completed" | "not_planned" | "reopened";
 
 export interface ThreadRef {
@@ -26,7 +24,6 @@ export interface ThreadRef {
 	title: string;
 }
 
-/** The person an `assigned`/`unassigned` event is about. */
 export interface TimelineUser {
 	username: string;
 	name: string;
@@ -44,27 +41,21 @@ export type TimelineEvent =
 			/** Why it was closed; absent on older events (read as `completed`). */
 			stateReason?: "completed" | "not_planned";
 	  }
-	/** A pushed commit's message mentioned this thread (`#N`). */
 	| { event: "referenced"; commitSha: string; message: string }
 	| { event: "reopened" }
 	| { event: "merged"; commitSha: string; base: string }
-	/** Another thread mentioned this one (`#N` in its body or a comment). */
 	| { event: "cross-referenced"; source: ThreadRef }
 	| { event: "head_ref_deleted"; branch: string }
-	/** The title changed (GitHub's `renamed` issue event). */
 	| { event: "renamed"; from: string; to: string }
 	/** A label was applied or removed; the name and color are a snapshot. */
 	| { event: "labeled"; label: LabelSnapshot }
 	| { event: "unlabeled"; label: LabelSnapshot }
-	/** Someone was assigned to / unassigned from the thread. */
 	| { event: "assigned"; assignee: TimelineUser }
 	| { event: "unassigned"; assignee: TimelineUser }
-	/** A review was submitted (GitHub's `reviewed` event). */
 	| { event: "reviewed"; state: ReviewedState };
 
 export type TimelineEventType = TimelineEvent["event"];
 
-/** An event as the timeline API returns it. */
 export type TimelineEntry = TimelineEvent & {
 	id: number;
 	createdAt: Date;

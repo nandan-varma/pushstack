@@ -95,7 +95,6 @@ describe("web-UI commits", () => {
 describe("a failed post-write repack", () => {
 	const author = { name: "Test", email: "test@example.com" };
 
-	/** Fail `.pack` writes from the `after`th one on, and count them. */
 	function failPackWrites(after: number): {
 		restore: () => void;
 		packWrites: () => number;
@@ -144,7 +143,7 @@ describe("a failed post-write repack", () => {
 			warn.mockRestore();
 		}
 
-		expect(fault.packWrites()).toBe(2); // the commit's pack, then the repack's
+		expect(fault.packWrites()).toBe(2);
 		expect(sha).toMatch(/^[0-9a-f]{40}$/);
 		const log = await getCommitLog(OWNER, "repackfail", "main", 5);
 		expect(log.map((entry) => entry.commit.message.trim())).toContain(

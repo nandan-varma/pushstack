@@ -174,7 +174,6 @@ beforeAll(async () => {
 	const { createRepository } = await import("#/server/repositories");
 	await createRepository({ data: { name: REPO, visibility: "private" } });
 
-	// The production route handler itself.
 	const { Route } = await import("../../src/routes/api/git.$");
 	const handlers = (
 		Route.options as unknown as {

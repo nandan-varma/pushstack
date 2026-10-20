@@ -37,7 +37,7 @@ describe("handleInfoRefs", () => {
 		);
 		const lines = parsePktLines(result.body);
 		expect(lines[0]).toBe("# service=git-upload-pack\n");
-		expect(lines[1]).toBeNull(); // flush
+		expect(lines[1]).toBeNull();
 		expect(lines[2]).toContain("capabilities^{}");
 		expect(lines[lines.length - 1]).toBeNull();
 	});

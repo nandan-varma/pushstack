@@ -69,7 +69,6 @@ function xmlValues(xml: string, tag: string): string[] {
 	return [...xml.matchAll(pattern)].map((match) => decodeXml(match[1] ?? ""));
 }
 
-/** Parses one ListObjectsV2 response page (exported for tests). */
 export function parseListObjectsV2(xml: string): {
 	objects: ListResult["objects"];
 	prefixes: string[];

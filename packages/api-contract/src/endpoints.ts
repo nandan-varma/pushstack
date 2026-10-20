@@ -82,7 +82,6 @@ export const endpoints = defineEndpoints({
 		response: rateLimitOverview,
 	},
 
-	// Users
 	"users/get-authenticated": {
 		response: privateUser,
 	},
@@ -125,7 +124,6 @@ export const endpoints = defineEndpoints({
 		response: z.array(repository),
 	},
 
-	// Repositories, branches, tags
 	"repos/get": {
 		params: repoParams,
 		response: repository,
@@ -145,7 +143,6 @@ export const endpoints = defineEndpoints({
 		response: z.array(tag),
 	},
 
-	// Contents and commits
 	"repos/get-content": {
 		params: repoParams.extend({ path: z.string().default("") }),
 		query: z.object({ ref: z.string().optional() }),
@@ -172,7 +169,6 @@ export const endpoints = defineEndpoints({
 		response: comparison,
 	},
 
-	// Git database (read-only)
 	"git/get-ref": {
 		params: repoParams.extend({ ref: z.string().min(1) }),
 		response: gitRef,
@@ -201,7 +197,6 @@ export const endpoints = defineEndpoints({
 		response: blob,
 	},
 
-	// Issues
 	"issues/list-for-repo": {
 		params: repoParams,
 		query: pagination.extend({
@@ -299,7 +294,6 @@ export const endpoints = defineEndpoints({
 		response: z.array(label),
 	},
 
-	// Pull requests
 	"pulls/list": {
 		params: repoParams,
 		query: pagination.extend({
@@ -366,7 +360,6 @@ export const endpoints = defineEndpoints({
 		response: z.array(diffEntry),
 	},
 
-	// Labels
 	"issues/list-labels-for-repo": {
 		params: repoParams,
 		query: pagination,

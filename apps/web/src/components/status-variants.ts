@@ -12,7 +12,6 @@ export function pullRequestStatusVariant(
 	return "default";
 }
 
-/** The aggregate review state on a pull request's header. */
 export function reviewStatusVariant(
 	state: ReviewedState,
 ): "success" | "destructive" | "default" {

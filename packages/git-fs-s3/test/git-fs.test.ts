@@ -195,7 +195,6 @@ describe("git-aware optimizations", () => {
 		expect(headSpy).not.toHaveBeenCalled();
 		expect(listSpy).not.toHaveBeenCalled();
 
-		// Other paths are unaffected.
 		await gitFs.promises.writeFile(`${gitdir}/HEAD`, "x");
 		expect(await gitFs.promises.readFile(`${gitdir}/HEAD`, "utf8")).toBe("x");
 	});
@@ -231,7 +230,7 @@ describe("git-aware optimizations", () => {
 
 	it("a loose write flips the hint to 'present' immediately", async () => {
 		const { store, gitFs, fs } = optimizedSetup();
-		await gitFs.detectLooseObjects(gitdir); // empty repo -> "none"
+		await gitFs.detectLooseObjects(gitdir);
 
 		await fs.writeFile(`${gitdir}/objects/aa/${oid}`, new Uint8Array([7]));
 		const getSpy = vi.spyOn(store, "get");
@@ -244,7 +243,7 @@ describe("git-aware optimizations", () => {
 	it("stat skips the directory probe for absent loose-object leaves", async () => {
 		const { store, gitFs, fs } = optimizedSetup();
 		await store.put(`${gitdir}/objects/aa/${oid}`, new Uint8Array([1]));
-		await gitFs.detectLooseObjects(gitdir); // hint: present
+		await gitFs.detectLooseObjects(gitdir);
 
 		const listSpy = vi.spyOn(store, "list");
 		await expect(fs.stat(`${gitdir}/objects/ee/${oid}`)).rejects.toMatchObject({
@@ -255,7 +254,7 @@ describe("git-aware optimizations", () => {
 
 	it("never short-circuits a scope that was not registered", async () => {
 		const { store, gitFs, fs } = optimizedSetup();
-		await gitFs.detectLooseObjects(gitdir); // registers only this gitdir
+		await gitFs.detectLooseObjects(gitdir);
 
 		// A ref that merely looks like a loose object, under a different scope.
 		const trap = `${gitdir}/refs/heads/objects/aa/${oid}`;
@@ -277,7 +276,6 @@ describe("git-aware optimizations", () => {
 		await gitFs.prefetchPacks(gitdir);
 		expect(getSpy).toHaveBeenCalledTimes(2);
 
-		// Missing pack dir: no throw.
 		const empty = createGitFs(new MemoryObjectStore(), {
 			looseObjectHints: true,
 		});
@@ -313,7 +311,7 @@ describe("git-aware optimizations", () => {
 
 		await gitFs.prefetchPacks(gitdir, { maxPacks: 2 });
 		expect(getSpy).not.toHaveBeenCalled();
-		expect(listSpy).toHaveBeenCalled(); // detectLooseObjects still ran
+		expect(listSpy).toHaveBeenCalled();
 	});
 
 	it("invalidate clears hints and forwards to the store's invalidate", async () => {
@@ -323,12 +321,11 @@ describe("git-aware optimizations", () => {
 			Object.assign(store, { invalidate: invalidateSpy }),
 			{ looseObjectHints: true },
 		);
-		await gitFs.detectLooseObjects(gitdir); // "none"
+		await gitFs.detectLooseObjects(gitdir);
 
 		// Written behind the fs's back, so the "none" hint is now stale.
 		await store.put(`${gitdir}/objects/aa/${oid}`, new Uint8Array([7]));
 		gitFs.invalidate(gitdir);
-		// Hint gone: the read re-detects and finds the object.
 		expect(
 			await gitFs.promises.readFile(`${gitdir}/objects/aa/${oid}`),
 		).toEqual(new Uint8Array([7]));
@@ -349,12 +346,12 @@ describe("git-aware optimizations", () => {
 			),
 		);
 		expect(getSpy).not.toHaveBeenCalled();
-		expect(listSpy).toHaveBeenCalledTimes(1); // coalesced
+		expect(listSpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not re-derive a hint that is already live", async () => {
 		const { store, gitFs, fs } = optimizedSetup();
-		await gitFs.detectLooseObjects(gitdir); // "none"
+		await gitFs.detectLooseObjects(gitdir);
 		await fs.writeFile(`${gitdir}/objects/aa/${oid}`, new Uint8Array([1]));
 
 		// Re-detection must not resurrect "none" from a fresh (or cached) list.
@@ -372,7 +369,6 @@ describe("git-aware optimizations", () => {
 		vi.spyOn(store, "list").mockRejectedValueOnce(new Error("outage"));
 
 		await expect(gitFs.detectLooseObjects(gitdir)).resolves.toBeUndefined();
-		// No hint registered: reads take the normal path and still work.
 		expect(await fs.readFile(`${gitdir}/objects/aa/${oid}`)).toEqual(
 			new Uint8Array([2]),
 		);

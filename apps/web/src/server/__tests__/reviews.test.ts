@@ -27,7 +27,6 @@ const users = await createUsers("owner", "writer", "writer2", "reader");
 let repoId: number;
 let prSeq = 0;
 
-/** A fresh branch off main that modifies a.txt and adds fN.txt, and its PR. */
 async function makePr(): Promise<{ id: number; number: number }> {
 	signIn(users.owner);
 	prSeq += 1;
@@ -125,7 +124,6 @@ describe("review comments and pending reviews", () => {
 		expect(pending?.state).toBe("pending");
 		expect(pending?.comments.map((row) => row.body)).toEqual(["Please fix"]);
 
-		// The owner can read the pull request but not the reader's draft.
 		signIn(users.owner);
 		expect(
 			await reviews.getPullRequestReviewThreads({ data: { prId: pr.id } }),
@@ -173,7 +171,6 @@ describe("submitting and threading", () => {
 			data: { prId: pr.id, event: "comment", body: "A review" },
 		});
 
-		// A reply inherits the parent's review, so it's public immediately.
 		signIn(users.owner);
 		await reviews.createReviewComment({
 			data: { prId: pr.id, body: "Reply", inReplyToId: root.id },
@@ -208,14 +205,12 @@ describe("submitting and threading", () => {
 	it("submits all three states and records a reviewed event for each", async () => {
 		const pr = await makePr();
 
-		// A signed-in reader may submit a comment review but not approve.
 		signIn(users.reader);
 		await reviews.submitReview({ data: { prId: pr.id, event: "comment" } });
 		await expect(
 			reviews.submitReview({ data: { prId: pr.id, event: "approve" } }),
 		).rejects.toThrow(/write access/);
 
-		// The author may not review their own pull request.
 		signIn(users.owner);
 		await expect(
 			reviews.submitReview({ data: { prId: pr.id, event: "approve" } }),

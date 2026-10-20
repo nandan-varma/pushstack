@@ -404,7 +404,6 @@ describe("listing repositories", () => {
 		const { status, body } = await call("/users/alice/repos");
 		expect(status).toBe(200);
 		expect(body.map((r: { name: string }) => r.name)).toEqual(["proj"]);
-		// Even the owner sees just the public ones here, as on GitHub.
 		const own = await call("/users/alice/repos", asToken(alice));
 		expect(own.body.map((r: { name: string }) => r.name)).toEqual(["proj"]);
 		expect((await call("/users/nobody/repos")).status).toBe(404);
@@ -414,7 +413,6 @@ describe("listing repositories", () => {
 		for (const name of ["page-a", "page-b", "page-c"]) {
 			await call("/user/repos", post(alice, { name }));
 		}
-		// alice now owns: page-a, page-b, page-c, proj, secret (full_name order)
 		const first = await call("/user/repos?per_page=2", asToken(alice));
 		expect(first.body.map((r: { name: string }) => r.name)).toEqual([
 			"page-a",
@@ -580,7 +578,6 @@ describe("branches and tags", () => {
 		});
 		const { status, body } = await call("/repos/alice/proj/tags");
 		expect(status).toBe(200);
-		// Annotated tags are peeled to the commit they name.
 		expect(body).toEqual(
 			["v1.0", "v2.0"].map((name) => ({
 				name,
@@ -620,7 +617,6 @@ describe("repository initialization", () => {
 		});
 		expect(JSON.stringify(readme)).toContain("inited");
 
-		// As on GitHub, templates alone (without auto_init) create nothing.
 		await call(
 			"/user/repos",
 			post(alice, { name: "tpl-only", license_template: "mit" }),

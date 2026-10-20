@@ -1,4 +1,3 @@
-/** Server functions for comments on issues and pull requests. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";

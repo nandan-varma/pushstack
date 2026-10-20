@@ -134,7 +134,6 @@ export async function connect(
 
 export type Client = Awaited<ReturnType<typeof connect>>;
 
-/** The `rel="next"` URL of a Link header, if any. */
 export function nextLink(response: Response) {
 	const link = response.headers.get("link");
 	const match = link?.match(/<([^>]+)>;\s*rel="next"/);

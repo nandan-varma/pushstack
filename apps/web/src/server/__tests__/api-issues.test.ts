@@ -48,7 +48,6 @@ beforeAll(async () => {
 	expect(created.status).toBe(201);
 	repoId = created.body.id;
 
-	// bob reads, dave writes.
 	signIn(users.alice);
 	await repositories.addCollaboratorByUsername({
 		data: { repoId, username: "bob", role: "read" },
@@ -57,7 +56,6 @@ beforeAll(async () => {
 		data: { repoId, username: "dave", role: "write" },
 	});
 
-	// Two branches, so a pull request can be opened from one into the other.
 	signIn(users.alice);
 	await files.uploadFile({
 		data: {
@@ -250,7 +248,6 @@ describe("listing issues", () => {
 		expect(byComments.status).toBe(200);
 		expect(byComments.body.length).toBeGreaterThanOrEqual(2);
 
-		// An invalid state is 422 with GitHub's `value` field; sort/direction fall back.
 		const badState = await call("/repos/alice/proj/issues?state=bogus");
 		expect(badState.status).toBe(422);
 		expect(badState.body.errors).toEqual([
@@ -304,7 +301,6 @@ describe("listing issues", () => {
 				merged_at: null,
 			},
 		});
-		// A pull request is fetchable through the issues endpoint too.
 		const one = await call(`/repos/alice/proj/issues/${pr.number}`);
 		expect(one.status).toBe(200);
 		expect(one.body).toHaveProperty("pull_request");
@@ -654,7 +650,6 @@ describe("repository labels", () => {
 			{ resource: "Label", field: "name", code: "already_exists" },
 		]);
 
-		// The color is optional, as on GitHub.
 		const noColor = await call(
 			"/repos/alice/proj/labels",
 			post(dave, { name: "no-color" }),

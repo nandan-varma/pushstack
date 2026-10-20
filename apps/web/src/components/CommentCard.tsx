@@ -11,12 +11,6 @@ import { getInitials } from "@/lib/utils/avatar";
 
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
 
-/**
- * A comment, or an issue's or pull request's description (`body` may then be
- * empty, and `allowEmpty` lets an edit clear it). Shows GitHub's "edited"
- * marker; with `onSave` the viewer can edit it in place, with `onDelete`
- * remove it.
- */
 export function CommentCard({
 	comment,
 	owner,
@@ -38,11 +32,8 @@ export function CommentCard({
 	owner: string;
 	name: string;
 	repoId?: number;
-	/** Shows "Quote reply"; receives the body to quote into the reply box. */
 	onQuote?: (body: string) => void;
-	/** Shows "Edit"; resolves when saved. Omitted when the viewer may not edit. */
 	onSave?: (body: string) => Promise<unknown>;
-	/** Shows "Delete". Omitted when the viewer may not delete. */
 	onDelete?: () => void;
 	isSaving?: boolean;
 	allowEmpty?: boolean;

@@ -130,7 +130,6 @@ export function createGitFs(
 		max: 4096,
 	});
 
-	/** Whether `path` is a top-level file its registered gitdir lacks. */
 	function registeredAbsent(path: string): boolean {
 		const slash = path.lastIndexOf("/");
 		if (slash < 0) return false;
@@ -138,7 +137,6 @@ export function createGitFs(
 		return absent?.has(path.slice(slash + 1)) ?? false;
 	}
 
-	/** The gitdir scope of a loose-object path, or null when it isn't one. */
 	function looseScope(path: string): string | null {
 		return parseLooseObjectPath(path)?.gitdir ?? null;
 	}
@@ -301,9 +299,7 @@ export function createGitFs(
 					: "none";
 			looseHints.set(scope, hint);
 			onNote?.(`loose objects ${hint} under ${scope}`);
-		} catch {
-			// Leave unknown — reads fall back to their normal round trip.
-		}
+		} catch {}
 	}
 
 	async function prefetchPacks(

@@ -19,11 +19,6 @@ import { DEMO_REPO, SITE_URL } from "@/lib/site";
 const { owner, name } = DEMO_REPO;
 const CLONE_URL = `${SITE_URL}/api/git/${owner}/${name}.git`;
 
-/**
- * The homepage's window onto PushStack's own public repository: real commits
- * from the live repo, each a link into the app, so a visitor can click around
- * the product before registering.
- */
 export function LiveRepoPreview() {
 	const { data: repo, isError: repoMissing } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),

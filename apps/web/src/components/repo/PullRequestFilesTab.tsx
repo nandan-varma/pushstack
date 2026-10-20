@@ -60,12 +60,6 @@ interface PullRequestFilesTabProps {
 	diffLoading: boolean;
 }
 
-/**
- * The Files changed tab with GitHub's review model: a comment button on every
- * commentable diff line, the viewer's pending review (private until
- * submitted), inline threads with replies and resolve/unresolve, and the
- * submit-as Comment / Approve / Request-changes box.
- */
 export function PullRequestFilesTab({
 	owner,
 	name,
@@ -504,7 +498,6 @@ function ReviewThreadCard({
 	);
 }
 
-/** The viewer's own unsubmitted comments on one line. */
 function PendingComments({
 	comments,
 	owner,

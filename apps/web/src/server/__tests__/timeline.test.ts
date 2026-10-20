@@ -57,7 +57,6 @@ describe("timeline", () => {
 		const source = await issues.createIssue({
 			data: { repoId, title: "Related", body: `Like #${target.number}` },
 		});
-		// Mentioning it again, or in code, adds nothing; a reader may mention too.
 		signIn(users.reader);
 		await comments.createComment({
 			data: {

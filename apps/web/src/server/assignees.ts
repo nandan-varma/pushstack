@@ -1,4 +1,3 @@
-/** Server functions for issue assignees. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
@@ -58,7 +57,6 @@ export const setPullRequestAssignees = createServerFn({ method: "POST" })
 		return replaceThreadAssignees(pr, data.usernames, currentUser.id);
 	});
 
-/** The viewer's latest 20 open assigned threads across readable repositories. */
 export const getAssignedThreads = createServerFn({ method: "GET" }).handler(
 	() =>
 		perfContext("getAssignedThreads", async () => {

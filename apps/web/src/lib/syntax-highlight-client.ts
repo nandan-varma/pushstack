@@ -88,12 +88,10 @@ function request(
 	});
 }
 
-/** Requests syntax-highlighted HTML for a full code block from the background worker. */
 export function requestHighlight(code: string, lang: string): Promise<string> {
 	return request(code, lang, "html") as Promise<string>;
 }
 
-/** Requests per-line token arrays (for custom rendering, e.g. diff views) from the background worker. */
 export function requestHighlightTokens(
 	code: string,
 	lang: string,

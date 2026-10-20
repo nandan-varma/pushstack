@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # pnpm workspace: the root lockfile covers the app and every package.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -13,7 +12,6 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
-  # Actions used by the workflows themselves.
   - package-ecosystem: github-actions
     directory: /
     schedule:

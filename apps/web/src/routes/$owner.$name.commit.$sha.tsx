@@ -28,7 +28,6 @@ export const Route = createFileRoute("/$owner/$name/commit/$sha")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			// CommitMessage autolinks `#123` with these; the page renders without them.
 			queryClient
 				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
 				.catch(() => {});
@@ -158,7 +157,6 @@ function CommitDetailPage() {
 
 	return (
 		<div className="space-y-6">
-			{/* Header */}
 			<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
 				<div className="min-w-0 flex-1">
 					<CommitMessage
@@ -207,7 +205,6 @@ function CommitDetailPage() {
 				</div>
 			</div>
 
-			{/* Commit Info */}
 			<Card className="p-6">
 				<div className="flex items-start gap-4">
 					<Avatar className="h-12 w-12">
@@ -269,7 +266,6 @@ function CommitDetailPage() {
 				</div>
 			</Card>
 
-			{/* File Changes */}
 			<div className="space-y-4">
 				<h2 className="text-lg font-semibold text-foreground">
 					File Changes {diffData?.files && `(${diffData.files.length})`}

@@ -29,10 +29,8 @@ import { createMiddleware } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { THEME_INIT_SCRIPT } from "#/lib/theme";
 
-/** Entropy for the per-request nonce, in bytes. */
 const NONCE_BYTES = 16;
 
-/** A fresh, unguessable nonce: 128 bits, base64. */
 export function generateNonce(): string {
 	const bytes = crypto.getRandomValues(new Uint8Array(NONCE_BYTES));
 	let binary = "";

@@ -1,14 +1,4 @@
 /**
- * isomorphic-git per-repo parse cache management.
- *
- * No node: imports.
- */
-
-// ---------------------------------------------------------------------------
-// isomorphic-git cache management
-// ---------------------------------------------------------------------------
-
-/**
  * Per-repo isomorphic-git packfile cache.
  *
  * isomorphic-git re-parses a packfile index from scratch on every

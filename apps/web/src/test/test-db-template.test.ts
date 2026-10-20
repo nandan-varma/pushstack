@@ -14,7 +14,6 @@ import {
 const TEMPLATE = new Uint8Array([7, 7, 7, 7]);
 const roots: string[] = [];
 
-/** A stand-in checkout holding only the files and manifests the key reads. */
 async function tempRoot(schema = "export const schema = 1;\n") {
 	const root = await mkdtemp(path.join(tmpdir(), "pushstack-template-"));
 	roots.push(root);

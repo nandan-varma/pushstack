@@ -7,8 +7,6 @@ describe("CommentForm", () => {
 	it("gives the textarea an accessible name via the heading", () => {
 		render(<CommentForm value="" onChange={() => {}} onSubmit={() => {}} />);
 
-		// Regression test for the missing-label a11y bug: the textarea should be
-		// reachable by its accessible name, not just by role.
 		expect(
 			screen.getByRole("textbox", { name: "Add a Comment" }),
 		).toBeInTheDocument();
@@ -65,7 +63,6 @@ describe("CommentForm", () => {
 
 		render(<CommentForm value="   " onChange={() => {}} onSubmit={onSubmit} />);
 
-		// Button should be disabled — verify it can't be triggered
 		const button = screen.getByRole("button", { name: "Post Comment" });
 		expect(button).toBeDisabled();
 		await user.click(button);

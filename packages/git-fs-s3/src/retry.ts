@@ -148,7 +148,6 @@ export function createRetryStore(
 				lastFailureAt = Date.now();
 				if (failures >= breaker.threshold || isProbe) state = "open";
 			} else if (isProbe) {
-				// The backend answered; it's up.
 				failures = 0;
 				state = "closed";
 			}

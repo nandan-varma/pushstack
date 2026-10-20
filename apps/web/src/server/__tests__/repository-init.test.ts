@@ -131,7 +131,6 @@ describe("createRepository initialization", () => {
 		});
 		expect(commits).toHaveLength(1);
 		expect(repo.defaultBranch).toBe("main");
-		// The lock was released: a later write goes through.
 		await files.uploadFile({
 			data: {
 				repoId: repo.id,

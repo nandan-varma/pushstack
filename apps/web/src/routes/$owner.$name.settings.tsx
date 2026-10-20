@@ -24,7 +24,6 @@ export const Route = createFileRoute("/$owner/$name/settings")({
 			queryClient.ensureQueryData(authSessionQueryOptions()),
 		]);
 
-		// Only the owner sees CollaboratorsSection; warm its list for them.
 		if (repo && session?.user?.id === repo.ownerId) {
 			queryClient
 				.ensureQueryData(repoCollaboratorsQueryOptions(repo.id))

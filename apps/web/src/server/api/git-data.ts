@@ -1,8 +1,3 @@
-/**
- * GitHub's Git database endpoints (read-only): `/git/ref`, `/git/refs`,
- * `/git/matching-refs`, `/git/commits/{sha}`, `/git/trees/{sha}` and
- * `/git/blobs/{sha}`.
- */
 import { isFullSha, isSafeRefName } from "git-fs-s3";
 import type { CommitInfo } from "git-fs-s3/ops";
 import {
@@ -97,7 +92,6 @@ export async function listRefs(ctx: ApiContext) {
 	return json(matching.map((target) => refObject(fullName, target)));
 }
 
-/** GitHub's Git commit object. */
 export function gitCommitObject(fullName: string, info: CommitInfo) {
 	const { commit, oid } = info;
 	return {
@@ -155,7 +149,6 @@ export async function getGitTree(ctx: ApiContext) {
 		recursive,
 		limit: apiCaps.treeEntries,
 	});
-	// One batched size read for the whole tree, not one per entry.
 	const sizes = await getBlobSizes(
 		ownerKey,
 		repo.name,
@@ -184,7 +177,6 @@ export async function getGitTree(ctx: ApiContext) {
 	});
 }
 
-/** `GET /repos/{owner}/{repo}/git/blobs/{file_sha}`: base64 content. */
 export async function getGitBlob(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const sha = ctx.params.sha ?? "";
@@ -199,7 +191,6 @@ export async function getGitBlob(ctx: ApiContext) {
 	}
 	const bytes = await getBlobByOid(ownerKey, repo.name, sha).catch(
 		(error: unknown) => {
-			// A tree or commit sha is not a blob.
 			if ((error as { code?: string })?.code === "ObjectTypeError") {
 				throw notFoundError();
 			}

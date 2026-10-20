@@ -1,8 +1,3 @@
-/**
- * Repository labels: storage helpers shared by the label server functions,
- * the issue/PR server functions and repository creation. Plain server-only
- * module (see repository-lookup.ts for why this is not a server-function file).
- */
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labels, threadLabels } from "#/db/app-schema";
@@ -11,14 +6,12 @@ import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
 import { recordTimelineEvent } from "./timeline-store";
 
-/** A label name is already taken in the repository (ignoring case). */
 export class DuplicateLabelError extends Error {
 	constructor() {
 		super("A label with this name already exists");
 	}
 }
 
-/** One or more of the names don't name a label of the repository. */
 export class UnknownLabelError extends Error {
 	constructor(readonly names: string[]) {
 		super(`Unknown label: ${names.join(", ")}`);
@@ -101,7 +94,6 @@ export async function updateRepoLabelById(
 	return label ?? null;
 }
 
-/** Delete a label (and, by cascade, its thread links). */
 export async function deleteRepoLabelById(
 	repoId: number,
 	labelId: number,
@@ -113,7 +105,6 @@ export async function deleteRepoLabelById(
 	return deleted.length > 0;
 }
 
-/** GitHub's default label set, for a repository that was just created. */
 export async function createDefaultLabels(repoId: number): Promise<void> {
 	await db
 		.insert(labels)
@@ -121,7 +112,6 @@ export async function createDefaultLabels(repoId: number): Promise<void> {
 		.onConflictDoNothing();
 }
 
-/** A repository's labels, by name. */
 export function listLabels(repoId: number): Promise<LabelView[]> {
 	return db
 		.select(labelColumns)
@@ -130,7 +120,6 @@ export function listLabels(repoId: number): Promise<LabelView[]> {
 		.orderBy(asc(sql`lower(${labels.name})`));
 }
 
-/** The labels on the thread with issue id `issueId`, by name. */
 export function labelsOfThread(issueId: number): Promise<LabelView[]> {
 	return db
 		.select(labelColumns)

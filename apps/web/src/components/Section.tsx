@@ -7,7 +7,6 @@ export function Section({
 	danger,
 	children,
 }: {
-	/** Anchor for deep links such as `/settings#tokens`. */
 	id?: string;
 	title: string;
 	description?: string;

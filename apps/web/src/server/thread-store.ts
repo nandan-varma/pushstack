@@ -41,7 +41,6 @@ import { type PublicUser, publicUserColumns } from "./repository-lookup";
 
 export type ThreadKind = "issue" | "pull_request";
 
-/** The issue or pull request a `#N` names. */
 export interface ThreadRef {
 	kind: ThreadKind;
 	/** The issue id (a pull request's too: it is an issue). */
@@ -52,7 +51,6 @@ export interface ThreadRef {
 	body: string | null;
 }
 
-/** What a pull request adds to its issue. */
 export type PullRequestFields = Omit<
 	typeof pullRequests.$inferSelect,
 	"issueId"
@@ -65,11 +63,9 @@ export type PullRequestFields = Omit<
 export type PullRequest = Omit<Issue, "status"> &
 	PullRequestFields & { status: "open" | "closed" | "merged" };
 
-/** A thread as every list and detail read returns it. */
 export interface Thread extends Issue {
 	kind: ThreadKind;
 	author: PublicUser;
-	/** Who closed it (`closedById`), for GitHub's `closed_by`. */
 	closedBy: PublicUser | null;
 	labels: LabelView[];
 	assignees: PublicUser[];
@@ -78,7 +74,6 @@ export interface Thread extends Issue {
 	pullRequest: (PullRequestFields & { mergedByUser: PublicUser | null }) | null;
 }
 
-/** The filters every thread list understands (GitHub's issue/PR query syntax). */
 export interface ThreadFilter {
 	repoId: number;
 	/** One kind, or both (the REST issues list). */
@@ -151,7 +146,6 @@ const threadColumns = {
 	total: sql<number>`count(*) over ()`.mapWith(Number),
 };
 
-/** A Postgres regex matching `@username` as a whole mention. */
 const mentionPattern = (username: string) =>
 	`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9._-])`;
 
@@ -341,7 +335,6 @@ export async function listThreads(
 	return { threads: [], total: row?.total ?? 0 };
 }
 
-/** The threads `numbers` name in `repoId` (of `kind` when given), in one query. */
 export async function findThreads(
 	repoId: number,
 	numbers: number[],
@@ -356,7 +349,6 @@ export async function findThreads(
 	return threads;
 }
 
-/** Thread `#number` of `repoId` (of `kind` when given), or null. */
 export async function findThread(
 	repoId: number,
 	number: number,
@@ -377,7 +369,6 @@ export function pullRequestOf(
 	};
 }
 
-/** A listed pull request thread as one pull request record. */
 export function pullRequestOfThread(thread: Thread): PullRequest {
 	if (!thread.pullRequest) throw new Error(`#${thread.number} is an issue`);
 	const { mergedByUser: _, ...fields } = thread.pullRequest;
@@ -394,13 +385,11 @@ export function pullRequestOfThread(thread: Thread): PullRequest {
 	return pullRequestOf(issue, fields);
 }
 
-/** An issue as the web pages show it (assignees as `{ user }` rows). */
 export function issueView(thread: Thread) {
 	const { kind: _, pullRequest: _pr, assignees, ...issue } = thread;
 	return { ...issue, assignees: assignees.map((user) => ({ user })) };
 }
 
-/** A pull request as the web pages show it. */
 export function pullRequestView(thread: Thread) {
 	return {
 		...pullRequestOfThread(thread),
@@ -435,7 +424,6 @@ function toRef({
 	return { kind: isPullRequest ? "pull_request" : "issue", ...row };
 }
 
-/** The thread with issue id `id`, or null. */
 export async function findThreadById(id: number): Promise<ThreadRef | null> {
 	const [row] = await db
 		.select(refColumns)
@@ -445,7 +433,6 @@ export async function findThreadById(id: number): Promise<ThreadRef | null> {
 	return row ? toRef(row) : null;
 }
 
-/** The thread numbered `number` in `repoId`, or null. */
 export async function findThreadByNumber(
 	repoId: number,
 	number: number,
@@ -458,7 +445,6 @@ export async function findThreadByNumber(
 	return row ? toRef(row) : null;
 }
 
-/** The pull request with issue id `id` (null for an issue or nothing). */
 export async function findPullRequestById(
 	id: number,
 ): Promise<PullRequest | null> {
@@ -473,7 +459,6 @@ export async function findPullRequestById(
 	return pullRequestOf(row.issue, fields);
 }
 
-/** The issue (not a pull request) with id `id`, or null. */
 export async function findIssueById(id: number): Promise<Issue | null> {
 	const [row] = await db
 		.select()
@@ -483,7 +468,6 @@ export async function findIssueById(id: number): Promise<Issue | null> {
 	return row ?? null;
 }
 
-/** Issue (not pull request) `#number` of `repoId`, or null. */
 export async function findIssueByNumber(
 	repoId: number,
 	number: number,
@@ -502,7 +486,6 @@ export async function findIssueByNumber(
 	return row ?? null;
 }
 
-/** Pull request `#number` of `repoId`, or null. */
 export async function findPullRequestByNumber(
 	repoId: number,
 	number: number,

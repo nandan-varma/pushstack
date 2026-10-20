@@ -70,7 +70,6 @@ export function serializeThread(
 	});
 }
 
-/** The serialized threads `numbers` name, for cross-reference `source` objects. */
 export async function serializeThreadsByNumber(
 	repo: RepositoryRowWithOwner,
 	numbers: number[],

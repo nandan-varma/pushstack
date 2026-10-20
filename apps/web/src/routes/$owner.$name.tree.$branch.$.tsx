@@ -250,7 +250,6 @@ function TreeBrowserPage() {
 				</div>
 			)}
 
-			{/* Toolbar */}
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				{isCommitView ? (
 					<code className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">

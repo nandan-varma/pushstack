@@ -1,7 +1,3 @@
-/**
- * Git reads for the web UI: (ownerKey, repoName) → git-fs-s3/ops with the
- * app's result cache, perf hooks and pack prefetch wired in.
- */
 import {
 	GitObjectNotFoundError,
 	GitPathNotFoundError,
@@ -59,10 +55,6 @@ export function getFileContent(
 	);
 }
 
-/**
- * The tree entry for `filePath` at `ref`, or undefined when the path isn't
- * there. Shared by the two readers below so they resolve a path identically.
- */
 async function findFileEntry(
 	repo: Repo,
 	ref: string,
@@ -80,7 +72,6 @@ async function findFileEntry(
 	return { entry: entries.find((entry) => entry.path === filePath), commitOid };
 }
 
-/** The oid of the blob or submodule at `filePath` in `ref`, or null when absent. */
 export async function getEntryOid(
 	ownerKey: string,
 	repoName: string,
@@ -96,7 +87,6 @@ export async function getEntryOid(
 	return entry?.oid ?? null;
 }
 
-/** A blob or submodule at a revision; only small text blobs travel inline. */
 export async function getFileView(
 	ownerKey: string,
 	repoName: string,
@@ -133,7 +123,6 @@ export async function getFileView(
 	return { kind: "text", size, content: new TextDecoder().decode(bytes) };
 }
 
-/** A file's bytes at a revision, or the fact that it is too big to buffer. */
 export type RawFileResult =
 	| { kind: "bytes"; bytes: Uint8Array }
 	| { kind: "too-large"; size: number };
@@ -226,7 +215,6 @@ export function getTree(
 	);
 }
 
-/** Everything a directory page renders, read in parallel through one repo handle. */
 export async function getRepositoryTreeData(
 	ownerKey: string,
 	repoName: string,
@@ -261,12 +249,10 @@ export function getBranches(ownerKey: string, repoName: string) {
 	return listBranches(repoFor(ownerKey, repoName));
 }
 
-/** Tags with the commits they name (annotated tags peeled), in version order. */
 export function getTags(ownerKey: string, repoName: string) {
 	return listTags(repoFor(ownerKey, repoName));
 }
 
-/** For each entry of a directory, the last commit (within the walk depth) that changed it. */
 export function getLastCommitsForTree(
 	ownerKey: string,
 	repoName: string,
@@ -322,7 +308,6 @@ export function getCommitDiff(
 	return opsGetCommitDiff(repoFor(ownerKey, repoName), commitSha);
 }
 
-/** A pull request's diff: what `compareRef` changed since branching from `baseRef`. */
 export function getBranchDiff(
 	ownerKey: string,
 	repoName: string,
@@ -373,7 +358,6 @@ export async function getCommitsBetween(
 	};
 }
 
-/** Whether both branches exist and whether merging would be a fast-forward. */
 export function analyzeMerge(
 	ownerKey: string,
 	repoName: string,
@@ -409,7 +393,6 @@ export async function getPathEntry(
 	return findFileEntry(repo, ref, filePath, hooks);
 }
 
-/** A blob's bytes by oid. */
 export function getBlobByOid(
 	ownerKey: string,
 	repoName: string,
@@ -418,7 +401,6 @@ export function getBlobByOid(
 	return getBlob(repoFor(ownerKey, repoName), oid);
 }
 
-/** A blob's size from its pack entry, else by reading it. */
 export async function getBlobSize(
 	ownerKey: string,
 	repoName: string,
@@ -458,7 +440,6 @@ export async function getBlobSizes(
 	return sizes;
 }
 
-/** The submodule URLs root `.gitmodules` declares at a commit, by path. */
 export async function getSubmoduleUrls(
 	ownerKey: string,
 	repoName: string,
@@ -530,7 +511,6 @@ export interface RefTarget {
 	type: "commit" | "tag";
 }
 
-/** Every branch and tag ref, sorted by full name. */
 export async function getAllRefs(
 	ownerKey: string,
 	repoName: string,

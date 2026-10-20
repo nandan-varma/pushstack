@@ -25,13 +25,11 @@ export const publicUserColumns = {
 	name: user.name,
 	image: user.image,
 };
-/** The same projection for relational queries' `with: { author: … }`. */
 export const publicUserFields = {
 	columns: { id: true, apiId: true, username: true, name: true, image: true },
 } as const;
 export type PublicUser = {
 	id: string;
-	/** The integer id the REST API exposes. */
 	apiId: number;
 	username: string;
 	name: string;

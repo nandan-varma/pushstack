@@ -37,7 +37,6 @@ describe("resolveRepoRelativePath", () => {
 		expect(resolveRepoRelativePath("", "../secret.png")).toBeNull();
 		expect(resolveRepoRelativePath("README.md", "../../x")).toBeNull();
 		expect(resolveRepoRelativePath("docs/README.md", "../../x")).toBeNull();
-		// One level up from a nested file is still inside the repository.
 		expect(resolveRepoRelativePath("docs/a/b.md", "../../x")).toBe("x");
 		expect(resolveRepoRelativePath("a/b.md", "../../../x")).toBeNull();
 	});

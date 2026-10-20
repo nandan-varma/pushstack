@@ -1,9 +1,3 @@
-/**
- * Real git integration tests: isomorphic-git against the real gitFs stack
- * over git-fs.ts's in-memory object store (R2 isn't configured in tests);
- * the repo lock runs over pglite.
- */
-
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 
@@ -37,7 +31,6 @@ import {
 const OWNER = "testowner";
 const REPO = "testrepo";
 
-// SHAs captured during setup for use in tests
 const shas = {
 	initial: "",
 	second: "",
@@ -47,7 +40,6 @@ const shas = {
 beforeAll(async () => {
 	await initBareRepo(OWNER, REPO, "main");
 
-	// Commit 1: initial README
 	shas.initial = await createCommit(OWNER, REPO, {
 		branch: "main",
 		message: "Initial commit",
@@ -55,7 +47,6 @@ beforeAll(async () => {
 		author: { name: "Test User", email: "test@example.com" },
 	});
 
-	// Commit 2: update README + add src/index.js
 	shas.second = await createCommit(OWNER, REPO, {
 		branch: "main",
 		message: "Add source file",
@@ -66,10 +57,8 @@ beforeAll(async () => {
 		author: { name: "Test User", email: "test@example.com" },
 	});
 
-	// Create a feature branch from current HEAD (main)
 	await createBranch(OWNER, REPO, "feature-branch", "main");
 
-	// Commit on feature branch
 	shas.featureCommit = await createCommit(OWNER, REPO, {
 		branch: "feature-branch",
 		message: "Add feature file",
@@ -77,8 +66,6 @@ beforeAll(async () => {
 		author: { name: "Test User", email: "test@example.com" },
 	});
 }, 60_000);
-
-// ── Branches ──────────────────────────────────────────────────────────────────
 
 describe("getBranches", () => {
 	it("lists main and feature-branch", async () => {
@@ -132,8 +119,6 @@ describe("setDefaultBranch", () => {
 		expect(branches.find((b) => b.isDefault)?.name).toBe("main");
 	});
 });
-
-// ── Commits ───────────────────────────────────────────────────────────────────
 
 describe("getCommitLog", () => {
 	it("returns commits newest-first", async () => {
@@ -235,8 +220,6 @@ describe("getFileHistory", () => {
 	});
 });
 
-// ── Trees & files ─────────────────────────────────────────────────────────────
-
 describe("getTree (root)", () => {
 	it("lists root entries on main", async () => {
 		const entries = await getTree(OWNER, REPO, "main", "");
@@ -329,8 +312,6 @@ describe("getFileView", () => {
 	});
 });
 
-// ── Write operations ──────────────────────────────────────────────────────────
-
 describe("createCommit", () => {
 	it("rejects a commit to a branch that doesn't exist", async () => {
 		await expect(
@@ -388,7 +369,6 @@ describe("createCommit", () => {
 
 describe("deleteFile", () => {
 	it("removes file from tree", async () => {
-		// Ensure file exists
 		await createCommit(OWNER, REPO, {
 			branch: "main",
 			message: "Pre-delete commit",
@@ -413,8 +393,6 @@ describe("deleteFile", () => {
 	});
 });
 
-// ── Diff ─────────────────────────────────────────────────────────────────────
-
 describe("getCommitDiff", () => {
 	it("initial commit has all files as 'added'", async () => {
 		const diff = await getCommitDiff(OWNER, REPO, shas.initial);
@@ -428,8 +406,8 @@ describe("getCommitDiff", () => {
 	it("second commit shows modified and added files", async () => {
 		const diff = await getCommitDiff(OWNER, REPO, shas.second);
 		const statuses = diff.files.map((f) => f.status);
-		expect(statuses).toContain("modified"); // README.md changed
-		expect(statuses).toContain("added"); // src/index.js added
+		expect(statuses).toContain("modified");
+		expect(statuses).toContain("added");
 	});
 
 	it("diff has correct totals", async () => {
@@ -460,8 +438,6 @@ describe("getBranchDiff", () => {
 	});
 });
 
-// ── Merge ─────────────────────────────────────────────────────────────────────
-
 describe("analyzeMerge", () => {
 	it("can merge feature-branch into main", async () => {
 		const result = await analyzeMerge(OWNER, REPO, "feature-branch", "main");
@@ -470,9 +446,7 @@ describe("analyzeMerge", () => {
 	});
 
 	it("detects fast-forward when source is ahead", async () => {
-		// feature-branch is ahead of main (not vice versa)
 		const result = await analyzeMerge(OWNER, REPO, "feature-branch", "main");
-		// feature-branch commit descends from main, so merging ff into main is a ff
 		expect(typeof result.fastForward).toBe("boolean");
 	});
 
@@ -484,7 +458,6 @@ describe("analyzeMerge", () => {
 
 describe("mergeBranches", () => {
 	it("merges feature-branch into a fresh target branch", async () => {
-		// Create a fresh branch from main's initial state to merge INTO
 		await createBranch(OWNER, REPO, "merge-target", "main");
 
 		const result = await mergeBranches(
@@ -497,7 +470,6 @@ describe("mergeBranches", () => {
 
 		expect(result.success).toBe(true);
 
-		// feature.txt should now be on merge-target
 		const entries = await getTree(OWNER, REPO, "merge-target", "");
 		const names = entries.map((e) => e.path);
 		expect(names).toContain("feature.txt");

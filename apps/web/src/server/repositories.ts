@@ -1,4 +1,3 @@
-/** Server functions for repositories: create, read, settings, stars, collaborators. */
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, count, desc, eq } from "drizzle-orm";
@@ -95,7 +94,6 @@ async function starState(repoId: number, userId: string | undefined) {
 	return { starCount: total?.value ?? 0, isStarred: !!mine };
 }
 
-/** A repository page's repository, with stars; 404 when missing or unreadable. */
 export const getRepositoryByName = createServerFn({ method: "GET" })
 	.validator(z.object({ owner: z.string(), name: z.string() }))
 	.handler(({ data }) =>
@@ -107,7 +105,6 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 				]),
 			);
 			if (!repo) throw notFound();
-			// Also primes the access cache the page's follow-up reads hit.
 			const [access, stars] = await perfStep("access + stars", () =>
 				Promise.all([
 					getAccessForRepository(repo, currentUser?.id),
@@ -214,7 +211,6 @@ export const deleteRepository = createServerFn({ method: "POST" })
 		);
 	});
 
-/** Consolidate a repository's packs now (otherwise pushes do it past a threshold). */
 export const repackRepository = createServerFn({ method: "POST" })
 	.validator(z.object({ id: z.number() }))
 	.handler(async ({ data }) => {
@@ -270,7 +266,6 @@ export const getCollaborators = createServerFn({ method: "GET" })
 		});
 	});
 
-/** Add a collaborator by username, or change an existing one's role. */
 export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 	.validator(
 		z.object({

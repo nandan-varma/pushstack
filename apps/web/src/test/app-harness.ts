@@ -32,7 +32,6 @@ export function signOut(): void {
 	current = null;
 }
 
-/** Stands in for src/server/session.ts. */
 export const sessionModule = {
 	getCurrentUserOptional: async () => current,
 	getCurrentUser: async () => {
@@ -41,7 +40,6 @@ export const sessionModule = {
 	},
 };
 
-/** Insert users named `names` (id `${name}-id`, email `${name}@example.com`). */
 export async function createUsers<N extends string>(
 	...names: N[]
 ): Promise<Record<N, TestUser>> {
@@ -66,7 +64,6 @@ export async function createUsers<N extends string>(
 	> as Record<N, TestUser>;
 }
 
-/** Whether `promise` rejects with TanStack's notFound(). */
 export async function rejectsNotFound(
 	promise: Promise<unknown>,
 ): Promise<boolean> {

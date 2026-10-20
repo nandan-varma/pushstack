@@ -1,4 +1,3 @@
-/** One entry of the activity feed: what happened, with its type's metadata. */
 export type ActivityEvent =
 	| { type: "create_repo"; metadata: { repoName: string } }
 	| { type: "star"; metadata: null }

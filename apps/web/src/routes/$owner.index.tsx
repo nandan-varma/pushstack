@@ -29,7 +29,6 @@ export const Route = createFileRoute("/$owner/")({
 	},
 	component: UserProfilePage,
 	notFoundComponent: UserNotFound,
-	// getUserProfile throws notFound() for an unknown username: a 404.
 	loader: ({ context: { queryClient }, params }) =>
 		queryClient.ensureQueryData(userProfileQueryOptions(params.owner)),
 });
@@ -78,7 +77,6 @@ function UserProfilePage() {
 	return (
 		<main className="page-wrap px-4 py-10">
 			<div className="grid gap-8 lg:grid-cols-3">
-				{/* Profile card */}
 				<div>
 					<div className="island-shell rounded-xl p-6">
 						<Avatar className="h-20 w-20 text-2xl">
@@ -113,7 +111,6 @@ function UserProfilePage() {
 					</div>
 				</div>
 
-				{/* Repositories + activity */}
 				<div className="space-y-8 lg:col-span-2">
 					<section>
 						<h2 className="mb-4 text-base font-semibold text-foreground">

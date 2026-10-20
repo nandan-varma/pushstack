@@ -12,7 +12,6 @@ interface Param {
 	optional?: boolean;
 }
 
-/** A function/class/const signature block for the library reference pages. */
 function ApiSignature({
 	name,
 	kind = "function",
@@ -86,7 +85,6 @@ function ApiSignature({
 	);
 }
 
-/** A card grid of a package's subpath exports. */
 function PackageExports({
 	exports: entries,
 }: {
@@ -112,7 +110,6 @@ function PackageExports({
 	);
 }
 
-/** Which runtimes an API works on. */
 function RuntimeSupport({
 	runtimes,
 }: {

@@ -5,7 +5,6 @@ import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
 import { parseRepoArg, resolveRepo } from "../repo-resolve";
 
-/** A repository as the API returns it. */
 type Repo = Output<"repos/get">;
 
 /** `--json` fields, named as in `gh repo view --json`. */

@@ -129,7 +129,7 @@ export async function getLastCommitsForTree(
 
 			const parentSha = commit.commit.parent[0];
 			const parentCommit = parentSha ? byOid.get(parentSha) : undefined;
-			if (parentSha && !parentCommit) break outer; // walked past the depth cap
+			if (parentSha && !parentCommit) break outer;
 
 			// Already resolved above (or memoized from an earlier window/commit) —
 			// these awaits resolve immediately from cache.

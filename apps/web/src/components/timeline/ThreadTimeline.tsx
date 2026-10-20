@@ -35,13 +35,8 @@ import type { ThreadRef, TimelineEntry } from "@/lib/timeline-types";
 import type { getComments } from "@/server/comments";
 import { deleteComment, updateComment } from "@/server/comments";
 
-/** A comment as the thread view reads it, author included. */
 export type ThreadComment = Awaited<ReturnType<typeof getComments>>[number];
 
-/**
- * An issue's or pull request's conversation as GitHub shows it: comments and
- * events (closed, reopened, merged, mentions) in one chronological column.
- */
 export function ThreadTimeline({
 	owner,
 	name,
@@ -57,9 +52,7 @@ export function ThreadTimeline({
 	name: string;
 	repoId: number;
 	number: number;
-	/** The thread's comments, loaded a page at a time. */
 	commentsOptions: ReturnType<typeof issueCommentsQueryOptions>;
-	/** Called with a comment's body when its "Quote reply" is used. */
 	onQuote?: (body: string) => void;
 	/** The signed-in user, if any: their own comments get Edit and Delete. */
 	viewerId?: string;

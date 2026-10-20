@@ -7,7 +7,6 @@ export default defineConfig({
 	test: {
 		// Each behavior-test worker boots Postgres WASM; bound memory and startup contention.
 		maxWorkers: 2,
-		// Builds the database every test file starts from; see src/test/test-db-template.ts.
 		globalSetup: ["./src/test/global-setup.ts"],
 		environment: "jsdom",
 		// src/db requires a URL at import; nothing connects until a query runs.

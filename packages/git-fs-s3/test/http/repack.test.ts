@@ -85,7 +85,6 @@ describe("repackRepository", () => {
 
 		const stalePaths = await repackRepository(repo, { threshold: 4 });
 
-		// The four dummies, plus the packs seeding's commits wrote.
 		expect(
 			stalePaths.filter((p) => p.startsWith("objects/pack/dummy-")),
 		).toHaveLength(4);
@@ -139,7 +138,7 @@ describe("repackRepository", () => {
 
 	it("skips repacking below the pack-count threshold", async () => {
 		const { repo } = makeRepo();
-		await seed(repo, 2); // one pack per commit
+		await seed(repo, 2);
 		await addDummyPackFiles(repo, 2);
 
 		const stalePaths = await repackRepository(repo, { threshold: 5 });
@@ -157,7 +156,6 @@ describe("repackRepository", () => {
 		const fsp = rawFs(repo);
 		const packDir = `${repo.gitdir}/objects/pack`;
 
-		// Pack whatever is loose into its own pack, then drop the loose copies.
 		async function packLoose(): Promise<string> {
 			const { objects } = await store.list(`${repo.gitdir}/objects/`);
 			const oids = objects
@@ -186,7 +184,6 @@ describe("repackRepository", () => {
 				).join(""),
 			})),
 		});
-		// Total .pack bytes in the pack directory.
 		async function packBytes(): Promise<number> {
 			const { objects } = await store.list(`${packDir}/`);
 			return objects
@@ -242,7 +239,7 @@ describe("repackRepository", () => {
 
 	it("propagates a failed consolidation instead of reporting success", async () => {
 		const { repo } = makeRepo();
-		await seed(repo, 3); // one pack per commit
+		await seed(repo, 3);
 		await addDummyPackFiles(repo, 4);
 
 		// Storage fails on the new, consolidated pack — after every pack was
@@ -269,7 +266,7 @@ describe("repackRepository", () => {
 
 	it("keeps every ref's history when one ref read fails during consolidation", async () => {
 		const { repo } = makeRepo();
-		await seed(repo, 2); // one pack per commit
+		await seed(repo, 2);
 		const featureTip = await commitFilesToBare(repo, {
 			branch: "feature",
 			message: "feature\n",

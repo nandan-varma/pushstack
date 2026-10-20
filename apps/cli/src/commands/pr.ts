@@ -6,7 +6,6 @@ import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
 import { resolveRepo } from "../repo-resolve";
 
-/** A pull request as lists return it (a single read adds merge state). */
 type Pull = Output<"pulls/list">[number];
 /** gh's `state`: OPEN, CLOSED or MERGED. */
 const stateOf = (p: Pull) => (p.merged_at ? "MERGED" : p.state.toUpperCase());

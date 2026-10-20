@@ -1,4 +1,3 @@
-/** `GET /repos/{owner}/{repo}/branches` and `…/branches/{branch}`. */
 import { getBranches, getCommit } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -14,7 +13,6 @@ import {
 import { readableRepository } from "./repo-lookup";
 import { branchHtmlUrl, commitRef, gitIdentity } from "./serializers";
 
-/** `GET /repos/{owner}/{repo}/branches` */
 export async function listBranches(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const fullName = `${repo.owner.username}/${repo.name}`;

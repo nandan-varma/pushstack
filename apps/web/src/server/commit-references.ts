@@ -21,7 +21,6 @@ import type { TimelineEvent } from "#/lib/timeline-types";
 import { recordActivity } from "./activity";
 import { getCommitLog } from "./git-read";
 
-/** Newest commits examined per pushed ref. */
 export const MAX_PUSH_COMMITS = 100;
 const ZERO_OID = "0".repeat(40);
 const MESSAGE_PREVIEW_CHARS = 200;
@@ -31,7 +30,6 @@ interface PushedCommit {
 	message: string;
 }
 
-/** Commits `newOid` has that `exclude` (a sha or branch) doesn't; newest first. */
 async function newCommits(
 	ownerKey: string,
 	repoName: string,
@@ -120,7 +118,6 @@ export async function recordPushReferences(input: {
 		.where(
 			and(eq(issues.repoId, input.repoId), inArray(issues.number, wanted)),
 		);
-	// `#N` → issue id, for every thread that exists.
 	const existing = new Map(threads.map((row) => [row.number, row.id]));
 	const openIssues = new Set(
 		threads
@@ -151,7 +148,6 @@ export async function recordPushReferences(input: {
 		const { event: type, ...payload } = event;
 		rows.push({ issueId, actorId: input.actorId, event: type, payload });
 	};
-	// Oldest commit first, so a thread's events read in commit order.
 	const toClose = new Set<number>();
 	const closers = new Map<number, string>();
 	for (const { commit, numbers } of mentions.reverse()) {
@@ -206,7 +202,6 @@ export async function recordPushReferences(input: {
 		});
 	}
 	if (rows.length > 0) await db.insert(timelineEvents).values(rows);
-	// As the manual close path does, so the pusher's feed shows the closing.
 	for (const { number, title } of closed) {
 		await recordActivity(input.actorId, input.repoId, {
 			type: "issue",

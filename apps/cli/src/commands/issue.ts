@@ -6,7 +6,6 @@ import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
 import { resolveRepo } from "../repo-resolve";
 
-/** An issue as the API returns it (pull requests carry `pull_request`). */
 type Issue = Output<"issues/get">;
 const JSON_FIELDS = {
 	number: (i: Issue) => i.number,

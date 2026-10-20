@@ -90,11 +90,8 @@ type CacheEntry = Uint8Array | typeof MISS;
 
 interface ListEntry {
 	result: ListResult;
-	/** The raw list prefix this entry describes. */
 	prefix: string;
-	/** True for `limit: 1` existence probes. */
 	probe: boolean;
-	/** True when the listing came back with no objects or prefixes. */
 	empty: boolean;
 }
 
@@ -183,7 +180,6 @@ export function createCachedStore(
 	};
 	const pendingRangeObjects = () =>
 		[...pendingRanges.keys()].map((k) => k.slice(0, k.indexOf("\0")));
-	/** Drop every slice (cached or in flight) of the object at `key`. */
 	const dropRanges = (key: string) => {
 		for (const rangeKey of [...(rangeKeysByObject.get(key) ?? [])]) {
 			rangeCache.delete(rangeKey);
@@ -215,7 +211,6 @@ export function createCachedStore(
 		}
 	};
 
-	/** Drop list entries a write/delete at `key` may have made stale. */
 	function clearStaleListEntries(key: string): void {
 		for (const [listKey, entry] of listCache.entries()) {
 			if (!key.startsWith(entry.prefix)) continue;

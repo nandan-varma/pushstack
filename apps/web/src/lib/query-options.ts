@@ -143,7 +143,6 @@ export const queryKeys = {
 		["pull-requests", prId, "review-threads"] as const,
 	pullRequestPendingReview: (prId: number) =>
 		["pull-requests", prId, "pending-review"] as const,
-	/** The issue and pull-request lists as a GitHub query string (`?q=`). */
 	repoIssueSearch: (repoId: number, query: string) =>
 		["repos", repoId, "issues", "search", query] as const,
 	pullRequestSearch: (repoId: number, query: string) =>
@@ -182,7 +181,6 @@ export function authSessionsQueryOptions() {
 	return queryOptions({
 		queryKey: queryKeys.authSessions,
 		queryFn: async () => {
-			// Lazy: only the settings page needs the auth client here.
 			const { authClient } = await import("@/lib/auth-client");
 			const { data, error } = await authClient.listSessions();
 			if (error) throw new Error(error.message ?? "Failed to list sessions");
@@ -331,7 +329,6 @@ export function postedCommentsQueryOptions<C>(commentsKey: readonly unknown[]) {
 	});
 }
 
-/** Record a just-posted comment locally and mark the paged query stale, without refetching it. */
 export function addPostedComment<C>(
 	queryClient: QueryClient,
 	commentsKey: readonly unknown[],
@@ -348,7 +345,6 @@ export function addPostedComment<C>(
 	});
 }
 
-/** An issue's or pull request's timeline events (merge with its comments to render). */
 export function timelineQueryOptions(repoId: number, number: number) {
 	return threadPagesQueryOptions(queryKeys.timeline(repoId, number), (skip) =>
 		getTimeline({ data: { repoId, number, skip } }),
@@ -685,7 +681,6 @@ export function repositoryIssueSearchQueryOptions({
 	});
 }
 
-/** The pull-request list filtered by a GitHub query string (`?q=`). */
 export function repositoryPullRequestSearchQueryOptions({
 	repoId,
 	query,

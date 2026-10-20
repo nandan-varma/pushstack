@@ -2,11 +2,6 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import { describe, expect, it } from "vitest";
 import { S3ObjectStore } from "../src/stores/s3.js";
 
-/**
- * The S3 store is exercised against a stub client that replays realistic
- * ListObjectsV2/GetObject/HeadObject responses — the AWS SDK's own wire
- * handling is not under test here.
- */
 type CommandInput = {
 	constructor: { name: string };
 	input: Record<string, unknown>;

@@ -15,13 +15,10 @@ export type ReviewState =
 	| "approved"
 	| "changes_requested";
 
-/** A submitted review's state (a `pending` review has no state to show). */
 export type ReviewedState = Exclude<ReviewState, "pending">;
 
-/** The side of the diff a comment is anchored to. */
 export type ReviewSide = "LEFT" | "RIGHT";
 
-/** The user columns a review shows (never the email). */
 export interface ReviewAuthor {
 	id: string;
 	username: string;
@@ -29,7 +26,6 @@ export interface ReviewAuthor {
 	image: string | null;
 }
 
-/** One review comment as the API and UI return it. */
 export interface ReviewCommentView {
 	id: number;
 	body: string;
@@ -56,15 +52,10 @@ export interface ReviewThread {
 	comments: ReviewCommentView[];
 }
 
-/** What the PR header shows about reviews. */
 export interface PullRequestReviewSummary {
-	/** Reviewers whose latest review approved. */
 	approved: number;
-	/** Reviewers whose latest review requested changes. */
 	changesRequested: number;
-	/** Reviewers whose latest review only commented. */
 	commented: number;
-	/** The aggregate state, or null when nobody has reviewed. */
 	state: Exclude<ReviewState, "pending"> | null;
 	/** A changes-requested review is outstanding (admins may still merge). */
 	blocksMerge: boolean;

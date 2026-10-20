@@ -3,7 +3,6 @@ import { db } from "#/db";
 import { activities, repositories } from "#/db/app-schema";
 import type { ActivityEvent } from "#/lib/activity-types";
 
-/** Append one entry to the activity feed. */
 export async function recordActivity(
 	userId: string,
 	repoId: number,

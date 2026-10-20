@@ -13,7 +13,6 @@ export interface CommitAuthor {
 	timezoneOffset: number;
 }
 
-/** An author stamped with the current time. */
 export function authorNow(name: string, email: string): CommitAuthor {
 	return {
 		name,
@@ -73,7 +72,6 @@ async function writeCommit(
 		if ((err as { code?: string })?.code !== "NotFoundError") {
 			throw err;
 		}
-		// empty repo — first commit
 	}
 	const treeOid = await options.buildTree(parentTreeOid, repo);
 	const commitOid = await git.writeCommit({

@@ -18,7 +18,6 @@ describe("isLargeContent", () => {
 		expect(isLargeContent("a".repeat(MAX_AUTO_HIGHLIGHT_LINES * 2))).toBe(
 			false,
 		);
-		// 512KB + 1 byte
 		expect(isLargeContent("a".repeat(512 * 1024 + 1))).toBe(true);
 	});
 
@@ -39,7 +38,6 @@ describe("isLargeContent", () => {
 	});
 
 	it("counts \\r\\n as one line break each", () => {
-		// Each \r\n has one \n, so 2 chars per line
 		const content = "x\r\n".repeat(MAX_AUTO_HIGHLIGHT_LINES + 1);
 		expect(isLargeContent(content)).toBe(true);
 	});

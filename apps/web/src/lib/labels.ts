@@ -1,4 +1,3 @@
-/** Label shapes and the default label set (shared by server and client). */
 import { z } from "zod";
 import { MAX_LABEL_DESCRIPTION_CHARS, MAX_LABEL_NAME_CHARS } from "./limits";
 
@@ -9,7 +8,6 @@ export interface LabelView {
 	description: string | null;
 }
 
-/** The default labels every new repository starts with (same as GitHub's). */
 export const DEFAULT_LABELS: ReadonlyArray<{
 	name: string;
 	color: string;
