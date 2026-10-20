@@ -1,14 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	createFileRoute,
-	isNotFound,
-	notFound,
-	redirect,
-} from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
-import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
@@ -18,17 +11,13 @@ import { EditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
+import { ThreadConversation } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
-import type { ThreadComment } from "@/components/timeline/ThreadTimeline";
-import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
-import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
-import { quoteForReply } from "@/lib/markdown-quote";
 import {
-	addPostedComment,
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
@@ -38,7 +27,7 @@ import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-import { createComment } from "@/server/comments";
+import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { updateIssue } from "@/server/issues";
 
 export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
@@ -62,28 +51,21 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 						number: issueNumber,
 					}),
 				)
-				.catch(async (error: unknown) => {
-					// Issues and pull requests share one number sequence: send a
-					// number that belongs to a pull request to its page.
-					if (!isNotFound(error)) throw error;
-					const other = await queryClient
-						.ensureQueryData(
-							pullRequestByNumberQueryOptions({
-								owner: params.owner,
-								name: params.name,
-								number: issueNumber,
-							}),
-						)
-						.catch(() => null);
-					if (other) {
-						throw redirect({
-							to: "/repo/$owner/$name/pulls/$id",
-							params,
-							statusCode: 301,
-						});
-					}
-					throw error;
-				}),
+				.catch((error: unknown) =>
+					ensureThreadNumberRedirect(
+						error,
+						params,
+						() =>
+							queryClient.ensureQueryData(
+								pullRequestByNumberQueryOptions({
+									owner: params.owner,
+									name: params.name,
+									number: issueNumber,
+								}),
+							),
+						"/repo/$owner/$name/pulls/$id",
+					),
+				),
 		]);
 
 		// Comments are keyed by the issue's internal id, only known once the
@@ -113,8 +95,6 @@ export const Route = createFileRoute("/repo/$owner/$name/issues/$id")({
 function IssueDetailPage() {
 	const { owner, name, id } = Route.useParams();
 	const queryClient = useQueryClient();
-	const { toast } = useToast();
-	const [newComment, setNewComment] = useState("");
 
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const issueNumber = Number(id);
@@ -149,52 +129,12 @@ function IssueDetailPage() {
 		},
 	});
 
-	const commentMutation = useMutation({
-		mutationFn: createComment,
-		onSuccess: (created) => {
-			setNewComment("");
-			if (issue) {
-				const user = session?.user;
-				if (user) {
-					addPostedComment<ThreadComment>(
-						queryClient,
-						issueCommentsQueryOptions(issue.id).queryKey,
-						{
-							...created,
-							author: {
-								id: user.id,
-								apiId: 0, // the web UI never shows it
-								name: user.name,
-								username: user.username ?? user.name,
-								image: user.image ?? null,
-							},
-						},
-					);
-				}
-			}
-			toast("Comment posted", "success");
-		},
-		onError: (err: Error) => {
-			toast(err.message || "Failed to post comment", "error");
-		},
-	});
-
 	const handleToggleStatus = () => {
 		if (!issue) return;
 		updateMutation.mutate({
 			data: {
 				issueId: issue.id,
 				status: issue.status === "open" ? "closed" : "open",
-			},
-		});
-	};
-
-	const handleAddComment = () => {
-		if (!newComment.trim() || !issue) return;
-		commentMutation.mutate({
-			data: {
-				issueId: issue.id,
-				body: newComment,
 			},
 		});
 	};
@@ -312,33 +252,16 @@ function IssueDetailPage() {
 				canEdit={issue.viewer.canWrite}
 			/>
 
-			<ThreadTimeline
+			<ThreadConversation
 				owner={owner}
 				name={name}
 				repoId={issue.repoId}
 				number={issue.number}
+				thread={{ issueId: issue.id }}
 				commentsOptions={issueCommentsQueryOptions(issue.id)}
-				viewerId={session?.user?.id}
 				canParticipate={issue.viewer.canParticipate}
 				canModerate={issue.viewer.canWrite}
-				onQuote={
-					issue.viewer.canParticipate
-						? (body) => setNewComment((draft) => draft + quoteForReply(body))
-						: undefined
-				}
 			/>
-
-			{/* Add Comment */}
-			{issue.viewer.canParticipate ? (
-				<CommentForm
-					value={newComment}
-					onChange={setNewComment}
-					onSubmit={handleAddComment}
-					isPending={commentMutation.isPending}
-				/>
-			) : !session?.user ? (
-				<SignInToComment />
-			) : null}
 		</div>
 	);
 }

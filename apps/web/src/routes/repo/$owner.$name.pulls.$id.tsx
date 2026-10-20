@@ -1,16 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	createFileRoute,
-	isNotFound,
-	notFound,
-	redirect,
-	useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
-import { useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
-import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
@@ -27,9 +19,8 @@ import {
 	reviewStatusLabel,
 	reviewStatusVariant,
 } from "@/components/status-variants";
+import { ThreadConversation } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
-import type { ThreadComment } from "@/components/timeline/ThreadTimeline";
-import { ThreadTimeline } from "@/components/timeline/ThreadTimeline";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
@@ -37,9 +28,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
-import { quoteForReply } from "@/lib/markdown-quote";
 import {
-	addPostedComment,
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
 	pullRequestByNumberQueryOptions,
@@ -51,7 +40,7 @@ import {
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
-import { createComment } from "@/server/comments";
+import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
 
 const PR_TABS = ["conversation", "commits", "files"] as const;
@@ -84,28 +73,21 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls/$id")({
 						number: prNumber,
 					}),
 				)
-				.catch(async (error: unknown) => {
-					// Issues and pull requests share one number sequence: send a
-					// number that belongs to a issue to its page.
-					if (!isNotFound(error)) throw error;
-					const other = await queryClient
-						.ensureQueryData(
-							issueByNumberQueryOptions({
-								owner: params.owner,
-								name: params.name,
-								number: prNumber,
-							}),
-						)
-						.catch(() => null);
-					if (other) {
-						throw redirect({
-							to: "/repo/$owner/$name/issues/$id",
-							params,
-							statusCode: 301,
-						});
-					}
-					throw error;
-				}),
+				.catch((error: unknown) =>
+					ensureThreadNumberRedirect(
+						error,
+						params,
+						() =>
+							queryClient.ensureQueryData(
+								issueByNumberQueryOptions({
+									owner: params.owner,
+									name: params.name,
+									number: prNumber,
+								}),
+							),
+						"/repo/$owner/$name/issues/$id",
+					),
+				),
 		]);
 
 		// Comments are keyed by the PR's internal id, only known once the PR
@@ -153,7 +135,6 @@ function PullRequestDetailPage() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
-	const [newComment, setNewComment] = useState("");
 
 	const { data: session } = useQuery(authSessionQueryOptions());
 	const { data: repo } = useQuery(
@@ -239,36 +220,6 @@ function PullRequestDetailPage() {
 		},
 	});
 
-	const commentMutation = useMutation({
-		mutationFn: createComment,
-		onError: (err: Error) => {
-			toast(err.message || "Failed to post comment", "error");
-		},
-		onSuccess: (created) => {
-			toast("Comment posted", "success");
-			setNewComment("");
-			if (pr) {
-				const user = session?.user;
-				if (user) {
-					addPostedComment<ThreadComment>(
-						queryClient,
-						pullRequestCommentsQueryOptions(pr.id).queryKey,
-						{
-							...created,
-							author: {
-								id: user.id,
-								apiId: 0, // the web UI never shows it
-								name: user.name,
-								username: user.username ?? user.name,
-								image: user.image ?? null,
-							},
-						},
-					);
-				}
-			}
-		},
-	});
-
 	const handleMerge = () => {
 		if (!pr) return;
 		mergeMutation.mutate({ data: { prId: pr.id } });
@@ -282,16 +233,6 @@ function PullRequestDetailPage() {
 	const handleReopen = () => {
 		if (!pr) return;
 		updateMutation.mutate({ data: { prId: pr.id, status: "open" } });
-	};
-
-	const handleAddComment = () => {
-		if (!pr || !newComment.trim()) return;
-		commentMutation.mutate({
-			data: {
-				pullRequestId: pr.id,
-				body: newComment,
-			},
-		});
 	};
 
 	if (isLoading) {
@@ -465,33 +406,16 @@ function PullRequestDetailPage() {
 						canEdit={pr.viewer.canWrite}
 					/>
 
-					<ThreadTimeline
+					<ThreadConversation
 						owner={owner}
 						name={name}
 						repoId={pr.repoId}
 						number={pr.number}
+						thread={{ pullRequestId: pr.id }}
 						commentsOptions={pullRequestCommentsQueryOptions(pr.id)}
-						viewerId={session?.user?.id}
 						canParticipate={pr.viewer.canParticipate}
 						canModerate={pr.viewer.canWrite}
-						onQuote={
-							pr.viewer.canParticipate
-								? (body) =>
-										setNewComment((draft) => draft + quoteForReply(body))
-								: undefined
-						}
 					/>
-
-					{pr.viewer.canParticipate ? (
-						<CommentForm
-							value={newComment}
-							onChange={setNewComment}
-							onSubmit={handleAddComment}
-							isPending={commentMutation.isPending}
-						/>
-					) : !session?.user ? (
-						<SignInToComment />
-					) : null}
 				</TabsContent>
 				<TabsContent value="commits" className="space-y-3">
 					{commitsLoading ? (
