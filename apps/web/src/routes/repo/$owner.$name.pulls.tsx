@@ -7,12 +7,13 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
 import { LabelChip } from "@/components/LabelChip";
 import { LabelFilter } from "@/components/LabelFilter";
 import { pullRequestStatusVariant } from "@/components/status-variants";
+import { ThreadSearchBox } from "@/components/ThreadSearchBox";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,34 +38,30 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { MAX_SEARCH_QUERY_CHARS } from "@/lib/limits";
 import {
 	authSessionQueryOptions,
 	queryKeys,
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
-	repositoryPullRequestsQueryOptions,
+	repositoryPullRequestSearchQueryOptions,
 } from "@/lib/query-options";
+import {
+	parseSearchQuery,
+	withSearchLabel,
+	withSearchStatus,
+} from "@/lib/search-query";
 import { createPullRequest } from "@/server/pull-requests";
 
-const PULL_STATUS_VALUES = ["open", "closed", "merged", "all"] as const;
-type PullStatus = (typeof PULL_STATUS_VALUES)[number];
-
 export const Route = createFileRoute("/repo/$owner/$name/pulls")({
-	validateSearch: (
-		search: Record<string, unknown>,
-	): { status?: PullStatus; label?: string } => ({
-		status: (PULL_STATUS_VALUES.includes(search.status as PullStatus)
-			? search.status
-			: undefined) as PullStatus | undefined,
-		label:
-			typeof search.label === "string" && search.label
-				? search.label
+	validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+		// The URL query string is the single source of truth (GitHub's `?q=`).
+		q:
+			typeof search.q === "string" && search.q
+				? search.q.slice(0, MAX_SEARCH_QUERY_CHARS)
 				: undefined,
 	}),
-	loaderDeps: ({ search }) => ({
-		status: search.status ?? ("open" as PullStatus),
-		label: search.label,
-	}),
+	loaderDeps: ({ search }) => ({ q: search.q ?? "" }),
 	loader: async ({ params, deps, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
@@ -79,10 +76,9 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 			.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
 			.catch(() => {});
 		await queryClient.ensureQueryData(
-			repositoryPullRequestsQueryOptions({
+			repositoryPullRequestSearchQueryOptions({
 				repoId: repo.id,
-				status: deps.status,
-				labels: deps.label ? [deps.label] : [],
+				query: deps.q,
 			}),
 		);
 	},
@@ -91,7 +87,8 @@ export const Route = createFileRoute("/repo/$owner/$name/pulls")({
 
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
-	const { status: filter, label } = Route.useSearch();
+	const { q = "" } = Route.useSearch();
+	const search = useMemo(() => parseSearchQuery(q), [q]);
 	const { pathname } = useLocation();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
@@ -111,10 +108,9 @@ function PullRequestsPage() {
 	const baseBranch = newPR.baseBranch ?? repo?.defaultBranch ?? "";
 
 	const { data: pullRequests, isLoading } = useQuery({
-		...repositoryPullRequestsQueryOptions({
+		...repositoryPullRequestSearchQueryOptions({
 			repoId: repo?.id ?? 0,
-			status: filter ?? "open",
-			labels: label ? [label] : [],
+			query: q,
 		}),
 		enabled: !!repo,
 	});
@@ -149,11 +145,21 @@ function PullRequestsPage() {
 		},
 	});
 
+	const setQuery = useCallback(
+		(next: string) => {
+			navigate({ search: { q: next || undefined }, replace: true });
+		},
+		[navigate],
+	);
+
+	// The loaded page is the active tab's rows, so only its count is known.
+	const activeTab: "open" | "closed" | "merged" | "all" =
+		search.status ?? "open";
 	const counts = {
-		open: filter === "open" ? pullRequests?.length || 0 : undefined,
-		merged: filter === "merged" ? pullRequests?.length || 0 : undefined,
-		closed: filter === "closed" ? pullRequests?.length || 0 : undefined,
-		all: filter === "all" ? pullRequests?.length || 0 : undefined,
+		open: activeTab === "open" ? pullRequests?.length || 0 : undefined,
+		merged: activeTab === "merged" ? pullRequests?.length || 0 : undefined,
+		closed: activeTab === "closed" ? pullRequests?.length || 0 : undefined,
+		all: activeTab === "all" ? pullRequests?.length || 0 : undefined,
 	};
 
 	const handleCreatePR = useCallback(() => {
@@ -307,6 +313,13 @@ function PullRequestsPage() {
 				)}
 			</div>
 
+			<ThreadSearchBox
+				value={q}
+				onSearch={setQuery}
+				placeholder="Search pull requests… (is:open label:bug author:you)"
+				ariaLabel="Search pull requests"
+			/>
+
 			<FilterTabs
 				tabs={[
 					{ value: "open" as const, label: "Open", count: counts.open },
@@ -314,24 +327,14 @@ function PullRequestsPage() {
 					{ value: "closed" as const, label: "Closed", count: counts.closed },
 					{ value: "all" as const, label: "All", count: counts.all },
 				]}
-				activeTab={filter ?? "open"}
-				onTabChange={(value) =>
-					navigate({
-						search: (prev) => ({ ...prev, status: value }),
-						replace: true,
-					})
-				}
+				activeTab={activeTab}
+				onTabChange={(value) => setQuery(withSearchStatus(q, value))}
 			/>
 
 			<LabelFilter
 				repoId={repo?.id}
-				value={label}
-				onChange={(value) =>
-					navigate({
-						search: (prev) => ({ ...prev, label: value }),
-						replace: true,
-					})
-				}
+				value={search.labels[0]}
+				onChange={(value) => setQuery(withSearchLabel(q, value))}
 			/>
 
 			{/* PR list */}
@@ -343,7 +346,7 @@ function PullRequestsPage() {
 				</div>
 			) : !pullRequests?.length ? (
 				<EmptyState
-					message={`No ${(filter ?? "open") !== "all" ? (filter ?? "open") : ""} pull requests found.`}
+					message={`No ${activeTab !== "all" ? activeTab : ""} pull requests found.`}
 					action={
 						session?.user ? (
 							<Button size="sm" onClick={() => setIsCreateOpen(true)}>

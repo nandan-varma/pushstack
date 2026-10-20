@@ -137,6 +137,11 @@ export const queryKeys = {
 		["pull-requests", prId, "review-threads"] as const,
 	pullRequestPendingReview: (prId: number) =>
 		["pull-requests", prId, "pending-review"] as const,
+	/** The issue and pull-request lists as a GitHub query string (`?q=`). */
+	repoIssueSearch: (repoId: number, query: string) =>
+		["repos", repoId, "issues", "search", query] as const,
+	pullRequestSearch: (repoId: number, query: string) =>
+		["repos", repoId, "pull-requests", "search", query] as const,
 } as const;
 
 const SESSION_STALE_TIME = 60_000;
@@ -651,6 +656,40 @@ export function pullRequestPendingReviewQueryOptions(prId: number) {
 	return queryOptions({
 		queryKey: queryKeys.pullRequestPendingReview(prId),
 		queryFn: () => getMyPendingReview({ data: { prId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/**
+ * The issues list filtered by a GitHub query string (`?q=`), parsed on the
+ * server with `#/lib/search-query`. The query string is the cache key, so
+ * back/forward between filters is instant.
+ */
+export function repositoryIssueSearchQueryOptions({
+	repoId,
+	query,
+}: {
+	repoId: number;
+	query: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoIssueSearch(repoId, query),
+		queryFn: () => getIssues({ data: { repoId, query } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** The pull-request list filtered by a GitHub query string (`?q=`). */
+export function repositoryPullRequestSearchQueryOptions({
+	repoId,
+	query,
+}: {
+	repoId: number;
+	query: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.pullRequestSearch(repoId, query),
+		queryFn: () => getPullRequests({ data: { repoId, query } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

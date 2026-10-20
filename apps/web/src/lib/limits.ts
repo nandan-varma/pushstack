@@ -74,6 +74,13 @@ export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 /** Labels one issue or pull request may carry. */
 export const MAX_LABELS_PER_THREAD = 100;
 
+/**
+ * The longest supported issue/PR search query (`?q=`). GitHub caps a search
+ * query at 256 characters, so a longer one is rejected rather than parsed into
+ * an unbounded set of labels, authors and terms.
+ */
+export const MAX_SEARCH_QUERY_CHARS = 256;
+
 /** GitHub's cap on assignees per issue. */
 export const MAX_ASSIGNEES = 10;
 

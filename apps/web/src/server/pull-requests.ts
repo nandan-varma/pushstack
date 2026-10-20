@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues, pullRequests } from "#/db/app-schema";
+import { comments, issues, pullRequests } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { labelNameSchema } from "#/lib/labels";
 import {
@@ -12,13 +12,15 @@ import {
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
+	MAX_SEARCH_QUERY_CHARS,
 } from "#/lib/limits";
+import { parseSearchQuery } from "#/lib/search-query";
 import { recordActivity } from "./activity";
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
-import { threadsWithLabels, withLabels } from "./label-store";
+import { withLabels } from "./label-store";
 import {
 	canMergePullRequest,
 	canModerateRepo,
@@ -34,6 +36,14 @@ import {
 } from "./repository-lookup";
 import { reviewSummaryFor } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
+import {
+	authorCondition,
+	labelCondition,
+	mentionsCondition,
+	type ThreadCondition,
+	textCondition,
+	threadOrderBy,
+} from "./thread-search";
 import {
 	recordCrossReferences,
 	recordTimelineEvent,
@@ -99,34 +109,56 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			labels: z.array(labelNameSchema).max(MAX_LABELS_PER_THREAD).default([]),
 			limit: z.number().int().min(1).max(100).default(100),
 			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
+			/** A GitHub query string (`?q=`); merged with the filters above. */
+			query: z.string().max(MAX_SEARCH_QUERY_CHARS).optional(),
 		}),
 	)
-	.handler(({ data }) =>
-		readWithAccess(`getPullRequests ${data.status}`, data.repoId, async () =>
-			withLabels(
-				data.repoId,
-				await db.query.pullRequests.findMany({
-					where: {
-						repoId: data.repoId,
-						...(data.status === "all" ? {} : { status: data.status }),
-						...(data.labels.length > 0
-							? {
-									RAW: (table) =>
-										inArray(
-											table.number,
-											threadsWithLabels(data.repoId, data.labels),
-										),
-								}
-							: {}),
-					},
-					with: { author: publicUserFields },
-					orderBy: { createdAt: "desc" },
-					limit: data.limit,
-					offset: data.skip,
-				}),
-			),
-		),
-	);
+	.handler(({ data }) => {
+		const search = data.query ? parseSearchQuery(data.query) : undefined;
+		// `is:issue` can't match the pull request list.
+		const matchesNothing =
+			search?.matchesNothing === true || search?.type === "issue";
+		const status = search?.status ?? data.status;
+		const labels = [...data.labels, ...(search?.labels ?? [])];
+		const conditions: ThreadCondition[] = [];
+		const add = (condition: ThreadCondition | undefined) => {
+			if (condition) conditions.push(condition);
+		};
+		add(textCondition(search?.terms ?? []));
+		add(authorCondition(search?.authors ?? []));
+		add(mentionsCondition(search?.mentions ?? [], comments.pullRequestId));
+		add(labelCondition(data.repoId, labels, search?.noLabel ?? false));
+		return readWithAccess(
+			`getPullRequests ${status}`,
+			data.repoId,
+			async () => {
+				if (matchesNothing) return [];
+				return withLabels(
+					data.repoId,
+					await db.query.pullRequests.findMany({
+						where: {
+							repoId: data.repoId,
+							...(status === "all" ? {} : { status }),
+							...(conditions.length > 0
+								? {
+										AND: conditions.map((condition) => ({
+											RAW: (table) => condition(table),
+										})),
+									}
+								: {}),
+						},
+						with: { author: publicUserFields },
+						orderBy: threadOrderBy(
+							search?.sort ?? "created-desc",
+							comments.pullRequestId,
+						),
+						limit: data.limit,
+						offset: data.skip,
+					}),
+				);
+			},
+		);
+	});
 
 /** Every pull request number in a repository (resolves `#N` references in markdown). */
 export const getPullRequestNumbers = createServerFn({ method: "GET" })
