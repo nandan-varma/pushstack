@@ -64,7 +64,7 @@ const del = (token: string) => ({ ...asToken(token), method: "DELETE" });
  * making the serializer return the contract type (phase 2 of #127).
  */
 const KNOWN_DRIFT: Record<string, RegExp> = {
-	// `GET …/branches/{branch}`: the commit omits `comments_url`.
+	// #133: `GET …/branches/{branch}`'s commit omits `comments_url`.
 	"repos/get-branch": /comments_url/,
 };
 

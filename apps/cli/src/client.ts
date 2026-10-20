@@ -15,6 +15,9 @@ export interface RequestOptions {
 	headers?: Record<string, string>;
 }
 
+/** Pages one listing may follow: 10,000 items at 100 per page, plus slack. */
+export const MAX_PAGES = 200;
+
 export class HttpError extends CliError {
 	constructor(
 		readonly status: number,
@@ -117,6 +120,8 @@ export async function connect(
 		while (next) {
 			if (visited.has(next))
 				throw new CliError("API returned a repeated pagination link");
+			if (visited.size >= MAX_PAGES)
+				throw new CliError(`API returned more than ${MAX_PAGES} pages`);
 			visited.add(next);
 			const { data, response } = await json<Output<Id>>(next);
 			yield data;
