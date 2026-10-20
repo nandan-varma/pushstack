@@ -19,7 +19,10 @@ import {
 	reviewStatusLabel,
 	reviewStatusVariant,
 } from "@/components/status-variants";
-import { ThreadConversation } from "@/components/ThreadConversation";
+import {
+	ThreadConversation,
+	useThreadComments,
+} from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
 import { useToast } from "@/components/toast-provider";
 import { BackLink } from "@/components/ui/back-link";
@@ -144,6 +147,11 @@ function PullRequestDetailPage() {
 	const { data: pr, isLoading } = useQuery(
 		pullRequestByNumberQueryOptions({ owner, name, number: prNumber }),
 	);
+
+	const comments = useThreadComments({
+		thread: pr ? { pullRequestId: pr.id } : undefined,
+		commentsQueryKey: pullRequestCommentsQueryOptions(pr?.id ?? 0).queryKey,
+	});
 
 	const { data: diff, isLoading: diffLoading } = useQuery({
 		...pullRequestDiffQueryOptions({
@@ -411,7 +419,7 @@ function PullRequestDetailPage() {
 						name={name}
 						repoId={pr.repoId}
 						number={pr.number}
-						thread={{ pullRequestId: pr.id }}
+						comments={comments}
 						commentsOptions={pullRequestCommentsQueryOptions(pr.id)}
 						canParticipate={pr.viewer.canParticipate}
 						canModerate={pr.viewer.canWrite}

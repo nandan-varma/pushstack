@@ -10,17 +10,18 @@ import { quoteForReply } from "@/lib/markdown-quote";
 import { addPostedComment, authSessionQueryOptions } from "@/lib/query-options";
 import { createComment } from "@/server/comments";
 
-type Props = Omit<
-	ComponentProps<typeof ThreadTimeline>,
-	"viewerId" | "onQuote"
-> & {
-	thread:
-		| { issueId: number; pullRequestId?: never }
-		| { pullRequestId: number; issueId?: never };
-};
+type ThreadTarget =
+	| { issueId: number; pullRequestId?: never }
+	| { pullRequestId: number; issueId?: never };
 
-/** Shared conversation and reply draft, including quoted replies and posted comments. */
-export function ThreadConversation({ thread, ...timeline }: Props) {
+/** Keep draft and mutation state at page level so PR tab switches preserve them. */
+export function useThreadComments({
+	thread,
+	commentsQueryKey,
+}: {
+	thread?: ThreadTarget;
+	commentsQueryKey: readonly unknown[];
+}) {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data: session } = useQuery(authSessionQueryOptions());
@@ -31,26 +32,44 @@ export function ThreadConversation({ thread, ...timeline }: Props) {
 			setDraft("");
 			const user = session?.user;
 			if (user) {
-				addPostedComment<ThreadComment>(
-					queryClient,
-					timeline.commentsOptions.queryKey,
-					{
-						...created,
-						author: {
-							id: user.id,
-							apiId: 0, // the web UI never shows it
-							name: user.name,
-							username: user.username ?? user.name,
-							image: user.image ?? null,
-						},
+				addPostedComment<ThreadComment>(queryClient, commentsQueryKey, {
+					...created,
+					author: {
+						id: user.id,
+						apiId: 0, // the web UI never shows it
+						name: user.name,
+						username: user.username ?? user.name,
+						image: user.image ?? null,
 					},
-				);
+				});
 			}
 			toast("Comment posted", "success");
 		},
 		onError: (error: Error) =>
 			toast(error.message || "Failed to post comment", "error"),
 	});
+
+	return {
+		draft,
+		setDraft,
+		session,
+		commentMutation,
+		submit: () => {
+			if (thread && draft.trim())
+				commentMutation.mutate({ data: { ...thread, body: draft } });
+		},
+	};
+}
+
+type Props = Omit<
+	ComponentProps<typeof ThreadTimeline>,
+	"viewerId" | "onQuote"
+> & {
+	comments: ReturnType<typeof useThreadComments>;
+};
+
+export function ThreadConversation({ comments, ...timeline }: Props) {
+	const { draft, setDraft, session, commentMutation, submit } = comments;
 
 	return (
 		<>
@@ -67,10 +86,7 @@ export function ThreadConversation({ thread, ...timeline }: Props) {
 				<CommentForm
 					value={draft}
 					onChange={setDraft}
-					onSubmit={() => {
-						if (draft.trim())
-							commentMutation.mutate({ data: { ...thread, body: draft } });
-					}}
+					onSubmit={submit}
 					isPending={commentMutation.isPending}
 				/>
 			) : !session?.user ? (

@@ -11,7 +11,10 @@ import { EditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { issueStatusVariant } from "@/components/status-variants";
-import { ThreadConversation } from "@/components/ThreadConversation";
+import {
+	ThreadConversation,
+	useThreadComments,
+} from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +104,11 @@ function IssueDetailPage() {
 	const { data: issue, isLoading } = useQuery(
 		issueByNumberQueryOptions({ owner, name, number: issueNumber }),
 	);
+
+	const comments = useThreadComments({
+		thread: issue ? { issueId: issue.id } : undefined,
+		commentsQueryKey: issueCommentsQueryOptions(issue?.id ?? 0).queryKey,
+	});
 
 	const issueQueryKey = queryKeys.issueByNumber(owner, name, issueNumber);
 
@@ -257,7 +265,7 @@ function IssueDetailPage() {
 				name={name}
 				repoId={issue.repoId}
 				number={issue.number}
-				thread={{ issueId: issue.id }}
+				comments={comments}
 				commentsOptions={issueCommentsQueryOptions(issue.id)}
 				canParticipate={issue.viewer.canParticipate}
 				canModerate={issue.viewer.canWrite}
