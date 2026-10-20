@@ -39,6 +39,7 @@ const io: Io = {
 	configDir: defaultConfigDir(process.env),
 	remotes,
 	isTTY: Boolean(process.stdout.isTTY),
+	git: async (args) => (await exec("git", args)).stdout,
 };
 
 process.exitCode = await run(process.argv.slice(2), io);

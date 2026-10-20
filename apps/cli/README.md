@@ -72,6 +72,19 @@ pst issue close 12 -R alice/project -r not_planned
 pst issue reopen 12 -R alice/project
 ```
 
+`pr list|view|create|merge|close|reopen|checkout` mirror gh: they take a
+number, `#N`, URL, head branch or (by default) the current branch's pull
+request; `--json` uses gh's field names (`headRefName`, `baseRefName`,
+`state` as `OPEN`/`CLOSED`/`MERGED`, ...). `pr merge` makes merge commits only;
+`pr checkout` fetches the head branch with git. See the documentation site
+for every flag.
+
+```sh
+pst pr create -t "Fix login" -F description.md
+pst pr merge 7 -t "Fix login (#7)"
+pst pr checkout 7
+```
+
 `api` accepts relative API endpoints, `--method/-X`, `--header/-H`,
 `--raw-field/-f key=value`, and typed `--field/-F key=value`. Fields default to a
 POST body; GET/HEAD fields become query parameters. `--input file` (or `-` for
@@ -79,7 +92,7 @@ stdin), `--include/-i`, `--silent`, and `--paginate` are supported. Pagination
 stays on the selected host's API. Commands return 0 on success, 1 on failure,
 and 4 when authentication is required or rejected.
 
-The CLI covers auth, repositories, issues, and direct API requests. It does not
+The CLI covers auth, repositories, issues, pull requests and direct API requests. It does not
 provide interactive login, organization creation, cloning, or pushing.
 
 From the monorepo root:
