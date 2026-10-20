@@ -114,6 +114,45 @@ export async function peelToCommit(repo: Repo, oid: string): Promise<string> {
 	throw new GitRefNotFoundError(`Tag chain at ${oid} is too deep`);
 }
 
+const ABBREVIATED_SHA_RE = /^[0-9a-f]{4,39}$/i;
+
+/**
+ * The commit oid a revision names: a branch, tag, `HEAD`, a full ref, a full
+ * sha or an abbreviated sha (4+ hex digits). Refs win over an abbreviated sha
+ * of the same spelling, as in git. Throws GitRefNotFoundError when nothing
+ * matches or an abbreviation is ambiguous. An abbreviation scans the pack
+ * indexes, so resolve once and read by the returned (immutable) oid.
+ */
+export async function resolveCommitOid(
+	repo: Repo,
+	rev: string,
+): Promise<string> {
+	try {
+		return await resolveRefOid(repo, rev);
+	} catch (err) {
+		if (
+			!(err instanceof GitRefNotFoundError) ||
+			!ABBREVIATED_SHA_RE.test(rev)
+		) {
+			throw err;
+		}
+	}
+	try {
+		return await peelToCommit(
+			repo,
+			await git.expandOid({ ...repo, oid: rev.toLowerCase() }),
+		);
+	} catch (err) {
+		if (
+			isNotFound(err) ||
+			(err as { code?: string })?.code === "AmbiguousError"
+		) {
+			throw new GitRefNotFoundError(`Ref ${rev} does not exist`);
+		}
+		throw err;
+	}
+}
+
 /** Resolve a branch name / full ref / sha to its commit. */
 export async function resolveCommit(repo: Repo, ref: string) {
 	const oid = await resolveRefOid(repo, ref);
