@@ -97,7 +97,13 @@ export async function createIssueForUser(
 export async function updateIssueThreadFields(
 	issue: Issue,
 	userId: string,
-	fields: { title?: string; body?: string; status?: "open" | "closed" },
+	fields: {
+		title?: string;
+		body?: string;
+		status?: "open" | "closed";
+		/** `completed` (default) or `not_planned` when closing. */
+		stateReason?: "completed" | "not_planned";
+	},
 ): Promise<Issue> {
 	const titleChanged =
 		fields.title !== undefined && fields.title !== issue.title;
@@ -112,7 +118,19 @@ export async function updateIssueThreadFields(
 			...(fields.status && {
 				status: fields.status,
 				closedAt: fields.status === "closed" ? new Date() : null,
+				// Reopening an issue that was closed records `reopened`; an issue
+				// that is already open keeps what it had.
+				stateReason:
+					fields.status === "closed"
+						? (fields.stateReason ?? "completed")
+						: issue.status === "closed"
+							? ("reopened" as const)
+							: issue.stateReason,
 			}),
+			// A new reason on an issue that stays closed.
+			...(!fields.status &&
+				fields.stateReason &&
+				issue.status === "closed" && { stateReason: fields.stateReason }),
 			updatedAt: new Date(),
 		})
 		.where(eq(issues.id, issue.id))
@@ -135,7 +153,12 @@ export async function updateIssueThreadFields(
 	}
 	if (fields.status && fields.status !== issue.status) {
 		await recordTimelineEvent(issue.repoId, issue.number, userId, {
-			event: fields.status === "closed" ? "closed" : "reopened",
+			...(fields.status === "closed"
+				? {
+						event: "closed" as const,
+						stateReason: fields.stateReason ?? "completed",
+					}
+				: { event: "reopened" as const }),
 		});
 		await recordActivity(userId, issue.repoId, {
 			type: "issue",

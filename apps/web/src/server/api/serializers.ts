@@ -116,6 +116,9 @@ export interface IssueShapeInput {
 	createdAt: Date;
 	updatedAt: Date;
 	closedAt: Date | null;
+	stateReason: "completed" | "not_planned" | "reopened" | null;
+	/** Single-issue GET only: who closed it (`null` when open or unknown). */
+	closedBy?: PublicUser | null;
 	/** Only pull requests have one (`null` for issues). */
 	mergedAt: Date | null;
 	author: PublicUser;
@@ -155,7 +158,10 @@ export function issue(input: IssueShapeInput): Record<string, unknown> {
 		created_at: isoTimestamp(input.createdAt),
 		updated_at: isoTimestamp(input.updatedAt),
 		closed_at: input.closedAt ? isoTimestamp(input.closedAt) : null,
-		state_reason: null,
+		state_reason: input.stateReason,
+		...(input.closedBy !== undefined && {
+			closed_by: input.closedBy ? simpleUser(input.closedBy) : null,
+		}),
 		...(kind === "pull_request" && {
 			pull_request: {
 				url: apiUrl(`/repos/${fullName}/pulls/${number}`),
@@ -228,7 +234,7 @@ export function timelineEvent(entry: TimelineEntry, ctx: TimelineContext) {
 				...base,
 				commit_id: entry.commitSha ?? null,
 				commit_url: entry.commitSha ? commitUrl(entry.commitSha) : null,
-				state_reason: null,
+				state_reason: entry.stateReason ?? "completed",
 			};
 		case "reopened":
 			return { ...base, state_reason: "reopened" };
