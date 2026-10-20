@@ -42,7 +42,10 @@ watch for when adding new code.
 3. **`git-cache.ts`'s in-process result cache** (server, per-process) —
    `resultCache`, holding parsed `git-fs-s3/ops` results (tree listings,
    commit logs) as JS values keyed by head sha, so a hit costs no parsing. Raw object bytes are cached one
-   layer down, in `git-fs-s3`'s `createCachedStore` (composed in `git-fs.ts`).
+   layer down, in `git-fs-s3`'s `createCachedStore` (composed in `git-fs.ts`). Small pack
+   slices (`getRange`, up to 64 KiB, the usual inline-viewable blob) are cached
+   too, in a separate LRU, so a repeated file view costs no R2 call; larger
+   slices keep going straight to R2.
 
    <a id="ref-aware-ttl"></a>**`git-fs.ts`'s per-key TTL override** — the R2
    read cache's TTL (`GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable, default
