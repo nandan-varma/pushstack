@@ -105,6 +105,7 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/commits/{ref}` | supported | with `stats` and up to 300 `files`; unknown ref is `422` |
 | `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files` |
 | `GET /repos/{owner}/{repo}/git/ref/{ref}`, `.../git/matching-refs/{ref}`, `.../git/refs[/{ref}]` | supported | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
+| `DELETE /repos/{owner}/{repo}/git/refs/{ref}` | supported | write access; `heads/…` or `tags/…`; deleting a branch records `head_ref_deleted` on the closed pull requests it heads; a missing ref or the default branch is `422` |
 | `GET /repos/{owner}/{repo}/git/commits/{sha}` | supported | full sha only |
 | `GET /repos/{owner}/{repo}/git/trees/{sha}` | supported | `recursive`; up to 10,000 entries, then `truncated` |
 | `GET /repos/{owner}/{repo}/git/blobs/{sha}` | supported | base64; up to 3 MB |

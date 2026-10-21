@@ -213,6 +213,7 @@ beforeAll(async () => {
 		(entry: { type: string }) => entry.type === "blob",
 	);
 	await check(`/repos/alice/proj/git/blobs/${file.sha}`);
+	await check("/repos/alice/proj/git/refs/heads/topic", del(alice));
 });
 
 describe("the dispatcher against the contract", () => {

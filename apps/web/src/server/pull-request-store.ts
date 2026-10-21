@@ -12,7 +12,7 @@ import { issues, pullRequests } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { recordActivity } from "./activity";
 import { ownerKeyOf } from "./git-storage-naming";
-import { mergeBranches } from "./git-write";
+import { deleteBranch, mergeBranches } from "./git-write";
 import { recordThreadActivity } from "./notification-store";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { type PullRequest, pullRequestOf } from "./thread-store";
@@ -265,4 +265,33 @@ export async function mergePullRequestBranches(
 		metadata: { number: pr.number, title: pr.title, action: "merged" },
 	});
 	return { success: true, commitSha: result.commitSha };
+}
+
+/**
+ * Delete the head branch `branch` and record `head_ref_deleted` on every
+ * closed pull request it heads (GitHub's "deleted the … branch"). The caller
+ * checked write access and that `branch` is not the default branch.
+ */
+export async function deleteHeadBranch(
+	repo: Parameters<typeof ownerKeyOf>[0] & { id: number; name: string },
+	branch: string,
+	userId: string,
+): Promise<void> {
+	await deleteBranch(ownerKeyOf(repo), repo.name, branch);
+	const heads = await db
+		.select({ id: issues.id })
+		.from(pullRequests)
+		.innerJoin(issues, eq(issues.id, pullRequests.issueId))
+		.where(
+			and(
+				eq(issues.repoId, repo.id),
+				eq(issues.status, "closed"),
+				eq(pullRequests.sourceBranch, branch),
+			),
+		);
+	await recordTimelineEvents(
+		heads.map((head) => head.id),
+		userId,
+		{ event: "head_ref_deleted", branch },
+	);
 }

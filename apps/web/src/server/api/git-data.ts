@@ -1,4 +1,4 @@
-import { isFullSha, isSafeRefName } from "git-fs-s3";
+import { isFullSha, isNotFoundError, isSafeRefName } from "git-fs-s3";
 import type { CommitInfo } from "git-fs-s3/ops";
 import {
 	getAllRefs,
@@ -11,14 +11,18 @@ import {
 } from "../git-read";
 import { safeCommitRevSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
-import type { ApiContext } from "./auth";
+import { deleteTag } from "../git-write";
+import { deleteHeadBranch } from "../pull-request-store";
+import { type ApiContext, requireScope } from "./auth";
 import { apiCaps } from "./caps";
 import {
 	ApiError,
 	apiUrl,
 	encodePath,
+	forbiddenError,
 	htmlUrl,
 	json,
+	noContent,
 	notFoundError,
 } from "./http";
 import { pathParams, queryParams } from "./input";
@@ -91,6 +95,40 @@ export async function listRefs(ctx: ApiContext) {
 	const matching = refs.filter((target) => target.ref.startsWith(`${name}/`));
 	if (matching.length === 0) throw notFoundError();
 	return json(matching.map((target) => refObject(fullName, target)));
+}
+
+/**
+ * `DELETE /repos/{owner}/{repo}/git/refs/{ref}`: a branch (`heads/…`) or a
+ * tag (`tags/…`). A missing ref is GitHub's 422 "Reference does not exist";
+ * so is the default branch, which clones need.
+ */
+export async function deleteRef(ctx: ApiContext) {
+	const caller = requireScope(ctx, "repo:write");
+	const { repo, access } = await readableRepository(ctx);
+	if (!access.canWrite) {
+		throw forbiddenError("Resource not accessible by personal access token");
+	}
+	const name = qualified(pathParams(ctx, "git/delete-ref").ref);
+	const branch = name?.startsWith("refs/heads/")
+		? name.slice("refs/heads/".length)
+		: null;
+	const tag = name?.startsWith("refs/tags/")
+		? name.slice("refs/tags/".length)
+		: null;
+	if (branch === repo.defaultBranch) {
+		throw new ApiError(422, "Cannot delete the default branch");
+	}
+	try {
+		if (branch) await deleteHeadBranch(repo, branch, caller.userId);
+		else if (tag) await deleteTag(ownerKeyOf(repo), repo.name, tag);
+		else throw new ApiError(422, "Reference does not exist");
+	} catch (error) {
+		if (isNotFoundError(error)) {
+			throw new ApiError(422, "Reference does not exist");
+		}
+		throw error;
+	}
+	return noContent();
 }
 
 export function gitCommitObject(fullName: string, info: CommitInfo) {

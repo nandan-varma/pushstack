@@ -5,7 +5,11 @@
  * consolidate packs once enough have accumulated.
  */
 import { GitEdgeError, GitMergeConflictError, threeWayMerge } from "git-edge";
-import { GitInvalidRequestError, qualifyBranchRef } from "git-fs-s3";
+import {
+	GitInvalidRequestError,
+	isSafeBranchName,
+	qualifyBranchRef,
+} from "git-fs-s3";
 import {
 	assertBranchExists,
 	assertSafeBranchName,
@@ -152,6 +156,24 @@ export function deleteBranch(
 	return withRepositoryLock(ownerKey, repoName, () =>
 		deleteBranchByName(repoFor(ownerKey, repoName), branchName),
 	);
+}
+
+/** Delete `refs/tags/{name}`; a missing tag is the library's NotFoundError. */
+export function deleteTag(
+	ownerKey: string,
+	repoName: string,
+	tagName: string,
+): Promise<void> {
+	if (!isSafeBranchName(tagName)) {
+		throw new GitInvalidRequestError(`Invalid tag name: ${tagName}`);
+	}
+	return withRepositoryLock(ownerKey, repoName, async () => {
+		const repo = repoFor(ownerKey, repoName);
+		const ref = `refs/tags/${tagName}`;
+		// resolveRef throws NotFoundError for a missing tag; deleteRef would not.
+		await git.resolveRef({ ...repo, ref, depth: 1 });
+		await git.deleteRef({ ...repo, ref });
+	});
 }
 
 /**

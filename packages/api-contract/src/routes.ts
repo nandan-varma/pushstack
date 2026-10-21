@@ -111,6 +111,12 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/git/matching-refs/{+ref}",
 		docs: `${DOCS}/git/refs#list-matching-references`,
 	},
+	"git/delete-ref": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/git/refs/{+ref}",
+		docs: `${DOCS}/git/refs#delete-a-reference`,
+		status: 204,
+	},
 	"git/get-commit": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/git/commits/{commit_sha}",
