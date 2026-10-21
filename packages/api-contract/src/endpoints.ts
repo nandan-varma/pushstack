@@ -178,8 +178,11 @@ export const endpoints = defineEndpoints({
 		params: repoParams.extend({ path: z.string().min(1) }),
 		body: z.object({
 			message: commitMessage,
-			/** Base64; the API's request body cap bounds its size. */
-			content: z.base64(),
+			/** Base64, line breaks allowed; the API's request body cap bounds its size. */
+			content: z
+				.string()
+				.transform((text) => text.replace(/[\r\n]/g, ""))
+				.pipe(z.base64()),
 			/** The blob being replaced; required when the file exists. */
 			sha: z.string().max(100).optional(),
 			branch: z.string().max(255).optional(),

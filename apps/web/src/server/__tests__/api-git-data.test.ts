@@ -743,6 +743,24 @@ describe("file writes", () => {
 	});
 
 	it("validates input and permissions", async () => {
+		const readOnly = await mintToken(users.alice, ["repo:read"]);
+		expect(
+			(
+				await send("PUT", "v.txt", readOnly, {
+					message: "m",
+					content: b64("v"),
+				})
+			).status,
+		).toBe(403);
+		expect(
+			(await send("DELETE", "c.txt", alice, { message: "m" })).status,
+		).toBe(422);
+		const wrapped = await send("PUT", "wrapped.txt", alice, {
+			message: "Wrapped",
+			content: `${b64("x".repeat(60)).slice(0, 60)}\n${b64("x".repeat(60)).slice(60)}\n`,
+		});
+		expect(wrapped.status).toBe(201);
+		expect(wrapped.body.content.size).toBe(60);
 		expect(
 			(await send("PUT", "v.txt", alice, { content: b64("v") })).status,
 		).toBe(422);
@@ -782,5 +800,30 @@ describe("file writes", () => {
 		expect(first.body.commit.parents).toEqual([]);
 		const branch = await call("/repos/alice/empty/branches/main");
 		expect(branch.body.commit.sha).toBe(first.body.commit.sha);
+	});
+
+	it("makes an empty repository's first branch its default", async () => {
+		await call("/user/repos", post(alice, { name: "blank" }));
+		const first = await call("/repos/alice/blank/contents/r.md", {
+			...asToken(alice),
+			method: "PUT",
+			body: JSON.stringify({
+				message: "Init",
+				content: b64("r\n"),
+				branch: "dev",
+			}),
+		});
+		expect(first.status).toBe(201);
+		const repo = await call("/repos/alice/blank");
+		expect(repo.body.default_branch).toBe("dev");
+		const readme = await call("/repos/alice/blank/contents/r.md");
+		expect(readme.status).toBe(200);
+		// From now on, only existing branches take writes.
+		const other = await call("/repos/alice/blank/contents/s.md", {
+			...asToken(alice),
+			method: "PUT",
+			body: JSON.stringify({ message: "s", content: b64("s"), branch: "x" }),
+		});
+		expect(other.status).toBe(404);
 	});
 });

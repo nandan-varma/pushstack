@@ -1,5 +1,8 @@
+import { eq } from "drizzle-orm";
 import { GitInvalidRequestError, isNotFoundError } from "git-fs-s3";
 import type { TreeEntry } from "git-fs-s3/ops";
+import { db } from "#/db";
+import { repositories } from "#/db/app-schema";
 import {
 	getBlobByOid,
 	getBlobSize,
@@ -16,6 +19,7 @@ import {
 } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import { deleteFile, FileShaError, putFile } from "../git-write";
+import { evictRepoByName } from "../repository-lookup";
 import { type ApiContext, callerIdentity, requireScope } from "./auth";
 import { apiCaps } from "./caps";
 import { gitCommitObject } from "./git-data";
@@ -272,6 +276,13 @@ export async function putContents(ctx: ApiContext) {
 		author: target.author,
 		expectedSha: body.sha,
 	}).catch((error: unknown) => fileWriteError(error, path, body.sha));
+	if (result.firstBranch && branch !== repo.defaultBranch) {
+		await db
+			.update(repositories)
+			.set({ defaultBranch: branch, updatedAt: new Date() })
+			.where(eq(repositories.id, repo.id));
+		evictRepoByName(repo.owner.username, repo.name);
+	}
 	return json(
 		await fileCommitResponse(
 			repo,

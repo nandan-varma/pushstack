@@ -170,15 +170,15 @@ export function putFile(
 		author: CommitAuthorInput;
 		expectedSha?: string;
 	},
-): Promise<{ commitSha: string; created: boolean }> {
+): Promise<{ commitSha: string; created: boolean; firstBranch: boolean }> {
 	assertSafeBranchName(options.branch);
 	return writeUnderLock(ownerKey, repoName, async (repo) => {
 		const branches = await listBranches(repo);
 		await assertCommitTarget(repo, options.branch);
-		const existing =
-			branches.length === 0
-				? null
-				: await currentBlob(ownerKey, repoName, options.branch, options.path);
+		const firstBranch = branches.length === 0;
+		const existing = firstBranch
+			? null
+			: await currentBlob(ownerKey, repoName, options.branch, options.path);
 		if (existing && options.expectedSha === undefined) {
 			throw new FileShaError("missing", options.path);
 		}
@@ -191,7 +191,18 @@ export function putFile(
 			author: authorNow(options.author.name, options.author.email),
 			files: [{ path: options.path, content: options.content }],
 		});
-		return { commitSha, created: existing === null };
+		// An empty repository's first branch becomes its default, as on GitHub:
+		// HEAD must name a branch that exists. The caller syncs the row.
+		if (firstBranch) {
+			await git.writeRef({
+				...repo,
+				ref: "HEAD",
+				value: `refs/heads/${options.branch}`,
+				symbolic: true,
+				force: true,
+			});
+		}
+		return { commitSha, created: existing === null, firstBranch };
 	});
 }
 
