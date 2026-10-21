@@ -21,6 +21,7 @@ import {
 import { ownerKeyOf } from "./git-storage-naming";
 import * as gitWrite from "./git-write";
 import { perfStep } from "./perf-log";
+import { deleteHeadBranch } from "./pull-request-store";
 import { readInput } from "./read-input";
 import {
 	type RepositoryWithOwner,
@@ -297,10 +298,10 @@ export const createBranch = createServerFn({ method: "POST" })
 export const deleteBranch = createServerFn({ method: "POST" })
 	.validator(z.object({ repoId: z.number(), name: safeBranchNameSchema }))
 	.handler(({ data }) =>
-		writeWithAccess(data.repoId, async (repo) => {
+		writeWithAccess(data.repoId, async (repo, user) => {
 			if (data.name === repo.defaultBranch) {
 				throw new Error("Cannot delete the default branch");
 			}
-			await gitWrite.deleteBranch(ownerKeyOf(repo), repo.name, data.name);
+			await deleteHeadBranch(repo, data.name, user.id);
 		}),
 	);

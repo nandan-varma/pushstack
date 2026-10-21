@@ -593,6 +593,29 @@ describe("deleting refs", () => {
 		expect(again.body.message).toBe("Reference does not exist");
 	});
 
+	it("closes an open pull request whose head branch it deletes", async () => {
+		signIn(users.alice);
+		await files.createBranch({ data: { repoId, name: "open-head" } });
+		await commitFile("open-head", "o.txt", "o\n");
+		const pull = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Open", head: "open-head", base: "main" }),
+		);
+		expect(
+			(await del("/repos/alice/proj/git/refs/heads/open-head", alice)).status,
+		).toBe(204);
+		const after = await call(`/repos/alice/proj/pulls/${pull.body.number}`);
+		expect(after.body.state).toBe("closed");
+		expect(after.body.merged).toBe(false);
+		const events = await call(
+			`/repos/alice/proj/issues/${pull.body.number}/events`,
+		);
+		expect(events.body.map((e: { event: string }) => e.event)).toEqual([
+			"head_ref_deleted",
+			"closed",
+		]);
+	});
+
 	it("deletes a tag", async () => {
 		const { default: git } = await import("isomorphic-git");
 		const { repoFor } = await import("../git-repo");

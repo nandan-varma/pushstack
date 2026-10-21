@@ -31,6 +31,7 @@ import { afterRepositoryPush, httpHooks as hooks, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logError, logWarn, perfContext } from "./perf-log";
+import { recordHeadBranchDeleted } from "./pull-request-store";
 import {
 	authFailuresExhausted,
 	hitRateLimit,
@@ -155,6 +156,16 @@ async function receivePack(
 			} catch (error) {
 				logWarn("git-http", "recording commit references failed", error);
 			}
+			try {
+				await recordDeletedHeads(
+					repoId,
+					pusherId,
+					parsed.refUpdates,
+					result.results,
+				);
+			} catch (error) {
+				logWarn("git-http", "recording deleted branches failed", error);
+			}
 		}
 		return result;
 	});
@@ -162,6 +173,29 @@ async function receivePack(
 		capabilities: parsed.capabilities,
 		unpackError: outcome.unpackError,
 	});
+}
+
+/** Branches a push deleted: their pull requests get `head_ref_deleted`, open ones close. */
+async function recordDeletedHeads(
+	repoId: number,
+	actorId: string,
+	updates: ReturnType<typeof parseReceivePackBody>["refUpdates"],
+	results: Awaited<ReturnType<typeof applyReceivePack>>["results"],
+): Promise<void> {
+	const accepted = new Set(results.filter((r) => r.ok).map((r) => r.refName));
+	for (const update of updates) {
+		if (
+			accepted.has(update.refName) &&
+			update.refName.startsWith("refs/heads/") &&
+			/^0{40}$/.test(update.newOid)
+		) {
+			await recordHeadBranchDeleted(
+				repoId,
+				update.refName.slice("refs/heads/".length),
+				actorId,
+			);
+		}
+	}
 }
 
 function rateLimited(rate: RateStatus) {
