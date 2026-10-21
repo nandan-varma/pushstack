@@ -9,6 +9,7 @@ import {
 	listNotificationsForUser,
 	markAllNotificationsRead as markAllRead,
 	markNotificationRead as markRead,
+	markThreadNotificationRead,
 	setThreadSubscription as setSubscription,
 } from "./notification-store";
 import { getRepositoryAccess } from "./repo-access";
@@ -103,4 +104,17 @@ export const setThreadSubscription = createServerFn({ method: "POST" })
 		const user = await getCurrentUser();
 		const thread = await readableThread(data.repoId, data.number, user.id);
 		return setSubscription(user.id, thread.id, data.subscribed);
+	});
+
+/**
+ * Viewing issue/PR `#number` reads its notification, as on GitHub. True when
+ * an unread one was marked (the inbox and badge then need refreshing).
+ */
+export const markThreadViewed = createServerFn({ method: "POST" })
+	.validator(z.object({ repoId: z.number(), number: z.number().int() }))
+	.handler(async ({ data }) => {
+		const user = await getCurrentUserOptional();
+		if (!user) return false;
+		const thread = await readableThread(data.repoId, data.number, user.id);
+		return markThreadNotificationRead(user.id, thread.id);
 	});

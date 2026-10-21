@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff } from "lucide-react";
+import { useEffect } from "react";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
-import { threadSubscriptionQueryOptions } from "@/lib/query-options";
-import { setThreadSubscription } from "@/server/notifications";
+import { queryKeys, threadSubscriptionQueryOptions } from "@/lib/query-options";
+import {
+	markThreadViewed,
+	setThreadSubscription,
+} from "@/server/notifications";
 
 /** GitHub's sidebar "Subscribe / Unsubscribe" for an issue or pull request. */
 export function ThreadSubscriptionButton({
@@ -18,6 +22,16 @@ export function ThreadSubscriptionButton({
 	const options = threadSubscriptionQueryOptions(repoId, number);
 	const { data } = useQuery(options);
 	const subscribed = data?.subscribed ?? false;
+	// Viewing the thread reads its notification, as on GitHub.
+	useEffect(() => {
+		markThreadViewed({ data: { repoId, number } }).then((changed) => {
+			if (changed) {
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.notificationsRoot,
+				});
+			}
+		});
+	}, [repoId, number, queryClient]);
 	const mutation = useMutation({
 		mutationFn: (next: boolean) =>
 			setThreadSubscription({ data: { repoId, number, subscribed: next } }),

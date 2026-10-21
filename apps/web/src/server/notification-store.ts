@@ -362,6 +362,25 @@ export async function markNotificationRead(
 	return updated.length > 0;
 }
 
+/** Mark the user's notification for thread `issueId` read (viewing it); true when one was unread. */
+export async function markThreadNotificationRead(
+	userId: string,
+	issueId: number,
+): Promise<boolean> {
+	const updated = await db
+		.update(notifications)
+		.set({ unread: false, lastReadAt: new Date() })
+		.where(
+			and(
+				eq(notifications.userId, userId),
+				eq(notifications.issueId, issueId),
+				eq(notifications.unread, true),
+			),
+		)
+		.returning({ id: notifications.id });
+	return updated.length > 0;
+}
+
 /** Mark every unread notification read (GitHub's "mark all as read"). */
 export async function markAllNotificationsRead(userId: string): Promise<void> {
 	await db
