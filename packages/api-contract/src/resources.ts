@@ -582,3 +582,27 @@ export const threadSubscription = z.strictObject({
 	url,
 	thread_url: url,
 });
+
+/** `POST …/git/blobs`. */
+export const createdBlob = z.strictObject({ sha, url });
+
+/** An annotated tag object (`GET`/`POST …/git/tags`). */
+export const gitTag = z.strictObject({
+	sha,
+	url,
+	tag: z.string(),
+	message: z.string(),
+	tagger: gitIdentity,
+	object: z.strictObject({
+		sha,
+		type: z.enum(["commit", "tree", "blob", "tag"]),
+		url,
+	}),
+	verification: z.strictObject({
+		verified: z.boolean(),
+		reason: z.string(),
+		signature: z.string().nullable(),
+		payload: z.string().nullable(),
+		verified_at: timestamp.nullable(),
+	}),
+});

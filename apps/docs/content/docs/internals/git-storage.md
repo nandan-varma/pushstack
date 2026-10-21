@@ -268,6 +268,20 @@ repack. Only the explicit `repackRepositoryNow` maintenance action (the owner's
 repository settings button) reports a failure to its caller; `repackRepository`
 itself rejects so each caller makes that choice.
 
+### Objects no ref names yet
+
+A repack keeps only objects reachable from a branch or tag. The REST API's
+Git database writes (`git-objects.ts`: `POST …/git/blobs`, `/trees`,
+`/commits`, `/tags`) create objects *before* any ref names them — a client
+commits by writing a blob, a tree, a commit and only then moving a ref — so a
+repack landing between those requests would drop them. Their packs therefore
+carry a `.keep` file (`keep-until <ISO date>`, a day out; `withPackedWrites`'
+`keepUntil`). `repackRepository` leaves a kept pack in place and doesn't count
+it towards the threshold; once the date passes, the pack and its `.keep` are
+consolidated like any other and still-unreachable objects go, as git's gc
+drops them after its grace period. A `.keep` with any other content (git's
+own) protects its pack indefinitely.
+
 ## The Git smart HTTP protocol (`git-http.ts`)
 
 This is what `git clone https://…/api/git/owner/repo.git`, `git fetch` and

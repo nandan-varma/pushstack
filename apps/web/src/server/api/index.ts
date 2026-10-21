@@ -14,13 +14,20 @@ import {
 import { compareCommits, getCommitDetail, listCommits } from "./commits";
 import { deleteContents, getContents, putContents } from "./contents";
 import {
+	createGitBlob,
+	createGitCommit,
+	createGitRef,
+	createGitTag,
+	createGitTree,
 	deleteRef,
 	getGitBlob,
 	getGitCommit,
+	getGitTag,
 	getGitTree,
 	getRef,
 	listMatchingRefs,
 	listRefs,
+	updateGitRef,
 } from "./git-data";
 import { API_PREFIX, ApiError, errorResponse, notFoundError } from "./http";
 import { createIssue, getIssue, listIssues, updateIssue } from "./issues";
@@ -124,6 +131,13 @@ const HANDLERS = {
 	"git/get-commit": getGitCommit,
 	"git/get-tree": getGitTree,
 	"git/get-blob": getGitBlob,
+	"git/create-ref": createGitRef,
+	"git/update-ref": updateGitRef,
+	"git/create-blob": createGitBlob,
+	"git/create-tree": createGitTree,
+	"git/create-commit": createGitCommit,
+	"git/get-tag": getGitTag,
+	"git/create-tag": createGitTag,
 	"issues/list-for-repo": listIssues,
 	"issues/create": createIssue,
 	"issues/get-comment": getComment,

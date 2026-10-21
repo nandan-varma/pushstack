@@ -34,10 +34,12 @@ import {
 	commitDetail,
 	comparison,
 	contents,
+	createdBlob,
 	diffEntry,
 	fileCommit,
 	gitCommit,
 	gitRef,
+	gitTag,
 	gitTree,
 	issue,
 	issueComment,
@@ -76,12 +78,16 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 
 const noContent = z.null();
 
+/** Entries one `POST …/git/trees` may carry (the request body cap binds first). */
+const MAX_TREE_ENTRIES = 10_000;
+/** Parents of one commit: octopus merges, not unbounded lists. */
+const MAX_COMMIT_PARENTS = 100;
 const commitMessage = z.string().min(1).max(MAX_COMMIT_MESSAGE_CHARS);
-/** A commit's author or committer; `date` is accepted and ignored (commits are dated now). */
+/** A commit's author or committer; `date` (ISO 8601) is honored by the Git database API, ignored by contents writes. */
 const commitIdentity = z.object({
 	name: z.string().min(1).max(255),
 	email: z.string().min(1).max(255),
-	date: z.string().optional(),
+	date: z.iso.datetime({ offset: true }).optional(),
 });
 
 const threadParams = z.object({ thread_id: positiveInt });
@@ -319,6 +325,74 @@ export const endpoints = defineEndpoints({
 	"git/get-blob": {
 		params: repoParams.extend({ file_sha: z.string() }),
 		response: blob,
+	},
+	"git/create-ref": {
+		params: repoParams,
+		body: z.object({
+			ref: z.string().min(1).max(255),
+			sha: z.string().max(100),
+		}),
+		response: gitRef,
+	},
+	"git/update-ref": {
+		params: repoParams.extend({ ref: z.string().min(1) }),
+		body: z.object({
+			sha: z.string().max(100),
+			force: z.boolean().default(false),
+		}),
+		response: gitRef,
+	},
+	"git/create-blob": {
+		params: repoParams,
+		body: z.object({
+			content: z.string(),
+			encoding: z.enum(["utf-8", "base64"]).default("utf-8"),
+		}),
+		response: createdBlob,
+	},
+	"git/create-tree": {
+		params: repoParams,
+		body: z.object({
+			tree: z
+				.array(
+					z.object({
+						path: z.string().min(1).max(4096),
+						mode: z.enum(["100644", "100755", "040000", "160000", "120000"]),
+						type: z.enum(["blob", "tree", "commit"]),
+						sha: z.string().max(100).nullable().optional(),
+						content: z.string().optional(),
+					}),
+				)
+				.max(MAX_TREE_ENTRIES),
+			base_tree: z.string().max(100).optional(),
+		}),
+		response: gitTree,
+	},
+	"git/create-commit": {
+		params: repoParams,
+		body: z.object({
+			message: commitMessage,
+			tree: z.string().max(100),
+			parents: z.array(z.string().max(100)).max(MAX_COMMIT_PARENTS).default([]),
+			author: commitIdentity.optional(),
+			committer: commitIdentity.optional(),
+		}),
+		response: gitCommit,
+	},
+	"git/get-tag": {
+		params: repoParams.extend({ tag_sha: z.string() }),
+		response: gitTag,
+	},
+	"git/create-tag": {
+		params: repoParams,
+		body: z.object({
+			tag: z.string().min(1).max(255),
+			message: z.string().max(MAX_COMMIT_MESSAGE_CHARS),
+			object: z.string().max(100),
+			type: z.enum(["commit", "tree", "blob", "tag"]),
+			tagger: commitIdentity.optional(),
+		}),
+		response: gitTag,
 	},
 
 	"issues/list-for-repo": {

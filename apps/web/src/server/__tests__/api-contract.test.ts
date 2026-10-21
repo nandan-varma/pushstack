@@ -246,6 +246,36 @@ beforeAll(async () => {
 	await check(threadPath, del(alice));
 	await check("/notifications", put(alice, {}));
 	await check("/repos/alice/proj/notifications", put(alice, {}));
+	const newBlob = await check(
+		"/repos/alice/proj/git/blobs",
+		post(alice, { content: "new" }),
+	);
+	const newTree = await check(
+		"/repos/alice/proj/git/trees",
+		post(alice, {
+			base_tree: tree.sha,
+			tree: [
+				{ path: "new.txt", mode: "100644", type: "blob", sha: newBlob.sha },
+			],
+		}),
+	);
+	const newCommit = await check(
+		"/repos/alice/proj/git/commits",
+		post(alice, { message: "New", tree: newTree.sha, parents: [head.sha] }),
+	);
+	await check(
+		"/repos/alice/proj/git/refs",
+		post(alice, { ref: "refs/heads/api", sha: head.sha }),
+	);
+	await check(
+		"/repos/alice/proj/git/refs/heads/api",
+		patch(alice, { sha: newCommit.sha }),
+	);
+	const tagObject = await check(
+		"/repos/alice/proj/git/tags",
+		post(alice, { tag: "v0", message: "v0", object: head.sha, type: "commit" }),
+	);
+	await check(`/repos/alice/proj/git/tags/${tagObject.sha}`);
 	await check("/repos/alice/proj/git/refs/heads/topic", del(alice));
 });
 
