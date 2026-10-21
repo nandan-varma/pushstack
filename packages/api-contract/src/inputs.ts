@@ -18,7 +18,7 @@ import {
 } from "./limits";
 
 /** The largest id the database's `integer` columns hold. */
-export const MAX_INT32 = 2_147_483_647;
+const MAX_INT32 = 2_147_483_647;
 
 /**
  * A positive integer path or query value that fits an `integer` column.

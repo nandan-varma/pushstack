@@ -106,7 +106,7 @@ export const reaction = z.strictObject({
 	created_at: timestamp,
 });
 
-export const issueState = z.enum(["open", "closed"]);
+const issueState = z.enum(["open", "closed"]);
 export const stateReason = z.enum(["completed", "not_planned", "reopened"]);
 
 /** An issue; a pull request listed through the issues endpoints carries `pull_request`. */
@@ -508,7 +508,7 @@ const contentBase = {
 };
 
 /** An entry of a directory listing. */
-export const contentEntry = z.strictObject({
+const contentEntry = z.strictObject({
 	...contentBase,
 	type: z.enum(["file", "dir", "symlink", "submodule"]),
 });

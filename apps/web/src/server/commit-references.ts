@@ -10,6 +10,7 @@
  */
 
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { isNotFoundError } from "git-fs-s3";
 import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
 import { db } from "#/db";
 import { issues, timelineEvents } from "#/db/app-schema";
@@ -21,7 +22,7 @@ import type { TimelineEvent } from "#/lib/timeline-types";
 import { recordActivity } from "./activity";
 import { getCommitLog } from "./git-read";
 
-export const MAX_PUSH_COMMITS = 100;
+const MAX_PUSH_COMMITS = 100;
 const ZERO_OID = "0".repeat(40);
 const MESSAGE_PREVIEW_CHARS = 200;
 
@@ -40,7 +41,13 @@ async function newCommits(
 		getCommitLog(ownerKey, repoName, newOid, MAX_PUSH_COMMITS),
 		exclude
 			? getCommitLog(ownerKey, repoName, exclude, MAX_PUSH_COMMITS).catch(
-					() => [],
+					(error) => {
+						// A previous tip that is gone (history rewritten) has no known
+						// commits; any other failure must reach the caller's logging
+						// rather than re-recording every commit as new.
+						if (isNotFoundError(error)) return [];
+						throw error;
+					},
 				)
 			: Promise.resolve([]),
 	]);

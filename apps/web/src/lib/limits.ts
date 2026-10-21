@@ -95,7 +95,7 @@ export const MAX_TOKEN_NAME_CHARS = 100;
  * What one function response may carry: Vercel's buffered-response cap is
  * 4.5 MB; this leaves headroom for the rest of the payload and the framing.
  */
-export const RESPONSE_BUDGET_BYTES = 4_000_000;
+const RESPONSE_BUDGET_BYTES = 4_000_000;
 
 /**
  * Serialized bytes a maximum-length comment can take, worst case. A body is
@@ -104,7 +104,7 @@ export const RESPONSE_BUDGET_BYTES = 4_000_000;
  * the bound is `MAX_BODY_CHARS * 6`, not `* 1`. The 1,000 is a generous
  * allowance for the author, timestamps and keys of the row around the body.
  */
-export const MAX_COMMENT_RESPONSE_BYTES = MAX_BODY_CHARS * 6 + 1_000;
+const MAX_COMMENT_RESPONSE_BYTES = MAX_BODY_CHARS * 6 + 1_000;
 
 /**
  * The most items a thread read (comments or timeline events) may ask for:

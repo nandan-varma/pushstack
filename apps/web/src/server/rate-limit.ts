@@ -172,7 +172,7 @@ export interface RateIdentity {
  * then `x-real-ip`, then the leftmost `x-forwarded-for` entry. A request with
  * no address shares one "unknown" bucket rather than being unlimited.
  */
-export function clientIp(request: Request): string {
+function clientIp(request: Request): string {
 	const { headers } = request;
 	return (
 		headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||

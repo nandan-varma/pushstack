@@ -35,10 +35,6 @@ export const REACTION_LABEL: Record<ReactionContent, string> = {
 	eyes: "eyes",
 };
 
-export function isReactionContent(value: string): value is ReactionContent {
-	return (REACTION_CONTENTS as readonly string[]).includes(value);
-}
-
 /** GitHub's `reactions` rollup on an issue, pull request or comment (minus `url`). */
 export type ReactionRollup = { total_count: number } & Record<
 	ReactionContent,
