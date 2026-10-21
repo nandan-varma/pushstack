@@ -15,8 +15,8 @@ import { parseSearchQuery } from "#/lib/search-query";
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
-import { deleteBranch } from "./git-write";
 import {
+	deleteHeadBranch,
 	insertPullRequest,
 	mergePullRequestBranches,
 	updatePullRequestFields,
@@ -40,7 +40,6 @@ import {
 	listThreads,
 	pullRequestView,
 } from "./thread-store";
-import { recordTimelineEvent } from "./timeline-store";
 
 export const createPullRequest = createServerFn({ method: "POST" })
 	.validator(
@@ -251,11 +250,7 @@ export const deletePullRequestBranch = createServerFn({ method: "POST" })
 			if (pr.sourceBranch === repo.defaultBranch) {
 				throw new Error("Cannot delete the default branch");
 			}
-			await deleteBranch(ownerKeyOf(repo), repo.name, pr.sourceBranch);
-			await recordTimelineEvent(pr.id, currentUser.id, {
-				event: "head_ref_deleted",
-				branch: pr.sourceBranch,
-			});
+			await deleteHeadBranch(repo, pr.sourceBranch, currentUser.id);
 		});
 	});
 

@@ -37,7 +37,7 @@ const HELP: Record<string, string> = {
 	view: `pst pr view ${TARGET} [--repo OWNER/REPO] [--hostname HOST] [--json FIELDS]\nWithout an argument, the pull request for the current branch.\n`,
 	create:
 		"pst pr create -t|--title TITLE [-b|--body BODY | -F|--body-file FILE] [-B|--base BRANCH] [-H|--head BRANCH] [--repo OWNER/REPO] [--hostname HOST]\nDefaults: base is the repository's default branch, head is the current branch. Use --body-file - for stdin.\n",
-	merge: `pst pr merge ${TARGET} [-m|--merge] [-t|--subject TEXT] [-b|--body TEXT | -F|--body-file FILE] [--match-head-commit SHA] [--repo OWNER/REPO] [--hostname HOST]\nOnly merge commits are supported; --squash and --rebase are rejected by the server.\n`,
+	merge: `pst pr merge ${TARGET} [-m|--merge] [-t|--subject TEXT] [-b|--body TEXT | -F|--body-file FILE] [--match-head-commit SHA] [-d|--delete-branch] [--repo OWNER/REPO] [--hostname HOST]\nOnly merge commits are supported; --squash and --rebase are rejected by the server.\n`,
 	close: `pst pr close ${TARGET} [-c|--comment TEXT] [--repo OWNER/REPO] [--hostname HOST]\n`,
 	reopen: `pst pr reopen ${TARGET} [-c|--comment TEXT] [--repo OWNER/REPO] [--hostname HOST]\n`,
 	checkout: `pst pr checkout ${TARGET} [-b|--branch NAME] [-f|--force] [--repo OWNER/REPO] [--hostname HOST]\nRun inside a clone; fetches the head branch and checks it out.\n`,
@@ -241,6 +241,7 @@ async function merge(io: Io, args: string[]) {
 		body: { type: "string", short: "b" },
 		"body-file": { type: "string", short: "F" },
 		"match-head-commit": { type: "string" },
+		"delete-branch": { type: "boolean", short: "d" },
 	});
 	if (values.help) {
 		io.stdout(HELP.merge as string);
@@ -267,6 +268,12 @@ async function merge(io: Io, args: string[]) {
 		sha: values["match-head-commit"],
 	});
 	io.stderr(`✓ Merged pull request #${pull.number} (${pull.title})\n`);
+	if (!values["delete-branch"]) return;
+	await client.call("git/delete-ref", {
+		...repo,
+		ref: `heads/${pull.head.ref}`,
+	});
+	io.stderr(`✓ Deleted branch ${pull.head.ref}\n`);
 }
 async function changeState(io: Io, args: string[], state: "open" | "closed") {
 	const sub = state === "closed" ? "close" : "reopen";

@@ -14,6 +14,7 @@ import {
 import { compareCommits, getCommitDetail, listCommits } from "./commits";
 import { getContents } from "./contents";
 import {
+	deleteRef,
 	getGitBlob,
 	getGitCommit,
 	getGitTree,
@@ -92,6 +93,7 @@ const HANDLERS = {
 	"git/get-ref": getRef,
 	"git/list-refs": listRefs,
 	"git/list-matching-refs": listMatchingRefs,
+	"git/delete-ref": deleteRef,
 	"git/get-commit": getGitCommit,
 	"git/get-tree": getGitTree,
 	"git/get-blob": getGitBlob,

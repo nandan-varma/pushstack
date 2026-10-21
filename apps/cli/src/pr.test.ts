@@ -198,6 +198,22 @@ describe("pr commands", () => {
 		);
 	});
 
+	it("deletes the head branch after merging with --delete-branch", async () => {
+		const { io, fetch } = await fixture();
+		fetch
+			.mockResolvedValueOnce(json(pull))
+			.mockResolvedValueOnce(json({ merged: true, sha: "c" }))
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+		expect(await run(["pr", "merge", "7", "-d"], io)).toBe(0);
+		expect(fetch.mock.calls[2]?.[1]?.method).toBe("DELETE");
+		expect(url(fetch, 2).pathname).toBe(
+			`/api/v3/repos/alice/project/git/refs/heads/${pull.head.ref}`,
+		);
+		expect(io.stderr).toHaveBeenCalledWith(
+			`✓ Deleted branch ${pull.head.ref}\n`,
+		);
+	});
+
 	it("refuses to merge or reopen merged pulls", async () => {
 		for (const sub of ["merge", "reopen", "close"]) {
 			const { io, fetch } = await fixture();

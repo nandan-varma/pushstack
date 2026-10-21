@@ -559,3 +559,74 @@ describe("private repositories", () => {
 		).toBe(200);
 	});
 });
+
+describe("deleting refs", () => {
+	const del = (path: string, token: string) =>
+		call(path, { ...asToken(token), method: "DELETE" });
+
+	it("deletes a branch and records head_ref_deleted on its closed pull", async () => {
+		signIn(users.alice);
+		await files.createBranch({ data: { repoId, name: "doomed" } });
+		await commitFile("doomed", "d.txt", "d\n");
+		const pull = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Doomed", head: "doomed", base: "main" }),
+		);
+		await call(`/repos/alice/proj/pulls/${pull.body.number}`, {
+			...asToken(alice),
+			method: "PATCH",
+			body: JSON.stringify({ state: "closed" }),
+		});
+
+		const deleted = await del("/repos/alice/proj/git/refs/heads/doomed", alice);
+		expect(deleted.status).toBe(204);
+		expect((await call("/repos/alice/proj/branches/doomed")).status).toBe(404);
+		const timeline = await call(
+			`/repos/alice/proj/issues/${pull.body.number}/timeline`,
+		);
+		expect(
+			timeline.body.map((item: { event: string }) => item.event),
+		).toContain("head_ref_deleted");
+		// Gone now: GitHub's 422.
+		const again = await del("/repos/alice/proj/git/refs/heads/doomed", alice);
+		expect(again.status).toBe(422);
+		expect(again.body.message).toBe("Reference does not exist");
+	});
+
+	it("deletes a tag", async () => {
+		const { default: git } = await import("isomorphic-git");
+		const { repoFor } = await import("../git-repo");
+		await git.tag({ ...repoFor("alice", "proj"), ref: "v-old", object: first });
+		expect((await call("/repos/alice/proj/git/ref/tags/v-old")).status).toBe(
+			200,
+		);
+		expect(
+			(await del("/repos/alice/proj/git/refs/tags/v-old", alice)).status,
+		).toBe(204);
+		expect((await call("/repos/alice/proj/git/ref/tags/v-old")).status).toBe(
+			404,
+		);
+	});
+
+	it("refuses the default branch, unknown namespaces and non-writers", async () => {
+		const main = await del("/repos/alice/proj/git/refs/heads/main", alice);
+		expect(main.status).toBe(422);
+		expect(
+			(await del("/repos/alice/proj/git/refs/notes/x", alice)).status,
+		).toBe(422);
+		expect(
+			(await del("/repos/alice/proj/git/refs/heads/..x", alice)).status,
+		).toBe(422);
+		expect(
+			(await del("/repos/alice/proj/git/refs/heads/topic", bob)).status,
+		).toBe(403);
+		expect(
+			(
+				await call("/repos/alice/proj/git/refs/heads/topic", {
+					method: "DELETE",
+				})
+			).status,
+		).toBe(401);
+		expect((await call("/repos/alice/proj/branches/topic")).status).toBe(200);
+	});
+});

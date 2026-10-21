@@ -93,7 +93,8 @@ the current branch's open pull request. List and view accept `--json` with
 default branch. It prints the pull request URL. `pr merge` creates a merge
 commit (`--merge/-m`, the default; `--squash`/`--rebase` are rejected by the
 server) with optional `--subject/-t`, `--body/-b`/`--body-file/-F` and
-`--match-head-commit SHA`. `pr close` and `pr reopen` accept
+`--match-head-commit SHA`; `--delete-branch/-d` then deletes the head branch on
+the server. `pr close` and `pr reopen` accept
 `--comment/-c TEXT`; merged pull requests can't be closed or reopened.
 `pr checkout` (`co`) fetches the head branch into a local branch of the same
 name (`--branch/-b NAME` to rename), fast-forwarding an existing one or

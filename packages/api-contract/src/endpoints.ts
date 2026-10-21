@@ -199,6 +199,10 @@ export const endpoints = defineEndpoints({
 		params: repoParams.extend({ ref: z.string().default("") }),
 		response: z.array(gitRef),
 	},
+	"git/delete-ref": {
+		params: repoParams.extend({ ref: z.string().min(1) }),
+		response: noContent,
+	},
 	"git/get-commit": {
 		params: repoParams.extend({ commit_sha: z.string() }),
 		response: gitCommit,
