@@ -5,6 +5,8 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-21
+
 ### Added
 
 - `withPackedWrites(repo, fn, { keepUntil })` writes a `.keep` file
