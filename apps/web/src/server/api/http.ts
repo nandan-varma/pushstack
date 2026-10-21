@@ -42,6 +42,60 @@ const BASE_HEADERS = {
 	"Cache-Control": "private, no-cache",
 };
 
+/** A custom media type the request asks for (`Accept: application/vnd.github.raw+json`). */
+export type MediaFormat =
+	| "json"
+	| "raw"
+	| "object"
+	| "html"
+	| "diff"
+	| "patch"
+	| "sha";
+
+const MEDIA_TYPE =
+	/application\/vnd\.github(?:\.v3)?\.(raw|object|html|diff|patch|sha)(?:\+json)?/i;
+
+/** The format named by the request's `Accept` header; `json` by default. */
+export function mediaFormat(request: Request): MediaFormat {
+	const accept = request.headers.get("accept") ?? "";
+	return (MEDIA_TYPE.exec(accept)?.[1]?.toLowerCase() as MediaFormat) ?? "json";
+}
+
+/** Bytes per chunk of a streamed body (a buffered one is capped at 4.5 MB on Vercel). */
+const STREAM_CHUNK_BYTES = 256 * 1024;
+
+/**
+ * A non-JSON body in the requested `format`, streamed. Always an inert type
+ * (`text/plain` or `application/octet-stream`) with `nosniff`: the API shares
+ * the app's origin.
+ */
+export function mediaResponse(
+	body: Uint8Array | string,
+	format: MediaFormat,
+	contentType: "text/plain; charset=utf-8" | "application/octet-stream",
+): Response {
+	const bytes =
+		typeof body === "string" ? new TextEncoder().encode(body) : body;
+	let offset = 0;
+	const stream = new ReadableStream<Uint8Array>({
+		pull(controller) {
+			if (offset >= bytes.byteLength) return controller.close();
+			controller.enqueue(bytes.subarray(offset, offset + STREAM_CHUNK_BYTES));
+			offset += STREAM_CHUNK_BYTES;
+		},
+	});
+	return new Response(stream, {
+		status: 200,
+		headers: {
+			"Content-Type": contentType,
+			"Content-Length": String(bytes.byteLength),
+			"X-GitHub-Media-Type": `github.v3; format=${format}`,
+			"X-Content-Type-Options": "nosniff",
+			"Cache-Control": "private, no-cache",
+		},
+	});
+}
+
 export function json(
 	body: unknown,
 	status = 200,

@@ -16,6 +16,8 @@ export const DEFAULT_API_CAPS = {
 	blobBytes: 3 * 1024 * 1024,
 	/** A single commit or a comparison lists at most this many files (GitHub: 300). */
 	diffFiles: 300,
+	/** A single commit's files paged with `page`/`per_page` (GitHub: 3,000). */
+	pagedDiffFiles: 3000,
 	/** A comparison lists at most this many commits (GitHub: 250). */
 	compareCommits: 250,
 	patchBudgetBytes: 2 * 1024 * 1024,

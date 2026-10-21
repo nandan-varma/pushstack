@@ -516,6 +516,12 @@ export const contentEntry = z.strictObject({
 /** `GET …/contents/{path}`: a directory listing or one file, symlink or submodule. */
 export const contents = z.union([
 	z.array(contentEntry),
+	/** The `object` media type's directory: its entries inline. */
+	z.strictObject({
+		...contentBase,
+		type: z.literal("dir"),
+		entries: z.array(contentEntry),
+	}),
 	z.discriminatedUnion("type", [
 		z.strictObject({
 			...contentBase,
