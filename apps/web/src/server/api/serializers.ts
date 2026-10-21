@@ -375,7 +375,7 @@ export function commitObject(
 			url,
 			author: gitIdentity(commit.author),
 			committer: gitIdentity(commit.committer),
-			message: commit.message,
+			message: commitMessage(commit.message),
 			tree: {
 				sha: commit.tree,
 				url: apiUrl(`/repos/${fullName}/git/trees/${commit.tree}`),
@@ -544,4 +544,9 @@ export function reviewedItem(input: {
 		submitted_at: isoTimestamp(review.submittedAt),
 		commit_id: review.commitSha,
 	};
+}
+
+/** A commit message as GitHub serves it: without git's trailing newline. */
+export function commitMessage(raw: string): string {
+	return raw.endsWith("\n") ? raw.slice(0, -1) : raw;
 }

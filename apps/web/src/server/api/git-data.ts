@@ -27,7 +27,7 @@ import {
 } from "./http";
 import { pathParams, queryParams } from "./input";
 import { readableRepository } from "./repo-lookup";
-import { gitIdentity } from "./serializers";
+import { commitMessage, gitIdentity } from "./serializers";
 import { fullNameOf } from "./threads";
 
 function refObject(fullName: string, target: RefTarget) {
@@ -143,7 +143,7 @@ export function gitCommitObject(fullName: string, info: CommitInfo) {
 			sha: commit.tree,
 			url: apiUrl(`/repos/${fullName}/git/trees/${commit.tree}`),
 		},
-		message: commit.message,
+		message: commitMessage(commit.message),
 		parents: commit.parent.map((sha) => ({
 			sha,
 			url: apiUrl(`/repos/${fullName}/git/commits/${sha}`),

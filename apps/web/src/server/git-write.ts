@@ -7,6 +7,8 @@
 import { GitEdgeError, GitMergeConflictError, threeWayMerge } from "git-edge";
 import {
 	GitInvalidRequestError,
+	GitPathNotFoundError,
+	isNotFoundError,
 	isSafeBranchName,
 	qualifyBranchRef,
 } from "git-fs-s3";
@@ -24,6 +26,7 @@ import {
 	resolveCommit,
 } from "git-fs-s3/ops";
 import git from "isomorphic-git";
+import { getPathEntry } from "./git-read";
 import { repackIfNeededUnlocked, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { logError, logWarn } from "./perf-log";
@@ -116,6 +119,82 @@ export function createInitialCommitUnlocked(
 	});
 }
 
+/**
+ * A file write whose `sha` (the blob the caller last read, GitHub's optimistic
+ * lock) doesn't match the file on the branch: `missing` when the file exists
+ * and no sha was given, `mismatch` when it differs.
+ */
+export class FileShaError extends Error {
+	constructor(
+		readonly reason: "missing" | "mismatch",
+		readonly path: string,
+	) {
+		super(`${path}: ${reason} sha`);
+		this.name = "FileShaError";
+	}
+}
+
+/** The blob at `path` on `branch` right now (under the lock), if any. */
+async function currentBlob(
+	ownerKey: string,
+	repoName: string,
+	branch: string,
+	path: string,
+): Promise<string | null> {
+	const { entry } = await getPathEntry(ownerKey, repoName, branch, path).catch(
+		(error: unknown) => {
+			// A missing parent directory is a missing file.
+			if (isNotFoundError(error)) return { entry: undefined };
+			throw error;
+		},
+	);
+	if (entry && entry.type !== "blob") {
+		throw new GitInvalidRequestError(`${path} is not a file`);
+	}
+	return entry?.oid ?? null;
+}
+
+/**
+ * Create or replace one file (the REST API's `PUT …/contents/{path}`),
+ * checking `expectedSha` against the file under the same lock span as the
+ * commit, so a concurrent write can't slip between check and commit.
+ */
+export function putFile(
+	ownerKey: string,
+	repoName: string,
+	options: {
+		branch: string;
+		path: string;
+		content: Uint8Array;
+		message: string;
+		author: CommitAuthorInput;
+		expectedSha?: string;
+	},
+): Promise<{ commitSha: string; created: boolean }> {
+	assertSafeBranchName(options.branch);
+	return writeUnderLock(ownerKey, repoName, async (repo) => {
+		const branches = await listBranches(repo);
+		await assertCommitTarget(repo, options.branch);
+		const existing =
+			branches.length === 0
+				? null
+				: await currentBlob(ownerKey, repoName, options.branch, options.path);
+		if (existing && options.expectedSha === undefined) {
+			throw new FileShaError("missing", options.path);
+		}
+		if (existing && existing !== options.expectedSha) {
+			throw new FileShaError("mismatch", options.path);
+		}
+		const commitSha = await commitFilesToBare(repo, {
+			branch: options.branch,
+			message: options.message,
+			author: authorNow(options.author.name, options.author.email),
+			files: [{ path: options.path, content: options.content }],
+		});
+		return { commitSha, created: existing === null };
+	});
+}
+
 export function deleteFile(
 	ownerKey: string,
 	repoName: string,
@@ -124,17 +203,33 @@ export function deleteFile(
 		filePath: string;
 		message: string;
 		author: CommitAuthorInput;
+		/** When set, refuse unless the file is still this blob. */
+		expectedSha?: string;
 	},
 ): Promise<string> {
 	assertSafeBranchName(options.branch);
-	return writeUnderLock(ownerKey, repoName, (repo) =>
-		deleteFileFromBare(repo, {
+	return writeUnderLock(ownerKey, repoName, async (repo) => {
+		if (options.expectedSha !== undefined) {
+			const existing = await currentBlob(
+				ownerKey,
+				repoName,
+				options.branch,
+				options.filePath,
+			);
+			if (!existing) {
+				throw new GitPathNotFoundError(`${options.filePath} not found`);
+			}
+			if (existing !== options.expectedSha) {
+				throw new FileShaError("mismatch", options.filePath);
+			}
+		}
+		return deleteFileFromBare(repo, {
 			branch: options.branch,
 			filePath: options.filePath,
 			message: options.message,
 			author: authorNow(options.author.name, options.author.email),
-		}),
-	);
+		});
+	});
 }
 
 export function createBranch(
