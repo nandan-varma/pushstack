@@ -20,7 +20,6 @@ vi.mock(
 
 const { createUsers, signIn } = await import("../../test/app-harness");
 const files = await import("../files");
-const { recordTimelineEvent } = await import("../timeline-store");
 const { asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
@@ -185,14 +184,15 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/issues?state=all", auth);
 	await check("/repos/alice/proj/issues/1/timeline");
 	await check("/repos/alice/proj/issues/1/events");
-	// A review has no issue-event shape yet: the timeline skips it rather
-	// than serving a null item.
 	const pull = await check("/repos/alice/proj/issues/2", auth);
-	await recordTimelineEvent(pull.id, users.alice.id, {
-		event: "reviewed",
-		state: "approved",
+	signIn(users.alice);
+	await (await import("../reviews")).submitReview({
+		data: { prId: pull.id, event: "comment", body: "Looks good" },
 	});
 	const timeline = await check("/repos/alice/proj/issues/2/timeline");
+	expect(timeline.map((item: { event: string }) => item.event)).toContain(
+		"reviewed",
+	);
 	expect(timeline).not.toContain(null);
 
 	await check("/repos/alice/proj/contents");

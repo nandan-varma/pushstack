@@ -572,3 +572,67 @@ describe("contract input validation", () => {
 		]);
 	});
 });
+
+describe("reviews on the timeline", () => {
+	it("serves submitted reviews as reviewed items; issue events leave them out", async () => {
+		const reviews = await import("../reviews");
+		await branchFrom("reviewed");
+		await commitFile("reviewed", "r.txt", "r\n");
+		const pull = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Reviewed", head: "reviewed", base: "main" }),
+		);
+		const number = pull.body.number;
+		signIn(users.dave);
+		await reviews.submitReview({
+			data: { prId: pull.body.id, event: "approve", body: "Ship it" },
+		});
+		signIn(users.alice);
+		await reviews.submitReview({
+			data: { prId: pull.body.id, event: "comment", body: "Thanks" },
+		});
+		await call(
+			`/repos/alice/proj/issues/${number}/labels`,
+			post(alice, {
+				labels: ["bug"],
+			}),
+		);
+
+		const timeline = await call(`/repos/alice/proj/issues/${number}/timeline`);
+		const reviewed = timeline.body.filter(
+			(item: { event: string }) => item.event === "reviewed",
+		);
+		expect(reviewed).toHaveLength(2);
+		expect(reviewed[0]).toMatchObject({
+			user: { login: "dave" },
+			body: "Ship it",
+			state: "approved",
+			author_association: "COLLABORATOR",
+			commit_id: pull.body.head.sha,
+			html_url: expect.stringMatching(
+				new RegExp(`/alice/proj/pulls/${number}#pullrequestreview-\\d+$`),
+			),
+			pull_request_url: `${BASE}/repos/alice/proj/pulls/${number}`,
+		});
+		expect(reviewed[1]).toMatchObject({
+			state: "commented",
+			author_association: "OWNER",
+		});
+
+		const events = await call(`/repos/alice/proj/issues/${number}/events`);
+		expect(events.body.map((e: { event: string }) => e.event)).toEqual([
+			"labeled",
+		]);
+		// Pages stay full: the reviews are counted where they are served only.
+		const page = await call(
+			`/repos/alice/proj/issues/${number}/events?per_page=1`,
+		);
+		expect(page.body).toHaveLength(1);
+		expect(page.headers.get("link")).toBeNull();
+		const first = await call(
+			`/repos/alice/proj/issues/${number}/timeline?per_page=2`,
+		);
+		expect(first.body).toHaveLength(2);
+		expect(first.headers.get("link")).toContain('rel="last"');
+	});
+});

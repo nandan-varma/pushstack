@@ -26,6 +26,19 @@ export async function listReviewComments(pullRequestId: number) {
 	});
 }
 
+/** Submitted reviews by id, with their authors (for the REST timeline). */
+export function submittedReviewsByIds(pullRequestId: number, ids: number[]) {
+	if (ids.length === 0) return Promise.resolve([]);
+	return db.query.pullRequestReviews.findMany({
+		where: { pullRequestId, id: { in: ids }, state: { ne: "pending" } },
+		with: { author: publicUserFields },
+	});
+}
+
+export type SubmittedReviewRow = Awaited<
+	ReturnType<typeof submittedReviewsByIds>
+>[number];
+
 export function toView(row: ReviewCommentRow): ReviewCommentView {
 	return {
 		id: row.id,

@@ -264,9 +264,8 @@ export interface TimelineContext {
  * GitHub's timeline event (`IssueEvent`) shape. Fields the stored event has no
  * equivalent for are `null` (or, for an `assigned` event's assignee, a partial
  * user: PushStack records the username and name, not the whole account).
- * `reviewed` has no issue-event shape (GitHub serves reviews as their own
- * timeline item, not yet in the contract), so it serializes to `null` and
- * callers skip it.
+ * `reviewed` has no issue-event shape: the timeline serves it as its own
+ * item ({@link reviewedItem}), so here it is `null`.
  */
 export function timelineEvent(
 	entry: TimelineEntry,
@@ -507,5 +506,42 @@ export function pullRequest(
 		additions: detail.additions,
 		deletions: detail.deletions,
 		changed_files: detail.changedFiles,
+	};
+}
+
+/** A submitted review as GitHub's `reviewed` timeline item. */
+export function reviewedItem(input: {
+	fullName: string;
+	number: number;
+	review: {
+		id: number;
+		state: string;
+		body: string | null;
+		commitSha: string | null;
+		submittedAt: Date | null;
+		author: PublicUser;
+	};
+	association: Shape<"reviewedItem">["author_association"];
+}): Shape<"reviewedItem"> {
+	const { fullName, number, review } = input;
+	if (review.state === "pending" || !review.submittedAt) {
+		throw new Error(`Review ${review.id} is not submitted`);
+	}
+	const html = htmlUrl(
+		`/${fullName}/pulls/${number}#pullrequestreview-${review.id}`,
+	);
+	const pullRequestUrl = apiUrl(`/repos/${fullName}/pulls/${number}`);
+	return {
+		event: "reviewed",
+		id: review.id,
+		user: simpleUser(review.author),
+		body: review.body,
+		state: review.state as Shape<"reviewedItem">["state"],
+		html_url: html,
+		pull_request_url: pullRequestUrl,
+		author_association: input.association,
+		_links: { html: { href: html }, pull_request: { href: pullRequestUrl } },
+		submitted_at: isoTimestamp(review.submittedAt),
+		commit_id: review.commitSha,
 	};
 }

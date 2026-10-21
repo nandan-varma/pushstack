@@ -52,7 +52,7 @@ export type TimelineEvent =
 	| { event: "unlabeled"; label: LabelSnapshot }
 	| { event: "assigned"; assignee: TimelineUser }
 	| { event: "unassigned"; assignee: TimelineUser }
-	| { event: "reviewed"; state: ReviewedState };
+	| { event: "reviewed"; state: ReviewedState; reviewId: number };
 
 export type TimelineEventType = TimelineEvent["event"];
 

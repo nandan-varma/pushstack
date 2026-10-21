@@ -254,6 +254,7 @@ export const submitReview = createServerFn({ method: "POST" })
 				await recordTimelineEvent(pr.id, currentUser.id, {
 					event: "reviewed",
 					state,
+					reviewId: submitted.id,
 				});
 				await recordThreadActivity({
 					thread: pr,
