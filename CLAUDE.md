@@ -127,3 +127,11 @@ SENTRY_AUTH_TOKEN=... SENTRY_ORG=... SENTRY_PROJECT=...   # optional, build-time
 - Repository names and usernames match `STORAGE_NAME_RE` (`/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/`). That rule is what keeps `..` or `/` out of storage keys — don't loosen it.
 - Every branch-name field is validated with `safeBranchNameSchema` (writes) or `safeRefNameSchema` (reads); never a bare `z.string()`. `git.commit`/`git.deleteBranch` don't validate ref names, and the fs derives the repo from the path, so an unvalidated name is a cross-tenant path traversal. Route handlers reading refs/paths off the URL (`raw.ts`) validate explicitly.
 - `MarkdownRenderer` renders attacker-controlled content: links and images must go through `isSafeHref`/`isSafeImageSrc`.
+
+## Verify
+- `pnpm test && pnpm typecheck` — workspace tests plus turbo typecheck across all packages.
+
+## PR workflow
+- Pick tickets whose files no open PR touches (`gh pr list --json number,files`); hotspots — contract files, `api/index.ts`, `api-contract.test.ts`, `limits.ts`, `query-options.ts`, schema, API docs — take one PR at a time.
+- In shared files, add entries beside their domain, never at the end of the file (end-of-file appends are what collide).
+- Merge only after the gate review approves the PR's *current head* (a push after review needs a new review): `gh pr merge N --squash --auto` (a `main` ruleset requires CI, so GitHub merges when green; if checks already passed, drop `--auto`). Never `--delete-branch` — it removes local worktrees; GitHub deletes merged branches.

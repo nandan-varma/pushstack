@@ -1,0 +1,2 @@
+packages/*/CHANGELOG.md merge=union
+apps/cli/CHANGELOG.md merge=union
