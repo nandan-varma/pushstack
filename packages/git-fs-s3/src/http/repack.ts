@@ -10,11 +10,13 @@ import git from "isomorphic-git";
 import { isAbsentError, isNotFoundError } from "../git-errors.js";
 import type { Repo } from "../ops/types.js";
 import {
+	keepFileContent,
 	keepUntilOf,
 	type PackFileName,
 	packFileName,
 	parsePackDirectory,
 } from "../pack-files.js";
+import { readPackIndex } from "../pack-index.js";
 import {
 	encodePack,
 	hashGitObject,
@@ -87,16 +89,15 @@ async function readPackDirectory(repo: Repo): Promise<PackFileName[]> {
 }
 
 /**
- * Base names of packs a `.keep` file still protects at `now`: an unexpired
- * `keep-until`, or any other `.keep` (git's, kept indefinitely).
+ * Every `.keep` in the listing, by pack base name: its `keep-until` date, or
+ * `null` for any other content (kept indefinitely, as git does).
  */
-async function keptPackBases(
+async function readKeeps(
 	repo: Repo,
 	files: PackFileName[],
-	now: Date,
-): Promise<Set<string>> {
+): Promise<Map<string, Date | null>> {
 	const fsp = rawFs(repo);
-	const kept = await Promise.all(
+	const keeps = await Promise.all(
 		files
 			.filter((file) => file.kind === "keep")
 			.map(async (file) => {
@@ -108,10 +109,101 @@ async function keptPackBases(
 						? content
 						: new TextDecoder().decode(content),
 				);
-				return until === null || until > now ? file.base : null;
+				return [file.base, until] as const;
 			}),
 	);
-	return new Set(kept.filter((base): base is string => base !== null));
+	return new Map(keeps);
+}
+
+/** Base names of packs a `.keep` still protects at `now`. */
+async function keptPackBases(
+	repo: Repo,
+	files: PackFileName[],
+	now: Date,
+): Promise<Set<string>> {
+	const kept = new Set<string>();
+	for (const [base, until] of await readKeeps(repo, files)) {
+		if (until === null || until > now) kept.add(base);
+	}
+	return kept;
+}
+
+/** Delete pack files, indexes first: a reader sees a whole pack or none of it. */
+async function unlinkPackFiles(repo: Repo, files: PackFileName[]) {
+	const fsp = rawFs(repo);
+	const packDir = `${repo.gitdir}/objects/pack`;
+	const unlinkAll = (some: PackFileName[]) =>
+		Promise.all(
+			some.map((file) => fsp.unlink(`${packDir}/${file.name}`).catch(() => {})),
+		);
+	await unlinkAll(files.filter((file) => file.kind === "idx"));
+	await unlinkAll(files.filter((file) => file.kind !== "idx"));
+}
+
+/**
+ * Merge unexpired `keep-until` packs into one once `threshold` of them have
+ * accumulated: objects written ahead of any ref (each its own small pack)
+ * would otherwise pile up — every read lists and loads every index — until
+ * their keeps expire. The merged pack keeps until the latest expiry among
+ * them (at least `keepUntil`). Reads only the kept packs. Returns the
+ * gitdir-relative paths it removed. Callers hold the repository lock.
+ */
+export async function consolidateKeptPacks(
+	repo: Repo,
+	options: { threshold: number; keepUntil: Date; now?: Date },
+): Promise<string[]> {
+	const now = options.now ?? new Date();
+	const listed = await readPackDirectory(repo);
+	const live = [...(await readKeeps(repo, listed))].filter(
+		(entry): entry is [string, Date] => entry[1] !== null && entry[1] > now,
+	);
+	if (live.length < options.threshold) return [];
+
+	const fsp = rawFs(repo);
+	const packDir = `${repo.gitdir}/objects/pack`;
+	const bases = new Set(live.map(([base]) => base));
+	const oids = new Set<string>();
+	for (const base of bases) {
+		const idx = await fsp.readFile(`${packDir}/${packFileName(base, "idx")}`);
+		const entries = idx instanceof Uint8Array ? readPackIndex(idx) : null;
+		if (!entries) throw new Error(`consolidate: unreadable index for ${base}`);
+		for (const entry of entries) oids.add(entry.oid);
+	}
+	const wanted = [...oids];
+	const packBuffer =
+		(await buildPackFromExistingPacks(repo, wanted, bases)) ??
+		(await (async () => {
+			const objects = await readAndVerifyObjects(repo, wanted);
+			return encodePack(wanted.map((oid) => objects.get(oid) as PackObject));
+		})());
+
+	const newBase = packBaseName(packBuffer);
+	const newPackFile = packFileName(newBase, "pack");
+	await fsp.writeFile(`${packDir}/${newPackFile}`, packBuffer);
+	const { oids: indexedOids } = await git.indexPack({
+		...repo,
+		dir: packDir,
+		filepath: newPackFile,
+	});
+	const indexed = new Set(indexedOids);
+	if (wanted.some((oid) => !indexed.has(oid))) {
+		throw new Error("consolidate: merged pack is missing kept objects");
+	}
+	const until = new Date(
+		Math.max(
+			options.keepUntil.getTime(),
+			...live.map(([, date]) => date.getTime()),
+		),
+	);
+	await fsp.writeFile(
+		`${packDir}/${packFileName(newBase, "keep")}`,
+		keepFileContent(until),
+	);
+	const stale = listed.filter(
+		(file) => bases.has(file.base) && file.base !== newBase,
+	);
+	await unlinkPackFiles(repo, stale);
+	return stale.map((file) => `objects/pack/${file.name}`);
 }
 
 export interface RepackOptions {
@@ -250,13 +342,6 @@ export async function repackRepository(
 	);
 	// Indexes first: readers find packs through their .idx, so a reader
 	// listing mid-cleanup sees either a complete old pack or none of it.
-	const unlinkAll = (files: PackFileName[]) =>
-		Promise.all(
-			files.map((file) =>
-				fsp.unlink(`${packDir}/${file.name}`).catch(() => {}),
-			),
-		);
-	await unlinkAll(stale.filter((file) => file.kind === "idx"));
-	await unlinkAll(stale.filter((file) => file.kind !== "idx"));
+	await unlinkPackFiles(repo, stale);
 	return stale.map((file) => `objects/pack/${file.name}`);
 }

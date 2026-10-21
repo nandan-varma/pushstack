@@ -263,6 +263,16 @@ describe("validation and permissions", () => {
 				],
 			},
 			{ tree: [{ path: "x", mode: "040000", type: "tree", sha: tip }] },
+			// A blob entry naming a tree or a commit.
+			{ tree: [{ path: "x", mode: "100644", type: "blob", sha: treeSha }] },
+			{ tree: [{ path: "x", mode: "100644", type: "blob", sha: tip }] },
+			// `a` both a file and a directory.
+			{
+				tree: [
+					{ path: "a", mode: "100644", type: "blob", content: "a" },
+					{ path: "a/b", mode: "100644", type: "blob", content: "b" },
+				],
+			},
 			{ tree: [], base_tree: tip },
 			{
 				tree: [
@@ -310,6 +320,23 @@ describe("validation and permissions", () => {
 });
 
 describe("unreferenced objects and repacks", () => {
+	it("merges the small kept packs object writes leave behind", async () => {
+		const { listRepoStorage } = await import("../git-fs");
+		const packs = async () =>
+			(await listRepoStorage("alice", "proj")).filter((o) =>
+				o.key.endsWith(".pack"),
+			).length;
+		const before = await packs();
+		for (let i = 0; i < 20; i++) {
+			await call(git("blobs"), post(alice, { content: `pile ${i}` }));
+		}
+		// 20 writes, but never more than the merge threshold of kept packs.
+		expect((await packs()) - before).toBeLessThanOrEqual(8);
+		const last = await call(git("blobs"), post(alice, { content: "pile 0" }));
+		const read = await call(git(`blobs/${last.body.sha}`));
+		expect(Buffer.from(read.body.content, "base64").toString()).toBe("pile 0");
+	});
+
 	it("keeps a client's blob through a repack until a ref names it", async () => {
 		const { afterRepositoryPush, repoFor } = await import("../git-repo");
 		const { repackRepository } = await import("git-fs-s3/http");

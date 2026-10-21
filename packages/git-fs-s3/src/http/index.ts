@@ -29,6 +29,7 @@ export {
 	receivePackResponse,
 } from "./receive-pack.js";
 export {
+	consolidateKeptPacks,
 	REPACK_PACK_COUNT_THRESHOLD,
 	type RepackOptions,
 	repackRepository,

@@ -15,8 +15,13 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   expired, the pack and its `.keep` are consolidated away like any other.
   A `.keep` with other content (git's own) protects its pack indefinitely.
 - `RepackOptions.now`: the time `.keep` expiries are checked against.
-- `existingObjects(repo, oids)`: which objects the repository stores, from
-  the pack indexes and loose-object stats, without reading any object.
+- `consolidateKeptPacks(repo, { threshold, keepUntil, now })`: merge
+  unexpired `keep-until` packs into one kept pack once `threshold` of them
+  accumulate, reading only those packs, so objects written ahead of a ref
+  don't pile up as one small pack each until their keeps expire.
+- `getObjectTypes(repo, oids)`: each object's type (or `null` when absent)
+  from pack entry headers — following delta chains to their base — and
+  loose-object headers, without inflating any object body.
 
 ## [0.17.0] - 2026-10-20
 

@@ -42,9 +42,10 @@ export {
 	parseLooseObjectPath,
 } from "./git-layout.js";
 export {
-	existingObjects,
+	type GitObjectType,
 	getObjectSize,
 	getObjectSizes,
+	getObjectTypes,
 } from "./object-size.js";
 export {
 	PACK_FILE_KINDS,

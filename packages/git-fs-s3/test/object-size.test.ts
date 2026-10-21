@@ -8,6 +8,7 @@ import {
 	createRetryStore,
 	getObjectSize,
 	getObjectSizes,
+	getObjectTypes,
 	MemoryObjectStore,
 	type ObjectStore,
 } from "../src/index.js";
@@ -322,23 +323,66 @@ describe("getObjectSizes bounds", () => {
 	});
 });
 
-describe("existingObjects", () => {
-	it("finds packed objects and reports missing ones", async () => {
-		const { existingObjects } = await import("../src/index.js");
-		const { createGitFs, MemoryObjectStore } = await import("../src/index.js");
-		const { withPackedWrites } = await import("../src/ops/index.js");
-		const git = (await import("isomorphic-git")).default;
-		const repo = {
-			fs: createGitFs(new MemoryObjectStore()),
-			gitdir: "repos/a/b/git",
-			cache: {},
-		};
-		await git.init({ ...repo, dir: repo.gitdir, bare: true });
-		const oid = await withPackedWrites(repo, (packed) =>
-			git.writeBlob({ ...packed, blob: new TextEncoder().encode("x") }),
-		);
+describe("getObjectTypes", () => {
+	it("matches isomorphic-git's type for every packed object, deltas included", async () => {
+		const { repo, store } = await loadFixture();
+		const objects = await indexedObjects(store);
 		const missing = "0".repeat(40);
-		expect(await existingObjects(repo, [oid, missing])).toEqual(new Set([oid]));
-		expect(await existingObjects(repo, [])).toEqual(new Set());
+		const types = await getObjectTypes(repo, [
+			...objects.map((o) => o.oid),
+			missing,
+		]);
+		for (const { oid } of objects) {
+			const { type } = await git.readObject({
+				...repo,
+				oid,
+				format: "content",
+			});
+			expect(types.get(oid), oid).toBe(type);
+		}
+		expect(types.get(missing)).toBeNull();
+	});
+
+	it("reads loose objects' headers and works without range reads", async () => {
+		const store = new MemoryObjectStore();
+		const repo: Repo = { fs: createGitFs(store), gitdir: "git", cache: {} };
+		await git.init({ ...repo, dir: "git", bare: true, defaultBranch: "main" });
+		const blob = await git.writeBlob({
+			...repo,
+			blob: new TextEncoder().encode("loose"),
+		});
+		const tree = await git.writeTree({
+			...repo,
+			tree: [{ path: "f", mode: "100644", oid: blob, type: "blob" }],
+		});
+		const types = await getObjectTypes(repo, [blob, tree]);
+		expect(types).toEqual(
+			new Map([
+				[blob, "blob"],
+				[tree, "tree"],
+			]),
+		);
+		const { repo: fixture, store: fixtureStore } = await loadFixture();
+		const [first] = await indexedObjects(fixtureStore);
+		const noRanges: Repo = {
+			...fixture,
+			fs: createGitFs({
+				get: (k) => fixtureStore.get(k),
+				put: (k, d) => fixtureStore.put(k, d),
+				delete: (k) => fixtureStore.delete(k),
+				head: (k) => fixtureStore.head(k),
+				list: (p, o) => fixtureStore.list(p, o),
+			} satisfies ObjectStore),
+		};
+		const { type } = await git.readObject({
+			...fixture,
+			oid: first?.oid as string,
+			format: "content",
+		});
+		expect(
+			(await getObjectTypes(noRanges, [first?.oid as string])).get(
+				first?.oid as string,
+			),
+		).toBe(type);
 	});
 });

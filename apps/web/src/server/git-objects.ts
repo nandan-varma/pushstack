@@ -6,45 +6,62 @@
  * unreachable. Refusals are GitInvalidRequestError (the API's 422).
  */
 import {
-	existingObjects,
 	GitInvalidRequestError,
+	type GitObjectType,
+	getObjectTypes,
 	isFullSha,
 	isNotFoundError,
 	isSafeBranchName,
 	isSafeTreePath,
 } from "git-fs-s3";
+import { consolidateKeptPacks } from "git-fs-s3/http";
 import { type Repo, withPackedWrites } from "git-fs-s3/ops";
 import git from "isomorphic-git";
-import { repoFor } from "./git-repo";
+import { MAX_HISTORY_WALK } from "#/lib/limits";
+import { afterRepositoryPush, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 
 /** How long unreferenced objects a client wrote survive repacks. */
 const OBJECT_KEEP_MS = 24 * 60 * 60 * 1000;
+/** Kept packs (one per object write) merged into one past this many. */
+const KEPT_PACK_THRESHOLD = 8;
 
 function writeObjects<T>(
 	ownerKey: string,
 	repoName: string,
 	fn: (repo: Repo) => Promise<T>,
 ): Promise<T> {
-	return withRepositoryLock(ownerKey, repoName, () =>
-		withPackedWrites(repoFor(ownerKey, repoName), fn, {
-			keepUntil: new Date(Date.now() + OBJECT_KEEP_MS),
-		}),
-	);
+	return withRepositoryLock(ownerKey, repoName, async () => {
+		const repo = repoFor(ownerKey, repoName);
+		const keepUntil = new Date(Date.now() + OBJECT_KEEP_MS);
+		const result = await withPackedWrites(repo, fn, { keepUntil });
+		const removed = await consolidateKeptPacks(repo, {
+			threshold: KEPT_PACK_THRESHOLD,
+			keepUntil,
+		});
+		if (removed.length > 0) afterRepositoryPush(ownerKey, repoName);
+		return result;
+	});
 }
 
 const invalid = (message: string) => new GitInvalidRequestError(message);
 
-/** The object type at `oid`, or null when the repository doesn't have it. */
-async function objectType(repo: Repo, oid: string): Promise<string | null> {
-	if (!isFullSha(oid)) return null;
-	try {
-		const { type } = await git.readObject({ ...repo, oid, format: "parsed" });
-		return type;
-	} catch (error) {
-		if (isNotFoundError(error)) return null;
-		throw error;
-	}
+/** The type of each of `oids` (null when absent), from pack headers — no object reads. */
+async function objectTypes(
+	repo: Repo,
+	oids: string[],
+): Promise<Map<string, GitObjectType | null>> {
+	return getObjectTypes(
+		repo,
+		oids.filter((oid) => isFullSha(oid)),
+	);
+}
+
+async function objectType(
+	repo: Repo,
+	oid: string,
+): Promise<GitObjectType | null> {
+	return (await objectTypes(repo, [oid])).get(oid) ?? null;
 }
 
 export function createBlobObject(
@@ -133,6 +150,16 @@ function validateTreeEntries(entries: TreeEntryInput[]): void {
 			throw invalid(`tree.sha ${entry.sha} is not a valid object`);
 		}
 	}
+	// `a` and `a/b` in one request: `a` can't be both a file and a directory.
+	for (const path of paths) {
+		const segments = path.split("/");
+		for (let i = 1; i < segments.length; i++) {
+			const parent = segments.slice(0, i).join("/");
+			if (paths.has(parent)) {
+				throw invalid(`tree.path ${parent} is both a file and a directory`);
+			}
+		}
+	}
 }
 
 /** Apply `entries` (relative to this directory) to the tree `baseOid`; null when it ends up empty. */
@@ -207,21 +234,14 @@ export function createTreeObject(
 			(entry): entry is TreeEntryInput & { sha: string } =>
 				typeof entry.sha === "string" && entry.type !== "commit",
 		);
-		// Blobs are only checked for presence (reading one could mean reading
-		// megabytes); trees are small enough to check their type too.
-		const present = await existingObjects(
+		// Submodule (`commit`) entries name another repository's commit.
+		const types = await objectTypes(
 			repo,
 			referenced.map((entry) => entry.sha),
 		);
 		for (const entry of referenced) {
-			if (!present.has(entry.sha)) {
+			if (types.get(entry.sha) !== entry.type) {
 				throw invalid(`tree.sha ${entry.sha} is not a valid ${entry.type}`);
-			}
-			if (
-				entry.type === "tree" &&
-				(await objectType(repo, entry.sha)) !== "tree"
-			) {
-				throw invalid(`tree.sha ${entry.sha} is not a valid tree`);
 			}
 		}
 		const pending: PendingEntry[] = await Promise.all(
@@ -263,8 +283,9 @@ export function createCommitObject(
 		if ((await objectType(repo, options.tree)) !== "tree") {
 			throw invalid(`Tree SHA ${options.tree} does not exist`);
 		}
+		const parents = await objectTypes(repo, options.parents);
 		for (const parent of options.parents) {
-			if ((await objectType(repo, parent)) !== "commit") {
+			if (parents.get(parent) !== "commit") {
 				throw invalid(`Parent SHA ${parent} does not exist`);
 			}
 		}
@@ -375,7 +396,20 @@ export function updateRef(
 		if (
 			!force &&
 			current !== sha &&
-			!(await git.isDescendent({ ...repo, oid: sha, ancestor: current }))
+			!(await git
+				.isDescendent({
+					...repo,
+					oid: sha,
+					ancestor: current,
+					depth: MAX_HISTORY_WALK,
+				})
+				.catch((error: unknown) => {
+					// Deeper than one request may walk: not provably a fast-forward.
+					if ((error as { code?: string })?.code === "MaxDepthError") {
+						return false;
+					}
+					throw error;
+				}))
 		) {
 			throw invalid("Update is not a fast forward");
 		}
