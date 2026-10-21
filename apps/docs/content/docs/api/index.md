@@ -101,7 +101,7 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/branches/{branch}` | supported | branch names may contain `/` |
 | `GET /repos/{owner}/{repo}/tags` | supported | version order |
 | `GET /repos/{owner}/{repo}/contents/{path}` | supported | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root |
-| `PUT`/`DELETE /repos/{owner}/{repo}/contents/{path}` | supported | write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace or delete; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; the first write to an empty repository creates its default branch |
+| `PUT`/`DELETE /repos/{owner}/{repo}/contents/{path}` | supported | write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace or delete; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; in an empty repository the first write creates the branch it names and makes it the default |
 | `GET /repos/{owner}/{repo}/commits` | supported | `sha`, `path`, pagination; newest first; `409` for an empty repository |
 | `GET /repos/{owner}/{repo}/commits/{ref}` | supported | with `stats` and up to 300 `files`; unknown ref is `422` |
 | `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files` |
