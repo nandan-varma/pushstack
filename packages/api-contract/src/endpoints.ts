@@ -16,6 +16,7 @@ import {
 	pagination,
 	positiveInt,
 	pullParams,
+	queryBoolean,
 	repoName,
 	repoParams,
 	threadBody,
@@ -43,6 +44,7 @@ import {
 	issueEvent,
 	label,
 	mergeResult,
+	notificationThread,
 	privateUser,
 	publicUser,
 	pullRequest,
@@ -54,6 +56,7 @@ import {
 	shortBranch,
 	stateReason,
 	tag,
+	threadSubscription,
 	timelineItem,
 } from "./resources";
 import type { EndpointInput, EndpointResponse, Schemas } from "./route";
@@ -79,6 +82,26 @@ const commitIdentity = z.object({
 	name: z.string().min(1).max(255),
 	email: z.string().min(1).max(255),
 	date: z.string().optional(),
+});
+
+const threadParams = z.object({ thread_id: positiveInt });
+const isoDate = z.iso.datetime({ offset: true });
+/** GitHub's notification list parameters; `per_page` tops out at 50. */
+const notificationQuery = z.object({
+	all: queryBoolean,
+	participating: queryBoolean,
+	since: isoDate.optional(),
+	before: isoDate.optional(),
+	page: positiveInt.optional().catch(undefined),
+	per_page: positiveInt
+		.optional()
+		.catch(undefined)
+		.transform((value) => Math.min(value ?? 50, 50)),
+});
+const markReadBody = z.object({
+	/** Default: now. */
+	last_read_at: isoDate.optional(),
+	read: z.boolean().optional(),
 });
 const listState = z.enum(["open", "closed", "all"]).default("open");
 const commentParams = repoParams.extend({ comment_id: positiveInt });
@@ -150,9 +173,52 @@ export const endpoints = defineEndpoints({
 		response: z.array(repository),
 	},
 
+	"activity/list-notifications-for-authenticated-user": {
+		query: notificationQuery,
+		response: z.array(notificationThread),
+	},
+	"activity/mark-notifications-as-read": {
+		body: markReadBody,
+		response: noContent,
+	},
+	"activity/get-thread-subscription-for-authenticated-user": {
+		params: threadParams,
+		response: threadSubscription,
+	},
+	"activity/set-thread-subscription": {
+		params: threadParams,
+		body: z.object({ ignored: z.boolean().default(false) }),
+		response: threadSubscription,
+	},
+	"activity/delete-thread-subscription": {
+		params: threadParams,
+		response: noContent,
+	},
+	"activity/get-thread": {
+		params: threadParams,
+		response: notificationThread,
+	},
+	"activity/mark-thread-as-read": {
+		params: threadParams,
+		response: noContent,
+	},
+	"activity/mark-thread-as-done": {
+		params: threadParams,
+		response: noContent,
+	},
 	"repos/get": {
 		params: repoParams,
 		response: repository,
+	},
+	"activity/list-repo-notifications-for-authenticated-user": {
+		params: repoParams,
+		query: notificationQuery,
+		response: z.array(notificationThread),
+	},
+	"activity/mark-repo-notifications-as-read": {
+		params: repoParams,
+		body: markReadBody,
+		response: noContent,
 	},
 	"repos/list-branches": {
 		params: repoParams,

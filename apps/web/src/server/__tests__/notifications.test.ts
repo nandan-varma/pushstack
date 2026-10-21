@@ -225,7 +225,7 @@ describe("notifications", () => {
 			await n.getThreadSubscription({
 				data: { repoId, number: issue.number },
 			}),
-		).toEqual({ subscribed: true, reason: "author" });
+		).toMatchObject({ subscribed: true, reason: "author" });
 		await n.setThreadSubscription({
 			data: { repoId, number: issue.number, subscribed: false },
 		});

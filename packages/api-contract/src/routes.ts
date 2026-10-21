@@ -54,10 +54,66 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
 	},
 
+	"activity/list-notifications-for-authenticated-user": {
+		method: "GET",
+		path: "/notifications",
+		docs: `${DOCS}/activity/notifications#list-notifications-for-the-authenticated-user`,
+	},
+	"activity/mark-notifications-as-read": {
+		method: "PUT",
+		path: "/notifications",
+		docs: `${DOCS}/activity/notifications#mark-notifications-as-read`,
+		status: 205,
+	},
+	"activity/get-thread-subscription-for-authenticated-user": {
+		method: "GET",
+		path: "/notifications/threads/{thread_id}/subscription",
+		docs: `${DOCS}/activity/notifications#get-a-thread-subscription-for-the-authenticated-user`,
+	},
+	"activity/set-thread-subscription": {
+		method: "PUT",
+		path: "/notifications/threads/{thread_id}/subscription",
+		docs: `${DOCS}/activity/notifications#set-a-thread-subscription`,
+	},
+	"activity/delete-thread-subscription": {
+		method: "DELETE",
+		path: "/notifications/threads/{thread_id}/subscription",
+		docs: `${DOCS}/activity/notifications#delete-a-thread-subscription`,
+		status: 204,
+	},
+	"activity/get-thread": {
+		method: "GET",
+		path: "/notifications/threads/{thread_id}",
+		docs: `${DOCS}/activity/notifications#get-a-thread`,
+	},
+	"activity/mark-thread-as-read": {
+		method: "PATCH",
+		path: "/notifications/threads/{thread_id}",
+		docs: `${DOCS}/activity/notifications#mark-a-thread-as-read`,
+		status: 205,
+	},
+	"activity/mark-thread-as-done": {
+		method: "DELETE",
+		path: "/notifications/threads/{thread_id}",
+		docs: `${DOCS}/activity/notifications#mark-a-thread-as-done`,
+		status: 204,
+	},
+
 	"repos/get": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}",
 		docs: `${DOCS}/repos/repos#get-a-repository`,
+	},
+	"activity/list-repo-notifications-for-authenticated-user": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/notifications",
+		docs: `${DOCS}/activity/notifications#list-repository-notifications-for-the-authenticated-user`,
+	},
+	"activity/mark-repo-notifications-as-read": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/notifications",
+		docs: `${DOCS}/activity/notifications#mark-repository-notifications-as-read`,
+		status: 205,
 	},
 	"repos/list-branches": {
 		method: "GET",
