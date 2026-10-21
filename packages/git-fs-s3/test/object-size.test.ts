@@ -321,3 +321,24 @@ describe("getObjectSizes bounds", () => {
 		await expect(getObjectSize(repo, first.oid)).rejects.toThrow();
 	});
 });
+
+describe("existingObjects", () => {
+	it("finds packed objects and reports missing ones", async () => {
+		const { existingObjects } = await import("../src/index.js");
+		const { createGitFs, MemoryObjectStore } = await import("../src/index.js");
+		const { withPackedWrites } = await import("../src/ops/index.js");
+		const git = (await import("isomorphic-git")).default;
+		const repo = {
+			fs: createGitFs(new MemoryObjectStore()),
+			gitdir: "repos/a/b/git",
+			cache: {},
+		};
+		await git.init({ ...repo, dir: repo.gitdir, bare: true });
+		const oid = await withPackedWrites(repo, (packed) =>
+			git.writeBlob({ ...packed, blob: new TextEncoder().encode("x") }),
+		);
+		const missing = "0".repeat(40);
+		expect(await existingObjects(repo, [oid, missing])).toEqual(new Set([oid]));
+		expect(await existingObjects(repo, [])).toEqual(new Set());
+	});
+});

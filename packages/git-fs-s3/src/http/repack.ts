@@ -10,6 +10,7 @@ import git from "isomorphic-git";
 import { isAbsentError, isNotFoundError } from "../git-errors.js";
 import type { Repo } from "../ops/types.js";
 import {
+	keepUntilOf,
 	type PackFileName,
 	packFileName,
 	parsePackDirectory,
@@ -85,14 +86,39 @@ async function readPackDirectory(repo: Repo): Promise<PackFileName[]> {
 	return parsePackDirectory(entries);
 }
 
-async function countPacks(repo: Repo): Promise<number> {
-	const files = await readPackDirectory(repo);
-	return files.filter((file) => file.kind === "pack").length;
+/**
+ * Base names of packs a `.keep` file still protects at `now`: an unexpired
+ * `keep-until`, or any other `.keep` (git's, kept indefinitely).
+ */
+async function keptPackBases(
+	repo: Repo,
+	files: PackFileName[],
+	now: Date,
+): Promise<Set<string>> {
+	const fsp = rawFs(repo);
+	const kept = await Promise.all(
+		files
+			.filter((file) => file.kind === "keep")
+			.map(async (file) => {
+				const content = await fsp.readFile(
+					`${repo.gitdir}/objects/pack/${file.name}`,
+				);
+				const until = keepUntilOf(
+					typeof content === "string"
+						? content
+						: new TextDecoder().decode(content),
+				);
+				return until === null || until > now ? file.base : null;
+			}),
+	);
+	return new Set(kept.filter((base): base is string => base !== null));
 }
 
 export interface RepackOptions {
-	/** Skip repacking below this many accumulated packs. Default 4. */
+	/** Skip repacking below this many accumulated (unkept) packs. Default 4. */
 	threshold?: number;
+	/** The time `.keep` expiries are checked against (default: now). */
+	now?: Date;
 }
 
 /**
@@ -114,7 +140,14 @@ export async function repackRepository(
 ): Promise<string[]> {
 	const threshold = options?.threshold ?? REPACK_PACK_COUNT_THRESHOLD;
 	const fsp = rawFs(repo);
-	if ((await countPacks(repo)) < threshold) {
+	const listed = await readPackDirectory(repo);
+	// Kept packs stay as they are, so they don't count towards the threshold:
+	// counting them would repack on every write while a keep lasts.
+	const kept = await keptPackBases(repo, listed, options?.now ?? new Date());
+	const unkept = listed.filter(
+		(file) => file.kind === "pack" && !kept.has(file.base),
+	);
+	if (unkept.length < threshold) {
 		return [];
 	}
 
@@ -210,8 +243,10 @@ export async function repackRepository(
 		);
 	}
 
+	// An expired `.keep` goes with its pack; unreachable objects in it are
+	// dropped now, as git's gc drops them after its grace period.
 	const stale = (await readPackDirectory(repo)).filter(
-		(file) => file.base !== newBase,
+		(file) => file.base !== newBase && !kept.has(file.base),
 	);
 	// Indexes first: readers find packs through their .idx, so a reader
 	// listing mid-cleanup sees either a complete old pack or none of it.

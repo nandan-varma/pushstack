@@ -333,3 +333,33 @@ async function sizeFromWindow(
 	}
 	return deltaResultSize(read, packKey, dataStart);
 }
+
+/**
+ * Which of `oids` the repository stores, packed or loose — without reading
+ * any object: pack indexes are read once, loose objects are stat'ed. For
+ * validating references to objects (a tree entry's sha) cheaply.
+ */
+export async function existingObjects(
+	repo: Repo,
+	oids: readonly string[],
+): Promise<Set<string>> {
+	const found = new Set<string>();
+	if (oids.length === 0) return found;
+	const indexes = await packIndexes(repo);
+	const fsp = rawFs(repo);
+	await Promise.all(
+		[...new Set(oids)].map(async (oid) => {
+			if (indexes.some(({ idx }) => findPackIndexOffset(idx, oid) !== null)) {
+				found.add(oid);
+				return;
+			}
+			const loose = `${repo.gitdir}/objects/${oid.slice(0, 2)}/${oid.slice(2)}`;
+			const stat = await fsp.stat(loose).catch((error: unknown) => {
+				if ((error as { code?: string } | null)?.code === "ENOENT") return null;
+				throw error;
+			});
+			if (stat) found.add(oid);
+		}),
+	);
+	return found;
+}

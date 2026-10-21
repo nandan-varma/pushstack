@@ -59,3 +59,25 @@ export function parsePackDirectory(entries: readonly string[]): PackFileName[] {
 		.map(parsePackFileName)
 		.filter((file): file is PackFileName => file !== null);
 }
+
+const KEEP_UNTIL_PREFIX = "keep-until ";
+
+/**
+ * Content of a `.keep` file that protects its pack from repacking until
+ * `until` (git's `.keep` takes free-form text; this line is ours).
+ */
+export function keepFileContent(until: Date): string {
+	return `${KEEP_UNTIL_PREFIX}${until.toISOString()}\n`;
+}
+
+/**
+ * When a `.keep` file's protection ends: its `keep-until` date, or `null`
+ * for any other content — a `.keep` that git or an operator wrote, which
+ * protects its pack indefinitely, as in git.
+ */
+export function keepUntilOf(content: string): Date | null {
+	const line = content.trim();
+	if (!line.startsWith(KEEP_UNTIL_PREFIX)) return null;
+	const until = new Date(line.slice(KEEP_UNTIL_PREFIX.length));
+	return Number.isNaN(until.getTime()) ? null : until;
+}

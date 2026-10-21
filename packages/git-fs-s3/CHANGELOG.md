@@ -5,6 +5,19 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `withPackedWrites(repo, fn, { keepUntil })` writes a `.keep` file
+  (`keep-until <ISO date>`) next to each pack it stores. `repackRepository`
+  leaves such packs alone until that date: their objects survive even when
+  no ref reaches them yet (a REST client's blob, tree and commit before its
+  ref update), and they don't count towards the repack threshold. Once
+  expired, the pack and its `.keep` are consolidated away like any other.
+  A `.keep` with other content (git's own) protects its pack indefinitely.
+- `RepackOptions.now`: the time `.keep` expiries are checked against.
+- `existingObjects(repo, oids)`: which objects the repository stores, from
+  the pack indexes and loose-object stats, without reading any object.
+
 ## [0.17.0] - 2026-10-20
 
 ### Added
