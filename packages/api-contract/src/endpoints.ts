@@ -273,6 +273,11 @@ export const endpoints = defineEndpoints({
 		query: pagination.extend({
 			sha: z.string().optional(),
 			path: z.string().optional(),
+			/** A login or an email. */
+			author: z.string().max(255).optional(),
+			committer: z.string().max(255).optional(),
+			since: z.iso.datetime({ offset: true }).optional(),
+			until: z.iso.datetime({ offset: true }).optional(),
 		}),
 		response: z.array(commit),
 	},

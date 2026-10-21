@@ -100,11 +100,11 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/branches` | supported | sorted by name |
 | `GET /repos/{owner}/{repo}/branches/{branch}` | supported | branch names may contain `/` |
 | `GET /repos/{owner}/{repo}/tags` | supported | version order |
-| `GET /repos/{owner}/{repo}/contents/{path}` | supported | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root |
+| `GET /repos/{owner}/{repo}/contents/{path}` | supported | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. Media types: `raw` (a file's bytes, up to 50 MB, `application/octet-stream`), `object` (a directory as one object with `entries`); `html` is served as JSON |
 | `PUT`/`DELETE /repos/{owner}/{repo}/contents/{path}` | supported | write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace or delete; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; in an empty repository the first write creates the branch it names and makes it the default |
-| `GET /repos/{owner}/{repo}/commits` | supported | `sha`, `path`, pagination; newest first; `409` for an empty repository |
-| `GET /repos/{owner}/{repo}/commits/{ref}` | supported | with `stats` and up to 300 `files`; unknown ref is `422` |
-| `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files` |
+| `GET /repos/{owner}/{repo}/commits` | supported | `sha`, `path` (a file), `author`/`committer` (an email, or a login matching that account's email), `since`/`until` (committer date), pagination; newest first; `409` for an empty repository; filters search the newest 10,100 commits; `Link` has `next` but no `last` |
+| `GET /repos/{owner}/{repo}/commits/{ref}` | supported | with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha` |
+| `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head) and `patch` (one message per commit) |
 | `GET /repos/{owner}/{repo}/git/ref/{ref}`, `.../git/matching-refs/{ref}`, `.../git/refs[/{ref}]` | supported | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
 | `DELETE /repos/{owner}/{repo}/git/refs/{ref}` | supported | write access; `heads/…` or `tags/…`; deleting a branch records `head_ref_deleted` on the closed pull requests it heads; a missing ref or the default branch is `422` |
 | `GET /repos/{owner}/{repo}/git/commits/{sha}` | supported | full sha only |

@@ -1,4 +1,7 @@
+import { eq, sql } from "drizzle-orm";
 import type { CommitInfo, DiffResult } from "git-fs-s3/ops";
+import { db } from "#/db";
+import { user } from "#/db/schema";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import {
 	getBranchDiff,
@@ -22,10 +25,13 @@ import {
 	htmlUrl,
 	json,
 	linkHeader,
+	mediaFormat,
+	mediaResponse,
 	notFoundError,
 	pageParams,
 } from "./http";
 import { pathParams, queryParams } from "./input";
+import { formatPatches, unifiedDiff } from "./patches";
 import { readableRepository } from "./repo-lookup";
 import { commitObject } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -40,6 +46,39 @@ async function assertNotEmpty(repo: RepositoryRowWithOwner) {
 		throw new ApiError(409, "Git Repository is empty.");
 }
 
+/** How many commits one filtered walk step reads. */
+const FILTER_BATCH = 200;
+
+type Identity = CommitInfo["commit"]["author"];
+
+/**
+ * An `author`/`committer` filter: an email matches the identity's email; a
+ * login matches the emails of that account (never revealed — the filter
+ * only selects). Null when the filter can match nothing.
+ */
+async function identityFilter(
+	value: string | undefined,
+): Promise<((identity: Identity) => boolean) | null | undefined> {
+	if (value === undefined) return undefined;
+	if (value.includes("@")) {
+		const email = value.toLowerCase();
+		return (identity) => identity.email.toLowerCase() === email;
+	}
+	const [account] = await db
+		.select({ email: user.email })
+		.from(user)
+		.where(eq(sql`lower(${user.username})`, value.toLowerCase()))
+		.limit(1);
+	if (!account) return null;
+	const email = account.email.toLowerCase();
+	return (identity) => identity.email.toLowerCase() === email;
+}
+
+/**
+ * `GET /repos/{owner}/{repo}/commits`: newest first from `sha` (default
+ * branch), optionally only those touching `path`, by `author`/`committer`,
+ * or committed in `[since, until]`.
+ */
 export async function listCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const query = ctx.url.searchParams;
@@ -62,28 +101,63 @@ export async function listCommits(ctx: ApiContext) {
 	if (!params.reachable || params.offset + want > MAX_HISTORY_WALK) {
 		return json([]);
 	}
-	let infos: CommitInfo[];
-	if (path) {
+	const [byAuthor, byCommitter] = await Promise.all([
+		identityFilter(filters.author),
+		identityFilter(filters.committer),
+	]);
+	if (byAuthor === null || byCommitter === null) return json([]);
+	const since = filters.since ? Date.parse(filters.since) / 1000 : null;
+	const until = filters.until ? Date.parse(filters.until) / 1000 : null;
+	const filtered =
+		byAuthor !== undefined ||
+		byCommitter !== undefined ||
+		since !== null ||
+		until !== null;
+	const keep = (info: CommitInfo) => {
+		const { author, committer } = info.commit;
+		return (
+			(!byAuthor || byAuthor(author)) &&
+			(!byCommitter || byCommitter(committer)) &&
+			(since === null || committer.timestamp >= since) &&
+			(until === null || committer.timestamp <= until)
+		);
+	};
+
+	/** `count` commits from `offset` of the (path-limited) history. */
+	const walk = async (offset: number, count: number) => {
+		if (!path) {
+			return getCommitHistory(ownerKey, repo.name, rev, count, offset);
+		}
 		const { entries } = await getFileHistory(
 			ownerKey,
 			repo.name,
 			rev,
 			path,
-			params.offset + want,
+			offset + count,
 		);
-		infos = await Promise.all(
+		return Promise.all(
 			entries
-				.slice(params.offset, params.offset + want)
+				.slice(offset, offset + count)
 				.map((entry) => getCommit(ownerKey, repo.name, entry.sha)),
 		);
+	};
+
+	let infos: CommitInfo[];
+	if (!filtered) {
+		infos = await walk(params.offset, want);
 	} else {
-		infos = await getCommitHistory(
-			ownerKey,
-			repo.name,
-			rev,
-			want,
-			params.offset,
-		);
+		// Filter the bounded walk batch by batch until the page (plus one) fills.
+		const matches: CommitInfo[] = [];
+		for (
+			let offset = 0;
+			offset < MAX_HISTORY_WALK && matches.length < params.offset + want;
+			offset += FILTER_BATCH
+		) {
+			const batch = await walk(offset, FILTER_BATCH);
+			matches.push(...batch.filter(keep));
+			if (batch.length < FILTER_BATCH) break;
+		}
+		infos = matches.slice(params.offset, params.offset + want);
 	}
 	const page = infos.slice(0, params.perPage);
 	const hasMore = infos.length > params.perPage;
@@ -98,24 +172,34 @@ export async function listCommits(ctx: ApiContext) {
 	);
 }
 
-async function diffSummary(repo: RepositoryRowWithOwner, diff: DiffResult) {
-	const files = await diffFileObjects(
-		ownerKeyOf(repo),
-		repo.name,
-		fullNameOf(repo),
-		diff,
-		diff.files.slice(0, apiCaps.diffFiles),
-	);
+async function diffSummary(
+	repo: RepositoryRowWithOwner,
+	diff: DiffResult,
+	files: DiffResult["files"] = diff.files.slice(0, apiCaps.diffFiles),
+) {
 	return {
 		stats: {
 			total: diff.totalAdditions + diff.totalDeletions,
 			additions: diff.totalAdditions,
 			deletions: diff.totalDeletions,
 		},
-		files,
+		files: await diffFileObjects(
+			ownerKeyOf(repo),
+			repo.name,
+			fullNameOf(repo),
+			diff,
+			files,
+		),
 	};
 }
 
+const TEXT = "text/plain; charset=utf-8" as const;
+
+/**
+ * `GET /repos/{owner}/{repo}/commits/{ref}`: JSON with `stats` and `files`
+ * (the first 300; `page`/`per_page` page through up to 3,000, as on GitHub),
+ * or the `diff`, `patch` or `sha` media type.
+ */
 export async function getCommitDetail(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const { ref: rev } = pathParams(ctx, "repos/get-commit");
@@ -125,9 +209,32 @@ export async function getCommitDetail(ctx: ApiContext) {
 	const info = await getCommit(ownerKey, repo.name, rev).catch(() => {
 		throw noCommitError(rev);
 	});
+	const format = mediaFormat(ctx.request);
+	if (format === "sha") return mediaResponse(info.oid, format, TEXT);
 	const diff = await getCommitDiff(ownerKey, repo.name, info.oid);
-	const { stats, files } = await diffSummary(repo, diff);
-	return json({ ...commitObject(fullNameOf(repo), info), stats, files });
+	if (format === "diff") return mediaResponse(unifiedDiff(diff), format, TEXT);
+	if (format === "patch") {
+		return mediaResponse(formatPatches([{ info, diff }]), format, TEXT);
+	}
+	const query = ctx.url.searchParams;
+	if (!(query.has("page") || query.has("per_page"))) {
+		const { stats, files } = await diffSummary(repo, diff);
+		return json({ ...commitObject(fullNameOf(repo), info), stats, files });
+	}
+	const params = pageParams(query);
+	const listed = diff.files.slice(0, apiCaps.pagedDiffFiles);
+	const { stats, files } = await diffSummary(
+		repo,
+		diff,
+		params.reachable
+			? listed.slice(params.offset, params.offset + params.perPage)
+			: [],
+	);
+	return json(
+		{ ...commitObject(fullNameOf(repo), info), stats, files },
+		200,
+		linkHeader(ctx.url, params, listed.length),
+	);
 }
 
 /**
@@ -191,6 +298,17 @@ export async function compareCommits(ctx: ApiContext) {
 				: aheadBy === 0
 					? "behind"
 					: "diverged";
+	const format = mediaFormat(ctx.request);
+	if (format === "diff") return mediaResponse(unifiedDiff(diff), format, TEXT);
+	if (format === "patch") {
+		const patched = await Promise.all(
+			ahead.commits.slice(0, apiCaps.compareCommits).map(async (commit) => ({
+				info: await getCommit(ownerKey, repo.name, commit.sha),
+				diff: await getCommitDiff(ownerKey, repo.name, commit.sha),
+			})),
+		);
+		return mediaResponse(formatPatches(patched), format, TEXT);
+	}
 	const mergeBase = diff.oldRef
 		? await getCommit(ownerKey, repo.name, diff.oldRef)
 		: baseInfo;

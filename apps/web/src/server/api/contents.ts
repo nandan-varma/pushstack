@@ -3,6 +3,7 @@ import { GitInvalidRequestError, isNotFoundError } from "git-fs-s3";
 import type { TreeEntry } from "git-fs-s3/ops";
 import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
+import { MAX_RAW_BYTES } from "#/lib/limits";
 import {
 	getBlobByOid,
 	getBlobSize,
@@ -30,6 +31,8 @@ import {
 	forbiddenError,
 	htmlUrl,
 	json,
+	mediaFormat,
+	mediaResponse,
 	notFoundError,
 	validationFailedError,
 } from "./http";
@@ -121,6 +124,7 @@ export async function getContents(ctx: ApiContext) {
 	);
 	if (!entry) throw notFoundError();
 
+	const format = mediaFormat(ctx.request);
 	if (entry.type === "tree") {
 		const { entries } = await getTreeByOid(ownerKey, repo.name, entry.oid, {
 			limit: apiCaps.directoryEntries,
@@ -135,11 +139,14 @@ export async function getContents(ctx: ApiContext) {
 			listed.filter((child) => child.type === "blob").map((child) => child.oid),
 			apiCaps.sizeReadConcurrency,
 		);
-		return json(
-			listed.map((child) =>
-				baseShape(child, sizes.get(child.oid) ?? 0, location),
-			),
+		const children = listed.map((child) =>
+			baseShape(child, sizes.get(child.oid) ?? 0, location),
 		);
+		// `object`: the directory itself, its listing under `entries`.
+		if (format === "object") {
+			return json({ ...baseShape(entry, 0, location), entries: children });
+		}
+		return json(children);
 	}
 
 	if (entry.type === "commit") {
@@ -151,6 +158,17 @@ export async function getContents(ctx: ApiContext) {
 	}
 
 	const size = await getBlobSize(ownerKey, repo.name, entry.oid);
+	// `raw`: the bytes themselves (a symlink's are its target), streamed.
+	if (format === "raw") {
+		if (size > MAX_RAW_BYTES) {
+			throw new ApiError(
+				403,
+				`This API returns files up to ${MAX_RAW_BYTES} bytes in size`,
+			);
+		}
+		const bytes = await getBlobByOid(ownerKey, repo.name, entry.oid);
+		return mediaResponse(bytes, format, "application/octet-stream");
+	}
 	if (entry.mode === "120000") {
 		const target =
 			size <= apiCaps.symlinkTargetBytes
