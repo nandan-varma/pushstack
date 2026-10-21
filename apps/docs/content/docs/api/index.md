@@ -115,8 +115,8 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `PATCH /repos/{owner}/{repo}/issues/{number}` | supported | the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; issues only (a pull request number is `404`) |
 | `GET`/`POST /repos/{owner}/{repo}/issues/{number}/comments` | supported | comments of an issue or a pull request |
 | `GET`/`PATCH`/`DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | supported | `204` on delete |
-| `GET /repos/{owner}/{repo}/issues/{number}/timeline` | supported | comments and events, oldest first |
-| `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | events only, oldest first |
+| `GET /repos/{owner}/{repo}/issues/{number}/timeline` | supported | comments, events and submitted reviews (`reviewed` items with `state`, `body`, `commit_id`, `author_association` `OWNER`/`COLLABORATOR`/`NONE`), oldest first |
+| `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | issue events only (no comments or reviews, as on GitHub), oldest first |
 | `GET`/`POST /repos/{owner}/{repo}/issues/{number}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | reactions on an issue or pull request; list filters by `content` and paginates; create is any signed-in reader (`repo:write` token), `201` when new and `200` with the existing reaction; delete (`204`) only your own reaction |
 | `GET`/`POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | the same for an issue or pull request comment |
 | `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |

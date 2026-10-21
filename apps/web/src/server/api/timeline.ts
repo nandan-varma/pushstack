@@ -5,6 +5,9 @@ import {
 	listCommentsForThread,
 } from "../comment-store";
 import { commentReactionRollups } from "../reaction-store";
+import { getAccessForRepository } from "../repo-access";
+import type { RepositoryRowWithOwner } from "../repository-lookup";
+import { submittedReviewsByIds } from "../review-store";
 import { findThreadByNumber, type ThreadRef } from "../thread-store";
 import { countTimeline, listTimeline } from "../timeline-store";
 import type { ApiContext } from "./auth";
@@ -13,6 +16,7 @@ import { pathParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import {
 	issueComment,
+	reviewedItem,
 	type Shape,
 	simpleUser,
 	timelineEvent,
@@ -69,6 +73,32 @@ function commentedItem(
 	};
 }
 
+/**
+ * GitHub's `author_association` for each user: the repository's owner, a
+ * collaborator, or neither. (CONTRIBUTOR/MEMBER need commit authorship and
+ * organizations, which PushStack doesn't track.)
+ */
+async function authorAssociations(
+	repo: RepositoryRowWithOwner,
+	userIds: string[],
+): Promise<Map<string, Shape<"reviewedItem">["author_association"]>> {
+	const unique = [...new Set(userIds)];
+	const roles = await Promise.all(
+		unique.map(async (userId) => {
+			const { role } = await getAccessForRepository(repo, userId);
+			return [
+				userId,
+				role === "owner"
+					? "OWNER"
+					: role === "anonymous"
+						? "NONE"
+						: "COLLABORATOR",
+			] as const;
+		}),
+	);
+	return new Map(roles);
+}
+
 export async function listTimelineItems(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const number = pathParams(
@@ -97,6 +127,21 @@ export async function listTimelineItems(ctx: ApiContext) {
 			item.kind === "comment" ? [item.comment.id] : [],
 		),
 	);
+	const reviewIds = merged.flatMap((item) =>
+		item.kind === "event" && item.entry.event === "reviewed"
+			? [item.entry.reviewId]
+			: [],
+	);
+	const reviews = new Map(
+		(await submittedReviewsByIds(thread.id, reviewIds)).map((review) => [
+			review.id,
+			review,
+		]),
+	);
+	const associations = await authorAssociations(
+		repo,
+		[...reviews.values()].map((review) => review.authorId),
+	);
 	const threadByNumber = await serializeThreadsByNumber(
 		repo,
 		merged.flatMap((item) =>
@@ -115,6 +160,18 @@ export async function listTimelineItems(ctx: ApiContext) {
 						item.comment,
 						rollups.get(item.comment.id) ?? emptyReactionRollup(),
 					),
+				];
+			}
+			if (item.entry.event === "reviewed") {
+				const review = reviews.get(item.entry.reviewId);
+				if (!review) throw new Error(`Review ${item.entry.reviewId} missing`);
+				return [
+					reviewedItem({
+						fullName,
+						number: thread.number,
+						review,
+						association: associations.get(review.authorId) ?? "NONE",
+					}),
 				];
 			}
 			const event = timelineEvent(item.entry, { fullName, threadByNumber });
@@ -136,9 +193,10 @@ export async function listEvents(ctx: ApiContext) {
 			? listTimeline(thread.id, {
 					limit: params.perPage,
 					offset: params.offset,
+					scope: "issue-events",
 				})
 			: [],
-		countTimeline(thread.id),
+		countTimeline(thread.id, "issue-events"),
 	]);
 	const fullName = fullNameOf(repo);
 	const threadByNumber = await serializeThreadsByNumber(

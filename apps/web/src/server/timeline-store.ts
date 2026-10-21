@@ -131,12 +131,21 @@ export async function removeCrossReferences(
 		);
 }
 
+/**
+ * Which events a listing covers: all of them (the timeline), or the issue
+ * events only — GitHub's issue-events API leaves reviews out.
+ */
+export type TimelineScope = "timeline" | "issue-events";
+
+const scopeFilter = (scope: TimelineScope) =>
+	scope === "issue-events" ? { event: { ne: "reviewed" as const } } : {};
+
 export async function listTimeline(
 	issueId: number,
-	options?: { limit?: number; offset?: number },
+	options?: { limit?: number; offset?: number; scope?: TimelineScope },
 ): Promise<TimelineEntry[]> {
 	const rows = await db.query.timelineEvents.findMany({
-		where: { issueId },
+		where: { issueId, ...scopeFilter(options?.scope ?? "timeline") },
 		orderBy: { createdAt: "asc", id: "asc" },
 		with: { actor: publicUserFields },
 		...(options?.limit !== undefined && { limit: options.limit }),
@@ -154,10 +163,20 @@ export async function listTimeline(
 	);
 }
 
-export async function countTimeline(issueId: number): Promise<number> {
+export async function countTimeline(
+	issueId: number,
+	scope: TimelineScope = "timeline",
+): Promise<number> {
 	const [row] = await db
 		.select({ total: count() })
 		.from(timelineEvents)
-		.where(eq(timelineEvents.issueId, issueId));
+		.where(
+			scope === "issue-events"
+				? and(
+						eq(timelineEvents.issueId, issueId),
+						ne(timelineEvents.event, "reviewed"),
+					)
+				: eq(timelineEvents.issueId, issueId),
+		);
 	return row?.total ?? 0;
 }

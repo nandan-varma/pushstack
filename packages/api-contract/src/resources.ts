@@ -226,7 +226,24 @@ export const issueEvent = z.discriminatedUnion("event", [
 	}),
 ]);
 
-/** A timeline item: an issue event, or a comment as a `commented` event. */
+const href = z.strictObject({ href: url });
+
+/** A submitted pull request review on the timeline (GitHub's `reviewed` item). */
+export const reviewedItem = z.strictObject({
+	event: z.literal("reviewed"),
+	id: z.number().int(),
+	user: simpleUser,
+	body: z.string().nullable(),
+	state: z.enum(["approved", "changes_requested", "commented"]),
+	html_url: url,
+	pull_request_url: url,
+	author_association: z.enum(["OWNER", "COLLABORATOR", "NONE"]),
+	_links: z.strictObject({ html: href, pull_request: href }),
+	submitted_at: timestamp,
+	commit_id: sha.nullable(),
+});
+
+/** A timeline item: an issue event, a comment as a `commented` event, or a review. */
 export const timelineItem = z.union([
 	issueEvent,
 	z.strictObject({
@@ -234,6 +251,7 @@ export const timelineItem = z.union([
 		event: z.literal("commented"),
 		actor: simpleUser,
 	}),
+	reviewedItem,
 ]);
 
 /** A commit author/committer; emails are a noreply placeholder. */
@@ -327,8 +345,6 @@ export const branch = z.strictObject({
 });
 
 export const tag = z.strictObject({ name: z.string(), commit: commitRef });
-
-const href = z.strictObject({ href: url });
 
 const pullSide = z.strictObject({
 	label: z.string(),
