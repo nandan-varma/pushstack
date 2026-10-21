@@ -20,6 +20,7 @@ import git from "isomorphic-git";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import { afterRepositoryPush, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
+import { logWarn } from "./perf-log";
 
 /** How long unreferenced objects a client wrote survive repacks. */
 const OBJECT_KEEP_MS = 24 * 60 * 60 * 1000;
@@ -35,11 +36,17 @@ function writeObjects<T>(
 		const repo = repoFor(ownerKey, repoName);
 		const keepUntil = new Date(Date.now() + OBJECT_KEEP_MS);
 		const result = await withPackedWrites(repo, fn, { keepUntil });
-		const removed = await consolidateKeptPacks(repo, {
-			threshold: KEPT_PACK_THRESHOLD,
-			keepUntil,
-		});
-		if (removed.length > 0) afterRepositoryPush(ownerKey, repoName);
+		// Best effort, like the repack after other writes: the objects landed,
+		// and unmerged kept packs only cost reads until the next write merges.
+		try {
+			const removed = await consolidateKeptPacks(repo, {
+				threshold: KEPT_PACK_THRESHOLD,
+				keepUntil,
+			});
+			if (removed.length > 0) afterRepositoryPush(ownerKey, repoName);
+		} catch (error) {
+			logWarn("git-objects", "merging kept packs failed", error);
+		}
 		return result;
 	});
 }
