@@ -394,6 +394,25 @@ export async function getThreadSubscriptionState(
 }
 
 /**
+ * Forget the user's subscription to a thread (GitHub's "delete a thread
+ * subscription"): unlike an unsubscribe, it isn't remembered, so being
+ * involved again (a comment, a mention, an assignment) resubscribes.
+ */
+export async function deleteThreadSubscriptionRow(
+	userId: string,
+	issueId: number,
+): Promise<void> {
+	await db
+		.delete(threadSubscriptions)
+		.where(
+			and(
+				eq(threadSubscriptions.issueId, issueId),
+				eq(threadSubscriptions.userId, userId),
+			),
+		);
+}
+
+/**
  * Subscribe (reason `manual` for a new subscription) or unsubscribe; an
  * unsubscribe is remembered so later activity doesn't resubscribe.
  */

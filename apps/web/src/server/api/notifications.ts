@@ -8,9 +8,11 @@
 import { inArray, max } from "drizzle-orm";
 import { db } from "#/db";
 import { comments } from "#/db/app-schema";
+import { MAX_LIST_SKIP } from "#/lib/limits";
 import type { NotificationItem } from "#/lib/notifications";
 import {
 	countNotificationsForUser,
+	deleteThreadSubscriptionRow,
 	getNotificationForUser,
 	getThreadSubscriptionState,
 	listNotificationsForUser,
@@ -100,12 +102,9 @@ async function listNotifications(
 	const query = queryParams(ctx, id, "Notification");
 	const perPage = query.per_page;
 	const page = query.page ?? 1;
-	const params = {
-		page,
-		perPage,
-		offset: (page - 1) * perPage,
-		reachable: true,
-	};
+	const offset = (page - 1) * perPage;
+	const params = { page, perPage, offset, reachable: offset <= MAX_LIST_SKIP };
+	if (!params.reachable) return json([]);
 	const filter: NotificationFilter = {
 		all: query.all,
 		participating: query.participating,
@@ -275,12 +274,15 @@ export async function putThreadSubscription(ctx: ApiContext) {
 	return json(subscriptionShape(item.id, state));
 }
 
-/** `DELETE /notifications/threads/{thread_id}/subscription`: stop notifications until involved again. */
+/**
+ * `DELETE /notifications/threads/{thread_id}/subscription`: forget the
+ * subscription — no notifications from watching until involved again.
+ */
 export async function deleteThreadSubscription(ctx: ApiContext) {
 	const { caller, item } = await callerThread(
 		ctx,
 		"activity/delete-thread-subscription",
 	);
-	await setThreadSubscription(caller.userId, item.issueId, false);
+	await deleteThreadSubscriptionRow(caller.userId, item.issueId);
 	return noContent();
 }

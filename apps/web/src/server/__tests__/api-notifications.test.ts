@@ -201,6 +201,69 @@ describe("thread subscriptions", () => {
 		expect((await call(url, put(bob, {}))).body.subscribed).toBe(true);
 		const removed = await call(url, { ...asToken(bob), method: "DELETE" });
 		expect(removed.status).toBe(204);
-		expect((await call(url, asToken(bob))).body.subscribed).toBe(false);
+		// Forgotten, not muted: 404, and being mentioned subscribes again.
+		expect((await call(url, asToken(bob))).status).toBe(404);
+		await call(
+			`/repos/alice/${repoName}/issues/${issueNumber}/comments`,
+			post(alice, { body: "@bob ping" }),
+		);
+		expect((await call(url, asToken(bob))).body.subscribed).toBe(true);
+	});
+});
+
+describe("lost access", () => {
+	it("hides a private repository's threads once access is gone", async () => {
+		const { default: repositories } = await import("../repositories").then(
+			(module) => ({ default: module }),
+		);
+		const { signIn } = await import("../../test/app-harness");
+		const created = await call(
+			"/user/repos",
+			post(alice, { name: "secret", private: true, auto_init: true }),
+		);
+		signIn(users.alice);
+		await repositories.addCollaboratorByUsername({
+			data: { repoId: created.body.id, username: "carol", role: "read" },
+		});
+		await call(
+			"/repos/alice/secret/issues",
+			post(alice, { title: "Psst", body: "@carol" }),
+		);
+		const [thread] = (await call("/notifications", asToken(carol))).body;
+		expect(thread.subject.title).toBe("Psst");
+		const threadPath = `/notifications/threads/${thread.id}`;
+		expect(
+			(await call(`${threadPath}/subscription`, asToken(carol))).status,
+		).toBe(200);
+
+		signIn(users.alice);
+		await repositories.removeCollaborator({
+			data: { repoId: created.body.id, userId: users.carol.id },
+		});
+		expect(
+			(await call("/notifications?all=true", asToken(carol))).body,
+		).toEqual([]);
+		for (const [path, method] of [
+			[threadPath, "GET"],
+			[threadPath, "PATCH"],
+			[threadPath, "DELETE"],
+			[`${threadPath}/subscription`, "GET"],
+			[`${threadPath}/subscription`, "PUT"],
+			[`${threadPath}/subscription`, "DELETE"],
+		] as const) {
+			expect(
+				(
+					await call(path, {
+						...asToken(carol),
+						method,
+						...(method === "PUT" && { body: "{}" }),
+					})
+				).status,
+				`${method} ${path}`,
+			).toBe(404);
+		}
+		expect(
+			(await call("/repos/alice/secret/notifications", asToken(carol))).status,
+		).toBe(404);
 	});
 });
