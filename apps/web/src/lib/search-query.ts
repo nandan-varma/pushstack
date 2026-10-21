@@ -13,7 +13,7 @@
  * Negation (`-label:x`) is not supported yet, so it is searched as text too.
  */
 
-export const SEARCH_SORTS = [
+const SEARCH_SORTS = [
 	"created-desc",
 	"created-asc",
 	"updated-desc",
@@ -24,7 +24,7 @@ export const SEARCH_SORTS = [
 
 export type SearchSort = (typeof SEARCH_SORTS)[number];
 
-export const DEFAULT_SEARCH_SORT: SearchSort = "created-desc";
+const DEFAULT_SEARCH_SORT: SearchSort = "created-desc";
 
 export type SearchStatus = "open" | "closed" | "merged" | "all";
 export type SearchType = "issue" | "pr";

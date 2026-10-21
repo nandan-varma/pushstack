@@ -21,7 +21,7 @@ import type { TimelineEvent } from "#/lib/timeline-types";
 import { recordActivity } from "./activity";
 import { getCommitLog } from "./git-read";
 
-export const MAX_PUSH_COMMITS = 100;
+const MAX_PUSH_COMMITS = 100;
 const ZERO_OID = "0".repeat(40);
 const MESSAGE_PREVIEW_CHARS = 200;
 

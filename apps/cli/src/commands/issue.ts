@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Output } from "@pushstack/api-contract/client";
-import { parse, pickFields } from "../args";
+import { assertJsonFields, parse, printJsonFields } from "../args";
 import { type Client, connect } from "../client";
 import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
@@ -41,24 +41,6 @@ const HELP: Record<string, string> = {
 	reopen: "pst issue reopen <number> [--repo OWNER/REPO] [--hostname HOST]\n",
 };
 
-function jsonFields(fields: string | undefined) {
-	if (fields === undefined) return;
-	if (
-		!fields ||
-		fields.split(",").some((field) => !Object.hasOwn(JSON_FIELDS, field))
-	) {
-		throw new CliError(
-			`Invalid JSON fields: "${fields}"\nAvailable fields:\n  ${Object.keys(JSON_FIELDS).sort().join("\n  ")}`,
-		);
-	}
-}
-function print(io: Io, fields: string, value: Issue | Issue[]) {
-	const pick = (issue: Issue) =>
-		pickFields(fields, JSON_FIELDS as never, issue as never);
-	io.stdout(
-		`${JSON.stringify(Array.isArray(value) ? value.map(pick) : pick(value), null, 2)}\n`,
-	);
-}
 function numberArg(positionals: string[]) {
 	const raw = positionals[0];
 	if (
@@ -123,7 +105,7 @@ async function list(io: Io, args: string[]) {
 		throw new CliError("--limit must be an integer from 1 to 10000");
 	if (!["open", "closed", "all"].includes(values.state))
 		throw new CliError("--state must be open, closed or all");
-	jsonFields(values.json);
+	assertJsonFields(values.json, JSON_FIELDS);
 	const labels = names(values.label, "label");
 	if (values.assignee !== undefined && !values.assignee.trim())
 		throw new CliError("--assignee requires a nonempty value");
@@ -148,7 +130,13 @@ async function list(io: Io, args: string[]) {
 		);
 		if (issues.length >= limit) break;
 	}
-	if (values.json !== undefined) return print(io, values.json, issues);
+	if (values.json !== undefined)
+		return printJsonFields(
+			io,
+			values.json,
+			JSON_FIELDS as never,
+			issues as never,
+		);
 	for (const issue of issues)
 		io.stdout(
 			`${issue.number}\t${issue.title}\t${issue.state}\t${issue.updated_at}\n`,
@@ -165,10 +153,16 @@ async function view(io: Io, args: string[]) {
 		return;
 	}
 	const number = numberArg(positionals);
-	jsonFields(values.json);
+	assertJsonFields(values.json, JSON_FIELDS);
 	const { client, repo } = await context(io, values);
 	const issue = await getIssue(client, repo, number);
-	if (values.json !== undefined) return print(io, values.json, issue);
+	if (values.json !== undefined)
+		return printJsonFields(
+			io,
+			values.json,
+			JSON_FIELDS as never,
+			issue as never,
+		);
 	io.stdout(
 		`${issue.title} #${issue.number}\n${issue.state.toUpperCase()} • ${issue.user.login}\n${issue.html_url}\n\n${issue.body ?? ""}\n`,
 	);

@@ -23,7 +23,7 @@ export type Shape<K extends keyof typeof resources> = z.output<
 export type RepoRole = "owner" | "admin" | "write" | "read" | "anonymous";
 
 /** GitHub's legacy global id for a user: base64 of `04:User<id>`. */
-export function userNodeId(apiId: number) {
+function userNodeId(apiId: number) {
 	return Buffer.from(`04:User${apiId}`).toString("base64");
 }
 

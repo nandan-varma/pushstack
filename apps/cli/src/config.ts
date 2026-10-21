@@ -11,7 +11,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { CliError, type Io } from "./io";
 
-export const DEFAULT_HOST = "git.nandan.fyi";
+const DEFAULT_HOST = "git.nandan.fyi";
 
 export interface HostEntry {
 	user: string;

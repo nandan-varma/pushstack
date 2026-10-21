@@ -107,7 +107,7 @@ function packageVersion(root: string, pkg: string): string {
 	return version;
 }
 
-export async function buildTestTemplate(): Promise<Uint8Array<ArrayBuffer>> {
+async function buildTestTemplate(): Promise<Uint8Array<ArrayBuffer>> {
 	const client = new PGlite();
 	try {
 		const db = drizzle({ client });

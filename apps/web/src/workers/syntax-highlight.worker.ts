@@ -8,7 +8,7 @@ import {
 	type ThemedToken,
 } from "shiki";
 
-export const HIGHLIGHT_THEMES = {
+const HIGHLIGHT_THEMES = {
 	light: "github-light",
 	dark: "github-dark",
 } as const;

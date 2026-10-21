@@ -4,7 +4,7 @@
  */
 
 /** GitHub's `reason` values this forge produces. */
-export const NOTIFICATION_REASONS = [
+const NOTIFICATION_REASONS = [
 	"assign",
 	"author",
 	"comment",

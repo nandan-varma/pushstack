@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Output } from "@pushstack/api-contract/client";
-import { parse, pickFields } from "../args";
+import { assertJsonFields, parse, printJsonFields } from "../args";
 import { type Client, connect } from "../client";
 import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
@@ -43,24 +43,6 @@ const HELP: Record<string, string> = {
 	checkout: `pst pr checkout ${TARGET} [-b|--branch NAME] [-f|--force] [--repo OWNER/REPO] [--hostname HOST]\nRun inside a clone; fetches the head branch and checks it out.\n`,
 };
 
-function jsonFields(fields: string | undefined) {
-	if (fields === undefined) return;
-	if (
-		!fields ||
-		fields.split(",").some((field) => !Object.hasOwn(JSON_FIELDS, field))
-	) {
-		throw new CliError(
-			`Invalid JSON fields: "${fields}"\nAvailable fields:\n  ${Object.keys(JSON_FIELDS).sort().join("\n  ")}`,
-		);
-	}
-}
-function print(io: Io, fields: string, value: Pull | Pull[]) {
-	const pick = (pull: Pull) =>
-		pickFields(fields, JSON_FIELDS as never, pull as never);
-	io.stdout(
-		`${JSON.stringify(Array.isArray(value) ? value.map(pick) : pick(value), null, 2)}\n`,
-	);
-}
 async function readBody(
 	io: Io,
 	values: { body?: string; "body-file"?: string },
@@ -154,7 +136,7 @@ async function list(io: Io, args: string[]) {
 	for (const flag of ["head", "base"] as const)
 		if (values[flag] !== undefined && !values[flag].trim())
 			throw new CliError(`--${flag} requires a nonempty value`);
-	jsonFields(values.json);
+	assertJsonFields(values.json, JSON_FIELDS);
 	const { client, repo } = await context(io, values);
 	const merged = values.state === "merged";
 	const pulls: Pull[] = [];
@@ -172,7 +154,13 @@ async function list(io: Io, args: string[]) {
 		);
 		if (pulls.length >= limit) break;
 	}
-	if (values.json !== undefined) return print(io, values.json, pulls);
+	if (values.json !== undefined)
+		return printJsonFields(
+			io,
+			values.json,
+			JSON_FIELDS as never,
+			pulls as never,
+		);
 	for (const pull of pulls)
 		io.stdout(
 			`${pull.number}\t${pull.title}\t${pull.head.ref}\t${stateOf(pull)}\t${pull.created_at}\n`,
@@ -188,10 +176,16 @@ async function view(io: Io, args: string[]) {
 		io.stdout(HELP.view as string);
 		return;
 	}
-	jsonFields(values.json);
+	assertJsonFields(values.json, JSON_FIELDS);
 	const { client, repo } = await context(io, values);
 	const pull = await findPull(io, client, repo, positionals);
-	if (values.json !== undefined) return print(io, values.json, pull);
+	if (values.json !== undefined)
+		return printJsonFields(
+			io,
+			values.json,
+			JSON_FIELDS as never,
+			pull as never,
+		);
 	io.stdout(
 		`${pull.title} #${pull.number}\n${stateOf(pull)} • ${pull.user.login} wants to merge into ${pull.base.ref} from ${pull.head.ref}\n${pull.html_url}\n\n${pull.body ?? ""}\n`,
 	);
@@ -315,7 +309,7 @@ async function changeState(io: Io, args: string[], state: "open" | "closed") {
 	);
 }
 /** Git's check-ref-format rules for a branch, checked before any git call. */
-export function isBranchName(name: string) {
+function isBranchName(name: string) {
 	return (
 		name.length > 0 &&
 		name.length <= 255 &&

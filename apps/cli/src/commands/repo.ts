@@ -1,5 +1,5 @@
 import type { Output } from "@pushstack/api-contract/client";
-import { parse, pickFields } from "../args";
+import { parse, printJsonFields } from "../args";
 import { type Client, connect } from "../client";
 import { resolveHost } from "../config";
 import { CliError, type Io } from "../io";
@@ -25,14 +25,6 @@ const JSON_FIELDS = {
 
 const hostOption = { hostname: { type: "string" } } as const;
 
-function printJson(io: Io, fields: string, repos: Repo | Repo[]) {
-	const pick = (repo: Repo) =>
-		pickFields(fields, JSON_FIELDS as never, repo as never);
-	io.stdout(
-		`${JSON.stringify(Array.isArray(repos) ? repos.map(pick) : pick(repos), null, 2)}\n`,
-	);
-}
-
 async function view(io: Io, args: string[]) {
 	const { values, positionals } = parse(args, {
 		...hostOption,
@@ -49,7 +41,13 @@ async function view(io: Io, args: string[]) {
 		owner: ref.owner,
 		repo: ref.name,
 	});
-	if (values.json) return printJson(io, values.json, repo);
+	if (values.json)
+		return printJsonFields(
+			io,
+			values.json,
+			JSON_FIELDS as never,
+			repo as never,
+		);
 	if (io.isTTY) {
 		io.stdout(
 			`${repo.full_name}\n${repo.description ?? ""}\n\nView this repository on PushStack: ${repo.html_url}\n`,
@@ -99,7 +97,13 @@ async function list(io: Io, args: string[]) {
 		limit,
 		values.visibility as "public" | "private" | undefined,
 	);
-	if (values.json) return printJson(io, values.json, repos);
+	if (values.json)
+		return printJsonFields(
+			io,
+			values.json,
+			JSON_FIELDS as never,
+			repos as never,
+		);
 	for (const repo of repos) {
 		io.stdout(
 			`${repo.full_name}\t${repo.description ?? ""}\t${repo.visibility}\t${repo.updated_at}\n`,

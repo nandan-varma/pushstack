@@ -342,7 +342,7 @@ export function createTagObject(
 }
 
 /** `refs/heads/…` or `refs/tags/…` with a valid name, else null. */
-export function writableRefName(ref: string): string | null {
+function writableRefName(ref: string): string | null {
 	const match = /^refs\/(heads|tags)\/(.+)$/.exec(ref);
 	return match && isSafeBranchName(match[2] as string) ? ref : null;
 }
