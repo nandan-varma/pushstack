@@ -147,6 +147,22 @@ describe("requestFor", () => {
 			/repo/,
 		);
 	});
+
+	it("sends a DELETE's input as a body when the route says so", () => {
+		expect(
+			buildRequest(routes["repos/delete-file"], {
+				owner: "a",
+				repo: "b",
+				path: "dir/f.txt",
+				message: "m",
+				sha: "s",
+			}),
+		).toEqual({
+			method: "DELETE",
+			path: "/repos/a/b/contents/dir/f.txt",
+			body: { message: "m", sha: "s" },
+		});
+	});
 });
 
 describe("input schemas", () => {

@@ -80,6 +80,17 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/contents/{+path}",
 		docs: `${DOCS}/repos/contents#get-repository-content`,
 	},
+	"repos/create-or-update-file-contents": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/contents/{+path}",
+		docs: `${DOCS}/repos/contents#create-or-update-file-contents`,
+	},
+	"repos/delete-file": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/contents/{+path}",
+		docs: `${DOCS}/repos/contents#delete-a-file`,
+		deleteBody: true,
+	},
 	"repos/list-commits": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/commits",

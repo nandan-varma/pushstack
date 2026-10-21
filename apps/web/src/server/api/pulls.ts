@@ -7,7 +7,6 @@ import { and, count, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
-import { user } from "#/db/schema";
 import {
 	analyzeMerge,
 	getBranchDiff,
@@ -34,7 +33,7 @@ import {
 	type Thread,
 } from "../thread-store";
 import { createTtlCoalescedCache } from "../ttl-cache";
-import { type ApiContext, requireScope } from "./auth";
+import { type ApiContext, callerIdentity, requireScope } from "./auth";
 import { diffFileObjects, UNKNOWN_SHA } from "./diff-files";
 import {
 	ApiError,
@@ -481,12 +480,7 @@ export async function mergePull(ctx: ApiContext) {
 		throw notMergeable();
 	}
 
-	const [committer] = await db
-		.select({ id: user.id, name: user.name, email: user.email })
-		.from(user)
-		.where(eq(user.id, caller.userId))
-		.limit(1);
-	if (!committer) throw new Error("Authenticated user missing");
+	const committer = await callerIdentity(caller);
 	const title = data.commit_title?.trim();
 	const message = data.commit_message?.trim();
 	const commitMessage = title

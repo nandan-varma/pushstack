@@ -536,3 +536,11 @@ export const contents = z.union([
 		}),
 	]),
 ]);
+
+/** `PUT`/`DELETE …/contents/{path}`: the file written (`null` once deleted) and its commit. */
+export const fileCommit = z.strictObject({
+	content: z
+		.strictObject({ ...contentBase, type: z.literal("file") })
+		.nullable(),
+	commit: gitCommit,
+});

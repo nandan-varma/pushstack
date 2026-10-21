@@ -553,7 +553,7 @@ describe("branches and tags", () => {
 				sha: head,
 				comments_url: `${BASE}/repos/alice/proj/commits/${head}/comments`,
 				commit: {
-					message: "Initial\n\nBody\n",
+					message: "Initial\n\nBody",
 					author: { name: expect.any(String), email: expect.any(String) },
 					tree: { sha: expect.stringMatching(/^[0-9a-f]{40}$/) },
 				},
@@ -636,7 +636,7 @@ describe("repository initialization", () => {
 		expect(status).toBe(201);
 		const branch = await call("/repos/alice/inited/branches/main");
 		expect(branch.status).toBe(200);
-		expect(branch.body.commit.commit.message).toBe("Initial commit\n");
+		expect(branch.body.commit.commit.message).toBe("Initial commit");
 		const { id } = (await call("/repos/alice/inited")).body;
 		signIn(users.alice);
 		const readme = await files.getFile({

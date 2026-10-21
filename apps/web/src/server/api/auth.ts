@@ -4,6 +4,9 @@
  * Cookies are never accepted — a session-authenticated API would let any
  * website act as the visitor.
  */
+import { eq } from "drizzle-orm";
+import { db } from "#/db";
+import { user } from "#/db/schema";
 import { TOKEN_PREFIX, type TokenScope, tokenAllows } from "#/lib/token-scopes";
 import { authenticateToken } from "../git-auth";
 import {
@@ -54,4 +57,17 @@ export function requireScope(ctx: ApiContext, scope: TokenScope): Caller {
 	const caller = requireCaller(ctx);
 	if (!tokenAllows(caller.scopes, scope)) throw insufficientScopeError();
 	return caller;
+}
+
+/** The caller's name and email, for the commits a write creates. */
+export async function callerIdentity(
+	caller: Caller,
+): Promise<{ id: string; name: string; email: string }> {
+	const [row] = await db
+		.select({ id: user.id, name: user.name, email: user.email })
+		.from(user)
+		.where(eq(user.id, caller.userId))
+		.limit(1);
+	if (!row) throw new Error("Authenticated user missing");
+	return row;
 }

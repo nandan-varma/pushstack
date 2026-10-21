@@ -34,6 +34,7 @@ import {
 	comparison,
 	contents,
 	diffEntry,
+	fileCommit,
 	gitCommit,
 	gitRef,
 	gitTree,
@@ -71,6 +72,14 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 }
 
 const noContent = z.null();
+
+const commitMessage = z.string().min(1).max(MAX_COMMIT_MESSAGE_CHARS);
+/** A commit's author or committer; `date` is accepted and ignored (commits are dated now). */
+const commitIdentity = z.object({
+	name: z.string().min(1).max(255),
+	email: z.string().min(1).max(255),
+	date: z.string().optional(),
+});
 const listState = z.enum(["open", "closed", "all"]).default("open");
 const commentParams = repoParams.extend({ comment_id: positiveInt });
 const reactionList = {
@@ -164,6 +173,34 @@ export const endpoints = defineEndpoints({
 		params: repoParams.extend({ path: z.string().default("") }),
 		query: z.object({ ref: z.string().optional() }),
 		response: contents,
+	},
+	"repos/create-or-update-file-contents": {
+		params: repoParams.extend({ path: z.string().min(1) }),
+		body: z.object({
+			message: commitMessage,
+			/** Base64, line breaks allowed; the API's request body cap bounds its size. */
+			content: z
+				.string()
+				.transform((text) => text.replace(/[\r\n]/g, ""))
+				.pipe(z.base64()),
+			/** The blob being replaced; required when the file exists. */
+			sha: z.string().max(100).optional(),
+			branch: z.string().max(255).optional(),
+			committer: commitIdentity.optional(),
+			author: commitIdentity.optional(),
+		}),
+		response: fileCommit,
+	},
+	"repos/delete-file": {
+		params: repoParams.extend({ path: z.string().min(1) }),
+		body: z.object({
+			message: commitMessage,
+			sha: z.string().max(100),
+			branch: z.string().max(255).optional(),
+			committer: commitIdentity.optional(),
+			author: commitIdentity.optional(),
+		}),
+		response: fileCommit,
 	},
 	"repos/list-commits": {
 		params: repoParams,

@@ -154,7 +154,7 @@ describe("commits", () => {
 		);
 		expect(status).toBe(200);
 		expect(body).toHaveLength(2);
-		expect(body[0].commit.message).toBe("Add c.txt\n");
+		expect(body[0].commit.message).toBe("Add c.txt");
 		expect(body[0].url).toBe(`${BASE}/repos/alice/proj/commits/${body[0].sha}`);
 		expect(headers.get("link")).toContain('rel="next"');
 		const all = await call("/repos/alice/proj/commits");
@@ -327,7 +327,7 @@ describe("git database", () => {
 			sha: second,
 			url: `${BASE}/repos/alice/proj/git/commits/${second}`,
 			html_url: `${WEB}/alice/proj/commit/${second}`,
-			message: "Add src/app.txt\n",
+			message: "Add src/app.txt",
 			tree: { sha: expect.stringMatching(SHA) },
 			parents: [{ sha: first }],
 			verification: { verified: false, reason: "unsigned" },
@@ -628,5 +628,202 @@ describe("deleting refs", () => {
 			).status,
 		).toBe(401);
 		expect((await call("/repos/alice/proj/branches/topic")).status).toBe(200);
+	});
+});
+
+describe("file writes", () => {
+	const send = (method: string, path: string, token: string, body: object) =>
+		call(`/repos/alice/proj/contents/${path}`, {
+			...asToken(token),
+			method,
+			body: JSON.stringify(body),
+		});
+	const b64 = (text: string) => Buffer.from(text).toString("base64");
+
+	it("creates (201), updates with sha (200) and deletes a file", async () => {
+		const created = await send("PUT", "docs/new.md", alice, {
+			message: "Add new.md",
+			content: b64("one\n"),
+		});
+		expect(created.status).toBe(201);
+		expect(created.body.content).toMatchObject({
+			type: "file",
+			name: "new.md",
+			path: "docs/new.md",
+			size: 4,
+			html_url: `${WEB}/alice/proj/blob/main/docs/new.md`,
+		});
+		expect(created.body.commit).toMatchObject({
+			message: "Add new.md",
+			author: { name: "Alice" },
+		});
+		const tip = await call("/repos/alice/proj/branches/main");
+		expect(tip.body.commit.sha).toBe(created.body.commit.sha);
+
+		const updated = await send("PUT", "docs/new.md", alice, {
+			message: "Update new.md",
+			content: b64("two\n"),
+			sha: created.body.content.sha,
+			author: { name: "Someone", email: "someone@example.org" },
+		});
+		expect(updated.status).toBe(200);
+		expect(updated.body.commit.author.name).toBe("Someone");
+		expect(updated.body.commit.parents[0].sha).toBe(created.body.commit.sha);
+		const read = await call("/repos/alice/proj/contents/docs/new.md");
+		expect(Buffer.from(read.body.content, "base64").toString()).toBe("two\n");
+
+		const removed = await send("DELETE", "docs/new.md", alice, {
+			message: "Remove new.md",
+			sha: updated.body.content.sha,
+		});
+		expect(removed.status).toBe(200);
+		expect(removed.body.content).toBeNull();
+		expect(removed.body.commit.message).toBe("Remove new.md");
+		expect((await call("/repos/alice/proj/contents/docs/new.md")).status).toBe(
+			404,
+		);
+	});
+
+	it("writes to a named branch only", async () => {
+		const onTopic = await send("PUT", "topic-only.txt", alice, {
+			message: "On topic",
+			content: b64("t\n"),
+			branch: "topic",
+		});
+		expect(onTopic.status).toBe(201);
+		expect(onTopic.body.content.url).toContain("?ref=topic");
+		expect(
+			(await call("/repos/alice/proj/contents/topic-only.txt?ref=topic"))
+				.status,
+		).toBe(200);
+		expect(
+			(await call("/repos/alice/proj/contents/topic-only.txt")).status,
+		).toBe(404);
+		const missing = await send("PUT", "x.txt", alice, {
+			message: "x",
+			content: b64("x"),
+			branch: "no-such-branch",
+		});
+		expect(missing.status).toBe(404);
+	});
+
+	it("is GitHub's optimistic lock: 422 without sha, 409 on a stale one", async () => {
+		const existing = await call("/repos/alice/proj/contents/c.txt");
+		const noSha = await send("PUT", "c.txt", alice, {
+			message: "m",
+			content: b64("z"),
+		});
+		expect(noSha.status).toBe(422);
+		expect(noSha.body.message).toContain('"sha" wasn\'t supplied.');
+		const stale = await send("PUT", "c.txt", alice, {
+			message: "m",
+			content: b64("z"),
+			sha: "0".repeat(40),
+		});
+		expect(stale.status).toBe(409);
+		expect(stale.body.message).toBe(`c.txt does not match ${"0".repeat(40)}`);
+		const staleDelete = await send("DELETE", "c.txt", alice, {
+			message: "m",
+			sha: "0".repeat(40),
+		});
+		expect(staleDelete.status).toBe(409);
+		const after = await call("/repos/alice/proj/contents/c.txt");
+		expect(after.body.sha).toBe(existing.body.sha);
+		const gone = await send("DELETE", "nope.txt", alice, {
+			message: "m",
+			sha: existing.body.sha,
+		});
+		expect(gone.status).toBe(404);
+		const dir = await send("PUT", "src", alice, {
+			message: "m",
+			content: b64("z"),
+			sha: existing.body.sha,
+		});
+		expect(dir.status).toBe(422);
+	});
+
+	it("validates input and permissions", async () => {
+		const readOnly = await mintToken(users.alice, ["repo:read"]);
+		expect(
+			(
+				await send("PUT", "v.txt", readOnly, {
+					message: "m",
+					content: b64("v"),
+				})
+			).status,
+		).toBe(403);
+		expect(
+			(await send("DELETE", "c.txt", alice, { message: "m" })).status,
+		).toBe(422);
+		const wrapped = await send("PUT", "wrapped.txt", alice, {
+			message: "Wrapped",
+			content: `${b64("x".repeat(60)).slice(0, 60)}\n${b64("x".repeat(60)).slice(60)}\n`,
+		});
+		expect(wrapped.status).toBe(201);
+		expect(wrapped.body.content.size).toBe(60);
+		expect(
+			(await send("PUT", "v.txt", alice, { content: b64("v") })).status,
+		).toBe(422);
+		expect(
+			(await send("PUT", "v.txt", alice, { message: "m", content: "%%%" }))
+				.status,
+		).toBe(422);
+		expect(
+			(await send("PUT", "v.txt", bob, { message: "m", content: b64("v") }))
+				.status,
+		).toBe(403);
+		expect(
+			(
+				await send("PUT", ".git/config", alice, {
+					message: "m",
+					content: b64("v"),
+				})
+			).status,
+		).toBe(404);
+		expect(
+			(
+				await call("/repos/alice/proj/contents/v.txt", {
+					method: "PUT",
+					body: JSON.stringify({ message: "m", content: b64("v") }),
+				})
+			).status,
+		).toBe(401);
+	});
+
+	it("creates the first commit of an empty repository", async () => {
+		const first = await call("/repos/alice/empty/contents/README.md", {
+			...asToken(alice),
+			method: "PUT",
+			body: JSON.stringify({ message: "Init", content: b64("# hi\n") }),
+		});
+		expect(first.status).toBe(201);
+		expect(first.body.commit.parents).toEqual([]);
+		const branch = await call("/repos/alice/empty/branches/main");
+		expect(branch.body.commit.sha).toBe(first.body.commit.sha);
+	});
+
+	it("makes an empty repository's first branch its default", async () => {
+		await call("/user/repos", post(alice, { name: "blank" }));
+		const first = await call("/repos/alice/blank/contents/r.md", {
+			...asToken(alice),
+			method: "PUT",
+			body: JSON.stringify({
+				message: "Init",
+				content: b64("r\n"),
+				branch: "dev",
+			}),
+		});
+		expect(first.status).toBe(201);
+		const repo = await call("/repos/alice/blank");
+		expect(repo.body.default_branch).toBe("dev");
+		const readme = await call("/repos/alice/blank/contents/r.md");
+		expect(readme.status).toBe(200);
+		// From now on, only existing branches take writes.
+		const other = await call("/repos/alice/blank/contents/s.md", {
+			...asToken(alice),
+			method: "PUT",
+			body: JSON.stringify({ message: "s", content: b64("s"), branch: "x" }),
+		});
+		expect(other.status).toBe(404);
 	});
 });

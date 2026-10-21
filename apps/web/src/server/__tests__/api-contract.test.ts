@@ -197,6 +197,24 @@ beforeAll(async () => {
 
 	await check("/repos/alice/proj/contents");
 	await check("/repos/alice/proj/contents/b.txt");
+	// Creating is a 201; the update is the route's documented 200.
+	const created = await call(
+		"/repos/alice/proj/contents/written.txt",
+		put(alice, { message: "Write", content: btoa("w") }),
+	);
+	const written = await check(
+		"/repos/alice/proj/contents/written.txt",
+		put(alice, {
+			message: "Rewrite",
+			content: btoa("w2"),
+			sha: created.body.content.sha,
+		}),
+	);
+	await check("/repos/alice/proj/contents/written.txt", {
+		...asToken(alice),
+		method: "DELETE",
+		body: JSON.stringify({ message: "Remove", sha: written.content.sha }),
+	});
 	const commits = await check("/repos/alice/proj/commits");
 	const head = commits[0];
 	await check(`/repos/alice/proj/commits/${head.sha}`);

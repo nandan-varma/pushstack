@@ -12,7 +12,7 @@ import {
 	updateComment,
 } from "./comments";
 import { compareCommits, getCommitDetail, listCommits } from "./commits";
-import { getContents } from "./contents";
+import { deleteContents, getContents, putContents } from "./contents";
 import {
 	deleteRef,
 	getGitBlob,
@@ -87,6 +87,8 @@ const HANDLERS = {
 	"repos/get-branch": getBranch,
 	"repos/list-tags": listTags,
 	"repos/get-content": getContents,
+	"repos/create-or-update-file-contents": putContents,
+	"repos/delete-file": deleteContents,
 	"repos/list-commits": listCommits,
 	"repos/get-commit": getCommitDetail,
 	"repos/compare-commits-with-basehead": compareCommits,

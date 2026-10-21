@@ -19,6 +19,8 @@ export interface Route {
 	docs: string;
 	/** The success status (default 200; 204 has no body). */
 	status?: 200 | 201 | 204;
+	/** A DELETE whose input travels as a JSON body (e.g. deleting a file). */
+	deleteBody?: true;
 }
 
 export interface Schemas {
@@ -79,7 +81,10 @@ export function buildRequest(
 	// An empty rest parameter leaves a trailing slash (`/contents/`).
 	path = path.replace(/\/$/, "");
 	const fields = Object.entries(rest).filter(([, v]) => v !== undefined);
-	if (endpoint.method === "GET" || endpoint.method === "DELETE") {
+	if (
+		endpoint.method === "GET" ||
+		(endpoint.method === "DELETE" && !endpoint.deleteBody)
+	) {
 		const query = new URLSearchParams(
 			fields.map(([key, value]) => [
 				key,
