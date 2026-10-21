@@ -195,6 +195,21 @@ describe("notifications", () => {
 		expect(all[0]?.unread).toBe(false);
 		expect(all[0]?.lastReadAt).toBeInstanceOf(Date);
 
+		// Viewing the thread reads it too (and only reports a change once).
+		signIn(users.carol);
+		await comments.createComment({
+			data: { issueId: issue.id, body: "more" },
+		});
+		expect(await unread(users.watcher2)).toBe(1);
+		signIn(users.watcher2);
+		expect(
+			await n.markThreadViewed({ data: { repoId, number: issue.number } }),
+		).toBe(true);
+		expect(await unread(users.watcher2)).toBe(0);
+		expect(
+			await n.markThreadViewed({ data: { repoId, number: issue.number } }),
+		).toBe(false);
+
 		// New activity makes the same thread unread again.
 		signIn(users.carol);
 		await comments.createComment({
