@@ -15,7 +15,7 @@ import {
 	isSafeTreePath,
 } from "git-fs-s3";
 import { consolidateKeptPacks } from "git-fs-s3/http";
-import { type Repo, withPackedWrites } from "git-fs-s3/ops";
+import { findRefCollision, type Repo, withPackedWrites } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import { afterRepositoryPush, repoFor } from "./git-repo";
@@ -375,6 +375,9 @@ export function createRef(
 				throw error;
 			});
 		if (exists) throw invalid("Reference already exists");
+		if (await findRefCollision(repo, ref)) {
+			throw invalid("Reference cannot be created");
+		}
 		await git.writeRef({ ...repo, ref, value: sha });
 	});
 }

@@ -220,6 +220,12 @@ export async function createBranchFrom(
 	assertSafeBranchName(name);
 	assertSafeBranchName(startPoint);
 	const object = await resolveLooseRefFast(repo, `refs/heads/${startPoint}`);
+	const collision = await findRefCollision(repo, `refs/heads/${name}`);
+	if (collision) {
+		throw new GitConflictError(
+			`Branch ${name} can't be created: ${collision} exists`,
+		);
+	}
 	try {
 		await git.branch({ ...repo, ref: name, checkout: false, object });
 	} catch (err) {
@@ -295,4 +301,24 @@ export async function listTags(repo: Repo): Promise<Tag[]> {
 	return tags
 		.filter((tag): tag is Tag => tag !== null)
 		.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+}
+
+/**
+ * An existing ref that `ref` (fully qualified) can't coexist with: one that
+ * is a directory prefix of it (`refs/heads/a` for `refs/heads/a/b`) or lives
+ * under it. Git stores refs as files, so it refuses such pairs; object
+ * storage would accept both, so creations check here. Null when none.
+ */
+export async function findRefCollision(
+	repo: Repo,
+	ref: string,
+): Promise<string | null> {
+	const names = (await git.listRefs({ ...repo, filepath: "refs" })).map(
+		(name) => `refs/${name}`,
+	);
+	return (
+		names.find(
+			(name) => ref.startsWith(`${name}/`) || name.startsWith(`${ref}/`),
+		) ?? null
+	);
 }

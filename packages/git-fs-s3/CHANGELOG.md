@@ -5,6 +5,14 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Refs that collide as file and directory (`refs/heads/a` and
+  `refs/heads/a/b`) are refused, as git refuses them: `createBranchFrom`
+  throws `GitConflictError` and receive-pack rejects the update ("cannot lock
+  ref"), including two such creations in one push. New
+  `findRefCollision(repo, ref)` (pushstack#160).
+
 ## [0.18.0] - 2026-10-21
 
 ### Added

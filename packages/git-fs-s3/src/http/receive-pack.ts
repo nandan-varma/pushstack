@@ -1,6 +1,7 @@
 import git from "isomorphic-git";
 import { concat, decodeAscii, decodeUtf8 } from "../edge-utils.js";
 import { isNotFoundError } from "../git-errors.js";
+import { findRefCollision } from "../ops/branch.js";
 import type { Repo } from "../ops/types.js";
 import { storePack } from "../pack-write.js";
 import { isSafeFullRefName } from "../refs.js";
@@ -239,6 +240,16 @@ export async function applyRefUpdates(
 			refUpdates.map(async ({ oldOid, newOid, refName }) => {
 				const failure = await checkRefCas(repo, refName, oldOid);
 				if (failure) return failure;
+				if (oldOid === ZERO_OID && newOid !== ZERO_OID) {
+					const collision = await findRefCollision(repo, refName);
+					if (collision) {
+						return {
+							refName,
+							ok: false,
+							reason: `cannot lock ref '${refName}': '${collision}' exists`,
+						};
+					}
+				}
 
 				if (newOid === ZERO_OID) {
 					try {

@@ -408,3 +408,40 @@ describe("ref read failures are not absence (#93)", () => {
 		}
 	});
 });
+
+describe("createBranchFrom — ref collisions", () => {
+	it("refuses a branch nested under, or containing, an existing one", async () => {
+		const { createBranchFrom, findRefCollision } = await import(
+			"../src/ops/index.js"
+		);
+		const { createGitFs, MemoryObjectStore } = await import("../src/index.js");
+		const git = (await import("isomorphic-git")).default;
+		const { authorNow, commitFilesToBare } = await import(
+			"../src/ops/index.js"
+		);
+		const repo = {
+			fs: createGitFs(new MemoryObjectStore()),
+			gitdir: "repos/a/b/git",
+			cache: {},
+		};
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		await commitFilesToBare(repo, {
+			branch: "main",
+			message: "init",
+			author: authorNow("T", "t@example.com"),
+			files: [{ path: "f", content: "f" }],
+		});
+		await createBranchFrom(repo, "a", "main");
+		await expect(createBranchFrom(repo, "a/b", "main")).rejects.toThrow(
+			/refs\/heads\/a exists/,
+		);
+		await createBranchFrom(repo, "x/y", "main");
+		await expect(createBranchFrom(repo, "x", "main")).rejects.toThrow();
+		expect(await findRefCollision(repo, "refs/heads/zz")).toBeNull();
+	});
+});

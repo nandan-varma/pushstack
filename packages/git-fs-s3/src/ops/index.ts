@@ -4,6 +4,7 @@ export {
 	type Branch,
 	createBranchFrom,
 	deleteBranchByName,
+	findRefCollision,
 	listBranches,
 	listTags,
 	resolveLooseRefFast,
