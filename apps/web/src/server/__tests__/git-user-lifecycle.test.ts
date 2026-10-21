@@ -424,6 +424,42 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		await git.checkout({ fs, dir: ENV.cloneDir, ref: "main" });
 	});
 
+	it("deleting a pull request's head branch by push closes it with head_ref_deleted", async () => {
+		const { createPullRequest } = await import("../pull-requests");
+		const { getTimeline } = await import("../timeline");
+		const { findRepositoryByName } = await import("../repository-lookup");
+		const { findPullRequestById } = await import("../thread-store");
+		const repo = await findRepositoryByName(TEST_USER.username, REPO_NAME);
+		if (!repo) throw new Error("repo missing");
+		const pr = await createPullRequest({
+			data: {
+				repoId: repo.id,
+				title: "From topic2",
+				sourceBranchName: "topic2",
+				targetBranchName: "main",
+			},
+		});
+		const result = await git.push({
+			fs,
+			http: nodeHttpClient,
+			dir: ENV.cloneDir,
+			remote: "origin",
+			ref: "topic",
+			remoteRef: "topic2",
+			delete: true,
+			onAuth: () => ({ username: TEST_USER.username, password: PAT }),
+		});
+		expect(result.ok).toBe(true);
+		const timeline = await getTimeline({
+			data: { repoId: repo.id, number: pr.number },
+		});
+		expect(timeline.map((e) => e.event)).toEqual([
+			"head_ref_deleted",
+			"closed",
+		]);
+		expect((await findPullRequestById(pr.id))?.status).toBe("closed");
+	});
+
 	it("renames the repository, moving its storage with it", async () => {
 		const { updateRepository } = await import("../repositories");
 		const { findRepositoryByName } = await import("../repository-lookup");

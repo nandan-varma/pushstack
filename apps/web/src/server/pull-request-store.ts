@@ -15,7 +15,11 @@ import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
 import { recordThreadActivity } from "./notification-store";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
-import { type PullRequest, pullRequestOf } from "./thread-store";
+import {
+	findPullRequestById,
+	type PullRequest,
+	pullRequestOf,
+} from "./thread-store";
 import {
 	recordCrossReferences,
 	recordTimelineEvent,
@@ -268,9 +272,8 @@ export async function mergePullRequestBranches(
 }
 
 /**
- * Delete the head branch `branch` and record `head_ref_deleted` on every
- * closed pull request it heads (GitHub's "deleted the … branch"). The caller
- * checked write access and that `branch` is not the default branch.
+ * Delete the head branch `branch`, then {@link recordHeadBranchDeleted}. The
+ * caller checked write access and that `branch` is not the default branch.
  */
 export async function deleteHeadBranch(
 	repo: Parameters<typeof ownerKeyOf>[0] & { id: number; name: string },
@@ -278,20 +281,35 @@ export async function deleteHeadBranch(
 	userId: string,
 ): Promise<void> {
 	await deleteBranch(ownerKeyOf(repo), repo.name, branch);
+	await recordHeadBranchDeleted(repo.id, branch, userId);
+}
+
+/**
+ * After `branch` was deleted (from the web, the REST API or a push), as
+ * GitHub does: every pull request it heads gets `head_ref_deleted`, and the
+ * open ones are closed — they have nothing left to merge.
+ */
+export async function recordHeadBranchDeleted(
+	repoId: number,
+	branch: string,
+	userId: string,
+): Promise<void> {
 	const heads = await db
-		.select({ id: issues.id })
+		.select({ id: issues.id, status: issues.status })
 		.from(pullRequests)
 		.innerJoin(issues, eq(issues.id, pullRequests.issueId))
 		.where(
-			and(
-				eq(issues.repoId, repo.id),
-				eq(issues.status, "closed"),
-				eq(pullRequests.sourceBranch, branch),
-			),
+			and(eq(issues.repoId, repoId), eq(pullRequests.sourceBranch, branch)),
 		);
 	await recordTimelineEvents(
 		heads.map((head) => head.id),
 		userId,
 		{ event: "head_ref_deleted", branch },
 	);
+	for (const head of heads.filter((row) => row.status === "open")) {
+		const pr = await findPullRequestById(head.id);
+		if (pr?.status === "open") {
+			await updatePullRequestFields(pr, userId, { status: "closed" });
+		}
+	}
 }
