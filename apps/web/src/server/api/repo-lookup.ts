@@ -4,8 +4,8 @@ import {
 	findRepositoryByName,
 	type RepositoryRowWithOwner,
 } from "../repository-lookup";
-import type { ApiContext } from "./auth";
-import { notFoundError } from "./http";
+import { type ApiContext, type Caller, requireScope } from "./auth";
+import { forbiddenError, notFoundError } from "./http";
 
 /**
  * The repository named by the route's `:owner` and `:repo`. A repository that
@@ -26,4 +26,21 @@ export async function readableRepository(
 	const access = await getAccessForRepository(repo, ctx.caller?.userId);
 	if (!access.canRead) throw notFoundError();
 	return { repo, access };
+}
+
+/**
+ * {@link readableRepository} for a write: a `repo:write` token whose user
+ * may push (403 otherwise, as GitHub answers a token without access).
+ */
+export async function writableRepository(ctx: ApiContext): Promise<{
+	repo: RepositoryRowWithOwner;
+	access: RepositoryAccess;
+	caller: Caller;
+}> {
+	const caller = requireScope(ctx, "repo:write");
+	const { repo, access } = await readableRepository(ctx);
+	if (!access.canWrite) {
+		throw forbiddenError("Resource not accessible by personal access token");
+	}
+	return { repo, access, caller };
 }

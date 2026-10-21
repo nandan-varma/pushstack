@@ -16,6 +16,8 @@
  */
 import { inflate } from "../edge-utils.js";
 import { parseLooseObjectPath } from "../git-layout.js";
+import { rawFs } from "../http/types.js";
+import { keepFileContent, packFileName } from "../pack-files.js";
 import {
 	encodePack,
 	type PackObject,
@@ -80,9 +82,20 @@ function fileStat(size: number) {
  * discarded (they'd be unreachable anyway). Serialize concurrent writers to
  * the same repository externally, as for any write.
  */
+export interface PackedWritesOptions {
+	/**
+	 * Protect the packs written from repacking until this time (a `.keep`
+	 * file, written after the pack and its index). For objects no ref names
+	 * yet — e.g. a REST client's blob, tree, commit sequence before its ref
+	 * update — which a repack would otherwise drop as unreachable.
+	 */
+	keepUntil?: Date;
+}
+
 export async function withPackedWrites<T>(
 	repo: Repo,
 	fn: (packedRepo: Repo) => Promise<T>,
+	options: PackedWritesOptions = {},
 ): Promise<T> {
 	const base = (repo.fs as unknown as { promises: PromiseFs }).promises;
 	const pending = new Map<string, Uint8Array<ArrayBuffer>>();
@@ -94,7 +107,13 @@ export async function withPackedWrites<T>(
 				parseLooseObject(await inflate(deflated)),
 			),
 		);
-		await storePack(repo, await encodePack(objects));
+		const stored = await storePack(repo, await encodePack(objects));
+		if (options.keepUntil) {
+			await rawFs(repo).writeFile(
+				`${repo.gitdir}/objects/pack/${packFileName(stored.base, "keep")}`,
+				keepFileContent(options.keepUntil),
+			);
+		}
 		pending.clear();
 	}
 

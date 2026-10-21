@@ -534,3 +534,29 @@ export async function getAllRefs(
 	];
 	return refs.sort((a, b) => (a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0));
 }
+
+/** The annotated tag object `oid`, or null when `oid` isn't a tag (NotFoundError when absent). */
+export async function getTagObject(
+	ownerKey: string,
+	repoName: string,
+	oid: string,
+) {
+	const { type, object } = await git.readObject({
+		...repoFor(ownerKey, repoName),
+		oid,
+		format: "parsed",
+	});
+	if (type !== "tag") return null;
+	return object as {
+		object: string;
+		type: "commit" | "tree" | "blob" | "tag";
+		tag: string;
+		tagger: {
+			name: string;
+			email: string;
+			timestamp: number;
+			timezoneOffset: number;
+		};
+		message: string;
+	};
+}

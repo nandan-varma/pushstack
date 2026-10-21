@@ -13,13 +13,17 @@
  */
 import git from "isomorphic-git";
 import { describe, expect, it, vi } from "vitest";
-import { repackRepository } from "../../src/http/repack.js";
+import {
+	consolidateKeptPacks,
+	repackRepository,
+} from "../../src/http/repack.js";
 import { rawFs } from "../../src/http/types.js";
 import { createGitFs, MemoryObjectStore } from "../../src/index.js";
 import {
 	authorNow,
 	commitFilesToBare,
 	type Repo,
+	withPackedWrites,
 } from "../../src/ops/index.js";
 import { parsePackFileName } from "../../src/pack-files.js";
 
@@ -345,5 +349,163 @@ describe("repackRepository — pack listing failures (#92)", () => {
 		const { repo } = makeRepo();
 		await git.init({ ...repo, dir: repo.gitdir, bare: true });
 		await expect(repackRepository(repo, { threshold: 1 })).resolves.toEqual([]);
+	});
+});
+
+describe("repackRepository — kept packs", () => {
+	/** A blob no ref reaches, written as its own pack with a `.keep` until `until`. */
+	async function writeUnreachableBlob(repo: Repo, until: Date) {
+		return withPackedWrites(
+			repo,
+			(packed) =>
+				git.writeBlob({
+					...packed,
+					blob: new TextEncoder().encode("orphan\n"),
+				}),
+			{ keepUntil: until },
+		);
+	}
+
+	const packBases = async (repo: Repo) =>
+		(await rawFs(repo).readdir(`${repo.gitdir}/objects/pack`))
+			.map((name: string) => parsePackFileName(name))
+			.filter((file) => file !== null);
+
+	it("keeps an unexpired pack's unreachable objects and doesn't count it", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 3);
+		const now = new Date("2026-01-01T00:00:00Z");
+		const oid = await writeUnreachableBlob(
+			repo,
+			new Date("2026-01-01T01:00:00Z"),
+		);
+		// 3 unkept packs: below the threshold of 4, the kept one doesn't count.
+		expect(await repackRepository(repo, { threshold: 4, now })).toEqual([]);
+		await seed(repo, 1);
+		const stale = await repackRepository(repo, { threshold: 4, now });
+		expect(stale.length).toBeGreaterThan(0);
+		repo.cache = {};
+		const { blob } = await git.readBlob({ ...repo, oid });
+		expect(new TextDecoder().decode(blob)).toBe("orphan\n");
+		const files = await packBases(repo);
+		expect(files.filter((file) => file.kind === "keep")).toHaveLength(1);
+	});
+
+	it("drops an expired pack with its .keep and unreachable objects", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 4);
+		const oid = await writeUnreachableBlob(
+			repo,
+			new Date("2026-01-01T01:00:00Z"),
+		);
+		const stale = await repackRepository(repo, {
+			threshold: 4,
+			now: new Date("2026-01-02T00:00:00Z"),
+		});
+		expect(stale.some((path) => path.endsWith(".keep"))).toBe(true);
+		const files = await packBases(repo);
+		expect(files.filter((file) => file.kind === "keep")).toEqual([]);
+		repo.cache = {};
+		await expect(git.readBlob({ ...repo, oid })).rejects.toThrow();
+	});
+
+	it("keeps a pack whose .keep isn't ours indefinitely, as git does", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 4);
+		const [first] = (await packBases(repo)).filter((f) => f.kind === "pack");
+		await rawFs(repo).writeFile(
+			`${repo.gitdir}/objects/pack/${first?.base}.keep`,
+			"receive-pack 123 on host\n",
+		);
+		// Only 3 unkept packs remain: nothing to do.
+		expect(await repackRepository(repo, { threshold: 4 })).toEqual([]);
+		await seed(repo, 1);
+		const stale = await repackRepository(repo, { threshold: 4 });
+		expect(stale.some((path) => path.includes(first?.base as string))).toBe(
+			false,
+		);
+	});
+});
+
+describe("consolidateKeptPacks", () => {
+	const until = new Date("2026-01-02T00:00:00Z");
+	const now = new Date("2026-01-01T00:00:00Z");
+
+	async function writeKeptBlobs(
+		repo: Repo,
+		count: number,
+		keepUntil = until,
+		from = 0,
+	) {
+		const oids: string[] = [];
+		for (let i = from; i < from + count; i++) {
+			oids.push(
+				await withPackedWrites(
+					repo,
+					(packed) =>
+						git.writeBlob({
+							...packed,
+							blob: new TextEncoder().encode(`kept ${i}\n`),
+						}),
+					{ keepUntil },
+				),
+			);
+		}
+		return oids;
+	}
+
+	const kinds = async (repo: Repo) =>
+		(await rawFs(repo).readdir(`${repo.gitdir}/objects/pack`))
+			.map((name: string) => parsePackFileName(name))
+			.filter((file) => file !== null)
+			.map((file) => file.kind);
+
+	it("merges kept packs into one kept pack past the threshold", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 1);
+		const oids = await writeKeptBlobs(repo, 3);
+		expect(
+			await consolidateKeptPacks(repo, { threshold: 4, keepUntil: until, now }),
+		).toEqual([]);
+		oids.push(
+			...(await writeKeptBlobs(repo, 1, new Date("2026-01-03T00:00:00Z"), 3)),
+		);
+		const removed = await consolidateKeptPacks(repo, {
+			threshold: 4,
+			keepUntil: until,
+			now,
+		});
+		expect(removed.filter((path) => path.endsWith(".pack"))).toHaveLength(4);
+		// One commit pack, one merged kept pack.
+		expect((await kinds(repo)).filter((kind) => kind === "keep")).toHaveLength(
+			1,
+		);
+		expect((await kinds(repo)).filter((kind) => kind === "pack")).toHaveLength(
+			2,
+		);
+		repo.cache = {};
+		for (const [i, oid] of oids.entries()) {
+			const { blob } = await git.readBlob({ ...repo, oid });
+			expect(new TextDecoder().decode(blob)).toBe(`kept ${i}\n`);
+		}
+		// The merged keep lasts as long as the longest one it replaced.
+		const keepName = (
+			await rawFs(repo).readdir(`${repo.gitdir}/objects/pack`)
+		).find((name: string) => name.endsWith(".keep"));
+		const content = await rawFs(repo).readFile(
+			`${repo.gitdir}/objects/pack/${keepName}`,
+		);
+		expect(new TextDecoder().decode(content as Uint8Array)).toContain(
+			"2026-01-03T00:00:00.000Z",
+		);
+	});
+
+	it("leaves expired and foreign keeps to repack", async () => {
+		const { repo } = makeRepo();
+		await seed(repo, 1);
+		await writeKeptBlobs(repo, 4, new Date("2025-01-01T00:00:00Z"));
+		expect(
+			await consolidateKeptPacks(repo, { threshold: 4, keepUntil: until, now }),
+		).toEqual([]);
 	});
 });

@@ -41,7 +41,12 @@ export {
 	isMutableGitdirEntry,
 	parseLooseObjectPath,
 } from "./git-layout.js";
-export { getObjectSize, getObjectSizes } from "./object-size.js";
+export {
+	type GitObjectType,
+	getObjectSize,
+	getObjectSizes,
+	getObjectTypes,
+} from "./object-size.js";
 export {
 	PACK_FILE_KINDS,
 	type PackFileKind,

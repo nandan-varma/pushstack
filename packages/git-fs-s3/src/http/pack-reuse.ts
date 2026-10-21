@@ -99,12 +99,18 @@ function reusableEntry(
 export async function buildPackFromExistingPacks(
 	repo: Repo,
 	oids: readonly string[],
+	/** Read only these packs (by base name); default every pack. */
+	fromPacks?: ReadonlySet<string>,
 ): Promise<Uint8Array | null> {
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
 	const packs = parsePackDirectory(
 		await fsp.readdir(packDir).catch(() => [] as string[]),
-	).filter((file) => file.kind === "pack");
+	).filter(
+		(file) =>
+			file.kind === "pack" &&
+			(fromPacks === undefined || fromPacks.has(file.base)),
+	);
 
 	const indexes: IndexedPack[] = [];
 	for (const { base } of packs) {

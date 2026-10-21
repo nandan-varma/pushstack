@@ -199,6 +199,46 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/git/blobs/{file_sha}",
 		docs: `${DOCS}/git/blobs#get-a-blob`,
 	},
+	"git/create-ref": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/git/refs",
+		docs: `${DOCS}/git/refs#create-a-reference`,
+		status: 201,
+	},
+	"git/update-ref": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/git/refs/{+ref}",
+		docs: `${DOCS}/git/refs#update-a-reference`,
+	},
+	"git/create-blob": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/git/blobs",
+		docs: `${DOCS}/git/blobs#create-a-blob`,
+		status: 201,
+	},
+	"git/create-tree": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/git/trees",
+		docs: `${DOCS}/git/trees#create-a-tree`,
+		status: 201,
+	},
+	"git/create-commit": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/git/commits",
+		docs: `${DOCS}/git/commits#create-a-commit`,
+		status: 201,
+	},
+	"git/get-tag": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/git/tags/{tag_sha}",
+		docs: `${DOCS}/git/tags#get-a-tag`,
+	},
+	"git/create-tag": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/git/tags",
+		docs: `${DOCS}/git/tags#create-a-tag-object`,
+		status: 201,
+	},
 
 	"issues/list-for-repo": {
 		method: "GET",

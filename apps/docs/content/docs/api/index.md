@@ -107,6 +107,11 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files` |
 | `GET /repos/{owner}/{repo}/git/ref/{ref}`, `.../git/matching-refs/{ref}`, `.../git/refs[/{ref}]` | supported | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
 | `DELETE /repos/{owner}/{repo}/git/refs/{ref}` | supported | write access; `heads/…` or `tags/…`; deleting a branch records `head_ref_deleted` on the closed pull requests it heads; a missing ref or the default branch is `422` |
+| `POST /repos/{owner}/{repo}/git/refs`, `PATCH .../git/refs/{ref}` | supported | write access; `ref` fully qualified (`refs/heads/…`, `refs/tags/…`); an existing ref is `422`; a branch only fast-forwards unless `force` (`422 Update is not a fast forward`) |
+| `POST /repos/{owner}/{repo}/git/blobs` | supported | `content` with `encoding` `utf-8` (default) or `base64`; `201 { sha, url }` |
+| `POST /repos/{owner}/{repo}/git/trees` | supported | `tree` entries (`path`, `mode`, `type`, and `sha` or `content`; nested paths edit subtrees, `sha: null` deletes) over an optional `base_tree`; up to 10,000 entries |
+| `POST /repos/{owner}/{repo}/git/commits` | supported | `message`, `tree`, `parents`, `author`/`committer` (with `date`; default the caller, now); no ref moves |
+| `GET`/`POST /repos/{owner}/{repo}/git/tags[/{sha}]` | supported | annotated tag objects (unsigned); create the `refs/tags/…` ref separately, as on GitHub |
 | `GET /repos/{owner}/{repo}/git/commits/{sha}` | supported | full sha only |
 | `GET /repos/{owner}/{repo}/git/trees/{sha}` | supported | `recursive`; up to 10,000 entries, then `truncated` |
 | `GET /repos/{owner}/{repo}/git/blobs/{sha}` | supported | base64; up to 3 MB |

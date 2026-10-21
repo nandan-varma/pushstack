@@ -333,3 +333,111 @@ async function sizeFromWindow(
 	}
 	return deltaResultSize(read, packKey, dataStart);
 }
+
+export type GitObjectType = "commit" | "tree" | "blob" | "tag";
+
+const OBJECT_TYPE_NAMES: Readonly<Record<number, GitObjectType>> = {
+	1: "commit",
+	2: "tree",
+	3: "blob",
+	4: "tag",
+};
+
+/** Deepest delta chain followed to a base; git's own default is 50. */
+const MAX_DELTA_CHAIN = 64;
+
+/**
+ * Each object's type — `null` when the repository doesn't store it — read
+ * from pack entry headers (a delta's type is its base's, so chains are
+ * followed header by header) and loose-object headers, never inflating an
+ * object's body. For validating references by type (a tree entry that says
+ * `blob` must name a blob) without reading what may be a large blob.
+ */
+export async function getObjectTypes(
+	repo: Repo,
+	oids: readonly string[],
+): Promise<Map<string, GitObjectType | null>> {
+	const types = new Map<string, GitObjectType | null>(
+		oids.map((oid) => [oid, null]),
+	);
+	if (types.size === 0) return types;
+	const fsp = rawFs(repo);
+	const packDir = `${repo.gitdir}/objects/pack`;
+	const indexes = await packIndexes(repo);
+	const read = rangeReader(repo);
+	// Without range reads, each pack is read whole at most once.
+	const wholePacks = new Map<string, Promise<Uint8Array>>();
+	const slice = async (packName: string, start: number, end: number) => {
+		const key = `${packDir}/${packName}`;
+		if (read) return read(key, start, end);
+		let pack = wholePacks.get(packName);
+		if (!pack) {
+			pack = fsp.readFile(key) as Promise<Uint8Array>;
+			wholePacks.set(packName, pack);
+		}
+		return (await pack).subarray(start, end + 1);
+	};
+	const locate = (oid: string) => {
+		for (const { packName, idx } of indexes) {
+			const offset = findPackIndexOffset(idx, oid);
+			if (offset !== null) return { packName, offset };
+		}
+		return null;
+	};
+	const typeAt = async (
+		packName: string,
+		offset: number,
+		depth: number,
+	): Promise<GitObjectType | null> => {
+		if (depth > MAX_DELTA_CHAIN) return null;
+		const probe = await slice(packName, offset, offset + ENTRY_PROBE_BYTES - 1);
+		if (!probe || probe.byteLength === 0) return null;
+		const header = readEntryHeader(probe, 0);
+		if (header.length > probe.byteLength) return null;
+		const named = OBJECT_TYPE_NAMES[header.type];
+		if (named) return named;
+		if (header.type === OBJ_OFS_DELTA) {
+			const base = readOfsDeltaOffset(probe, header.length);
+			if (header.length + base.length > probe.byteLength) return null;
+			return typeAt(packName, offset - base.distance, depth + 1);
+		}
+		if (header.type === OBJ_REF_DELTA) {
+			const end = header.length + OID_BYTES;
+			if (end > probe.byteLength) return null;
+			const baseOid = [...probe.subarray(header.length, end)]
+				.map((byte) => byte.toString(16).padStart(2, "0"))
+				.join("");
+			const base = locate(baseOid);
+			return base ? typeAt(base.packName, base.offset, depth + 1) : null;
+		}
+		return null;
+	};
+	const looseType = async (oid: string): Promise<GitObjectType | null> => {
+		const raw = await fsp
+			.readFile(`${repo.gitdir}/objects/${oid.slice(0, 2)}/${oid.slice(2)}`)
+			.catch((error: unknown) => {
+				if ((error as { code?: string } | null)?.code === "ENOENT") return null;
+				throw error;
+			});
+		if (!(raw instanceof Uint8Array)) return null;
+		const head = await inflatePrefix(new Uint8Array(raw), 32);
+		if (!head) return null;
+		const name = new TextDecoder().decode(head).split(" ")[0];
+		return (
+			Object.values(OBJECT_TYPE_NAMES).find((type) => type === name) ?? null
+		);
+	};
+	await runPooled(
+		[...types.keys()].map((oid) => async () => {
+			const located = locate(oid);
+			types.set(
+				oid,
+				located
+					? await typeAt(located.packName, located.offset, 0)
+					: await looseType(oid),
+			);
+		}),
+		BATCH_MAX_IN_FLIGHT,
+	);
+	return types;
+}
