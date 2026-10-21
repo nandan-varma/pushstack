@@ -313,9 +313,21 @@ export async function findRefCollision(
 	repo: Repo,
 	ref: string,
 ): Promise<string | null> {
-	const names = (await git.listRefs({ ...repo, filepath: "refs" })).map(
+	return refCollisionIn(await listAllRefNames(repo), ref);
+}
+
+/** Every ref's full name (`refs/heads/main`, …). */
+export async function listAllRefNames(repo: Repo): Promise<string[]> {
+	return (await git.listRefs({ ...repo, filepath: "refs" })).map(
 		(name) => `refs/${name}`,
 	);
+}
+
+/** Of `names`, one that `ref` collides with as file and directory, else null. */
+export function refCollisionIn(
+	names: readonly string[],
+	ref: string,
+): string | null {
 	return (
 		names.find(
 			(name) => ref.startsWith(`${name}/`) || name.startsWith(`${ref}/`),

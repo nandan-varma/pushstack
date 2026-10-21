@@ -144,6 +144,51 @@ describe("applyReceivePack", () => {
 		expect(headOid).toBe(first.commitOid);
 	});
 
+	it("refuses refs that collide as file and directory, applying the rest", async () => {
+		const repo = makeRepo();
+		const staging = makeRepo();
+		await git.init({
+			...staging,
+			dir: staging.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const first = await buildPushPack(staging, undefined, "first");
+		const push = (...lines: string[]) =>
+			applyReceivePack(
+				repo,
+				parseReceivePackBody(
+					concatBuffers(
+						...lines.map((line) => pktLine(`${line}\n`)),
+						new TextEncoder().encode("0000"),
+						first.packfile,
+					),
+				),
+				{ defaultBranch: "main" },
+			);
+		await push(
+			`${ZERO_OID} ${first.commitOid} refs/heads/main`,
+			`${ZERO_OID} ${first.commitOid} refs/heads/dd`,
+		);
+		const { results } = await push(
+			`${ZERO_OID} ${first.commitOid} refs/heads/dd/ee`,
+			`${ZERO_OID} ${first.commitOid} refs/heads/ok`,
+			// Two creations in one push that collide with each other.
+			`${ZERO_OID} ${first.commitOid} refs/heads/x`,
+			`${ZERO_OID} ${first.commitOid} refs/heads/x/y`,
+		);
+		expect(results.map((r) => [r.refName, r.ok])).toEqual([
+			["refs/heads/dd/ee", false],
+			["refs/heads/ok", true],
+			["refs/heads/x", true],
+			["refs/heads/x/y", false],
+		]);
+		expect(results[0]?.reason).toBe(
+			"cannot lock ref 'refs/heads/dd/ee': 'refs/heads/dd' exists",
+		);
+		expect(await git.listBranches(repo)).toEqual(["dd", "main", "ok", "x"]);
+	});
+
 	it("rejects a path-traversing ref name without touching the filesystem", async () => {
 		const repo = makeRepo();
 		await git.init({
