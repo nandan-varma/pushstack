@@ -201,6 +201,21 @@ describe("refs", () => {
 	});
 });
 
+describe("ref collisions", () => {
+	it("refuses a ref that would nest under, or contain, an existing one", async () => {
+		const tip = await mainTip();
+		expect(
+			(await call(git("refs"), post(alice, { ref: "refs/heads/dd", sha: tip })))
+				.status,
+		).toBe(201);
+		for (const ref of ["refs/heads/dd/ee", "refs/heads/feature"]) {
+			const refused = await call(git("refs"), post(alice, { ref, sha: tip }));
+			expect(refused.status, ref).toBe(422);
+			expect(refused.body.message).toBe("Reference cannot be created");
+		}
+	});
+});
+
 describe("annotated tags", () => {
 	it("creates a tag object, then its ref", async () => {
 		const tip = await mainTip();
