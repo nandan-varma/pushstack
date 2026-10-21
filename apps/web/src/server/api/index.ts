@@ -37,6 +37,18 @@ import {
 	updateLabel,
 } from "./labels";
 import {
+	deleteThreadSubscription,
+	getThread,
+	getThreadSubscription,
+	listNotificationsForCaller,
+	listRepoNotificationsForCaller,
+	markNotificationsRead,
+	markRepoNotificationsRead,
+	markThreadDone,
+	markThreadRead,
+	putThreadSubscription,
+} from "./notifications";
+import {
 	checkPullMerged,
 	createPull,
 	getPull,
@@ -82,7 +94,20 @@ const HANDLERS = {
 	"users/get-by-id": getUserById,
 	"users/get-by-username": getUser,
 	"repos/list-for-user": listUserRepositories,
+	"activity/list-notifications-for-authenticated-user":
+		listNotificationsForCaller,
+	"activity/mark-notifications-as-read": markNotificationsRead,
+	"activity/get-thread-subscription-for-authenticated-user":
+		getThreadSubscription,
+	"activity/set-thread-subscription": putThreadSubscription,
+	"activity/delete-thread-subscription": deleteThreadSubscription,
+	"activity/get-thread": getThread,
+	"activity/mark-thread-as-read": markThreadRead,
+	"activity/mark-thread-as-done": markThreadDone,
 	"repos/get": getRepository,
+	"activity/list-repo-notifications-for-authenticated-user":
+		listRepoNotificationsForCaller,
+	"activity/mark-repo-notifications-as-read": markRepoNotificationsRead,
 	"repos/list-branches": listBranches,
 	"repos/get-branch": getBranch,
 	"repos/list-tags": listTags,

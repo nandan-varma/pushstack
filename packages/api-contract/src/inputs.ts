@@ -40,6 +40,14 @@ export const pagination = z.object({
 		.transform((value) => Math.min(value ?? DEFAULT_PER_PAGE, MAX_PER_PAGE)),
 });
 
+/** A boolean query flag: `true` is true, anything else (or absence) false; a boolean for clients. */
+export const queryBoolean = z
+	.union([z.boolean(), z.string()])
+	.optional()
+	.transform(
+		(value) => value === true || value === "true",
+	) as unknown as z.ZodType<boolean, boolean | undefined>;
+
 export const direction = z.enum(["asc", "desc"]).optional().catch(undefined);
 
 /** A comma-separated list in the query; an array for clients. */

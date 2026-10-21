@@ -51,6 +51,8 @@ export interface NotificationItem {
 	unread: boolean;
 	updatedAt: Date;
 	lastReadAt: Date | null;
+	issueId: number;
+	repoId: number;
 	subject: {
 		type: "Issue" | "PullRequest";
 		number: number;
@@ -65,4 +67,6 @@ export interface ThreadSubscriptionState {
 	subscribed: boolean;
 	/** Why: `author`, `comment`, `mention`, `manual`, …; null when never subscribed. */
 	reason: NotificationReason | null;
+	/** When the subscription row was created; null when there is none. */
+	createdAt: Date | null;
 }

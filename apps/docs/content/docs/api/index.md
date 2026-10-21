@@ -122,6 +122,9 @@ kept) and is absent when everything fits on one page. Items deeper than
 | `GET`/`POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | the same for an issue or pull request comment |
 | `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
 | `GET`/`POST`/`PUT`/`DELETE /repos/{owner}/{repo}/issues/{number}/labels` (+ `/{name}`) | supported | write access; add and set return every label, removing one returns the rest, removing all is `204` |
+| `GET`/`PUT /notifications`, `GET`/`PUT /repos/{owner}/{repo}/notifications` | supported | any token; unread unless `all=true`; `participating`, `since`, `before`, `per_page` (up to 50); `PUT` marks threads updated at or before `last_read_at` (default now) read and answers `205`; threads in repositories you can no longer read are hidden |
+| `GET`/`PATCH`/`DELETE /notifications/threads/{id}` | supported | `PATCH` marks read (`205`); `DELETE` marks done (`204`): the thread leaves the inbox until new activity |
+| `GET`/`PUT`/`DELETE /notifications/threads/{id}/subscription` | supported | `ignored: true` mutes the thread; `DELETE` unsubscribes until you are involved again; `reason` is always `null` |
 | `GET /rate_limit` | supported | `resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql` |
 | `GET /repos/{owner}/{repo}/pulls` | supported | `state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults) |
 | `POST /repos/{owner}/{repo}/pulls` | supported | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |

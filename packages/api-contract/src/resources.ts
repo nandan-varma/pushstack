@@ -544,3 +544,41 @@ export const fileCommit = z.strictObject({
 		.nullable(),
 	commit: gitCommit,
 });
+
+/** A notification thread (`GET /notifications`). */
+export const notificationThread = z.strictObject({
+	/** A string, as on GitHub. */
+	id: z.string(),
+	repository,
+	subject: z.strictObject({
+		title: z.string(),
+		url,
+		latest_comment_url: url,
+		type: z.enum(["Issue", "PullRequest"]),
+	}),
+	reason: z.enum([
+		"assign",
+		"author",
+		"comment",
+		"manual",
+		"mention",
+		"review_requested",
+		"state_change",
+		"subscribed",
+	]),
+	unread: z.boolean(),
+	updated_at: timestamp,
+	last_read_at: timestamp.nullable(),
+	url,
+	subscription_url: url,
+});
+
+/** The caller's subscription to a notification thread. */
+export const threadSubscription = z.strictObject({
+	subscribed: z.boolean(),
+	ignored: z.boolean(),
+	reason: z.string().nullable(),
+	created_at: timestamp,
+	url,
+	thread_url: url,
+});

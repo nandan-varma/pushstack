@@ -65,9 +65,9 @@ export function errorResponse(error: ApiError): Response {
 	);
 }
 
-export function noContent(): Response {
+export function noContent(status: 204 | 205 = 204): Response {
 	return new Response(null, {
-		status: 204,
+		status,
 		headers: {
 			"X-GitHub-Media-Type": "github.v3; format=json",
 			"Cache-Control": "private, no-cache",

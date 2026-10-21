@@ -12,7 +12,18 @@
  * (`canReadRepositoryCondition`), checked again when the inbox is read so
  * losing access hides old notifications.
  */
-import { and, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	gte,
+	inArray,
+	lt,
+	lte,
+	ne,
+	sql,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "#/db";
 import {
@@ -184,15 +195,41 @@ export async function recordThreadActivity(
 
 const owner = alias(user, "notification_repo_owner");
 
+/** Which of a user's notifications a listing covers (GitHub's list parameters). */
+export interface NotificationFilter {
+	/** Read ones too (default: unread only). */
+	all?: boolean;
+	/** Only threads the user is directly involved in. */
+	participating?: boolean;
+	/** Updated at or after. */
+	since?: Date;
+	/** Updated before. */
+	before?: Date;
+	repoId?: number;
+	id?: number;
+}
+
+function notificationWhere(userId: string, filter: NotificationFilter) {
+	return and(
+		eq(notifications.userId, userId),
+		filter.all ? undefined : eq(notifications.unread, true),
+		filter.participating
+			? inArray(notifications.reason, [...PARTICIPATING_REASONS])
+			: undefined,
+		filter.since ? gte(notifications.updatedAt, filter.since) : undefined,
+		filter.before ? lt(notifications.updatedAt, filter.before) : undefined,
+		filter.repoId === undefined
+			? undefined
+			: eq(notifications.repoId, filter.repoId),
+		filter.id === undefined ? undefined : eq(notifications.id, filter.id),
+		canReadRepositoryCondition(sql`${userId}`, notifications.repoId),
+	);
+}
+
 /** The user's notifications, newest first, only for repositories they can still read. */
 export async function listNotificationsForUser(
 	userId: string,
-	options: {
-		all?: boolean;
-		participating?: boolean;
-		limit: number;
-		offset: number;
-	},
+	options: NotificationFilter & { limit: number; offset: number },
 ): Promise<NotificationItem[]> {
 	const rows = await db
 		.select({
@@ -201,6 +238,8 @@ export async function listNotificationsForUser(
 			unread: notifications.unread,
 			updatedAt: notifications.updatedAt,
 			lastReadAt: notifications.lastReadAt,
+			issueId: notifications.issueId,
+			repoId: notifications.repoId,
 			number: issues.number,
 			title: issues.title,
 			state: issues.status,
@@ -212,16 +251,7 @@ export async function listNotificationsForUser(
 		.innerJoin(issues, eq(issues.id, notifications.issueId))
 		.innerJoin(repositories, eq(repositories.id, notifications.repoId))
 		.innerJoin(owner, eq(owner.id, repositories.ownerId))
-		.where(
-			and(
-				eq(notifications.userId, userId),
-				options.all ? undefined : eq(notifications.unread, true),
-				options.participating
-					? inArray(notifications.reason, [...PARTICIPATING_REASONS])
-					: undefined,
-				canReadRepositoryCondition(sql`${userId}`, notifications.repoId),
-			),
-		)
+		.where(notificationWhere(userId, options))
 		.orderBy(desc(notifications.updatedAt), desc(notifications.id))
 		.limit(options.limit)
 		.offset(options.offset);
@@ -231,6 +261,8 @@ export async function listNotificationsForUser(
 		unread: row.unread,
 		updatedAt: row.updatedAt,
 		lastReadAt: row.lastReadAt,
+		issueId: row.issueId,
+		repoId: row.repoId,
 		subject: {
 			type: row.isPullRequest ? "PullRequest" : "Issue",
 			number: row.number,
@@ -239,6 +271,66 @@ export async function listNotificationsForUser(
 		},
 		repository: { owner: row.ownerName, name: row.repoName },
 	}));
+}
+
+export async function countNotificationsForUser(
+	userId: string,
+	filter: NotificationFilter,
+): Promise<number> {
+	const [row] = await db
+		.select({ total: count() })
+		.from(notifications)
+		.where(notificationWhere(userId, filter));
+	return row?.total ?? 0;
+}
+
+/** One of the user's notifications (read or not), or null if it isn't theirs or readable. */
+export async function getNotificationForUser(
+	userId: string,
+	id: number,
+): Promise<NotificationItem | null> {
+	const [row] = await listNotificationsForUser(userId, {
+		all: true,
+		limit: 1,
+		offset: 0,
+		id,
+	});
+	return row ?? null;
+}
+
+/**
+ * Mark the user's unread notifications updated at or before `lastReadAt`
+ * read (GitHub's "mark as read", optionally for one repository).
+ */
+export async function markNotificationsReadBefore(
+	userId: string,
+	lastReadAt: Date,
+	repoId?: number,
+): Promise<void> {
+	await db
+		.update(notifications)
+		.set({ unread: false, lastReadAt: new Date() })
+		.where(
+			and(
+				eq(notifications.userId, userId),
+				eq(notifications.unread, true),
+				lte(notifications.updatedAt, lastReadAt),
+				repoId === undefined ? undefined : eq(notifications.repoId, repoId),
+			),
+		);
+}
+
+/**
+ * GitHub's "mark as done": the thread leaves the inbox until new activity
+ * brings it back (recordThreadActivity re-creates the row).
+ */
+export async function markNotificationDone(
+	userId: string,
+	id: number,
+): Promise<void> {
+	await db
+		.delete(notifications)
+		.where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
 }
 
 export async function countUnreadNotifications(
@@ -288,6 +380,7 @@ export async function getThreadSubscriptionState(
 		.select({
 			subscribed: threadSubscriptions.subscribed,
 			reason: threadSubscriptions.reason,
+			createdAt: threadSubscriptions.createdAt,
 		})
 		.from(threadSubscriptions)
 		.where(
@@ -297,7 +390,26 @@ export async function getThreadSubscriptionState(
 			),
 		)
 		.limit(1);
-	return row ?? { subscribed: false, reason: null };
+	return row ?? { subscribed: false, reason: null, createdAt: null };
+}
+
+/**
+ * Forget the user's subscription to a thread (GitHub's "delete a thread
+ * subscription"): unlike an unsubscribe, it isn't remembered, so being
+ * involved again (a comment, a mention, an assignment) resubscribes.
+ */
+export async function deleteThreadSubscriptionRow(
+	userId: string,
+	issueId: number,
+): Promise<void> {
+	await db
+		.delete(threadSubscriptions)
+		.where(
+			and(
+				eq(threadSubscriptions.issueId, issueId),
+				eq(threadSubscriptions.userId, userId),
+			),
+		);
 }
 
 /**
@@ -308,7 +420,7 @@ export async function setThreadSubscription(
 	userId: string,
 	issueId: number,
 	subscribed: boolean,
-): Promise<ThreadSubscriptionState> {
+): Promise<ThreadSubscriptionState & { createdAt: Date }> {
 	const [row] = await db
 		.insert(threadSubscriptions)
 		.values({ issueId, userId, subscribed, reason: "manual" })
@@ -319,6 +431,7 @@ export async function setThreadSubscription(
 		.returning({
 			subscribed: threadSubscriptions.subscribed,
 			reason: threadSubscriptions.reason,
+			createdAt: threadSubscriptions.createdAt,
 		});
 	if (!row) throw new Error("Subscription update returned no row");
 	return row;

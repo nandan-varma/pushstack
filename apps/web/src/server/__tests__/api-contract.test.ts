@@ -24,7 +24,7 @@ const { asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
 
-const users = await createUsers("alice");
+const users = await createUsers("alice", "bob");
 
 const drift = new Map<string, string>();
 const covered = new Set<string>();
@@ -231,6 +231,21 @@ beforeAll(async () => {
 		(entry: { type: string }) => entry.type === "blob",
 	);
 	await check(`/repos/alice/proj/git/blobs/${file.sha}`);
+
+	// Bob comments on issue 1, which notifies alice (its author).
+	const bob = await mintToken(users.bob, ["repo:write"]);
+	await call("/repos/alice/proj/issues/1/comments", post(bob, { body: "Hi" }));
+	const [thread] = await check("/notifications", auth);
+	await check("/repos/alice/proj/notifications", auth);
+	const threadPath = `/notifications/threads/${thread.id}`;
+	await check(threadPath, auth);
+	await check(`${threadPath}/subscription`, auth);
+	await check(`${threadPath}/subscription`, put(alice, { ignored: false }));
+	await check(`${threadPath}/subscription`, del(alice));
+	await check(threadPath, patch(alice, {}));
+	await check(threadPath, del(alice));
+	await check("/notifications", put(alice, {}));
+	await check("/repos/alice/proj/notifications", put(alice, {}));
 	await check("/repos/alice/proj/git/refs/heads/topic", del(alice));
 });
 
