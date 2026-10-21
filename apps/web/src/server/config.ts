@@ -1,6 +1,12 @@
-function positiveInt(name: string, fallback: number): number {
-	const value = Number.parseInt(process.env[name] ?? "", 10);
-	return Number.isFinite(value) && value > 0 ? value : fallback;
+/** The env var as a positive integer; `fallback` only when it is unset or empty. */
+export function positiveInt(name: string, fallback: number): number {
+	const raw = process.env[name];
+	if (raw === undefined || raw === "") return fallback;
+	const value = Number(raw);
+	if (!Number.isInteger(value) || value <= 0) {
+		throw new Error(`${name} must be a positive integer, got "${raw}"`);
+	}
+	return value;
 }
 
 /** Budget for the git object cache; the parsed-result cache gets a quarter. */
