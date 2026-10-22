@@ -78,7 +78,7 @@ function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
 	return (
 		<div className="page-wrap py-10 text-center">
 			<ErrorPanel
-				title={"Couldn't load " + owner + "/" + name}
+				title={`Couldn't load ${owner}/${name}`}
 				description="We couldn't read this repository. It may be temporarily unavailable."
 				detail={error instanceof Error ? error.message : undefined}
 				actions={

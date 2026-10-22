@@ -24,8 +24,7 @@ export function FilterTabs<T extends string>({
 	label?: string;
 }) {
 	return (
-		<div
-			role="group"
+		<fieldset
 			aria-label={label}
 			className={
 				variant === "rail"
@@ -58,6 +57,6 @@ export function FilterTabs<T extends string>({
 					)}
 				</button>
 			))}
-		</div>
+		</fieldset>
 	);
 }

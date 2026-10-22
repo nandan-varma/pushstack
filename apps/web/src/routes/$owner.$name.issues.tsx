@@ -148,93 +148,87 @@ function IssuesPage() {
 							ariaLabel="Search issues"
 						/>
 						<div className="flex items-center gap-2">
-							<>
-								<Link
-									to="/$owner/$name/labels"
-									params={{ owner, name }}
-									className={buttonVariants({ variant: "outline" })}
+							<Link
+								to="/$owner/$name/labels"
+								params={{ owner, name }}
+								className={buttonVariants({ variant: "outline" })}
+							>
+								<Tag aria-hidden="true" />
+								Labels
+							</Link>
+							{!session?.user ? (
+								<SignInButton>Sign in to create an issue</SignInButton>
+							) : (
+								<NewThreadDialog
+									open={isCreateOpen}
+									onOpenChange={setIsCreateOpen}
+									triggerLabel="New issue"
+									title="Create new issue"
+									description="Report a bug, request a feature, or start a discussion"
+									submitLabel="Create issue"
+									canSubmit={!!newIssue.title.trim()}
+									isPending={createMutation.isPending}
+									onSubmit={handleCreateIssue}
 								>
-									<Tag aria-hidden="true" />
-									Labels
-								</Link>
-								{!session?.user ? (
-									<SignInButton>Sign in to create an issue</SignInButton>
-								) : (
-									<NewThreadDialog
-										open={isCreateOpen}
-										onOpenChange={setIsCreateOpen}
-										triggerLabel="New issue"
-										title="Create new issue"
-										description="Report a bug, request a feature, or start a discussion"
-										submitLabel="Create issue"
-										canSubmit={!!newIssue.title.trim()}
-										isPending={createMutation.isPending}
-										onSubmit={handleCreateIssue}
-									>
-										<div className="space-y-1.5">
-											<Label htmlFor="title">Title</Label>
-											<Input
-												id="title"
-												value={newIssue.title}
-												onChange={(e) =>
-													setNewIssue((p) => ({ ...p, title: e.target.value }))
-												}
-												placeholder="Issue title"
-											/>
-										</div>
-										<div className="space-y-1.5">
-											<Label htmlFor="body">Description</Label>
-											<Textarea
-												id="body"
-												value={newIssue.body}
-												onChange={(e) =>
-													setNewIssue((p) => ({ ...p, body: e.target.value }))
-												}
-												placeholder="Describe the issue in detail…"
-												rows={6}
-											/>
-										</div>
-										{repo?.viewer.canWrite && (
-											<fieldset className="space-y-2">
-												<legend className="text-sm font-medium">
-													Assignees
-												</legend>
-												{(assignable ?? []).map((person) => (
-													<label
-														key={person.id}
-														className="flex items-center gap-2 text-sm"
-													>
-														<input
-															type="checkbox"
-															disabled={
-																createMutation.isPending ||
-																(!newIssue.assignees.includes(
-																	person.username,
-																) &&
-																	newIssue.assignees.length >= MAX_ASSIGNEES)
-															}
-															checked={newIssue.assignees.includes(
-																person.username,
-															)}
-															onChange={(e) =>
-																setNewIssue((p) => ({
-																	...p,
-																	assignees: e.target.checked
-																		? [...p.assignees, person.username]
-																		: p.assignees.filter(
-																				(name) => name !== person.username,
-																			),
-																}))
-															}
-														/>
-														{person.username}
-													</label>
-												))}
-											</fieldset>
-										)}
-									</NewThreadDialog>
-								)}
-							</>
+									<div className="space-y-1.5">
+										<Label htmlFor="title">Title</Label>
+										<Input
+											id="title"
+											value={newIssue.title}
+											onChange={(e) =>
+												setNewIssue((p) => ({ ...p, title: e.target.value }))
+											}
+											placeholder="Issue title"
+										/>
+									</div>
+									<div className="space-y-1.5">
+										<Label htmlFor="body">Description</Label>
+										<Textarea
+											id="body"
+											value={newIssue.body}
+											onChange={(e) =>
+												setNewIssue((p) => ({ ...p, body: e.target.value }))
+											}
+											placeholder="Describe the issue in detail…"
+											rows={6}
+										/>
+									</div>
+									{repo?.viewer.canWrite && (
+										<fieldset className="space-y-2">
+											<legend className="text-sm font-medium">Assignees</legend>
+											{(assignable ?? []).map((person) => (
+												<label
+													key={person.id}
+													className="flex items-center gap-2 text-sm"
+												>
+													<input
+														type="checkbox"
+														disabled={
+															createMutation.isPending ||
+															(!newIssue.assignees.includes(person.username) &&
+																newIssue.assignees.length >= MAX_ASSIGNEES)
+														}
+														checked={newIssue.assignees.includes(
+															person.username,
+														)}
+														onChange={(e) =>
+															setNewIssue((p) => ({
+																...p,
+																assignees: e.target.checked
+																	? [...p.assignees, person.username]
+																	: p.assignees.filter(
+																			(name) => name !== person.username,
+																		),
+															}))
+														}
+													/>
+													{person.username}
+												</label>
+											))}
+										</fieldset>
+									)}
+								</NewThreadDialog>
+							)}
 						</div>
 					</Toolbar>
 

@@ -22,6 +22,7 @@ export default function CodeViewer({ code, language }: CodeViewerProps) {
 	if (highlight.status === "pending") {
 		return (
 			<div
+				role="status"
 				aria-busy="true"
 				aria-label="Highlighting code"
 				style={{

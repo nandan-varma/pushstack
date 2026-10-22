@@ -43,7 +43,6 @@ export function useEditableTitle({
 				value={draft}
 				maxLength={256}
 				// The person just asked to edit, so focus follows them.
-				// biome-ignore lint/a11y/noAutofocus: opened by an explicit click
 				autoFocus
 				onChange={(e) => setDraft(e.target.value)}
 			/>

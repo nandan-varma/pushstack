@@ -22,29 +22,30 @@ export function ThreadSearchBox({
 	useEffect(() => setDraft(value), [value]);
 
 	return (
-		<form
-			role="search"
-			className="relative min-w-0 flex-1 basis-72"
-			onSubmit={(event) => {
-				event.preventDefault();
-				onSearch(draft.trim());
-			}}
-		>
-			<Search
-				aria-hidden="true"
-				className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2 text-bjork-text-soft"
-			/>
-			<Input
-				type="search"
-				value={draft}
-				onChange={(event) => setDraft(event.target.value)}
-				placeholder={placeholder}
-				aria-label={ariaLabel}
-				className="h-10 pl-10"
-			/>
-			<button type="submit" className="sr-only">
-				Search
-			</button>
-		</form>
+		<search className="min-w-0 flex-1 basis-72">
+			<form
+				className="relative"
+				onSubmit={(event) => {
+					event.preventDefault();
+					onSearch(draft.trim());
+				}}
+			>
+				<Search
+					aria-hidden="true"
+					className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2 text-bjork-text-soft"
+				/>
+				<Input
+					type="search"
+					value={draft}
+					onChange={(event) => setDraft(event.target.value)}
+					placeholder={placeholder}
+					aria-label={ariaLabel}
+					className="h-10 pl-10"
+				/>
+				<button type="submit" className="sr-only">
+					Search
+				</button>
+			</form>
+		</search>
 	);
 }

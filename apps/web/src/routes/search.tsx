@@ -72,27 +72,25 @@ function SearchPage() {
 	return (
 		<div className="page-wrap space-y-4 py-6">
 			<h1 className="sr-only">Search</h1>
-			<form
-				onSubmit={handleSubmit}
-				role="search"
-				className="relative max-w-2xl"
-			>
-				<Search
-					aria-hidden="true"
-					className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-bjork-text-soft"
-				/>
-				<Input
-					type="search"
-					value={inputValue}
-					onChange={(e) => setInputValue(e.target.value)}
-					placeholder="Search repositories and people"
-					aria-label="Search query"
-					className="h-12 pl-12 text-base md:text-[15px]"
-				/>
-				<button type="submit" className="sr-only">
-					Search
-				</button>
-			</form>
+			<search className="block max-w-2xl">
+				<form onSubmit={handleSubmit} className="relative">
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-bjork-text-soft"
+					/>
+					<Input
+						type="search"
+						value={inputValue}
+						onChange={(e) => setInputValue(e.target.value)}
+						placeholder="Search repositories and people"
+						aria-label="Search query"
+						className="h-12 pl-12 text-base md:text-[15px]"
+					/>
+					<button type="submit" className="sr-only">
+						Search
+					</button>
+				</form>
+			</search>
 
 			{q ? (
 				<Panel aria-labelledby="search-results-heading">
