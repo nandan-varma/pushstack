@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
+import { Toolbar } from "@/components/layout/page";
+import { PageHeader } from "@/components/PageHeader";
 import { CommitList } from "@/components/repo/CommitList";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import { useToast } from "@/components/toast-provider";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -149,31 +151,28 @@ function ComparePage() {
 
 	return (
 		<div className="space-y-5">
-			<div className="space-y-1">
-				<h2 className="text-xl font-semibold text-foreground">
-					Comparing changes
-				</h2>
-				<p className="text-sm text-muted-foreground">
-					Choose two branches to see what's changed or to start a new pull
-					request.
-				</p>
-			</div>
+			<PageHeader
+				title="Compare"
+				description="See what a branch changes, then open a pull request for it."
+			/>
 
-			<Card className="flex flex-wrap items-center gap-3 p-4">
-				<BranchSelect
-					label="base"
-					value={base}
-					branches={branches?.map((b) => b.name) ?? []}
-					onChange={(value) => goTo(value, head)}
-				/>
-				<ArrowLeft className="size-4 text-muted-foreground" aria-hidden />
-				<BranchSelect
-					label="compare"
-					value={head}
-					branches={branches?.map((b) => b.name) ?? []}
-					onChange={(value) => goTo(base, value)}
-				/>
-				<div className="ml-auto flex items-center gap-2">
+			<Toolbar className="rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-4 py-3 shadow-(--bjork-shadow-soft)">
+				<div className="flex flex-wrap items-center gap-3">
+					<BranchSelect
+						label="base"
+						value={base}
+						branches={branches?.map((b) => b.name) ?? []}
+						onChange={(value) => goTo(value, head)}
+					/>
+					<ArrowLeft className="size-4 text-bjork-text-soft" aria-hidden />
+					<BranchSelect
+						label="compare"
+						value={head}
+						branches={branches?.map((b) => b.name) ?? []}
+						onChange={(value) => goTo(base, value)}
+					/>
+				</div>
+				<div className="flex items-center gap-2">
 					{canOpenPull && (
 						<NewThreadDialog
 							open={open}
@@ -223,69 +222,60 @@ function ComparePage() {
 						</NewThreadDialog>
 					)}
 				</div>
-			</Card>
+			</Toolbar>
 
 			{isLoading || !comparison ? (
 				<FileDiffViewer isLoading />
 			) : comparison.status === "identical" ? (
-				<Card className="p-5 text-center text-sm text-muted-foreground">
-					There isn't anything to compare. {base} and {head} are identical.
-				</Card>
+				<EmptyState
+					message={`There isn't anything to compare: ${base} and ${head} are identical.`}
+				/>
 			) : (
 				<>
-					<p className="text-sm text-muted-foreground">
+					<p className="text-sm text-bjork-text-muted">
 						{comparison.aheadBy} commit{comparison.aheadBy === 1 ? "" : "s"}{" "}
 						ahead, {comparison.behindBy} behind · {comparison.diff.files.length}{" "}
 						file
 						{comparison.diff.files.length === 1 ? "" : "s"} changed ·{" "}
 						<a
-							className="underline"
+							className="text-bjork-accent hover:underline"
 							href={`/${owner}/${name}/compare/${base}...${head}.diff`}
 						>
 							diff
 						</a>{" "}
 						·{" "}
 						<a
-							className="underline"
+							className="text-bjork-accent hover:underline"
 							href={`/${owner}/${name}/compare/${base}...${head}.patch`}
 						>
 							patch
 						</a>
 					</p>
 					{comparison.commits.length > 0 && (
-						<div className="space-y-3">
-							<h3 className="text-base font-semibold text-foreground">
-								Commits
-							</h3>
-							<CommitList
-								owner={owner}
-								name={name}
-								commits={comparison.commits}
-							/>
-						</div>
-					)}
-					<div className="space-y-3">
-						<h3 className="text-base font-semibold text-foreground">
-							Files changed
-						</h3>
-						<FileDiffViewer
-							files={comparison.diff.files}
-							sides={{
-								owner,
-								name,
-								oldRef: comparison.mergeBaseSha,
-								newRef: comparison.headSha,
-							}}
-							emptyMessage="No file changes."
+						<CommitList
+							owner={owner}
+							name={name}
+							commits={comparison.commits}
+							header={
+								<h2 className="text-sm font-semibold text-bjork-text-strong">
+									{comparison.commits.length}{" "}
+									{comparison.commits.length === 1 ? "commit" : "commits"}
+								</h2>
+							}
 						/>
-					</div>
+					)}
+					<FileDiffViewer
+						files={comparison.diff.files}
+						sides={{
+							owner,
+							name,
+							oldRef: comparison.mergeBaseSha,
+							newRef: comparison.headSha,
+						}}
+						emptyMessage="No file changes."
+					/>
 				</>
 			)}
-			<p className="text-xs text-muted-foreground">
-				<Link to="/$owner/$name/pulls" params={{ owner, name }}>
-					Back to pull requests
-				</Link>
-			</p>
 		</div>
 	);
 }

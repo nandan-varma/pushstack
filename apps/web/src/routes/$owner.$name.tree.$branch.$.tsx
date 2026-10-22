@@ -225,7 +225,14 @@ function TreeBrowserPage() {
 		!branches || branches.length === 0 || !files || files.length === 0;
 
 	if (isEmpty && !isLoading) {
-		return <RepoEmptyState owner={owner} name={name} branch={activeBranch} />;
+		return (
+			<RepoEmptyState
+				owner={owner}
+				name={name}
+				branch={activeBranch}
+				canWrite={repo.viewer.canWrite}
+			/>
+		);
 	}
 
 	// A ref that's a raw commit sha (not one of the repo's branch names) means

@@ -27,12 +27,5 @@ git push -u origin main`,
 		existingRepo: `git remote add origin ${cloneUrl}
 git branch -M main
 git push -u origin main`,
-
-		importRepo: `git clone ${cloneUrl}
-cd ${repoName}
-# Make changes
-git add .
-git commit -m "your commit message"
-git push`,
 	};
 }

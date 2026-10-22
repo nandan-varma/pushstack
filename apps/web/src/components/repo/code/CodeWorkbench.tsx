@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { repositoryTreeEntriesQueryOptions } from "@/lib/query-options";
 import { FileTreePane } from "./FileTreePane";
 
 /**
@@ -23,6 +25,14 @@ export function CodeWorkbench({
 	kind: "tree" | "blob";
 	children: ReactNode;
 }) {
+	// An empty repository (or one whose ref doesn't resolve) has no tree to
+	// show; the page beside it explains what to do instead.
+	const { data: rootEntries, isError } = useQuery(
+		repositoryTreeEntriesQueryOptions({ repoId, branchName: gitRef }),
+	);
+	if (isError || rootEntries?.length === 0) {
+		return <div className="min-w-0 space-y-4">{children}</div>;
+	}
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
 			<aside className="sticky top-6 hidden max-h-[calc(100vh-3rem)] overflow-hidden rounded-[18px] border border-bjork-border-muted bg-bjork-surface shadow-(--bjork-shadow-surface) lg:flex lg:flex-col">
