@@ -23,14 +23,15 @@
 		"build": "tsdown && tsc -p tsconfig.build.json",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
-		"lint": "biome check ."
+		"lint": "biome check .",
+		"docs:matrix": "UPDATE_DOCS=1 vitest run test/compat-docs.test.ts"
 	},
 	"dependencies": {
 		"zod": "^4.6.7"
 	},
 	"devDependencies": {
-		"@types/node": "^26.6.5",
 		"@pushstack/tsconfig": "workspace:*",
+		"@types/node": "^26.6.5",
 		"tsdown": "^0.23.1",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.5"

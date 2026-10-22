@@ -15,8 +15,12 @@ GitHub Enterprise's layout.
   `repository-create.ts`), never the `createServerFn`s.
 
 To add an endpoint: write a handler `(ctx: ApiContext) => Promise<Response>` in
-the resource's module, add a row to `ROUTES` in `index.ts`, add a behavior test
-in `apps/web/src/server/__tests__/api.test.ts`, and add a row to the matrix below.
+the resource's module, add the operation's route and schemas to
+`packages/api-contract` and its handler to the map in `index.ts`, add a behavior
+test in `apps/web/src/server/__tests__/api.test.ts`, write its note in
+`packages/api-contract/src/compat.ts` and regenerate the matrix below with
+`pnpm --filter @pushstack/api-contract docs:matrix` (the package's test fails
+while the matrix and the contract disagree).
 
 ## Authentication
 
@@ -88,56 +92,87 @@ kept) and is absent when everything fits on one page. Items deeper than
 
 ## Compatibility matrix
 
-| Endpoint | Status | Notes |
+Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/compat.ts`); don't edit it by hand.
+
+| Endpoint | GitHub operation | Notes |
 | --- | --- | --- |
-| `GET /user` | supported | |
-| `GET /user/{account_id}` | supported | public profile by integer id; `404` for an unknown or malformed id |
-| `GET /users/{username}` | supported | |
-| `GET /user/repos` | supported | `visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction` |
-| `POST /user/repos` | supported | `name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored |
-| `GET /users/{username}/repos` | supported | public repositories only; `sort`, `direction` |
-| `GET /repos/{owner}/{repo}` | supported | |
-| `GET /repos/{owner}/{repo}/branches` | supported | sorted by name |
-| `GET /repos/{owner}/{repo}/branches/{branch}` | supported | branch names may contain `/` |
-| `GET /repos/{owner}/{repo}/tags` | supported | version order |
-| `GET /repos/{owner}/{repo}/contents/{path}` | supported | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. Media types: `raw` (a file's bytes, up to 50 MB, `application/octet-stream`), `object` (a directory as one object with `entries`); `html` is served as JSON |
-| `PUT`/`DELETE /repos/{owner}/{repo}/contents/{path}` | supported | write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace or delete; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; in an empty repository the first write creates the branch it names and makes it the default |
-| `GET /repos/{owner}/{repo}/commits` | supported | `sha`, `path` (a file), `author`/`committer` (an email, or a login matching that account's email), `since`/`until` (committer date), pagination; newest first; `409` for an empty repository; filters search the newest 10,100 commits; `Link` has `next` but no `last` |
-| `GET /repos/{owner}/{repo}/commits/{ref}` | supported | with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha` |
-| `GET /repos/{owner}/{repo}/compare/{basehead}` | supported | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head) and `patch` (one message per commit) |
-| `GET /repos/{owner}/{repo}/git/ref/{ref}`, `.../git/matching-refs/{ref}`, `.../git/refs[/{ref}]` | supported | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
-| `DELETE /repos/{owner}/{repo}/git/refs/{ref}` | supported | write access; `heads/…` or `tags/…`; deleting a branch records `head_ref_deleted` on the closed pull requests it heads; a missing ref or the default branch is `422` |
-| `POST /repos/{owner}/{repo}/git/refs`, `PATCH .../git/refs/{ref}` | supported | write access; `ref` fully qualified (`refs/heads/…`, `refs/tags/…`); an existing ref is `422`; a branch only fast-forwards unless `force` (`422 Update is not a fast forward`) |
-| `POST /repos/{owner}/{repo}/git/blobs` | supported | `content` with `encoding` `utf-8` (default) or `base64`; `201 { sha, url }` |
-| `POST /repos/{owner}/{repo}/git/trees` | supported | `tree` entries (`path`, `mode`, `type`, and `sha` or `content`; nested paths edit subtrees, `sha: null` deletes) over an optional `base_tree`; up to 10,000 entries |
-| `POST /repos/{owner}/{repo}/git/commits` | supported | `message`, `tree`, `parents`, `author`/`committer` (with `date`; default the caller, now); no ref moves |
-| `GET`/`POST /repos/{owner}/{repo}/git/tags[/{sha}]` | supported | annotated tag objects (unsigned); create the `refs/tags/…` ref separately, as on GitHub |
-| `GET /repos/{owner}/{repo}/git/commits/{sha}` | supported | full sha only |
-| `GET /repos/{owner}/{repo}/git/trees/{sha}` | supported | `recursive`; up to 10,000 entries, then `truncated` |
-| `GET /repos/{owner}/{repo}/git/blobs/{sha}` | supported | base64; up to 3 MB |
-| `GET /repos/{owner}/{repo}/issues` | supported | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
-| `POST /repos/{owner}/{repo}/issues` | supported | any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access) |
-| `GET /repos/{owner}/{repo}/issues/{number}` | supported | a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason` |
-| `PATCH /repos/{owner}/{repo}/issues/{number}` | supported | the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; issues only (a pull request number is `404`) |
-| `GET`/`POST /repos/{owner}/{repo}/issues/{number}/comments` | supported | comments of an issue or a pull request |
-| `GET`/`PATCH`/`DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | supported | `204` on delete |
-| `GET /repos/{owner}/{repo}/issues/{number}/timeline` | supported | comments, events and submitted reviews (`reviewed` items with `state`, `body`, `commit_id`, `author_association` `OWNER`/`COLLABORATOR`/`NONE`), oldest first |
-| `GET /repos/{owner}/{repo}/issues/{number}/events` | supported | issue events only (no comments or reviews, as on GitHub), oldest first |
-| `GET`/`POST /repos/{owner}/{repo}/issues/{number}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | reactions on an issue or pull request; list filters by `content` and paginates; create is any signed-in reader (`repo:write` token), `201` when new and `200` with the existing reaction; delete (`204`) only your own reaction |
-| `GET`/`POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions`, `DELETE .../reactions/{reaction_id}` | supported | the same for an issue or pull request comment |
-| `GET`/`POST /repos/{owner}/{repo}/labels`, `GET`/`PATCH`/`DELETE .../labels/{name}` | supported | `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
-| `GET`/`POST`/`PUT`/`DELETE /repos/{owner}/{repo}/issues/{number}/labels` (+ `/{name}`) | supported | write access; add and set return every label, removing one returns the rest, removing all is `204` |
-| `GET`/`PUT /notifications`, `GET`/`PUT /repos/{owner}/{repo}/notifications` | supported | any token; unread unless `all=true`; `participating`, `since`, `before`, `per_page` (up to 50); `PUT` marks threads updated at or before `last_read_at` (default now) read and answers `205`; threads in repositories you can no longer read are hidden |
-| `GET`/`PATCH`/`DELETE /notifications/threads/{id}` | supported | `PATCH` marks read (`205`); `DELETE` marks done (`204`): the thread leaves the inbox until new activity |
-| `GET`/`PUT`/`DELETE /notifications/threads/{id}/subscription` | supported | `ignored: true` mutes the thread; `DELETE` unsubscribes until you are involved again; `reason` is always `null` |
-| `GET /rate_limit` | supported | `resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql` |
-| `GET /repos/{owner}/{repo}/pulls` | supported | `state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults) |
-| `POST /repos/{owner}/{repo}/pulls` | supported | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
-| `GET`/`PATCH /repos/{owner}/{repo}/pulls/{number}` | supported | `PATCH`: the author or a writer; `title`, `body`, `state`; changing `base` is `422` |
-| `GET`/`PUT /repos/{owner}/{repo}/pulls/{number}/merge` | supported | `GET` is `204` once merged, else `404`. `PUT`: `commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge` only; `squash`/`rebase` are `405`). A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }` |
-| `GET /repos/{owner}/{repo}/pulls/{number}/files` | supported | up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips) |
-| `GET /repos/{owner}/{repo}/pulls/{number}/commits` | supported | oldest first, up to 250 |
-| everything else | not implemented | `404 Not Found` |
+| `GET /rate_limit` | [`rate-limit/get`](https://docs.github.com/rest/rate-limit/rate-limit#get-rate-limit-status-for-the-authenticated-user) | `resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql` |
+| `GET /user` | [`users/get-authenticated`](https://docs.github.com/rest/users/users#get-the-authenticated-user) | |
+| `GET /user/repos` | [`repos/list-for-authenticated-user`](https://docs.github.com/rest/repos/repos#list-repositories-for-the-authenticated-user) | `visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction` |
+| `POST /user/repos` | [`repos/create-for-authenticated-user`](https://docs.github.com/rest/repos/repos#create-a-repository-for-the-authenticated-user) | `name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored |
+| `GET /user/{account_id}` | [`users/get-by-id`](https://docs.github.com/rest/users/users#get-a-user-using-their-id) | public profile by integer id; `404` for an unknown or malformed id |
+| `GET /users/{username}` | [`users/get-by-username`](https://docs.github.com/rest/users/users#get-a-user) | |
+| `GET /users/{username}/repos` | [`repos/list-for-user`](https://docs.github.com/rest/repos/repos#list-repositories-for-a-user) | public repositories only; `sort`, `direction` |
+| `GET /notifications` | [`activity/list-notifications-for-authenticated-user`](https://docs.github.com/rest/activity/notifications#list-notifications-for-the-authenticated-user) | any token; unread unless `all=true`; `participating`, `since`, `before`, `per_page` (up to 50); threads in repositories you can no longer read are hidden |
+| `PUT /notifications` | [`activity/mark-notifications-as-read`](https://docs.github.com/rest/activity/notifications#mark-notifications-as-read) | marks threads updated at or before `last_read_at` (default now) read and answers `205` |
+| `GET /notifications/threads/{thread_id}/subscription` | [`activity/get-thread-subscription-for-authenticated-user`](https://docs.github.com/rest/activity/notifications#get-a-thread-subscription-for-the-authenticated-user) | `reason` is always `null` |
+| `PUT /notifications/threads/{thread_id}/subscription` | [`activity/set-thread-subscription`](https://docs.github.com/rest/activity/notifications#set-a-thread-subscription) | `ignored: true` mutes the thread |
+| `DELETE /notifications/threads/{thread_id}/subscription` | [`activity/delete-thread-subscription`](https://docs.github.com/rest/activity/notifications#delete-a-thread-subscription) | unsubscribes until you are involved again |
+| `GET /notifications/threads/{thread_id}` | [`activity/get-thread`](https://docs.github.com/rest/activity/notifications#get-a-thread) | |
+| `PATCH /notifications/threads/{thread_id}` | [`activity/mark-thread-as-read`](https://docs.github.com/rest/activity/notifications#mark-a-thread-as-read) | `205` |
+| `DELETE /notifications/threads/{thread_id}` | [`activity/mark-thread-as-done`](https://docs.github.com/rest/activity/notifications#mark-a-thread-as-done) | `204`: the thread leaves the inbox until new activity |
+| `GET /repos/{owner}/{repo}` | [`repos/get`](https://docs.github.com/rest/repos/repos#get-a-repository) | |
+| `GET /repos/{owner}/{repo}/notifications` | [`activity/list-repo-notifications-for-authenticated-user`](https://docs.github.com/rest/activity/notifications#list-repository-notifications-for-the-authenticated-user) | as `GET /notifications`, for one repository |
+| `PUT /repos/{owner}/{repo}/notifications` | [`activity/mark-repo-notifications-as-read`](https://docs.github.com/rest/activity/notifications#mark-repository-notifications-as-read) | as `PUT /notifications`, for one repository |
+| `GET /repos/{owner}/{repo}/branches` | [`repos/list-branches`](https://docs.github.com/rest/branches/branches#list-branches) | sorted by name |
+| `GET /repos/{owner}/{repo}/branches/{branch}` | [`repos/get-branch`](https://docs.github.com/rest/branches/branches#get-a-branch) | branch names may contain `/` |
+| `GET /repos/{owner}/{repo}/tags` | [`repos/list-tags`](https://docs.github.com/rest/repos/repos#list-repository-tags) | version order |
+| `GET /repos/{owner}/{repo}/contents/{path}` | [`repos/get-content`](https://docs.github.com/rest/repos/contents#get-repository-content) | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. Media types: `raw` (a file's bytes, up to 50 MB, `application/octet-stream`), `object` (a directory as one object with `entries`); `html` is served as JSON |
+| `PUT /repos/{owner}/{repo}/contents/{path}` | [`repos/create-or-update-file-contents`](https://docs.github.com/rest/repos/contents#create-or-update-file-contents) | write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; in an empty repository the first write creates the branch it names and makes it the default |
+| `DELETE /repos/{owner}/{repo}/contents/{path}` | [`repos/delete-file`](https://docs.github.com/rest/repos/contents#delete-a-file) | write access; `message`, `branch`, `sha` (required; `409` when stale) |
+| `GET /repos/{owner}/{repo}/commits` | [`repos/list-commits`](https://docs.github.com/rest/commits/commits#list-commits) | `sha`, `path` (a file), `author`/`committer` (an email, or a login matching that account's email), `since`/`until` (committer date), pagination; newest first; `409` for an empty repository; filters search the newest 10,100 commits; `Link` has `next` but no `last` |
+| `GET /repos/{owner}/{repo}/commits/{ref}` | [`repos/get-commit`](https://docs.github.com/rest/commits/commits#get-a-commit) | with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha` |
+| `GET /repos/{owner}/{repo}/compare/{basehead}` | [`repos/compare-commits-with-basehead`](https://docs.github.com/rest/commits/commits#compare-two-commits) | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head) and `patch` (one message per commit) |
+| `GET /repos/{owner}/{repo}/git/ref/{ref}` | [`git/get-ref`](https://docs.github.com/rest/git/refs#get-a-reference) | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
+| `GET /repos/{owner}/{repo}/git/refs/{ref}` | [`git/list-refs`](https://docs.github.com/rest/git/refs#get-a-reference) | `{ref}` may be empty (every ref) |
+| `GET /repos/{owner}/{repo}/git/matching-refs/{ref}` | [`git/list-matching-refs`](https://docs.github.com/rest/git/refs#list-matching-references) | |
+| `DELETE /repos/{owner}/{repo}/git/refs/{ref}` | [`git/delete-ref`](https://docs.github.com/rest/git/refs#delete-a-reference) | write access; `heads/…` or `tags/…`; deleting a branch records `head_ref_deleted` on the closed pull requests it heads; a missing ref or the default branch is `422` |
+| `GET /repos/{owner}/{repo}/git/commits/{commit_sha}` | [`git/get-commit`](https://docs.github.com/rest/git/commits#get-a-commit-object) | full sha only |
+| `GET /repos/{owner}/{repo}/git/trees/{tree_sha}` | [`git/get-tree`](https://docs.github.com/rest/git/trees#get-a-tree) | `recursive`; up to 10,000 entries, then `truncated` |
+| `GET /repos/{owner}/{repo}/git/blobs/{file_sha}` | [`git/get-blob`](https://docs.github.com/rest/git/blobs#get-a-blob) | base64; up to 3 MB |
+| `POST /repos/{owner}/{repo}/git/refs` | [`git/create-ref`](https://docs.github.com/rest/git/refs#create-a-reference) | write access; `ref` fully qualified (`refs/heads/…`, `refs/tags/…`); an existing ref is `422` |
+| `PATCH /repos/{owner}/{repo}/git/refs/{ref}` | [`git/update-ref`](https://docs.github.com/rest/git/refs#update-a-reference) | write access; a branch only fast-forwards unless `force` (`422 Update is not a fast forward`) |
+| `POST /repos/{owner}/{repo}/git/blobs` | [`git/create-blob`](https://docs.github.com/rest/git/blobs#create-a-blob) | `content` with `encoding` `utf-8` (default) or `base64`; `201 { sha, url }` |
+| `POST /repos/{owner}/{repo}/git/trees` | [`git/create-tree`](https://docs.github.com/rest/git/trees#create-a-tree) | `tree` entries (`path`, `mode`, `type`, and `sha` or `content`; nested paths edit subtrees, `sha: null` deletes) over an optional `base_tree`; up to 10,000 entries |
+| `POST /repos/{owner}/{repo}/git/commits` | [`git/create-commit`](https://docs.github.com/rest/git/commits#create-a-commit) | `message`, `tree`, `parents`, `author`/`committer` (with `date`; default the caller, now); no ref moves |
+| `GET /repos/{owner}/{repo}/git/tags/{tag_sha}` | [`git/get-tag`](https://docs.github.com/rest/git/tags#get-a-tag) | annotated tag objects (unsigned) |
+| `POST /repos/{owner}/{repo}/git/tags` | [`git/create-tag`](https://docs.github.com/rest/git/tags#create-a-tag-object) | unsigned; create the `refs/tags/…` ref separately, as on GitHub |
+| `GET /repos/{owner}/{repo}/issues` | [`issues/list-for-repo`](https://docs.github.com/rest/issues/issues#list-repository-issues) | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
+| `POST /repos/{owner}/{repo}/issues` | [`issues/create`](https://docs.github.com/rest/issues/issues#create-an-issue) | any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access) |
+| `GET /repos/{owner}/{repo}/issues/comments/{comment_id}` | [`issues/get-comment`](https://docs.github.com/rest/issues/comments#get-an-issue-comment) | |
+| `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}` | [`issues/update-comment`](https://docs.github.com/rest/issues/comments#update-an-issue-comment) | |
+| `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | [`issues/delete-comment`](https://docs.github.com/rest/issues/comments#delete-an-issue-comment) | `204` |
+| `GET /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions` | [`reactions/list-for-issue-comment`](https://docs.github.com/rest/reactions/reactions#list-reactions-for-an-issue-comment) | filters by `content`; paginated |
+| `POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions` | [`reactions/create-for-issue-comment`](https://docs.github.com/rest/reactions/reactions#create-reaction-for-an-issue-comment) | any signed-in reader (`repo:write` token); `201` when new, `200` with the existing reaction |
+| `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}` | [`reactions/delete-for-issue-comment`](https://docs.github.com/rest/reactions/reactions#delete-an-issue-comment-reaction) | only your own reaction; `204` |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}` | [`issues/get`](https://docs.github.com/rest/issues/issues#get-an-issue) | a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason` |
+| `PATCH /repos/{owner}/{repo}/issues/{issue_number}` | [`issues/update`](https://docs.github.com/rest/issues/issues#update-an-issue) | the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; issues only (a pull request number is `404`) |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/comments` | [`issues/list-comments`](https://docs.github.com/rest/issues/comments#list-issue-comments) | comments of an issue or a pull request |
+| `POST /repos/{owner}/{repo}/issues/{issue_number}/comments` | [`issues/create-comment`](https://docs.github.com/rest/issues/comments#create-an-issue-comment) | any signed-in reader |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/timeline` | [`issues/list-events-for-timeline`](https://docs.github.com/rest/issues/timeline#list-timeline-events-for-an-issue) | comments, events and submitted reviews (`reviewed` items with `state`, `body`, `commit_id`, `author_association` `OWNER`/`COLLABORATOR`/`NONE`), oldest first |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/events` | [`issues/list-events`](https://docs.github.com/rest/issues/events#list-issue-events) | issue events only (no comments or reviews, as on GitHub), oldest first |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/reactions` | [`reactions/list-for-issue`](https://docs.github.com/rest/reactions/reactions#list-reactions-for-an-issue) | reactions on an issue or pull request; filters by `content`; paginated |
+| `POST /repos/{owner}/{repo}/issues/{issue_number}/reactions` | [`reactions/create-for-issue`](https://docs.github.com/rest/reactions/reactions#create-reaction-for-an-issue) | any signed-in reader (`repo:write` token); `201` when new, `200` with the existing reaction |
+| `DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}` | [`reactions/delete-for-issue`](https://docs.github.com/rest/reactions/reactions#delete-an-issue-reaction) | only your own reaction; `204` |
+| `GET /repos/{owner}/{repo}/issues/{issue_number}/labels` | [`issues/list-labels-on-issue`](https://docs.github.com/rest/issues/labels#list-labels-for-an-issue) | |
+| `POST /repos/{owner}/{repo}/issues/{issue_number}/labels` | [`issues/add-labels`](https://docs.github.com/rest/issues/labels#add-labels-to-an-issue) | write access; returns every label |
+| `PUT /repos/{owner}/{repo}/issues/{issue_number}/labels` | [`issues/set-labels`](https://docs.github.com/rest/issues/labels#set-labels-for-an-issue) | write access; returns every label |
+| `DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels` | [`issues/remove-all-labels`](https://docs.github.com/rest/issues/labels#remove-all-labels-from-an-issue) | write access; `204` |
+| `DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}` | [`issues/remove-label`](https://docs.github.com/rest/issues/labels#remove-a-label-from-an-issue) | write access; returns the remaining labels |
+| `GET /repos/{owner}/{repo}/pulls` | [`pulls/list`](https://docs.github.com/rest/pulls/pulls#list-pull-requests) | `state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults) |
+| `POST /repos/{owner}/{repo}/pulls` | [`pulls/create`](https://docs.github.com/rest/pulls/pulls#create-a-pull-request) | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
+| `GET /repos/{owner}/{repo}/pulls/{pull_number}` | [`pulls/get`](https://docs.github.com/rest/pulls/pulls#get-a-pull-request) | |
+| `PATCH /repos/{owner}/{repo}/pulls/{pull_number}` | [`pulls/update`](https://docs.github.com/rest/pulls/pulls#update-a-pull-request) | the author or a writer; `title`, `body`, `state`; changing `base` is `422` |
+| `GET /repos/{owner}/{repo}/pulls/{pull_number}/merge` | [`pulls/check-if-merged`](https://docs.github.com/rest/pulls/pulls#check-if-a-pull-request-has-been-merged) | `204` once merged, else `404` |
+| `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` | [`pulls/merge`](https://docs.github.com/rest/pulls/pulls#merge-a-pull-request) | `commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge` only; `squash`/`rebase` are `405`). A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }` |
+| `GET /repos/{owner}/{repo}/pulls/{pull_number}/commits` | [`pulls/list-commits`](https://docs.github.com/rest/pulls/pulls#list-commits-on-a-pull-request) | oldest first, up to 250 |
+| `GET /repos/{owner}/{repo}/pulls/{pull_number}/files` | [`pulls/list-files`](https://docs.github.com/rest/pulls/pulls#list-pull-requests-files) | up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips) |
+| `GET /repos/{owner}/{repo}/labels` | [`issues/list-labels-for-repo`](https://docs.github.com/rest/issues/labels#list-labels-for-a-repository) | |
+| `POST /repos/{owner}/{repo}/labels` | [`issues/create-label`](https://docs.github.com/rest/issues/labels#create-a-label) | write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
+| `GET /repos/{owner}/{repo}/labels/{name}` | [`issues/get-label`](https://docs.github.com/rest/issues/labels#get-a-label) | |
+| `PATCH /repos/{owner}/{repo}/labels/{name}` | [`issues/update-label`](https://docs.github.com/rest/issues/labels#update-a-label) | write access |
+| `DELETE /repos/{owner}/{repo}/labels/{name}` | [`issues/delete-label`](https://docs.github.com/rest/issues/labels#delete-a-label) | write access; `204` |
+| everything else | | not implemented: `404 Not Found` |
 
 ## Differences from GitHub
 
