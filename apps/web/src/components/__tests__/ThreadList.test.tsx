@@ -52,7 +52,7 @@ describe("ThreadList", () => {
 				{() => null}
 			</ThreadList>,
 		);
-		expect(container.querySelectorAll("[aria-busy=\"true\"] li")).toHaveLength(3);
+		expect(container.querySelectorAll('[aria-busy="true"] li')).toHaveLength(3);
 	});
 
 	it("shows the empty message and action with no rows", () => {

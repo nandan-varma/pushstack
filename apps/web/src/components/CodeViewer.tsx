@@ -1,63 +1,52 @@
-import { useState } from "react";
 import { useHighlightedCode } from "@/hooks/use-highlighted-code";
-import { isLargeContent } from "@/lib/language-detection";
-import { cn } from "@/lib/utils";
+import { countLines } from "@/lib/language-detection";
 
 interface CodeViewerProps {
 	code: string;
 	language: string;
-	showLineNumbers?: boolean;
 }
 
-/**
- * Highlighted source, flush inside its panel (the panel header carries the
- * file's name and actions). It grows with the page instead of scrolling in a
- * box of its own; long lines scroll sideways under a sticky gutter.
- */
-export default function CodeViewer({
-	code,
-	language,
-	showLineNumbers = true,
-}: CodeViewerProps) {
-	const [forceHighlight, setForceHighlight] = useState(false);
+/** Matches `.code-viewer-html pre.shiki`: 13px type on a 1.6 line height. */
+const LINE_HEIGHT_REM = 0.8125 * 1.6;
+const VERTICAL_PADDING_REM = 0.875 + 1;
 
-	const isLarge = isLargeContent(code);
-	const { html } = useHighlightedCode(
-		code,
-		language,
-		!isLarge || forceHighlight,
-	);
+/**
+ * Highlighted source with line numbers, flush inside its panel. Until the
+ * highlighter answers, the exact height the code will take is reserved, so
+ * nothing below it moves when it appears.
+ */
+export default function CodeViewer({ code, language }: CodeViewerProps) {
+	const highlight = useHighlightedCode(code, language);
+	const lineCount = countLines(code);
+
+	if (highlight.status === "pending") {
+		return (
+			<div
+				aria-busy="true"
+				aria-label="Highlighting code"
+				style={{
+					height: `${lineCount * LINE_HEIGHT_REM + VERTICAL_PADDING_REM}rem`,
+				}}
+			/>
+		);
+	}
+
+	if (highlight.status === "failed") {
+		// Only when the highlighter itself fails: the code must stay readable.
+		return (
+			<pre className="m-0 overflow-x-auto px-5 py-3.5 font-mono text-[13px] leading-[1.6] whitespace-pre text-bjork-text-medium">
+				<code>{code}</code>
+			</pre>
+		);
+	}
 
 	return (
-		<>
-			{isLarge && !forceHighlight && (
-				<p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-bjork-border-muted bg-bjork-panel px-5 py-2.5 text-xs text-bjork-text-muted">
-					Syntax highlighting is off for large files to keep them fast.
-					<button
-						type="button"
-						onClick={() => setForceHighlight(true)}
-						className="font-medium text-bjork-accent hover:underline"
-					>
-						Highlight anyway
-					</button>
-				</p>
-			)}
-			<div className="overflow-x-auto">
-				{html ? (
-					<div
-						className={cn(
-							"code-viewer-html",
-							showLineNumbers && "with-line-numbers",
-						)}
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is self-escaping HTML
-						dangerouslySetInnerHTML={{ __html: html }}
-					/>
-				) : (
-					<pre className="m-0 w-max min-w-full px-5 py-4 font-mono text-[13px] leading-[1.6] text-bjork-text-medium whitespace-pre">
-						<code>{code}</code>
-					</pre>
-				)}
-			</div>
-		</>
+		<div className="overflow-x-auto">
+			<div
+				className="code-viewer-html with-line-numbers"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is self-escaping HTML
+				dangerouslySetInnerHTML={{ __html: highlight.html }}
+			/>
+		</div>
 	);
 }

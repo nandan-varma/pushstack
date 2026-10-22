@@ -30,9 +30,7 @@ describe("CommentForm", () => {
 		rerender(
 			<CommentForm value="hi" onChange={onChange} onSubmit={() => {}} />,
 		);
-		expect(
-			screen.getByRole("button", { name: "Comment" }),
-		).not.toBeDisabled();
+		expect(screen.getByRole("button", { name: "Comment" })).not.toBeDisabled();
 
 		await user.type(
 			screen.getByRole("textbox", { name: "Add a comment" }),

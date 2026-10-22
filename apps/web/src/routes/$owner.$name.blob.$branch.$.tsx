@@ -19,7 +19,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getPreviewMode } from "@/lib/file-preview";
 import { rawFileUrl } from "@/lib/file-view";
-import { detectLanguage, formatFileSize } from "@/lib/language-detection";
+import {
+	countLines,
+	detectLanguage,
+	formatFileSize,
+} from "@/lib/language-detection";
 import {
 	repositoryByNameQueryOptions,
 	repositoryFileHistoryQueryOptions,
@@ -149,8 +153,7 @@ function FileBlobPage() {
 	// download, media preview) — never shipped inside the page data.
 	const rawUrl = rawFileUrl({ owner, name, ref: branch, path: filePath });
 
-	const lineCount =
-		file.kind === "text" ? file.content.split("\n").length : undefined;
+	const lineCount = file.kind === "text" ? countLines(file.content) : undefined;
 	const permalink = latestSha
 		? `${typeof window === "undefined" ? "" : window.location.origin}/${owner}/${name}/blob/${latestSha}/${encodePath(filePath)}`
 		: undefined;
