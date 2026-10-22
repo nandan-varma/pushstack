@@ -368,3 +368,10 @@ export function formatFileSize(bytes: number): string {
 
 	return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
+
+/** Lines as an editor counts them: a trailing newline ends the last line. */
+export function countLines(code: string): number {
+	if (code === "") return 0;
+	const lines = code.split("\n").length;
+	return code.endsWith("\n") ? lines - 1 : lines;
+}

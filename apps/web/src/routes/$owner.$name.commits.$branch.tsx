@@ -5,14 +5,16 @@ import {
 	notFound,
 	useNavigate,
 } from "@tanstack/react-router";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { Toolbar } from "@/components/layout/page";
 import { CommitList } from "@/components/repo/CommitList";
 import { RefSelect } from "@/components/repo/RefSelect";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
-import { BackLink } from "@/components/ui/back-link";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { contentQuery } from "@/lib/prefetch";
 import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
@@ -50,16 +52,15 @@ export const Route = createFileRoute("/$owner/$name/commits/$branch")({
 		// its own loading state.
 		const page = deps.page ?? 1;
 		const skip = (page - 1) * PAGE_SIZE;
-		queryClient
-			.ensureQueryData(
-				repositoryCommitsQueryOptions({
-					repoId: repo.id,
-					branchName: params.branch,
-					limit: PAGE_SIZE,
-					skip,
-				}),
-			)
-			.catch(() => {});
+		await contentQuery(
+			queryClient,
+			repositoryCommitsQueryOptions({
+				repoId: repo.id,
+				branchName: params.branch,
+				limit: PAGE_SIZE,
+				skip,
+			}),
+		);
 	},
 	component: CommitsPage,
 	notFoundComponent: () => (
@@ -101,10 +102,19 @@ function CommitsPage() {
 		[navigate, owner, name],
 	);
 
+	const pageLink = (target: number) => ({
+		to: "/$owner/$name/commits/$branch" as const,
+		params: { owner, name, branch },
+		search: { page: target > 1 ? target : undefined },
+	});
+
 	return (
 		<div className="space-y-5">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
+			<Toolbar>
+				<div className="flex items-center gap-3">
+					<h1 className="text-[22px] font-semibold tracking-[-0.025em] text-bjork-text">
+						Commits
+					</h1>
 					{repo && (
 						<RefSelect
 							repoId={repo.id}
@@ -112,76 +122,49 @@ function CommitsPage() {
 							onChange={handleBranchChange}
 						/>
 					)}
-					{commits && commits.length > 0 && (
-						<span className="text-xs text-muted-foreground">
-							{commits.length} commit{commits.length !== 1 ? "s" : ""}
-						</span>
-					)}
 				</div>
-				<BackLink
-					to="/$owner/$name/tree/$branch/$"
-					params={{ owner, name, branch, _splat: "" }}
-					label="Back to files"
-				/>
-			</div>
+			</Toolbar>
 
 			{isLoading ? (
-				<div className="space-y-2">
+				<div className="space-y-2" aria-busy="true">
 					{[1, 2, 3, 4].map((i) => (
-						<Skeleton key={i} className="h-16" />
+						<Skeleton key={i} className="h-14 rounded-[14px]" />
 					))}
 				</div>
 			) : !commits?.length ? (
-				<EmptyState
-					message="No commits found in this branch."
-					action={
-						<Link
-							to="/$owner/$name/tree/$branch/$"
-							params={{ owner, name, branch, _splat: "" }}
-						>
-							<Button variant="outline" size="sm">
-								View files
-							</Button>
-						</Link>
-					}
-				/>
+				<EmptyState message="No commits on this branch yet." />
 			) : (
 				<>
-					<CommitList owner={owner} name={name} commits={commits} />
+					<CommitList owner={owner} name={name} commits={commits} groupByDay />
 
-					<div className="flex items-center justify-center gap-3">
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={currentPage <= 1}
-							onClick={() =>
-								navigate({
-									to: "/$owner/$name/commits/$branch",
-									params: { owner, name, branch },
-									search: { page: Math.max(1, currentPage - 1) },
-								})
-							}
-						>
-							Previous
-						</Button>
-						<span className="text-xs text-muted-foreground">
+					<nav
+						aria-label="Pagination"
+						className="flex items-center justify-between gap-3"
+					>
+						<span className="text-xs text-bjork-text-soft tabular-nums">
 							{currentSkip + 1}–{currentSkip + commits.length}
 						</span>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={commits.length < PAGE_SIZE}
-							onClick={() =>
-								navigate({
-									to: "/$owner/$name/commits/$branch",
-									params: { owner, name, branch },
-									search: { page: currentPage + 1 },
-								})
-							}
-						>
-							Next
-						</Button>
-					</div>
+						<div className="flex gap-2">
+							{currentPage > 1 ? (
+								<Link
+									{...pageLink(currentPage - 1)}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
+								>
+									<ChevronLeft aria-hidden="true" />
+									Newer
+								</Link>
+							) : null}
+							{commits.length === PAGE_SIZE ? (
+								<Link
+									{...pageLink(currentPage + 1)}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
+								>
+									Older
+									<ChevronRight aria-hidden="true" />
+								</Link>
+							) : null}
+						</div>
+					</nav>
 				</>
 			)}
 		</div>

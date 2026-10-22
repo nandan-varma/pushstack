@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Plus, Search } from "lucide-react";
+import { useDeferredValue, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
-import { RepositoryCard } from "@/components/repo/RepositoryCard";
-import { RepositoryListEmptyState } from "@/components/repo/RepositoryListEmptyState";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Toolbar } from "@/components/layout/page";
+import { PageHeader } from "@/components/PageHeader";
+import { RepositoryList } from "@/components/repo/RepositoryList";
+import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getSession } from "@/lib/auth-session";
 import { userRepositoriesQueryOptions } from "@/lib/query-options";
 
@@ -28,49 +31,69 @@ function RepositoriesPage() {
 		isError,
 		refetch,
 	} = useQuery(userRepositoriesQueryOptions());
+	const [filter, setFilter] = useState("");
+	const query = useDeferredValue(filter.trim().toLowerCase());
+	const shown = query
+		? repositories?.filter(
+				(repo) =>
+					repo.name.toLowerCase().includes(query) ||
+					repo.description?.toLowerCase().includes(query),
+			)
+		: repositories;
 
 	return (
-		<main className="page-wrap px-4 py-10">
-			<div className="mb-8 flex items-center justify-between gap-4">
-				<div>
-					<h1 className="text-3xl font-bold text-foreground">Repositories</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						Browse and manage the repositories you can access.
-					</p>
-				</div>
-				<Link to="/repositories/new">
-					<Button size="sm">+ New repository</Button>
-				</Link>
-			</div>
-
-			{isLoading ? (
-				<div className="grid gap-3 md:grid-cols-2">
-					{[1, 2, 3, 4].map((i) => (
-						<Skeleton key={i} className="h-28" />
-					))}
-				</div>
-			) : isError ? (
-				<EmptyState
-					variant="error"
-					message="Couldn't load repositories."
-					action={
-						<Button size="sm" variant="outline" onClick={() => refetch()}>
-							Try again
-						</Button>
-					}
-				/>
-			) : repositories && repositories.length > 0 ? (
-				<>
-					<h2 className="sr-only">Repositories list</h2>
-					<div className="grid gap-3 md:grid-cols-2">
-						{repositories.map((repo) => (
-							<RepositoryCard key={repo.id} repo={repo} />
-						))}
+		<div className="page-wrap space-y-4 py-6">
+			<PageHeader
+				title="Repositories"
+				meta={repositories ? `${repositories.length}` : undefined}
+				actions={
+					<Link to="/repositories/new" className={buttonVariants()}>
+						<Plus aria-hidden="true" />
+						New repository
+					</Link>
+				}
+			/>
+			{(repositories?.length ?? 0) > 3 && (
+				<Toolbar>
+					<div className="relative w-full max-w-sm">
+						<Search
+							aria-hidden="true"
+							className="pointer-events-none absolute top-1/2 left-3.5 z-10 size-4 -translate-y-1/2 text-bjork-text-soft"
+						/>
+						<Input
+							type="search"
+							value={filter}
+							onChange={(event) => setFilter(event.target.value)}
+							placeholder="Find a repository"
+							aria-label="Find a repository"
+							className="h-9 pl-10"
+						/>
 					</div>
-				</>
-			) : (
-				<RepositoryListEmptyState />
+				</Toolbar>
 			)}
-		</main>
+			<RepositoryList
+				repos={shown}
+				isLoading={isLoading}
+				isError={isError}
+				onRetry={() => refetch()}
+				empty={
+					query ? (
+						<EmptyState bare message={`No repositories match “${filter}”.`} />
+					) : (
+						<EmptyState
+							bare
+							title="No repositories yet"
+							message="Create one to start pushing code."
+							action={
+								<Link to="/repositories/new" className={buttonVariants()}>
+									<Plus aria-hidden="true" />
+									New repository
+								</Link>
+							}
+						/>
+					)
+				}
+			/>
+		</div>
 	);
 }

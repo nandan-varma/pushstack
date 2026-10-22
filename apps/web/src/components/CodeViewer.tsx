@@ -1,104 +1,53 @@
-import { Check, Copy, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { useHighlightedCode } from "@/hooks/use-highlighted-code";
-import { isLargeContent } from "@/lib/language-detection";
-import { cn } from "@/lib/utils";
-import { Button } from "./ui/button";
+import { countLines } from "@/lib/language-detection";
 
 interface CodeViewerProps {
 	code: string;
 	language: string;
-	showLineNumbers?: boolean;
-	fileName?: string;
-	maxHeight?: string;
 }
 
-export default function CodeViewer({
-	code,
-	language,
-	showLineNumbers = true,
-	fileName,
-	maxHeight = "600px",
-}: CodeViewerProps) {
-	const { copied, copy } = useCopyToClipboard();
-	const [forceHighlight, setForceHighlight] = useState(false);
+/** Matches `.code-viewer-html pre.shiki`: 13px type on a 1.6 line height. */
+const LINE_HEIGHT_REM = 0.8125 * 1.6;
+const VERTICAL_PADDING_REM = 0.875 + 1;
 
-	const isLarge = isLargeContent(code);
-	const { html, isPending } = useHighlightedCode(
-		code,
-		language,
-		!isLarge || forceHighlight,
-	);
+/**
+ * Highlighted source with line numbers, flush inside its panel. Until the
+ * highlighter answers, the exact height the code will take is reserved, so
+ * nothing below it moves when it appears.
+ */
+export default function CodeViewer({ code, language }: CodeViewerProps) {
+	const highlight = useHighlightedCode(code, language);
+	const lineCount = countLines(code);
+
+	if (highlight.status === "pending") {
+		return (
+			<div
+				role="status"
+				aria-busy="true"
+				aria-label="Highlighting code"
+				style={{
+					height: `${lineCount * LINE_HEIGHT_REM + VERTICAL_PADDING_REM}rem`,
+				}}
+			/>
+		);
+	}
+
+	if (highlight.status === "failed") {
+		// Only when the highlighter itself fails: the code must stay readable.
+		return (
+			<pre className="m-0 overflow-x-auto px-5 py-3.5 font-mono text-[13px] leading-[1.6] whitespace-pre text-bjork-text-medium">
+				<code>{code}</code>
+			</pre>
+		);
+	}
 
 	return (
-		<div className="rounded-lg border border-border overflow-hidden">
-			<div className="flex items-center justify-between bg-card px-4 py-2 border-b border-border">
-				<div className="flex items-center gap-2">
-					{fileName && (
-						<span className="max-w-xs truncate text-sm font-medium text-foreground">
-							{fileName}
-						</span>
-					)}
-					<span className="text-xs text-muted-foreground px-2 py-0.5 rounded bg-muted border border-border">
-						{language}
-					</span>
-					{isPending && (
-						<Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-					)}
-				</div>
-				<div className="flex items-center gap-2">
-					{isLarge && !forceHighlight && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setForceHighlight(true)}
-						>
-							Highlight anyway
-						</Button>
-					)}
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => copy(code)}
-						disabled={copied}
-					>
-						{copied ? (
-							<>
-								<Check className="size-4" /> Copied
-							</>
-						) : (
-							<>
-								<Copy className="size-4" /> Copy
-							</>
-						)}
-					</Button>
-				</div>
-			</div>
-
-			{isLarge && !forceHighlight && (
-				<p className="px-4 py-2 text-xs text-muted-foreground bg-muted border-b border-border">
-					This file is large, so syntax highlighting was skipped to keep things
-					fast. Click "Highlight anyway" to enable it.
-				</p>
-			)}
-
-			<div style={{ maxHeight, overflow: "auto" }}>
-				{html ? (
-					<div
-						className={cn(
-							"code-viewer-html",
-							showLineNumbers && "with-line-numbers",
-						)}
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is self-escaping HTML
-						dangerouslySetInnerHTML={{ __html: html }}
-					/>
-				) : (
-					<pre className="m-0 w-max min-w-full p-4 text-sm leading-relaxed text-foreground bg-background whitespace-pre">
-						<code>{code}</code>
-					</pre>
-				)}
-			</div>
+		<div className="overflow-x-auto">
+			<div
+				className="code-viewer-html with-line-numbers"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is self-escaping HTML
+				dangerouslySetInnerHTML={{ __html: highlight.html }}
+			/>
 		</div>
 	);
 }

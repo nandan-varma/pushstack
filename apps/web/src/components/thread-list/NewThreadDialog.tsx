@@ -37,14 +37,14 @@ export function NewThreadDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogTrigger asChild>
-				<Button size="sm">{triggerLabel}</Button>
+				<Button>{triggerLabel}</Button>
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription>{description}</DialogDescription>
 				</DialogHeader>
-				<div className="space-y-4">{children}</div>
+				<div className="space-y-3">{children}</div>
 				<DialogFooter>
 					<Button
 						variant="outline"

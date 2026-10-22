@@ -1,14 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	createFileRoute,
-	Link,
-	redirect,
-	useNavigate,
-} from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Upload } from "lucide-react";
 import { useState } from "react";
+import { Panel, PanelFooter } from "@/components/layout/panel";
+import { PageHeader } from "@/components/PageHeader";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -19,7 +17,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { getSession } from "@/lib/auth-session";
 import { formatFileSize } from "@/lib/language-detection";
 import { MAX_WEB_UPLOAD_BYTES, UPLOAD_WARNING_BYTES } from "@/lib/limits";
@@ -126,15 +123,18 @@ function FileUploadPage() {
 		},
 	});
 
+	// A path the person typed stays; one we filled from the previous file
+	// follows the new file.
+	const chooseFile = (next: File) => {
+		setFile(next);
+		if (!path || path === file?.name) setPath(next.name);
+	};
+
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setIsDragging(false);
-		if (e.dataTransfer.files[0]) {
-			setFile(e.dataTransfer.files[0]);
-			if (!path) {
-				setPath(e.dataTransfer.files[0].name);
-			}
-		}
+		const dropped = e.dataTransfer.files[0];
+		if (dropped) chooseFile(dropped);
 	};
 
 	const handleDragOver = (e: React.DragEvent) => {
@@ -146,17 +146,9 @@ function FileUploadPage() {
 		setIsDragging(false);
 	};
 
-	const openFilePicker = () => {
-		document.getElementById("file-input")?.click();
-	};
-
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		if (e.target.files?.[0]) {
-			setFile(e.target.files[0]);
-			if (!path) {
-				setPath(e.target.files[0].name);
-			}
-		}
+		const chosen = e.target.files?.[0];
+		if (chosen) chooseFile(chosen);
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -186,141 +178,115 @@ function FileUploadPage() {
 	const loadingLabel = isEncoding ? "Reading file…" : "Uploading…";
 
 	return (
-		<div className="mx-auto max-w-2xl">
-			<div className="mb-6">
-				<Link
-					to="/$owner/$name/tree/$branch/$"
-					params={{ owner, name, branch, _splat: "" }}
-					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-				>
-					<ArrowLeft className="size-4" />
-					{owner}/{name}
-				</Link>
-			</div>
-			<div className="island-shell rounded-2xl p-8">
-				<div className="mb-6">
-					<h2 className="text-lg font-semibold text-foreground">
-						Upload file to {owner}/{name}
-					</h2>
-					<p className="mt-1 text-sm text-muted-foreground">
-						Add a new file to the repository via web upload.
-					</p>
-				</div>
-				<form onSubmit={handleSubmit} className="space-y-5">
-					<div className="space-y-1.5">
-						<Label htmlFor="branch">Branch</Label>
-						<Select value={branch} onValueChange={setBranch}>
-							<SelectTrigger id="branch" className="w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{branchOptions.map((b) => (
-									<SelectItem key={b.name} value={b.name}>
-										{b.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-
-					<label
-						htmlFor="file-input"
-						className={`block cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
-							isDragging
-								? "border-primary bg-primary/5"
-								: "border-border hover:border-primary/50"
-						}`}
-						onDrop={handleDrop}
-						onDragOver={handleDragOver}
-						onDragLeave={handleDragLeave}
-					>
-						{file ? (
-							<div className="space-y-2">
-								<p className="text-sm font-medium text-foreground">
-									{file.name}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{(file.size / 1024).toFixed(2)} KB
-								</p>
-								{file.size > UPLOAD_WARNING_BYTES && (
-									<p className="text-xs text-amber-600 dark:text-amber-400">
-										This file is large enough that the browser will stutter
-										while encoding it, and web uploads are refused above{" "}
-										{formatFileSize(MAX_WEB_UPLOAD_BYTES)} — use{" "}
-										<code className="font-mono">git push</code> for files this
-										big.
-									</p>
-								)}
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={(event) => {
-										event.preventDefault();
-										event.stopPropagation();
-										setFile(null);
-									}}
-								>
-									Remove
-								</Button>
-							</div>
-						) : (
-							<div className="space-y-2">
-								<p className="text-sm text-foreground">
-									Drop a file here or click to select
-								</p>
-								<input
-									type="file"
-									onChange={handleFileChange}
-									className="hidden"
-									id="file-input"
-								/>
-								<Button
-									type="button"
-									variant="outline"
-									onClick={(event) => {
-										event.preventDefault();
-										openFilePicker();
-									}}
-								>
-									Choose File
-								</Button>
-							</div>
-						)}
-					</label>
-
-					<div className="space-y-1.5">
-						<Label htmlFor="path">File path</Label>
-						<Input
-							id="path"
-							value={path}
-							onChange={(e) => setPath(e.target.value)}
-							placeholder="path/to/file.txt"
-							required
+		<div className="max-w-[760px] space-y-5">
+			<PageHeader
+				title="Add a file"
+				description="Upload one file and commit it in a single step. For anything bigger, push with git."
+			/>
+			<Panel>
+				<form onSubmit={handleSubmit}>
+					<div className="space-y-5 p-5">
+						<input
+							type="file"
+							onChange={handleFileChange}
+							className="peer sr-only"
+							id="file-input"
 						/>
-					</div>
-
-					<div className="space-y-1.5">
-						<Label htmlFor="message">Commit message</Label>
-						<Textarea
-							id="message"
-							value={commitMessage}
-							onChange={(e) => setCommitMessage(e.target.value)}
-							placeholder="Add file via upload"
-							required
-							rows={2}
-						/>
-					</div>
-
-					<div className="flex gap-3 pt-1">
-						<LoadingButton
-							type="submit"
-							disabled={!file || !path || !commitMessage}
-							isLoading={isSubmitting}
-							loadingLabel={loadingLabel}
+						<label
+							htmlFor="file-input"
+							className={`flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-[14px] border border-dashed px-6 py-8 text-center transition-[background-color,border-color] peer-focus-visible:ring-2 peer-focus-visible:ring-ring/50 ${
+								isDragging
+									? "border-bjork-accent bg-bjork-accent-soft"
+									: "border-bjork-border-strong bg-bjork-field-inset hover:border-bjork-accent/60"
+							}`}
+							onDrop={handleDrop}
+							onDragOver={handleDragOver}
+							onDragLeave={handleDragLeave}
 						>
-							Upload file
-						</LoadingButton>
+							<Upload
+								aria-hidden="true"
+								className="size-6 text-bjork-text-soft"
+							/>
+							{file ? (
+								<>
+									<p className="text-sm font-medium text-bjork-text">
+										{file.name}{" "}
+										<span className="font-normal text-bjork-text-soft">
+											{formatFileSize(file.size)}
+										</span>
+									</p>
+									{file.size > UPLOAD_WARNING_BYTES && (
+										<p className="max-w-md text-xs text-warning">
+											Large files stall the browser while encoding, and web
+											uploads stop at {formatFileSize(MAX_WEB_UPLOAD_BYTES)} —
+											use <code className="font-mono">git push</code> instead.
+										</p>
+									)}
+									<p className="text-xs text-bjork-text-soft">
+										Drop or click to choose a different file
+									</p>
+								</>
+							) : (
+								<>
+									<p className="text-sm font-medium text-bjork-text">
+										Drop a file, or click to choose one
+									</p>
+									<p className="text-xs text-bjork-text-soft">
+										Up to {formatFileSize(MAX_WEB_UPLOAD_BYTES)}
+									</p>
+								</>
+							)}
+						</label>
+
+						<div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+							<div className="space-y-2">
+								<Label htmlFor="branch">Branch</Label>
+								<Select value={branch} onValueChange={setBranch}>
+									<SelectTrigger id="branch" className="w-full">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{branchOptions.map((b) => (
+											<SelectItem key={b.name} value={b.name}>
+												{b.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="path">Path in the repository</Label>
+								<Input
+									id="path"
+									value={path}
+									onChange={(e) => setPath(e.target.value)}
+									placeholder="path/to/file.txt"
+									className="font-mono text-[13px]"
+									required
+								/>
+							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="message">Commit message</Label>
+							<Input
+								id="message"
+								value={commitMessage}
+								onChange={(e) => setCommitMessage(e.target.value)}
+								placeholder="Add file via upload"
+								required
+							/>
+						</div>
+
+						{uploadMutation.isError && (
+							<ErrorAlert
+								message={
+									uploadMutation.error?.message || "Failed to upload file"
+								}
+							/>
+						)}
+					</div>
+					<PanelFooter>
 						<Button
 							type="button"
 							variant="outline"
@@ -334,15 +300,17 @@ function FileUploadPage() {
 						>
 							Cancel
 						</Button>
-					</div>
-
-					{uploadMutation.isError && (
-						<p className="text-sm text-red-700 dark:text-red-400">
-							{uploadMutation.error?.message || "Failed to upload file"}
-						</p>
-					)}
+						<LoadingButton
+							type="submit"
+							disabled={!file || !path || !commitMessage}
+							isLoading={isSubmitting}
+							loadingLabel={loadingLabel}
+						>
+							Upload file
+						</LoadingButton>
+					</PanelFooter>
 				</form>
-			</div>
+			</Panel>
 		</div>
 	);
 }

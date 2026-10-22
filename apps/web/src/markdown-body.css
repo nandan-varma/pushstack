@@ -232,23 +232,24 @@
 		padding: 0.2em 0.4em;
 		font-size: 85%;
 		white-space: break-spaces;
-		background: var(--muted);
+		background: var(--bjork-surface-active);
 		border: 0;
 		border-radius: 6px;
 	}
 
-	/* Fenced code. The block is always dark (the hljs palette in styles.css
-     mirrors github-dark unconditionally) so highlighting stays legible in
-     both themes. */
+	/* Fenced code: an inset well on the page's own surface. Token colours
+     come from the --hl-* theme variables (styles.css), so code follows the
+     light and dark themes like everything around it. */
 	.markdown-body pre {
-		padding: 1rem;
+		padding: 0.875rem 1rem;
 		overflow: auto;
 		font-size: 85%;
-		line-height: 1.45;
-		background: oklch(0.205 0 0);
-		color: oklch(0.985 0 0);
-		border: 1px solid var(--border);
-		border-radius: 6px;
+		line-height: 1.6;
+		background: var(--bjork-field-inset);
+		color: var(--bjork-text-strong);
+		border: 1px solid var(--bjork-border);
+		border-radius: 12px;
+		box-shadow: var(--bjork-shadow-inset);
 		word-wrap: normal;
 	}
 
@@ -262,4 +263,10 @@
 		background: transparent;
 		border: 0;
 	}
+}
+
+/* A jump to a heading (README outline, #section links) lands clear of the
+   mobile top bar instead of under it. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6)[id] {
+	scroll-margin-top: 5rem;
 }

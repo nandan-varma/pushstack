@@ -1,56 +1,79 @@
 import { Link } from "@tanstack/react-router";
-import { Fragment, type ReactNode } from "react";
+import {
+	CircleCheck,
+	CircleDot,
+	CircleX,
+	GitMerge,
+	GitPullRequest,
+	GitPullRequestClosed,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { LabelChip } from "@/components/LabelChip";
-import {
-	issueStatusVariant,
-	pullRequestStatusVariant,
-} from "@/components/status-variants";
-import { Badge } from "@/components/ui/badge";
+import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function SignInButton({ children }: { children: ReactNode }) {
 	return (
 		<Link to="/auth/login">
-			<Button size="sm" variant="outline">
-				{children}
-			</Button>
+			<Button variant="outline">{children}</Button>
 		</Link>
 	);
 }
 
+/**
+ * An issue or pull-request list: one panel whose header (status tabs and
+ * filters) stays put while the rows below load, fill or empty out.
+ */
 export function ThreadList<T extends { id: number }>({
 	threads,
 	isLoading,
+	header,
+	emptyIcon,
 	emptyMessage,
 	emptyAction,
 	children,
 }: {
 	threads: T[] | undefined;
 	isLoading: boolean;
+	header?: ReactNode;
+	emptyIcon?: ReactNode;
 	emptyMessage: string;
 	emptyAction: ReactNode;
 	children: (thread: T) => ReactNode;
 }) {
-	if (isLoading) {
-		return (
-			<div className="space-y-2">
-				{[1, 2, 3].map((i) => (
-					<Skeleton key={i} className="h-16" />
-				))}
-			</div>
-		);
-	}
-	if (!threads?.length) {
-		return <EmptyState message={emptyMessage} action={emptyAction} />;
-	}
 	return (
-		<div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-			{threads.map((thread) => (
-				<Fragment key={thread.id}>{children(thread)}</Fragment>
-			))}
-		</div>
+		<Panel>
+			{header && <PanelHeader>{header}</PanelHeader>}
+			{isLoading ? (
+				<ul aria-busy="true" className="divide-y divide-bjork-border-muted">
+					{[1, 2, 3].map((i) => (
+						<li key={i} className="flex items-start gap-3 px-5 py-3.5">
+							<Skeleton className="mt-0.5 size-4 rounded-full" />
+							<div className="flex-1 space-y-2">
+								<Skeleton className="h-4 w-2/3" />
+								<Skeleton className="h-3 w-1/3" />
+							</div>
+						</li>
+					))}
+				</ul>
+			) : !threads?.length ? (
+				<EmptyState
+					bare
+					icon={emptyIcon}
+					message={emptyMessage}
+					action={emptyAction}
+				/>
+			) : (
+				<ul className="divide-y divide-bjork-border-muted">
+					{threads.map((thread) => (
+						<li key={thread.id}>{children(thread)}</li>
+					))}
+				</ul>
+			)}
+		</Panel>
 	);
 }
 
@@ -69,7 +92,52 @@ type ThreadSummary = {
 };
 
 const rowClass =
-	"flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card";
+	"flex w-full items-start gap-3 px-5 py-3.5 text-left no-underline transition-[background-color] duration-150 hover:bg-bjork-surface-hover focus-visible:bg-bjork-surface-hover focus-visible:outline-none data-[status=active]:bg-bjork-surface-active data-[status=active]:shadow-[inset_2px_0_0_var(--bjork-accent)]";
+
+/** The status glyph sits on the row's first text line, not centred on the row. */
+function StatusIcon({
+	kind,
+	status,
+}: {
+	kind: "issue" | "pull";
+	status: string;
+}) {
+	const iconClass = "mt-0.5 size-4 shrink-0";
+	if (kind === "issue") {
+		return status === "open" ? (
+			<CircleDot className={`${iconClass} text-success`} aria-hidden="true" />
+		) : (
+			<CircleCheck className={`${iconClass} text-merged`} aria-hidden="true" />
+		);
+	}
+	if (status === "open") {
+		return (
+			<GitPullRequest
+				className={`${iconClass} text-success`}
+				aria-hidden="true"
+			/>
+		);
+	}
+	if (status === "merged") {
+		return (
+			<GitMerge className={`${iconClass} text-merged`} aria-hidden="true" />
+		);
+	}
+	if (status === "closed") {
+		return (
+			<GitPullRequestClosed
+				className={`${iconClass} text-destructive`}
+				aria-hidden="true"
+			/>
+		);
+	}
+	return (
+		<CircleX
+			className={`${iconClass} text-muted-foreground`}
+			aria-hidden="true"
+		/>
+	);
+}
 
 export function ThreadRow({
 	kind,
@@ -84,39 +152,35 @@ export function ThreadRow({
 	thread: ThreadSummary;
 	children?: ReactNode;
 }) {
+	const createdAt = new Date(thread.createdAt);
 	const content = (
-		<div className="min-w-0 flex-1 space-y-1">
-			<div className="flex min-w-0 items-center gap-2">
-				<span className="min-w-0 truncate text-sm font-medium text-foreground">
-					{thread.title}
-				</span>
-				<Badge
-					className="shrink-0"
-					variant={
-						kind === "issue"
-							? issueStatusVariant(thread.status)
-							: pullRequestStatusVariant(thread.status)
-					}
-				>
-					{thread.status}
-				</Badge>
-			</div>
-			<p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
-				<span>
-					#{thread.number} opened{" "}
-					{new Date(thread.createdAt).toLocaleDateString()} by{" "}
-					{thread.author.name}
-				</span>
-				{children}
-			</p>
-			{thread.labels.length > 0 && (
-				<div className="flex flex-wrap gap-1.5 pt-0.5">
-					{thread.labels.map((l) => (
-						<LabelChip key={l.id} {...l} />
+		<>
+			<StatusIcon kind={kind} status={thread.status} />
+			<div className="min-w-0 flex-1">
+				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+					<span className="min-w-0 break-words text-sm font-semibold text-bjork-text">
+						{thread.title}
+					</span>
+					<span className="sr-only">({thread.status})</span>
+					{thread.labels.map((label) => (
+						<LabelChip key={label.id} {...label} />
 					))}
 				</div>
-			)}
-		</div>
+				<p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-bjork-text-soft">
+					<span className="font-mono tabular-nums">#{thread.number}</span>
+					<span>
+						opened <RelativeTime date={createdAt} /> by{" "}
+						<span className="text-bjork-text-medium">{thread.author.name}</span>
+					</span>
+					{children && (
+						<>
+							<span aria-hidden="true">&middot;</span>
+							{children}
+						</>
+					)}
+				</p>
+			</div>
+		</>
 	);
 	const id = thread.number.toString();
 	return kind === "issue" ? (

@@ -13,11 +13,11 @@ export function FormField({
 	children: ReactNode;
 }) {
 	return (
-		<div className="space-y-1.5">
+		<div className="space-y-2">
 			<Label htmlFor={htmlFor}>
 				{label}
 				{hint && (
-					<span className="font-normal text-muted-foreground"> {hint}</span>
+					<span className="font-normal text-bjork-text-soft"> {hint}</span>
 				)}
 			</Label>
 			{children}

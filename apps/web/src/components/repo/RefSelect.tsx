@@ -35,7 +35,7 @@ export function RefSelect({
 
 	return (
 		<Select value={value} onValueChange={(ref) => ref && onChange(ref)}>
-			<SelectTrigger size="sm" aria-label="Branch or tag">
+			<SelectTrigger aria-label="Branch or tag">
 				<SelectValue>
 					{/^[0-9a-f]{40}$/i.test(value) ? value.slice(0, 7) : value}
 				</SelectValue>

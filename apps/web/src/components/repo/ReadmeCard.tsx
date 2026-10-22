@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { BookOpen } from "lucide-react";
+import { useRef } from "react";
+import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { FilePreview } from "@/components/repo/FilePreview";
-import { FileIcon } from "@/components/repo/tree/FileIcon";
+import { ReadmeOutline } from "@/components/repo/ReadmeOutline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { repositoryFileQueryOptions } from "@/lib/query-options";
 
@@ -40,6 +43,7 @@ export function ReadmeCard({
 	/** Whether the directory listing readmeFile is derived from is still loading — until it resolves, whether a README exists at all is unknown. */
 	filesLoading?: boolean;
 }) {
+	const contentRef = useRef<HTMLDivElement>(null);
 	const { data: readmeContent, isLoading } = useQuery({
 		...repositoryFileQueryOptions({
 			repoId: repoId ?? 0,
@@ -55,15 +59,14 @@ export function ReadmeCard({
 	// resolves, this collapses immediately to nothing if there isn't one.
 	if (filesLoading) {
 		return (
-			<div className="overflow-hidden rounded-xl border border-border">
-				<div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5">
-					<div className="h-4 w-4 animate-pulse rounded bg-muted" />
-					<div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
-				</div>
-				<div className="p-6">
+			<Panel aria-busy="true">
+				<PanelHeader>
+					<Skeleton className="h-3.5 w-24" />
+				</PanelHeader>
+				<PanelBody className="sm:px-8 sm:py-7">
 					<Skeleton className="h-40" />
-				</div>
-			</div>
+				</PanelBody>
+			</Panel>
 		);
 	}
 
@@ -71,28 +74,37 @@ export function ReadmeCard({
 		return null;
 	}
 
+	const fileName = readmeFile.path.split("/").pop();
+
 	return (
-		<div className="overflow-hidden rounded-xl border border-border">
-			<div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2.5">
-				<FileIcon />
-				<span className="text-sm font-medium text-foreground">
-					{readmeFile.path}
-				</span>
-			</div>
-			<div className="p-6">
-				{readmeContent ? (
-					<FilePreview
-						file={readmeContent}
-						filePath={readmeFile.path}
-						owner={owner}
-						name={name}
-						branch={branch}
-						repoId={repoId}
+		<Panel aria-label={fileName}>
+			<PanelHeader>
+				<h2 className="flex items-center gap-2 text-sm font-semibold text-bjork-text-strong">
+					<BookOpen
+						aria-hidden="true"
+						className="size-4 text-bjork-text-soft"
 					/>
-				) : (
-					isLoading && <Skeleton className="h-40" />
-				)}
-			</div>
-		</div>
+					{fileName}
+				</h2>
+			</PanelHeader>
+			<PanelBody className="grid grid-cols-[minmax(0,1fr)] gap-8 sm:px-8 sm:py-7 2xl:grid-cols-[minmax(0,1fr)_200px]">
+				{/* Long lines are hard to read; the text keeps a reading measure. */}
+				<div ref={contentRef} className="max-w-[880px] min-w-0">
+					{readmeContent ? (
+						<FilePreview
+							file={readmeContent}
+							filePath={readmeFile.path}
+							owner={owner}
+							name={name}
+							branch={branch}
+							repoId={repoId}
+						/>
+					) : (
+						isLoading && <Skeleton className="h-40" />
+					)}
+				</div>
+				<ReadmeOutline contentRef={contentRef} />
+			</PanelBody>
+		</Panel>
 	);
 }

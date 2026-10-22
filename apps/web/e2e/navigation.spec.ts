@@ -21,53 +21,49 @@ test.describe("Route Navigation E2E", () => {
 	test("home page renders hero content", async ({ page }) => {
 		await page.goto("/");
 		await expect(page.locator("h1")).toContainText(
-			"The forge for teams that ship their own way.",
+			"Your code, on a forge that speaks GitHub.",
 		);
 	});
 
-	test("navigating to login via Sign In link shows login form", async ({
+	test("navigating to login via the Sign in link shows login form", async ({
 		page,
 	}) => {
 		await page.goto("/");
-		await page.click("text=Sign In");
+		await page.getByRole("link", { name: "Sign in" }).click();
 		await expect(page).toHaveURL("/auth/login");
 		await expect(page.locator("h1")).toContainText("Welcome back");
 	});
 
-	test("navigating to login via Dashboard link shows login form", async ({
-		page,
-	}) => {
+	test("Get started leads to sign-up", async ({ page }) => {
 		await page.goto("/");
-		await page.click("text=Dashboard");
-		await expect(page).toHaveURL("/auth/login");
-		await expect(page.locator("h1")).toContainText("Welcome back");
+		await page.getByRole("link", { name: "Get started" }).first().click();
+		await expect(page).toHaveURL("/auth/register");
 	});
 
-	test("repositories link redirects to login when not authenticated", async ({
+	test("repositories redirects to login when not authenticated", async ({
 		page,
 	}) => {
-		await page.goto("/");
-		await page.click("text=Repositories");
+		await page.goto("/repositories");
 		await expect(page).toHaveURL("/auth/login");
 	});
 
 	test("back button restores previous page content", async ({ page }) => {
 		await page.goto("/");
-		await expect(page.locator("h1")).toContainText("The forge for teams");
+		await expect(page.locator("h1")).toContainText("speaks GitHub");
 
-		await page.click("text=Sign In");
+		await page.getByRole("link", { name: "Sign in" }).click();
 		await expect(page).toHaveURL("/auth/login");
 
 		await page.goBack();
 		await expect(page).toHaveURL("/");
-		await expect(page.locator("h1")).toContainText("The forge for teams");
+		await expect(page.locator("h1")).toContainText("speaks GitHub");
 	});
 
 	test("about page renders via direct navigation", async ({ page }) => {
 		await page.goto("/about");
 		await expect(page).toHaveURL("/about");
 		await expect(page.locator("h1")).toContainText(
-			"Modern code hosting, simplified.",
+			"A code forge that behaves like GitHub",
 		);
 	});
 

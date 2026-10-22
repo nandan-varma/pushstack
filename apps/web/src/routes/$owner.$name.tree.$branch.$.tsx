@@ -5,7 +5,10 @@ import {
 	Link,
 	useNavigate,
 } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
+import { ErrorPanel } from "@/components/ErrorPanel";
+import { Toolbar } from "@/components/layout/page";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { findReadmeFile, ReadmeCard } from "@/components/repo/ReadmeCard";
 import { RefSelect } from "@/components/repo/RefSelect";
@@ -13,8 +16,9 @@ import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
 import { FileTable } from "@/components/repo/tree/FileTable";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { perfMark, perfTime } from "@/lib/perf-log";
+import { contentQuery } from "@/lib/prefetch";
 import {
 	repositoryByNameQueryOptions,
 	repositoryFileQueryOptions,
@@ -24,28 +28,27 @@ import {
 	repositoryTreePageQueryOptions,
 } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	const isPathNotFound =
 		error instanceof Error && error.name === "GitPathNotFoundError";
+	if (isPathNotFound) {
+		return (
+			<ErrorPanel
+				title="Path not found"
+				description="The file or folder you're looking for does not exist in this repository."
+				actions={<Button onClick={reset}>Try again</Button>}
+			/>
+		);
+	}
 	return (
-		<div className="island-shell rounded-xl p-12 text-center">
-			<h2 className="mb-2 text-lg font-semibold text-foreground">
-				{isPathNotFound ? "Path not found" : "Could not load files"}
-			</h2>
-			<p className="mb-6 text-sm text-muted-foreground">
-				{isPathNotFound
-					? "The file or folder you're looking for does not exist in this repository."
-					: error instanceof Error
-						? error.message
-						: "An unexpected error occurred."}
-			</p>
-			<div className="flex items-center justify-center gap-2">
-				<Button size="sm" onClick={reset}>
-					Try again
-				</Button>
-			</div>
-		</div>
+		<ErrorPanel
+			title="Could not load files"
+			description="The repository's git data could not be read. This is usually a storage connection or credentials problem, not a problem with the repository itself."
+			detail={error instanceof Error ? error.message : undefined}
+			actions={<Button onClick={reset}>Try again</Button>}
+		/>
 	);
 }
 
@@ -70,12 +73,16 @@ export const Route = createFileRoute("/$owner/$name/tree/$branch/$")({
 
 				// MarkdownRenderer (which renders the README below) needs these to
 				// resolve `#123` references to issue/PR links.
-				queryClient
-					.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-					.catch(() => {});
-				queryClient
-					.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-					.catch(() => {});
+				const numbers = Promise.all([
+					contentQuery(
+						queryClient,
+						repositoryIssueNumbersQueryOptions(repo.id),
+					),
+					contentQuery(
+						queryClient,
+						repositoryPullRequestNumbersQueryOptions(repo.id),
+					),
+				]);
 
 				// Awaited: it's the existence check for the branch and path — a
 				// missing one throws notFound() (a 404) before the page commits —
@@ -89,17 +96,18 @@ export const Route = createFileRoute("/$owner/$name/tree/$branch/$")({
 					}),
 				);
 				const readmeFile = findReadmeFile(files);
-				if (readmeFile) {
-					queryClient
-						.ensureQueryData(
+				await Promise.all([
+					numbers,
+					readmeFile &&
+						contentQuery(
+							queryClient,
 							repositoryFileQueryOptions({
 								repoId: repo.id,
 								branchName: params.branch,
 								path: readmeFile.path,
 							}),
-						)
-						.catch(() => {});
-				}
+						),
+				]);
 			},
 		),
 	head: ({ params }) => {
@@ -217,7 +225,14 @@ function TreeBrowserPage() {
 		!branches || branches.length === 0 || !files || files.length === 0;
 
 	if (isEmpty && !isLoading) {
-		return <RepoEmptyState owner={owner} name={name} branch={activeBranch} />;
+		return (
+			<RepoEmptyState
+				owner={owner}
+				name={name}
+				branch={activeBranch}
+				canWrite={repo.viewer.canWrite}
+			/>
+		);
 	}
 
 	// A ref that's a raw commit sha (not one of the repo's branch names) means
@@ -229,13 +244,61 @@ function TreeBrowserPage() {
 	// Only a branch can take a new commit; a tag or commit view is read-only.
 	const isBranchView = !!branches?.some((b) => b.name === activeBranch);
 
-	return (
-		<div className="space-y-4">
+	const toolbar = (
+		<Toolbar>
+			<div className="flex min-w-0 flex-wrap items-center gap-3">
+				{!isCommitView && !isLoading && (
+					<div className="lg:hidden">
+						<RefSelect
+							repoId={repo.id}
+							value={activeBranch}
+							onChange={handleBranchChange}
+						/>
+					</div>
+				)}
+				{activePath ? (
+					<PathBreadcrumb
+						owner={owner}
+						name={name}
+						branch={activeBranch}
+						filePath={activePath}
+						asHeading
+					/>
+				) : (
+					<h1 className="flex min-w-0 items-baseline gap-2 text-[15px] font-semibold text-bjork-text">
+						<span className="shrink-0">{name}</span>
+						{repo.description && (
+							<span className="hidden truncate text-sm font-normal text-bjork-text-soft sm:inline">
+								{repo.description}
+							</span>
+						)}
+					</h1>
+				)}
+			</div>
+			{isBranchView && (
+				<Link
+					to="/$owner/$name/upload"
+					params={{ owner, name }}
+					search={{ branch: activeBranch }}
+					className={buttonVariants({ variant: "outline", size: "sm" })}
+				>
+					<Plus aria-hidden="true" />
+					Add file
+				</Link>
+			)}
+		</Toolbar>
+	);
+
+	// Until the listing arrives a README is the likely case, so reserve for it.
+	const leadWithReadme = isLoading || Boolean(readmeFile);
+
+	const content = (
+		<>
 			{isCommitView && (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-warning-border bg-warning-soft px-4 py-2.5 text-sm text-warning">
 					<span>
-						You&apos;re browsing the repository at commit{" "}
-						<code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/10">
+						Browsing the repository at commit{" "}
+						<code className="font-mono text-xs">
 							{activeBranch.slice(0, 7)}
 						</code>
 						, not the tip of a branch.
@@ -243,66 +306,31 @@ function TreeBrowserPage() {
 					<Link
 						to="/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: repo.defaultBranch, _splat: "" }}
-						className="shrink-0 font-medium underline"
+						className="shrink-0 font-medium underline underline-offset-2"
 					>
 						View latest ({repo.defaultBranch})
 					</Link>
 				</div>
 			)}
-
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				{isCommitView ? (
-					<code className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">
-						{activeBranch.slice(0, 7)}
-					</code>
-				) : isLoading ? (
-					<div className="h-8 w-32 animate-pulse rounded-md border border-border bg-muted" />
-				) : (
-					<RefSelect
-						repoId={repo.id}
-						value={activeBranch}
-						onChange={handleBranchChange}
-					/>
+			{toolbar}
+			{/* Beside the file tree, a second file list only repeats it: wide
+			    screens lead with the latest commit and the README instead. */}
+			<div
+				className={cn(
+					"hidden min-h-12 items-center rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-5 py-2.5 shadow-(--bjork-shadow-soft)",
+					leadWithReadme && "lg:flex",
 				)}
-
-				<div className="flex items-center gap-2">
-					{isLoading ? (
-						<div className="h-3 w-12 animate-pulse rounded bg-muted" />
-					) : (
-						<span className="text-xs text-muted-foreground">
-							{files?.length || 0} files
-						</span>
-					)}
-					{isBranchView && (
-						<Link
-							to="/$owner/$name/upload"
-							params={{ owner, name }}
-							search={{ branch: activeBranch }}
-						>
-							<Button size="sm" variant="outline">
-								+ Add file
-							</Button>
-						</Link>
-					)}
-				</div>
+			>
+				<CommitSummaryBar
+					owner={owner}
+					name={name}
+					branch={activeBranch}
+					commit={latestCommit}
+					isLoading={isLoading}
+				/>
 			</div>
-
-			<PathBreadcrumb
-				owner={owner}
-				name={name}
-				branch={activeBranch}
-				filePath={activePath}
-			/>
-
-			<CommitSummaryBar
-				owner={owner}
-				name={name}
-				branch={activeBranch}
-				commit={latestCommit}
-				isLoading={isLoading}
-			/>
-
 			<FileTable
+				className={leadWithReadme ? "lg:hidden" : undefined}
 				files={sortedFiles}
 				owner={owner}
 				name={name}
@@ -312,8 +340,16 @@ function TreeBrowserPage() {
 				showLastCommit={showLastCommitColumn}
 				lastCommits={lastCommits}
 				lastCommitsLoading={lastCommitsLoading}
+				header={
+					<CommitSummaryBar
+						owner={owner}
+						name={name}
+						branch={activeBranch}
+						commit={latestCommit}
+						isLoading={isLoading}
+					/>
+				}
 			/>
-
 			<ReadmeCard
 				owner={owner}
 				name={name}
@@ -322,6 +358,8 @@ function TreeBrowserPage() {
 				readmeFile={readmeFile}
 				filesLoading={isLoading}
 			/>
-		</div>
+		</>
 	);
+
+	return content;
 }

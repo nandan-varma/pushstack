@@ -1,39 +1,34 @@
 import { useEffect, useState } from "react";
 import { requestHighlight } from "@/lib/syntax-highlight-client";
 
-export function useHighlightedCode(
-	code: string,
-	language: string,
-	enabled: boolean,
-) {
-	const [html, setHtml] = useState<string | null>(null);
-	const [isPending, setIsPending] = useState(false);
+type Highlight =
+	| { status: "pending" }
+	| { status: "done"; html: string }
+	| { status: "failed" };
+
+/**
+ * Shiki HTML for `code`, highlighted off the main thread. Changing the code
+ * resets to pending at once, so a previous file's markup never shows under
+ * a new file's name.
+ */
+export function useHighlightedCode(code: string, language: string) {
+	const [state, setState] = useState<Highlight>({ status: "pending" });
 
 	useEffect(() => {
-		if (!enabled || !code) {
-			setHtml(null);
-			setIsPending(false);
-			return;
-		}
-
 		let cancelled = false;
-		setIsPending(true);
-
-		requestHighlight(code, language)
-			.then((result) => {
-				if (!cancelled) setHtml(result);
-			})
-			.catch(() => {
-				if (!cancelled) setHtml(null);
-			})
-			.finally(() => {
-				if (!cancelled) setIsPending(false);
-			});
-
+		setState({ status: "pending" });
+		requestHighlight(code, language).then(
+			(html) => {
+				if (!cancelled) setState({ status: "done", html });
+			},
+			() => {
+				if (!cancelled) setState({ status: "failed" });
+			},
+		);
 		return () => {
 			cancelled = true;
 		};
-	}, [code, language, enabled]);
+	}, [code, language]);
 
-	return { html, isPending };
+	return state;
 }

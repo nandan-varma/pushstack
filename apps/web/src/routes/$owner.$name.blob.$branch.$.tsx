@@ -1,25 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Copy, ExternalLink, GitCommitHorizontal } from "lucide-react";
+import { Check, Copy, Download, FileCode, Link2 } from "lucide-react";
 import { lazy, Suspense } from "react";
 import {
 	FileCommitBanner,
 	FileHistoryList,
 } from "@/components/FileHistoryPanel";
+import { Toolbar } from "@/components/layout/page";
+import { Panel, PanelHeader } from "@/components/layout/panel";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { FilePreview } from "@/components/repo/FilePreview";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { SubmoduleCard } from "@/components/repo/SubmoduleCard";
-import { BackLink } from "@/components/ui/back-link";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getPreviewMode } from "@/lib/file-preview";
 import { rawFileUrl } from "@/lib/file-view";
-import { detectLanguage, formatFileSize } from "@/lib/language-detection";
+import {
+	countLines,
+	detectLanguage,
+	formatFileSize,
+} from "@/lib/language-detection";
 import {
 	repositoryByNameQueryOptions,
 	repositoryFileHistoryQueryOptions,
@@ -61,7 +65,6 @@ export const Route = createFileRoute("/$owner/$name/blob/$branch/$")({
 function FileBlobPage() {
 	const { owner, name, branch, _splat } = Route.useParams();
 	const filePath = _splat || "";
-	const { copied, copy } = useCopyToClipboard();
 
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
@@ -119,28 +122,12 @@ function FileBlobPage() {
 	if (file.kind === "submodule") {
 		return (
 			<div className="space-y-4">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<h1 className="break-all text-xl font-bold sm:text-2xl">
-						{filePath}
-					</h1>
-					<BackLink
-						to="/$owner/$name/tree/$branch/$"
-						params={{
-							owner,
-							name,
-							branch,
-							_splat: filePath.includes("/")
-								? filePath.slice(0, filePath.lastIndexOf("/"))
-								: "",
-						}}
-						label="Back to Files"
-					/>
-				</div>
 				<PathBreadcrumb
 					owner={owner}
 					name={name}
 					branch={branch}
 					filePath={filePath}
+					asHeading
 				/>
 				<SubmoduleCard
 					oid={file.oid}
@@ -166,80 +153,48 @@ function FileBlobPage() {
 	// download, media preview) — never shipped inside the page data.
 	const rawUrl = rawFileUrl({ owner, name, ref: branch, path: filePath });
 
+	const lineCount = file.kind === "text" ? countLines(file.content) : undefined;
+	const permalink = latestSha
+		? `${typeof window === "undefined" ? "" : window.location.origin}/${owner}/${name}/blob/${latestSha}/${encodePath(filePath)}`
+		: undefined;
+
 	return (
-		<div className="space-y-4">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div className="flex min-w-0 items-center gap-3">
-					<h1
-						title={filePath}
-						className="min-w-0 truncate text-xl font-bold text-foreground sm:text-2xl"
-					>
-						{filePath}
-					</h1>
-					<span className="shrink-0 text-sm text-muted-foreground">
-						{formatFileSize(file.size)}
-					</span>
-				</div>
-				<div className="flex shrink-0 flex-wrap items-center gap-2">
-					<BackLink
-						to="/$owner/$name/tree/$branch/$"
-						params={{
-							owner,
-							name,
-							branch,
-							_splat: filePath.includes("/")
-								? filePath.slice(0, filePath.lastIndexOf("/"))
-								: "",
-						}}
-						label="Back to Files"
+		<Tabs defaultValue={previewMode ? "preview" : "code"} className="gap-4">
+			<Toolbar>
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+					<PathBreadcrumb
+						owner={owner}
+						name={name}
+						branch={branch}
+						filePath={filePath}
+						asHeading
 					/>
-					<Button variant="outline" size="sm" asChild>
-						<a href={rawUrl} target="_blank" rel="noreferrer">
-							<ExternalLink className="size-4" /> Raw
-						</a>
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={!latestSha}
-						onClick={() => {
-							if (!latestSha) return;
-							copy(
-								`${window.location.origin}/${owner}/${name}/blob/${latestSha}/${encodePath(filePath)}`,
-							);
-						}}
-					>
-						{copied ? (
+					<p className="flex items-center gap-x-2 text-xs text-bjork-text-soft tabular-nums">
+						{lineCount !== undefined && (
 							<>
-								<Check className="size-4" /> Copied
-							</>
-						) : (
-							<>
-								<Copy className="size-4" /> Permalink
+								<span>
+									{lineCount} {lineCount === 1 ? "line" : "lines"}
+								</span>
+								<span aria-hidden="true">·</span>
 							</>
 						)}
-					</Button>
-					<Button variant="outline" size="sm" asChild>
-						<a href={rawUrl} download={fileName}>
-							Download
-						</a>
-					</Button>
+						<span>{formatFileSize(file.size)}</span>
+						<span aria-hidden="true">·</span>
+						<span>{language}</span>
+					</p>
 				</div>
-			</div>
-
-			<PathBreadcrumb
-				owner={owner}
-				name={name}
-				branch={branch}
-				filePath={filePath}
-			/>
+				<TabsList>
+					{previewMode && <TabsTrigger value="preview">Preview</TabsTrigger>}
+					<TabsTrigger value="code">Code</TabsTrigger>
+					<TabsTrigger value="history">History</TabsTrigger>
+				</TabsList>
+			</Toolbar>
 
 			{isPinnedRevision ? (
-				<div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3.5 py-2 text-xs text-muted-foreground">
-					<GitCommitHorizontal className="size-3.5 shrink-0" />
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[14px] border border-bjork-border bg-bjork-panel px-4 py-2.5 text-[13px] text-bjork-text-muted">
 					<span>
-						Viewing this file pinned to commit{" "}
-						<code className="font-mono text-foreground">
+						Pinned to commit{" "}
+						<code className="font-mono text-bjork-text">
 							{branch.substring(0, 7)}
 						</code>
 						, not the latest on any branch.
@@ -253,115 +208,158 @@ function FileBlobPage() {
 								branch: repo.defaultBranch,
 								_splat: filePath,
 							}}
-							className="font-medium text-primary hover:underline"
+							className="font-medium text-bjork-accent hover:underline"
 						>
 							View latest on {repo.defaultBranch}
 						</Link>
 					) : null}
 				</div>
-			) : (
-				<FileCommitBanner
+			) : null}
+
+			{(["preview", "code"] as const).map((view) =>
+				view === "preview" && !previewMode ? null : (
+					<TabsContent key={view} value={view}>
+						<Panel aria-label={fileName}>
+							<PanelHeader
+								actions={
+									<FileActions
+										rawUrl={rawUrl}
+										fileName={fileName}
+										content={file.kind === "text" ? file.content : undefined}
+										permalink={permalink}
+									/>
+								}
+							>
+								{isPinnedRevision ? (
+									<span className="font-mono text-xs text-bjork-text-soft">
+										@ {branch.substring(0, 7)}
+									</span>
+								) : (
+									<FileCommitBanner
+										owner={owner}
+										name={name}
+										repoId={repo?.id ?? 0}
+										branch={branch}
+										filePath={filePath}
+										bare
+									/>
+								)}
+							</PanelHeader>
+							{view === "preview" ? (
+								<div
+									className={
+										previewMode === "media" ? "" : "p-5 sm:px-8 sm:py-7"
+									}
+								>
+									<FilePreview
+										file={file}
+										filePath={filePath}
+										owner={owner}
+										name={name}
+										branch={branch}
+										repoId={repo?.id}
+									/>
+								</div>
+							) : file.kind === "text" ? (
+								<Suspense fallback={<Skeleton className="m-5 h-96" />}>
+									<CodeViewer code={file.content} language={language} />
+								</Suspense>
+							) : (
+								<div className="px-5 py-14 text-center">
+									<p className="text-sm text-bjork-text-muted">
+										{file.kind === "binary"
+											? "This file is binary and can't be displayed."
+											: `This file is too large to display (${formatFileSize(file.size)}).`}
+									</p>
+									<div className="mt-4 flex justify-center gap-2">
+										<Button variant="outline" asChild>
+											<a href={rawUrl} target="_blank" rel="noreferrer">
+												View raw
+											</a>
+										</Button>
+										<Button variant="outline" asChild>
+											<a href={rawUrl} download={fileName}>
+												Download
+											</a>
+										</Button>
+									</div>
+								</div>
+							)}
+						</Panel>
+					</TabsContent>
+				),
+			)}
+
+			<TabsContent value="history">
+				<FileHistoryList
 					owner={owner}
 					name={name}
 					repoId={repo?.id ?? 0}
 					branch={branch}
 					filePath={filePath}
 				/>
+			</TabsContent>
+		</Tabs>
+	);
+}
+
+/** Copy, raw, permalink and download as one quiet icon group. */
+function FileActions({
+	rawUrl,
+	fileName,
+	content,
+	permalink,
+}: {
+	rawUrl: string;
+	fileName: string;
+	content?: string;
+	permalink?: string;
+}) {
+	const contentCopy = useCopyToClipboard();
+	const linkCopy = useCopyToClipboard();
+	const iconButton = buttonVariants({ variant: "ghost", size: "icon-sm" });
+	return (
+		<div className="flex items-center gap-0.5">
+			{content !== undefined && (
+				<button
+					type="button"
+					className={iconButton}
+					onClick={() => contentCopy.copy(content)}
+					aria-label={contentCopy.copied ? "Copied" : "Copy file contents"}
+					title="Copy file contents"
+				>
+					{contentCopy.copied ? <Check className="text-success" /> : <Copy />}
+				</button>
 			)}
-
-			<Tabs defaultValue={previewMode ? "preview" : "code"}>
-				<TabsList>
-					{previewMode && <TabsTrigger value="preview">Preview</TabsTrigger>}
-					<TabsTrigger value="code">Code</TabsTrigger>
-					<TabsTrigger value="history">History</TabsTrigger>
-				</TabsList>
-
-				{previewMode && (
-					<TabsContent value="preview">
-						<Card
-							className={
-								previewMode === "media" ? "overflow-hidden p-0" : "p-6"
-							}
-						>
-							<FilePreview
-								file={file}
-								filePath={filePath}
-								owner={owner}
-								name={name}
-								branch={branch}
-								repoId={repo?.id}
-							/>
-						</Card>
-					</TabsContent>
-				)}
-
-				<TabsContent value="code" className="space-y-4">
-					{file.kind === "text" ? (
-						<Suspense fallback={<Skeleton className="h-96" />}>
-							<CodeViewer
-								code={file.content}
-								language={language}
-								fileName={fileName}
-							/>
-						</Suspense>
-					) : (
-						<Card className="p-8 text-center">
-							<p className="text-muted-foreground">
-								{file.kind === "binary"
-									? "This file is binary and can't be displayed."
-									: `This file is too large to display (${formatFileSize(file.size)}).`}
-							</p>
-							<div className="mt-4 flex justify-center gap-2">
-								<Button variant="outline" size="sm" asChild>
-									<a href={rawUrl} target="_blank" rel="noreferrer">
-										View raw
-									</a>
-								</Button>
-								<Button variant="outline" size="sm" asChild>
-									<a href={rawUrl} download={fileName}>
-										Download
-									</a>
-								</Button>
-							</div>
-						</Card>
-					)}
-
-					<Card className="p-4">
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-							<div>
-								<p className="text-muted-foreground">Branch</p>
-								<p className="font-medium text-foreground">{branch}</p>
-							</div>
-							<div>
-								<p className="text-muted-foreground">Language</p>
-								<p className="font-medium text-foreground">{language}</p>
-							</div>
-							<div>
-								<p className="text-muted-foreground">Size</p>
-								<p className="font-medium text-foreground">
-									{formatFileSize(file.size)}
-								</p>
-							</div>
-							<div>
-								<p className="text-muted-foreground">Lines</p>
-								<p className="font-medium text-foreground">
-									{file.kind === "text" ? file.content.split("\n").length : "—"}
-								</p>
-							</div>
-						</div>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="history">
-					<FileHistoryList
-						owner={owner}
-						name={name}
-						repoId={repo?.id ?? 0}
-						branch={branch}
-						filePath={filePath}
-					/>
-				</TabsContent>
-			</Tabs>
+			<button
+				type="button"
+				className={iconButton}
+				disabled={!permalink}
+				onClick={() => permalink && linkCopy.copy(permalink)}
+				aria-label={linkCopy.copied ? "Permalink copied" : "Copy permalink"}
+				title="Copy permalink"
+			>
+				{linkCopy.copied ? <Check className="text-success" /> : <Link2 />}
+			</button>
+			<a
+				href={rawUrl}
+				target="_blank"
+				rel="noreferrer"
+				className={iconButton}
+				aria-label="View raw"
+				title="View raw"
+			>
+				<FileCode />
+			</a>
+			<a
+				href={rawUrl}
+				download={fileName}
+				className={iconButton}
+				aria-label="Download"
+				title="Download"
+			>
+				<Download />
+			</a>
 		</div>
 	);
 }

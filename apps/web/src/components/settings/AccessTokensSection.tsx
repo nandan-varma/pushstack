@@ -85,7 +85,7 @@ export function AccessTokensSection() {
 		>
 			<div className="space-y-4">
 				{created && (
-					<div className="space-y-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/60 dark:bg-emerald-950/30">
+					<div className="space-y-2 rounded-lg border border-success-border bg-success-soft p-3">
 						<p className="text-sm font-medium text-foreground">
 							Copy your new token now — it won't be shown again.
 						</p>
@@ -118,7 +118,7 @@ export function AccessTokensSection() {
 							return (
 								<li
 									key={t.id}
-									className="flex items-center justify-between gap-3 px-4 py-3"
+									className="flex items-center justify-between gap-3 px-4 py-3.5"
 								>
 									<div className="min-w-0 space-y-0.5">
 										<p className="truncate text-sm font-medium text-foreground">
@@ -139,7 +139,6 @@ export function AccessTokensSection() {
 									</div>
 									<Button
 										variant="outline"
-										size="sm"
 										disabled={revokeMutation.isPending}
 										onClick={() =>
 											revokeMutation.mutate({ data: { id: t.id } })

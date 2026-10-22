@@ -1,9 +1,16 @@
-import { formatDistanceToNow } from "date-fns";
-import { Pencil, Quote, Trash2 } from "lucide-react";
+import { Ellipsis, Pencil, Quote, Trash2 } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useState } from "react";
+import { Panel } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,112 +61,110 @@ export function CommentCard({
 		}
 	};
 
+	const hasActions =
+		draft === null && ((onQuote && body) || onSave || onDelete);
+	const createdAt = new Date(comment.createdAt);
+
 	return (
-		<Card className="p-6">
-			<div className="flex items-start gap-4">
-				<Avatar>
+		<Panel>
+			<div className="flex min-h-11 items-center gap-2.5 border-b border-bjork-border-muted bg-bjork-surface-muted py-1.5 pr-2 pl-4 text-sm">
+				<Avatar size="sm">
 					<AvatarImage src={comment.author.image ?? undefined} />
-					<AvatarFallback>{getInitials(comment.author.name)}</AvatarFallback>
+					<AvatarFallback className="text-[11px]">
+						{getInitials(comment.author.name)}
+					</AvatarFallback>
 				</Avatar>
-				<div className="min-w-0 flex-1">
-					<div className="mb-4 flex flex-wrap items-center gap-2">
-						<span className="font-medium text-foreground">
-							{comment.author.name}
+				<p className="min-w-0 flex-1 truncate text-bjork-text-soft">
+					<span className="font-semibold text-bjork-text">
+						{comment.author.name}
+					</span>{" "}
+					commented <RelativeTime date={createdAt} />
+					{comment.editedAt && (
+						<span title={new Date(comment.editedAt).toLocaleString()}>
+							{" "}
+							· edited
 						</span>
-						<span className="text-sm text-muted-foreground">
-							{formatDistanceToNow(new Date(comment.createdAt), {
-								addSuffix: true,
-							})}
-						</span>
-						{comment.editedAt && (
-							<span
-								className="text-sm text-muted-foreground"
-								title={new Date(comment.editedAt).toLocaleString()}
+					)}
+				</p>
+				{hasActions && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label="Comment actions"
+								className="text-bjork-text-soft"
 							>
-								• edited
-							</span>
-						)}
-						{draft === null && (
-							<div className="ml-auto flex items-center gap-1">
-								{onQuote && body && (
-									<Button
-										variant="ghost"
-										size="sm"
-										className="h-7 text-xs text-muted-foreground"
-										onClick={() => onQuote(body)}
-									>
-										<Quote className="size-3.5" /> Quote reply
-									</Button>
-								)}
-								{onSave && (
-									<Button
-										variant="ghost"
-										size="sm"
-										className="h-7 text-xs text-muted-foreground"
-										onClick={() => setDraft(body)}
-									>
-										<Pencil className="size-3.5" /> Edit
-									</Button>
-								)}
-								{onDelete && (
-									<Button
-										variant="ghost"
-										size="sm"
-										className="h-7 text-xs text-muted-foreground"
+								<Ellipsis />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-44">
+							{onQuote && body && (
+								<DropdownMenuItem onClick={() => onQuote(body)}>
+									<Quote /> Quote reply
+								</DropdownMenuItem>
+							)}
+							{onSave && (
+								<DropdownMenuItem onClick={() => setDraft(body)}>
+									<Pencil /> Edit
+								</DropdownMenuItem>
+							)}
+							{onDelete && (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										variant="destructive"
 										onClick={() => {
 											if (window.confirm("Delete this comment?")) onDelete();
 										}}
 									>
-										<Trash2 className="size-3.5" /> Delete
-									</Button>
-								)}
-							</div>
-						)}
-					</div>
-					{draft !== null ? (
-						<div className="space-y-3">
-							<Textarea
-								aria-label="Edit text"
-								value={draft}
-								onChange={(e) => setDraft(e.target.value)}
-								rows={6}
-							/>
-							<div className="flex justify-end gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => setDraft(null)}
-								>
-									Cancel
-								</Button>
-								<LoadingButton
-									size="sm"
-									onClick={save}
-									disabled={!allowEmpty && !draft.trim()}
-									isLoading={isSaving}
-									loadingLabel="Saving…"
-								>
-									Save
-								</LoadingButton>
-							</div>
-						</div>
-					) : body ? (
-						<Suspense fallback={<Skeleton className="h-20" />}>
-							<MarkdownRenderer
-								content={body}
-								owner={owner}
-								name={name}
-								repoId={repoId}
-							/>
-						</Suspense>
-					) : (
-						<p className="text-muted-foreground italic">
-							No description provided
-						</p>
-					)}
-					{draft === null && footer}
-				</div>
+										<Trash2 /> Delete
+									</DropdownMenuItem>
+								</>
+							)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
 			</div>
-		</Card>
+			<div className="px-5 py-4">
+				{draft !== null ? (
+					<div className="space-y-3">
+						<Textarea
+							aria-label="Edit text"
+							value={draft}
+							onChange={(e) => setDraft(e.target.value)}
+							rows={6}
+						/>
+						<div className="flex justify-end gap-2">
+							<Button variant="ghost" onClick={() => setDraft(null)}>
+								Cancel
+							</Button>
+							<LoadingButton
+								onClick={save}
+								disabled={!allowEmpty && !draft.trim()}
+								isLoading={isSaving}
+								loadingLabel="Saving…"
+							>
+								Save
+							</LoadingButton>
+						</div>
+					</div>
+				) : body ? (
+					<Suspense fallback={<Skeleton className="h-20" />}>
+						<MarkdownRenderer
+							content={body}
+							owner={owner}
+							name={name}
+							repoId={repoId}
+						/>
+					</Suspense>
+				) : (
+					<p className="text-sm text-bjork-text-soft italic">
+						No description provided.
+					</p>
+				)}
+				{draft === null && footer && <div className="mt-4">{footer}</div>}
+			</div>
+		</Panel>
 	);
 }

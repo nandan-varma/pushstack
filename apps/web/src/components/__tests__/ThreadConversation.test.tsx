@@ -93,10 +93,10 @@ describe("shared thread conversation", () => {
 			const client = setup(thread);
 			const user = userEvent.setup();
 			await user.type(
-				screen.getByRole("textbox", { name: "Add a Comment" }),
+				screen.getByRole("textbox", { name: "Add a comment" }),
 				"hello",
 			);
-			await user.click(screen.getByRole("button", { name: "Post Comment" }));
+			await user.click(screen.getByRole("button", { name: "Comment" }));
 			await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
 			expect(createComment).toHaveBeenLastCalledWith(
 				{ data: { ...thread, body: "hello" } },
@@ -126,7 +126,7 @@ describe("shared thread conversation", () => {
 		setup({ issueId: 7 });
 		const user = userEvent.setup();
 		await user.type(screen.getByRole("textbox"), "keep me");
-		await user.click(screen.getByRole("button", { name: "Post Comment" }));
+		await user.click(screen.getByRole("button", { name: "Comment" }));
 		await screen.findByText("offline");
 		expect(screen.getByRole("textbox")).toHaveValue("keep me");
 	});

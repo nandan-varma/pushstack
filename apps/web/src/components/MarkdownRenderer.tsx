@@ -5,6 +5,7 @@ import { type ComponentPropsWithoutRef, useMemo, useRef } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { rawFileUrl } from "@/lib/file-view";
@@ -35,7 +36,7 @@ const REFERENCE_LINK_RE = /^\/([^/]+)\/([^/]+)\/(commit|issues|pulls)\/(.+)$/;
 const USER_LINK_RE = /^\/([^/]+)$/;
 
 function isExternalLink(href: string): boolean {
-	return /^(https?:\/\/|mailto:|#)/.test(href);
+	return /^(https?:\/\/|mailto:)/.test(href);
 }
 
 // Markdown link/image targets come from repo READMEs, issue bodies, PR bodies,
@@ -107,7 +108,7 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
 				type="button"
 				onClick={() => copy(preRef.current?.textContent ?? "")}
 				aria-label={copied ? "Copied" : "Copy code"}
-				className="absolute top-2 right-2 rounded-md border border-border bg-card p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+				className="absolute top-2 right-2 rounded-[8px] border border-bjork-border bg-bjork-surface p-1.5 text-bjork-text-soft shadow-(--bjork-shadow-soft) transition-[opacity,color] hover:text-bjork-text focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
 			>
 				{copied ? (
 					<Check className="size-3.5" />
@@ -119,11 +120,34 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
 	);
 }
 
+/**
+ * Heading ids carry GitHub's `user-content-` prefix (so user content can't
+ * clobber DOM globals); an in-document `#section` link targets that id, so the
+ * browser's own jump works with no script.
+ */
+const HEADING_ID_PREFIX = "user-content-";
+function fragmentAnchor(
+	href: string,
+	children: React.ReactNode,
+	props: object,
+) {
+	const fragment = href.slice(1);
+	const target = fragment.startsWith(HEADING_ID_PREFIX)
+		? fragment
+		: `${HEADING_ID_PREFIX}${fragment}`;
+	return (
+		<a href={`#${target}`} {...props}>
+			{children}
+		</a>
+	);
+}
+
 // Fallback anchor/image renderers for the paths without owner/name context.
 // Every render path goes through isSafeHref/isSafeImageSrc; the
 // owner+name-aware renderers below are not a stricter alternative to these.
 const safeAnchor: Components["a"] = ({ href, children, ...props }) => {
 	if (!href || !isSafeHref(href)) return <>{children}</>;
+	if (href.startsWith("#")) return fragmentAnchor(href, children, props);
 	if (isExternalLink(href)) {
 		return (
 			<a href={href} target="_blank" rel="noopener noreferrer" {...props}>
@@ -156,6 +180,7 @@ function buildComponents(
 		...base,
 		a: ({ href, children, ...props }) => {
 			if (!href) return <>{children}</>;
+			if (href.startsWith("#")) return fragmentAnchor(href, children, props);
 
 			if (isExternalLink(href)) {
 				return (
@@ -287,7 +312,10 @@ export default function MarkdownRenderer({
 		<div className={`markdown-body ${className}`}>
 			<ReactMarkdown
 				remarkPlugins={remarkPlugins}
-				rehypePlugins={[rehypeHighlight]}
+				rehypePlugins={[
+					[rehypeSlug, { prefix: HEADING_ID_PREFIX }],
+					rehypeHighlight,
+				]}
 				components={components}
 				// react-markdown's own default urlTransform blocks any scheme
 				// outside (https?|ircs?|mailto|xmpp) — including data:, which

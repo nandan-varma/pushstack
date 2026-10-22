@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Globe, Lock } from "lucide-react";
 import { useState } from "react";
+import { CopyField } from "@/components/CopyField";
+import { AsideSection } from "@/components/layout/page";
+import { Panel } from "@/components/layout/panel";
+import { PageHeader } from "@/components/PageHeader";
 import {
 	Select,
 	SelectContent,
@@ -9,6 +14,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { getSession } from "@/lib/auth-session";
+import { getCloneUrl } from "@/lib/git-utils";
 import { queryKeys } from "@/lib/query-options";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -100,26 +106,24 @@ function NewRepositoryPage() {
 	};
 
 	return (
-		<div className="page-wrap px-4 py-10">
-			<div className="mx-auto max-w-2xl">
-				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-foreground">
-						Create a new repository
-					</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						A repository contains all project files and revision history.
-					</p>
-				</div>
-
-				<div className="island-shell rounded-2xl p-8">
+		<div className="page-wrap space-y-5 py-6">
+			<PageHeader
+				title="New repository"
+				description="A repository holds a project's files and their full history."
+			/>
+			<div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,640px)_300px] lg:items-start">
+				<Panel className="p-5 sm:p-6">
 					<form onSubmit={handleSubmit} className="space-y-6">
 						{error && (
-							<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
+							<div
+								role="alert"
+								className="rounded-[12px] border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive"
+							>
 								{error}
 							</div>
 						)}
 
-						<div className="space-y-1.5">
+						<div className="space-y-2">
 							<Label htmlFor="name">Repository name</Label>
 							<div className="flex items-center gap-2">
 								<span className="shrink-0 text-sm text-muted-foreground">
@@ -140,7 +144,7 @@ function NewRepositoryPage() {
 							</div>
 						</div>
 
-						<div className="space-y-1.5">
+						<div className="space-y-2">
 							<Label htmlFor="description">Description (optional)</Label>
 							<Textarea
 								id="description"
@@ -172,7 +176,7 @@ function NewRepositoryPage() {
 								).map(([value, label, desc]) => (
 									<label
 										key={value}
-										className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
+										className={`flex cursor-pointer items-start gap-3 rounded-[13px] border p-4 shadow-[var(--bjork-shadow-inset)] transition-colors ${
 											visibility === value
 												? "border-primary bg-primary/5"
 												: "border-border hover:border-primary/50"
@@ -219,7 +223,7 @@ function NewRepositoryPage() {
 									</div>
 								</div>
 							</label>
-							<div className="space-y-1.5">
+							<div className="space-y-2">
 								<Label htmlFor="gitignore-template">.gitignore template</Label>
 								<Select
 									value={gitignoreTemplate}
@@ -228,7 +232,11 @@ function NewRepositoryPage() {
 									}
 								>
 									<SelectTrigger id="gitignore-template" className="w-full">
-										<SelectValue />
+										<SelectValue>
+											{(value: string) =>
+												value === NONE ? "No .gitignore" : value
+											}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										<SelectItem value={NONE}>No .gitignore</SelectItem>
@@ -240,7 +248,7 @@ function NewRepositoryPage() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div className="space-y-1.5">
+							<div className="space-y-2">
 								<Label htmlFor="license-template">License</Label>
 								<Select
 									value={licenseTemplate}
@@ -249,7 +257,15 @@ function NewRepositoryPage() {
 									}
 								>
 									<SelectTrigger id="license-template" className="w-full">
-										<SelectValue />
+										<SelectValue>
+											{(value: string) =>
+												value === NONE
+													? "No license"
+													: (LICENSE_TEMPLATE_LABELS[
+															value as keyof typeof LICENSE_TEMPLATE_LABELS
+														] ?? value)
+											}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										<SelectItem value={NONE}>No license</SelectItem>
@@ -263,14 +279,7 @@ function NewRepositoryPage() {
 							</div>
 						</fieldset>
 
-						<div className="flex gap-3 pt-2">
-							<LoadingButton
-								type="submit"
-								isLoading={createRepoMutation.isPending}
-								loadingLabel="Creating…"
-							>
-								Create repository
-							</LoadingButton>
+						<div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-6">
 							<Button
 								type="button"
 								variant="outline"
@@ -279,10 +288,93 @@ function NewRepositoryPage() {
 							>
 								Cancel
 							</Button>
+							<LoadingButton
+								type="submit"
+								isLoading={createRepoMutation.isPending}
+								loadingLabel="Creating…"
+							>
+								Create repository
+							</LoadingButton>
 						</div>
 					</form>
-				</div>
+				</Panel>
+				<NewRepositoryPreview
+					owner={user.username ?? user.name}
+					name={name}
+					description={description}
+					visibility={visibility}
+					files={[
+						autoInit && "README.md",
+						gitignoreTemplate !== NONE && ".gitignore",
+						licenseTemplate !== NONE && "LICENSE",
+					].filter((file): file is string => Boolean(file))}
+				/>
 			</div>
 		</div>
+	);
+}
+
+/**
+ * What the form will create, as it is filled in: the full name, who can see
+ * it, the files it starts with, and where to push.
+ */
+function NewRepositoryPreview({
+	owner,
+	name,
+	description,
+	visibility,
+	files,
+}: {
+	owner: string;
+	name: string;
+	description: string;
+	visibility: "public" | "private";
+	files: string[];
+}) {
+	const shownName = name.trim() || "repository-name";
+	return (
+		<aside className="space-y-5 lg:sticky lg:top-6">
+			<AsideSection title="Preview">
+				<p className="flex min-w-0 items-center gap-1.5 text-[15px]">
+					{visibility === "public" ? (
+						<Globe
+							aria-hidden="true"
+							className="size-4 shrink-0 text-bjork-text-soft"
+						/>
+					) : (
+						<Lock
+							aria-hidden="true"
+							className="size-4 shrink-0 text-bjork-text-soft"
+						/>
+					)}
+					<span className="truncate text-bjork-text-soft">{owner} /</span>
+					<span
+						className={
+							name.trim()
+								? "truncate font-semibold text-bjork-text"
+								: "truncate font-semibold text-bjork-text-faint"
+						}
+					>
+						{shownName}
+					</span>
+				</p>
+				{description.trim() && (
+					<p className="mt-2 text-sm leading-6 text-bjork-text-muted">
+						{description}
+					</p>
+				)}
+				<p className="mt-3 text-xs text-bjork-text-soft">
+					{files.length
+						? `Starts with ${files.join(", ")} on main.`
+						: "Starts empty, ready for your first push."}
+				</p>
+			</AsideSection>
+			<AsideSection title="Clone URL">
+				<CopyField
+					value={getCloneUrl(owner, shownName)}
+					label="Copy clone URL"
+				/>
+			</AsideSection>
+		</aside>
 	);
 }

@@ -9,13 +9,13 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { type ReactNode, useEffect } from "react";
-import Footer from "../components/Footer";
-import Header from "../components/Header";
+import { AppShell } from "@/components/shell/AppShell";
+import { authSessionQueryOptions } from "@/lib/query-options";
+import { ErrorPanel } from "../components/ErrorPanel";
 import { RouteLoadingBar } from "../components/RouteLoadingBar";
 import { ToastProvider } from "../components/toast-provider";
 import { Button } from "../components/ui/button";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
-import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "../lib/site";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
 import appCss from "../styles.css?url";
@@ -27,6 +27,12 @@ interface MyRouterContext {
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
+	// The sidebar's navigation depends on who is signed in. Resolving the
+	// session before render means the server paints the right sidebar instead
+	// of a signed-out one that swaps after hydration. (Cookieless requests
+	// return without touching auth; later navigations hit the cache.)
+	loader: ({ context: { queryClient } }) =>
+		queryClient.ensureQueryData(authSessionQueryOptions()),
 	head: () => ({
 		meta: [
 			{
@@ -45,7 +51,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "theme-color",
-				content: "#ffffff",
+				content: "#111111",
 			},
 			{
 				property: "og:type",
@@ -97,24 +103,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 		links: [
-			// Previously a CSS @import in styles.css: the browser had to fetch
-			// styles.css, parse it, discover the @import, then fetch Google's CSS,
-			// parse *that*, then fetch the woff2 files — a fully serial chain
-			// before any text could render. Link tags are found by the preload
-			// scanner directly in the raw HTML, in parallel with everything else.
-			{
-				rel: "preconnect",
-				href: "https://fonts.googleapis.com",
-			},
-			{
-				rel: "preconnect",
-				href: "https://fonts.gstatic.com",
-				crossOrigin: "anonymous",
-			},
-			{
-				rel: "stylesheet",
-				href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap",
-			},
 			{
 				rel: "stylesheet",
 				href: appCss,
@@ -158,20 +146,13 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 
 	return (
 		<RootDocument>
-			<div className="page-wrap px-4 py-20 text-center">
-				<div className="island-shell mx-auto max-w-md rounded-xl p-8">
-					<h1 className="mb-2 text-lg font-semibold text-foreground">
-						Something went wrong
-					</h1>
-					<p className="mb-6 text-sm text-muted-foreground">
-						{error instanceof Error
-							? error.message
-							: "An unexpected error occurred."}
-					</p>
-					<Button onClick={reset} className="opacity-100 hover:opacity-90">
-						Try again
-					</Button>
-				</div>
+			<div className="page-wrap py-12 text-center">
+				<ErrorPanel
+					title="Something went wrong"
+					description="An unexpected error interrupted this page."
+					detail={error instanceof Error ? error.message : undefined}
+					actions={<Button onClick={reset}>Try again</Button>}
+				/>
 			</div>
 		</RootDocument>
 	);
@@ -201,29 +182,23 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 					Skip to content
 				</a>
 				<RouteLoadingBar />
-				<TanStackQueryProvider>
-					<ToastProvider>
-						<Header />
-						<main id="main-content" className="flex min-w-0 flex-1 flex-col">
-							{children}
-						</main>
-						<Footer />
-					</ToastProvider>
-					{import.meta.env.DEV && (
-						<TanStackDevtools
-							config={{
-								position: "bottom-right",
-							}}
-							plugins={[
-								{
-									name: "Tanstack Router",
-									render: <TanStackRouterDevtoolsPanel />,
-								},
-								TanStackQueryDevtools,
-							]}
-						/>
-					)}
-				</TanStackQueryProvider>
+				<ToastProvider>
+					<AppShell>{children}</AppShell>
+				</ToastProvider>
+				{import.meta.env.DEV && (
+					<TanStackDevtools
+						config={{
+							position: "bottom-right",
+						}}
+						plugins={[
+							{
+								name: "Tanstack Router",
+								render: <TanStackRouterDevtoolsPanel />,
+							},
+							TanStackQueryDevtools,
+						]}
+					/>
+				)}
 				<Scripts />
 			</body>
 		</html>

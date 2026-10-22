@@ -1,11 +1,13 @@
+import { MonitorIcon, MoonIcon, SunIcon } from "@animateicons/react/lucide";
 import { useEffect, useState } from "react";
+import { useIconAnimation } from "@/components/animated-icon";
 import { Button } from "@/components/ui/button";
 
 type ThemeMode = "light" | "dark" | "auto";
 
 function getInitialMode(): ThemeMode {
 	if (typeof window === "undefined") {
-		return "auto";
+		return "dark";
 	}
 
 	const stored = window.localStorage.getItem("theme");
@@ -13,7 +15,7 @@ function getInitialMode(): ThemeMode {
 		return stored;
 	}
 
-	return "auto";
+	return "dark";
 }
 
 function applyThemeMode(mode: ThemeMode) {
@@ -33,7 +35,8 @@ function applyThemeMode(mode: ThemeMode) {
 }
 
 export default function ThemeToggle() {
-	const [mode, setMode] = useState<ThemeMode>("auto");
+	const [mode, setMode] = useState<ThemeMode>("dark");
+	const { ref, triggerProps } = useIconAnimation<HTMLButtonElement>();
 
 	useEffect(() => {
 		const initialMode = getInitialMode();
@@ -65,20 +68,28 @@ export default function ThemeToggle() {
 
 	const label =
 		mode === "auto"
-			? "Theme mode: auto (system). Click to switch to light mode."
-			: `Theme mode: ${mode}. Click to switch mode.`;
+			? "Theme: system. Switch to light."
+			: mode === "light"
+				? "Theme: light. Switch to dark."
+				: "Theme: dark. Switch to system.";
+	const Icon =
+		mode === "auto" ? MonitorIcon : mode === "dark" ? MoonIcon : SunIcon;
 
 	return (
 		<Button
 			type="button"
-			variant="outline"
-			size="sm"
-			onClick={toggleMode}
+			variant="ghost"
+			size="icon-sm"
+			onClick={() => {
+				toggleMode();
+				ref.current?.startAnimation();
+			}}
 			aria-label={label}
 			title={label}
-			className="rounded-full border-border bg-muted font-semibold text-foreground transition hover:bg-accent"
+			className="text-bjork-text-soft hover:text-bjork-text"
+			{...triggerProps}
 		>
-			{mode === "auto" ? "Auto" : mode === "dark" ? "Dark" : "Light"}
+			<Icon ref={ref} size={16} aria-hidden="true" />
 		</Button>
 	);
 }

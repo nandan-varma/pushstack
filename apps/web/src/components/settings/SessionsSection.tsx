@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Section } from "@/components/Section";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
@@ -48,7 +48,7 @@ export function SessionsSection({ currentToken }: { currentToken: string }) {
 							return (
 								<li
 									key={s.id}
-									className="flex items-center justify-between gap-3 px-4 py-3"
+									className="flex items-center justify-between gap-3 px-4 py-3.5"
 								>
 									<div className="min-w-0 space-y-0.5">
 										<p className="truncate text-sm font-medium text-foreground">
@@ -57,16 +57,12 @@ export function SessionsSection({ currentToken }: { currentToken: string }) {
 										<p className="text-xs text-muted-foreground">
 											{current ? "This session · " : ""}
 											{s.ipAddress ? `${s.ipAddress} · ` : ""}
-											signed in{" "}
-											{formatDistanceToNow(new Date(s.createdAt), {
-												addSuffix: true,
-											})}
+											signed in <RelativeTime date={s.createdAt} />
 										</p>
 									</div>
 									{!current && (
 										<Button
 											variant="outline"
-											size="sm"
 											disabled={revoke.isPending}
 											onClick={() => revoke.mutate(s.token)}
 										>

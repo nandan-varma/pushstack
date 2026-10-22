@@ -35,7 +35,7 @@ export function EmailSection({ currentEmail }: { currentEmail: string }) {
 			description="A verification link will be sent to the new address."
 		>
 			{sent ? (
-				<div className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-800 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300">
+				<div className="rounded-[12px] border border-success-border bg-success-soft p-4 text-sm text-success">
 					Verification email sent. Check your inbox and click the link to
 					confirm the change.
 				</div>
@@ -52,14 +52,16 @@ export function EmailSection({ currentEmail }: { currentEmail: string }) {
 						/>
 					</FormField>
 					{error && <FieldError>{error}</FieldError>}
-					<LoadingButton
-						isLoading={loading}
-						loadingLabel="Sending…"
-						disabled={!newEmail.trim() || newEmail === currentEmail}
-						onClick={change}
-					>
-						Update email
-					</LoadingButton>
+					<div className="flex justify-end">
+						<LoadingButton
+							isLoading={loading}
+							loadingLabel="Sending…"
+							disabled={!newEmail.trim() || newEmail === currentEmail}
+							onClick={change}
+						>
+							Update email
+						</LoadingButton>
+					</div>
 				</div>
 			)}
 		</Section>

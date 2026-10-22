@@ -1,9 +1,13 @@
 import type { DiffFile } from "git-fs-s3/ops";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ThemedToken } from "shiki";
 import { BinaryPreview } from "@/components/BinaryPreview";
+import { EmptyState } from "@/components/EmptyState";
+import { Toolbar } from "@/components/layout/page";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	anchorsForLine,
 	type DiffAnchor,
@@ -19,6 +23,7 @@ import {
 	isLargeContent,
 } from "@/lib/language-detection";
 import { requestHighlightTokens } from "@/lib/syntax-highlight-client";
+import { cn } from "@/lib/utils";
 import { SubmoduleDiff } from "./SubmoduleDiff";
 
 type FileDiff = DiffFile;
@@ -196,6 +201,7 @@ export function FileDiffViewer({
 	isLoading,
 	emptyMessage,
 	summaryExtra,
+	toolbarActions,
 	renderLineActions,
 	renderThreads,
 }: {
@@ -205,6 +211,8 @@ export function FileDiffViewer({
 	isLoading?: boolean;
 	emptyMessage?: string;
 	summaryExtra?: ReactNode;
+	/** Right side of the toolbar, e.g. a pull request's review button. */
+	toolbarActions?: ReactNode;
 	renderLineActions?: (anchor: DiffAnchor) => ReactNode;
 	renderThreads?: (anchors: DiffAnchor[]) => ReactNode;
 }) {
@@ -318,25 +326,26 @@ export function FileDiffViewer({
 		});
 	}, [parsedFiles]);
 
+	const setAll = (expanded: boolean) =>
+		setExpandedPaths(
+			Object.fromEntries(
+				parsedFiles.map((fileDiff) => [fileDiff.path, expanded]),
+			),
+		);
+	const totalAdditions = parsedFiles.reduce((sum, f) => sum + f.additions, 0);
+	const totalDeletions = parsedFiles.reduce((sum, f) => sum + f.deletions, 0);
+
 	if (isLoading) {
 		return (
-			<div className="mt-4 space-y-3">
+			<div className="space-y-3" aria-busy="true">
 				{[1, 2, 3].map((i) => (
 					<div
 						key={i}
-						className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3"
+						className="flex h-12 items-center gap-3 rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-4"
 					>
-						<div className="flex min-w-0 flex-1 items-center gap-2.5">
-							<div className="size-4 shrink-0 animate-pulse rounded bg-muted" />
-							<div
-								className="h-3.5 animate-pulse rounded bg-muted"
-								style={{ width: `${45 - i * 8}%` }}
-							/>
-						</div>
-						<div className="flex shrink-0 items-center gap-2">
-							<div className="h-4 w-9 animate-pulse rounded-full bg-muted" />
-							<div className="h-4 w-9 animate-pulse rounded-full bg-muted" />
-						</div>
+						<Skeleton className="size-4" />
+						<Skeleton className="h-3.5" style={{ width: `${45 - i * 8}%` }} />
+						<Skeleton className="ml-auto h-3.5 w-16" />
 					</div>
 				))}
 			</div>
@@ -344,102 +353,132 @@ export function FileDiffViewer({
 	}
 
 	if (parsedFiles.length === 0) {
-		return (
-			<p className="mt-4 text-sm text-muted-foreground">
-				{emptyMessage || "No changes to display."}
-			</p>
-		);
+		return <EmptyState message={emptyMessage || "No changes to display."} />;
 	}
 
 	return (
-		<div className="mt-4 space-y-4">
-			<div className="diff-viewer-toolbar flex flex-wrap items-center justify-between gap-2">
-				{summaryExtra}
-				{parsedFiles.length > 1 ? (
-					<div className="flex items-center gap-2 text-xs">
-						<button
-							type="button"
-							className="rounded-md border border-border bg-muted px-2.5 py-1 text-muted-foreground hover:text-foreground"
-							onClick={() => {
-								setExpandedPaths(
-									Object.fromEntries(
-										parsedFiles.map((fileDiff) => [fileDiff.path, true]),
-									),
-								);
-							}}
-						>
-							Expand all
-						</button>
-						<button
-							type="button"
-							className="rounded-md border border-border bg-muted px-2.5 py-1 text-muted-foreground hover:text-foreground"
-							onClick={() => {
-								setExpandedPaths(
-									Object.fromEntries(
-										parsedFiles.map((fileDiff) => [fileDiff.path, false]),
-									),
-								);
-							}}
-						>
-							Collapse all
-						</button>
-					</div>
-				) : null}
-			</div>
-			{parsedFiles.map((fileDiff) => (
-				<div
-					key={fileDiff.path}
-					className="diff-file-card rounded-lg border border-border bg-background"
-				>
-					<button
-						type="button"
-						className="diff-file-header flex w-full items-center justify-between gap-3 rounded-t-lg px-4 py-3 text-left"
-						onClick={() => {
-							setExpandedPaths((previous) => ({
-								...previous,
-								[fileDiff.path]: !previous[fileDiff.path],
-							}));
-						}}
-						aria-expanded={expandedPaths[fileDiff.path] ?? false}
+		<div className="space-y-3">
+			<Toolbar>
+				{summaryExtra ?? (
+					<p className="text-sm text-bjork-text-muted">
+						<span className="font-medium text-bjork-text">
+							{parsedFiles.length} {parsedFiles.length === 1 ? "file" : "files"}
+						</span>{" "}
+						changed{" "}
+						<span className="font-mono text-xs text-success tabular-nums">
+							+{totalAdditions}
+						</span>{" "}
+						<span className="font-mono text-xs text-destructive tabular-nums">
+							−{totalDeletions}
+						</span>
+					</p>
+				)}
+				<div className="flex items-center gap-2">
+					{parsedFiles.length > 1 && (
+						<div className="flex items-center">
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setAll(true)}
+								className="text-bjork-text-muted"
+							>
+								<ChevronsUpDown aria-hidden="true" />
+								Expand all
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setAll(false)}
+								className="text-bjork-text-muted"
+							>
+								<ChevronsDownUp aria-hidden="true" />
+								Collapse all
+							</Button>
+						</div>
+					)}
+					{toolbarActions}
+				</div>
+			</Toolbar>
+			{parsedFiles.map((fileDiff) => {
+				const expanded = expandedPaths[fileDiff.path] ?? false;
+				return (
+					<section
+						key={fileDiff.path}
+						aria-label={fileDiff.path}
+						className="rounded-[18px] border border-bjork-border-muted bg-bjork-surface shadow-(--bjork-shadow-surface)"
 					>
-						<div className="flex min-w-0 items-center gap-2.5">
-							<ChevronRight
-								className={`size-4 shrink-0 text-muted-foreground transition-transform ${expandedPaths[fileDiff.path] ? "rotate-90" : ""}`}
-							/>
-							<span className="truncate text-sm font-medium text-foreground">
-								{fileDiff.path}
-							</span>
-						</div>
-						<div className="flex shrink-0 items-center gap-2 text-xs">
-							{fileDiff.kind !== "text" ? (
-								<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
-									{fileDiff.kind === "submodule"
-										? "Submodule"
-										: formatFileSize(fileDiff.newSize ?? fileDiff.oldSize ?? 0)}
-								</span>
-							) : (
-								<>
-									<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
-										+{fileDiff.additions}
-									</span>
-									<span className="rounded-full border border-border bg-muted px-2 py-0.5 text-muted-foreground">
-										-{fileDiff.deletions}
-									</span>
-								</>
+						<button
+							type="button"
+							className={cn(
+								"sticky top-16 z-10 flex min-h-12 w-full items-center justify-between gap-3 border-bjork-border-muted bg-bjork-surface-muted px-4 py-2.5 text-left backdrop-blur-xl transition-[background-color] duration-150 hover:bg-bjork-surface-hover",
+								expanded ? "rounded-t-[17px] border-b" : "rounded-[17px]",
 							)}
-							<span className="rounded-full border border-border bg-muted px-2 py-0.5 uppercase tracking-wide text-muted-foreground">
-								{fileDiff.status}
-							</span>
-						</div>
-					</button>
-					{expandedPaths[fileDiff.path] ? (
-						<div className="px-4 p-4">
-							{fileDiff.kind === "submodule" ? (
-								<SubmoduleDiff file={fileDiff} sides={sides} />
+							onClick={() => {
+								setExpandedPaths((previous) => ({
+									...previous,
+									[fileDiff.path]: !previous[fileDiff.path],
+								}));
+							}}
+							aria-expanded={expanded}
+						>
+							<div className="flex min-w-0 items-center gap-2.5">
+								<ChevronRight
+									aria-hidden="true"
+									className={cn(
+										"size-4 shrink-0 text-bjork-text-soft transition-transform duration-200",
+										expanded && "rotate-90",
+									)}
+								/>
+								<span className="truncate font-mono text-[13px] text-bjork-text">
+									{fileDiff.path}
+								</span>
+								<span
+									className={cn(
+										"shrink-0 text-xs capitalize",
+										statusTone[fileDiff.status] ?? "text-bjork-text-soft",
+									)}
+								>
+									{fileDiff.status}
+								</span>
+							</div>
+							<div className="flex shrink-0 items-center gap-3 text-xs">
+								{fileDiff.kind !== "text" ? (
+									<span className="text-bjork-text-soft">
+										{fileDiff.kind === "submodule"
+											? "Submodule"
+											: formatFileSize(
+													fileDiff.newSize ?? fileDiff.oldSize ?? 0,
+												)}
+									</span>
+								) : (
+									<>
+										<span className="font-mono tabular-nums">
+											<span className="text-success">
+												+{fileDiff.additions}
+											</span>{" "}
+											<span className="text-destructive">
+												−{fileDiff.deletions}
+											</span>
+										</span>
+										<DiffStat
+											additions={fileDiff.additions}
+											deletions={fileDiff.deletions}
+										/>
+									</>
+								)}
+							</div>
+						</button>
+						{expanded &&
+							(fileDiff.kind === "submodule" ? (
+								<div className="p-4">
+									<SubmoduleDiff file={fileDiff} sides={sides} />
+								</div>
 							) : fileDiff.kind !== "text" ? (
-								<UnpatchedDiff fileDiff={fileDiff} sides={sides} />
+								<div className="p-4">
+									<UnpatchedDiff fileDiff={fileDiff} sides={sides} />
+								</div>
 							) : (
-								<div className="diff-patch diff-scroll-area overflow-x-auto rounded border border-border bg-muted p-0 text-xs text-foreground">
+								<div className="diff-patch overflow-x-auto rounded-b-[17px] text-xs text-bjork-text">
 									<div className="diff-patch-body">
 										{fileDiff.lines.map((line, lineIndex) => {
 											if (line.kind === "hunk") return null;
@@ -452,7 +491,9 @@ export function FileDiffViewer({
 												<Fragment
 													key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
 												>
-													<div className={`diff-line diff-line--${line.kind}`}>
+													<div
+														className={`diff-line diff-line--${line.kind} group/line`}
+													>
 														<span className="diff-gutter diff-gutter--old">
 															{line.oldLine ?? ""}
 														</span>
@@ -482,21 +523,48 @@ export function FileDiffViewer({
 										})}
 									</div>
 								</div>
-							)}
-						</div>
-					) : (
-						<p className="p-4 text-xs text-muted-foreground">
-							{fileDiff.kind === "submodule"
-								? "Submodule pointer changed."
-								: fileDiff.kind === "binary"
-									? "Binary file changed."
-									: fileDiff.kind === "too-large"
-										? "Large file changed — diff not shown."
-										: `${fileDiff.visibleLineCount} lines changed across ${fileDiff.hunks} hunk${fileDiff.hunks === 1 ? "" : "s"}.`}
-						</p>
-					)}
-				</div>
-			))}
+							))}
+					</section>
+				);
+			})}
 		</div>
+	);
+}
+
+const statusTone: Record<string, string> = {
+	added: "text-success",
+	deleted: "text-destructive",
+	renamed: "text-warning",
+	modified: "text-bjork-text-soft",
+};
+
+/** GitHub's five-block diffstat: the share of added vs removed lines. */
+function DiffStat({
+	additions,
+	deletions,
+}: {
+	additions: number;
+	deletions: number;
+}) {
+	const total = additions + deletions;
+	const added = total === 0 ? 0 : Math.round((additions / total) * 5);
+	const removed =
+		total === 0 ? 0 : Math.min(5 - added, Math.round((deletions / total) * 5));
+	return (
+		<span aria-hidden="true" className="hidden gap-0.5 sm:flex">
+			{[0, 1, 2, 3, 4].map((i) => (
+				<span
+					key={i}
+					className={cn(
+						"size-2 rounded-[2px]",
+						i < added
+							? "bg-success"
+							: i < added + removed
+								? "bg-destructive"
+								: "bg-bjork-surface-active",
+					)}
+				/>
+			))}
+		</span>
 	);
 }

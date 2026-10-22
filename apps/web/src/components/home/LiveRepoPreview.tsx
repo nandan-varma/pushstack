@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import {
 	ArrowRight,
 	CircleDot,
@@ -9,6 +8,7 @@ import {
 	Star,
 	Terminal,
 } from "lucide-react";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	repositoryByNameQueryOptions,
@@ -34,38 +34,39 @@ export function LiveRepoPreview() {
 	});
 
 	return (
-		<div className="overflow-hidden rounded-xl border border-border bg-card text-left shadow-2xl shadow-foreground/10">
-			<div className="flex h-11 items-center justify-between gap-3 border-b border-border bg-muted/60 px-4 sm:px-5">
+		<div className="overflow-hidden rounded-[20px] border border-bjork-border-muted bg-bjork-surface text-left shadow-(--bjork-shadow-surface)">
+			<div className="flex h-16 items-center justify-between gap-3 border-b border-bjork-border-muted bg-bjork-surface-muted px-4 sm:px-5">
 				<Link
 					to="/$owner/$name"
 					params={{ owner, name }}
-					className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground no-underline hover:underline"
+					className="flex min-w-0 items-center gap-2 text-sm font-medium text-bjork-text no-underline hover:underline"
 				>
 					<span className="relative flex size-2 shrink-0">
-						<span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-						<span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+						<span className="absolute inline-flex size-full rounded-full bg-success opacity-60" />
+						<span className="relative inline-flex size-2 rounded-full bg-success" />
 					</span>
 					<span className="truncate">
 						{owner} / {name}
 					</span>
-					<span className="hidden rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
+					<span className="hidden rounded-full border border-bjork-border bg-bjork-field-inset px-2 py-0.5 text-[11px] font-medium text-bjork-text-soft sm:inline">
 						Live
 					</span>
 				</Link>
-				<div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+				<div className="flex shrink-0 items-center gap-2 text-xs text-bjork-text-soft">
 					{repo && (
-						<span className="hidden items-center gap-1 sm:flex">
-							<Star className="size-3.5" /> {repo.starCount}
+						<span className="hidden items-center gap-1.5 tabular-nums sm:flex">
+							<Star aria-hidden="true" className="size-3.5" /> {repo.starCount}
+							<span className="sr-only">stars</span>
 						</span>
 					)}
-					<span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px]">
+					<span className="rounded-md border border-bjork-border bg-bjork-field-inset px-2 py-1 font-mono text-[11px]">
 						{branch}
 					</span>
 				</div>
 			</div>
-			<div className="grid lg:grid-cols-[1fr_1.12fr]">
-				<div className="border-b border-border p-5 sm:p-7 lg:border-r lg:border-b-0">
-					<p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+			<div className="grid ">
+				<div className="border-b border-bjork-border-muted p-5 sm:p-7 lg:border-r lg:border-b-0">
+					<p className="text-xs font-semibold tracking-[0.14em] text-bjork-text-soft uppercase">
 						Latest commits
 					</p>
 					<div className="mt-4 space-y-2">
@@ -75,27 +76,25 @@ export function LiveRepoPreview() {
 									key={commit.sha}
 									to="/$owner/$name/commit/$sha"
 									params={{ owner, name, sha: commit.sha }}
-									className="flex items-center gap-3 rounded-lg border border-border bg-background p-2.5 no-underline transition hover:border-foreground/20 hover:bg-muted/40"
+									className="flex items-center gap-3 rounded-[12px] bg-bjork-field-inset p-3 no-underline transition-colors hover:bg-bjork-surface-hover"
 								>
-									<GitCommitHorizontal className="size-4 shrink-0 text-muted-foreground" />
+									<GitCommitHorizontal className="size-4 shrink-0 text-bjork-text-soft" />
 									<div className="min-w-0 flex-1">
-										<p className="truncate text-sm font-medium text-foreground">
+										<p className="truncate text-sm font-medium text-bjork-text">
 											{commit.message.split("\n")[0]}
 										</p>
-										<p className="mt-0.5 text-xs text-muted-foreground">
+										<p className="mt-0.5 text-xs text-bjork-text-soft">
 											{commit.authorName} ·{" "}
-											{formatDistanceToNow(new Date(commit.createdAt), {
-												addSuffix: true,
-											})}
+											<RelativeTime date={commit.createdAt} />
 										</p>
 									</div>
-									<code className="hidden shrink-0 font-mono text-[10px] text-muted-foreground sm:block">
+									<code className="hidden shrink-0 font-mono text-[11px] text-bjork-text-soft sm:block">
 										{commit.sha.substring(0, 7)}
 									</code>
 								</Link>
 							))
 						) : repoMissing || commitsFailed ? (
-							<p className="text-sm text-muted-foreground">
+							<p className="text-sm text-bjork-text-soft">
 								Couldn't load commits right now.
 							</p>
 						) : (
@@ -108,47 +107,47 @@ export function LiveRepoPreview() {
 						<Link
 							to="/$owner/$name"
 							params={{ owner, name }}
-							className="inline-flex items-center gap-1 font-medium text-foreground"
+							className="inline-flex items-center gap-1 font-medium text-bjork-text"
 						>
 							Browse the code <ArrowRight className="size-3.5" />
 						</Link>
 						<Link
 							to="/$owner/$name/issues"
 							params={{ owner, name }}
-							className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+							className="inline-flex items-center gap-1 text-bjork-text-soft hover:text-bjork-text"
 						>
 							<CircleDot className="size-3.5" /> Issues
 						</Link>
 						<Link
 							to="/$owner/$name/pulls"
 							params={{ owner, name }}
-							className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+							className="inline-flex items-center gap-1 text-bjork-text-soft hover:text-bjork-text"
 						>
 							<GitPullRequest className="size-3.5" /> Pull requests
 						</Link>
 					</div>
 				</div>
-				<div className="bg-[#101110] p-5 font-mono text-xs leading-6 text-zinc-300 sm:p-7">
-					<div className="mb-5 flex items-center gap-2 text-zinc-500">
+				<div className="bg-background/50 p-5 font-mono text-xs leading-6 text-bjork-text sm:p-7">
+					<div className="mb-5 flex items-center gap-2 text-bjork-text-soft">
 						<Terminal className="size-4" /> Try it — no account needed
 					</div>
 					<p className="break-all">
-						<span className="text-emerald-400">$</span> git clone {CLONE_URL}
+						<span className="text-primary">$</span> git clone {CLONE_URL}
 					</p>
-					<p className="mt-3 text-zinc-500">Cloning into '{name}'...</p>
-					<p className="text-zinc-500">Receiving objects: 100%, done.</p>
-					<p className="mt-5 text-zinc-500"># then, with an account:</p>
+					<p className="mt-3 text-bjork-text-soft">Cloning into '{name}'...</p>
+					<p className="text-bjork-text-soft">Receiving objects: 100%, done.</p>
+					<p className="mt-5 text-bjork-text-soft"># then, with an account:</p>
 					<p className="break-all">
-						<span className="text-emerald-400">$</span> git remote add pushstack{" "}
+						<span className="text-primary">$</span> git remote add pushstack{" "}
 						{SITE_URL}/api/git/you/repo.git
 					</p>
 					<p>
-						<span className="text-emerald-400">$</span> git push pushstack main
+						<span className="text-primary">$</span> git push pushstack main
 					</p>
-					<p className="mt-3 text-emerald-400">✓ main updated · review ready</p>
+					<p className="mt-3 text-primary">✓ main updated · review ready</p>
 					<p className="mt-4">
-						<span className="text-emerald-400">$</span>{" "}
-						<span className="animate-pulse">_</span>
+						<span className="text-primary">$</span>{" "}
+						<span className="text-primary">_</span>
 					</p>
 				</div>
 			</div>

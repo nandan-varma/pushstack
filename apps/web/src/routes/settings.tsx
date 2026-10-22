@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { AccessTokensSection } from "@/components/settings/AccessTokensSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { EmailSection } from "@/components/settings/EmailSection";
@@ -28,41 +29,38 @@ function SettingsPage() {
 	if (!user || !session) return null;
 
 	return (
-		<div className="page-wrap px-4 py-10">
-			<div className="mx-auto max-w-2xl space-y-10">
-				<h1 className="text-2xl font-bold text-foreground">Account settings</h1>
-				<SettingsGroup title="Account">
-					<ProfileSection name={user.name} email={user.email} />
-					<EmailSection currentEmail={user.email} />
-				</SettingsGroup>
-				<SettingsGroup title="Security">
-					<PasswordSection />
-					<SessionsSection currentToken={session.session.token} />
-				</SettingsGroup>
-				<SettingsGroup title="Git access">
-					<AccessTokensSection />
-				</SettingsGroup>
-				<SettingsGroup title="Developer">
-					<DeveloperSection />
-				</SettingsGroup>
-			</div>
+		<div className="page-wrap py-6">
+			<SettingsLayout
+				title="Settings"
+				sections={[
+					{
+						id: "profile",
+						label: "Profile",
+						content: <ProfileSection name={user.name} email={user.email} />,
+					},
+					{
+						id: "email",
+						label: "Email",
+						content: <EmailSection currentEmail={user.email} />,
+					},
+					{ id: "password", label: "Password", content: <PasswordSection /> },
+					{
+						id: "sessions",
+						label: "Sessions",
+						content: <SessionsSection currentToken={session.session.token} />,
+					},
+					{
+						id: "tokens",
+						label: "Access tokens",
+						content: <AccessTokensSection />,
+					},
+					{
+						id: "developer",
+						label: "Developer",
+						content: <DeveloperSection />,
+					},
+				]}
+			/>
 		</div>
-	);
-}
-
-function SettingsGroup({
-	title,
-	children,
-}: {
-	title: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<section className="space-y-4">
-			<h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-				{title}
-			</h2>
-			{children}
-		</section>
 	);
 }

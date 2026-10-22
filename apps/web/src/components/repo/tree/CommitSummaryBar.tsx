@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
+import { History } from "lucide-react";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getInitials } from "@/lib/utils/avatar";
 
 interface LatestCommit {
@@ -10,6 +12,10 @@ interface LatestCommit {
 	createdAt: string;
 }
 
+/**
+ * The latest commit on the viewed ref, laid out as the file list's header
+ * row: who, what, the short sha, when, and the way into the full history.
+ */
 export function CommitSummaryBar({
 	owner,
 	name,
@@ -25,16 +31,11 @@ export function CommitSummaryBar({
 }) {
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
-				<div className="flex min-w-0 items-center gap-2.5">
-					<div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-muted" />
-					<div className="h-3.5 w-20 shrink-0 animate-pulse rounded bg-muted" />
-					<div className="h-3.5 w-64 max-w-full animate-pulse rounded bg-muted" />
-				</div>
-				<div className="flex shrink-0 items-center gap-3">
-					<div className="h-3 w-16 animate-pulse rounded bg-muted" />
-					<div className="h-3 w-12 animate-pulse rounded bg-muted" />
-				</div>
+			<div className="flex w-full items-center gap-3" aria-busy="true">
+				<Skeleton className="size-6 shrink-0 rounded-full" />
+				<Skeleton className="h-3.5 w-20 shrink-0" />
+				<Skeleton className="h-3.5 w-64 max-w-full" />
+				<Skeleton className="ml-auto h-3 w-24 shrink-0" />
 			</div>
 		);
 	}
@@ -44,36 +45,38 @@ export function CommitSummaryBar({
 	const subject = commit.message.split("\n")[0];
 
 	return (
-		<div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
-			<div className="flex min-w-0 items-center gap-2.5">
-				<Avatar className="h-6 w-6 shrink-0">
-					<AvatarFallback className="text-[10px]">
-						{getInitials(commit.authorName || "U")}
-					</AvatarFallback>
-				</Avatar>
-				<span className="shrink-0 text-sm font-medium text-foreground">
-					{commit.authorName || "Unknown"}
-				</span>
+		<div className="flex w-full min-w-0 items-center gap-3">
+			<Avatar size="sm" className="shrink-0">
+				<AvatarFallback className="text-[11px]">
+					{getInitials(commit.authorName || "U")}
+				</AvatarFallback>
+			</Avatar>
+			<span className="hidden shrink-0 text-sm font-medium text-bjork-text sm:inline">
+				{commit.authorName || "Unknown"}
+			</span>
+			<Link
+				to="/$owner/$name/commit/$sha"
+				params={{ owner, name, sha: commit.sha }}
+				title={commit.message}
+				className="min-w-0 truncate text-sm text-bjork-text-muted hover:text-bjork-text"
+			>
+				{subject}
+			</Link>
+			<div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-bjork-text-soft">
 				<Link
 					to="/$owner/$name/commit/$sha"
 					params={{ owner, name, sha: commit.sha }}
-					title={commit.message}
-					className="truncate text-sm text-muted-foreground hover:text-foreground hover:underline"
+					className="hidden font-mono tabular-nums hover:text-bjork-text sm:inline"
 				>
-					{subject}
+					{commit.sha.slice(0, 7)}
 				</Link>
-			</div>
-			<div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-				<span>
-					{formatDistanceToNow(new Date(commit.createdAt), {
-						addSuffix: true,
-					})}
-				</span>
+				<RelativeTime date={commit.createdAt} className="hidden sm:inline" />
 				<Link
 					to="/$owner/$name/commits/$branch"
 					params={{ owner, name, branch }}
-					className="font-medium text-primary hover:underline"
+					className="inline-flex h-8 items-center gap-1.5 rounded-[10px] px-2.5 font-medium text-bjork-text-medium transition-[background-color,color] duration-150 hover:bg-bjork-surface-hover hover:text-bjork-text"
 				>
+					<History aria-hidden="true" className="size-3.5" />
 					History
 				</Link>
 			</div>

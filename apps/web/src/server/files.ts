@@ -84,6 +84,17 @@ export const getTreePageData = createServerFn({ method: "GET" })
 		),
 	);
 
+/** One directory's entries and nothing else: what the file tree expands. */
+export const getTreeEntries = createServerFn({ method: "GET" })
+	.validator(readInput(refPath))
+	.handler(({ data }) =>
+		readGit(
+			`getTreeEntries ${data.branchName}:${data.path}`,
+			data.repoId,
+			(owner, name) => gitRead.getTree(owner, name, data.branchName, data.path),
+		),
+	);
+
 export const getLastCommits = createServerFn({ method: "GET" })
 	.validator(readInput(refPath))
 	.handler(({ data }) =>

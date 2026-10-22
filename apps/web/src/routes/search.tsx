@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Compass, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
-import { RepositoryCard } from "@/components/repo/RepositoryCard";
+import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RepositoryRow } from "@/components/repo/RepositoryList";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,7 @@ import {
 	searchRepositoriesQueryOptions,
 	searchUsersQueryOptions,
 } from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 import type { searchRepositories, searchUsers } from "@/server/search";
 
 type SearchType = "repositories" | "users";
@@ -67,32 +70,37 @@ function SearchPage() {
 	const active = type === "users" ? userResults : repoResults;
 
 	return (
-		<main className="page-wrap px-4 py-10">
-			<div className="mb-6">
-				<h1 className="text-3xl font-bold text-foreground">Search</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
-					Find repositories and people across PushStack.
-				</p>
-			</div>
-
-			<form onSubmit={handleSubmit} className="mb-6 flex max-w-xl gap-2">
-				<Input
-					type="search"
-					value={inputValue}
-					onChange={(e) => setInputValue(e.target.value)}
-					placeholder="Search repositories and users…"
-					aria-label="Search query"
-					autoFocus
-				/>
-				<Button type="submit" size="sm" className="h-9">
-					Search
-				</Button>
-			</form>
+		<div className="page-wrap space-y-4 py-6">
+			<h1 className="sr-only">Search</h1>
+			<search className="block max-w-2xl">
+				<form onSubmit={handleSubmit} className="relative">
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-bjork-text-soft"
+					/>
+					<Input
+						type="search"
+						value={inputValue}
+						onChange={(e) => setInputValue(e.target.value)}
+						placeholder="Search repositories and people"
+						aria-label="Search query"
+						className="h-12 pl-12 text-base md:text-[15px]"
+					/>
+					<button type="submit" className="sr-only">
+						Search
+					</button>
+				</form>
+			</search>
 
 			{q ? (
-				<>
-					<div className="mb-5">
+				<Panel aria-labelledby="search-results-heading">
+					<h2 id="search-results-heading" className="sr-only">
+						Results for {q}
+					</h2>
+					<PanelHeader>
 						<FilterTabs<SearchType>
+							variant="inline"
+							label="Result type"
 							tabs={[
 								{
 									value: "repositories",
@@ -101,7 +109,7 @@ function SearchPage() {
 								},
 								{
 									value: "users",
-									label: "Users",
+									label: "People",
 									count: userResults.data?.length,
 								},
 							]}
@@ -113,24 +121,23 @@ function SearchPage() {
 								})
 							}
 						/>
-					</div>
-
+					</PanelHeader>
 					{active.isLoading ? (
-						<div className="grid gap-3 md:grid-cols-2">
-							{[1, 2, 3, 4].map((i) => (
-								<Skeleton key={i} className="h-24" />
+						<ul aria-busy="true" className="divide-y divide-bjork-border-muted">
+							{[1, 2, 3].map((i) => (
+								<li key={i} className="flex h-12 items-center gap-4 px-4">
+									<Skeleton className="h-3.5 w-40" />
+									<Skeleton className="h-3 flex-1" />
+								</li>
 							))}
-						</div>
+						</ul>
 					) : active.isError ? (
 						<EmptyState
+							bare
 							variant="error"
 							message="Search failed."
 							action={
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => active.refetch()}
-								>
+								<Button variant="outline" onClick={() => active.refetch()}>
 									Try again
 								</Button>
 							}
@@ -143,11 +150,15 @@ function SearchPage() {
 					) : (
 						<UserResults users={userResults.data ?? []} query={q} />
 					)}
-				</>
+				</Panel>
 			) : (
-				<EmptyState message="Type a query to search public repositories and users." />
+				<EmptyState
+					icon={<Compass />}
+					title="Explore PushStack"
+					message="Search public repositories by name or description, or find people by username."
+				/>
 			)}
-		</main>
+		</div>
 	);
 }
 
@@ -159,18 +170,14 @@ function RepositoryResults({
 	query: string;
 }) {
 	if (repositories.length === 0) {
-		return <EmptyState message={`No repositories matching "${query}".`} />;
+		return <EmptyState bare message={`No repositories match “${query}”.`} />;
 	}
-
 	return (
-		<>
-			<h2 className="sr-only">Repository results</h2>
-			<div className="grid gap-3 md:grid-cols-2">
-				{repositories.map((repo) => (
-					<RepositoryCard key={repo.id} repo={repo} />
-				))}
-			</div>
-		</>
+		<ul className="divide-y divide-bjork-border-muted">
+			{repositories.map((repo) => (
+				<RepositoryRow key={repo.id} repo={repo} />
+			))}
+		</ul>
 	);
 }
 
@@ -182,44 +189,32 @@ function UserResults({
 	query: string;
 }) {
 	if (users.length === 0) {
-		return <EmptyState message={`No users matching "${query}".`} />;
+		return <EmptyState bare message={`No people match “${query}”.`} />;
 	}
-
 	return (
-		<div className="grid gap-3 md:grid-cols-2">
-			{users.map((person) => {
-				const card = (
-					<div className="flex items-center gap-3">
-						<Avatar>
-							{person.image && (
-								<AvatarImage src={person.image} alt={person.name} />
-							)}
-							<AvatarFallback>
-								{person.name.charAt(0).toUpperCase()}
-							</AvatarFallback>
-						</Avatar>
-						<div className="min-w-0">
-							<div className="truncate text-sm font-semibold text-foreground">
-								{person.name}
-							</div>
-							<div className="truncate text-xs text-muted-foreground">
-								@{person.username}
-							</div>
-						</div>
-					</div>
-				);
-
-				return (
+		<ul className="divide-y divide-bjork-border-muted">
+			{users.map((person) => (
+				<li key={person.id}>
 					<Link
-						key={person.id}
 						to="/$owner"
 						params={{ owner: person.username }}
-						className="island-shell feature-card block rounded-xl p-4 no-underline"
+						className="flex min-h-12 items-center gap-3 px-4 py-2 transition-[background-color] duration-150 hover:bg-bjork-surface-hover"
 					>
-						{card}
+						<Avatar size="sm">
+							{person.image && <AvatarImage src={person.image} alt="" />}
+							<AvatarFallback className="text-[11px]">
+								{getInitials(person.name)}
+							</AvatarFallback>
+						</Avatar>
+						<span className="truncate text-sm font-semibold text-bjork-text">
+							{person.name}
+						</span>
+						<span className="truncate text-sm text-bjork-text-soft">
+							@{person.username}
+						</span>
 					</Link>
-				);
-			})}
-		</div>
+				</li>
+			))}
+		</ul>
 	);
 }

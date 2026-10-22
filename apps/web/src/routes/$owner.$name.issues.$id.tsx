@@ -1,27 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
+import { CircleCheck, CircleDot } from "lucide-react";
+import type { ReactNode } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
-import { EditableTitle } from "@/components/EditableTitle";
+import { useEditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
+import { SplitLayout } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { ReactionBar } from "@/components/ReactionBar";
-import { issueStatusVariant } from "@/components/status-variants";
+import { RelativeTime } from "@/components/RelativeTime";
+import { StatePill } from "@/components/StatePill";
 import {
 	ThreadConversation,
 	useThreadComments,
 } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
-import { BackLink } from "@/components/ui/back-link";
-import { Badge } from "@/components/ui/badge";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
+import { contentQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -34,7 +36,7 @@ import {
 	threadReactionsQueryOptions,
 } from "@/lib/query-options";
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
-import { updateIssue } from "@/server/issues";
+import { type getIssueByNumber, updateIssue } from "@/server/issues";
 
 export const Route = createFileRoute("/$owner/$name/issues/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -93,12 +95,13 @@ export const Route = createFileRoute("/$owner/$name/issues/$id")({
 		// using these — fire-and-forget so the extra round trip doesn't land
 		// after the body has already rendered.
 		if (repo) {
-			queryClient
-				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-				.catch(() => {});
-			queryClient
-				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-				.catch(() => {});
+			await Promise.all([
+				contentQuery(queryClient, repositoryIssueNumbersQueryOptions(repo.id)),
+				contentQuery(
+					queryClient,
+					repositoryPullRequestNumbersQueryOptions(repo.id),
+				),
+			]);
 		}
 	},
 	component: IssueDetailPage,
@@ -140,6 +143,10 @@ function IssueDetailPage() {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.repoIssuesRoot(issue.repoId),
 				});
+				// The sidebar shows open counts from the repository row.
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repositoryByName(owner, name),
+				});
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(issue.repoId),
 				});
@@ -159,9 +166,9 @@ function IssueDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="space-y-6">
+			<div>
 				<DetailHeaderSkeleton />
-				<AvatarBodySkeleton />
+				<SplitLayout main={<AvatarBodySkeleton />} />
 			</div>
 		);
 	}
@@ -172,118 +179,151 @@ function IssueDetailPage() {
 		issue.viewer.canWrite || session?.user?.id === issue.authorId;
 	const canEdit = canToggleStatus;
 
+	const toggleStatusButton = canToggleStatus && (
+		<LoadingButton
+			variant="outline"
+			onClick={handleToggleStatus}
+			isLoading={updateMutation.isPending}
+			loadingLabel={issue.status === "open" ? "Closing…" : "Reopening…"}
+		>
+			{issue.status === "open" ? (
+				<CircleCheck aria-hidden="true" className="text-merged" />
+			) : (
+				<CircleDot aria-hidden="true" className="text-success" />
+			)}
+			{issue.status === "open" ? "Close issue" : "Reopen issue"}
+		</LoadingButton>
+	);
+
 	return (
-		<div className="space-y-6">
+		<IssueDetail
+			issue={issue}
+			canEdit={canEdit}
+			isSaving={updateMutation.isPending}
+			onSaveTitle={(title) =>
+				updateMutation.mutateAsync({ data: { issueId: issue.id, title } })
+			}
+			onSaveBody={(body) =>
+				updateMutation.mutateAsync({ data: { issueId: issue.id, body } })
+			}
+			onAssigneesChanged={() => {
+				queryClient.invalidateQueries({ queryKey: issueQueryKey });
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repoIssuesRoot(issue.repoId),
+				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(issue.repoId),
+				});
+			}}
+			comments={comments}
+			toggleStatusButton={toggleStatusButton}
+		/>
+	);
+}
+
+type LoadedIssue = NonNullable<Awaited<ReturnType<typeof getIssueByNumber>>>;
+
+function IssueDetail({
+	issue,
+	canEdit,
+	isSaving,
+	onSaveTitle,
+	onSaveBody,
+	onAssigneesChanged,
+	comments,
+	toggleStatusButton,
+}: {
+	issue: LoadedIssue;
+	canEdit: boolean;
+	isSaving: boolean;
+	onSaveTitle: (title: string) => Promise<unknown>;
+	onSaveBody: (body: string) => Promise<unknown>;
+	onAssigneesChanged: () => void;
+	comments: ReturnType<typeof useThreadComments>;
+	toggleStatusButton: ReactNode;
+}) {
+	const { owner, name } = Route.useParams();
+	const { titleNode, editButton } = useEditableTitle({
+		title: issue.title,
+		onSave: canEdit ? onSaveTitle : undefined,
+		isSaving,
+	});
+
+	return (
+		<div>
 			<DetailHeader
-				title={
-					<EditableTitle
-						title={issue.title}
-						onSave={
-							canEdit
-								? (title) =>
-										updateMutation.mutateAsync({
-											data: { issueId: issue.id, title },
-										})
-								: undefined
-						}
-						isSaving={updateMutation.isPending}
-					/>
-				}
-				badge={
-					<Badge variant={issueStatusVariant(issue.status)}>
-						{issue.status}
-					</Badge>
-				}
+				title={titleNode}
+				number={issue.number}
+				badge={<StatePill kind="issue" status={issue.status} />}
 				meta={
-					<p className="text-muted-foreground">
-						#{issue.number} opened{" "}
-						{formatDistanceToNow(new Date(issue.createdAt), {
-							addSuffix: true,
-						})}{" "}
-						by {issue.author.name}
+					<p>
+						<span className="font-medium text-bjork-text">
+							{issue.author.name}
+						</span>{" "}
+						opened this issue <RelativeTime date={issue.createdAt} />
 					</p>
 				}
-				actions={
+				actions={editButton}
+			/>
+
+			<SplitLayout
+				main={
 					<>
-						<BackLink to="/$owner/$name/issues" params={{ owner, name }} />
-						{canToggleStatus && (
-							<LoadingButton
-								variant={issue.status === "open" ? "outline" : "default"}
-								size="sm"
-								onClick={handleToggleStatus}
-								isLoading={updateMutation.isPending}
-								loadingLabel={
-									issue.status === "open" ? "Closing…" : "Reopening…"
-								}
-							>
-								{issue.status === "open" ? "Close Issue" : "Reopen Issue"}
-							</LoadingButton>
+						<CommentCard
+							comment={issue}
+							owner={owner}
+							name={name}
+							repoId={issue.repoId}
+							allowEmpty
+							isSaving={isSaving}
+							onSave={canEdit ? onSaveBody : undefined}
+							footer={
+								<ReactionBar
+									repoId={issue.repoId}
+									number={issue.number}
+									canReact={issue.viewer.canParticipate}
+								/>
+							}
+						/>
+						<ThreadConversation
+							owner={owner}
+							name={name}
+							repoId={issue.repoId}
+							number={issue.number}
+							comments={comments}
+							commentsOptions={issueCommentsQueryOptions(issue.id)}
+							canParticipate={issue.viewer.canParticipate}
+							canModerate={issue.viewer.canWrite}
+							composerAction={toggleStatusButton}
+						/>
+						{!issue.viewer.canParticipate && toggleStatusButton}
+					</>
+				}
+				aside={
+					<>
+						<IssueAssignees
+							issueId={issue.id}
+							repoId={issue.repoId}
+							assignees={issue.assignees.map((a) => a.user)}
+							canEdit={issue.viewer.canWrite}
+							onChanged={onAssigneesChanged}
+						/>
+						<ThreadLabels
+							owner={owner}
+							name={name}
+							repoId={issue.repoId}
+							number={issue.number}
+							labels={issue.labels}
+							canEdit={issue.viewer.canWrite}
+						/>
+						{issue.viewer.canParticipate && (
+							<ThreadSubscriptionButton
+								repoId={issue.repoId}
+								number={issue.number}
+							/>
 						)}
 					</>
 				}
-			/>
-
-			<IssueAssignees
-				issueId={issue.id}
-				repoId={issue.repoId}
-				assignees={issue.assignees.map((a) => a.user)}
-				canEdit={issue.viewer.canWrite}
-				onChanged={() => {
-					queryClient.invalidateQueries({ queryKey: issueQueryKey });
-					queryClient.invalidateQueries({
-						queryKey: queryKeys.repoIssuesRoot(issue.repoId),
-					});
-					queryClient.invalidateQueries({
-						queryKey: queryKeys.timelineRoot(issue.repoId),
-					});
-				}}
-			/>
-
-			<CommentCard
-				comment={issue}
-				owner={owner}
-				name={name}
-				repoId={issue.repoId}
-				allowEmpty
-				isSaving={updateMutation.isPending}
-				onSave={
-					canEdit
-						? (body) =>
-								updateMutation.mutateAsync({
-									data: { issueId: issue.id, body },
-								})
-						: undefined
-				}
-				footer={
-					<ReactionBar
-						repoId={issue.repoId}
-						number={issue.number}
-						canReact={issue.viewer.canParticipate}
-					/>
-				}
-			/>
-
-			<ThreadLabels
-				owner={owner}
-				name={name}
-				repoId={issue.repoId}
-				number={issue.number}
-				labels={issue.labels}
-				canEdit={issue.viewer.canWrite}
-			/>
-			{issue.viewer.canParticipate && (
-				<ThreadSubscriptionButton repoId={issue.repoId} number={issue.number} />
-			)}
-
-			<ThreadConversation
-				owner={owner}
-				name={name}
-				repoId={issue.repoId}
-				number={issue.number}
-				comments={comments}
-				commentsOptions={issueCommentsQueryOptions(issue.id)}
-				canParticipate={issue.viewer.canParticipate}
-				canModerate={issue.viewer.canWrite}
 			/>
 		</div>
 	);

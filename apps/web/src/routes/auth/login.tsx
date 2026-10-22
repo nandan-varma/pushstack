@@ -89,7 +89,6 @@ function LoginPage() {
 		<AuthFormShell
 			title="Welcome back"
 			subtitle="Sign in to your PushStack account"
-			showBranding
 			footer={
 				<>
 					Don't have an account?{" "}
@@ -102,27 +101,7 @@ function LoginPage() {
 				</>
 			}
 		>
-			<form onSubmit={handleSubmit} className="space-y-5">
-				<ErrorAlert message={error} />
-				{errorCode === "EMAIL_NOT_VERIFIED" && identifier.includes("@") && (
-					<p className="-mt-3 text-sm text-muted-foreground">
-						{resendStatus === "sent" ? (
-							"Verification email sent — check your inbox."
-						) : (
-							<button
-								type="button"
-								onClick={handleResend}
-								disabled={resendStatus === "sending"}
-								className="font-medium text-primary hover:underline disabled:opacity-60"
-							>
-								{resendStatus === "sending"
-									? "Sending…"
-									: "Resend verification email"}
-							</button>
-						)}
-					</p>
-				)}
-
+			<form onSubmit={handleSubmit} className="space-y-3">
 				<FormField label="Email or username" htmlFor="identifier">
 					<Input
 						id="identifier"
@@ -155,6 +134,26 @@ function LoginPage() {
 						autoComplete="current-password"
 					/>
 				</FormField>
+
+				<ErrorAlert message={error} />
+				{errorCode === "EMAIL_NOT_VERIFIED" && identifier.includes("@") && (
+					<p className="text-sm text-muted-foreground">
+						{resendStatus === "sent" ? (
+							"Verification email sent — check your inbox."
+						) : (
+							<button
+								type="button"
+								onClick={handleResend}
+								disabled={resendStatus === "sending"}
+								className="font-medium text-primary hover:underline disabled:opacity-60"
+							>
+								{resendStatus === "sending"
+									? "Sending…"
+									: "Resend verification email"}
+							</button>
+						)}
+					</p>
+				)}
 
 				<LoadingButton
 					type="submit"

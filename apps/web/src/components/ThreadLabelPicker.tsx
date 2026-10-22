@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Tag } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { LabelChip } from "@/components/LabelChip";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
@@ -58,12 +58,16 @@ export default function ThreadLabelPicker({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button size="sm" variant="outline" disabled={mutation.isPending}>
-					<Tag className="size-3.5" />
-					Labels
+				<Button
+					size="icon-xs"
+					variant="ghost"
+					disabled={mutation.isPending}
+					aria-label="Edit labels"
+				>
+					<Settings2 />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="start" className="w-64">
+			<DropdownMenuContent align="end" className="w-64">
 				<DropdownMenuLabel>Apply labels</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 				{(allLabels?.labels ?? []).map((label) => (

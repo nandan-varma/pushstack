@@ -10,8 +10,6 @@ export function FieldError({
 }) {
 	if (!children) return null;
 	return (
-		<p className={cn("text-sm text-red-600 dark:text-red-400", className)}>
-			{children}
-		</p>
+		<p className={cn("text-sm text-destructive", className)}>{children}</p>
 	);
 }

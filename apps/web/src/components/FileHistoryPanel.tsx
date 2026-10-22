@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { RelativeTime } from "@/components/RelativeTime";
+import { CommitList } from "@/components/repo/CommitList";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,12 +17,15 @@ export function FileCommitBanner({
 	repoId,
 	branch,
 	filePath,
+	bare = false,
 }: {
 	owner: string;
 	name: string;
 	repoId: number;
 	branch: string;
 	filePath: string;
+	/** Without its own surface, for a panel header that already has one. */
+	bare?: boolean;
 }) {
 	const { data, isLoading } = useQuery({
 		...repositoryFileHistoryQueryOptions({
@@ -37,37 +41,45 @@ export function FileCommitBanner({
 	const commit = data?.entries[0];
 
 	if (isLoading) {
-		return <Skeleton className="h-11 rounded-lg" />;
+		return <Skeleton className={bare ? "h-4 w-72" : "h-12 rounded-[18px]"} />;
 	}
 	if (!commit) return null;
 
 	return (
-		<div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3.5 py-2.5">
-			<Avatar className="h-6 w-6 shrink-0">
-				<AvatarFallback className="text-[10px]">
+		<div
+			className={
+				bare
+					? "flex min-w-0 flex-1 items-center gap-3"
+					: "flex min-h-12 items-center gap-3 rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-5 py-2.5 shadow-(--bjork-shadow-soft)"
+			}
+		>
+			<Avatar size="sm" className="shrink-0">
+				<AvatarFallback className="text-[11px]">
 					{getInitials(commit.authorName || "U")}
 				</AvatarFallback>
 			</Avatar>
-			<Link
-				to="/$owner/$name/commit/$sha"
-				params={{ owner, name, sha: commit.sha }}
-				title={commit.message}
-				className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline"
-			>
-				{commit.message.split("\n")[0]}
-			</Link>
-			<span className="shrink-0 text-xs text-muted-foreground">
+			<span className="hidden shrink-0 text-sm font-medium text-bjork-text sm:inline">
 				{commit.authorName}
-				{" · "}
-				{formatDistanceToNow(new Date(commit.createdAt), { addSuffix: true })}
 			</span>
 			<Link
 				to="/$owner/$name/commit/$sha"
 				params={{ owner, name, sha: commit.sha }}
-				className="shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+				title={commit.message}
+				className="min-w-0 flex-1 truncate text-sm text-bjork-text-muted hover:text-bjork-text"
+			>
+				{commit.message.split("\n")[0]}
+			</Link>
+			<Link
+				to="/$owner/$name/commit/$sha"
+				params={{ owner, name, sha: commit.sha }}
+				className="hidden shrink-0 font-mono text-xs text-bjork-text-soft tabular-nums hover:text-bjork-text sm:inline"
 			>
 				{commit.sha.substring(0, 7)}
 			</Link>
+			<RelativeTime
+				date={commit.createdAt}
+				className="shrink-0 text-xs text-bjork-text-soft"
+			/>
 		</div>
 	);
 }
@@ -99,9 +111,9 @@ export function FileHistoryList({
 
 	if (isLoading) {
 		return (
-			<div className="space-y-2">
+			<div className="space-y-2" aria-busy="true">
 				{[1, 2, 3].map((i) => (
-					<Skeleton key={i} className="h-14" />
+					<Skeleton key={i} className="h-14 rounded-[14px]" />
 				))}
 			</div>
 		);
@@ -111,53 +123,19 @@ export function FileHistoryList({
 
 	if (entries.length === 0) {
 		return (
-			<p className="py-6 text-center text-sm text-muted-foreground">
+			<p className="py-10 text-center text-sm text-bjork-text-soft">
 				No history found for this file.
 			</p>
 		);
 	}
 
 	return (
-		<div className="space-y-3">
-			<div className="overflow-hidden rounded-xl border border-border">
-				{entries.map((commit, idx) => (
-					<Link
-						key={commit.sha}
-						to="/$owner/$name/commit/$sha"
-						params={{ owner, name, sha: commit.sha }}
-						className={`flex items-center gap-4 px-4 py-3 text-left no-underline transition hover:bg-card ${idx < entries.length - 1 ? "border-b border-border" : ""}`}
-					>
-						<Avatar className="h-7 w-7 shrink-0">
-							<AvatarFallback className="text-[10px]">
-								{getInitials(commit.authorName || "U")}
-							</AvatarFallback>
-						</Avatar>
-						<div className="min-w-0 flex-1 space-y-0.5">
-							<p
-								title={commit.message}
-								className="truncate text-sm font-medium leading-snug text-foreground"
-							>
-								{commit.message.split("\n")[0]}
-							</p>
-							<p className="text-xs leading-snug text-muted-foreground">
-								{commit.authorName}
-								{" · "}
-								{formatDistanceToNow(new Date(commit.createdAt), {
-									addSuffix: true,
-								})}
-							</p>
-						</div>
-						<code className="shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-							{commit.sha.substring(0, 7)}
-						</code>
-					</Link>
-				))}
-			</div>
+		<div className="space-y-4">
+			<CommitList owner={owner} name={name} commits={entries} groupByDay />
 			{data?.truncated ? (
 				<div className="flex justify-center">
 					<Button
 						variant="outline"
-						size="sm"
 						disabled={isFetching}
 						onClick={() => setLimit((prev) => prev + PAGE_SIZE)}
 					>

@@ -39,9 +39,9 @@ export function DangerSection({
 		>
 			{error && <FieldError className="mb-3">{error}</FieldError>}
 			<div className="space-y-3">
-				<div className="flex gap-3">
+				<div className="flex flex-col gap-3 sm:flex-row">
 					<Input
-						className="flex-1"
+						className="min-w-0 flex-1"
 						placeholder={`Type "${name}" to confirm`}
 						value={confirm}
 						onChange={(e) => setConfirm(e.target.value)}

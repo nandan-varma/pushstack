@@ -1,7 +1,8 @@
-import { Tag } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { lazy, Suspense } from "react";
 import { LabelChip } from "@/components/LabelChip";
-import { Button } from "@/components/ui/button";
+import { AsideSection } from "@/components/layout/page";
+import { buttonVariants } from "@/components/ui/button";
 import type { LabelView } from "@/lib/labels";
 
 const ThreadLabelPicker = lazy(() => import("@/components/ThreadLabelPicker"));
@@ -21,31 +22,43 @@ export function ThreadLabels({
 	labels: LabelView[];
 	canEdit: boolean;
 }) {
-	if (!canEdit && labels.length === 0) return null;
-
 	return (
-		<div className="flex flex-wrap items-center gap-2">
-			{labels.map((label) => (
-				<LabelChip key={label.id} {...label} />
-			))}
-			{canEdit && (
-				<Suspense
-					fallback={
-						<Button size="sm" variant="outline" disabled>
-							<Tag className="size-3.5" />
-							Labels
-						</Button>
-					}
-				>
-					<ThreadLabelPicker
-						owner={owner}
-						name={name}
-						repoId={repoId}
-						number={number}
-						labels={labels}
-					/>
-				</Suspense>
+		<AsideSection
+			title="Labels"
+			action={
+				canEdit && (
+					<Suspense
+						fallback={
+							<span
+								className={buttonVariants({
+									variant: "ghost",
+									size: "icon-xs",
+								})}
+							>
+								<Settings2 aria-hidden="true" />
+							</span>
+						}
+					>
+						<ThreadLabelPicker
+							owner={owner}
+							name={name}
+							repoId={repoId}
+							number={number}
+							labels={labels}
+						/>
+					</Suspense>
+				)
+			}
+		>
+			{labels.length === 0 ? (
+				<p className="text-sm text-bjork-text-soft">None yet</p>
+			) : (
+				<div className="flex flex-wrap gap-1.5">
+					{labels.map((label) => (
+						<LabelChip key={label.id} {...label} />
+					))}
+				</div>
 			)}
-		</div>
+		</AsideSection>
 	);
 }

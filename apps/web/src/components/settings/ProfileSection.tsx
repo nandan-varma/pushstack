@@ -56,7 +56,7 @@ export function ProfileSection({
 					</p>
 				</FormField>
 				{error && <FieldError>{error}</FieldError>}
-				<div className="flex items-center gap-3">
+				<div className="flex items-center justify-end gap-3">
 					<LoadingButton
 						isLoading={loading}
 						loadingLabel="Saving…"
@@ -65,11 +65,7 @@ export function ProfileSection({
 					>
 						Save
 					</LoadingButton>
-					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">
-							Saved
-						</span>
-					)}
+					{success && <span className="text-sm text-success">Saved</span>}
 				</div>
 			</div>
 		</Section>

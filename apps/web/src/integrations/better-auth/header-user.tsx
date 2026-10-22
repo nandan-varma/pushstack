@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Bell } from "lucide-react";
+import { ChevronsUpDown, LogOut, Settings, User } from "lucide-react";
 import { useState } from "react";
 import { authClient } from "#/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { buttonVariants } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -13,120 +14,107 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	authSessionQueryOptions,
-	queryKeys,
-	unreadNotificationCountQueryOptions,
-} from "@/lib/query-options";
+import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
 import { getInitials } from "@/lib/utils/avatar";
 
-/** GitHub's inbox bell: a dot when anything is unread. */
-function NotificationIndicator() {
-	const { data: unread = 0 } = useQuery(unreadNotificationCountQueryOptions());
-	const label =
-		unread > 0 ? `Notifications (${unread} unread)` : "Notifications";
-	return (
-		<Link
-			to="/notifications"
-			aria-label={label}
-			title={label}
-			className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
-		>
-			<Bell aria-hidden="true" className="h-4 w-4" />
-			{unread > 0 && (
-				<span
-					aria-hidden="true"
-					className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
-				/>
-			)}
-		</Link>
-	);
-}
-
-export default function BetterAuthHeader() {
+/**
+ * The sidebar's account row: who is signed in, with profile, settings and
+ * sign-out one menu away; or the two ways in for a visitor.
+ */
+export default function AccountMenu() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const { data: session, isPending } = useQuery(authSessionQueryOptions());
 	const [signingOut, setSigningOut] = useState(false);
 
 	if (isPending) {
-		return <Skeleton className="h-8 w-8 rounded-full" />;
+		return <Skeleton className="h-11 w-full rounded-[12px]" />;
 	}
 
-	if (session?.user) {
-		const handleSignOut = async () => {
-			setSigningOut(true);
-			await authClient.signOut({
-				fetchOptions: {
-					onSuccess: async () => {
-						await queryClient.invalidateQueries({
-							queryKey: queryKeys.authSession,
-						});
-						router.navigate({ to: "/" });
-					},
-				},
-			});
-			setSigningOut(false);
-		};
-
+	if (!session?.user) {
 		return (
-			<div className="flex items-center gap-2">
-				<NotificationIndicator />
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						className="flex items-center gap-2 rounded-full transition hover:opacity-80"
-						aria-label="Account menu"
-					>
-						<Avatar className="h-8 w-8 ring-1 ring-[var(--border)]">
-							<AvatarImage
-								src={session.user.image ?? undefined}
-								alt={session.user.name || "Account"}
-							/>
-							<AvatarFallback className="text-xs font-semibold">
-								{getInitials(session.user.name || "U")}
-							</AvatarFallback>
-						</Avatar>
-						<span className="hidden text-sm font-medium text-foreground sm:block">
-							{session.user.username || session.user.name}
-						</span>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-48">
-						<DropdownMenuLabel className="truncate font-normal text-muted-foreground">
-							{session.user.email}
-						</DropdownMenuLabel>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							onClick={() => router.navigate({ to: "/dashboard" })}
-						>
-							Dashboard
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => router.navigate({ to: "/settings" })}
-						>
-							Settings
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							disabled={signingOut}
-							onClick={(event) => {
-								event.preventDefault();
-								handleSignOut();
-							}}
-						>
-							{signingOut ? "Signing out…" : "Sign out"}
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+			<div className="grid grid-cols-2 gap-2">
+				<Link
+					to="/auth/login"
+					className={buttonVariants({ variant: "outline", size: "sm" })}
+				>
+					Sign in
+				</Link>
+				<Link to="/auth/register" className={buttonVariants({ size: "sm" })}>
+					Sign up
+				</Link>
 			</div>
 		);
 	}
 
+	const user = session.user;
+	const username = user.username || user.name;
+	const handleSignOut = async () => {
+		setSigningOut(true);
+		await authClient.signOut({
+			fetchOptions: {
+				onSuccess: async () => {
+					await queryClient.invalidateQueries({
+						queryKey: queryKeys.authSession,
+					});
+					router.navigate({ to: "/" });
+				},
+			},
+		});
+		setSigningOut(false);
+	};
+
 	return (
-		<Link
-			to="/auth/login"
-			className="inline-flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-foreground no-underline transition hover:border-primary"
-		>
-			Sign in
-		</Link>
+		<DropdownMenu>
+			<DropdownMenuTrigger
+				className="flex h-11 w-full items-center gap-2.5 rounded-[12px] px-2 text-left transition-[background-color] duration-150 hover:bg-bjork-surface-hover aria-expanded:bg-bjork-surface-active"
+				aria-label="Account menu"
+			>
+				<Avatar size="sm">
+					<AvatarImage src={user.image ?? undefined} alt="" />
+					<AvatarFallback className="text-[11px]">
+						{getInitials(user.name || "U")}
+					</AvatarFallback>
+				</Avatar>
+				<span className="min-w-0 flex-1">
+					<span className="block truncate text-sm font-medium text-bjork-text">
+						{user.name}
+					</span>
+					<span className="block truncate text-xs text-bjork-text-soft">
+						@{username}
+					</span>
+				</span>
+				<ChevronsUpDown
+					aria-hidden="true"
+					className="size-4 shrink-0 text-bjork-text-soft"
+				/>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent side="top" align="start" className="w-56">
+				<DropdownMenuLabel className="truncate normal-case tracking-normal">
+					{user.email}
+				</DropdownMenuLabel>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					onClick={() =>
+						router.navigate({ to: "/$owner", params: { owner: username } })
+					}
+				>
+					<User /> Your profile
+				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => router.navigate({ to: "/settings" })}>
+					<Settings /> Settings
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					disabled={signingOut}
+					onClick={(event) => {
+						event.preventDefault();
+						handleSignOut();
+					}}
+				>
+					<LogOut /> {signingOut ? "Signing out…" : "Sign out"}
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }

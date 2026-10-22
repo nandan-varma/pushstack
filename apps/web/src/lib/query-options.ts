@@ -20,6 +20,7 @@ import {
 	getFileHistory,
 	getLastCommits,
 	getTags,
+	getTreeEntries,
 	getTreePageData,
 } from "@/server/files";
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
@@ -101,6 +102,8 @@ export const queryKeys = {
 	 * this one root, so every key read from a branch's tree must sit under it.
 	 */
 	repoFilesRoot: (repoId: number) => ["repos", repoId, "files"] as const,
+	repoTreeEntries: (repoId: number, branchName: string, path = "") =>
+		["repos", repoId, "tree-entries", branchName, path] as const,
 	repoTreePage: (repoId: number, branchName: string, path = "") =>
 		["repos", repoId, "files", "tree-page", branchName, path] as const,
 	repoFile: (repoId: number, branchName: string, path: string) =>
@@ -403,6 +406,23 @@ export function repositoryTreePageQueryOptions({
 				`query tree page repo=${repoId} ${branchName}:${path || "/"}`,
 				() => getTreePageData({ data: { repoId, branchName, path } }),
 			),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** A directory's entries alone, for expanding the file tree. */
+export function repositoryTreeEntriesQueryOptions({
+	repoId,
+	branchName,
+	path = "",
+}: {
+	repoId: number;
+	branchName: string;
+	path?: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoTreeEntries(repoId, branchName, path),
+		queryFn: () => getTreeEntries({ data: { repoId, branchName, path } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

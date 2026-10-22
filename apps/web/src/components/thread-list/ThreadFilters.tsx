@@ -31,8 +31,9 @@ export function activeThreadTab(
 }
 
 /**
- * Status tabs plus the label filter. Only the loaded page (the active tab's
- * rows) is counted, so only the active tab shows a count.
+ * The list panel's header: status tabs on the left, the label filter on the
+ * right. Only the loaded page (the active tab's rows) is counted, so only the
+ * active tab shows a count.
  */
 export function ThreadFilters({
 	q,
@@ -49,8 +50,10 @@ export function ThreadFilters({
 }) {
 	const activeTab = activeThreadTab(q, tabs);
 	return (
-		<>
+		<div className="flex w-full flex-wrap items-center justify-between gap-2">
 			<FilterTabs
+				variant="inline"
+				label="Status"
 				tabs={tabs.map(({ value, label }) => ({
 					value,
 					label,
@@ -64,6 +67,6 @@ export function ThreadFilters({
 				value={parseSearchQuery(q).labels[0]}
 				onChange={(value) => onQueryChange(withSearchLabel(q, value))}
 			/>
-		</>
+		</div>
 	);
 }

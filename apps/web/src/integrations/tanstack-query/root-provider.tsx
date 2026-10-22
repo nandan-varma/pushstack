@@ -1,6 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import { type Query, QueryClient } from "@tanstack/react-query";
 
 type AppContext = {
 	queryClient: QueryClient;
@@ -43,14 +41,12 @@ export function getContext() {
 	return clientContext;
 }
 
-export default function TanStackQueryProvider({
-	children,
-}: {
-	children: ReactNode;
-}) {
-	const [queryClient] = useState(() => getContext().queryClient);
-
-	return (
-		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-	);
+/**
+ * Which server queries reach the browser: what the server has, or is still
+ * fetching (that streams in when it lands). A query useQuery merely *created*
+ * during the server render was never fetched there; shipped as pending, the
+ * browser would wait forever on a fetch that never happens.
+ */
+export function shouldDehydrateQuery(query: Query) {
+	return query.state.status === "success" || query.promise !== undefined;
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import {
 	type ThreadComment,
@@ -66,9 +66,18 @@ type Props = Omit<
 	"viewerId" | "onQuote"
 > & {
 	comments: ReturnType<typeof useThreadComments>;
+	/** Beside the comment button, e.g. "Close issue". */
+	composerAction?: ReactNode;
+	/** Between the timeline and the composer, e.g. a pull request's merge box. */
+	beforeComposer?: ReactNode;
 };
 
-export function ThreadConversation({ comments, ...timeline }: Props) {
+export function ThreadConversation({
+	comments,
+	composerAction,
+	beforeComposer,
+	...timeline
+}: Props) {
 	const { draft, setDraft, session, commentMutation, submit } = comments;
 
 	return (
@@ -82,12 +91,14 @@ export function ThreadConversation({ comments, ...timeline }: Props) {
 						: undefined
 				}
 			/>
+			{beforeComposer}
 			{timeline.canParticipate ? (
 				<CommentForm
 					value={draft}
 					onChange={setDraft}
 					onSubmit={submit}
 					isPending={commentMutation.isPending}
+					secondaryAction={composerAction}
 				/>
 			) : !session?.user ? (
 				<SignInToComment />

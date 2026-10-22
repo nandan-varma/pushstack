@@ -13,73 +13,47 @@ describe("useHighlightedCode", () => {
 		vi.clearAllMocks();
 	});
 
-	it("returns null html and isPending=false when disabled", () => {
-		const { result } = renderHook(() =>
-			useHighlightedCode("const x = 1;", "typescript", false),
-		);
-		expect(result.current.html).toBeNull();
-		expect(result.current.isPending).toBe(false);
-		expect(mockRequestHighlight).not.toHaveBeenCalled();
-	});
-
-	it("returns null html and isPending=false when code is empty", () => {
-		const { result } = renderHook(() =>
-			useHighlightedCode("", "typescript", true),
-		);
-		expect(result.current.html).toBeNull();
-		expect(result.current.isPending).toBe(false);
-	});
-
-	it("calls requestHighlight and sets html on success", async () => {
+	it("is pending until the highlighter answers, then holds its html", async () => {
 		mockRequestHighlight.mockResolvedValue("<span>highlighted</span>");
 
 		const { result } = renderHook(() =>
-			useHighlightedCode("const x = 1;", "typescript", true),
+			useHighlightedCode("const x = 1;", "typescript"),
 		);
 
-		expect(result.current.isPending).toBe(true);
-
-		await waitFor(() => {
-			expect(result.current.isPending).toBe(false);
-		});
-
-		expect(result.current.html).toBe("<span>highlighted</span>");
+		expect(result.current).toEqual({ status: "pending" });
+		await waitFor(() =>
+			expect(result.current).toEqual({
+				status: "done",
+				html: "<span>highlighted</span>",
+			}),
+		);
 		expect(mockRequestHighlight).toHaveBeenCalledWith(
 			"const x = 1;",
 			"typescript",
 		);
 	});
 
-	it("sets html to null on error", async () => {
+	it("reports a failed highlight so the caller can still show the code", async () => {
 		mockRequestHighlight.mockRejectedValue(new Error("highlight failed"));
 
-		const { result } = renderHook(() => useHighlightedCode("code", "js", true));
+		const { result } = renderHook(() => useHighlightedCode("code", "js"));
 
-		await waitFor(() => {
-			expect(result.current.isPending).toBe(false);
-		});
-
-		expect(result.current.html).toBeNull();
+		await waitFor(() => expect(result.current).toEqual({ status: "failed" }));
 	});
 
-	it("clears html when enabled changes to false", async () => {
-		mockRequestHighlight.mockResolvedValue("<span>ok</span>");
+	it("drops the previous file's html as soon as the code changes", async () => {
+		mockRequestHighlight.mockResolvedValueOnce("<span>first</span>");
+		mockRequestHighlight.mockImplementationOnce(() => new Promise(() => {}));
 
 		const { result, rerender } = renderHook(
-			({ enabled }) => useHighlightedCode("code", "js", enabled),
-			{ initialProps: { enabled: true } },
+			({ code }) => useHighlightedCode(code, "js"),
+			{ initialProps: { code: "first" } },
 		);
+		await waitFor(() => expect(result.current.status).toBe("done"));
 
-		await waitFor(() => {
-			expect(result.current.isPending).toBe(false);
-		});
+		rerender({ code: "second" });
 
-		expect(result.current.html).toBe("<span>ok</span>");
-
-		rerender({ enabled: false });
-
-		expect(result.current.html).toBeNull();
-		expect(result.current.isPending).toBe(false);
+		expect(result.current).toEqual({ status: "pending" });
 	});
 
 	it("does not set state after unmount", async () => {
@@ -92,17 +66,15 @@ describe("useHighlightedCode", () => {
 		);
 
 		const { result, unmount } = renderHook(() =>
-			useHighlightedCode("code", "js", true),
+			useHighlightedCode("code", "js"),
 		);
 
-		expect(result.current.isPending).toBe(true);
-
+		expect(result.current).toEqual({ status: "pending" });
 		unmount();
-
 		act(() => {
 			resolveHighlight?.("<span>done</span>");
 		});
 
-		expect(result.current.html).toBeNull();
+		expect(result.current).toEqual({ status: "pending" });
 	});
 });

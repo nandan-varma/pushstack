@@ -1,23 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
-import { ArrowRight } from "lucide-react";
+import {
+	FileDiff,
+	GitCommitHorizontal,
+	GitMerge,
+	MessageSquare,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { lazy, Suspense } from "react";
+import { BranchChip } from "@/components/BranchChip";
 import { CommentCard } from "@/components/CommentCard";
 import {
 	AvatarBodySkeleton,
 	DetailHeader,
 	DetailHeaderSkeleton,
 } from "@/components/DetailHeader";
-import { EditableTitle } from "@/components/EditableTitle";
+import { useEditableTitle } from "@/components/EditableTitle";
 import { EmptyState } from "@/components/EmptyState";
 import { IssueAssignees } from "@/components/IssueAssignees";
+import { SplitLayout } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { ReactionBar } from "@/components/ReactionBar";
+import { RelativeTime } from "@/components/RelativeTime";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
+import { StatePill } from "@/components/StatePill";
 import {
-	pullRequestStatusVariant,
 	reviewStatusLabel,
 	reviewStatusVariant,
 } from "@/components/status-variants";
@@ -27,14 +35,15 @@ import {
 } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
+import { MergeBox } from "@/components/thread/MergeBox";
 import { useToast } from "@/components/toast-provider";
-import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { splitPatchSuffix } from "@/lib/compare-spec";
+import { backgroundQuery, contentQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -139,27 +148,27 @@ export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 		// these — fire-and-forget so the extra round trip doesn't land after the
 		// body has already rendered.
 		if (repo) {
-			queryClient
-				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-				.catch(() => {});
-			queryClient
-				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-				.catch(() => {});
+			await Promise.all([
+				contentQuery(queryClient, repositoryIssueNumbersQueryOptions(repo.id)),
+				contentQuery(
+					queryClient,
+					repositoryPullRequestNumbersQueryOptions(repo.id),
+				),
+			]);
 		}
 
 		// Start the "Files changed" diff now rather than after mount; the page
 		// renders without it.
 		if (pr) {
-			queryClient
-				.ensureQueryData(
-					pullRequestDiffQueryOptions({
-						repoId: pr.repoId,
-						sourceBranch: pr.sourceBranch,
-						targetBranch: pr.targetBranch,
-						autoRefresh: !!repo?.autoRefreshPrDiffs,
-					}),
-				)
-				.catch(() => {});
+			backgroundQuery(
+				queryClient,
+				pullRequestDiffQueryOptions({
+					repoId: pr.repoId,
+					sourceBranch: pr.sourceBranch,
+					targetBranch: pr.targetBranch,
+					autoRefresh: !!repo?.autoRefreshPrDiffs,
+				}),
+			);
 		}
 	},
 	component: PullRequestDetailPage,
@@ -223,6 +232,10 @@ function PullRequestDetailPage() {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
 				});
+				// The sidebar shows open counts from the repository row.
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repositoryByName(owner, name),
+				});
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.repoFilesRoot(pr.repoId),
 				});
@@ -254,6 +267,10 @@ function PullRequestDetailPage() {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
 				});
+				// The sidebar shows open counts from the repository row.
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repositoryByName(owner, name),
+				});
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(pr.repoId),
 				});
@@ -276,11 +293,21 @@ function PullRequestDetailPage() {
 		updateMutation.mutate({ data: { prId: pr.id, status: "open" } });
 	};
 
+	const editableTitle = useEditableTitle({
+		title: pr?.title ?? "",
+		onSave:
+			pr && (pr.viewer.canWrite || session?.user?.id === pr.authorId)
+				? (title) =>
+						updateMutation.mutateAsync({ data: { prId: pr.id, title } })
+				: undefined,
+		isSaving: updateMutation.isPending,
+	});
+
 	if (isLoading) {
 		return (
-			<div className="space-y-6">
+			<div>
 				<DetailHeaderSkeleton />
-				<AvatarBodySkeleton />
+				<SplitLayout main={<AvatarBodySkeleton />} />
 			</div>
 		);
 	}
@@ -293,99 +320,51 @@ function PullRequestDetailPage() {
 		pr.status !== "merged" &&
 		(pr.viewer.canWrite || session?.user?.id === pr.authorId);
 
+	const { titleNode, editButton } = editableTitle;
+	const commitCount = prCommits?.commits.length;
+
 	return (
-		<div className="space-y-6">
+		<div>
 			<DetailHeader
-				title={
-					<EditableTitle
-						title={pr.title}
-						onSave={
-							canEdit
-								? (title) =>
-										updateMutation.mutateAsync({
-											data: { prId: pr.id, title },
-										})
-								: undefined
-						}
-						isSaving={updateMutation.isPending}
-					/>
-				}
-				badge={
-					<div className="flex items-center gap-2">
-						<Badge variant={pullRequestStatusVariant(pr.status)}>
-							{pr.status}
-						</Badge>
+				title={titleNode}
+				number={pr.number}
+				badge={<StatePill kind="pull" status={pr.status} />}
+				meta={
+					<>
+						<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+							<span className="font-medium text-bjork-text">
+								{pr.author.name}
+							</span>
+							{pr.status === "merged" ? "merged" : "wants to merge"}
+							{commitCount !== undefined && (
+								<>
+									{" "}
+									{commitCount}
+									{prCommits?.truncated ? "+" : ""}{" "}
+									{commitCount === 1 ? "commit" : "commits"}
+								</>
+							)}{" "}
+							into
+							<BranchChip owner={owner} name={name} branch={pr.targetBranch} />
+							from
+							<BranchChip owner={owner} name={name} branch={pr.sourceBranch} />
+							<span className="text-bjork-text-soft">
+								· <RelativeTime date={pr.createdAt} />
+							</span>
+						</p>
 						{pr.review.summary.state && (
 							<Badge variant={reviewStatusVariant(pr.review.summary.state)}>
 								{reviewStatusLabel(pr.review.summary.state)}
 							</Badge>
 						)}
-					</div>
-				}
-				meta={
-					<p className="flex flex-wrap items-center gap-1 text-muted-foreground">
-						#{pr.number} opened{" "}
-						{formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}{" "}
-						by {pr.author.name} •{" "}
-						<span className="inline-flex items-center gap-1">
-							{pr.sourceBranch}
-							<ArrowRight className="size-3" />
-							{pr.targetBranch}
-						</span>
-					</p>
-				}
-				actions={
-					<>
-						<BackLink to="/$owner/$name/pulls" params={{ owner, name }} />
-						{canMerge && (
-							<LoadingButton
-								variant="default"
-								size="sm"
-								onClick={handleMerge}
-								isLoading={mergeMutation.isPending}
-								loadingLabel="Merging…"
-								disabled={updateMutation.isPending}
-							>
-								Merge
-							</LoadingButton>
-						)}
-						{canChangeStatus && pr.status === "open" && (
-							<LoadingButton
-								variant="outline"
-								size="sm"
-								onClick={handleClose}
-								isLoading={updateMutation.isPending}
-								loadingLabel="Closing…"
-								disabled={mergeMutation.isPending}
-							>
-								Close
-							</LoadingButton>
-						)}
-						{canChangeStatus && pr.status === "closed" && (
-							<LoadingButton
-								variant="default"
-								size="sm"
-								onClick={handleReopen}
-								isLoading={updateMutation.isPending}
-								loadingLabel="Reopening…"
-							>
-								Reopen
-							</LoadingButton>
-						)}
 					</>
 				}
+				actions={editButton}
 			/>
-			{pr.status !== "open" && pr.viewer.canWrite && repo && (
-				<DeleteMergedBranchCard
-					repoId={repo.id}
-					prId={pr.id}
-					branch={pr.sourceBranch}
-					defaultBranch={repo.defaultBranch}
-				/>
-			)}
 
 			<Tabs
 				value={tab}
+				className="gap-6"
 				onValueChange={(value) =>
 					navigate({
 						search: {
@@ -395,87 +374,152 @@ function PullRequestDetailPage() {
 					})
 				}
 			>
-				<TabsList variant="line">
-					<TabsTrigger value="conversation">Conversation</TabsTrigger>
+				<TabsList>
+					<TabsTrigger value="conversation">
+						<MessageSquare aria-hidden="true" />
+						Conversation
+					</TabsTrigger>
 					<TabsTrigger value="commits">
+						<GitCommitHorizontal aria-hidden="true" />
 						Commits
 						{prCommits ? (
-							<span className="ml-1 rounded-full bg-muted px-1.5 text-xs">
+							<TabCount>
 								{prCommits.commits.length}
 								{prCommits.truncated || prCommits.incomplete ? "+" : ""}
-							</span>
+							</TabCount>
 						) : null}
 					</TabsTrigger>
 					<TabsTrigger value="files">
+						<FileDiff aria-hidden="true" />
 						Files changed
-						{diff?.files ? (
-							<span className="ml-1 rounded-full bg-muted px-1.5 text-xs">
-								{diff.files.length}
-							</span>
-						) : null}
+						{diff?.files ? <TabCount>{diff.files.length}</TabCount> : null}
 					</TabsTrigger>
 				</TabsList>
-				<TabsContent value="conversation" className="space-y-6">
-					<CommentCard
-						comment={pr}
-						owner={owner}
-						name={name}
-						repoId={pr.repoId}
-						allowEmpty
-						isSaving={updateMutation.isPending}
-						onSave={
-							canEdit
-								? (body) =>
-										updateMutation.mutateAsync({
-											data: { prId: pr.id, body },
-										})
-								: undefined
+				<TabsContent value="conversation">
+					<SplitLayout
+						main={
+							<>
+								<CommentCard
+									comment={pr}
+									owner={owner}
+									name={name}
+									repoId={pr.repoId}
+									allowEmpty
+									isSaving={updateMutation.isPending}
+									onSave={
+										canEdit
+											? (body) =>
+													updateMutation.mutateAsync({
+														data: { prId: pr.id, body },
+													})
+											: undefined
+									}
+									footer={
+										<ReactionBar
+											repoId={pr.repoId}
+											number={pr.number}
+											canReact={pr.viewer.canParticipate}
+										/>
+									}
+								/>
+								<ThreadConversation
+									owner={owner}
+									name={name}
+									repoId={pr.repoId}
+									number={pr.number}
+									comments={comments}
+									commentsOptions={pullRequestCommentsQueryOptions(pr.id)}
+									canParticipate={pr.viewer.canParticipate}
+									canModerate={pr.viewer.canWrite}
+									beforeComposer={
+										<>
+											{pr.status === "open" && (
+												<MergeBox
+													canMerge={canMerge}
+													sourceBranch={pr.sourceBranch}
+													targetBranch={pr.targetBranch}
+													action={
+														<LoadingButton
+															onClick={handleMerge}
+															isLoading={mergeMutation.isPending}
+															loadingLabel="Merging…"
+															disabled={updateMutation.isPending}
+															className="bg-success text-white hover:bg-success/90"
+														>
+															<GitMerge aria-hidden="true" />
+															Merge pull request
+														</LoadingButton>
+													}
+												/>
+											)}
+											{pr.status !== "open" && pr.viewer.canWrite && repo && (
+												<DeleteMergedBranchCard
+													repoId={repo.id}
+													prId={pr.id}
+													branch={pr.sourceBranch}
+													defaultBranch={repo.defaultBranch}
+												/>
+											)}
+										</>
+									}
+									composerAction={
+										canChangeStatus && pr.status === "open" ? (
+											<LoadingButton
+												variant="outline"
+												onClick={handleClose}
+												isLoading={updateMutation.isPending}
+												loadingLabel="Closing…"
+												disabled={mergeMutation.isPending}
+											>
+												Close pull request
+											</LoadingButton>
+										) : canChangeStatus && pr.status === "closed" ? (
+											<LoadingButton
+												variant="outline"
+												onClick={handleReopen}
+												isLoading={updateMutation.isPending}
+												loadingLabel="Reopening…"
+											>
+												Reopen pull request
+											</LoadingButton>
+										) : undefined
+									}
+								/>
+							</>
 						}
-						footer={
-							<ReactionBar
-								repoId={pr.repoId}
-								number={pr.number}
-								canReact={pr.viewer.canParticipate}
-							/>
+						aside={
+							<>
+								<IssueAssignees
+									pullRequestId={pr.id}
+									repoId={pr.repoId}
+									assignees={pr.assignees.map((a) => a.user)}
+									canEdit={pr.viewer.canWrite}
+									onChanged={() => {
+										queryClient.invalidateQueries({
+											queryKey: pullRequestByNumberQueryOptions({
+												owner,
+												name,
+												number: pr.number,
+											}).queryKey,
+										});
+									}}
+								/>
+								<ThreadLabels
+									owner={owner}
+									name={name}
+									repoId={pr.repoId}
+									number={pr.number}
+									labels={pr.labels}
+									canEdit={pr.viewer.canWrite}
+								/>
+								{pr.viewer.canParticipate && (
+									<ThreadSubscriptionButton
+										repoId={pr.repoId}
+										number={pr.number}
+									/>
+								)}
+							</>
 						}
-					/>
-
-					<IssueAssignees
-						pullRequestId={pr.id}
-						repoId={pr.repoId}
-						assignees={pr.assignees.map((a) => a.user)}
-						canEdit={pr.viewer.canWrite}
-						onChanged={() => {
-							queryClient.invalidateQueries({
-								queryKey: pullRequestByNumberQueryOptions({
-									owner,
-									name,
-									number: pr.number,
-								}).queryKey,
-							});
-						}}
-					/>
-					<ThreadLabels
-						owner={owner}
-						name={name}
-						repoId={pr.repoId}
-						number={pr.number}
-						labels={pr.labels}
-						canEdit={pr.viewer.canWrite}
-					/>
-					{pr.viewer.canParticipate && (
-						<ThreadSubscriptionButton repoId={pr.repoId} number={pr.number} />
-					)}
-
-					<ThreadConversation
-						owner={owner}
-						name={name}
-						repoId={pr.repoId}
-						number={pr.number}
-						comments={comments}
-						commentsOptions={pullRequestCommentsQueryOptions(pr.id)}
-						canParticipate={pr.viewer.canParticipate}
-						canModerate={pr.viewer.canWrite}
 					/>
 				</TabsContent>
 				<TabsContent value="commits" className="space-y-3">
@@ -536,5 +580,13 @@ function PullRequestNotFound() {
 			backParams={{ owner, name }}
 			backLabel="Back to Pull Requests"
 		/>
+	);
+}
+
+function TabCount({ children }: { children: ReactNode }) {
+	return (
+		<span className="rounded-full bg-bjork-field-inset px-1.5 py-px font-mono text-[11px] text-bjork-text-medium tabular-nums">
+			{children}
+		</span>
 	);
 }
