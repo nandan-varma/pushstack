@@ -508,9 +508,40 @@ pre code {
   color: var(--destructive);
 }
 
-/* rehype-highlight (highlight.js) token colors for fenced code blocks in
-   rendered markdown. `.markdown-body pre` is always dark, so this mirrors the
-   github-dark palette unconditionally rather than gating on `.dark`. */
+/* rehype-highlight (highlight.js) tokens in rendered markdown, on GitHub's
+   light and dark palettes so fenced code follows the theme. */
+:root {
+  --hl-keyword: #cf222e;
+  --hl-title: #8250df;
+  --hl-constant: #0550ae;
+  --hl-string: #0a3069;
+  --hl-builtin: #953800;
+  --hl-comment: #6e7781;
+  --hl-tag: #116329;
+  --hl-section: #0550ae;
+  --hl-bullet: #953800;
+  --hl-addition: #116329;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion: #82071e;
+  --hl-deletion-bg: #ffebe9;
+}
+
+.dark {
+  --hl-keyword: #ff7b72;
+  --hl-title: #d2a8ff;
+  --hl-constant: #79c0ff;
+  --hl-string: #a5d6ff;
+  --hl-builtin: #ffa657;
+  --hl-comment: #8b949e;
+  --hl-tag: #7ee787;
+  --hl-section: #1f6feb;
+  --hl-bullet: #f2cc60;
+  --hl-addition: #aff5b4;
+  --hl-addition-bg: #033a16;
+  --hl-deletion: #ffdcd7;
+  --hl-deletion-bg: #67060c;
+}
+
 .hljs-doctag,
 .hljs-keyword,
 .hljs-meta .hljs-keyword,
@@ -518,14 +549,14 @@ pre code {
 .hljs-template-variable,
 .hljs-type,
 .hljs-variable.language_ {
-  color: #ff7b72;
+  color: var(--hl-keyword);
 }
 
 .hljs-title,
 .hljs-title.class_,
 .hljs-title.class_.inherited__,
 .hljs-title.function_ {
-  color: #d2a8ff;
+  color: var(--hl-title);
 }
 
 .hljs-attr,
@@ -538,40 +569,40 @@ pre code {
 .hljs-selector-attr,
 .hljs-selector-class,
 .hljs-selector-id {
-  color: #79c0ff;
+  color: var(--hl-constant);
 }
 
 .hljs-regexp,
 .hljs-string,
 .hljs-meta .hljs-string {
-  color: #a5d6ff;
+  color: var(--hl-string);
 }
 
 .hljs-built_in,
 .hljs-symbol {
-  color: #ffa657;
+  color: var(--hl-builtin);
 }
 
 .hljs-comment,
 .hljs-code,
 .hljs-formula {
-  color: #8b949e;
+  color: var(--hl-comment);
 }
 
 .hljs-name,
 .hljs-quote,
 .hljs-selector-tag,
 .hljs-selector-pseudo {
-  color: #7ee787;
+  color: var(--hl-tag);
 }
 
 .hljs-section {
-  color: #1f6feb;
+  color: var(--hl-section);
   font-weight: 600;
 }
 
 .hljs-bullet {
-  color: #f2cc60;
+  color: var(--hl-bullet);
 }
 
 .hljs-emphasis {
@@ -583,16 +614,15 @@ pre code {
 }
 
 .hljs-addition {
-  color: #aff5b4;
-  background-color: #033a16;
+  color: var(--hl-addition);
+  background-color: var(--hl-addition-bg);
 }
 
 .hljs-deletion {
-  color: #ffdcd7;
-  background-color: #67060c;
+  color: var(--hl-deletion);
+  background-color: var(--hl-deletion-bg);
 }
 
-/* Every app page's frame: one width and gutter, so edges never move. */
 .page-wrap {
   width: min(1400px, 100%);
   margin-inline: auto;
