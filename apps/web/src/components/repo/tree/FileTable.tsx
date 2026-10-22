@@ -45,6 +45,7 @@ export function FileTable({
 	lastCommits,
 	lastCommitsLoading,
 	header,
+	className,
 }: {
 	files: FileEntry[];
 	owner: string;
@@ -57,6 +58,7 @@ export function FileTable({
 	lastCommitsLoading?: boolean;
 	/** Content of the panel's header row, usually the latest commit. */
 	header?: ReactNode;
+	className?: string;
 }) {
 	if (!isLoading && files.length === 0) {
 		return (
@@ -76,7 +78,7 @@ export function FileTable({
 	}
 
 	return (
-		<Panel aria-label="Files">
+		<Panel aria-label="Files" className={className}>
 			{header && <PanelHeader>{header}</PanelHeader>}
 			{isLoading ? (
 				<ul aria-busy="true" className="divide-y divide-bjork-border-muted">

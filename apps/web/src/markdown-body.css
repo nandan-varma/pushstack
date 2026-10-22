@@ -263,3 +263,9 @@
 		border: 0;
 	}
 }
+
+/* A jump to a heading (README outline, #section links) lands clear of the
+   mobile top bar instead of under it. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6)[id] {
+	scroll-margin-top: 5rem;
+}

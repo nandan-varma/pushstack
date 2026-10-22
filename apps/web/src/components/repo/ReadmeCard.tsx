@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen } from "lucide-react";
+import { useRef } from "react";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { FilePreview } from "@/components/repo/FilePreview";
+import { ReadmeOutline } from "@/components/repo/ReadmeOutline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { repositoryFileQueryOptions } from "@/lib/query-options";
 
@@ -41,6 +43,7 @@ export function ReadmeCard({
 	/** Whether the directory listing readmeFile is derived from is still loading — until it resolves, whether a README exists at all is unknown. */
 	filesLoading?: boolean;
 }) {
+	const contentRef = useRef<HTMLDivElement>(null);
 	const { data: readmeContent, isLoading } = useQuery({
 		...repositoryFileQueryOptions({
 			repoId: repoId ?? 0,
@@ -84,19 +87,23 @@ export function ReadmeCard({
 					{fileName}
 				</h2>
 			</PanelHeader>
-			<PanelBody className="sm:px-8 sm:py-7">
-				{readmeContent ? (
-					<FilePreview
-						file={readmeContent}
-						filePath={readmeFile.path}
-						owner={owner}
-						name={name}
-						branch={branch}
-						repoId={repoId}
-					/>
-				) : (
-					isLoading && <Skeleton className="h-40" />
-				)}
+			<PanelBody className="grid gap-8 sm:px-8 sm:py-7 2xl:grid-cols-[minmax(0,1fr)_200px]">
+				{/* Long lines are hard to read; the text keeps a reading measure. */}
+				<div ref={contentRef} className="max-w-[880px] min-w-0">
+					{readmeContent ? (
+						<FilePreview
+							file={readmeContent}
+							filePath={readmeFile.path}
+							owner={owner}
+							name={name}
+							branch={branch}
+							repoId={repoId}
+						/>
+					) : (
+						isLoading && <Skeleton className="h-40" />
+					)}
+				</div>
+				<ReadmeOutline contentRef={contentRef} />
 			</PanelBody>
 		</Panel>
 	);

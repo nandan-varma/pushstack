@@ -27,6 +27,7 @@ import {
 	repositoryTreePageQueryOptions,
 } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	const isPathNotFound =
@@ -251,11 +252,13 @@ function TreeBrowserPage() {
 						asHeading
 					/>
 				) : (
-					<h1 className="text-[15px] font-semibold text-bjork-text">
+					<h1 className="flex min-w-0 items-baseline gap-2 text-[15px] font-semibold text-bjork-text">
 						{name}
-						<span className="ml-2 font-normal text-bjork-text-soft">
-							{files?.length ?? 0} entries
-						</span>
+						{repo.description && (
+							<span className="truncate text-sm font-normal text-bjork-text-soft">
+								{repo.description}
+							</span>
+						)}
 					</h1>
 				)}
 			</div>
@@ -272,6 +275,9 @@ function TreeBrowserPage() {
 			)}
 		</Toolbar>
 	);
+
+	// Until the listing arrives a README is the likely case, so reserve for it.
+	const leadWithReadme = isLoading || Boolean(readmeFile);
 
 	const content = (
 		<>
@@ -294,7 +300,24 @@ function TreeBrowserPage() {
 				</div>
 			)}
 			{toolbar}
+			{/* Beside the file tree, a second file list only repeats it: wide
+			    screens lead with the latest commit and the README instead. */}
+			<div
+				className={cn(
+					"hidden min-h-12 items-center rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-5 py-2.5 shadow-(--bjork-shadow-soft)",
+					leadWithReadme && "lg:flex",
+				)}
+			>
+				<CommitSummaryBar
+					owner={owner}
+					name={name}
+					branch={activeBranch}
+					commit={latestCommit}
+					isLoading={isLoading}
+				/>
+			</div>
 			<FileTable
+				className={leadWithReadme ? "lg:hidden" : undefined}
 				files={sortedFiles}
 				owner={owner}
 				name={name}
