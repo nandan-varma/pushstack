@@ -319,13 +319,24 @@ pre code {
   background-color: var(--shiki-dark-bg, var(--shiki-light-bg)) !important;
 }
 
+/* Highlighted code sits on its panel's surface: keep Shiki's token colours
+   but not its theme background, which would paint a second, clashing card. */
+.code-viewer-html pre.shiki,
+.code-viewer-html pre.shiki span,
+.dark .code-viewer-html pre.shiki,
+.dark .code-viewer-html pre.shiki span,
+.diff-code span,
+.dark .diff-code span {
+  background-color: transparent !important;
+}
+
 .code-viewer-html pre.shiki {
   margin: 0;
-  padding: 1rem;
+  padding: 0.875rem 1.25rem 1rem 0;
   border-radius: 0;
   border: 0;
-  line-height: 1.5;
-  font-size: 0.875rem;
+  line-height: 1.6;
+  font-size: 0.8125rem;
   white-space: pre;
   /* Without this the pre's background stays at the visible viewport width
      while its nowrap content overflows past it, so the background appears
@@ -354,18 +365,18 @@ pre code {
   position: sticky;
   left: 0;
   z-index: 1;
-  min-width: 2.5rem;
-  margin-right: 1rem;
-  padding-right: 0.75rem;
-  border-right: 1px solid var(--border);
+  min-width: 3.25rem;
+  margin-right: 1.25rem;
+  padding-right: 1rem;
   text-align: right;
-  color: var(--muted-foreground);
-  background: var(--shiki-light-bg, var(--background));
+  color: var(--bjork-text-soft);
+  font-variant-numeric: tabular-nums;
+  background: var(--bjork-surface);
   user-select: none;
 }
 
-.dark .code-viewer-html.with-line-numbers pre.shiki .line::before {
-  background: var(--shiki-dark-bg, var(--shiki-light-bg, var(--background)));
+.code-viewer-html.with-line-numbers pre.shiki .line:hover::before {
+  color: var(--bjork-text-medium);
 }
 
 .diff-patch {

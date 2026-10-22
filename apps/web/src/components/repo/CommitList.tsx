@@ -1,5 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import { GitCommitHorizontal } from "lucide-react";
+import type { ReactNode } from "react";
+import { Panel, PanelHeader } from "@/components/layout/panel";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/utils/avatar";
 
 export type CommitListItem = {
 	sha: string;
@@ -8,47 +13,125 @@ export type CommitListItem = {
 	createdAt: string;
 };
 
-// One grid for every row: the sha is a fixed leading column, the message takes
-// the rest, and author/time ride the message line on wide screens / wrap under
-// the message on narrow ones.
-const rowClass =
-	"grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 px-4 py-3.5 text-left no-underline transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none md:grid-cols-[5.5rem_minmax(0,1fr)_auto]";
+/**
+ * One commit: who, the subject, when, and the short sha. The subject link
+ * stretches over the row so the whole row is one target.
+ */
+export function CommitRow({
+	owner,
+	name,
+	commit,
+}: {
+	owner: string;
+	name: string;
+	commit: CommitListItem;
+}) {
+	return (
+		<li className="relative flex min-h-14 items-center gap-3 px-5 py-3 transition-[background-color] duration-150 hover:bg-bjork-surface-hover">
+			<Avatar size="sm" className="shrink-0">
+				<AvatarFallback className="text-[11px]">
+					{getInitials(commit.authorName || "U")}
+				</AvatarFallback>
+			</Avatar>
+			<div className="min-w-0 flex-1">
+				<Link
+					to="/$owner/$name/commit/$sha"
+					params={{ owner, name, sha: commit.sha }}
+					title={commit.message}
+					className="block truncate text-sm font-medium text-bjork-text after:absolute after:inset-0 hover:text-bjork-accent focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring/50 focus-visible:after:ring-inset"
+				>
+					{commit.message.split("\n")[0]}
+				</Link>
+				<p className="mt-0.5 truncate text-xs text-bjork-text-soft">
+					<span className="text-bjork-text-medium">{commit.authorName}</span>{" "}
+					committed{" "}
+					<time dateTime={commit.createdAt}>
+						{formatDistanceToNow(new Date(commit.createdAt), {
+							addSuffix: true,
+						})}
+					</time>
+				</p>
+			</div>
+			<code className="shrink-0 rounded-[8px] border border-bjork-border bg-bjork-field-inset px-2 py-1 font-mono text-[11px] text-bjork-text-medium tabular-nums">
+				{commit.sha.substring(0, 7)}
+			</code>
+		</li>
+	);
+}
 
+function dayOf(commit: CommitListItem) {
+	return format(new Date(commit.createdAt), "yyyy-MM-dd");
+}
+
+/**
+ * Commits in a panel. `groupByDay` splits them under "Commits on …" headings
+ * the way a history page reads; otherwise `header` (if any) titles the panel.
+ */
 export function CommitList({
 	owner,
 	name,
 	commits,
+	groupByDay = false,
+	header,
 }: {
 	owner: string;
 	name: string;
 	commits: CommitListItem[];
+	groupByDay?: boolean;
+	header?: ReactNode;
 }) {
+	if (!groupByDay) {
+		return (
+			<Panel>
+				{header && <PanelHeader>{header}</PanelHeader>}
+				<ul className="divide-y divide-bjork-border-muted">
+					{commits.map((commit) => (
+						<CommitRow
+							key={commit.sha}
+							owner={owner}
+							name={name}
+							commit={commit}
+						/>
+					))}
+				</ul>
+			</Panel>
+		);
+	}
+
+	const days: { day: string; commits: CommitListItem[] }[] = [];
+	for (const commit of commits) {
+		const day = dayOf(commit);
+		const last = days.at(-1);
+		if (last?.day === day) last.commits.push(commit);
+		else days.push({ day, commits: [commit] });
+	}
+
 	return (
-		<div className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
-			{commits.map((commit) => (
-				<Link
-					key={commit.sha}
-					to="/$owner/$name/commit/$sha"
-					params={{ owner, name, sha: commit.sha }}
-					className={rowClass}
-				>
-					<code className="col-start-1 row-start-1 shrink-0 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] leading-4 text-muted-foreground">
-						{commit.sha.substring(0, 7)}
-					</code>
-					<p
-						title={commit.message}
-						className="col-start-2 row-start-1 min-w-0 truncate text-sm leading-5 font-medium text-foreground"
-					>
-						{commit.message.split("\n")[0]}
-					</p>
-					<p className="col-start-2 row-start-2 min-w-0 text-xs leading-5 break-words text-muted-foreground md:col-start-3 md:row-start-1 md:text-right md:whitespace-nowrap">
-						{commit.authorName} &middot;{" "}
-						{formatDistanceToNow(new Date(commit.createdAt), {
-							addSuffix: true,
-						})}
-					</p>
-				</Link>
+		<ol className="space-y-6">
+			{days.map(({ day, commits: dayCommits }) => (
+				<li key={day}>
+					<h2 className="mb-3 flex items-center gap-2 text-[13px] font-medium text-bjork-text-muted">
+						<GitCommitHorizontal
+							aria-hidden="true"
+							className="size-4 text-bjork-text-soft"
+						/>
+						Commits on{" "}
+						{format(new Date(dayCommits[0].createdAt), "MMM d, yyyy")}
+					</h2>
+					<Panel>
+						<ul className="divide-y divide-bjork-border-muted">
+							{dayCommits.map((commit) => (
+								<CommitRow
+									key={commit.sha}
+									owner={owner}
+									name={name}
+									commit={commit}
+								/>
+							))}
+						</ul>
+					</Panel>
+				</li>
 			))}
-		</div>
+		</ol>
 	);
 }
