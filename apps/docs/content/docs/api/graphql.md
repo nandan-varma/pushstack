@@ -34,9 +34,19 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo list` (text, `--json`, `--visibility`) | Works |
 | `gh repo create` | Works (GraphQL `createRepository`) |
 | `gh repo clone` | Works (git at `https://HOST/OWNER/REPO.git`) |
-| `gh repo edit`, `gh repo delete` | Not yet: gh uses REST `PATCH`/`DELETE /repos/{owner}/{repo}` |
+| `gh repo edit` (`--description`, `--default-branch`, `--visibility` with `--accept-visibility-change-consequences`) | Works (REST `PATCH /repos/{owner}/{repo}`); `--homepage`, `--template` and archiving are `422`, other toggles are ignored |
+| `gh repo rename` | Works (REST `PATCH`; the git data moves with the name) |
+| `gh repo delete --yes` | Works (REST `DELETE`; owner only) |
+| `gh search repos` | Works (REST `/search/repositories`): text, `--owner`, `--visibility`, `--archived`; other filters are searched as text |
+| `gh search issues`, `gh search prs` | Works (REST `/search/issues`): text, `--repo`, `--owner`, `--state`, `--label`, `--author`, `--assignee`, `--mentions`; other filters (dates, counts, …) are searched as text |
+| `gh browse` (repository, file, `FILE:LINE`, issue/PR number, commit, `--branch`, `--settings`) | Works: GitHub's web URLs; `tree/BRANCH/FILE` redirects to the file's blob page, as on GitHub |
 | `gh issue …`, `gh label …` | Not yet (issues domain) |
 | `gh pr …` | Not yet (pulls domain) |
+
+gh sees PushStack as GitHub Enterprise Server `3.20.0`: `GET /api/v3/meta`
+answers `installed_version`, which gh reads before searching (3.18+ selects
+advanced issue search). Its grouping parentheses and `AND` are accepted;
+`OR` and `NOT` are not supported.
 
 ## Authentication and scopes
 
