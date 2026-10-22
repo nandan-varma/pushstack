@@ -264,6 +264,88 @@ describe("connections", () => {
 	});
 });
 
+describe("width limits", () => {
+	const repoId = async () =>
+		(
+			await graphql(
+				alice,
+				'{ repository(owner: "alice", name: "public-one") { id } }',
+			)
+		).body.data.repository.id as string;
+
+	it("caps nodes(ids:) at 100, as GitHub does", async () => {
+		const id = await repoId();
+		for (const count of [101, 3000]) {
+			const { body } = await graphql(
+				alice,
+				"query($ids: [ID!]!) { nodes(ids: $ids) { id } }",
+				{
+					ids: Array.from({ length: count }, () => id),
+				},
+			);
+			expect(body.data).toBeUndefined();
+			expect(body.errors[0]).toMatchObject({
+				type: "EXCESSIVE_PAGINATION",
+				message: `Requesting ${count} records on the \`nodes\` field exceeds the \`ids\` limit of 100 records.`,
+			});
+		}
+	});
+
+	it("resolves 100 ids in one batch, counting them as nodes", async () => {
+		const id = await repoId();
+		const { body } = await graphql(
+			alice,
+			"query($ids: [ID!]!) { nodes(ids: $ids) { id } rateLimit { nodeCount } }",
+			{ ids: Array.from({ length: 100 }, () => id) },
+		);
+		expect(body.errors).toBeUndefined();
+		expect(body.data.nodes).toHaveLength(100);
+		expect(body.data.rateLimit.nodeCount).toBe(100);
+	});
+
+	it("rejects 1000 aliased repository lookups before running them", async () => {
+		const aliases = Array.from(
+			{ length: 1000 },
+			(_, i) =>
+				`r${i}: repository(owner: "alice", name: "public-one") { isEmpty }`,
+		).join(" ");
+		const { body } = await graphql(alice, `{ ${aliases} }`);
+		expect(body.data).toBeUndefined();
+		expect(body.errors[0].type).toBe("MAX_NODE_LIMIT_EXCEEDED");
+	});
+
+	it("counts lookups toward the node count", async () => {
+		const { body } = await graphql(
+			alice,
+			'{ a: repository(owner: "alice", name: "public-one") { id } b: user(login: "bob") { login } rateLimit { nodeCount } }',
+		);
+		expect(body.data.rateLimit.nodeCount).toBe(2);
+	});
+
+	it("rejects 900 aliased introspection copies", async () => {
+		const aliases = Array.from(
+			{ length: 900 },
+			(_, i) => `s${i}: __schema { types { fields { type { name } } } }`,
+		).join(" ");
+		const { body } = await graphql(alice, `{ ${aliases} }`);
+		expect(body.data).toBeUndefined();
+		expect(body.errors[0].type).toBe("MAX_NODE_LIMIT_EXCEEDED");
+	});
+
+	it("charges a mutation 5 points", async () => {
+		const before = await graphql(alice, "{ rateLimit { used } }");
+		await graphql(
+			alice,
+			'mutation { createRepository(input: {name: "costly", visibility: PUBLIC}) { repository { name } } }',
+		);
+		const after = await graphql(alice, "{ rateLimit { used } }");
+		// The second rateLimit query itself costs 1.
+		expect(
+			after.body.data.rateLimit.used - before.body.data.rateLimit.used,
+		).toBe(6);
+	});
+});
+
 describe("errors", () => {
 	it("reports validation errors without data", async () => {
 		const { status, body } = await graphql(alice, "{ viewer { nope } }");
@@ -301,6 +383,8 @@ describe("createRepository", () => {
 			`mutation { createRepository(input: {name: "nope", visibility: PUBLIC}) { repository { name } } }`,
 		);
 		expect(body.errors[0].type).toBe("INSUFFICIENT_SCOPES");
+		// A read-only token has no classic scopes to list.
+		expect(body.errors[0].message).toMatch(/granted the: \[\] scopes\.$/);
 	});
 
 	it("refuses an existing name", async () => {

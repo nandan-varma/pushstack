@@ -27,6 +27,7 @@ import {
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { tokenAllows } from "#/lib/token-scopes";
+import { oauthScopesHeader } from "../../api/auth";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import { starCounts } from "../../api/repos";
 import { getBranches } from "../../git-read";
@@ -174,9 +175,15 @@ export async function readableRepositoryNode(
 
 function requireRepoScope(ctx: GraphQLContext) {
 	if (!tokenAllows(ctx.caller.scopes, "repo:write")) {
+		// The token's classic scopes, as X-OAuth-Scopes reports them.
+		const granted = (oauthScopesHeader(ctx.caller.scopes) ?? "")
+			.split(", ")
+			.filter(Boolean)
+			.map((scope) => `'${scope}'`)
+			.join(", ");
 		throw new GitHubGraphQLError(
 			"INSUFFICIENT_SCOPES",
-			"Your token has not been granted the required scopes to execute this query. The 'createRepository' field requires one of the following scopes: ['repo'], but your token has only been granted the: [''] scopes.",
+			`Your token has not been granted the required scopes to execute this query. The 'createRepository' field requires one of the following scopes: ['repo'], but your token has only been granted the: [${granted}] scopes.`,
 		);
 	}
 }
@@ -345,17 +352,45 @@ async function userRepositories(
 	});
 }
 
+/**
+ * Repositories by id for `node(s)`: one query per request batch, readable
+ * ones only (repo-access.ts's SQL read rule), with the caller's role.
+ */
 const loadRepositoryNode: NodeLoader = async (key, ctx) => {
 	if (!/^\d{1,10}$/.test(key)) return null;
-	const [row] = await db
-		.select({ repo: repositories, owner: publicUserColumns })
-		.from(repositories)
-		.innerJoin(user, eq(repositories.ownerId, user.id))
-		.where(eq(repositories.id, Number(key)));
-	if (!row) return null;
-	const repo = { ...row.repo, owner: row.owner };
-	const access = await getAccessForRepository(repo, ctx.caller.userId);
-	return access.canRead ? repositoryNode(repo, access.role) : null;
+	const viewer = ctx.caller.userId;
+	const node = await ctx
+		.loader<number, RepositoryNode>("repository-node", async (ids) => {
+			const rows = await db
+				.select({
+					repo: repositories,
+					owner: publicUserColumns,
+					collaboratorRole: sql<
+						"read" | "write" | "admin" | null
+					>`(select ${repositoryCollaborators.role} from ${repositoryCollaborators} where ${repositoryCollaborators.repoId} = ${repositories.id} and ${repositoryCollaborators.userId} = ${viewer})`,
+				})
+				.from(repositories)
+				.innerJoin(user, eq(repositories.ownerId, user.id))
+				.where(
+					and(
+						inArray(repositories.id, ids),
+						readableRepositoriesCondition(viewer),
+					),
+				);
+			return new Map(
+				rows.map(({ repo, owner, collaboratorRole }) => [
+					repo.id,
+					repositoryNode(
+						{ ...repo, owner },
+						repo.ownerId === viewer
+							? "owner"
+							: (collaboratorRole ?? "anonymous"),
+					),
+				]),
+			);
+		})
+		.load(Number(key));
+	return node ?? null;
 };
 
 const loadRefNode: NodeLoader = async (key, ctx) => {

@@ -2,7 +2,7 @@
  * Core domain: `viewer`, `node(s)`, `rateLimit` and the `User` type's own
  * fields. Other domains extend `User` (repository adds `repositories`).
  */
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
@@ -91,12 +91,18 @@ export async function loadUserByLogin(
 		.load(login);
 }
 
-const loadUserNode: NodeLoader = async (key) => {
+/** Users by apiId for `node(s)`: one query per request batch. */
+const loadUserNode: NodeLoader = async (key, ctx) => {
 	if (!/^\d{1,10}$/.test(key)) return null;
-	const [row] = await db
-		.select(userColumns)
-		.from(user)
-		.where(eq(user.apiId, Number(key)));
+	const row = await ctx
+		.loader<number, UserRow>("user-by-api-id", async (ids) => {
+			const rows = await db
+				.select(userColumns)
+				.from(user)
+				.where(inArray(user.apiId, ids));
+			return new Map(rows.map((row) => [row.apiId, row]));
+		})
+		.load(Number(key));
 	return row ? userNode(row) : null;
 };
 
