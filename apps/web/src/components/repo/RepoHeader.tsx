@@ -1,9 +1,11 @@
+import { SettingsIcon } from "@animateicons/react/lucide";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { CloneModal } from "@/components/CloneModal";
+import { useIconAnimation } from "@/components/animated-icon";
 import { StarButton } from "@/components/repo/StarButton";
 import { useToast } from "@/components/toast-provider";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VisibilityBadge } from "@/components/ui/visibility-badge";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { authSessionQueryOptions, queryKeys } from "@/lib/query-options";
@@ -11,17 +13,14 @@ import { toggleStar } from "@/server/repositories";
 
 export function RepoHeaderSkeleton() {
 	return (
-		<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-			<div className="space-y-2">
-				<div className="flex items-center gap-2">
-					<div className="h-4 w-40 animate-pulse rounded bg-muted" />
-					<div className="h-5 w-14 animate-pulse rounded-full bg-muted" />
-				</div>
-				<div className="h-3.5 w-56 animate-pulse rounded bg-muted" />
+		<div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+			<div className="flex items-center gap-2">
+				<Skeleton className="h-6 w-48" />
+				<Skeleton className="h-5 w-14 rounded-full" />
 			</div>
-			<div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-				<div className="h-10 w-24 animate-pulse rounded-[13px] bg-muted" />
-				<div className="h-10 w-28 animate-pulse rounded-[13px] bg-muted" />
+			<div className="flex items-center gap-2">
+				<Skeleton className="h-10 w-28 rounded-[13px]" />
+				<Skeleton className="size-10 rounded-[13px]" />
 			</div>
 		</div>
 	);
@@ -72,31 +71,29 @@ export function RepoHeader({
 	});
 
 	return (
-		<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-			<div className="min-w-0 flex-1">
-				<div className="flex flex-wrap items-center gap-2 text-lg tracking-tight sm:text-xl">
-					<Link
-						to="/$owner"
-						params={{ owner: owner }}
-						className="font-medium text-muted-foreground hover:text-foreground"
-					>
-						{owner}
-					</Link>
-					<span className="text-muted-foreground">/</span>
-					<span className="break-words font-semibold text-foreground">
-						{name}
-					</span>
-					<VisibilityBadge visibility={repo.visibility} />
-				</div>
-				{repo.description && (
-					<p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-						{repo.description}
-					</p>
-				)}
-			</div>
+		<div className="mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+			<h1 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xl tracking-[-0.02em]">
+				<Link
+					to="/$owner"
+					params={{ owner: owner }}
+					className="font-medium text-bjork-text-muted hover:text-bjork-text"
+				>
+					{owner}
+				</Link>
+				<span aria-hidden="true" className="text-bjork-text-faint">
+					/
+				</span>
+				<Link
+					to="/$owner/$name"
+					params={{ owner, name }}
+					className="font-semibold break-words text-bjork-text"
+				>
+					{name}
+				</Link>
+				<VisibilityBadge visibility={repo.visibility} />
+			</h1>
 
-			<div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-				<CloneModal owner={owner} repoName={name} />
+			<div className="flex items-center gap-2">
 				<StarButton
 					starCount={repo.starCount}
 					isStarred={repo.isStarred}
@@ -108,12 +105,24 @@ export function RepoHeader({
 							: toast("Sign in to star this repository", "info")
 					}
 				/>
-				{isOwner && (
-					<Link to="/$owner/$name/settings" params={{ owner, name }}>
-						<Button variant="outline">Settings</Button>
-					</Link>
-				)}
+				{isOwner && <SettingsLink owner={owner} name={name} />}
 			</div>
 		</div>
+	);
+}
+
+function SettingsLink({ owner, name }: { owner: string; name: string }) {
+	const { ref, triggerProps } = useIconAnimation<HTMLAnchorElement>();
+	return (
+		<Link
+			to="/$owner/$name/settings"
+			params={{ owner, name }}
+			aria-label="Repository settings"
+			title="Repository settings"
+			className={buttonVariants({ variant: "outline", size: "icon" })}
+			{...triggerProps}
+		>
+			<SettingsIcon ref={ref} size={16} aria-hidden="true" />
+		</Link>
 	);
 }

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { BookOpen } from "lucide-react";
+import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { FilePreview } from "@/components/repo/FilePreview";
-import { FileIcon } from "@/components/repo/tree/FileIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { repositoryFileQueryOptions } from "@/lib/query-options";
 
@@ -55,15 +56,14 @@ export function ReadmeCard({
 	// resolves, this collapses immediately to nothing if there isn't one.
 	if (filesLoading) {
 		return (
-			<div className="island-shell overflow-hidden rounded-[18px]">
-				<div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-4">
-					<div className="h-4 w-4 animate-pulse rounded bg-muted" />
-					<div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
-				</div>
-				<div className="p-5 sm:p-8">
+			<Panel aria-busy="true">
+				<PanelHeader>
+					<Skeleton className="h-3.5 w-24" />
+				</PanelHeader>
+				<PanelBody className="sm:px-8 sm:py-7">
 					<Skeleton className="h-40" />
-				</div>
-			</div>
+				</PanelBody>
+			</Panel>
 		);
 	}
 
@@ -71,15 +71,20 @@ export function ReadmeCard({
 		return null;
 	}
 
+	const fileName = readmeFile.path.split("/").pop();
+
 	return (
-		<div className="island-shell overflow-hidden rounded-[18px]">
-			<div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-4">
-				<FileIcon />
-				<span className="text-sm font-medium text-foreground">
-					{readmeFile.path}
-				</span>
-			</div>
-			<div className="p-5 sm:p-8">
+		<Panel aria-label={fileName}>
+			<PanelHeader>
+				<h2 className="flex items-center gap-2 text-sm font-semibold text-bjork-text-strong">
+					<BookOpen
+						aria-hidden="true"
+						className="size-4 text-bjork-text-soft"
+					/>
+					{fileName}
+				</h2>
+			</PanelHeader>
+			<PanelBody className="sm:px-8 sm:py-7">
 				{readmeContent ? (
 					<FilePreview
 						file={readmeContent}
@@ -92,7 +97,7 @@ export function ReadmeCard({
 				) : (
 					isLoading && <Skeleton className="h-40" />
 				)}
-			</div>
-		</div>
+			</PanelBody>
+		</Panel>
 	);
 }

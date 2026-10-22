@@ -1,8 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { GitFork } from "lucide-react";
+import { CornerLeftUp, GitFork } from "lucide-react";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { Panel, PanelHeader } from "@/components/layout/panel";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { FileIcon, FolderIcon } from "./FileIcon";
 
 interface FileEntry {
@@ -18,6 +22,18 @@ interface LastCommitInfo {
 	createdAt: string;
 }
 
+/**
+ * Each row is one 44px target: the name link stretches over the whole row,
+ * and the last-commit link sits above it so it stays separately clickable.
+ */
+const rowClassName =
+	"relative grid min-h-11 grid-cols-[1rem_minmax(0,1fr)] items-center gap-3 px-5 py-2.5 transition-[background-color] duration-150 hover:bg-bjork-surface-hover";
+/** Name, last-commit subject and age once the last-commit column is on. */
+const withCommitColumns =
+	"md:grid-cols-[1rem_minmax(0,16rem)_minmax(0,1fr)_7.5rem]";
+const nameLinkClassName =
+	"truncate text-sm text-bjork-text after:absolute after:inset-0 hover:text-bjork-accent focus-visible:outline-none focus-visible:after:rounded-[inherit] focus-visible:after:ring-2 focus-visible:after:ring-ring/50 focus-visible:after:ring-inset";
+
 export function FileTable({
 	files,
 	owner,
@@ -28,6 +44,7 @@ export function FileTable({
 	showLastCommit = false,
 	lastCommits,
 	lastCommitsLoading,
+	header,
 }: {
 	files: FileEntry[];
 	owner: string;
@@ -38,45 +55,10 @@ export function FileTable({
 	showLastCommit?: boolean;
 	lastCommits?: Record<string, LastCommitInfo>;
 	lastCommitsLoading?: boolean;
+	/** Content of the panel's header row, usually the latest commit. */
+	header?: ReactNode;
 }) {
-	if (isLoading) {
-		const rowWidths = ["45%", "60%", "38%", "70%", "50%", "42%", "65%", "35%"];
-		return (
-			<div className="island-shell overflow-hidden rounded-[18px]">
-				<table className="w-full table-fixed">
-					<tbody>
-						{rowWidths.map((width, i) => (
-							<tr
-								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows, never reordered
-								key={i}
-								className="border-b border-border last:border-0"
-							>
-								<td className="w-10 py-3 pl-4 pr-2 align-middle">
-									<div className="h-4 w-4 animate-pulse rounded bg-muted" />
-								</td>
-								<td className="py-3 pr-4 align-middle">
-									<div
-										className="h-3.5 animate-pulse rounded bg-muted"
-										style={{ width }}
-									/>
-								</td>
-								{showLastCommit && (
-									<td className="hidden py-3 pr-4 align-middle md:table-cell">
-										<div className="ml-auto flex items-center justify-end gap-2">
-											<div className="h-3 w-40 animate-pulse rounded bg-muted" />
-											<div className="h-3 w-14 shrink-0 animate-pulse rounded bg-muted" />
-										</div>
-									</td>
-								)}
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-		);
-	}
-
-	if (files.length === 0) {
+	if (!isLoading && files.length === 0) {
 		return (
 			<EmptyState
 				message="This repository is empty."
@@ -94,126 +76,123 @@ export function FileTable({
 	}
 
 	return (
-		<div className="island-shell overflow-hidden rounded-[18px]">
-			<table className="w-full table-fixed">
-				<tbody>
+		<Panel aria-label="Files">
+			{header && <PanelHeader>{header}</PanelHeader>}
+			{isLoading ? (
+				<ul aria-busy="true" className="divide-y divide-bjork-border-muted">
+					{["45%", "60%", "38%", "70%", "50%", "42%"].map((width) => (
+						<li key={width} className={rowClassName}>
+							<Skeleton className="size-4" />
+							<Skeleton className="h-3.5" style={{ width }} />
+						</li>
+					))}
+				</ul>
+			) : (
+				<ul className="divide-y divide-bjork-border-muted">
 					{activePath && (
-						<tr className="border-b border-border transition-colors hover:bg-accent/60">
-							<td className="w-10 py-3 pl-4" />
-							<td className="py-3 pr-4">
-								<Link
-									to="/$owner/$name/tree/$branch/$"
-									params={{
-										owner,
-										name,
-										branch,
-										_splat: activePath.includes("/")
-											? activePath.slice(0, activePath.lastIndexOf("/"))
-											: "",
-									}}
-									className="text-sm font-medium text-foreground hover:underline"
-								>
-									..
-								</Link>
-							</td>
-							{showLastCommit && <td className="hidden md:table-cell" />}
-						</tr>
+						<li className={rowClassName}>
+							<CornerLeftUp
+								aria-hidden="true"
+								className="size-4 text-bjork-text-soft"
+							/>
+							<Link
+								to="/$owner/$name/tree/$branch/$"
+								params={{
+									owner,
+									name,
+									branch,
+									_splat: activePath.includes("/")
+										? activePath.slice(0, activePath.lastIndexOf("/"))
+										: "",
+								}}
+								aria-label="Parent directory"
+								className={nameLinkClassName}
+							>
+								..
+							</Link>
+						</li>
 					)}
 					{files.map((file) => {
 						const displayName = activePath
 							? file.path.slice(activePath.length + 1)
 							: file.path;
+						const lastCommit = lastCommits?.[file.path];
 						return (
-							<tr
+							<li
 								key={`${file.type}:${file.path}`}
-								className="border-b border-border transition-colors hover:bg-accent/60 last:border-0"
-							>
-								<td className="w-10 py-3 pl-4 pr-2 align-middle">
-									{file.type === "commit" ? (
-										<GitFork
-											className="size-4 text-primary"
-											aria-hidden="true"
-										/>
-									) : file.type === "tree" ? (
-										<FolderIcon />
-									) : (
-										<FileIcon />
-									)}
-								</td>
-								<td className="py-3 pr-4 align-middle">
-									{file.type === "tree" ? (
-										<Link
-											to="/$owner/$name/tree/$branch/$"
-											params={{
-												owner,
-												name,
-												branch,
-												_splat: file.path,
-											}}
-											title={displayName}
-											className="block max-w-full truncate text-sm font-medium text-foreground hover:underline"
-										>
-											{displayName}
-										</Link>
-									) : (
-										<Link
-											to="/$owner/$name/blob/$branch/$"
-											params={{
-												owner,
-												name,
-												branch,
-												_splat: file.path,
-											}}
-											title={displayName}
-											className="block max-w-full truncate text-sm font-medium text-foreground hover:underline"
-										>
-											{displayName}
-											{file.type === "commit" && (
-												<span className="ml-2 font-mono text-xs text-muted-foreground">
-													@ {file.oid.slice(0, 7)}{" "}
-													<span className="font-sans">(submodule)</span>
-												</span>
-											)}
-										</Link>
-									)}
-								</td>
-								{showLastCommit && (
-									<td className="hidden py-3 pr-4 text-right align-middle md:table-cell">
-										{lastCommitsLoading ? (
-											<div className="ml-auto h-3 w-32 animate-pulse rounded bg-muted" />
-										) : (
-											(() => {
-												const lastCommit = lastCommits?.[file.path];
-												if (!lastCommit) return null;
-												return (
-													<div className="flex items-center justify-end gap-2">
-														<Link
-															to="/$owner/$name/commit/$sha"
-															params={{ owner, name, sha: lastCommit.sha }}
-															title={lastCommit.message}
-															className="max-w-[220px] truncate text-xs text-muted-foreground hover:text-primary hover:underline"
-														>
-															{lastCommit.message.split("\n")[0]}
-														</Link>
-														<span className="shrink-0 text-xs text-muted-foreground">
-															{formatDistanceToNow(
-																new Date(lastCommit.createdAt),
-																{
-																	addSuffix: true,
-																},
-															)}
-														</span>
-													</div>
-												);
-											})()
-										)}
-									</td>
+								className={cn(
+									rowClassName,
+									showLastCommit && withCommitColumns,
 								)}
-							</tr>
+							>
+								{file.type === "commit" ? (
+									<GitFork
+										className="size-4 text-bjork-accent"
+										aria-hidden="true"
+									/>
+								) : file.type === "tree" ? (
+									<FolderIcon />
+								) : (
+									<FileIcon />
+								)}
+								<Link
+									to={
+										file.type === "tree"
+											? "/$owner/$name/tree/$branch/$"
+											: "/$owner/$name/blob/$branch/$"
+									}
+									params={{ owner, name, branch, _splat: file.path }}
+									title={displayName}
+									className={nameLinkClassName}
+								>
+									{displayName}
+									{file.type === "commit" && (
+										<span className="ml-2 font-mono text-xs text-bjork-text-soft">
+											@ {file.oid.slice(0, 7)}
+										</span>
+									)}
+								</Link>
+								{showLastCommit && (
+									<>
+										<div className="relative z-10 hidden min-w-0 md:block">
+											{lastCommitsLoading ? (
+												<Skeleton className="h-3 w-48" />
+											) : (
+												lastCommit && (
+													<Link
+														to="/$owner/$name/commit/$sha"
+														params={{ owner, name, sha: lastCommit.sha }}
+														title={lastCommit.message}
+														className="block truncate text-[13px] text-bjork-text-soft hover:text-bjork-text"
+													>
+														{lastCommit.message.split("\n")[0]}
+													</Link>
+												)
+											)}
+										</div>
+										<div className="hidden text-right text-xs text-bjork-text-soft tabular-nums md:block">
+											{lastCommitsLoading ? (
+												<Skeleton className="ml-auto h-3 w-16" />
+											) : (
+												lastCommit && (
+													<time dateTime={lastCommit.createdAt}>
+														{formatDistanceToNow(
+															new Date(lastCommit.createdAt),
+															{
+																addSuffix: true,
+															},
+														)}
+													</time>
+												)
+											)}
+										</div>
+									</>
+								)}
+							</li>
 						);
 					})}
-				</tbody>
-			</table>
-		</div>
+				</ul>
+			)}
+		</Panel>
 	);
 }

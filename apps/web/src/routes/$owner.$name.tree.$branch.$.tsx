@@ -5,16 +5,21 @@ import {
 	Link,
 	useNavigate,
 } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
+import { CloneModal } from "@/components/CloneModal";
 import { ErrorPanel } from "@/components/ErrorPanel";
+import { SplitLayout, Toolbar } from "@/components/layout/page";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { findReadmeFile, ReadmeCard } from "@/components/repo/ReadmeCard";
 import { RefSelect } from "@/components/repo/RefSelect";
+import { RepoAbout } from "@/components/repo/RepoAbout";
 import { RepoEmptyState } from "@/components/repo/RepoEmptyState";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { perfMark, perfTime } from "@/lib/perf-log";
 import {
 	repositoryByNameQueryOptions,
@@ -228,34 +233,15 @@ function TreeBrowserPage() {
 	// Only a branch can take a new commit; a tag or commit view is read-only.
 	const isBranchView = !!branches?.some((b) => b.name === activeBranch);
 
-	return (
-		<div className="space-y-4">
-			{isCommitView && (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning-border bg-warning-soft px-4 py-2.5 text-sm text-warning">
-					<span>
-						You&apos;re browsing the repository at commit{" "}
-						<code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/10">
-							{activeBranch.slice(0, 7)}
-						</code>
-						, not the tip of a branch.
-					</span>
-					<Link
-						to="/$owner/$name/tree/$branch/$"
-						params={{ owner, name, branch: repo.defaultBranch, _splat: "" }}
-						className="shrink-0 font-medium underline"
-					>
-						View latest ({repo.defaultBranch})
-					</Link>
-				</div>
-			)}
-
-			<div className="flex flex-wrap items-center justify-between gap-3">
+	const toolbar = (
+		<Toolbar>
+			<div className="flex min-w-0 flex-wrap items-center gap-3">
 				{isCommitView ? (
-					<code className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">
+					<code className="rounded-[10px] border border-bjork-border bg-bjork-field-inset px-2.5 py-1.5 font-mono text-xs text-bjork-text-medium">
 						{activeBranch.slice(0, 7)}
 					</code>
 				) : isLoading ? (
-					<div className="h-8 w-32 animate-pulse rounded-md border border-border bg-muted" />
+					<Skeleton className="h-9 w-32" />
 				) : (
 					<RefSelect
 						repoId={repo.id}
@@ -263,44 +249,53 @@ function TreeBrowserPage() {
 						onChange={handleBranchChange}
 					/>
 				)}
-
-				<div className="flex items-center gap-2">
-					{isLoading ? (
-						<div className="h-3 w-12 animate-pulse rounded bg-muted" />
-					) : (
-						<span className="text-xs text-muted-foreground">
-							{files?.length || 0} files
-						</span>
-					)}
-					{isBranchView && (
-						<Link
-							to="/$owner/$name/upload"
-							params={{ owner, name }}
-							search={{ branch: activeBranch }}
-						>
-							<Button variant="outline">
-								+ Add file
-							</Button>
-						</Link>
-					)}
-				</div>
+				<PathBreadcrumb
+					owner={owner}
+					name={name}
+					branch={activeBranch}
+					filePath={activePath}
+				/>
 			</div>
+			<div className="flex items-center gap-2">
+				{/* At the root, cloning lives in the About sidebar. */}
+				{activePath && <CloneModal owner={owner} repoName={name} />}
+				{isBranchView && (
+					<Link
+						to="/$owner/$name/upload"
+						params={{ owner, name }}
+						search={{ branch: activeBranch }}
+					>
+						<Button variant="outline">
+							<Plus aria-hidden="true" />
+							Add file
+						</Button>
+					</Link>
+				)}
+			</div>
+		</Toolbar>
+	);
 
-			<PathBreadcrumb
-				owner={owner}
-				name={name}
-				branch={activeBranch}
-				filePath={activePath}
-			/>
-
-			<CommitSummaryBar
-				owner={owner}
-				name={name}
-				branch={activeBranch}
-				commit={latestCommit}
-				isLoading={isLoading}
-			/>
-
+	const content = (
+		<>
+			{isCommitView && (
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-warning-border bg-warning-soft px-4 py-2.5 text-sm text-warning">
+					<span>
+						Browsing the repository at commit{" "}
+						<code className="font-mono text-xs">
+							{activeBranch.slice(0, 7)}
+						</code>
+						, not the tip of a branch.
+					</span>
+					<Link
+						to="/$owner/$name/tree/$branch/$"
+						params={{ owner, name, branch: repo.defaultBranch, _splat: "" }}
+						className="shrink-0 font-medium underline underline-offset-2"
+					>
+						View latest ({repo.defaultBranch})
+					</Link>
+				</div>
+			)}
+			{toolbar}
 			<FileTable
 				files={sortedFiles}
 				owner={owner}
@@ -311,8 +306,16 @@ function TreeBrowserPage() {
 				showLastCommit={showLastCommitColumn}
 				lastCommits={lastCommits}
 				lastCommitsLoading={lastCommitsLoading}
+				header={
+					<CommitSummaryBar
+						owner={owner}
+						name={name}
+						branch={activeBranch}
+						commit={latestCommit}
+						isLoading={isLoading}
+					/>
+				}
 			/>
-
 			<ReadmeCard
 				owner={owner}
 				name={name}
@@ -321,6 +324,24 @@ function TreeBrowserPage() {
 				readmeFile={readmeFile}
 				filesLoading={isLoading}
 			/>
-		</div>
+		</>
+	);
+
+	// Like GitHub, only the repository root carries the About sidebar; a
+	// subdirectory gives the file list the full width.
+	if (activePath) return <div className="space-y-4">{content}</div>;
+
+	return (
+		<SplitLayout
+			main={content}
+			aside={
+				<RepoAbout
+					owner={owner}
+					name={name}
+					repo={repo}
+					branchCount={branches?.length}
+				/>
+			}
+		/>
 	);
 }

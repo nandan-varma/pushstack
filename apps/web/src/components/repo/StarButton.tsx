@@ -1,4 +1,5 @@
-import { Star } from "lucide-react";
+import { StarIcon } from "@animateicons/react/lucide";
+import { useIconAnimation } from "@/components/animated-icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +24,9 @@ export function StarButton({
 	signedIn: boolean;
 	onToggle: () => void;
 }) {
+	const { ref, triggerProps } = useIconAnimation<HTMLButtonElement>();
 	return (
-		<div className="inline-flex h-10 items-stretch overflow-hidden rounded-[13px] border border-border bg-card text-sm shadow-[var(--bjork-shadow-soft)] transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
+		<div className="inline-flex h-10 items-stretch overflow-hidden rounded-[13px] border border-bjork-border bg-bjork-surface text-sm shadow-[var(--bjork-shadow-soft)] transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
 			<Button
 				type="button"
 				variant="ghost"
@@ -33,21 +35,30 @@ export function StarButton({
 				aria-label={isStarred ? "Unstar repository" : "Star repository"}
 				title={signedIn ? undefined : "Sign in to star this repository"}
 				disabled={isPending}
-				onClick={onToggle}
-				className="h-full gap-2 rounded-none border-0 px-3 text-foreground hover:bg-muted focus-visible:ring-0"
+				onClick={() => {
+					// Starring is the moment worth marking; unstarring stays quiet.
+					if (!isStarred) ref.current?.startAnimation();
+					onToggle();
+				}}
+				{...triggerProps}
+				className="h-full gap-2 rounded-none border-0 px-3 text-bjork-text hover:bg-bjork-surface-hover focus-visible:ring-0"
 			>
-				<Star
+				<StarIcon
+					ref={ref}
+					size={16}
 					aria-hidden="true"
 					className={cn(
-						"size-4 transition-colors",
-						isStarred ? "fill-primary text-primary" : "text-muted-foreground",
+						"transition-colors",
+						isStarred
+							? "text-warning [&_svg]:fill-current"
+							: "text-bjork-text-soft",
 					)}
 				/>
 				<span>{isStarred ? "Starred" : "Star"}</span>
 			</Button>
 			<span
 				aria-hidden="true"
-				className="flex items-center border-l border-border bg-muted/50 px-3 text-[0.8rem] font-medium tabular-nums text-muted-foreground"
+				className="flex items-center border-l border-bjork-border bg-bjork-panel px-3 text-[13px] font-medium tabular-nums text-bjork-text-medium"
 			>
 				{starCount}
 			</span>
