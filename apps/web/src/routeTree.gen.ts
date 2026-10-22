@@ -23,6 +23,7 @@ import { Route as OwnerNameRouteImport } from './routes/$owner.$name'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AuthPassword_resetRouteImport } from './routes/_auth/password_reset'
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
+import { Route as ApiGraphqlRouteImport } from './routes/api/graphql'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
@@ -116,6 +117,11 @@ const AuthSignupRoute = AuthSignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => AuthRoute,
+} as any)
+const ApiGraphqlRoute = ApiGraphqlRouteImport.update({
+  id: '/api/graphql',
+  path: '/api/graphql',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -254,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/password_reset': typeof AuthPassword_resetRoute
   '/signup': typeof AuthSignupRoute
+  '/api/graphql': typeof ApiGraphqlRoute
   '/api/health': typeof ApiHealthRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
@@ -290,6 +297,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/password_reset': typeof AuthPassword_resetRoute
   '/signup': typeof AuthSignupRoute
+  '/api/graphql': typeof ApiGraphqlRoute
   '/api/health': typeof ApiHealthRoute
   '/$owner': typeof OwnerIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
@@ -330,6 +338,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/password_reset': typeof AuthPassword_resetRoute
   '/_auth/signup': typeof AuthSignupRoute
+  '/api/graphql': typeof ApiGraphqlRoute
   '/api/health': typeof ApiHealthRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
@@ -371,6 +380,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/password_reset'
     | '/signup'
+    | '/api/graphql'
     | '/api/health'
     | '/$owner/'
     | '/repositories/'
@@ -407,6 +417,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/password_reset'
     | '/signup'
+    | '/api/graphql'
     | '/api/health'
     | '/$owner'
     | '/repositories'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/password_reset'
     | '/_auth/signup'
+    | '/api/graphql'
     | '/api/health'
     | '/$owner/'
     | '/repositories/'
@@ -484,6 +496,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   OwnerNameRoute: typeof OwnerNameRouteWithChildren
+  ApiGraphqlRoute: typeof ApiGraphqlRoute
   ApiHealthRoute: typeof ApiHealthRoute
   OwnerIndexRoute: typeof OwnerIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -590,6 +603,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/signup'
       preLoaderRoute: typeof AuthSignupRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/api/graphql': {
+      id: '/api/graphql'
+      path: '/api/graphql'
+      fullPath: '/api/graphql'
+      preLoaderRoute: typeof ApiGraphqlRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/health': {
       id: '/api/health'
@@ -868,6 +888,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   OwnerNameRoute: OwnerNameRouteWithChildren,
+  ApiGraphqlRoute: ApiGraphqlRoute,
   ApiHealthRoute: ApiHealthRoute,
   OwnerIndexRoute: OwnerIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

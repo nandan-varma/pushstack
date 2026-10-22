@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Real-gh smoke test: the stock GitHub CLI against the app's real route
- * handlers (`/api/v3/$`, `/api/graphql`, `/api/git/$`) over pglite and an
+ * handlers (`/api/v3/$`, `/api/graphql`, git smart HTTP at the clone URL) over pglite and an
  * in-memory S3, exactly as a GitHub Enterprise Server host. gh runs with a
  * scratch GH_CONFIG_DIR and HOME: it never sees the user's own config.
  *
@@ -189,7 +189,18 @@ beforeAll(async () => {
 		"/api/graphql": handlersOf(
 			(await import("../../src/routes/api/graphql")).Route,
 		),
-		"/api/git/": handlersOf((await import("../../src/routes/api/git.$")).Route),
+	};
+	// Git smart HTTP at the clone URL, keyed by the path's last segment.
+	const gitRoutes: Record<string, ReturnType<typeof handlersOf>> = {
+		refs: handlersOf(
+			(await import("../../src/routes/$owner.$name.info.refs")).Route,
+		),
+		"git-upload-pack": handlersOf(
+			(await import("../../src/routes/$owner.$name.git-upload-pack")).Route,
+		),
+		"git-receive-pack": handlersOf(
+			(await import("../../src/routes/$owner.$name.git-receive-pack")).Route,
+		),
 	};
 
 	const serve = async (req: IncomingMessage, res: ServerResponse) => {
@@ -213,7 +224,9 @@ beforeAll(async () => {
 		const prefix = (Object.keys(routes) as (keyof typeof routes)[]).find(
 			(p) => pathname === p || pathname.startsWith(p),
 		);
-		const handler = prefix && routes[prefix][req.method ?? "GET"];
+		const handler = prefix
+			? routes[prefix][req.method ?? "GET"]
+			: gitRoutes[pathname.split("/").pop() ?? ""]?.[req.method ?? "GET"];
 		const response = handler
 			? await handler({ request })
 			: new Response("Not Found", { status: 404 });
@@ -457,18 +470,20 @@ describe.skipIf(!enabled)(
 			expect(JSON.parse(visible.stdout)).toEqual([{ name: "hello" }]);
 		});
 
-		it("clone resolves the repository and hands git its GitHub clone URL", async () => {
-			// Git at https://HOST/{owner}/{repo}.git is #206; until it lands the
-			// clone itself fails after gh's RepositoryInfo lookup succeeded.
-			const out = await ghFails(
+		it("clones over git smart HTTP at the GitHub clone URL", async () => {
+			await ghAs(
 				"repo-clone",
 				"repo",
 				"clone",
 				`${host}/octo/hello`,
 				path.join(work, "clone"),
 			);
-			expect(out).toContain(`https://${host}/octo/hello.git`);
-			expect(out).not.toMatch(/GraphQL|Could not resolve to/);
+			const { stdout } = await run(
+				"git",
+				["-C", path.join(work, "clone"), "remote", "get-url", "origin"],
+				{ env: ghEnv },
+			);
+			expect(stdout.trim()).toBe(`https://${host}/octo/hello.git`);
 		});
 
 		it("creates a repository", async () => {

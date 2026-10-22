@@ -33,7 +33,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo view` (text and `--json`) | Works |
 | `gh repo list` (text, `--json`, `--visibility`) | Works |
 | `gh repo create` | Works (GraphQL `createRepository`) |
-| `gh repo clone` | Resolves the repository; git at `https://HOST/OWNER/REPO.git` is #206 |
+| `gh repo clone` | Works (git at `https://HOST/OWNER/REPO.git`) |
 | `gh repo edit`, `gh repo delete` | Not yet: gh uses REST `PATCH`/`DELETE /repos/{owner}/{repo}` |
 | `gh issue …`, `gh label …` | Not yet (issues domain) |
 | `gh pr …` | Not yet (pulls domain) |
