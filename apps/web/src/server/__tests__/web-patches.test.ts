@@ -20,9 +20,8 @@ const { createUsers, signIn, signOut } = await import("../../test/app-harness");
 const users = await createUsers("alice", "bob");
 const { call, mintToken, post } = await import("../../test/api-client");
 const { createBranch, createCommit } = await import("../git-write");
-const { serveCommitPatch, serveComparePatch, servePullPatch } = await import(
-	"../web-patches"
-);
+const { serveCommitPatch, serveComparePatch, servePullPatch, webPatchCaps } =
+	await import("../web-patches");
 const { getComparison } = await import("../files");
 const { findRepositoryByName } = await import("../repository-lookup");
 const { parseCompareSpec, splitPatchSuffix } = await import(
@@ -141,19 +140,71 @@ describe("plain-text URLs", () => {
 		]);
 	});
 
+	it("is 404 for two-dot comparisons, which aren't served yet", async () => {
+		const response = await serveComparePatch(
+			"alice",
+			"proj",
+			"main..feature",
+			"diff",
+		);
+		expect(response.status).toBe(404);
+	});
+
+	it("refuses bodies over the cap with 406", async () => {
+		const saved = webPatchCaps.maxBytes;
+		try {
+			const full = await (
+				await serveComparePatch("alice", "proj", "main...feature", "patch")
+			).text();
+			webPatchCaps.maxBytes = full.length - 1;
+			for (const response of [
+				await serveComparePatch("alice", "proj", "main...feature", "patch"),
+				await servePullPatch("alice", "proj", "1", "patch"),
+			]) {
+				expect(response.status).toBe(406);
+				expect(response.headers.get("content-type")).toBe(
+					"text/plain; charset=utf-8",
+				);
+			}
+			webPatchCaps.maxBytes = full.length;
+			const exact = await serveComparePatch(
+				"alice",
+				"proj",
+				"main...feature",
+				"patch",
+			);
+			expect(exact.status).toBe(200);
+			expect(exact.headers.get("content-length")).toBe(String(full.length));
+			expect(await exact.text()).toBe(full);
+		} finally {
+			webPatchCaps.maxBytes = saved;
+		}
+	});
+
 	it("hides private repositories from readers without access", async () => {
+		await createBranch("alice", "secret", "topic", "main");
+		await createCommit("alice", "secret", {
+			branch: "topic",
+			message: "Secret change",
+			files: [{ path: "s.txt", content: "s\n" }],
+			author: { name: "Robot", email: "robot@example.org" },
+		});
+		await call(
+			"/repos/alice/secret/pulls",
+			post(alice, { title: "Secret", head: "topic", base: "main" }),
+		);
+		const all = () =>
+			Promise.all([
+				serveCommitPatch("alice", "secret", "main", "diff"),
+				serveComparePatch("alice", "secret", "main...topic", "diff"),
+				servePullPatch("alice", "secret", "1", "patch"),
+			]).then((responses) => responses.map((r) => r.status));
 		signOut();
-		expect(
-			(await serveCommitPatch("alice", "secret", "main", "diff")).status,
-		).toBe(404);
+		expect(await all()).toEqual([404, 404, 404]);
 		signIn(users.bob);
-		expect(
-			(await serveCommitPatch("alice", "secret", "main", "patch")).status,
-		).toBe(404);
+		expect(await all()).toEqual([404, 404, 404]);
 		signIn(users.alice);
-		expect(
-			(await serveCommitPatch("alice", "secret", "main", "patch")).status,
-		).toBe(200);
+		expect(await all()).toEqual([200, 200, 200]);
 		signOut();
 	});
 });

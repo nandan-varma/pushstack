@@ -5,7 +5,12 @@
  * and the three-dot diff against the merge base.
  */
 import { MAX_HISTORY_WALK } from "#/lib/limits";
-import { getBranchDiff, getCommit, getCommitsBetween } from "./git-read";
+import {
+	getBranchDiff,
+	getCommit,
+	getCommitInfosBetween,
+	getCommitsBetween,
+} from "./git-read";
 
 /** GitHub lists at most 250 commits in a comparison. */
 export const COMPARE_COMMITS_LIMIT = 250;
@@ -23,7 +28,7 @@ export async function compareRevisions(
 		getCommit(ownerKey, repoName, head),
 	]);
 	const [ahead, behind, diff] = await Promise.all([
-		getCommitsBetween(
+		getCommitInfosBetween(
 			ownerKey,
 			repoName,
 			baseInfo.oid,
@@ -56,6 +61,7 @@ export async function compareRevisions(
 		status,
 		aheadBy,
 		behindBy,
+		/** Full commits, oldest first (the page sends `summarizeCommit`s). */
 		commits: ahead.commits.slice(0, COMPARE_COMMITS_LIMIT),
 		diff,
 	};

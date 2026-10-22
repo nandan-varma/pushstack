@@ -55,7 +55,7 @@ export const Route = createFileRoute("/$owner/$name/compare/$")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		const spec = parseCompareSpec(params._splat ?? "", params.owner);
-		if (repo && spec) {
+		if (repo && spec?.separator === "...") {
 			queryClient
 				.prefetchQuery(
 					repositoryComparisonQueryOptions({
@@ -79,7 +79,9 @@ function ComparePage() {
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
-	const spec = parseCompareSpec(_splat ?? "", owner);
+	// Two-dot (direct) comparisons aren't served yet; see web-patches.ts.
+	const parsed = parseCompareSpec(_splat ?? "", owner);
+	const spec = parsed?.separator === "..." ? parsed : null;
 	const base = spec?.base ?? repo?.defaultBranch ?? "";
 	const head = spec?.head ?? "";
 

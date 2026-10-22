@@ -242,7 +242,15 @@ export const getComparison = createServerFn({ method: "GET" })
 		readGit(
 			`getComparison ${data.base}...${data.head}`,
 			data.repoId,
-			(owner, name) => compareRevisions(owner, name, data.base, data.head),
+			async (owner, name) => {
+				const { commits, ...comparison } = await compareRevisions(
+					owner,
+					name,
+					data.base,
+					data.head,
+				);
+				return { ...comparison, commits: commits.map(summarizeCommit) };
+			},
 		),
 	);
 
