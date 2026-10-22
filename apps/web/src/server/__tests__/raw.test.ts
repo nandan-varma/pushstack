@@ -90,6 +90,15 @@ describe("serveRawFile", () => {
 		expect(await response.text()).toMatch(/clone/i);
 	});
 
+	it("404s a repository path that isn't under /raw/", async () => {
+		const response = await serveRawFile(
+			new Request(
+				`http://test.local/${users.owner.username}/${publicName}/blob/main/hello.txt`,
+			),
+		);
+		expect(response.status).toBe(404);
+	});
+
 	it("404s a path that isn't in the tree", async () => {
 		const response = await raw(
 			`${users.owner.username}/${publicName}/main/nope.txt`,
