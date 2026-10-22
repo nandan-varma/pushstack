@@ -21,6 +21,12 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   hex-encoding the whole index on every lookup. Sizing a 635-blob tree against
   a ~10k-object pack drops from ~2.5 s to ~20 ms. An entry past 2 GiB now
   answers `null` on its own rather than making the whole index unreadable.
+### Performance
+
+- `createCachedStore`'s `getRange` slices a whole object already in the cache
+  (a prefetched pack) instead of asking the backend. A cold pull-request read
+  (`GET /pulls/:n`) that had prefetched its pack still made ~150 range reads
+  for diff size gates; it now makes none.
 
 ### Fixed
 
