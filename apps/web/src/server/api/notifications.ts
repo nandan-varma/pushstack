@@ -34,24 +34,25 @@ import {
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
-import { starCounts } from "./repos";
+import { openIssueCounts, starCounts } from "./repos";
 import { repository, type Shape } from "./serializers";
 
 const threadUrl = (id: number) => apiUrl(`/notifications/threads/${id}`);
 
-/** Serialize a page of notifications: repositories, stars and latest comments in three queries. */
+/** Serialize a page of notifications: repositories, stars, open issue counts and latest comments in four queries. */
 async function serializeNotifications(
 	items: NotificationItem[],
 ): Promise<Shape<"notificationThread">[]> {
 	if (items.length === 0) return [];
 	const repoIds = [...new Set(items.map((item) => item.repoId))];
 	const issueIds = [...new Set(items.map((item) => item.issueId))];
-	const [repos, stars, latest] = await Promise.all([
+	const [repos, stars, openIssues, latest] = await Promise.all([
 		db.query.repositories.findMany({
 			where: { id: { in: repoIds } },
 			with: { owner: publicUserFields },
 		}),
 		starCounts(repoIds),
+		openIssueCounts(repoIds),
 		db
 			.select({ issueId: comments.issueId, id: max(comments.id) })
 			.from(comments)
@@ -70,7 +71,10 @@ async function serializeNotifications(
 		const commentId = latestComment.get(item.issueId);
 		return {
 			id: String(item.id),
-			repository: repository(repo, { stars: stars.get(repo.id) ?? 0 }),
+			repository: repository(repo, {
+				stars: stars.get(repo.id) ?? 0,
+				openIssues: openIssues.get(repo.id) ?? 0,
+			}),
 			subject: {
 				title: item.subject.title,
 				url: subjectUrl,

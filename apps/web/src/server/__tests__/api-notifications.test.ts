@@ -69,7 +69,7 @@ describe("listing", () => {
 			reason: "mention",
 			unread: true,
 			last_read_at: null,
-			repository: { full_name: "alice/other" },
+			repository: { full_name: "alice/other", open_issues_count: 1 },
 			subject: {
 				type: "Issue",
 				url: `${BASE}/repos/alice/other/issues/1`,
@@ -79,6 +79,7 @@ describe("listing", () => {
 			subscription_url: `${BASE}/notifications/threads/${ping.id}/subscription`,
 		});
 		expect(second.reason).toBe("author");
+		expect(second.repository.open_issues_count).toBe(2);
 		expect(second.subject.latest_comment_url).toMatch(
 			/\/repos\/alice\/proj\/issues\/comments\/\d+$/,
 		);

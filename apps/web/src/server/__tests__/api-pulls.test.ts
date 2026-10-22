@@ -113,6 +113,8 @@ describe("creating pull requests", () => {
 		});
 		expect(body.head.sha).toMatch(/^[0-9a-f]{40}$/);
 		expect(body.head.repo.full_name).toBe("alice/proj");
+		expect(body.head.repo.open_issues_count).toBe(1);
+		expect(body.base.repo.open_issues_count).toBe(1);
 		expect(body._links.self.href).toBe(`${BASE}/repos/alice/proj/pulls/1`);
 		const asIssue = await call("/repos/alice/proj/issues/1");
 		expect(asIssue.body.pull_request.url).toBe(
