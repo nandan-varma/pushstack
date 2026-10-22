@@ -13,7 +13,7 @@ Vercel's Node runtime without native Git or persistent disk.
 | --- | --- | --- |
 | `apps/web` | `@pushstack/web` | Product UI, REST API and Git smart HTTP |
 | `apps/docs` | `@pushstack/docs` | Product, API, architecture and library documentation |
-| `apps/cli` | `@pushstack/cli` | `pushstack` / `pst`: auth, repositories and API requests |
+| `apps/cli` | `pstk` | `pushstack` / `pst`: auth, repositories and API requests |
 | `packages/git-fs-s3` | `git-fs-s3` | Git filesystem, operations and smart HTTP over object storage |
 | `packages/git-edge` | `git-edge` | Object-level three-way merging and repository caches |
 | `packages/tsconfig` | `@pushstack/tsconfig` | Shared TypeScript configuration |
@@ -66,7 +66,7 @@ Target a workspace for development or a specific test:
 pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts
 pnpm --filter git-fs-s3 test
 pnpm --filter @pushstack/web test:e2e
-pnpm --filter @pushstack/cli build
+pnpm --filter pstk build
 node apps/cli/dist/bin.js --help
 ```
 

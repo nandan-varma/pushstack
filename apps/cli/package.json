@@ -1,5 +1,5 @@
 {
-	"name": "@pushstack/cli",
+	"name": "pstk",
 	"version": "0.0.1",
 	"description": "The PushStack command line: a gh-compatible CLI over the /api/v3 REST API.",
 	"license": "AGPL-3.0-or-later",

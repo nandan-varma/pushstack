@@ -3,12 +3,12 @@ title: CLI
 description: Authenticate, manage repositories, issues and pull requests, and call the REST API with pst or pushstack.
 ---
 
-The `@pushstack/cli` workspace provides the `pst` and `pushstack` commands over
+The `pstk` workspace provides the `pst` and `pushstack` commands over
 the [REST API](/docs/api). It requires Node.js 22 or newer and is published to
-npm as `@pushstack/cli`:
+npm as `pstk`:
 
 ```sh
-npm install -g @pushstack/cli
+npm install -g pstk
 pst --help
 ```
 
@@ -18,7 +18,7 @@ the monorepo:
 
 ```sh
 pnpm install
-pnpm --filter @pushstack/cli build
+pnpm --filter pstk build
 node apps/cli/dist/bin.js --help
 node apps/cli/dist/bin.js auth login --with-token < token.txt
 node apps/cli/dist/bin.js auth status
