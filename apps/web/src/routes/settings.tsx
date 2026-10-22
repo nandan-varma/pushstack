@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { PageHeader } from "@/components/PageHeader";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { AccessTokensSection } from "@/components/settings/AccessTokensSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { EmailSection } from "@/components/settings/EmailSection";
@@ -29,16 +29,38 @@ function SettingsPage() {
 	if (!user || !session) return null;
 
 	return (
-		<div className="page-wrap py-6 sm:py-8">
-			<div className="max-w-3xl space-y-4">
-				<PageHeader title="Account settings" />
-				<ProfileSection name={user.name} email={user.email} />
-				<EmailSection currentEmail={user.email} />
-				<PasswordSection />
-				<SessionsSection currentToken={session.session.token} />
-				<AccessTokensSection />
-				<DeveloperSection />
-			</div>
+		<div className="page-wrap py-6">
+			<SettingsLayout
+				title="Settings"
+				sections={[
+					{
+						id: "profile",
+						label: "Profile",
+						content: <ProfileSection name={user.name} email={user.email} />,
+					},
+					{
+						id: "email",
+						label: "Email",
+						content: <EmailSection currentEmail={user.email} />,
+					},
+					{ id: "password", label: "Password", content: <PasswordSection /> },
+					{
+						id: "sessions",
+						label: "Sessions",
+						content: <SessionsSection currentToken={session.session.token} />,
+					},
+					{
+						id: "tokens",
+						label: "Access tokens",
+						content: <AccessTokensSection />,
+					},
+					{
+						id: "developer",
+						label: "Developer",
+						content: <DeveloperSection />,
+					},
+				]}
+			/>
 		</div>
 	);
 }

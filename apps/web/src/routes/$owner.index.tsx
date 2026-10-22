@@ -107,7 +107,8 @@ function UserProfilePage() {
 									<span className="font-medium text-bjork-text tabular-nums">
 										{repositories.length}
 									</span>{" "}
-									{isSelf ? "repositories" : "public repositories"}
+									{isSelf ? "" : "public "}
+									{repositories.length === 1 ? "repository" : "repositories"}
 								</dd>
 							</div>
 						</dl>

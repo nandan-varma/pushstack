@@ -1,5 +1,6 @@
-import { Card } from "@/components/ui/card";
+import { Panel } from "@/components/layout/panel";
 
+/** One settings group: a titled panel, tinted for destructive settings. */
 export function Section({
 	id,
 	title,
@@ -14,21 +15,18 @@ export function Section({
 	children: React.ReactNode;
 }) {
 	return (
-		<Card
-			id={id}
-			className={`rounded-[20px] p-4 sm:p-6 ${danger ? "border-destructive/30" : ""}`}
-		>
+		<Panel id={id} tone={danger ? "danger" : "surface"} className="p-5">
 			<h2
-				className={`mb-2 text-base font-semibold tracking-tight ${danger ? "text-destructive" : "text-foreground"}`}
+				className={`text-[15px] font-semibold tracking-[-0.01em] ${danger ? "text-destructive" : "text-bjork-text"}`}
 			>
 				{title}
 			</h2>
 			{description && (
-				<p className="mb-5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+				<p className="mt-1 max-w-2xl text-sm leading-6 text-bjork-text-muted">
 					{description}
 				</p>
 			)}
-			{children}
-		</Card>
+			<div className="mt-4">{children}</div>
+		</Panel>
 	);
 }

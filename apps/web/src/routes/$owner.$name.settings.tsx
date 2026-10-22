@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { Lock } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
+import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { NotFoundCard } from "@/components/NotFoundCard";
-import { PageHeader } from "@/components/PageHeader";
 import { CollaboratorsSection } from "@/components/settings/CollaboratorsSection";
 import { DangerSection } from "@/components/settings/DangerSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
 import { PerformanceSection } from "@/components/settings/PerformanceSection";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	authSessionQueryOptions,
 	repoCollaboratorsQueryOptions,
@@ -48,10 +50,11 @@ function RepoSettingsPage() {
 	// read a not-yet-loaded session as "not the owner" and flash the wrong UI.
 	if (repoLoading || sessionLoading) {
 		return (
-			<div className="page-wrap py-6 sm:py-8">
-				<div className="max-w-2xl space-y-4">
+			<div className="grid gap-6 lg:grid-cols-[200px_minmax(0,760px)]">
+				<Skeleton className="h-8 w-48" />
+				<div className="space-y-4">
 					{[1, 2, 3].map((i) => (
-						<div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
+						<Skeleton key={i} className="h-40 rounded-[18px]" />
 					))}
 				</div>
 			</div>
@@ -60,14 +63,12 @@ function RepoSettingsPage() {
 
 	if (!repo) {
 		return (
-			<div className="page-wrap py-12">
-				<div className="mx-auto max-w-md">
-					<NotFoundCard
-						title="Repository not found"
-						backTo="/repositories"
-						backLabel="Back"
-					/>
-				</div>
+			<div className="mx-auto max-w-md py-6">
+				<NotFoundCard
+					title="Repository not found"
+					backTo="/repositories"
+					backLabel="Back"
+				/>
 			</div>
 		);
 	}
@@ -75,47 +76,49 @@ function RepoSettingsPage() {
 	const isOwner = repo.ownerId === session?.user?.id;
 	if (!isOwner) {
 		return (
-			<div className="page-wrap py-6 sm:py-8 text-center">
-				<p className="text-muted-foreground">
-					You don't have permission to view settings.
-				</p>
-			</div>
+			<EmptyState
+				icon={<Lock />}
+				title="Settings are for the owner"
+				message="Only this repository's owner can change its settings."
+			/>
 		);
 	}
 
 	return (
-		<div className="page-wrap py-6 sm:py-8">
-			<div className="max-w-2xl space-y-4">
-				<PageHeader
-					title="Settings"
-					actions={
-						<>
-							<Link
-								to="/$owner/$name"
-								params={{ owner, name }}
-								className="flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-							>
-								<ArrowLeft className="size-4" />
-								{owner}/{name}
-							</Link>
-							<Link
-								to="/$owner/$name/setup"
-								params={{ owner, name }}
-								className="flex min-h-10 items-center text-sm font-medium text-primary hover:underline"
-							>
-								View setup guide
-							</Link>
-						</>
-					}
-				/>
-
-				<GeneralSection repo={repo} owner={owner} name={name} />
-				<PerformanceSection repo={repo} owner={owner} name={name} />
-				<CollaboratorsSection repoId={repo.id} />
-				<div className="border-t border-border pt-4">
-					<DangerSection repo={repo} owner={owner} name={name} />
-				</div>
-			</div>
-		</div>
+		<SettingsLayout
+			title="Repository settings"
+			actions={
+				<Link
+					to="/$owner/$name/setup"
+					params={{ owner, name }}
+					className="text-sm text-bjork-text-muted hover:text-bjork-accent"
+				>
+					Setup guide →
+				</Link>
+			}
+			sections={[
+				{
+					id: "general",
+					label: "General",
+					content: <GeneralSection repo={repo} owner={owner} name={name} />,
+				},
+				{
+					id: "performance",
+					label: "Performance",
+					content: <PerformanceSection repo={repo} owner={owner} name={name} />,
+				},
+				{
+					id: "collaborators",
+					label: "Collaborators",
+					content: <CollaboratorsSection repoId={repo.id} />,
+				},
+				{
+					id: "danger",
+					label: "Danger zone",
+					danger: true,
+					content: <DangerSection repo={repo} owner={owner} name={name} />,
+				},
+			]}
+		/>
 	);
 }
