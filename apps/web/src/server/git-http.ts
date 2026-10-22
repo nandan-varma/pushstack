@@ -89,8 +89,9 @@ export function parseGitUrl(url: string): GitRoute | null {
 }
 
 /**
- * The request body, capped while streaming: a chunked request declares no
- * Content-Length, and upload-pack is reachable anonymously on public
+ * The decoded request body, with encoded and decoded bytes capped while
+ * streaming. Native Git gzip-compresses larger upload-pack requests.
+ * A chunked request declares no Content-Length, and upload-pack is reachable anonymously on public
  * repositories, so an unbounded read would let anyone exhaust memory.
  */
 export async function readGitRequestBody(
@@ -102,11 +103,35 @@ export async function readGitRequestBody(
 	const declared = Number(request.headers.get("content-length") ?? Number.NaN);
 	if (declared > maxBytes) throw tooLarge();
 	if (!request.body) return new Uint8Array();
-	const reader = request.body.getReader();
+	const encoding = request.headers
+		.get("content-encoding")
+		?.trim()
+		.toLowerCase();
+	if (encoding && encoding !== "identity" && encoding !== "gzip") {
+		throw new GitError("Unsupported git request content encoding", 415);
+	}
+	let encodedBytes = 0;
+	const bounded = request.body.pipeThrough(
+		new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>({
+			transform(chunk, controller) {
+				encodedBytes += chunk.byteLength;
+				if (encodedBytes > maxBytes) throw tooLarge();
+				controller.enqueue(chunk);
+			},
+		}),
+	);
+	const decoded =
+		encoding === "gzip"
+			? bounded.pipeThrough(new DecompressionStream("gzip"))
+			: bounded;
+	const reader = decoded.getReader();
 	const chunks: Uint8Array[] = [];
 	let total = 0;
 	for (;;) {
-		const { done, value } = await reader.read();
+		const { done, value } = await reader.read().catch((error: unknown) => {
+			if (error instanceof GitError || encoding !== "gzip") throw error;
+			throw new GitInvalidRequestError("Invalid gzip git request body");
+		});
 		if (done) break;
 		total += value.byteLength;
 		if (total > maxBytes) {
