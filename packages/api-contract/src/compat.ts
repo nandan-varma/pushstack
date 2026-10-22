@@ -11,6 +11,8 @@ import { type OperationId, routes } from "./routes";
 export const compatibilityNotes: Record<OperationId, string> = {
 	"meta/root":
 		"URL templates for the served endpoints only; gh reads `X-OAuth-Scopes` here",
+	"meta/get":
+		"GitHub Enterprise Server's shape: `installed_version` (`3.20.0`, which gh reads to pick GHES features) and `verifiable_password_authentication: false`; no IP ranges",
 	"rate-limit/get":
 		"`resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search`",
 	"users/get-authenticated": "",
@@ -22,6 +24,10 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"public profile by integer id; `404` for an unknown or malformed id",
 	"users/get-by-username": "",
 	"repos/list-for-user": "public repositories only; `sort`, `direction`",
+	"search/repos":
+		"repositories you can read; text in `name`/`description` (`in:`), `repo:`, `user:`/`org:`/`owner:`, `is:public`/`is:private`, `archived:`, `fork:`; `sort` `stars` or `updated` (others: best match); every `score` is `1`; other qualifiers are searched as text",
+	"search/issues-and-pull-requests":
+		"issues and pull requests in repositories you can read; the issue query syntax (`is:`, `state:`, `type:`, `label:`, `author:`, `assignee:`, `mentions:`, `no:`) plus `repo:`, `user:`/`org:`/`owner:`, `is:public`/`is:private`; text in title and body; `sort` `created`, `updated` or `comments` (others: newest first); every `score` is `1`; `advanced_search` accepted (no `AND`/`OR`/parentheses); other qualifiers are searched as text",
 	"activity/list-notifications-for-authenticated-user":
 		"any token; unread unless `all=true`; `participating`, `since`, `before`, `per_page` (up to 50); threads in repositories you can no longer read are hidden",
 	"activity/mark-notifications-as-read":
@@ -36,6 +42,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"activity/mark-thread-as-done":
 		"`204`: the thread leaves the inbox until new activity",
 	"repos/get": "",
+	"repos/update":
+		"owner only (`403` otherwise); `name` (moves storage), `description`, `private`/`visibility`, `default_branch` (`422` if it doesn't exist); `internal` visibility, a `homepage`, `archived: true` and `is_template: true` are `422`; other fields ignored",
+	"repos/delete": "owner only (`403` otherwise); `204`",
 	"activity/list-repo-notifications-for-authenticated-user":
 		"as `GET /notifications`, for one repository",
 	"activity/mark-repo-notifications-as-read":

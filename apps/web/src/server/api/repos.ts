@@ -10,6 +10,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import {
 	issues,
@@ -23,17 +24,26 @@ import {
 	GITIGNORE_TEMPLATE_NAMES,
 	LICENSE_TEMPLATE_KEYS,
 } from "#/lib/templates";
+import { safeBranchNameSchema } from "../git-ref-name";
 import { perfStep } from "../perf-log";
 import {
 	createRepositoryForUser,
 	RepositoryExistsError,
 } from "../repository-create";
 import { type PublicUser, publicUserColumns } from "../repository-lookup";
+import {
+	deleteRepositoryAndStorage,
+	RepositoryNameTakenError,
+	type RepositorySettings,
+	updateRepositorySettings,
+} from "../repository-settings";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
 	apiUrl,
+	forbiddenError,
 	json,
 	linkHeader,
+	noContent,
 	notFoundError,
 	type PageParams,
 	pageParams,
@@ -83,6 +93,101 @@ export async function getRepository(ctx: ApiContext) {
 			role: ctx.caller ? access.role : undefined,
 		}),
 	);
+}
+
+const ADMIN_REQUIRED = "Must have admin rights to Repository.";
+
+/** The repository named by the route, for an owner's `repo:write` token. */
+async function ownedRepository(ctx: ApiContext) {
+	requireScope(ctx, "repo:write");
+	const { repo, access } = await readableRepository(ctx);
+	// Settings and delete are the owner's, as in the web UI.
+	if (access.role !== "owner") throw forbiddenError(ADMIN_REQUIRED);
+	return repo;
+}
+
+const invalidField = (field: string) =>
+	validationFailedError("Validation Failed", [
+		{ resource: "Repository", field, code: "invalid" },
+	]);
+
+/**
+ * `PATCH /repos/{owner}/{repo}`: `name` (a rename moves storage under the
+ * repository lock), `description`, `private`/`visibility`, `default_branch`.
+ * A value needing a feature PushStack lacks (`internal` visibility, a
+ * `homepage`, `archived` or `is_template` true) is `422`; any other field is
+ * ignored, as GitHub ignores unknown ones.
+ */
+export async function updateRepository(ctx: ApiContext) {
+	const repo = await ownedRepository(ctx);
+	const data = await requestBody(ctx, "repos/update", "Repository");
+	if (data.visibility === "internal") throw invalidField("visibility");
+	if (data.homepage) throw invalidField("homepage");
+	if (data.archived) throw invalidField("archived");
+	if (data.is_template) throw invalidField("is_template");
+	if (
+		data.default_branch !== undefined &&
+		!safeBranchNameSchema.safeParse(data.default_branch).success
+	) {
+		throw invalidField("default_branch");
+	}
+
+	const visibility =
+		data.visibility ??
+		(data.private === undefined
+			? undefined
+			: data.private
+				? "private"
+				: "public");
+	const changes: RepositorySettings = {
+		...(data.name !== undefined && { name: data.name }),
+		...(data.description !== undefined && {
+			description: data.description || null,
+		}),
+		...(visibility && { visibility }),
+		...(data.default_branch !== undefined && {
+			defaultBranch: data.default_branch,
+		}),
+	};
+
+	let updated: Awaited<ReturnType<typeof updateRepositorySettings>>;
+	try {
+		updated = await updateRepositorySettings(repo, changes);
+	} catch (error) {
+		if (error instanceof RepositoryNameTakenError) {
+			throw validationFailedError("Validation Failed", [
+				{
+					resource: "Repository",
+					code: "custom",
+					field: "name",
+					message: "name already exists on this account",
+				},
+			]);
+		}
+		// The branch to make default doesn't exist.
+		if (isNotFoundError(error)) throw invalidField("default_branch");
+		throw error;
+	}
+	const [stargazers, openIssues] = await Promise.all([
+		starCounts([repo.id]),
+		openIssueCounts([repo.id]),
+	]);
+	return json(
+		repository(
+			{ ...updated, owner: repo.owner },
+			{
+				stars: stargazers.get(repo.id) ?? 0,
+				openIssues: openIssues.get(repo.id) ?? 0,
+				role: "owner",
+			},
+		),
+	);
+}
+
+/** `DELETE /repos/{owner}/{repo}`: the owner's; `204`. */
+export async function deleteRepository(ctx: ApiContext) {
+	await deleteRepositoryAndStorage(await ownedRepository(ctx));
+	return noContent();
 }
 
 interface Order {

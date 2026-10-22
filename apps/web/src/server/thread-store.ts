@@ -75,7 +75,8 @@ export interface Thread extends Issue {
 }
 
 export interface ThreadFilter {
-	repoId: number;
+	/** One repository, or a subquery of repository ids (cross-repository search). */
+	repoId: number | SQL;
 	/** One kind, or both (the REST issues list). */
 	kind?: ThreadKind;
 	/** The issue state; omitted for all. */
@@ -172,7 +173,7 @@ function assigneeCondition(assignee: string): SQL {
 }
 
 /** Issue ids carrying every one of `names` (GitHub's `label:a label:b` is an AND). */
-function issuesWithLabels(repoId: number, names: string[]) {
+function issuesWithLabels(repoId: number | SQL, names: string[]) {
 	const wanted = [...new Set(names.map((name) => name.toLowerCase()))];
 	return db
 		.select({ issueId: threadLabels.issueId })
@@ -180,7 +181,9 @@ function issuesWithLabels(repoId: number, names: string[]) {
 		.innerJoin(labels, eq(labels.id, threadLabels.labelId))
 		.where(
 			and(
-				eq(labels.repoId, repoId),
+				typeof repoId === "number"
+					? eq(labels.repoId, repoId)
+					: inArray(labels.repoId, repoId),
 				inArray(sql`lower(${labels.name})`, wanted),
 			),
 		)
@@ -189,7 +192,11 @@ function issuesWithLabels(repoId: number, names: string[]) {
 }
 
 function whereOf(filter: ThreadFilter): SQL | undefined {
-	const conditions: (SQL | undefined)[] = [eq(issues.repoId, filter.repoId)];
+	const conditions: (SQL | undefined)[] = [
+		typeof filter.repoId === "number"
+			? eq(issues.repoId, filter.repoId)
+			: inArray(issues.repoId, filter.repoId),
+	];
 	const add = (condition: SQL | undefined) => conditions.push(condition);
 	if (filter.kind) {
 		add(eq(issues.isPullRequest, filter.kind === "pull_request"));

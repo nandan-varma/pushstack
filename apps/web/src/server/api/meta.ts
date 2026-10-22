@@ -21,3 +21,20 @@ export async function getRoot(_ctx: ApiContext) {
 		),
 	});
 }
+
+/**
+ * The GitHub Enterprise Server version PushStack answers as. gh reads it from
+ * `GET /meta` to pick features for a GHES host (3.18+: advanced issue search).
+ */
+const INSTALLED_VERSION = "3.20.0";
+
+/**
+ * `GET /meta`, as GitHub Enterprise Server answers it: no IP ranges (there
+ * are none to publish) and no password authentication (tokens only).
+ */
+export async function getMeta(_ctx: ApiContext) {
+	return json({
+		verifiable_password_authentication: false,
+		installed_version: INSTALLED_VERSION,
+	});
+}

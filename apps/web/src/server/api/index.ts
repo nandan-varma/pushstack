@@ -52,7 +52,7 @@ import {
 	setIssueLabels,
 	updateLabel,
 } from "./labels";
-import { getRoot } from "./meta";
+import { getMeta, getRoot } from "./meta";
 import {
 	deleteThreadSubscription,
 	getThread,
@@ -92,11 +92,14 @@ import {
 } from "./reactions";
 import {
 	createAuthenticatedUserRepository,
+	deleteRepository,
 	getRepository,
 	listAuthenticatedUserRepositories,
 	listUserRepositories,
+	updateRepository,
 } from "./repos";
 import { matchApiRoute } from "./routing";
+import { searchIssuesAndPullRequests, searchRepositories } from "./search";
 import { listTags } from "./tags";
 import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser, getUserById } from "./users";
@@ -105,6 +108,7 @@ type Handler = (ctx: ApiContext) => Promise<Response>;
 
 const HANDLERS = {
 	"meta/root": getRoot,
+	"meta/get": getMeta,
 	"rate-limit/get": getRateLimit,
 	"users/get-authenticated": getAuthenticatedUser,
 	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
@@ -112,6 +116,8 @@ const HANDLERS = {
 	"users/get-by-id": getUserById,
 	"users/get-by-username": getUser,
 	"repos/list-for-user": listUserRepositories,
+	"search/repos": searchRepositories,
+	"search/issues-and-pull-requests": searchIssuesAndPullRequests,
 	"activity/list-notifications-for-authenticated-user":
 		listNotificationsForCaller,
 	"activity/mark-notifications-as-read": markNotificationsRead,
@@ -123,6 +129,8 @@ const HANDLERS = {
 	"activity/mark-thread-as-read": markThreadRead,
 	"activity/mark-thread-as-done": markThreadDone,
 	"repos/get": getRepository,
+	"repos/update": updateRepository,
+	"repos/delete": deleteRepository,
 	"activity/list-repo-notifications-for-authenticated-user":
 		listRepoNotificationsForCaller,
 	"activity/mark-repo-notifications-as-read": markRepoNotificationsRead,

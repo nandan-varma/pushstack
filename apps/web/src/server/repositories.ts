@@ -3,26 +3,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import {
-	issues,
-	repositories,
-	repositoryCollaborators,
-	stars,
-} from "#/db/app-schema";
+import { issues, repositoryCollaborators, stars } from "#/db/app-schema";
 import { MAX_LIST_SKIP, MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
-import { isUniqueViolation } from "./db-errors";
 import { safeBranchNameSchema } from "./git-ref-name";
-import {
-	deleteRepositoryStorage,
-	renameRepositoryStorage,
-	repackRepositoryNow,
-} from "./git-repo";
-import { withRepositoryLock } from "./git-repo-lock";
+import { repackRepositoryNow } from "./git-repo";
 import { ownerKeyOf } from "./git-storage-naming";
-import { setDefaultBranch } from "./git-write";
-import { logError, perfContext, perfStep } from "./perf-log";
+import { perfContext, perfStep } from "./perf-log";
 import {
 	canModerateRepo,
 	canReadRepo,
@@ -35,11 +23,11 @@ import {
 	createRepositoryInputSchema,
 	repoNameSchema,
 } from "./repository-create";
+import { findRepositoryByName, publicUserFields } from "./repository-lookup";
 import {
-	evictRepoByName,
-	findRepositoryByName,
-	publicUserFields,
-} from "./repository-lookup";
+	deleteRepositoryAndStorage,
+	updateRepositorySettings,
+} from "./repository-settings";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 /**
@@ -161,52 +149,8 @@ export const updateRepository = createServerFn({ method: "POST" })
 			currentUser.id,
 			"Only the repository owner can change settings",
 		);
-		const ownerKey = ownerKeyOf(repo);
-		const { id, name, ...settings } = data;
-
-		// HEAD before the row, so the row never names a branch git lacks.
-		if (
-			settings.defaultBranch &&
-			settings.defaultBranch !== repo.defaultBranch
-		) {
-			await setDefaultBranch(ownerKey, repo.name, settings.defaultBranch);
-		}
-
-		const update = () =>
-			db
-				.update(repositories)
-				.set({ ...settings, ...(name && { name }), updatedAt: new Date() })
-				.where(eq(repositories.id, id))
-				.returning()
-				.then(([row]) => row)
-				.catch((error: unknown) => {
-					if (isUniqueViolation(error)) {
-						throw new Error("Repository with this name already exists");
-					}
-					throw error;
-				});
-
-		// A rename moves the storage (keyed by name) and the row in one lock span,
-		// so nothing observes a half-renamed repository.
-		const isRename = !!name && name !== repo.name;
-		const updated = isRename
-			? await withRepositoryLock(ownerKey, repo.name, async () => {
-					await renameRepositoryStorage(ownerKey, repo.name, name);
-					try {
-						return await update();
-					} catch (error) {
-						await renameRepositoryStorage(ownerKey, name, repo.name);
-						throw error;
-					}
-				})
-			: await update();
-
-		evictRepoByName(ownerKey, repo.name, id);
-		if (isRename) evictRepoByName(ownerKey, name, id);
-		// A visibility flip changes who may read the repository, and the access
-		// cache is keyed per (repo, user) — drop every entry for it.
-		if (settings.visibility !== undefined) invalidateRepositoryAccess(id);
-		return updated;
+		const { id: _, ...changes } = data;
+		return updateRepositorySettings(repo, changes);
 	});
 
 export const deleteRepository = createServerFn({ method: "POST" })
@@ -218,23 +162,7 @@ export const deleteRepository = createServerFn({ method: "POST" })
 			currentUser.id,
 			"Only the repository owner can delete it",
 		);
-		const ownerKey = ownerKeyOf(repo);
-
-		// The row first (cascading to issues, PRs, …): once it's gone nothing
-		// resolves this repository, so a failed storage cleanup only leaves
-		// unreachable objects, which the next create under this name clears.
-		await db.delete(repositories).where(eq(repositories.id, data.id));
-		evictRepoByName(ownerKey, repo.name, data.id);
-		invalidateRepositoryAccess(data.id);
-		await withRepositoryLock(ownerKey, repo.name, () =>
-			deleteRepositoryStorage(ownerKey, repo.name),
-		).catch((error: unknown) =>
-			logError(
-				"repositories",
-				`Repository ${repo.id} deleted, but its storage cleanup failed`,
-				error,
-			),
-		);
+		await deleteRepositoryAndStorage(repo);
 	});
 
 export const repackRepository = createServerFn({ method: "POST" })

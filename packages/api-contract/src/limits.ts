@@ -15,6 +15,8 @@ export const MAX_LABELS_PER_THREAD = 100;
 export const MAX_ASSIGNEES = 10;
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
 export const MAX_STORAGE_NAME_LENGTH = 100;
+/** GitHub's cap on a search `q`. */
+export const MAX_SEARCH_QUERY_CHARS = 256;
 
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */
 export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;

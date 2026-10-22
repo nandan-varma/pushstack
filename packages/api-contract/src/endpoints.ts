@@ -27,6 +27,7 @@ import {
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_SEARCH_QUERY_CHARS,
 } from "./limits";
 import {
 	blob,
@@ -123,6 +124,17 @@ const reactionList = {
 };
 const reactionBody = z.object({ content: reactionContent });
 const labelParams = repoParams.extend({ name: z.string().min(1) });
+/** A search's `q` (required: a missing one is the handler's 422) and `order`. */
+const searchQuery = pagination.extend({
+	q: z.string().max(MAX_SEARCH_QUERY_CHARS),
+	order: z.enum(["asc", "desc"]).optional().catch(undefined),
+});
+const searchResults = <T extends z.ZodType>(item: T) =>
+	z.strictObject({
+		total_count: z.number().int().nonnegative(),
+		incomplete_results: z.boolean(),
+		items: z.array(item),
+	});
 const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
 	.optional()
@@ -132,6 +144,13 @@ export const endpoints = defineEndpoints({
 	/** URL templates for the endpoints served, keyed as on GitHub. */
 	"meta/root": {
 		response: z.record(z.string().regex(/_url$/), z.string()),
+	},
+	/** GitHub Enterprise Server's meta: gh reads `installed_version`. */
+	"meta/get": {
+		response: z.strictObject({
+			verifiable_password_authentication: z.boolean(),
+			installed_version: z.string(),
+		}),
 	},
 	"rate-limit/get": {
 		response: rateLimitOverview,
@@ -188,6 +207,36 @@ export const endpoints = defineEndpoints({
 		query: pagination.extend({ sort: repoListSort, direction }),
 		response: z.array(repository),
 	},
+	"search/repos": {
+		query: searchQuery.extend({
+			sort: z
+				.enum(["stars", "forks", "help-wanted-issues", "updated"])
+				.optional(),
+		}),
+		response: searchResults(repository.extend({ score: z.number() })),
+	},
+	"search/issues-and-pull-requests": {
+		query: searchQuery.extend({
+			sort: z
+				.enum([
+					"comments",
+					"reactions",
+					"reactions-+1",
+					"reactions--1",
+					"reactions-smile",
+					"reactions-thinking_face",
+					"reactions-heart",
+					"reactions-tada",
+					"interactions",
+					"created",
+					"updated",
+				])
+				.optional(),
+			/** GitHub's opt-in to advanced issue search; the syntax served is the same. */
+			advanced_search: z.string().optional(),
+		}),
+		response: searchResults(issue.extend({ score: z.number() })),
+	},
 
 	"activity/list-notifications-for-authenticated-user": {
 		query: notificationQuery,
@@ -225,6 +274,26 @@ export const endpoints = defineEndpoints({
 	"repos/get": {
 		params: repoParams,
 		response: repository,
+	},
+	"repos/update": {
+		params: repoParams,
+		/** Fields not listed here are ignored, as GitHub ignores unknown ones. */
+		body: z.object({
+			name: repoName.optional(),
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
+			homepage: z.string().nullish(),
+			private: z.boolean().optional(),
+			visibility: z.enum(["public", "private", "internal"]).optional(),
+			/** A branch name; the server validates it as one. */
+			default_branch: z.string().min(1).optional(),
+			archived: z.boolean().optional(),
+			is_template: z.boolean().optional(),
+		}),
+		response: repository,
+	},
+	"repos/delete": {
+		params: repoParams,
+		response: noContent,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		params: repoParams,

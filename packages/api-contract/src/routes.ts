@@ -21,6 +21,11 @@ export const routes = {
 		path: "/",
 		docs: `${DOCS}/meta/meta#github-api-root`,
 	},
+	"meta/get": {
+		method: "GET",
+		path: "/meta",
+		docs: `${DOCS}/meta/meta#get-github-meta-information`,
+	},
 	"rate-limit/get": {
 		method: "GET",
 		path: "/rate_limit",
@@ -57,6 +62,16 @@ export const routes = {
 		method: "GET",
 		path: "/users/{username}/repos",
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
+	},
+	"search/repos": {
+		method: "GET",
+		path: "/search/repositories",
+		docs: `${DOCS}/search/search#search-repositories`,
+	},
+	"search/issues-and-pull-requests": {
+		method: "GET",
+		path: "/search/issues",
+		docs: `${DOCS}/search/search#search-issues-and-pull-requests`,
 	},
 
 	"activity/list-notifications-for-authenticated-user": {
@@ -108,6 +123,16 @@ export const routes = {
 		method: "GET",
 		path: "/repos/{owner}/{repo}",
 		docs: `${DOCS}/repos/repos#get-a-repository`,
+	},
+	"repos/update": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}",
+		docs: `${DOCS}/repos/repos#update-a-repository`,
+	},
+	"repos/delete": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}",
+		docs: `${DOCS}/repos/repos#delete-a-repository`,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		method: "GET",

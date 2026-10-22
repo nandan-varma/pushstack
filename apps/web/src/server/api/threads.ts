@@ -80,6 +80,24 @@ export async function serializeThreads(
 	);
 }
 
+/**
+ * Issue shapes for threads from several repositories (a search), each with
+ * its repository from `repoOf`; the reaction rollups in one read.
+ */
+export async function serializeThreadsAcross(
+	threads: Thread[],
+	repoOf: (thread: Thread) => RepositoryRowWithOwner,
+): Promise<Shape<"issue">[]> {
+	const rollups = await issueReactionRollups(threads.map((t) => t.id));
+	return threads.map((thread) =>
+		serializeThreadWith(
+			repoOf(thread),
+			thread,
+			rollups.get(thread.id) ?? emptyRollup(),
+		),
+	);
+}
+
 /** One thread's issue shape; `withClosedBy` for single-issue reads. */
 export async function serializeThread(
 	repo: RepositoryRowWithOwner,
