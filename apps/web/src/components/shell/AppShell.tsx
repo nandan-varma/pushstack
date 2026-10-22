@@ -1,10 +1,12 @@
 import { MenuIcon } from "@animateicons/react/lucide";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useRouterState } from "@tanstack/react-router";
 import { GitBranch } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import Footer from "@/components/Footer";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { authSessionQueryOptions } from "@/lib/query-options";
 import { Sidebar } from "./Sidebar";
 
 /** Landing, about and sign-in pages are full-bleed; everything else is the app. */
@@ -102,8 +104,10 @@ function Brand() {
 	);
 }
 
-/** The landing pages' top bar: brand, and the two ways in. */
+/** The landing pages' top bar: brand, and the way in (or back to work). */
 function MarketingBar() {
+	const { data: session } = useQuery(authSessionQueryOptions());
+	const signedIn = Boolean(session?.user);
 	return (
 		<header className="sticky top-0 z-40 border-b border-bjork-border-muted bg-bjork-bg/85 backdrop-blur-xl">
 			<div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-4 sm:px-6">
@@ -122,12 +126,23 @@ function MarketingBar() {
 					>
 						About
 					</Link>
-					<Link to="/dashboard">
-						<Button variant="ghost">Dashboard</Button>
-					</Link>
-					<Link to="/auth/register">
-						<Button>Get started</Button>
-					</Link>
+					{signedIn ? (
+						<Link to="/dashboard" className={buttonVariants()}>
+							Open dashboard
+						</Link>
+					) : (
+						<>
+							<Link
+								to="/auth/login"
+								className={buttonVariants({ variant: "ghost" })}
+							>
+								Sign in
+							</Link>
+							<Link to="/auth/register" className={buttonVariants()}>
+								Get started
+							</Link>
+						</>
+					)}
 				</nav>
 			</div>
 		</header>

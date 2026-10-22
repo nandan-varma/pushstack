@@ -31,7 +31,7 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 
 	if (isLoading) {
 		return (
-			<div className="space-y-2 px-2.5">
+			<div className="space-y-2 border-t border-bjork-border-muted px-2.5 pt-4">
 				<Skeleton className="h-5 w-32" />
 				<Skeleton className="h-9 w-full" />
 				<Skeleton className="h-9 w-full" />
@@ -52,7 +52,7 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 	const isOwner = repo.ownerId === session?.user?.id;
 
 	return (
-		<div className="space-y-3">
+		<div className="space-y-3 border-t border-bjork-border-muted pt-4">
 			<div className="px-2.5">
 				<p className="truncate text-[13px] text-bjork-text-soft">
 					<Link

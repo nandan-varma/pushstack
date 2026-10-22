@@ -177,11 +177,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 				)}
 			</SidebarGroup>
 
-			{owner && name && (
-				<div className="border-t border-bjork-border-muted pt-4">
-					<RepoNav owner={owner} name={name} />
-				</div>
-			)}
+			{owner && name && <RepoNav owner={owner} name={name} />}
 
 			<div className="mt-auto space-y-2 border-t border-bjork-border-muted pt-3">
 				<AccountSlot />
