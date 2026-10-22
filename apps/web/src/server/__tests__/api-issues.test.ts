@@ -1055,6 +1055,31 @@ describe("updating pull requests through issues", () => {
 				)
 				.map((event: { event: string }) => event.event),
 		).toEqual(["closed", "reopened"]);
+		const { db } = await import("../../db");
+		const activity = await db.query.activities.findMany({
+			where: { repoId },
+			orderBy: { id: "asc" },
+		});
+		expect(
+			activity
+				.filter(
+					(event) =>
+						event.metadata &&
+						"number" in event.metadata &&
+						event.metadata.number === pr.number,
+				)
+				.map((event) => ({
+					type: event.type,
+					action:
+						event.metadata && "action" in event.metadata
+							? event.metadata.action
+							: null,
+				})),
+		).toEqual([
+			{ type: "pr", action: "opened" },
+			{ type: "pr", action: "closed" },
+			{ type: "pr", action: "reopened" },
+		]);
 		const { findPullRequestByNumber } = await import("../thread-store");
 		expect(await findPullRequestByNumber(repoId, pr.number)).toMatchObject({
 			status: "open",
