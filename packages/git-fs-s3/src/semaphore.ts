@@ -9,6 +9,14 @@
  * degrades every other tenant. Bounding the *in-flight* count caps resource
  * use at `limit` no matter how wide the input is, while still letting reads
  * overlap up to that limit instead of running strictly sequentially.
+ *
+ * Recursive callers (a tree merge recursing into subtrees) can't bound I/O
+ * with a per-level limit — it multiplies by depth — so share one instance to
+ * cap the *total*. A permit must not be held across work that itself needs
+ * one: with every permit held by callers waiting for another, the pool
+ * deadlocks. Wrap the individual I/O call, not the recursion.
+ *
+ * Edge-compatible: no node: imports, no timers, no polling.
  */
 export interface Semaphore {
 	run<T>(fn: () => Promise<T>): Promise<T>;

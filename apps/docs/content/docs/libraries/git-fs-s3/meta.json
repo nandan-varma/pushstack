@@ -23,6 +23,7 @@
 		"reference/index",
 		"reference/s3",
 		"reference/http",
-		"reference/ops"
+		"reference/ops",
+		"reference/testing"
 	]
 }

@@ -5,6 +5,15 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `createSemaphore(limit)` and its `Semaphore` type are exported from the
+  package root (git-edge now uses this one instead of its own copy).
+- `git-fs-s3/testing` entry: `createFakeS3({ bucket, pageSize? })`, an
+  in-memory `fetch` speaking enough of the S3 REST API to drive
+  `createFetchS3Store` (and its SigV4 signing) in tests without a network
+  (pushstack#169).
+
 ### Fixed
 
 - Refs that collide as file and directory (`refs/heads/a` and

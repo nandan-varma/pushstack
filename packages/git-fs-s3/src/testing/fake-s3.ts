@@ -1,7 +1,7 @@
 /**
  * A `fetch` that speaks just enough of the S3 REST API (path-style
  * GetObject/PutObject/DeleteObject/HeadObject/CopyObject/ListObjectsV2) over
- * an in-memory Map — so tests can drive the fetch store's real request signing,
+ * an in-memory Map — so tests can drive a fetch-based store's real request signing,
  * XML parsing and pagination without a network. Every request must carry a
  * SigV4 Authorization header, as R2 requires.
  */

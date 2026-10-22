@@ -72,6 +72,7 @@ export {
 	isRetryableError,
 	type RetryOptions,
 } from "./retry.js";
+export { createSemaphore, type Semaphore } from "./semaphore.js";
 export { MemoryObjectStore } from "./stores/memory.js";
 export type {
 	GitdirFacts,

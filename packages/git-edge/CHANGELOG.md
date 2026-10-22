@@ -2,6 +2,14 @@
 
 This changelog is derived from this repository's release history; it is ordered newest first.
 
+## [Unreleased]
+
+### Changed
+
+- The merge's I/O semaphore comes from `git-fs-s3`'s `createSemaphore`
+  instead of a private copy; the `git-fs-s3` peer range is now `>=0.19.0`
+  (pushstack#169). Requires git-fs-s3 0.19.0; release it first.
+
 ## [0.6.2] - 2026-10-19
 
 - First release published from the monorepo (0.6.1 was tagged but its

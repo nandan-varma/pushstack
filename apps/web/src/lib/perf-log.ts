@@ -34,7 +34,8 @@ export function setPerfLogEnabled(enabled: boolean): void {
 	}
 }
 
-function fmt(ms: number): string {
+/** A duration in milliseconds, as perf logs print it ("12.3ms"). */
+export function formatMs(ms: number): string {
 	return `${ms.toFixed(1)}ms`;
 }
 
@@ -46,11 +47,11 @@ export async function perfTime<T>(
 	const t0 = performance.now();
 	try {
 		const result = await fn();
-		console.log(`[perf:${side}] ${label} ${fmt(performance.now() - t0)}`);
+		console.log(`[perf:${side}] ${label} ${formatMs(performance.now() - t0)}`);
 		return result;
 	} catch (err) {
 		console.log(
-			`[perf:${side}] ${label} FAILED after ${fmt(performance.now() - t0)}`,
+			`[perf:${side}] ${label} FAILED after ${formatMs(performance.now() - t0)}`,
 		);
 		throw err;
 	}
@@ -58,5 +59,5 @@ export async function perfTime<T>(
 
 export function perfMark(label: string): void {
 	if (!isPerfLogEnabled()) return;
-	console.log(`[perf:${side}] ● ${label} @ ${fmt(performance.now())}`);
+	console.log(`[perf:${side}] ● ${label} @ ${formatMs(performance.now())}`);
 }

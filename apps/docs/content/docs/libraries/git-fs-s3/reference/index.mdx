@@ -154,6 +154,26 @@ subclasses map internal failures to HTTP-shaped responses:
 	internal messages don't leak.
 </ApiSignature>
 
+## Concurrency
+
+<ApiSignature
+	name="createSemaphore"
+	signature="createSemaphore(limit: number): Semaphore"
+	params={[
+		{ name: 'limit', type: 'number', description: 'Most callbacks running at once; an integer &gt;= 1 (anything else throws).' },
+	]}
+	returns="Semaphore"
+>
+	A FIFO semaphore bounding in-flight I/O: `semaphore.run(fn)` runs `fn`
+	once a permit is free and releases it when `fn` settles. Waiters wake in
+	call order, with no timers or polling (edge-compatible). Share one
+	instance across a recursive walk to cap the *total*, since a per-level
+	limit multiplies by depth. It is **not reentrant**: never hold a permit
+	across work that needs another one from the same semaphore; with every
+	permit held by callers waiting for more, the pool deadlocks. Wrap the
+	individual I/O call, not the recursion.
+</ApiSignature>
+
 ## Edge-compatible utilities
 
 The primitives `/http` and `/ops` are built on — Web APIs only, no
