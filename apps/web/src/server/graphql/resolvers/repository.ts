@@ -397,13 +397,14 @@ async function createRepository(
 			);
 		}
 	}
-	// What PushStack has no notion of is refused, never silently dropped.
+	// What PushStack has no notion of is refused, never silently dropped —
+	// except `hasWikiEnabled`, which gh sends as true on every create: there
+	// are no wikis, and the repository reports `hasWikiEnabled: false`.
 	if (input.teamId != null) throw unprocessable("Teams are not supported.");
 	if (input.template)
 		throw unprocessable("Template repositories are not supported.");
 	if (input.homepageUrl)
 		throw unprocessable("Homepage URLs are not supported.");
-	if (input.hasWikiEnabled) throw unprocessable("Wikis are not supported.");
 	if (input.hasIssuesEnabled === false) {
 		throw unprocessable("Issues cannot be disabled.");
 	}

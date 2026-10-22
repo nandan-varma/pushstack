@@ -17,6 +17,7 @@ import {
 	specifiedRules,
 	validate,
 } from "graphql";
+import { oauthScopesHeader } from "../api/auth";
 import { ApiError, errorResponse, json, readJsonObject } from "../api/http";
 import {
 	applyRateHeaders,
@@ -169,8 +170,13 @@ async function serve(request: Request): Promise<Response> {
 				}),
 		);
 		const errors = result.errors?.map(executionError);
+		const scopes = oauthScopesHeader(caller.scopes);
 		return applyRateHeaders(
-			json({ data: result.data ?? null, ...(errors && { errors }) }),
+			json(
+				{ data: result.data ?? null, ...(errors && { errors }) },
+				200,
+				scopes ? { "X-OAuth-Scopes": scopes } : {},
+			),
 			rate,
 		);
 	} catch (error) {

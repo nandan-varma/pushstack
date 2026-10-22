@@ -99,7 +99,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 
 | Endpoint | GitHub operation | Notes |
 | --- | --- | --- |
-| `GET /rate_limit` | [`rate-limit/get`](https://docs.github.com/rest/rate-limit/rate-limit#get-rate-limit-status-for-the-authenticated-user) | `resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql` |
+| `GET /` | [`meta/root`](https://docs.github.com/rest/meta/meta#github-api-root) | URL templates for the served endpoints only; gh reads `X-OAuth-Scopes` here |
+| `GET /rate_limit` | [`rate-limit/get`](https://docs.github.com/rest/rate-limit/rate-limit#get-rate-limit-status-for-the-authenticated-user) | `resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search` |
 | `GET /user` | [`users/get-authenticated`](https://docs.github.com/rest/users/users#get-the-authenticated-user) | |
 | `GET /user/repos` | [`repos/list-for-authenticated-user`](https://docs.github.com/rest/repos/repos#list-repositories-for-the-authenticated-user) | `visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction` |
 | `POST /user/repos` | [`repos/create-for-authenticated-user`](https://docs.github.com/rest/repos/repos#create-a-repository-for-the-authenticated-user) | `name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored |

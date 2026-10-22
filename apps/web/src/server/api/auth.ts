@@ -46,6 +46,18 @@ export async function authenticateRequest(
 	return caller;
 }
 
+/**
+ * The `X-OAuth-Scopes` value GitHub sends for a classic token, from a PAT's
+ * scopes: `repo:write` is GitHub's `repo` (with `read:org`, vacuously true
+ * here: there are no organizations to hide). A read-only token has no classic
+ * equivalent, so like a GitHub fine-grained token it gets no header (null).
+ */
+export function oauthScopesHeader(
+	scopes: readonly TokenScope[],
+): string | null {
+	return tokenAllows([...scopes], "repo:write") ? "read:org, repo" : null;
+}
+
 /** The caller, or 401 "Requires authentication". */
 export function requireCaller({ caller }: ApiContext): Caller {
 	if (!caller) throw requiresAuthenticationError();

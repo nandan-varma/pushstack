@@ -1,0 +1,26 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh repo create HOST/octo/made-by-gh --private --description From gh",
+	"requests": [
+		{
+			"query": "\n\tmutation RepositoryCreate($input: CreateRepositoryInput!) {\n\t\tcreateRepository(input: $input) {\n\t\t\trepository {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\towner { login }\n\t\t\t\turl\n\t\t\t}\n\t\t}\n\t}\n\t",
+			"variables": {
+				"input": {
+					"name": "made-by-gh",
+					"description": "From gh",
+					"visibility": "PRIVATE",
+					"ownerId": "MDQ6VXNlcjE=",
+					"hasIssuesEnabled": true,
+					"hasWikiEnabled": true
+				}
+			}
+		},
+		{
+			"query": "query RepositoryInfo($owner: String!, $name: String!) {\n\t\trepository(owner: $owner, name: $name) {isPrivate,description}\n\t}",
+			"variables": {
+				"name": "made-by-gh",
+				"owner": "octo"
+			}
+		}
+	]
+}
