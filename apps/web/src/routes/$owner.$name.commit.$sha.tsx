@@ -4,6 +4,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useMemo } from "react";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { CommitComments } from "@/components/repo/CommitComments";
 import { CommitMessage } from "@/components/repo/CommitMessage";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -293,6 +294,14 @@ function CommitDetailPage() {
 					isLoading={diffLoading}
 				/>
 			</div>
+			{repo && (
+				<CommitComments
+					repoId={repo.id}
+					sha={commit.sha}
+					owner={owner}
+					name={name}
+				/>
+			)}
 		</div>
 	);
 }

@@ -49,6 +49,17 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"write access; `message`, `branch`, `sha` (required; `409` when stale)",
 	"repos/list-commits":
 		"`sha`, `path` (a file), `author`/`committer` (an email, or a login matching that account's email), `since`/`until` (committer date), pagination; newest first; `409` for an empty repository; filters search the newest 10,100 commits; `Link` has `next` but no `last`",
+	"repos/list-commit-comments-for-repo": "oldest first; pagination",
+	"repos/get-commit-comment":
+		"no `node_id` or `author_association`; `reactions` is always empty (commit comment reactions aren't served)",
+	"repos/update-commit-comment":
+		"`body`; the author (while they can still comment) or a write collaborator, else `403`",
+	"repos/delete-commit-comment":
+		"the author (while they can still comment) or a write collaborator, else `403`; `204`",
+	"repos/list-comments-for-commit":
+		"`commit_sha` a full or abbreviated sha; unknown is `422`; oldest first; pagination",
+	"repos/create-commit-comment":
+		"any signed-in reader (`repo:write` token scope); `body`, optional `path` (a file the commit changes, else `422`) with `position` (1-based line of that file's diff) and deprecated `line` (stored and echoed)",
 	"repos/get-commit":
 		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`",
 	"repos/compare-commits-with-basehead":

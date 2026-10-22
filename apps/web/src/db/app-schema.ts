@@ -255,6 +255,44 @@ export const comments = pgTable(
 );
 
 /**
+ * A comment on a commit (GitHub's commit comments): on the whole commit, or
+ * anchored to a file (`path`) and a line of its diff (`position`, GitHub's
+ * diff-relative index) or of the file (`line`).
+ */
+export const commitComments = pgTable(
+	"commit_comments",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		commitSha: text("commit_sha").notNull(),
+		authorId: text("author_id")
+			.notNull()
+			.references(() => user.id),
+		body: text("body").notNull(),
+		path: text("path"),
+		position: integer("position"),
+		line: integer("line"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		editedAt: timestamptz("edited_at"),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoCommitIdx: index("commit_comment_repo_commit_idx").on(
+			table.repoId,
+			table.commitSha,
+			table.createdAt,
+		),
+		repoCreatedIdx: index("commit_comment_repo_created_idx").on(
+			table.repoId,
+			table.createdAt,
+		),
+	}),
+);
+
+/**
  * A user's reaction (GitHub's `content`: `+1`, `heart`, …) to an issue or pull
  * request (`comment_id` null) or to one of its comments. `issue_id` is always
  * the thread, so a thread's rollups are one indexed read. One row per user,

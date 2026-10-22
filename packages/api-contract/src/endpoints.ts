@@ -23,6 +23,7 @@ import {
 	threadTitle,
 } from "./inputs";
 import {
+	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_REPO_DESCRIPTION_CHARS,
@@ -31,6 +32,7 @@ import {
 	blob,
 	branch,
 	commit,
+	commitComment,
 	commitDetail,
 	comparison,
 	contents,
@@ -111,6 +113,10 @@ const markReadBody = z.object({
 });
 const listState = z.enum(["open", "closed", "all"]).default("open");
 const commentParams = repoParams.extend({ comment_id: positiveInt });
+/** A full or abbreviated sha; the handler resolves it (unknown = 422). */
+const commitShaParams = repoParams.extend({
+	commit_sha: z.string().min(1).max(100),
+});
 const reactionList = {
 	query: pagination.extend({ content: reactionContent.optional() }),
 	response: z.array(reaction),
@@ -286,6 +292,40 @@ export const endpoints = defineEndpoints({
 			until: z.iso.datetime({ offset: true }).optional(),
 		}),
 		response: z.array(commit),
+	},
+	"repos/list-commit-comments-for-repo": {
+		params: repoParams,
+		query: pagination,
+		response: z.array(commitComment),
+	},
+	"repos/get-commit-comment": {
+		params: commentParams,
+		response: commitComment,
+	},
+	"repos/update-commit-comment": {
+		params: commentParams,
+		body: z.object({ body: commentBody }),
+		response: commitComment,
+	},
+	"repos/delete-commit-comment": {
+		params: commentParams,
+		response: noContent,
+	},
+	"repos/list-comments-for-commit": {
+		params: commitShaParams,
+		query: pagination,
+		response: z.array(commitComment),
+	},
+	"repos/create-commit-comment": {
+		params: commitShaParams,
+		body: z.object({
+			body: commentBody,
+			path: z.string().min(1).max(MAX_COMMENT_PATH_CHARS).optional(),
+			position: positiveInt.optional(),
+			/** Deprecated on GitHub; stored and echoed. */
+			line: positiveInt.optional(),
+		}),
+		response: commitComment,
 	},
 	"repos/get-commit": {
 		params: repoParams.extend({ ref: z.string().min(1) }),
