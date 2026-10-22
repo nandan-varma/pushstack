@@ -34,6 +34,10 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `getObjectSize`, `getObjectSizes` and `getObjectTypes` accept pack indexes
+  and loose objects returned as byte views from another realm (a Buffer or
+  Uint8Array that fails `instanceof Uint8Array`); they reported every object
+  as unknown there.
 - Refs that collide as file and directory (`refs/heads/a` and
   `refs/heads/a/b`) are refused, as git refuses them: `createBranchFrom`
   throws `GitConflictError` and receive-pack rejects the update ("cannot lock
