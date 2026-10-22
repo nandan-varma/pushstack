@@ -43,7 +43,7 @@ const capabilities = [
 
 function App() {
 	return (
-		<main className="overflow-hidden">
+		<div className="overflow-hidden">
 			<section className="relative isolate">
 				<div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(ellipse_75%_50%_at_50%_-10%,color-mix(in_oklab,var(--primary)_12%,transparent),transparent)] dark:bg-[radial-gradient(ellipse_75%_50%_at_50%_-10%,color-mix(in_oklab,var(--primary)_16%,transparent),transparent)]" />
 				<div className="page-wrap pt-10 pb-14 sm:pt-16 sm:pb-20">
@@ -173,6 +173,6 @@ function App() {
 					</Link>
 				</Button>
 			</section>
-		</main>
+		</div>
 	);
 }

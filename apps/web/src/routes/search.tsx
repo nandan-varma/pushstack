@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Compass, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
-import { PageHeader } from "@/components/PageHeader";
-import { RepositoryCard } from "@/components/repo/RepositoryCard";
+import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RepositoryRow } from "@/components/repo/RepositoryList";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import {
 	searchRepositoriesQueryOptions,
 	searchUsersQueryOptions,
 } from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 import type { searchRepositories, searchUsers } from "@/server/search";
 
 type SearchType = "repositories" | "users";
@@ -68,33 +70,39 @@ function SearchPage() {
 	const active = type === "users" ? userResults : repoResults;
 
 	return (
-		<main className="page-wrap py-6 sm:py-8">
-			<PageHeader
-				title="Search"
-				description="Find repositories and people across PushStack."
-			/>
-
+		<div className="page-wrap space-y-4 py-6">
+			<h1 className="sr-only">Search</h1>
 			<form
 				onSubmit={handleSubmit}
-				className="island-shell mb-6 flex items-center gap-2 rounded-[16px] p-2"
+				role="search"
+				className="relative max-w-2xl"
 			>
+				<Search
+					aria-hidden="true"
+					className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-bjork-text-soft"
+				/>
 				<Input
 					type="search"
 					value={inputValue}
 					onChange={(e) => setInputValue(e.target.value)}
-					placeholder="Search repositories and users…"
+					placeholder="Search repositories and people"
 					aria-label="Search query"
-					className="min-w-0 flex-1"
+					className="h-12 pl-12 text-base md:text-[15px]"
 				/>
-				<Button type="submit" className="shrink-0 px-5">
+				<button type="submit" className="sr-only">
 					Search
-				</Button>
+				</button>
 			</form>
 
 			{q ? (
-				<>
-					<div className="mb-4">
+				<Panel aria-labelledby="search-results-heading">
+					<h2 id="search-results-heading" className="sr-only">
+						Results for {q}
+					</h2>
+					<PanelHeader>
 						<FilterTabs<SearchType>
+							variant="inline"
+							label="Result type"
 							tabs={[
 								{
 									value: "repositories",
@@ -103,7 +111,7 @@ function SearchPage() {
 								},
 								{
 									value: "users",
-									label: "Users",
+									label: "People",
 									count: userResults.data?.length,
 								},
 							]}
@@ -115,45 +123,44 @@ function SearchPage() {
 								})
 							}
 						/>
-					</div>
-
-					<section aria-labelledby="search-results-heading">
-						<h2
-							id="search-results-heading"
-							className="mb-3 text-sm font-semibold text-foreground"
-						>
-							{type === "repositories" ? "Repositories" : "People"}
-						</h2>
-						{active.isLoading ? (
-							<div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-								{[1, 2, 3, 4].map((i) => (
-									<Skeleton key={i} className="h-36" />
-								))}
-							</div>
-						) : active.isError ? (
-							<EmptyState
-								variant="error"
-								message="Search failed."
-								action={
-									<Button variant="outline" onClick={() => active.refetch()}>
-										Try again
-									</Button>
-								}
-							/>
-						) : type === "repositories" ? (
-							<RepositoryResults
-								repositories={repoResults.data ?? []}
-								query={q}
-							/>
-						) : (
-							<UserResults users={userResults.data ?? []} query={q} />
-						)}
-					</section>
-				</>
+					</PanelHeader>
+					{active.isLoading ? (
+						<ul aria-busy="true" className="divide-y divide-bjork-border-muted">
+							{[1, 2, 3].map((i) => (
+								<li key={i} className="flex h-12 items-center gap-4 px-4">
+									<Skeleton className="h-3.5 w-40" />
+									<Skeleton className="h-3 flex-1" />
+								</li>
+							))}
+						</ul>
+					) : active.isError ? (
+						<EmptyState
+							bare
+							variant="error"
+							message="Search failed."
+							action={
+								<Button variant="outline" onClick={() => active.refetch()}>
+									Try again
+								</Button>
+							}
+						/>
+					) : type === "repositories" ? (
+						<RepositoryResults
+							repositories={repoResults.data ?? []}
+							query={q}
+						/>
+					) : (
+						<UserResults users={userResults.data ?? []} query={q} />
+					)}
+				</Panel>
 			) : (
-				<EmptyState message="Type a query to search public repositories and users." />
+				<EmptyState
+					icon={<Compass />}
+					title="Explore PushStack"
+					message="Search public repositories by name or description, or find people by username."
+				/>
 			)}
-		</main>
+		</div>
 	);
 }
 
@@ -165,15 +172,14 @@ function RepositoryResults({
 	query: string;
 }) {
 	if (repositories.length === 0) {
-		return <EmptyState message={`No repositories matching "${query}".`} />;
+		return <EmptyState bare message={`No repositories match “${query}”.`} />;
 	}
-
 	return (
-		<div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+		<ul className="divide-y divide-bjork-border-muted">
 			{repositories.map((repo) => (
-				<RepositoryCard key={repo.id} repo={repo} />
+				<RepositoryRow key={repo.id} repo={repo} />
 			))}
-		</div>
+		</ul>
 	);
 }
 
@@ -185,34 +191,29 @@ function UserResults({
 	query: string;
 }) {
 	if (users.length === 0) {
-		return <EmptyState message={`No users matching "${query}".`} />;
+		return <EmptyState bare message={`No people match “${query}”.`} />;
 	}
-
 	return (
-		<ul className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
+		<ul className="divide-y divide-bjork-border-muted">
 			{users.map((person) => (
 				<li key={person.id}>
 					<Link
 						to="/$owner"
 						params={{ owner: person.username }}
-						className="flex items-center gap-3 px-4 py-3.5 no-underline transition-colors hover:bg-muted/50"
+						className="flex min-h-12 items-center gap-3 px-4 py-2 transition-[background-color] duration-150 hover:bg-bjork-surface-hover"
 					>
-						<Avatar>
-							{person.image && (
-								<AvatarImage src={person.image} alt={person.name} />
-							)}
-							<AvatarFallback>
-								{person.name.charAt(0).toUpperCase()}
+						<Avatar size="sm">
+							{person.image && <AvatarImage src={person.image} alt="" />}
+							<AvatarFallback className="text-[11px]">
+								{getInitials(person.name)}
 							</AvatarFallback>
 						</Avatar>
-						<div className="min-w-0">
-							<div className="truncate text-sm font-semibold text-foreground">
-								{person.name}
-							</div>
-							<div className="truncate text-xs text-muted-foreground">
-								@{person.username}
-							</div>
-						</div>
+						<span className="truncate text-sm font-semibold text-bjork-text">
+							{person.name}
+						</span>
+						<span className="truncate text-sm text-bjork-text-soft">
+							@{person.username}
+						</span>
 					</Link>
 				</li>
 			))}

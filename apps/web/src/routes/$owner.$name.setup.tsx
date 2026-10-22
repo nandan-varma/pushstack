@@ -69,7 +69,6 @@ function RouteComponent() {
 	return (
 		<div className="max-w-xl space-y-4">
 			<PageHeader
-				size="compact"
 				title="Repository Setup"
 				description="Git, R2-backed object storage, and SQL metadata are configured for this repository."
 				actions={

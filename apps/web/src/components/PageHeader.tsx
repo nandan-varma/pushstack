@@ -1,50 +1,34 @@
 import type { ReactNode } from "react";
 
-interface PageHeaderProps {
-	title: ReactNode;
-	description?: string;
-	eyebrow?: string;
-	actions?: ReactNode;
-	/** Compact is the in-repository scale; full pages use the default. */
-	size?: "default" | "compact";
-}
-
-/** A consistent title and action landmark for workspace pages. */
+/**
+ * The title row of an app page: the title (with an optional count or short
+ * fact beside it), an optional sentence under it, and the page's actions.
+ */
 export function PageHeader({
 	title,
+	meta,
 	description,
-	eyebrow,
 	actions,
-	size = "default",
-}: PageHeaderProps) {
-	const compact = size === "compact";
+}: {
+	title: ReactNode;
+	/** A count or short fact set beside the title, e.g. "12". */
+	meta?: ReactNode;
+	description?: ReactNode;
+	actions?: ReactNode;
+}) {
 	return (
-		<header
-			className={
-				compact
-					? "mb-4 flex flex-wrap items-center justify-between gap-3"
-					: "mb-6 flex flex-wrap items-center justify-between gap-4"
-			}
-		>
+		<header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
 			<div className="min-w-0">
-				{eyebrow && (
-					<p className={compact ? "island-kicker mb-2" : "island-kicker mb-3"}>
-						{eyebrow}
-					</p>
-				)}
-				<h1
-					className={
-						compact
-							? "text-xl font-semibold tracking-tight text-foreground"
-							: "text-3xl font-semibold tracking-tight text-foreground"
-					}
-				>
+				<h1 className="flex items-baseline gap-2 text-[22px] font-semibold tracking-[-0.025em] text-bjork-text">
 					{title}
+					{meta !== undefined && (
+						<span className="font-mono text-sm font-normal text-bjork-text-soft tabular-nums">
+							{meta}
+						</span>
+					)}
 				</h1>
 				{description && (
-					<p className="mt-2 text-sm leading-6 text-muted-foreground">
-						{description}
-					</p>
+					<p className="mt-1 text-sm text-bjork-text-muted">{description}</p>
 				)}
 			</div>
 			{actions && (

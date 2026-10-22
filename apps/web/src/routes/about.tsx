@@ -6,7 +6,7 @@ export const Route = createFileRoute("/about")({
 
 function About() {
 	return (
-		<main className="page-wrap py-6 sm:py-8">
+		<div className="page-wrap py-6 sm:py-8">
 			<section className="island-shell rounded-[20px] p-5 sm:p-6">
 				<p className="island-kicker mb-2">About</p>
 				<h1 className="mb-3 max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
@@ -19,6 +19,6 @@ function About() {
 					reliability.
 				</p>
 			</section>
-		</main>
+		</div>
 	);
 }

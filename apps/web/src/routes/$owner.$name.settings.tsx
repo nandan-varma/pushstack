@@ -87,7 +87,6 @@ function RepoSettingsPage() {
 		<div className="page-wrap py-6 sm:py-8">
 			<div className="max-w-2xl space-y-4">
 				<PageHeader
-					size="compact"
 					title="Settings"
 					actions={
 						<>

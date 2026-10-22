@@ -242,7 +242,6 @@ function LabelsPage() {
 	return (
 		<div className="space-y-4">
 			<PageHeader
-				size="compact"
 				title="Labels"
 				actions={
 					<>
