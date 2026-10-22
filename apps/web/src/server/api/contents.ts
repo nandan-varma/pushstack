@@ -299,7 +299,7 @@ export async function putContents(ctx: ApiContext) {
 			.update(repositories)
 			.set({ defaultBranch: branch, updatedAt: new Date() })
 			.where(eq(repositories.id, repo.id));
-		evictRepoByName(repo.owner.username, repo.name);
+		evictRepoByName(repo.owner.username, repo.name, repo.id);
 	}
 	return json(
 		await fileCommitResponse(

@@ -13,7 +13,7 @@ import { db } from "#/db";
 import { type Repository, repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { perfContext } from "./perf-log";
-import { getAccessForRepository } from "./repo-access";
+import { evictRepositoryById, getAccessForRepository } from "./repo-access";
 import { getCurrentUserOptional } from "./session";
 import { createTtlCoalescedCache } from "./ttl-cache";
 
@@ -87,8 +87,14 @@ export function readRepoByName<T>(
 	});
 }
 
-export function evictRepoByName(ownerUsername: string, repoName: string): void {
+/** Drop a repository's cached rows (by name and by id) after it changes. */
+export function evictRepoByName(
+	ownerUsername: string,
+	repoName: string,
+	repoId: number,
+): void {
 	repoByNameCache.delete(`${ownerUsername}/${repoName}`);
+	evictRepositoryById(repoId);
 }
 
 /**

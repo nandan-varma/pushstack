@@ -234,11 +234,29 @@ export type RepositoryWithOwner = Repository & {
 	owner: { id: string; username: string };
 };
 
+/**
+ * Repository + owner by id. A page load fans out to several server functions
+ * that each start from the repo row, so it's cached for a few seconds (and
+ * coalesced) like the by-name lookup; the mutations that evict that one
+ * (`evictRepoByName`) evict this too.
+ */
+const repoByIdCache = createTtlCoalescedCache<RepositoryWithOwner | null>({
+	ttlMs: 5000,
+});
+
+export function evictRepositoryById(repoId: number): void {
+	repoByIdCache.delete(String(repoId));
+}
+
 async function withOwner(repoId: number): Promise<RepositoryWithOwner> {
-	const repository = await db.query.repositories.findFirst({
-		where: { id: repoId },
-		with: { owner: { columns: { id: true, username: true } } },
-	});
+	const repository = await repoByIdCache.get(String(repoId), () =>
+		db.query.repositories
+			.findFirst({
+				where: { id: repoId },
+				with: { owner: { columns: { id: true, username: true } } },
+			})
+			.then((row) => row ?? null),
+	);
 	if (!repository) throw notFound();
 	return repository;
 }
