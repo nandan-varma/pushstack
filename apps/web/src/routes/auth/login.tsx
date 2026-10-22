@@ -89,7 +89,6 @@ function LoginPage() {
 		<AuthFormShell
 			title="Welcome back"
 			subtitle="Sign in to your PushStack account"
-			showBranding
 			footer={
 				<>
 					Don't have an account?{" "}

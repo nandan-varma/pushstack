@@ -26,6 +26,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const { owner, name } = useParams({ strict: false });
 
+	// Sign-in pages bring their own full-screen layout (routes/auth.tsx).
+	if (pathname.startsWith("/auth")) {
+		return (
+			<main id="main-content" className="flex min-w-0 flex-1 flex-col">
+				{children}
+			</main>
+		);
+	}
+
 	if (isMarketingPath(pathname)) {
 		return (
 			<>
@@ -90,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 	);
 }
 
-function Brand() {
+export function Brand() {
 	return (
 		<Link
 			to="/"

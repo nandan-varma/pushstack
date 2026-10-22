@@ -1,178 +1,211 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
 	ArrowRight,
-	Check,
-	Cloud,
-	GitBranch,
-	GitPullRequest,
-	LockKeyhole,
-	Sparkles,
+	Braces,
+	FolderTree,
+	Inbox,
+	type LucideIcon,
 } from "lucide-react";
-import { LiveRepoPreview } from "../components/home/LiveRepoPreview";
-import { Button } from "../components/ui/button";
-import { DEMO_REPO, SITE_URL } from "../lib/site";
+import type { ReactNode } from "react";
+import { LiveRepoPreview } from "@/components/home/LiveRepoPreview";
+import { buttonVariants } from "@/components/ui/button";
+import { DEMO_REPO, SITE_URL } from "@/lib/site";
+import { getSiteStats } from "@/server/site-stats";
 
 export const Route = createFileRoute("/")({
 	head: () => ({ links: [{ rel: "canonical", href: SITE_URL }] }),
-	component: App,
+	loader: () => getSiteStats(),
+	component: LandingPage,
 });
 
-const proofPoints = [
-	"Real Git, not an approximation",
-	"Issues and pull requests in one place",
-	"Objects backed by Cloudflare R2",
-];
-
-const capabilities = [
-	{
-		icon: GitBranch,
-		title: "Your Git workflow, intact",
-		body: "Clone, branch, commit, push, and inspect history with the commands your team already knows.",
-	},
-	{
-		icon: GitPullRequest,
-		title: "Reviews that keep work moving",
-		body: "Compare changes, discuss the details, and merge with a clear record of every decision.",
-	},
-	{
-		icon: Cloud,
-		title: "Storage built to last",
-		body: "Git objects live in Cloudflare R2: durable object storage without a self-managed Git server.",
-	},
-];
-
-function App() {
+function LandingPage() {
+	const { restOperations } = Route.useLoaderData();
 	return (
 		<div className="overflow-hidden">
-			<section className="relative isolate">
-				<div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(ellipse_75%_50%_at_50%_-10%,color-mix(in_oklab,var(--primary)_12%,transparent),transparent)] dark:bg-[radial-gradient(ellipse_75%_50%_at_50%_-10%,color-mix(in_oklab,var(--primary)_16%,transparent),transparent)]" />
-				<div className="page-wrap pt-10 pb-14 sm:pt-16 sm:pb-20">
-					<div className="mx-auto max-w-3xl text-center">
-						<div className="island-shell rise-in mb-8 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium text-muted-foreground">
-							<span className="flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-								<Sparkles className="size-3" />
-							</span>
-							A home for code. A place to build.
-						</div>
-						<h1
-							className="rise-in text-balance text-5xl font-medium leading-[1.06] tracking-[-0.055em] text-foreground sm:text-7xl lg:text-8xl"
-							style={{ animationDelay: "80ms" }}
-						>
-							Good code starts <br />
-							with a clear space.
-						</h1>
-						<p
-							className="rise-in mx-auto mt-6 max-w-3xl text-pretty text-lg leading-8 text-muted-foreground sm:text-xl"
-							style={{ animationDelay: "160ms" }}
-						>
-							Your repositories, reviews, and next big idea. A thoughtfully
-							simple Git workspace that keeps you moving.
-						</p>
-						<div
-							className="rise-in mt-9 flex flex-col justify-center gap-3 sm:flex-row"
-							style={{ animationDelay: "240ms" }}
-						>
-							<Button className="px-5" asChild>
-								<Link to="/auth/register">
-									Create your workspace <ArrowRight className="size-4" />
-								</Link>
-							</Button>
-							<Button variant="outline" className="px-5" asChild>
-								<Link to="/$owner/$name" params={DEMO_REPO}>
-									Explore PushStack
-								</Link>
-							</Button>
-						</div>
-						<p
-							className="rise-in mt-5 text-sm text-muted-foreground"
-							style={{ animationDelay: "320ms" }}
-						>
-							Familiar Git commands. Public and private repositories. Your
-							workflow.
-						</p>
-					</div>
-
-					<div
-						className="rise-in relative mx-auto mt-14 max-w-5xl"
-						style={{ animationDelay: "400ms" }}
-					>
-						<div className="absolute -inset-x-8 -bottom-12 -z-10 h-40 bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--primary)_12%,transparent),transparent_65%)] blur-2xl" />
-						<LiveRepoPreview />
-					</div>
-				</div>
-			</section>
-
-			<section className="page-wrap py-14 sm:py-20">
-				<div className="grid gap-10 lg:grid-cols-[0.9fr_2fr] lg:gap-16">
-					<div>
-						<p className="island-kicker">Made for the daily work</p>
-						<h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
-							Less overhead. More forward motion.
-						</h2>
-						<p className="mt-4 leading-7 text-muted-foreground">
-							We built PushStack for the work we do every day, so every part is
-							designed to stay out of the way when you are trying to ship.
-						</p>
-					</div>
-					<div className="grid gap-4 sm:grid-cols-3">
-						{capabilities.map(({ icon: Icon, title, body }) => (
-							<article
-								key={title}
-								className="group island-shell rounded-[20px] p-6 transition-colors hover:bg-muted/50"
-							>
-								<span className="flex size-11 items-center justify-center rounded-[13px] bg-primary/10 text-primary">
-									<Icon className="size-4" />
-								</span>
-								<h3 className="mt-5 text-sm font-semibold">{title}</h3>
-								<p className="mt-2 text-sm leading-6 text-muted-foreground">
-									{body}
-								</p>
-							</article>
-						))}
-					</div>
-				</div>
-			</section>
-
-			<section className="page-wrap py-6 sm:py-8">
-				<div className="island-shell grid gap-8 rounded-[24px] px-6 py-10 sm:grid-cols-[1fr_auto] sm:items-center sm:p-12">
-					<div>
-						<div className="flex items-center gap-2 text-sm font-semibold">
-							<LockKeyhole className="size-4" /> Built with skin in the game
-						</div>
-						<h2 className="mt-3 max-w-2xl text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
-							The product you see is the product we use to build it.
-						</h2>
-						<p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
-							Our source, issues, and pull requests live here. That keeps the
-							feedback loop short and means the rough edges are ours first.
-						</p>
-					</div>
-					<div className="space-y-3 text-sm text-muted-foreground">
-						{proofPoints.map((point) => (
-							<p key={point} className="flex items-center gap-2">
-								<Check className="size-4 text-foreground" />
-								{point}
-							</p>
-						))}
-					</div>
-				</div>
-			</section>
-
-			<section className="page-wrap py-8 text-center sm:py-12">
-				<p className="island-kicker">Ready when you are</p>
-				<h2 className="mx-auto mt-3 max-w-2xl text-balance text-3xl font-semibold tracking-[-0.045em] sm:text-5xl">
-					Put your next push somewhere built for it.
+			<Hero />
+			<section
+				aria-labelledby="why-heading"
+				className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6 sm:py-24"
+			>
+				<h2
+					id="why-heading"
+					className="max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-bjork-text sm:text-4xl"
+				>
+					Built around the work, not around a page layout.
 				</h2>
-				<p className="mx-auto mt-5 max-w-3xl text-pretty leading-7 text-muted-foreground">
-					Create your account, bring a repository, and keep your team’s momentum
-					in one focused workspace.
-				</p>
-				<Button className="mt-8 px-5" asChild>
-					<Link to="/auth/register">
-						Create your account <ArrowRight className="size-4" />
-					</Link>
-				</Button>
+				<div className="mt-10 grid gap-4 md:grid-cols-3">
+					<Feature
+						icon={FolderTree}
+						title="A workbench for code"
+						body="The file tree stays open beside the file you're reading. Move through a repository without bouncing between lists."
+					/>
+					<Feature
+						icon={Inbox}
+						title="Triage like an inbox"
+						body="Issues and pull requests open beside their list. Read, label, assign and merge without losing your place."
+					/>
+					<Feature
+						icon={Braces}
+						title="GitHub's API, as is"
+						body={`${restOperations} REST operations with GitHub's paths, JSON and status codes. Point your scripts at a new base URL and keep going.`}
+					/>
+				</div>
 			</section>
+			<ApiSection restOperations={restOperations} />
+			<FinalCta />
 		</div>
+	);
+}
+
+function Hero() {
+	return (
+		<section className="relative isolate border-b border-bjork-border-muted">
+			<div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_60%_55%_at_80%_0%,var(--bjork-accent-soft),transparent)]" />
+			<div className="mx-auto grid max-w-[1200px] gap-12 px-4 pt-14 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:pt-20 lg:pb-24">
+				<div className="rise-in">
+					<p className="font-mono text-[11px] font-medium tracking-[0.14em] text-bjork-accent uppercase">
+						Git hosting · GitHub-compatible
+					</p>
+					<h1 className="mt-4 text-[2.75rem] leading-[1.05] font-semibold tracking-[-0.045em] text-balance text-bjork-text sm:text-6xl">
+						Your code, on a forge that speaks GitHub.
+					</h1>
+					<p className="mt-5 max-w-xl text-lg leading-8 text-pretty text-bjork-text-muted">
+						Push over HTTPS, review in a split-view inbox, and script it all
+						with the REST API and CLI you already know. Git objects live in
+						object storage; nothing runs on a disk you have to babysit.
+					</p>
+					<div className="mt-8 flex flex-wrap gap-3">
+						<Link
+							to="/auth/register"
+							className={buttonVariants({ size: "lg" })}
+						>
+							Get started
+							<ArrowRight aria-hidden="true" />
+						</Link>
+						<Link
+							to="/$owner/$name"
+							params={DEMO_REPO}
+							className={buttonVariants({ variant: "outline", size: "lg" })}
+						>
+							Browse PushStack's own repo
+						</Link>
+					</div>
+				</div>
+				<div className="rise-in [animation-delay:120ms]">
+					<LiveRepoPreview />
+				</div>
+			</div>
+		</section>
+	);
+}
+
+function Feature({
+	icon: Icon,
+	title,
+	body,
+}: {
+	icon: LucideIcon;
+	title: string;
+	body: ReactNode;
+}) {
+	return (
+		<article className="rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-6 shadow-(--bjork-shadow-surface)">
+			<span className="flex size-10 items-center justify-center rounded-[12px] bg-bjork-accent-soft text-bjork-accent">
+				<Icon aria-hidden="true" className="size-5" />
+			</span>
+			<h3 className="mt-5 text-[15px] font-semibold text-bjork-text">
+				{title}
+			</h3>
+			<p className="mt-2 text-sm leading-6 text-bjork-text-muted">{body}</p>
+		</article>
+	);
+}
+
+function ApiSection({ restOperations }: { restOperations: number }) {
+	return (
+		<section
+			aria-labelledby="api-heading"
+			className="border-y border-bjork-border-muted bg-bjork-panel"
+		>
+			<div className="mx-auto grid max-w-[1200px] gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+				<div>
+					<h2
+						id="api-heading"
+						className="text-3xl font-semibold tracking-[-0.035em] text-bjork-text"
+					>
+						Change the base URL. Keep the tooling.
+					</h2>
+					<p className="mt-4 leading-7 text-bjork-text-muted">
+						The same request, the same JSON back. Personal access tokens work in
+						the <code>Authorization</code> header exactly as on GitHub, and
+						every one of the {restOperations} operations is checked against a
+						shared contract in CI.
+					</p>
+					<Link
+						to="/about"
+						className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-bjork-accent hover:underline"
+					>
+						How PushStack is built
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</div>
+				<div className="space-y-3 font-mono text-[13px]">
+					<CodeCard label="GitHub" muted>
+						curl -H "Authorization: token $GH_TOKEN" \{"\n"}
+						{"  "}https://api.github.com/repos/acme/app/issues
+					</CodeCard>
+					<CodeCard label="PushStack">
+						curl -H "Authorization: token $PST_TOKEN" \{"\n"}
+						{"  "}
+						<span className="text-bjork-accent">{SITE_URL}/api/v3</span>
+						/repos/acme/app/issues
+					</CodeCard>
+				</div>
+			</div>
+		</section>
+	);
+}
+
+function CodeCard({
+	label,
+	muted = false,
+	children,
+}: {
+	label: string;
+	muted?: boolean;
+	children: ReactNode;
+}) {
+	return (
+		<figure className="overflow-hidden rounded-[16px] border border-bjork-border bg-bjork-field-inset shadow-(--bjork-shadow-inset)">
+			<figcaption className="border-b border-bjork-border-muted px-4 py-2 font-sans text-[11px] font-medium tracking-[0.12em] text-bjork-text-soft uppercase">
+				{label}
+			</figcaption>
+			<pre
+				className={`overflow-x-auto px-4 py-3 leading-6 whitespace-pre ${muted ? "text-bjork-text-soft" : "text-bjork-text-strong"}`}
+			>
+				{children}
+			</pre>
+		</figure>
+	);
+}
+
+function FinalCta() {
+	return (
+		<section className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6 sm:py-24">
+			<div className="flex flex-col items-start justify-between gap-6 rounded-[24px] border border-bjork-border-muted bg-bjork-surface p-8 shadow-(--bjork-shadow-surface) sm:flex-row sm:items-center sm:p-10">
+				<div>
+					<h2 className="text-2xl font-semibold tracking-[-0.03em] text-bjork-text sm:text-3xl">
+						Bring a repository.
+					</h2>
+					<p className="mt-2 text-bjork-text-muted">
+						Create an account, push a branch, and open your first pull request.
+					</p>
+				</div>
+				<Link to="/auth/register" className={buttonVariants({ size: "lg" })}>
+					Create your account
+					<ArrowRight aria-hidden="true" />
+				</Link>
+			</div>
+		</section>
 	);
 }

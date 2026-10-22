@@ -93,7 +93,6 @@ function RegisterPage() {
 			<AuthFormShell
 				title="Check your email"
 				subtitle={`We sent a verification link to ${verificationEmail}`}
-				showBranding
 				footer={
 					<>
 						Wrong address?{" "}
@@ -125,7 +124,6 @@ function RegisterPage() {
 		<AuthFormShell
 			title="Create your account"
 			subtitle="Join PushStack and start building"
-			showBranding
 			footer={
 				<>
 					Already have an account?{" "}
