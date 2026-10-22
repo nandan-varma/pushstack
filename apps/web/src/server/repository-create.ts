@@ -118,7 +118,7 @@ export async function createRepositoryForUser(
 
 	await createDefaultLabels(repo.id);
 	// A lookup that missed before the insert is cached as "not found".
-	evictRepoByName(owner.username, repo.name);
+	evictRepoByName(owner.username, repo.name, repo.id);
 	await recordActivity(owner.id, repo.id, {
 		type: "create_repo",
 		metadata: { repoName: repo.name },

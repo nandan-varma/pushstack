@@ -175,8 +175,8 @@ export const updateRepository = createServerFn({ method: "POST" })
 				})
 			: await update();
 
-		evictRepoByName(ownerKey, repo.name);
-		if (isRename) evictRepoByName(ownerKey, name);
+		evictRepoByName(ownerKey, repo.name, id);
+		if (isRename) evictRepoByName(ownerKey, name, id);
 		// A visibility flip changes who may read the repository, and the access
 		// cache is keyed per (repo, user) — drop every entry for it.
 		if (settings.visibility !== undefined) invalidateRepositoryAccess(id);
@@ -198,7 +198,7 @@ export const deleteRepository = createServerFn({ method: "POST" })
 		// resolves this repository, so a failed storage cleanup only leaves
 		// unreachable objects, which the next create under this name clears.
 		await db.delete(repositories).where(eq(repositories.id, data.id));
-		evictRepoByName(ownerKey, repo.name);
+		evictRepoByName(ownerKey, repo.name, data.id);
 		invalidateRepositoryAccess(data.id);
 		await withRepositoryLock(ownerKey, repo.name, () =>
 			deleteRepositoryStorage(ownerKey, repo.name),
