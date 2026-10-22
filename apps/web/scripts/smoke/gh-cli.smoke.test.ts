@@ -6,12 +6,11 @@
  * in-memory S3, exactly as a GitHub Enterprise Server host. gh runs with a
  * scratch GH_CONFIG_DIR and HOME: it never sees the user's own config.
  *
- * Transport: on Linux (CI), loopback HTTPS with a self-signed certificate
- * generated here, trusted through SSL_CERT_FILE. Go's TLS on macOS ignores
- * SSL_CERT_FILE (it only trusts the system keychain), so there gh reaches
- * the same handlers through its `http_unix_socket` setting instead: plain
- * HTTP over a Unix socket, same requests, no certificate. Set
- * GH_SMOKE_TRANSPORT=tls|socket to choose. Skipped when gh is not installed.
+ * Transport: loopback HTTPS with a self-signed certificate generated here
+ * (openssl), trusted only through SSL_CERT_FILE. gh allows no port in a
+ * hostname, so it reaches `pushstack.test:443` through HTTPS_PROXY, a
+ * loopback CONNECT proxy that tunnels to the HTTPS server. Skipped when gh
+ * is not installed.
  *
  * GH_CAPTURE_FIXTURES=1 rewrites src/server/graphql/__fixtures__/gh/*.json
  * with the GraphQL documents gh sent: the fixtures graphql-fixtures.test.ts
@@ -26,6 +25,7 @@ import {
 	type ServerResponse,
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
+import { connect, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -33,7 +33,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const run = promisify(execFile);
 
-const GH_HOST_SOCKET = "pushstack.test";
+/** The GHES hostname gh is pointed at; never resolved through DNS. */
+const GH_HOST = "pushstack.test";
 
 vi.hoisted(() => {
 	process.env.DATABASE_URL ??= "postgresql://test@localhost/test";
@@ -99,13 +100,11 @@ function ghVersion(): string | null {
 	}
 }
 const GH_VERSION = ghVersion();
-const TRANSPORT =
-	process.env.GH_SMOKE_TRANSPORT ??
-	(process.platform === "linux" ? "tls" : "socket");
 
 let server: Server;
+let proxy: Server | undefined;
 let work: string;
-let host: string;
+const host = GH_HOST;
 let ghEnv: NodeJS.ProcessEnv;
 /** Every GraphQL body gh sent, in order, tagged with the fixture it belongs to. */
 const captured: {
@@ -126,16 +125,19 @@ function handlersOf(route: unknown): Record<string, Handler> {
 /** Run gh; its GraphQL requests are captured as fixture `fixture`. */
 async function ghAs(fixture: string, ...args: string[]) {
 	current = { fixture, command: `gh ${args.join(" ")}` };
-	return gh(...args);
+	try {
+		const { stdout, stderr } = await run("gh", args, {
+			env: ghEnv,
+			maxBuffer: 16 * 1024 * 1024,
+		});
+		return { stdout: stdout.trim(), stderr: stderr.trim() };
+	} finally {
+		current = { fixture: "", command: "" };
+	}
 }
 
-async function gh(...args: string[]) {
-	const { stdout, stderr } = await run("gh", args, {
-		env: ghEnv,
-		maxBuffer: 16 * 1024 * 1024,
-	});
-	return { stdout: stdout.trim(), stderr: stderr.trim() };
-}
+/** Run gh without capturing a fixture. */
+const gh = (...args: string[]) => ghAs("", ...args);
 
 async function ghFails(fixture: string, ...args: string[]) {
 	try {
@@ -147,7 +149,15 @@ async function ghFails(fixture: string, ...args: string[]) {
 	throw new Error(`gh ${args.join(" ")} unexpectedly succeeded`);
 }
 
-const enabled = GH_VERSION !== null;
+// CI installs the pinned gh, so there a missing gh fails instead of skipping.
+const enabled = GH_VERSION !== null || process.env.CI === "true";
+
+async function listen(target: Server): Promise<number> {
+	await new Promise<void>((resolve) => target.listen(0, "127.0.0.1", resolve));
+	const address = target.address();
+	if (!address || typeof address === "string") throw new Error("no port");
+	return address.port;
+}
 
 beforeAll(async () => {
 	if (!enabled) return;
@@ -228,50 +238,57 @@ beforeAll(async () => {
 	};
 	await writeFile(path.join(home, "gitconfig"), "");
 
-	if (TRANSPORT === "tls") {
-		const key = path.join(work, "key.pem");
-		const cert = path.join(work, "cert.pem");
-		await run("openssl", [
-			"req",
-			"-x509",
-			"-newkey",
-			"ec",
-			"-pkeyopt",
-			"ec_paramgen_curve:prime256v1",
-			"-nodes",
-			"-days",
-			"1",
-			"-subj",
-			"/CN=localhost",
-			"-addext",
-			"subjectAltName=DNS:localhost,IP:127.0.0.1",
-			"-keyout",
-			key,
-			"-out",
-			cert,
-		]);
-		server = createHttpsServer(
-			{ key: await readFile(key), cert: await readFile(cert) },
-			serve,
-		);
-		await new Promise<void>((resolve) =>
-			server.listen(0, "127.0.0.1", resolve),
-		);
-		const address = server.address();
-		if (!address || typeof address === "string") throw new Error("no port");
-		host = `localhost:${address.port}`;
-		ghEnv.SSL_CERT_FILE = cert;
-		ghEnv.GIT_SSL_CAINFO = cert;
-	} else {
-		const socket = path.join(work, "gh.sock");
-		server = createHttpServer(serve);
-		await new Promise<void>((resolve) => server.listen(socket, resolve));
-		host = GH_HOST_SOCKET;
-		await writeFile(
-			path.join(config, "config.yml"),
-			`http_unix_socket: ${socket}\n`,
-		);
-	}
+	// gh accepts no port in a hostname, so it reaches pushstack.test:443
+	// through HTTPS_PROXY: a loopback CONNECT proxy that tunnels every
+	// connection to the HTTPS server, whose certificate names that host.
+	const key = path.join(work, "key.pem");
+	const cert = path.join(work, "cert.pem");
+	await run("openssl", [
+		"req",
+		"-x509",
+		"-newkey",
+		"rsa:2048",
+		"-nodes",
+		"-days",
+		"1",
+		"-subj",
+		`/CN=${GH_HOST}`,
+		"-addext",
+		`subjectAltName=DNS:${GH_HOST}`,
+		"-keyout",
+		key,
+		"-out",
+		cert,
+	]);
+	server = createHttpsServer(
+		{ key: await readFile(key), cert: await readFile(cert) },
+		serve,
+	);
+	const httpsPort = await listen(server);
+	proxy = createHttpServer((_req, res) => {
+		res.writeHead(405).end();
+	});
+	proxy.on("connect", (req: IncomingMessage, client: Socket, head: Buffer) => {
+		if (req.url !== `${GH_HOST}:443`) {
+			client.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+			return;
+		}
+		const upstream = connect(httpsPort, "127.0.0.1", () => {
+			client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+			upstream.write(head);
+			upstream.pipe(client);
+			client.pipe(upstream);
+		});
+		upstream.on("error", () => client.destroy());
+		client.on("error", () => upstream.destroy());
+	});
+	const proxyUrl = `http://127.0.0.1:${await listen(proxy)}`;
+	Object.assign(ghEnv, {
+		HTTPS_PROXY: proxyUrl,
+		https_proxy: proxyUrl,
+		SSL_CERT_FILE: cert,
+		GIT_SSL_CAINFO: cert,
+	});
 	process.env.BETTER_AUTH_URL = `https://${host}`;
 
 	const { createRepository } = await import("#/server/repositories");
@@ -288,6 +305,9 @@ beforeAll(async () => {
 afterAll(async () => {
 	if (!enabled) return;
 	await new Promise<void>((resolve) => server?.close(() => resolve()));
+	await new Promise<void>((resolve) =>
+		proxy ? proxy.close(() => resolve()) : resolve(),
+	);
 	if (process.env.GH_CAPTURE_FIXTURES === "1") await writeFixtures();
 	if (work) await rm(work, { recursive: true, force: true });
 });
@@ -334,7 +354,7 @@ async function writeFixtures() {
 }
 
 describe.skipIf(!enabled)(
-	`stock gh (${GH_VERSION}) against PushStack over ${TRANSPORT}`,
+	`stock gh (${GH_VERSION}) against PushStack over loopback HTTPS`,
 	() => {
 		it("logs in with a token and reports the account", async () => {
 			current = {
@@ -481,6 +501,40 @@ describe.skipIf(!enabled)(
 			const included = await gh("api", "--hostname", host, "--include", "/");
 			expect(included.stdout).toMatch(/^X-Oauth-Scopes: read:org, repo$/im);
 		});
+
+		// Not served yet (issues/pulls domains): with GH_CAPTURE_FIXTURES=1 this
+		// records the first document each command sends, so the fixtures exist
+		// before the resolvers do. gh stops at the first error, so later
+		// requests of a command are captured once its first one is served.
+		it.runIf(process.env.GH_CAPTURE_FIXTURES === "1")(
+			"captures the documents of commands not served yet",
+			async () => {
+				const repo = `${host}/octo/hello`;
+				const pending: [string, ...string[]][] = [
+					["issue-list", "issue", "list", "-R", repo],
+					["issue-view", "issue", "view", "1", "-R", repo],
+					[
+						"issue-create",
+						"issue",
+						"create",
+						"-R",
+						repo,
+						"--title",
+						"T",
+						"--body",
+						"B",
+					],
+					["issue-status", "issue", "status", "-R", repo],
+					["pr-list", "pr", "list", "-R", repo],
+					["pr-view", "pr", "view", "1", "-R", repo],
+					["pr-status", "pr", "status", "-R", repo],
+					["label-list", "label", "list", "-R", repo],
+				];
+				for (const [fixture, ...args] of pending) {
+					await ghAs(fixture, ...args).catch(() => undefined);
+				}
+			},
+		);
 
 		it("calls the GraphQL API, with --paginate", async () => {
 			const { stdout } = await ghAs(

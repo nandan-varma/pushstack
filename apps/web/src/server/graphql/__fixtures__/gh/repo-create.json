@@ -14,13 +14,6 @@
 					"hasWikiEnabled": true
 				}
 			}
-		},
-		{
-			"query": "query RepositoryInfo($owner: String!, $name: String!) {\n\t\trepository(owner: $owner, name: $name) {isPrivate,description}\n\t}",
-			"variables": {
-				"name": "made-by-gh",
-				"owner": "octo"
-			}
 		}
 	]
 }
