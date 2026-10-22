@@ -6,6 +6,10 @@ import { CopyField } from "@/components/CopyField";
 import { AsideSection } from "@/components/layout/page";
 import { Panel } from "@/components/layout/panel";
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import {
 	Select,
 	SelectContent,
@@ -13,36 +17,32 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { getSession } from "@/lib/auth-session";
 import { getCloneUrl } from "@/lib/git-utils";
 import { queryKeys } from "@/lib/query-options";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
-import { LoadingButton } from "../../components/ui/loading-button";
-import { Textarea } from "../../components/ui/textarea";
 import {
 	MAX_STORAGE_NAME_LENGTH,
 	STORAGE_NAME_HINT,
 	STORAGE_NAME_PATTERN,
-} from "../../lib/storage-name";
+} from "@/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
 	type GitignoreTemplateName,
 	LICENSE_TEMPLATE_KEYS,
 	LICENSE_TEMPLATE_LABELS,
 	type LicenseTemplateKey,
-} from "../../lib/templates/names";
-import { createRepository } from "../../server/repositories";
+} from "@/lib/templates/names";
+import { createRepository } from "@/server/repositories";
 
 const NONE = "none";
 
-export const Route = createFileRoute("/repositories/new")({
+export const Route = createFileRoute("/new")({
 	component: NewRepositoryPage,
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session?.user) {
-			throw redirect({ to: "/auth/login" });
+			throw redirect({ to: "/login" });
 		}
 		return { user: session.user };
 	},

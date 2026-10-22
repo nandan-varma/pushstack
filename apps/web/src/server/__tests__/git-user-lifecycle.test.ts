@@ -232,14 +232,14 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	it("rejects an anonymous clone of the private repo (no credentials)", async () => {
 		await expect(
 			gitClone(
-				`${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`,
+				`${baseUrl}/${TEST_USER.username}/${REPO_NAME}.git`,
 				`${ENV.cloneDir}-anon`,
 			),
 		).rejects.toThrow();
 	});
 
 	it("rejects a bad token", async () => {
-		const url = `${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`;
+		const url = `${baseUrl}/${TEST_USER.username}/${REPO_NAME}.git`;
 		await expect(
 			gitClone(url, `${ENV.cloneDir}-badtoken`, {
 				username: TEST_USER.username,
@@ -249,7 +249,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("clones the private repo over HTTP using the user's PAT", async () => {
-		const url = `${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`;
+		const url = `${baseUrl}/${TEST_USER.username}/${REPO_NAME}.git`;
 		await gitClone(url, ENV.cloneDir, {
 			username: TEST_USER.username,
 			password: PAT,
@@ -510,7 +510,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 	});
 
 	it("a subsequent clone attempt 404s once the repo is gone", async () => {
-		const url = `${baseUrl}/api/git/${TEST_USER.username}/${REPO_NAME}.git`;
+		const url = `${baseUrl}/${TEST_USER.username}/${REPO_NAME}.git`;
 		await expect(
 			gitClone(url, `${ENV.cloneDir}-postdelete`, {
 				username: TEST_USER.username,

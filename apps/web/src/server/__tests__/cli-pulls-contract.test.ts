@@ -37,7 +37,7 @@ const io: Io = {
 		stderr += text;
 	},
 	readStdin: async () => "stdin contract body",
-	remotes: async () => ["http://localhost:3000/api/git/alice/pulls.git"],
+	remotes: async () => ["http://localhost:3000/alice/pulls.git"],
 	fetch: async (input, init) => {
 		const request = new Request(input, init);
 		requests.push(request.clone());
@@ -92,7 +92,7 @@ describe("CLI pr commands against real REST dispatcher", () => {
 		await branch("topic", "topic.txt");
 		const created = await invoke("pr", "create", "-t", "Topic", "-F", "-");
 		expect(created.code, created.stderr).toBe(0);
-		expect(created.stdout).toBe("http://localhost:3000/alice/pulls/pulls/1\n");
+		expect(created.stdout).toBe("http://localhost:3000/alice/pulls/pull/1\n");
 		const viewed = await invoke(
 			"pr",
 			"view",
@@ -160,7 +160,7 @@ describe("CLI pr commands against real REST dispatcher", () => {
 		expect(gitCalls[0]).toEqual([
 			"fetch",
 			"--",
-			"http://localhost:3000/api/git/alice/pulls.git",
+			"http://localhost:3000/alice/pulls.git",
 			"refs/heads/second",
 		]);
 	});

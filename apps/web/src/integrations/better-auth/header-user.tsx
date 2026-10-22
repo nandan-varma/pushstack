@@ -35,12 +35,12 @@ export default function AccountMenu() {
 		return (
 			<div className="grid grid-cols-2 gap-2">
 				<Link
-					to="/auth/login"
+					to="/login"
 					className={buttonVariants({ variant: "outline", size: "sm" })}
 				>
 					Sign in
 				</Link>
-				<Link to="/auth/register" className={buttonVariants({ size: "sm" })}>
+				<Link to="/signup" className={buttonVariants({ size: "sm" })}>
 					Sign up
 				</Link>
 			</div>

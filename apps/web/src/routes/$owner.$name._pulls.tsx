@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Outlet,
-	useLocation,
+	useMatch,
 	useNavigate,
 } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
@@ -47,7 +47,12 @@ import {
 } from "@/lib/query-options";
 import { createPullRequest } from "@/server/pull-requests";
 
-export const Route = createFileRoute("/$owner/$name/pulls")({
+/**
+ * The pull request list, and the split-view parent of a pull request: GitHub
+ * lists at `/{owner}/{repo}/pulls` but shows one at `/{owner}/{repo}/pull/{n}`,
+ * so both live under this pathless layout.
+ */
+export const Route = createFileRoute("/$owner/$name/_pulls")({
 	validateSearch: validateThreadSearch,
 	loaderDeps: threadSearchDeps,
 	loader: async ({ params, deps, context: { queryClient } }) => {
@@ -74,10 +79,11 @@ export const Route = createFileRoute("/$owner/$name/pulls")({
 function PullRequestsPage() {
 	const { owner, name } = Route.useParams();
 	const { q = "" } = Route.useSearch();
-	const { pathname, search: locationSearch } = useLocation();
-	// A diff or commit list needs the full width; the conversation splits.
-	const tab = (locationSearch as { tab?: string }).tab;
-	const navigate = useNavigate({ from: Route.fullPath });
+	const detail = useMatch({
+		from: "/$owner/$name/_pulls/pull/$id/{-$tab}",
+		shouldThrow: false,
+	});
+	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data: session } = useQuery(authSessionQueryOptions());
@@ -126,7 +132,7 @@ function PullRequestsPage() {
 			});
 			toast("Pull request created", "success");
 			navigate({
-				to: "/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pull/$id/{-$tab}",
 				params: { owner, name, id: String(pr.number) },
 			});
 		},
@@ -137,9 +143,14 @@ function PullRequestsPage() {
 
 	const setQuery = useCallback(
 		(next: string) => {
-			navigate({ search: { q: next || undefined }, replace: true });
+			navigate({
+				to: "/$owner/$name/pulls",
+				params: { owner, name },
+				search: { q: next || undefined },
+				replace: true,
+			});
 		},
-		[navigate],
+		[navigate, owner, name],
 	);
 
 	const activeTab = activeThreadTab(q, PULL_REQUEST_STATUS_TABS);
@@ -164,15 +175,14 @@ function PullRequestsPage() {
 		createMutation,
 	]);
 
-	// This route is both the PR list and the parent of the PR detail route.
-	// Render the child on /pulls/:id rather than leaving the list mounted with
-	// no Outlet, which made every PR link appear to do nothing.
-	const detailOpen = /\/pulls\/\d+$/.test(pathname);
+	const detailOpen = Boolean(detail);
+	// A diff or commit list needs the full width; the conversation splits.
+	const tab = detail?.params.tab;
 
 	return (
 		<ThreadSplitView
 			detail={detailOpen ? <Outlet /> : undefined}
-			wide={detailOpen && Boolean(tab && tab !== "conversation")}
+			wide={Boolean(tab)}
 			list={
 				<>
 					<Toolbar>

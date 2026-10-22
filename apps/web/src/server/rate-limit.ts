@@ -138,7 +138,7 @@ export const rateLimitStorage: RateLimitStorage = {
 };
 
 /* ------------------------------------------------------------------ *
- * Request limits for /api/v3 and /api/git (GitHub-shaped).
+ * Request limits for /api/v3 and git smart HTTP (GitHub-shaped).
  *
  * Same table and the same single-statement upsert as above, with keys in
  * their own `gh:` namespace. One round trip per metered request.

@@ -131,7 +131,7 @@ export type RawFileResult =
  * A file's exact bytes at a revision — or the fact that it exceeds
  * {@link MAX_RAW_BYTES}. The size is read from the object's pack entry *before*
  * anything is inflated, so an oversized file is refused without ever being
- * materialised; `/api/raw` streams from memory, so whatever reaches it is held
+ * materialised; the raw file route streams from memory, so whatever reaches it is held
  * in the function's heap.
  *
  * A `null` size (a loose object, or a store without range reads) falls through

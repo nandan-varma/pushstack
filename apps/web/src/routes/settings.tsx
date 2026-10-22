@@ -17,7 +17,7 @@ export const Route = createFileRoute("/settings")({
 		const session = await queryClient.ensureQueryData(
 			authSessionQueryOptions(),
 		);
-		if (!session?.user) throw redirect({ to: "/auth/login" });
+		if (!session?.user) throw redirect({ to: "/login" });
 	},
 	component: SettingsPage,
 });

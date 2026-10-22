@@ -162,11 +162,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 							label="Notifications"
 							count={unread}
 						/>
-						<SidebarLink
-							to="/repositories/new"
-							icon={PlusIcon}
-							label="New repository"
-						/>
+						<SidebarLink to="/new" icon={PlusIcon} label="New repository" />
 					</>
 				) : (
 					<SidebarLink

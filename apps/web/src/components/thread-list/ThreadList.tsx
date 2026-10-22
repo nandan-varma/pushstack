@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function SignInButton({ children }: { children: ReactNode }) {
 	return (
-		<Link to="/auth/login">
+		<Link to="/login">
 			<Button variant="outline">{children}</Button>
 		</Link>
 	);
@@ -193,7 +193,7 @@ export function ThreadRow({
 		</Link>
 	) : (
 		<Link
-			to="/$owner/$name/pulls/$id"
+			to="/$owner/$name/pull/$id/{-$tab}"
 			params={{ owner, name, id }}
 			className={rowClass}
 		>

@@ -75,7 +75,7 @@ They share one number sequence per repo. `claimNextIssueOrPrNumber`
 (`repository-lookup.ts`) claims one with
 `UPDATE … SET next_issue_number = next_issue_number + 1 RETURNING`, which is
 atomic across serverless instances without app-level locking; `(repo_id,
-number)` is unique on `issues`. Routes (`/issues/$id`, `/pulls/$id`) carry
+number)` is unique on `issues`. Routes (`/issues/$id`, `/pull/$id`) carry
 this number and resolve it with `getIssueByNumber`/`getPullRequestByNumber`;
 mutations take the issue `id` from the loaded row (a pull request's `id` is
 its issue id). Activity metadata stores the number too.

@@ -107,9 +107,8 @@ export function PushGuide({
 						<p className="flex flex-wrap items-center gap-2 text-sm text-bjork-text-muted">
 							Or skip git for now:
 							<Link
-								to="/$owner/$name/upload"
-								params={{ owner, name }}
-								search={{ branch }}
+								to="/$owner/$name/upload/$branch/$"
+								params={{ owner, name, branch, _splat: "" }}
 								className="inline-flex items-center gap-1.5 font-medium text-bjork-accent hover:underline"
 							>
 								<Upload aria-hidden="true" className="size-3.5" />

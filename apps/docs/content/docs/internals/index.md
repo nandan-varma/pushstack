@@ -77,8 +77,8 @@ There are three distinct kinds of requests this app serves:
    defined in `apps/web/src/server/*.ts`, called directly from route loaders/components
    like normal async functions. TanStack Start's Vite plugin transforms these
    into real HTTP calls under the hood; the calling code never sees a fetch.
-3. **Git smart HTTP protocol** (`/api/git/:owner/:repo.git/...` via the
-   catch-all `apps/web/src/routes/api/git.$.ts`) — this is what `git clone`, `git
+3. **Git smart HTTP protocol** (`/:owner/:repo.git/...`, GitHub's clone URL, via
+   `apps/web/src/routes/$owner.$name.{info.refs,git-upload-pack,git-receive-pack}.ts`) — this is what `git clone`, `git
    fetch`, and `git push` actually talk to. It's a from-scratch implementation
    of the [Git HTTP smart protocol](https://git-scm.com/docs/http-protocol)
    using isomorphic-git, not a native git server. See

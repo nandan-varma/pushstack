@@ -43,7 +43,7 @@ export function LinkifiedText({
 							key={`ref-${key++}`}
 							to={
 								kind === "pull"
-									? "/$owner/$name/pulls/$id"
+									? "/$owner/$name/pull/$id/{-$tab}"
 									: "/$owner/$name/issues/$id"
 							}
 							params={{ owner, name, id: String(num) }}

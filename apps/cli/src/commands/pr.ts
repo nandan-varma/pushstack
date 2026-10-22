@@ -82,7 +82,7 @@ async function currentBranch(io: Io) {
 	if (!branch) throw new CliError("could not determine the current branch");
 	return branch;
 }
-/** A number, a URL ending in /pulls/N, a branch name, or (none) the current branch. */
+/** A number, a pull request URL (`…/pull/N`, optionally `/files` or `/commits`), a branch name, or (none) the current branch. */
 async function findPull(
 	io: Io,
 	client: Client,
@@ -92,7 +92,9 @@ async function findPull(
 	if (positionals.length > 1)
 		throw new CliError("expected at most one pull request argument");
 	const raw = positionals[0];
-	const number = raw?.match(/^#?([1-9]\d*)$|\/pulls\/([1-9]\d*)\/?$/);
+	const number = raw?.match(
+		/^#?([1-9]\d*)$|\/pull\/([1-9]\d*)(?:\/(?:files|commits))?\/?$/,
+	);
 	if (number) {
 		const n = Number(number[1] ?? number[2]);
 		if (!Number.isSafeInteger(n))

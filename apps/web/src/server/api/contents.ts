@@ -96,7 +96,7 @@ function baseShape(
 		html_url: html,
 		download_url:
 			kind === "file" || kind === "symlink"
-				? htmlUrl(`/api/raw/${fullName}/${encodePath(ref)}/${path}`)
+				? htmlUrl(`/${fullName}/raw/${encodePath(ref)}/${path}`)
 				: null,
 		_links: { self: url, git: gitUrl, html },
 	};

@@ -20,7 +20,9 @@ vi.mock("@tanstack/react-router", () => ({
 	}) => (
 		<a
 			className={className}
-			href={to.replace(/\$(\w+)/g, (_, k) => params?.[k] ?? "")}
+			href={to
+				.replace(/\/\{-\$\w+\}/g, "")
+				.replace(/\$(\w+)/g, (_, k) => params?.[k] ?? "")}
 		>
 			{children}
 		</a>
@@ -88,7 +90,7 @@ describe("ThreadList", () => {
 			</ThreadList>,
 		);
 		const link = screen.getByRole("link");
-		expect(link).toHaveAttribute("href", "/o/n/pulls/7");
+		expect(link).toHaveAttribute("href", "/o/n/pull/7");
 		expect(link).toHaveTextContent("Broken thing");
 		expect(link).toHaveTextContent(/#7.*opened/);
 		expect(link).toHaveTextContent("by alice");

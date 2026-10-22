@@ -27,7 +27,7 @@ export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 export const UPLOAD_WARNING_BYTES = 10 * 1024 * 1024;
 
 /**
- * Largest object `/api/raw` will serve. That endpoint streams from memory, so a
+ * Largest object the raw file route will serve. That endpoint streams from memory, so a
  * file reaching it is a file held in the function's heap; this is the git push
  * body cap, and an object larger than it can only exist by growing through
  * successive deltas. Above it the honest answer is `git clone` (see

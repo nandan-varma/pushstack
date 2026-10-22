@@ -11,7 +11,7 @@ export function getGitBaseUrl(): string {
 }
 
 export function getCloneUrl(owner: string, repoName: string): string {
-	return `${getGitBaseUrl()}/api/git/${owner}/${repoName}.git`;
+	return `${getGitBaseUrl()}/${owner}/${repoName}.git`;
 }
 
 export function getSetupInstructions(repoName: string, cloneUrl: string) {

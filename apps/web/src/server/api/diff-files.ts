@@ -61,7 +61,7 @@ export async function diffFileObjects(
 				deletions: file.deletions,
 				changes: file.additions + file.deletions,
 				blob_url: htmlUrl(`/${fullName}/blob/${ref ?? ""}/${path}`),
-				raw_url: htmlUrl(`/api/raw/${fullName}/${ref ?? ""}/${path}`),
+				raw_url: htmlUrl(`/${fullName}/raw/${ref ?? ""}/${path}`),
 				contents_url: apiUrl(
 					`/repos/${fullName}/contents/${path}?ref=${ref ?? ""}`,
 				),

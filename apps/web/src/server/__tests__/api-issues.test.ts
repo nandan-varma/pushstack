@@ -294,10 +294,10 @@ describe("listing issues", () => {
 			number: pr.number,
 			title: "A pull request",
 			state: "open",
-			html_url: `http://localhost:3000/alice/proj/pulls/${pr.number}`,
+			html_url: `http://localhost:3000/alice/proj/pull/${pr.number}`,
 			pull_request: {
 				url: `${BASE}/repos/alice/proj/pulls/${pr.number}`,
-				html_url: `http://localhost:3000/alice/proj/pulls/${pr.number}`,
+				html_url: `http://localhost:3000/alice/proj/pull/${pr.number}`,
 				merged_at: null,
 			},
 		});

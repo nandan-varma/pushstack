@@ -19,7 +19,7 @@ type ActivityLink =
 			params: { owner: string; name: string; sha: string };
 	  }
 	| {
-			to: "/$owner/$name/issues/$id" | "/$owner/$name/pulls/$id";
+			to: "/$owner/$name/issues/$id" | "/$owner/$name/pull/$id/{-$tab}";
 			params: { owner: string; name: string; id: string };
 	  };
 
@@ -38,7 +38,7 @@ export function describeActivity(row: ActivityRow): {
 			to:
 				kind === "issue"
 					? "/$owner/$name/issues/$id"
-					: "/$owner/$name/pulls/$id",
+					: "/$owner/$name/pull/$id/{-$tab}",
 			params: { ...repo, id: String(number) },
 		};
 	const home: ActivityLink | null = repo && {

@@ -5,6 +5,8 @@ Releases of `@pstk/cli`, the PushStack CLI. The format follows
 
 ## [0.0.1] - unreleased
 
+- Remotes and pull request arguments use GitHub's URL shapes:
+  `https://{host}/{owner}/{repo}.git` and `…/{owner}/{repo}/pull/{n}`.
 - `pushstack` and `pst`: `auth login --with-token`, `auth status`, `auth token`,
   `auth logout`, `repo list`, `repo view`, `repo create`, and `api` for
   arbitrary requests against a host's `/api/v3`.

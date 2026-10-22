@@ -1,5 +1,5 @@
 /**
- * The git smart-HTTP endpoint (`/api/git/{owner}/{repo}[.git]/…`) over
+ * The git smart-HTTP endpoint (`/{owner}/{repo}[.git]/…`, GitHub's clone URL) over
  * git-fs-s3's `/http` handlers: URL routing, auth, the body cap, the write
  * lock around pushes, and post-push bookkeeping. Every service runs straight
  * against R2 through `gitFs`: upload-pack (clone/fetch) reads lock-free;
@@ -53,20 +53,15 @@ export interface GitRoute {
 	isInfoRefs: boolean;
 }
 
-const GIT_ROUTE_PREFIX = "/api/git/";
 const NAME_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const SERVICES = new Set<string>(["git-upload-pack", "git-receive-pack"]);
 const isService = (value: string | null): value is GitService =>
 	value !== null && SERVICES.has(value);
 
-/** Parse `/api/git/{owner}/{repo}[.git]/(info/refs?service=…|<service>)`, or null. */
+/** Parse `/{owner}/{repo}[.git]/(info/refs?service=…|<service>)`, or null. */
 export function parseGitUrl(url: string): GitRoute | null {
 	const { pathname, searchParams } = new URL(url);
-	if (!pathname.startsWith(GIT_ROUTE_PREFIX)) return null;
-	const [owner, repoSegment, ...rest] = pathname
-		.slice(GIT_ROUTE_PREFIX.length)
-		.split("/")
-		.filter(Boolean);
+	const [owner, repoSegment, ...rest] = pathname.split("/").filter(Boolean);
 	const repo = repoSegment?.replace(/\.git$/, "");
 	if (
 		!owner ||

@@ -68,11 +68,12 @@ const PullRequestFilesTab = lazy(() =>
 	})),
 );
 
-const PR_TABS = ["conversation", "commits", "files"] as const;
-type PrTab = (typeof PR_TABS)[number];
+const PR_PATH_TABS = ["commits", "files"] as const;
+type PrTab = (typeof PR_PATH_TABS)[number];
 
-export const Route = createFileRoute("/$owner/$name/pulls/$id")({
-	// `/pulls/{n}.diff` and `.patch` are plain text (GitHub spells it `pull/`).
+export const Route = createFileRoute("/$owner/$name/_pulls/pull/$id/{-$tab}")({
+	// GitHub's pull request URLs: `/pull/{n}` (conversation), `/pull/{n}/commits`
+	// and `/pull/{n}/files`; `/pull/{n}.diff` and `.patch` are plain text.
 	server: {
 		handlers: {
 			GET: async ({ params, next }) => {
@@ -88,12 +89,14 @@ export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 			},
 		},
 	},
-	validateSearch: (search: Record<string, unknown>): { tab?: PrTab } => ({
-		tab: PR_TABS.includes(search.tab as PrTab)
-			? (search.tab as PrTab)
-			: undefined,
-	}),
 	loader: async ({ params, context: { queryClient } }) => {
+		// The conversation is `/pull/{n}` itself; only the other tabs have a segment.
+		if (
+			params.tab !== undefined &&
+			!PR_PATH_TABS.includes(params.tab as PrTab)
+		) {
+			throw notFound();
+		}
 		const prNumber = Number(params.id);
 		if (!Number.isInteger(prNumber) || prNumber < 1) throw notFound();
 		// getPullRequestByNumber resolves the repo server-side, so this can
@@ -176,8 +179,9 @@ export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 });
 
 function PullRequestDetailPage() {
-	const { owner, name, id } = Route.useParams();
-	const { tab = "conversation" } = Route.useSearch();
+	const params = Route.useParams();
+	const { owner, name, id } = params;
+	const tab = (params.tab as PrTab | undefined) ?? "conversation";
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
@@ -367,9 +371,10 @@ function PullRequestDetailPage() {
 				className="gap-6"
 				onValueChange={(value) =>
 					navigate({
-						search: {
+						params: (prev) => ({
+							...prev,
 							tab: value === "conversation" ? undefined : (value as PrTab),
-						},
+						}),
 						replace: true,
 					})
 				}

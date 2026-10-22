@@ -24,12 +24,12 @@ export function GuestSignupBanner({ repoLabel }: { repoLabel: string }) {
 			</p>
 			<div className="flex shrink-0 items-center gap-2">
 				<Button size="sm" asChild>
-					<Link to="/auth/register">
+					<Link to="/signup">
 						Create account <ArrowRight className="size-3.5" />
 					</Link>
 				</Button>
 				<Button size="sm" variant="ghost" asChild>
-					<Link to="/auth/login">Sign in</Link>
+					<Link to="/login">Sign in</Link>
 				</Button>
 				<Button
 					size="icon"

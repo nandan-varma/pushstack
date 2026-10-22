@@ -16,7 +16,7 @@ export const Route = createFileRoute("/repositories/")({
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session?.user) {
-			throw redirect({ to: "/auth/login" });
+			throw redirect({ to: "/login" });
 		}
 		return { user: session.user };
 	},
@@ -47,7 +47,7 @@ function RepositoriesPage() {
 				title="Repositories"
 				meta={repositories ? `${repositories.length}` : undefined}
 				actions={
-					<Link to="/repositories/new" className={buttonVariants()}>
+					<Link to="/new" className={buttonVariants()}>
 						<Plus aria-hidden="true" />
 						New repository
 					</Link>
@@ -85,7 +85,7 @@ function RepositoriesPage() {
 							title="No repositories yet"
 							message="Create one to start pushing code."
 							action={
-								<Link to="/repositories/new" className={buttonVariants()}>
+								<Link to="/new" className={buttonVariants()}>
 									<Plus aria-hidden="true" />
 									New repository
 								</Link>

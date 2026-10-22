@@ -11,9 +11,7 @@ import { Sidebar } from "./Sidebar";
 
 /** Landing, about and sign-in pages are full-bleed; everything else is the app. */
 function isMarketingPath(pathname: string) {
-	return (
-		pathname === "/" || pathname === "/about" || pathname.startsWith("/auth")
-	);
+	return pathname === "/" || pathname === "/about";
 }
 
 /**
@@ -27,11 +25,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const pathname = useRouterState({
 		select: (s) => s.matches[s.matches.length - 1]?.pathname ?? "/",
 	});
+	// Sign-in pages bring their own full-screen layout (routes/_auth.tsx).
+	const isAuthPage = useRouterState({
+		select: (s) => s.matches.some((match) => match.routeId === "/_auth"),
+	});
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const { owner, name } = useParams({ strict: false });
 
-	// Sign-in pages bring their own full-screen layout (routes/auth.tsx).
-	if (pathname.startsWith("/auth")) {
+	if (isAuthPage) {
 		return (
 			<main id="main-content" className="flex min-w-0 flex-1 flex-col">
 				{children}
@@ -146,12 +147,12 @@ function MarketingBar() {
 					) : (
 						<>
 							<Link
-								to="/auth/login"
+								to="/login"
 								className={buttonVariants({ variant: "ghost" })}
 							>
 								Sign in
 							</Link>
-							<Link to="/auth/register" className={buttonVariants()}>
+							<Link to="/signup" className={buttonVariants()}>
 								Get started
 							</Link>
 						</>

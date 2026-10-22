@@ -25,6 +25,8 @@ vi.mock("@tanstack/react-router", () => ({
 					? href.replace(/\$$/, val)
 					: href.replace(`$${key}`, val);
 		}
+		// Unset optional segments (`{-$tab}`) drop out, as in the real router.
+		href = href.replace(/\/\{-\$\w+\}/g, "");
 		return (
 			<a href={href} data-testid="router-link" {...props}>
 				{children}
@@ -115,12 +117,12 @@ describe("MarkdownRenderer link safety", () => {
 
 	it("rewrites a cross-entity reference link (#N style) to the router Link for that resource", () => {
 		renderMarkdown({
-			content: "[see PR](/acme/widgets/pulls/42)",
+			content: "[see PR](/acme/widgets/pull/42)",
 			owner: "acme",
 			name: "widgets",
 		});
 		const link = screen.getByTestId("router-link");
-		expect(link).toHaveAttribute("href", "/acme/widgets/pulls/42");
+		expect(link).toHaveAttribute("href", "/acme/widgets/pull/42");
 	});
 
 	it("does not render a relative link as an unsafe raw anchor even without branch context", () => {
@@ -183,7 +185,7 @@ describe("MarkdownRenderer image safety", () => {
 		const img = screen.getByAltText("diagram");
 		expect(img).toHaveAttribute(
 			"src",
-			"/api/raw/acme/widgets/main/assets/diagram.png",
+			"/acme/widgets/raw/main/assets/diagram.png",
 		);
 	});
 
@@ -197,7 +199,7 @@ describe("MarkdownRenderer image safety", () => {
 		});
 		expect(screen.getByAltText("diagram")).toHaveAttribute(
 			"src",
-			"/api/raw/acme/widgets/main/docs/guides/diagram.png",
+			"/acme/widgets/raw/main/docs/guides/diagram.png",
 		);
 	});
 

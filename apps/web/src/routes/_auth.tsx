@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { Brand } from "@/components/shell/AppShell";
 import { getSession } from "@/lib/auth-session";
 
-export const Route = createFileRoute("/auth")({
+export const Route = createFileRoute("/_auth")({
 	component: AuthLayout,
 	beforeLoad: async () => {
 		const session = await getSession();

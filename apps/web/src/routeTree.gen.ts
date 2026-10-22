@@ -10,46 +10,51 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as NewRouteImport } from './routes/new'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RepositoriesRouteImport } from './routes/repositories'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as OwnerIndexRouteImport } from './routes/$owner.index'
 import { Route as OwnerNameRouteImport } from './routes/$owner.$name'
+import { Route as AuthLoginRouteImport } from './routes/_auth/login'
+import { Route as AuthPassword_resetRouteImport } from './routes/_auth/password_reset'
+import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
-import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
-import { Route as AuthLoginRouteImport } from './routes/auth/login'
-import { Route as AuthRegisterRouteImport } from './routes/auth/register'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
-import { Route as RepositoriesNewRouteImport } from './routes/repositories/new'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
+import { Route as OwnerNamePullsRouteImport } from './routes/$owner.$name._pulls'
+import { Route as OwnerNameGitReceivePackRouteImport } from './routes/$owner.$name.git-receive-pack'
+import { Route as OwnerNameGitUploadPackRouteImport } from './routes/$owner.$name.git-upload-pack'
 import { Route as OwnerNameIssuesRouteImport } from './routes/$owner.$name.issues'
 import { Route as OwnerNameLabelsRouteImport } from './routes/$owner.$name.labels'
-import { Route as OwnerNamePullsRouteImport } from './routes/$owner.$name.pulls'
 import { Route as OwnerNameSettingsRouteImport } from './routes/$owner.$name.settings'
 import { Route as OwnerNameSetupRouteImport } from './routes/$owner.$name.setup'
-import { Route as OwnerNameUploadRouteImport } from './routes/$owner.$name.upload'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiDebugPerfRouteImport } from './routes/api/debug.perf'
-import { Route as ApiGitSplatRouteImport } from './routes/api/git.$'
-import { Route as ApiRawSplatRouteImport } from './routes/api/raw.$'
 import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
+import { Route as OwnerNamePullsPullsRouteImport } from './routes/$owner.$name._pulls.pulls'
 import { Route as OwnerNameCommitShaRouteImport } from './routes/$owner.$name.commit.$sha'
 import { Route as OwnerNameCommitsBranchRouteImport } from './routes/$owner.$name.commits.$branch'
 import { Route as OwnerNameCompareSplatRouteImport } from './routes/$owner.$name.compare.$'
+import { Route as OwnerNameInfoRefsRouteImport } from './routes/$owner.$name.info.refs'
 import { Route as OwnerNameIssuesIdRouteImport } from './routes/$owner.$name.issues.$id'
-import { Route as OwnerNamePullIdRouteImport } from './routes/$owner.$name.pull.$id'
-import { Route as OwnerNamePullsIdRouteImport } from './routes/$owner.$name.pulls.$id'
+import { Route as OwnerNameRawSplatRouteImport } from './routes/$owner.$name.raw.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
 import { Route as OwnerNameTreeBranchSplatRouteImport } from './routes/$owner.$name.tree.$branch.$'
+import { Route as OwnerNameUploadBranchSplatRouteImport } from './routes/$owner.$name.upload.$branch.$'
+import { Route as OwnerNamePullsPullIdChar123TabChar125RouteImport } from './routes/$owner.$name._pulls.pull.$id.{-$tab}'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -57,14 +62,14 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewRoute = NewRouteImport.update({
+  id: '/new',
+  path: '/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -97,44 +102,48 @@ const OwnerNameRoute = OwnerNameRouteImport.update({
   path: '/$owner/$name',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHealthRoute = ApiHealthRouteImport.update({
-  id: '/api/health',
-  path: '/api/health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => AuthRoute,
-} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthRegisterRoute = AuthRegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
+const AuthPassword_resetRoute = AuthPassword_resetRouteImport.update({
+  id: '/password_reset',
+  path: '/password_reset',
   getParentRoute: () => AuthRoute,
 } as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
+const AuthSignupRoute = AuthSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => AuthRoute,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => RepositoriesRoute,
 } as any)
-const RepositoriesNewRoute = RepositoriesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => RepositoriesRoute,
-} as any)
 const OwnerNameIndexRoute = OwnerNameIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNamePullsRoute = OwnerNamePullsRouteImport.update({
+  id: '/_pulls',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNameGitReceivePackRoute = OwnerNameGitReceivePackRouteImport.update({
+  id: '/git-receive-pack',
+  path: '/git-receive-pack',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNameGitUploadPackRoute = OwnerNameGitUploadPackRouteImport.update({
+  id: '/git-upload-pack',
+  path: '/git-upload-pack',
   getParentRoute: () => OwnerNameRoute,
 } as any)
 const OwnerNameIssuesRoute = OwnerNameIssuesRouteImport.update({
@@ -147,11 +156,6 @@ const OwnerNameLabelsRoute = OwnerNameLabelsRouteImport.update({
   path: '/labels',
   getParentRoute: () => OwnerNameRoute,
 } as any)
-const OwnerNamePullsRoute = OwnerNamePullsRouteImport.update({
-  id: '/pulls',
-  path: '/pulls',
-  getParentRoute: () => OwnerNameRoute,
-} as any)
 const OwnerNameSettingsRoute = OwnerNameSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -160,11 +164,6 @@ const OwnerNameSettingsRoute = OwnerNameSettingsRouteImport.update({
 const OwnerNameSetupRoute = OwnerNameSetupRouteImport.update({
   id: '/setup',
   path: '/setup',
-  getParentRoute: () => OwnerNameRoute,
-} as any)
-const OwnerNameUploadRoute = OwnerNameUploadRouteImport.update({
-  id: '/upload',
-  path: '/upload',
   getParentRoute: () => OwnerNameRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -177,20 +176,15 @@ const ApiDebugPerfRoute = ApiDebugPerfRouteImport.update({
   path: '/api/debug/perf',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGitSplatRoute = ApiGitSplatRouteImport.update({
-  id: '/api/git/$',
-  path: '/api/git/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRawSplatRoute = ApiRawSplatRouteImport.update({
-  id: '/api/raw/$',
-  path: '/api/raw/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiV3SplatRoute = ApiV3SplatRouteImport.update({
   id: '/api/v3/$',
   path: '/api/v3/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerNamePullsPullsRoute = OwnerNamePullsPullsRouteImport.update({
+  id: '/pulls',
+  path: '/pulls',
+  getParentRoute: () => OwnerNamePullsRoute,
 } as any)
 const OwnerNameCommitShaRoute = OwnerNameCommitShaRouteImport.update({
   id: '/commit/$sha',
@@ -207,20 +201,20 @@ const OwnerNameCompareSplatRoute = OwnerNameCompareSplatRouteImport.update({
   path: '/compare/$',
   getParentRoute: () => OwnerNameRoute,
 } as any)
+const OwnerNameInfoRefsRoute = OwnerNameInfoRefsRouteImport.update({
+  id: '/info/refs',
+  path: '/info/refs',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const OwnerNameIssuesIdRoute = OwnerNameIssuesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => OwnerNameIssuesRoute,
 } as any)
-const OwnerNamePullIdRoute = OwnerNamePullIdRouteImport.update({
-  id: '/pull/$id',
-  path: '/pull/$id',
+const OwnerNameRawSplatRoute = OwnerNameRawSplatRouteImport.update({
+  id: '/raw/$',
+  path: '/raw/$',
   getParentRoute: () => OwnerNameRoute,
-} as any)
-const OwnerNamePullsIdRoute = OwnerNamePullsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => OwnerNamePullsRoute,
 } as any)
 const OwnerNameBlobBranchSplatRoute =
   OwnerNameBlobBranchSplatRouteImport.update({
@@ -234,246 +228,257 @@ const OwnerNameTreeBranchSplatRoute =
     path: '/tree/$branch/$',
     getParentRoute: () => OwnerNameRoute,
   } as any)
+const OwnerNameUploadBranchSplatRoute =
+  OwnerNameUploadBranchSplatRouteImport.update({
+    id: '/upload/$branch/$',
+    path: '/upload/$branch/$',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
+const OwnerNamePullsPullIdChar123TabChar125Route =
+  OwnerNamePullsPullIdChar123TabChar125RouteImport.update({
+    id: '/pull/$id/{-$tab}',
+    path: '/pull/$id/{-$tab}',
+    getParentRoute: () => OwnerNamePullsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/new': typeof NewRoute
   '/notifications': typeof NotificationsRoute
   '/repositories': typeof RepositoriesRouteWithChildren
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/$owner/$name': typeof OwnerNameRouteWithChildren
+  '/login': typeof AuthLoginRoute
+  '/password_reset': typeof AuthPassword_resetRoute
+  '/signup': typeof AuthSignupRoute
   '/api/health': typeof ApiHealthRoute
-  '/auth/forgot-password': typeof AuthForgotPasswordRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/register': typeof AuthRegisterRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/repositories/new': typeof RepositoriesNewRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
+  '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
+  '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
-  '/$owner/$name/pulls': typeof OwnerNamePullsRouteWithChildren
   '/$owner/$name/settings': typeof OwnerNameSettingsRoute
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
-  '/$owner/$name/upload': typeof OwnerNameUploadRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
-  '/api/git/$': typeof ApiGitSplatRoute
-  '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/$owner/$name/': typeof OwnerNameIndexRoute
+  '/$owner/$name/pulls': typeof OwnerNamePullsPullsRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
+  '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
-  '/$owner/$name/pull/$id': typeof OwnerNamePullIdRoute
-  '/$owner/$name/pulls/$id': typeof OwnerNamePullsIdRoute
+  '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
+  '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/new': typeof NewRoute
   '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/login': typeof AuthLoginRoute
+  '/password_reset': typeof AuthPassword_resetRoute
+  '/signup': typeof AuthSignupRoute
   '/api/health': typeof ApiHealthRoute
-  '/auth/forgot-password': typeof AuthForgotPasswordRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/register': typeof AuthRegisterRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/repositories/new': typeof RepositoriesNewRoute
   '/$owner': typeof OwnerIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
+  '/$owner/$name': typeof OwnerNameIndexRoute
+  '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
+  '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
-  '/$owner/$name/pulls': typeof OwnerNamePullsRouteWithChildren
   '/$owner/$name/settings': typeof OwnerNameSettingsRoute
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
-  '/$owner/$name/upload': typeof OwnerNameUploadRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
-  '/api/git/$': typeof ApiGitSplatRoute
-  '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
-  '/$owner/$name': typeof OwnerNameIndexRoute
+  '/$owner/$name/pulls': typeof OwnerNamePullsPullsRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
+  '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
-  '/$owner/$name/pull/$id': typeof OwnerNamePullIdRoute
-  '/$owner/$name/pulls/$id': typeof OwnerNamePullsIdRoute
+  '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
+  '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_auth': typeof AuthRouteWithChildren
   '/about': typeof AboutRoute
-  '/auth': typeof AuthRouteWithChildren
   '/dashboard': typeof DashboardRoute
+  '/new': typeof NewRoute
   '/notifications': typeof NotificationsRoute
   '/repositories': typeof RepositoriesRouteWithChildren
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/$owner/$name': typeof OwnerNameRouteWithChildren
+  '/_auth/login': typeof AuthLoginRoute
+  '/_auth/password_reset': typeof AuthPassword_resetRoute
+  '/_auth/signup': typeof AuthSignupRoute
   '/api/health': typeof ApiHealthRoute
-  '/auth/forgot-password': typeof AuthForgotPasswordRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/register': typeof AuthRegisterRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/repositories/new': typeof RepositoriesNewRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
+  '/$owner/$name/_pulls': typeof OwnerNamePullsRouteWithChildren
+  '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
+  '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
-  '/$owner/$name/pulls': typeof OwnerNamePullsRouteWithChildren
   '/$owner/$name/settings': typeof OwnerNameSettingsRoute
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
-  '/$owner/$name/upload': typeof OwnerNameUploadRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
-  '/api/git/$': typeof ApiGitSplatRoute
-  '/api/raw/$': typeof ApiRawSplatRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/$owner/$name/': typeof OwnerNameIndexRoute
+  '/$owner/$name/_pulls/pulls': typeof OwnerNamePullsPullsRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
+  '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
-  '/$owner/$name/pull/$id': typeof OwnerNamePullIdRoute
-  '/$owner/$name/pulls/$id': typeof OwnerNamePullsIdRoute
+  '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
+  '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/_pulls/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/about'
-    | '/auth'
     | '/dashboard'
+    | '/new'
     | '/notifications'
     | '/repositories'
     | '/search'
     | '/settings'
     | '/$owner/$name'
+    | '/login'
+    | '/password_reset'
+    | '/signup'
     | '/api/health'
-    | '/auth/forgot-password'
-    | '/auth/login'
-    | '/auth/register'
-    | '/auth/reset-password'
-    | '/repositories/new'
     | '/$owner/'
     | '/repositories/'
+    | '/$owner/$name/git-receive-pack'
+    | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
-    | '/$owner/$name/pulls'
     | '/$owner/$name/settings'
     | '/$owner/$name/setup'
-    | '/$owner/$name/upload'
     | '/api/auth/$'
     | '/api/debug/perf'
-    | '/api/git/$'
-    | '/api/raw/$'
     | '/api/v3/$'
     | '/$owner/$name/'
+    | '/$owner/$name/pulls'
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
+    | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
-    | '/$owner/$name/pull/$id'
-    | '/$owner/$name/pulls/$id'
+    | '/$owner/$name/raw/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
+    | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/pull/$id/{-$tab}'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
-    | '/auth'
     | '/dashboard'
+    | '/new'
     | '/notifications'
     | '/search'
     | '/settings'
+    | '/login'
+    | '/password_reset'
+    | '/signup'
     | '/api/health'
-    | '/auth/forgot-password'
-    | '/auth/login'
-    | '/auth/register'
-    | '/auth/reset-password'
-    | '/repositories/new'
     | '/$owner'
     | '/repositories'
+    | '/$owner/$name'
+    | '/$owner/$name/git-receive-pack'
+    | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
-    | '/$owner/$name/pulls'
     | '/$owner/$name/settings'
     | '/$owner/$name/setup'
-    | '/$owner/$name/upload'
     | '/api/auth/$'
     | '/api/debug/perf'
-    | '/api/git/$'
-    | '/api/raw/$'
     | '/api/v3/$'
-    | '/$owner/$name'
+    | '/$owner/$name/pulls'
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
+    | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
-    | '/$owner/$name/pull/$id'
-    | '/$owner/$name/pulls/$id'
+    | '/$owner/$name/raw/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
+    | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/pull/$id/{-$tab}'
   id:
     | '__root__'
     | '/'
+    | '/_auth'
     | '/about'
-    | '/auth'
     | '/dashboard'
+    | '/new'
     | '/notifications'
     | '/repositories'
     | '/search'
     | '/settings'
     | '/$owner/$name'
+    | '/_auth/login'
+    | '/_auth/password_reset'
+    | '/_auth/signup'
     | '/api/health'
-    | '/auth/forgot-password'
-    | '/auth/login'
-    | '/auth/register'
-    | '/auth/reset-password'
-    | '/repositories/new'
     | '/$owner/'
     | '/repositories/'
+    | '/$owner/$name/_pulls'
+    | '/$owner/$name/git-receive-pack'
+    | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
-    | '/$owner/$name/pulls'
     | '/$owner/$name/settings'
     | '/$owner/$name/setup'
-    | '/$owner/$name/upload'
     | '/api/auth/$'
     | '/api/debug/perf'
-    | '/api/git/$'
-    | '/api/raw/$'
     | '/api/v3/$'
     | '/$owner/$name/'
+    | '/$owner/$name/_pulls/pulls'
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
+    | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
-    | '/$owner/$name/pull/$id'
-    | '/$owner/$name/pulls/$id'
+    | '/$owner/$name/raw/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
+    | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/_pulls/pull/$id/{-$tab}'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRouteWithChildren
+  AboutRoute: typeof AboutRoute
   DashboardRoute: typeof DashboardRoute
+  NewRoute: typeof NewRoute
   NotificationsRoute: typeof NotificationsRoute
   RepositoriesRoute: typeof RepositoriesRouteWithChildren
   SearchRoute: typeof SearchRoute
@@ -483,8 +488,6 @@ export interface RootRouteChildren {
   OwnerIndexRoute: typeof OwnerIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiDebugPerfRoute: typeof ApiDebugPerfRoute
-  ApiGitSplatRoute: typeof ApiGitSplatRoute
-  ApiRawSplatRoute: typeof ApiRawSplatRoute
   ApiV3SplatRoute: typeof ApiV3SplatRoute
 }
 
@@ -497,6 +500,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -504,18 +514,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/new': {
+      id: '/new'
+      path: '/new'
+      fullPath: '/new'
+      preLoaderRoute: typeof NewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -560,40 +570,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/password_reset': {
+      id: '/_auth/password_reset'
+      path: '/password_reset'
+      fullPath: '/password_reset'
+      preLoaderRoute: typeof AuthPassword_resetRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/signup': {
+      id: '/_auth/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof AuthSignupRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/auth/forgot-password': {
-      id: '/auth/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthForgotPasswordRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/auth/login': {
-      id: '/auth/login'
-      path: '/login'
-      fullPath: '/auth/login'
-      preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/auth/register': {
-      id: '/auth/register'
-      path: '/register'
-      fullPath: '/auth/register'
-      preLoaderRoute: typeof AuthRegisterRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/auth/reset-password': {
-      id: '/auth/reset-password'
-      path: '/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
-      parentRoute: typeof AuthRoute
     }
     '/repositories/': {
       id: '/repositories/'
@@ -602,18 +605,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RepositoriesIndexRouteImport
       parentRoute: typeof RepositoriesRoute
     }
-    '/repositories/new': {
-      id: '/repositories/new'
-      path: '/new'
-      fullPath: '/repositories/new'
-      preLoaderRoute: typeof RepositoriesNewRouteImport
-      parentRoute: typeof RepositoriesRoute
-    }
     '/$owner/$name/': {
       id: '/$owner/$name/'
       path: '/'
       fullPath: '/$owner/$name/'
       preLoaderRoute: typeof OwnerNameIndexRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/_pulls': {
+      id: '/$owner/$name/_pulls'
+      path: ''
+      fullPath: '/$owner/$name'
+      preLoaderRoute: typeof OwnerNamePullsRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/git-receive-pack': {
+      id: '/$owner/$name/git-receive-pack'
+      path: '/git-receive-pack'
+      fullPath: '/$owner/$name/git-receive-pack'
+      preLoaderRoute: typeof OwnerNameGitReceivePackRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/git-upload-pack': {
+      id: '/$owner/$name/git-upload-pack'
+      path: '/git-upload-pack'
+      fullPath: '/$owner/$name/git-upload-pack'
+      preLoaderRoute: typeof OwnerNameGitUploadPackRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/$owner/$name/issues': {
@@ -630,13 +647,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameLabelsRouteImport
       parentRoute: typeof OwnerNameRoute
     }
-    '/$owner/$name/pulls': {
-      id: '/$owner/$name/pulls'
-      path: '/pulls'
-      fullPath: '/$owner/$name/pulls'
-      preLoaderRoute: typeof OwnerNamePullsRouteImport
-      parentRoute: typeof OwnerNameRoute
-    }
     '/$owner/$name/settings': {
       id: '/$owner/$name/settings'
       path: '/settings'
@@ -649,13 +659,6 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/$owner/$name/setup'
       preLoaderRoute: typeof OwnerNameSetupRouteImport
-      parentRoute: typeof OwnerNameRoute
-    }
-    '/$owner/$name/upload': {
-      id: '/$owner/$name/upload'
-      path: '/upload'
-      fullPath: '/$owner/$name/upload'
-      preLoaderRoute: typeof OwnerNameUploadRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/api/auth/$': {
@@ -672,26 +675,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDebugPerfRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/git/$': {
-      id: '/api/git/$'
-      path: '/api/git/$'
-      fullPath: '/api/git/$'
-      preLoaderRoute: typeof ApiGitSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/raw/$': {
-      id: '/api/raw/$'
-      path: '/api/raw/$'
-      fullPath: '/api/raw/$'
-      preLoaderRoute: typeof ApiRawSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/v3/$': {
       id: '/api/v3/$'
       path: '/api/v3/$'
       fullPath: '/api/v3/$'
       preLoaderRoute: typeof ApiV3SplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/$owner/$name/_pulls/pulls': {
+      id: '/$owner/$name/_pulls/pulls'
+      path: '/pulls'
+      fullPath: '/$owner/$name/pulls'
+      preLoaderRoute: typeof OwnerNamePullsPullsRouteImport
+      parentRoute: typeof OwnerNamePullsRoute
     }
     '/$owner/$name/commit/$sha': {
       id: '/$owner/$name/commit/$sha'
@@ -714,6 +710,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameCompareSplatRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/info/refs': {
+      id: '/$owner/$name/info/refs'
+      path: '/info/refs'
+      fullPath: '/$owner/$name/info/refs'
+      preLoaderRoute: typeof OwnerNameInfoRefsRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/issues/$id': {
       id: '/$owner/$name/issues/$id'
       path: '/$id'
@@ -721,19 +724,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameIssuesIdRouteImport
       parentRoute: typeof OwnerNameIssuesRoute
     }
-    '/$owner/$name/pull/$id': {
-      id: '/$owner/$name/pull/$id'
-      path: '/pull/$id'
-      fullPath: '/$owner/$name/pull/$id'
-      preLoaderRoute: typeof OwnerNamePullIdRouteImport
+    '/$owner/$name/raw/$': {
+      id: '/$owner/$name/raw/$'
+      path: '/raw/$'
+      fullPath: '/$owner/$name/raw/$'
+      preLoaderRoute: typeof OwnerNameRawSplatRouteImport
       parentRoute: typeof OwnerNameRoute
-    }
-    '/$owner/$name/pulls/$id': {
-      id: '/$owner/$name/pulls/$id'
-      path: '/$id'
-      fullPath: '/$owner/$name/pulls/$id'
-      preLoaderRoute: typeof OwnerNamePullsIdRouteImport
-      parentRoute: typeof OwnerNamePullsRoute
     }
     '/$owner/$name/blob/$branch/$': {
       id: '/$owner/$name/blob/$branch/$'
@@ -749,37 +745,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameTreeBranchSplatRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/upload/$branch/$': {
+      id: '/$owner/$name/upload/$branch/$'
+      path: '/upload/$branch/$'
+      fullPath: '/$owner/$name/upload/$branch/$'
+      preLoaderRoute: typeof OwnerNameUploadBranchSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/_pulls/pull/$id/{-$tab}': {
+      id: '/$owner/$name/_pulls/pull/$id/{-$tab}'
+      path: '/pull/$id/{-$tab}'
+      fullPath: '/$owner/$name/pull/$id/{-$tab}'
+      preLoaderRoute: typeof OwnerNamePullsPullIdChar123TabChar125RouteImport
+      parentRoute: typeof OwnerNamePullsRoute
+    }
   }
 }
 
 interface AuthRouteChildren {
-  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
-  AuthRegisterRoute: typeof AuthRegisterRoute
-  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+  AuthPassword_resetRoute: typeof AuthPassword_resetRoute
+  AuthSignupRoute: typeof AuthSignupRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
-  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
-  AuthRegisterRoute: AuthRegisterRoute,
-  AuthResetPasswordRoute: AuthResetPasswordRoute,
+  AuthPassword_resetRoute: AuthPassword_resetRoute,
+  AuthSignupRoute: AuthSignupRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface RepositoriesRouteChildren {
-  RepositoriesNewRoute: typeof RepositoriesNewRoute
   RepositoriesIndexRoute: typeof RepositoriesIndexRoute
 }
 
 const RepositoriesRouteChildren: RepositoriesRouteChildren = {
-  RepositoriesNewRoute: RepositoriesNewRoute,
   RepositoriesIndexRoute: RepositoriesIndexRoute,
 }
 
 const RepositoriesRouteWithChildren = RepositoriesRoute._addFileChildren(
   RepositoriesRouteChildren,
+)
+
+interface OwnerNamePullsRouteChildren {
+  OwnerNamePullsPullsRoute: typeof OwnerNamePullsPullsRoute
+  OwnerNamePullsPullIdChar123TabChar125Route: typeof OwnerNamePullsPullIdChar123TabChar125Route
+}
+
+const OwnerNamePullsRouteChildren: OwnerNamePullsRouteChildren = {
+  OwnerNamePullsPullsRoute: OwnerNamePullsPullsRoute,
+  OwnerNamePullsPullIdChar123TabChar125Route:
+    OwnerNamePullsPullIdChar123TabChar125Route,
+}
+
+const OwnerNamePullsRouteWithChildren = OwnerNamePullsRoute._addFileChildren(
+  OwnerNamePullsRouteChildren,
 )
 
 interface OwnerNameIssuesRouteChildren {
@@ -794,48 +815,42 @@ const OwnerNameIssuesRouteWithChildren = OwnerNameIssuesRoute._addFileChildren(
   OwnerNameIssuesRouteChildren,
 )
 
-interface OwnerNamePullsRouteChildren {
-  OwnerNamePullsIdRoute: typeof OwnerNamePullsIdRoute
-}
-
-const OwnerNamePullsRouteChildren: OwnerNamePullsRouteChildren = {
-  OwnerNamePullsIdRoute: OwnerNamePullsIdRoute,
-}
-
-const OwnerNamePullsRouteWithChildren = OwnerNamePullsRoute._addFileChildren(
-  OwnerNamePullsRouteChildren,
-)
-
 interface OwnerNameRouteChildren {
+  OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
+  OwnerNameGitReceivePackRoute: typeof OwnerNameGitReceivePackRoute
+  OwnerNameGitUploadPackRoute: typeof OwnerNameGitUploadPackRoute
   OwnerNameIssuesRoute: typeof OwnerNameIssuesRouteWithChildren
   OwnerNameLabelsRoute: typeof OwnerNameLabelsRoute
-  OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
   OwnerNameSettingsRoute: typeof OwnerNameSettingsRoute
   OwnerNameSetupRoute: typeof OwnerNameSetupRoute
-  OwnerNameUploadRoute: typeof OwnerNameUploadRoute
   OwnerNameIndexRoute: typeof OwnerNameIndexRoute
   OwnerNameCommitShaRoute: typeof OwnerNameCommitShaRoute
   OwnerNameCommitsBranchRoute: typeof OwnerNameCommitsBranchRoute
   OwnerNameCompareSplatRoute: typeof OwnerNameCompareSplatRoute
-  OwnerNamePullIdRoute: typeof OwnerNamePullIdRoute
+  OwnerNameInfoRefsRoute: typeof OwnerNameInfoRefsRoute
+  OwnerNameRawSplatRoute: typeof OwnerNameRawSplatRoute
   OwnerNameBlobBranchSplatRoute: typeof OwnerNameBlobBranchSplatRoute
   OwnerNameTreeBranchSplatRoute: typeof OwnerNameTreeBranchSplatRoute
+  OwnerNameUploadBranchSplatRoute: typeof OwnerNameUploadBranchSplatRoute
 }
 
 const OwnerNameRouteChildren: OwnerNameRouteChildren = {
+  OwnerNamePullsRoute: OwnerNamePullsRouteWithChildren,
+  OwnerNameGitReceivePackRoute: OwnerNameGitReceivePackRoute,
+  OwnerNameGitUploadPackRoute: OwnerNameGitUploadPackRoute,
   OwnerNameIssuesRoute: OwnerNameIssuesRouteWithChildren,
   OwnerNameLabelsRoute: OwnerNameLabelsRoute,
-  OwnerNamePullsRoute: OwnerNamePullsRouteWithChildren,
   OwnerNameSettingsRoute: OwnerNameSettingsRoute,
   OwnerNameSetupRoute: OwnerNameSetupRoute,
-  OwnerNameUploadRoute: OwnerNameUploadRoute,
   OwnerNameIndexRoute: OwnerNameIndexRoute,
   OwnerNameCommitShaRoute: OwnerNameCommitShaRoute,
   OwnerNameCommitsBranchRoute: OwnerNameCommitsBranchRoute,
   OwnerNameCompareSplatRoute: OwnerNameCompareSplatRoute,
-  OwnerNamePullIdRoute: OwnerNamePullIdRoute,
+  OwnerNameInfoRefsRoute: OwnerNameInfoRefsRoute,
+  OwnerNameRawSplatRoute: OwnerNameRawSplatRoute,
   OwnerNameBlobBranchSplatRoute: OwnerNameBlobBranchSplatRoute,
   OwnerNameTreeBranchSplatRoute: OwnerNameTreeBranchSplatRoute,
+  OwnerNameUploadBranchSplatRoute: OwnerNameUploadBranchSplatRoute,
 }
 
 const OwnerNameRouteWithChildren = OwnerNameRoute._addFileChildren(
@@ -844,9 +859,10 @@ const OwnerNameRouteWithChildren = OwnerNameRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
   AuthRoute: AuthRouteWithChildren,
+  AboutRoute: AboutRoute,
   DashboardRoute: DashboardRoute,
+  NewRoute: NewRoute,
   NotificationsRoute: NotificationsRoute,
   RepositoriesRoute: RepositoriesRouteWithChildren,
   SearchRoute: SearchRoute,
@@ -856,8 +872,6 @@ const rootRouteChildren: RootRouteChildren = {
   OwnerIndexRoute: OwnerIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiDebugPerfRoute: ApiDebugPerfRoute,
-  ApiGitSplatRoute: ApiGitSplatRoute,
-  ApiRawSplatRoute: ApiRawSplatRoute,
   ApiV3SplatRoute: ApiV3SplatRoute,
 }
 export const routeTree = rootRouteImport

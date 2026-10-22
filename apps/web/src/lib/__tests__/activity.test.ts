@@ -61,7 +61,7 @@ describe("describeActivity", () => {
 		).toEqual({
 			text: 'Merged pull request "Feat"',
 			link: {
-				to: "/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pull/$id/{-$tab}",
 				params: { ...repo, id: "7" },
 			},
 		});
@@ -71,7 +71,7 @@ describe("describeActivity", () => {
 		expect(describeActivity(row("comment", { on: "pr", number: 3 }))).toEqual({
 			text: "Commented on a pull request",
 			link: {
-				to: "/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pull/$id/{-$tab}",
 				params: { ...repo, id: "3" },
 			},
 		});

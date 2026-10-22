@@ -7,7 +7,17 @@ const web = join(import.meta.dirname, "../../..");
 
 describe("reserved top-level names", () => {
 	it("covers every static top-level route and public file", () => {
-		const routes = readdirSync(join(web, "src/routes"))
+		// A pathless layout (`_auth`) adds no segment: its children are top level.
+		const routeDir = join(web, "src/routes");
+		const entries = readdirSync(routeDir, { withFileTypes: true }).flatMap(
+			(entry) =>
+				entry.isDirectory() && /^_[^_]/.test(entry.name)
+					? readdirSync(join(routeDir, entry.name))
+					: /^_[^_]/.test(entry.name)
+						? []
+						: [entry.name],
+		);
+		const routes = entries
 			.filter((entry) => !entry.startsWith("$") && !entry.startsWith("__"))
 			.map((entry) => entry.replace(/\.tsx?$/, "").split(".")[0] as string)
 			.filter((segment) => segment !== "index");

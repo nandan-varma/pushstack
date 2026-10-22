@@ -284,12 +284,13 @@ own) protects its pack indefinitely.
 
 ## The Git smart HTTP protocol (`git-http.ts`)
 
-This is what `git clone https://…/api/git/owner/repo.git`, `git fetch` and
-`git push` talk to; `apps/web/src/routes/api/git.$.ts` calls `serveGitRequest`. The
+This is what `git clone https://…/owner/repo.git`, `git fetch` and
+`git push` talk to; the routes at the clone URL (`apps/web/src/routes/$owner.$name.info.refs.ts`,
+`$owner.$name.git-upload-pack.ts`, `$owner.$name.git-receive-pack.ts`) call `serveGitRequest`. The
 [protocol](https://git-scm.com/docs/http-protocol) itself (pkt-line framing,
 ref advertisement, upload-pack/receive-pack, the reachability walk, ref CAS,
 pack consolidation) is `git-fs-s3/http`. `serveGitRequest` does the rest:
-route parsing (`parseGitUrl`, which requires the `/api/git/` prefix), the
+route parsing (`parseGitUrl`: `/{owner}/{repo}[.git]/info/refs` or `/<service>`), the
 streamed body cap, repo lookup, auth, the lock around pushes, perf hooks, and
 post-push bookkeeping. Every service runs against `gitFs`.
 

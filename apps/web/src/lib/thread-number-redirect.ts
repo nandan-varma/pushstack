@@ -4,7 +4,7 @@ export async function ensureThreadNumberRedirect(
 	error: unknown,
 	params: { owner: string; name: string; id: string },
 	findOther: () => Promise<unknown>,
-	otherRoute: "/$owner/$name/issues/$id" | "/$owner/$name/pulls/$id",
+	otherRoute: "/$owner/$name/issues/$id" | "/$owner/$name/pull/$id/{-$tab}",
 ): Promise<never> {
 	if (!isNotFound(error)) throw error;
 	const other = await findOther().catch((otherError: unknown) => {

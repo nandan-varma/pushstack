@@ -83,7 +83,7 @@ describe("createAutolinkReferencesPlugin", () => {
 			resolveReference,
 		});
 		const nodes = getTextNodes(tree);
-		expect(nodes).toContain("[link:#99→/acme/repo/pulls/99]");
+		expect(nodes).toContain("[link:#99→/acme/repo/pull/99]");
 	});
 
 	it("leaves #N as plain text when resolveReference returns null", () => {
