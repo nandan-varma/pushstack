@@ -16,6 +16,12 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `collectReachableOids` (receive-pack's connectivity check, repack) no
+  longer inflates every new blob to prove it exists: blob presence and type
+  come from pack entry headers in one `getObjectTypes` batch. A full push of
+  a ~9.7k-object repository: receive-pack 2.1 s to 1.2 s; the walk alone
+  ~1 s to ~0.2 s. A blob is reported missing when its stored object is not a
+  blob, as `git fsck` would.
 - `findPackIndexOffset` (behind `getObjectSize`, `getObjectSizes` and
   `getObjectTypes`) binary-searches the `.idx` fanout instead of decoding and
   hex-encoding the whole index on every lookup. Sizing a 635-blob tree against
