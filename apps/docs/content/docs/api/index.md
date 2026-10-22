@@ -49,6 +49,9 @@ response carries `Content-Type: application/json; charset=utf-8` and
 Every response (errors included) carries `X-GitHub-Request-Id`, the same id
 that tags the request in server logs and Sentry.
 
+Repository objects include `open_issues_count`: the number of open issues and
+open pull requests combined, as on GitHub. Closed and merged threads are excluded.
+
 Errors follow GitHub's body:
 
 ```json

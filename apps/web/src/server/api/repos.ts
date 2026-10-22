@@ -11,7 +11,12 @@ import {
 	sql,
 } from "drizzle-orm";
 import { db } from "#/db";
-import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
+import {
+	issues,
+	repositories,
+	repositoryCollaborators,
+	stars,
+} from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
@@ -50,12 +55,31 @@ export async function starCounts(
 	return new Map(rows.map((row) => [row.repoId, row.total]));
 }
 
+/** GitHub counts open issues and pull requests together; one query for the page. */
+export async function openIssueCounts(
+	repoIds: number[],
+): Promise<Map<number, number>> {
+	if (repoIds.length === 0) return new Map();
+	const rows = await perfStep("db: repository open issue counts", () =>
+		db
+			.select({ repoId: issues.repoId, total: count() })
+			.from(issues)
+			.where(and(inArray(issues.repoId, repoIds), eq(issues.status, "open")))
+			.groupBy(issues.repoId),
+	);
+	return new Map(rows.map((row) => [row.repoId, row.total]));
+}
+
 export async function getRepository(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
-	const stargazers = await starCounts([repo.id]);
+	const [stargazers, openIssues] = await Promise.all([
+		starCounts([repo.id]),
+		openIssueCounts([repo.id]),
+	]);
 	return json(
 		repository(repo, {
 			stars: stargazers.get(repo.id) ?? 0,
+			openIssues: openIssues.get(repo.id) ?? 0,
 			role: ctx.caller ? access.role : undefined,
 		}),
 	);
@@ -137,11 +161,19 @@ async function respondWithRepositories(
 	roleOf?: (row: Row) => RepoRole,
 ) {
 	const { rows, params, total } = await listRepositories(url, listing);
-	const stargazers = await starCounts(rows.map((row) => row.repo.id));
+	const repoIds = rows.map((row) => row.repo.id);
+	const [stargazers, openIssues] = await Promise.all([
+		starCounts(repoIds),
+		openIssueCounts(repoIds),
+	]);
 	const body = rows.map((row) =>
 		repository(
 			{ ...row.repo, owner: row.owner },
-			{ stars: stargazers.get(row.repo.id) ?? 0, role: roleOf?.(row) },
+			{
+				stars: stargazers.get(row.repo.id) ?? 0,
+				openIssues: openIssues.get(row.repo.id) ?? 0,
+				role: roleOf?.(row),
+			},
 		),
 	);
 	return json(body, 200, linkHeader(url, params, total));
@@ -287,7 +319,7 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 		throw error;
 	}
 	return json(
-		repository({ ...repo, owner }, { stars: 0, role: "owner" }),
+		repository({ ...repo, owner }, { stars: 0, openIssues: 0, role: "owner" }),
 		201,
 		{ Location: apiUrl(`/repos/${owner.username}/${repo.name}`) },
 	);

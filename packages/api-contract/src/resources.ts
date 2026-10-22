@@ -57,6 +57,8 @@ export const repository = z.strictObject({
 	stargazers_count: count,
 	watchers_count: count,
 	forks_count: count,
+	/** Open issues and open pull requests combined, as on GitHub. */
+	open_issues_count: count,
 	/** The caller's access; present when the request is authenticated. */
 	permissions: z
 		.strictObject({ admin: z.boolean(), push: z.boolean(), pull: z.boolean() })

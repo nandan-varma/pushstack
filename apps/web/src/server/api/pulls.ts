@@ -51,7 +51,7 @@ import {
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
-import { starCounts } from "./repos";
+import { openIssueCounts, starCounts } from "./repos";
 import {
 	commitObject,
 	pullRequest as pullRequestShape,
@@ -157,12 +157,14 @@ async function serializeList(
 	threads: Thread[],
 	role: Parameters<typeof repository>[1]["role"],
 ) {
-	const [tips, stargazers] = await Promise.all([
+	const [tips, stargazers, openIssues] = await Promise.all([
 		branchTips(repo),
 		starCounts([repo.id]),
+		openIssueCounts([repo.id]),
 	]);
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
+		openIssues: openIssues.get(repo.id) ?? 0,
 		role,
 	});
 	return threads.map((thread) => {
@@ -189,12 +191,12 @@ async function serializeDetail(
 		commits: { commits: [], truncated: false, incomplete: false },
 		diff: { totalAdditions: 0, totalDeletions: 0, totalFiles: 0 },
 	};
-	const [tips, stargazers, reviewComments, commits, diff] = await perfStep(
-		"pull detail",
-		() =>
+	const [tips, stargazers, openIssues, reviewComments, commits, diff] =
+		await perfStep("pull detail", () =>
 			Promise.all([
 				branchTips(repo),
 				starCounts([repo.id]),
+				openIssueCounts([repo.id]),
 				db
 					.select({ total: count() })
 					.from(pullRequestReviewComments)
@@ -225,9 +227,10 @@ async function serializeDetail(
 					empty.diff,
 				),
 			]),
-	);
+		);
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
+		openIssues: openIssues.get(repo.id) ?? 0,
 		role,
 	});
 	return pullRequestShape({

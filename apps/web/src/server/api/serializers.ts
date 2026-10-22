@@ -64,7 +64,7 @@ function permissionsFor(role: RepoRole) {
 
 export function repository(
 	repo: Repository & { owner: PublicUser },
-	options: { stars: number; role?: RepoRole },
+	options: { stars: number; openIssues: number; role?: RepoRole },
 ): Shape<"repository"> {
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return {
@@ -87,6 +87,7 @@ export function repository(
 		stargazers_count: options.stars,
 		watchers_count: options.stars,
 		forks_count: 0,
+		open_issues_count: options.openIssues,
 		...(options.role && { permissions: permissionsFor(options.role) }),
 	};
 }
