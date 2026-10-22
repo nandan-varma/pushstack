@@ -100,7 +100,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/get":
 		"a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason`",
 	"issues/update":
-		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; issues only (a pull request number is `404`)",
+		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened",
 	"issues/list-comments": "comments of an issue or a pull request",
 	"issues/create-comment": "any signed-in reader",
 	"issues/list-events-for-timeline":
