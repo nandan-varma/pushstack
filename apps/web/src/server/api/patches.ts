@@ -29,6 +29,11 @@ function fileDiff(file: DiffFile): string {
 	return `${header}Binary files ${a} and ${b} differ\n`;
 }
 
+/** `unifiedDiff`, one file's section at a time (for bounded streaming). */
+export function* unifiedDiffSections(diff: DiffResult): Generator<string> {
+	for (const file of diff.files) yield fileDiff(file);
+}
+
 /** `git diff` output for `diff`. */
 export function unifiedDiff(diff: DiffResult): string {
 	return diff.files.map(fileDiff).join("");
@@ -44,33 +49,41 @@ export function formatPatches(
 	commits: Array<{ info: CommitInfo; diff: DiffResult }>,
 ): string {
 	return commits
-		.map(({ info, diff }, index) => {
-			const author = gitIdentity(info.commit.author);
-			const [subject = "", ...rest] = info.commit.message
-				.replace(/\n+$/, "")
-				.split("\n");
-			const body = rest.join("\n").replace(/^\n+/, "");
-			const numbering =
-				commits.length > 1
-					? `[PATCH ${index + 1}/${commits.length}]`
-					: "[PATCH]";
-			const stat = `${diff.files.length} file${diff.files.length === 1 ? "" : "s"} changed, ${diff.totalAdditions} insertion${diff.totalAdditions === 1 ? "" : "s"}(+), ${diff.totalDeletions} deletion${diff.totalDeletions === 1 ? "" : "s"}(-)`;
-			return [
-				`From ${info.oid} Mon Sep 17 00:00:00 2001`,
-				`From: ${author.name} <${author.email}>`,
-				`Date: ${mailDate(author.date)}`,
-				`Subject: ${numbering} ${subject}`,
-				"",
-				...(body ? [body] : []),
-				"---",
-				` ${stat}`,
-				"",
-				unifiedDiff(diff),
-				"--",
-				"PushStack",
-				"",
-				"",
-			].join("\n");
-		})
+		.flatMap(({ info, diff }, index) => [
+			...formatPatchSections(info, diff, index, commits.length),
+		])
 		.join("");
+}
+
+/**
+ * One commit's `git format-patch` message, numbered `index + 1` of `total`,
+ * in sections (header, each file's diff, trailer) for bounded streaming.
+ */
+export function* formatPatchSections(
+	info: CommitInfo,
+	diff: DiffResult,
+	index: number,
+	total: number,
+): Generator<string> {
+	const author = gitIdentity(info.commit.author);
+	const [subject = "", ...rest] = info.commit.message
+		.replace(/\n+$/, "")
+		.split("\n");
+	const body = rest.join("\n").replace(/^\n+/, "");
+	const numbering = total > 1 ? `[PATCH ${index + 1}/${total}]` : "[PATCH]";
+	const stat = `${diff.files.length} file${diff.files.length === 1 ? "" : "s"} changed, ${diff.totalAdditions} insertion${diff.totalAdditions === 1 ? "" : "s"}(+), ${diff.totalDeletions} deletion${diff.totalDeletions === 1 ? "" : "s"}(-)`;
+	yield [
+		`From ${info.oid} Mon Sep 17 00:00:00 2001`,
+		`From: ${author.name} <${author.email}>`,
+		`Date: ${mailDate(author.date)}`,
+		`Subject: ${numbering} ${subject}`,
+		"",
+		...(body ? [body] : []),
+		"---",
+		` ${stat}`,
+		"",
+		"",
+	].join("\n");
+	yield* unifiedDiffSections(diff);
+	yield "\n--\nPushStack\n\n";
 }

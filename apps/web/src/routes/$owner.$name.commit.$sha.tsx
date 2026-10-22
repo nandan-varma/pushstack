@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { splitPatchSuffix } from "@/lib/compare-spec";
 import {
 	repositoryByNameQueryOptions,
 	repositoryCommitDiffQueryOptions,
@@ -23,6 +24,22 @@ import { getInitials } from "@/lib/utils/avatar";
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
 
 export const Route = createFileRoute("/$owner/$name/commit/$sha")({
+	// `/commit/{sha}.diff` and `.patch` are plain text, as on GitHub.
+	server: {
+		handlers: {
+			GET: async ({ params, next }) => {
+				const suffix = splitPatchSuffix(params.sha);
+				if (!suffix) return next();
+				const { serveCommitPatch } = await import("#/server/web-patches");
+				return serveCommitPatch(
+					params.owner,
+					params.name,
+					suffix.name,
+					suffix.format,
+				);
+			},
+		},
+	},
 	loader: async ({ params, context: { queryClient } }) => {
 		const repo = await queryClient.ensureQueryData(
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),

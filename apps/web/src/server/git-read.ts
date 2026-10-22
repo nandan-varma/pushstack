@@ -342,6 +342,24 @@ export async function getCommitsBetween(
 	head: string,
 	limit: number,
 ): Promise<CommitsBetween> {
+	const { commits, ...rest } = await getCommitInfosBetween(
+		ownerKey,
+		repoName,
+		base,
+		head,
+		limit,
+	);
+	return { commits: commits.map(summarizeCommit), ...rest };
+}
+
+/** `getCommitsBetween` with the full parsed commits (for patches). */
+export async function getCommitInfosBetween(
+	ownerKey: string,
+	repoName: string,
+	base: string,
+	head: string,
+	limit: number,
+): Promise<Omit<CommitsBetween, "commits"> & { commits: CommitInfo[] }> {
 	const [baseLog, headLog] = await Promise.all([
 		getCommitLog(ownerKey, repoName, base, HISTORY_WALK_DEPTH),
 		getCommitLog(ownerKey, repoName, head, HISTORY_WALK_DEPTH),
@@ -350,7 +368,7 @@ export async function getCommitsBetween(
 	const exclusive = headLog.filter((commit) => !onBase.has(commit.oid));
 	const oldestFirst = exclusive.reverse();
 	return {
-		commits: oldestFirst.slice(0, limit).map(summarizeCommit),
+		commits: oldestFirst.slice(0, limit),
 		truncated: oldestFirst.length > limit,
 		incomplete:
 			headLog.length >= HISTORY_WALK_DEPTH &&

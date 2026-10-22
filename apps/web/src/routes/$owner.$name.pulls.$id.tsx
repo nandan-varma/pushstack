@@ -34,6 +34,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
+import { splitPatchSuffix } from "@/lib/compare-spec";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -62,6 +63,22 @@ const PR_TABS = ["conversation", "commits", "files"] as const;
 type PrTab = (typeof PR_TABS)[number];
 
 export const Route = createFileRoute("/$owner/$name/pulls/$id")({
+	// `/pulls/{n}.diff` and `.patch` are plain text (GitHub spells it `pull/`).
+	server: {
+		handlers: {
+			GET: async ({ params, next }) => {
+				const suffix = splitPatchSuffix(params.id);
+				if (!suffix) return next();
+				const { servePullPatch } = await import("#/server/web-patches");
+				return servePullPatch(
+					params.owner,
+					params.name,
+					suffix.name,
+					suffix.format,
+				);
+			},
+		},
+	},
 	validateSearch: (search: Record<string, unknown>): { tab?: PrTab } => ({
 		tab: PR_TABS.includes(search.tab as PrTab)
 			? (search.tab as PrTab)
