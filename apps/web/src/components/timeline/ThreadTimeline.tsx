@@ -113,8 +113,9 @@ export function ThreadTimeline({
 	const loadingMore = sources.some((query) => query.isFetchingNextPage);
 
 	if (items.length === 0 && !hasMore) return null;
+	// A rule runs down behind the events, joining the thread into one column.
 	return (
-		<div className="space-y-4">
+		<div className="relative space-y-4 before:absolute before:inset-y-0 before:left-[33px] before:w-px before:bg-bjork-border">
 			{items.map((item) =>
 				item.kind === "comment" ? (
 					<CommentCard
@@ -349,15 +350,15 @@ function TimelineEventRow({
 }) {
 	const { icon: Icon, text } = describe(event, owner, name);
 	return (
-		<div className="flex items-center gap-3 px-6 text-sm text-muted-foreground">
-			<span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
+		<div className="relative flex min-h-9 items-center gap-3 px-5 text-[13px] text-bjork-text-muted">
+			<span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-bjork-border bg-bjork-surface-active text-bjork-text-soft">
 				<Icon className="size-3.5" />
 			</span>
 			<p className="min-w-0">
 				<Link
 					to="/$owner"
 					params={{ owner: event.actor.username }}
-					className="font-medium text-foreground hover:underline"
+					className="font-medium text-bjork-text hover:underline"
 				>
 					{event.actor.username}
 				</Link>{" "}

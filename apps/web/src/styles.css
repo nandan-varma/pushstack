@@ -381,33 +381,9 @@ pre code {
 
 .diff-patch {
   margin: 0;
-  line-height: 1.5;
+  padding: 0.25rem 0;
+  line-height: 1.6;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-}
-
-.diff-file-card {
-  overflow: hidden;
-}
-
-.diff-file-header {
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--card) 84%, transparent),
-    color-mix(in oklab, var(--muted) 70%, transparent)
-  );
-}
-
-.diff-file-header:hover {
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--card) 92%, transparent),
-    color-mix(in oklab, var(--muted) 82%, transparent)
-  );
-}
-
-.diff-scroll-area {
-  max-height: min(72vh, 920px);
 }
 
 /* `code` grows to fit its widest line (width: max-content, floored at the
@@ -445,10 +421,10 @@ pre code {
 /* A review thread under the line it is anchored to. The diff body is
    max-content wide, so the thread card caps its own width instead. */
 .diff-thread-row {
-  padding: 0.5rem 1rem 0.75rem;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--bjork-border-muted);
+  border-bottom: 1px solid var(--bjork-border-muted);
+  background: var(--bjork-panel);
 }
 
 .diff-thread-row > * {
@@ -462,9 +438,9 @@ pre code {
   z-index: 1;
   text-align: right;
   padding: 0.1rem 0.65rem 0.1rem 0.35rem;
-  color: var(--muted-foreground);
-  border-right: 1px solid var(--border);
-  background: var(--row-bg, var(--muted));
+  color: var(--bjork-text-soft);
+  font-variant-numeric: tabular-nums;
+  background: var(--gutter-bg, var(--bjork-surface));
   user-select: none;
 }
 
@@ -481,9 +457,8 @@ pre code {
   left: 7rem;
   z-index: 1;
   text-align: center;
-  color: var(--muted-foreground);
-  border-right: 1px solid var(--border);
-  background: var(--row-bg, var(--muted));
+  color: var(--bjork-text-soft);
+  background: var(--gutter-bg, var(--bjork-surface));
   user-select: none;
 }
 
@@ -502,30 +477,35 @@ pre code {
   background-color: var(--shiki-dark-bg, var(--shiki-light-bg, transparent));
 }
 
+/* Gutters are opaque (they're sticky over scrolled code), so each tint is
+   mixed into the surface rather than layered on it. */
 .diff-line--meta,
 .diff-line--hunk {
-  --row-bg: color-mix(in oklab, var(--muted) 78%, transparent);
+  --row-bg: var(--bjork-accent-soft);
+  --gutter-bg: color-mix(in oklab, var(--bjork-accent) 10%, var(--bjork-surface));
 }
 
-.diff-line--hunk .diff-code {
-  color: var(--primary);
-  font-weight: 600;
+.diff-line--hunk .diff-code,
+.diff-line--meta .diff-code {
+  color: var(--bjork-text-muted);
 }
 
 .diff-line--add {
-  --row-bg: color-mix(in oklab, oklch(0.723 0.191 149.579) 12%, transparent);
+  --row-bg: color-mix(in oklab, var(--success) 13%, transparent);
+  --gutter-bg: color-mix(in oklab, var(--success) 20%, var(--bjork-surface));
 }
 
 .diff-line--add .diff-prefix {
-  color: color-mix(in oklab, oklch(0.723 0.191 149.579) 78%, black 22%);
+  color: var(--success);
 }
 
 .diff-line--remove {
-  --row-bg: color-mix(in oklab, #ef4444 12%, transparent);
+  --row-bg: color-mix(in oklab, var(--destructive) 13%, transparent);
+  --gutter-bg: color-mix(in oklab, var(--destructive) 20%, var(--bjork-surface));
 }
 
 .diff-line--remove .diff-prefix {
-  color: color-mix(in oklab, #ef4444 72%, black 28%);
+  color: var(--destructive);
 }
 
 /* rehype-highlight (highlight.js) token colors for fenced code blocks in
