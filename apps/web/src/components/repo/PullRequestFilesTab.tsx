@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { DiffResult } from "git-fs-s3/ops";
 import {
 	Check,
+	ChevronDown,
 	MessageSquare,
 	MessageSquarePlus,
 	RotateCcw,
@@ -16,6 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LoadingButton } from "@/components/ui/loading-button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { anchorKey, type DiffAnchor } from "@/lib/diff";
@@ -250,119 +256,126 @@ export function PullRequestFilesTab({
 		return cards.length > 0 ? <div className="space-y-2">{cards}</div> : null;
 	};
 
-	return (
-		<div className="space-y-6">
-			{pr.viewer.canParticipate && (
-				<Card className="p-6">
-					<h3 className="mb-4 text-lg font-semibold text-foreground">
-						Review changes
-					</h3>
-					{pendingReview && pendingReview.comments.length > 0 && (
-						<p className="mb-3 text-sm text-muted-foreground">
-							{pendingReview.comments.length} pending comment
-							{pendingReview.comments.length === 1 ? "" : "s"} — only you can
-							see them until you submit.
-						</p>
+	const pendingCount = pendingReview?.comments.length ?? 0;
+	const reviewButton = pr.viewer.canParticipate && (
+		<Popover>
+			<PopoverTrigger
+				render={<Button size="sm" />}
+				aria-label={
+					pendingCount
+						? `Review changes (${pendingCount} pending)`
+						: "Review changes"
+				}
+			>
+				Review changes
+				{pendingCount > 0 && (
+					<span className="rounded-full bg-white/20 px-1.5 font-mono text-[11px] tabular-nums">
+						{pendingCount}
+					</span>
+				)}
+				<ChevronDown aria-hidden="true" />
+			</PopoverTrigger>
+			<PopoverContent
+				align="end"
+				className="w-[min(26rem,calc(100vw-2rem))] gap-3"
+			>
+				<p className="text-[13px] font-semibold text-bjork-text">
+					Finish your review
+				</p>
+				{pendingCount > 0 && (
+					<p className="text-xs text-bjork-text-muted">
+						{pendingCount} pending comment{pendingCount === 1 ? "" : "s"} — only
+						you can see them until you submit.
+					</p>
+				)}
+				<Textarea
+					aria-label="Review summary"
+					value={summary}
+					onChange={(event) => setSummary(event.target.value)}
+					placeholder="Leave a summary (optional)"
+					rows={4}
+				/>
+				<div className="flex flex-wrap items-center justify-end gap-2">
+					{pendingReview && (
+						<Button
+							variant="ghost"
+							size="sm"
+							className="mr-auto text-bjork-text-muted"
+							disabled={discardMutation.isPending}
+							onClick={() => discardMutation.mutate({ data: { prId: pr.id } })}
+						>
+							<Trash2 /> Discard
+						</Button>
 					)}
-					<Textarea
-						aria-label="Review summary"
-						value={summary}
-						onChange={(event) => setSummary(event.target.value)}
-						placeholder="Leave a review summary (optional; Markdown supported)"
-						rows={3}
-					/>
-					<div className="mt-3 flex flex-wrap justify-end gap-2">
-						{pendingReview && (
+					<LoadingButton
+						variant="outline"
+						size="sm"
+						onClick={() => handleSubmitReview("comment")}
+						isLoading={submitMutation.isPending}
+						loadingLabel="Submitting…"
+					>
+						<MessageSquare /> Comment
+					</LoadingButton>
+					{pr.review.canApprove && (
+						<>
+							<LoadingButton
+								variant="destructive"
+								size="sm"
+								onClick={() => handleSubmitReview("request_changes")}
+								isLoading={submitMutation.isPending}
+								loadingLabel="Submitting…"
+							>
+								Request changes
+							</LoadingButton>
+							<LoadingButton
+								size="sm"
+								onClick={() => handleSubmitReview("approve")}
+								isLoading={submitMutation.isPending}
+								loadingLabel="Approving…"
+								className="bg-success text-white hover:bg-success/90"
+							>
+								<Check /> Approve
+							</LoadingButton>
+						</>
+					)}
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+
+	return (
+		<FileDiffViewer
+			files={diff?.files}
+			sides={{
+				owner,
+				name,
+				oldRef: diff?.oldRef,
+				newRef: diff?.newRef ?? pr.sourceBranch,
+			}}
+			isLoading={diffLoading}
+			emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
+			toolbarActions={reviewButton}
+			renderLineActions={
+				pr.viewer.canParticipate
+					? (anchor) => (
 							<Button
 								variant="ghost"
-								size="sm"
-								disabled={discardMutation.isPending}
-								onClick={() =>
-									discardMutation.mutate({ data: { prId: pr.id } })
-								}
+								size="icon-xs"
+								className="text-bjork-accent focus-visible:opacity-100 group-hover/line:opacity-100 [@media(hover:hover)]:opacity-0"
+								aria-label={`Comment on ${anchor.path} line ${anchor.line}`}
+								onClick={() => {
+									setComposingAnchor(anchor);
+									setReplyToId(null);
+									setDraft("");
+								}}
 							>
-								<Trash2 className="size-3.5" /> Discard
+								<MessageSquarePlus />
 							</Button>
-						)}
-						<LoadingButton
-							variant="outline"
-							size="sm"
-							onClick={() => handleSubmitReview("comment")}
-							isLoading={submitMutation.isPending}
-							loadingLabel="Submitting…"
-						>
-							<MessageSquare className="size-3.5" /> Comment
-						</LoadingButton>
-						{pr.review.canApprove && (
-							<>
-								<LoadingButton
-									variant="default"
-									size="sm"
-									onClick={() => handleSubmitReview("approve")}
-									isLoading={submitMutation.isPending}
-									loadingLabel="Approving…"
-								>
-									<Check className="size-3.5" /> Approve
-								</LoadingButton>
-								<LoadingButton
-									variant="destructive"
-									size="sm"
-									onClick={() => handleSubmitReview("request_changes")}
-									isLoading={submitMutation.isPending}
-									loadingLabel="Submitting…"
-								>
-									Request changes
-								</LoadingButton>
-							</>
-						)}
-					</div>
-				</Card>
-			)}
-
-			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-foreground">
-					Files changed{" "}
-					{diff?.files && (
-						<span className="text-sm font-normal text-muted-foreground">
-							({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
-							<span className="text-success">+{diff.totalAdditions}</span>{" "}
-							<span className="text-destructive">-{diff.totalDeletions}</span>)
-						</span>
-					)}
-				</h3>
-				<FileDiffViewer
-					files={diff?.files}
-					sides={{
-						owner,
-						name,
-						oldRef: diff?.oldRef,
-						newRef: diff?.newRef ?? pr.sourceBranch,
-					}}
-					isLoading={diffLoading}
-					emptyMessage={`No changes between ${pr.sourceBranch} and ${pr.targetBranch}.`}
-					renderLineActions={
-						pr.viewer.canParticipate
-							? (anchor) => (
-									<Button
-										variant="ghost"
-										size="sm"
-										className="size-6 p-0"
-										aria-label={`Comment on ${anchor.path} line ${anchor.line}`}
-										onClick={() => {
-											setComposingAnchor(anchor);
-											setReplyToId(null);
-											setDraft("");
-										}}
-									>
-										<MessageSquarePlus className="size-3.5" />
-									</Button>
-								)
-							: undefined
-					}
-					renderThreads={renderThreads}
-				/>
-			</Card>
-		</div>
+						)
+					: undefined
+			}
+			renderThreads={renderThreads}
+		/>
 	);
 }
 

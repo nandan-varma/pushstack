@@ -491,7 +491,9 @@ export function FileDiffViewer({
 												<Fragment
 													key={`${fileDiff.path}-${line.kind}-${line.oldLine ?? "x"}-${line.newLine ?? "x"}-${line.raw}`}
 												>
-													<div className={`diff-line diff-line--${line.kind}`}>
+													<div
+														className={`diff-line diff-line--${line.kind} group/line`}
+													>
 														<span className="diff-gutter diff-gutter--old">
 															{line.oldLine ?? ""}
 														</span>
