@@ -24,7 +24,7 @@ export function CodeWorkbench({
 	children: ReactNode;
 }) {
 	return (
-		<div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
+		<div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
 			<aside className="sticky top-6 hidden max-h-[calc(100vh-3rem)] overflow-hidden rounded-[18px] border border-bjork-border-muted bg-bjork-surface shadow-(--bjork-shadow-surface) lg:flex lg:flex-col">
 				<FileTreePane
 					owner={owner}

@@ -1,6 +1,6 @@
 import { MenuIcon } from "@animateicons/react/lucide";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useParams, useRouterState } from "@tanstack/react-router";
 import { GitBranch } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import Footer from "@/components/Footer";
@@ -22,6 +22,7 @@ function isMarketingPath(pathname: string) {
 export function AppShell({ children }: { children: ReactNode }) {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const { owner, name } = useParams({ strict: false });
 
 	if (isMarketingPath(pathname)) {
 		return (
@@ -64,7 +65,20 @@ export function AppShell({ children }: { children: ReactNode }) {
 						</DialogPrimitive.Popup>
 					</DialogPrimitive.Portal>
 				</DialogPrimitive.Root>
-				<Brand />
+				{owner && name ? (
+					// Inside a repository the bar says which one: the sidebar
+					// that would is folded away in the drawer.
+					<Link
+						to="/$owner/$name"
+						params={{ owner, name }}
+						className="min-w-0 truncate text-[15px] text-bjork-text-soft"
+					>
+						{owner} /{" "}
+						<span className="font-semibold text-bjork-text">{name}</span>
+					</Link>
+				) : (
+					<Brand />
+				)}
 			</header>
 
 			<main id="main-content" className="app-main flex min-w-0 flex-col">

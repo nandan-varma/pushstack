@@ -49,8 +49,8 @@ export function SplitLayout({
 	}
 	return (
 		<div className={cn("@container", className)}>
-			<div className="grid gap-5 @4xl:grid-cols-[minmax(0,1fr)_280px] @4xl:items-start @4xl:gap-8">
-				<aside className="order-first grid min-w-0 gap-x-6 gap-y-4 rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-4 @lg:grid-cols-3 @4xl:sticky @4xl:top-6 @4xl:order-last @4xl:block @4xl:space-y-5 @4xl:border-0 @4xl:bg-transparent @4xl:p-0">
+			<div className="grid grid-cols-[minmax(0,1fr)] gap-5 @4xl:grid-cols-[minmax(0,1fr)_280px] @4xl:items-start @4xl:gap-8">
+				<aside className="order-last grid min-w-0 gap-x-6 gap-y-4 rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-4 @lg:grid-cols-3 @4xl:sticky @4xl:top-6 @4xl:block @4xl:space-y-5 @4xl:border-0 @4xl:bg-transparent @4xl:p-0">
 					{aside}
 				</aside>
 				<div className="min-w-0 space-y-4">{main}</div>

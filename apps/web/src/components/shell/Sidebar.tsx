@@ -79,7 +79,7 @@ function SidebarSearch({
 				aria-label="Search repositories and users"
 				className="h-9 w-full rounded-[11px] border border-bjork-border bg-bjork-field-inset pr-9 pl-9 text-sm text-bjork-text shadow-(--bjork-shadow-inset) outline-none placeholder:text-bjork-text-soft focus:border-bjork-border-strong"
 			/>
-			<kbd className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 rounded-[5px] border border-bjork-border px-1.5 font-mono text-[10px] text-bjork-text-soft">
+			<kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 rounded-[5px] [@media(hover:hover)]:block border border-bjork-border px-1.5 font-mono text-[10px] text-bjork-text-soft">
 				/
 			</kbd>
 		</form>

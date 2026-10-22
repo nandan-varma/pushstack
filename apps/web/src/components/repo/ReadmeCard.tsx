@@ -87,7 +87,7 @@ export function ReadmeCard({
 					{fileName}
 				</h2>
 			</PanelHeader>
-			<PanelBody className="grid gap-8 sm:px-8 sm:py-7 2xl:grid-cols-[minmax(0,1fr)_200px]">
+			<PanelBody className="grid grid-cols-[minmax(0,1fr)] gap-8 sm:px-8 sm:py-7 2xl:grid-cols-[minmax(0,1fr)_200px]">
 				{/* Long lines are hard to read; the text keeps a reading measure. */}
 				<div ref={contentRef} className="max-w-[880px] min-w-0">
 					{readmeContent ? (

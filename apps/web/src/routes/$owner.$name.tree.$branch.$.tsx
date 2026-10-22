@@ -253,9 +253,9 @@ function TreeBrowserPage() {
 					/>
 				) : (
 					<h1 className="flex min-w-0 items-baseline gap-2 text-[15px] font-semibold text-bjork-text">
-						{name}
+						<span className="shrink-0">{name}</span>
 						{repo.description && (
-							<span className="truncate text-sm font-normal text-bjork-text-soft">
+							<span className="hidden truncate text-sm font-normal text-bjork-text-soft sm:inline">
 								{repo.description}
 							</span>
 						)}
