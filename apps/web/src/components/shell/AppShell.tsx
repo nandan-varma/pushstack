@@ -22,7 +22,11 @@ function isMarketingPath(pathname: string) {
  * On phones the same sidebar opens as a drawer from a slim top bar.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-	const pathname = useRouterState({ select: (s) => s.location.pathname });
+	// The URL changes before loaders finish. Use the committed matches so the
+	// current page keeps its frame until the destination renders with its own.
+	const pathname = useRouterState({
+		select: (s) => s.matches[s.matches.length - 1]?.pathname ?? "/",
+	});
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const { owner, name } = useParams({ strict: false });
 
