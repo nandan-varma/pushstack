@@ -3,7 +3,7 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.19.0] - 2026-10-22
 
 ### Added
 
