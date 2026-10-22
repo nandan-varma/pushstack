@@ -1,16 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { format, formatDistanceToNow } from "date-fns";
+import { FolderTree } from "lucide-react";
 import { useMemo } from "react";
+import { CopyField } from "@/components/CopyField";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { CommitComments } from "@/components/repo/CommitComments";
 import { CommitMessage } from "@/components/repo/CommitMessage";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { BackLink } from "@/components/ui/back-link";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { splitPatchSuffix } from "@/lib/compare-spec";
 import {
 	repositoryByNameQueryOptions,
@@ -126,37 +127,16 @@ function CommitDetailPage() {
 
 	if (commitLoading) {
 		return (
-			<div className="space-y-5">
-				<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-					<div className="min-w-0 flex-1 space-y-2.5">
-						<div className="h-6 w-2/3 max-w-md animate-pulse rounded-md bg-muted" />
-						<div className="h-6 w-40 animate-pulse rounded bg-muted" />
-					</div>
-					<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-						<div className="h-8 w-28 animate-pulse rounded-md bg-muted" />
-						<div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
+			<div className="space-y-5" aria-busy="true">
+				<div className="space-y-3 border-b border-bjork-border-muted pb-5">
+					<Skeleton className="h-7 w-2/3 max-w-lg" />
+					<div className="flex items-center gap-3">
+						<Skeleton className="size-6 rounded-full" />
+						<Skeleton className="h-4 w-48" />
+						<Skeleton className="h-8 w-72 rounded-[12px]" />
 					</div>
 				</div>
-				<Card className="p-5">
-					<div className="flex items-start gap-4">
-						<div className="size-12 shrink-0 animate-pulse rounded-full bg-muted" />
-						<div className="min-w-0 flex-1 space-y-4">
-							<div className="h-4 w-48 animate-pulse rounded bg-muted" />
-							<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-								{[1, 2, 3, 4].map((i) => (
-									<div key={i} className="space-y-1.5">
-										<div className="h-3 w-16 animate-pulse rounded bg-muted" />
-										<div className="h-4 w-20 animate-pulse rounded bg-muted" />
-									</div>
-								))}
-							</div>
-						</div>
-					</div>
-				</Card>
-				<div className="space-y-4">
-					<div className="h-5 w-32 animate-pulse rounded bg-muted" />
-					<FileDiffViewer isLoading />
-				</div>
+				<FileDiffViewer isLoading />
 			</div>
 		);
 	}
@@ -173,127 +153,80 @@ function CommitDetailPage() {
 		);
 	}
 
+	const authoredAt = new Date(commit.author.date);
+
 	return (
 		<div className="space-y-5">
-			<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-				<div className="min-w-0 flex-1">
-					<CommitMessage
-						message={commit.message}
-						owner={owner}
-						name={name}
-						resolveReference={resolveReference}
-					/>
-					<div className="mt-3 flex flex-wrap items-center gap-3 text-muted-foreground">
-						<code className="max-w-full truncate rounded border border-border bg-muted px-2 py-1 font-mono text-sm text-foreground">
-							{commit.sha}
-						</code>
-						{commit.parents.length > 0 && (
-							<span className="text-xs text-muted-foreground">
-								{commit.parents.length > 1 ? "Parents" : "Parent"}:{" "}
-								{commit.parents.map((p, i) => (
-									<span key={p}>
-										{i > 0 && ", "}
-										<Link
-											to="/$owner/$name/commit/$sha"
-											params={{ owner, name, sha: p }}
-											className="font-mono text-primary hover:underline"
-										>
-											{p.substring(0, 7)}
-										</Link>
-									</span>
-								))}
-							</span>
-						)}
+			<header className="space-y-3 border-b border-bjork-border-muted pb-5">
+				<div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+					<div className="min-w-0 flex-1 basis-96">
+						<CommitMessage
+							message={commit.message}
+							owner={owner}
+							name={name}
+							resolveReference={resolveReference}
+						/>
 					</div>
-				</div>
-				<div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 					<Link
 						to="/$owner/$name/tree/$branch/$"
 						params={{ owner, name, branch: commit.sha, _splat: "" }}
+						className={buttonVariants({ variant: "outline", size: "sm" })}
 					>
-						<Button size="sm" variant="outline">
-							Browse files
-						</Button>
+						<FolderTree aria-hidden="true" />
+						Browse files
 					</Link>
-					<BackLink
-						to="/$owner/$name/commits/$branch"
-						params={{ owner, name, branch: repo?.defaultBranch ?? "" }}
-						label="Back to Commits"
+				</div>
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-bjork-text-muted">
+					<span className="flex items-center gap-2">
+						<Avatar size="sm">
+							<AvatarFallback className="text-[11px]">
+								{getInitials(commit.author.name)}
+							</AvatarFallback>
+						</Avatar>
+						<span className="font-medium text-bjork-text">
+							{commit.author.name}
+						</span>
+						committed
+						<time
+							dateTime={authoredAt.toISOString()}
+							title={format(authoredAt, "PPpp")}
+						>
+							{formatDistanceToNow(authoredAt, { addSuffix: true })}
+						</time>
+					</span>
+					<span aria-hidden="true" className="text-bjork-text-faint">
+						·
+					</span>
+					<CopyField
+						value={commit.sha}
+						label="Copy commit SHA"
+						className="h-8 w-[min(23rem,100%)]"
 					/>
+					{commit.parents.length > 0 && (
+						<span className="text-xs text-bjork-text-soft">
+							{commit.parents.length > 1 ? "Parents" : "Parent"}{" "}
+							{commit.parents.map((p, i) => (
+								<span key={p}>
+									{i > 0 && ", "}
+									<Link
+										to="/$owner/$name/commit/$sha"
+										params={{ owner, name, sha: p }}
+										className="font-mono text-bjork-text-medium hover:text-bjork-accent"
+									>
+										{p.substring(0, 7)}
+									</Link>
+								</span>
+							))}
+						</span>
+					)}
 				</div>
-			</div>
+			</header>
 
-			<Card className="p-5">
-				<div className="flex items-start gap-4">
-					<Avatar className="h-12 w-12">
-						<AvatarFallback>{getInitials(commit.author.name)}</AvatarFallback>
-					</Avatar>
-					<div className="min-w-0 flex-1">
-						<div className="mb-2 flex flex-wrap items-center gap-2">
-							<span className="font-medium text-foreground">
-								{commit.author.name}
-							</span>
-							<span className="text-sm text-muted-foreground">
-								committed{" "}
-								{formatDistanceToNow(new Date(commit.author.date), {
-									addSuffix: true,
-								})}
-							</span>
-						</div>
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
-							<div>
-								<p className="text-muted-foreground">Commit SHA</p>
-								<code className="text-xs font-mono text-foreground">
-									{commit.sha.substring(0, 7)}
-								</code>
-							</div>
-							<div>
-								<p className="text-muted-foreground">Timestamp</p>
-								<p className="font-medium text-foreground">
-									{format(new Date(commit.author.date), "PPp")}
-								</p>
-							</div>
-							<div>
-								<p className="text-muted-foreground">Changes</p>
-								{diffLoading ? (
-									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-muted" />
-								) : (
-									<p className="font-medium text-foreground">
-										{diffData?.totalFiles ?? 0} file
-										{diffData?.totalFiles === 1 ? "" : "s"}
-									</p>
-								)}
-							</div>
-							<div>
-								<p className="text-muted-foreground">Stats</p>
-								{diffLoading ? (
-									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-muted" />
-								) : (
-									<p className="font-medium text-foreground">
-										<span className="text-success">
-											+{diffData?.totalAdditions || 0}
-										</span>{" "}
-										<span className="text-destructive">
-											-{diffData?.totalDeletions || 0}
-										</span>
-									</p>
-								)}
-							</div>
-						</div>
-					</div>
-				</div>
-			</Card>
-
-			<div className="space-y-4">
-				<h2 className="text-lg font-semibold text-foreground">
-					File Changes {diffData?.files && `(${diffData.files.length})`}
-				</h2>
-				<FileDiffViewer
-					files={diffData?.files}
-					sides={{ owner, name, oldRef: commit.parents[0], newRef: commit.sha }}
-					isLoading={diffLoading}
-				/>
-			</div>
+			<FileDiffViewer
+				files={diffData?.files}
+				sides={{ owner, name, oldRef: commit.parents[0], newRef: commit.sha }}
+				isLoading={diffLoading}
+			/>
 			{repo && (
 				<CommitComments
 					repoId={repo.id}
