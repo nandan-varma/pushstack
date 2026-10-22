@@ -31,9 +31,9 @@ export function activeThreadTab(
 }
 
 /**
- * Status tabs plus the label filter, on one row when there is space (the label
- * filter wraps under the tabs at narrow widths). Only the loaded page (the
- * active tab's rows) is counted, so only the active tab shows a count.
+ * The list panel's header: status tabs on the left, the label filter on the
+ * right. Only the loaded page (the active tab's rows) is counted, so only the
+ * active tab shows a count.
  */
 export function ThreadFilters({
 	q,
@@ -50,18 +50,18 @@ export function ThreadFilters({
 }) {
 	const activeTab = activeThreadTab(q, tabs);
 	return (
-		<div className="flex flex-wrap items-center gap-3">
-			<div className="min-w-0">
-				<FilterTabs
-					tabs={tabs.map(({ value, label }) => ({
-						value,
-						label,
-						count: value === activeTab ? loadedCount : undefined,
-					}))}
-					activeTab={activeTab}
-					onTabChange={(value) => onQueryChange(withSearchStatus(q, value))}
-				/>
-			</div>
+		<div className="flex w-full flex-wrap items-center justify-between gap-2">
+			<FilterTabs
+				variant="inline"
+				label="Status"
+				tabs={tabs.map(({ value, label }) => ({
+					value,
+					label,
+					count: value === activeTab ? loadedCount : undefined,
+				}))}
+				activeTab={activeTab}
+				onTabChange={(value) => onQueryChange(withSearchStatus(q, value))}
+			/>
 			<LabelFilter
 				repoId={repoId}
 				value={parseSearchQuery(q).labels[0]}

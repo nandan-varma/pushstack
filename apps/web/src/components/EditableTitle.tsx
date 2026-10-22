@@ -1,10 +1,14 @@
-import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 
-export function EditableTitle({
+/**
+ * A thread title with GitHub's "Edit" affordance. The edit button is
+ * rendered by the caller (`useEditableTitle().editButton`) so it can sit with
+ * the header's other actions while the field replaces the title in place.
+ */
+export function useEditableTitle({
 	title,
 	onSave,
 	isSaving,
@@ -14,24 +18,8 @@ export function EditableTitle({
 	isSaving?: boolean;
 }) {
 	const [draft, setDraft] = useState<string | null>(null);
-	if (draft === null) {
-		return (
-			<>
-				{title}
-				{onSave && (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="ml-2 h-7 align-middle text-xs font-normal text-muted-foreground"
-						onClick={() => setDraft(title)}
-					>
-						<Pencil className="size-3.5" /> Edit
-					</Button>
-				)}
-			</>
-		);
-	}
 	const save = async () => {
+		if (draft === null) return;
 		try {
 			await onSave?.(draft.trim());
 			setDraft(null);
@@ -39,27 +27,48 @@ export function EditableTitle({
 			// The mutation reports the failure; keep the draft.
 		}
 	};
-	return (
-		<span className="flex flex-wrap items-center gap-2 text-base font-normal">
+
+	const editing = draft !== null;
+	const titleNode = editing ? (
+		<form
+			className="flex flex-wrap items-center gap-2 text-base font-normal tracking-normal"
+			onSubmit={(event) => {
+				event.preventDefault();
+				save();
+			}}
+		>
 			<Input
 				aria-label="Title"
-				className="min-w-64 flex-1"
+				className="h-10 min-w-64 flex-1 text-base"
 				value={draft}
 				maxLength={256}
+				// The person just asked to edit, so focus follows them.
+				// biome-ignore lint/a11y/noAutofocus: opened by an explicit click
+				autoFocus
 				onChange={(e) => setDraft(e.target.value)}
 			/>
 			<LoadingButton
-				size="sm"
-				onClick={save}
+				type="submit"
 				disabled={!draft.trim()}
 				isLoading={isSaving}
 				loadingLabel="Saving…"
 			>
 				Save
 			</LoadingButton>
-			<Button variant="outline" size="sm" onClick={() => setDraft(null)}>
+			<Button type="button" variant="ghost" onClick={() => setDraft(null)}>
 				Cancel
 			</Button>
-		</span>
+		</form>
+	) : (
+		title
 	);
+
+	const editButton =
+		onSave && !editing ? (
+			<Button variant="outline" onClick={() => setDraft(title)}>
+				Edit
+			</Button>
+		) : null;
+
+	return { titleNode, editButton, editing };
 }

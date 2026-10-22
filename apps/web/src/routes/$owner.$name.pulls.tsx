@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { useCallback, useState } from "react";
-import { PageHeader } from "@/components/PageHeader";
+import { Toolbar } from "@/components/layout/page";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
 import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import {
@@ -167,11 +167,15 @@ function PullRequestsPage() {
 
 	return (
 		<div className="space-y-4">
-			<PageHeader
-				size="compact"
-				title="Pull Requests"
-				actions={
-					!session?.user ? (
+			<Toolbar>
+				<ThreadSearchBox
+					value={q}
+					onSearch={setQuery}
+					placeholder="Search pull requests… (is:open label:bug author:you)"
+					ariaLabel="Search pull requests"
+				/>
+				<div className="flex items-center gap-2">
+					{!session?.user ? (
 						<SignInButton>Sign in to open a pull request</SignInButton>
 					) : (
 						<NewThreadDialog
@@ -262,28 +266,20 @@ function PullRequestsPage() {
 								/>
 							</div>
 						</NewThreadDialog>
-					)
-				}
-			/>
-
-			<div className="space-y-3">
-				<ThreadSearchBox
-					value={q}
-					onSearch={setQuery}
-					placeholder="Search pull requests… (is:open label:bug author:you)"
-					ariaLabel="Search pull requests"
-				/>
-
-				<ThreadFilters
-					q={q}
-					repoId={repo?.id}
-					tabs={PULL_REQUEST_STATUS_TABS}
-					loadedCount={pullRequests?.length ?? 0}
-					onQueryChange={setQuery}
-				/>
-			</div>
+					)}
+				</div>
+			</Toolbar>
 
 			<ThreadList
+				header={
+					<ThreadFilters
+						q={q}
+						repoId={repo?.id}
+						tabs={PULL_REQUEST_STATUS_TABS}
+						loadedCount={pullRequests?.length ?? 0}
+						onQueryChange={setQuery}
+					/>
+				}
 				threads={pullRequests}
 				isLoading={isLoading}
 				emptyMessage={`No ${activeTab !== "all" ? activeTab : ""} pull requests found.`}

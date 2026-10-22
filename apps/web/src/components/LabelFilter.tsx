@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Tag } from "lucide-react";
 import {
 	Select,
 	SelectContent,
@@ -31,10 +32,13 @@ export function LabelFilter({
 			onValueChange={(next) => onChange(next === ALL ? undefined : next)}
 		>
 			<SelectTrigger
-				className="h-10 w-full shrink-0 sm:w-52"
+				className="h-8 w-auto min-w-36 shrink-0 gap-2 rounded-[10px] text-[13px]"
 				aria-label="Filter by label"
 			>
-				<SelectValue placeholder="All labels" />
+				<Tag aria-hidden="true" className="size-3.5 text-bjork-text-soft" />
+				<SelectValue>
+					{(selected: string) => (selected === ALL ? "All labels" : selected)}
+				</SelectValue>
 			</SelectTrigger>
 			<SelectContent>
 				<SelectItem value={ALL}>All labels</SelectItem>

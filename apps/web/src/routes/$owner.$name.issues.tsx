@@ -6,8 +6,9 @@ import {
 	useLocation,
 	useNavigate,
 } from "@tanstack/react-router";
+import { Tag } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { PageHeader } from "@/components/PageHeader";
+import { Toolbar } from "@/components/layout/page";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
 import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import {
@@ -25,7 +26,7 @@ import {
 	validateThreadSearch,
 } from "@/components/thread-list/thread-search";
 import { useToast } from "@/components/toast-provider";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -133,16 +134,21 @@ function IssuesPage() {
 
 	return (
 		<div className="space-y-4">
-			<PageHeader
-				size="compact"
-				title="Issues"
-				actions={
+			<Toolbar>
+				<ThreadSearchBox
+					value={q}
+					onSearch={setQuery}
+					placeholder="Search issues… (is:open label:bug author:you)"
+					ariaLabel="Search issues"
+				/>
+				<div className="flex items-center gap-2">
 					<>
 						<Link
 							to="/$owner/$name/labels"
 							params={{ owner, name }}
-							className="text-sm text-muted-foreground hover:text-foreground"
+							className={buttonVariants({ variant: "outline" })}
 						>
+							<Tag aria-hidden="true" />
 							Labels
 						</Link>
 						{!session?.user ? (
@@ -217,25 +223,8 @@ function IssuesPage() {
 							</NewThreadDialog>
 						)}
 					</>
-				}
-			/>
-
-			<div className="space-y-3">
-				<ThreadSearchBox
-					value={q}
-					onSearch={setQuery}
-					placeholder="Search issues… (is:open label:bug author:you)"
-					ariaLabel="Search issues"
-				/>
-
-				<ThreadFilters
-					q={q}
-					repoId={repo?.id}
-					tabs={ISSUE_STATUS_TABS}
-					loadedCount={issues?.length ?? 0}
-					onQueryChange={setQuery}
-				/>
-			</div>
+				</div>
+			</Toolbar>
 
 			{(search.noAssignee || search.assignees.length > 0) && (
 				<p className="text-sm text-muted-foreground">
@@ -253,6 +242,15 @@ function IssuesPage() {
 			)}
 
 			<ThreadList
+				header={
+					<ThreadFilters
+						q={q}
+						repoId={repo?.id}
+						tabs={ISSUE_STATUS_TABS}
+						loadedCount={issues?.length ?? 0}
+						onQueryChange={setQuery}
+					/>
+				}
 				threads={issues}
 				isLoading={isLoading}
 				emptyMessage={`No ${activeTab !== "all" ? activeTab : ""} issues found.`}

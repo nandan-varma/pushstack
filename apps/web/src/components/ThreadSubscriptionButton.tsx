@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff } from "lucide-react";
 import { useEffect } from "react";
+import { AsideSection } from "@/components/layout/page";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { queryKeys, threadSubscriptionQueryOptions } from "@/lib/query-options";
@@ -41,25 +42,25 @@ export function ThreadSubscriptionButton({
 	});
 
 	return (
-		<div className="flex items-center gap-3 text-sm text-muted-foreground">
+		<AsideSection title="Notifications">
 			<Button
 				variant="outline"
-				size="sm"
+				className="w-full"
 				disabled={!data || mutation.isPending}
 				onClick={() => mutation.mutate(!subscribed)}
 			>
 				{subscribed ? (
-					<BellOff aria-hidden="true" className="mr-1 h-4 w-4" />
+					<BellOff aria-hidden="true" />
 				) : (
-					<Bell aria-hidden="true" className="mr-1 h-4 w-4" />
+					<Bell aria-hidden="true" />
 				)}
 				{subscribed ? "Unsubscribe" : "Subscribe"}
 			</Button>
-			<span>
+			<p className="mt-2 text-xs leading-5 text-bjork-text-soft">
 				{subscribed
 					? "You're receiving notifications because you're subscribed to this thread."
 					: "You're not receiving notifications from this thread."}
-			</span>
-		</div>
+			</p>
+		</AsideSection>
 	);
 }

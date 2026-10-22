@@ -1,10 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Check, Settings2 } from "lucide-react";
 import { useState } from "react";
+import { AsideSection } from "@/components/layout/page";
 import { useToast } from "@/components/toast-provider";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { buttonVariants } from "@/components/ui/button";
 import { MAX_ASSIGNEES } from "@/lib/limits";
-import { assignableUsersQueryOptions, queryKeys } from "@/lib/query-options";
+import {
+	assignableUsersQueryOptions,
+	authSessionQueryOptions,
+	queryKeys,
+} from "@/lib/query-options";
+import { getInitials } from "@/lib/utils/avatar";
 import { setIssueAssignees, setPullRequestAssignees } from "@/server/assignees";
 
 interface Person {
@@ -36,6 +44,7 @@ export function IssueAssignees({
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const [isEditing, setIsEditing] = useState(false);
+	const { data: session } = useQuery(authSessionQueryOptions());
 	const { data: assignable } = useQuery({
 		...assignableUsersQueryOptions(repoId),
 		enabled: canEdit && isEditing,
@@ -74,42 +83,75 @@ export function IssueAssignees({
 		mutation.mutate([...next]);
 	};
 
-	if (!canEdit && assignees.length === 0) return null;
+	const viewerUsername = session?.user?.username ?? undefined;
+	const canSelfAssign =
+		canEdit &&
+		viewerUsername !== undefined &&
+		!selected.has(viewerUsername) &&
+		selected.size < MAX_ASSIGNEES;
 
 	return (
-		<div className="flex flex-wrap items-center gap-2 text-sm">
-			<span className="text-muted-foreground">Assignees</span>
-			{assignees.length === 0 ? (
-				<span className="text-muted-foreground">No one</span>
-			) : (
-				assignees.map((a) => (
-					<Link
-						key={a.id}
-						to="/$owner"
-						params={{ owner: a.username }}
-						className="font-medium text-foreground"
+		<AsideSection
+			title="Assignees"
+			action={
+				canEdit && (
+					<button
+						type="button"
+						className={buttonVariants({ variant: "ghost", size: "icon-xs" })}
+						aria-label={isEditing ? "Done editing assignees" : "Edit assignees"}
+						aria-expanded={isEditing}
+						onClick={() => setIsEditing((v) => !v)}
 					>
-						{a.username}
-					</Link>
-				))
-			)}
-			{canEdit && (
-				<Button
-					variant="ghost"
-					size="sm"
-					className="h-7 text-xs text-muted-foreground"
-					onClick={() => setIsEditing((v) => !v)}
-				>
-					{isEditing ? "Done" : "Edit"}
-				</Button>
+						{isEditing ? <Check /> : <Settings2 />}
+					</button>
+				)
+			}
+		>
+			{assignees.length === 0 ? (
+				<p className="text-sm text-bjork-text-soft">
+					No one
+					{canSelfAssign && (
+						<>
+							{" — "}
+							<button
+								type="button"
+								disabled={mutation.isPending}
+								onClick={() => toggle(viewerUsername)}
+								className="text-bjork-text-medium hover:text-bjork-accent"
+							>
+								assign yourself
+							</button>
+						</>
+					)}
+				</p>
+			) : (
+				<ul className="space-y-2">
+					{assignees.map((a) => (
+						<li key={a.id}>
+							<Link
+								to="/$owner"
+								params={{ owner: a.username }}
+								className="flex items-center gap-2 text-sm font-medium text-bjork-text hover:text-bjork-accent"
+							>
+								<Avatar size="sm">
+									<AvatarFallback className="text-[11px]">
+										{getInitials(a.name || a.username)}
+									</AvatarFallback>
+								</Avatar>
+								{a.username}
+							</Link>
+						</li>
+					))}
+				</ul>
 			)}
 			{canEdit && isEditing && (
-				<ul className="w-full space-y-1 rounded-lg border border-border p-2">
+				<ul className="mt-3 space-y-0.5 rounded-[14px] border border-bjork-border bg-bjork-field-inset p-1.5 shadow-(--bjork-shadow-inset)">
 					{(assignable ?? []).map((u) => (
 						<li key={u.id}>
-							<label className="flex items-center gap-2">
+							<label className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 text-sm hover:bg-bjork-surface-hover">
 								<input
 									type="checkbox"
+									className="size-4 accent-[var(--bjork-accent)]"
 									checked={selected.has(u.username)}
 									disabled={
 										mutation.isPending ||
@@ -118,13 +160,15 @@ export function IssueAssignees({
 									}
 									onChange={() => toggle(u.username)}
 								/>
-								<span>{u.username}</span>
-								<span className="text-muted-foreground">{u.name}</span>
+								<span className="font-medium text-bjork-text">
+									{u.username}
+								</span>
+								<span className="truncate text-bjork-text-soft">{u.name}</span>
 							</label>
 						</li>
 					))}
 				</ul>
 			)}
-		</div>
+		</AsideSection>
 	);
 }
