@@ -4,7 +4,7 @@
 // directory, and `apps/cli` is not a `packages/*` directory.
 //
 //   node scripts/workspace-directory.mjs git-fs-s3   -> packages/git-fs-s3
-//   node scripts/workspace-directory.mjs @pushstack/cli -> apps/cli
+//   node scripts/workspace-directory.mjs pstk -> apps/cli
 //
 // Exits 1 with a message on stderr when no workspace has that name, which is
 // what a typo in a tag should do: fail the release before anything is packed.

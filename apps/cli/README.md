@@ -1,10 +1,10 @@
 # PushStack CLI
 
-`@pushstack/cli` provides the `pst` and `pushstack` commands for PushStack's
+`pstk` provides the `pst` and `pushstack` commands for PushStack's
 GitHub-compatible REST API. Requires Node.js 22 or newer.
 
 ```sh
-npm install -g @pushstack/cli
+npm install -g pstk
 pst --help
 pst auth login --with-token < token.txt
 pst auth status
@@ -98,7 +98,7 @@ provide interactive login, organization creation, cloning, or pushing.
 From the monorepo root:
 
 ```sh
-pnpm --filter @pushstack/cli test
-pnpm --filter @pushstack/cli typecheck
-pnpm --filter @pushstack/cli build
+pnpm --filter pstk test
+pnpm --filter pstk typecheck
+pnpm --filter pstk build
 ```

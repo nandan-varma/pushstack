@@ -1,6 +1,6 @@
 # Changelog
 
-Releases of `@pushstack/cli`. The format follows
+Releases of `pstk` (the PushStack CLI; the `@pushstack` npm scope belongs to another account). The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.1] - unreleased

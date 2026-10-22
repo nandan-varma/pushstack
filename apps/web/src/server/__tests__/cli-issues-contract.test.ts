@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type Io, run } from "@pushstack/cli";
+import { type Io, run } from "pstk";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
