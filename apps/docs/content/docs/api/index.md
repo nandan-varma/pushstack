@@ -40,6 +40,8 @@ Authorization: Bearer pst_…
 - A token missing a needed scope gets `403 Resource not accessible by personal
   access token` (writes need `repo:write`).
 - Session cookies and `Basic` credentials are not accepted here.
+- A `repo:write` token's responses carry `X-OAuth-Scopes: read:org, repo`
+  (GitHub's classic scopes; see [GraphQL API and gh](/docs/api/graphql)).
 
 ## Responses and errors
 

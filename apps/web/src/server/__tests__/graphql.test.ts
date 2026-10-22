@@ -16,7 +16,7 @@ vi.mock(
 );
 
 const { createUsers, signIn } = await import("../../test/app-harness");
-const { mintToken } = await import("../../test/api-client");
+const { asToken, call, mintToken } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const repositories = await import("../repositories");
 const files = await import("../files");
@@ -71,6 +71,22 @@ describe("authentication", () => {
 		expect(status).toBe(200);
 		expect(body).toEqual({ data: { viewer: { login: "alice" } } });
 		expect(headers.get("x-ratelimit-resource")).toBe("graphql");
+	});
+});
+
+describe("X-OAuth-Scopes", () => {
+	it("maps repo:write to GitHub's classic scopes, on REST and GraphQL", async () => {
+		const rest = await call("/", asToken(alice));
+		expect(rest.status).toBe(200);
+		expect(rest.headers.get("x-oauth-scopes")).toBe("read:org, repo");
+		const gql = await graphql(alice, "{ viewer { login } }");
+		expect(gql.headers.get("x-oauth-scopes")).toBe("read:org, repo");
+	});
+
+	it("sends none for a read-only token, like a fine-grained token", async () => {
+		const rest = await call("/user", asToken(aliceRead));
+		expect(rest.status).toBe(200);
+		expect(rest.headers.has("x-oauth-scopes")).toBe(false);
 	});
 });
 
