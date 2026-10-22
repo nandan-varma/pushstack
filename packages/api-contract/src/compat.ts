@@ -145,7 +145,7 @@ export function renderCompatibilityMatrix(): string {
 	const rows = (Object.keys(routes) as OperationId[]).map((id) => {
 		const route = routes[id];
 		const path = route.path.replaceAll("{+", "{");
-		const notes = compatibilityNotes[id];
+		const notes = compatibilityNotes[id].replaceAll("|", "\\|");
 		return `| \`${route.method} ${path}\` | [\`${id}\`](${route.docs}) |${notes ? ` ${notes} ` : " "}|`;
 	});
 	return [

@@ -29,6 +29,22 @@ describe("REST compatibility docs", () => {
 		}
 	});
 
+	it("escapes pipes in notes, including inline code", () => {
+		const id = "issues/get";
+		const original = compatibilityNotes[id];
+		try {
+			compatibilityNotes[id] = "open | closed; `open|closed`";
+			const row = renderCompatibilityMatrix()
+				.split("\n")
+				.find((line) => line.includes(`[\`${id}\`]`));
+			expect(row).toBe(
+				`| \`GET /repos/{owner}/{repo}/issues/{issue_number}\` | [\`${id}\`](${routes[id].docs}) | open \\| closed; \`open\\|closed\` |`,
+			);
+		} finally {
+			compatibilityNotes[id] = original;
+		}
+	});
+
 	it("matches the generated matrix (UPDATE_DOCS=1 rewrites it)", async () => {
 		const current = await readFile(DOC, "utf8");
 		const generated = withCompatibilityMatrix(current);
