@@ -59,21 +59,27 @@ const blank = [
 	"VITE_SENTRY_DSN",
 	"SENTRY_AUTH_TOKEN",
 ];
+// `PORT` lets several worktrees run their own local server side by side.
+const port = process.env.PORT || "3000";
 const env: NodeJS.ProcessEnv = {
 	...process.env,
 	...Object.fromEntries(blank.map((name) => [name, ""])),
 	PUSHSTACK_LOCAL_DIR: localDir,
-	BETTER_AUTH_URL: "http://localhost:3000",
+	BETTER_AUTH_URL: `http://localhost:${port}`,
 	BETTER_AUTH_SECRET:
 		process.env.BETTER_AUTH_SECRET ||
 		"pushstack-local-dev-secret-not-for-production",
 };
 
 console.info(`[dev:local] data in ${localDir}`);
-const vite = spawn("pnpm", ["exec", "vite", "dev", "--port", "3000"], {
-	env,
-	stdio: "inherit",
-});
+const vite = spawn(
+	"pnpm",
+	["exec", "vite", "dev", "--port", port, "--strictPort"],
+	{
+		env,
+		stdio: "inherit",
+	},
+);
 vite.on("exit", (code) => process.exit(code ?? 0));
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	process.on(signal, () => vite.kill(signal));

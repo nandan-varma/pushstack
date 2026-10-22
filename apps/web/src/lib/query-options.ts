@@ -14,6 +14,7 @@ import {
 	getCommit,
 	getCommitDiff,
 	getCommits,
+	getComparison,
 	getFile,
 	getFileHistory,
 	getLastCommits,
@@ -156,6 +157,8 @@ export const queryKeys = {
 		["pull-requests", prId, "comments"] as const,
 	pullRequestCommits: (prId: number) =>
 		["pull-requests", prId, "commits"] as const,
+	comparison: (repoId: number, base: string, head: string) =>
+		["repos", repoId, "compare", base, head] as const,
 	pullRequestDiff: (
 		repoId: number,
 		sourceBranch: string,
@@ -699,6 +702,23 @@ export function pullRequestDiffQueryOptions({
 		gcTime: autoRefresh ? undefined : LONG_LIVED_GC_TIME,
 		refetchOnWindowFocus: autoRefresh,
 		refetchInterval: autoRefresh ? 20_000 : false,
+	});
+}
+
+/** The compare page: refs move, so it's short-lived like the default. */
+export function repositoryComparisonQueryOptions({
+	repoId,
+	base,
+	head,
+}: {
+	repoId: number;
+	base: string;
+	head: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.comparison(repoId, base, head),
+		queryFn: () => getComparison({ data: { repoId, base, head } }),
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 

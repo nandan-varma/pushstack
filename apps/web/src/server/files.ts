@@ -9,6 +9,7 @@ import {
 	maxBase64CharsForBytes,
 } from "#/lib/limits";
 import { recordActivity } from "./activity";
+import { compareRevisions } from "./compare";
 import * as gitRead from "./git-read";
 import { BANNER_WALK_DEPTH } from "./git-read";
 import {
@@ -220,6 +221,28 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 					data.targetBranch,
 					data.sourceBranch,
 				),
+		),
+	);
+
+/**
+ * The compare page (`/{owner}/{repo}/compare/{base}...{head}`): commits on
+ * `head` that `base` lacks, ahead/behind counts and the three-dot diff.
+ */
+export const getComparison = createServerFn({ method: "GET" })
+	.validator(
+		readInput(
+			z.object({
+				repoId: z.number(),
+				base: safeCommitRevSchema,
+				head: safeCommitRevSchema,
+			}),
+		),
+	)
+	.handler(({ data }) =>
+		readGit(
+			`getComparison ${data.base}...${data.head}`,
+			data.repoId,
+			(owner, name) => compareRevisions(owner, name, data.base, data.head),
 		),
 	);
 
