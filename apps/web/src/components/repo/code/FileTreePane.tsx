@@ -37,6 +37,11 @@ function sortEntries<T extends { type: string; path: string }>(entries: T[]) {
 	);
 }
 
+/** Brings the open file's row into view once it renders (deep links, search). */
+function revealActive(element: HTMLElement | null) {
+	element?.scrollIntoView({ block: "nearest" });
+}
+
 function TreeLevel({
 	path,
 	depth,
@@ -101,6 +106,7 @@ function TreeLevel({
 										_splat: entry.path,
 									}}
 									aria-current={active ? "page" : undefined}
+									ref={active ? revealActive : undefined}
 									className="flex min-w-0 flex-1 items-center gap-1.5"
 								>
 									<FolderIcon />
@@ -124,6 +130,7 @@ function TreeLevel({
 								_splat: entry.path,
 							}}
 							aria-current={active ? "page" : undefined}
+							ref={active ? revealActive : undefined}
 							className={cn(rowClassName, active && activeRowClassName)}
 							style={{ paddingLeft: `${8 + depth * 14 + 20}px` }}
 						>
@@ -201,7 +208,7 @@ export function FileTreePane({
 	const isSha = /^[0-9a-f]{40}$/i.test(gitRef);
 
 	return (
-		<div className="flex h-full flex-col">
+		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="border-b border-bjork-border-muted p-2">
 				{isSha ? (
 					<p className="px-2 py-1.5 font-mono text-xs text-bjork-text-medium">
