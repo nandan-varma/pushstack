@@ -246,6 +246,18 @@ beforeAll(async () => {
 	await check(threadPath, del(alice));
 	await check("/notifications", put(alice, {}));
 	await check("/repos/alice/proj/notifications", put(alice, {}));
+	const commitComment = await check(
+		`/repos/alice/proj/commits/${head.sha}/comments`,
+		post(alice, { body: "Nice commit" }),
+	);
+	await check(`/repos/alice/proj/commits/${head.sha}/comments`);
+	await check("/repos/alice/proj/comments");
+	await check(`/repos/alice/proj/comments/${commitComment.id}`);
+	await check(
+		`/repos/alice/proj/comments/${commitComment.id}`,
+		patch(alice, { body: "Nicer commit" }),
+	);
+	await check(`/repos/alice/proj/comments/${commitComment.id}`, del(alice));
 	const newBlob = await check(
 		"/repos/alice/proj/git/blobs",
 		post(alice, { content: "new" }),

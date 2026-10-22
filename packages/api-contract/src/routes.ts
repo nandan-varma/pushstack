@@ -152,6 +152,38 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/commits",
 		docs: `${DOCS}/commits/commits#list-commits`,
 	},
+	"repos/list-commit-comments-for-repo": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/comments",
+		docs: `${DOCS}/commits/comments#list-commit-comments-for-a-repository`,
+	},
+	"repos/get-commit-comment": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/comments/{comment_id}",
+		docs: `${DOCS}/commits/comments#get-a-commit-comment`,
+	},
+	"repos/update-commit-comment": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/comments/{comment_id}",
+		docs: `${DOCS}/commits/comments#update-a-commit-comment`,
+	},
+	"repos/delete-commit-comment": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/comments/{comment_id}",
+		docs: `${DOCS}/commits/comments#delete-a-commit-comment`,
+		status: 204,
+	},
+	"repos/list-comments-for-commit": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{commit_sha}/comments",
+		docs: `${DOCS}/commits/comments#list-commit-comments`,
+	},
+	"repos/create-commit-comment": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/commits/{commit_sha}/comments",
+		docs: `${DOCS}/commits/comments#create-a-commit-comment`,
+		status: 201,
+	},
 	"repos/get-commit": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/commits/{+ref}",

@@ -124,6 +124,18 @@ export const relations = defineRelations(
 				optional: false,
 			}),
 		},
+		commitComments: {
+			repository: r.one.repositories({
+				from: r.commitComments.repoId,
+				to: r.repositories.id,
+				optional: false,
+			}),
+			author: r.one.user({
+				from: r.commitComments.authorId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
 		stars: {
 			repository: r.one.repositories({
 				from: r.stars.repoId,

@@ -3,6 +3,7 @@ import type { CommitInfo, DiffResult } from "git-fs-s3/ops";
 import { db } from "#/db";
 import { user } from "#/db/schema";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
+import { commitCommentCounts } from "../commit-comment-store";
 import {
 	getBranchDiff,
 	getBranches,
@@ -161,8 +162,12 @@ export async function listCommits(ctx: ApiContext) {
 	}
 	const page = infos.slice(0, params.perPage);
 	const hasMore = infos.length > params.perPage;
+	const counts = await commitCommentCounts(
+		repo.id,
+		page.map((info) => info.oid),
+	);
 	return json(
-		page.map((info) => commitObject(fullName, info)),
+		page.map((info) => commitObject(fullName, info, counts.get(info.oid))),
 		200,
 		linkHeader(
 			ctx.url,
@@ -211,7 +216,11 @@ export async function getCommitDetail(ctx: ApiContext) {
 	});
 	const format = mediaFormat(ctx.request);
 	if (format === "sha") return mediaResponse(info.oid, format, TEXT);
-	const diff = await getCommitDiff(ownerKey, repo.name, info.oid);
+	const [diff, counts] = await Promise.all([
+		getCommitDiff(ownerKey, repo.name, info.oid),
+		commitCommentCounts(repo.id, [info.oid]),
+	]);
+	const commentCount = counts.get(info.oid);
 	if (format === "diff") return mediaResponse(unifiedDiff(diff), format, TEXT);
 	if (format === "patch") {
 		return mediaResponse(formatPatches([{ info, diff }]), format, TEXT);
@@ -219,7 +228,11 @@ export async function getCommitDetail(ctx: ApiContext) {
 	const query = ctx.url.searchParams;
 	if (!(query.has("page") || query.has("per_page"))) {
 		const { stats, files } = await diffSummary(repo, diff);
-		return json({ ...commitObject(fullNameOf(repo), info), stats, files });
+		return json({
+			...commitObject(fullNameOf(repo), info, commentCount),
+			stats,
+			files,
+		});
 	}
 	const params = pageParams(query);
 	const listed = diff.files.slice(0, apiCaps.pagedDiffFiles);
@@ -231,7 +244,7 @@ export async function getCommitDetail(ctx: ApiContext) {
 			: [],
 	);
 	return json(
-		{ ...commitObject(fullNameOf(repo), info), stats, files },
+		{ ...commitObject(fullNameOf(repo), info, commentCount), stats, files },
 		200,
 		linkHeader(ctx.url, params, listed.length),
 	);
@@ -328,6 +341,11 @@ export async function compareCommits(ctx: ApiContext) {
 		pageItems.map((commit) => getCommit(ownerKey, repo.name, commit.sha)),
 	);
 	const { files } = await diffSummary(repo, diff);
+	const counts = await commitCommentCounts(repo.id, [
+		baseInfo.oid,
+		mergeBase.oid,
+		...commits.map((info) => info.oid),
+	]);
 	const spec = `${encodePath(base)}...${encodePath(head)}`;
 	return json(
 		{
@@ -338,13 +356,19 @@ export async function compareCommits(ctx: ApiContext) {
 			),
 			diff_url: htmlUrl(`/${fullName}/compare/${spec}.diff`),
 			patch_url: htmlUrl(`/${fullName}/compare/${spec}.patch`),
-			base_commit: commitObject(fullName, baseInfo),
-			merge_base_commit: commitObject(fullName, mergeBase),
+			base_commit: commitObject(fullName, baseInfo, counts.get(baseInfo.oid)),
+			merge_base_commit: commitObject(
+				fullName,
+				mergeBase,
+				counts.get(mergeBase.oid),
+			),
 			status,
 			ahead_by: aheadBy,
 			behind_by: behindBy,
 			total_commits: aheadBy,
-			commits: commits.map((info) => commitObject(fullName, info)),
+			commits: commits.map((info) =>
+				commitObject(fullName, info, counts.get(info.oid)),
+			),
 			files,
 		},
 		200,

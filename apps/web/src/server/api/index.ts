@@ -11,6 +11,14 @@ import {
 	listComments,
 	updateComment,
 } from "./comments";
+import {
+	createCommitCommentHandler,
+	deleteCommitCommentHandler,
+	getCommitCommentHandler,
+	listCommentsForCommit,
+	listRepoCommitComments,
+	updateCommitCommentHandler,
+} from "./commit-comments";
 import { compareCommits, getCommitDetail, listCommits } from "./commits";
 import { deleteContents, getContents, putContents } from "./contents";
 import {
@@ -122,6 +130,12 @@ const HANDLERS = {
 	"repos/create-or-update-file-contents": putContents,
 	"repos/delete-file": deleteContents,
 	"repos/list-commits": listCommits,
+	"repos/list-commit-comments-for-repo": listRepoCommitComments,
+	"repos/get-commit-comment": getCommitCommentHandler,
+	"repos/update-commit-comment": updateCommitCommentHandler,
+	"repos/delete-commit-comment": deleteCommitCommentHandler,
+	"repos/list-comments-for-commit": listCommentsForCommit,
+	"repos/create-commit-comment": createCommitCommentHandler,
 	"repos/get-commit": getCommitDetail,
 	"repos/compare-commits-with-basehead": compareCommits,
 	"git/get-ref": getRef,

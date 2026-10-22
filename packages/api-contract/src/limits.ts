@@ -6,6 +6,8 @@ export const DEFAULT_PER_PAGE = 30;
 export const MAX_PER_PAGE = 100;
 export const MAX_THREAD_TITLE_CHARS = 256;
 export const MAX_BODY_CHARS = 65_536;
+/** A commit comment's `path`. */
+export const MAX_COMMENT_PATH_CHARS = 4096;
 export const MAX_COMMIT_MESSAGE_CHARS = 10_000;
 export const MAX_LABEL_NAME_CHARS = 50;
 export const MAX_LABEL_DESCRIPTION_CHARS = 100;

@@ -1,3 +1,4 @@
+import { commitCommentCounts } from "../commit-comment-store";
 import { getBranches, getCommit } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -30,11 +31,14 @@ export async function getBranch(ctx: ApiContext) {
 		(candidate) => candidate.name === name,
 	);
 	if (!branch) throw notFoundError("Branch not found");
-	const info = await getCommit(ownerKey, repo.name, branch.commit);
+	const [info, counts] = await Promise.all([
+		getCommit(ownerKey, repo.name, branch.commit),
+		commitCommentCounts(repo.id, [branch.commit]),
+	]);
 
 	return json({
 		name: branch.name,
-		commit: commitObject(fullName, info),
+		commit: commitObject(fullName, info, counts.get(info.oid)),
 		_links: {
 			self: apiUrl(`/repos/${fullName}/branches/${encodePath(branch.name)}`),
 			html: branchHtmlUrl(fullName, branch.name),

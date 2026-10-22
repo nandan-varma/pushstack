@@ -8,7 +8,7 @@ import type { z } from "zod";
 import type { Repository } from "#/db/app-schema";
 import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
-import type { ReactionRollup } from "#/lib/reactions";
+import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import type { ReactionWithUser } from "../reaction-store";
 import type { PublicUser } from "../repository-lookup";
@@ -253,6 +253,46 @@ export function issueComment(input: CommentShapeInput): Shape<"issueComment"> {
 	};
 }
 
+export interface CommitCommentShapeInput {
+	fullName: string;
+	comment: {
+		id: number;
+		commitSha: string;
+		body: string;
+		path: string | null;
+		position: number | null;
+		line: number | null;
+		createdAt: Date;
+		updatedAt: Date;
+	};
+	author: PublicUser;
+}
+
+export function commitComment(
+	input: CommitCommentShapeInput,
+): Shape<"commitComment"> {
+	const { fullName, comment } = input;
+	return {
+		id: comment.id,
+		url: apiUrl(`/repos/${fullName}/comments/${comment.id}`),
+		html_url: htmlUrl(
+			`/${fullName}/commit/${comment.commitSha}#commitcomment-${comment.id}`,
+		),
+		body: comment.body,
+		path: comment.path,
+		position: comment.position,
+		line: comment.line,
+		commit_id: comment.commitSha,
+		user: simpleUser(input.author),
+		created_at: isoTimestamp(comment.createdAt),
+		updated_at: isoTimestamp(comment.updatedAt),
+		reactions: reactionRollup(
+			apiUrl(`/repos/${fullName}/comments/${comment.id}/reactions`),
+			emptyReactionRollup(),
+		),
+	};
+}
+
 /** A thread a cross-reference points at, serialized once per timeline page. */
 export interface TimelineContext {
 	fullName: string;
@@ -363,9 +403,15 @@ export const gitIdentity = ({
 	date: isoTimestamp(new Date(timestamp * 1000)),
 });
 
+/**
+ * `commentCount` is the commit's commit-comment count (`comment_count`);
+ * callers look counts up with `commit-comment-store.ts`'s
+ * `commitCommentCounts`.
+ */
 export function commitObject(
 	fullName: string,
 	info: CommitInfo,
+	commentCount = 0,
 ): Shape<"commit"> {
 	const { commit, oid } = info;
 	const url = apiUrl(`/repos/${fullName}/commits/${oid}`);
@@ -380,7 +426,7 @@ export function commitObject(
 				sha: commit.tree,
 				url: apiUrl(`/repos/${fullName}/git/trees/${commit.tree}`),
 			},
-			comment_count: 0,
+			comment_count: commentCount,
 		},
 		url,
 		html_url: htmlUrl(`/${fullName}/commit/${oid}`),

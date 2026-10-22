@@ -3,10 +3,12 @@
  * merge, files and commits. Pull requests share their `#N` (and their comments,
  * labels and timeline) with issues, so those live on the issues endpoints.
  */
+
 import { and, count, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
+import { commitCommentCounts } from "../commit-comment-store";
 import {
 	analyzeMerge,
 	getBranchDiff,
@@ -534,8 +536,14 @@ export async function listPullCommits(ctx: ApiContext) {
 	const infos = await Promise.all(
 		page.map((commit) => getCommit(ownerKey, repo.name, commit.sha)),
 	);
+	const counts = await commitCommentCounts(
+		repo.id,
+		infos.map((info) => info.oid),
+	);
 	return json(
-		infos.map((info) => commitObject(fullNameOf(repo), info)),
+		infos.map((info) =>
+			commitObject(fullNameOf(repo), info, counts.get(info.oid)),
+		),
 		200,
 		linkHeader(ctx.url, params, commits.length),
 	);

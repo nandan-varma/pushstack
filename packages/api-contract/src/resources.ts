@@ -160,6 +160,22 @@ export const issueComment = z.strictObject({
 	reactions: reactionRollup,
 });
 
+/** A commit comment (`GET …/comments/{id}`). */
+export const commitComment = z.strictObject({
+	id: z.number().int(),
+	url,
+	html_url: url,
+	body: z.string(),
+	path: z.string().nullable(),
+	position: z.number().int().nullable(),
+	line: z.number().int().nullable(),
+	commit_id: sha,
+	user: simpleUser,
+	created_at: timestamp,
+	updated_at: timestamp,
+	reactions: reactionRollup,
+});
+
 const eventBase = {
 	id: z.number().int(),
 	url,
