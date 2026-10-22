@@ -122,6 +122,8 @@ describe("database queries per thread read", () => {
 		// repository row, read once by the first list, is cached for the reads
 		// after it, as on a page; writes never fill that cache). API
 		// issue reads add one grouped query for the page's reaction rollups.
+		// API pull reads also count the repository's open issues and PRs once,
+		// for open_issues_count in the nested repository objects.
 		expect(counts).toEqual({
 			"web issues list": 2,
 			"web pulls list": 1,
@@ -129,9 +131,9 @@ describe("database queries per thread read", () => {
 			"web pull view": 2,
 			"api issues list": 6,
 			"api issues list page 2": 4,
-			"api pulls list": 4,
+			"api pulls list": 5,
 			"api issue view": 4,
-			"api pull view": 5,
+			"api pull view": 6,
 		});
 	});
 });
