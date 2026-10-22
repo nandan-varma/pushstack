@@ -74,15 +74,45 @@ describe("collectReachableOids", () => {
 		expect(new Set(oids)).toEqual(new Set([commit, tree, blob]));
 	});
 
-	it("finds every object in a wide tree while holding at most MAX_CONCURRENT_READS reads", async () => {
+	it("finds every object in a wide tree while holding at most MAX_CONCURRENT_READS reads, never inflating a blob", async () => {
 		const repo = makeRepo();
 		await git.init({ ...repo, dir: repo.gitdir, bare: true });
-		const { commit, tree, blobs } = await commitWithFiles(repo, 40);
+		// 40 subtrees, so the parsed reads (commits and trees) fan out wide.
+		const blobs: string[] = [];
+		const subtrees: string[] = [];
+		for (let i = 0; i < 40; i++) {
+			const blob = await git.writeBlob({
+				...repo,
+				blob: new TextEncoder().encode(`file ${i}\n`),
+			});
+			blobs.push(blob);
+			subtrees.push(
+				await git.writeTree({
+					...repo,
+					tree: [{ mode: "100644", path: "f.txt", oid: blob, type: "blob" }],
+				}),
+			);
+		}
+		const tree = await git.writeTree({
+			...repo,
+			tree: subtrees.map((oid, i) => ({
+				mode: "040000",
+				path: `d${String(i).padStart(2, "0")}`,
+				oid,
+				type: "tree",
+			})),
+		});
+		const commit = await git.writeCommit({
+			...repo,
+			commit: { tree, parent: [], author, committer: author, message: "w\n" },
+		});
 
 		const realReadObject = git.readObject;
+		const read: string[] = [];
 		let inFlight = 0;
 		let maxInFlight = 0;
 		const spy = vi.spyOn(git, "readObject").mockImplementation(async (args) => {
+			read.push(args.oid);
 			inFlight++;
 			maxInFlight = Math.max(maxInFlight, inFlight);
 			try {
@@ -96,11 +126,15 @@ describe("collectReachableOids", () => {
 			const { oids, complete } = await collectReachableOids(repo, [commit]);
 
 			expect(complete).toBe(true);
-			expect(new Set(oids)).toEqual(new Set([commit, tree, ...blobs]));
+			expect(new Set(oids)).toEqual(
+				new Set([commit, tree, ...subtrees, ...blobs]),
+			);
 			expect(maxInFlight).toBeLessThanOrEqual(MAX_CONCURRENT_READS);
 			// If the bound were not what limited the walk, the fan-out would
 			// have reached 40 — assert it actually engaged.
 			expect(maxInFlight).toBe(MAX_CONCURRENT_READS);
+			// Blobs are verified from headers, not read.
+			expect(read.filter((oid) => blobs.includes(oid))).toEqual([]);
 		} finally {
 			spy.mockRestore();
 		}

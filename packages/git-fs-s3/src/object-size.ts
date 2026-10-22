@@ -61,6 +61,15 @@ const DELTA_PROBE_BYTES = 4 * 1024;
 const DELTA_HEADER_MAX_BYTES = 20;
 
 /**
+ * Bytes from the store. `ArrayBuffer.isView`, not `instanceof Uint8Array`: a
+ * store may hand back a Uint8Array (or Buffer) from another realm, which
+ * `instanceof` rejects — silently making every packed object "unknown".
+ */
+function isBytes(value: unknown): value is Uint8Array {
+	return ArrayBuffer.isView(value) && !(value instanceof DataView);
+}
+
+/**
  * No pack directory yet means no packs; any other listing failure throws, so
  * a storage outage is never mistaken for "no packed objects".
  */
@@ -81,7 +90,7 @@ async function locatePackedObject(
 
 	for (const { base } of indexes) {
 		const idx = await fsp.readFile(`${packDir}/${packFileName(base, "idx")}`);
-		if (!(idx instanceof Uint8Array)) continue;
+		if (!isBytes(idx)) continue;
 		const offset = findPackIndexOffset(idx, oid);
 		if (offset !== null) {
 			return { packName: packFileName(base, "pack"), offset };
@@ -218,7 +227,7 @@ async function packIndexes(
 	);
 	return indexes.filter(
 		(entry): entry is { packName: string; idx: Uint8Array } =>
-			entry.idx instanceof Uint8Array,
+			isBytes(entry.idx),
 	);
 }
 
@@ -419,7 +428,7 @@ export async function getObjectTypes(
 				if ((error as { code?: string } | null)?.code === "ENOENT") return null;
 				throw error;
 			});
-		if (!(raw instanceof Uint8Array)) return null;
+		if (!isBytes(raw)) return null;
 		const head = await inflatePrefix(new Uint8Array(raw), 32);
 		if (!head) return null;
 		const name = new TextDecoder().decode(head).split(" ")[0];

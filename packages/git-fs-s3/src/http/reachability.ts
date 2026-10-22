@@ -1,4 +1,5 @@
 import git from "isomorphic-git";
+import { getObjectTypes } from "../object-size.js";
 import type { Repo } from "../ops/types.js";
 import { createSemaphore } from "../semaphore.js";
 import type { HttpHooks } from "./types.js";
@@ -50,10 +51,12 @@ export const MAX_CONCURRENT_READS = 16;
  * otherwise-valid push.
  *
  * Commits, trees and tags are read once each (parsed). Blobs have no
- * children, so `verifyBlobs: false` records a blob from its tree entry
- * without reading (and inflating) it — for callers that read every blob
- * themselves afterwards anyway, like upload-pack's `packObjects`. Leave it
- * true wherever the walk *is* the existence check (receive-pack, repack).
+ * children and are never inflated: with `verifyBlobs` (the default) their
+ * presence and type are checked in one batch from object headers
+ * (`getObjectTypes`); `verifyBlobs: false` skips even that — for callers that
+ * read every blob themselves afterwards anyway, like upload-pack's
+ * `packObjects`. Leave it true wherever the walk *is* the existence check
+ * (receive-pack, repack).
  *
  * Object reads are bounded by one shared {@link MAX_CONCURRENT_READS}
  * semaphore for the whole walk, held only for the read itself — not per
@@ -74,6 +77,7 @@ export async function collectReachableOids(
 	let complete = true;
 	const promises = new Map<string, Promise<void>>();
 	const reads = createSemaphore(MAX_CONCURRENT_READS);
+	const blobs: string[] = [];
 
 	async function readAndVisitChildren(oid: string): Promise<void> {
 		const obj = await reads.run(() => git.readObject({ ...repo, oid }));
@@ -102,8 +106,12 @@ export async function collectReachableOids(
 		const existing = promises.get(oid);
 		if (existing) return existing;
 
-		if (have.has(oid) || (type === "blob" && !verifyBlobs)) {
-			seen.add(oid);
+		if (have.has(oid) || type === "blob") {
+			// A blob has no children: its existence is checked below, from pack
+			// entry headers, without inflating it.
+			// Recorded once verified: a missing blob must never count as reachable.
+			if (type === "blob" && !have.has(oid) && verifyBlobs) blobs.push(oid);
+			else seen.add(oid);
 			const p = Promise.resolve();
 			promises.set(oid, p);
 			return p;
@@ -128,7 +136,32 @@ export async function collectReachableOids(
 	}
 
 	await Promise.all(startOids.map((oid) => visit(oid)));
+	const missingBlobs = await missingStoredBlobs(repo, blobs, hooks);
+	for (const oid of blobs) if (!missingBlobs.has(oid)) seen.add(oid);
+	if (missingBlobs.size > 0) complete = false;
 	return { oids: Array.from(seen), complete };
+}
+
+/**
+ * The oids in `oids` not stored as blobs — read from object headers, never
+ * inflating a body (content was hashed when its pack was indexed). Missing
+ * ones get the walk's one delayed retry, then are reported through `onWarn`.
+ */
+async function missingStoredBlobs(
+	repo: Repo,
+	oids: string[],
+	hooks?: HttpHooks,
+): Promise<Set<string>> {
+	let missing = oids;
+	for (let attempt = 0; attempt < 2 && missing.length > 0; attempt++) {
+		if (attempt > 0) await delay(MISSING_OBJECT_RETRY_DELAY_MS);
+		const types = await getObjectTypes(repo, missing);
+		missing = missing.filter((oid) => types.get(oid) !== "blob");
+	}
+	for (const oid of missing) {
+		hooks?.onWarn?.(`missing object ${oid}`, new Error("not a stored blob"));
+	}
+	return new Set(missing);
 }
 
 /**
