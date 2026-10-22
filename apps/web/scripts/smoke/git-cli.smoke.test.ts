@@ -123,6 +123,8 @@ async function serverPackCount(): Promise<number> {
 	).length;
 }
 
+let gzipRequests = 0;
+
 beforeAll(async () => {
 	work = await mkdtemp(path.join(tmpdir(), "pushstack-smoke-"));
 	const home = path.join(work, "home");
@@ -185,6 +187,7 @@ beforeAll(async () => {
 	).server.handlers;
 
 	server = createServer(async (req, res) => {
+		if (req.headers["content-encoding"] === "gzip") gzipRequests++;
 		const chunks: Buffer[] = [];
 		for await (const chunk of req) chunks.push(chunk as Buffer);
 		const headers = new Headers();
@@ -341,6 +344,36 @@ describe("native git against the pushstack git endpoint", () => {
 		expect(parents).toHaveLength(3);
 		expect(await readFile(path.join(a, "topic.txt"), "utf8")).toBe("topic\n");
 		await git(a, "fsck", "--full", "--strict");
+	}, 60_000);
+
+	it("clones many distinct refs with a gzip-compressed negotiation", async () => {
+		const a = path.join(work, "a");
+		const tree = (await git(a, "rev-parse", "HEAD^{tree}")).stdout.trim();
+		const parent = (await git(a, "rev-parse", "HEAD")).stdout.trim();
+		for (let i = 0; i < 25; i++) {
+			const oid = (
+				await git(a, "commit-tree", tree, "-p", parent, "-m", `gzip ref ${i}`)
+			).stdout.trim();
+			await git(a, "update-ref", `refs/heads/gzip-${i}`, oid);
+		}
+		await git(a, "push", "-q", "origin", "--all");
+		const before = gzipRequests;
+		await git(work, "clone", "-q", "--bare", remote, "many-refs.git");
+		expect(gzipRequests).toBeGreaterThan(before);
+		const clone = path.join(work, "many-refs.git");
+		expect(
+			(
+				await git(
+					clone,
+					"for-each-ref",
+					"--format=%(refname)",
+					"refs/heads/gzip-*",
+				)
+			).stdout
+				.trim()
+				.split("\n"),
+		).toHaveLength(25);
+		await git(clone, "fsck", "--full", "--strict");
 	}, 60_000);
 
 	it("rejects a bad token", async () => {

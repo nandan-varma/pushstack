@@ -317,7 +317,12 @@ post-push bookkeeping. Every service runs against `gitFs`.
   through `hooks.onWarn` and the push still succeeds — then
   `afterRepositoryPush`. The whole push body is held in memory, capped by
   `GIT_HTTP_MAX_BODY_BYTES` — enforced while streaming (`readGitRequestBody`),
-  not just from `Content-Length`, which a chunked request doesn't send. The report is side-band-64k framed when the
+  not just from `Content-Length`, which a chunked request doesn't send.
+  Native Git gzip-compresses larger requests (including clone negotiations
+  with many wanted refs); the app decodes `Content-Encoding: gzip` before
+  parsing pkt-lines. The cap applies to both encoded and decoded bytes, so
+  compression cannot bypass it. Malformed gzip returns 400; unsupported
+  content encodings return 415. The report is side-band-64k framed when the
   client asked for it (git and isomorphic-git both do); a pack that can't be
   indexed is reported as `unpack index-pack failed`. Branches must point at
   commits, and deleting the branch `HEAD` names is refused.

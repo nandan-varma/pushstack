@@ -6,6 +6,7 @@
  * Full clone/fetch/push flows are covered by git-user-lifecycle.test.ts and
  * the native-git smoke test.
  */
+import { gzipSync } from "node:zlib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
@@ -96,6 +97,73 @@ describe("readGitRequestBody", () => {
 			statusCode: 413,
 		});
 	});
+
+	it("decodes gzip requests sent by native Git", async () => {
+		const protocol = `0032want ${"a".repeat(40)}\n00000009done\n`;
+		const body = await readGitRequestBody(
+			new Request("http://x/", {
+				method: "POST",
+				body: gzipSync(protocol),
+				headers: { "content-encoding": "gzip" },
+			}),
+		);
+		expect(new TextDecoder().decode(body)).toBe(protocol);
+	});
+
+	it("caps the decompressed body even when the gzip body is small", async () => {
+		const compressed = gzipSync("x".repeat(1024 * 1024));
+		expect(compressed.length).toBeLessThan(4096);
+		await expect(
+			readGitRequestBody(
+				new Request("http://x/", {
+					method: "POST",
+					body: compressed,
+					headers: { "content-encoding": "gzip" },
+				}),
+				4096,
+			),
+		).rejects.toMatchObject({ statusCode: 413 });
+	});
+
+	it("caps encoded bytes without relying on Content-Length", async () => {
+		await expect(
+			readGitRequestBody(
+				new Request("http://x/", {
+					method: "POST",
+					body: gzipSync(""),
+					headers: { "content-encoding": "gzip" },
+				}),
+				10,
+			),
+		).rejects.toMatchObject({ statusCode: 413 });
+	});
+
+	it("rejects malformed gzip rather than parsing it as Git protocol", async () => {
+		await expect(
+			readGitRequestBody(
+				new Request("http://x/", {
+					method: "POST",
+					body: "not gzip",
+					headers: { "content-encoding": "gzip" },
+				}),
+			),
+		).rejects.toMatchObject({ statusCode: 400 });
+	});
+
+	it.each(["br", "gzip, gzip"])(
+		"rejects unsupported encoding %s",
+		async (encoding) => {
+			await expect(
+				readGitRequestBody(
+					new Request("http://x/", {
+						method: "POST",
+						body: "0000",
+						headers: { "content-encoding": encoding },
+					}),
+				),
+			).rejects.toMatchObject({ statusCode: 415 });
+		},
+	);
 
 	it("returns a body under the cap", async () => {
 		const body = await readGitRequestBody(
