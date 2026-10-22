@@ -27,6 +27,10 @@
 		"./http": {
 			"types": "./dist/types/http/index.d.ts",
 			"import": "./dist/http.js"
+		},
+		"./testing": {
+			"types": "./dist/types/testing/fake-s3.d.ts",
+			"import": "./dist/testing.js"
 		}
 	},
 	"files": [

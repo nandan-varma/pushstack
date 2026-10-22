@@ -73,7 +73,7 @@ const fakeS3 = vi.hoisted(() => ({
 vi.mock("#/lib/r2", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("#/lib/r2")>();
 	const { createFetchS3Store } = await import("git-fs-s3/fetch-s3");
-	const { createFakeS3 } = await import("./helpers/fake-s3-fetch");
+	const { createFakeS3 } = await import("git-fs-s3/testing");
 	const s3 = createFakeS3({ bucket: "test-bucket" });
 	fakeS3.objects = s3.objects;
 	return {

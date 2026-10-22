@@ -19,7 +19,7 @@
  * and `logWarn` always log.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { isPerfLogEnabled } from "#/lib/perf-log";
+import { formatMs, isPerfLogEnabled } from "#/lib/perf-log";
 import { SLOW_REQUEST_MS } from "./config";
 
 interface PerfEntry {
@@ -55,10 +55,6 @@ const MAX_ENTRIES = 500;
 const RECENT_LIMIT = 50;
 const recent: string[] = [];
 
-function fmt(ms: number): string {
-	return `${ms.toFixed(1)}ms`;
-}
-
 function prefix(request: PerfRequest | undefined): string {
 	return request ? `[perf ${request.label}#${request.id}]` : "[perf]";
 }
@@ -78,8 +74,8 @@ function formatEntry(entry: PerfEntry): string {
 		entry.ms === undefined
 			? "(unfinished)"
 			: entry.failed
-				? `FAILED after ${fmt(entry.ms)}`
-				: fmt(entry.ms);
+				? `FAILED after ${formatMs(entry.ms)}`
+				: formatMs(entry.ms);
 	return `${indent}· ${entry.text} ${time}`;
 }
 
@@ -87,7 +83,7 @@ function flush(request: PerfRequest, outcome: string, error?: unknown): void {
 	const elapsed = performance.now() - request.start;
 	const failed = error !== undefined;
 	if (enabled) {
-		const header = `${prefix(request)} ${outcome} ${fmt(elapsed)} · r2 ${request.r2Calls} calls ${fmt(request.r2TimeMs)} · cache ${request.cacheHits} hit ${request.cacheMisses} miss`;
+		const header = `${prefix(request)} ${outcome} ${formatMs(elapsed)} · r2 ${request.r2Calls} calls ${formatMs(request.r2TimeMs)} · cache ${request.cacheHits} hit ${request.cacheMisses} miss`;
 		const tree = [header, ...request.entries.map(formatEntry)].join("\n");
 		recent.push(tree);
 		if (recent.length > RECENT_LIMIT) recent.shift();
@@ -111,12 +107,12 @@ function flush(request: PerfRequest, outcome: string, error?: unknown): void {
 			.map((e) => ({ step: e.text, ms: Math.round(e.ms ?? 0) })),
 	};
 	if (structured) console.log(JSON.stringify(record));
-	else console.warn(`${prefix(request)} slow request ${fmt(elapsed)}`);
+	else console.warn(`${prefix(request)} slow request ${formatMs(elapsed)}`);
 	if (slow) {
 		reportWithSentry((client) =>
 			client.addBreadcrumb({
 				category: "slow-request",
-				message: `${request.label} took ${fmt(elapsed)}`,
+				message: `${request.label} took ${formatMs(elapsed)}`,
 				level: "warning",
 				data: record,
 			}),

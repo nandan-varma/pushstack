@@ -4,7 +4,7 @@ import {
 	parseListObjectsV2,
 	S3HttpError,
 } from "../src/stores/fetch-s3.js";
-import { createFakeS3 } from "./helpers/fake-s3-fetch.js";
+import { createFakeS3 } from "../src/testing/fake-s3.js";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 

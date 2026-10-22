@@ -8,11 +8,11 @@
  * Edge-compatible: no node: imports, uses only isomorphic-git object APIs.
  */
 
+import { createSemaphore, type Semaphore } from "git-fs-s3";
 import { type Repo, withPackedWrites } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { merge as diff3Merge } from "node-diff3";
 import { GitEdgeError, GitMergeConflictError } from "./errors.js";
-import { createSemaphore, type Semaphore } from "./semaphore.js";
 
 export type { Repo };
 
