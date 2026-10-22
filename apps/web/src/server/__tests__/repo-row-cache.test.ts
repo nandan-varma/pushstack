@@ -88,4 +88,20 @@ describe("repository row per page fan-out", () => {
 		expect(repo.defaultBranch).toBe("dev");
 		expect(repo.description).toBe("changed");
 	});
+
+	it("reads a renamed repository's storage under its new name at once", async () => {
+		// Warm the by-id row, then rename: a read that kept the cached row would
+		// look for the moved storage under the old name and 404.
+		await files.getTreePageData({
+			data: { repoId, branchName: "main", path: "" },
+		});
+		await repositories.updateRepository({
+			data: { id: repoId, name: "renamed" },
+		});
+		const page = await files.getTreePageData({
+			data: { repoId, branchName: "main", path: "" },
+		});
+		expect(page.branches.map((branch) => branch.name)).toContain("main");
+		expect(JSON.stringify(page.files)).toContain("a.txt");
+	});
 });

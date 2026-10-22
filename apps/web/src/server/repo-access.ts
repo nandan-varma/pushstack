@@ -235,10 +235,12 @@ export type RepositoryWithOwner = Repository & {
 };
 
 /**
- * Repository + owner by id. A page load fans out to several server functions
- * that each start from the repo row, so it's cached for a few seconds (and
- * coalesced) like the by-name lookup; the mutations that evict that one
- * (`evictRepoByName`) evict this too.
+ * Repository + owner by id, for reads. A page load fans out to several server
+ * functions that each start from the repo row, so it's cached for a few
+ * seconds (and coalesced) like the by-name lookup; the mutations that evict
+ * that one (`evictRepoByName`) evict this too. Writes never use it: a row up
+ * to 5 s old from another instance could name storage a rename or delete
+ * already moved, so they read {@link freshWithOwner}.
  */
 const repoByIdCache = createTtlCoalescedCache<RepositoryWithOwner | null>({
 	ttlMs: 5000,
@@ -248,15 +250,25 @@ export function evictRepositoryById(repoId: number): void {
 	repoByIdCache.delete(String(repoId));
 }
 
-async function withOwner(repoId: number): Promise<RepositoryWithOwner> {
+function readRowWithOwner(repoId: number) {
+	return db.query.repositories
+		.findFirst({
+			where: { id: repoId },
+			with: { owner: { columns: { id: true, username: true } } },
+		})
+		.then((row) => row ?? null);
+}
+
+async function cachedWithOwner(repoId: number): Promise<RepositoryWithOwner> {
 	const repository = await repoByIdCache.get(String(repoId), () =>
-		db.query.repositories
-			.findFirst({
-				where: { id: repoId },
-				with: { owner: { columns: { id: true, username: true } } },
-			})
-			.then((row) => row ?? null),
+		readRowWithOwner(repoId),
 	);
+	if (!repository) throw notFound();
+	return repository;
+}
+
+async function freshWithOwner(repoId: number): Promise<RepositoryWithOwner> {
+	const repository = await readRowWithOwner(repoId);
 	if (!repository) throw notFound();
 	return repository;
 }
@@ -281,7 +293,7 @@ export function readWithAccess<T>(
 		);
 		if (!access?.canRead) throw notFound();
 		try {
-			return await fn(await withOwner(repoId));
+			return await fn(await cachedWithOwner(repoId));
 		} catch (error) {
 			if (isNotFoundError(error)) throw notFound();
 			throw error;
@@ -296,7 +308,7 @@ export async function writeWithAccess<T>(
 ): Promise<T> {
 	const user = await getCurrentUser();
 	await requireWriteAccess(repoId, user.id);
-	return fn(await withOwner(repoId), user);
+	return fn(await freshWithOwner(repoId), user);
 }
 
 export async function requireOwner(
@@ -304,7 +316,7 @@ export async function requireOwner(
 	userId: string,
 	message: string,
 ): Promise<RepositoryWithOwner> {
-	const repository = await withOwner(repoId);
+	const repository = await freshWithOwner(repoId);
 	if (repository.ownerId !== userId) throw new Error(message);
 	return repository;
 }
