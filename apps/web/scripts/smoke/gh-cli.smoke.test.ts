@@ -568,3 +568,234 @@ describe.skipIf(!enabled)(
 		});
 	},
 );
+
+describe.skipIf(!enabled)(
+	"stock gh: repository settings, search and browse (REST)",
+	() => {
+		const repo = () => `${host}/octo/toolbox`;
+		const api = (...args: string[]) => gh("api", "--hostname", host, ...args);
+		let mainSha = "";
+
+		beforeAll(async () => {
+			await gh(
+				"repo",
+				"create",
+				`${host}/octo/toolbox`,
+				"--public",
+				"--description",
+				"Tools",
+				"--add-readme",
+			);
+			mainSha = JSON.parse(
+				(await api("repos/octo/toolbox/git/ref/heads/main")).stdout,
+			).object.sha;
+			await api(
+				"repos/octo/toolbox/git/refs",
+				"-f",
+				"ref=refs/heads/dev",
+				"-f",
+				`sha=${mainSha}`,
+			);
+			await api(
+				"-X",
+				"PUT",
+				"repos/octo/toolbox/contents/dev.txt",
+				"-f",
+				"message=Dev work",
+				"-f",
+				`content=${Buffer.from("dev\n").toString("base64")}`,
+				"-f",
+				"branch=dev",
+			);
+			await api(
+				"repos/octo/toolbox/issues",
+				"-f",
+				"title=Crash on start",
+				"-f",
+				"body=A bug report",
+			);
+			await api(
+				"repos/octo/toolbox/pulls",
+				"-f",
+				"title=Fix the startup bug",
+				"-f",
+				"head=dev",
+				"-f",
+				"base=main",
+			);
+		});
+
+		const view = async (name: string, fields: string) =>
+			JSON.parse(
+				(await gh("repo", "view", `${host}/octo/${name}`, "--json", fields))
+					.stdout,
+			);
+
+		it("edits the description, default branch and visibility", async () => {
+			await gh("repo", "edit", repo(), "--description", "Sharper tools");
+			await gh("repo", "edit", repo(), "--default-branch", "dev");
+			await gh(
+				"repo",
+				"edit",
+				repo(),
+				"--visibility",
+				"private",
+				"--accept-visibility-change-consequences",
+			);
+			expect(
+				await view("toolbox", "description,defaultBranchRef,visibility"),
+			).toEqual({
+				description: "Sharper tools",
+				defaultBranchRef: { name: "dev" },
+				visibility: "PRIVATE",
+			});
+			await gh("repo", "edit", repo(), "--default-branch", "main");
+			await gh(
+				"repo",
+				"edit",
+				repo(),
+				"--visibility",
+				"public",
+				"--accept-visibility-change-consequences",
+			);
+			expect(await view("toolbox", "defaultBranchRef,isPrivate")).toEqual({
+				defaultBranchRef: { name: "main" },
+				isPrivate: false,
+			});
+		});
+
+		it("rejects a default branch that doesn't exist", async () => {
+			const out = await ghFails(
+				"",
+				"repo",
+				"edit",
+				repo(),
+				"--default-branch",
+				"nope",
+			);
+			expect(out).toMatch(/HTTP 422/);
+		});
+
+		it("renames a repository", async () => {
+			await gh("repo", "create", `${host}/octo/old-name`, "--public");
+			// Not a terminal: gh confirms nothing on success; the state shows it.
+			await gh(
+				"repo",
+				"rename",
+				"new-name",
+				"-R",
+				`${host}/octo/old-name`,
+				"--yes",
+			);
+			expect(await view("new-name", "name")).toEqual({ name: "new-name" });
+			expect(
+				await ghFails("", "repo", "view", `${host}/octo/old-name`),
+			).toMatch(/Could not resolve to a Repository/);
+		});
+
+		it("deletes a repository", async () => {
+			await gh("repo", "create", `${host}/octo/doomed`, "--private");
+			await gh("repo", "delete", `${host}/octo/doomed`, "--yes");
+			expect(await ghFails("", "repo", "view", `${host}/octo/doomed`)).toMatch(
+				/Could not resolve to a Repository/,
+			);
+		});
+
+		it("searches repositories", async () => {
+			const found = await gh(
+				"search",
+				"repos",
+				"tool",
+				"--owner",
+				"octo",
+				"--json",
+				"fullName,description,visibility,url",
+			);
+			expect(JSON.parse(found.stdout)).toEqual([
+				{
+					fullName: "octo/toolbox",
+					description: "Sharper tools",
+					visibility: "public",
+					url: `https://${host}/octo/toolbox`,
+				},
+			]);
+			const privateOnes = await gh(
+				"search",
+				"repos",
+				"--owner",
+				"octo",
+				"--visibility",
+				"private",
+				"--json",
+				"fullName",
+			);
+			expect(
+				(JSON.parse(privateOnes.stdout) as { fullName: string }[])
+					.map((r) => r.fullName)
+					.sort(),
+			).toEqual(["octo/hidden", "octo/made-by-gh"]);
+		});
+
+		it("searches issues and pull requests", async () => {
+			const issues = await gh(
+				"search",
+				"issues",
+				"crash",
+				"--repo",
+				"octo/toolbox",
+				"--json",
+				"number,title,state,repository,isPullRequest",
+			);
+			expect(JSON.parse(issues.stdout)).toEqual([
+				{
+					number: 1,
+					title: "Crash on start",
+					state: "open",
+					repository: { name: "toolbox", nameWithOwner: "octo/toolbox" },
+					isPullRequest: false,
+				},
+			]);
+			const prs = await gh(
+				"search",
+				"prs",
+				"--repo",
+				"octo/toolbox",
+				"--state",
+				"open",
+				"--json",
+				"number,title,isPullRequest",
+			);
+			expect(JSON.parse(prs.stdout)).toEqual([
+				{ number: 2, title: "Fix the startup bug", isPullRequest: true },
+			]);
+			const none = await gh(
+				"search",
+				"issues",
+				"crash",
+				"--repo",
+				"octo/toolbox",
+				"--state",
+				"closed",
+				"--json",
+				"number",
+			);
+			expect(JSON.parse(none.stdout)).toEqual([]);
+		});
+
+		it("builds GitHub's web URLs with gh browse", async () => {
+			const browse = async (...args: string[]) =>
+				(await gh("browse", "-R", repo(), "--no-browser", ...args)).stdout;
+			const web = `https://${host}/octo/toolbox`;
+			expect(await browse()).toBe(web);
+			// The tree URL of a file redirects to its blob page, as on GitHub.
+			expect(await browse("README.md")).toBe(`${web}/tree/main/README.md`);
+			expect(await browse("README.md:1")).toBe(
+				`${web}/blob/main/README.md?plain=1#L1`,
+			);
+			expect(await browse("1")).toBe(`${web}/issues/1`);
+			expect(await browse(mainSha)).toBe(`${web}/commit/${mainSha}`);
+			expect(await browse("--branch", "dev")).toBe(`${web}/tree/dev`);
+			expect(await browse("--settings")).toBe(`${web}/settings`);
+		});
+	},
+);
