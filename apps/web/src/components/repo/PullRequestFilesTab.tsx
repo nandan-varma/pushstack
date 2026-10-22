@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
 import type { DiffResult } from "git-fs-s3/ops";
 import {
 	Check,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useMemo, useState } from "react";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
+import { RelativeTime } from "@/components/RelativeTime";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -404,7 +404,7 @@ function CommentBody({
 				<p className="text-sm">
 					<span className="font-medium text-foreground">{author.name}</span>{" "}
 					<span className="text-muted-foreground">
-						{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+						<RelativeTime date={createdAt} />
 					</span>
 				</p>
 				<Suspense fallback={<Skeleton className="h-12" />}>

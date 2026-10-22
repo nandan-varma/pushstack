@@ -14,6 +14,7 @@ import { RefSelect } from "@/components/repo/RefSelect";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { contentQuery } from "@/lib/prefetch";
 import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
@@ -51,16 +52,15 @@ export const Route = createFileRoute("/$owner/$name/commits/$branch")({
 		// its own loading state.
 		const page = deps.page ?? 1;
 		const skip = (page - 1) * PAGE_SIZE;
-		queryClient
-			.ensureQueryData(
-				repositoryCommitsQueryOptions({
-					repoId: repo.id,
-					branchName: params.branch,
-					limit: PAGE_SIZE,
-					skip,
-				}),
-			)
-			.catch(() => {});
+		await contentQuery(
+			queryClient,
+			repositoryCommitsQueryOptions({
+				repoId: repo.id,
+				branchName: params.branch,
+				limit: PAGE_SIZE,
+				skip,
+			}),
+		);
 	},
 	component: CommitsPage,
 	notFoundComponent: () => (

@@ -9,6 +9,7 @@ import { DangerSection } from "@/components/settings/DangerSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
 import { PerformanceSection } from "@/components/settings/PerformanceSection";
 import { Skeleton } from "@/components/ui/skeleton";
+import { backgroundQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	repoCollaboratorsQueryOptions,
@@ -28,9 +29,7 @@ export const Route = createFileRoute("/$owner/$name/settings")({
 		]);
 
 		if (repo && session?.user?.id === repo.ownerId) {
-			queryClient
-				.ensureQueryData(repoCollaboratorsQueryOptions(repo.id))
-				.catch(() => {});
+			backgroundQuery(queryClient, repoCollaboratorsQueryOptions(repo.id));
 		}
 	},
 	component: RepoSettingsPage,

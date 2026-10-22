@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNowStrict } from "date-fns";
 import {
 	CircleDot,
 	FolderPlus,
@@ -11,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type ActivityRow, describeActivity } from "@/lib/activity";
@@ -121,13 +121,11 @@ export function ActivityFeed({
 										</span>
 									)}
 								</span>
-								<time
-									dateTime={createdAt.toISOString()}
-									title={createdAt.toLocaleString()}
+								<RelativeTime
+									date={createdAt}
+									strict
 									className="shrink-0 text-xs text-bjork-text-soft tabular-nums"
-								>
-									{formatDistanceToNowStrict(createdAt)}
-								</time>
+								/>
 							</>
 						);
 						const rowClassName = "flex min-h-11 items-center gap-3 px-4 py-2";

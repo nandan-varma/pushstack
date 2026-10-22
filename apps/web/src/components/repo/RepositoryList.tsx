@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNowStrict } from "date-fns";
 import { GitBranch, Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -79,12 +79,7 @@ export function RepositoryRow({
 							{repo.defaultBranch}
 						</span>
 					)}
-					<time
-						dateTime={updatedAt.toISOString()}
-						title={updatedAt.toLocaleString()}
-					>
-						{formatDistanceToNowStrict(updatedAt)}
-					</time>
+					<RelativeTime date={updatedAt} strict />
 				</span>
 			</Link>
 		</li>

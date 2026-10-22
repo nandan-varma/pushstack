@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import {
 	CircleCheck,
 	CircleDot,
@@ -12,6 +11,7 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { LabelChip } from "@/components/LabelChip";
 import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -169,14 +169,7 @@ export function ThreadRow({
 				<p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-bjork-text-soft">
 					<span className="font-mono tabular-nums">#{thread.number}</span>
 					<span>
-						opened{" "}
-						<time
-							dateTime={createdAt.toISOString()}
-							title={createdAt.toLocaleString()}
-						>
-							{formatDistanceToNow(createdAt, { addSuffix: true })}
-						</time>{" "}
-						by{" "}
+						opened <RelativeTime date={createdAt} /> by{" "}
 						<span className="text-bjork-text-medium">{thread.author.name}</span>
 					</span>
 					{children && (

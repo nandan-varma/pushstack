@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import {
 	ArrowRight,
 	CircleDot,
@@ -9,6 +8,7 @@ import {
 	Star,
 	Terminal,
 } from "lucide-react";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	repositoryByNameQueryOptions,
@@ -85,9 +85,7 @@ export function LiveRepoPreview() {
 										</p>
 										<p className="mt-0.5 text-xs text-muted-foreground">
 											{commit.authorName} ·{" "}
-											{formatDistanceToNow(new Date(commit.createdAt), {
-												addSuffix: true,
-											})}
+											<RelativeTime date={commit.createdAt} />
 										</p>
 									</div>
 									<code className="hidden shrink-0 font-mono text-[11px] text-muted-foreground sm:block">

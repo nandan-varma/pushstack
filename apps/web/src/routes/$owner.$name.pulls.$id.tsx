@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import {
 	FileDiff,
 	GitCommitHorizontal,
@@ -22,6 +21,7 @@ import { IssueAssignees } from "@/components/IssueAssignees";
 import { SplitLayout } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { ReactionBar } from "@/components/ReactionBar";
+import { RelativeTime } from "@/components/RelativeTime";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import { StatePill } from "@/components/StatePill";
@@ -43,6 +43,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { splitPatchSuffix } from "@/lib/compare-spec";
+import { backgroundQuery, contentQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -147,27 +148,27 @@ export const Route = createFileRoute("/$owner/$name/pulls/$id")({
 		// these — fire-and-forget so the extra round trip doesn't land after the
 		// body has already rendered.
 		if (repo) {
-			queryClient
-				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-				.catch(() => {});
-			queryClient
-				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-				.catch(() => {});
+			await Promise.all([
+				contentQuery(queryClient, repositoryIssueNumbersQueryOptions(repo.id)),
+				contentQuery(
+					queryClient,
+					repositoryPullRequestNumbersQueryOptions(repo.id),
+				),
+			]);
 		}
 
 		// Start the "Files changed" diff now rather than after mount; the page
 		// renders without it.
 		if (pr) {
-			queryClient
-				.ensureQueryData(
-					pullRequestDiffQueryOptions({
-						repoId: pr.repoId,
-						sourceBranch: pr.sourceBranch,
-						targetBranch: pr.targetBranch,
-						autoRefresh: !!repo?.autoRefreshPrDiffs,
-					}),
-				)
-				.catch(() => {});
+			backgroundQuery(
+				queryClient,
+				pullRequestDiffQueryOptions({
+					repoId: pr.repoId,
+					sourceBranch: pr.sourceBranch,
+					targetBranch: pr.targetBranch,
+					autoRefresh: !!repo?.autoRefreshPrDiffs,
+				}),
+			);
 		}
 	},
 	component: PullRequestDetailPage,
@@ -348,10 +349,7 @@ function PullRequestDetailPage() {
 							from
 							<BranchChip owner={owner} name={name} branch={pr.sourceBranch} />
 							<span className="text-bjork-text-soft">
-								·{" "}
-								{formatDistanceToNow(new Date(pr.createdAt), {
-									addSuffix: true,
-								})}
+								· <RelativeTime date={pr.createdAt} />
 							</span>
 						</p>
 						{pr.review.summary.state && (

@@ -5,7 +5,6 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import {
 	CircleCheck,
 	CircleDot,
@@ -23,6 +22,7 @@ import {
 import { CommentCard } from "@/components/CommentCard";
 import { LabelChip } from "@/components/LabelChip";
 import { ReactionBar } from "@/components/ReactionBar";
+import { RelativeTime } from "@/components/RelativeTime";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -362,10 +362,7 @@ function TimelineEventRow({
 				>
 					{event.actor.username}
 				</Link>{" "}
-				{text}{" "}
-				<time dateTime={new Date(event.createdAt).toISOString()}>
-					{formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })}
-				</time>
+				{text} <RelativeTime date={event.createdAt} />
 			</p>
 		</div>
 	);

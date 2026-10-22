@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { RelativeTime } from "@/components/RelativeTime";
 import { CommitList } from "@/components/repo/CommitList";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -76,12 +76,10 @@ export function FileCommitBanner({
 			>
 				{commit.sha.substring(0, 7)}
 			</Link>
-			<time
-				dateTime={commit.createdAt}
+			<RelativeTime
+				date={commit.createdAt}
 				className="shrink-0 text-xs text-bjork-text-soft"
-			>
-				{formatDistanceToNow(new Date(commit.createdAt), { addSuffix: true })}
-			</time>
+			/>
 		</div>
 	);
 }

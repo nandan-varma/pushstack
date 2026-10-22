@@ -37,6 +37,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { backgroundQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	queryKeys,
@@ -59,9 +60,7 @@ export const Route = createFileRoute("/$owner/$name/pulls")({
 		// itself — fire-and-forget (same pattern as the tree page's loader) so
 		// a slow cold branch listing doesn't block the page from rendering the
 		// PR list, which is already fetched separately below.
-		queryClient
-			.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
-			.catch(() => {});
+		backgroundQuery(queryClient, repositoryBranchesQueryOptions(repo.id));
 		await queryClient.ensureQueryData(
 			repositoryPullRequestSearchQueryOptions({
 				repoId: repo.id,

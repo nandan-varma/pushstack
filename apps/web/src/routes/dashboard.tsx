@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { formatDistanceToNowStrict } from "date-fns";
 import { CircleCheck, CircleDot, GitPullRequest, Plus } from "lucide-react";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { EmptyState } from "@/components/EmptyState";
 import { Panel, PanelHeader } from "@/components/layout/panel";
 import { PageHeader } from "@/components/PageHeader";
+import { RelativeTime } from "@/components/RelativeTime";
 import { RepositoryList } from "@/components/repo/RepositoryList";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -183,12 +183,11 @@ function AssignedPanel({
 											{thread.owner}/{thread.name}#{thread.number}
 										</span>
 									</span>
-									<time
-										dateTime={updatedAt.toISOString()}
+									<RelativeTime
+										date={updatedAt}
+										strict
 										className="shrink-0 text-xs text-bjork-text-soft tabular-nums"
-									>
-										{formatDistanceToNowStrict(updatedAt)}
-									</time>
+									/>
 								</Link>
 							</li>
 						);

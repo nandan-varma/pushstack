@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { CornerLeftUp, GitFork } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -177,14 +177,7 @@ export function FileTable({
 												<Skeleton className="ml-auto h-3 w-16" />
 											) : (
 												lastCommit && (
-													<time dateTime={lastCommit.createdAt}>
-														{formatDistanceToNow(
-															new Date(lastCommit.createdAt),
-															{
-																addSuffix: true,
-															},
-														)}
-													</time>
+													<RelativeTime date={lastCommit.createdAt} />
 												)
 											)}
 										</div>

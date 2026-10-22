@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { parseCompareSpec, splitPatchSuffix } from "@/lib/compare-spec";
+import { backgroundQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	queryKeys,
@@ -56,15 +57,14 @@ export const Route = createFileRoute("/$owner/$name/compare/$")({
 		);
 		const spec = parseCompareSpec(params._splat ?? "", params.owner);
 		if (repo && spec?.separator === "...") {
-			queryClient
-				.prefetchQuery(
-					repositoryComparisonQueryOptions({
-						repoId: repo.id,
-						base: spec.base ?? repo.defaultBranch,
-						head: spec.head,
-					}),
-				)
-				.catch(() => {});
+			backgroundQuery(
+				queryClient,
+				repositoryComparisonQueryOptions({
+					repoId: repo.id,
+					base: spec.base ?? repo.defaultBranch,
+					head: spec.head,
+				}),
+			);
 		}
 	},
 	component: ComparePage,

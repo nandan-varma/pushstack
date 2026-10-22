@@ -18,6 +18,7 @@ import { CommitSummaryBar } from "@/components/repo/tree/CommitSummaryBar";
 import { FileTable } from "@/components/repo/tree/FileTable";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { perfMark, perfTime } from "@/lib/perf-log";
+import { contentQuery } from "@/lib/prefetch";
 import {
 	repositoryByNameQueryOptions,
 	repositoryFileQueryOptions,
@@ -72,12 +73,16 @@ export const Route = createFileRoute("/$owner/$name/tree/$branch/$")({
 
 				// MarkdownRenderer (which renders the README below) needs these to
 				// resolve `#123` references to issue/PR links.
-				queryClient
-					.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-					.catch(() => {});
-				queryClient
-					.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-					.catch(() => {});
+				const numbers = Promise.all([
+					contentQuery(
+						queryClient,
+						repositoryIssueNumbersQueryOptions(repo.id),
+					),
+					contentQuery(
+						queryClient,
+						repositoryPullRequestNumbersQueryOptions(repo.id),
+					),
+				]);
 
 				// Awaited: it's the existence check for the branch and path — a
 				// missing one throws notFound() (a 404) before the page commits —
@@ -91,17 +96,18 @@ export const Route = createFileRoute("/$owner/$name/tree/$branch/$")({
 					}),
 				);
 				const readmeFile = findReadmeFile(files);
-				if (readmeFile) {
-					queryClient
-						.ensureQueryData(
+				await Promise.all([
+					numbers,
+					readmeFile &&
+						contentQuery(
+							queryClient,
 							repositoryFileQueryOptions({
 								repoId: repo.id,
 								branchName: params.branch,
 								path: readmeFile.path,
 							}),
-						)
-						.catch(() => {});
-				}
+						),
+				]);
 			},
 		),
 	head: ({ params }) => {

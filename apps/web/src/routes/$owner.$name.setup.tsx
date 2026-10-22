@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
+import { backgroundQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	repositoryBranchesQueryOptions,
@@ -23,9 +24,7 @@ export const Route = createFileRoute("/$owner/$name/setup")({
 			// Only used for a branch count display below — fire-and-forget
 			// (same pattern as the tree page's loader) rather than blocking
 			// route commit on it.
-			queryClient
-				.ensureQueryData(repositoryBranchesQueryOptions(repo.id))
-				.catch(() => {});
+			backgroundQuery(queryClient, repositoryBranchesQueryOptions(repo.id));
 		}
 	},
 	component: RouteComponent,

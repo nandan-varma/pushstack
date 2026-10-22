@@ -2,7 +2,10 @@ import { createRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 import { getGlobalStartContext } from "@tanstack/react-start";
 import { NotFoundCard } from "./components/NotFoundCard";
-import { getContext } from "./integrations/tanstack-query/root-provider";
+import {
+	getContext,
+	shouldDehydrateQuery,
+} from "./integrations/tanstack-query/root-provider";
 import { routeTree } from "./routeTree.gen";
 
 interface StartRequestContext {
@@ -60,7 +63,11 @@ export function getRouter() {
 	// Streams what loaders fetched on the server into the page so components
 	// render it there and the browser hydrates the same data instead of
 	// refetching it, and provides the QueryClient to the whole tree.
-	setupRouterSsrQueryIntegration({ router, queryClient: context.queryClient });
+	setupRouterSsrQueryIntegration({
+		router,
+		queryClient: context.queryClient,
+		dehydrateOptions: { shouldDehydrateQuery },
+	});
 
 	if (!router.isServer && import.meta.env.VITE_SENTRY_DSN) {
 		void import("@sentry/tanstackstart-react").then((Sentry) => {

@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { CircleCheck, CircleDot } from "lucide-react";
 import type { ReactNode } from "react";
 import { CommentCard } from "@/components/CommentCard";
@@ -14,6 +13,7 @@ import { IssueAssignees } from "@/components/IssueAssignees";
 import { SplitLayout } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { ReactionBar } from "@/components/ReactionBar";
+import { RelativeTime } from "@/components/RelativeTime";
 import { StatePill } from "@/components/StatePill";
 import {
 	ThreadConversation,
@@ -23,6 +23,7 @@ import { ThreadLabels } from "@/components/ThreadLabels";
 import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
+import { contentQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
 	issueByNumberQueryOptions,
@@ -94,12 +95,13 @@ export const Route = createFileRoute("/$owner/$name/issues/$id")({
 		// using these — fire-and-forget so the extra round trip doesn't land
 		// after the body has already rendered.
 		if (repo) {
-			queryClient
-				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-				.catch(() => {});
-			queryClient
-				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-				.catch(() => {});
+			await Promise.all([
+				contentQuery(queryClient, repositoryIssueNumbersQueryOptions(repo.id)),
+				contentQuery(
+					queryClient,
+					repositoryPullRequestNumbersQueryOptions(repo.id),
+				),
+			]);
 		}
 	},
 	component: IssueDetailPage,
@@ -258,12 +260,7 @@ function IssueDetail({
 						<span className="font-medium text-bjork-text">
 							{issue.author.name}
 						</span>{" "}
-						opened this issue{" "}
-						<time dateTime={new Date(issue.createdAt).toISOString()}>
-							{formatDistanceToNow(new Date(issue.createdAt), {
-								addSuffix: true,
-							})}
-						</time>
+						opened this issue <RelativeTime date={issue.createdAt} />
 					</p>
 				}
 				actions={editButton}

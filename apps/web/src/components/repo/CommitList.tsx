@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { GitCommitHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { Panel, PanelHeader } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils/avatar";
 
@@ -44,12 +45,7 @@ export function CommitRow({
 				</Link>
 				<p className="mt-0.5 truncate text-xs text-bjork-text-soft">
 					<span className="text-bjork-text-medium">{commit.authorName}</span>{" "}
-					committed{" "}
-					<time dateTime={commit.createdAt}>
-						{formatDistanceToNow(new Date(commit.createdAt), {
-							addSuffix: true,
-						})}
-					</time>
+					committed <RelativeTime date={commit.createdAt} />
 				</p>
 			</div>
 			<code className="shrink-0 rounded-[8px] border border-bjork-border bg-bjork-field-inset px-2 py-1 font-mono text-[11px] text-bjork-text-medium tabular-nums">

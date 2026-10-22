@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
 import { History } from "lucide-react";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getInitials } from "@/lib/utils/avatar";
@@ -70,9 +70,7 @@ export function CommitSummaryBar({
 				>
 					{commit.sha.slice(0, 7)}
 				</Link>
-				<time dateTime={commit.createdAt} className="hidden sm:inline">
-					{formatDistanceToNow(new Date(commit.createdAt), { addSuffix: true })}
-				</time>
+				<RelativeTime date={commit.createdAt} className="hidden sm:inline" />
 				<Link
 					to="/$owner/$name/commits/$branch"
 					params={{ owner, name, branch }}

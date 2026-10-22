@@ -1,7 +1,7 @@
-import { formatDistanceToNow } from "date-fns";
 import { Ellipsis, Pencil, Quote, Trash2 } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useState } from "react";
 import { Panel } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,13 +78,7 @@ export function CommentCard({
 					<span className="font-semibold text-bjork-text">
 						{comment.author.name}
 					</span>{" "}
-					commented{" "}
-					<time
-						dateTime={createdAt.toISOString()}
-						title={createdAt.toLocaleString()}
-					>
-						{formatDistanceToNow(createdAt, { addSuffix: true })}
-					</time>
+					commented <RelativeTime date={createdAt} />
 					{comment.editedAt && (
 						<span title={new Date(comment.editedAt).toLocaleString()}>
 							{" "}

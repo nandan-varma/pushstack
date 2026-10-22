@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { format, formatDistanceToNow } from "date-fns";
 import { FolderTree } from "lucide-react";
 import { useMemo } from "react";
 import { CopyField } from "@/components/CopyField";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { RelativeTime } from "@/components/RelativeTime";
 import { CommitComments } from "@/components/repo/CommitComments";
 import { CommitMessage } from "@/components/repo/CommitMessage";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { splitPatchSuffix } from "@/lib/compare-spec";
+import { backgroundQuery, contentQuery } from "@/lib/prefetch";
 import {
 	repositoryByNameQueryOptions,
 	repositoryCommitDiffQueryOptions,
@@ -47,27 +48,28 @@ export const Route = createFileRoute("/$owner/$name/commit/$sha")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (repo) {
-			queryClient
-				.ensureQueryData(repositoryIssueNumbersQueryOptions(repo.id))
-				.catch(() => {});
-			queryClient
-				.ensureQueryData(repositoryPullRequestNumbersQueryOptions(repo.id))
-				.catch(() => {});
+			const numbers = Promise.all([
+				contentQuery(queryClient, repositoryIssueNumbersQueryOptions(repo.id)),
+				contentQuery(
+					queryClient,
+					repositoryPullRequestNumbersQueryOptions(repo.id),
+				),
+			]);
 
 			// Diff computation is comparatively expensive and not needed for the
 			// header — fetch it client-side (own loading state below) instead of
 			// blocking the route transition on it. A full sha already names the
 			// diff, so it starts now, alongside the commit.
 			if (FULL_SHA_RE.test(params.sha)) {
-				queryClient
-					.prefetchQuery(
-						repositoryCommitDiffQueryOptions({
-							repoId: repo.id,
-							commitSha: params.sha.toLowerCase(),
-						}),
-					)
-					.catch(() => {});
+				backgroundQuery(
+					queryClient,
+					repositoryCommitDiffQueryOptions({
+						repoId: repo.id,
+						commitSha: params.sha.toLowerCase(),
+					}),
+				);
 			}
+			await numbers;
 			await queryClient.ensureQueryData(
 				repositoryCommitQueryOptions({
 					repoId: repo.id,
@@ -187,12 +189,7 @@ function CommitDetailPage() {
 							{commit.author.name}
 						</span>
 						committed
-						<time
-							dateTime={authoredAt.toISOString()}
-							title={format(authoredAt, "PPpp")}
-						>
-							{formatDistanceToNow(authoredAt, { addSuffix: true })}
-						</time>
+						<RelativeTime date={authoredAt} />
 					</span>
 					<span aria-hidden="true" className="text-bjork-text-faint">
 						·
