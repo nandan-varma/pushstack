@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
 import { getAssignableUsers, getAssignedThreads } from "@/server/assignees";
 import { getComments } from "@/server/comments";
+import { getCommitComments } from "@/server/commit-comments";
 import {
 	getBranchDiff,
 	getBranches,
@@ -108,6 +109,8 @@ export const queryKeys = {
 		["repos", repoId, "commits", branchName, limit, skip] as const,
 	repoCommit: (repoId: number, rev: string) =>
 		["repos", repoId, "commit", rev] as const,
+	commitComments: (repoId: number, sha: string) =>
+		["repos", repoId, "commit-comments", sha] as const,
 	repoCommitDiff: (repoId: number, commitSha: string) =>
 		["repos", repoId, "commit-diff", commitSha] as const,
 	repoLastCommits: (repoId: number, branchName: string, path = "") =>
@@ -504,6 +507,23 @@ export function repositoryCommitQueryOptions({
 		queryFn: () => getCommit({ data: { repoId, rev } }),
 		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
 		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
+	});
+}
+
+/** A commit's comments, oldest first, one `THREAD_PAGE_SIZE` page at a time. */
+export function commitCommentsQueryOptions(repoId: number, sha: string) {
+	return infiniteQueryOptions({
+		queryKey: queryKeys.commitComments(repoId, sha),
+		queryFn: ({ pageParam }) =>
+			getCommitComments({ data: { repoId, sha, skip: pageParam } }),
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, pages) => {
+			const next = pages.length * THREAD_PAGE_SIZE;
+			return lastPage.comments.length < THREAD_PAGE_SIZE || next > MAX_LIST_SKIP
+				? undefined
+				: next;
+		},
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }
 
