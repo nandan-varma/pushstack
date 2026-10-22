@@ -8,8 +8,12 @@
  *   bounded (MAX_NODE_LIMIT_EXCEEDED), so nesting cannot fan out unbounded;
  * - selection depth is bounded (MAX_DEPTH_EXCEEDED).
  *
- * It also computes GitHub's rate-limit cost: the number of connection
- * requests the query implies, divided by 100, at least 1.
+ * - field selections (aliases, fragments and introspection included) are
+ *   bounded, and `nodes(ids:)` takes at most 100 ids.
+ *
+ * It also computes GitHub's rate-limit cost: the number of connection and
+ * lookup requests the query implies, divided by 100, at least 1 (5 for a
+ * mutation). Lookups and `nodes` ids count toward the node limit.
  */
 import {
 	type DocumentNode,
@@ -38,6 +42,17 @@ import { GitHubGraphQLError } from "./errors";
  */
 export const MAX_NODES = 50_000;
 export const MAX_DEPTH = 25;
+/**
+ * Field selections per operation, fragments expanded and introspection
+ * included: bounds aliasing (a thousand `repository(...)` lookups or
+ * `__schema` copies) before anything runs. gh's largest captured query
+ * selects well under 200.
+ */
+export const MAX_FIELDS = 500;
+/** GitHub's bound on `nodes(ids:)`. */
+export const MAX_NODE_IDS = 100;
+/** Mutations weigh more than queries, as in GitHub's secondary limits. */
+export const MUTATION_COST = 5;
 
 export interface QueryCost {
 	nodeCount: number;
@@ -67,6 +82,47 @@ export function analyzeQuery(
 
 	let nodeCount = 0;
 	let requests = 0;
+	let fields = 0;
+
+	const countField = () => {
+		fields += 1;
+		if (fields > MAX_FIELDS) {
+			throw new GitHubGraphQLError(
+				"MAX_NODE_LIMIT_EXCEEDED",
+				`This query selects more than ${MAX_FIELDS} fields, which exceeds the maximum of ${MAX_FIELDS}.`,
+			);
+		}
+	};
+	const addNodes = (count: number) => {
+		nodeCount += count;
+		if (nodeCount > MAX_NODES) {
+			throw new GitHubGraphQLError(
+				"MAX_NODE_LIMIT_EXCEEDED",
+				`This query requests up to ${nodeCount} possible nodes which exceeds the maximum limit of ${MAX_NODES}.`,
+			);
+		}
+	};
+
+	/** Fields without a definition here (introspection): counted only. */
+	const countOnly = (
+		selectionSet: SelectionSetNode,
+		spreads: ReadonlySet<string>,
+	) => {
+		for (const selection of selectionSet.selections) {
+			if (selection.kind === Kind.FIELD) {
+				countField();
+				if (selection.selectionSet) countOnly(selection.selectionSet, spreads);
+			} else if (selection.kind === Kind.INLINE_FRAGMENT) {
+				countOnly(selection.selectionSet, spreads);
+			} else {
+				const name = selection.name.value;
+				const fragment = fragments.get(name);
+				if (fragment && !spreads.has(name)) {
+					countOnly(fragment.selectionSet, new Set([...spreads, name]));
+				}
+			}
+		}
+	};
 
 	const visit = (
 		parent: GraphQLCompositeType,
@@ -119,12 +175,18 @@ export function analyzeQuery(
 		depth: number,
 		spreads: ReadonlySet<string>,
 	) => {
+		countField();
 		if (!node.selectionSet) return;
-		if (!isObjectType(parent) && !isInterfaceType(parent)) return;
-		const field = parent.getFields()[node.name.value] as
-			| GraphQLField<unknown, unknown>
-			| undefined;
-		if (!field) return;
+		const field =
+			isObjectType(parent) || isInterfaceType(parent)
+				? (parent.getFields()[node.name.value] as
+						| GraphQLField<unknown, unknown>
+						| undefined)
+				: undefined;
+		if (!field) {
+			countOnly(node.selectionSet, spreads);
+			return;
+		}
 		const type = getNamedType(field.type);
 		if (!isCompositeType(type)) return;
 		let next = multiplier;
@@ -133,19 +195,35 @@ export function analyzeQuery(
 			const size = pageSize(field.name, args);
 			requests += multiplier;
 			next = multiplier * size;
-			nodeCount += next;
-			if (nodeCount > MAX_NODES) {
+			addNodes(next);
+		} else if (parent === root && field.name === "nodes") {
+			const ids = getArgumentValues(field, node, variableValues)
+				.ids as unknown[];
+			if (ids.length > MAX_NODE_IDS) {
 				throw new GitHubGraphQLError(
-					"MAX_NODE_LIMIT_EXCEEDED",
-					`This query requests up to ${nodeCount} possible nodes which exceeds the maximum limit of ${MAX_NODES}.`,
+					"EXCESSIVE_PAGINATION",
+					`Requesting ${ids.length} records on the \`nodes\` field exceeds the \`ids\` limit of ${MAX_NODE_IDS} records.`,
 				);
 			}
+			requests += multiplier;
+			next = multiplier * ids.length;
+			addNodes(next);
+		} else if (field.args.length > 0) {
+			// A lookup (`repository(...)`, `user(login:)`, `node(id:)`): one
+			// fetched node per parent.
+			requests += multiplier;
+			addNodes(multiplier);
 		}
 		visit(type, node.selectionSet, next, depth + 1, spreads);
 	};
 
 	visit(root, operation.selectionSet, 1, 1, new Set());
-	return { nodeCount, cost: Math.max(1, Math.round(requests / 100)) };
+	const cost = Math.max(1, Math.round(requests / 100));
+	return {
+		nodeCount,
+		cost:
+			operation.operation === "mutation" ? Math.max(MUTATION_COST, cost) : cost,
+	};
 }
 
 function pageSize(connection: string, args: Record<string, unknown>): number {

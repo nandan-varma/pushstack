@@ -2,14 +2,14 @@
  * Core domain: `viewer`, `node(s)`, `rateLimit` and the `User` type's own
  * fields. Other domains extend `User` (repository adds `repositories`).
  */
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import type { GraphQLContext } from "../context";
 import { notFound } from "../errors";
-import { decodeNodeId, encodeNodeId } from "../node-id";
+import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 const userColumns = {
@@ -91,12 +91,19 @@ export async function loadUserByLogin(
 		.load(login);
 }
 
-const loadUserNode: NodeLoader = async (key) => {
-	if (!/^\d{1,10}$/.test(key)) return null;
-	const [row] = await db
-		.select(userColumns)
-		.from(user)
-		.where(eq(user.apiId, Number(key)));
+/** Users by apiId for `node(s)`: one query per request batch. */
+const loadUserNode: NodeLoader = async (key, ctx) => {
+	const id = rowIdOfNodeKey(key);
+	if (id === null) return null;
+	const row = await ctx
+		.loader<number, UserRow>("user-by-api-id", async (ids) => {
+			const rows = await db
+				.select(userColumns)
+				.from(user)
+				.where(inArray(user.apiId, ids));
+			return new Map(rows.map((row) => [row.apiId, row]));
+		})
+		.load(id);
 	return row ? userNode(row) : null;
 };
 

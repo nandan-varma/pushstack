@@ -22,3 +22,16 @@ export function decodeNodeId(id: string): { type: string; key: string } | null {
 	const key = rest.slice(Number(length)) + tail;
 	return key ? { type, key } : null;
 }
+
+/** Postgres `integer` ids top out here; a bigger key can't name a row. */
+const MAX_ROW_ID = 2_147_483_647;
+
+/**
+ * A node key as a row id, or null. Out-of-range keys are rejected before the
+ * lookup: in a batched `nodes(ids:)` load one would fail the whole query.
+ */
+export function rowIdOfNodeKey(key: string): number | null {
+	if (!/^\d{1,10}$/.test(key)) return null;
+	const id = Number(key);
+	return id >= 1 && id <= MAX_ROW_ID ? id : null;
+}
