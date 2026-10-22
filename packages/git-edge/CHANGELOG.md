@@ -2,7 +2,7 @@
 
 This changelog is derived from this repository's release history; it is ordered newest first.
 
-## [Unreleased]
+## [0.7.0] - requires git-fs-s3 0.19.0
 
 ### Changed
 

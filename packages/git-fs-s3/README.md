@@ -218,6 +218,14 @@ Wraps any store with exponential-backoff retries and a per-instance circuit brea
 
 `deletePrefix(store, prefix)` lists a prefix and deletes it in batches. `movePrefix(store, from, to, { copy? })` copies everything, then deletes the old keys only once every copy succeeded (a failed copy leaves the source untouched); pass a store's server-side `copy` to avoid pulling bytes through the process. Both return the object count, and neither touches caches above the store — call `invalidate(prefix)` yourself and hold your own lock. `isNotFoundError(error)` is true for the missing repository/ref/path/object errors, the ones to map to a 404.
 
+### `createSemaphore(limit)`
+
+A FIFO semaphore (`Semaphore`, with `run(fn)`) bounding in-flight I/O; `limit` must be an integer >= 1. Waiters wake in call order with no timers (edge-compatible). Share one instance across a recursive walk to cap the total. Not reentrant: never hold a permit across work that needs another from the same semaphore, or the pool deadlocks. Wrap the individual I/O call, not the recursion.
+
+### `createFakeS3({ bucket, pageSize? })`
+
+From `git-fs-s3/testing`. **For tests only; unstable, may change in minor releases.** A dependency-free `fetch` speaking path-style GetObject, PutObject, DeleteObject, HeadObject, CopyObject and ListObjectsV2 (prefix, delimiter, pagination of `pageSize`, default 1000) over an in-memory `Map`; `Range` is ignored. Requests without a SigV4 `Authorization` header get a 403. Returns `{ fetch, objects, requests }`: pass `fetch` to `createFetchS3Store`, seed or inspect `objects`, assert on `requests`.
+
 ## Git smart-HTTP
 
 `git-fs-s3/http` implements the git smart-HTTP protocol (`info/refs`, `upload-pack`, `receive-pack`) as plain functions over a `Repo` — no framework assumptions, Fetch-API-shaped inputs/outputs. Extracted from the same production git-hosting service's HTTP layer, so it's what actually serves `git clone`/`git push` over HTTPS: pkt-line framing, side-band-64k packfile chunking (required once a client like isomorphic-git negotiates it — it always demuxes the response), CAS-checked ref updates, and pack consolidation.

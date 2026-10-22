@@ -1,0 +1,49 @@
+---
+title: Reference — /testing
+description: createFakeS3, an in-memory S3 endpoint for testing fetch-based stores.
+---
+
+
+```typescript
+import { createFakeS3 } from 'git-fs-s3/testing';
+```
+
+**For tests only.** This entry is unstable: it may change in minor releases.
+It has no dependencies and no `node:` imports.
+
+## createFakeS3
+
+<ApiSignature
+	name="createFakeS3"
+	signature="createFakeS3(options: { bucket: string; pageSize?: number })"
+	params={[
+		{ name: 'bucket', type: 'string', description: 'The only bucket the fake serves (path-style URLs: <code>/{bucket}/{key}</code>).' },
+		{ name: 'pageSize', type: 'number', description: 'Largest ListObjectsV2 page, default 1000. Lower it to exercise pagination.', optional: true },
+	]}
+	returns="{ fetch, objects, requests }"
+>
+	A `fetch` that speaks just enough of the S3 REST API over an in-memory
+	`Map`: GetObject (whole objects; `Range` is ignored), PutObject, DeleteObject, HeadObject,
+	CopyObject and ListObjectsV2 (prefix, delimiter, continuation tokens).
+	Every request must carry a SigV4 `Authorization` header, as R2 requires,
+	so the store's real signing, XML parsing and pagination are exercised
+	without a network.
+</ApiSignature>
+
+The result exposes `fetch` (pass it to `createFetchS3Store`), `objects` (the
+backing `Map<string, Uint8Array>`, for seeding and assertions) and `requests`
+(every `{ method, key, query }` received, in order).
+
+```typescript
+import { createFetchS3Store } from 'git-fs-s3/fetch-s3';
+import { createFakeS3 } from 'git-fs-s3/testing';
+
+const s3 = createFakeS3({ bucket: 'test', pageSize: 2 });
+const store = createFetchS3Store({
+	endpoint: 'https://s3.test',
+	bucket: 'test',
+	accessKeyId: 'id',
+	secretAccessKey: 'secret',
+	fetch: s3.fetch,
+});
+```
