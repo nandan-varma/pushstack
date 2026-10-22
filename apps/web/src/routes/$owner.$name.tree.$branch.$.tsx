@@ -3,6 +3,7 @@ import {
 	createFileRoute,
 	type ErrorComponentProps,
 	Link,
+	redirect,
 	useNavigate,
 } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
@@ -95,6 +96,15 @@ export const Route = createFileRoute("/$owner/$name/tree/$branch/$")({
 						path: params._splat || "",
 					}),
 				);
+				// Git has no empty directories: a path that lists nothing is a file.
+				// GitHub sends `tree/<ref>/<file>` (what `gh browse <file>` opens)
+				// to the file's blob page.
+				if (params._splat && files.length === 0) {
+					throw redirect({
+						to: "/$owner/$name/blob/$branch/$",
+						params,
+					});
+				}
 				const readmeFile = findReadmeFile(files);
 				await Promise.all([
 					numbers,
