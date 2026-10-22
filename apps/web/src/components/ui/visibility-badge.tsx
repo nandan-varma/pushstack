@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/badge";
 export function VisibilityBadge({ visibility }: { visibility: string }) {
 	return (
 		<Badge
-			variant={visibility === "public" ? "success" : "default"}
-			className="text-[10px] px-1.5 py-0.5"
+			variant="outline"
+			className="h-5 rounded-full px-2 text-[11px] font-medium capitalize text-bjork-text-muted"
 		>
 			{visibility}
 		</Badge>
