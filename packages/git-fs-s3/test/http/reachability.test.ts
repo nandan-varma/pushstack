@@ -13,35 +13,6 @@ function makeRepo(store: MemoryObjectStore = new MemoryObjectStore()): Repo {
 	return { fs: createGitFs(store), gitdir: "git", cache: {} };
 }
 
-async function commitWithFiles(
-	repo: Repo,
-	fileCount: number,
-): Promise<{ commit: string; tree: string; blobs: string[] }> {
-	const blobs: string[] = [];
-	for (let i = 0; i < fileCount; i++) {
-		blobs.push(
-			await git.writeBlob({
-				...repo,
-				blob: new TextEncoder().encode(`file ${i}\n`),
-			}),
-		);
-	}
-	const tree = await git.writeTree({
-		...repo,
-		tree: blobs.map((oid, i) => ({
-			mode: "100644",
-			path: `file-${String(i).padStart(2, "0")}.txt`,
-			oid,
-			type: "blob",
-		})),
-	});
-	const commit = await git.writeCommit({
-		...repo,
-		commit: { tree, parent: [], author, committer: author, message: "wide\n" },
-	});
-	return { commit, tree, blobs };
-}
-
 describe("collectReachableOids", () => {
 	it("does not follow submodule gitlinks, which live in another repository", async () => {
 		const repo = makeRepo();
