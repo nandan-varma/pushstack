@@ -16,15 +16,17 @@ export function Section({
 	return (
 		<Card
 			id={id}
-			className={`p-6 ${danger ? "border-red-300 dark:border-red-800/50" : ""}`}
+			className={`rounded-[20px] p-4 sm:p-6 ${danger ? "border-destructive/30" : ""}`}
 		>
 			<h2
-				className={`mb-1 text-base font-semibold ${danger ? "text-red-700 dark:text-red-400" : "text-foreground"}`}
+				className={`mb-2 text-base font-semibold tracking-tight ${danger ? "text-destructive" : "text-foreground"}`}
 			>
 				{title}
 			</h2>
 			{description && (
-				<p className="mb-4 text-sm text-muted-foreground">{description}</p>
+				<p className="mb-5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+					{description}
+				</p>
 			)}
 			{children}
 		</Card>

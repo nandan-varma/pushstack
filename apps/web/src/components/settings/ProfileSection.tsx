@@ -65,11 +65,7 @@ export function ProfileSection({
 					>
 						Save
 					</LoadingButton>
-					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">
-							Saved
-						</span>
-					)}
+					{success && <span className="text-sm text-success">Saved</span>}
 				</div>
 			</div>
 		</Section>

@@ -30,7 +30,10 @@ export function LabelFilter({
 			value={value ?? ALL}
 			onValueChange={(next) => onChange(next === ALL ? undefined : next)}
 		>
-			<SelectTrigger className="w-52" aria-label="Filter by label">
+			<SelectTrigger
+				className="h-10 w-full shrink-0 sm:w-52"
+				aria-label="Filter by label"
+			>
 				<SelectValue placeholder="All labels" />
 			</SelectTrigger>
 			<SelectContent>

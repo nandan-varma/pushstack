@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { NotFoundCard } from "@/components/NotFoundCard";
+import { PageHeader } from "@/components/PageHeader";
 import { CollaboratorsSection } from "@/components/settings/CollaboratorsSection";
 import { DangerSection } from "@/components/settings/DangerSection";
 import { GeneralSection } from "@/components/settings/GeneralSection";
@@ -47,8 +48,8 @@ function RepoSettingsPage() {
 	// read a not-yet-loaded session as "not the owner" and flash the wrong UI.
 	if (repoLoading || sessionLoading) {
 		return (
-			<div className="page-wrap px-4 py-10">
-				<div className="mx-auto max-w-2xl space-y-4">
+			<div className="page-wrap py-6 sm:py-8">
+				<div className="max-w-2xl space-y-4">
 					{[1, 2, 3].map((i) => (
 						<div key={i} className="h-40 animate-pulse rounded-2xl bg-muted" />
 					))}
@@ -59,7 +60,7 @@ function RepoSettingsPage() {
 
 	if (!repo) {
 		return (
-			<div className="page-wrap px-4 py-16">
+			<div className="page-wrap py-12">
 				<div className="mx-auto max-w-md">
 					<NotFoundCard
 						title="Repository not found"
@@ -74,7 +75,7 @@ function RepoSettingsPage() {
 	const isOwner = repo.ownerId === session?.user?.id;
 	if (!isOwner) {
 		return (
-			<div className="page-wrap px-4 py-10 text-center">
+			<div className="page-wrap py-6 sm:py-8 text-center">
 				<p className="text-muted-foreground">
 					You don't have permission to view settings.
 				</p>
@@ -83,31 +84,38 @@ function RepoSettingsPage() {
 	}
 
 	return (
-		<div className="page-wrap px-4 py-10">
-			<div className="mx-auto max-w-2xl space-y-6">
-				<div className="flex items-center justify-between gap-3">
-					<Link
-						to="/$owner/$name"
-						params={{ owner, name }}
-						className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-					>
-						<ArrowLeft className="size-4" />
-						{owner}/{name}
-					</Link>
-					<Link
-						to="/$owner/$name/setup"
-						params={{ owner, name }}
-						className="text-sm font-medium text-primary hover:underline"
-					>
-						View setup guide
-					</Link>
-				</div>
-				<h1 className="text-2xl font-bold text-foreground">Settings</h1>
+		<div className="page-wrap py-6 sm:py-8">
+			<div className="max-w-2xl space-y-4">
+				<PageHeader
+					size="compact"
+					title="Settings"
+					actions={
+						<>
+							<Link
+								to="/$owner/$name"
+								params={{ owner, name }}
+								className="flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+							>
+								<ArrowLeft className="size-4" />
+								{owner}/{name}
+							</Link>
+							<Link
+								to="/$owner/$name/setup"
+								params={{ owner, name }}
+								className="flex min-h-10 items-center text-sm font-medium text-primary hover:underline"
+							>
+								View setup guide
+							</Link>
+						</>
+					}
+				/>
 
 				<GeneralSection repo={repo} owner={owner} name={name} />
 				<PerformanceSection repo={repo} owner={owner} name={name} />
 				<CollaboratorsSection repoId={repo.id} />
-				<DangerSection repo={repo} owner={owner} name={name} />
+				<div className="border-t border-border pt-4">
+					<DangerSection repo={repo} owner={owner} name={name} />
+				</div>
 			</div>
 		</div>
 	);

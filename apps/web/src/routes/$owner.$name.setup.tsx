@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
 import {
@@ -65,47 +67,45 @@ function RouteComponent() {
 	const { defaultBranch } = repo;
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<Link
-					to="/$owner/$name/tree/$branch/$"
-					params={{ owner, name, branch: defaultBranch, _splat: "" }}
-					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-				>
-					<ArrowLeft className="size-4" />
-					{owner}/{name}
-				</Link>
-			</div>
-			<Card className="p-6">
-				<div className="flex flex-wrap items-start justify-between gap-4">
-					<div>
-						<h2 className="text-2xl font-semibold text-foreground">
-							Repository Setup
-						</h2>
-						<p className="mt-2 text-sm text-muted-foreground">
-							Git, R2-backed object storage, and SQL metadata are configured for
-							this repository.
-						</p>
-					</div>
-					<Link
-						to="/$owner/$name/tree/$branch/$"
-						params={{ owner, name, branch: defaultBranch, _splat: "" }}
-					>
-						<Button variant="outline">Back to Code</Button>
-					</Link>
-				</div>
-			</Card>
+		<div className="max-w-xl space-y-4">
+			<PageHeader
+				size="compact"
+				title="Repository Setup"
+				description="Git, R2-backed object storage, and SQL metadata are configured for this repository."
+				actions={
+					<>
+						<Link
+							to="/$owner/$name/tree/$branch/$"
+							params={{ owner, name, branch: defaultBranch, _splat: "" }}
+							className="flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+						>
+							<ArrowLeft className="size-4" />
+							{owner}/{name}
+						</Link>
+						<Button variant="outline" asChild>
+							<Link
+								to="/$owner/$name/tree/$branch/$"
+								params={{ owner, name, branch: defaultBranch, _splat: "" }}
+							>
+								Back to Code
+							</Link>
+						</Button>
+					</>
+				}
+			/>
 
-			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-foreground">Clone URL</h3>
+			<Card className="p-5">
+				<h2 className="text-base font-semibold tracking-tight text-foreground">
+					Clone URL
+				</h2>
 				<p className="mt-2 text-sm text-muted-foreground">
 					Use this remote for clone, fetch, pull, and push.
 				</p>
 				<div className="mt-4 flex flex-wrap gap-2">
-					<input
+					<Input
 						readOnly
 						value={cloneUrl}
-						className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground"
+						className="min-w-0 flex-1 font-mono text-sm"
 					/>
 					<Button variant="outline" onClick={() => handleCopy(cloneUrl, "url")}>
 						{copiedSection === "url" ? "Copied" : "Copy"}
@@ -113,11 +113,11 @@ function RouteComponent() {
 				</div>
 			</Card>
 
-			<div className="grid gap-4 lg:grid-cols-2">
-				<Card className="p-6">
-					<h3 className="text-lg font-semibold text-foreground">
+			<div className="grid gap-4 md:grid-cols-2">
+				<Card className="p-5">
+					<h2 className="text-base font-semibold tracking-tight text-foreground">
 						Repository Status
-					</h3>
+					</h2>
 					<dl className="mt-4 space-y-3 text-sm">
 						<div className="flex items-center justify-between gap-4">
 							<dt className="text-muted-foreground">Visibility</dt>
@@ -144,10 +144,10 @@ function RouteComponent() {
 					</dl>
 				</Card>
 
-				<Card className="p-6">
-					<h3 className="text-lg font-semibold text-foreground">
+				<Card className="p-5">
+					<h2 className="text-base font-semibold tracking-tight text-foreground">
 						Next Actions
-					</h3>
+					</h2>
 					<div className="mt-4 flex flex-col gap-3">
 						<Link
 							to="/$owner/$name/commits/$branch"
@@ -173,36 +173,38 @@ function RouteComponent() {
 				</Card>
 			</div>
 
-			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-foreground">
+			<Card className="p-5">
+				<h2 className="text-base font-semibold tracking-tight text-foreground">
 					Push a New Repository
-				</h3>
-				<pre className="mt-4 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs text-foreground">
+				</h2>
+				<pre className="mt-4 overflow-x-auto rounded-[13px] border border-border bg-muted p-4 shadow-[var(--bjork-shadow-inset)] text-xs text-foreground">
 					<code>{instructions.newRepo}</code>
 				</pre>
-				<Button
-					className="mt-4"
-					variant="outline"
-					onClick={() => handleCopy(instructions.newRepo, "new")}
-				>
-					{copiedSection === "new" ? "Copied" : "Copy commands"}
-				</Button>
+				<div className="mt-4 flex justify-end">
+					<Button
+						variant="outline"
+						onClick={() => handleCopy(instructions.newRepo, "new")}
+					>
+						{copiedSection === "new" ? "Copied" : "Copy commands"}
+					</Button>
+				</div>
 			</Card>
 
-			<Card className="p-6">
-				<h3 className="text-lg font-semibold text-foreground">
+			<Card className="p-5">
+				<h2 className="text-base font-semibold tracking-tight text-foreground">
 					Push an Existing Repository
-				</h3>
-				<pre className="mt-4 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs text-foreground">
+				</h2>
+				<pre className="mt-4 overflow-x-auto rounded-[13px] border border-border bg-muted p-4 shadow-[var(--bjork-shadow-inset)] text-xs text-foreground">
 					<code>{instructions.existingRepo}</code>
 				</pre>
-				<Button
-					className="mt-4"
-					variant="outline"
-					onClick={() => handleCopy(instructions.existingRepo, "existing")}
-				>
-					{copiedSection === "existing" ? "Copied" : "Copy commands"}
-				</Button>
+				<div className="mt-4 flex justify-end">
+					<Button
+						variant="outline"
+						onClick={() => handleCopy(instructions.existingRepo, "existing")}
+					>
+						{copiedSection === "existing" ? "Copied" : "Copy commands"}
+					</Button>
+				</div>
 			</Card>
 		</div>
 	);

@@ -278,7 +278,7 @@ function PullRequestDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="space-y-6">
+			<div className="space-y-5">
 				<DetailHeaderSkeleton />
 				<AvatarBodySkeleton />
 			</div>
@@ -294,7 +294,7 @@ function PullRequestDetailPage() {
 		(pr.viewer.canWrite || session?.user?.id === pr.authorId);
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<DetailHeader
 				title={
 					<EditableTitle
@@ -415,7 +415,7 @@ function PullRequestDetailPage() {
 						) : null}
 					</TabsTrigger>
 				</TabsList>
-				<TabsContent value="conversation" className="space-y-6">
+				<TabsContent value="conversation" className="space-y-5">
 					<CommentCard
 						comment={pr}
 						owner={owner}

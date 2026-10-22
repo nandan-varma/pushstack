@@ -65,9 +65,7 @@ function ForgotPasswordPage() {
 				</>
 			}
 		>
-			<form onSubmit={handleSubmit} className="space-y-5">
-				<ErrorAlert message={error} />
-
+			<form onSubmit={handleSubmit} className="space-y-3">
 				<FormField label="Email" htmlFor="email">
 					<Input
 						id="email"
@@ -79,6 +77,8 @@ function ForgotPasswordPage() {
 						autoComplete="email"
 					/>
 				</FormField>
+
+				<ErrorAlert message={error} />
 
 				<LoadingButton
 					type="submit"

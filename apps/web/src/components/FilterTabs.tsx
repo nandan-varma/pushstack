@@ -1,8 +1,7 @@
-const filterTabBase =
-	"border-b-2 px-1 pb-3 text-sm font-medium transition cursor-pointer";
-const filterTabActive = "border-primary text-primary";
-const filterTabInactive =
-	"border-transparent text-muted-foreground hover:text-foreground";
+import {
+	segmentedItemClassName,
+	segmentedRailClassName,
+} from "@/components/segmented-navigation";
 
 export function FilterTabs<T extends string>({
 	tabs,
@@ -14,16 +13,22 @@ export function FilterTabs<T extends string>({
 	onTabChange: (value: T) => void;
 }) {
 	return (
-		<div className="flex items-center gap-5 overflow-x-auto border-b border-border">
+		<div className={segmentedRailClassName}>
 			{tabs.map(({ value, label, count }) => (
 				<button
 					key={value}
 					type="button"
-					className={`${filterTabBase} shrink-0 ${activeTab === value ? filterTabActive : filterTabInactive}`}
+					aria-pressed={activeTab === value}
+					aria-label={count !== undefined ? `${label} (${count})` : label}
+					className={segmentedItemClassName}
 					onClick={() => onTabChange(value)}
 				>
 					{label}
-					{count !== undefined ? ` (${count})` : ""}
+					{count !== undefined && (
+						<span className="rounded-md bg-background/50 px-1.5 py-0.5 font-mono text-[11px] tabular-nums">
+							{count}
+						</span>
+					)}
 				</button>
 			))}
 		</div>

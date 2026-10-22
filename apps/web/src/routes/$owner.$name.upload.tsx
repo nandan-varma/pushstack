@@ -9,6 +9,7 @@ import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -186,27 +187,27 @@ function FileUploadPage() {
 	const loadingLabel = isEncoding ? "Reading file…" : "Uploading…";
 
 	return (
-		<div className="mx-auto max-w-2xl">
-			<div className="mb-6">
+		<div className="max-w-xl">
+			<div className="mb-4">
 				<Link
 					to="/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch, _splat: "" }}
-					className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+					className="flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
 				>
 					<ArrowLeft className="size-4" />
 					{owner}/{name}
 				</Link>
 			</div>
-			<div className="island-shell rounded-2xl p-8">
-				<div className="mb-6">
-					<h2 className="text-lg font-semibold text-foreground">
+			<div className="island-shell rounded-[20px] p-5 sm:p-6">
+				<div className="mb-5">
+					<h2 className="text-base font-semibold tracking-tight text-foreground">
 						Upload file to {owner}/{name}
 					</h2>
 					<p className="mt-1 text-sm text-muted-foreground">
 						Add a new file to the repository via web upload.
 					</p>
 				</div>
-				<form onSubmit={handleSubmit} className="space-y-5">
+				<form onSubmit={handleSubmit} className="space-y-3">
 					<div className="space-y-1.5">
 						<Label htmlFor="branch">Branch</Label>
 						<Select value={branch} onValueChange={setBranch}>
@@ -225,7 +226,7 @@ function FileUploadPage() {
 
 					<label
 						htmlFor="file-input"
-						className={`block cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+						className={`block cursor-pointer rounded-xl border-2 border-dashed p-6 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 ${
 							isDragging
 								? "border-primary bg-primary/5"
 								: "border-border hover:border-primary/50"
@@ -243,7 +244,7 @@ function FileUploadPage() {
 									{(file.size / 1024).toFixed(2)} KB
 								</p>
 								{file.size > UPLOAD_WARNING_BYTES && (
-									<p className="text-xs text-amber-600 dark:text-amber-400">
+									<p className="text-xs text-warning">
 										This file is large enough that the browser will stutter
 										while encoding it, and web uploads are refused above{" "}
 										{formatFileSize(MAX_WEB_UPLOAD_BYTES)} — use{" "}
@@ -312,15 +313,13 @@ function FileUploadPage() {
 						/>
 					</div>
 
-					<div className="flex gap-3 pt-1">
-						<LoadingButton
-							type="submit"
-							disabled={!file || !path || !commitMessage}
-							isLoading={isSubmitting}
-							loadingLabel={loadingLabel}
-						>
-							Upload file
-						</LoadingButton>
+					{uploadMutation.isError && (
+						<ErrorAlert
+							message={uploadMutation.error?.message || "Failed to upload file"}
+						/>
+					)}
+
+					<div className="flex flex-wrap justify-end gap-3 pt-1">
 						<Button
 							type="button"
 							variant="outline"
@@ -334,13 +333,15 @@ function FileUploadPage() {
 						>
 							Cancel
 						</Button>
+						<LoadingButton
+							type="submit"
+							disabled={!file || !path || !commitMessage}
+							isLoading={isSubmitting}
+							loadingLabel={loadingLabel}
+						>
+							Upload file
+						</LoadingButton>
 					</div>
-
-					{uploadMutation.isError && (
-						<p className="text-sm text-red-700 dark:text-red-400">
-							{uploadMutation.error?.message || "Failed to upload file"}
-						</p>
-					)}
 				</form>
 			</div>
 		</div>

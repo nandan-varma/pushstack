@@ -11,13 +11,11 @@ export function EmptyState({
 	variant?: "default" | "error";
 }) {
 	return (
-		<div className="island-shell rounded-xl p-12 text-center">
+		<div className="island-shell rounded-[20px] px-6 py-12 text-center">
 			<p
 				className={cn(
-					"mb-4 text-sm",
-					variant === "error"
-						? "text-red-600 dark:text-red-400"
-						: "text-muted-foreground",
+					"mx-auto mb-5 max-w-md text-sm leading-relaxed",
+					variant === "error" ? "text-destructive" : "text-muted-foreground",
 				)}
 			>
 				{message}

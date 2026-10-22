@@ -11,7 +11,7 @@ export function GuestSignupBanner({ repoLabel }: { repoLabel: string }) {
 	if (isPending || session?.user || dismissed) return null;
 
 	return (
-		<div className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center">
+		<div className="island-shell mb-6 flex flex-col gap-4 rounded-[20px] p-5 sm:flex-row sm:items-center">
 			<span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
 				<Sparkles className="size-4" />
 			</span>
@@ -34,7 +34,7 @@ export function GuestSignupBanner({ repoLabel }: { repoLabel: string }) {
 				<Button
 					size="icon"
 					variant="ghost"
-					className="size-8"
+					className="size-11"
 					aria-label="Dismiss"
 					onClick={() => setDismissed(true)}
 				>

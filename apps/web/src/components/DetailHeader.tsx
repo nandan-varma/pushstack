@@ -12,8 +12,8 @@ export function DetailHeaderSkeleton() {
 				<div className="h-4 w-1/2 max-w-xs animate-pulse rounded bg-muted" />
 			</div>
 			<div className="flex shrink-0 items-center gap-2">
-				<div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
-				<div className="h-8 w-16 animate-pulse rounded-md bg-muted" />
+				<div className="h-10 w-24 animate-pulse rounded-[13px] bg-muted" />
+				<div className="h-10 w-20 animate-pulse rounded-[13px] bg-muted" />
 			</div>
 		</div>
 	);
@@ -21,7 +21,7 @@ export function DetailHeaderSkeleton() {
 
 export function AvatarBodySkeleton() {
 	return (
-		<Card className="p-6">
+		<Card className="p-5">
 			<div className="flex items-start gap-4">
 				<div className="size-9 shrink-0 animate-pulse rounded-full bg-muted" />
 				<div className="min-w-0 flex-1 space-y-3">
@@ -55,7 +55,7 @@ export function DetailHeader({
 		<div className="flex flex-wrap items-start justify-between gap-4">
 			<div className="min-w-0 flex-1">
 				<div className="mb-2 flex flex-wrap items-center gap-2.5">
-					<h1 className="break-words text-2xl font-bold text-foreground sm:text-3xl">
+					<h1 className="break-words text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
 						{title}
 					</h1>
 					{badge}

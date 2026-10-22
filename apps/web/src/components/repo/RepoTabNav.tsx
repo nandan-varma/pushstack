@@ -1,12 +1,15 @@
 import { Link } from "@tanstack/react-router";
+import { CircleDot, Code2, GitPullRequest, History } from "lucide-react";
 
-const tabLinkBase =
-	"shrink-0 border-b-2 border-transparent pb-3 text-sm font-medium text-muted-foreground transition hover:text-foreground [&.active]:border-primary [&.active]:text-primary";
+import {
+	segmentedRailClassName,
+	segmentedItemClassName as tabLinkBase,
+} from "@/components/segmented-navigation";
 
 export function RepoTabNavSkeleton() {
 	return (
-		<div className="mb-6 border-b border-border">
-			<nav className="flex gap-6 pb-3">
+		<div className="mb-7">
+			<nav className="flex gap-6 p-3">
 				{[16, 14, 24, 18].map((width) => (
 					<div
 						key={width}
@@ -33,14 +36,15 @@ export function RepoTabNav({
 	isCommitsActive: boolean;
 }) {
 	return (
-		<div className="mb-6 border-b border-border">
-			<nav className="flex gap-6 overflow-x-auto">
+		<div className="mb-7">
+			<nav aria-label="Repository" className={segmentedRailClassName}>
 				<Link
 					to="/$owner/$name/tree/$branch/$"
 					params={{ owner, name, branch: currentBranch, _splat: "" }}
 					className={isCodeActive ? `${tabLinkBase} active` : tabLinkBase}
 					activeProps={{ className: "active" }}
 				>
+					<Code2 className="size-4" aria-hidden="true" />
 					Code
 				</Link>
 				<Link
@@ -49,6 +53,7 @@ export function RepoTabNav({
 					className={tabLinkBase}
 					activeProps={{ className: "active" }}
 				>
+					<CircleDot className="size-4" aria-hidden="true" />
 					Issues
 				</Link>
 				<Link
@@ -57,7 +62,8 @@ export function RepoTabNav({
 					className={tabLinkBase}
 					activeProps={{ className: "active" }}
 				>
-					Pull Requests
+					<GitPullRequest className="size-4" aria-hidden="true" />
+					Pull requests
 				</Link>
 				<Link
 					to="/$owner/$name/commits/$branch"
@@ -65,6 +71,7 @@ export function RepoTabNav({
 					className={isCommitsActive ? `${tabLinkBase} active` : tabLinkBase}
 					activeProps={{ className: "active" }}
 				>
+					<History className="size-4" aria-hidden="true" />
 					Commits
 				</Link>
 			</nav>

@@ -20,9 +20,9 @@ export function RepoList({
 }) {
 	if (isLoading) {
 		return (
-			<div className="space-y-3">
+			<div className="space-y-4">
 				{[1, 2, 3].map((i) => (
-					<Skeleton key={i} className="h-24" />
+					<Skeleton key={i} className="h-32" />
 				))}
 			</div>
 		);
@@ -35,7 +35,7 @@ export function RepoList({
 				message="Couldn't load your repositories."
 				action={
 					onRetry && (
-						<Button size="sm" variant="outline" onClick={onRetry}>
+						<Button variant="outline" onClick={onRetry}>
 							Try again
 						</Button>
 					)
@@ -49,7 +49,7 @@ export function RepoList({
 	}
 
 	return (
-		<div className="space-y-3">
+		<div className="space-y-4">
 			{repos.map((repo) => (
 				<RepositoryCard key={repo.id} repo={repo} />
 			))}

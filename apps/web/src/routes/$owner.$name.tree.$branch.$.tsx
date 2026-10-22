@@ -6,6 +6,7 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo } from "react";
+import { ErrorPanel } from "@/components/ErrorPanel";
 import { PathBreadcrumb } from "@/components/PathBreadcrumb";
 import { findReadmeFile, ReadmeCard } from "@/components/repo/ReadmeCard";
 import { RefSelect } from "@/components/repo/RefSelect";
@@ -28,24 +29,22 @@ import { SITE_URL } from "@/lib/site";
 function TreeErrorComponent({ error, reset }: ErrorComponentProps) {
 	const isPathNotFound =
 		error instanceof Error && error.name === "GitPathNotFoundError";
+	if (isPathNotFound) {
+		return (
+			<ErrorPanel
+				title="Path not found"
+				description="The file or folder you're looking for does not exist in this repository."
+				actions={<Button onClick={reset}>Try again</Button>}
+			/>
+		);
+	}
 	return (
-		<div className="island-shell rounded-xl p-12 text-center">
-			<h2 className="mb-2 text-lg font-semibold text-foreground">
-				{isPathNotFound ? "Path not found" : "Could not load files"}
-			</h2>
-			<p className="mb-6 text-sm text-muted-foreground">
-				{isPathNotFound
-					? "The file or folder you're looking for does not exist in this repository."
-					: error instanceof Error
-						? error.message
-						: "An unexpected error occurred."}
-			</p>
-			<div className="flex items-center justify-center gap-2">
-				<Button size="sm" onClick={reset}>
-					Try again
-				</Button>
-			</div>
-		</div>
+		<ErrorPanel
+			title="Could not load files"
+			description="The repository's git data could not be read. This is usually a storage connection or credentials problem, not a problem with the repository itself."
+			detail={error instanceof Error ? error.message : undefined}
+			actions={<Button onClick={reset}>Try again</Button>}
+		/>
 	);
 }
 
@@ -232,7 +231,7 @@ function TreeBrowserPage() {
 	return (
 		<div className="space-y-4">
 			{isCommitView && (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning-border bg-warning-soft px-4 py-2.5 text-sm text-warning">
 					<span>
 						You&apos;re browsing the repository at commit{" "}
 						<code className="rounded bg-black/5 px-1 py-0.5 font-mono text-xs dark:bg-white/10">
@@ -279,7 +278,7 @@ function TreeBrowserPage() {
 							params={{ owner, name }}
 							search={{ branch: activeBranch }}
 						>
-							<Button size="sm" variant="outline">
+							<Button variant="outline">
 								+ Add file
 							</Button>
 						</Link>

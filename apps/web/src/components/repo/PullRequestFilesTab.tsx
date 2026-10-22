@@ -325,8 +325,8 @@ export function PullRequestFilesTab({
 					{diff?.files && (
 						<span className="text-sm font-normal text-muted-foreground">
 							({diff.files.length} file{diff.files.length !== 1 ? "s" : ""},{" "}
-							<span className="text-green-600">+{diff.totalAdditions}</span>{" "}
-							<span className="text-red-600">-{diff.totalDeletions}</span>)
+							<span className="text-success">+{diff.totalAdditions}</span>{" "}
+							<span className="text-destructive">-{diff.totalDeletions}</span>)
 						</span>
 					)}
 				</h3>

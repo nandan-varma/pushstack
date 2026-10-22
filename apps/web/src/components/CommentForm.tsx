@@ -18,10 +18,10 @@ export function CommentForm({
 	disabled?: boolean;
 }) {
 	return (
-		<Card className="p-6">
+		<Card className="rounded-[20px] p-5 sm:p-6">
 			<h3
 				id="comment-form-heading"
-				className="text-lg font-semibold text-foreground mb-4"
+				className="mb-4 text-base font-semibold tracking-tight text-foreground"
 			>
 				Add a Comment
 			</h3>
@@ -30,10 +30,11 @@ export function CommentForm({
 					aria-labelledby="comment-form-heading"
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
-					placeholder="Write your comment here... (Markdown supported)"
+					placeholder="Share your thoughts…"
 					rows={6}
 				/>
-				<div className="flex justify-end">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<p className="text-xs text-muted-foreground">Markdown supported.</p>
 					<LoadingButton
 						onClick={onSubmit}
 						disabled={!value.trim() || disabled}

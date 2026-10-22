@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LabelChip } from "@/components/LabelChip";
+import { PageHeader } from "@/components/PageHeader";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,10 @@ interface Draft {
 	description: string;
 }
 
+/** One shared column template so the header and every row line up. */
+const labelGridClass =
+	"grid grid-cols-1 items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_auto]";
+
 function LabelForm({
 	initial,
 	submitLabel,
@@ -57,7 +62,7 @@ function LabelForm({
 	const validColor = /^#?[0-9a-fA-F]{6}$/.test(draft.color.trim());
 	return (
 		<form
-			className="grid gap-3 sm:grid-cols-[1fr_8rem_2fr_auto] sm:items-end"
+			className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,2fr)_auto] sm:items-end"
 			onSubmit={(event) => {
 				event.preventDefault();
 				onSubmit(draft);
@@ -70,6 +75,7 @@ function LabelForm({
 					maxLength={50}
 					onChange={(e) => setDraft({ ...draft, name: e.target.value })}
 					placeholder="Label name"
+					className="h-10"
 				/>
 			</div>
 			<div className="space-y-1.5">
@@ -87,7 +93,7 @@ function LabelForm({
 						value={draft.color}
 						maxLength={7}
 						onChange={(e) => setDraft({ ...draft, color: e.target.value })}
-						className="font-mono"
+						className="h-10 min-w-0 font-mono"
 					/>
 				</div>
 			</div>
@@ -98,23 +104,23 @@ function LabelForm({
 					maxLength={100}
 					onChange={(e) => setDraft({ ...draft, description: e.target.value })}
 					placeholder="Description (optional)"
+					className="h-10"
 				/>
 			</div>
-			<div className="flex gap-2">
+			<div className="flex items-center justify-end gap-2">
+				{onCancel && (
+					<Button type="button" variant="outline" onClick={onCancel}>
+						Cancel
+					</Button>
+				)}
 				<LoadingButton
 					type="submit"
-					size="sm"
 					isLoading={pending}
 					loadingLabel="Saving…"
 					disabled={!draft.name.trim() || !validColor}
 				>
 					{submitLabel}
 				</LoadingButton>
-				{onCancel && (
-					<Button type="button" size="sm" variant="outline" onClick={onCancel}>
-						Cancel
-					</Button>
-				)}
 			</div>
 		</form>
 	);
@@ -150,41 +156,43 @@ function LabelRow({
 
 	if (editing) {
 		return (
-			<div className="p-4">
-				<LabelForm
-					initial={{
-						name: label.name,
-						color: label.color,
-						description: label.description ?? "",
-					}}
-					submitLabel="Save"
-					pending={update.isPending}
-					onCancel={() => setEditing(false)}
-					onSubmit={(draft) =>
-						update.mutate({
-							data: { repoId, labelId: label.id, ...draft },
-						})
-					}
-				/>
+			<div className="bg-muted/30 p-4">
+				<div className="rounded-[16px] border border-border bg-card p-5">
+					<LabelForm
+						initial={{
+							name: label.name,
+							color: label.color,
+							description: label.description ?? "",
+						}}
+						submitLabel="Save"
+						pending={update.isPending}
+						onCancel={() => setEditing(false)}
+						onSubmit={(draft) =>
+							update.mutate({
+								data: { repoId, labelId: label.id, ...draft },
+							})
+						}
+					/>
+				</div>
 			</div>
 		);
 	}
 	return (
-		<div className="flex items-center gap-4 p-4">
-			<div className="w-48 shrink-0">
+		<div className={`${labelGridClass} transition-colors hover:bg-accent/40`}>
+			<div className="min-w-0">
 				<LabelChip {...label} />
 			</div>
-			<p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+			<p className="min-w-0 text-sm break-words text-muted-foreground">
 				{label.description}
 			</p>
 			{canWrite && (
-				<div className="flex shrink-0 gap-2">
-					<Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+				<div className="flex items-center gap-2 sm:justify-end">
+					<Button variant="outline" onClick={() => setEditing(true)}>
 						Edit
 					</Button>
+					<span aria-hidden="true" className="h-6 w-px shrink-0 bg-border" />
 					<LoadingButton
-						size="sm"
-						variant="outline"
+						variant="destructive"
 						isLoading={remove.isPending}
 						loadingLabel="Deleting…"
 						onClick={() => {
@@ -232,25 +240,24 @@ function LabelsPage() {
 
 	const canWrite = data?.viewer.canWrite ?? false;
 	return (
-		<div className="space-y-5">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="text-base font-semibold text-foreground">Labels</h2>
-				<div className="flex gap-2">
-					<Link to="/$owner/$name/issues" params={{ owner, name }}>
-						<Button size="sm" variant="outline">
-							Issues
-						</Button>
-					</Link>
-					{canWrite && (
-						<Button size="sm" onClick={() => setCreating(true)}>
-							New label
-						</Button>
-					)}
-				</div>
-			</div>
+		<div className="space-y-4">
+			<PageHeader
+				size="compact"
+				title="Labels"
+				actions={
+					<>
+						<Link to="/$owner/$name/issues" params={{ owner, name }}>
+							<Button variant="outline">Issues</Button>
+						</Link>
+						{canWrite && (
+							<Button onClick={() => setCreating(true)}>New label</Button>
+						)}
+					</>
+				}
+			/>
 
 			{creating && repo && (
-				<div className="rounded-xl border border-border p-4">
+				<div className="island-shell rounded-[20px] p-5">
 					<LabelForm
 						initial={{ name: "", color: randomColor(), description: "" }}
 						submitLabel="Create label"
@@ -266,7 +273,14 @@ function LabelsPage() {
 			{isLoading || !repo ? (
 				<Skeleton className="h-32" />
 			) : (
-				<div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+				<div className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
+					<div
+						className={`${labelGridClass} sticky top-0 z-10 hidden bg-muted/40 py-2.5 text-xs font-medium text-muted-foreground backdrop-blur sm:grid`}
+					>
+						<span>Label</span>
+						<span>Description</span>
+						<span className="text-right">Actions</span>
+					</div>
 					{data?.labels.length ? (
 						data.labels.map((label) => (
 							<LabelRow
@@ -277,7 +291,9 @@ function LabelsPage() {
 							/>
 						))
 					) : (
-						<p className="p-4 text-sm text-muted-foreground">No labels yet.</p>
+						<p className="px-4 py-6 text-sm text-muted-foreground">
+							No labels yet.
+						</p>
 					)}
 				</div>
 			)}

@@ -280,7 +280,7 @@ function FileBlobPage() {
 					<TabsContent value="preview">
 						<Card
 							className={
-								previewMode === "media" ? "overflow-hidden p-0" : "p-6"
+								previewMode === "media" ? "overflow-hidden p-0" : "p-5"
 							}
 						>
 							<FilePreview
@@ -305,7 +305,7 @@ function FileBlobPage() {
 							/>
 						</Suspense>
 					) : (
-						<Card className="p-8 text-center">
+						<Card className="p-6 text-center">
 							<p className="text-muted-foreground">
 								{file.kind === "binary"
 									? "This file is binary and can't be displayed."

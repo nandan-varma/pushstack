@@ -48,7 +48,7 @@ export function SessionsSection({ currentToken }: { currentToken: string }) {
 							return (
 								<li
 									key={s.id}
-									className="flex items-center justify-between gap-3 px-4 py-3"
+									className="flex items-center justify-between gap-3 px-4 py-3.5"
 								>
 									<div className="min-w-0 space-y-0.5">
 										<p className="truncate text-sm font-medium text-foreground">
@@ -66,7 +66,6 @@ export function SessionsSection({ currentToken }: { currentToken: string }) {
 									{!current && (
 										<Button
 											variant="outline"
-											size="sm"
 											disabled={revoke.isPending}
 											onClick={() => revoke.mutate(s.token)}
 										>

@@ -159,7 +159,7 @@ function IssueDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="space-y-6">
+			<div className="space-y-5">
 				<DetailHeaderSkeleton />
 				<AvatarBodySkeleton />
 			</div>
@@ -173,7 +173,7 @@ function IssueDetailPage() {
 	const canEdit = canToggleStatus;
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<DetailHeader
 				title={
 					<EditableTitle

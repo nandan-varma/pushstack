@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Menu, X } from "lucide-react";
+import { GitBranch, Menu, Search, X } from "lucide-react";
 import { type ComponentType, useEffect, useRef, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import { Button } from "./ui/button";
@@ -51,7 +51,7 @@ function SearchBox({
 
 	return (
 		<form
-			className={className}
+			className={`relative ${className ?? ""}`}
 			onSubmit={(event) => {
 				event.preventDefault();
 				const q = value.trim();
@@ -62,14 +62,18 @@ function SearchBox({
 				onSubmitted?.();
 			}}
 		>
+			<Search
+				aria-hidden="true"
+				className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground"
+			/>
 			<input
 				ref={inputRef}
 				type="search"
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
-				placeholder="Search…  ( / )"
+				placeholder="Search repositories…"
 				aria-label="Search repositories and users"
-				className="h-8 w-full rounded-full border border-border bg-muted px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
+				className="h-10 w-full rounded-[13px] border border-border bg-card pl-9 pr-3 shadow-[var(--bjork-shadow-inset)] text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
 			/>
 		</form>
 	);
@@ -107,19 +111,21 @@ export default function Header() {
 	] as const;
 
 	return (
-		<header className="sticky top-0 z-50 border-b border-border bg-background">
-			<div className="page-wrap flex h-14 items-center gap-5 px-4">
+		<header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-xl">
+			<div className="page-wrap flex h-[72px] items-center gap-6">
 				<Link
 					to="/"
-					className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 text-sm font-semibold text-foreground no-underline shadow-sm transition hover:shadow-md"
+					className="inline-flex shrink-0 items-center gap-2.5 text-base font-semibold tracking-tight text-foreground no-underline"
 					aria-label="Home"
 				>
-					<span className="h-2 w-2 rounded-full bg-primary" />
+					<span className="flex size-9 items-center justify-center rounded-[13px] border border-primary/20 bg-primary/10 text-primary shadow-[var(--bjork-shadow-soft)]">
+						<GitBranch aria-hidden="true" className="size-5" />
+					</span>
 					PushStack
 				</Link>
 
 				<nav
-					className="hidden items-center gap-5 text-sm font-semibold sm:flex"
+					className="hidden items-center gap-5 text-sm font-semibold md:flex"
 					aria-label="Main navigation"
 				>
 					{navLinks.map(({ to, label }) => (
@@ -127,6 +133,7 @@ export default function Header() {
 							key={to}
 							to={to}
 							className="nav-link"
+							activeOptions={{ exact: to === "/" }}
 							activeProps={{ className: "nav-link is-active" }}
 						>
 							{label}
@@ -136,7 +143,7 @@ export default function Header() {
 
 				<div className="flex flex-1 justify-end">
 					<SearchBox
-						className="hidden w-full max-w-xs sm:block"
+						className="hidden w-full max-w-xs md:block"
 						inputRef={searchInputRef}
 					/>
 				</div>
@@ -147,7 +154,7 @@ export default function Header() {
 					<Button
 						variant="outline"
 						size="icon"
-						className="h-8 w-8 sm:hidden"
+						className="h-8 w-8 md:hidden"
 						onClick={() => setMenuOpen(!menuOpen)}
 						aria-label={menuOpen ? "Close menu" : "Open menu"}
 						aria-expanded={menuOpen}
@@ -163,7 +170,7 @@ export default function Header() {
 
 			{menuOpen && (
 				<nav
-					className="border-t border-border bg-background px-4 py-3 sm:hidden"
+					className="border-t border-border bg-background px-4 py-3 md:hidden"
 					aria-label="Mobile navigation"
 				>
 					<div className="flex flex-col gap-2">

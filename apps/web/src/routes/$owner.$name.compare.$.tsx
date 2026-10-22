@@ -144,7 +144,7 @@ function ComparePage() {
 		});
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<div className="space-y-1">
 				<h2 className="text-xl font-semibold text-foreground">
 					Comparing changes
@@ -224,7 +224,7 @@ function ComparePage() {
 			{isLoading || !comparison ? (
 				<FileDiffViewer isLoading />
 			) : comparison.status === "identical" ? (
-				<Card className="p-6 text-center text-sm text-muted-foreground">
+				<Card className="p-5 text-center text-sm text-muted-foreground">
 					There isn't anything to compare. {base} and {head} are identical.
 				</Card>
 			) : (

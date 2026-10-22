@@ -17,9 +17,9 @@ export function ActivityFeed({
 }) {
 	if (isLoading) {
 		return (
-			<div className="space-y-2">
+			<div className="space-y-4">
 				{[1, 2, 3, 4].map((i) => (
-					<Skeleton key={i} className="h-16" />
+					<Skeleton key={i} className="h-14" />
 				))}
 			</div>
 		);
@@ -32,7 +32,7 @@ export function ActivityFeed({
 				message="Couldn't load recent activity."
 				action={
 					onRetry && (
-						<Button size="sm" variant="outline" onClick={onRetry}>
+						<Button variant="outline" onClick={onRetry}>
 							Try again
 						</Button>
 					)
@@ -46,48 +46,42 @@ export function ActivityFeed({
 	}
 
 	return (
-		<div className="space-y-2">
+		<ul className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
 			{activities.map((activity) => {
 				const { text, link } = describeActivity(activity);
 				const content = (
 					<>
-						<div className="text-xs font-medium text-foreground">
+						<div className="text-sm text-foreground">
 							{text}
 							{activity.repository && (
-								<span className="ml-1 font-normal text-muted-foreground">
+								<span className="ml-1 text-muted-foreground">
 									in {activity.repository.owner.username}/
 									{activity.repository.name}
 								</span>
 							)}
 						</div>
-						<div className="mt-0.5 text-[10px] text-muted-foreground">
+						<div className="mt-1 text-xs text-muted-foreground">
 							{new Date(activity.createdAt).toLocaleString()}
 						</div>
 					</>
 				);
 
-				if (link) {
-					return (
-						<Link
-							key={activity.id}
-							to={link.to}
-							params={link.params}
-							className="block rounded-lg border border-border bg-background p-3 no-underline transition hover:bg-card"
-						>
-							{content}
-						</Link>
-					);
-				}
-
 				return (
-					<div
-						key={activity.id}
-						className="rounded-lg border border-border bg-background p-3"
-					>
-						{content}
-					</div>
+					<li key={activity.id}>
+						{link ? (
+							<Link
+								to={link.to}
+								params={link.params}
+								className="block px-4 py-3.5 no-underline transition-colors hover:bg-muted/50"
+							>
+								{content}
+							</Link>
+						) : (
+							<div className="px-4 py-3.5">{content}</div>
+						)}
+					</li>
 				);
 			})}
-		</div>
+		</ul>
 	);
 }

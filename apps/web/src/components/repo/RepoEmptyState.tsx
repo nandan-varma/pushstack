@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getCloneUrl, getSetupInstructions } from "@/lib/git-utils";
 
@@ -26,16 +27,17 @@ export function RepoEmptyState({
 
 	return (
 		<div className="space-y-4">
-			<div className="island-shell rounded-xl p-5">
+			<div className="island-shell rounded-[20px] p-5">
 				<p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 					HTTPS clone URL
 				</p>
 				<div className="mt-2 flex gap-2">
-					<input
+					<Input
+						aria-label="HTTPS clone URL"
 						type="text"
 						value={cloneUrl}
 						readOnly
-						className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+						className="min-w-0 flex-1 font-mono text-xs"
 					/>
 					<CopyButton text={cloneUrl} />
 				</div>
@@ -55,12 +57,12 @@ export function RepoEmptyState({
 					["Push an existing repository", instructions.existingRepo],
 				] as const
 			).map(([heading, code]) => (
-				<div key={heading} className="island-shell rounded-xl p-5">
+				<div key={heading} className="island-shell rounded-[20px] p-5">
 					<p className="mb-3 text-sm font-semibold text-foreground">
 						{heading}
 					</p>
 					<div className="flex items-start gap-3">
-						<pre className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-xs text-foreground">
+						<pre className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-border bg-muted p-4 text-xs leading-relaxed shadow-[var(--bjork-shadow-inset)] text-foreground">
 							<code>{code}</code>
 						</pre>
 						<CopyButton text={code} />
@@ -68,7 +70,7 @@ export function RepoEmptyState({
 				</div>
 			))}
 
-			<div className="island-shell rounded-xl p-5">
+			<div className="island-shell rounded-[20px] p-5">
 				<p className="mb-1 text-sm font-semibold text-foreground">
 					Create a file via the web interface
 				</p>

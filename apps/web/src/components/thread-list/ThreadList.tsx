@@ -1,4 +1,12 @@
 import { Link } from "@tanstack/react-router";
+import {
+	CircleCheck,
+	CircleDot,
+	CircleX,
+	GitMerge,
+	GitPullRequest,
+	GitPullRequestClosed,
+} from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { LabelChip } from "@/components/LabelChip";
@@ -13,9 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function SignInButton({ children }: { children: ReactNode }) {
 	return (
 		<Link to="/auth/login">
-			<Button size="sm" variant="outline">
-				{children}
-			</Button>
+			<Button variant="outline">{children}</Button>
 		</Link>
 	);
 }
@@ -46,7 +52,7 @@ export function ThreadList<T extends { id: number }>({
 		return <EmptyState message={emptyMessage} action={emptyAction} />;
 	}
 	return (
-		<div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+		<div className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
 			{threads.map((thread) => (
 				<Fragment key={thread.id}>{children(thread)}</Fragment>
 			))}
@@ -69,7 +75,52 @@ type ThreadSummary = {
 };
 
 const rowClass =
-	"flex w-full items-start gap-4 p-4 text-left no-underline transition hover:bg-card";
+	"flex w-full items-start gap-3 px-4 py-3.5 text-left no-underline transition-colors hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:outline-none";
+
+/** The status glyph sits on the row's first text line, not centred on the row. */
+function StatusIcon({
+	kind,
+	status,
+}: {
+	kind: "issue" | "pull";
+	status: string;
+}) {
+	const iconClass = "mt-0.5 size-4 shrink-0";
+	if (kind === "issue") {
+		return status === "open" ? (
+			<CircleDot className={`${iconClass} text-success`} aria-hidden="true" />
+		) : (
+			<CircleCheck className={`${iconClass} text-merged`} aria-hidden="true" />
+		);
+	}
+	if (status === "open") {
+		return (
+			<GitPullRequest
+				className={`${iconClass} text-success`}
+				aria-hidden="true"
+			/>
+		);
+	}
+	if (status === "merged") {
+		return (
+			<GitMerge className={`${iconClass} text-merged`} aria-hidden="true" />
+		);
+	}
+	if (status === "closed") {
+		return (
+			<GitPullRequestClosed
+				className={`${iconClass} text-destructive`}
+				aria-hidden="true"
+			/>
+		);
+	}
+	return (
+		<CircleX
+			className={`${iconClass} text-muted-foreground`}
+			aria-hidden="true"
+		/>
+	);
+}
 
 export function ThreadRow({
 	kind,
@@ -85,38 +136,46 @@ export function ThreadRow({
 	children?: ReactNode;
 }) {
 	const content = (
-		<div className="min-w-0 flex-1 space-y-1">
-			<div className="flex min-w-0 items-center gap-2">
-				<span className="min-w-0 truncate text-sm font-medium text-foreground">
-					{thread.title}
-				</span>
-				<Badge
-					className="shrink-0"
-					variant={
-						kind === "issue"
-							? issueStatusVariant(thread.status)
-							: pullRequestStatusVariant(thread.status)
-					}
-				>
-					{thread.status}
-				</Badge>
-			</div>
-			<p className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
-				<span>
-					#{thread.number} opened{" "}
-					{new Date(thread.createdAt).toLocaleDateString()} by{" "}
-					{thread.author.name}
-				</span>
-				{children}
-			</p>
-			{thread.labels.length > 0 && (
-				<div className="flex flex-wrap gap-1.5 pt-0.5">
-					{thread.labels.map((l) => (
-						<LabelChip key={l.id} {...l} />
+		<>
+			<StatusIcon kind={kind} status={thread.status} />
+			<div className="min-w-0 flex-1">
+				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+					<span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+						#{thread.number}
+					</span>
+					<span className="min-w-0 break-words text-sm font-semibold text-foreground">
+						{thread.title}
+					</span>
+					{thread.labels.map((label) => (
+						<LabelChip key={label.id} {...label} />
 					))}
+					<Badge
+						className="shrink-0"
+						variant={
+							kind === "issue"
+								? issueStatusVariant(thread.status)
+								: pullRequestStatusVariant(thread.status)
+						}
+					>
+						{thread.status}
+					</Badge>
 				</div>
-			)}
-		</div>
+				<p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+					<span>
+						opened {new Date(thread.createdAt).toLocaleDateString()} by{" "}
+						{thread.author.name}
+					</span>
+					{children && (
+						<>
+							<span aria-hidden="true" className="text-border">
+								&middot;
+							</span>
+							{children}
+						</>
+					)}
+				</p>
+			</div>
+		</>
 	);
 	const id = thread.number.toString();
 	return kind === "issue" ? (

@@ -12,9 +12,7 @@ export function BackLink({
 }) {
 	return (
 		<Link to={to} params={params}>
-			<Button variant="outline" size="sm">
-				{label}
-			</Button>
+			<Button variant="outline">{label}</Button>
 		</Link>
 	);
 }

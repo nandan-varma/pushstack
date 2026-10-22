@@ -7,6 +7,7 @@ import {
 	useMatchRoute,
 	useParams,
 } from "@tanstack/react-router";
+import { ErrorPanel } from "@/components/ErrorPanel";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { BranchUpdateBanner } from "@/components/repo/BranchUpdateBanner";
 import { GuestSignupBanner } from "@/components/repo/GuestSignupBanner";
@@ -75,34 +76,27 @@ export const Route = createFileRoute("/$owner/$name")({
 function RepositoryErrorComponent({ error, reset }: ErrorComponentProps) {
 	const { owner, name } = Route.useParams();
 	return (
-		<div className="page-wrap px-4 py-16 text-center">
-			<div className="island-shell mx-auto max-w-md rounded-xl p-8">
-				<h1 className="mb-2 text-lg font-semibold text-foreground">
-					Couldn't load {owner}/{name}
-				</h1>
-				<p className="mb-6 text-sm text-muted-foreground">
-					{error instanceof Error
-						? error.message
-						: "An unexpected error occurred."}
-				</p>
-				<div className="flex items-center justify-center gap-2">
-					<Button size="sm" onClick={reset}>
-						Try again
-					</Button>
-					<Link to="/dashboard">
-						<Button size="sm" variant="outline">
-							Back to Dashboard
-						</Button>
-					</Link>
-				</div>
-			</div>
+		<div className="page-wrap py-10 text-center">
+			<ErrorPanel
+				title={"Couldn't load " + owner + "/" + name}
+				description="We couldn't read this repository. It may be temporarily unavailable."
+				detail={error instanceof Error ? error.message : undefined}
+				actions={
+					<>
+						<Button onClick={reset}>Try again</Button>
+						<Link to="/dashboard">
+							<Button variant="outline">Back to Dashboard</Button>
+						</Link>
+					</>
+				}
+			/>
 		</div>
 	);
 }
 
 function RepositoryNotFound() {
 	return (
-		<div className="page-wrap px-4 py-16">
+		<div className="page-wrap py-12">
 			<div className="mx-auto max-w-md">
 				<NotFoundCard
 					title="Repository not found"
@@ -134,7 +128,7 @@ function RepositoryPage() {
 
 	if (isLoading) {
 		return (
-			<div className="page-wrap px-4 py-8">
+			<div className="page-wrap py-6 sm:py-8">
 				<RepoHeaderSkeleton />
 				<RepoTabNavSkeleton />
 			</div>
@@ -151,7 +145,7 @@ function RepositoryPage() {
 	const watchingBranch = isCodeActive || isCommitsActive;
 
 	return (
-		<div className="page-wrap px-4 py-8">
+		<div className="page-wrap py-6 sm:py-8">
 			<GuestSignupBanner repoLabel={`${owner}/${name}`} />
 			<RepoHeader owner={owner} name={name} repo={repo} />
 			<RepoTabNav

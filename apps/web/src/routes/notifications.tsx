@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { CircleDot, GitPullRequest } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,19 +97,23 @@ function NotificationsPage() {
 	});
 
 	return (
-		<div className="page-wrap px-4 py-10">
-			<div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-				<h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={markAll.isPending || !data?.some((n) => n.unread)}
-					onClick={() => markAll.mutate()}
-				>
-					Mark all as read
-				</Button>
-			</div>
-			<nav className="mb-4 flex gap-2" aria-label="Notification filters">
+		<div className="page-wrap py-6 sm:py-8">
+			<PageHeader
+				title="Notifications"
+				actions={
+					<Button
+						variant="outline"
+						disabled={markAll.isPending || !data?.some((n) => n.unread)}
+						onClick={() => markAll.mutate()}
+					>
+						Mark all as read
+					</Button>
+				}
+			/>
+			<nav
+				className="mb-4 flex flex-wrap items-center gap-2"
+				aria-label="Notification filters"
+			>
 				{FILTERS.map(({ label, search: target }) => {
 					const active =
 						filter.all === "all" in target &&
@@ -120,10 +125,10 @@ function NotificationsPage() {
 							search={target}
 							aria-current={active ? "page" : undefined}
 							className={cn(
-								"rounded-full border border-border px-3 py-1 text-sm no-underline",
+								"inline-flex h-10 items-center rounded-[13px] border px-4 text-sm no-underline transition-colors",
 								active
-									? "bg-primary text-primary-foreground"
-									: "text-muted-foreground hover:text-foreground",
+									? "border-primary bg-primary text-primary-foreground"
+									: "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
 							)}
 						>
 							{label}
@@ -146,7 +151,7 @@ function NotificationsPage() {
 					}
 				/>
 			) : (
-				<ul className="divide-y divide-border rounded-xl border border-border">
+				<ul className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
 					{data?.map((item) => (
 						<NotificationRow
 							key={item.id}
@@ -209,58 +214,67 @@ function NotificationRow({
 	return (
 		<li
 			className={cn(
-				"flex items-center gap-3 px-4 py-3",
+				"flex items-start gap-3 px-4 py-3.5",
 				!item.unread && "opacity-70",
 			)}
 		>
-			<span
-				aria-hidden="true"
-				className={cn(
-					"h-2 w-2 shrink-0 rounded-full",
-					item.unread ? "bg-primary" : "bg-transparent",
-				)}
-			/>
-			<span className="sr-only">{item.unread ? "Unread" : "Read"}</span>
 			<Icon
 				aria-hidden="true"
 				className={cn(
-					"h-4 w-4 shrink-0",
-					item.subject.state === "open" ? "text-green-600" : "text-purple-600",
+					"mt-0.5 size-4 shrink-0",
+					item.subject.state === "open" ? "text-success" : "text-merged",
 				)}
 			/>
 			<div className="min-w-0 flex-1">
-				<p className="text-xs text-muted-foreground">
+				<div className="flex min-w-0 items-center gap-2">
+					<span
+						aria-hidden="true"
+						className={cn(
+							"size-2 shrink-0 rounded-full",
+							item.unread ? "bg-primary" : "bg-transparent",
+						)}
+					/>
+					<span className="sr-only">{item.unread ? "Unread" : "Read"}</span>
+					<Link
+						to={
+							item.subject.type === "Issue"
+								? "/$owner/$name/issues/$id"
+								: "/$owner/$name/pulls/$id"
+						}
+						params={{
+							owner: item.repository.owner,
+							name: item.repository.name,
+							id: String(item.subject.number),
+						}}
+						onClick={() => item.unread && onRead()}
+						className={cn(
+							"block min-w-0 flex-1 truncate text-sm text-foreground hover:underline",
+							item.unread && "font-semibold",
+						)}
+					>
+						{item.subject.title}
+					</Link>
+				</div>
+				<p className="mt-1 text-xs text-muted-foreground">
 					{item.repository.owner}/{item.repository.name} #{item.subject.number}
 				</p>
-				<Link
-					to={
-						item.subject.type === "Issue"
-							? "/$owner/$name/issues/$id"
-							: "/$owner/$name/pulls/$id"
-					}
-					params={{
-						owner: item.repository.owner,
-						name: item.repository.name,
-						id: String(item.subject.number),
-					}}
-					onClick={() => item.unread && onRead()}
-					className={cn(
-						"block truncate text-sm text-foreground hover:underline",
-						item.unread && "font-semibold",
-					)}
-				>
-					{item.subject.title}
-				</Link>
 			</div>
-			<Badge variant="outline">{NOTIFICATION_REASON_LABELS[item.reason]}</Badge>
+			<Badge variant="outline" className="shrink-0">
+				{NOTIFICATION_REASON_LABELS[item.reason]}
+			</Badge>
 			<time
-				className="hidden text-xs text-muted-foreground sm:block"
+				className="hidden shrink-0 text-xs text-muted-foreground sm:block"
 				dateTime={new Date(item.updatedAt).toISOString()}
 			>
 				{new Date(item.updatedAt).toLocaleDateString()}
 			</time>
 			{item.unread && (
-				<Button variant="ghost" size="sm" disabled={pending} onClick={onRead}>
+				<Button
+					variant="ghost"
+					className="shrink-0 px-3"
+					disabled={pending}
+					onClick={onRead}
+				>
 					Mark as read
 				</Button>
 			)}

@@ -138,10 +138,8 @@ function RegisterPage() {
 				</>
 			}
 		>
-			<form onSubmit={handleSubmit} className="space-y-4">
-				<ErrorAlert message={error} />
-
-				<div className="grid grid-cols-2 gap-4">
+			<form onSubmit={handleSubmit} className="space-y-3">
+				<div className="grid grid-cols-2 gap-3">
 					<FormField label="Name" htmlFor="name">
 						<Input
 							id="name"
@@ -182,7 +180,7 @@ function RegisterPage() {
 					/>
 				</FormField>
 
-				<div className="grid grid-cols-2 gap-4">
+				<div className="grid grid-cols-2 gap-3">
 					<FormField label="Password" htmlFor="password">
 						<Input
 							id="password"
@@ -213,6 +211,8 @@ function RegisterPage() {
 					underscores, starting and ending with a letter or number. Password
 					must be 8+ characters.
 				</p>
+
+				<ErrorAlert message={error} />
 
 				<LoadingButton
 					type="submit"

@@ -21,7 +21,7 @@ test.describe("Route Navigation E2E", () => {
 	test("home page renders hero content", async ({ page }) => {
 		await page.goto("/");
 		await expect(page.locator("h1")).toContainText(
-			"The forge for teams that ship their own way.",
+			"Good code starts with a clear space.",
 		);
 	});
 
@@ -53,14 +53,14 @@ test.describe("Route Navigation E2E", () => {
 
 	test("back button restores previous page content", async ({ page }) => {
 		await page.goto("/");
-		await expect(page.locator("h1")).toContainText("The forge for teams");
+		await expect(page.locator("h1")).toContainText("Good code starts");
 
 		await page.click("text=Sign In");
 		await expect(page).toHaveURL("/auth/login");
 
 		await page.goBack();
 		await expect(page).toHaveURL("/");
-		await expect(page.locator("h1")).toContainText("The forge for teams");
+		await expect(page.locator("h1")).toContainText("Good code starts");
 	});
 
 	test("about page renders via direct navigation", async ({ page }) => {

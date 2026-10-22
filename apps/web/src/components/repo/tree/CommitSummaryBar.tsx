@@ -25,8 +25,8 @@ export function CommitSummaryBar({
 }) {
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
-				<div className="flex min-w-0 items-center gap-2.5">
+			<div className="island-shell flex flex-wrap items-center justify-between gap-3 rounded-[18px] px-5 py-4">
+				<div className="flex min-w-0 flex-1 items-center gap-2.5">
 					<div className="h-6 w-6 shrink-0 animate-pulse rounded-full bg-muted" />
 					<div className="h-3.5 w-20 shrink-0 animate-pulse rounded bg-muted" />
 					<div className="h-3.5 w-64 max-w-full animate-pulse rounded bg-muted" />
@@ -44,14 +44,14 @@ export function CommitSummaryBar({
 	const subject = commit.message.split("\n")[0];
 
 	return (
-		<div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-2.5">
-			<div className="flex min-w-0 items-center gap-2.5">
+		<div className="island-shell flex flex-wrap items-center justify-between gap-3 rounded-[18px] px-5 py-4">
+			<div className="flex min-w-0 flex-1 items-center gap-2.5">
 				<Avatar className="h-6 w-6 shrink-0">
-					<AvatarFallback className="text-[10px]">
+					<AvatarFallback className="text-[11px]">
 						{getInitials(commit.authorName || "U")}
 					</AvatarFallback>
 				</Avatar>
-				<span className="shrink-0 text-sm font-medium text-foreground">
+				<span className="hidden shrink-0 text-sm font-medium sm:inline text-foreground">
 					{commit.authorName || "Unknown"}
 				</span>
 				<Link

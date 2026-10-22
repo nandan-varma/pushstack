@@ -68,7 +68,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 						{collabs.map((c) => (
 							<li
 								key={c.id}
-								className="flex items-center justify-between gap-3 px-4 py-3"
+								className="flex items-center justify-between gap-3 px-4 py-3.5"
 							>
 								<div className="flex items-center gap-2 min-w-0">
 									<span className="truncate text-sm font-medium text-foreground">
@@ -80,7 +80,6 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 								</div>
 								<Button
 									variant="outline"
-									size="sm"
 									disabled={removeMutation.isPending}
 									onClick={() =>
 										removeMutation.mutate({
@@ -99,7 +98,7 @@ export function CollaboratorsSection({ repoId }: { repoId: number }) {
 
 				<div className="flex flex-col gap-2 sm:flex-row">
 					<Input
-						className="flex-1"
+						className="min-w-0 flex-1"
 						placeholder="Username"
 						value={username}
 						onChange={(e) => setUsername(e.target.value)}

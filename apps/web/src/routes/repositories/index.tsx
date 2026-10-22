@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { RepositoryCard } from "@/components/repo/RepositoryCard";
 import { RepositoryListEmptyState } from "@/components/repo/RepositoryListEmptyState";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,8 @@ export const Route = createFileRoute("/repositories/")({
 		queryClient.ensureQueryData(userRepositoriesQueryOptions()),
 });
 
+const cardGrid = "grid gap-5 sm:grid-cols-2 xl:grid-cols-3";
+
 function RepositoriesPage() {
 	const {
 		data: repositories,
@@ -30,23 +33,22 @@ function RepositoriesPage() {
 	} = useQuery(userRepositoriesQueryOptions());
 
 	return (
-		<main className="page-wrap px-4 py-10">
-			<div className="mb-8 flex items-center justify-between gap-4">
-				<div>
-					<h1 className="text-3xl font-bold text-foreground">Repositories</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						Browse and manage the repositories you can access.
-					</p>
-				</div>
-				<Link to="/repositories/new">
-					<Button size="sm">+ New repository</Button>
-				</Link>
-			</div>
+		<main className="page-wrap py-6 sm:py-8">
+			<PageHeader
+				title="Repositories"
+				description="Browse and manage the repositories you can access."
+				eyebrow="Your code"
+				actions={
+					<Button asChild>
+						<Link to="/repositories/new">+ New repository</Link>
+					</Button>
+				}
+			/>
 
 			{isLoading ? (
-				<div className="grid gap-3 md:grid-cols-2">
+				<div className={cardGrid}>
 					{[1, 2, 3, 4].map((i) => (
-						<Skeleton key={i} className="h-28" />
+						<Skeleton key={i} className="h-36" />
 					))}
 				</div>
 			) : isError ? (
@@ -54,7 +56,7 @@ function RepositoriesPage() {
 					variant="error"
 					message="Couldn't load repositories."
 					action={
-						<Button size="sm" variant="outline" onClick={() => refetch()}>
+						<Button variant="outline" onClick={() => refetch()}>
 							Try again
 						</Button>
 					}
@@ -62,7 +64,7 @@ function RepositoriesPage() {
 			) : repositories && repositories.length > 0 ? (
 				<>
 					<h2 className="sr-only">Repositories list</h2>
-					<div className="grid gap-3 md:grid-cols-2">
+					<div className={cardGrid}>
 						{repositories.map((repo) => (
 							<RepositoryCard key={repo.id} repo={repo} />
 						))}

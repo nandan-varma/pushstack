@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { type ReactNode, useEffect } from "react";
+import { ErrorPanel } from "../components/ErrorPanel";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import { RouteLoadingBar } from "../components/RouteLoadingBar";
@@ -45,7 +46,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 			{
 				name: "theme-color",
-				content: "#ffffff",
+				content: "#111111",
 			},
 			{
 				property: "og:type",
@@ -97,24 +98,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 		links: [
-			// Previously a CSS @import in styles.css: the browser had to fetch
-			// styles.css, parse it, discover the @import, then fetch Google's CSS,
-			// parse *that*, then fetch the woff2 files — a fully serial chain
-			// before any text could render. Link tags are found by the preload
-			// scanner directly in the raw HTML, in parallel with everything else.
-			{
-				rel: "preconnect",
-				href: "https://fonts.googleapis.com",
-			},
-			{
-				rel: "preconnect",
-				href: "https://fonts.gstatic.com",
-				crossOrigin: "anonymous",
-			},
-			{
-				rel: "stylesheet",
-				href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap",
-			},
 			{
 				rel: "stylesheet",
 				href: appCss,
@@ -158,20 +141,13 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 
 	return (
 		<RootDocument>
-			<div className="page-wrap px-4 py-20 text-center">
-				<div className="island-shell mx-auto max-w-md rounded-xl p-8">
-					<h1 className="mb-2 text-lg font-semibold text-foreground">
-						Something went wrong
-					</h1>
-					<p className="mb-6 text-sm text-muted-foreground">
-						{error instanceof Error
-							? error.message
-							: "An unexpected error occurred."}
-					</p>
-					<Button onClick={reset} className="opacity-100 hover:opacity-90">
-						Try again
-					</Button>
-				</div>
+			<div className="page-wrap py-12 text-center">
+				<ErrorPanel
+					title="Something went wrong"
+					description="An unexpected error interrupted this page."
+					detail={error instanceof Error ? error.message : undefined}
+					actions={<Button onClick={reset}>Try again</Button>}
+				/>
 			</div>
 		</RootDocument>
 	);

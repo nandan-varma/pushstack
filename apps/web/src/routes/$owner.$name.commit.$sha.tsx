@@ -126,7 +126,7 @@ function CommitDetailPage() {
 
 	if (commitLoading) {
 		return (
-			<div className="space-y-6">
+			<div className="space-y-5">
 				<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
 					<div className="min-w-0 flex-1 space-y-2.5">
 						<div className="h-6 w-2/3 max-w-md animate-pulse rounded-md bg-muted" />
@@ -137,7 +137,7 @@ function CommitDetailPage() {
 						<div className="h-8 w-32 animate-pulse rounded-md bg-muted" />
 					</div>
 				</div>
-				<Card className="p-6">
+				<Card className="p-5">
 					<div className="flex items-start gap-4">
 						<div className="size-12 shrink-0 animate-pulse rounded-full bg-muted" />
 						<div className="min-w-0 flex-1 space-y-4">
@@ -174,7 +174,7 @@ function CommitDetailPage() {
 	}
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<div className="flex flex-col-reverse gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
 				<div className="min-w-0 flex-1">
 					<CommitMessage
@@ -223,7 +223,7 @@ function CommitDetailPage() {
 				</div>
 			</div>
 
-			<Card className="p-6">
+			<Card className="p-5">
 				<div className="flex items-start gap-4">
 					<Avatar className="h-12 w-12">
 						<AvatarFallback>{getInitials(commit.author.name)}</AvatarFallback>
@@ -270,10 +270,10 @@ function CommitDetailPage() {
 									<div className="mt-1 h-4 w-16 animate-pulse rounded bg-muted" />
 								) : (
 									<p className="font-medium text-foreground">
-										<span className="text-green-600">
+										<span className="text-success">
 											+{diffData?.totalAdditions || 0}
 										</span>{" "}
-										<span className="text-red-600">
+										<span className="text-destructive">
 											-{diffData?.totalDeletions || 0}
 										</span>
 									</p>

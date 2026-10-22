@@ -102,7 +102,7 @@ function CommitsPage() {
 	);
 
 	return (
-		<div className="space-y-5">
+		<div className="space-y-4">
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
 					{repo && (
@@ -139,9 +139,7 @@ function CommitsPage() {
 							to="/$owner/$name/tree/$branch/$"
 							params={{ owner, name, branch, _splat: "" }}
 						>
-							<Button variant="outline" size="sm">
-								View files
-							</Button>
+							<Button variant="outline">View files</Button>
 						</Link>
 					}
 				/>
@@ -152,7 +150,6 @@ function CommitsPage() {
 					<div className="flex items-center justify-center gap-3">
 						<Button
 							variant="outline"
-							size="sm"
 							disabled={currentPage <= 1}
 							onClick={() =>
 								navigate({
@@ -169,7 +166,6 @@ function CommitsPage() {
 						</span>
 						<Button
 							variant="outline"
-							size="sm"
 							disabled={commits.length < PAGE_SIZE}
 							onClick={() =>
 								navigate({

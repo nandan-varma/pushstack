@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { PageHeader } from "@/components/PageHeader";
 import {
 	Select,
 	SelectContent,
@@ -100,26 +101,22 @@ function NewRepositoryPage() {
 	};
 
 	return (
-		<div className="page-wrap px-4 py-10">
-			<div className="mx-auto max-w-2xl">
-				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-foreground">
-						Create a new repository
-					</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						A repository contains all project files and revision history.
-					</p>
-				</div>
+		<div className="page-wrap py-6 sm:py-8">
+			<div className="max-w-xl">
+				<PageHeader
+					title="Create a new repository"
+					description="A repository contains all project files and revision history."
+				/>
 
-				<div className="island-shell rounded-2xl p-8">
+				<div className="island-shell rounded-[20px] p-5 sm:p-6">
 					<form onSubmit={handleSubmit} className="space-y-6">
 						{error && (
-							<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/50 dark:bg-red-900/20 dark:text-red-400">
+							<div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
 								{error}
 							</div>
 						)}
 
-						<div className="space-y-1.5">
+						<div className="space-y-2">
 							<Label htmlFor="name">Repository name</Label>
 							<div className="flex items-center gap-2">
 								<span className="shrink-0 text-sm text-muted-foreground">
@@ -140,7 +137,7 @@ function NewRepositoryPage() {
 							</div>
 						</div>
 
-						<div className="space-y-1.5">
+						<div className="space-y-2">
 							<Label htmlFor="description">Description (optional)</Label>
 							<Textarea
 								id="description"
@@ -172,7 +169,7 @@ function NewRepositoryPage() {
 								).map(([value, label, desc]) => (
 									<label
 										key={value}
-										className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
+										className={`flex cursor-pointer items-start gap-3 rounded-[13px] border p-4 shadow-[var(--bjork-shadow-inset)] transition-colors ${
 											visibility === value
 												? "border-primary bg-primary/5"
 												: "border-border hover:border-primary/50"
@@ -219,7 +216,7 @@ function NewRepositoryPage() {
 									</div>
 								</div>
 							</label>
-							<div className="space-y-1.5">
+							<div className="space-y-2">
 								<Label htmlFor="gitignore-template">.gitignore template</Label>
 								<Select
 									value={gitignoreTemplate}
@@ -240,7 +237,7 @@ function NewRepositoryPage() {
 									</SelectContent>
 								</Select>
 							</div>
-							<div className="space-y-1.5">
+							<div className="space-y-2">
 								<Label htmlFor="license-template">License</Label>
 								<Select
 									value={licenseTemplate}
@@ -263,14 +260,7 @@ function NewRepositoryPage() {
 							</div>
 						</fieldset>
 
-						<div className="flex gap-3 pt-2">
-							<LoadingButton
-								type="submit"
-								isLoading={createRepoMutation.isPending}
-								loadingLabel="Creating…"
-							>
-								Create repository
-							</LoadingButton>
+						<div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-6">
 							<Button
 								type="button"
 								variant="outline"
@@ -279,6 +269,13 @@ function NewRepositoryPage() {
 							>
 								Cancel
 							</Button>
+							<LoadingButton
+								type="submit"
+								isLoading={createRepoMutation.isPending}
+								loadingLabel="Creating…"
+							>
+								Create repository
+							</LoadingButton>
 						</div>
 					</form>
 				</div>

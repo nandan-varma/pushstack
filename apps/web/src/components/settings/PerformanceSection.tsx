@@ -119,7 +119,6 @@ export function PerformanceSection({
 				</div>
 				<LoadingButton
 					variant="outline"
-					size="sm"
 					className="shrink-0"
 					isLoading={repackMutation.isPending}
 					loadingLabel="Consolidating…"

@@ -68,7 +68,9 @@ export function PasswordSection() {
 						type="password"
 						value={confirm}
 						autoComplete="new-password"
-						className={mismatch ? "border-red-400 focus:ring-red-400" : ""}
+						className={
+							mismatch ? "border-destructive focus:ring-destructive" : ""
+						}
 						onChange={(e) => setConfirm(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && save()}
 					/>
@@ -89,9 +91,7 @@ export function PasswordSection() {
 						Change password
 					</LoadingButton>
 					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">
-							Password updated
-						</span>
+						<span className="text-sm text-success">Password updated</span>
 					)}
 				</div>
 			</div>

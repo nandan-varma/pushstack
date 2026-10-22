@@ -42,8 +42,8 @@ export function FileTable({
 	if (isLoading) {
 		const rowWidths = ["45%", "60%", "38%", "70%", "50%", "42%", "65%", "35%"];
 		return (
-			<div className="overflow-hidden rounded-xl border border-border">
-				<table className="w-full">
+			<div className="island-shell overflow-hidden rounded-[18px]">
+				<table className="w-full table-fixed">
 					<tbody>
 						{rowWidths.map((width, i) => (
 							<tr
@@ -51,17 +51,17 @@ export function FileTable({
 								key={i}
 								className="border-b border-border last:border-0"
 							>
-								<td className="w-8 py-2.5 pl-4 pr-2 align-middle">
+								<td className="w-10 py-3 pl-4 pr-2 align-middle">
 									<div className="h-4 w-4 animate-pulse rounded bg-muted" />
 								</td>
-								<td className="py-2.5 pr-4 align-middle">
+								<td className="py-3 pr-4 align-middle">
 									<div
 										className="h-3.5 animate-pulse rounded bg-muted"
 										style={{ width }}
 									/>
 								</td>
 								{showLastCommit && (
-									<td className="hidden py-2.5 pr-4 align-middle md:table-cell">
+									<td className="hidden py-3 pr-4 align-middle md:table-cell">
 										<div className="ml-auto flex items-center justify-end gap-2">
 											<div className="h-3 w-40 animate-pulse rounded bg-muted" />
 											<div className="h-3 w-14 shrink-0 animate-pulse rounded bg-muted" />
@@ -94,13 +94,13 @@ export function FileTable({
 	}
 
 	return (
-		<div className="overflow-hidden rounded-xl border border-border">
-			<table className="w-full">
+		<div className="island-shell overflow-hidden rounded-[18px]">
+			<table className="w-full table-fixed">
 				<tbody>
 					{activePath && (
-						<tr className="border-b border-border transition hover:bg-card">
-							<td className="w-8 py-2.5 pl-4" />
-							<td className="py-2.5 pr-4">
+						<tr className="border-b border-border transition-colors hover:bg-accent/60">
+							<td className="w-10 py-3 pl-4" />
+							<td className="py-3 pr-4">
 								<Link
 									to="/$owner/$name/tree/$branch/$"
 									params={{
@@ -111,7 +111,7 @@ export function FileTable({
 											? activePath.slice(0, activePath.lastIndexOf("/"))
 											: "",
 									}}
-									className="text-sm font-medium text-primary hover:underline"
+									className="text-sm font-medium text-foreground hover:underline"
 								>
 									..
 								</Link>
@@ -126,9 +126,9 @@ export function FileTable({
 						return (
 							<tr
 								key={`${file.type}:${file.path}`}
-								className="border-b border-border transition hover:bg-card last:border-0"
+								className="border-b border-border transition-colors hover:bg-accent/60 last:border-0"
 							>
-								<td className="w-8 py-2.5 pl-4 pr-2 align-middle">
+								<td className="w-10 py-3 pl-4 pr-2 align-middle">
 									{file.type === "commit" ? (
 										<GitFork
 											className="size-4 text-primary"
@@ -140,7 +140,7 @@ export function FileTable({
 										<FileIcon />
 									)}
 								</td>
-								<td className="py-2.5 pr-4 align-middle">
+								<td className="py-3 pr-4 align-middle">
 									{file.type === "tree" ? (
 										<Link
 											to="/$owner/$name/tree/$branch/$"
@@ -151,7 +151,7 @@ export function FileTable({
 												_splat: file.path,
 											}}
 											title={displayName}
-											className="max-w-xs truncate text-sm font-medium text-primary hover:underline"
+											className="block max-w-full truncate text-sm font-medium text-foreground hover:underline"
 										>
 											{displayName}
 										</Link>
@@ -165,7 +165,7 @@ export function FileTable({
 												_splat: file.path,
 											}}
 											title={displayName}
-											className="max-w-xs truncate text-sm font-medium text-primary hover:underline"
+											className="block max-w-full truncate text-sm font-medium text-foreground hover:underline"
 										>
 											{displayName}
 											{file.type === "commit" && (
@@ -178,7 +178,7 @@ export function FileTable({
 									)}
 								</td>
 								{showLastCommit && (
-									<td className="hidden py-2.5 pr-4 text-right align-middle md:table-cell">
+									<td className="hidden py-3 pr-4 text-right align-middle md:table-cell">
 										{lastCommitsLoading ? (
 											<div className="ml-auto h-3 w-32 animate-pulse rounded bg-muted" />
 										) : (

@@ -36,7 +36,7 @@ export const Route = createFileRoute("/$owner/")({
 function UserNotFound() {
 	const { owner: username } = Route.useParams();
 	return (
-		<main className="page-wrap px-4 py-10">
+		<main className="page-wrap py-6 sm:py-8">
 			<NotFoundCard
 				title="User not found"
 				message={`No user named "${username}" exists.`}
@@ -53,12 +53,12 @@ function UserProfilePage() {
 
 	if (profile.isLoading) {
 		return (
-			<main className="page-wrap px-4 py-10">
-				<div className="grid gap-8 lg:grid-cols-3">
-					<Skeleton className="h-56" />
-					<div className="space-y-3 lg:col-span-2">
+			<main className="page-wrap py-6 sm:py-8">
+				<div className="space-y-5">
+					<Skeleton className="h-40" />
+					<div className="grid gap-5 sm:grid-cols-2">
 						{[1, 2, 3, 4].map((i) => (
-							<Skeleton key={i} className="h-24" />
+							<Skeleton key={i} className="h-32" />
 						))}
 					</div>
 				</div>
@@ -74,79 +74,79 @@ function UserProfilePage() {
 		month: "long",
 	});
 
+	const initials = user.name.charAt(0).toUpperCase();
+
 	return (
-		<main className="page-wrap px-4 py-10">
-			<div className="grid gap-8 lg:grid-cols-3">
-				<div>
-					<div className="island-shell rounded-xl p-6">
-						<Avatar className="h-20 w-20 text-2xl">
+		<main className="page-wrap py-6 sm:py-8">
+			<div className="space-y-5">
+				<header className="island-shell flex flex-col gap-4 rounded-[20px] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+					<div className="flex min-w-0 items-start gap-4">
+						<Avatar className="h-20 w-20 shrink-0 text-2xl">
 							{user.image && <AvatarImage src={user.image} alt={user.name} />}
-							<AvatarFallback>
-								{user.name.charAt(0).toUpperCase()}
-							</AvatarFallback>
+							<AvatarFallback>{initials}</AvatarFallback>
 						</Avatar>
-						<h1 className="mt-4 text-2xl font-bold text-foreground">
-							{user.name}
-						</h1>
-						<p className="text-sm text-muted-foreground">
-							@{user.displayUsername || user.username || username}
-						</p>
-						<dl className="mt-4 space-y-1 text-xs text-muted-foreground">
-							<div className="flex justify-between">
-								<dt>Joined</dt>
-								<dd>{joined}</dd>
-							</div>
-							<div className="flex justify-between">
-								<dt>{isSelf ? "Repositories" : "Public repositories"}</dt>
-								<dd>{repositories.length}</dd>
-							</div>
-						</dl>
-						{isSelf && (
-							<Link to="/settings" className="mt-4 inline-block">
-								<Button size="sm" variant="outline">
-									Edit profile
-								</Button>
-							</Link>
-						)}
+						<div className="min-w-0">
+							<h1 className="truncate text-2xl font-semibold tracking-tight text-foreground">
+								{user.name}
+							</h1>
+							<p className="truncate text-sm text-muted-foreground">
+								@{user.displayUsername || user.username || username}
+							</p>
+							<dl className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+								<div className="flex items-center gap-1.5">
+									<dt>Joined</dt>
+									<dd className="font-medium text-foreground">{joined}</dd>
+								</div>
+								<div className="flex items-center gap-1.5">
+									<dt>{isSelf ? "Repositories" : "Public repositories"}</dt>
+									<dd className="font-medium text-foreground">
+										{repositories.length}
+									</dd>
+								</div>
+							</dl>
+						</div>
 					</div>
-				</div>
+					{isSelf && (
+						<Button variant="outline" asChild>
+							<Link to="/settings">Edit profile</Link>
+						</Button>
+					)}
+				</header>
 
-				<div className="space-y-8 lg:col-span-2">
-					<section>
-						<h2 className="mb-4 text-base font-semibold text-foreground">
-							Repositories
-						</h2>
-						{repositories.length === 0 ? (
-							<EmptyState
-								message={
-									isSelf
-										? "You don't have any repositories yet."
-										: `${user.name} has no public repositories yet.`
-								}
-								action={
-									isSelf ? (
-										<Link to="/repositories/new">
-											<Button size="sm">Create a repository</Button>
-										</Link>
-									) : undefined
-								}
-							/>
-						) : (
-							<div className="grid gap-3 md:grid-cols-2">
-								{repositories.map((repo) => (
-									<RepositoryCard key={repo.id} repo={repo} showOwner={false} />
-								))}
-							</div>
-						)}
-					</section>
+				<section>
+					<h2 className="mb-3 text-base font-semibold text-foreground">
+						Repositories
+					</h2>
+					{repositories.length === 0 ? (
+						<EmptyState
+							message={
+								isSelf
+									? "You don't have any repositories yet."
+									: `${user.name} has no public repositories yet.`
+							}
+							action={
+								isSelf ? (
+									<Link to="/repositories/new">
+										<Button>Create a repository</Button>
+									</Link>
+								) : undefined
+							}
+						/>
+					) : (
+						<div className="grid auto-rows-fr gap-5 sm:grid-cols-2">
+							{repositories.map((repo) => (
+								<RepositoryCard key={repo.id} repo={repo} showOwner={false} />
+							))}
+						</div>
+					)}
+				</section>
 
-					<section>
-						<h2 className="mb-4 text-base font-semibold text-foreground">
-							Recent activity
-						</h2>
-						<ActivityFeed activities={activities} />
-					</section>
-				</div>
+				<section>
+					<h2 className="mb-3 text-base font-semibold text-foreground">
+						Recent activity
+					</h2>
+					<ActivityFeed activities={activities} />
+				</section>
 			</div>
 		</main>
 	);

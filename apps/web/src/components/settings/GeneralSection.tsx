@@ -150,7 +150,7 @@ export function GeneralSection({
 				{updateMutation.isError && (
 					<FieldError>{(updateMutation.error as Error).message}</FieldError>
 				)}
-				<div className="flex items-center gap-3">
+				<div className="flex items-center justify-end gap-3">
 					<LoadingButton
 						isLoading={updateMutation.isPending}
 						loadingLabel="Saving…"
@@ -169,11 +169,7 @@ export function GeneralSection({
 					>
 						Save changes
 					</LoadingButton>
-					{success && (
-						<span className="text-sm text-green-600 dark:text-green-400">
-							Saved
-						</span>
-					)}
+					{success && <span className="text-sm text-success">Saved</span>}
 				</div>
 			</div>
 		</Section>

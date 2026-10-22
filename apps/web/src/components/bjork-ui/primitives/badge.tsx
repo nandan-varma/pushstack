@@ -1,0 +1,33 @@
+// Adapted from the Björk UI shadcn registry; native interaction primitives live in components/ui.
+import { cva } from "class-variance-authority";
+
+const bjorkBadgeVariants = cva(
+	"inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border font-medium outline-none transition-[background-color,border-color,color,box-shadow,opacity,transform] duration-200 focus-visible:ring-2 focus-visible:ring-[color:var(--bjork-accent-muted)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bjork-ring-offset)] [&_svg]:size-3",
+	{
+		variants: {
+			variant: {
+				default:
+					"border-transparent bg-[var(--bjork-text)] text-[color:var(--bjork-inverted-text)] shadow-[var(--bjork-shadow-soft)]",
+				secondary:
+					"border-transparent bg-[var(--bjork-surface-active)] text-[color:var(--bjork-text)] shadow-[var(--bjork-shadow-soft)]",
+				outline:
+					"border-[color:var(--bjork-border)] bg-[var(--bjork-field-inset)] text-[color:var(--bjork-text-medium)]",
+				muted:
+					"border-transparent bg-[var(--bjork-field-muted)] text-[color:var(--bjork-text-soft)]",
+				accent:
+					"border-[color:var(--bjork-accent-muted)] bg-[var(--bjork-accent-badge)] text-[color:var(--bjork-accent-badge-foreground)] shadow-[var(--bjork-shadow-soft)]",
+			},
+			size: {
+				sm: "px-1.5 py-0.5 text-[11px] has-[>svg:first-child]:pl-1 has-[>svg:last-child]:pr-1",
+				md: "px-2 py-1 text-xs has-[>svg:first-child]:pl-1.5 has-[>svg:last-child]:pr-1.5",
+				lg: "px-2.5 py-1.5 text-sm has-[>svg:first-child]:pl-2 has-[>svg:last-child]:pr-2",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
+			size: "md",
+		},
+	},
+);
+
+export { bjorkBadgeVariants };

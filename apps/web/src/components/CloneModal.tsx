@@ -29,7 +29,7 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
 				{trigger || (
-					<Button variant="outline" size="sm">
+					<Button variant="outline">
 						<Copy aria-hidden="true" className="mr-2 h-4 w-4" />
 						Clone
 					</Button>
@@ -56,7 +56,7 @@ export function CloneModal({ owner, repoName, trigger }: CloneModalProps) {
 							aria-label={copied ? "Copied" : "Copy command"}
 						>
 							{copied ? (
-								<Check aria-hidden="true" className="h-4 w-4 text-green-600" />
+								<Check aria-hidden="true" className="h-4 w-4 text-success" />
 							) : (
 								<Copy aria-hidden="true" className="h-4 w-4" />
 							)}

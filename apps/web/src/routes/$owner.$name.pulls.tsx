@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { useCallback, useState } from "react";
+import { PageHeader } from "@/components/PageHeader";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
 import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import {
@@ -165,69 +166,69 @@ function PullRequestsPage() {
 	}
 
 	return (
-		<div className="space-y-5">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="text-base font-semibold text-foreground">
-					Pull Requests
-				</h2>
-				{!session?.user ? (
-					<SignInButton>Sign in to open a pull request</SignInButton>
-				) : (
-					<NewThreadDialog
-						open={isCreateOpen}
-						onOpenChange={setIsCreateOpen}
-						triggerLabel="New pull request"
-						title="Create pull request"
-						description="Merge changes from one branch into another"
-						submitLabel="Create pull request"
-						canSubmit={!!newPR.title.trim() && !!newPR.headBranch}
-						isPending={createMutation.isPending}
-						onSubmit={handleCreatePR}
-					>
-						<div className="space-y-1.5">
-							<Label htmlFor="title">Title</Label>
-							<Input
-								id="title"
-								value={newPR.title}
-								onChange={(e) =>
-									setNewPR((p) => ({ ...p, title: e.target.value }))
-								}
-								placeholder="Pull request title"
-							/>
-						</div>
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+		<div className="space-y-4">
+			<PageHeader
+				size="compact"
+				title="Pull Requests"
+				actions={
+					!session?.user ? (
+						<SignInButton>Sign in to open a pull request</SignInButton>
+					) : (
+						<NewThreadDialog
+							open={isCreateOpen}
+							onOpenChange={setIsCreateOpen}
+							triggerLabel="New pull request"
+							title="Create pull request"
+							description="Merge changes from one branch into another"
+							submitLabel="Create pull request"
+							canSubmit={!!newPR.title.trim() && !!newPR.headBranch}
+							isPending={createMutation.isPending}
+							onSubmit={handleCreatePR}
+						>
 							<div className="space-y-1.5">
-								<Label htmlFor="base">Base branch</Label>
-								<Select
-									value={baseBranch}
-									onValueChange={(value) =>
-										setNewPR((p) => ({ ...p, baseBranch: value }))
+								<Label htmlFor="title">Title</Label>
+								<Input
+									id="title"
+									value={newPR.title}
+									onChange={(e) =>
+										setNewPR((p) => ({ ...p, title: e.target.value }))
 									}
-								>
-									<SelectTrigger id="base" className="w-full">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{branches?.map((b) => (
-											<SelectItem key={b.name} value={b.name}>
-												{b.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									placeholder="Pull request title"
+								/>
 							</div>
-							<div className="space-y-1.5">
-								<Label htmlFor="head">Compare branch</Label>
-								<Select
-									value={newPR.headBranch}
-									onValueChange={(value) =>
-										setNewPR((p) => ({ ...p, headBranch: value }))
-									}
-								>
-									<SelectTrigger id="head" className="w-full">
-										<SelectValue placeholder="Select branch…" />
-									</SelectTrigger>
-									{/* alignItemWithTrigger positions the popup by aligning the
+							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+								<div className="space-y-1.5">
+									<Label htmlFor="base">Base branch</Label>
+									<Select
+										value={baseBranch}
+										onValueChange={(value) =>
+											setNewPR((p) => ({ ...p, baseBranch: value }))
+										}
+									>
+										<SelectTrigger id="base" className="w-full">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{branches?.map((b) => (
+												<SelectItem key={b.name} value={b.name}>
+													{b.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="space-y-1.5">
+									<Label htmlFor="head">Compare branch</Label>
+									<Select
+										value={newPR.headBranch}
+										onValueChange={(value) =>
+											setNewPR((p) => ({ ...p, headBranch: value }))
+										}
+									>
+										<SelectTrigger id="head" className="w-full">
+											<SelectValue placeholder="Select branch…" />
+										</SelectTrigger>
+										{/* alignItemWithTrigger positions the popup by aligning the
 									*selected* item over the trigger — with no branch chosen
 									yet (headBranch starts as ""), there's no selected item to
 									align against, which left the option(s) rendered with a
@@ -236,48 +237,51 @@ function PullRequestsPage() {
 									own outside-click handler and closed the whole dialog).
 									Disabling it here falls back to normal anchored
 									positioning below the trigger. */}
-									<SelectContent alignItemWithTrigger={false}>
-										{branches
-											?.filter((b) => b.name !== baseBranch)
-											.map((b) => (
-												<SelectItem key={b.name} value={b.name}>
-													{b.name}
-												</SelectItem>
-											))}
-									</SelectContent>
-								</Select>
+										<SelectContent alignItemWithTrigger={false}>
+											{branches
+												?.filter((b) => b.name !== baseBranch)
+												.map((b) => (
+													<SelectItem key={b.name} value={b.name}>
+														{b.name}
+													</SelectItem>
+												))}
+										</SelectContent>
+									</Select>
+								</div>
 							</div>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="body">Description</Label>
-							<Textarea
-								id="body"
-								value={newPR.body}
-								onChange={(e) =>
-									setNewPR((p) => ({ ...p, body: e.target.value }))
-								}
-								placeholder="Describe your changes…"
-								rows={5}
-							/>
-						</div>
-					</NewThreadDialog>
-				)}
+							<div className="space-y-1.5">
+								<Label htmlFor="body">Description</Label>
+								<Textarea
+									id="body"
+									value={newPR.body}
+									onChange={(e) =>
+										setNewPR((p) => ({ ...p, body: e.target.value }))
+									}
+									placeholder="Describe your changes…"
+									rows={5}
+								/>
+							</div>
+						</NewThreadDialog>
+					)
+				}
+			/>
+
+			<div className="space-y-3">
+				<ThreadSearchBox
+					value={q}
+					onSearch={setQuery}
+					placeholder="Search pull requests… (is:open label:bug author:you)"
+					ariaLabel="Search pull requests"
+				/>
+
+				<ThreadFilters
+					q={q}
+					repoId={repo?.id}
+					tabs={PULL_REQUEST_STATUS_TABS}
+					loadedCount={pullRequests?.length ?? 0}
+					onQueryChange={setQuery}
+				/>
 			</div>
-
-			<ThreadSearchBox
-				value={q}
-				onSearch={setQuery}
-				placeholder="Search pull requests… (is:open label:bug author:you)"
-				ariaLabel="Search pull requests"
-			/>
-
-			<ThreadFilters
-				q={q}
-				repoId={repo?.id}
-				tabs={PULL_REQUEST_STATUS_TABS}
-				loadedCount={pullRequests?.length ?? 0}
-				onQueryChange={setQuery}
-			/>
 
 			<ThreadList
 				threads={pullRequests}
@@ -285,7 +289,7 @@ function PullRequestsPage() {
 				emptyMessage={`No ${activeTab !== "all" ? activeTab : ""} pull requests found.`}
 				emptyAction={
 					session?.user ? (
-						<Button size="sm" onClick={() => setIsCreateOpen(true)}>
+						<Button onClick={() => setIsCreateOpen(true)}>
 							Create first pull request
 						</Button>
 					) : (
@@ -295,12 +299,11 @@ function PullRequestsPage() {
 			>
 				{(pr) => (
 					<ThreadRow kind="pull" owner={owner} name={name} thread={pr}>
-						<span className="hidden sm:inline">&middot;</span>
-						<code className="inline-flex items-center gap-1 font-mono">
+						<span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 font-mono break-all">
 							{pr.sourceBranch}
-							<ArrowRight className="size-3" />
+							<ArrowRight className="size-3 shrink-0" aria-hidden="true" />
 							{pr.targetBranch}
-						</code>
+						</span>
 					</ThreadRow>
 				)}
 			</ThreadList>

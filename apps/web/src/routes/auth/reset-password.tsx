@@ -62,9 +62,7 @@ function ResetPasswordPage() {
 			title="Set new password"
 			subtitle="Enter your new password below"
 		>
-			<form onSubmit={handleSubmit} className="space-y-5">
-				<ErrorAlert message={error} />
-
+			<form onSubmit={handleSubmit} className="space-y-3">
 				<FormField label="New password" htmlFor="password">
 					<Input
 						id="password"
@@ -88,6 +86,8 @@ function ResetPasswordPage() {
 						autoComplete="new-password"
 					/>
 				</FormField>
+
+				<ErrorAlert message={error} />
 
 				<LoadingButton
 					type="submit"

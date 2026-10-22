@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterTabs } from "@/components/FilterTabs";
+import { PageHeader } from "@/components/PageHeader";
 import { RepositoryCard } from "@/components/repo/RepositoryCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -67,31 +68,32 @@ function SearchPage() {
 	const active = type === "users" ? userResults : repoResults;
 
 	return (
-		<main className="page-wrap px-4 py-10">
-			<div className="mb-6">
-				<h1 className="text-3xl font-bold text-foreground">Search</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
-					Find repositories and people across PushStack.
-				</p>
-			</div>
+		<main className="page-wrap py-6 sm:py-8">
+			<PageHeader
+				title="Search"
+				description="Find repositories and people across PushStack."
+			/>
 
-			<form onSubmit={handleSubmit} className="mb-6 flex max-w-xl gap-2">
+			<form
+				onSubmit={handleSubmit}
+				className="island-shell mb-6 flex items-center gap-2 rounded-[16px] p-2"
+			>
 				<Input
 					type="search"
 					value={inputValue}
 					onChange={(e) => setInputValue(e.target.value)}
 					placeholder="Search repositories and users…"
 					aria-label="Search query"
-					autoFocus
+					className="min-w-0 flex-1"
 				/>
-				<Button type="submit" size="sm" className="h-9">
+				<Button type="submit" className="shrink-0 px-5">
 					Search
 				</Button>
 			</form>
 
 			{q ? (
 				<>
-					<div className="mb-5">
+					<div className="mb-4">
 						<FilterTabs<SearchType>
 							tabs={[
 								{
@@ -115,34 +117,38 @@ function SearchPage() {
 						/>
 					</div>
 
-					{active.isLoading ? (
-						<div className="grid gap-3 md:grid-cols-2">
-							{[1, 2, 3, 4].map((i) => (
-								<Skeleton key={i} className="h-24" />
-							))}
-						</div>
-					) : active.isError ? (
-						<EmptyState
-							variant="error"
-							message="Search failed."
-							action={
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => active.refetch()}
-								>
-									Try again
-								</Button>
-							}
-						/>
-					) : type === "repositories" ? (
-						<RepositoryResults
-							repositories={repoResults.data ?? []}
-							query={q}
-						/>
-					) : (
-						<UserResults users={userResults.data ?? []} query={q} />
-					)}
+					<section aria-labelledby="search-results-heading">
+						<h2
+							id="search-results-heading"
+							className="mb-3 text-sm font-semibold text-foreground"
+						>
+							{type === "repositories" ? "Repositories" : "People"}
+						</h2>
+						{active.isLoading ? (
+							<div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+								{[1, 2, 3, 4].map((i) => (
+									<Skeleton key={i} className="h-36" />
+								))}
+							</div>
+						) : active.isError ? (
+							<EmptyState
+								variant="error"
+								message="Search failed."
+								action={
+									<Button variant="outline" onClick={() => active.refetch()}>
+										Try again
+									</Button>
+								}
+							/>
+						) : type === "repositories" ? (
+							<RepositoryResults
+								repositories={repoResults.data ?? []}
+								query={q}
+							/>
+						) : (
+							<UserResults users={userResults.data ?? []} query={q} />
+						)}
+					</section>
 				</>
 			) : (
 				<EmptyState message="Type a query to search public repositories and users." />
@@ -163,14 +169,11 @@ function RepositoryResults({
 	}
 
 	return (
-		<>
-			<h2 className="sr-only">Repository results</h2>
-			<div className="grid gap-3 md:grid-cols-2">
-				{repositories.map((repo) => (
-					<RepositoryCard key={repo.id} repo={repo} />
-				))}
-			</div>
-		</>
+		<div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+			{repositories.map((repo) => (
+				<RepositoryCard key={repo.id} repo={repo} />
+			))}
+		</div>
 	);
 }
 
@@ -186,10 +189,14 @@ function UserResults({
 	}
 
 	return (
-		<div className="grid gap-3 md:grid-cols-2">
-			{users.map((person) => {
-				const card = (
-					<div className="flex items-center gap-3">
+		<ul className="island-shell divide-y divide-border overflow-hidden rounded-[20px]">
+			{users.map((person) => (
+				<li key={person.id}>
+					<Link
+						to="/$owner"
+						params={{ owner: person.username }}
+						className="flex items-center gap-3 px-4 py-3.5 no-underline transition-colors hover:bg-muted/50"
+					>
 						<Avatar>
 							{person.image && (
 								<AvatarImage src={person.image} alt={person.name} />
@@ -206,20 +213,9 @@ function UserResults({
 								@{person.username}
 							</div>
 						</div>
-					</div>
-				);
-
-				return (
-					<Link
-						key={person.id}
-						to="/$owner"
-						params={{ owner: person.username }}
-						className="island-shell feature-card block rounded-xl p-4 no-underline"
-					>
-						{card}
 					</Link>
-				);
-			})}
-		</div>
+				</li>
+			))}
+		</ul>
 	);
 }
