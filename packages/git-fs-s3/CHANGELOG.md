@@ -13,7 +13,8 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in-memory `fetch` speaking enough of the S3 REST API to drive
   `createFetchS3Store` (and its SigV4 signing) in tests without a network
   (pushstack#169).
-### Performance
+
+### Changed
 
 - `findPackIndexOffset` (behind `getObjectSize`, `getObjectSizes` and
   `getObjectTypes`) binary-searches the `.idx` fanout instead of decoding and
