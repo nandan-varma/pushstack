@@ -1,6 +1,7 @@
 import { createTwoFilesPatch } from "diff";
 import git, { type WalkerEntry } from "isomorphic-git";
 import { readBlobContent } from "../edge-utils.js";
+import { GitError } from "../git-errors.js";
 import { getObjectSize } from "../object-size.js";
 import { createSemaphore } from "../semaphore.js";
 import { getCommit, resolveCommit } from "./history.js";
@@ -8,6 +9,71 @@ import type { Repo } from "./types.js";
 
 /** Text files larger than this get no patch (kind "too-large"). */
 export const MAX_DIFF_TEXT_BYTES = 1024 * 1024;
+
+/** Aggregate work allowed for one diff, including binary files and gitlinks. */
+export interface DiffLimits {
+	maxFiles?: number;
+	/** Maximum blob input bytes and maximum UTF-8 patch bytes (each). */
+	maxBytes?: number;
+}
+export const MAX_DIFF_FILES = 3000;
+export const MAX_DIFF_BYTES = 10 * 1024 * 1024;
+
+/** A refused diff is distinguishable from an empty or truncated diff. */
+export class DiffLimitError extends GitError {
+	constructor(
+		readonly metric: "files" | "bytes",
+		readonly limit: number,
+	) {
+		super(
+			`Diff exceeds the limit of ${limit} ${metric}; clone the repository to compare locally`,
+			406,
+		);
+	}
+}
+
+class DiffBudget {
+	private files = 0;
+	private inputBytes = 0;
+	private patchBytes = 0;
+	private failure: DiffLimitError | undefined;
+	readonly maxFiles: number;
+	readonly maxBytes: number;
+
+	constructor(limits: DiffLimits) {
+		this.maxFiles = limits.maxFiles ?? MAX_DIFF_FILES;
+		this.maxBytes = limits.maxBytes ?? MAX_DIFF_BYTES;
+		for (const value of [this.maxFiles, this.maxBytes]) {
+			if (!Number.isSafeInteger(value) || value < 0)
+				throw new RangeError("Diff limits must be non-negative safe integers");
+		}
+	}
+	check(): void {
+		if (this.failure) throw this.failure;
+	}
+	private enforce(
+		metric: "files" | "bytes",
+		used: number,
+		limit: number,
+	): void {
+		this.check();
+		if (used > limit) {
+			this.failure = new DiffLimitError(metric, limit);
+			throw this.failure;
+		}
+	}
+	addFile(): void {
+		this.enforce("files", ++this.files, this.maxFiles);
+	}
+	addInput(bytes: number): void {
+		this.inputBytes += bytes;
+		this.enforce("bytes", this.inputBytes, this.maxBytes);
+	}
+	addPatch(patch: string): void {
+		this.patchBytes += new TextEncoder().encode(patch).byteLength;
+		this.enforce("bytes", this.patchBytes, this.maxBytes);
+	}
+}
 
 /**
  * Blob reads and size probes one diff may have in flight at once. The walk
@@ -170,8 +236,11 @@ async function diffTrees(
 	repo: Repo,
 	oldTreeOid: string | null,
 	newTreeOid: string,
+	limits: DiffLimits,
 ): Promise<Omit<DiffResult, "oldRef" | "newRef">> {
 	const reads = createSemaphore(MAX_CONCURRENT_READS);
+	const filesInFlight = createSemaphore(MAX_CONCURRENT_READS);
+	const budget = new DiffBudget(limits);
 
 	/**
 	 * A blob side's oid plus its size from its pack entry — asked before any
@@ -185,15 +254,26 @@ async function diffTrees(
 	): Promise<SideMeta | null> => {
 		if (!entry || (await entry.type()) !== "blob") return null;
 		const oid = await entry.oid();
-		return { oid, size: await reads.run(() => getObjectSize(repo, oid)) };
+		return {
+			oid,
+			size: await reads.run(() => {
+				budget.check();
+				return getObjectSize(repo, oid);
+			}),
+		};
 	};
 
 	/** The side's content, or `null` when it isn't there. */
 	const readContent = async (side: SideMeta | null) => {
 		if (!side) return null;
-		const { blob } = await reads.run(() =>
-			git.readBlob({ ...repo, oid: side.oid }),
-		);
+		const { blob } = await reads.run(() => {
+			budget.check();
+			return git.readBlob({ ...repo, oid: side.oid });
+		});
+		// Packed sizes are charged before reads; unknown (e.g. loose) sizes
+		// are charged before decoding or patch formatting.
+		if (side.size === null) budget.addInput(blob.byteLength);
+		budget.check();
 		return readBlobContent(blob);
 	};
 	const trees = oldTreeOid
@@ -202,60 +282,71 @@ async function diffTrees(
 	const changes: (DiffFile | undefined)[] = await git.walk({
 		...repo,
 		trees,
-		map: async (filepath, entries) => {
-			const [oldEntry, newEntry] = oldTreeOid
-				? [entries[0] ?? null, entries[1] ?? null]
-				: [null, entries[0] ?? null];
-			const [oldType, newType] = await Promise.all([
-				oldEntry?.type(),
-				newEntry?.type(),
-			]);
-			// Gitlinks name external commits: compare the pointers, never read them.
-			if (oldType === "commit" || newType === "commit") {
-				const [before, after] = await Promise.all([
-					readDiffEntry(oldEntry),
-					readDiffEntry(newEntry),
+		map: (filepath, entries) =>
+			filesInFlight.run(async () => {
+				budget.check();
+				const [oldEntry, newEntry] = oldTreeOid
+					? [entries[0] ?? null, entries[1] ?? null]
+					: [null, entries[0] ?? null];
+				const [oldType, newType] = await Promise.all([
+					oldEntry?.type(),
+					newEntry?.type(),
 				]);
-				return buildSubmoduleDiff(filepath, before, after);
-			}
-			if (oldType !== "blob" && newType !== "blob") return undefined;
-			if (oldEntry && newEntry && oldType === newType) {
-				const [oldOid, newOid] = await Promise.all([
-					oldEntry.oid(),
-					newEntry.oid(),
+				// Gitlinks name external commits: compare the pointers, never read them.
+				if (oldType === "commit" || newType === "commit") {
+					const [before, after] = await Promise.all([
+						readDiffEntry(oldEntry),
+						readDiffEntry(newEntry),
+					]);
+					if (before?.type === after?.type && before?.oid === after?.oid)
+						return undefined;
+					budget.addFile();
+					const file = buildSubmoduleDiff(filepath, before, after);
+					if (file) budget.addPatch(file.patch);
+					return file;
+				}
+				if (oldType !== "blob" && newType !== "blob") return undefined;
+				if (oldEntry && newEntry && oldType === newType) {
+					const [oldOid, newOid] = await Promise.all([
+						oldEntry.oid(),
+						newEntry.oid(),
+					]);
+					if (oldOid === newOid) return undefined;
+				}
+				budget.addFile();
+				const [oldSide, newSide] = await Promise.all([
+					sideMeta(oldEntry),
+					sideMeta(newEntry),
 				]);
-				if (oldOid === newOid) return undefined;
-			}
-			const [oldSide, newSide] = await Promise.all([
-				sideMeta(oldEntry),
-				sideMeta(newEntry),
-			]);
-			// A file over the limit gets no patch and is never read: that check is
-			// the reason the size is asked for first.
-			if (
-				(oldSide?.size ?? 0) > MAX_DIFF_TEXT_BYTES ||
-				(newSide?.size ?? 0) > MAX_DIFF_TEXT_BYTES
-			) {
-				return {
-					path: filepath,
-					status: !oldSide ? "added" : !newSide ? "deleted" : "modified",
-					kind: "too-large",
-					additions: 0,
-					deletions: 0,
-					patch: "",
-					oldSize: oldSide?.size ?? undefined,
-					newSize: newSide?.size ?? undefined,
-				} satisfies DiffFile;
-			}
+				// A file over the limit gets no patch and is never read: that check is
+				// the reason the size is asked for first.
+				if (
+					(oldSide?.size ?? 0) > MAX_DIFF_TEXT_BYTES ||
+					(newSide?.size ?? 0) > MAX_DIFF_TEXT_BYTES
+				) {
+					return {
+						path: filepath,
+						status: !oldSide ? "added" : !newSide ? "deleted" : "modified",
+						kind: "too-large",
+						additions: 0,
+						deletions: 0,
+						patch: "",
+						oldSize: oldSide?.size ?? undefined,
+						newSize: newSide?.size ?? undefined,
+					} satisfies DiffFile;
+				}
 
-			const [before, after] = await Promise.all([
-				readContent(oldSide),
-				readContent(newSide),
-			]);
-			return before || after
-				? buildDiffFile(filepath, before, after)
-				: undefined;
-		},
+				budget.addInput((oldSide?.size ?? 0) + (newSide?.size ?? 0));
+				const [before, after] = await Promise.all([
+					readContent(oldSide),
+					readContent(newSide),
+				]);
+				budget.check();
+				const file =
+					before || after ? buildDiffFile(filepath, before, after) : undefined;
+				if (file) budget.addPatch(file.patch);
+				return file;
+			}),
 	});
 	const files = (changes ?? []).filter((file): file is DiffFile => !!file);
 	return {
@@ -270,6 +361,7 @@ async function diffTrees(
 export async function getCommitDiff(
 	repo: Repo,
 	commitSha: string,
+	limits: DiffLimits = {},
 ): Promise<DiffResult> {
 	const { commit } = await getCommit(repo, commitSha);
 	const parent = commit.parent[0];
@@ -277,7 +369,7 @@ export async function getCommitDiff(
 		? (await getCommit(repo, parent)).commit.tree
 		: null;
 	return {
-		...(await diffTrees(repo, parentTree, commit.tree)),
+		...(await diffTrees(repo, parentTree, commit.tree, limits)),
 		oldRef: parent,
 		newRef: commitSha,
 	};
@@ -293,6 +385,7 @@ export async function getDiffBetweenRefs(
 	repo: Repo,
 	baseRef: string,
 	compareRef: string,
+	limits: DiffLimits = {},
 ): Promise<DiffResult> {
 	const [base, compare] = await Promise.all([
 		resolveCommit(repo, baseRef),
@@ -309,7 +402,7 @@ export async function getDiffBetweenRefs(
 				? base.commit.tree
 				: (await getCommit(repo, mergeBase)).commit.tree;
 	return {
-		...(await diffTrees(repo, baseTree, compare.commit.tree)),
+		...(await diffTrees(repo, baseTree, compare.commit.tree, limits)),
 		oldRef: mergeBase,
 		newRef: compare.oid,
 	};

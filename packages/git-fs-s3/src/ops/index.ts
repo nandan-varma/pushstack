@@ -20,9 +20,13 @@ export {
 export {
 	type DiffEntry,
 	type DiffFile,
+	DiffLimitError,
+	type DiffLimits,
 	type DiffResult,
 	getCommitDiff,
 	getDiffBetweenRefs,
+	MAX_DIFF_BYTES,
+	MAX_DIFF_FILES,
 	MAX_DIFF_TEXT_BYTES,
 } from "./diff.js";
 export {

@@ -287,3 +287,14 @@ When a new finding appears, inspect its dependency path with `pnpm why` and
 `pnpm audit --json`, upgrade its owner, then run the full validation suite.
 [Earlier incidents](/docs/internals/security-history#dependency-vulnerabilities) explain
 why overrides and advisory exclusions were removed.
+
+## Aggregate diff work
+
+All diff computation uses the git-fs-s3 operations' default budgets of 3,000
+changed paths and 10 MiB each for blob input and UTF-8 patch output. Packed
+blob sizes count before inflation and patch formatting; unknown sizes count
+before decoding. File work and object reads are bounded to 16 concurrent
+operations, and queued work stops after a budget failure. The typed
+`DiffLimitError` propagates to Files views; REST and plain-text diff/patch
+endpoints return 406 instead of silently returning an empty diff. Per-file
+oversize blobs retain their existing metadata-only representation.
