@@ -13,6 +13,13 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in-memory `fetch` speaking enough of the S3 REST API to drive
   `createFetchS3Store` (and its SigV4 signing) in tests without a network
   (pushstack#169).
+### Performance
+
+- `findPackIndexOffset` (behind `getObjectSize`, `getObjectSizes` and
+  `getObjectTypes`) binary-searches the `.idx` fanout instead of decoding and
+  hex-encoding the whole index on every lookup. Sizing a 635-blob tree against
+  a ~10k-object pack drops from ~2.5 s to ~20 ms. An entry past 2 GiB now
+  answers `null` on its own rather than making the whole index unreadable.
 
 ### Fixed
 
