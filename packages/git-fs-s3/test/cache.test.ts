@@ -425,6 +425,18 @@ describe("createCachedStore — reads racing writes", () => {
 			expect(await cached.get("pack")).toHaveLength(8);
 		});
 
+		it("slices a cached whole object instead of reading the backend", async () => {
+			const { spy, cached } = await setup({ maxRangeBytes: 2 });
+			await cached.get("pack");
+			expect(await cached.getRange?.("pack", 2, 4)).toEqual(
+				new Uint8Array([2, 3, 4]),
+			);
+			expect(await cached.getRange?.("pack", 6, 20)).toEqual(
+				new Uint8Array([6, 7]),
+			);
+			expect(spy).not.toHaveBeenCalled();
+		});
+
 		it("bypasses the cache above maxRangeBytes", async () => {
 			const { spy, cached } = await setup({ maxRangeBytes: 2 });
 			await cached.getRange?.("pack", 0, 2);
@@ -452,7 +464,10 @@ describe("createCachedStore — reads racing writes", () => {
 			await cached.getRange?.("pack", 0, 0);
 			cached.invalidate("pa");
 			await cached.getRange?.("pack", 0, 0);
-			expect(spy).toHaveBeenCalledTimes(5);
+			// A put caches the whole object, so ranges after it are sliced from
+			// that; the backend sees the first read, the post-delete miss and the
+			// read after invalidation.
+			expect(spy).toHaveBeenCalledTimes(3);
 		});
 
 		it("does not cache a slice fetched before a write, nor join it afterwards", async () => {

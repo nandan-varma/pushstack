@@ -356,6 +356,14 @@ export function createCachedStore(
 						start: number,
 						end: number,
 					): Promise<Uint8Array | null> {
+						// The whole object is already here (a prefetched pack):
+						// slice it rather than asking the backend again.
+						const whole = cache.get(key);
+						if (whole instanceof Uint8Array) {
+							onHit?.(key);
+							const slice = whole.subarray(start, end + 1);
+							return copy ? slice.slice() : slice;
+						}
 						if (end - start + 1 > maxRangeBytes) return range(key, start, end);
 						const rangeKey = `${rangePrefix(key)}${start}\0${end}`;
 						const cached = rangeCache.get(rangeKey);
