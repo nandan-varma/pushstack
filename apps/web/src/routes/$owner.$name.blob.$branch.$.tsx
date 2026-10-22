@@ -158,13 +158,28 @@ function FileBlobPage() {
 	return (
 		<Tabs defaultValue={previewMode ? "preview" : "code"} className="gap-4">
 			<Toolbar>
-				<PathBreadcrumb
-					owner={owner}
-					name={name}
-					branch={branch}
-					filePath={filePath}
-					asHeading
-				/>
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+					<PathBreadcrumb
+						owner={owner}
+						name={name}
+						branch={branch}
+						filePath={filePath}
+						asHeading
+					/>
+					<p className="flex items-center gap-x-2 text-xs text-bjork-text-soft tabular-nums">
+						{lineCount !== undefined && (
+							<>
+								<span>
+									{lineCount} {lineCount === 1 ? "line" : "lines"}
+								</span>
+								<span aria-hidden="true">·</span>
+							</>
+						)}
+						<span>{formatFileSize(file.size)}</span>
+						<span aria-hidden="true">·</span>
+						<span>{language}</span>
+					</p>
+				</div>
 				<TabsList>
 					{previewMode && <TabsTrigger value="preview">Preview</TabsTrigger>}
 					<TabsTrigger value="code">Code</TabsTrigger>
@@ -196,15 +211,7 @@ function FileBlobPage() {
 						</Link>
 					) : null}
 				</div>
-			) : (
-				<FileCommitBanner
-					owner={owner}
-					name={name}
-					repoId={repo?.id ?? 0}
-					branch={branch}
-					filePath={filePath}
-				/>
-			)}
+			) : null}
 
 			{(["preview", "code"] as const).map((view) =>
 				view === "preview" && !previewMode ? null : (
@@ -220,19 +227,20 @@ function FileBlobPage() {
 									/>
 								}
 							>
-								<p className="flex flex-wrap items-center gap-x-2 text-xs text-bjork-text-soft tabular-nums">
-									{lineCount !== undefined && (
-										<>
-											<span>
-												{lineCount} {lineCount === 1 ? "line" : "lines"}
-											</span>
-											<span aria-hidden="true">·</span>
-										</>
-									)}
-									<span>{formatFileSize(file.size)}</span>
-									<span aria-hidden="true">·</span>
-									<span>{language}</span>
-								</p>
+								{isPinnedRevision ? (
+									<span className="font-mono text-xs text-bjork-text-soft">
+										@ {branch.substring(0, 7)}
+									</span>
+								) : (
+									<FileCommitBanner
+										owner={owner}
+										name={name}
+										repoId={repo?.id ?? 0}
+										branch={branch}
+										filePath={filePath}
+										bare
+									/>
+								)}
 							</PanelHeader>
 							{view === "preview" ? (
 								<div

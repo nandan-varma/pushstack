@@ -231,6 +231,10 @@ function PullRequestDetailPage() {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
 				});
+				// The sidebar shows open counts from the repository row.
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repositoryByName(owner, name),
+				});
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.repoFilesRoot(pr.repoId),
 				});
@@ -261,6 +265,10 @@ function PullRequestDetailPage() {
 			if (pr) {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
+				});
+				// The sidebar shows open counts from the repository row.
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repositoryByName(owner, name),
 				});
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(pr.repoId),
@@ -298,7 +306,7 @@ function PullRequestDetailPage() {
 		return (
 			<div>
 				<DetailHeaderSkeleton />
-				<SplitLayout main={<AvatarBodySkeleton />} aside={null} />
+				<SplitLayout main={<AvatarBodySkeleton />} />
 			</div>
 		);
 	}

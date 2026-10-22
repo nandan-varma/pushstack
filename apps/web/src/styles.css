@@ -592,8 +592,9 @@ pre code {
   background-color: #67060c;
 }
 
+/* Every app page's frame: one width and gutter, so edges never move. */
 .page-wrap {
-  width: min(1280px, 100%);
+  width: min(1400px, 100%);
   margin-inline: auto;
   padding-inline: 1rem;
 }
@@ -601,6 +602,17 @@ pre code {
 @media (min-width: 40rem) {
   .page-wrap {
     padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .page-wrap {
+    padding-inline: 2rem;
+  }
+
+  /* Beside the sidebar, pages hang from the left edge like any app pane. */
+  .app-main .page-wrap {
+    margin-inline: 0;
   }
 }
 

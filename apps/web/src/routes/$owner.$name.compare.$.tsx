@@ -108,6 +108,10 @@ function ComparePage() {
 			await queryClient.invalidateQueries({
 				queryKey: queryKeys.pullRequestsRoot(repo.id),
 			});
+			// The sidebar shows open counts from the repository row.
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.repositoryByName(owner, name),
+			});
 			setOpen(false);
 			toast("Pull request created", "success");
 			navigate({

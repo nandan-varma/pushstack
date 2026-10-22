@@ -30,40 +30,31 @@ export function Page({
 }
 
 /**
- * Main column plus a 296px aside on wide screens; the aside drops under the
- * main column on narrow ones (or above it with `asideFirst`).
+ * Main column plus a 280px aside. It responds to its own width, not the
+ * viewport's, so it works in a full page and in a split view's detail pane
+ * alike: narrow, the aside becomes a compact strip above the main column.
  */
 export function SplitLayout({
 	main,
 	aside,
-	asideFirst = false,
 	className,
 }: {
 	main: React.ReactNode;
-	aside: React.ReactNode;
-	asideFirst?: boolean;
+	/** Omit while loading so no empty aside surface flashes in. */
+	aside?: React.ReactNode;
 	className?: string;
 }) {
+	if (!aside) {
+		return <div className={cn("min-w-0 space-y-4", className)}>{main}</div>;
+	}
 	return (
-		<div
-			className={cn(
-				"grid gap-8 lg:grid-cols-[minmax(0,1fr)_296px] lg:items-start",
-				className,
-			)}
-		>
-			<div
-				className={cn("min-w-0 space-y-4", asideFirst && "order-2 lg:order-1")}
-			>
-				{main}
+		<div className={cn("@container", className)}>
+			<div className="grid gap-5 @4xl:grid-cols-[minmax(0,1fr)_280px] @4xl:items-start @4xl:gap-8">
+				<aside className="order-first grid min-w-0 gap-x-6 gap-y-4 rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-4 @lg:grid-cols-3 @4xl:sticky @4xl:top-6 @4xl:order-last @4xl:block @4xl:space-y-5 @4xl:border-0 @4xl:bg-transparent @4xl:p-0">
+					{aside}
+				</aside>
+				<div className="min-w-0 space-y-4">{main}</div>
 			</div>
-			<aside
-				className={cn(
-					"min-w-0 space-y-6 lg:sticky lg:top-20",
-					asideFirst && "order-1 lg:order-2",
-				)}
-			>
-				{aside}
-			</aside>
 		</div>
 	);
 }
@@ -83,11 +74,11 @@ export function AsideSection({
 	return (
 		<section
 			className={cn(
-				"border-b border-bjork-border-muted pb-6 last:border-0 last:pb-0",
+				"min-w-0 @4xl:border-b @4xl:border-bjork-border-muted @4xl:pb-5 @4xl:last:border-0 @4xl:last:pb-0",
 				className,
 			)}
 		>
-			<div className="mb-3 flex items-center justify-between gap-2">
+			<div className="mb-2 flex min-h-6 items-center justify-between gap-2">
 				<h2 className="font-mono text-[10px] font-medium tracking-[0.12em] text-bjork-text-soft uppercase">
 					{title}
 				</h2>

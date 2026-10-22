@@ -17,12 +17,15 @@ export function FileCommitBanner({
 	repoId,
 	branch,
 	filePath,
+	bare = false,
 }: {
 	owner: string;
 	name: string;
 	repoId: number;
 	branch: string;
 	filePath: string;
+	/** Without its own surface, for a panel header that already has one. */
+	bare?: boolean;
 }) {
 	const { data, isLoading } = useQuery({
 		...repositoryFileHistoryQueryOptions({
@@ -38,12 +41,18 @@ export function FileCommitBanner({
 	const commit = data?.entries[0];
 
 	if (isLoading) {
-		return <Skeleton className="h-12 rounded-[18px]" />;
+		return <Skeleton className={bare ? "h-4 w-72" : "h-12 rounded-[18px]"} />;
 	}
 	if (!commit) return null;
 
 	return (
-		<div className="flex min-h-12 items-center gap-3 rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-5 py-2.5 shadow-(--bjork-shadow-soft)">
+		<div
+			className={
+				bare
+					? "flex min-w-0 flex-1 items-center gap-3"
+					: "flex min-h-12 items-center gap-3 rounded-[18px] border border-bjork-border-muted bg-bjork-surface px-5 py-2.5 shadow-(--bjork-shadow-soft)"
+			}
+		>
 			<Avatar size="sm" className="shrink-0">
 				<AvatarFallback className="text-[11px]">
 					{getInitials(commit.authorName || "U")}

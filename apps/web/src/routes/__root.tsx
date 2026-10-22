@@ -9,9 +9,9 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { type ReactNode, useEffect } from "react";
+import { AppShell } from "@/components/shell/AppShell";
+import { authSessionQueryOptions } from "@/lib/query-options";
 import { ErrorPanel } from "../components/ErrorPanel";
-import Footer from "../components/Footer";
-import Header from "../components/Header";
 import { RouteLoadingBar } from "../components/RouteLoadingBar";
 import { ToastProvider } from "../components/toast-provider";
 import { Button } from "../components/ui/button";
@@ -28,6 +28,12 @@ interface MyRouterContext {
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
+	// The sidebar's navigation depends on who is signed in. Resolving the
+	// session before render means the server paints the right sidebar instead
+	// of a signed-out one that swaps after hydration. (Cookieless requests
+	// return without touching auth; later navigations hit the cache.)
+	loader: ({ context: { queryClient } }) =>
+		queryClient.ensureQueryData(authSessionQueryOptions()),
 	head: () => ({
 		meta: [
 			{
@@ -179,11 +185,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 				<RouteLoadingBar />
 				<TanStackQueryProvider>
 					<ToastProvider>
-						<Header />
-						<main id="main-content" className="flex min-w-0 flex-1 flex-col">
-							{children}
-						</main>
-						<Footer />
+						<AppShell>{children}</AppShell>
 					</ToastProvider>
 					{import.meta.env.DEV && (
 						<TanStackDevtools

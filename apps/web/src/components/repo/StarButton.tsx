@@ -26,7 +26,7 @@ export function StarButton({
 }) {
 	const { ref, triggerProps } = useIconAnimation<HTMLButtonElement>();
 	return (
-		<div className="inline-flex h-10 items-stretch overflow-hidden rounded-[13px] border border-bjork-border bg-bjork-surface text-sm shadow-[var(--bjork-shadow-soft)] transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
+		<div className="flex h-9 w-full items-stretch overflow-hidden rounded-[13px] border border-bjork-border bg-bjork-surface text-sm shadow-[var(--bjork-shadow-soft)] transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
 			<Button
 				type="button"
 				variant="ghost"
@@ -41,7 +41,7 @@ export function StarButton({
 					onToggle();
 				}}
 				{...triggerProps}
-				className="h-full gap-2 rounded-none border-0 px-3 text-bjork-text hover:bg-bjork-surface-hover focus-visible:ring-0"
+				className="h-full flex-1 justify-start gap-2 rounded-none border-0 px-3 text-bjork-text hover:bg-bjork-surface-hover focus-visible:ring-0"
 			>
 				<StarIcon
 					ref={ref}

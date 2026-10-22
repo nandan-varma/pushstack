@@ -25,6 +25,9 @@ export function CopyField({
 		>
 			<input
 				readOnly
+				// The server builds URLs from its configured origin; a preview
+				// deployment's browser origin can differ.
+				suppressHydrationWarning
 				value={value}
 				aria-label={label.replace(/^Copy /, "")}
 				onFocus={(event) => event.currentTarget.select()}

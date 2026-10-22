@@ -92,7 +92,7 @@ type ThreadSummary = {
 };
 
 const rowClass =
-	"flex w-full items-start gap-3 px-5 py-3.5 text-left no-underline transition-[background-color] duration-150 hover:bg-bjork-surface-hover focus-visible:bg-bjork-surface-hover focus-visible:outline-none";
+	"flex w-full items-start gap-3 px-5 py-3.5 text-left no-underline transition-[background-color] duration-150 hover:bg-bjork-surface-hover focus-visible:bg-bjork-surface-hover focus-visible:outline-none data-[status=active]:bg-bjork-surface-active data-[status=active]:shadow-[inset_2px_0_0_var(--bjork-accent)]";
 
 /** The status glyph sits on the row's first text line, not centred on the row. */
 function StatusIcon({

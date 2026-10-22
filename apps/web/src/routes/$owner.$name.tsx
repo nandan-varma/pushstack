@@ -10,10 +10,10 @@ import {
 import { ErrorPanel } from "@/components/ErrorPanel";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { BranchUpdateBanner } from "@/components/repo/BranchUpdateBanner";
+import { CodeWorkbench } from "@/components/repo/code/CodeWorkbench";
 import { GuestSignupBanner } from "@/components/repo/GuestSignupBanner";
-import { RepoHeader, RepoHeaderSkeleton } from "@/components/repo/RepoHeader";
-import { RepoTabNav, RepoTabNavSkeleton } from "@/components/repo/RepoTabNav";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useBranchUpdateBanner } from "@/hooks/use-branch-update-banner";
 import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
@@ -111,7 +111,7 @@ function RepositoryNotFound() {
 
 function RepositoryPage() {
 	const { owner, name } = Route.useParams();
-	const { branch } = useParams({ strict: false });
+	const { branch, _splat } = useParams({ strict: false });
 	const matchRoute = useMatchRoute();
 
 	const { data: repo, isLoading } = useQuery(
@@ -128,9 +128,8 @@ function RepositoryPage() {
 
 	if (isLoading) {
 		return (
-			<div className="page-wrap py-6 sm:py-8">
-				<RepoHeaderSkeleton />
-				<RepoTabNavSkeleton />
+			<div className="page-wrap py-5 lg:py-6">
+				<Skeleton className="h-9 w-64" />
 			</div>
 		);
 	}
@@ -145,20 +144,29 @@ function RepositoryPage() {
 	const watchingBranch = isCodeActive || isCommitsActive;
 
 	return (
-		<div className="page-wrap py-6 sm:py-8">
+		<div className="page-wrap py-5 lg:py-6">
 			<GuestSignupBanner repoLabel={`${owner}/${name}`} />
-			<RepoHeader owner={owner} name={name} repo={repo} />
-			<RepoTabNav
-				owner={owner}
-				name={name}
-				currentBranch={currentBranch}
-				isCodeActive={isCodeActive}
-				isCommitsActive={isCommitsActive}
-			/>
 			{watchingBranch && (
 				<BranchWatcher repoId={repo.id} branchName={currentBranch} />
 			)}
-			<Outlet />
+			{isCodeActive ? (
+				<CodeWorkbench
+					owner={owner}
+					name={name}
+					repoId={repo.id}
+					gitRef={currentBranch}
+					activePath={_splat ?? ""}
+					kind={
+						matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true })
+							? "blob"
+							: "tree"
+					}
+				>
+					<Outlet />
+				</CodeWorkbench>
+			) : (
+				<Outlet />
+			)}
 		</div>
 	);
 }

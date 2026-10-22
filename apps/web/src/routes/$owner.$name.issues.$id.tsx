@@ -141,6 +141,10 @@ function IssueDetailPage() {
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.repoIssuesRoot(issue.repoId),
 				});
+				// The sidebar shows open counts from the repository row.
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.repositoryByName(owner, name),
+				});
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.timelineRoot(issue.repoId),
 				});
@@ -162,7 +166,7 @@ function IssueDetailPage() {
 		return (
 			<div>
 				<DetailHeaderSkeleton />
-				<SplitLayout main={<AvatarBodySkeleton />} aside={null} />
+				<SplitLayout main={<AvatarBodySkeleton />} />
 			</div>
 		);
 	}

@@ -3,7 +3,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { repositories, repositoryCollaborators, stars } from "#/db/app-schema";
+import {
+	issues,
+	repositories,
+	repositoryCollaborators,
+	stars,
+} from "#/db/app-schema";
 import { MAX_LIST_SKIP, MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { recordActivity } from "./activity";
@@ -81,6 +86,19 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 		});
 	});
 
+/** Open issues and open pull requests, for the repository navigation. */
+async function openThreadCounts(repoId: number) {
+	const rows = await db
+		.select({ isPullRequest: issues.isPullRequest, n: count() })
+		.from(issues)
+		.where(and(eq(issues.repoId, repoId), eq(issues.status, "open")))
+		.groupBy(issues.isPullRequest);
+	return {
+		openIssueCount: rows.find((row) => !row.isPullRequest)?.n ?? 0,
+		openPullRequestCount: rows.find((row) => row.isPullRequest)?.n ?? 0,
+	};
+}
+
 async function starState(repoId: number, userId: string | undefined) {
 	const [[total], mine] = await Promise.all([
 		db.select({ value: count() }).from(stars).where(eq(stars.repoId, repoId)),
@@ -105,14 +123,22 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 				]),
 			);
 			if (!repo) throw notFound();
-			const [access, stars] = await perfStep("access + stars", () =>
-				Promise.all([
-					getAccessForRepository(repo, currentUser?.id),
-					starState(repo.id, currentUser?.id),
-				]),
+			const [access, stars, counts] = await perfStep(
+				"access + stars + counts",
+				() =>
+					Promise.all([
+						getAccessForRepository(repo, currentUser?.id),
+						starState(repo.id, currentUser?.id),
+						openThreadCounts(repo.id),
+					]),
 			);
 			if (!access.canRead) throw notFound();
-			return { ...repo, ...stars, viewer: { canWrite: access.canWrite } };
+			return {
+				...repo,
+				...stars,
+				...counts,
+				viewer: { canWrite: access.canWrite },
+			};
 		}),
 	);
 
