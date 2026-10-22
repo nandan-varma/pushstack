@@ -9,7 +9,7 @@ Three workspaces are published to npm:
 | --- | --- | --- |
 | `packages/git-fs-s3` | `git-fs-s3` | `git-fs-s3@v*` |
 | `packages/git-edge` | `git-edge` | `git-edge@v*` |
-| `apps/cli` | `pstk` | `pstk@v*` |
+| `apps/cli` | `@pstk/cli` | `@pstk/cli@v*` |
 
 `apps/web`, `apps/docs` and `packages/tsconfig` are private: the app and the docs
 site deploy from the repository, and the TypeScript configuration is consumed
