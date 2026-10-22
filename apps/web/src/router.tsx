@@ -1,4 +1,5 @@
 import { createRouter } from "@tanstack/react-router";
+import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 import { getGlobalStartContext } from "@tanstack/react-start";
 import { NotFoundCard } from "./components/NotFoundCard";
 import { getContext } from "./integrations/tanstack-query/root-provider";
@@ -23,6 +24,9 @@ export function getRouter() {
 	const nonce = (getGlobalStartContext() as StartRequestContext | undefined)
 		?.nonce;
 
+	// One QueryClient per request on the server (and one for the page's life in
+	// the browser), shared by loaders and components.
+	const context = getContext();
 	const router = createRouter({
 		routeTree,
 		ssr: nonce ? { nonce } : undefined,
@@ -33,7 +37,7 @@ export function getRouter() {
 		// loaders populate a QueryClient nothing reads from, and every
 		// component-level useQuery has to refetch from scratch, doubling every
 		// request the loader already made.
-		context: getContext(),
+		context,
 
 		defaultNotFoundComponent: () => (
 			<div className="page-wrap px-4 py-16">
@@ -52,6 +56,11 @@ export function getRouter() {
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 30_000,
 	});
+
+	// Streams what loaders fetched on the server into the page so components
+	// render it there and the browser hydrates the same data instead of
+	// refetching it, and provides the QueryClient to the whole tree.
+	setupRouterSsrQueryIntegration({ router, queryClient: context.queryClient });
 
 	if (!router.isServer && import.meta.env.VITE_SENTRY_DSN) {
 		void import("@sentry/tanstackstart-react").then((Sentry) => {

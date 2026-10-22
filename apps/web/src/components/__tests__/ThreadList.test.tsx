@@ -52,7 +52,7 @@ describe("ThreadList", () => {
 				{() => null}
 			</ThreadList>,
 		);
-		expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(3);
+		expect(container.querySelectorAll("[aria-busy=\"true\"] li")).toHaveLength(3);
 	});
 
 	it("shows the empty message and action with no rows", () => {
@@ -90,7 +90,7 @@ describe("ThreadList", () => {
 		const link = screen.getByRole("link");
 		expect(link).toHaveAttribute("href", "/o/n/pulls/7");
 		expect(link).toHaveTextContent("Broken thing");
-		expect(link).toHaveTextContent("#7 opened");
+		expect(link).toHaveTextContent(/#7.*opened/);
 		expect(link).toHaveTextContent("by alice");
 		expect(link).toHaveTextContent("extra");
 		expect(link).toHaveTextContent("bug");

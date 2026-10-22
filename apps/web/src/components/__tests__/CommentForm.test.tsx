@@ -8,11 +8,11 @@ describe("CommentForm", () => {
 		render(<CommentForm value="" onChange={() => {}} onSubmit={() => {}} />);
 
 		expect(
-			screen.getByRole("textbox", { name: "Add a Comment" }),
+			screen.getByRole("textbox", { name: "Add a comment" }),
 		).toBeInTheDocument();
 	});
 
-	it("disables Post Comment until there is non-whitespace content", async () => {
+	it("disables Comment until there is non-whitespace content", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
 
@@ -20,28 +20,28 @@ describe("CommentForm", () => {
 			<CommentForm value="" onChange={onChange} onSubmit={() => {}} />,
 		);
 
-		expect(screen.getByRole("button", { name: "Post Comment" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Comment" })).toBeDisabled();
 
 		rerender(
 			<CommentForm value="   " onChange={onChange} onSubmit={() => {}} />,
 		);
-		expect(screen.getByRole("button", { name: "Post Comment" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Comment" })).toBeDisabled();
 
 		rerender(
 			<CommentForm value="hi" onChange={onChange} onSubmit={() => {}} />,
 		);
 		expect(
-			screen.getByRole("button", { name: "Post Comment" }),
+			screen.getByRole("button", { name: "Comment" }),
 		).not.toBeDisabled();
 
 		await user.type(
-			screen.getByRole("textbox", { name: "Add a Comment" }),
+			screen.getByRole("textbox", { name: "Add a comment" }),
 			"!",
 		);
 		expect(onChange).toHaveBeenCalled();
 	});
 
-	it("calls onSubmit when Post Comment is clicked", async () => {
+	it("calls onSubmit when Comment is clicked", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
@@ -53,7 +53,7 @@ describe("CommentForm", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Post Comment" }));
+		await user.click(screen.getByRole("button", { name: "Comment" }));
 		expect(onSubmit).toHaveBeenCalledTimes(1);
 	});
 
@@ -63,7 +63,7 @@ describe("CommentForm", () => {
 
 		render(<CommentForm value="   " onChange={() => {}} onSubmit={onSubmit} />);
 
-		const button = screen.getByRole("button", { name: "Post Comment" });
+		const button = screen.getByRole("button", { name: "Comment" });
 		expect(button).toBeDisabled();
 		await user.click(button);
 		expect(onSubmit).not.toHaveBeenCalled();
@@ -75,7 +75,7 @@ describe("CommentForm", () => {
 
 		render(<CommentForm value="" onChange={() => {}} onSubmit={onSubmit} />);
 
-		const button = screen.getByRole("button", { name: "Post Comment" });
+		const button = screen.getByRole("button", { name: "Comment" });
 		expect(button).toBeDisabled();
 		await user.click(button);
 		expect(onSubmit).not.toHaveBeenCalled();

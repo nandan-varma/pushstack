@@ -16,7 +16,6 @@ import { RouteLoadingBar } from "../components/RouteLoadingBar";
 import { ToastProvider } from "../components/toast-provider";
 import { Button } from "../components/ui/button";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
-import TanStackQueryProvider from "../integrations/tanstack-query/root-provider";
 import { SITE_DESCRIPTION, SITE_TITLE, SITE_URL } from "../lib/site";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
 import appCss from "../styles.css?url";
@@ -183,25 +182,23 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
 					Skip to content
 				</a>
 				<RouteLoadingBar />
-				<TanStackQueryProvider>
-					<ToastProvider>
-						<AppShell>{children}</AppShell>
-					</ToastProvider>
-					{import.meta.env.DEV && (
-						<TanStackDevtools
-							config={{
-								position: "bottom-right",
-							}}
-							plugins={[
-								{
-									name: "Tanstack Router",
-									render: <TanStackRouterDevtoolsPanel />,
-								},
-								TanStackQueryDevtools,
-							]}
-						/>
-					)}
-				</TanStackQueryProvider>
+				<ToastProvider>
+					<AppShell>{children}</AppShell>
+				</ToastProvider>
+				{import.meta.env.DEV && (
+					<TanStackDevtools
+						config={{
+							position: "bottom-right",
+						}}
+						plugins={[
+							{
+								name: "Tanstack Router",
+								render: <TanStackRouterDevtoolsPanel />,
+							},
+							TanStackQueryDevtools,
+						]}
+					/>
+				)}
 				<Scripts />
 			</body>
 		</html>
