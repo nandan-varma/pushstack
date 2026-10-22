@@ -3,6 +3,15 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.19.1] - 2026-10-22
+
+### Fixed
+
+- Diff operations now refuse more than 3,000 changed files or 10 MiB of blob
+  input / UTF-8 patch output, with `DiffLimitError` instead of an empty result.
+  Optional `DiffLimits` tune these budgets. Packed sizes are charged before
+  reading blobs; work stops when a budget is exhausted, including queued reads.
+
 ## [0.19.0] - 2026-10-22
 
 ### Added

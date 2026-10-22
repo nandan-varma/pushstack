@@ -162,7 +162,7 @@ directory listings on large repos.
 
 <ApiSignature
 	name="getCommitDiff"
-	signature="getCommitDiff(repo: Repo, commitSha: string): Promise<DiffResult>"
+	signature="getCommitDiff(repo: Repo, commitSha: string, limits?: DiffLimits): Promise<DiffResult>"
 	returns="Promise<DiffResult>"
 >
 	The diff a single commit introduced, against its first parent. For a root
@@ -172,7 +172,7 @@ directory listings on large repos.
 
 <ApiSignature
 	name="getDiffBetweenRefs"
-	signature="getDiffBetweenRefs(repo: Repo, baseRef: string, compareRef: string): Promise<DiffResult>"
+	signature="getDiffBetweenRefs(repo: Repo, baseRef: string, compareRef: string, limits?: DiffLimits): Promise<DiffResult>"
 	returns="Promise<DiffResult>"
 >
 	What `compareRef` changed since it diverged from `baseRef` — a pull
@@ -195,3 +195,17 @@ Blob reads and size probes share one semaphore (`MAX_CONCURRENT_READS`), so a
 wide commit can't fan out into one object-store request per entry. When a
 side's size isn't available — a loose object, or a store without `getRange` —
 the blob is read and the same limit is applied afterwards.
+
+Both operations enforce aggregate work budgets by default: `MAX_DIFF_FILES`
+(3,000 changed paths) and `MAX_DIFF_BYTES` (10 MiB of blob input and, separately,
+UTF-8 patch output). Pass `{ maxFiles, maxBytes }` as the optional final
+`DiffLimits` argument to tune them. Both sides of changed blobs count toward
+input; files already skipped as `too-large` consume no blob input budget.
+Packed sizes are reserved before reading content. Unknown sizes are charged
+immediately after reading, before text decoding or patch formatting.
+
+Exceeding a budget throws `DiffLimitError` with `metric`, `limit`, and
+`statusCode: 406`; it never returns an empty or partial diff. Changed gitlinks
+and binary files count toward the file budget too. The app's Files views and
+commit/compare reads share these defaults, and REST and web `.diff`/`.patch`
+URLs return 406 so callers can use a local clone for larger comparisons.

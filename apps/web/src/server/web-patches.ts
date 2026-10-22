@@ -12,7 +12,11 @@
  * huge comparison never sits in memory whole.
  */
 import { isNotFoundError } from "git-fs-s3";
-import type { CommitInfo, DiffResult } from "git-fs-s3/ops";
+import {
+	type CommitInfo,
+	DiffLimitError,
+	type DiffResult,
+} from "git-fs-s3/ops";
 import { parseCompareSpec } from "#/lib/compare-spec";
 import { formatPatchSections, unifiedDiffSections } from "./api/patches";
 import { compareRevisions } from "./compare";
@@ -137,7 +141,7 @@ async function render(
 			const found = await perfStep("build", () => build(repo, body));
 			return found ? textResponse(body, repo) : notFound();
 		} catch (error) {
-			if (error instanceof TooLargeError) {
+			if (error instanceof TooLargeError || error instanceof DiffLimitError) {
 				return new Response(
 					"This diff is too large to render here. Clone the repository and use git diff instead.\n",
 					{ status: 406, headers: TEXT_HEADERS },

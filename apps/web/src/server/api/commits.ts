@@ -1,5 +1,9 @@
 import { eq, sql } from "drizzle-orm";
-import type { CommitInfo, DiffResult } from "git-fs-s3/ops";
+import {
+	type CommitInfo,
+	DiffLimitError,
+	type DiffResult,
+} from "git-fs-s3/ops";
 import { db } from "#/db";
 import { user } from "#/db/schema";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
@@ -32,7 +36,7 @@ import {
 	pageParams,
 } from "./http";
 import { pathParams, queryParams } from "./input";
-import { formatPatches, unifiedDiff } from "./patches";
+import { formatPatches, formatPatchSections, unifiedDiff } from "./patches";
 import { readableRepository } from "./repo-lookup";
 import { commitObject } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -314,13 +318,27 @@ export async function compareCommits(ctx: ApiContext) {
 	const format = mediaFormat(ctx.request);
 	if (format === "diff") return mediaResponse(unifiedDiff(diff), format, TEXT);
 	if (format === "patch") {
-		const patched = await Promise.all(
-			ahead.commits.slice(0, apiCaps.compareCommits).map(async (commit) => ({
-				info: await getCommit(ownerKey, repo.name, commit.sha),
-				diff: await getCommitDiff(ownerKey, repo.name, commit.sha),
-			})),
-		);
-		return mediaResponse(formatPatches(patched), format, TEXT);
+		const listed = ahead.commits.slice(0, apiCaps.compareCommits);
+		const sections: string[] = [];
+		let bytes = 0;
+		for (const [index, commit] of listed.entries()) {
+			const [info, commitDiff] = await Promise.all([
+				getCommit(ownerKey, repo.name, commit.sha),
+				getCommitDiff(ownerKey, repo.name, commit.sha),
+			]);
+			for (const section of formatPatchSections(
+				info,
+				commitDiff,
+				index,
+				listed.length,
+			)) {
+				bytes += new TextEncoder().encode(section).byteLength;
+				if (bytes > apiCaps.diffMediaBytes)
+					throw new DiffLimitError("bytes", apiCaps.diffMediaBytes);
+				sections.push(section);
+			}
+		}
+		return mediaResponse(sections.join(""), format, TEXT);
 	}
 	const mergeBase = diff.oldRef
 		? await getCommit(ownerKey, repo.name, diff.oldRef)

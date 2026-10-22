@@ -1,5 +1,6 @@
 import { type OperationId, routes } from "@pushstack/api-contract/client";
 import { isNotFoundError } from "git-fs-s3";
+import { DiffLimitError } from "git-fs-s3/ops";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
 import type { ApiContext } from "./auth";
@@ -252,6 +253,11 @@ async function dispatch(
 		}
 		if (error instanceof ApiError)
 			return applyRateHeaders(errorResponse(error), rate);
+		if (error instanceof DiffLimitError)
+			return applyRateHeaders(
+				errorResponse(new ApiError(406, error.message)),
+				rate,
+			);
 		if (isNotFoundError(error)) {
 			return applyRateHeaders(errorResponse(notFoundError()), rate);
 		}
