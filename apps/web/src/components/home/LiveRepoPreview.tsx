@@ -17,7 +17,7 @@ import {
 import { DEMO_REPO, SITE_URL } from "@/lib/site";
 
 const { owner, name } = DEMO_REPO;
-const CLONE_URL = `${SITE_URL}/api/git/${owner}/${name}.git`;
+const CLONE_URL = `${SITE_URL}/${owner}/${name}.git`;
 
 export function LiveRepoPreview() {
 	const { data: repo, isError: repoMissing } = useQuery(
@@ -139,7 +139,7 @@ export function LiveRepoPreview() {
 					<p className="mt-5 text-bjork-text-soft"># then, with an account:</p>
 					<p className="break-all">
 						<span className="text-primary">$</span> git remote add pushstack{" "}
-						{SITE_URL}/api/git/you/repo.git
+						{SITE_URL}/you/repo.git
 					</p>
 					<p>
 						<span className="text-primary">$</span> git push pushstack main

@@ -40,6 +40,7 @@ const RESERVED = new Set([
 	"marketplace",
 	"new",
 	"notifications",
+	"password_reset",
 	"organizations",
 	"orgs",
 	"pricing",

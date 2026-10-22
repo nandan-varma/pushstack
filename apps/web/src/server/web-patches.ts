@@ -2,7 +2,7 @@
  * GitHub's plain-text diff and patch URLs on the web origin:
  * `/{owner}/{repo}/commit/{sha}.diff|.patch`,
  * `/{owner}/{repo}/compare/{spec}.diff|.patch` and
- * `/{owner}/{repo}/pull/{n}.diff|.patch` (also under `pulls/`). The bodies are
+ * `/{owner}/{repo}/pull/{n}.diff|.patch`. The bodies are
  * the REST API's `diff`/`patch` media types (`api/patches.ts`). Unreadable
  * repositories are 404, as on GitHub.
  *

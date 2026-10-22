@@ -6,16 +6,16 @@ import { ErrorAlert } from "@/components/ui/error-alert";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { authClient } from "@/lib/auth-client";
+import { queryKeys } from "@/lib/query-options";
 import { isReservedName } from "@/lib/reserved-names";
-import { authClient } from "../../lib/auth-client";
-import { queryKeys } from "../../lib/query-options";
 import {
 	MAX_USERNAME_LENGTH,
 	STORAGE_NAME_HINT,
 	STORAGE_NAME_PATTERN,
-} from "../../lib/storage-name";
+} from "@/lib/storage-name";
 
-export const Route = createFileRoute("/auth/register")({
+export const Route = createFileRoute("/_auth/signup")({
 	component: RegisterPage,
 });
 
@@ -109,7 +109,7 @@ function RegisterPage() {
 				<p className="text-center text-sm text-muted-foreground">
 					Click the link in that email to verify your account, then{" "}
 					<Link
-						to="/auth/login"
+						to="/login"
 						className="font-medium text-primary hover:underline"
 					>
 						sign in
@@ -128,7 +128,7 @@ function RegisterPage() {
 				<>
 					Already have an account?{" "}
 					<Link
-						to="/auth/login"
+						to="/login"
 						className="font-medium text-primary hover:underline"
 					>
 						Sign in

@@ -43,7 +43,7 @@ export const Route = createFileRoute("/notifications")({
 	},
 	beforeLoad: async () => {
 		const session = await getSession();
-		if (!session?.user) throw redirect({ to: "/auth/login" });
+		if (!session?.user) throw redirect({ to: "/login" });
 	},
 	loaderDeps: ({ search }) => ({
 		all: search.all ?? false,
@@ -239,7 +239,7 @@ function NotificationRow({
 						to={
 							item.subject.type === "Issue"
 								? "/$owner/$name/issues/$id"
-								: "/$owner/$name/pulls/$id"
+								: "/$owner/$name/pull/$id/{-$tab}"
 						}
 						params={{
 							owner: item.repository.owner,

@@ -178,7 +178,7 @@ export function reaction(value: ReactionWithUser): Shape<"reaction"> {
  */
 export function issue(input: IssueShapeInput): Shape<"issue"> {
 	const { fullName, kind, number } = input;
-	const webPath = kind === "issue" ? "issues" : "pulls";
+	const webPath = kind === "issue" ? "issues" : "pull";
 	return {
 		id: input.id,
 		url: apiUrl(`/repos/${fullName}/issues/${number}`),
@@ -213,9 +213,9 @@ export function issue(input: IssueShapeInput): Shape<"issue"> {
 		...(kind === "pull_request" && {
 			pull_request: {
 				url: apiUrl(`/repos/${fullName}/pulls/${number}`),
-				html_url: htmlUrl(`/${fullName}/pulls/${number}`),
-				diff_url: htmlUrl(`/${fullName}/pulls/${number}.diff`),
-				patch_url: htmlUrl(`/${fullName}/pulls/${number}.patch`),
+				html_url: htmlUrl(`/${fullName}/pull/${number}`),
+				diff_url: htmlUrl(`/${fullName}/pull/${number}.diff`),
+				patch_url: htmlUrl(`/${fullName}/pull/${number}.patch`),
 				merged_at: input.mergedAt ? isoTimestamp(input.mergedAt) : null,
 			},
 		}),
@@ -233,7 +233,7 @@ export interface CommentShapeInput {
 
 export function issueComment(input: CommentShapeInput): Shape<"issueComment"> {
 	const { fullName, kind, number } = input;
-	const webPath = kind === "issue" ? "issues" : "pulls";
+	const webPath = kind === "issue" ? "issues" : "pull";
 	return {
 		id: input.comment.id,
 		url: apiUrl(`/repos/${fullName}/issues/comments/${input.comment.id}`),
@@ -471,7 +471,7 @@ export function pullRequest(
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	const number = row.number;
 	const url = apiUrl(`/repos/${fullName}/pulls/${number}`);
-	const web = htmlUrl(`/${fullName}/pulls/${number}`);
+	const web = htmlUrl(`/${fullName}/pull/${number}`);
 	const side = (ref: string, sha: string) => ({
 		label: `${repo.owner.username}:${ref}`,
 		ref,
@@ -575,7 +575,7 @@ export function reviewedItem(input: {
 		throw new Error(`Review ${review.id} is not submitted`);
 	}
 	const html = htmlUrl(
-		`/${fullName}/pulls/${number}#pullrequestreview-${review.id}`,
+		`/${fullName}/pull/${number}#pullrequestreview-${review.id}`,
 	);
 	const pullRequestUrl = apiUrl(`/repos/${fullName}/pulls/${number}`);
 	return {

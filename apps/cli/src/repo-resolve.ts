@@ -19,7 +19,7 @@ export function parseRepoArg(arg: string): RepoRef {
 	return { owner: match[1] as string, name: match[2] as string };
 }
 
-/** owner/repo (and the host) out of an https or scp-style git URL, with PushStack's `/api/git/` prefix removed. */
+/** owner/repo (and the host) out of an https or scp-style git URL. */
 function parseRemote(url: string): (RepoRef & { host: string }) | null {
 	let host: string;
 	let path: string;
@@ -38,7 +38,6 @@ function parseRemote(url: string): (RepoRef & { host: string }) | null {
 	}
 	path = path
 		.replace(/^\/+/, "")
-		.replace(/^api\/git\//, "")
 		.replace(/\.git$/, "")
 		.replace(/\/+$/, "");
 	const parts = path.split("/");

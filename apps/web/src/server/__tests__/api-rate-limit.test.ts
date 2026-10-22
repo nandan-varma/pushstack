@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * Request limits for /api/v3 and /api/git: GitHub's X-RateLimit-* headers,
+ * Request limits for /api/v3 and git smart HTTP: GitHub's X-RateLimit-* headers,
  * the 403 body, per-user vs per-IP keying, window rollover, fail-open, and
  * GET /rate_limit. The real dispatcher and git handler over pglite.
  */
@@ -36,7 +36,7 @@ const perfLog = await import("../perf-log");
 
 const users = await createUsers("alice", "bob");
 const API = "http://localhost:3000/api/v3";
-const GIT = "http://localhost:3000/api/git";
+const GIT = "http://localhost:3000";
 
 let alice: string;
 let bob: string;
@@ -232,7 +232,7 @@ describe("failed credentials", () => {
 	});
 });
 
-describe("/api/git limits", () => {
+describe("git smart HTTP limits", () => {
 	const refs = (headers: Record<string, string> = {}) =>
 		serveGitRequest(
 			new Request(`${GIT}/alice/pub.git/info/refs?service=git-upload-pack`, {

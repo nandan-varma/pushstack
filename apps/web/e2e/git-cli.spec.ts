@@ -13,7 +13,7 @@ import {
 
 /**
  * End-to-end test of the real Git Smart HTTP protocol (src/server/git-http.ts
- * via src/routes/api/git.$.ts) using the actual `git` binary — everything else in this repo
+ * via the src/routes/$owner.$name.{info.refs,git-*}.ts routes) using the actual `git` binary — everything else in this repo
  * tests that path through isomorphic-git (git-integration.test.ts) or
  * git-fs-s3's own test suite, both of which share the *same* library that
  * implements the server side. A real git client is the only thing that
@@ -43,7 +43,7 @@ function remoteUrl(credentials?: { username: string; password: string }) {
 	const auth = credentials
 		? `${encodeURIComponent(credentials.username)}:${encodeURIComponent(credentials.password)}@`
 		: "";
-	return `http://${auth}localhost:3000/api/git/${testUser.username}/${repoName}.git`;
+	return `http://${auth}localhost:3000/${testUser.username}/${repoName}.git`;
 }
 
 async function git(args: string[], cwd: string) {
@@ -105,7 +105,7 @@ test.describe
 		});
 
 		test("registers and verifies the test user", async () => {
-			await gotoAndWaitForHydration(page, "/auth/register");
+			await gotoAndWaitForHydration(page, "/signup");
 			await page.locator("input#name").fill(testUser.name);
 			await page.locator("input#username").fill(testUser.username);
 			await page.locator("input#email").fill(testUser.email);
@@ -119,7 +119,7 @@ test.describe
 		});
 
 		test("logs in and creates a public repository via the UI", async () => {
-			await gotoAndWaitForHydration(page, "/auth/login");
+			await gotoAndWaitForHydration(page, "/login");
 			await page.locator("input#identifier").fill(testUser.email);
 			await page.locator("input#password").fill(testUser.password);
 			await Promise.all([
@@ -127,7 +127,7 @@ test.describe
 				page.click('button[type="submit"]'),
 			]);
 
-			await gotoAndWaitForHydration(page, "/repositories/new");
+			await gotoAndWaitForHydration(page, "/new");
 			await page.locator("input#name").fill(repoName);
 			await page.click('button[type="submit"]');
 			await expect(page).toHaveURL(

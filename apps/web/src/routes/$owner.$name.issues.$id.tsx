@@ -71,7 +71,7 @@ export const Route = createFileRoute("/$owner/$name/issues/$id")({
 									number: issueNumber,
 								}),
 							),
-						"/$owner/$name/pulls/$id",
+						"/$owner/$name/pull/$id/{-$tab}",
 					),
 				),
 		]);

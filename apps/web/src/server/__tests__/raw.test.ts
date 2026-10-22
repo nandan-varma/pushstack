@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * `/api/raw` end to end: the size cap, and the checks this route has to do for
+ * The raw file route (`/{owner}/{repo}/raw/{ref}/{path}`) end to end: the size cap, and the checks this route has to do for
  * itself. It is a raw route handler rather than a server function, so it never
  * passes through `files.ts`'s validated schemas — the ref and path validators,
  * and the read-access check, are its own responsibility (see `apps/docs/content/docs/internals/security.md`).
@@ -33,8 +33,13 @@ const SMALL = "hello raw";
 let publicName: string;
 let privateName: string;
 
-const raw = (path: string) =>
-	serveRawFile(new Request(`http://test.local/api/raw/${path}`));
+/** `{owner}/{repo}/{ref}/{path}` → `/{owner}/{repo}/raw/{ref}/{path}`. */
+const raw = (path: string) => {
+	const [owner, name, ...rest] = path.split("/");
+	return serveRawFile(
+		new Request(`http://test.local/${owner}/${name}/raw/${rest.join("/")}`),
+	);
+};
 
 beforeAll(async () => {
 	signIn(users.owner);
@@ -83,6 +88,15 @@ describe("serveRawFile", () => {
 		);
 		expect(response.status).toBe(413);
 		expect(await response.text()).toMatch(/clone/i);
+	});
+
+	it("404s a repository path that isn't under /raw/", async () => {
+		const response = await serveRawFile(
+			new Request(
+				`http://test.local/${users.owner.username}/${publicName}/blob/main/hello.txt`,
+			),
+		);
+		expect(response.status).toBe(404);
 	});
 
 	it("404s a path that isn't in the tree", async () => {

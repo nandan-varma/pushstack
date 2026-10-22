@@ -189,7 +189,7 @@ function ThreadLink({
 			to={
 				thread.kind === "issue"
 					? "/$owner/$name/issues/$id"
-					: "/$owner/$name/pulls/$id"
+					: "/$owner/$name/pull/$id/{-$tab}"
 			}
 			params={{ owner, name, id: String(thread.number) }}
 			className="font-medium text-foreground hover:underline"

@@ -117,7 +117,7 @@ function ComparePage() {
 			setOpen(false);
 			toast("Pull request created", "success");
 			navigate({
-				to: "/$owner/$name/pulls/$id",
+				to: "/$owner/$name/pull/$id/{-$tab}",
 				params: { owner, name, id: String(pr.number) },
 			});
 		},

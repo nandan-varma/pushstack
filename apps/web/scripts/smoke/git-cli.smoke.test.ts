@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  *
- * Native-git smoke test: the real `git` CLI against the real `/api/git/$`
- * route handler (src/routes/api/git.$.ts) on a loopback HTTP server, over
+ * Native-git smoke test: the real `git` CLI against the real smart-HTTP
+ * route handlers at the clone URL (src/routes/$owner.$name.{info.refs,git-*}.ts)
+ * on a loopback HTTP server, over
  * the real storage stack (git-fs.ts → src/lib/r2.ts, signing and all) backed
  * by an in-memory S3 endpoint, with an in-memory Postgres (pglite) for the
  * app's own tables. Nothing here touches the network, a real database, or —
@@ -174,17 +175,25 @@ beforeAll(async () => {
 	const { createRepository } = await import("#/server/repositories");
 	await createRepository({ data: { name: REPO, visibility: "private" } });
 
-	const { Route } = await import("../../src/routes/api/git.$");
-	const handlers = (
-		Route.options as unknown as {
-			server: {
-				handlers: Record<
-					"GET" | "POST",
-					(ctx: { request: Request }) => Promise<Response>
-				>;
-			};
-		}
-	).server.handlers;
+	// The three smart-HTTP routes at the clone URL, keyed by their last segment.
+	type Handler = (ctx: { request: Request }) => Promise<Response>;
+	const handlerOf = (route: { options: unknown }, method: "GET" | "POST") =>
+		(route.options as { server: { handlers: Record<string, Handler> } }).server
+			.handlers[method];
+	const handlers: Record<string, Handler> = {
+		"GET refs": handlerOf(
+			(await import("../../src/routes/$owner.$name.info.refs")).Route,
+			"GET",
+		),
+		"POST git-upload-pack": handlerOf(
+			(await import("../../src/routes/$owner.$name.git-upload-pack")).Route,
+			"POST",
+		),
+		"POST git-receive-pack": handlerOf(
+			(await import("../../src/routes/$owner.$name.git-receive-pack")).Route,
+			"POST",
+		),
+	};
 
 	server = createServer(async (req, res) => {
 		if (req.headers["content-encoding"] === "gzip") gzipRequests++;
@@ -202,7 +211,8 @@ beforeAll(async () => {
 					? undefined
 					: Buffer.concat(chunks),
 		});
-		const handler = handlers[req.method as "GET" | "POST"];
+		const segment = new URL(request.url).pathname.split("/").pop();
+		const handler = handlers[`${req.method} ${segment}`];
 		const response = handler
 			? await handler({ request })
 			: new Response("Method not allowed", { status: 405 });
@@ -212,7 +222,7 @@ beforeAll(async () => {
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 	const address = server.address();
 	if (!address || typeof address === "string") throw new Error("no port");
-	remote = `http://${USER.username}:${PAT}@127.0.0.1:${address.port}/api/git/${USER.username}/${REPO}.git`;
+	remote = `http://${USER.username}:${PAT}@127.0.0.1:${address.port}/${USER.username}/${REPO}.git`;
 }, 60_000);
 
 afterAll(async () => {

@@ -13,10 +13,10 @@ vi.mock("@tanstack/react-router", () => ({
 		children: React.ReactNode;
 		[key: string]: unknown;
 	}) => {
-		const href = Object.entries(params).reduce(
-			(url, [key, val]) => url.replace(`$${key}`, val),
-			to,
-		);
+		// Unset optional segments (`{-$tab}`) drop out, as in the real router.
+		const href = Object.entries(params)
+			.reduce((url, [key, val]) => url.replace(`$${key}`, val), to)
+			.replace(/\/\{-\$\w+\}/g, "");
 		return (
 			<a href={href} data-testid="router-link" {...props}>
 				{children}
@@ -71,7 +71,7 @@ describe("LinkifiedText", () => {
 				resolveReference={resolveReference}
 			/>,
 		);
-		expect(hrefOf("#2")).toBe("/acme/repo/pulls/2");
+		expect(hrefOf("#2")).toBe("/acme/repo/pull/2");
 	});
 
 	it("leaves unrecognized #N as plain text", () => {

@@ -66,9 +66,8 @@ export function FileTable({
 				message="This repository is empty."
 				action={
 					<Link
-						to="/$owner/$name/upload"
-						params={{ owner, name }}
-						search={{ branch }}
+						to="/$owner/$name/upload/$branch/$"
+						params={{ owner, name, branch, _splat: "" }}
 					>
 						<Button size="sm">Add file</Button>
 					</Link>

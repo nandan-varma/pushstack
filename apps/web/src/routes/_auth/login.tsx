@@ -6,10 +6,10 @@ import { ErrorAlert } from "@/components/ui/error-alert";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { authClient } from "../../lib/auth-client";
-import { queryKeys } from "../../lib/query-options";
+import { authClient } from "@/lib/auth-client";
+import { queryKeys } from "@/lib/query-options";
 
-export const Route = createFileRoute("/auth/login")({
+export const Route = createFileRoute("/_auth/login")({
 	component: LoginPage,
 });
 
@@ -93,7 +93,7 @@ function LoginPage() {
 				<>
 					Don't have an account?{" "}
 					<Link
-						to="/auth/register"
+						to="/signup"
 						className="font-medium text-primary hover:underline"
 					>
 						Create one
@@ -118,7 +118,7 @@ function LoginPage() {
 					<div className="flex items-center justify-between">
 						<span />
 						<Link
-							to="/auth/forgot-password"
+							to="/password_reset"
 							className="text-xs text-primary hover:underline"
 						>
 							Forgot password?

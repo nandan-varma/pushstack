@@ -53,7 +53,7 @@ export function createAutolinkReferencesPlugin(
 		if (sameRepo(o, n)) {
 			const kind = resolveReference?.(num);
 			if (!kind) return false;
-			if (kind === "pull") segment = "pulls";
+			if (kind === "pull") segment = "pull";
 		}
 		return link(`/${o}/${n}/${segment}/${num}`, text);
 	}

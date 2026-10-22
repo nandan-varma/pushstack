@@ -24,7 +24,7 @@ export const Route = createFileRoute("/dashboard")({
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session?.user) {
-			throw redirect({ to: "/auth/login" });
+			throw redirect({ to: "/login" });
 		}
 		return { user: session.user };
 	},
@@ -97,7 +97,7 @@ function DashboardPage() {
 							bare
 							message="Nothing here yet."
 							action={
-								<Link to="/repositories/new" className={buttonVariants()}>
+								<Link to="/new" className={buttonVariants()}>
 									<Plus aria-hidden="true" />
 									New repository
 								</Link>
@@ -164,7 +164,7 @@ function AssignedPanel({
 									to={
 										thread.kind === "issue"
 											? "/$owner/$name/issues/$id"
-											: "/$owner/$name/pulls/$id"
+											: "/$owner/$name/pull/$id/{-$tab}"
 									}
 									params={{
 										owner: thread.owner,

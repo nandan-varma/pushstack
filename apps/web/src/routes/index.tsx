@@ -75,10 +75,7 @@ function Hero() {
 						object storage; nothing runs on a disk you have to babysit.
 					</p>
 					<div className="mt-8 flex flex-wrap gap-3">
-						<Link
-							to="/auth/register"
-							className={buttonVariants({ size: "lg" })}
-						>
+						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
 							Get started
 							<ArrowRight aria-hidden="true" />
 						</Link>
@@ -201,7 +198,7 @@ function FinalCta() {
 						Create an account, push a branch, and open your first pull request.
 					</p>
 				</div>
-				<Link to="/auth/register" className={buttonVariants({ size: "lg" })}>
+				<Link to="/signup" className={buttonVariants({ size: "lg" })}>
 					Create your account
 					<ArrowRight aria-hidden="true" />
 				</Link>

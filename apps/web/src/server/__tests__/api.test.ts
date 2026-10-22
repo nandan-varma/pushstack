@@ -239,7 +239,7 @@ describe("creating repositories", () => {
 			fork: false,
 			html_url: "http://localhost:3000/alice/proj",
 			url: `${BASE}/repos/alice/proj`,
-			clone_url: "http://localhost:3000/api/git/alice/proj.git",
+			clone_url: "http://localhost:3000/alice/proj.git",
 			stargazers_count: 0,
 			owner: { login: "alice", type: "User" },
 			permissions: { admin: true, push: true, pull: true },

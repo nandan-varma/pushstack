@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/api/raw/$")({
+/** GitHub's raw file URL, `/{owner}/{repo}/raw/{ref}/{...path}` (src/server/raw.ts). */
+export const Route = createFileRoute("/$owner/$name/raw/$")({
 	server: {
 		handlers: {
 			GET: async ({ request }) => {

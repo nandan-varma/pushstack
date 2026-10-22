@@ -23,7 +23,7 @@ git push
 In the Clone dialog, select **Include submodules (recursive)**, or run:
 
 ```sh
-git clone --recurse-submodules https://git.nandan.fyi/api/git/OWNER/REPO.git
+git clone --recurse-submodules https://git.nandan.fyi/OWNER/REPO.git
 ```
 
 For an existing clone, use `git submodule update --init --recursive`.

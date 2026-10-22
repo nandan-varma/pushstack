@@ -171,9 +171,7 @@ describe("issue commands", () => {
 	it("infers the repository from remotes and prints readable issue details", async () => {
 		const { io, fetch } = await fixture();
 		delete io.env.PST_REPO;
-		io.remotes = async () => [
-			"https://git.nandan.fyi/api/git/alice/project.git",
-		];
+		io.remotes = async () => ["https://git.nandan.fyi/alice/project.git"];
 		fetch.mockResolvedValueOnce(json(issue));
 		expect(await run(["issue", "view", "12"], io)).toBe(0);
 		expect(io.stdout).toHaveBeenCalledWith(

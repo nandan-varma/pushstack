@@ -127,7 +127,7 @@ load-bearing:
    omission.
 
 Route handlers that read a ref or path straight off the URL are the exception to
-"server functions already validate" — `/api/raw/…` runs `isSafeRefName` and
+"server functions already validate" — `/{owner}/{repo}/raw/…` runs `isSafeRefName` and
 `isSafeRepoPath` itself. [Why the ref rules exist](/docs/internals/security-history#path-traversal-via-git-branchref-names).
 
 ## Usernames are immutable (storage keys derive from them)
@@ -184,7 +184,7 @@ parsing is involved. `rate-limit.test.ts` runs the real SQL against pglite and
 asserts the auth config actually uses this storage, since quietly falling back
 to the `Map` is the regression worth catching.
 
-### Request limits on `/api/v3` and `/api/git`
+### Request limits on `/api/v3` and git smart HTTP
 
 The same table and the same one-statement upsert also meter requests
 (`hitRateLimit` in `src/server/rate-limit.ts`, keys prefixed `gh:`): one cheap

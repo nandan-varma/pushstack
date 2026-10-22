@@ -81,7 +81,7 @@ describe("contents", () => {
 			sha: expect.stringMatching(SHA),
 			url: `${BASE}/repos/alice/proj/contents/src/app.txt?ref=main`,
 			html_url: `${WEB}/alice/proj/blob/main/src/app.txt`,
-			download_url: `${WEB}/api/raw/alice/proj/main/src/app.txt`,
+			download_url: `${WEB}/alice/proj/raw/main/src/app.txt`,
 		});
 		expect(body.git_url).toBe(`${BASE}/repos/alice/proj/git/blobs/${body.sha}`);
 		expect(Buffer.from(body.content, "base64").toString()).toBe(

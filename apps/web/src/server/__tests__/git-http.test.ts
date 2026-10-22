@@ -24,7 +24,7 @@ const { parseGitUrl, readGitRequestBody, serveGitRequest } = await import(
 );
 const { createRepository } = await import("../repositories");
 
-const BASE = "http://localhost:3000/api/git";
+const BASE = "http://localhost:3000";
 
 describe("parseGitUrl", () => {
 	it("routes the ref advertisement and both services", () => {

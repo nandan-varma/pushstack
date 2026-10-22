@@ -277,9 +277,8 @@ function TreeBrowserPage() {
 			</div>
 			{isBranchView && (
 				<Link
-					to="/$owner/$name/upload"
-					params={{ owner, name }}
-					search={{ branch: activeBranch }}
+					to="/$owner/$name/upload/$branch/$"
+					params={{ owner, name, branch: activeBranch, _splat: activePath }}
 					className={buttonVariants({ variant: "outline", size: "sm" })}
 				>
 					<Plus aria-hidden="true" />

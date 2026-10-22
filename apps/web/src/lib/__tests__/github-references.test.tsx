@@ -72,7 +72,7 @@ describe("#N and owner/repo#N", () => {
 	it("links known issues and pull requests in this repository", () => {
 		expect(links("fixes #7, see #8")).toEqual([
 			"#7→/acme/repo/issues/7",
-			"#8→/acme/repo/pulls/8",
+			"#8→/acme/repo/pull/8",
 		]);
 	});
 
@@ -88,7 +88,7 @@ describe("#N and owner/repo#N", () => {
 
 	it("resolves owner/repo#N for the current repo like #N", () => {
 		expect(links("acme/repo#8 and acme/repo#99")).toEqual([
-			"acme/repo#8→/acme/repo/pulls/8",
+			"acme/repo#8→/acme/repo/pull/8",
 		]);
 	});
 

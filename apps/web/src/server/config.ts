@@ -23,7 +23,7 @@ export const GIT_HTTP_MAX_BODY_BYTES = positiveInt(
 export const SLOW_REQUEST_MS = positiveInt("SLOW_REQUEST_MS", 3000);
 
 /**
- * Request limits for `/api/v3` and `/api/git` (src/server/rate-limit.ts):
+ * Request limits for `/api/v3` and git smart HTTP (src/server/rate-limit.ts):
  * requests per fixed window, per user when authenticated and per client IP
  * when anonymous. Defaults follow GitHub's REST API (5000/h, 60/h).
  */

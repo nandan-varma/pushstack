@@ -47,7 +47,7 @@ async function main() {
 	console.log("PAT:", pat);
 	console.log(
 		"CLONE_URL:",
-		`http://${USERNAME}:${pat}@localhost:3000/api/git/${USERNAME}/${REPO_NAME}.git`,
+		`http://${USERNAME}:${pat}@localhost:3000/${USERNAME}/${REPO_NAME}.git`,
 	);
 }
 

@@ -34,7 +34,7 @@ const io: Io = {
 		stderr += text;
 	},
 	readStdin: async () => token,
-	remotes: async () => ["http://localhost:3000/api/git/alice/public.git"],
+	remotes: async () => ["http://localhost:3000/alice/public.git"],
 	fetch: async (input, init) => {
 		const request = new Request(input, init);
 		requests.push(request.url);

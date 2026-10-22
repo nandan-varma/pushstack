@@ -41,14 +41,12 @@ function readFileAsBase64(file: File): Promise<string> {
 	});
 }
 
-export const Route = createFileRoute("/$owner/$name/upload")({
-	validateSearch: (search: Record<string, unknown>): { branch?: string } => ({
-		branch: (search.branch as string) || undefined,
-	}),
+/** GitHub's `/{owner}/{repo}/upload/{branch}/{directory}`: add a file there. */
+export const Route = createFileRoute("/$owner/$name/upload/$branch/$")({
 	beforeLoad: async () => {
 		const session = await getSession();
 		if (!session?.user) {
-			throw redirect({ to: "/auth/login" });
+			throw redirect({ to: "/login" });
 		}
 	},
 	loader: async ({ params, context: { queryClient } }) => {
@@ -65,18 +63,18 @@ export const Route = createFileRoute("/$owner/$name/upload")({
 });
 
 function FileUploadPage() {
-	const { owner, name } = Route.useParams();
-	const { branch: searchBranch } = Route.useSearch();
+	const { owner, name, branch: urlBranch, _splat } = Route.useParams();
+	const directory = (_splat ?? "").replace(/\/+$/, "");
+	const inDirectory = (fileName: string) =>
+		directory ? `${directory}/${fileName}` : fileName;
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 
 	const [file, setFile] = useState<File | null>(null);
-	const [path, setPath] = useState("");
+	const [path, setPath] = useState(directory ? `${directory}/` : "");
 	const [commitMessage, setCommitMessage] = useState("");
-	const [selectedBranch, setBranch] = useState<string | null>(
-		searchBranch ?? null,
-	);
+	const [selectedBranch, setBranch] = useState<string | null>(urlBranch);
 	const [isDragging, setIsDragging] = useState(false);
 	const [isEncoding, setIsEncoding] = useState(false);
 
@@ -127,7 +125,13 @@ function FileUploadPage() {
 	// follows the new file.
 	const chooseFile = (next: File) => {
 		setFile(next);
-		if (!path || path === file?.name) setPath(next.name);
+		if (
+			!path ||
+			path === inDirectory("") ||
+			(file && path === inDirectory(file.name))
+		) {
+			setPath(inDirectory(next.name));
+		}
 	};
 
 	const handleDrop = (e: React.DragEvent) => {

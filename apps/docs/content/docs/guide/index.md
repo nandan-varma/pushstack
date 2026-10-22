@@ -12,12 +12,12 @@ Everything here is about the hosted instance at
 
 ## Create an account
 
-1. Go to `/auth/register` and sign up with a username, email and password
+1. Go to `/signup` and sign up with a username, email and password
    (at least 8 characters).
 2. Open the verification email and click the link. **You cannot sign in until
    you do** — that is deliberate, so an address can't be claimed by someone who
    doesn't control it.
-3. Sign in at `/auth/login`.
+3. Sign in at `/login`.
 
 Your **username is permanent**: it appears in your repository URLs and is the
 first segment of every storage key your repositories live under, so it cannot be
@@ -27,7 +27,7 @@ password can all change later in `/settings`. Repositories live at
 files (`settings`, `search`, `api`, `login`, `favicon.ico`, …) can't be
 usernames.
 
-Forgot your password? `/auth/forgot-password` emails a reset link that expires
+Forgot your password? `/password_reset` emails a reset link that expires
 after one hour.
 
 A session lasts 7 days and is refreshed while you use it. `/settings` → Security
@@ -35,7 +35,7 @@ lists your active sessions and can sign out the others.
 
 ## Create a repository
 
-Go to `/repositories/new`. You choose:
+Go to `/new`. You choose:
 
 - **Name** — letters, digits, `.`, `-` and `_`, must start and end with a letter
   or digit, up to 100 characters. The name is part of every storage key, so it
@@ -55,12 +55,35 @@ changes its description, visibility and default branch; **Danger zone** deletes
 it (type the name to confirm). Renaming moves the repository's stored data, so
 existing clones keep working through the new URL after a `git remote set-url`.
 
+## URLs
+
+Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page:
+
+| Page | URL |
+| --- | --- |
+| Repository | `/{owner}/{repo}` |
+| Directory, file | `/{owner}/{repo}/tree/{ref}/{path}`, `/{owner}/{repo}/blob/{ref}/{path}` |
+| Raw file bytes | `/{owner}/{repo}/raw/{ref}/{path}` |
+| Commits, one commit | `/{owner}/{repo}/commits/{ref}`, `/{owner}/{repo}/commit/{sha}` (`.diff`, `.patch`) |
+| Compare | `/{owner}/{repo}/compare/{base}...{head}` (`.diff`, `.patch`) |
+| Issues, one issue | `/{owner}/{repo}/issues`, `/{owner}/{repo}/issues/{n}` |
+| Pull requests | `/{owner}/{repo}/pulls` |
+| One pull request | `/{owner}/{repo}/pull/{n}`, `…/pull/{n}/commits`, `…/pull/{n}/files` (`.diff`, `.patch`) |
+| Labels | `/{owner}/{repo}/labels` |
+| Upload a file | `/{owner}/{repo}/upload/{branch}/{directory}` |
+| Clone | `/{owner}/{repo}.git` |
+| New repository | `/new` |
+| Sign in, sign up, reset password | `/login`, `/signup`, `/password_reset` |
+| REST API | `/api/v3/…` (GitHub Enterprise Server's path) |
+
+An issue number opened at `/pull/{n}` goes to `/issues/{n}`, and the reverse, as on GitHub.
+
 ## Clone a repository
 
 Every repository's clone URL is shown on `/{owner}/{name}/setup`:
 
 ```bash
-git clone https://git.nandan.fyi/api/git/<owner>/<repository>.git
+git clone https://git.nandan.fyi/<owner>/<repository>.git
 ```
 
 Public repositories clone anonymously. Private ones need a token, below.
@@ -87,7 +110,7 @@ Tokens start with `pst_`. Git clients can't hold a browser session, so pass the
 token as the Basic-auth **password** (or username — either slot works):
 
 ```bash
-git clone https://git.nandan.fyi/api/git/<owner>/<repository>.git
+git clone https://git.nandan.fyi/<owner>/<repository>.git
 # Username: anything (or your token)
 # Password: pst_…
 ```
@@ -96,7 +119,7 @@ To avoid typing it every time, use a credential helper or embed it in the
 remote. **Push an existing project:**
 
 ```bash
-git remote add origin https://git.nandan.fyi/api/git/<owner>/<repository>.git
+git remote add origin https://git.nandan.fyi/<owner>/<repository>.git
 git branch -M main
 git push -u origin main
 ```
@@ -133,7 +156,7 @@ The web UI can do most of what the CLI can, without a clone:
   URL that never changes.
 - **Submodules** — a submodule appears as a pinned commit with a link to the
   repository it points at; the parent repository stores only that pointer.
-- **Raw and download** — every file has a `/api/raw/…` URL serving its exact
+- **Raw and download** — every file has a `/{owner}/{repo}/raw/{ref}/{path}` URL serving its exact
   bytes, used by downloads, images and media previews.
 
 Markdown is rendered for READMEs, issue and pull request bodies, and comments.
@@ -201,7 +224,7 @@ but cannot change them.
 | Limit | Value |
 | --- | --- |
 | Web file upload | 25 MB per file |
-| Raw file download (`/api/raw`) | 50 MB — above that, `git clone` |
+| Raw file download (`/{owner}/{repo}/raw/…`) | 50 MB — above that, `git clone` |
 | Git push request body | 50 MB |
 | Issue, pull request and comment body | 65,536 characters |
 | Commit message (web UI) | 10,000 characters |

@@ -31,7 +31,7 @@ interface MarkdownRendererProps {
 
 import { isReservedName } from "@/lib/reserved-names";
 
-const REFERENCE_LINK_RE = /^\/([^/]+)\/([^/]+)\/(commit|issues|pulls)\/(.+)$/;
+const REFERENCE_LINK_RE = /^\/([^/]+)\/([^/]+)\/(commit|issues|pull)\/(.+)$/;
 
 const USER_LINK_RE = /^\/([^/]+)$/;
 
@@ -217,8 +217,8 @@ function buildComponents(
 				return (
 					<Link
 						to={
-							kind === "pulls"
-								? "/$owner/$name/pulls/$id"
+							kind === "pull"
+								? "/$owner/$name/pull/$id/{-$tab}"
 								: "/$owner/$name/issues/$id"
 						}
 						params={{ owner: refOwner, name: refName, id: refId }}

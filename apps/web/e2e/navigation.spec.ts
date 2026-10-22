@@ -30,21 +30,21 @@ test.describe("Route Navigation E2E", () => {
 	}) => {
 		await page.goto("/");
 		await page.getByRole("link", { name: "Sign in" }).click();
-		await expect(page).toHaveURL("/auth/login");
+		await expect(page).toHaveURL("/login");
 		await expect(page.locator("h1")).toContainText("Welcome back");
 	});
 
 	test("Get started leads to sign-up", async ({ page }) => {
 		await page.goto("/");
 		await page.getByRole("link", { name: "Get started" }).first().click();
-		await expect(page).toHaveURL("/auth/register");
+		await expect(page).toHaveURL("/signup");
 	});
 
 	test("repositories redirects to login when not authenticated", async ({
 		page,
 	}) => {
 		await page.goto("/repositories");
-		await expect(page).toHaveURL("/auth/login");
+		await expect(page).toHaveURL("/login");
 	});
 
 	test("back button restores previous page content", async ({ page }) => {
@@ -52,7 +52,7 @@ test.describe("Route Navigation E2E", () => {
 		await expect(page.locator("h1")).toContainText("speaks GitHub");
 
 		await page.getByRole("link", { name: "Sign in" }).click();
-		await expect(page).toHaveURL("/auth/login");
+		await expect(page).toHaveURL("/login");
 
 		await page.goBack();
 		await expect(page).toHaveURL("/");
@@ -68,14 +68,14 @@ test.describe("Route Navigation E2E", () => {
 	});
 
 	test("login page renders the sign-in form", async ({ page }) => {
-		await page.goto("/auth/login");
+		await page.goto("/login");
 		await expect(page.getByLabel("Username")).toBeVisible();
 		await expect(page.getByLabel("Password")).toBeVisible();
 	});
 
 	test("sign-up link on login page navigates to register", async ({ page }) => {
-		await page.goto("/auth/login");
+		await page.goto("/login");
 		await page.click("text=Create one");
-		await expect(page).toHaveURL("/auth/register");
+		await expect(page).toHaveURL("/signup");
 	});
 });

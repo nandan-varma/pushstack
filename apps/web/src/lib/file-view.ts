@@ -14,7 +14,7 @@ export type FileView =
 /** Text above this is offered as raw/download instead of rendered inline. */
 export const MAX_INLINE_TEXT_BYTES = 1024 * 1024;
 
-/** `/api/raw/{owner}/{repo}/{ref}/{path}`: the file's exact bytes at `ref`. */
+/** `/{owner}/{repo}/raw/{ref}/{path}`: the file's exact bytes at `ref`. */
 export function rawFileUrl({
 	owner,
 	name,
@@ -26,6 +26,6 @@ export function rawFileUrl({
 	ref: string;
 	path: string;
 }): string {
-	const segments = [owner, name, ref, ...path.split("/")];
-	return `/api/raw/${segments.map(encodeURIComponent).join("/")}`;
+	const segments = [owner, name, "raw", ref, ...path.split("/")];
+	return `/${segments.map(encodeURIComponent).join("/")}`;
 }

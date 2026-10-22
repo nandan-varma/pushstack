@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { ensureThreadNumberRedirect } from "../thread-number-redirect";
 
 const params = { owner: "alice", name: "project", id: "12" };
-const routes = ["/$owner/$name/issues/$id", "/$owner/$name/pulls/$id"] as const;
+const routes = [
+	"/$owner/$name/issues/$id",
+	"/$owner/$name/pull/$id/{-$tab}",
+] as const;
 
 describe("shared thread number redirect", () => {
 	it.each(routes)(

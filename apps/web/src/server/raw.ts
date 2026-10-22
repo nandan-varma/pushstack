@@ -1,5 +1,5 @@
 /**
- * `GET /api/raw/{owner}/{repo}/{ref}/{...path}` — a file's exact bytes at a
+ * `GET /{owner}/{repo}/raw/{ref}/{...path}` (GitHub's raw URL) — a file's exact bytes at a
  * branch or commit, for "Raw" links, downloads and media previews. Served on
  * the app's own origin, so only inert content types are used: text is always
  * `text/plain` (an .html or .svg served as itself would run script with this
@@ -62,14 +62,14 @@ export async function serveRawFile(request: Request): Promise<Response> {
 	let decoded: string[];
 	try {
 		decoded = new URL(request.url).pathname
-			.replace(/^\/api\/raw\//, "")
 			.split("/")
 			.filter(Boolean)
 			.map(decodeURIComponent);
 	} catch {
 		return notFound();
 	}
-	const [owner, name, ref, ...rest] = decoded;
+	const [owner, name, raw, ref, ...rest] = decoded;
+	if (raw !== "raw") return notFound();
 	const path = rest.join("/");
 	// Validated here because these come straight off the URL: an unvalidated
 	// ref or path could traverse into another repository's storage.

@@ -142,7 +142,7 @@ function UserProfilePage() {
 								}
 								action={
 									isSelf ? (
-										<Link to="/repositories/new" className={buttonVariants()}>
+										<Link to="/new" className={buttonVariants()}>
 											New repository
 										</Link>
 									) : undefined

@@ -80,10 +80,10 @@ export function SignInToComment() {
 			</p>
 			<div className="flex gap-2">
 				<Button asChild>
-					<Link to="/auth/register">Sign up</Link>
+					<Link to="/signup">Sign up</Link>
 				</Button>
 				<Button variant="outline" asChild>
-					<Link to="/auth/login">Sign in</Link>
+					<Link to="/login">Sign in</Link>
 				</Button>
 			</div>
 		</Panel>

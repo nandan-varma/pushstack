@@ -32,7 +32,7 @@ const io: Io = {
 		stderr += text;
 	},
 	readStdin: async () => "stdin contract body",
-	remotes: async () => ["http://localhost:3000/api/git/alice/issues.git"],
+	remotes: async () => ["http://localhost:3000/alice/issues.git"],
 	fetch: async (input, init) => {
 		const request = new Request(input, init);
 		requests.push(request.clone());

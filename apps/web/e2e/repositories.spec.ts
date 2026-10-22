@@ -34,7 +34,7 @@ test.describe
 		});
 
 		test("should register and verify test user", async () => {
-			await gotoAndWaitForHydration(page, "/auth/register");
+			await gotoAndWaitForHydration(page, "/signup");
 			await page.locator("input#name").fill(testUser.name);
 			await page.locator("input#username").fill(testUser.username);
 			await page.locator("input#email").fill(testUser.email);
@@ -42,7 +42,7 @@ test.describe
 			await page.locator("input#confirmPassword").fill(testUser.password);
 			await page.click('button[type="submit"]');
 			// Email verification is required before a session exists — signUp stays
-			// on /auth/register and shows a "Check your email" panel instead of
+			// on /signup and shows a "Check your email" panel instead of
 			// redirecting (see auth.spec.ts's registration test).
 			await expect(page.locator("h1")).toContainText("Check your email", {
 				timeout: 15000,
@@ -56,7 +56,7 @@ test.describe
 		});
 
 		test("should login successfully", async () => {
-			await gotoAndWaitForHydration(page, "/auth/login");
+			await gotoAndWaitForHydration(page, "/login");
 			await page.locator("input#identifier").fill(testUser.email);
 			await page.locator("input#password").fill(testUser.password);
 			await Promise.all([
@@ -74,12 +74,12 @@ test.describe
 		});
 
 		test("should access new repository page", async () => {
-			await page.goto("/repositories/new");
-			await expect(page).toHaveURL("/repositories/new");
+			await page.goto("/new");
+			await expect(page).toHaveURL("/new");
 		});
 
 		test("should create a new repository", async () => {
-			await gotoAndWaitForHydration(page, "/repositories/new");
+			await gotoAndWaitForHydration(page, "/new");
 
 			await page.locator("input#name").fill(repoName);
 			await page

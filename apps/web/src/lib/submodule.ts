@@ -23,7 +23,7 @@ export function submoduleLinks(
 		if (url.startsWith("./") || url.startsWith("../")) {
 			target = new URL(
 				url,
-				`${SITE_URL}/api/git/${encodeURIComponent(parent.owner)}/${encodeURIComponent(parent.name)}.git/`,
+				`${SITE_URL}/${encodeURIComponent(parent.owner)}/${encodeURIComponent(parent.name)}.git/`,
 			);
 		} else if (/^[^/@\s]+@[^/:\s]+:/.test(url)) {
 			const [, host, path] = /^[^/@\s]+@([^/:\s]+):(.+)$/.exec(url) ?? [];
@@ -49,9 +49,7 @@ export function submoduleLinks(
 		return null;
 	const pathname = target.pathname.replace(/\/+$/, "").replace(/\.git$/, "");
 	if (target.origin === new URL(SITE_URL).origin) {
-		const match = /^\/api\/git\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/.exec(
-			pathname,
-		);
+		const match = /^\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)$/.exec(pathname);
 		if (!match) return null;
 		const repository = `/${match[1]}/${match[2]}`;
 		return { repository, commit: `${repository}/tree/${oid}` };

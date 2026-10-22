@@ -44,7 +44,7 @@ signing, ListObjectsV2 parsing and server-side copy run too; it clones and
 pushes with isomorphic-git over a loopback server running `serveGitRequest`.
 
 **Native git (`pnpm smoke:git`)** — `apps/web/scripts/smoke/git-cli.smoke.test.ts`
-drives the real `git` CLI against the real `/api/git/$` route on a loopback
+drives the real `git` CLI against the real smart-HTTP routes at the clone URL on a loopback
 server: clone, push, incremental fetch, repack, web commits, force-push,
 branch/tag create and delete, default-branch protection, merges, bad tokens,
 and "no loose objects ever written". Every `git` call runs with a scratch
