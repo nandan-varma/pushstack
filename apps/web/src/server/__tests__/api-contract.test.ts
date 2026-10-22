@@ -290,6 +290,13 @@ beforeAll(async () => {
 	);
 	await check(`/repos/alice/proj/git/tags/${tagObject.sha}`);
 	await check("/repos/alice/proj/git/refs/heads/topic", del(alice));
+
+	await check("/meta");
+	await check("/search/repositories?q=proj", auth);
+	await check("/search/issues?q=Bug+repo:alice/proj", auth);
+	await check("/repos/alice/proj", patch(alice, { description: "Project" }));
+	await check("/user/repos", post(alice, { name: "doomed" }));
+	await check("/repos/alice/doomed", del(alice));
 });
 
 describe("the dispatcher against the contract", () => {

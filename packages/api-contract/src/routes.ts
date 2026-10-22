@@ -133,6 +133,7 @@ export const routes = {
 		method: "DELETE",
 		path: "/repos/{owner}/{repo}",
 		docs: `${DOCS}/repos/repos#delete-a-repository`,
+		status: 204,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		method: "GET",
