@@ -170,6 +170,29 @@ describe("node ids", () => {
 		]);
 	});
 
+	it("resolves an out-of-range id to null without failing its batch", async () => {
+		const { body } = await graphql(
+			alice,
+			'{ repository(owner: "alice", name: "public-one") { id owner { id } } }',
+		);
+		const { id, owner } = body.data.repository;
+		const huge = (type: string) =>
+			Buffer.from(
+				`${String(type.length).padStart(2, "0")}:${type}9999999999`,
+			).toString("base64");
+		const nodes = await graphql(
+			alice,
+			`query($ids: [ID!]!) { nodes(ids: $ids) { __typename id } }`,
+			{ ids: [id, huge("Repository"), owner.id, huge("User")] },
+		);
+		expect(nodes.body.data.nodes).toEqual([
+			{ __typename: "Repository", id },
+			null,
+			{ __typename: "User", id: owner.id },
+			null,
+		]);
+	});
+
 	it("uses the REST API's node_id for users", async () => {
 		const { body } = await graphql(alice, "{ viewer { id databaseId } }");
 		expect(Buffer.from(body.data.viewer.id, "base64").toString()).toBe(

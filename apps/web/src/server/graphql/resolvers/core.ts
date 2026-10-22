@@ -9,7 +9,7 @@ import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import type { GraphQLContext } from "../context";
 import { notFound } from "../errors";
-import { decodeNodeId, encodeNodeId } from "../node-id";
+import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 const userColumns = {
@@ -93,7 +93,8 @@ export async function loadUserByLogin(
 
 /** Users by apiId for `node(s)`: one query per request batch. */
 const loadUserNode: NodeLoader = async (key, ctx) => {
-	if (!/^\d{1,10}$/.test(key)) return null;
+	const id = rowIdOfNodeKey(key);
+	if (id === null) return null;
 	const row = await ctx
 		.loader<number, UserRow>("user-by-api-id", async (ids) => {
 			const rows = await db
@@ -102,7 +103,7 @@ const loadUserNode: NodeLoader = async (key, ctx) => {
 				.where(inArray(user.apiId, ids));
 			return new Map(rows.map((row) => [row.apiId, row]));
 		})
-		.load(Number(key));
+		.load(id);
 	return row ? userNode(row) : null;
 };
 

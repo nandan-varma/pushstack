@@ -54,7 +54,7 @@ import {
 	repositoryNotFound,
 	unprocessable,
 } from "../errors";
-import { decodeNodeId, encodeNodeId } from "../node-id";
+import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
 import { loadUser, loadUserByLogin, type UserNode, userNode } from "./core";
 import type { DomainResolvers, NodeLoader } from "./types";
 
@@ -357,7 +357,8 @@ async function userRepositories(
  * ones only (repo-access.ts's SQL read rule), with the caller's role.
  */
 const loadRepositoryNode: NodeLoader = async (key, ctx) => {
-	if (!/^\d{1,10}$/.test(key)) return null;
+	const id = rowIdOfNodeKey(key);
+	if (id === null) return null;
 	const viewer = ctx.caller.userId;
 	const node = await ctx
 		.loader<number, RepositoryNode>("repository-node", async (ids) => {
@@ -389,7 +390,7 @@ const loadRepositoryNode: NodeLoader = async (key, ctx) => {
 				]),
 			);
 		})
-		.load(Number(key));
+		.load(id);
 	return node ?? null;
 };
 
