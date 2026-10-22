@@ -9,7 +9,8 @@ import { replaceThreadAssignees } from "../assignees-store";
 import { createIssueForUser, updateIssueThreadFields } from "../issue-store";
 import { setThreadLabels } from "../label-store";
 import { perfStep } from "../perf-log";
-import { findIssueByNumber, findThread, listThreads } from "../thread-store";
+import { updatePullRequestFields } from "../pull-request-store";
+import { findThread, listThreads, pullRequestOfThread } from "../thread-store";
 import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
@@ -87,9 +88,7 @@ export async function updateIssue(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
 	const { issue_number: number } = pathParams(ctx, "issues/update");
-	const issue = await findIssueByNumber(repo.id, number);
-	// Pull request numbers are readable through the issues endpoints but not
-	// editable through them; editing a pull request uses the pulls endpoints.
+	const issue = await findThread(repo.id, number);
 	if (!issue) throw notFoundError();
 	if (issue.authorId !== caller.userId && !access.canWrite) {
 		throw forbiddenError("You do not have permission to edit this issue");
@@ -98,7 +97,9 @@ export async function updateIssue(ctx: ApiContext) {
 	// The state the issue ends in decides which reasons make sense: `reopened`
 	// only on an open issue, `completed`/`not_planned` only on a closed one.
 	const finalState = data.state ?? issue.status;
-	const reason = data.state_reason ?? undefined;
+	// GitHub only applies state reasons to issues, never pull requests.
+	const reason =
+		issue.kind === "issue" ? (data.state_reason ?? undefined) : undefined;
 	if (
 		reason !== undefined &&
 		(reason === "reopened") !== (finalState === "open")
@@ -107,13 +108,34 @@ export async function updateIssue(ctx: ApiContext) {
 			{ resource: "Issue", field: "state_reason", code: "invalid" },
 		]);
 	}
-	await updateIssueThreadFields(issue, caller.userId, {
-		...(reason !== undefined &&
-			reason !== "reopened" && { stateReason: reason }),
+	const fields = {
 		...(data.title !== undefined && { title: data.title }),
 		...(data.body !== undefined && { body: data.body ?? "" }),
-		...(data.state !== undefined && { status: data.state }),
-	});
+	};
+	if (issue.kind === "pull_request") {
+		const pr = pullRequestOfThread(issue);
+		if (pr.status === "merged" && data.state === "open") {
+			throw validationFailedError("Validation Failed", [
+				{
+					resource: "Issue",
+					code: "custom",
+					message: "A merged pull request can't be reopened",
+				},
+			]);
+		}
+		await updatePullRequestFields(pr, caller.userId, {
+			...fields,
+			...(data.state !== undefined &&
+				pr.status !== "merged" && { status: data.state }),
+		});
+	} else {
+		await updateIssueThreadFields(issue, caller.userId, {
+			...(reason !== undefined &&
+				reason !== "reopened" && { stateReason: reason }),
+			...fields,
+			...(data.state !== undefined && { status: data.state }),
+		});
+	}
 	// As on GitHub, a caller without write access can edit their own issue's
 	// title, body and state but not its labels or assignees.
 	if (access.canWrite) {

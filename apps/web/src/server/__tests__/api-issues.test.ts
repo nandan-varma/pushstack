@@ -339,6 +339,27 @@ describe("listing issues", () => {
 		expect(one.body.state).toBe("closed");
 		expect(one.body.closed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 		expect(one.body.pull_request.merged_at).toBe(one.body.closed_at);
+		const path = `/repos/alice/proj/issues/${pr.number}`;
+		const reclosed = await call(
+			path,
+			patch(alice, { state: "closed", title: "Merged edit" }),
+		);
+		expect(reclosed.status).toBe(200);
+		expect(reclosed.body).toMatchObject({
+			title: "Merged edit",
+			state: "closed",
+			closed_at: one.body.closed_at,
+			pull_request: { merged_at: one.body.pull_request.merged_at },
+		});
+		expect(
+			(
+				await call(
+					path,
+					patch(alice, { state: "open", title: "Should not persist" }),
+				)
+			).status,
+		).toBe(422);
+		expect((await call(path)).body.title).toBe("Merged edit");
 	});
 });
 
@@ -946,5 +967,98 @@ describe("contract input validation", () => {
 		expect(body.errors).toEqual([
 			{ resource: "Issue", field: "state", code: "invalid", value: "bad" },
 		]);
+	});
+});
+
+describe("updating pull requests through issues", () => {
+	it("lets the author without write access edit while ignoring triage fields", async () => {
+		const { insertPullRequest } = await import("../pull-request-store");
+		const pr = await insertPullRequest(repoId, users.bob.id, {
+			title: "Reader PR",
+			sourceBranch: "topic",
+			targetBranch: "main",
+		});
+		const edited = await call(
+			`/repos/alice/proj/issues/${pr.number}`,
+			patch(bob, {
+				title: "Author edit",
+				state: "closed",
+				state_reason: "reopened",
+				labels: ["bug"],
+				assignees: ["alice"],
+			}),
+		);
+		expect(edited.status).toBe(200);
+		expect(edited.body).toMatchObject({
+			title: "Author edit",
+			state: "closed",
+			labels: [],
+			assignees: [],
+		});
+	});
+	it("edits, closes and reopens a pull request with shared triage and PR events", async () => {
+		signIn(users.alice);
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Issues API PR",
+				sourceBranchName: "topic",
+				targetBranchName: "main",
+			},
+		});
+		const path = `/repos/alice/proj/issues/${pr.number}`;
+		expect((await call(path, patch(bob, { title: "Forbidden" }))).status).toBe(
+			403,
+		);
+		expect(
+			(await call(path, patch(aliceRead, { state: "closed" }))).status,
+		).toBe(403);
+		const edited = await call(
+			path,
+			patch(alice, {
+				title: "Edited PR",
+				body: "Updated body",
+				state: "closed",
+				state_reason: "reopened",
+				labels: ["bug"],
+				assignees: ["dave"],
+			}),
+		);
+		expect(edited.status).toBe(200);
+		expect(edited.body).toMatchObject({
+			title: "Edited PR",
+			body: "Updated body",
+			state: "closed",
+			state_reason: null,
+			labels: [{ name: "bug" }],
+			assignees: [{ login: "dave" }],
+			pull_request: { merged_at: null },
+		});
+		expect(edited.body.closed_at).not.toBeNull();
+		const detail = await call(path);
+		expect(detail.body.closed_by.login).toBe("alice");
+		const reopened = await call(
+			path,
+			patch(dave, { state: "open", body: null }),
+		);
+		expect(reopened.status).toBe(200);
+		expect(reopened.body).toMatchObject({
+			state: "open",
+			closed_at: null,
+			body: null,
+		});
+		const events = await call(`${path}/timeline`);
+		expect(
+			events.body
+				.filter((event: { event: string }) =>
+					["closed", "reopened"].includes(event.event),
+				)
+				.map((event: { event: string }) => event.event),
+		).toEqual(["closed", "reopened"]);
+		const { findPullRequestByNumber } = await import("../thread-store");
+		expect(await findPullRequestByNumber(repoId, pr.number)).toMatchObject({
+			status: "open",
+			title: "Edited PR",
+		});
 	});
 });
