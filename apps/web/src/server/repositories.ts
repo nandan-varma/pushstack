@@ -41,6 +41,7 @@ import {
 	publicUserFields,
 } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
+import { getRepoSubscription, watcherCounts } from "./watch-store";
 
 /**
  * A username used to look someone up. The same shape the username plugin
@@ -112,6 +113,20 @@ async function starState(repoId: number, userId: string | undefined) {
 	return { starCount: total?.value ?? 0, isStarred: !!mine };
 }
 
+async function watchState(repoId: number, userId: string | undefined) {
+	const [counts, mine] = await Promise.all([
+		watcherCounts([repoId]),
+		userId ? getRepoSubscription(repoId, userId) : null,
+	]);
+	return {
+		watcherCount: counts.get(repoId) ?? 0,
+		watchLevel: (mine ? (mine.ignored ? "ignore" : "all") : "participating") as
+			| "participating"
+			| "all"
+			| "ignore",
+	};
+}
+
 export const getRepositoryByName = createServerFn({ method: "GET" })
 	.validator(z.object({ owner: z.string(), name: z.string() }))
 	.handler(({ data }) =>
@@ -123,19 +138,21 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 				]),
 			);
 			if (!repo) throw notFound();
-			const [access, stars, counts] = await perfStep(
+			const [access, stars, counts, watching] = await perfStep(
 				"access + stars + counts",
 				() =>
 					Promise.all([
 						getAccessForRepository(repo, currentUser?.id),
 						starState(repo.id, currentUser?.id),
 						openThreadCounts(repo.id),
+						watchState(repo.id, currentUser?.id),
 					]),
 			);
 			if (!access.canRead) throw notFound();
 			return {
 				...repo,
 				...stars,
+				...watching,
 				...counts,
 				viewer: { canWrite: access.canWrite },
 			};

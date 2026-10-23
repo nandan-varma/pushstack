@@ -37,6 +37,16 @@ import {
 import { compareCommits, getCommitDetail, listCommits } from "./commits";
 import { deleteContents, getContents, putContents } from "./contents";
 import {
+	checkCallerFollows,
+	checkUserFollows,
+	followAsCaller,
+	listFollowedByCaller,
+	listFollowersOfCaller,
+	listFollowersOfUser,
+	listFollowingOfUser,
+	unfollowAsCaller,
+} from "./following";
+import {
 	createGitBlob,
 	createGitCommit,
 	createGitRef,
@@ -116,6 +126,14 @@ import { matchApiRoute } from "./routing";
 import { listTags } from "./tags";
 import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser, getUserById } from "./users";
+import {
+	deleteRepoSubscriptionForCaller,
+	getRepoSubscriptionForCaller,
+	listRepoWatchers,
+	listWatchedByCaller,
+	listWatchedByUser,
+	putRepoSubscription,
+} from "./watching";
 
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
@@ -125,9 +143,19 @@ const HANDLERS = {
 	"users/get-authenticated": getAuthenticatedUser,
 	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
 	"repos/create-for-authenticated-user": createAuthenticatedUserRepository,
+	"users/list-followers-for-authenticated-user": listFollowersOfCaller,
+	"users/list-followed-by-authenticated-user": listFollowedByCaller,
+	"users/check-person-is-followed-by-authenticated": checkCallerFollows,
+	"users/follow": followAsCaller,
+	"users/unfollow": unfollowAsCaller,
+	"activity/list-watched-repos-for-authenticated-user": listWatchedByCaller,
 	"users/get-by-id": getUserById,
 	"users/get-by-username": getUser,
 	"repos/list-for-user": listUserRepositories,
+	"users/list-followers-for-user": listFollowersOfUser,
+	"users/list-following-for-user": listFollowingOfUser,
+	"users/check-following-for-user": checkUserFollows,
+	"activity/list-repos-watched-by-user": listWatchedByUser,
 	"activity/list-notifications-for-authenticated-user":
 		listNotificationsForCaller,
 	"activity/mark-notifications-as-read": markNotificationsRead,
@@ -139,6 +167,10 @@ const HANDLERS = {
 	"activity/mark-thread-as-read": markThreadRead,
 	"activity/mark-thread-as-done": markThreadDone,
 	"repos/get": getRepository,
+	"activity/list-watchers-for-repo": listRepoWatchers,
+	"activity/get-repo-subscription": getRepoSubscriptionForCaller,
+	"activity/set-repo-subscription": putRepoSubscription,
+	"activity/delete-repo-subscription": deleteRepoSubscriptionForCaller,
 	"activity/list-repo-notifications-for-authenticated-user":
 		listRepoNotificationsForCaller,
 	"activity/mark-repo-notifications-as-read": markRepoNotificationsRead,
