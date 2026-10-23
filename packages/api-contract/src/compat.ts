@@ -22,8 +22,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"users/list-followed-by-authenticated-user": "pagination",
 	"users/check-person-is-followed-by-authenticated": "`204` or `404`",
 	"users/follow":
-		"`repo:write` token; `204`, idempotent; following yourself is `422`",
-	"users/unfollow": "`repo:write` token; `204`, idempotent",
+		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent; known difference: following yourself is `422`",
+	"users/unfollow":
+		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent",
 	"activity/list-watched-repos-for-authenticated-user":
 		"repositories you watch (not ignore) and can still read; pagination",
 	"users/get-by-id":

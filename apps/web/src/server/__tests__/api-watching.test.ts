@@ -24,7 +24,7 @@ const { BASE, asToken, call, mintToken, post } = await import(
 	"../../test/api-client"
 );
 const { db } = await import("../../db");
-const { repositoryCollaborators, repositories } = await import(
+const { issues, repositoryCollaborators, repositories } = await import(
 	"../../db/app-schema"
 );
 const { eq } = await import("drizzle-orm");
@@ -289,6 +289,47 @@ describe("notifications for watchers", () => {
 			"Direct:subscribed",
 			"Watched:subscribed",
 		]);
+	});
+});
+
+describe("watchers and threads that already exist", () => {
+	it("tells a watcher about any thread, unless they unsubscribed from it", async () => {
+		const { threadSubscriptions } = await import("../../db/app-schema");
+		await call("/repos/alice/pub/issues", post(alice, { title: "Older" }));
+		const number = (
+			await call("/repos/alice/pub/issues?state=all", asToken(alice))
+		).body.find((i: { title: string }) => i.title === "Older").number;
+		const [row] = await db
+			.select({ id: issues.id })
+			.from(issues)
+			.where(eq(issues.title, "Older"));
+
+		// Bob starts watching after the issue exists; dave mutes the thread.
+		await call("/repos/alice/pub/subscription", send("PUT", bob, {}));
+		await call("/repos/alice/pub/subscription", send("PUT", dave, {}));
+		await db.insert(threadSubscriptions).values({
+			issueId: row?.id ?? 0,
+			userId: users.dave.id,
+			subscribed: false,
+			reason: "manual",
+		});
+		const olderFor = async (token: string) =>
+			(await call("/notifications?all=true", asToken(token))).body.filter(
+				(t: { subject: { title: string } }) => t.subject.title === "Older",
+			);
+		expect(await olderFor(bob)).toEqual([]);
+
+		await call(
+			`/repos/alice/pub/issues/${number}/comments`,
+			post(alice, { body: "Update" }),
+		);
+		const bobs = await olderFor(bob);
+		expect(bobs).toHaveLength(1);
+		expect(bobs[0].reason).toBe("subscribed");
+		expect(await olderFor(dave)).toEqual([]);
+
+		await call("/repos/alice/pub/subscription", send("DELETE", bob));
+		await call("/repos/alice/pub/subscription", send("DELETE", dave));
 	});
 });
 

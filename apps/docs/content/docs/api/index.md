@@ -109,8 +109,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `GET /user/followers` | [`users/list-followers-for-authenticated-user`](https://docs.github.com/rest/users/followers#list-followers-of-the-authenticated-user) | pagination |
 | `GET /user/following` | [`users/list-followed-by-authenticated-user`](https://docs.github.com/rest/users/followers#list-the-people-the-authenticated-user-follows) | pagination |
 | `GET /user/following/{username}` | [`users/check-person-is-followed-by-authenticated`](https://docs.github.com/rest/users/followers#check-if-a-person-is-followed-by-the-authenticated-user) | `204` or `404` |
-| `PUT /user/following/{username}` | [`users/follow`](https://docs.github.com/rest/users/followers#follow-a-user) | `repo:write` token; `204`, idempotent; following yourself is `422` |
-| `DELETE /user/following/{username}` | [`users/unfollow`](https://docs.github.com/rest/users/followers#unfollow-a-user) | `repo:write` token; `204`, idempotent |
+| `PUT /user/following/{username}` | [`users/follow`](https://docs.github.com/rest/users/followers#follow-a-user) | needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent; known difference: following yourself is `422` |
+| `DELETE /user/following/{username}` | [`users/unfollow`](https://docs.github.com/rest/users/followers#unfollow-a-user) | needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent |
 | `GET /user/subscriptions` | [`activity/list-watched-repos-for-authenticated-user`](https://docs.github.com/rest/activity/watching#list-repositories-watched-by-the-authenticated-user) | repositories you watch (not ignore) and can still read; pagination |
 | `GET /user/{account_id}` | [`users/get-by-id`](https://docs.github.com/rest/users/users#get-a-user-using-their-id) | public profile by integer id; `404` for an unknown or malformed id |
 | `GET /users/{username}` | [`users/get-by-username`](https://docs.github.com/rest/users/users#get-a-user) | |

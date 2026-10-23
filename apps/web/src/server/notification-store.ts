@@ -56,8 +56,6 @@ export interface ThreadActivity {
 	direct?: { userIds: string[]; reason: NotificationReason };
 	/** Whether the thread's subscribers hear about it (default true). */
 	notifySubscribers?: boolean;
-	/** A just-opened issue or pull request: the repository's watchers hear about it. */
-	newThread?: boolean;
 }
 
 /** What still reaches someone who ignores the repository. */
@@ -149,18 +147,7 @@ export async function recordThreadActivity(
 							)
 					).map((row) => row.id),
 				);
-	// Watchers (all activity) hear about a new thread and follow it from then on.
-	const watching = new Set(
-		activity.newThread
-			? (await watcherIds(thread.repoId)).filter((id) => id !== actorId)
-			: [],
-	);
-	const newSubscriptions = [
-		...involved.filter((i) => readers.has(i.userId)),
-		...[...watching]
-			.filter((userId) => !involved.some((i) => i.userId === userId))
-			.map((userId) => ({ userId, reason: "subscribed" as const })),
-	];
+	const newSubscriptions = involved.filter((i) => readers.has(i.userId));
 	if (newSubscriptions.length > 0) {
 		// An existing row wins: it keeps its first reason and an explicit
 		// unsubscribe stays one.
@@ -187,6 +174,30 @@ export async function recordThreadActivity(
 				),
 			);
 		for (const s of subscribers) offer(s.userId, s.reason);
+		// People watching the repository for all activity hear about every
+		// thread in it, unless they unsubscribed from this thread themselves.
+		const watchers = (await watcherIds(thread.repoId)).filter(
+			(id) => id !== actorId,
+		);
+		if (watchers.length > 0) {
+			const muted = new Set(
+				(
+					await db
+						.select({ userId: threadSubscriptions.userId })
+						.from(threadSubscriptions)
+						.where(
+							and(
+								eq(threadSubscriptions.issueId, thread.id),
+								eq(threadSubscriptions.subscribed, false),
+								inArray(threadSubscriptions.userId, watchers),
+							),
+						)
+				).map((row) => row.userId),
+			);
+			for (const userId of watchers) {
+				if (!muted.has(userId)) offer(userId, "subscribed");
+			}
+		}
 	}
 	for (const s of newSubscriptions) offer(s.userId, s.reason);
 	// Someone who ignores the repository hears only what is addressed to them.

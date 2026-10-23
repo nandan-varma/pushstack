@@ -52,7 +52,6 @@ export async function createIssueForUser(
 		actorId: userId,
 		actorReason: "author",
 		text: issue.body,
-		newThread: true,
 	});
 	await recordActivity(userId, repoId, {
 		type: "issue",
