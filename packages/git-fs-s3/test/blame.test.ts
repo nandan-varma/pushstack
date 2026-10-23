@@ -48,6 +48,63 @@ function memoryCache(): ResultCache & { store: Map<string, unknown> } {
 	};
 }
 
+describe("getBlame merges", () => {
+	it("passes lines to the second parent instead of the merge", async () => {
+		const repo = await makeRepo();
+		const base = await commit(repo, "base\n", "a\nb\nc\n");
+		await git.branch({ ...repo, dir: repo.gitdir, ref: "side", object: base });
+		const c1 = await commit(repo, "main edit\n", "A\nb\nc\n");
+		const c2 = await commitFilesToBare(repo, {
+			branch: "side",
+			message: "side edit\n",
+			author,
+			files: [{ path: "src/a.txt", content: "a\nb\nC\n" }],
+		});
+		const blob = await git.writeBlob({
+			...repo,
+			blob: new TextEncoder().encode("A\nb\nC\n"),
+		});
+		const src = await git.writeTree({
+			...repo,
+			tree: [{ path: "a.txt", mode: "100644", type: "blob", oid: blob }],
+		});
+		const root = await git.writeTree({
+			...repo,
+			tree: [{ path: "src", mode: "040000", type: "tree", oid: src }],
+		});
+		const identity = {
+			name: "Test",
+			email: "test@example.com",
+			timestamp: 1,
+			timezoneOffset: 0,
+		};
+		const merge = await git.writeCommit({
+			...repo,
+			commit: {
+				message: "merge side\n",
+				tree: root,
+				parent: [c1, c2],
+				author: identity,
+				committer: identity,
+			},
+		});
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: merge,
+			force: true,
+		});
+
+		const blame = await getBlame(repo, { ref: "main", filePath: "src/a.txt" });
+		expect(blame.ranges).toEqual([
+			{ startLine: 1, endLine: 1, sha: c1 },
+			{ startLine: 2, endLine: 2, sha: base },
+			{ startLine: 3, endLine: 3, sha: c2 },
+		]);
+		expect(blame.commits[merge]).toBeUndefined();
+	});
+});
+
 describe("getBlame", () => {
 	it("attributes each line to the commit that introduced it", async () => {
 		const repo = await makeRepo();

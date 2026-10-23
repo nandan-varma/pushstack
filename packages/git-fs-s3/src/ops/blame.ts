@@ -22,8 +22,6 @@ export const MAX_BLAME_LINES = 20000;
 export const MAX_BLAME_BYTES = 16 * 1024 * 1024;
 /** Largest line-diff edit script computed per revision pair. */
 const MAX_EDIT_LENGTH = 4000;
-/** Tree reads are prefetched in parallel windows, like file history. */
-const PREFETCH_WINDOW = 24;
 
 export type BlameLimitMetric = "bytes" | "lines" | "binary";
 
@@ -76,7 +74,7 @@ export interface BlameResult {
 export interface BlameOptions {
 	ref: string;
 	filePath: string;
-	/** Commits (first-parent chain) to walk at most. Default HISTORY_WALK_DEPTH. */
+	/** Commits (all parents) to walk at most. Default HISTORY_WALK_DEPTH. */
 	maxDepth?: number;
 	maxFileBytes?: number;
 	maxLines?: number;
@@ -120,10 +118,11 @@ function mapUnchangedLines(
 }
 
 /**
- * Line-level blame for one file at a ref, following the first-parent chain:
- * each line is attributed to the newest commit that introduced it. Lines that
- * entered through a merge are attributed to the merge commit, and renames are
- * not followed (the file's first appearance at this path is the origin).
+ * Line-level blame for one file at a ref: each line is attributed to the
+ * commit that introduced it. Unchanged lines are passed to every parent in
+ * order (as the reference implementation does), so lines merged in from a side
+ * branch keep their real author; renames are not followed (the file's first
+ * appearance at this path is the origin).
  *
  * Work is bounded: the file's size and line count, the bytes read across all
  * compared revisions, the edit script per revision pair, and the commit depth
@@ -158,15 +157,21 @@ export async function getBlame(
 	const head = byOid.get(headSha);
 	if (!head) throw new GitPathNotFoundError(`File not found: ${filePath}`);
 
-	// The first-parent chain, newest first.
-	const chain: CommitInfo[] = [];
-	for (
-		let cursor: CommitInfo | undefined = head;
-		cursor;
-		cursor = byOid.get(cursor.commit.parent[0] ?? "")
-	) {
-		chain.push(cursor);
-	}
+	// Commits reachable from the head within the walk budget, parents after
+	// children, so every child has passed its lines down before a commit runs.
+	const order: CommitInfo[] = [];
+	const seen = new Set<string>();
+	const visit = (commit: CommitInfo) => {
+		if (seen.has(commit.oid)) return;
+		seen.add(commit.oid);
+		for (const sha of commit.commit.parent) {
+			const parent = byOid.get(sha);
+			if (parent) visit(parent);
+		}
+		order.push(commit);
+	};
+	visit(head);
+	order.reverse();
 
 	const oidByTree = new Map<string, string | null>();
 	async function blobOidAt(commit: CommitInfo): Promise<string | null> {
@@ -180,7 +185,10 @@ export async function getBlame(
 	}
 
 	let bytesRead = 0;
+	const linesByOid = new Map<string, string[]>();
 	async function readLines(oid: string): Promise<string[]> {
+		const cachedLines = linesByOid.get(oid);
+		if (cachedLines) return cachedLines;
 		const blob = await getBlob(repo, oid);
 		bytesRead += blob.byteLength;
 		if (blob.byteLength > maxFileBytes || bytesRead > maxBytes) {
@@ -192,67 +200,88 @@ export async function getBlame(
 		if (hasNullByte(blob)) throw new BlameLimitError("binary", 0);
 		const lines = splitLines(decodeUtf8(blob));
 		if (lines.length > maxLines) throw new BlameLimitError("lines", maxLines);
+		linesByOid.set(oid, lines);
 		return lines;
 	}
 
 	const headOid = await blobOidAt(head);
 	if (!headOid) throw new GitPathNotFoundError(`File not found: ${filePath}`);
-	let currentOid: string = headOid;
 	const headLines = await readLines(headOid);
-	let currentLines = headLines;
 
+	type Pending = { final: number; at: number };
 	const origin: (string | undefined)[] = new Array(headLines.length);
 	const boundaryLines = new Set<number>();
-	// Pending lines: final line index -> its index in the version being compared.
-	let pending: { final: number; at: number }[] = headLines.map((_, i) => ({
-		final: i,
-		at: i,
-	}));
+	// Lines still to place, per commit, indexed into that commit's version.
+	const pendingBy = new Map<string, Pending[]>([
+		[head.oid, headLines.map((_, i) => ({ final: i, at: i }))],
+	]);
+	let remaining = headLines.length;
 
-	const attribute = (commit: CommitInfo, boundary = false) => {
-		for (const { final } of pending) {
+	const attribute = (
+		lines: Pending[],
+		commit: CommitInfo,
+		boundary = false,
+	) => {
+		for (const { final } of lines) {
 			origin[final] = commit.oid;
 			if (boundary) boundaryLines.add(final);
 		}
-		pending = [];
+		remaining -= lines.length;
+	};
+	const passDown = (parent: CommitInfo, lines: Pending[]) => {
+		const queue = pendingBy.get(parent.oid);
+		if (queue) queue.push(...lines);
+		else pendingBy.set(parent.oid, lines);
 	};
 
-	for (let i = 0; i < chain.length && pending.length > 0; i++) {
-		const commit = chain[i];
-		if (!commit) break;
-		const parent = chain[i + 1];
-		if (commit.commit.parent.length === 0) {
-			attribute(commit);
-			break;
-		}
-		if (!parent) {
-			// The parent lies beyond the depth budget: this is as far as we see.
-			attribute(commit, true);
-			break;
-		}
-		if (i % PREFETCH_WINDOW === 0) {
-			await Promise.all(
-				chain.slice(i + 1, i + 1 + PREFETCH_WINDOW).map((c) => blobOidAt(c)),
-			);
-		}
-		const parentOid = await blobOidAt(parent);
-		if (parentOid === null) {
-			attribute(commit);
-			break;
-		}
-		if (parentOid === currentOid) continue;
+	for (const commit of order) {
+		if (remaining === 0) break;
+		const pend = pendingBy.get(commit.oid);
+		if (!pend || pend.length === 0) continue;
+		pendingBy.delete(commit.oid);
 
-		const parentLines = await readLines(parentOid);
-		const unchanged = mapUnchangedLines(parentLines, currentLines);
-		const next: typeof pending = [];
-		for (const line of pending) {
-			const oldIdx = unchanged ? (unchanged[line.at] ?? -1) : -1;
-			if (oldIdx < 0) origin[line.final] = commit.oid;
-			else next.push({ final: line.final, at: oldIdx });
+		const parentShas = commit.commit.parent;
+		if (parentShas.length === 0) {
+			attribute(pend, commit);
+			continue;
 		}
-		pending = next;
-		currentOid = parentOid;
-		currentLines = parentLines;
+		const parents = parentShas.map((sha) => byOid.get(sha));
+		// A parent beyond the depth budget can't be compared: what no visible
+		// parent explains stops here, flagged as possibly older.
+		const hasMissing = parents.some((p) => !p);
+		const [commitOid, ...parentOids] = await Promise.all([
+			blobOidAt(commit),
+			...parents.map((p) => (p ? blobOidAt(p) : null)),
+		]);
+		// A parent with the identical file owns every line (git prefers it).
+		const same = parentOids.findIndex((oid) => oid === commitOid);
+		const sameParent = same >= 0 ? parents[same] : undefined;
+		if (sameParent) {
+			passDown(sameParent, pend);
+			continue;
+		}
+		// Lines unchanged against a parent go to the first parent that has
+		// them; the rest were introduced by this commit.
+		let rest = pend;
+		const currentLines = await readLines(commitOid as string);
+		for (const [i, parent] of parents.entries()) {
+			const parentOid = parentOids[i];
+			if (!parent || !parentOid || rest.length === 0) continue;
+			const unchanged = mapUnchangedLines(
+				await readLines(parentOid),
+				currentLines,
+			);
+			const next: Pending[] = [];
+			const passed: Pending[] = [];
+			for (const line of rest) {
+				const oldIdx = unchanged ? (unchanged[line.at] ?? -1) : -1;
+				if (oldIdx < 0) next.push(line);
+				else passed.push({ final: line.final, at: oldIdx });
+			}
+			if (passed.length > 0) passDown(parent, passed);
+			rest = next;
+		}
+		if (rest.length > 0) attribute(rest, commit, hasMissing);
 	}
 
 	const ranges: BlameRange[] = [];
