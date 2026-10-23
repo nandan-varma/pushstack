@@ -38,6 +38,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiDebugPerfRouteImport } from './routes/api/debug.perf'
 import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
 import { Route as OwnerNamePullsPullsRouteImport } from './routes/$owner.$name._pulls.pulls'
+import { Route as OwnerNameArchiveSplatRouteImport } from './routes/$owner.$name.archive.$'
 import { Route as OwnerNameCommitShaRouteImport } from './routes/$owner.$name.commit.$sha'
 import { Route as OwnerNameCommitsBranchRouteImport } from './routes/$owner.$name.commits.$branch'
 import { Route as OwnerNameCompareSplatRouteImport } from './routes/$owner.$name.compare.$'
@@ -192,6 +193,11 @@ const OwnerNamePullsPullsRoute = OwnerNamePullsPullsRouteImport.update({
   path: '/pulls',
   getParentRoute: () => OwnerNamePullsRoute,
 } as any)
+const OwnerNameArchiveSplatRoute = OwnerNameArchiveSplatRouteImport.update({
+  id: '/archive/$',
+  path: '/archive/$',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const OwnerNameCommitShaRoute = OwnerNameCommitShaRouteImport.update({
   id: '/commit/$sha',
   path: '/commit/$sha',
@@ -275,6 +281,7 @@ export interface FileRoutesByFullPath {
   '/api/v3/$': typeof ApiV3SplatRoute
   '/$owner/$name/': typeof OwnerNameIndexRoute
   '/$owner/$name/pulls': typeof OwnerNamePullsPullsRoute
+  '/$owner/$name/archive/$': typeof OwnerNameArchiveSplatRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
   '/$owner/$name/pulls': typeof OwnerNamePullsPullsRoute
+  '/$owner/$name/archive/$': typeof OwnerNameArchiveSplatRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/api/v3/$': typeof ApiV3SplatRoute
   '/$owner/$name/': typeof OwnerNameIndexRoute
   '/$owner/$name/_pulls/pulls': typeof OwnerNamePullsPullsRoute
+  '/$owner/$name/archive/$': typeof OwnerNameArchiveSplatRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
     | '/api/v3/$'
     | '/$owner/$name/'
     | '/$owner/$name/pulls'
+    | '/$owner/$name/archive/$'
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
@@ -432,6 +442,7 @@ export interface FileRouteTypes {
     | '/api/debug/perf'
     | '/api/v3/$'
     | '/$owner/$name/pulls'
+    | '/$owner/$name/archive/$'
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/api/v3/$'
     | '/$owner/$name/'
     | '/$owner/$name/_pulls/pulls'
+    | '/$owner/$name/archive/$'
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
@@ -709,6 +721,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNamePullsPullsRouteImport
       parentRoute: typeof OwnerNamePullsRoute
     }
+    '/$owner/$name/archive/$': {
+      id: '/$owner/$name/archive/$'
+      path: '/archive/$'
+      fullPath: '/$owner/$name/archive/$'
+      preLoaderRoute: typeof OwnerNameArchiveSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/commit/$sha': {
       id: '/$owner/$name/commit/$sha'
       path: '/commit/$sha'
@@ -844,6 +863,7 @@ interface OwnerNameRouteChildren {
   OwnerNameSettingsRoute: typeof OwnerNameSettingsRoute
   OwnerNameSetupRoute: typeof OwnerNameSetupRoute
   OwnerNameIndexRoute: typeof OwnerNameIndexRoute
+  OwnerNameArchiveSplatRoute: typeof OwnerNameArchiveSplatRoute
   OwnerNameCommitShaRoute: typeof OwnerNameCommitShaRoute
   OwnerNameCommitsBranchRoute: typeof OwnerNameCommitsBranchRoute
   OwnerNameCompareSplatRoute: typeof OwnerNameCompareSplatRoute
@@ -863,6 +883,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameSettingsRoute: OwnerNameSettingsRoute,
   OwnerNameSetupRoute: OwnerNameSetupRoute,
   OwnerNameIndexRoute: OwnerNameIndexRoute,
+  OwnerNameArchiveSplatRoute: OwnerNameArchiveSplatRoute,
   OwnerNameCommitShaRoute: OwnerNameCommitShaRoute,
   OwnerNameCommitsBranchRoute: OwnerNameCommitsBranchRoute,
   OwnerNameCompareSplatRoute: OwnerNameCompareSplatRoute,

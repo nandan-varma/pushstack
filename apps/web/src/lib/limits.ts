@@ -36,6 +36,15 @@ export const UPLOAD_WARNING_BYTES = 10 * 1024 * 1024;
 export const MAX_RAW_BYTES = 50 * 1024 * 1024;
 
 /**
+ * Bounds of one source archive (zipball/tarball). The archive streams, so
+ * these cap work, not memory: entries (files, symlinks and directories; also
+ * keeps every zip offset in 32 bits) and the uncompressed bytes of all files.
+ * Above them the answer is `git clone`.
+ */
+export const MAX_ARCHIVE_ENTRIES = 50_000;
+export const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
+
+/**
  * Offset a list endpoint accepts. A commit page's walk depth is `limit + skip`,
  * so this is also the bound on how much history one request can be made to
  * traverse — deep enough for any pagination the UI offers, small enough that

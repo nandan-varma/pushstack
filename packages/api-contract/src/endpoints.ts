@@ -256,6 +256,14 @@ export const endpoints = defineEndpoints({
 		query: z.object({ ref: z.string().optional() }),
 		response: contents,
 	},
+	"repos/download-tarball-archive": {
+		params: repoParams.extend({ ref: z.string().min(1) }),
+		response: noContent,
+	},
+	"repos/download-zipball-archive": {
+		params: repoParams.extend({ ref: z.string().min(1) }),
+		response: noContent,
+	},
 	"repos/create-or-update-file-contents": {
 		params: repoParams.extend({ path: z.string().min(1) }),
 		body: z.object({

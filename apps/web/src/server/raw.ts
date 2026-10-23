@@ -34,7 +34,7 @@ function contentType(path: string, isBinary: boolean): string {
  * Commit-pinned bytes never change; a branch's do. Only public repositories
  * may land in a shared (CDN) cache.
  */
-function cacheControl(isPublic: boolean, ref: string): string {
+export function cacheControl(isPublic: boolean, ref: string): string {
 	if (!isPublic) return "private, max-age=60";
 	return /^[0-9a-f]{40}$/i.test(ref)
 		? "public, max-age=31536000, immutable"
