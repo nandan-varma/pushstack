@@ -293,9 +293,11 @@ function toStatus(
 /**
  * Buckets this instance has seen over their limit, with the window's reset
  * (epoch seconds). Counters only grow within a window, so an exhausted bucket
- * stays exhausted until its reset: denying from memory is exact, costs no
- * database round trip, and keeps an over-limit client from making the server
- * do handler work. Bounded; entries lapse at their reset.
+ * stays exhausted until its reset: denying from memory is exact and costs no
+ * database round trip or handler work. It is per instance: the first
+ * over-limit request each instance sees (and any that were in flight with it)
+ * still ran its read handler concurrently with the count, and that result is
+ * discarded. Bounded; entries lapse at their reset.
  */
 const EXHAUSTED_MAX = 5_000;
 const exhaustedBuckets = new Map<string, number>();
@@ -315,7 +317,7 @@ function rememberExhausted(
 	}
 }
 
-/** Forget remembered exhaustion (tests simulating a window rollover). */
+/** Test-only: forget remembered exhaustion to simulate a window rollover. */
 export function resetRateLimitMemory(): void {
 	exhaustedBuckets.clear();
 }

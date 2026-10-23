@@ -241,8 +241,9 @@ async function dispatch(
 		let response: Response;
 		if (metered && canOverlapMetering(request)) {
 			// Safe reads run while the count is in flight, saving a serial
-			// database round trip. An over-limit result discards the work;
-			// callers this instance already saw exhausted were refused above.
+			// database round trip. An over-limit result discards the work, so
+			// the handler may run once per instance before the bucket is known
+			// exhausted; after that the caller is refused above, before it runs.
 			const handling = handle();
 			handling.catch(() => {});
 			rate = await meterApiRequest(request, caller);
