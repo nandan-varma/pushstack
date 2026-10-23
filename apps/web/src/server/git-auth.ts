@@ -17,7 +17,7 @@ import {
 	type TokenScope,
 	tokenAllows,
 } from "#/lib/token-scopes";
-import { getAccessForRepository } from "./repo-access";
+import { ARCHIVED_MESSAGE, getAccessForRepository } from "./repo-access";
 
 export interface GitAccess {
 	/** null for an anonymous read of a public repository. */
@@ -92,6 +92,9 @@ export async function authorizeGitRequest(
 	const canWrite =
 		access.canWrite && !!scopes && tokenAllows(scopes, "repo:write");
 
+	if (needsWrite && canRead && access.repository.archived && user) {
+		throw new GitAuthorizationError(ARCHIVED_MESSAGE);
+	}
 	if (!canRead || (needsWrite && !canWrite)) {
 		if (!user) {
 			throw new GitAuthenticationError("Authentication required");

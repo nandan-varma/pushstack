@@ -65,7 +65,7 @@ export async function getRepoSubscriptionForCaller(ctx: ApiContext) {
  */
 export async function putRepoSubscription(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
-	const { repo } = await readableRepository(ctx);
+	const { repo } = await readableRepository(ctx, { allowArchivedWrites: true });
 	const body = await requestBody(
 		ctx,
 		"activity/set-repo-subscription",
@@ -93,7 +93,7 @@ export async function putRepoSubscription(ctx: ApiContext) {
 /** `DELETE /repos/{owner}/{repo}/subscription`: back to participating only. */
 export async function deleteRepoSubscriptionForCaller(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
-	const { repo } = await readableRepository(ctx);
+	const { repo } = await readableRepository(ctx, { allowArchivedWrites: true });
 	await deleteRepoSubscription(repo.id, caller.userId);
 	return noContent();
 }

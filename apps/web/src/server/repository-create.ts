@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
-import { MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
+import { MAX_ARCHIVE_BYTES, MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
 import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
@@ -13,6 +13,7 @@ import {
 } from "#/lib/templates";
 import { recordActivity } from "./activity";
 import { isUniqueViolation } from "./db-errors";
+import { ArchiveLimitError, planArchive, readArchiveBlob } from "./git-read";
 import { deleteRepositoryStorage, initBareRepo } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { createInitialCommitUnlocked } from "./git-write";
@@ -51,21 +52,24 @@ export class RepositoryExistsError extends Error {
 export async function createRepositoryForUser(
 	owner: { id: string; username: string; name: string; email: string },
 	data: CreateRepositoryInput,
+	/** Files for the initial commit, instead of the README and templates (a generated repository). */
+	templateFiles?: Array<{ path: string; content: Uint8Array }>,
 ) {
-	const initialFiles: Array<{ path: string; content: string }> = [];
-	if (data.autoInit) {
+	const initialFiles: Array<{ path: string; content: string | Uint8Array }> =
+		templateFiles ? [...templateFiles] : [];
+	if (data.autoInit && !templateFiles) {
 		initialFiles.push({
 			path: "README.md",
 			content: renderReadme(data.name, data.description),
 		});
 	}
-	if (data.gitignoreTemplate) {
+	if (data.gitignoreTemplate && !templateFiles) {
 		initialFiles.push({
 			path: ".gitignore",
 			content: GITIGNORE_TEMPLATES[data.gitignoreTemplate],
 		});
 	}
-	if (data.licenseTemplate) {
+	if (data.licenseTemplate && !templateFiles) {
 		initialFiles.push({
 			path: "LICENSE",
 			content: renderLicense(data.licenseTemplate, {
@@ -127,4 +131,48 @@ export async function createRepositoryForUser(
 		metadata: { repoName: repo.name },
 	});
 	return repo;
+}
+
+/**
+ * A new repository holding a snapshot of a template's default branch as one
+ * `Initial commit` (no history, as on GitHub). Files only: symlinks and
+ * submodule pointers are skipped, the executable bit is not kept, and the
+ * archive limits bound the copy.
+ */
+export async function generateRepositoryFromTemplate(
+	template: {
+		name: string;
+		defaultBranch: string;
+		owner: { username: string };
+	},
+	owner: { id: string; username: string; name: string; email: string },
+	data: {
+		name: string;
+		description?: string;
+		visibility: "public" | "private";
+	},
+) {
+	const plan = await planArchive(
+		template.owner.username,
+		template.name,
+		template.defaultBranch,
+	);
+	const budget = { remaining: MAX_ARCHIVE_BYTES };
+	const files: Array<{ path: string; content: Uint8Array }> = [];
+	for (const node of plan.nodes) {
+		if (node.kind !== "file") continue;
+		files.push({
+			path: node.path,
+			content: await readArchiveBlob(
+				template.owner.username,
+				template.name,
+				node.oid,
+				budget,
+			),
+		});
+	}
+	if (files.length === 0) {
+		throw new ArchiveLimitError("The template repository has no files");
+	}
+	return createRepositoryForUser(owner, { ...data, autoInit: false }, files);
 }

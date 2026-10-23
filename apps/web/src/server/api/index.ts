@@ -78,6 +78,13 @@ import {
 } from "./labels";
 import { getRoot } from "./meta";
 import {
+	createMilestone,
+	deleteMilestone,
+	getMilestone,
+	listRepoMilestones,
+	updateMilestone,
+} from "./milestones";
+import {
 	deleteThreadSubscription,
 	getThread,
 	getThreadSubscription,
@@ -121,9 +128,15 @@ import {
 } from "./reactions";
 import {
 	createAuthenticatedUserRepository,
+	deleteRepositoryHandler,
+	generateFromTemplate,
 	getRepository,
+	getTopics,
 	listAuthenticatedUserRepositories,
 	listUserRepositories,
+	replaceTopics,
+	transferRepositoryHandler,
+	updateRepositoryHandler,
 } from "./repos";
 import { matchApiRoute } from "./routing";
 import { listTags } from "./tags";
@@ -170,6 +183,12 @@ const HANDLERS = {
 	"activity/mark-thread-as-read": markThreadRead,
 	"activity/mark-thread-as-done": markThreadDone,
 	"repos/get": getRepository,
+	"repos/update": updateRepositoryHandler,
+	"repos/delete": deleteRepositoryHandler,
+	"repos/get-all-topics": getTopics,
+	"repos/replace-all-topics": replaceTopics,
+	"repos/transfer": transferRepositoryHandler,
+	"repos/create-using-template": generateFromTemplate,
 	"activity/list-watchers-for-repo": listRepoWatchers,
 	"activity/get-repo-subscription": getRepoSubscriptionForCaller,
 	"activity/set-repo-subscription": putRepoSubscription,
@@ -257,6 +276,11 @@ const HANDLERS = {
 	"issues/get-label": getLabel,
 	"issues/update-label": updateLabel,
 	"issues/delete-label": deleteLabel,
+	"issues/list-milestones": listRepoMilestones,
+	"issues/create-milestone": createMilestone,
+	"issues/get-milestone": getMilestone,
+	"issues/update-milestone": updateMilestone,
+	"issues/delete-milestone": deleteMilestone,
 } satisfies Record<OperationId, Handler>;
 
 /** Every method the route table uses; `routes/api/v3.$.ts` must serve each. */

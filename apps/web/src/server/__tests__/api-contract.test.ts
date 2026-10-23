@@ -83,6 +83,25 @@ beforeAll(async () => {
 	await check("/user/repos", auth);
 	await check("/users/alice/repos");
 	await check("/repos/alice/proj", auth);
+	await check(
+		"/repos/alice/proj",
+		patch(alice, { homepage: "https://example.org", is_template: true }),
+	);
+	await check(
+		"/repos/alice/proj/topics",
+		put(alice, { names: ["git", "forge"] }),
+	);
+	await check("/repos/alice/proj/topics");
+	await check("/repos/alice/proj/generate", post(alice, { name: "generated" }));
+	await check(
+		"/repos/alice/generated/transfer",
+		post(alice, { new_owner: "bob" }),
+	);
+	await check(
+		"/repos/bob/generated",
+		del(await mintToken(users.bob, ["repo:write"])),
+	);
+	await check("/repos/alice/proj", patch(alice, { is_template: false }));
 
 	// Watching and following.
 	await check("/repos/alice/proj/subscription", auth);
@@ -176,6 +195,23 @@ beforeAll(async () => {
 	);
 	await check("/repos/alice/proj/issues/1", patch(alice, { state: "open" }));
 	await check("/repos/alice/proj/labels/triage", del(alice));
+
+	await check(
+		"/repos/alice/proj/milestones",
+		post(alice, { title: "v1", due_on: "2030-01-31T00:00:00Z" }),
+	);
+	await check("/repos/alice/proj/milestones");
+	await check("/repos/alice/proj/milestones/1");
+	await check(
+		"/repos/alice/proj/milestones/1",
+		patch(alice, { description: "First release" }),
+	);
+	await check("/repos/alice/proj/issues/1", patch(alice, { milestone: 1 }));
+	await check("/repos/alice/proj/issues?milestone=1");
+	await check("/repos/alice/proj/issues/1/events");
+	await check("/repos/alice/proj/issues/1/timeline");
+	await check("/repos/alice/proj/issues/1", patch(alice, { milestone: null }));
+	await check("/repos/alice/proj/milestones/1", del(alice));
 
 	await check(
 		"/repos/alice/proj/pulls",

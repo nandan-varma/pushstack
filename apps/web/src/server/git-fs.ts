@@ -236,14 +236,24 @@ export async function moveRepoStorage(
 	oldRepoName: string,
 	newRepoName: string,
 ): Promise<void> {
-	const oldPrefix = getRepoGitStoragePrefix(ownerKey, oldRepoName);
-	const newPrefix = getRepoGitStoragePrefix(ownerKey, newRepoName);
+	await transferRepoStorage(ownerKey, oldRepoName, ownerKey, newRepoName);
+}
+
+/** {@link moveRepoStorage} across owners (a transfer): same copy-then-delete. */
+export async function transferRepoStorage(
+	oldOwnerKey: string,
+	oldRepoName: string,
+	newOwnerKey: string,
+	newRepoName: string,
+): Promise<void> {
+	const oldPrefix = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
+	const newPrefix = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
 	const { r2 } = getBackend();
 	await movePrefix(networkStore, oldPrefix, newPrefix, {
 		copy: r2
 			? (from, to) => perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
 			: undefined,
 	});
-	invalidateRepoGitStorage(ownerKey, oldRepoName);
-	invalidateRepoGitStorage(ownerKey, newRepoName);
+	invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
+	invalidateRepoGitStorage(newOwnerKey, newRepoName);
 }

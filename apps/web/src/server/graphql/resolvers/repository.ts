@@ -83,21 +83,20 @@ export interface RepositoryNode {
 	archivedAt: null;
 	isPrivate: boolean;
 	visibility: "PUBLIC" | "PRIVATE";
-	// Facts of PushStack, not defaults: there are no forks, templates,
-	// mirrors, archives, locks, organizations, wikis, projects or
-	// discussions, and issues are always on.
+	// Facts of PushStack, not defaults: there are no forks, mirrors, locks,
+	// organizations or discussions.
 	isFork: false;
-	isTemplate: false;
+	isTemplate: boolean;
 	isMirror: false;
 	mirrorUrl: null;
-	isArchived: false;
+	isArchived: boolean;
 	isLocked: false;
 	isInOrganization: false;
-	hasIssuesEnabled: true;
-	hasWikiEnabled: false;
-	hasProjectsEnabled: false;
+	hasIssuesEnabled: boolean;
+	hasWikiEnabled: boolean;
+	hasProjectsEnabled: boolean;
 	hasDiscussionsEnabled: false;
-	homepageUrl: null;
+	homepageUrl: string | null;
 	parent: null;
 	templateRepository: null;
 	forkCount: 0;
@@ -131,17 +130,17 @@ export function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 		isPrivate: row.visibility === "private",
 		visibility: row.visibility === "private" ? "PRIVATE" : "PUBLIC",
 		isFork: false,
-		isTemplate: false,
+		isTemplate: row.isTemplate,
 		isMirror: false,
 		mirrorUrl: null,
-		isArchived: false,
+		isArchived: row.archived,
 		isLocked: false,
 		isInOrganization: false,
-		hasIssuesEnabled: true,
-		hasWikiEnabled: false,
-		hasProjectsEnabled: false,
+		hasIssuesEnabled: row.hasIssues,
+		hasWikiEnabled: row.hasWiki,
+		hasProjectsEnabled: row.hasProjects,
 		hasDiscussionsEnabled: false,
-		homepageUrl: null,
+		homepageUrl: row.homepage,
 		parent: null,
 		templateRepository: null,
 		forkCount: 0,

@@ -14,8 +14,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { MAX_REPO_TOPICS } from "@/lib/limits";
 import { queryKeys, repositoryBranchesQueryOptions } from "@/lib/query-options";
-import { updateRepository } from "@/server/repositories";
+import { setRepositoryTopics, updateRepository } from "@/server/repositories";
 
 const labelCls = "text-sm font-medium text-foreground";
 
@@ -30,6 +32,13 @@ export function GeneralSection({
 		description: string | null;
 		visibility: string;
 		defaultBranch: string;
+		homepage: string | null;
+		topics: string[];
+		isTemplate: boolean;
+		hasIssues: boolean;
+		hasWiki: boolean;
+		hasProjects: boolean;
+		archived: boolean;
 	};
 	owner: string;
 	name: string;
@@ -41,14 +50,39 @@ export function GeneralSection({
 		repo.visibility as "public" | "private",
 	);
 	const [defaultBranch, setDefaultBranch] = useState(repo.defaultBranch);
+	const [homepage, setHomepage] = useState(repo.homepage ?? "");
+	const [topics, setTopics] = useState(repo.topics.join(" "));
+	const [flags, setFlags] = useState({
+		isTemplate: repo.isTemplate,
+		hasIssues: repo.hasIssues,
+		hasWiki: repo.hasWiki,
+		hasProjects: repo.hasProjects,
+	});
 	const [success, setSuccess] = useState(false);
 	const navigate = useNavigate();
 	const { data: branches = [] } = useQuery(
 		repositoryBranchesQueryOptions(repo.id),
 	);
 
+	// Topics are a separate server function: a typo in one must not lose the rest.
+	const topicList = topics
+		.split(/[\s,]+/)
+		.map((topic) => topic.toLowerCase())
+		.filter(Boolean);
+	const topicsChanged = topicList.join(" ") !== repo.topics.join(" ");
+
 	const updateMutation = useMutation({
-		mutationFn: updateRepository,
+		mutationFn: async (
+			data: Parameters<typeof updateRepository>[0]["data"],
+		) => {
+			const updated = await updateRepository({ data });
+			if (topicsChanged) {
+				await setRepositoryTopics({
+					data: { id: repo.id, topics: topicList },
+				});
+			}
+			return updated;
+		},
 		onSuccess: (updated) => {
 			queryClient.invalidateQueries({
 				queryKey: queryKeys.repositoryByName(owner, name),
@@ -74,11 +108,23 @@ export function GeneralSection({
 		repoName !== repo.name ||
 		description !== (repo.description ?? "") ||
 		visibility !== repo.visibility ||
-		defaultBranch !== repo.defaultBranch;
+		defaultBranch !== repo.defaultBranch ||
+		homepage !== (repo.homepage ?? "") ||
+		topicsChanged ||
+		flags.isTemplate !== repo.isTemplate ||
+		flags.hasIssues !== repo.hasIssues ||
+		flags.hasWiki !== repo.hasWiki ||
+		flags.hasProjects !== repo.hasProjects;
 
 	return (
 		<Section title="General" description="Basic repository information.">
 			<div className="space-y-4">
+				{repo.archived && (
+					<p className="text-sm text-muted-foreground">
+						This repository is archived and read-only. Unarchive it in the
+						danger zone to change its settings.
+					</p>
+				)}
 				<FormField label="Repository name" htmlFor="repo-name">
 					<Input
 						id="repo-name"
@@ -93,6 +139,26 @@ export function GeneralSection({
 						placeholder="A short description of this repository"
 						onChange={(e) => setDescription(e.target.value)}
 					/>
+				</FormField>
+				<FormField label="Website" htmlFor="repo-homepage" hint="(optional)">
+					<Input
+						id="repo-homepage"
+						value={homepage}
+						placeholder="https://example.com"
+						onChange={(e) => setHomepage(e.target.value)}
+					/>
+				</FormField>
+				<FormField label="Topics" htmlFor="repo-topics" hint="(optional)">
+					<Input
+						id="repo-topics"
+						value={topics}
+						placeholder="git typescript cli"
+						onChange={(e) => setTopics(e.target.value)}
+					/>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Separate topics with spaces. Up to {MAX_REPO_TOPICS}, lowercase
+						letters, numbers and hyphens.
+					</p>
 				</FormField>
 				<FormField label="Default branch" htmlFor="repo-default-branch">
 					<Select
@@ -147,6 +213,31 @@ export function GeneralSection({
 						))}
 					</div>
 				</div>
+				<div className="space-y-2">
+					<p className={labelCls}>Features</p>
+					{(
+						[
+							["hasIssues", "Issues"],
+							["hasWiki", "Wiki"],
+							["hasProjects", "Projects"],
+							["isTemplate", "Template repository"],
+						] as const
+					).map(([key, label]) => (
+						<div
+							key={key}
+							className="flex items-center justify-between gap-3 text-sm"
+						>
+							<span id={`flag-${key}`}>{label}</span>
+							<Switch
+								aria-labelledby={`flag-${key}`}
+								checked={flags[key]}
+								onCheckedChange={(checked) =>
+									setFlags((current) => ({ ...current, [key]: checked }))
+								}
+							/>
+						</div>
+					))}
+				</div>
 				{updateMutation.isError && (
 					<FieldError>{(updateMutation.error as Error).message}</FieldError>
 				)}
@@ -154,16 +245,16 @@ export function GeneralSection({
 					<LoadingButton
 						isLoading={updateMutation.isPending}
 						loadingLabel="Saving…"
-						disabled={!dirty || !repoName.trim()}
+						disabled={!dirty || !repoName.trim() || repo.archived}
 						onClick={() =>
 							updateMutation.mutate({
-								data: {
-									id: repo.id,
-									name: repoName,
-									description,
-									visibility,
-									defaultBranch,
-								},
+								id: repo.id,
+								name: repoName,
+								description,
+								homepage,
+								visibility,
+								defaultBranch,
+								...flags,
 							})
 						}
 					>

@@ -106,7 +106,7 @@ export function createInitialCommitUnlocked(
 	commit: {
 		branch: string;
 		message: string;
-		files: Array<{ path: string; content: string }>;
+		files: Array<{ path: string; content: string | Uint8Array }>;
 		author: CommitAuthorInput;
 	},
 ): Promise<string> {

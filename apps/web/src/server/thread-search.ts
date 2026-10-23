@@ -29,6 +29,8 @@ export function searchFilter(
 		noLabel: search.noLabel,
 		reviewRequested: resolveMe(search.reviewRequested, viewerUsername),
 		reviewedBy: resolveMe(search.reviewedBy, viewerUsername),
+		milestones: search.milestones,
+		noMilestone: search.noMilestone,
 		draft: search.draft,
 		assignees: [...(search.noAssignee ? ["none"] : []), ...search.assignees],
 	};

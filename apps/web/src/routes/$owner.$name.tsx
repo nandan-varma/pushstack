@@ -146,6 +146,14 @@ function RepositoryPage() {
 
 	return (
 		<div className="page-wrap py-5 lg:py-6">
+			{repo.archived && (
+				<div
+					role="status"
+					className="mb-4 rounded-lg border border-border bg-muted px-4 py-2.5 text-sm text-foreground"
+				>
+					This repository has been archived by the owner. It is now read-only.
+				</div>
+			)}
 			<GuestSignupBanner repoLabel={`${owner}/${name}`} />
 			{watchingBranch && (
 				<BranchWatcher repoId={repo.id} branchName={currentBranch} />

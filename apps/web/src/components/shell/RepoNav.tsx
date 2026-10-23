@@ -12,6 +12,7 @@ import { RepoStar } from "@/components/repo/RepoStar";
 import { RepoWatch } from "@/components/repo/RepoWatch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl } from "@/lib/git-utils";
+import { safeHomepageUrl } from "@/lib/homepage";
 import {
 	authSessionQueryOptions,
 	repositoryByNameQueryOptions,
@@ -52,6 +53,7 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 			matchRoute({ to: "/$owner/$name/commit/$sha", fuzzy: true }),
 	);
 	const isOwner = repo.ownerId === session?.user?.id;
+	const homepage = safeHomepageUrl(repo.homepage);
 
 	return (
 		<div className="space-y-3 border-t border-bjork-border-muted pt-4">
@@ -77,11 +79,38 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					<span className="shrink-0 rounded-full border border-bjork-border px-1.5 text-[11px] text-bjork-text-soft capitalize">
 						{repo.visibility}
 					</span>
+					{repo.archived && (
+						<span className="shrink-0 rounded-full border border-bjork-border px-1.5 text-[11px] text-bjork-text-soft">
+							Archived
+						</span>
+					)}
 				</div>
 				{repo.description && (
 					<p className="mt-1.5 line-clamp-2 text-xs leading-5 text-bjork-text-muted">
 						{repo.description}
 					</p>
+				)}
+				{homepage && (
+					<a
+						href={homepage}
+						target="_blank"
+						rel="noopener noreferrer nofollow"
+						className="mt-1.5 block truncate text-xs text-bjork-text-soft hover:text-bjork-accent"
+					>
+						{repo.homepage}
+					</a>
+				)}
+				{repo.topics.length > 0 && (
+					<ul className="mt-2 flex flex-wrap gap-1" aria-label="Topics">
+						{repo.topics.map((topic) => (
+							<li
+								key={topic}
+								className="rounded-full bg-bjork-accent-soft px-2 py-0.5 text-[11px] text-bjork-accent"
+							>
+								{topic}
+							</li>
+						))}
+					</ul>
 				)}
 			</div>
 			<SidebarGroup>
@@ -125,6 +154,15 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 			<div className="space-y-2 px-1">
 				<RepoWatch owner={owner} name={name} repo={repo} />
 				<RepoStar owner={owner} name={name} repo={repo} />
+				{repo.isTemplate && session?.user && (
+					<Link
+						to="/$owner/$name/generate"
+						params={{ owner, name }}
+						className="block px-1 text-[13px] font-medium text-bjork-accent hover:underline"
+					>
+						Use this template
+					</Link>
+				)}
 				<CopyField value={getCloneUrl(owner, name)} label="Copy clone URL" />
 				<a
 					href={`/${owner}/${name}/archive/${ref.split("/").map(encodeURIComponent).join("/")}.zip`}

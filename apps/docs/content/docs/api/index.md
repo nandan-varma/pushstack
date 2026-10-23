@@ -128,6 +128,12 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `PATCH /notifications/threads/{thread_id}` | [`activity/mark-thread-as-read`](https://docs.github.com/rest/activity/notifications#mark-a-thread-as-read) | `205` |
 | `DELETE /notifications/threads/{thread_id}` | [`activity/mark-thread-as-done`](https://docs.github.com/rest/activity/notifications#mark-a-thread-as-done) | `204`: the thread leaves the inbox until new activity |
 | `GET /repos/{owner}/{repo}` | [`repos/get`](https://docs.github.com/rest/repos/repos#get-a-repository) | |
+| `PATCH /repos/{owner}/{repo}` | [`repos/update`](https://docs.github.com/rest/repos/repos#update-a-repository) | owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`; other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts |
+| `DELETE /repos/{owner}/{repo}` | [`repos/delete`](https://docs.github.com/rest/repos/repos#delete-a-repository) | owner only (`403` otherwise); `204` |
+| `GET /repos/{owner}/{repo}/topics` | [`repos/get-all-topics`](https://docs.github.com/rest/repos/repos#get-all-repository-topics) | |
+| `PUT /repos/{owner}/{repo}/topics` | [`repos/replace-all-topics`](https://docs.github.com/rest/repos/repos#replace-all-repository-topics) | `names` (at most 20, lowercase letters, digits and hyphens, at most 50 characters each; invalid is `422`) |
+| `POST /repos/{owner}/{repo}/transfer` | [`repos/transfer`](https://docs.github.com/rest/repos/repos#transfer-a-repository) | `new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` ignored; the old URL does not redirect |
+| `POST /repos/{template_owner}/{template_repo}/generate` | [`repos/create-using-template`](https://docs.github.com/rest/repos/repos#create-a-repository-using-a-template) | the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` is ignored; issues, labels, topics and settings are not copied |
 | `GET /repos/{owner}/{repo}/subscribers` | [`activity/list-watchers-for-repo`](https://docs.github.com/rest/activity/watching#list-watchers) | people watching (not ignoring) who can still read the repository; pagination |
 | `GET /repos/{owner}/{repo}/subscription` | [`activity/get-repo-subscription`](https://docs.github.com/rest/activity/watching#get-a-repository-subscription) | `404` when you are not subscribed; `reason` is always `null` |
 | `PUT /repos/{owner}/{repo}/subscription` | [`activity/set-repo-subscription`](https://docs.github.com/rest/activity/watching#set-a-repository-subscription) | `repo:write` token; `ignored: true` ignores the repository, otherwise you watch all activity; `subscribed: false` without `ignored` removes the subscription |
@@ -176,8 +182,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `POST /repos/{owner}/{repo}/git/commits` | [`git/create-commit`](https://docs.github.com/rest/git/commits#create-a-commit) | `message`, `tree`, `parents`, `author`/`committer` (with `date`; default the caller, now); no ref moves |
 | `GET /repos/{owner}/{repo}/git/tags/{tag_sha}` | [`git/get-tag`](https://docs.github.com/rest/git/tags#get-a-tag) | annotated tag objects (unsigned) |
 | `POST /repos/{owner}/{repo}/git/tags` | [`git/create-tag`](https://docs.github.com/rest/git/tags#create-a-tag-object) | unsigned; create the `refs/tags/…` ref separately, as on GitHub |
-| `GET /repos/{owner}/{repo}/issues` | [`issues/list-for-repo`](https://docs.github.com/rest/issues/issues#list-repository-issues) | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
-| `POST /repos/{owner}/{repo}/issues` | [`issues/create`](https://docs.github.com/rest/issues/issues#create-an-issue) | any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access) |
+| `GET /repos/{owner}/{repo}/issues` | [`issues/list-for-repo`](https://docs.github.com/rest/issues/issues#list-repository-issues) | returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction` |
+| `POST /repos/{owner}/{repo}/issues` | [`issues/create`](https://docs.github.com/rest/issues/issues#create-an-issue) | any signed-in reader; `title`, `body`, `labels`, `assignees`, `milestone` (number; labels/assignees/milestone need write access, an unknown milestone is `422`) |
 | `GET /repos/{owner}/{repo}/issues/comments/{comment_id}` | [`issues/get-comment`](https://docs.github.com/rest/issues/comments#get-an-issue-comment) | |
 | `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}` | [`issues/update-comment`](https://docs.github.com/rest/issues/comments#update-an-issue-comment) | |
 | `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}` | [`issues/delete-comment`](https://docs.github.com/rest/issues/comments#delete-an-issue-comment) | `204` |
@@ -185,7 +191,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions` | [`reactions/create-for-issue-comment`](https://docs.github.com/rest/reactions/reactions#create-reaction-for-an-issue-comment) | any signed-in reader (`repo:write` token); `201` when new, `200` with the existing reaction |
 | `DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}` | [`reactions/delete-for-issue-comment`](https://docs.github.com/rest/reactions/reactions#delete-an-issue-comment-reaction) | only your own reaction; `204` |
 | `GET /repos/{owner}/{repo}/issues/{issue_number}` | [`issues/get`](https://docs.github.com/rest/issues/issues#get-an-issue) | a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason` |
-| `PATCH /repos/{owner}/{repo}/issues/{issue_number}` | [`issues/update`](https://docs.github.com/rest/issues/issues#update-an-issue) | the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened |
+| `PATCH /repos/{owner}/{repo}/issues/{issue_number}` | [`issues/update`](https://docs.github.com/rest/issues/issues#update-an-issue) | the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`, `milestone` (number, or `null` to clear; writers only; records `milestoned`/`demilestoned` events); also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened |
 | `GET /repos/{owner}/{repo}/issues/{issue_number}/comments` | [`issues/list-comments`](https://docs.github.com/rest/issues/comments#list-issue-comments) | comments of an issue or a pull request |
 | `POST /repos/{owner}/{repo}/issues/{issue_number}/comments` | [`issues/create-comment`](https://docs.github.com/rest/issues/comments#create-an-issue-comment) | any signed-in reader |
 | `GET /repos/{owner}/{repo}/issues/{issue_number}/timeline` | [`issues/list-events-for-timeline`](https://docs.github.com/rest/issues/timeline#list-timeline-events-for-an-issue) | comments, events and submitted reviews (`reviewed` items with `state`, `body`, `commit_id`, `author_association` `OWNER`/`COLLABORATOR`/`NONE`), oldest first |
@@ -209,6 +215,11 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers` | [`pulls/list-requested-reviewers`](https://docs.github.com/rest/pulls/review-requests#get-all-requested-reviewers-for-a-pull-request) | `{ users, teams }`; `teams` is always empty (no teams yet) |
 | `POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers` | [`pulls/request-reviewers`](https://docs.github.com/rest/pulls/review-requests#request-reviewers-for-a-pull-request) | `reviewers` (collaborators only, at most 15; never the author); `team_reviewers` is refused. Each new request is a `review_requested` event and notifies the reviewer (`reason: review_requested`). Needs write access or authorship. `201` with the pull request |
 | `DELETE /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers` | [`pulls/remove-requested-reviewers`](https://docs.github.com/rest/pulls/review-requests#remove-requested-reviewers-from-a-pull-request) | `reviewers` must all have a pending request (`422` otherwise); records `review_request_removed`. Returns the pull request |
+| `GET /repos/{owner}/{repo}/milestones` | [`issues/list-milestones`](https://docs.github.com/rest/issues/milestones#list-milestones) | `state` (`open` default, `closed`, `all`), `sort` (`due_on` default, `completeness`), `direction`; `open_issues`/`closed_issues` count issues and pull requests |
+| `POST /repos/{owner}/{repo}/milestones` | [`issues/create-milestone`](https://docs.github.com/rest/issues/milestones#create-a-milestone) | write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists` |
+| `GET /repos/{owner}/{repo}/milestones/{milestone_number}` | [`issues/get-milestone`](https://docs.github.com/rest/issues/milestones#get-a-milestone) | |
+| `PATCH /repos/{owner}/{repo}/milestones/{milestone_number}` | [`issues/update-milestone`](https://docs.github.com/rest/issues/milestones#update-a-milestone) | write access |
+| `DELETE /repos/{owner}/{repo}/milestones/{milestone_number}` | [`issues/delete-milestone`](https://docs.github.com/rest/issues/milestones#delete-a-milestone) | write access; `204`; issues and pull requests in it lose the milestone |
 | `GET /repos/{owner}/{repo}/labels` | [`issues/list-labels-for-repo`](https://docs.github.com/rest/issues/labels#list-labels-for-a-repository) | |
 | `POST /repos/{owner}/{repo}/labels` | [`issues/create-label`](https://docs.github.com/rest/issues/labels#create-a-label) | write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
 | `GET /repos/{owner}/{repo}/labels/{name}` | [`issues/get-label`](https://docs.github.com/rest/issues/labels#get-a-label) | |
@@ -229,9 +240,10 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 - Repository objects carry the fields PushStack has an equivalent for:
   `id, name, full_name, private, owner, html_url, description, fork, url,
   clone_url, created_at, updated_at, default_branch, visibility, archived,
-  disabled, stargazers_count, watchers_count, forks_count` and (when
+  disabled, homepage, topics, is_template, has_issues, has_wiki, has_projects,
+  stargazers_count, watchers_count, forks_count` and (when
   authenticated, on repo and `/user/repos`) `permissions`. `fork` is always
-  `false`, `forks_count` `0`. Everything else (`topics`, `language`, `size`,
+  `false`, `forks_count` `0`. Everything else (`language`, `size`,
   `license`, `ssh_url`, …) is omitted.
 - `GET /users/{username}/repos` ignores `type`; there are no organizations, so
   `organization_member` affiliation matches nothing and every owner is a user.
@@ -249,14 +261,21 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 - Issue, comment and timeline objects carry the `reactions` rollup (`url`,
   `total_count` and one count per content), as on GitHub; an issue's rollup
   counts its own reactions, not its comments'. They omit `node_id`,
-  `author_association` and `performed_via_github_app`; `milestone` and
-  `active_lock_reason` are always `null`, `locked` always `false`. A
-  `labeled`/`unlabeled` event carries `{ name, color }`; an
+  `author_association` and `performed_via_github_app`; `active_lock_reason`
+  is always `null`, `locked` always `false`. A
+  `labeled`/`unlabeled` event carries `{ name, color }`; a
+  `milestoned`/`demilestoned` event carries `{ title }`; an
   `assigned`/`unassigned` event carries a partial assignee (`login`, `name`,
   `type`) because the account isn't stored with the event.
 - A label's `default` is `true` for the names in GitHub's default set; a label's
   `id` is an integer.
-- Unsupported issue-list filters (`creator`, `mentioned`, `milestone`, `since`,
+- A milestone's `number` is its own per-repository sequence (not the issue
+  `#N`); `open_issues`/`closed_issues` count issues and pull requests (a
+  merged pull request is closed). Milestone `node_id` is the legacy
+  `09:Milestone<id>` id. Deleting a milestone clears it from its issues and
+  pull requests without a timeline event. The web search accepts
+  `milestone:"v1"` and `no:milestone`.
+- Unsupported issue-list filters (`creator`, `mentioned`, `since`,
   `state_reason`) are ignored rather than rejected.
 - Commit `author`/`committer` (account links) in branch, commit and compare
   responses are `null`; commits aren't linked to accounts by email.

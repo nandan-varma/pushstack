@@ -78,6 +78,21 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 	},
 };
 
+/**
+ * An archived repository is read-only for everyone, owner included: no new
+ * issues, comments, pull requests, labels or pushes until it is unarchived
+ * (which needs only ownership, not these flags).
+ */
+const ARCHIVED_PERMISSIONS: Omit<Permissions, "canRead"> = {
+	canParticipate: false,
+	canWrite: false,
+	canModerate: false,
+	canMergePullRequest: false,
+};
+
+/** GitHub's message for a write to an archived repository. */
+export const ARCHIVED_MESSAGE = "Repository was archived so is read-only.";
+
 function buildAccess(
 	repository: Repository,
 	userId: string | null | undefined,
@@ -89,7 +104,7 @@ function buildAccess(
 			: userId && collaboratorRole
 				? collaboratorRole
 				: "anonymous";
-	const permissions =
+	const live: Permissions =
 		role === "anonymous"
 			? {
 					canRead: repository.visibility === "public",
@@ -99,6 +114,9 @@ function buildAccess(
 					canMergePullRequest: false,
 				}
 			: PERMISSIONS[role];
+	const permissions: Permissions = repository.archived
+		? { ...live, ...ARCHIVED_PERMISSIONS }
+		: live;
 	return { repository, role, ...permissions };
 }
 
@@ -195,15 +213,28 @@ export async function canModerateRepo(repoId: number, userId?: string | null) {
 }
 
 export async function requireParticipateAccess(repoId: number, userId: string) {
-	if (!(await getRepositoryAccess(repoId, userId))?.canParticipate) {
+	const access = await getRepositoryAccess(repoId, userId);
+	if (access?.repository.archived) throw new Error(ARCHIVED_MESSAGE);
+	if (!access?.canParticipate) {
 		throw new Error("You can't open issues or comment in this repository");
 	}
 }
 
 export async function requireWriteAccess(repoId: number, userId: string) {
-	if (!(await canWriteRepo(repoId, userId))) {
+	const access = await getRepositoryAccess(repoId, userId);
+	if (access?.repository.archived) throw new Error(ARCHIVED_MESSAGE);
+	if (!access?.canWrite) {
 		throw new Error("No write access to repository");
 	}
+}
+
+/**
+ * For paths an author may take without write access (editing their own issue
+ * or comment): an archived repository locks those too.
+ */
+export async function requireNotArchived(repoId: number): Promise<void> {
+	const access = await getRepositoryAccess(repoId, null);
+	if (access?.repository.archived) throw new Error(ARCHIVED_MESSAGE);
 }
 
 /**

@@ -29,6 +29,11 @@ import { listProfileConnections } from "@/server/follows";
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import { getLabels } from "@/server/labels";
 import {
+	getMilestoneByNumber,
+	getMilestones,
+	getMilestoneThreads,
+} from "@/server/milestones";
+import {
 	getNotifications,
 	getThreadSubscription,
 	getUnreadNotificationCount,
@@ -153,6 +158,13 @@ export const queryKeys = {
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
+	repoMilestones: (repoId: number) => ["repos", repoId, "milestones"] as const,
+	repoMilestoneList: (repoId: number, state: string) =>
+		["repos", repoId, "milestones", "list", state] as const,
+	repoMilestone: (repoId: number, number: number) =>
+		["repos", repoId, "milestones", number] as const,
+	repoMilestoneThreads: (repoId: number, number: number, state: string) =>
+		["repos", repoId, "milestones", number, "threads", state] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
 	repoIssueNumbers: (repoId: number) =>
 		["repos", repoId, "issue-numbers"] as const,
@@ -708,6 +720,37 @@ export function repositoryLabelsQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoLabels(repoId),
 		queryFn: () => getLabels({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryMilestonesQueryOptions(
+	repoId: number,
+	state: "open" | "closed" | "all" = "open",
+) {
+	return queryOptions({
+		queryKey: queryKeys.repoMilestoneList(repoId, state),
+		queryFn: () => getMilestones({ data: { repoId, state } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function milestoneQueryOptions(repoId: number, number: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoMilestone(repoId, number),
+		queryFn: () => getMilestoneByNumber({ data: { repoId, number } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function milestoneThreadsQueryOptions(
+	repoId: number,
+	number: number,
+	state: "open" | "closed",
+) {
+	return queryOptions({
+		queryKey: queryKeys.repoMilestoneThreads(repoId, number, state),
+		queryFn: () => getMilestoneThreads({ data: { repoId, number, state } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

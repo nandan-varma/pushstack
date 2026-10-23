@@ -50,6 +50,16 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"activity/mark-thread-as-done":
 		"`204`: the thread leaves the inbox until new activity",
 	"repos/get": "",
+	"repos/update":
+		"owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`; other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts",
+	"repos/delete": "owner only (`403` otherwise); `204`",
+	"repos/get-all-topics": "",
+	"repos/replace-all-topics":
+		"`names` (at most 20, lowercase letters, digits and hyphens, at most 50 characters each; invalid is `422`)",
+	"repos/transfer":
+		"`new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` ignored; the old URL does not redirect",
+	"repos/create-using-template":
+		"the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` is ignored; issues, labels, topics and settings are not copied",
 	"activity/list-watchers-for-repo":
 		"people watching (not ignoring) who can still read the repository; pagination",
 	"activity/get-repo-subscription":
@@ -134,9 +144,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"git/create-tag":
 		"unsigned; create the `refs/tags/…` ref separately, as on GitHub",
 	"issues/list-for-repo":
-		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`",
+		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`",
 	"issues/create":
-		"any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access)",
+		"any signed-in reader; `title`, `body`, `labels`, `assignees`, `milestone` (number; labels/assignees/milestone need write access, an unknown milestone is `422`)",
 	"issues/get-comment": "",
 	"issues/update-comment": "",
 	"issues/delete-comment": "`204`",
@@ -147,7 +157,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/get":
 		"a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason`",
 	"issues/update":
-		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened",
+		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`, `milestone` (number, or `null` to clear; writers only; records `milestoned`/`demilestoned` events); also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened",
 	"issues/list-comments": "comments of an issue or a pull request",
 	"issues/create-comment": "any signed-in reader",
 	"issues/list-events-for-timeline":
@@ -183,6 +193,14 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`reviewers` (collaborators only, at most 15; never the author); `team_reviewers` is refused. Each new request is a `review_requested` event and notifies the reviewer (`reason: review_requested`). Needs write access or authorship. `201` with the pull request",
 	"pulls/remove-requested-reviewers":
 		"`reviewers` must all have a pending request (`422` otherwise); records `review_request_removed`. Returns the pull request",
+	"issues/list-milestones":
+		"`state` (`open` default, `closed`, `all`), `sort` (`due_on` default, `completeness`), `direction`; `open_issues`/`closed_issues` count issues and pull requests",
+	"issues/create-milestone":
+		"write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists`",
+	"issues/get-milestone": "",
+	"issues/update-milestone": "write access",
+	"issues/delete-milestone":
+		"write access; `204`; issues and pull requests in it lose the milestone",
 	"issues/list-labels-for-repo": "",
 	"issues/create-label":
 		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`",

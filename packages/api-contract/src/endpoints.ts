@@ -13,6 +13,10 @@ import {
 	labelDescription,
 	labelName,
 	labelNames,
+	milestoneDescription,
+	milestoneDueOn,
+	milestoneRef,
+	milestoneTitle,
 	pagination,
 	positiveInt,
 	pullParams,
@@ -31,6 +35,9 @@ import {
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+	MAX_REPO_TOPIC_CHARS,
+	MAX_REPO_TOPICS,
 	MAX_REPORT_URL_CHARS,
 	MAX_STATUS_CONTEXT_CHARS,
 	MAX_STATUS_DESCRIPTION_CHARS,
@@ -59,6 +66,7 @@ import {
 	issueEvent,
 	label,
 	mergeResult,
+	milestone,
 	notificationThread,
 	privateUser,
 	publicUser,
@@ -93,6 +101,7 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 }
 
 const noContent = z.null();
+const topicList = z.strictObject({ names: z.array(z.string()) });
 
 /** Entries one `POST …/git/trees` may carry (the request body cap binds first). */
 const MAX_TREE_ENTRIES = 10_000;
@@ -188,6 +197,7 @@ const reactionList = {
 	response: z.array(reaction),
 };
 const reactionBody = z.object({ content: reactionContent });
+const milestoneParams = repoParams.extend({ milestone_number: positiveInt });
 const labelParams = repoParams.extend({ name: z.string().min(1) });
 const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
@@ -328,6 +338,58 @@ export const endpoints = defineEndpoints({
 	},
 	"repos/get": {
 		params: repoParams,
+		response: repository,
+	},
+	"repos/update": {
+		params: repoParams,
+		body: z.object({
+			name: repoName.optional(),
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
+			homepage: z.string().trim().max(MAX_REPO_HOMEPAGE_CHARS).nullish(),
+			private: z.boolean().optional(),
+			visibility: z.enum(["public", "private"]).optional(),
+			has_issues: z.boolean().optional(),
+			has_projects: z.boolean().optional(),
+			has_wiki: z.boolean().optional(),
+			is_template: z.boolean().optional(),
+			default_branch: z.string().optional(),
+			archived: z.boolean().optional(),
+		}),
+		response: repository,
+	},
+	"repos/delete": {
+		params: repoParams,
+		response: noContent,
+	},
+	"repos/get-all-topics": {
+		params: repoParams,
+		response: topicList,
+	},
+	"repos/replace-all-topics": {
+		params: repoParams,
+		body: z.object({
+			names: z.array(z.string().max(MAX_REPO_TOPIC_CHARS)).max(MAX_REPO_TOPICS),
+		}),
+		response: topicList,
+	},
+	"repos/transfer": {
+		params: repoParams,
+		body: z.object({
+			new_owner: z.string().min(1),
+			new_name: repoName.optional(),
+			team_ids: z.array(z.number().int()).optional(),
+		}),
+		response: repository,
+	},
+	"repos/create-using-template": {
+		params: z.object({ template_owner: z.string(), template_repo: z.string() }),
+		body: z.object({
+			owner: z.string().optional(),
+			name: repoName,
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
+			include_all_branches: z.boolean().default(false),
+			private: z.boolean().default(false),
+		}),
 		response: repository,
 	},
 	"activity/list-watchers-for-repo": {
@@ -646,6 +708,13 @@ export const endpoints = defineEndpoints({
 			/** A login, `none` (unassigned) or `*` (anyone). */
 			assignee: z.string().max(100).optional(),
 			labels: commaList(labelName, MAX_LABELS_PER_THREAD).optional(),
+			/** A milestone number, `*` (any) or `none`. */
+			milestone: z
+				.union([
+					z.literal(["*", "none"]),
+					z.string().regex(/^[1-9][0-9]{0,9}$/),
+				])
+				.optional(),
 			sort: z
 				.enum(["created", "updated", "comments"])
 				.default("created")
@@ -661,6 +730,7 @@ export const endpoints = defineEndpoints({
 			body: threadBody.nullish(),
 			labels: labelNames.optional(),
 			assignees: assigneeLogins.optional(),
+			milestone: milestoneRef.nullish(),
 		}),
 		response: issue,
 	},
@@ -703,6 +773,7 @@ export const endpoints = defineEndpoints({
 			state_reason: stateReason.nullish(),
 			labels: labelNames.optional(),
 			assignees: assigneeLogins.optional(),
+			milestone: milestoneRef.nullish(),
 		}),
 		response: issue,
 	},
@@ -845,6 +916,46 @@ export const endpoints = defineEndpoints({
 			team_reviewers: reviewerLogins.optional(),
 		}),
 		response: pullRequestSimple,
+	},
+	"issues/list-milestones": {
+		params: repoParams,
+		query: pagination.extend({
+			state: listState,
+			sort: z
+				.enum(["due_on", "completeness"])
+				.default("due_on")
+				.catch("due_on"),
+			direction: z.enum(["asc", "desc"]).default("asc").catch("asc"),
+		}),
+		response: z.array(milestone),
+	},
+	"issues/create-milestone": {
+		params: repoParams,
+		body: z.object({
+			title: milestoneTitle,
+			state: z.enum(["open", "closed"]).default("open"),
+			description: milestoneDescription.nullish(),
+			due_on: milestoneDueOn.nullish(),
+		}),
+		response: milestone,
+	},
+	"issues/get-milestone": {
+		params: milestoneParams,
+		response: milestone,
+	},
+	"issues/update-milestone": {
+		params: milestoneParams,
+		body: z.object({
+			title: milestoneTitle.optional(),
+			state: z.enum(["open", "closed"]).optional(),
+			description: milestoneDescription.nullish(),
+			due_on: milestoneDueOn.nullish(),
+		}),
+		response: milestone,
+	},
+	"issues/delete-milestone": {
+		params: milestoneParams,
+		response: noContent,
 	},
 
 	"issues/list-labels-for-repo": {

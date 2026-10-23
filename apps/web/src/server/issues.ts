@@ -23,6 +23,7 @@ import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
+	requireNotArchived,
 	requireParticipateAccess,
 } from "./repo-access";
 import { readRepoByName } from "./repository-lookup";
@@ -152,6 +153,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 		if (!issue) throw notFound();
 		// The author may edit, close and reopen their own issue; anyone else's
 		// needs write access.
+		await requireNotArchived(issue.repoId);
 		const canWrite = await canWriteRepo(issue.repoId, currentUser.id);
 		if (!canWrite && issue.authorId !== currentUser.id) {
 			throw new Error("Access denied");

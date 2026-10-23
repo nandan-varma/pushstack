@@ -11,6 +11,8 @@ import {
 	MAX_LABEL_DESCRIPTION_CHARS,
 	MAX_LABEL_NAME_CHARS,
 	MAX_LABELS_PER_THREAD,
+	MAX_MILESTONE_DESCRIPTION_CHARS,
+	MAX_MILESTONE_TITLE_CHARS,
 	MAX_PER_PAGE,
 	MAX_REVIEWERS_PER_REQUEST,
 	MAX_STORAGE_NAME_LENGTH,
@@ -98,6 +100,24 @@ export const labelNames = z.array(labelName).max(MAX_LABELS_PER_THREAD);
 export const reviewerLogins = z
 	.array(z.string().trim().min(1).max(100))
 	.max(MAX_REVIEWERS_PER_REQUEST);
+export const milestoneTitle = z
+	.string()
+	.trim()
+	.min(1)
+	.max(MAX_MILESTONE_TITLE_CHARS);
+export const milestoneDescription = z
+	.string()
+	.max(MAX_MILESTONE_DESCRIPTION_CHARS);
+/** A due date, ISO 8601 (`2026-12-31T00:00:00Z`). */
+export const milestoneDueOn = z.iso.datetime({ offset: true });
+/** A milestone's `number` as an issue body names it: an integer or its string. */
+export const milestoneRef = z.union([
+	z.number().int().positive(),
+	z
+		.string()
+		.regex(/^[1-9][0-9]{0,9}$/)
+		.transform(Number),
+]);
 
 export const assigneeLogins = z
 	.array(z.string().trim().min(1).max(100))

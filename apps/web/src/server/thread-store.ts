@@ -31,6 +31,7 @@ import {
 	type Issue,
 	issues,
 	labels,
+	milestones,
 	pullRequestReviewRequests,
 	pullRequestReviews,
 	pullRequests,
@@ -40,6 +41,7 @@ import {
 import { user } from "#/db/schema";
 import type { LabelView } from "#/lib/labels";
 import { containing } from "./db-filters";
+import { type MilestoneView, threadMilestoneJson } from "./milestone-store";
 import { type PublicUser, publicUserColumns } from "./repository-lookup";
 
 export type ThreadKind = "issue" | "pull_request";
@@ -74,6 +76,7 @@ export interface Thread extends Issue {
 	assignees: PublicUser[];
 	/** Pending review requests (a pull request's; always empty for an issue). */
 	requestedReviewers: PublicUser[];
+	milestone: MilestoneView | null;
 	commentsCount: number;
 	/** Null for an issue. */
 	pullRequest: (PullRequestFields & { mergedByUser: PublicUser | null }) | null;
@@ -103,6 +106,11 @@ export interface ThreadFilter {
 	reviewRequested?: string[];
 	/** A submitted review by every one of these usernames; ANDed. */
 	reviewedBy?: string[];
+	/** In the milestone titled this (ignoring case); every one, so two titles match nothing. */
+	milestones?: string[];
+	/** In the milestone with this number, any milestone (`*`) or none. */
+	milestoneNumber?: number | "*" | "none";
+	noMilestone?: boolean;
 	/** Pull requests only: drafts (true) or ready for review (false). */
 	draft?: boolean;
 	/** Head branch; `null` matches nothing (a head from another owner). */
@@ -154,6 +162,7 @@ const threadColumns = {
 		where ${pullRequestReviewRequests.issueId} = ${issues.id}), '[]'::json)`.mapWith(
 		json<PublicUser[]>,
 	),
+	milestone: threadMilestoneJson,
 	closedBy: sql`(select ${userJson(issues.closedById)})`.mapWith(
 		json<PublicUser | null>,
 	),
@@ -308,6 +317,40 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 			),
 		);
 	}
+	for (const title of filter.milestones ?? []) {
+		add(
+			exists(
+				db
+					.select({ one: sql`1` })
+					.from(milestones)
+					.where(
+						and(
+							eq(milestones.id, issues.milestoneId),
+							eq(sql`lower(${milestones.title})`, title.toLowerCase()),
+						),
+					),
+			),
+		);
+	}
+	if (filter.noMilestone || filter.milestoneNumber === "none") {
+		add(isNull(issues.milestoneId));
+	} else if (filter.milestoneNumber === "*") {
+		add(isNotNull(issues.milestoneId));
+	} else if (filter.milestoneNumber !== undefined) {
+		add(
+			exists(
+				db
+					.select({ one: sql`1` })
+					.from(milestones)
+					.where(
+						and(
+							eq(milestones.id, issues.milestoneId),
+							eq(milestones.number, filter.milestoneNumber),
+						),
+					),
+			),
+		);
+	}
 	if (filter.head === null) add(sql`false`);
 	else if (filter.head) add(eq(pullRequests.sourceBranch, filter.head));
 	if (filter.base) add(eq(pullRequests.targetBranch, filter.base));
@@ -337,6 +380,7 @@ interface ThreadRecord {
 	labels: LabelView[];
 	assignees: PublicUser[];
 	requestedReviewers: PublicUser[];
+	milestone: MilestoneView | null;
 	closedBy: PublicUser | null;
 	mergedBy: PublicUser | null;
 	commentsCount: number;
@@ -357,6 +401,7 @@ function toThread(record: ThreadRecord): Thread {
 		labels: record.labels,
 		assignees: record.assignees,
 		requestedReviewers: record.requestedReviewers,
+		milestone: record.milestone,
 		commentsCount: record.commentsCount,
 		pullRequest,
 	};
@@ -460,6 +505,7 @@ export function pullRequestView(thread: Thread) {
 		author: thread.author,
 		closedBy: thread.closedBy,
 		labels: thread.labels,
+		milestone: thread.milestone,
 		commentsCount: thread.commentsCount,
 		assignees: thread.assignees.map((user) => ({ user })),
 		requestedReviewers: thread.requestedReviewers,

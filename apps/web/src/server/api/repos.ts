@@ -10,6 +10,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { GitInvalidRequestError, isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import {
 	issues,
@@ -18,23 +19,43 @@ import {
 	stars,
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { MAX_REPO_TOPICS } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
 	LICENSE_TEMPLATE_KEYS,
 } from "#/lib/templates";
+import { parseTopics } from "#/lib/topics";
+import { ArchiveLimitError } from "../git-read";
+import { safeBranchNameSchema } from "../git-ref-name";
 import { perfStep } from "../perf-log";
+import { ARCHIVED_MESSAGE, getAccessForRepository } from "../repo-access";
 import {
 	createRepositoryForUser,
+	generateRepositoryFromTemplate,
 	RepositoryExistsError,
 } from "../repository-create";
-import { type PublicUser, publicUserColumns } from "../repository-lookup";
+import {
+	findRepositoryByName,
+	type PublicUser,
+	publicUserColumns,
+	publicUserFields,
+} from "../repository-lookup";
+import {
+	ArchivedRepositoryError,
+	deleteRepositoryAndStorage,
+	RepositoryNameTakenError,
+	transferRepository,
+	updateRepositorySettings,
+} from "../repository-settings";
 import { watcherCounts } from "../watch-store";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
 	apiUrl,
+	forbiddenError,
 	json,
 	linkHeader,
+	noContent,
 	notFoundError,
 	type PageParams,
 	pageParams,
@@ -316,6 +337,266 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 					code: "custom",
 					field: "name",
 					message: "name already exists on this account",
+				},
+			]);
+		}
+		throw error;
+	}
+	return json(
+		repository({ ...repo, owner }, { stars: 0, openIssues: 0, role: "owner" }),
+		201,
+		{ Location: apiUrl(`/repos/${owner.username}/${repo.name}`) },
+	);
+}
+
+const adminDenied = () =>
+	forbiddenError("Must have admin rights to Repository.");
+
+/** The repository for an owner/admin-only change, fresh from the database. */
+async function adminRepository(
+	ctx: ApiContext,
+	scope: "repo:write",
+	roles: ReadonlyArray<"owner" | "admin"> = ["owner", "admin"],
+) {
+	requireScope(ctx, scope);
+	// Unarchiving, and everything that explains why it can't be done, runs here.
+	const { repo, access } = await readableRepository(ctx, {
+		allowArchivedWrites: true,
+	});
+	if (!roles.some((role) => role === access.role)) throw adminDenied();
+	// Changes act on the row as it is now, not a cached copy up to 5 s old.
+	const fresh = await db.query.repositories.findFirst({
+		where: { id: repo.id },
+		with: { owner: publicUserFields },
+	});
+	if (!fresh) throw notFoundError();
+	return { repo: fresh, access };
+}
+
+async function respondWithRepository(
+	_ctx: ApiContext,
+	repo: Awaited<ReturnType<typeof readableRepository>>["repo"],
+	role: RepoRole,
+	status = 200,
+) {
+	const [stargazers, openIssues] = await Promise.all([
+		starCounts([repo.id]),
+		openIssueCounts([repo.id]),
+	]);
+	return json(
+		repository(repo, {
+			stars: stargazers.get(repo.id) ?? 0,
+			openIssues: openIssues.get(repo.id) ?? 0,
+			role,
+		}),
+		status,
+	);
+}
+
+const mapSettingsError = (error: unknown): never => {
+	if (error instanceof ArchivedRepositoryError) {
+		throw forbiddenError(ARCHIVED_MESSAGE);
+	}
+	if (error instanceof RepositoryNameTakenError) {
+		throw validationFailedError("Repository creation failed.", [
+			{
+				resource: "Repository",
+				code: "custom",
+				field: "name",
+				message: "name already exists on this account",
+			},
+		]);
+	}
+	throw error;
+};
+
+/** `PATCH /repos/{owner}/{repo}`. */
+export async function updateRepositoryHandler(ctx: ApiContext) {
+	const { repo, access } = await adminRepository(ctx, "repo:write");
+	const data = await requestBody(ctx, "repos/update", "Repository");
+	const visibility =
+		data.visibility ??
+		(data.private === undefined
+			? undefined
+			: data.private
+				? "private"
+				: "public");
+	if (
+		data.visibility !== undefined &&
+		data.private !== undefined &&
+		(data.private ? "private" : "public") !== data.visibility
+	) {
+		throw validationFailedError("Invalid request.", [
+			{
+				resource: "Repository",
+				field: "visibility",
+				code: "invalid",
+				message: "visibility conflicts with private",
+			},
+		]);
+	}
+	if (data.default_branch !== undefined) {
+		const parsed = safeBranchNameSchema.safeParse(data.default_branch);
+		if (!parsed.success) {
+			throw validationFailedError("Validation Failed", [
+				{ resource: "Repository", field: "default_branch", code: "invalid" },
+			]);
+		}
+	}
+	try {
+		const updated = await updateRepositorySettings(repo, {
+			name: data.name,
+			description: data.description,
+			homepage: data.homepage,
+			visibility,
+			defaultBranch: data.default_branch,
+			archived: data.archived,
+			isTemplate: data.is_template,
+			hasIssues: data.has_issues,
+			hasWiki: data.has_wiki,
+			hasProjects: data.has_projects,
+		});
+		return respondWithRepository(
+			ctx,
+			{ ...updated, owner: repo.owner },
+			access.role === "owner" ? "owner" : "admin",
+		);
+	} catch (error) {
+		if (isNotFoundError(error) || error instanceof GitInvalidRequestError) {
+			throw validationFailedError("Validation Failed", [
+				{
+					resource: "Repository",
+					field: "default_branch",
+					code: "invalid",
+					message: "branch does not exist",
+				},
+			]);
+		}
+		return mapSettingsError(error);
+	}
+}
+
+/** `DELETE /repos/{owner}/{repo}`. */
+export async function deleteRepositoryHandler(ctx: ApiContext) {
+	const { repo } = await adminRepository(ctx, "repo:write", ["owner"]);
+	await deleteRepositoryAndStorage(repo);
+	return noContent();
+}
+
+/** `GET /repos/{owner}/{repo}/topics`. */
+export async function getTopics(ctx: ApiContext) {
+	const { repo } = await readableRepository(ctx);
+	return json({ names: repo.topics });
+}
+
+/** `PUT /repos/{owner}/{repo}/topics`. */
+export async function replaceTopics(ctx: ApiContext) {
+	const { repo } = await adminRepository(ctx, "repo:write");
+	const { names } = await requestBody(
+		ctx,
+		"repos/replace-all-topics",
+		"Repository",
+	);
+	const { topics, invalid, tooMany } = parseTopics(names);
+	if (invalid.length > 0 || tooMany) {
+		throw validationFailedError(
+			invalid.length > 0
+				? `Invalid topic: ${invalid[0]}. Topics must start with a lowercase letter or number, consist of 50 characters or less, and can include hyphens.`
+				: `Too many topics: a repository can have at most ${MAX_REPO_TOPICS}.`,
+			[{ resource: "Repository", field: "names", code: "invalid" }],
+		);
+	}
+	try {
+		await updateRepositorySettings(repo, { topics });
+	} catch (error) {
+		mapSettingsError(error);
+	}
+	return json({ names: topics });
+}
+
+/** `POST /repos/{owner}/{repo}/transfer`. */
+export async function transferRepositoryHandler(ctx: ApiContext) {
+	const { repo } = await adminRepository(ctx, "repo:write", ["owner"]);
+	const data = await requestBody(ctx, "repos/transfer", "Repository");
+	const target = await db.query.user.findFirst({
+		columns: { id: true, apiId: true, username: true, name: true, image: true },
+		where: { username: data.new_owner },
+	});
+	if (!target) {
+		throw validationFailedError("Validation Failed", [
+			{ resource: "Repository", field: "new_owner", code: "invalid" },
+		]);
+	}
+	try {
+		const updated = await transferRepository(repo, target, data.new_name);
+		return respondWithRepository(
+			ctx,
+			{ ...updated, owner: target },
+			"owner",
+			202,
+		);
+	} catch (error) {
+		return mapSettingsError(error);
+	}
+}
+
+/** `POST /repos/{template_owner}/{template_repo}/generate`. */
+export async function generateFromTemplate(ctx: ApiContext) {
+	const { userId } = requireScope(ctx, "repo:write");
+	const { template_owner, template_repo } = pathParams(
+		ctx,
+		"repos/create-using-template",
+	);
+	if (
+		!STORAGE_NAME_RE.test(template_owner) ||
+		!STORAGE_NAME_RE.test(template_repo)
+	) {
+		throw notFoundError();
+	}
+	const template = await findRepositoryByName(template_owner, template_repo);
+	if (!template) throw notFoundError();
+	const access = await getAccessForRepository(template, userId);
+	if (!access.canRead || !template.isTemplate) throw notFoundError();
+	const data = await requestBody(
+		ctx,
+		"repos/create-using-template",
+		"Repository",
+		{ message: "Repository creation failed." },
+	);
+	const [owner] = await db
+		.select({ ...publicUserColumns, email: user.email })
+		.from(user)
+		.where(eq(user.id, userId));
+	if (!owner) throw notFoundError();
+	if (data.owner !== undefined && data.owner !== owner.username) {
+		throw validationFailedError("Repository creation failed.", [
+			{ resource: "Repository", field: "owner", code: "invalid" },
+		]);
+	}
+	let repo: Awaited<ReturnType<typeof generateRepositoryFromTemplate>>;
+	try {
+		repo = await generateRepositoryFromTemplate(template, owner, {
+			name: data.name,
+			description: data.description ?? undefined,
+			visibility: data.private ? "private" : "public",
+		});
+	} catch (error) {
+		if (error instanceof RepositoryExistsError) {
+			throw validationFailedError("Repository creation failed.", [
+				{
+					resource: "Repository",
+					code: "custom",
+					field: "name",
+					message: "name already exists on this account",
+				},
+			]);
+		}
+		if (error instanceof ArchiveLimitError) {
+			throw validationFailedError("Repository creation failed.", [
+				{
+					resource: "Repository",
+					code: "custom",
+					message: error.message,
 				},
 			]);
 		}

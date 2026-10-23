@@ -46,6 +46,16 @@ export const repositories = pgTable(
 			.notNull()
 			.default("public"),
 		defaultBranch: text("default_branch").notNull().default("main"),
+		/** Read-only: pushes and every write (issues, comments, PRs) are refused. */
+		archived: boolean("archived").notNull().default(false),
+		homepage: text("homepage"),
+		/** Lowercase, at most 20 (`MAX_REPO_TOPICS`). */
+		topics: jsonb("topics").$type<string[]>().notNull().default([]),
+		isTemplate: boolean("is_template").notNull().default(false),
+		/** No wiki or projects exist yet, so these default off (GitHub: on). */
+		hasIssues: boolean("has_issues").notNull().default(true),
+		hasWiki: boolean("has_wiki").notNull().default(false),
+		hasProjects: boolean("has_projects").notNull().default(false),
 		/** The tree view's per-file "last commit" column — a history walk per view, so opt-in. */
 		showLastCommitColumn: boolean("show_last_commit_column")
 			.notNull()
@@ -58,6 +68,8 @@ export const repositories = pgTable(
 		 * (GitHub's model), claimed with an atomic increment.
 		 */
 		nextIssueNumber: integer("next_issue_number").notNull().default(1),
+		/** The next milestone `number` (its own per-repo sequence), claimed atomically. */
+		nextMilestoneNumber: integer("next_milestone_number").notNull().default(1),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 	},
@@ -108,8 +120,14 @@ export const issues = pgTable(
 		}),
 		/** GitHub's `state_reason` (issues only); null until first closed. */
 		stateReason: text("state_reason").$type<IssueStateReason>(),
+		/** GitHub's `milestone`: at most one; deleting the milestone clears it. */
+		milestoneId: integer("milestone_id").references(
+			(): AnyPgColumn => milestones.id,
+			{ onDelete: "set null" },
+		),
 	},
 	(table) => ({
+		milestoneIdx: index("issue_milestone_idx").on(table.milestoneId),
 		repoNumberIdx: uniqueIndex("issue_repo_number_idx").on(
 			table.repoId,
 			table.number,
@@ -137,6 +155,38 @@ export const issues = pgTable(
 			table.isPullRequest,
 			table.status,
 			table.updatedAt,
+		),
+	}),
+);
+
+/** A repository's milestones; `number` is a per-repo sequence separate from `#N`. */
+export const milestones = pgTable(
+	"milestones",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		number: integer("number").notNull(),
+		title: text("title").notNull(),
+		description: text("description"),
+		state: text("state").$type<"open" | "closed">().notNull().default("open"),
+		dueOn: timestamptz("due_on"),
+		creatorId: text("creator_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		closedAt: timestamptz("closed_at"),
+	},
+	(table) => ({
+		repoNumberIdx: uniqueIndex("milestone_repo_number_idx").on(
+			table.repoId,
+			table.number,
+		),
+		repoTitleIdx: uniqueIndex("milestone_repo_title_idx").on(
+			table.repoId,
+			sql`lower(${table.title})`,
 		),
 	}),
 );

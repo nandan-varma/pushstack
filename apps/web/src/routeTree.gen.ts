@@ -28,6 +28,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
 import { Route as OwnerNamePullsRouteImport } from './routes/$owner.$name._pulls'
+import { Route as OwnerNameGenerateRouteImport } from './routes/$owner.$name.generate'
 import { Route as OwnerNameGitReceivePackRouteImport } from './routes/$owner.$name.git-receive-pack'
 import { Route as OwnerNameGitUploadPackRouteImport } from './routes/$owner.$name.git-upload-pack'
 import { Route as OwnerNameIssuesRouteImport } from './routes/$owner.$name.issues'
@@ -46,9 +47,13 @@ import { Route as OwnerNameInfoRefsRouteImport } from './routes/$owner.$name.inf
 import { Route as OwnerNameIssuesIdRouteImport } from './routes/$owner.$name.issues.$id'
 import { Route as OwnerNameLegacyDottarDotgzSplatRouteImport } from './routes/$owner.$name.legacy[.]tar[.]gz.$'
 import { Route as OwnerNameLegacyDotzipSplatRouteImport } from './routes/$owner.$name.legacy[.]zip.$'
+import { Route as OwnerNameMilestonesIndexRouteImport } from './routes/$owner.$name.milestones.index'
+import { Route as OwnerNameMilestonesNewRouteImport } from './routes/$owner.$name.milestones.new'
 import { Route as OwnerNameRawSplatRouteImport } from './routes/$owner.$name.raw.$'
 import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
+import { Route as OwnerNameMilestoneNumberIndexRouteImport } from './routes/$owner.$name.milestone.$number.index'
+import { Route as OwnerNameMilestoneNumberEditRouteImport } from './routes/$owner.$name.milestone.$number.edit'
 import { Route as OwnerNameTreeBranchSplatRouteImport } from './routes/$owner.$name.tree.$branch.$'
 import { Route as OwnerNameUploadBranchSplatRouteImport } from './routes/$owner.$name.upload.$branch.$'
 import { Route as OwnerNamePullsPullIdChar123TabChar125RouteImport } from './routes/$owner.$name._pulls.pull.$id.{-$tab}'
@@ -146,6 +151,11 @@ const OwnerNamePullsRoute = OwnerNamePullsRouteImport.update({
   id: '/_pulls',
   getParentRoute: () => OwnerNameRoute,
 } as any)
+const OwnerNameGenerateRoute = OwnerNameGenerateRouteImport.update({
+  id: '/generate',
+  path: '/generate',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const OwnerNameGitReceivePackRoute = OwnerNameGitReceivePackRouteImport.update({
   id: '/git-receive-pack',
   path: '/git-receive-pack',
@@ -238,6 +248,17 @@ const OwnerNameLegacyDotzipSplatRoute =
     path: '/legacy.zip/$',
     getParentRoute: () => OwnerNameRoute,
   } as any)
+const OwnerNameMilestonesIndexRoute =
+  OwnerNameMilestonesIndexRouteImport.update({
+    id: '/milestones/',
+    path: '/milestones/',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
+const OwnerNameMilestonesNewRoute = OwnerNameMilestonesNewRouteImport.update({
+  id: '/milestones/new',
+  path: '/milestones/new',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const OwnerNameRawSplatRoute = OwnerNameRawSplatRouteImport.update({
   id: '/raw/$',
   path: '/raw/$',
@@ -253,6 +274,18 @@ const OwnerNameBlobBranchSplatRoute =
   OwnerNameBlobBranchSplatRouteImport.update({
     id: '/blob/$branch/$',
     path: '/blob/$branch/$',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
+const OwnerNameMilestoneNumberIndexRoute =
+  OwnerNameMilestoneNumberIndexRouteImport.update({
+    id: '/milestone/$number/',
+    path: '/milestone/$number/',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
+const OwnerNameMilestoneNumberEditRoute =
+  OwnerNameMilestoneNumberEditRouteImport.update({
+    id: '/milestone/$number/edit',
+    path: '/milestone/$number/edit',
     getParentRoute: () => OwnerNameRoute,
   } as any)
 const OwnerNameTreeBranchSplatRoute =
@@ -291,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
+  '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
@@ -310,11 +344,15 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
+  '/$owner/$name/milestones/new': typeof OwnerNameMilestonesNewRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
+  '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
+  '/$owner/$name/milestone/$number/edit': typeof OwnerNameMilestoneNumberEditRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/milestone/$number/': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
 export interface FileRoutesByTo {
@@ -333,6 +371,7 @@ export interface FileRoutesByTo {
   '/$owner': typeof OwnerIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/$owner/$name': typeof OwnerNameIndexRoute
+  '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
@@ -351,11 +390,15 @@ export interface FileRoutesByTo {
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
+  '/$owner/$name/milestones/new': typeof OwnerNameMilestonesNewRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
+  '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
+  '/$owner/$name/milestone/$number/edit': typeof OwnerNameMilestoneNumberEditRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/milestone/$number': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
 export interface FileRoutesById {
@@ -378,6 +421,7 @@ export interface FileRoutesById {
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/_pulls': typeof OwnerNamePullsRouteWithChildren
+  '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
@@ -397,11 +441,15 @@ export interface FileRoutesById {
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
+  '/$owner/$name/milestones/new': typeof OwnerNameMilestonesNewRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
+  '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
+  '/$owner/$name/milestone/$number/edit': typeof OwnerNameMilestoneNumberEditRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/milestone/$number/': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/_pulls/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
 export interface FileRouteTypes {
@@ -423,6 +471,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/$owner/'
     | '/repositories/'
+    | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
@@ -442,11 +491,15 @@ export interface FileRouteTypes {
     | '/$owner/$name/issues/$id'
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
+    | '/$owner/$name/milestones/new'
     | '/$owner/$name/raw/$'
+    | '/$owner/$name/milestones/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
+    | '/$owner/$name/milestone/$number/edit'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/milestone/$number/'
     | '/$owner/$name/pull/$id/{-$tab}'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -465,6 +518,7 @@ export interface FileRouteTypes {
     | '/$owner'
     | '/repositories'
     | '/$owner/$name'
+    | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
@@ -483,11 +537,15 @@ export interface FileRouteTypes {
     | '/$owner/$name/issues/$id'
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
+    | '/$owner/$name/milestones/new'
     | '/$owner/$name/raw/$'
+    | '/$owner/$name/milestones'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
+    | '/$owner/$name/milestone/$number/edit'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/milestone/$number'
     | '/$owner/$name/pull/$id/{-$tab}'
   id:
     | '__root__'
@@ -509,6 +567,7 @@ export interface FileRouteTypes {
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/_pulls'
+    | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
@@ -528,11 +587,15 @@ export interface FileRouteTypes {
     | '/$owner/$name/issues/$id'
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
+    | '/$owner/$name/milestones/new'
     | '/$owner/$name/raw/$'
+    | '/$owner/$name/milestones/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
+    | '/$owner/$name/milestone/$number/edit'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/milestone/$number/'
     | '/$owner/$name/_pulls/pull/$id/{-$tab}'
   fileRoutesById: FileRoutesById
 }
@@ -690,6 +753,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNamePullsRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/generate': {
+      id: '/$owner/$name/generate'
+      path: '/generate'
+      fullPath: '/$owner/$name/generate'
+      preLoaderRoute: typeof OwnerNameGenerateRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/git-receive-pack': {
       id: '/$owner/$name/git-receive-pack'
       path: '/git-receive-pack'
@@ -816,6 +886,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameLegacyDotzipSplatRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/milestones/': {
+      id: '/$owner/$name/milestones/'
+      path: '/milestones'
+      fullPath: '/$owner/$name/milestones/'
+      preLoaderRoute: typeof OwnerNameMilestonesIndexRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/milestones/new': {
+      id: '/$owner/$name/milestones/new'
+      path: '/milestones/new'
+      fullPath: '/$owner/$name/milestones/new'
+      preLoaderRoute: typeof OwnerNameMilestonesNewRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/raw/$': {
       id: '/$owner/$name/raw/$'
       path: '/raw/$'
@@ -835,6 +919,20 @@ declare module '@tanstack/react-router' {
       path: '/blob/$branch/$'
       fullPath: '/$owner/$name/blob/$branch/$'
       preLoaderRoute: typeof OwnerNameBlobBranchSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/milestone/$number/': {
+      id: '/$owner/$name/milestone/$number/'
+      path: '/milestone/$number'
+      fullPath: '/$owner/$name/milestone/$number/'
+      preLoaderRoute: typeof OwnerNameMilestoneNumberIndexRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/milestone/$number/edit': {
+      id: '/$owner/$name/milestone/$number/edit'
+      path: '/milestone/$number/edit'
+      fullPath: '/$owner/$name/milestone/$number/edit'
+      preLoaderRoute: typeof OwnerNameMilestoneNumberEditRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/$owner/$name/tree/$branch/$': {
@@ -916,6 +1014,7 @@ const OwnerNameIssuesRouteWithChildren = OwnerNameIssuesRoute._addFileChildren(
 
 interface OwnerNameRouteChildren {
   OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
+  OwnerNameGenerateRoute: typeof OwnerNameGenerateRoute
   OwnerNameGitReceivePackRoute: typeof OwnerNameGitReceivePackRoute
   OwnerNameGitUploadPackRoute: typeof OwnerNameGitUploadPackRoute
   OwnerNameIssuesRoute: typeof OwnerNameIssuesRouteWithChildren
@@ -930,15 +1029,20 @@ interface OwnerNameRouteChildren {
   OwnerNameInfoRefsRoute: typeof OwnerNameInfoRefsRoute
   OwnerNameLegacyDottarDotgzSplatRoute: typeof OwnerNameLegacyDottarDotgzSplatRoute
   OwnerNameLegacyDotzipSplatRoute: typeof OwnerNameLegacyDotzipSplatRoute
+  OwnerNameMilestonesNewRoute: typeof OwnerNameMilestonesNewRoute
   OwnerNameRawSplatRoute: typeof OwnerNameRawSplatRoute
+  OwnerNameMilestonesIndexRoute: typeof OwnerNameMilestonesIndexRoute
   OwnerNameBlameBranchSplatRoute: typeof OwnerNameBlameBranchSplatRoute
   OwnerNameBlobBranchSplatRoute: typeof OwnerNameBlobBranchSplatRoute
+  OwnerNameMilestoneNumberEditRoute: typeof OwnerNameMilestoneNumberEditRoute
   OwnerNameTreeBranchSplatRoute: typeof OwnerNameTreeBranchSplatRoute
   OwnerNameUploadBranchSplatRoute: typeof OwnerNameUploadBranchSplatRoute
+  OwnerNameMilestoneNumberIndexRoute: typeof OwnerNameMilestoneNumberIndexRoute
 }
 
 const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNamePullsRoute: OwnerNamePullsRouteWithChildren,
+  OwnerNameGenerateRoute: OwnerNameGenerateRoute,
   OwnerNameGitReceivePackRoute: OwnerNameGitReceivePackRoute,
   OwnerNameGitUploadPackRoute: OwnerNameGitUploadPackRoute,
   OwnerNameIssuesRoute: OwnerNameIssuesRouteWithChildren,
@@ -953,11 +1057,15 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameInfoRefsRoute: OwnerNameInfoRefsRoute,
   OwnerNameLegacyDottarDotgzSplatRoute: OwnerNameLegacyDottarDotgzSplatRoute,
   OwnerNameLegacyDotzipSplatRoute: OwnerNameLegacyDotzipSplatRoute,
+  OwnerNameMilestonesNewRoute: OwnerNameMilestonesNewRoute,
   OwnerNameRawSplatRoute: OwnerNameRawSplatRoute,
+  OwnerNameMilestonesIndexRoute: OwnerNameMilestonesIndexRoute,
   OwnerNameBlameBranchSplatRoute: OwnerNameBlameBranchSplatRoute,
   OwnerNameBlobBranchSplatRoute: OwnerNameBlobBranchSplatRoute,
+  OwnerNameMilestoneNumberEditRoute: OwnerNameMilestoneNumberEditRoute,
   OwnerNameTreeBranchSplatRoute: OwnerNameTreeBranchSplatRoute,
   OwnerNameUploadBranchSplatRoute: OwnerNameUploadBranchSplatRoute,
+  OwnerNameMilestoneNumberIndexRoute: OwnerNameMilestoneNumberIndexRoute,
 }
 
 const OwnerNameRouteWithChildren = OwnerNameRoute._addFileChildren(

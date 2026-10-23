@@ -51,8 +51,19 @@ New repositories start empty, on a default branch called `main`. The first push
 or web upload creates that branch.
 
 Later, `/{owner}/{name}/settings` → **General** renames the repository,
-changes its description, visibility and default branch; **Danger zone** deletes
-it (type the name to confirm). Renaming moves the repository's stored data, so
+changes its description, website, topics (up to 20, lowercase letters, numbers
+and hyphens; searchable as `topic:name`), visibility and default branch, turns
+the Issues, Wiki and Projects flags on or off (stored; only Issues exists) and
+marks it a **template repository**. Others then see **Use this template** and
+get a copy of its files as one `Initial commit`. **Danger zone** archives the
+repository, transfers it to another user, or deletes it (type the name to
+confirm). An archived repository is read-only for everyone, owner included:
+pushes are refused with `Repository was archived so is read-only.`, and issues,
+comments, pull requests, labels and settings are locked until it is unarchived.
+A transfer is immediate (there is no invitation to accept) and the old URL does
+not redirect. These settings are also `PATCH`/`DELETE /repos/{owner}/{repo}`,
+`PUT /repos/{owner}/{repo}/topics`, `POST …/transfer` and `POST …/generate` in
+the REST API. Renaming moves the repository's stored data, so
 existing clones keep working through the new URL after a `git remote set-url`.
 
 ## URLs
@@ -71,6 +82,7 @@ Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page
 | Pull requests | `/{owner}/{repo}/pulls` |
 | One pull request | `/{owner}/{repo}/pull/{n}`, `…/pull/{n}/commits`, `…/pull/{n}/files` (`.diff`, `.patch`) |
 | Labels | `/{owner}/{repo}/labels` |
+| Milestones | `/{owner}/{repo}/milestones`, `/{owner}/{repo}/milestone/{n}` |
 | Upload a file | `/{owner}/{repo}/upload/{branch}/{directory}` |
 | Clone | `/{owner}/{repo}.git` |
 | New repository | `/new` |

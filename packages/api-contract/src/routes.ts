@@ -163,6 +163,39 @@ export const routes = {
 		path: "/repos/{owner}/{repo}",
 		docs: `${DOCS}/repos/repos#get-a-repository`,
 	},
+	"repos/update": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}",
+		docs: `${DOCS}/repos/repos#update-a-repository`,
+	},
+	"repos/delete": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}",
+		docs: `${DOCS}/repos/repos#delete-a-repository`,
+		status: 204,
+	},
+	"repos/get-all-topics": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/topics",
+		docs: `${DOCS}/repos/repos#get-all-repository-topics`,
+	},
+	"repos/replace-all-topics": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/topics",
+		docs: `${DOCS}/repos/repos#replace-all-repository-topics`,
+	},
+	"repos/transfer": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/transfer",
+		docs: `${DOCS}/repos/repos#transfer-a-repository`,
+		status: 202,
+	},
+	"repos/create-using-template": {
+		method: "POST",
+		path: "/repos/{template_owner}/{template_repo}/generate",
+		docs: `${DOCS}/repos/repos#create-a-repository-using-a-template`,
+		status: 201,
+	},
 	"activity/list-watchers-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/subscribers",
@@ -601,6 +634,34 @@ export const routes = {
 		method: "DELETE",
 		path: "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
 		docs: `${DOCS}/pulls/review-requests#remove-requested-reviewers-from-a-pull-request`,
+	},
+
+	"issues/list-milestones": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/milestones",
+		docs: `${DOCS}/issues/milestones#list-milestones`,
+	},
+	"issues/create-milestone": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/milestones",
+		docs: `${DOCS}/issues/milestones#create-a-milestone`,
+		status: 201,
+	},
+	"issues/get-milestone": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/milestones/{milestone_number}",
+		docs: `${DOCS}/issues/milestones#get-a-milestone`,
+	},
+	"issues/update-milestone": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/milestones/{milestone_number}",
+		docs: `${DOCS}/issues/milestones#update-a-milestone`,
+	},
+	"issues/delete-milestone": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/milestones/{milestone_number}",
+		docs: `${DOCS}/issues/milestones#delete-a-milestone`,
+		status: 204,
 	},
 
 	"issues/list-labels-for-repo": {
