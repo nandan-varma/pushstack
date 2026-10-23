@@ -3,6 +3,7 @@ import { isNotFoundError } from "git-fs-s3";
 import { DiffLimitError } from "git-fs-s3/ops";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
+import { downloadTarball, downloadZipball } from "./archive";
 import { type ApiContext, oauthScopesHeader } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import {
@@ -132,6 +133,8 @@ const HANDLERS = {
 	"repos/get-branch": getBranch,
 	"repos/list-tags": listTags,
 	"repos/get-content": getContents,
+	"repos/download-tarball-archive": downloadTarball,
+	"repos/download-zipball-archive": downloadZipball,
 	"repos/create-or-update-file-contents": putContents,
 	"repos/delete-file": deleteContents,
 	"repos/list-commits": listCommits,

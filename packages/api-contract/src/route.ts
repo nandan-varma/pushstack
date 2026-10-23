@@ -17,8 +17,8 @@ export interface Route {
 	path: string;
 	/** GitHub's REST reference for the operation. */
 	docs: string;
-	/** The success status (default 200; 204 and 205 have no body). */
-	status?: 200 | 201 | 204 | 205;
+	/** The success status (default 200; 204 and 205 have no body; 302 redirects). */
+	status?: 200 | 201 | 204 | 205 | 302;
 	/** A DELETE whose input travels as a JSON body (e.g. deleting a file). */
 	deleteBody?: true;
 }

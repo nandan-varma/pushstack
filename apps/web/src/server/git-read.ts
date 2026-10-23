@@ -20,6 +20,7 @@ import {
 	HISTORY_WALK_DEPTH,
 	listBranches,
 	listTags,
+	listTreeEntries,
 	type OpsHooks,
 	analyzeMerge as opsAnalyzeMerge,
 	getCommit as opsGetCommit,
@@ -37,7 +38,13 @@ import {
 } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
-import { MAX_HISTORY_WALK, MAX_RAW_BYTES } from "#/lib/limits";
+import {
+	MAX_ARCHIVE_BYTES,
+	MAX_ARCHIVE_ENTRIES,
+	MAX_ARCHIVE_PATH_BYTES,
+	MAX_HISTORY_WALK,
+	MAX_RAW_BYTES,
+} from "#/lib/limits";
 import { opsHooksFor } from "./git-cache";
 import { repoFor } from "./git-repo";
 
@@ -156,6 +163,144 @@ export async function getRawFileContent(
 		return { kind: "too-large", size: knownSize };
 	}
 	return { kind: "bytes", bytes: await getBlob(repo, entry.oid) };
+}
+
+/** A source archive would exceed {@link MAX_ARCHIVE_ENTRIES} or {@link MAX_ARCHIVE_BYTES}. */
+export class ArchiveLimitError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "ArchiveLimitError";
+	}
+}
+
+/** An entry name that is safe to extract: one real path component, not `.git`. */
+export function isSafeArchiveName(name: string): boolean {
+	return !(
+		name === "" ||
+		name === "." ||
+		name === ".." ||
+		name.toLowerCase() === ".git" ||
+		/[/\\\0]/.test(name)
+	);
+}
+
+export interface ArchiveNode {
+	path: string;
+	kind: "file" | "symlink" | "dir";
+	executable: boolean;
+	oid: string;
+}
+
+export interface ArchivePlan {
+	commitSha: string;
+	/** Commit time, seconds since the epoch. */
+	mtime: number;
+	/** Directories, files and symlinks in tree order (a directory before its contents). */
+	nodes: ArchiveNode[];
+}
+
+/**
+ * The entries of a source archive of `rev`'s commit, found by walking its
+ * trees (no blob is read): the paths and oids a streamed archive then reads
+ * one at a time. Bounded by entry count and by the blobs' packed sizes before
+ * anything is built; a blob whose size is unknown is counted as it is read
+ * ({@link readArchiveBlob}). Submodule pointers become empty directories, as
+ * in `git archive`, and nothing is fetched for them.
+ */
+export async function planArchive(
+	ownerKey: string,
+	repoName: string,
+	rev: string,
+): Promise<ArchivePlan> {
+	const repo = repoFor(ownerKey, repoName);
+	const { oid: commitSha, commit } = await opsGetCommit(
+		repo,
+		await resolveCommitOid(repo, rev),
+	);
+	const nodes: ArchiveNode[] = [];
+	const blobs: string[] = [];
+	const visit = async (treeOid: string, prefix: string): Promise<void> => {
+		for (const entry of await listTreeEntries(repo, treeOid, prefix)) {
+			// A crafted tree can name an entry that would extract outside the
+			// archive's directory (`..`, a separator) or overwrite `.git`.
+			if (
+				!isSafeArchiveName(entry.path.slice(prefix ? prefix.length + 1 : 0))
+			) {
+				continue;
+			}
+			if (
+				new TextEncoder().encode(entry.path).byteLength > MAX_ARCHIVE_PATH_BYTES
+			) {
+				throw new ArchiveLimitError(
+					`A path is longer than ${MAX_ARCHIVE_PATH_BYTES} bytes. Use git clone.`,
+				);
+			}
+			if (nodes.length >= MAX_ARCHIVE_ENTRIES) {
+				throw new ArchiveLimitError(
+					`Repository has more than ${MAX_ARCHIVE_ENTRIES} entries. Use git clone.`,
+				);
+			}
+			if (entry.type === "tree") {
+				nodes.push({
+					path: entry.path,
+					kind: "dir",
+					executable: false,
+					oid: entry.oid,
+				});
+				await visit(entry.oid, entry.path);
+			} else if (entry.type === "commit") {
+				nodes.push({
+					path: entry.path,
+					kind: "dir",
+					executable: false,
+					oid: entry.oid,
+				});
+			} else {
+				blobs.push(entry.oid);
+				nodes.push({
+					path: entry.path,
+					kind: entry.mode === "120000" ? "symlink" : "file",
+					executable: entry.mode === "100755",
+					oid: entry.oid,
+				});
+			}
+		}
+	};
+	await visit(commit.tree, "");
+	const sizes = await getObjectSizes(repo, [...new Set(blobs)]);
+	let total = 0;
+	for (const blob of blobs) {
+		const size = sizes.get(blob) ?? 0;
+		if (size > MAX_RAW_BYTES) {
+			throw new ArchiveLimitError(
+				`A file is larger than ${MAX_RAW_BYTES} bytes. Use git clone.`,
+			);
+		}
+		total += size;
+		if (total > MAX_ARCHIVE_BYTES) {
+			throw new ArchiveLimitError(
+				`Repository is larger than ${MAX_ARCHIVE_BYTES} bytes. Use git clone.`,
+			);
+		}
+	}
+	return { commitSha, mtime: commit.committer.timestamp, nodes };
+}
+
+/** A blob's bytes for an archive; `budget.remaining` shrinks and bounds blobs whose size was unknown. */
+export async function readArchiveBlob(
+	ownerKey: string,
+	repoName: string,
+	oid: string,
+	budget: { remaining: number },
+): Promise<Uint8Array> {
+	const bytes = await getBlob(repoFor(ownerKey, repoName), oid);
+	budget.remaining -= bytes.byteLength;
+	if (bytes.byteLength > MAX_RAW_BYTES || budget.remaining < 0) {
+		throw new ArchiveLimitError(
+			"Archive exceeds its size limit. Use git clone.",
+		);
+	}
+	return bytes;
 }
 
 /**
