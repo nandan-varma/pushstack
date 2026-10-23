@@ -56,6 +56,8 @@ export interface SearchQuery {
 	noAssignee: boolean;
 	/** `mentions:` usernames; every one must be mentioned. */
 	mentions: string[];
+	/** `draft:true` / `draft:false`: pull requests only; absent when unfiltered. */
+	draft?: boolean;
 	sort: SearchSort;
 }
 
@@ -81,6 +83,7 @@ const KNOWN_QUALIFIERS = new Set([
 	"mentions",
 	"review-requested",
 	"reviewed-by",
+	"draft",
 	"sort",
 ]);
 
@@ -182,6 +185,7 @@ export function parseSearchQuery(input: string): SearchQuery {
 	const reviewedBy: string[] = [];
 	let noLabel = false;
 	let noAssignee = false;
+	const drafts = new Set<boolean>();
 	let sort: SearchSort = DEFAULT_SEARCH_SORT;
 
 	for (const token of tokenize(input)) {
@@ -219,6 +223,10 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case "reviewed-by":
 				if (value) reviewedBy.push(value);
 				break;
+			case "draft":
+				if (value.toLowerCase() === "true") drafts.add(true);
+				else if (value.toLowerCase() === "false") drafts.add(false);
+				break;
 			case "sort":
 				if ((SEARCH_SORTS as readonly string[]).includes(value.toLowerCase()))
 					sort = value.toLowerCase() as SearchSort;
@@ -229,7 +237,12 @@ export function parseSearchQuery(input: string): SearchQuery {
 	// `all` wins; `closed`+`merged` is their intersection (merged ⊂ closed on
 	// GitHub); any other pair is contradictory and matches nothing.
 	let status: SearchStatus | undefined;
-	let matchesNothing = types.size > 1;
+	// `draft:true draft:false` is contradictory; a draft filter is about pull
+	// requests, so `is:issue` with one matches nothing.
+	let matchesNothing =
+		types.size > 1 ||
+		drafts.size > 1 ||
+		(drafts.size > 0 && types.has("issue"));
 	if (statuses.has("all")) status = "all";
 	else if (statuses.size === 1) status = [...statuses][0];
 	else if (
@@ -253,6 +266,7 @@ export function parseSearchQuery(input: string): SearchQuery {
 		mentions: dedupe(mentions),
 		reviewRequested: dedupe(reviewRequested),
 		reviewedBy: dedupe(reviewedBy),
+		...(drafts.size === 1 && { draft: [...drafts][0] }),
 		sort,
 	};
 }

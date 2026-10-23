@@ -281,6 +281,32 @@ describe("CODEOWNERS", () => {
 		expect(view.requestedReviewers.map((u) => u.username)).toEqual(["dave"]);
 	});
 
+	it("waits for a draft to be marked ready for review", async () => {
+		signIn(users.alice);
+		await files.createBranch({ data: { repoId, name: "draft" } });
+		await upload("draft", "docs/draft.md", "d\n");
+		const created = await pullRequests.createPullRequest({
+			data: {
+				repoId,
+				title: "Draft",
+				sourceBranchName: "draft",
+				targetBranchName: "main",
+				draft: true,
+			},
+		});
+		const read = () =>
+			pullRequests.getPullRequestByNumber({
+				data: { owner: "alice", name: "proj", number: created.number },
+			});
+		expect((await read()).requestedReviewers).toEqual([]);
+		await pullRequests.setPullRequestDraftState({
+			data: { prId: created.id, draft: false },
+		});
+		expect((await read()).requestedReviewers.map((u) => u.username)).toEqual([
+			"dave",
+		]);
+	});
+
 	it("reports a file's owners for the blob view", async () => {
 		signIn(users.alice);
 		const owners = await requests.getFileOwners({

@@ -397,6 +397,7 @@ export async function createPull(ctx: ApiContext) {
 		body: data.body ?? undefined,
 		sourceBranch,
 		targetBranch,
+		draft: data.draft ?? false,
 	});
 	await requestCodeownerReviews(repo, created);
 	const record = await findPull(repo.id, created.number);
@@ -479,6 +480,9 @@ export async function mergePull(ctx: ApiContext) {
 			405,
 			`${data.merge_method === "squash" ? "Squash merges" : "Rebase merges"} are not allowed on this repository.`,
 		);
+	}
+	if (pr.status === "open" && pr.isDraft) {
+		throw new ApiError(405, "Pull Request is still a draft");
 	}
 	if (pr.status !== "open") throw notMergeable();
 	const headModified = () =>

@@ -4,6 +4,7 @@
  * Plain server-only helpers.
  */
 import { isNotFoundError } from "git-fs-s3";
+import { db } from "#/db";
 import {
 	CODEOWNERS_PATHS,
 	type CodeownersRule,
@@ -62,16 +63,18 @@ export async function ownersOfFile(
 
 /**
  * Request reviews from the CODEOWNERS (at the base branch) of the paths `pr`
- * changes. Owners who aren't collaborators, and the author, are skipped. A
+ * changes (not for a draft: marking it ready does). Owners who aren't collaborators, and the author, are skipped. A
  * failure never fails the pull request being opened; it is logged.
  */
 export async function requestCodeownerReviews(
 	repo: RepoRef & { id: number },
 	pr: Pick<
 		PullRequest,
-		"id" | "repoId" | "authorId" | "sourceBranch" | "targetBranch"
+		"id" | "repoId" | "authorId" | "sourceBranch" | "targetBranch" | "isDraft"
 	>,
 ): Promise<void> {
+	// As on GitHub, a draft requests no one until it is marked ready for review.
+	if (pr.isDraft) return;
 	try {
 		const loaded = await loadCodeowners(repo, pr.targetBranch);
 		if (!loaded || loaded.rules.length === 0) return;
@@ -98,4 +101,16 @@ export async function requestCodeownerReviews(
 	} catch (error) {
 		logWarn("codeowners", `auto-request failed for PR ${pr.id}`, error);
 	}
+}
+
+/** {@link requestCodeownerReviews} for a pull request whose repository isn't at hand. */
+export async function requestCodeownerReviewsFor(
+	pr: Parameters<typeof requestCodeownerReviews>[1],
+): Promise<void> {
+	const repo = await db.query.repositories.findFirst({
+		columns: { id: true, name: true },
+		where: { id: pr.repoId },
+		with: { owner: { columns: { username: true } } },
+	});
+	if (repo) await requestCodeownerReviews(repo, pr);
 }

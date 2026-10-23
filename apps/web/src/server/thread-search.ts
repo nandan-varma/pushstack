@@ -29,6 +29,7 @@ export function searchFilter(
 		noLabel: search.noLabel,
 		reviewRequested: resolveMe(search.reviewRequested, viewerUsername),
 		reviewedBy: resolveMe(search.reviewedBy, viewerUsername),
+		draft: search.draft,
 		assignees: [...(search.noAssignee ? ["none"] : []), ...search.assignees],
 	};
 }
