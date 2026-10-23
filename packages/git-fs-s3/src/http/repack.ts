@@ -211,6 +211,13 @@ export interface RepackOptions {
 	threshold?: number;
 	/** The time `.keep` expiries are checked against (default: now). */
 	now?: Date;
+	/**
+	 * The entries of `objects/pack` as the caller knows them to be right now,
+	 * to skip the listing. Only for a caller that holds the repository lock and
+	 * listed the directory itself earlier in the same span (a push does, and
+	 * adds the pack it stored); a stale list would repack the wrong set.
+	 */
+	packDirectory?: readonly string[];
 }
 
 /**
@@ -232,7 +239,9 @@ export async function repackRepository(
 ): Promise<string[]> {
 	const threshold = options?.threshold ?? REPACK_PACK_COUNT_THRESHOLD;
 	const fsp = rawFs(repo);
-	const listed = await readPackDirectory(repo);
+	const listed = options?.packDirectory
+		? parsePackDirectory([...options.packDirectory])
+		: await readPackDirectory(repo);
 	// Kept packs stay as they are, so they don't count towards the threshold:
 	// counting them would repack on every write while a keep lasts.
 	const kept = await keptPackBases(repo, listed, options?.now ?? new Date());

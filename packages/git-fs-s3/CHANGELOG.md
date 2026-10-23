@@ -3,6 +3,21 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- `applyReceivePack` lists refs once per push (one recursive LIST of `refs/`)
+  and derives the existing tips and the file/directory collision set from it,
+  instead of listing branches, tags and all refs separately; a push that
+  creates no ref skips the collision listing. A small push to an existing
+  repository drops from 32 to 23 storage calls.
+- `applyRefUpdates` takes an optional fourth argument, the ref names the
+  caller already listed under the repository lock.
+- `RepackOptions.packDirectory` lets a lock-holding caller pass the
+  `objects/pack` entries it already listed; `applyReceivePack` uses it so the
+  post-push repack check no longer lists the pack directory again.
+
 ## [0.19.1] - 2026-10-22
 
 ### Fixed
