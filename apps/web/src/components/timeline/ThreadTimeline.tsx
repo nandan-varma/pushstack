@@ -12,6 +12,8 @@ import {
 	GitBranch,
 	GitCommitHorizontal,
 	GitMerge,
+	GitPullRequest,
+	GitPullRequestDraft,
 	type LucideIcon,
 	MessageSquare,
 	MessageSquareQuote,
@@ -317,6 +319,16 @@ function describe(
 						<b>{event.milestone.title}</b> milestone
 					</>
 				),
+			};
+		case "ready_for_review":
+			return {
+				icon: GitPullRequest,
+				text: "marked this pull request as ready for review",
+			};
+		case "convert_to_draft":
+			return {
+				icon: GitPullRequestDraft,
+				text: "marked this pull request as a draft",
 			};
 		case "assigned":
 		case "unassigned":

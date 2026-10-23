@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -254,6 +255,8 @@ export const pullRequests = pgTable(
 		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
+		/** A draft can't be merged until it is marked ready for review. */
+		isDraft: boolean("is_draft").notNull().default(false),
 		/** The base and head tips that were merged: the PR's exact commit range. */
 		baseSha: text("base_sha"),
 		headSha: text("head_sha"),
@@ -540,6 +543,54 @@ export const stars = pgTable(
 			table.userId,
 		),
 		userIdx: index("star_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * A user's watch of a repository (GitHub's repository subscription):
+ * `ignored = false` is "all activity", `ignored = true` is "ignore". No row
+ * is "participating and @mentions" (the default).
+ */
+export const repositorySubscriptions = pgTable(
+	"repository_subscriptions",
+	{
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		ignored: boolean("ignored").notNull().default(false),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.repoId, table.userId] }),
+		userIdx: index("repository_subscription_user_idx").on(table.userId),
+	}),
+);
+
+/** `follower_id` follows `followee_id` (never themselves). */
+export const follows = pgTable(
+	"follows",
+	{
+		followerId: text("follower_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		followeeId: text("followee_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.followerId, table.followeeId] }),
+		followeeIdx: index("follow_followee_idx").on(
+			table.followeeId,
+			table.createdAt,
+		),
+		notSelf: check(
+			"follow_not_self",
+			sql`${table.followerId} <> ${table.followeeId}`,
+		),
 	}),
 );
 

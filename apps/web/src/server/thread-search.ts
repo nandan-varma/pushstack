@@ -20,6 +20,7 @@ export function searchFilter(
 		noLabel: search.noLabel,
 		milestones: search.milestones,
 		noMilestone: search.noMilestone,
+		draft: search.draft,
 		assignees: [...(search.noAssignee ? ["none"] : []), ...search.assignees],
 	};
 }

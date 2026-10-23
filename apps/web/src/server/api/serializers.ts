@@ -43,13 +43,15 @@ export function simpleUser(user: PublicUser): Shape<"simpleUser"> {
 
 export function publicUser(
 	user: PublicUser & { createdAt: Date; updatedAt: Date },
-	counts: { publicRepos: number },
+	counts: { publicRepos: number; followers: number; following: number },
 ): Shape<"publicUser"> {
 	return {
 		...simpleUser(user),
 		name: user.name,
 		email: null,
 		public_repos: counts.publicRepos,
+		followers: counts.followers,
+		following: counts.following,
 		created_at: isoTimestamp(user.createdAt),
 		updated_at: isoTimestamp(user.updatedAt),
 	};
@@ -65,7 +67,13 @@ function permissionsFor(role: RepoRole) {
 
 export function repository(
 	repo: Repository & { owner: PublicUser },
-	options: { stars: number; openIssues: number; role?: RepoRole },
+	options: {
+		stars: number;
+		openIssues: number;
+		role?: RepoRole;
+		/** People watching: only the single-repository resource carries it. */
+		subscribers?: number;
+	},
 ): Shape<"repository"> {
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return {
@@ -87,6 +95,10 @@ export function repository(
 		disabled: false,
 		stargazers_count: options.stars,
 		watchers_count: options.stars,
+		watchers: options.stars,
+		...(options.subscribers !== undefined && {
+			subscribers_count: options.subscribers,
+		}),
 		forks_count: 0,
 		open_issues_count: options.openIssues,
 		...(options.role && { permissions: permissionsFor(options.role) }),
@@ -389,6 +401,8 @@ export function timelineEvent(
 				},
 			};
 		case "head_ref_deleted":
+		case "ready_for_review":
+		case "convert_to_draft":
 			return { ...base, event: entry.event };
 		case "renamed":
 			return {
@@ -574,7 +588,7 @@ export function pullRequest(
 			},
 		},
 		auto_merge: null,
-		draft: false,
+		draft: row.isDraft,
 	};
 	if (!detail) return simple;
 	return {
@@ -584,7 +598,7 @@ export function pullRequest(
 		// is "not yet known", which GitHub also reports while it computes.
 		mergeable: merged ? false : null,
 		rebaseable: false,
-		mergeable_state: "unknown",
+		mergeable_state: row.isDraft ? "draft" : "unknown",
 		merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
 		comments: input.commentsCount,
 		review_comments: detail.reviewComments,

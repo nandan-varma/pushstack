@@ -24,6 +24,7 @@ import {
 	getTreeEntries,
 	getTreePageData,
 } from "@/server/files";
+import { listProfileConnections } from "@/server/follows";
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import { getLabels } from "@/server/labels";
 import {
@@ -262,6 +263,17 @@ export function userActivityQueryOptions({
 		queryKey: queryKeys.userActivity(userId, limit),
 		queryFn: () =>
 			getUserActivity({ data: { ...(userId ? { userId } : {}), limit } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function profileConnectionsQueryOptions(
+	username: string,
+	kind: "followers" | "following",
+) {
+	return queryOptions({
+		queryKey: [...queryKeys.userProfile(username), kind] as const,
+		queryFn: () => listProfileConnections({ data: { username, kind } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

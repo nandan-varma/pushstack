@@ -59,7 +59,11 @@ import {
 	threadReactionsQueryOptions,
 } from "@/lib/query-options";
 import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
-import { mergePullRequest, updatePullRequest } from "@/server/pull-requests";
+import {
+	mergePullRequest,
+	setPullRequestDraftState,
+	updatePullRequest,
+} from "@/server/pull-requests";
 
 // The "Files changed" tab (diff viewer, review threads, language detection)
 // only downloads when that tab is opened.
@@ -283,6 +287,30 @@ function PullRequestDetailPage() {
 		},
 	});
 
+	const draftMutation = useMutation({
+		mutationFn: setPullRequestDraftState,
+		...useOptimisticUpdate<typeof pr>(
+			prQueryKey,
+			(old, vars) => {
+				const draft = (vars as { data: { draft: boolean } } | undefined)?.data
+					.draft;
+				return old && draft !== undefined ? { ...old, isDraft: draft } : old;
+			},
+			"Failed to update pull request",
+		),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: prQueryKey });
+			if (pr) {
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.pullRequestsRoot(pr.repoId),
+				});
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.timelineRoot(pr.repoId),
+				});
+			}
+		},
+	});
+
 	const handleMerge = () => {
 		if (!pr) return;
 		mergeMutation.mutate({ data: { prId: pr.id } });
@@ -319,7 +347,7 @@ function PullRequestDetailPage() {
 
 	if (!pr) return <PullRequestNotFound />;
 
-	const canMerge = pr.status === "open" && pr.viewer.canMerge;
+	const canMerge = pr.status === "open" && !pr.isDraft && pr.viewer.canMerge;
 	const canEdit = pr.viewer.canWrite || session?.user?.id === pr.authorId;
 	const canChangeStatus =
 		pr.status !== "merged" &&
@@ -333,7 +361,12 @@ function PullRequestDetailPage() {
 			<DetailHeader
 				title={titleNode}
 				number={pr.number}
-				badge={<StatePill kind="pull" status={pr.status} />}
+				badge={
+					<StatePill
+						kind="pull"
+						status={pr.status === "open" && pr.isDraft ? "draft" : pr.status}
+					/>
+				}
 				meta={
 					<>
 						<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
@@ -442,19 +475,35 @@ function PullRequestDetailPage() {
 											{pr.status === "open" && (
 												<MergeBox
 													canMerge={canMerge}
+													draft={pr.isDraft}
+													canMarkReady={canChangeStatus}
 													sourceBranch={pr.sourceBranch}
 													targetBranch={pr.targetBranch}
 													action={
-														<LoadingButton
-															onClick={handleMerge}
-															isLoading={mergeMutation.isPending}
-															loadingLabel="Merging…"
-															disabled={updateMutation.isPending}
-															className="bg-success text-white hover:bg-success/90"
-														>
-															<GitMerge aria-hidden="true" />
-															Merge pull request
-														</LoadingButton>
+														pr.isDraft ? (
+															<LoadingButton
+																onClick={() =>
+																	draftMutation.mutate({
+																		data: { prId: pr.id, draft: false },
+																	})
+																}
+																isLoading={draftMutation.isPending}
+																loadingLabel="Updating…"
+															>
+																Ready for review
+															</LoadingButton>
+														) : (
+															<LoadingButton
+																onClick={handleMerge}
+																isLoading={mergeMutation.isPending}
+																loadingLabel="Merging…"
+																disabled={updateMutation.isPending}
+																className="bg-success text-white hover:bg-success/90"
+															>
+																<GitMerge aria-hidden="true" />
+																Merge pull request
+															</LoadingButton>
+														)
 													}
 												/>
 											)}
@@ -470,15 +519,31 @@ function PullRequestDetailPage() {
 									}
 									composerAction={
 										canChangeStatus && pr.status === "open" ? (
-											<LoadingButton
-												variant="outline"
-												onClick={handleClose}
-												isLoading={updateMutation.isPending}
-												loadingLabel="Closing…"
-												disabled={mergeMutation.isPending}
-											>
-												Close pull request
-											</LoadingButton>
+											<>
+												{!pr.isDraft && (
+													<LoadingButton
+														variant="outline"
+														onClick={() =>
+															draftMutation.mutate({
+																data: { prId: pr.id, draft: true },
+															})
+														}
+														isLoading={draftMutation.isPending}
+														loadingLabel="Updating…"
+													>
+														Convert to draft
+													</LoadingButton>
+												)}
+												<LoadingButton
+													variant="outline"
+													onClick={handleClose}
+													isLoading={updateMutation.isPending}
+													loadingLabel="Closing…"
+													disabled={mergeMutation.isPending}
+												>
+													Close pull request
+												</LoadingButton>
+											</>
 										) : canChangeStatus && pr.status === "closed" ? (
 											<LoadingButton
 												variant="outline"
