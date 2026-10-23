@@ -47,6 +47,9 @@ export type TimelineEvent =
 	| { event: "cross-referenced"; source: ThreadRef }
 	| { event: "head_ref_deleted"; branch: string }
 	| { event: "renamed"; from: string; to: string }
+	/** A draft pull request was marked ready, or a ready one converted to a draft. */
+	| { event: "ready_for_review" }
+	| { event: "convert_to_draft" }
 	/** A label was applied or removed; the name and color are a snapshot. */
 	| { event: "labeled"; label: LabelSnapshot }
 	| { event: "unlabeled"; label: LabelSnapshot }

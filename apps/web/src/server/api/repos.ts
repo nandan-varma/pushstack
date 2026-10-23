@@ -48,6 +48,7 @@ import {
 	transferRepository,
 	updateRepositorySettings,
 } from "../repository-settings";
+import { watcherCounts } from "../watch-store";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
 	apiUrl,
@@ -93,14 +94,16 @@ export async function openIssueCounts(
 
 export async function getRepository(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
-	const [stargazers, openIssues] = await Promise.all([
+	const [stargazers, openIssues, watchers] = await Promise.all([
 		starCounts([repo.id]),
 		openIssueCounts([repo.id]),
+		watcherCounts([repo.id]),
 	]);
 	return json(
 		repository(repo, {
 			stars: stargazers.get(repo.id) ?? 0,
 			openIssues: openIssues.get(repo.id) ?? 0,
+			subscribers: watchers.get(repo.id) ?? 0,
 			role: ctx.caller ? access.role : undefined,
 		}),
 	);

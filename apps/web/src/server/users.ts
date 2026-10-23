@@ -6,6 +6,7 @@ import { listUserActivity } from "./activity";
 import { perfContext } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
 import { getCurrentUserOptional } from "./session";
+import { followCounts, isFollowing } from "./watch-store";
 
 /**
  * A profile's public fields, repositories and recent activity in one round
@@ -32,7 +33,7 @@ export const getUserProfile = createServerFn({ method: "GET" })
 			if (!profileUser) throw notFound();
 			const isSelf = currentUser?.id === profileUser.id;
 
-			const [repos, activities] = await Promise.all([
+			const [repos, activities, follow, following] = await Promise.all([
 				db.query.repositories.findMany({
 					where: {
 						ownerId: profileUser.id,
@@ -43,7 +44,19 @@ export const getUserProfile = createServerFn({ method: "GET" })
 					limit: 100,
 				}),
 				listUserActivity(profileUser.id, { includePrivate: isSelf, limit: 30 }),
+				followCounts([profileUser.id]),
+				currentUser && !isSelf
+					? isFollowing(currentUser.id, profileUser.id)
+					: false,
 			]);
-			return { user: profileUser, isSelf, repositories: repos, activities };
+			return {
+				user: profileUser,
+				isSelf,
+				repositories: repos,
+				activities,
+				followers: follow.get(profileUser.id)?.followers ?? 0,
+				following: follow.get(profileUser.id)?.following ?? 0,
+				isFollowing: following,
+			};
 		}),
 	);

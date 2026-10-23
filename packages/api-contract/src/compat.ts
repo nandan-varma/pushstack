@@ -18,9 +18,23 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction`",
 	"repos/create-for-authenticated-user":
 		"`name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored",
+	"users/list-followers-for-authenticated-user": "pagination",
+	"users/list-followed-by-authenticated-user": "pagination",
+	"users/check-person-is-followed-by-authenticated": "`204` or `404`",
+	"users/follow":
+		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent; known difference: following yourself is `422`",
+	"users/unfollow":
+		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent",
+	"activity/list-watched-repos-for-authenticated-user":
+		"repositories you watch (not ignore) and can still read; pagination",
 	"users/get-by-id":
 		"public profile by integer id; `404` for an unknown or malformed id",
 	"users/get-by-username": "",
+	"users/list-followers-for-user": "pagination",
+	"users/list-following-for-user": "pagination",
+	"users/check-following-for-user": "`204` or `404`",
+	"activity/list-repos-watched-by-user":
+		"only repositories both the user and the caller can read; pagination",
 	"repos/list-for-user": "public repositories only; `sort`, `direction`",
 	"activity/list-notifications-for-authenticated-user":
 		"any token; unread unless `all=true`; `participating`, `since`, `before`, `per_page` (up to 50); threads in repositories you can no longer read are hidden",
@@ -46,6 +60,14 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` ignored; the old URL does not redirect",
 	"repos/create-using-template":
 		"the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` is ignored; issues, labels, topics and settings are not copied",
+	"activity/list-watchers-for-repo":
+		"people watching (not ignoring) who can still read the repository; pagination",
+	"activity/get-repo-subscription":
+		"`404` when you are not subscribed; `reason` is always `null`",
+	"activity/set-repo-subscription":
+		"`repo:write` token; `ignored: true` ignores the repository, otherwise you watch all activity; `subscribed: false` without `ignored` removes the subscription",
+	"activity/delete-repo-subscription":
+		"`repo:write` token; back to participating-only notifications",
 	"activity/list-repo-notifications-for-authenticated-user":
 		"as `GET /notifications`, for one repository",
 	"activity/mark-repo-notifications-as-read":
@@ -135,7 +157,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/list":
 		"`state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults)",
 	"pulls/create":
-		"write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
+		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
 	"pulls/get": "",
 	"pulls/update":
 		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`",

@@ -36,6 +36,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { backgroundQuery } from "@/lib/prefetch";
 import {
@@ -91,6 +92,7 @@ function PullRequestsPage() {
 		repositoryByNameQueryOptions({ owner, name }),
 	);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [isDraft, setIsDraft] = useState(false);
 	const [newPR, setNewPR] = useState<{
 		title: string;
 		body: string;
@@ -124,6 +126,7 @@ function PullRequestsPage() {
 				queryKey: queryKeys.repositoryByName(owner, name),
 			});
 			setIsCreateOpen(false);
+			setIsDraft(false);
 			setNewPR({
 				title: "",
 				body: "",
@@ -164,9 +167,11 @@ function PullRequestsPage() {
 				body: newPR.body,
 				sourceBranchName: newPR.headBranch,
 				targetBranchName: baseBranch,
+				draft: isDraft,
 			},
 		});
 	}, [
+		isDraft,
 		newPR.title,
 		newPR.body,
 		newPR.headBranch,
@@ -282,6 +287,14 @@ function PullRequestsPage() {
 											placeholder="Describe your changes…"
 											rows={5}
 										/>
+									</div>
+									<div className="flex items-center gap-2">
+										<Switch
+											id="draft"
+											checked={isDraft}
+											onCheckedChange={setIsDraft}
+										/>
+										<Label htmlFor="draft">Create as draft</Label>
 									</div>
 								</NewThreadDialog>
 							)}

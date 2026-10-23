@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { CopyField } from "@/components/CopyField";
 import { RepoStar } from "@/components/repo/RepoStar";
+import { RepoWatch } from "@/components/repo/RepoWatch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl } from "@/lib/git-utils";
 import { safeHomepageUrl } from "@/lib/homepage";
@@ -151,6 +152,7 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 				)}
 			</SidebarGroup>
 			<div className="space-y-2 px-1">
+				<RepoWatch owner={owner} name={name} repo={repo} />
 				<RepoStar owner={owner} name={name} repo={repo} />
 				{repo.isTemplate && session?.user && (
 					<Link

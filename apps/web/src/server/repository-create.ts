@@ -19,6 +19,7 @@ import { withRepositoryLock } from "./git-repo-lock";
 import { createInitialCommitUnlocked } from "./git-write";
 import { createDefaultLabels } from "./label-store";
 import { evictRepoByName } from "./repository-lookup";
+import { setRepoSubscription } from "./watch-store";
 
 /** Also a storage-path segment, so this is a security boundary, not cosmetics. */
 export const repoNameSchema = z
@@ -121,6 +122,8 @@ export async function createRepositoryForUser(
 	}
 
 	await createDefaultLabels(repo.id);
+	// GitHub subscribes the creator to their new repository.
+	await setRepoSubscription(repo.id, owner.id, false);
 	// A lookup that missed before the insert is cached as "not found".
 	evictRepoByName(owner.username, repo.name, repo.id);
 	await recordActivity(owner.id, repo.id, {
