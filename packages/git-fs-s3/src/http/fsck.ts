@@ -5,7 +5,7 @@
  */
 
 export interface TreeNameProblem {
-	/** git's fsck message id (`hasDotdot`, …) or `hasBackslash`. */
+	/** git's fsck message id (`hasDotdot`, …). */
 	id: string;
 	message: string;
 }
@@ -13,7 +13,10 @@ export interface TreeNameProblem {
 /** Code points HFS+ ignores when comparing names (git's `is_hfs_ignorable`). */
 const HFS_IGNORABLE = /[‌-‏‪-‮⁪-⁯﻿]/gu;
 
-/** `.git` as NTFS resolves it: trailing dots/spaces and `:stream` suffixes, or its 8.3 name `git~1`. */
+/**
+ * `.git` as NTFS resolves it: trailing dots/spaces, a `:stream` suffix or a
+ * `\` separator after it, or its 8.3 name `git~1` (git's `is_ntfs_dotgit`).
+ */
 function isNtfsDotgit(name: string): boolean {
 	const lower = name.toLowerCase();
 	const stem = lower.startsWith(".git")
@@ -22,7 +25,7 @@ function isNtfsDotgit(name: string): boolean {
 			? lower.slice(5)
 			: null;
 	if (stem === null) return false;
-	const end = stem.indexOf(":");
+	const end = stem.search(/[:\\]/);
 	return /^[ .]*$/.test(end === -1 ? stem : stem.slice(0, end));
 }
 
@@ -48,8 +51,5 @@ export function treeEntryNameProblem(name: string): TreeNameProblem | null {
 		return { id: "nulInName", message: "contains NUL in a name" };
 	}
 	if (isDotgit(name)) return { id: "hasDotgit", message: "contains '.git'" };
-	if (name.includes("\\")) {
-		return { id: "hasBackslash", message: "contains a backslash" };
-	}
 	return null;
 }

@@ -102,20 +102,31 @@ export async function indexIncomingPack(
 	packData: Uint8Array,
 	hooks?: HttpHooks,
 ): Promise<string[]> {
-	if (packData.length < 4) return [];
-	const packName = await runStep(
+	return (await storeIncomingPack(repo, packData, hooks)).paths;
+}
+
+/** {@link indexIncomingPack}, also returning the oids the pack's index lists. */
+async function storeIncomingPack(
+	repo: Repo,
+	packData: Uint8Array,
+	hooks?: HttpHooks,
+): Promise<{ paths: string[]; oids: string[] }> {
+	if (packData.length < 4) return { paths: [], oids: [] };
+	const stored = await runStep(
 		hooks,
 		"write + indexPack incoming pack",
 		async () => {
 			// Named by checksum (`pack-<sha>`), stored pack first, index last.
-			const { base } = await storePack(repo, packData);
-			return base;
+			return storePack(repo, packData);
 		},
 	);
-	return [
-		`${repo.gitdir}/objects/pack/${packName}.pack`,
-		`${repo.gitdir}/objects/pack/${packName}.idx`,
-	];
+	return {
+		paths: [
+			`${repo.gitdir}/objects/pack/${stored.base}.pack`,
+			`${repo.gitdir}/objects/pack/${stored.base}.idx`,
+		],
+		oids: stored.oids,
+	};
 }
 
 /**
@@ -448,14 +459,17 @@ export async function applyReceivePack(
 	});
 	const existingPacks = new Set(listedPacks ?? []);
 	let incomingPackPaths: string[];
+	let incomingOids: ReadonlySet<string> = new Set();
 	try {
-		incomingPackPaths = await indexIncomingPack(
+		const stored = await storeIncomingPack(
 			repo,
 			acceptedUpdates.some((update) => update.newOid !== ZERO_OID)
 				? parsed.packData
 				: new Uint8Array(),
 			hooks,
 		);
+		incomingPackPaths = stored.paths;
+		incomingOids = new Set(stored.oids);
 	} catch (err) {
 		hooks?.onWarn?.("receive-pack: incoming pack rejected", err);
 		return {
@@ -494,8 +508,9 @@ export async function applyReceivePack(
 			newTips,
 			hooks,
 			haveOids,
-			// Only trees this push introduces are read (the rest are in haveOids).
-			{ checkTreeNames: true },
+			// Only the trees this push stored are checked: older trees the walk
+			// passes through were accepted by earlier pushes.
+			{ checkTreeNames: incomingOids },
 		);
 		if (invalidTreeEntry) {
 			// What `receive.fsckObjects` refuses: names that become path

@@ -28,13 +28,14 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `applyReceivePack` refuses a push whose new trees hold an entry name git's
   fsck rejects (`.`, `..`, `.git` in any case or NTFS/HFS spelling, an empty
-  name, `/`, NUL, plus a backslash) and reports it as
+  name, `/`, NUL, `.git\…`) and reports it as
   `ng <ref> fsck error in packed object: object <oid>: hasDotdot: contains '..'`
-  (hasDot, hasDotgit, fullPathname, emptyName, nulInName, hasBackslash). Before,
+  (hasDot, hasDotgit, fullPathname, emptyName, nulInName). Before,
   most of these were refused only as "incomplete object graph" after a retry
-  delay, and an empty name was accepted. Only trees not reachable from an
-  existing ref are checked. `collectReachableOids` takes
-  `{ checkTreeNames }` and returns `invalidTreeEntry`.
+  delay, and an empty name was accepted. Only the trees
+  of the push's own pack (not older trees the walk passes through) are checked.
+  `collectReachableOids` takes `{ checkTreeNames: Set<oid> }` and returns
+  `invalidTreeEntry`.
 
 ## [0.19.1] - 2026-10-22
 

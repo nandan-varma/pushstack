@@ -15,8 +15,8 @@ export interface ReachabilityResult {
 	 */
 	complete: boolean;
 	/**
-	 * With `checkTreeNames`: the first tree entry (among the trees the walk
-	 * read, so only objects not in `haveOids`) whose name git's fsck rejects.
+	 * With `checkTreeNames`: the first entry, among the trees named there, whose
+	 * name git's fsck rejects.
 	 */
 	invalidTreeEntry?: { tree: string; message: string };
 }
@@ -81,7 +81,16 @@ export async function collectReachableOids(
 	startOids: string[],
 	hooks?: HttpHooks,
 	haveOids?: ReadonlySet<string> | readonly string[],
-	options?: { verifyBlobs?: boolean; checkTreeNames?: boolean },
+	options?: {
+		verifyBlobs?: boolean;
+		/**
+		 * Oids of trees whose entry names must pass git's fsck rules: the trees
+		 * a push just stored. The walk also reads older trees it reaches through
+		 * them; those were accepted by earlier pushes, so a bad name there is
+		 * not this push's fault and is skipped, not reported.
+		 */
+		checkTreeNames?: ReadonlySet<string>;
+	},
 ): Promise<ReachabilityResult> {
 	const verifyBlobs = options?.verifyBlobs ?? true;
 	const have = haveOids instanceof Set ? haveOids : new Set(haveOids ?? []);
@@ -103,7 +112,7 @@ export async function collectReachableOids(
 		} else if (obj.type === "tree") {
 			const tree = obj.object as { oid: string; type: string; path: string }[];
 			for (const entry of tree) {
-				const problem = options?.checkTreeNames
+				const problem = options?.checkTreeNames?.has(oid)
 					? treeEntryNameProblem(entry.path)
 					: null;
 				if (problem && !invalidTreeEntry) {
@@ -146,15 +155,19 @@ export async function collectReachableOids(
 				// isomorphic-git refuses to parse a tree with an unsafe entry name
 				// (`..`, `.git`, a backslash, …): not a missing object, so no retry.
 				const unsafe = unsafeTreeEntry(first);
-				if (unsafe !== null) {
-					if (options?.checkTreeNames) {
+				if (unsafe !== null && options?.checkTreeNames) {
+					if (options.checkTreeNames.has(oid)) {
 						const problem = treeEntryNameProblem(unsafe);
 						invalidTreeEntry ??= {
 							tree: oid,
 							message: `object ${oid}: ${problem?.id ?? "hasUnsafeName"}: ${problem?.message ?? `contains unsafe name '${unsafe}'`}`,
 						};
-						return;
+					} else {
+						// An older tree this parser cannot read: it exists, and
+						// an earlier push accepted it.
+						seen.add(oid);
 					}
+					return;
 				}
 				try {
 					await delay(MISSING_OBJECT_RETRY_DELAY_MS);
