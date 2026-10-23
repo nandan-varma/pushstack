@@ -164,6 +164,13 @@ export const relations = defineRelations(
 				optional: false,
 			}),
 		},
+		commitStatuses: {
+			creator: r.one.user({
+				from: r.commitStatuses.creatorId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
 		stars: {
 			repository: r.one.repositories({
 				from: r.stars.repoId,

@@ -19,6 +19,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { parseCompareSpec, splitPatchSuffix } from "@/lib/compare-spec";
 import { backgroundQuery } from "@/lib/prefetch";
@@ -108,6 +109,7 @@ function ComparePage() {
 	const [open, setOpen] = useState(false);
 	const [title, setTitle] = useState("");
 	const [body, setBody] = useState("");
+	const [draft, setDraft] = useState(false);
 	const createMutation = useMutation({
 		mutationFn: createPullRequest,
 		onSuccess: async (pr) => {
@@ -201,6 +203,7 @@ function ComparePage() {
 										body,
 										sourceBranchName: head,
 										targetBranchName: base,
+										draft,
 									},
 								})
 							}
@@ -223,6 +226,14 @@ function ComparePage() {
 									placeholder="Describe your changes…"
 									rows={5}
 								/>
+							</div>
+							<div className="flex items-center gap-2">
+								<Switch
+									id="compare-draft"
+									checked={draft}
+									onCheckedChange={setDraft}
+								/>
+								<Label htmlFor="compare-draft">Create as draft</Label>
 							</div>
 						</NewThreadDialog>
 					)}
@@ -260,6 +271,7 @@ function ComparePage() {
 						<CommitList
 							owner={owner}
 							name={name}
+							repoId={repo?.id}
 							commits={comparison.commits}
 							header={
 								<h2 className="text-sm font-semibold text-bjork-text-strong">

@@ -1,10 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { GitCommitHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { Panel, PanelHeader } from "@/components/layout/panel";
 import { RelativeTime } from "@/components/RelativeTime";
+import { type CheckState, CheckStateIcon } from "@/components/repo/Checks";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { commitRollupsQueryOptions } from "@/lib/query-options";
 import { getInitials } from "@/lib/utils/avatar";
 
 export type CommitListItem = {
@@ -22,10 +25,13 @@ export function CommitRow({
 	owner,
 	name,
 	commit,
+	checks,
 }: {
 	owner: string;
 	name: string;
 	commit: CommitListItem;
+	/** What CI reported for this commit, if anything. */
+	checks?: CheckState | undefined;
 }) {
 	return (
 		<li className="relative flex min-h-14 items-center gap-3 px-5 py-3 transition-[background-color] duration-150 hover:bg-bjork-surface-hover">
@@ -48,6 +54,11 @@ export function CommitRow({
 					committed <RelativeTime date={commit.createdAt} />
 				</p>
 			</div>
+			{checks && (
+				<span className="relative shrink-0">
+					<CheckStateIcon state={checks} />
+				</span>
+			)}
 			<code className="shrink-0 rounded-[8px] border border-bjork-border bg-bjork-field-inset px-2 py-1 font-mono text-[11px] text-bjork-text-medium tabular-nums">
 				{commit.sha.substring(0, 7)}
 			</code>
@@ -69,13 +80,27 @@ export function CommitList({
 	commits,
 	groupByDay = false,
 	header,
+	repoId,
 }: {
 	owner: string;
 	name: string;
 	commits: CommitListItem[];
 	groupByDay?: boolean;
 	header?: ReactNode;
+	/** With it, each commit shows its rolled-up CI state. */
+	repoId?: number | undefined;
 }) {
+	// Rollups are keyed by full sha; a page of history is at most 100 commits.
+	const { data: rollups } = useQuery({
+		...commitRollupsQueryOptions(
+			repoId ?? 0,
+			commits
+				.map((commit) => commit.sha)
+				.filter((sha) => /^[0-9a-f]{40}$/i.test(sha))
+				.slice(0, 100),
+		),
+		enabled: repoId !== undefined && commits.length > 0,
+	});
 	if (!groupByDay) {
 		return (
 			<Panel>
@@ -87,6 +112,7 @@ export function CommitList({
 							owner={owner}
 							name={name}
 							commit={commit}
+							checks={rollups?.[commit.sha]}
 						/>
 					))}
 				</ul>
@@ -122,6 +148,7 @@ export function CommitList({
 									owner={owner}
 									name={name}
 									commit={commit}
+									checks={rollups?.[commit.sha]}
 								/>
 							))}
 						</ul>

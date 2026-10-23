@@ -83,6 +83,22 @@ beforeAll(async () => {
 	await check("/users/alice/repos");
 	await check("/repos/alice/proj", auth);
 
+	// Watching and following.
+	await check("/repos/alice/proj/subscription", auth);
+	await check("/repos/alice/proj/subscription", put(alice, { ignored: true }));
+	await check("/repos/alice/proj/subscribers");
+	await check("/user/subscriptions", auth);
+	await check("/users/alice/subscriptions");
+	await check("/repos/alice/proj/subscription", del(alice));
+	await check("/user/following/bob", put(alice));
+	await check("/user/following/bob", auth);
+	await check("/user/following", auth);
+	await check("/user/followers", auth);
+	await check("/users/alice/following");
+	await check("/users/alice/followers");
+	await check("/users/alice/following/bob");
+	await check("/user/following/bob", del(alice));
+
 	signIn(users.alice);
 	await files.createBranch({ data: { repoId: repo.id, name: "topic" } });
 	await files.uploadFile({
@@ -261,6 +277,37 @@ beforeAll(async () => {
 		patch(alice, { body: "Nicer commit" }),
 	);
 	await check(`/repos/alice/proj/comments/${commitComment.id}`, del(alice));
+	await check(
+		`/repos/alice/proj/statuses/${head.sha}`,
+		post(alice, { state: "success", context: "ci/build" }),
+	);
+	await check(`/repos/alice/proj/commits/${head.sha}/statuses`);
+	await check(`/repos/alice/proj/commits/${head.sha}/status`);
+	const run = await check(
+		"/repos/alice/proj/check-runs",
+		post(alice, {
+			name: "build",
+			head_sha: head.sha,
+			status: "completed",
+			conclusion: "success",
+			output: { title: "Built", summary: "All good" },
+		}),
+	);
+	await check(`/repos/alice/proj/check-runs/${run.id}`);
+	await check(
+		`/repos/alice/proj/check-runs/${run.id}`,
+		patch(alice, { name: "build (linux)" }),
+	);
+	await check(`/repos/alice/proj/commits/${head.sha}/check-runs`);
+	await check(`/repos/alice/proj/commits/${head.sha}/check-suites`);
+	await check(
+		"/repos/alice/proj/check-suites",
+		post(alice, { head_sha: head.sha }),
+	);
+	await check(`/repos/alice/proj/check-suites/${run.check_suite.id}`);
+	await check(
+		`/repos/alice/proj/check-suites/${run.check_suite.id}/check-runs`,
+	);
 	const newBlob = await check(
 		"/repos/alice/proj/git/blobs",
 		post(alice, { content: "new" }),

@@ -6,10 +6,20 @@ import type { resources } from "@pushstack/api-contract";
 import type { CommitInfo } from "git-fs-s3/ops";
 import type { z } from "zod";
 import type { Repository } from "#/db/app-schema";
+import {
+	type CheckRunState,
+	suiteConclusion,
+	suiteStatus,
+} from "#/lib/check-rollup";
 import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
+import type {
+	CheckRunRow,
+	CheckSuiteRow,
+	CommitStatusRow,
+} from "../check-store";
 import { encodeNodeId } from "../graphql/node-id";
 import type { ReactionWithUser } from "../reaction-store";
 import type { PublicUser } from "../repository-lookup";
@@ -43,13 +53,15 @@ export function simpleUser(user: PublicUser): Shape<"simpleUser"> {
 
 export function publicUser(
 	user: PublicUser & { createdAt: Date; updatedAt: Date },
-	counts: { publicRepos: number },
+	counts: { publicRepos: number; followers: number; following: number },
 ): Shape<"publicUser"> {
 	return {
 		...simpleUser(user),
 		name: user.name,
 		email: null,
 		public_repos: counts.publicRepos,
+		followers: counts.followers,
+		following: counts.following,
 		created_at: isoTimestamp(user.createdAt),
 		updated_at: isoTimestamp(user.updatedAt),
 	};
@@ -65,7 +77,13 @@ function permissionsFor(role: RepoRole) {
 
 export function repository(
 	repo: Repository & { owner: PublicUser },
-	options: { stars: number; openIssues: number; role?: RepoRole },
+	options: {
+		stars: number;
+		openIssues: number;
+		role?: RepoRole;
+		/** People watching: only the single-repository resource carries it. */
+		subscribers?: number;
+	},
 ): Shape<"repository"> {
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return {
@@ -87,6 +105,10 @@ export function repository(
 		disabled: false,
 		stargazers_count: options.stars,
 		watchers_count: options.stars,
+		watchers: options.stars,
+		...(options.subscribers !== undefined && {
+			subscribers_count: options.subscribers,
+		}),
 		forks_count: 0,
 		open_issues_count: options.openIssues,
 		...(options.role && { permissions: permissionsFor(options.role) }),
@@ -381,6 +403,112 @@ export function commitComment(
 	};
 }
 
+export function minimalRepository(
+	repo: Repository & { owner: PublicUser },
+): Shape<"minimalRepository"> {
+	const fullName = `${repo.owner.username}/${repo.name}`;
+	return {
+		id: repo.id,
+		name: repo.name,
+		full_name: fullName,
+		owner: simpleUser(repo.owner),
+		private: repo.visibility === "private",
+		html_url: htmlUrl(`/${fullName}`),
+		description: repo.description,
+		fork: false,
+		url: apiUrl(`/repos/${fullName}`),
+	};
+}
+
+type StatusRow = CommitStatusRow & { creator: PublicUser };
+
+export function commitStatus(
+	fullName: string,
+	row: StatusRow,
+): Shape<"commitStatus"> {
+	return {
+		url: apiUrl(`/repos/${fullName}/statuses/${row.sha}`),
+		avatar_url: row.creator.image,
+		id: row.id,
+		state: row.state,
+		description: row.description,
+		target_url: row.targetUrl,
+		context: row.context,
+		created_at: isoTimestamp(row.createdAt),
+		updated_at: isoTimestamp(row.createdAt),
+		creator: simpleUser(row.creator),
+	};
+}
+
+export function simpleCommitStatus(
+	fullName: string,
+	row: StatusRow,
+): Shape<"simpleCommitStatus"> {
+	return {
+		description: row.description,
+		id: row.id,
+		state: row.state,
+		context: row.context,
+		target_url: row.targetUrl,
+		required: null,
+		avatar_url: row.creator.image,
+		url: apiUrl(`/repos/${fullName}/statuses/${row.sha}`),
+		created_at: isoTimestamp(row.createdAt),
+		updated_at: isoTimestamp(row.createdAt),
+	};
+}
+
+export function checkRun(
+	fullName: string,
+	row: CheckRunRow,
+): Shape<"checkRun"> {
+	return {
+		id: row.id,
+		head_sha: row.headSha,
+		external_id: row.externalId,
+		url: apiUrl(`/repos/${fullName}/check-runs/${row.id}`),
+		html_url: htmlUrl(`/${fullName}/commit/${row.headSha}`),
+		details_url: row.detailsUrl,
+		status: row.status,
+		conclusion: row.conclusion,
+		started_at: row.startedAt ? isoTimestamp(row.startedAt) : null,
+		completed_at: row.completedAt ? isoTimestamp(row.completedAt) : null,
+		output: {
+			title: row.outputTitle,
+			summary: row.outputSummary,
+			text: row.outputText,
+			annotations_count: 0,
+		},
+		name: row.name,
+		check_suite: { id: row.suiteId },
+	};
+}
+
+export function checkSuite(
+	repo: Repository & { owner: PublicUser },
+	suite: CheckSuiteRow,
+	runs: CheckRunState[],
+	latestRunsCount: number,
+): Shape<"checkSuite"> {
+	const fullName = `${repo.owner.username}/${repo.name}`;
+	const status = suiteStatus(runs);
+	return {
+		id: suite.id,
+		head_branch: suite.headBranch,
+		head_sha: suite.headSha,
+		status,
+		conclusion: suiteConclusion(runs),
+		url: apiUrl(`/repos/${fullName}/check-suites/${suite.id}`),
+		created_at: isoTimestamp(suite.createdAt),
+		updated_at: isoTimestamp(suite.updatedAt),
+		latest_check_runs_count: latestRunsCount,
+		check_runs_url: apiUrl(
+			`/repos/${fullName}/check-suites/${suite.id}/check-runs`,
+		),
+		repository: minimalRepository(repo),
+	};
+}
+
 /** A thread a cross-reference points at, serialized once per timeline page. */
 export interface TimelineContext {
 	fullName: string;
@@ -446,6 +574,8 @@ export function timelineEvent(
 				},
 			};
 		case "head_ref_deleted":
+		case "ready_for_review":
+		case "convert_to_draft":
 			return { ...base, event: entry.event };
 		case "renamed":
 			return {
@@ -621,7 +751,7 @@ export function pullRequest(
 			},
 		},
 		auto_merge: null,
-		draft: false,
+		draft: row.isDraft,
 	};
 	if (!detail) return simple;
 	return {
@@ -631,7 +761,7 @@ export function pullRequest(
 		// is "not yet known", which GitHub also reports while it computes.
 		mergeable: merged ? false : null,
 		rebaseable: false,
-		mergeable_state: "unknown",
+		mergeable_state: row.isDraft ? "draft" : "unknown",
 		merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
 		comments: input.commentsCount,
 		review_comments: detail.reviewComments,

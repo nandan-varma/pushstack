@@ -41,6 +41,7 @@ import {
 	type ThreadSubscriptionState,
 } from "#/lib/notifications";
 import { canReadRepositoryCondition } from "./repo-access";
+import { ignoringUsers, watcherIds } from "./watch-store";
 
 export interface ThreadActivity {
 	thread: { id: number; repoId: number };
@@ -56,6 +57,13 @@ export interface ThreadActivity {
 	/** Whether the thread's subscribers hear about it (default true). */
 	notifySubscribers?: boolean;
 }
+
+/** What still reaches someone who ignores the repository. */
+const DIRECT_REASONS: ReadonlySet<NotificationReason> = new Set([
+	"mention",
+	"assign",
+	"review_requested",
+]);
 
 /** Ranks a recipient's reasons: the most direct one names the notification. */
 const REASON_RANK: Record<NotificationReason, number> = {
@@ -166,8 +174,39 @@ export async function recordThreadActivity(
 				),
 			);
 		for (const s of subscribers) offer(s.userId, s.reason);
+		// People watching the repository for all activity hear about every
+		// thread in it, unless they unsubscribed from this thread themselves.
+		const watchers = (await watcherIds(thread.repoId)).filter(
+			(id) => id !== actorId,
+		);
+		if (watchers.length > 0) {
+			const muted = new Set(
+				(
+					await db
+						.select({ userId: threadSubscriptions.userId })
+						.from(threadSubscriptions)
+						.where(
+							and(
+								eq(threadSubscriptions.issueId, thread.id),
+								eq(threadSubscriptions.subscribed, false),
+								inArray(threadSubscriptions.userId, watchers),
+							),
+						)
+				).map((row) => row.userId),
+			);
+			for (const userId of watchers) {
+				if (!muted.has(userId)) offer(userId, "subscribed");
+			}
+		}
 	}
 	for (const s of newSubscriptions) offer(s.userId, s.reason);
+	// Someone who ignores the repository hears only what is addressed to them.
+	const ignoring = await ignoringUsers(thread.repoId, [...reasons.keys()]);
+	for (const [userId, reason] of reasons) {
+		if (ignoring.has(userId) && !DIRECT_REASONS.has(reason)) {
+			reasons.delete(userId);
+		}
+	}
 	if (reasons.size === 0) return;
 
 	const now = new Date();

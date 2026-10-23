@@ -24,6 +24,9 @@ import {
 } from "./inputs";
 import {
 	MAX_BODY_CHARS,
+	MAX_CHECK_NAME_CHARS,
+	MAX_CHECK_OUTPUT_CHARS,
+	MAX_CHECK_TITLE_CHARS,
 	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
@@ -33,13 +36,20 @@ import {
 	MAX_RELEASE_NAME_CHARS,
 	MAX_RELEASE_TAG_CHARS,
 	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPORT_URL_CHARS,
+	MAX_STATUS_CONTEXT_CHARS,
+	MAX_STATUS_DESCRIPTION_CHARS,
 } from "./limits";
 import {
 	blob,
 	branch,
+	checkRun,
+	checkSuite,
+	combinedCommitStatus,
 	commit,
 	commitComment,
 	commitDetail,
+	commitStatus,
 	comparison,
 	contents,
 	createdBlob,
@@ -66,7 +76,9 @@ import {
 	releaseAsset,
 	releaseNotes,
 	repository,
+	repositorySubscription,
 	shortBranch,
+	simpleUser,
 	stateReason,
 	tag,
 	threadSubscription,
@@ -102,6 +114,8 @@ const commitIdentity = z.object({
 });
 
 const threadParams = z.object({ thread_id: positiveInt });
+const usernameParams = z.object({ username: z.string() });
+const followTargetParams = usernameParams.extend({ target_user: z.string() });
 const isoDate = z.iso.datetime({ offset: true });
 /** GitHub's notification list parameters; `per_page` tops out at 50. */
 const notificationQuery = z.object({
@@ -125,6 +139,56 @@ const commentParams = repoParams.extend({ comment_id: positiveInt });
 /** A full or abbreviated sha; the handler resolves it (unknown = 422). */
 const commitShaParams = repoParams.extend({
 	commit_sha: z.string().min(1).max(100),
+});
+const refParams = repoParams.extend({ ref: z.string().min(1).max(255) });
+const checkRunParams = repoParams.extend({ check_run_id: positiveInt });
+const checkSuiteParams = repoParams.extend({ check_suite_id: positiveInt });
+/** An absolute http(s) URL a CI links its report to. */
+const reportUrl = z
+	.string()
+	.max(MAX_REPORT_URL_CHARS)
+	.refine((value) => {
+		try {
+			return ["http:", "https:"].includes(new URL(value).protocol);
+		} catch {
+			return false;
+		}
+	}, "Must be an http(s) URL");
+const checkStatus = z.enum(["queued", "in_progress", "completed"]);
+const checkConclusion = z.enum([
+	"action_required",
+	"cancelled",
+	"failure",
+	"neutral",
+	"success",
+	"skipped",
+	"stale",
+	"timed_out",
+]);
+const checkOutput = z.object({
+	title: z.string().min(1).max(MAX_CHECK_TITLE_CHARS),
+	summary: z.string().min(1).max(MAX_CHECK_OUTPUT_CHARS),
+	text: z.string().max(MAX_CHECK_OUTPUT_CHARS).optional(),
+});
+const checkRunFields = {
+	details_url: reportUrl.optional(),
+	external_id: z.string().max(MAX_CHECK_NAME_CHARS).optional(),
+	status: checkStatus.optional(),
+	started_at: isoDate.optional(),
+	conclusion: checkConclusion.optional(),
+	completed_at: isoDate.optional(),
+	output: checkOutput.optional(),
+};
+const checkRunList = {
+	query: pagination.extend({
+		check_name: z.string().max(MAX_CHECK_NAME_CHARS).optional(),
+		status: checkStatus.optional().catch(undefined),
+		filter: z.enum(["latest", "all"]).optional().catch(undefined),
+	}),
+};
+const checkRunsResponse = z.object({
+	total_count: z.number().int().nonnegative(),
+	check_runs: z.array(checkRun),
 });
 const reactionList = {
 	query: pagination.extend({ content: reactionContent.optional() }),
@@ -201,6 +265,24 @@ export const endpoints = defineEndpoints({
 		}),
 		response: repository,
 	},
+	"users/list-followers-for-authenticated-user": {
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/list-followed-by-authenticated-user": {
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/check-person-is-followed-by-authenticated": {
+		params: usernameParams,
+		response: noContent,
+	},
+	"users/follow": { params: usernameParams, response: noContent },
+	"users/unfollow": { params: usernameParams, response: noContent },
+	"activity/list-watched-repos-for-authenticated-user": {
+		query: pagination,
+		response: z.array(repository),
+	},
 	"users/get-by-id": {
 		params: z.object({ account_id: positiveInt }),
 		response: publicUser,
@@ -212,6 +294,26 @@ export const endpoints = defineEndpoints({
 	"repos/list-for-user": {
 		params: z.object({ username: z.string() }),
 		query: pagination.extend({ sort: repoListSort, direction }),
+		response: z.array(repository),
+	},
+
+	"users/list-followers-for-user": {
+		params: usernameParams,
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/list-following-for-user": {
+		params: usernameParams,
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/check-following-for-user": {
+		params: followTargetParams,
+		response: noContent,
+	},
+	"activity/list-repos-watched-by-user": {
+		params: usernameParams,
+		query: pagination,
 		response: z.array(repository),
 	},
 
@@ -251,6 +353,27 @@ export const endpoints = defineEndpoints({
 	"repos/get": {
 		params: repoParams,
 		response: repository,
+	},
+	"activity/list-watchers-for-repo": {
+		params: repoParams,
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"activity/get-repo-subscription": {
+		params: repoParams,
+		response: repositorySubscription,
+	},
+	"activity/set-repo-subscription": {
+		params: repoParams,
+		body: z.object({
+			subscribed: z.boolean().optional(),
+			ignored: z.boolean().optional(),
+		}),
+		response: repositorySubscription,
+	},
+	"activity/delete-repo-subscription": {
+		params: repoParams,
+		response: noContent,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		params: repoParams,
@@ -445,6 +568,39 @@ export const endpoints = defineEndpoints({
 		}),
 		response: commitComment,
 	},
+	"repos/create-commit-status": {
+		params: repoParams.extend({ sha: z.string().min(1).max(100) }),
+		body: z.object({
+			state: z.enum(["error", "failure", "pending", "success"]),
+			target_url: reportUrl.nullish(),
+			description: z.string().max(MAX_STATUS_DESCRIPTION_CHARS).nullish(),
+			context: z.string().min(1).max(MAX_STATUS_CONTEXT_CHARS).optional(),
+		}),
+		response: commitStatus,
+	},
+	"repos/list-commit-statuses-for-ref": {
+		params: refParams,
+		query: pagination,
+		response: z.array(commitStatus),
+	},
+	"repos/get-combined-status-for-ref": {
+		params: refParams,
+		query: pagination,
+		response: combinedCommitStatus,
+	},
+	"checks/list-for-ref": {
+		params: refParams,
+		...checkRunList,
+		response: checkRunsResponse,
+	},
+	"checks/list-suites-for-ref": {
+		params: refParams,
+		query: pagination,
+		response: z.object({
+			total_count: z.number().int().nonnegative(),
+			check_suites: z.array(checkSuite),
+		}),
+	},
 	"repos/get-commit": {
 		params: repoParams.extend({ ref: z.string().min(1) }),
 		response: commitDetail,
@@ -456,6 +612,35 @@ export const endpoints = defineEndpoints({
 			per_page: positiveInt.optional().catch(undefined),
 		}),
 		response: comparison,
+	},
+	"checks/create": {
+		params: repoParams,
+		body: z.object({
+			name: z.string().min(1).max(MAX_CHECK_NAME_CHARS),
+			head_sha: z.string().min(1).max(100),
+			...checkRunFields,
+		}),
+		response: checkRun,
+	},
+	"checks/get": { params: checkRunParams, response: checkRun },
+	"checks/update": {
+		params: checkRunParams,
+		body: z.object({
+			name: z.string().min(1).max(MAX_CHECK_NAME_CHARS).optional(),
+			...checkRunFields,
+		}),
+		response: checkRun,
+	},
+	"checks/create-suite": {
+		params: repoParams,
+		body: z.object({ head_sha: z.string().min(1).max(100) }),
+		response: checkSuite,
+	},
+	"checks/get-suite": { params: checkSuiteParams, response: checkSuite },
+	"checks/list-for-suite": {
+		params: checkSuiteParams,
+		...checkRunList,
+		response: checkRunsResponse,
 	},
 
 	"git/get-ref": {
@@ -700,6 +885,7 @@ export const endpoints = defineEndpoints({
 			body: threadBody.nullish(),
 			head: z.string().min(1).max(300),
 			base: z.string().min(1).max(300),
+			draft: z.boolean().optional(),
 		}),
 		response: pullRequest,
 	},

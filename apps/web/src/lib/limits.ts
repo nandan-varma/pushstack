@@ -16,6 +16,10 @@ export const MAX_COMMIT_MESSAGE_CHARS = 10_000;
 
 export const MAX_BODY_CHARS = 65_536;
 
+/** Bounds on what external CI reports (commit statuses, check runs); mirrors the API contract. */
+export const MAX_STATUSES_PER_CONTEXT = 1000;
+export const MAX_CHECK_RUNS_PER_COMMIT = 1000;
+
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**

@@ -3,6 +3,7 @@ import {
 	type AnyPgColumn,
 	bigint,
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -215,6 +216,8 @@ export const pullRequests = pgTable(
 		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
+		/** A draft can't be merged until it is marked ready for review. */
+		isDraft: boolean("is_draft").notNull().default(false),
 		/** The base and head tips that were merged: the PR's exact commit range. */
 		baseSha: text("base_sha"),
 		headSha: text("head_sha"),
@@ -290,6 +293,116 @@ export const commitComments = pgTable(
 			table.repoId,
 			table.createdAt,
 		),
+	}),
+);
+
+/**
+ * A commit status (GitHub's `POST /repos/{o}/{r}/statuses/{sha}`): one report
+ * of an external CI for a commit and `context`. Rows are append-only; the
+ * current status of a context is its newest row (highest id).
+ */
+export const commitStatuses = pgTable(
+	"commit_statuses",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		sha: text("sha").notNull(),
+		context: text("context").notNull(),
+		state: text("state", {
+			enum: ["error", "failure", "pending", "success"],
+		}).notNull(),
+		targetUrl: text("target_url"),
+		description: text("description"),
+		creatorId: text("creator_id")
+			.notNull()
+			.references(() => user.id),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoShaContextIdx: index("commit_status_repo_sha_context_idx").on(
+			table.repoId,
+			table.sha,
+			table.context,
+			table.id,
+		),
+	}),
+);
+
+/**
+ * A check suite: the group of check runs reported for one commit. PushStack
+ * has no GitHub Apps, so a commit has at most one suite (per repository).
+ */
+export const checkSuites = pgTable(
+	"check_suites",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		headSha: text("head_sha").notNull(),
+		/** The branch the caller named when creating the suite, if any. */
+		headBranch: text("head_branch"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoShaIdx: uniqueIndex("check_suite_repo_sha_idx").on(
+			table.repoId,
+			table.headSha,
+		),
+	}),
+);
+
+/** A check run (GitHub's checks API) reported by an external CI. */
+export const checkRuns = pgTable(
+	"check_runs",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		suiteId: integer("suite_id")
+			.notNull()
+			.references(() => checkSuites.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		headSha: text("head_sha").notNull(),
+		name: text("name").notNull(),
+		externalId: text("external_id"),
+		detailsUrl: text("details_url"),
+		status: text("status", {
+			enum: ["queued", "in_progress", "completed"],
+		}).notNull(),
+		conclusion: text("conclusion", {
+			enum: [
+				"action_required",
+				"cancelled",
+				"failure",
+				"neutral",
+				"success",
+				"skipped",
+				"stale",
+				"timed_out",
+			],
+		}),
+		startedAt: timestamptz("started_at"),
+		completedAt: timestamptz("completed_at"),
+		outputTitle: text("output_title"),
+		outputSummary: text("output_summary"),
+		outputText: text("output_text"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoShaIdx: index("check_run_repo_sha_idx").on(
+			table.repoId,
+			table.headSha,
+			table.id,
+		),
+		suiteIdx: index("check_run_suite_idx").on(table.suiteId, table.id),
 	}),
 );
 
@@ -575,6 +688,54 @@ export const stars = pgTable(
 			table.userId,
 		),
 		userIdx: index("star_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * A user's watch of a repository (GitHub's repository subscription):
+ * `ignored = false` is "all activity", `ignored = true` is "ignore". No row
+ * is "participating and @mentions" (the default).
+ */
+export const repositorySubscriptions = pgTable(
+	"repository_subscriptions",
+	{
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		ignored: boolean("ignored").notNull().default(false),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.repoId, table.userId] }),
+		userIdx: index("repository_subscription_user_idx").on(table.userId),
+	}),
+);
+
+/** `follower_id` follows `followee_id` (never themselves). */
+export const follows = pgTable(
+	"follows",
+	{
+		followerId: text("follower_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		followeeId: text("followee_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.followerId, table.followeeId] }),
+		followeeIdx: index("follow_followee_idx").on(
+			table.followeeId,
+			table.createdAt,
+		),
+		notSelf: check(
+			"follow_not_self",
+			sql`${table.followerId} <> ${table.followeeId}`,
+		),
 	}),
 );
 

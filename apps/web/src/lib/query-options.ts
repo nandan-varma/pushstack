@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
 import { getAssignableUsers, getAssignedThreads } from "@/server/assignees";
 import { getComments } from "@/server/comments";
+import { getCommitChecks, getCommitRollups } from "@/server/commit-checks";
 import { getCommitComments } from "@/server/commit-comments";
 import {
 	getBlame,
@@ -24,6 +25,7 @@ import {
 	getTreeEntries,
 	getTreePageData,
 } from "@/server/files";
+import { listProfileConnections } from "@/server/follows";
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import { getLabels } from "@/server/labels";
 import {
@@ -115,6 +117,11 @@ export const queryKeys = {
 		["repos", repoId, "commits", branchName, limit, skip] as const,
 	repoCommit: (repoId: number, rev: string) =>
 		["repos", repoId, "commit", rev] as const,
+	/** Everything CI reported for one commit, and the rollups of lists of commits. */
+	commitChecks: (repoId: number, rev: string) =>
+		["repos", repoId, "checks", "commit", rev] as const,
+	commitRollups: (repoId: number, shas: string[]) =>
+		["repos", repoId, "checks", "rollups", ...shas] as const,
 	commitComments: (repoId: number, sha: string) =>
 		["repos", repoId, "commit-comments", sha] as const,
 	repoCommitDiff: (repoId: number, commitSha: string) =>
@@ -256,6 +263,17 @@ export function userActivityQueryOptions({
 		queryKey: queryKeys.userActivity(userId, limit),
 		queryFn: () =>
 			getUserActivity({ data: { ...(userId ? { userId } : {}), limit } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function profileConnectionsQueryOptions(
+	username: string,
+	kind: "followers" | "following",
+) {
+	return queryOptions({
+		queryKey: [...queryKeys.userProfile(username), kind] as const,
+		queryFn: () => listProfileConnections({ data: { username, kind } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
@@ -563,6 +581,27 @@ export function repositoryCommitQueryOptions({
 		queryFn: () => getCommit({ data: { repoId, rev } }),
 		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
 		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
+	});
+}
+
+/** Statuses and check runs for a commit; refetches while any is pending. */
+export function commitChecksQueryOptions(repoId: number, rev: string) {
+	return queryOptions({
+		queryKey: queryKeys.commitChecks(repoId, rev),
+		queryFn: () => getCommitChecks({ data: { repoId, rev } }),
+		staleTime: 30_000,
+		refetchInterval: (query) =>
+			query.state.data?.state === "pending" ? 15_000 : false,
+	});
+}
+
+/** The rolled-up CI state of a list of commits (full shas), by sha. */
+export function commitRollupsQueryOptions(repoId: number, shas: string[]) {
+	return queryOptions({
+		queryKey: queryKeys.commitRollups(repoId, shas),
+		queryFn: () => getCommitRollups({ data: { repoId, shas } }),
+		staleTime: 30_000,
+		enabled: shas.length > 0,
 	});
 }
 

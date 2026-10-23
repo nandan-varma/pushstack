@@ -26,6 +26,8 @@ export const publicUser = z.strictObject({
 	name: z.string().nullable(),
 	email: z.string().nullable(),
 	public_repos: count,
+	followers: count,
+	following: count,
 	created_at: timestamp,
 	updated_at: timestamp,
 });
@@ -55,7 +57,11 @@ export const repository = z.strictObject({
 	archived: z.boolean(),
 	disabled: z.boolean(),
 	stargazers_count: count,
+	/** Stars, as on GitHub (people watching are `subscribers_count`). */
 	watchers_count: count,
+	watchers: count,
+	/** People watching; only `GET /repos/{owner}/{repo}` carries it. */
+	subscribers_count: count.optional(),
 	forks_count: count,
 	/** Open issues and open pull requests combined, as on GitHub. */
 	open_issues_count: count,
@@ -178,6 +184,108 @@ export const commitComment = z.strictObject({
 	reactions: reactionRollup,
 });
 
+/** A repository as other resources embed it (GitHub's `minimal-repository`). */
+export const minimalRepository = z.strictObject({
+	id: z.number().int(),
+	name: z.string(),
+	full_name: z.string(),
+	owner: simpleUser,
+	private: z.boolean(),
+	html_url: url,
+	description: z.string().nullable(),
+	fork: z.boolean(),
+	url,
+});
+
+const statusState = z.enum(["error", "failure", "pending", "success"]);
+
+/** A commit status (`POST …/statuses/{sha}`, `GET …/commits/{ref}/statuses`). */
+export const commitStatus = z.strictObject({
+	url,
+	avatar_url: z.string().nullable(),
+	id: z.number().int(),
+	state: statusState,
+	description: z.string().nullable(),
+	target_url: z.string().nullable(),
+	context: z.string(),
+	created_at: timestamp,
+	updated_at: timestamp,
+	creator: simpleUser,
+});
+
+/** One status inside the combined status. */
+export const simpleCommitStatus = z.strictObject({
+	description: z.string().nullable(),
+	id: z.number().int(),
+	state: statusState,
+	context: z.string(),
+	target_url: z.string().nullable(),
+	required: z.boolean().nullable(),
+	avatar_url: z.string().nullable(),
+	url,
+	created_at: timestamp,
+	updated_at: timestamp,
+});
+
+/** `GET …/commits/{ref}/status`. */
+export const combinedCommitStatus = z.strictObject({
+	state: statusState,
+	statuses: z.array(simpleCommitStatus),
+	sha,
+	total_count: count,
+	repository: minimalRepository,
+	commit_url: url,
+	url,
+});
+
+const checkConclusion = z.enum([
+	"action_required",
+	"cancelled",
+	"failure",
+	"neutral",
+	"success",
+	"skipped",
+	"stale",
+	"timed_out",
+]);
+
+/** A check run (`POST …/check-runs`, `GET …/check-runs/{id}`). */
+export const checkRun = z.strictObject({
+	id: z.number().int(),
+	head_sha: sha,
+	external_id: z.string().nullable(),
+	url,
+	html_url: url.nullable(),
+	details_url: url.nullable(),
+	status: z.enum(["queued", "in_progress", "completed"]),
+	conclusion: checkConclusion.nullable(),
+	started_at: timestamp.nullable(),
+	completed_at: timestamp.nullable(),
+	output: z.strictObject({
+		title: z.string().nullable(),
+		summary: z.string().nullable(),
+		text: z.string().nullable(),
+		annotations_count: count,
+	}),
+	name: z.string(),
+	check_suite: z.strictObject({ id: z.number().int() }),
+});
+
+/** A check suite (`GET …/check-suites/{id}`). */
+export const checkSuite = z.strictObject({
+	id: z.number().int(),
+	head_branch: z.string().nullable(),
+	head_sha: sha,
+	status: z.enum(["queued", "in_progress", "completed"]),
+	conclusion: checkConclusion.nullable(),
+	url,
+	created_at: timestamp,
+	updated_at: timestamp,
+	latest_check_runs_count: count,
+	check_runs_url: url,
+	repository: minimalRepository,
+});
+
 const eventBase = {
 	id: z.number().int(),
 	url,
@@ -222,6 +330,10 @@ export const issueEvent = z.discriminatedUnion("event", [
 		}),
 	}),
 	z.strictObject({ ...eventBase, event: z.literal("head_ref_deleted") }),
+	z.strictObject({
+		...eventBase,
+		event: z.literal(["ready_for_review", "convert_to_draft"]),
+	}),
 	z.strictObject({
 		...eventBase,
 		event: z.literal("renamed"),
@@ -651,6 +763,16 @@ export const threadSubscription = z.strictObject({
 	created_at: timestamp,
 	url,
 	thread_url: url,
+});
+
+/** The caller's subscription to a repository (watching or ignoring it). */
+export const repositorySubscription = z.strictObject({
+	subscribed: z.boolean(),
+	ignored: z.boolean(),
+	reason: z.string().nullable(),
+	created_at: timestamp,
+	url,
+	repository_url: url,
 });
 
 /** `POST …/git/blobs`. */

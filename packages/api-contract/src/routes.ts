@@ -43,6 +43,39 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#create-a-repository-for-the-authenticated-user`,
 		status: 201,
 	},
+	"users/list-followers-for-authenticated-user": {
+		method: "GET",
+		path: "/user/followers",
+		docs: `${DOCS}/users/followers#list-followers-of-the-authenticated-user`,
+	},
+	"users/list-followed-by-authenticated-user": {
+		method: "GET",
+		path: "/user/following",
+		docs: `${DOCS}/users/followers#list-the-people-the-authenticated-user-follows`,
+	},
+	"users/check-person-is-followed-by-authenticated": {
+		method: "GET",
+		path: "/user/following/{username}",
+		docs: `${DOCS}/users/followers#check-if-a-person-is-followed-by-the-authenticated-user`,
+		status: 204,
+	},
+	"users/follow": {
+		method: "PUT",
+		path: "/user/following/{username}",
+		docs: `${DOCS}/users/followers#follow-a-user`,
+		status: 204,
+	},
+	"users/unfollow": {
+		method: "DELETE",
+		path: "/user/following/{username}",
+		docs: `${DOCS}/users/followers#unfollow-a-user`,
+		status: 204,
+	},
+	"activity/list-watched-repos-for-authenticated-user": {
+		method: "GET",
+		path: "/user/subscriptions",
+		docs: `${DOCS}/activity/watching#list-repositories-watched-by-the-authenticated-user`,
+	},
 	"users/get-by-id": {
 		method: "GET",
 		path: "/user/{account_id}",
@@ -57,6 +90,27 @@ export const routes = {
 		method: "GET",
 		path: "/users/{username}/repos",
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
+	},
+	"users/list-followers-for-user": {
+		method: "GET",
+		path: "/users/{username}/followers",
+		docs: `${DOCS}/users/followers#list-followers-of-a-user`,
+	},
+	"users/list-following-for-user": {
+		method: "GET",
+		path: "/users/{username}/following",
+		docs: `${DOCS}/users/followers#list-the-people-a-user-follows`,
+	},
+	"users/check-following-for-user": {
+		method: "GET",
+		path: "/users/{username}/following/{target_user}",
+		docs: `${DOCS}/users/followers#check-if-a-user-follows-another-user`,
+		status: 204,
+	},
+	"activity/list-repos-watched-by-user": {
+		method: "GET",
+		path: "/users/{username}/subscriptions",
+		docs: `${DOCS}/activity/watching#list-repositories-watched-by-a-user`,
 	},
 
 	"activity/list-notifications-for-authenticated-user": {
@@ -108,6 +162,27 @@ export const routes = {
 		method: "GET",
 		path: "/repos/{owner}/{repo}",
 		docs: `${DOCS}/repos/repos#get-a-repository`,
+	},
+	"activity/list-watchers-for-repo": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/subscribers",
+		docs: `${DOCS}/activity/watching#list-watchers`,
+	},
+	"activity/get-repo-subscription": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/subscription",
+		docs: `${DOCS}/activity/watching#get-a-repository-subscription`,
+	},
+	"activity/set-repo-subscription": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/subscription",
+		docs: `${DOCS}/activity/watching#set-a-repository-subscription`,
+	},
+	"activity/delete-repo-subscription": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/subscription",
+		docs: `${DOCS}/activity/watching#delete-a-repository-subscription`,
+		status: 204,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		method: "GET",
@@ -282,6 +357,32 @@ export const routes = {
 		docs: `${DOCS}/commits/comments#create-a-commit-comment`,
 		status: 201,
 	},
+	"repos/create-commit-status": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/statuses/{sha}",
+		docs: `${DOCS}/commits/statuses#create-a-commit-status`,
+		status: 201,
+	},
+	"repos/list-commit-statuses-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/statuses",
+		docs: `${DOCS}/commits/statuses#list-commit-statuses-for-a-reference`,
+	},
+	"repos/get-combined-status-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/status",
+		docs: `${DOCS}/commits/statuses#get-the-combined-status-for-a-specific-reference`,
+	},
+	"checks/list-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/check-runs",
+		docs: `${DOCS}/checks/runs#list-check-runs-for-a-git-reference`,
+	},
+	"checks/list-suites-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/check-suites",
+		docs: `${DOCS}/checks/suites#list-check-suites-for-a-git-reference`,
+	},
 	"repos/get-commit": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/commits/{+ref}",
@@ -291,6 +392,38 @@ export const routes = {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/compare/{+basehead}",
 		docs: `${DOCS}/commits/commits#compare-two-commits`,
+	},
+	"checks/create": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/check-runs",
+		docs: `${DOCS}/checks/runs#create-a-check-run`,
+		status: 201,
+	},
+	"checks/get": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/check-runs/{check_run_id}",
+		docs: `${DOCS}/checks/runs#get-a-check-run`,
+	},
+	"checks/update": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/check-runs/{check_run_id}",
+		docs: `${DOCS}/checks/runs#update-a-check-run`,
+	},
+	"checks/create-suite": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/check-suites",
+		docs: `${DOCS}/checks/suites#create-a-check-suite`,
+		status: 201,
+	},
+	"checks/get-suite": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/check-suites/{check_suite_id}",
+		docs: `${DOCS}/checks/suites#get-a-check-suite`,
+	},
+	"checks/list-for-suite": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/check-suites/{check_suite_id}/check-runs",
+		docs: `${DOCS}/checks/runs#list-check-runs-in-a-check-suite`,
 	},
 
 	"git/get-ref": {
