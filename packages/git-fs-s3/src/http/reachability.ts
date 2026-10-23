@@ -165,6 +165,10 @@ export async function collectReachableOids(
 					} else {
 						// An older tree this parser cannot read: it exists, and
 						// an earlier push accepted it.
+						hooks?.onWarn?.(
+							`skipping pre-existing tree ${oid} with an unsafe entry name '${unsafe}'`,
+							first,
+						);
 						seen.add(oid);
 					}
 					return;

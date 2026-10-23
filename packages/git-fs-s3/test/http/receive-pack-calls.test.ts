@@ -134,11 +134,12 @@ describe("applyReceivePack storage calls", () => {
 		expect(calls.filter((call) => call.startsWith("PUT git/refs"))).toEqual([
 			"PUT git/refs/heads/main",
 		]);
-		// Pinned: one fewer than before (the repack's own listing is gone).
+		// Pinned. Includes the whole-pack tree-name scan (#236), which lists and
+		// reads the incoming pack once more (6 calls) for security.
 		expect(
 			calls.filter((call) => call === "LIST git/objects/pack/").length,
-		).toBe(5);
-		expect(calls.length).toBeLessThanOrEqual(23);
+		).toBe(7);
+		expect(calls.length).toBeLessThanOrEqual(29);
 	});
 });
 

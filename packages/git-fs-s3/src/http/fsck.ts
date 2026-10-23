@@ -4,6 +4,11 @@
  * traversal or a nested `.git` in an archive or a checkout.
  */
 
+import git from "isomorphic-git";
+import { getObjectTypes } from "../object-size.js";
+import type { Repo } from "../ops/types.js";
+import { createSemaphore } from "../semaphore.js";
+
 export interface TreeNameProblem {
 	/** git's fsck message id (`hasDotdot`, …). */
 	id: string;
@@ -52,4 +57,47 @@ export function treeEntryNameProblem(name: string): TreeNameProblem | null {
 	}
 	if (isDotgit(name)) return { id: "hasDotgit", message: "contains '.git'" };
 	return null;
+}
+
+/**
+ * Name-check every tree among `oids` (a pack just stored), reachable or not:
+ * an unreferenced bad tree must not be storable and referenced by a later
+ * push. Bounded by the pack. Returns the first failure as an fsck-style
+ * message, or null when every tree is fine.
+ */
+export async function findInvalidTree(
+	repo: Repo,
+	oids: Iterable<string>,
+): Promise<string | null> {
+	const types = await getObjectTypes(repo, [...oids]);
+	const trees = [...types].filter(([, type]) => type === "tree");
+	const reads = createSemaphore(16);
+	let found: string | null = null;
+	await Promise.all(
+		trees.map(([oid]) =>
+			reads.run(async () => {
+				try {
+					const obj = await git.readObject({ ...repo, oid });
+					for (const entry of obj.object as { path: string }[]) {
+						const problem = treeEntryNameProblem(entry.path);
+						if (problem) {
+							found ??= `object ${oid}: ${problem.id}: ${problem.message}`;
+							return;
+						}
+					}
+				} catch (error) {
+					// isomorphic-git refuses to parse `..`, `.git`, a backslash, …
+					const e = error as { code?: string; data?: { filepath?: string } };
+					if (e?.code === "UnsafeFilepathError") {
+						const name = e.data?.filepath ?? "";
+						const problem = treeEntryNameProblem(name);
+						found ??= `object ${oid}: ${problem?.id ?? "hasUnsafeName"}: ${problem?.message ?? `contains unsafe name '${name}'`}`;
+						return;
+					}
+					found ??= `object ${oid}: unreadable tree`;
+				}
+			}),
+		),
+	);
+	return found;
 }

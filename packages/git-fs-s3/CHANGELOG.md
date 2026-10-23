@@ -32,8 +32,9 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ng <ref> fsck error in packed object: object <oid>: hasDotdot: contains '..'`
   (hasDot, hasDotgit, fullPathname, emptyName, nulInName). Before,
   most of these were refused only as "incomplete object graph" after a retry
-  delay, and an empty name was accepted. Only the trees
-  of the push's own pack (not older trees the walk passes through) are checked.
+  delay, and an empty name was accepted. Every tree in the push's own pack is checked,
+  reachable or not (an unreferenced bad tree cannot be parked for a later push);
+  older trees the walk passes through are not.
   `collectReachableOids` takes `{ checkTreeNames: Set<oid> }` and returns
   `invalidTreeEntry`.
 

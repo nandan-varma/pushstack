@@ -303,4 +303,23 @@ describe("receive-pack tree entry names: only this push's trees", () => {
 			git.resolveRef({ ...repo, ref: "refs/heads/main" }),
 		).rejects.toThrow();
 	});
+
+	it("refuses a pack whose bad tree no pushed ref reaches, so a second push cannot reference it", async () => {
+		const repo = makeRepo();
+		const { staging, blob } = await stagingWith();
+		const badTree = await rawTree(staging, [{ name: "", oid: blob }]);
+		const cleanRoot = await rawTree(staging, [{ name: "ok.txt", oid: blob }]);
+		const c = await commitOf(staging, cleanRoot);
+		const { packfile } = await git.packObjects({
+			...staging,
+			oids: [blob, badTree, cleanRoot, c],
+		});
+		const { results } = await push(repo, pushBody(ZERO_OID, c, packfile));
+		expect(results[0]?.ok).toBe(false);
+		expect(results[0]?.reason).toContain(`object ${badTree}`);
+		const packs = await rawFs(repo)
+			.readdir("git/objects/pack")
+			.catch(() => [] as string[]);
+		expect(packs).toEqual([]);
+	});
 });
