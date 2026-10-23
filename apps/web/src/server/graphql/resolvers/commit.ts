@@ -12,6 +12,7 @@ import { safeRepoPathSchema } from "../../git-ref-name";
 import { ownerKeyOf } from "../../git-storage-naming";
 import { notFound, unprocessable } from "../errors";
 import { encodeNodeId } from "../node-id";
+import type { CommitBlameArgs, RepositoryObjectArgs } from "./generated";
 import type { RepositoryNode } from "./repository";
 
 export interface CommitNode {
@@ -70,7 +71,7 @@ export async function readCommitNode(
 /** `Repository.object(expression:)`: a commit by branch, `HEAD` or full sha. */
 export function resolveObject(
 	repo: RepositoryNode,
-	args: { expression?: string | null; oid?: string | null },
+	args: RepositoryObjectArgs,
 ): Promise<CommitNode | null> {
 	const rev = args.oid ?? args.expression;
 	// `branch:path` names a tree or blob, which are not served.
@@ -97,7 +98,7 @@ function ageOf(time: number, times: number[]): number {
 
 export async function blameOf(
 	commit: CommitNode,
-	args: { path: string },
+	args: CommitBlameArgs,
 ): Promise<{ ranges: BlameRangeNode[] }> {
 	const path = safeRepoPathSchema.safeParse(args.path);
 	if (!path.success || !path.data) {

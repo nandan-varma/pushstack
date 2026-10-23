@@ -336,6 +336,16 @@ describe("connections", () => {
 		});
 	});
 
+	it("drops null list items: ownerAffiliations falls back to its default, affiliations matches nothing", async () => {
+		const query = `query($owner: [RepositoryAffiliation], $mine: [RepositoryAffiliation]) { user(login: "alice") { repositories(first: 10, ownerAffiliations: $owner, affiliations: $mine) { totalCount } } }`;
+		const defaulted = await graphql(bob, query, { owner: [null] });
+		expect(defaulted.body.errors).toBeUndefined();
+		expect(defaulted.body.data.user.repositories.totalCount).toBe(1);
+		const none = await graphql(bob, query, { mine: [null] });
+		expect(none.body.errors).toBeUndefined();
+		expect(none.body.data.user.repositories.totalCount).toBe(0);
+	});
+
 	it("requires first or last, at most 100", async () => {
 		const missing = await graphql(
 			alice,
