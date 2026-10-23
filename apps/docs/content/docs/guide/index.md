@@ -161,7 +161,7 @@ The web UI can do most of what the CLI can, without a clone:
   bytes, used by downloads, images and media previews.
 - **Source archives** — `/{owner}/{repo}/archive/refs/heads/{branch}.zip` (or `.tar.gz`, `refs/tags/{tag}`, a
   full commit SHA) streams a zipball or tarball whose entries sit under `{repo}-{ref}/`, as on GitHub; the
-  commit SHA is the zip comment. The REST `zipball` and `tarball` routes answer `302` to these URLs.
+  commit SHA is the zip comment. The REST `zipball` and `tarball` routes (default branch when no ref) answer `302` to `/{owner}/{repo}/legacy.zip/{ref}` (or `legacy.tar.gz`), whose entries are named `{owner}-{repo}-{short sha}`. Archive downloads count against the API rate limit.
   Submodules become empty directories, and a private repository's archive accepts a personal access token.
 
 Markdown is rendered for READMEs, issue and pull request bodies, and comments.

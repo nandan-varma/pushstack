@@ -10,7 +10,10 @@
  * Tar: ustar headers, a pax extended header for names or link targets that do
  * not fit, a pax global header carrying the commit sha as `comment`.
  */
-import { crc32, deflateRawSync } from "node:zlib";
+import { promisify } from "node:util";
+import { crc32, deflateRaw } from "node:zlib";
+
+const deflate = promisify(deflateRaw);
 
 export type ArchiveEntryKind = "file" | "symlink" | "dir";
 
@@ -69,7 +72,7 @@ export async function* zipChunks(
 		let method = 0;
 		let body = data;
 		if (entry.kind === "file" && data.byteLength > 0) {
-			const deflated = deflateRawSync(data);
+			const deflated = await deflate(data);
 			if (deflated.byteLength < data.byteLength) {
 				method = 8;
 				body = deflated;

@@ -44,6 +44,8 @@ import { Route as OwnerNameCommitsBranchRouteImport } from './routes/$owner.$nam
 import { Route as OwnerNameCompareSplatRouteImport } from './routes/$owner.$name.compare.$'
 import { Route as OwnerNameInfoRefsRouteImport } from './routes/$owner.$name.info.refs'
 import { Route as OwnerNameIssuesIdRouteImport } from './routes/$owner.$name.issues.$id'
+import { Route as OwnerNameLegacyDottarDotgzSplatRouteImport } from './routes/$owner.$name.legacy[.]tar[.]gz.$'
+import { Route as OwnerNameLegacyDotzipSplatRouteImport } from './routes/$owner.$name.legacy[.]zip.$'
 import { Route as OwnerNameRawSplatRouteImport } from './routes/$owner.$name.raw.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
 import { Route as OwnerNameTreeBranchSplatRouteImport } from './routes/$owner.$name.tree.$branch.$'
@@ -223,6 +225,18 @@ const OwnerNameIssuesIdRoute = OwnerNameIssuesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => OwnerNameIssuesRoute,
 } as any)
+const OwnerNameLegacyDottarDotgzSplatRoute =
+  OwnerNameLegacyDottarDotgzSplatRouteImport.update({
+    id: '/legacy.tar.gz/$',
+    path: '/legacy.tar.gz/$',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
+const OwnerNameLegacyDotzipSplatRoute =
+  OwnerNameLegacyDotzipSplatRouteImport.update({
+    id: '/legacy.zip/$',
+    path: '/legacy.zip/$',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
 const OwnerNameRawSplatRoute = OwnerNameRawSplatRouteImport.update({
   id: '/raw/$',
   path: '/raw/$',
@@ -287,6 +301,8 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
+  '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
+  '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
@@ -325,6 +341,8 @@ export interface FileRoutesByTo {
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
+  '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
+  '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
@@ -368,6 +386,8 @@ export interface FileRoutesById {
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
+  '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
+  '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
@@ -410,6 +430,8 @@ export interface FileRouteTypes {
     | '/$owner/$name/compare/$'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
+    | '/$owner/$name/legacy.tar.gz/$'
+    | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/raw/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
@@ -448,6 +470,8 @@ export interface FileRouteTypes {
     | '/$owner/$name/compare/$'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
+    | '/$owner/$name/legacy.tar.gz/$'
+    | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/raw/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
@@ -490,6 +514,8 @@ export interface FileRouteTypes {
     | '/$owner/$name/compare/$'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
+    | '/$owner/$name/legacy.tar.gz/$'
+    | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/raw/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
@@ -763,6 +789,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameIssuesIdRouteImport
       parentRoute: typeof OwnerNameIssuesRoute
     }
+    '/$owner/$name/legacy.tar.gz/$': {
+      id: '/$owner/$name/legacy.tar.gz/$'
+      path: '/legacy.tar.gz/$'
+      fullPath: '/$owner/$name/legacy.tar.gz/$'
+      preLoaderRoute: typeof OwnerNameLegacyDottarDotgzSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/legacy.zip/$': {
+      id: '/$owner/$name/legacy.zip/$'
+      path: '/legacy.zip/$'
+      fullPath: '/$owner/$name/legacy.zip/$'
+      preLoaderRoute: typeof OwnerNameLegacyDotzipSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/raw/$': {
       id: '/$owner/$name/raw/$'
       path: '/raw/$'
@@ -868,6 +908,8 @@ interface OwnerNameRouteChildren {
   OwnerNameCommitsBranchRoute: typeof OwnerNameCommitsBranchRoute
   OwnerNameCompareSplatRoute: typeof OwnerNameCompareSplatRoute
   OwnerNameInfoRefsRoute: typeof OwnerNameInfoRefsRoute
+  OwnerNameLegacyDottarDotgzSplatRoute: typeof OwnerNameLegacyDottarDotgzSplatRoute
+  OwnerNameLegacyDotzipSplatRoute: typeof OwnerNameLegacyDotzipSplatRoute
   OwnerNameRawSplatRoute: typeof OwnerNameRawSplatRoute
   OwnerNameBlobBranchSplatRoute: typeof OwnerNameBlobBranchSplatRoute
   OwnerNameTreeBranchSplatRoute: typeof OwnerNameTreeBranchSplatRoute
@@ -888,6 +930,8 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameCommitsBranchRoute: OwnerNameCommitsBranchRoute,
   OwnerNameCompareSplatRoute: OwnerNameCompareSplatRoute,
   OwnerNameInfoRefsRoute: OwnerNameInfoRefsRoute,
+  OwnerNameLegacyDottarDotgzSplatRoute: OwnerNameLegacyDottarDotgzSplatRoute,
+  OwnerNameLegacyDotzipSplatRoute: OwnerNameLegacyDotzipSplatRoute,
   OwnerNameRawSplatRoute: OwnerNameRawSplatRoute,
   OwnerNameBlobBranchSplatRoute: OwnerNameBlobBranchSplatRoute,
   OwnerNameTreeBranchSplatRoute: OwnerNameTreeBranchSplatRoute,

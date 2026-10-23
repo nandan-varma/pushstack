@@ -257,11 +257,11 @@ export const endpoints = defineEndpoints({
 		response: contents,
 	},
 	"repos/download-tarball-archive": {
-		params: repoParams.extend({ ref: z.string().min(1) }),
+		params: repoParams.extend({ ref: z.string().default("") }),
 		response: noContent,
 	},
 	"repos/download-zipball-archive": {
-		params: repoParams.extend({ ref: z.string().min(1) }),
+		params: repoParams.extend({ ref: z.string().default("") }),
 		response: noContent,
 	},
 	"repos/create-or-update-file-contents": {

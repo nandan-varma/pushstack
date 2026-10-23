@@ -41,6 +41,7 @@ import { type FileView, MAX_INLINE_TEXT_BYTES } from "#/lib/file-view";
 import {
 	MAX_ARCHIVE_BYTES,
 	MAX_ARCHIVE_ENTRIES,
+	MAX_ARCHIVE_PATH_BYTES,
 	MAX_HISTORY_WALK,
 	MAX_RAW_BYTES,
 } from "#/lib/limits";
@@ -172,6 +173,17 @@ export class ArchiveLimitError extends Error {
 	}
 }
 
+/** An entry name that is safe to extract: one real path component, not `.git`. */
+export function isSafeArchiveName(name: string): boolean {
+	return !(
+		name === "" ||
+		name === "." ||
+		name === ".." ||
+		name.toLowerCase() === ".git" ||
+		/[/\\\0]/.test(name)
+	);
+}
+
 export interface ArchiveNode {
 	path: string;
 	kind: "file" | "symlink" | "dir";
@@ -209,6 +221,20 @@ export async function planArchive(
 	const blobs: string[] = [];
 	const visit = async (treeOid: string, prefix: string): Promise<void> => {
 		for (const entry of await listTreeEntries(repo, treeOid, prefix)) {
+			// A crafted tree can name an entry that would extract outside the
+			// archive's directory (`..`, a separator) or overwrite `.git`.
+			if (
+				!isSafeArchiveName(entry.path.slice(prefix ? prefix.length + 1 : 0))
+			) {
+				continue;
+			}
+			if (
+				new TextEncoder().encode(entry.path).byteLength > MAX_ARCHIVE_PATH_BYTES
+			) {
+				throw new ArchiveLimitError(
+					`A path is longer than ${MAX_ARCHIVE_PATH_BYTES} bytes. Use git clone.`,
+				);
+			}
 			if (nodes.length >= MAX_ARCHIVE_ENTRIES) {
 				throw new ArchiveLimitError(
 					`Repository has more than ${MAX_ARCHIVE_ENTRIES} entries. Use git clone.`,

@@ -10,12 +10,11 @@
  * tar `comment`, and the archive is bounded (`limits.ts`).
  */
 
-import { Readable } from "node:stream";
-import { createGzip } from "node:zlib";
 import { isFullSha, isNotFoundError, isSafeRefName } from "git-fs-s3";
 import { MAX_ARCHIVE_BYTES } from "#/lib/limits";
 import { tokenAllows } from "#/lib/token-scopes";
 import { authenticateRequest } from "./api/auth";
+import { meterApiRequest, RateLimitedError } from "./api/rate-limit";
 import {
 	type ArchiveEntry,
 	chunkStream,
@@ -30,6 +29,7 @@ import {
 } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logError } from "./perf-log";
+import { rateLimitHeaders } from "./rate-limit";
 import { cacheControl } from "./raw";
 import { getAccessForRepository } from "./repo-access";
 import { findRepositoryByName } from "./repository-lookup";
@@ -157,6 +157,7 @@ export async function serveArchive(
 	name: string,
 	spec: string,
 	format: ArchiveFormat,
+	options: { legacy?: boolean } = {},
 ): Promise<Response> {
 	try {
 		const repository = await findRepositoryByName(owner, name);
@@ -175,6 +176,20 @@ export async function serveArchive(
 		} else {
 			userId = (await getCurrentUserOptional())?.id ?? null;
 		}
+		// Metered like the REST API (the caller's bucket, or the client IP),
+		// before any repository work.
+		try {
+			await meterApiRequest(request, userId ? { userId, scopes: [] } : null);
+		} catch (error) {
+			if (!(error instanceof RateLimitedError)) throw error;
+			return new Response(error.message, {
+				status: 403,
+				headers: {
+					"Content-Type": "text/plain; charset=utf-8",
+					...rateLimitHeaders(error.rate),
+				},
+			});
+		}
 		if (!(await getAccessForRepository(repository, userId)).canRead) {
 			return notFound();
 		}
@@ -182,15 +197,24 @@ export async function serveArchive(
 		if (!target) return notFound();
 		const ownerKey = ownerKeyOf(repository);
 		const plan = await planArchive(ownerKey, repository.name, target.spec);
-		const top = `${repository.name}-${target.label}`;
+		// `legacy` is codeload's `legacy.zip`, the REST redirect target: GitHub
+		// names those `{owner}-{repo}-{short sha}`.
+		const top = options.legacy
+			? `${repository.owner.username}-${repository.name}-${plan.commitSha.slice(0, 7)}`
+			: `${repository.name}-${target.label}`;
 		const entries = archiveEntries(ownerKey, repository.name, top, plan.nodes);
 		const meta = { commitSha: plan.commitSha, mtime: plan.mtime };
 		const body =
 			format === "zip"
 				? chunkStream(zipChunks(entries, meta))
-				: (Readable.toWeb(
-						Readable.from(tarChunks(entries, meta)).pipe(createGzip()),
-					) as ReadableStream<Uint8Array>);
+				: chunkStream(tarChunks(entries, meta)).pipeThrough(
+						// A failure while building the tar errors this stream (and the
+						// response) instead of an unhandled stream error.
+						new CompressionStream("gzip") as unknown as ReadableWritablePair<
+							Uint8Array,
+							Uint8Array
+						>,
+					);
 		return new Response(body, {
 			headers: {
 				"Content-Type":
@@ -205,6 +229,12 @@ export async function serveArchive(
 		});
 	} catch (error) {
 		if (isNotFoundError(error)) return notFound();
+		if ((error as { code?: string } | null)?.code === "UnsafeFilepathError") {
+			return new Response("Repository contains unsafe file names", {
+				status: 422,
+				headers: { "Content-Type": "text/plain; charset=utf-8" },
+			});
+		}
 		if (error instanceof ArchiveLimitError) {
 			return new Response(error.message, {
 				status: 413,

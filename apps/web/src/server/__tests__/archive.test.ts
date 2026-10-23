@@ -41,6 +41,7 @@ async function download(
 	owner = "alice",
 	name = "proj",
 	headers: Record<string, string> = {},
+	legacy = false,
 ) {
 	const response = await serveArchive(
 		request(headers),
@@ -48,6 +49,7 @@ async function download(
 		name,
 		spec,
 		format,
+		{ legacy },
 	);
 	return { response, bytes: new Uint8Array(await response.arrayBuffer()) };
 }
@@ -238,23 +240,51 @@ describe("access", () => {
 });
 
 describe("REST redirects", () => {
-	it("302s zipball and tarball to the archive URLs", async () => {
+	it("302s zipball and tarball to codeload-style legacy URLs", async () => {
 		const zip = await call("/repos/alice/proj/zipball/main");
 		expect(zip.status).toBe(302);
 		expect(zip.headers.get("location")).toBe(
-			"http://localhost:3000/alice/proj/archive/refs/heads/main.zip",
+			"http://localhost:3000/alice/proj/legacy.zip/refs/heads/main",
 		);
 		const tar = await call("/repos/alice/proj/tarball/feature/x");
 		expect(tar.headers.get("location")).toBe(
-			"http://localhost:3000/alice/proj/archive/refs/heads/feature/x.tar.gz",
+			"http://localhost:3000/alice/proj/legacy.tar.gz/refs/heads/feature/x",
 		);
 		const tag = await call("/repos/alice/proj/zipball/v1.2");
 		expect(tag.headers.get("location")).toBe(
-			"http://localhost:3000/alice/proj/archive/refs/tags/v1.2.zip",
+			"http://localhost:3000/alice/proj/legacy.zip/refs/tags/v1.2",
 		);
 		const sha = await call(`/repos/alice/proj/tarball/${tip}`);
 		expect(sha.headers.get("location")).toBe(
-			`http://localhost:3000/alice/proj/archive/${tip}.tar.gz`,
+			`http://localhost:3000/alice/proj/legacy.tar.gz/${tip}`,
+		);
+	});
+
+	it("uses the default branch without a ref", async () => {
+		for (const path of ["zipball", "zipball/", "tarball"]) {
+			const { status, headers } = await call(`/repos/alice/proj/${path}`);
+			expect(status, path).toBe(302);
+			expect(headers.get("location"), path).toContain("/alice/proj/legacy.");
+			expect(headers.get("location"), path).toMatch(/\/refs\/heads\/main$/);
+		}
+	});
+
+	it("names legacy archives {owner}-{repo}-{short sha}", async () => {
+		const { response, bytes } = await download(
+			"refs/heads/main",
+			"zip",
+			"alice",
+			"proj",
+			{},
+			true,
+		);
+		const name = `alice-proj-${tip.slice(0, 7)}`;
+		expect(response.headers.get("content-disposition")).toBe(
+			`attachment; filename=${name}.zip`,
+		);
+		const { out } = extract(bytes, "zip");
+		expect(readFileSync(join(out, name, "README.txt"), "utf8")).toBe(
+			"readme\n",
 		);
 	});
 
@@ -268,5 +298,106 @@ describe("REST redirects", () => {
 				})
 			).status,
 		).toBe(302);
+	});
+});
+
+describe("hostile trees and failures", () => {
+	it("refuses a tree with names that could escape the archive directory", async () => {
+		const { default: iso } = await import("isomorphic-git");
+		const { withPackedWrites } = await import("git-fs-s3/ops");
+		const { repoFor } = await import("../git-repo");
+		const names = ["ok.txt", "..", ".", ".git", ".GIT", "a\\b", "a/b"];
+		await withPackedWrites(repoFor("alice", "proj"), async (repo) => {
+			const blob = await iso.writeBlob({
+				...repo,
+				blob: new TextEncoder().encode("x"),
+			});
+			const tree = await iso.writeTree({
+				...repo,
+				tree: names.map((path) => ({
+					mode: "100644",
+					path,
+					oid: blob,
+					type: "blob" as const,
+				})),
+			});
+			const identity = {
+				name: "x",
+				email: "x@example.org",
+				timestamp: 1,
+				timezoneOffset: 0,
+			};
+			const commit = await iso.writeCommit({
+				...repo,
+				commit: {
+					message: "hostile\n",
+					tree,
+					parent: [],
+					author: identity,
+					committer: identity,
+				},
+			});
+			await iso.writeRef({
+				...repo,
+				ref: "refs/heads/hostile",
+				value: commit,
+			});
+		});
+		// The git library refuses to parse such a tree; that is a 422, never an
+		// archive that would extract outside its directory.
+		const { response, bytes } = await download("refs/heads/hostile", "zip");
+		expect(response.status).toBe(422);
+		expect(new TextDecoder().decode(bytes)).toContain("unsafe");
+	});
+
+	it("keeps only names that are one safe path component", async () => {
+		const { isSafeArchiveName } = await import("../git-read");
+		for (const name of ["", ".", "..", ".git", ".GIT", "a/b", "a\\b", "a\0b"]) {
+			expect(isSafeArchiveName(name), JSON.stringify(name)).toBe(false);
+		}
+		for (const name of ["ok.txt", ".gitignore", ".github", "über", "a b"]) {
+			expect(isSafeArchiveName(name), name).toBe(true);
+		}
+	});
+
+	it("413s a path over the length cap", async () => {
+		const deep = Array.from({ length: 20 }, () => "d".repeat(250)).join("/");
+		await createCommit("alice", "proj", {
+			branch: "feature/x",
+			message: "Deep",
+			files: [{ path: `${deep}/f.txt`, content: "x" }],
+			author,
+		});
+		const { response } = await download("refs/heads/feature/x", "zip");
+		expect(response.status).toBe(413);
+	});
+
+	it("errors the stream, not the process, when building fails mid-way", async () => {
+		const { chunkStream, tarChunks } = await import("../archive-format");
+		async function* failing() {
+			yield {
+				path: "a",
+				kind: "file" as const,
+				executable: false,
+				read: async () => new Uint8Array([1]),
+			};
+			yield {
+				path: "b",
+				kind: "file" as const,
+				executable: false,
+				read: async () => {
+					throw new Error("blob vanished");
+				},
+			};
+		}
+		const gzipped = chunkStream(
+			tarChunks(failing(), { commitSha: "a".repeat(40), mtime: 1 }),
+		).pipeThrough(
+			new CompressionStream("gzip") as unknown as ReadableWritablePair<
+				Uint8Array,
+				Uint8Array
+			>,
+		);
+		await expect(new Response(gzipped).arrayBuffer()).rejects.toThrow();
 	});
 });

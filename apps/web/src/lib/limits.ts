@@ -43,6 +43,8 @@ export const MAX_RAW_BYTES = 50 * 1024 * 1024;
  */
 export const MAX_ARCHIVE_ENTRIES = 50_000;
 export const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
+/** Longest path (UTF-8 bytes) an archive entry may have. */
+export const MAX_ARCHIVE_PATH_BYTES = 4096;
 
 /**
  * Offset a list endpoint accepts. A commit page's walk depth is `limit + skip`,
