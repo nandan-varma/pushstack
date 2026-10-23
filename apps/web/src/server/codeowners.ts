@@ -13,7 +13,12 @@ import {
 	ruleFor,
 } from "#/lib/codeowners";
 import { MAX_CODEOWNERS_BYTES } from "#/lib/limits";
-import { getBranchDiff, getFileContent } from "./git-read";
+import {
+	getBlobByOid,
+	getBlobSize,
+	getBranchDiff,
+	getEntryOid,
+} from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logWarn } from "./perf-log";
 import { ReviewRequestError, requestReviewers } from "./review-request-store";
@@ -34,12 +39,20 @@ export async function loadCodeowners(
 	for (const path of CODEOWNERS_PATHS) {
 		let bytes: Uint8Array;
 		try {
-			bytes = await getFileContent(ownerKeyOf(repo), repo.name, path, ref);
+			// The size comes from the pack entry, so an oversized file is never read.
+			const oid = await getEntryOid(ownerKeyOf(repo), repo.name, ref, path);
+			if (!oid) continue;
+			if (
+				(await getBlobSize(ownerKeyOf(repo), repo.name, oid)) >
+				MAX_CODEOWNERS_BYTES
+			) {
+				return null;
+			}
+			bytes = await getBlobByOid(ownerKeyOf(repo), repo.name, oid);
 		} catch (error) {
 			if (isNotFoundError(error)) continue;
 			throw error;
 		}
-		if (bytes.byteLength > MAX_CODEOWNERS_BYTES) return null;
 		return {
 			path,
 			rules: parseCodeowners(new TextDecoder().decode(bytes)),

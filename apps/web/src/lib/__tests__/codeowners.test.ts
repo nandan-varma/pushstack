@@ -88,3 +88,18 @@ describe("CODEOWNERS files", () => {
 		).toEqual(["bob", "carol", "alice"]);
 	});
 });
+
+describe("pathological patterns", () => {
+	it("stays fast on many wildcards against a long non-matching path", () => {
+		const started = performance.now();
+		expect(matches(`${"**a".repeat(12)}b`, "a".repeat(300))).toBe(false);
+		expect(matches(`${"*a".repeat(30)}b`, "a".repeat(900))).toBe(false);
+		expect(performance.now() - started).toBeLessThan(1000);
+	});
+
+	it("matches nothing for over-long patterns and keeps a rule cap", () => {
+		expect(matches("a".repeat(300), "a".repeat(300))).toBe(false);
+		const many = parseCodeowners("*.a @x\n".repeat(5000));
+		expect(many.length).toBeLessThanOrEqual(1000);
+	});
+});
