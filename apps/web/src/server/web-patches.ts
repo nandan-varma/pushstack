@@ -176,9 +176,8 @@ export function serveCommitPatch(
 }
 
 /**
- * `/{owner}/{repo}/compare/{spec}.diff|.patch`. Only three-dot comparisons
- * (and a lone head) are served; a two-dot `base..head` is 404 until the git
- * library exposes a direct tree-to-tree diff.
+ * `/{owner}/{repo}/compare/{spec}.diff|.patch`. `base...head` diffs against
+ * the merge base; `base..head` diffs the two tips directly.
  */
 export function serveComparePatch(
 	owner: string,
@@ -192,7 +191,7 @@ export function serveComparePatch(
 		name,
 		async (repo, body) => {
 			const parsed = parseCompareSpec(spec, repo.owner.username);
-			if (parsed?.separator !== "...") return false;
+			if (!parsed) return false;
 			const base = parsed.base ?? repo.defaultBranch;
 			if (
 				!safeCommitRevSchema.safeParse(base).success ||
@@ -206,6 +205,7 @@ export function serveComparePatch(
 				repo.name,
 				base,
 				parsed.head,
+				parsed.separator,
 			);
 			if (format === "diff") addDiff(body, comparison.diff);
 			else await addPatches(body, ownerKey, repo.name, comparison.commits);

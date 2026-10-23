@@ -33,7 +33,7 @@ import {
 import { createPullRequest } from "@/server/pull-requests";
 
 /**
- * GitHub's compare page, `/{owner}/{repo}/compare/{base}...{head}` (a lone
+ * GitHub's compare page, `/{owner}/{repo}/compare/{base}...{head}` (or two-dot `{base}..{head}`, a direct diff; a lone
  * `{head}` compares with the default branch): the commits and files `head`
  * adds, and "Create pull request" when both sides are branches.
  * `/compare/{spec}.diff` and `.patch` are plain text.
@@ -59,13 +59,14 @@ export const Route = createFileRoute("/$owner/$name/compare/$")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		const spec = parseCompareSpec(params._splat ?? "", params.owner);
-		if (repo && spec?.separator === "...") {
+		if (repo && spec) {
 			backgroundQuery(
 				queryClient,
 				repositoryComparisonQueryOptions({
 					repoId: repo.id,
 					base: spec.base ?? repo.defaultBranch,
 					head: spec.head,
+					separator: spec.separator,
 				}),
 			);
 		}
@@ -82,9 +83,8 @@ function ComparePage() {
 	const { data: repo } = useQuery(
 		repositoryByNameQueryOptions({ owner, name }),
 	);
-	// Two-dot (direct) comparisons aren't served yet; see web-patches.ts.
-	const parsed = parseCompareSpec(_splat ?? "", owner);
-	const spec = parsed?.separator === "..." ? parsed : null;
+	const spec = parseCompareSpec(_splat ?? "", owner);
+	const separator = spec?.separator ?? "...";
 	const base = spec?.base ?? repo?.defaultBranch ?? "";
 	const head = spec?.head ?? "";
 
@@ -97,7 +97,12 @@ function ComparePage() {
 		isLoading,
 		isError,
 	} = useQuery({
-		...repositoryComparisonQueryOptions({ repoId: repo?.id ?? 0, base, head }),
+		...repositoryComparisonQueryOptions({
+			repoId: repo?.id ?? 0,
+			base,
+			head,
+			separator,
+		}),
 		enabled: !!repo && !!spec,
 	});
 
@@ -148,7 +153,7 @@ function ComparePage() {
 	const goTo = (nextBase: string, nextHead: string) =>
 		navigate({
 			to: "/$owner/$name/compare/$",
-			params: { owner, name, _splat: `${nextBase}...${nextHead}` },
+			params: { owner, name, _splat: `${nextBase}${separator}${nextHead}` },
 		});
 
 	return (
@@ -250,14 +255,14 @@ function ComparePage() {
 						{comparison.diff.files.length === 1 ? "" : "s"} changed ·{" "}
 						<a
 							className="text-bjork-accent hover:underline"
-							href={`/${owner}/${name}/compare/${base}...${head}.diff`}
+							href={`/${owner}/${name}/compare/${base}${separator}${head}.diff`}
 						>
 							diff
 						</a>{" "}
 						·{" "}
 						<a
 							className="text-bjork-accent hover:underline"
-							href={`/${owner}/${name}/compare/${base}...${head}.patch`}
+							href={`/${owner}/${name}/compare/${base}${separator}${head}.patch`}
 						>
 							patch
 						</a>
@@ -280,7 +285,7 @@ function ComparePage() {
 						sides={{
 							owner,
 							name,
-							oldRef: comparison.mergeBaseSha,
+							oldRef: comparison.diff.oldRef ?? comparison.mergeBaseSha,
 							newRef: comparison.headSha,
 						}}
 						emptyMessage="No file changes."
