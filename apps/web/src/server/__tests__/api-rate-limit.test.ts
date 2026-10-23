@@ -33,6 +33,7 @@ const { db } = await import("../../db");
 const { sql } = await import("drizzle-orm");
 const { mintToken } = await import("../../test/api-client");
 const perfLog = await import("../perf-log");
+const { resetRateLimitMemory } = await import("../rate-limit");
 
 const users = await createUsers("alice", "bob");
 const API = "http://localhost:3000/api/v3";
@@ -60,6 +61,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
 	await db.execute(sql`delete from rate_limits`);
+	resetRateLimitMemory();
 });
 
 describe("/api/v3 limits", () => {
@@ -135,12 +137,34 @@ describe("/api/v3 limits", () => {
 		expect(read.headers.get("x-ratelimit-limit")).toBe("4");
 	});
 
+	it("refuses a known-exhausted caller from memory, without the database", async () => {
+		for (let i = 0; i < 3; i++) await api("/users/alice", { ip: "5.5.5.5" });
+		expect((await api("/users/alice", { ip: "5.5.5.5" })).status).toBe(403);
+		await db.execute(sql`delete from rate_limits`);
+		const denied = await api("/users/alice", { ip: "5.5.5.5" });
+		expect(denied.status).toBe(403);
+		expect(denied.headers.get("x-ratelimit-remaining")).toBe("0");
+		expect(Number(denied.headers.get("retry-after"))).toBeGreaterThan(0);
+		const rows = await db.execute(sql`select 1 from rate_limits`);
+		expect(rows.rows).toHaveLength(0);
+	});
+
+	it("never returns handler output for an over-limit read that ran concurrently", async () => {
+		for (let i = 0; i < 3; i++)
+			await api("/repos/alice/pub", { ip: "6.6.6.6" });
+		resetRateLimitMemory();
+		const refused = await api("/repos/alice/pub", { ip: "6.6.6.6" });
+		expect(refused.status).toBe(403);
+		expect((await refused.json()).message).toContain("rate limit exceeded");
+	});
+
 	it("starts a new window once the old one has elapsed", async () => {
 		for (let i = 0; i < 3; i++) await api("/users/alice", { ip: "4.4.4.4" });
 		expect((await api("/users/alice", { ip: "4.4.4.4" })).status).toBe(403);
 		await db.execute(
 			sql`update rate_limits set window_started_at = now() - interval '2 hours'`,
 		);
+		resetRateLimitMemory();
 		const again = await api("/users/alice", { ip: "4.4.4.4" });
 		expect(again.status).toBe(200);
 		expect(again.headers.get("x-ratelimit-used")).toBe("1");
