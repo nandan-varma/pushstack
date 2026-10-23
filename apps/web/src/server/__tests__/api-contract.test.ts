@@ -291,6 +291,62 @@ beforeAll(async () => {
 		post(alice, { tag: "v0", message: "v0", object: head.sha, type: "commit" }),
 	);
 	await check(`/repos/alice/proj/git/tags/${tagObject.sha}`);
+
+	// Releases and their assets.
+	const rel = await check(
+		"/repos/alice/proj/releases",
+		post(alice, { tag_name: "v1", name: "One" }),
+	);
+	await check("/repos/alice/proj/releases");
+	await check("/repos/alice/proj/releases/latest");
+	await check("/repos/alice/proj/releases/tags/v1");
+	await check(`/repos/alice/proj/releases/${rel.id}`);
+	await check(
+		`/repos/alice/proj/releases/${rel.id}`,
+		patch(alice, { name: "One!" }),
+	);
+	await check(
+		"/repos/alice/proj/releases/generate-notes",
+		post(alice, { tag_name: "v1" }),
+	);
+	const asset = await check(
+		`/repos/alice/proj/releases/${rel.id}/assets?name=a.txt`,
+		{
+			...asToken(alice),
+			method: "POST",
+			body: new TextEncoder().encode("asset"),
+			headers: { "content-type": "text/plain" },
+		},
+	);
+	await check(`/repos/alice/proj/releases/${rel.id}/assets`);
+	await check(`/repos/alice/proj/releases/assets/${asset.id}`);
+	await check(
+		`/repos/alice/proj/releases/assets/${asset.id}`,
+		patch(alice, { label: "A" }),
+	);
+	const { releaseAssetStorage } = await import("../git-fs");
+	const presign = vi
+		.spyOn(releaseAssetStorage, "presignPut")
+		.mockResolvedValue("https://r2.example/put");
+	const pending = await check(
+		`/repos/alice/proj/releases/${rel.id}/assets/uploads`,
+		post(alice, { name: "b.bin", size: 3 }),
+	);
+	presign.mockRestore();
+	await releaseAssetStorage.put(
+		(await import("../git-storage-naming")).getReleaseAssetKey(
+			"alice",
+			"proj",
+			pending.id,
+		),
+		new Uint8Array(3),
+	);
+	await check(
+		`/repos/alice/proj/releases/assets/${pending.id}/finish`,
+		post(alice, {}),
+	);
+	await check(`/repos/alice/proj/releases/assets/${asset.id}`, del(alice));
+	await check(`/repos/alice/proj/releases/${rel.id}`, del(alice));
 	await check("/repos/alice/proj/git/refs/heads/topic", del(alice));
 });
 

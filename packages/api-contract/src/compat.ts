@@ -43,6 +43,32 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/list-branches": "sorted by name",
 	"repos/get-branch": "branch names may contain `/`",
 	"repos/list-tags": "version order",
+	"repos/list-releases":
+		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
+	"repos/create-release":
+		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` ignored",
+	"repos/generate-release-notes":
+		"write access; a bulleted list of the commits since `previous_tag_name` (default: the tag before `tag_name`) and a `Full Changelog` compare link; no pull request grouping, `.github/release.yml` or new-contributor section",
+	"repos/get-latest-release":
+		"the published, non-prerelease release marked `make_latest: true`, else the newest not marked `false`; `404` when there is none",
+	"repos/get-release-by-tag":
+		"published releases only (a draft has no public tag)",
+	"repos/get-release-asset":
+		"`Accept: application/octet-stream` streams the file with `200` (GitHub redirects with `302`) and counts a download",
+	"repos/update-release-asset": "write access; `name`, `label`",
+	"repos/delete-release-asset": "write access; removes the stored file",
+	"repos/finish-release-asset-upload":
+		"PushStack extension: completes a presigned upload started with `POST …/assets/uploads` after the bytes were PUT to R2; the stored size must equal the declared one, else the asset is discarded and the answer is `422`",
+	"repos/get-release": "drafts for write access only (`404` otherwise)",
+	"repos/update-release":
+		"write access; as create; publishing a draft sets `published_at` and creates a missing tag; `make_latest: true` moves the badge",
+	"repos/delete-release":
+		"write access; the tag stays, the assets are removed from storage; `204`",
+	"repos/list-release-assets": "uploaded assets only; pagination",
+	"repos/upload-release-asset":
+		"write access; `?name=` (required) and `?label=`; the raw bytes as the body with their `Content-Type`; up to 4,000,000 bytes (a function request body is capped at 4.5 MB): larger files use the presigned flow; `upload_url` on a release points here; a name already on the release is `422 already_exists`",
+	"repos/create-release-asset-upload":
+		"PushStack extension for files over 4,000,000 bytes (up to 2 GiB): declares `name`, `label`, `content_type` and `size`, answers `201` with an `open` asset and a presigned R2 `upload_url` (valid 15 minutes) to `PUT` the bytes to, then `POST …/releases/assets/{asset_id}/finish`; `501` where the deployment has no R2",
 	"repos/get-content":
 		"`ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. Media types: `raw` (a file's bytes, up to 50 MB, `application/octet-stream`), `object` (a directory as one object with `entries`); `html` is served as JSON",
 	"repos/download-tarball-archive":

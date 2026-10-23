@@ -38,6 +38,7 @@ import {
 	getPullRequests,
 } from "@/server/pull-requests";
 import { getThreadReactions } from "@/server/reactions";
+import { getReleaseByTagName, getReleases } from "@/server/releases";
 import {
 	getCollaborators,
 	getRepositoryByName,
@@ -142,6 +143,11 @@ export const queryKeys = {
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
+	repoReleasesRoot: (repoId: number) => ["repos", repoId, "releases"] as const,
+	repoReleases: (repoId: number, page: number) =>
+		["repos", repoId, "releases", "list", page] as const,
+	repoRelease: (repoId: number, tag: string) =>
+		["repos", repoId, "releases", "tag", tag] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
 	repoIssueNumbers: (repoId: number) =>
 		["repos", repoId, "issue-numbers"] as const,
@@ -633,6 +639,22 @@ export function repositoryPullRequestNumbersQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoPullRequestNumbers(repoId),
 		queryFn: () => getPullRequestNumbers({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryReleasesQueryOptions(repoId: number, page: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoReleases(repoId, page),
+		queryFn: () => getReleases({ data: { repoId, page } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryReleaseQueryOptions(repoId: number, tag: string) {
+	return queryOptions({
+		queryKey: queryKeys.repoRelease(repoId, tag),
+		queryFn: () => getReleaseByTagName({ data: { repoId, tag } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

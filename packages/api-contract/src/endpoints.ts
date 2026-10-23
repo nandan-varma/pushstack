@@ -23,9 +23,15 @@ import {
 	threadTitle,
 } from "./inputs";
 import {
+	MAX_BODY_CHARS,
 	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
+	MAX_RELEASE_ASSET_BYTES,
+	MAX_RELEASE_ASSET_LABEL_CHARS,
+	MAX_RELEASE_ASSET_NAME_CHARS,
+	MAX_RELEASE_NAME_CHARS,
+	MAX_RELEASE_TAG_CHARS,
 	MAX_REPO_DESCRIPTION_CHARS,
 } from "./limits";
 import {
@@ -56,6 +62,9 @@ import {
 	rateLimitOverview,
 	reaction,
 	reactionContent,
+	release,
+	releaseAsset,
+	releaseNotes,
 	repository,
 	shortBranch,
 	stateReason,
@@ -123,6 +132,23 @@ const reactionList = {
 };
 const reactionBody = z.object({ content: reactionContent });
 const labelParams = repoParams.extend({ name: z.string().min(1) });
+const releaseParams = repoParams.extend({ release_id: positiveInt });
+const assetParams = repoParams.extend({ asset_id: positiveInt });
+const releaseTagName = z.string().min(1).max(MAX_RELEASE_TAG_CHARS);
+const releaseFields = {
+	target_commitish: z.string().min(1).max(300).optional(),
+	name: z.string().max(MAX_RELEASE_NAME_CHARS).nullish(),
+	body: z.string().max(MAX_BODY_CHARS).nullish(),
+	draft: z.boolean().optional(),
+	prerelease: z.boolean().optional(),
+	/** GitHub's `"true"`, `"false"` or `"legacy"`; booleans are accepted too. */
+	make_latest: z
+		.union([z.enum(["true", "false", "legacy"]), z.boolean()])
+		.transform((value) => String(value) as "true" | "false" | "legacy")
+		.optional(),
+};
+const assetName = z.string().trim().min(1).max(MAX_RELEASE_ASSET_NAME_CHARS);
+const assetLabel = z.string().max(MAX_RELEASE_ASSET_LABEL_CHARS);
 const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
 	.optional()
@@ -249,6 +275,86 @@ export const endpoints = defineEndpoints({
 		params: repoParams,
 		query: pagination,
 		response: z.array(tag),
+	},
+
+	"repos/list-releases": {
+		params: repoParams,
+		query: pagination,
+		response: z.array(release),
+	},
+	"repos/create-release": {
+		params: repoParams,
+		body: z.object({
+			tag_name: releaseTagName,
+			generate_release_notes: z.boolean().optional(),
+			...releaseFields,
+		}),
+		response: release,
+	},
+	"repos/generate-release-notes": {
+		params: repoParams,
+		body: z.object({
+			tag_name: releaseTagName,
+			target_commitish: z.string().min(1).max(300).optional(),
+			previous_tag_name: z
+				.string()
+				.min(1)
+				.max(MAX_RELEASE_TAG_CHARS)
+				.optional(),
+		}),
+		response: releaseNotes,
+	},
+	"repos/get-latest-release": { params: repoParams, response: release },
+	"repos/get-release-by-tag": {
+		params: repoParams.extend({ tag: z.string().min(1) }),
+		response: release,
+	},
+	"repos/get-release-asset": { params: assetParams, response: releaseAsset },
+	"repos/update-release-asset": {
+		params: assetParams,
+		body: z.object({
+			name: assetName.optional(),
+			label: assetLabel.nullish(),
+			state: z.enum(["uploaded", "open"]).optional(),
+		}),
+		response: releaseAsset,
+	},
+	"repos/delete-release-asset": { params: assetParams, response: noContent },
+	"repos/finish-release-asset-upload": {
+		params: assetParams,
+		response: releaseAsset,
+	},
+	"repos/get-release": { params: releaseParams, response: release },
+	"repos/update-release": {
+		params: releaseParams,
+		body: z.object({ tag_name: releaseTagName.optional(), ...releaseFields }),
+		response: release,
+	},
+	"repos/delete-release": { params: releaseParams, response: noContent },
+	"repos/list-release-assets": {
+		params: releaseParams,
+		query: pagination,
+		response: z.array(releaseAsset),
+	},
+	"repos/upload-release-asset": {
+		params: releaseParams,
+		// The request body is the file's raw bytes.
+		query: z.object({ name: assetName, label: assetLabel.optional() }),
+		response: releaseAsset,
+	},
+	"repos/create-release-asset-upload": {
+		params: releaseParams,
+		body: z.object({
+			name: assetName,
+			label: assetLabel.nullish(),
+			content_type: z
+				.string()
+				.min(1)
+				.max(255)
+				.default("application/octet-stream"),
+			size: z.number().int().positive().max(MAX_RELEASE_ASSET_BYTES),
+		}),
+		response: releaseAsset.extend({ upload_url: z.string() }),
 	},
 
 	"repos/get-content": {

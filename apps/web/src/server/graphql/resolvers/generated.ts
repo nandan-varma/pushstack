@@ -2,6 +2,7 @@ import type { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } f
 import type { UserNode } from './core';
 import type { RepositoryNode, RefNode } from './repository';
 import type { CommitNode } from './commit';
+import type { ReleaseNode, ReleaseAssetNode } from './releases';
 import type { RateLimitInfo, GraphQLContext } from '../context';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -335,6 +336,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   isPrivate: Scalars['Boolean']['output'];
   /** Identifies if the repository is a template that can be used to generate new repositories. */
   isTemplate: Scalars['Boolean']['output'];
+  /** Get the latest release for the repository if one exists. */
+  latestRelease?: Maybe<Release>;
   /** Whether or not PRs are merged with a merge commit on this repository. */
   mergeCommitAllowed: Scalars['Boolean']['output'];
   /** The repository's original mirror URL. */
@@ -355,6 +358,10 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   rebaseMergeAllowed: Scalars['Boolean']['output'];
   /** Fetch a given ref from the repository */
   ref?: Maybe<Ref>;
+  /** Lookup a single release given various criteria. */
+  release?: Maybe<Release>;
+  /** List of releases which are dependent on this repository. */
+  releases: ReleaseConnection;
   /** The HTTP path for this repository */
   resourcePath: Scalars['URI']['output'];
   /** Whether or not squash-merging is enabled on this repository. */
@@ -390,6 +397,22 @@ export type RepositoryObjectArgs = {
 /** A repository contains the content for a project. */
 export type RepositoryRefArgs = {
   qualifiedName: Scalars['String']['input'];
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryReleaseArgs = {
+  tagName: Scalars['String']['input'];
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryReleasesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<ReleaseOrder>;
 };
 
 /** A list of repositories owned by the subject. */
@@ -608,6 +631,141 @@ export type CreateRepositoryPayload = {
   repository?: Maybe<Repository>;
 };
 
+/** A release contains the content for a release. */
+export type Release = Node & UniformResourceLocatable & {
+  __typename?: 'Release';
+  /** The author of the release */
+  author?: Maybe<User>;
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** The description of the release. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** The Node ID of the Release object */
+  id: Scalars['ID']['output'];
+  /** Whether or not the release is immutable */
+  immutable: Scalars['Boolean']['output'];
+  /** Whether or not the release is a draft */
+  isDraft: Scalars['Boolean']['output'];
+  /** Whether or not the release is the latest releast */
+  isLatest: Scalars['Boolean']['output'];
+  /** Whether or not the release is a prerelease */
+  isPrerelease: Scalars['Boolean']['output'];
+  /** The title of the release. */
+  name?: Maybe<Scalars['String']['output']>;
+  /** Identifies the date and time when the release was created. */
+  publishedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** List of releases assets which are dependent on this release. */
+  releaseAssets: ReleaseAssetConnection;
+  /** The repository that the release belongs to. */
+  repository: Repository;
+  /** The HTTP path for this issue */
+  resourcePath: Scalars['URI']['output'];
+  /** The name of the release's Git tag */
+  tagName: Scalars['String']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The HTTP URL for this issue */
+  url: Scalars['URI']['output'];
+};
+
+
+/** A release contains the content for a release. */
+export type ReleaseReleaseAssetsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  name?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** A release asset contains the content for a release asset. */
+export type ReleaseAsset = Node & {
+  __typename?: 'ReleaseAsset';
+  /** The asset's content-type */
+  contentType: Scalars['String']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** The number of times this asset was downloaded */
+  downloadCount: Scalars['Int']['output'];
+  /** Identifies the URL where you can download the release asset via the browser. */
+  downloadUrl: Scalars['URI']['output'];
+  /** The Node ID of the ReleaseAsset object */
+  id: Scalars['ID']['output'];
+  /** Identifies the title of the release asset. */
+  name: Scalars['String']['output'];
+  /** Release that the asset is associated with */
+  release?: Maybe<Release>;
+  /** The size (in bytes) of the asset */
+  size: Scalars['Int']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The user that performed the upload */
+  uploadedBy: User;
+  /** Identifies the URL of the release asset. */
+  url: Scalars['URI']['output'];
+};
+
+/** The connection type for Release. */
+export type ReleaseConnection = {
+  __typename?: 'ReleaseConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ReleaseEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Release>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type ReleaseEdge = {
+  __typename?: 'ReleaseEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Release>;
+};
+
+/** The connection type for ReleaseAsset. */
+export type ReleaseAssetConnection = {
+  __typename?: 'ReleaseAssetConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ReleaseAssetEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ReleaseAsset>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type ReleaseAssetEdge = {
+  __typename?: 'ReleaseAssetEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<ReleaseAsset>;
+};
+
+/** Ways in which lists of releases can be ordered upon return. */
+export type ReleaseOrder = {
+  /** The direction in which to order releases by the specified field. */
+  direction: OrderDirection;
+  /** The field in which to order releases by. */
+  field: ReleaseOrderField;
+};
+
+/** Properties by which release connections can be ordered. */
+export type ReleaseOrderField =
+  /** Order releases by creation time */
+  | 'CREATED_AT'
+  /** Order releases alphabetically by name */
+  | 'NAME';
+
 
 
 export type ResolverTypeWrapper<T> = Promise<T> | T;
@@ -685,10 +843,13 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( RepositoryNode )
     | ( RefNode )
     | ( CommitNode )
+    | ( ReleaseNode )
+    | ( ReleaseAssetNode )
   ;
   UniformResourceLocatable:
     | ( UserNode )
     | ( RepositoryNode )
+    | ( ReleaseNode )
   ;
   Actor: ( UserNode );
   RepositoryOwner: ( UserNode );
@@ -735,6 +896,14 @@ export type ResolversTypes = {
   CreateRepositoryInput: CreateRepositoryInput;
   CreateRepositoryPayload: ResolverTypeWrapper<Omit<CreateRepositoryPayload, 'repository'> & { repository?: Maybe<ResolversTypes['Repository']> }>;
   GitSSHRemote: ResolverTypeWrapper<Scalars['GitSSHRemote']['output']>;
+  Release: ResolverTypeWrapper<ReleaseNode>;
+  ReleaseAsset: ResolverTypeWrapper<ReleaseAssetNode>;
+  ReleaseConnection: ResolverTypeWrapper<Omit<ReleaseConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['ReleaseEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Release']>>> }>;
+  ReleaseEdge: ResolverTypeWrapper<Omit<ReleaseEdge, 'node'> & { node?: Maybe<ResolversTypes['Release']> }>;
+  ReleaseAssetConnection: ResolverTypeWrapper<Omit<ReleaseAssetConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['ReleaseAssetEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['ReleaseAsset']>>> }>;
+  ReleaseAssetEdge: ResolverTypeWrapper<Omit<ReleaseAssetEdge, 'node'> & { node?: Maybe<ResolversTypes['ReleaseAsset']> }>;
+  ReleaseOrder: ReleaseOrder;
+  ReleaseOrderField: ReleaseOrderField;
 };
 
 /** Mapping between all available schema types and the resolvers parents */
@@ -769,6 +938,13 @@ export type ResolversParentTypes = {
   CreateRepositoryInput: CreateRepositoryInput;
   CreateRepositoryPayload: Omit<CreateRepositoryPayload, 'repository'> & { repository?: Maybe<ResolversParentTypes['Repository']> };
   GitSSHRemote: Scalars['GitSSHRemote']['output'];
+  Release: ReleaseNode;
+  ReleaseAsset: ReleaseAssetNode;
+  ReleaseConnection: Omit<ReleaseConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Release']>>> };
+  ReleaseEdge: Omit<ReleaseEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Release']> };
+  ReleaseAssetConnection: Omit<ReleaseAssetConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseAssetEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseAsset']>>> };
+  ReleaseAssetEdge: Omit<ReleaseAssetEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ReleaseAsset']> };
+  ReleaseOrder: ReleaseOrder;
 };
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = {
@@ -782,7 +958,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -802,7 +978,7 @@ export type RateLimitResolvers<ContextType = GraphQLContext, ParentType extends 
 };
 
 export type UniformResourceLocatableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UniformResourceLocatable'] = ResolversParentTypes['UniformResourceLocatable']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release', ParentType, ContextType>;
 };
 
 export type ActorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Actor'] = ResolversParentTypes['Actor']> = {
@@ -869,6 +1045,7 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   isMirror?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   isPrivate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   isTemplate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  latestRelease?: Resolver<Maybe<ResolversTypes['Release']>, ParentType, ContextType>;
   mergeCommitAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   mirrorUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -879,6 +1056,8 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   pushedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   rebaseMergeAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   ref?: Resolver<Maybe<ResolversTypes['Ref']>, ParentType, ContextType, RequireFields<RepositoryRefArgs, 'qualifiedName'>>;
+  release?: Resolver<Maybe<ResolversTypes['Release']>, ParentType, ContextType, RequireFields<RepositoryReleaseArgs, 'tagName'>>;
+  releases?: Resolver<ResolversTypes['ReleaseConnection'], ParentType, ContextType, Partial<RepositoryReleasesArgs>>;
   resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   squashMergeAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   sshUrl?: Resolver<ResolversTypes['GitSSHRemote'], ParentType, ContextType>;
@@ -956,6 +1135,66 @@ export interface GitSshRemoteScalarConfig extends GraphQLScalarTypeConfig<Resolv
   name: 'GitSSHRemote';
 }
 
+export type ReleaseResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Release'] = ResolversParentTypes['Release']> = {
+  author?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  immutable?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isDraft?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isLatest?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isPrerelease?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  publishedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  releaseAssets?: Resolver<ResolversTypes['ReleaseAssetConnection'], ParentType, ContextType, Partial<ReleaseReleaseAssetsArgs>>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  tagName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ReleaseAssetResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReleaseAsset'] = ResolversParentTypes['ReleaseAsset']> = {
+  contentType?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  downloadCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  downloadUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  release?: Resolver<Maybe<ResolversTypes['Release']>, ParentType, ContextType>;
+  size?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  uploadedBy?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ReleaseConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReleaseConnection'] = ResolversParentTypes['ReleaseConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ReleaseEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Release']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ReleaseEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReleaseEdge'] = ResolversParentTypes['ReleaseEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Release']>, ParentType, ContextType>;
+};
+
+export type ReleaseAssetConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReleaseAssetConnection'] = ResolversParentTypes['ReleaseAssetConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ReleaseAssetEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ReleaseAsset']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ReleaseAssetEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReleaseAssetEdge'] = ResolversParentTypes['ReleaseAssetEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['ReleaseAsset']>, ParentType, ContextType>;
+};
+
 export type Resolvers<ContextType = GraphQLContext> = {
   Query?: QueryResolvers<ContextType>;
   Node?: NodeResolvers<ContextType>;
@@ -981,5 +1220,11 @@ export type Resolvers<ContextType = GraphQLContext> = {
   GitObjectID?: GraphQLScalarType;
   CreateRepositoryPayload?: CreateRepositoryPayloadResolvers<ContextType>;
   GitSSHRemote?: GraphQLScalarType;
+  Release?: ReleaseResolvers<ContextType>;
+  ReleaseAsset?: ReleaseAssetResolvers<ContextType>;
+  ReleaseConnection?: ReleaseConnectionResolvers<ContextType>;
+  ReleaseEdge?: ReleaseEdgeResolvers<ContextType>;
+  ReleaseAssetConnection?: ReleaseAssetConnectionResolvers<ContextType>;
+  ReleaseAssetEdge?: ReleaseAssetEdgeResolvers<ContextType>;
 };
 

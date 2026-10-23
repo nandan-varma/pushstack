@@ -41,6 +41,7 @@ import {
 	rateLimitHeaders,
 	recordAuthFailure,
 } from "./rate-limit";
+import { draftReleasesForDeletedTag } from "./release-store";
 import { findRepositoryByName } from "./repository-lookup";
 
 type GitService = "git-upload-pack" | "git-receive-pack";
@@ -177,6 +178,15 @@ async function receivePack(
 				logWarn("git-http", "recording commit references failed", error);
 			}
 			try {
+				await draftReleasesOfDeletedTags(
+					repoId,
+					parsed.refUpdates,
+					result.results,
+				);
+			} catch (error) {
+				logWarn("git-http", "drafting releases of deleted tags failed", error);
+			}
+			try {
 				await recordDeletedHeads(
 					repoId,
 					pusherId,
@@ -213,6 +223,27 @@ async function recordDeletedHeads(
 				repoId,
 				update.refName.slice("refs/heads/".length),
 				actorId,
+			);
+		}
+	}
+}
+
+/** Tags a push deleted: their releases stay, as drafts (GitHub's behavior). */
+async function draftReleasesOfDeletedTags(
+	repoId: number,
+	updates: ReturnType<typeof parseReceivePackBody>["refUpdates"],
+	results: Awaited<ReturnType<typeof applyReceivePack>>["results"],
+): Promise<void> {
+	const accepted = new Set(results.filter((r) => r.ok).map((r) => r.refName));
+	for (const update of updates) {
+		if (
+			accepted.has(update.refName) &&
+			update.refName.startsWith("refs/tags/") &&
+			/^0{40}$/.test(update.newOid)
+		) {
+			await draftReleasesForDeletedTag(
+				repoId,
+				update.refName.slice("refs/tags/".length),
 			);
 		}
 	}

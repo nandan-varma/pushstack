@@ -12,15 +12,13 @@
 
 import { isFullSha, isNotFoundError, isSafeRefName } from "git-fs-s3";
 import { MAX_ARCHIVE_BYTES } from "#/lib/limits";
-import { tokenAllows } from "#/lib/token-scopes";
-import { authenticateRequest } from "./api/auth";
-import { meterApiRequest, RateLimitedError } from "./api/rate-limit";
 import {
 	type ArchiveEntry,
 	chunkStream,
 	tarChunks,
 	zipChunks,
 } from "./archive-format";
+import { resolveDownloader } from "./download-auth";
 import {
 	ArchiveLimitError,
 	getCommit,
@@ -29,11 +27,9 @@ import {
 } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logError } from "./perf-log";
-import { rateLimitHeaders } from "./rate-limit";
 import { cacheControl } from "./raw";
 import { getAccessForRepository } from "./repo-access";
 import { findRepositoryByName } from "./repository-lookup";
-import { getCurrentUserOptional } from "./session";
 
 export type ArchiveFormat = "zip" | "tar.gz";
 
@@ -162,34 +158,9 @@ export async function serveArchive(
 	try {
 		const repository = await findRepositoryByName(owner, name);
 		if (!repository) return notFound();
-		let userId: string | null = null;
-		if (request.headers.has("authorization")) {
-			const caller = await authenticateRequest(request).catch(() => null);
-			if (!caller) {
-				return new Response("Bad credentials", {
-					status: 401,
-					headers: { "Content-Type": "text/plain; charset=utf-8" },
-				});
-			}
-			if (!tokenAllows(caller.scopes, "repo:read")) return notFound();
-			userId = caller.userId;
-		} else {
-			userId = (await getCurrentUserOptional())?.id ?? null;
-		}
-		// Metered like the REST API (the caller's bucket, or the client IP),
-		// before any repository work.
-		try {
-			await meterApiRequest(request, userId ? { userId, scopes: [] } : null);
-		} catch (error) {
-			if (!(error instanceof RateLimitedError)) throw error;
-			return new Response(error.message, {
-				status: 403,
-				headers: {
-					"Content-Type": "text/plain; charset=utf-8",
-					...rateLimitHeaders(error.rate),
-				},
-			});
-		}
+		const downloader = await resolveDownloader(request);
+		if ("response" in downloader) return downloader.response;
+		const { userId } = downloader;
 		if (!(await getAccessForRepository(repository, userId)).canRead) {
 			return notFound();
 		}

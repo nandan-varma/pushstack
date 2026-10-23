@@ -36,6 +36,29 @@ export function getRepoGitStoragePrefix(
 	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
 }
 
+/**
+ * Release assets live beside the git data, under
+ * `repos/{ownerKey}/{repoName}/releases/`, keyed by the asset's immutable id
+ * (its name and label are editable and may hold any character).
+ */
+export function getRepoReleaseStoragePrefix(
+	ownerKey: string,
+	repoName: string,
+): string {
+	return `repos/${segment(ownerKey, "owner")}/${segment(repoName, "repository name")}/releases/`;
+}
+
+export function getReleaseAssetKey(
+	ownerKey: string,
+	repoName: string,
+	assetId: number,
+): string {
+	if (!Number.isSafeInteger(assetId) || assetId <= 0) {
+		throw new Error(`Invalid release asset id for storage: ${assetId}`);
+	}
+	return `${getRepoReleaseStoragePrefix(ownerKey, repoName)}${assetId}`;
+}
+
 export interface RepoGitStorageKey {
 	ownerKey: string;
 	repoName: string;

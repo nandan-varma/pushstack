@@ -64,6 +64,8 @@ export async function generateResolverTypes(): Promise<string> {
 				Repository: "./repository#RepositoryNode",
 				Ref: "./repository#RefNode",
 				Commit: "./commit#CommitNode",
+				Release: "./releases#ReleaseNode",
+				ReleaseAsset: "./releases#ReleaseAssetNode",
 				RateLimit: "../context#RateLimitInfo",
 			},
 		},

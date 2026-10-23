@@ -71,6 +71,8 @@ Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page
 | Pull requests | `/{owner}/{repo}/pulls` |
 | One pull request | `/{owner}/{repo}/pull/{n}`, `…/pull/{n}/commits`, `…/pull/{n}/files` (`.diff`, `.patch`) |
 | Labels | `/{owner}/{repo}/labels` |
+| Releases | `/{owner}/{repo}/releases`, `…/releases/tag/{tag}`, `…/releases/latest`, `…/releases/new`, `…/releases/edit/{tag}` |
+| Release asset download | `/{owner}/{repo}/releases/download/{tag}/{asset}` |
 | Upload a file | `/{owner}/{repo}/upload/{branch}/{directory}` |
 | Clone | `/{owner}/{repo}.git` |
 | New repository | `/new` |
@@ -164,6 +166,15 @@ The web UI can do most of what the CLI can, without a clone:
   commit SHA is the zip comment. The REST `zipball` and `tarball` routes (default branch when no ref) answer `302` to `/{owner}/{repo}/legacy.zip/{ref}` (or `legacy.tar.gz`), whose entries are named `{owner}-{repo}-{short sha}`. Archive downloads count against the API rate limit.
   Submodules become empty directories, and a private repository's archive accepts a personal access token.
 
+- **Releases** — `/{owner}/{repo}/releases` lists a repository's releases: a tag with Markdown notes and
+  downloadable files, plus the source archives of its tag. Writers draft, publish, edit and delete them;
+  a draft is visible to writers only, and deleting a tag leaves its release behind as a draft. Publishing a
+  release for a tag that does not exist creates a lightweight tag at the target branch or commit. Files
+  stream from `/{owner}/{repo}/releases/download/{tag}/{asset}` (with `Range` support and a download count; a
+  private repository's accepts a personal access token). Files up to 3 MB are uploaded through the app; larger
+  ones (up to 2 GiB) go straight to R2 on a presigned URL, which needs R2 configured with a CORS rule allowing
+  `PUT` from the site's origin.
+
 Markdown is rendered for READMEs, issue and pull request bodies, and comments.
 Relative links and images resolve against the file that contains them, so
 `./diagram.png` in `docs/README.md` finds `docs/diagram.png`.
@@ -231,6 +242,7 @@ but cannot change them.
 | Web file upload | 25 MB per file |
 | Raw file download (`/{owner}/{repo}/raw/…`) | 50 MB — above that, `git clone` |
 | Source archive (`/{owner}/{repo}/archive/…`) | 50,000 entries and 256 MiB of files — above that, `413` and `git clone` |
+| Release asset | 2 GiB per file, 1,000 files per release; 4,000,000 bytes through `POST …/assets` (larger: presigned upload) |
 | Git push request body | 50 MB |
 | Issue, pull request and comment body | 65,536 characters |
 | Commit message (web UI) | 10,000 characters |
