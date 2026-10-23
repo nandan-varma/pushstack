@@ -64,6 +64,7 @@ function serializeThreadWith(
 		author: thread.author,
 		labels: thread.labels,
 		assignees: thread.assignees,
+		milestone: thread.milestone,
 		commentsCount: thread.commentsCount,
 		reactions,
 	});

@@ -82,6 +82,7 @@ Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page
 | Pull requests | `/{owner}/{repo}/pulls` |
 | One pull request | `/{owner}/{repo}/pull/{n}`, `…/pull/{n}/commits`, `…/pull/{n}/files` (`.diff`, `.patch`) |
 | Labels | `/{owner}/{repo}/labels` |
+| Milestones | `/{owner}/{repo}/milestones`, `/{owner}/{repo}/milestone/{n}` |
 | Upload a file | `/{owner}/{repo}/upload/{branch}/{directory}` |
 | Clone | `/{owner}/{repo}.git` |
 | New repository | `/new` |
