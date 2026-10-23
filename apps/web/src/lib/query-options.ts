@@ -50,6 +50,7 @@ import {
 	getRepositoryByName,
 	getUserRepositories,
 } from "@/server/repositories";
+import { getFileOwners, getReviewerCandidates } from "@/server/review-requests";
 import {
 	getMyPendingReview,
 	getPullRequestReviewThreads,
@@ -151,6 +152,9 @@ export const queryKeys = {
 		] as const,
 	repoBlame: (repoId: number, branchName: string, path: string) =>
 		["repos", repoId, "files", "blame", branchName, path] as const,
+	repoFileOwners: (repoId: number, branchName: string, path: string) =>
+		["repos", repoId, "files", "owners", branchName, path] as const,
+	repoReviewers: (repoId: number) => ["repos", repoId, "reviewers"] as const,
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
@@ -668,6 +672,30 @@ export function repositoryIssueNumbersQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoIssueNumbers(repoId),
 		queryFn: () => getIssueNumbers({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function fileOwnersQueryOptions({
+	repoId,
+	branchName,
+	path,
+}: {
+	repoId: number;
+	branchName: string;
+	path: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoFileOwners(repoId, branchName, path),
+		queryFn: () => getFileOwners({ data: { repoId, branchName, path } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function reviewerCandidatesQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoReviewers(repoId),
+		queryFn: () => getReviewerCandidates({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

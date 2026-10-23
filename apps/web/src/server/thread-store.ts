@@ -19,6 +19,7 @@ import {
 	inArray,
 	isNotNull,
 	isNull,
+	ne,
 	notExists,
 	or,
 	type SQL,
@@ -31,6 +32,8 @@ import {
 	issues,
 	labels,
 	milestones,
+	pullRequestReviewRequests,
+	pullRequestReviews,
 	pullRequests,
 	threadAssignees,
 	threadLabels,
@@ -71,6 +74,8 @@ export interface Thread extends Issue {
 	closedBy: PublicUser | null;
 	labels: LabelView[];
 	assignees: PublicUser[];
+	/** Pending review requests (a pull request's; always empty for an issue). */
+	requestedReviewers: PublicUser[];
 	milestone: MilestoneView | null;
 	commentsCount: number;
 	/** Null for an issue. */
@@ -97,6 +102,10 @@ export interface ThreadFilter {
 	noLabel?: boolean;
 	/** Each a username, `none` (unassigned) or `*` (assigned to anyone); ANDed. */
 	assignees?: string[];
+	/** A pending review request for every one of these usernames; ANDed. */
+	reviewRequested?: string[];
+	/** A submitted review by every one of these usernames; ANDed. */
+	reviewedBy?: string[];
 	/** In the milestone titled this (ignoring case); every one, so two titles match nothing. */
 	milestones?: string[];
 	/** In the milestone with this number, any milestone (`*`) or none. */
@@ -144,6 +153,13 @@ const threadColumns = {
 		'name', ${user.name}, 'image', ${user.image}) order by ${threadAssignees.id})
 		from ${threadAssignees} inner join ${user} on ${user.id} = ${threadAssignees.userId}
 		where ${threadAssignees.issueId} = ${issues.id}), '[]'::json)`.mapWith(
+		json<PublicUser[]>,
+	),
+	requestedReviewers: sql`coalesce((select json_agg(json_build_object(
+		'id', ${user.id}, 'apiId', ${user.apiId}, 'username', ${user.username},
+		'name', ${user.name}, 'image', ${user.image}) order by ${pullRequestReviewRequests.id})
+		from ${pullRequestReviewRequests} inner join ${user} on ${user.id} = ${pullRequestReviewRequests.userId}
+		where ${pullRequestReviewRequests.issueId} = ${issues.id}), '[]'::json)`.mapWith(
 		json<PublicUser[]>,
 	),
 	milestone: threadMilestoneJson,
@@ -268,6 +284,39 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 	for (const assignee of filter.assignees ?? []) {
 		add(assigneeCondition(assignee));
 	}
+	for (const username of filter.reviewRequested ?? []) {
+		add(
+			exists(
+				db
+					.select({ one: sql`1` })
+					.from(pullRequestReviewRequests)
+					.innerJoin(user, eq(user.id, pullRequestReviewRequests.userId))
+					.where(
+						and(
+							eq(pullRequestReviewRequests.issueId, issues.id),
+							eq(user.username, username),
+						),
+					),
+			),
+		);
+	}
+	for (const username of filter.reviewedBy ?? []) {
+		add(
+			exists(
+				db
+					.select({ one: sql`1` })
+					.from(pullRequestReviews)
+					.innerJoin(user, eq(user.id, pullRequestReviews.authorId))
+					.where(
+						and(
+							eq(pullRequestReviews.pullRequestId, issues.id),
+							ne(pullRequestReviews.state, "pending"),
+							eq(user.username, username),
+						),
+					),
+			),
+		);
+	}
 	for (const title of filter.milestones ?? []) {
 		add(
 			exists(
@@ -330,6 +379,7 @@ interface ThreadRecord {
 	author: PublicUser;
 	labels: LabelView[];
 	assignees: PublicUser[];
+	requestedReviewers: PublicUser[];
 	milestone: MilestoneView | null;
 	closedBy: PublicUser | null;
 	mergedBy: PublicUser | null;
@@ -350,6 +400,7 @@ function toThread(record: ThreadRecord): Thread {
 		closedBy: record.closedBy,
 		labels: record.labels,
 		assignees: record.assignees,
+		requestedReviewers: record.requestedReviewers,
 		milestone: record.milestone,
 		commentsCount: record.commentsCount,
 		pullRequest,
@@ -429,6 +480,7 @@ export function pullRequestOfThread(thread: Thread): PullRequest {
 		closedBy: _closedBy,
 		labels: _labels,
 		assignees: _assignees,
+		requestedReviewers: _requestedReviewers,
 		commentsCount: _comments,
 		pullRequest: _pr,
 		...issue
@@ -437,7 +489,13 @@ export function pullRequestOfThread(thread: Thread): PullRequest {
 }
 
 export function issueView(thread: Thread) {
-	const { kind: _, pullRequest: _pr, assignees, ...issue } = thread;
+	const {
+		kind: _,
+		pullRequest: _pr,
+		requestedReviewers: _requested,
+		assignees,
+		...issue
+	} = thread;
 	return { ...issue, assignees: assignees.map((user) => ({ user })) };
 }
 
@@ -450,6 +508,7 @@ export function pullRequestView(thread: Thread) {
 		milestone: thread.milestone,
 		commentsCount: thread.commentsCount,
 		assignees: thread.assignees.map((user) => ({ user })),
+		requestedReviewers: thread.requestedReviewers,
 	};
 }
 

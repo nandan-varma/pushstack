@@ -9,6 +9,7 @@ import {
 	CircleCheck,
 	CircleDot,
 	CircleX,
+	Eye,
 	GitBranch,
 	GitCommitHorizontal,
 	GitMerge,
@@ -343,6 +344,25 @@ function describe(
 							className="font-medium text-foreground"
 						>
 							{event.assignee.username}
+						</Link>
+					</>
+				),
+			};
+		case "review_requested":
+		case "review_request_removed":
+			return {
+				icon: Eye,
+				text: (
+					<>
+						{event.event === "review_requested"
+							? "requested a review from"
+							: "removed the review request for"}{" "}
+						<Link
+							to="/$owner"
+							params={{ owner: event.reviewer.username }}
+							className="font-medium text-foreground"
+						>
+							{event.reviewer.username}
 						</Link>
 					</>
 				),

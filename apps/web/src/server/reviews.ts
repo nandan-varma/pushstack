@@ -13,6 +13,7 @@ import {
 	readWithAccess,
 	requireParticipateAccess,
 } from "./repo-access";
+import { clearReviewRequest } from "./review-request-store";
 import {
 	assertReviewAnchor,
 	buildReviewThreads,
@@ -251,6 +252,7 @@ export const submitReview = createServerFn({ method: "POST" })
 					.returning();
 				if (!submitted) throw new Error("That review was already submitted");
 
+				await clearReviewRequest(pr.id, currentUser.id);
 				await recordTimelineEvent(pr.id, currentUser.id, {
 					event: "reviewed",
 					state,

@@ -59,6 +59,13 @@ export const relations = defineRelations(
 				optional: false,
 			}),
 		},
+		pullRequestReviewRequests: {
+			user: r.one.user({
+				from: r.pullRequestReviewRequests.userId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
 		pullRequests: {
 			issue: r.one.issues({
 				from: r.pullRequests.issueId,
