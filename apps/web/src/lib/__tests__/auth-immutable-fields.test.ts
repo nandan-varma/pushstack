@@ -22,6 +22,12 @@ vi.mock("#/db", async () => ({
 
 vi.mock("../email", () => ({ sendEmail: vi.fn(async () => undefined) }));
 
+// Load Better Auth, build its context and boot the database (pglite) at
+// collection, so the first test is not charged with that startup (about 4s
+// idle; past 5s under a full parallel run).
+await (await import("../auth")).auth.$context;
+await import("#/db/index");
+
 describe("immutable user fields", () => {
 	it.each(["repo", "users", "RePo", "UsErS"])(
 		"rejects reserved username %s through the auth handler",

@@ -26,7 +26,7 @@ pnpm dev:local     # fully local dev server: pglite + on-disk git under apps/web
 pnpm build         # all builds; the web app's is the Vercel build (nitro's "vercel" preset)
 pnpm typecheck     # tsc --noEmit everywhere
 pnpm test          # vitest everywhere (web: unit + behavior, jsdom/node)
-pnpm smoke:git     # native git CLI against the app's smart-HTTP route (scratch HOME; never touches your git config)
+pnpm smoke:git     # native git CLI against smart-HTTP, stock gh against REST + GraphQL over loopback HTTPS (scratch HOME/GH_CONFIG_DIR; never touches your config)
 pnpm check         # biome lint + format check, whole repo
 pnpm lint          # cached workspace Biome checks; shared config invalidates the cache
 pnpm format        # biome format (write)
@@ -44,7 +44,7 @@ One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-acce
 
 ## Architecture
 
-**Framework**: TanStack Start (file-based SSR router, server functions via `createServerFn`). Routes in `src/routes/`; API routes under `src/routes/api/` are thin — git smart HTTP is served at GitHub's clone URL by `$owner.$name.info.refs.ts`, `$owner.$name.git-upload-pack.ts` and `$owner.$name.git-receive-pack.ts` (calling `git-http.ts`'s `serveGitRequest`), raw files at `$owner.$name.raw.$branch.$.ts` (calling `raw.ts`'s `serveRawFile`), and `api/v3.$.ts` calls `server/api/index.ts`'s `handleApiRequest`.
+**Framework**: TanStack Start (file-based SSR router, server functions via `createServerFn`). Routes in `src/routes/`; API routes under `src/routes/api/` are thin — git smart HTTP is served at GitHub's clone URL by `$owner.$name.info.refs.ts`, `$owner.$name.git-upload-pack.ts` and `$owner.$name.git-receive-pack.ts` (calling `git-http.ts`'s `serveGitRequest`), raw files at `$owner.$name.raw.$branch.$.ts` (calling `raw.ts`'s `serveRawFile`), `api/v3.$.ts` calls `server/api/index.ts`'s `handleApiRequest`, and `api/graphql.ts` calls `server/graphql/index.ts`'s `handleGraphqlRequest`.
 
 **Git**: isomorphic-git on R2, through our workspace packages `git-fs-s3` (fs + ops + smart-HTTP; `packages/git-fs-s3`) and `git-edge` (three-way merge; `packages/git-edge`). No native git, no local disk: every read and write goes straight to R2. Writes go through `git-fs-s3`'s packed writes (each write lands as one pack, before any ref moves), so nothing ever writes loose objects.
 
@@ -75,6 +75,7 @@ One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-acce
 - `tokens.ts` — PATs (`pst_` + random bytes, shown once; only the SHA-256 is stored). Scopes `repo:read` | `repo:write` (write implies read).
 - `raw.ts` — GitHub's raw URL, `/{owner}/{repo}/raw/{ref}/{path}`: file bytes, ref and path validated, streamed.
 - `api/` — the GitHub-compatible REST API at `/api/v3` (see `apps/docs/content/docs/api/index.md`, the compatibility matrix). `index.ts` dispatches through an exhaustive operation-to-handler map; `routing.ts` compiles its paths from `@pushstack/api-contract/client` (add an endpoint in the contract plus its handler in the map); `auth.ts` (`token`/`Bearer` PATs via `git-auth.ts`'s `authenticateToken`), `http.ts` (GitHub-shaped errors, `Link` pagination, URL builders), `serializers.ts` (GitHub JSON shapes), `repo-lookup.ts` (`readableRepository`: unreadable = 404), one module per resource (`users`, `repos`, `branches`, `tags`). Handlers call plain server modules, never `createServerFn`s.
+- `graphql/` — GitHub's GraphQL API at `/api/graphql` (POST, PAT required; what stock `gh` calls; see `apps/docs/content/docs/api/graphql.md`). The schema is GitHub's own SDL, vendored per domain: `schema/<domain>.subset.json` lists the types/fields served, `scripts/graphql-vendor.mjs` generates `schema/<domain>.graphql` (never edit it), `resolvers/<domain>.ts` resolves them (`core`, `repository`, `issues`, `pulls` — disjoint, so domains are filled in parallel). `limits.ts` bounds pagination, node count and depth before execution and computes the cost metered in the `graphql` rate bucket; `connection.ts` is the Connection shape with opaque cursors; `node-id.ts` is GitHub's legacy node id (the REST `node_id`); `errors.ts` is GitHub's `{type, path, message}`. Unreadable = `null` + `NOT_FOUND`. `__fixtures__/gh/` holds the documents gh really sends (`GH_CAPTURE_FIXTURES=1 pnpm smoke:git`); `graphql-fixtures.test.ts` validates all and executes the served ones.
 - `repository-create.ts` — `createRepositoryForUser`, shared by the `createRepository` server function and the API.
 - `perf-log.ts` — request-scoped timing: wrap a read handler in `perfContext`, awaited sub-calls in `perfStep`; prints one tree per request when enabled (always in dev; `PUSHSTACK_PERF_LOG=1` in prod; `localStorage["pushstack:perf-log"] = "1"` in a browser). `logError`/`logWarn` always log and feed Sentry — use them, not `console.error`.
 - `session.ts` — `getCurrentUser()` (throws) / `getCurrentUserOptional()`; `SessionUser.username` is always set.

@@ -11,6 +11,9 @@ vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb(),
 }));
 
+// Boot the database (pglite) at collection, not inside the first test that
+// takes the repo lock: under a loaded full run that boot alone can pass 5s.
+await import("#/db");
 const { gitFs } = await import("../git-fs");
 const { getCommitLog, getTree } = await import("../git-read");
 const { initBareRepo, repackRepositoryNow, repoFor } = await import(

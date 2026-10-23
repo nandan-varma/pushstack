@@ -129,6 +129,10 @@ const repoListSort = z
 	.catch(undefined);
 
 export const endpoints = defineEndpoints({
+	/** URL templates for the endpoints served, keyed as on GitHub. */
+	"meta/root": {
+		response: z.record(z.string().regex(/_url$/), z.string()),
+	},
 	"rate-limit/get": {
 		response: rateLimitOverview,
 	},

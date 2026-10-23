@@ -147,6 +147,7 @@ export const rateLimitStorage: RateLimitStorage = {
 export type RateLimitResource =
 	| "core"
 	| "core-write"
+	| "graphql"
 	| "git"
 	| "git-write"
 	| "auth-failure";
@@ -251,6 +252,9 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 				: config.RATE_LIMIT_API_ANONYMOUS;
 		case "core-write":
 			return config.RATE_LIMIT_API_WRITE;
+		// GitHub's GraphQL budget is points (query cost), same size as core's.
+		case "graphql":
+			return config.RATE_LIMIT_API_AUTHENTICATED;
 		case "git":
 			return kind === "user"
 				? config.RATE_LIMIT_GIT_READ_AUTHENTICATED
@@ -291,7 +295,67 @@ function toStatus(
 }
 
 /**
- * Count one request against `resource` for `who` and report the bucket.
+ * Buckets this instance has seen over their limit, with the window's reset
+ * (epoch seconds). Counters only grow within a window, so an exhausted bucket
+ * stays exhausted until its reset: denying from memory is exact and costs no
+ * database round trip or handler work. It is per instance: the first
+ * over-limit request each instance sees (and any that were in flight with it)
+ * still ran its read handler concurrently with the count, and that result is
+ * discarded. Bounded; entries lapse at their reset.
+ */
+const EXHAUSTED_MAX = 5_000;
+const exhaustedBuckets = new Map<string, number>();
+
+function rememberExhausted(
+	resource: RateLimitResource,
+	who: RateIdentity,
+	reset: number,
+): void {
+	const key = bucketKey(resource, who);
+	exhaustedBuckets.delete(key);
+	exhaustedBuckets.set(key, reset);
+	while (exhaustedBuckets.size > EXHAUSTED_MAX) {
+		const oldest = exhaustedBuckets.keys().next().value;
+		if (oldest === undefined) break;
+		exhaustedBuckets.delete(oldest);
+	}
+}
+
+/** Test-only: forget remembered exhaustion to simulate a window rollover. */
+export function resetRateLimitMemory(): void {
+	exhaustedBuckets.clear();
+}
+
+/**
+ * The exhausted bucket for `resource`/`who` if this instance already saw it
+ * over its limit in the current window (no database), else null.
+ */
+export function knownExhausted(
+	resource: RateLimitResource,
+	who: RateIdentity,
+): RateStatus | null {
+	const key = bucketKey(resource, who);
+	const reset = exhaustedBuckets.get(key);
+	if (reset === undefined) return null;
+	if (reset <= Math.floor(Date.now() / 1000)) {
+		exhaustedBuckets.delete(key);
+		return null;
+	}
+	const limit = limitFor(resource, who.kind);
+	return {
+		resource,
+		limit,
+		used: limit,
+		remaining: 0,
+		reset,
+		exceeded: true,
+		identity: describeIdentity(who),
+	};
+}
+
+/**
+ * Count one request (or `amount` points: a GraphQL query's cost) against
+ * `resource` for `who` and report the bucket.
  *
  * Fails open: this is abuse mitigation, not authorization, so a limiter error
  * (database down, table missing) logs and serves the request (returns null)
@@ -301,17 +365,18 @@ function toStatus(
 export async function hitRateLimit(
 	resource: RateLimitResource,
 	who: RateIdentity,
+	amount = 1,
 ): Promise<RateStatus | null> {
 	const window = config.RATE_LIMIT_WINDOW_SECONDS;
 	try {
 		const result = await db.execute<StatusRow>(sql`
 			insert into rate_limits (key, count, window_started_at)
-			values (${bucketKey(resource, who)}, 1, now())
+			values (${bucketKey(resource, who)}, ${amount}, now())
 			on conflict (key) do update set
 				count = case
 					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
-						then 1
-					else rate_limits.count + 1
+						then ${amount}
+					else rate_limits.count + ${amount}
 				end,
 				window_started_at = case
 					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
@@ -323,7 +388,9 @@ export async function hitRateLimit(
 				extract(epoch from (window_started_at + make_interval(secs => ${window})))::bigint as reset
 		`);
 		await pruneExpiredCounters();
-		return toStatus(resource, who, result.rows[0]);
+		const status = toStatus(resource, who, result.rows[0]);
+		if (status.exceeded) rememberExhausted(resource, who, status.reset);
+		return status;
 	} catch (error) {
 		logWarn("rate-limit", "Request limiter failed; serving the request", error);
 		return null;
@@ -366,7 +433,9 @@ export function rateLimitHeaders(status: RateStatus): Record<string, string> {
 		"X-RateLimit-Resource":
 			status.resource === "git" || status.resource === "git-write"
 				? "git"
-				: "core",
+				: status.resource === "graphql"
+					? "graphql"
+					: "core",
 	};
 	if (status.exceeded) {
 		headers["Retry-After"] = String(

@@ -17,6 +17,10 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `RepackOptions.packDirectory` lets a lock-holding caller pass the
   `objects/pack` entries it already listed; `applyReceivePack` uses it so the
   post-push repack check no longer lists the pack directory again.
+### Added
+
+- `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees
+  compared directly) and `getMergeBaseOid` from `git-fs-s3/ops`.
 
 ## [0.19.1] - 2026-10-22
 

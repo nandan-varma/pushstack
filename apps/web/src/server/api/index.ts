@@ -3,7 +3,7 @@ import { isNotFoundError } from "git-fs-s3";
 import { DiffLimitError } from "git-fs-s3/ops";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
-import type { ApiContext } from "./auth";
+import { type ApiContext, oauthScopesHeader } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import {
 	createComment,
@@ -52,6 +52,7 @@ import {
 	setIssueLabels,
 	updateLabel,
 } from "./labels";
+import { getRoot } from "./meta";
 import {
 	deleteThreadSubscription,
 	getThread,
@@ -77,6 +78,8 @@ import {
 import {
 	applyRateHeaders,
 	authenticateMetered,
+	canOverlapMetering,
+	denyIfKnownExhausted,
 	getRateLimit,
 	meterApiRequest,
 	RateLimitedError,
@@ -103,6 +106,7 @@ import { getAuthenticatedUser, getUser, getUserById } from "./users";
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
 const HANDLERS = {
+	"meta/root": getRoot,
 	"rate-limit/get": getRateLimit,
 	"users/get-authenticated": getAuthenticatedUser,
 	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
@@ -228,16 +232,30 @@ async function dispatch(
 		// everywhere, as on GitHub.
 		const caller = await authenticateMetered(request);
 		// /rate_limit reports the buckets and is never counted, as on GitHub.
-		if (matched?.id !== "rate-limit/get") {
-			rate = await meterApiRequest(request, caller);
+		const metered = matched?.id !== "rate-limit/get";
+		if (metered) denyIfKnownExhausted(request, caller);
+		if (!matched) {
+			if (metered) rate = await meterApiRequest(request, caller);
+			throw notFoundError();
 		}
-		if (!matched) throw notFoundError();
-		const response = await HANDLERS[matched.id]({
-			request,
-			url,
-			params: matched.params,
-			caller,
-		});
+		const handle = async () =>
+			HANDLERS[matched.id]({ request, url, params: matched.params, caller });
+		let response: Response;
+		if (metered && canOverlapMetering(request)) {
+			// Safe reads run while the count is in flight, saving a serial
+			// database round trip. An over-limit result discards the work, so
+			// the handler may run once per instance before the bucket is known
+			// exhausted; after that the caller is refused above, before it runs.
+			const handling = handle();
+			handling.catch(() => {});
+			rate = await meterApiRequest(request, caller);
+			response = await handling;
+		} else {
+			if (metered) rate = await meterApiRequest(request, caller);
+			response = await handle();
+		}
+		const scopes = caller && oauthScopesHeader(caller.scopes);
+		if (scopes) response.headers.set("X-OAuth-Scopes", scopes);
 		return applyRateHeaders(
 			isHead
 				? new Response(null, {

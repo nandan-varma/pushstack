@@ -1,0 +1,13 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh repo view HOST/octo/hello --json name,nameWithOwner,owner,description,isPrivate,visibility,defaultBranchRef,url,viewerPermission,createdAt,isEmpty,stargazerCount,hasIssuesEnabled",
+	"requests": [
+		{
+			"query": "query RepositoryInfo($owner: String!, $name: String!) {\n\t\trepository(owner: $owner, name: $name) {name,nameWithOwner,owner{id,login},description,isPrivate,visibility,defaultBranchRef{name},url,viewerPermission,createdAt,isEmpty,stargazerCount,hasIssuesEnabled}\n\t}",
+			"variables": {
+				"name": "hello",
+				"owner": "octo"
+			}
+		}
+	]
+}
