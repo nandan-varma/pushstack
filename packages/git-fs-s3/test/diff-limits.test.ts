@@ -162,7 +162,9 @@ describe("diff work budgets", () => {
 			metric: "files",
 			limit: MAX_DIFF_FILES,
 		});
-	});
+		// Inherently heavy: only committing MAX_DIFF_FILES + 1 files crosses the
+		// default budget (about 3.7s idle, past 5s under a full parallel run).
+	}, 30_000);
 	it.each([-1, NaN, Infinity, 0.5])(
 		"rejects invalid work limits %s",
 		async (maxFiles) => {
