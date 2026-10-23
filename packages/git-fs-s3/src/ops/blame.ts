@@ -280,7 +280,7 @@ export async function getBlame(
 			...parents.map((p) => (p ? blobOidAt(p) : null)),
 		]);
 		// A parent with the identical file owns every line (git prefers it).
-		const same = parentOids.findIndex((oid) => oid === commitOid);
+		const same = parentOids.indexOf(commitOid);
 		const sameParent = same >= 0 ? parents[same] : undefined;
 		if (sameParent) {
 			passDown(sameParent, pend);

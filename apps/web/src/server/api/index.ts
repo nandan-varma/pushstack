@@ -125,9 +125,15 @@ import {
 } from "./reactions";
 import {
 	createAuthenticatedUserRepository,
+	deleteRepositoryHandler,
+	generateFromTemplate,
 	getRepository,
+	getTopics,
 	listAuthenticatedUserRepositories,
 	listUserRepositories,
+	replaceTopics,
+	transferRepositoryHandler,
+	updateRepositoryHandler,
 } from "./repos";
 import { matchApiRoute } from "./routing";
 import { listTags } from "./tags";
@@ -174,6 +180,12 @@ const HANDLERS = {
 	"activity/mark-thread-as-read": markThreadRead,
 	"activity/mark-thread-as-done": markThreadDone,
 	"repos/get": getRepository,
+	"repos/update": updateRepositoryHandler,
+	"repos/delete": deleteRepositoryHandler,
+	"repos/get-all-topics": getTopics,
+	"repos/replace-all-topics": replaceTopics,
+	"repos/transfer": transferRepositoryHandler,
+	"repos/create-using-template": generateFromTemplate,
 	"activity/list-watchers-for-repo": listRepoWatchers,
 	"activity/get-repo-subscription": getRepoSubscriptionForCaller,
 	"activity/set-repo-subscription": putRepoSubscription,

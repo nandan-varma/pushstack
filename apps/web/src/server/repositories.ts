@@ -3,43 +3,40 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
+import { issues, repositoryCollaborators, stars } from "#/db/app-schema";
 import {
-	issues,
-	repositories,
-	repositoryCollaborators,
-	stars,
-} from "#/db/app-schema";
-import { MAX_LIST_SKIP, MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
+	MAX_LIST_SKIP,
+	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+	MAX_REPO_TOPIC_CHARS,
+	MAX_REPO_TOPICS,
+} from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
+import { parseTopics } from "#/lib/topics";
 import { recordActivity } from "./activity";
-import { isUniqueViolation } from "./db-errors";
 import { safeBranchNameSchema } from "./git-ref-name";
-import {
-	deleteRepositoryStorage,
-	renameRepositoryStorage,
-	repackRepositoryNow,
-} from "./git-repo";
-import { withRepositoryLock } from "./git-repo-lock";
+import { repackRepositoryNow } from "./git-repo";
 import { ownerKeyOf } from "./git-storage-naming";
-import { setDefaultBranch } from "./git-write";
-import { logError, perfContext, perfStep } from "./perf-log";
+import { perfContext, perfStep } from "./perf-log";
 import {
-	canModerateRepo,
 	canReadRepo,
 	getAccessForRepository,
+	getRepositoryAccess,
 	invalidateRepositoryAccess,
 	requireOwner,
 } from "./repo-access";
 import {
 	createRepositoryForUser,
 	createRepositoryInputSchema,
+	generateRepositoryFromTemplate,
 	repoNameSchema,
 } from "./repository-create";
+import { findRepositoryByName, publicUserFields } from "./repository-lookup";
 import {
-	evictRepoByName,
-	findRepositoryByName,
-	publicUserFields,
-} from "./repository-lookup";
+	deleteRepositoryAndStorage,
+	transferRepository,
+	updateRepositorySettings,
+} from "./repository-settings";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { getRepoSubscription, watcherCounts } from "./watch-store";
 
@@ -165,10 +162,16 @@ export const updateRepository = createServerFn({ method: "POST" })
 			id: z.number(),
 			name: repoNameSchema.optional(),
 			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).optional(),
+			homepage: z.string().trim().max(MAX_REPO_HOMEPAGE_CHARS).optional(),
 			visibility: z.enum(["public", "private"]).optional(),
 			showLastCommitColumn: z.boolean().optional(),
 			autoRefreshPrDiffs: z.boolean().optional(),
 			defaultBranch: safeBranchNameSchema.optional(),
+			archived: z.boolean().optional(),
+			isTemplate: z.boolean().optional(),
+			hasIssues: z.boolean().optional(),
+			hasWiki: z.boolean().optional(),
+			hasProjects: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ data }) => {
@@ -178,52 +181,87 @@ export const updateRepository = createServerFn({ method: "POST" })
 			currentUser.id,
 			"Only the repository owner can change settings",
 		);
-		const ownerKey = ownerKeyOf(repo);
-		const { id, name, ...settings } = data;
+		const { id, ...patch } = data;
+		return updateRepositorySettings(repo, patch);
+	});
 
-		// HEAD before the row, so the row never names a branch git lacks.
-		if (
-			settings.defaultBranch &&
-			settings.defaultBranch !== repo.defaultBranch
-		) {
-			await setDefaultBranch(ownerKey, repo.name, settings.defaultBranch);
+export const setRepositoryTopics = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			id: z.number(),
+			topics: z.array(z.string().trim().toLowerCase()).max(MAX_REPO_TOPICS * 2),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const repo = await requireOwner(
+			data.id,
+			currentUser.id,
+			"Only the repository owner can change topics",
+		);
+		const { topics, invalid, tooMany } = parseTopics(data.topics);
+		if (invalid.length > 0) {
+			throw new Error(
+				`Invalid topic: ${invalid[0]}. Use lowercase letters, numbers and hyphens (up to ${MAX_REPO_TOPIC_CHARS} characters).`,
+			);
 		}
+		if (tooMany) {
+			throw new Error(
+				`A repository can have at most ${MAX_REPO_TOPICS} topics`,
+			);
+		}
+		await updateRepositorySettings(repo, { topics });
+		return { topics };
+	});
 
-		const update = () =>
-			db
-				.update(repositories)
-				.set({ ...settings, ...(name && { name }), updatedAt: new Date() })
-				.where(eq(repositories.id, id))
-				.returning()
-				.then(([row]) => row)
-				.catch((error: unknown) => {
-					if (isUniqueViolation(error)) {
-						throw new Error("Repository with this name already exists");
-					}
-					throw error;
-				});
+export const transferRepositoryToUser = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			id: z.number(),
+			newOwner: usernameSchema,
+			newName: repoNameSchema.optional(),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const repo = await requireOwner(
+			data.id,
+			currentUser.id,
+			"Only the repository owner can transfer it",
+		);
+		const target = await db.query.user.findFirst({
+			columns: { id: true, username: true },
+			where: { username: data.newOwner },
+		});
+		if (!target) throw new Error(`User "${data.newOwner}" not found`);
+		const updated = await transferRepository(repo, target, data.newName);
+		return { ...updated, owner: { username: target.username } };
+	});
 
-		// A rename moves the storage (keyed by name) and the row in one lock span,
-		// so nothing observes a half-renamed repository.
-		const isRename = !!name && name !== repo.name;
-		const updated = isRename
-			? await withRepositoryLock(ownerKey, repo.name, async () => {
-					await renameRepositoryStorage(ownerKey, repo.name, name);
-					try {
-						return await update();
-					} catch (error) {
-						await renameRepositoryStorage(ownerKey, name, repo.name);
-						throw error;
-					}
-				})
-			: await update();
-
-		evictRepoByName(ownerKey, repo.name, id);
-		if (isRename) evictRepoByName(ownerKey, name, id);
-		// A visibility flip changes who may read the repository, and the access
-		// cache is keyed per (repo, user) — drop every entry for it.
-		if (settings.visibility !== undefined) invalidateRepositoryAccess(id);
-		return updated;
+export const generateRepository = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			templateId: z.number(),
+			name: repoNameSchema,
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).optional(),
+			visibility: z.enum(["public", "private"]).default("public"),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const access = await getRepositoryAccess(data.templateId, currentUser.id);
+		if (!access?.canRead || !access.repository.isTemplate) throw notFound();
+		const template = await db.query.repositories.findFirst({
+			where: { id: data.templateId },
+			with: { owner: publicUserFields },
+		});
+		if (!template) throw notFound();
+		const repo = await generateRepositoryFromTemplate(template, currentUser, {
+			name: data.name,
+			description: data.description,
+			visibility: data.visibility,
+		});
+		return { ...repo, owner: { username: currentUser.username } };
 	});
 
 export const deleteRepository = createServerFn({ method: "POST" })
@@ -235,23 +273,7 @@ export const deleteRepository = createServerFn({ method: "POST" })
 			currentUser.id,
 			"Only the repository owner can delete it",
 		);
-		const ownerKey = ownerKeyOf(repo);
-
-		// The row first (cascading to issues, PRs, …): once it's gone nothing
-		// resolves this repository, so a failed storage cleanup only leaves
-		// unreachable objects, which the next create under this name clears.
-		await db.delete(repositories).where(eq(repositories.id, data.id));
-		evictRepoByName(ownerKey, repo.name, data.id);
-		invalidateRepositoryAccess(data.id);
-		await withRepositoryLock(ownerKey, repo.name, () =>
-			deleteRepositoryStorage(ownerKey, repo.name),
-		).catch((error: unknown) =>
-			logError(
-				"repositories",
-				`Repository ${repo.id} deleted, but its storage cleanup failed`,
-				error,
-			),
-		);
+		await deleteRepositoryAndStorage(repo);
 	});
 
 export const repackRepository = createServerFn({ method: "POST" })
@@ -300,7 +322,8 @@ export const getCollaborators = createServerFn({ method: "GET" })
 	.validator(z.object({ repoId: z.number() }))
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		if (!(await canModerateRepo(data.repoId, currentUser.id))) {
+		const access = await getRepositoryAccess(data.repoId, currentUser.id);
+		if (access?.role !== "owner" && access?.role !== "admin") {
 			throw new Error("Access denied");
 		}
 		return db.query.repositoryCollaborators.findMany({
