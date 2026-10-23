@@ -32,6 +32,7 @@ pnpm lint          # cached workspace Biome checks; shared config invalidates th
 pnpm format        # biome format (write)
 pnpm db:push       # push the schema to Neon — the only migration path (no migration files)
 pnpm db:studio     # drizzle studio UI
+pnpm --filter @pushstack/web graphql:codegen   # regenerate GraphQL resolver types (resolvers/generated.ts, committed; a test checks it is current)
 ```
 
 One workspace: `pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts`, `pnpm --filter git-fs-s3 test`, `pnpm --filter @pushstack/web test:e2e`. After editing a library while `pnpm dev` runs, rebuild it (`pnpm exec turbo run build --filter=git-fs-s3`) and restart the dev server.
