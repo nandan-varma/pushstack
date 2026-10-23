@@ -26,6 +26,8 @@ export const publicUser = z.strictObject({
 	name: z.string().nullable(),
 	email: z.string().nullable(),
 	public_repos: count,
+	followers: count,
+	following: count,
 	created_at: timestamp,
 	updated_at: timestamp,
 });
@@ -55,7 +57,11 @@ export const repository = z.strictObject({
 	archived: z.boolean(),
 	disabled: z.boolean(),
 	stargazers_count: count,
+	/** Stars, as on GitHub (people watching are `subscribers_count`). */
 	watchers_count: count,
+	watchers: count,
+	/** People watching; only `GET /repos/{owner}/{repo}` carries it. */
+	subscribers_count: count.optional(),
 	forks_count: count,
 	/** Open issues and open pull requests combined, as on GitHub. */
 	open_issues_count: count,
@@ -611,6 +617,16 @@ export const threadSubscription = z.strictObject({
 	created_at: timestamp,
 	url,
 	thread_url: url,
+});
+
+/** The caller's subscription to a repository (watching or ignoring it). */
+export const repositorySubscription = z.strictObject({
+	subscribed: z.boolean(),
+	ignored: z.boolean(),
+	reason: z.string().nullable(),
+	created_at: timestamp,
+	url,
+	repository_url: url,
 });
 
 /** `POST …/git/blobs`. */

@@ -57,7 +57,9 @@ import {
 	reaction,
 	reactionContent,
 	repository,
+	repositorySubscription,
 	shortBranch,
+	simpleUser,
 	stateReason,
 	tag,
 	threadSubscription,
@@ -93,6 +95,8 @@ const commitIdentity = z.object({
 });
 
 const threadParams = z.object({ thread_id: positiveInt });
+const usernameParams = z.object({ username: z.string() });
+const followTargetParams = usernameParams.extend({ target_user: z.string() });
 const isoDate = z.iso.datetime({ offset: true });
 /** GitHub's notification list parameters; `per_page` tops out at 50. */
 const notificationQuery = z.object({
@@ -175,6 +179,24 @@ export const endpoints = defineEndpoints({
 		}),
 		response: repository,
 	},
+	"users/list-followers-for-authenticated-user": {
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/list-followed-by-authenticated-user": {
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/check-person-is-followed-by-authenticated": {
+		params: usernameParams,
+		response: noContent,
+	},
+	"users/follow": { params: usernameParams, response: noContent },
+	"users/unfollow": { params: usernameParams, response: noContent },
+	"activity/list-watched-repos-for-authenticated-user": {
+		query: pagination,
+		response: z.array(repository),
+	},
 	"users/get-by-id": {
 		params: z.object({ account_id: positiveInt }),
 		response: publicUser,
@@ -186,6 +208,26 @@ export const endpoints = defineEndpoints({
 	"repos/list-for-user": {
 		params: z.object({ username: z.string() }),
 		query: pagination.extend({ sort: repoListSort, direction }),
+		response: z.array(repository),
+	},
+
+	"users/list-followers-for-user": {
+		params: usernameParams,
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/list-following-for-user": {
+		params: usernameParams,
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"users/check-following-for-user": {
+		params: followTargetParams,
+		response: noContent,
+	},
+	"activity/list-repos-watched-by-user": {
+		params: usernameParams,
+		query: pagination,
 		response: z.array(repository),
 	},
 
@@ -225,6 +267,27 @@ export const endpoints = defineEndpoints({
 	"repos/get": {
 		params: repoParams,
 		response: repository,
+	},
+	"activity/list-watchers-for-repo": {
+		params: repoParams,
+		query: pagination,
+		response: z.array(simpleUser),
+	},
+	"activity/get-repo-subscription": {
+		params: repoParams,
+		response: repositorySubscription,
+	},
+	"activity/set-repo-subscription": {
+		params: repoParams,
+		body: z.object({
+			subscribed: z.boolean().optional(),
+			ignored: z.boolean().optional(),
+		}),
+		response: repositorySubscription,
+	},
+	"activity/delete-repo-subscription": {
+		params: repoParams,
+		response: noContent,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		params: repoParams,
