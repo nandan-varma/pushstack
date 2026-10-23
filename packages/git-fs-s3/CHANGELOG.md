@@ -34,7 +34,10 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   most of these were refused only as "incomplete object graph" after a retry
   delay, and an empty name was accepted. Every tree in the push's own pack is checked,
   reachable or not (an unreferenced bad tree cannot be parked for a later push);
-  older trees the walk passes through are not.
+  older trees the walk passes through are not. An object whose type
+  cannot be read from its header is read and checked too, and rejected as
+  unreadable if that fails. Names with a backslash (`a\\b`) are refused as
+  unsafe because isomorphic-git cannot parse them, although git allows them.
   `collectReachableOids` takes `{ checkTreeNames: Set<oid> }` and returns
   `invalidTreeEntry`.
 

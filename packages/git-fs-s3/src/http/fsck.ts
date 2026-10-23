@@ -70,14 +70,20 @@ export async function findInvalidTree(
 	oids: Iterable<string>,
 ): Promise<string | null> {
 	const types = await getObjectTypes(repo, [...oids]);
-	const trees = [...types].filter(([, type]) => type === "tree");
+	// A type the headers could not give (null) fails closed: the object is
+	// read and checked if it is a tree, and rejected if it cannot be read.
+	const candidates = [...types].filter(
+		([, type]) => type === "tree" || type === null,
+	);
 	const reads = createSemaphore(16);
 	let found: string | null = null;
 	await Promise.all(
-		trees.map(([oid]) =>
+		candidates.map(([oid, type]) =>
 			reads.run(async () => {
+				if (found) return;
 				try {
 					const obj = await git.readObject({ ...repo, oid });
+					if (obj.type !== "tree") return;
 					for (const entry of obj.object as { path: string }[]) {
 						const problem = treeEntryNameProblem(entry.path);
 						if (problem) {
@@ -94,7 +100,7 @@ export async function findInvalidTree(
 						found ??= `object ${oid}: ${problem?.id ?? "hasUnsafeName"}: ${problem?.message ?? `contains unsafe name '${name}'`}`;
 						return;
 					}
-					found ??= `object ${oid}: unreadable tree`;
+					found ??= `object ${oid}: unreadable ${type === "tree" ? "tree" : "object"}`;
 				}
 			}),
 		),
