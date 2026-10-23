@@ -440,6 +440,7 @@ function PullRequestDetailPage() {
 										<>
 											{pr.status === "open" && (
 												<MergeBox
+													repoId={repo?.id}
 													canMerge={canMerge}
 													sourceBranch={pr.sourceBranch}
 													targetBranch={pr.targetBranch}
@@ -539,6 +540,7 @@ function PullRequestDetailPage() {
 							<CommitList
 								owner={owner}
 								name={name}
+								repoId={repo?.id}
 								commits={prCommits.commits}
 							/>
 							{prCommits.incomplete ? (

@@ -293,6 +293,116 @@ export const commitComments = pgTable(
 );
 
 /**
+ * A commit status (GitHub's `POST /repos/{o}/{r}/statuses/{sha}`): one report
+ * of an external CI for a commit and `context`. Rows are append-only; the
+ * current status of a context is its newest row (highest id).
+ */
+export const commitStatuses = pgTable(
+	"commit_statuses",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		sha: text("sha").notNull(),
+		context: text("context").notNull(),
+		state: text("state", {
+			enum: ["error", "failure", "pending", "success"],
+		}).notNull(),
+		targetUrl: text("target_url"),
+		description: text("description"),
+		creatorId: text("creator_id")
+			.notNull()
+			.references(() => user.id),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoShaContextIdx: index("commit_status_repo_sha_context_idx").on(
+			table.repoId,
+			table.sha,
+			table.context,
+			table.id,
+		),
+	}),
+);
+
+/**
+ * A check suite: the group of check runs reported for one commit. PushStack
+ * has no GitHub Apps, so a commit has at most one suite (per repository).
+ */
+export const checkSuites = pgTable(
+	"check_suites",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		headSha: text("head_sha").notNull(),
+		/** The branch the caller named when creating the suite, if any. */
+		headBranch: text("head_branch"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoShaIdx: uniqueIndex("check_suite_repo_sha_idx").on(
+			table.repoId,
+			table.headSha,
+		),
+	}),
+);
+
+/** A check run (GitHub's checks API) reported by an external CI. */
+export const checkRuns = pgTable(
+	"check_runs",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		suiteId: integer("suite_id")
+			.notNull()
+			.references(() => checkSuites.id, { onDelete: "cascade" }),
+		/** The full 40-character commit sha, lowercase. */
+		headSha: text("head_sha").notNull(),
+		name: text("name").notNull(),
+		externalId: text("external_id"),
+		detailsUrl: text("details_url"),
+		status: text("status", {
+			enum: ["queued", "in_progress", "completed"],
+		}).notNull(),
+		conclusion: text("conclusion", {
+			enum: [
+				"action_required",
+				"cancelled",
+				"failure",
+				"neutral",
+				"success",
+				"skipped",
+				"stale",
+				"timed_out",
+			],
+		}),
+		startedAt: timestamptz("started_at"),
+		completedAt: timestamptz("completed_at"),
+		outputTitle: text("output_title"),
+		outputSummary: text("output_summary"),
+		outputText: text("output_text"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoShaIdx: index("check_run_repo_sha_idx").on(
+			table.repoId,
+			table.headSha,
+			table.id,
+		),
+		suiteIdx: index("check_run_suite_idx").on(table.suiteId, table.id),
+	}),
+);
+
+/**
  * A user's reaction (GitHub's `content`: `+1`, `heart`, …) to an issue or pull
  * request (`comment_id` null) or to one of its comments. `issue_id` is always
  * the thread, so a thread's rollups are one indexed read. One row per user,

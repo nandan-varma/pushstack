@@ -1,6 +1,7 @@
 import { GitMerge } from "lucide-react";
 import type { ReactNode } from "react";
 import { Panel, PanelFooter } from "@/components/layout/panel";
+import { CommitChecks } from "@/components/repo/Checks";
 
 /**
  * The merge decision at the foot of an open pull request's conversation:
@@ -11,11 +12,14 @@ export function MergeBox({
 	sourceBranch,
 	targetBranch,
 	action,
+	repoId,
 }: {
 	canMerge: boolean;
 	sourceBranch: string;
 	targetBranch: string;
 	action?: ReactNode;
+	/** With it, the CI results for the source branch's tip show above the button. */
+	repoId?: number;
 }) {
 	return (
 		<Panel className="border-success-border">
@@ -36,6 +40,9 @@ export function MergeBox({
 					</p>
 				</div>
 			</div>
+			{repoId !== undefined && (
+				<CommitChecks repoId={repoId} rev={sourceBranch} embedded />
+			)}
 			{canMerge && action && <PanelFooter>{action}</PanelFooter>}
 		</Panel>
 	);

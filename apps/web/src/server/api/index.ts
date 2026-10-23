@@ -7,6 +7,19 @@ import { downloadTarball, downloadZipball } from "./archive";
 import { type ApiContext, oauthScopesHeader } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import {
+	createCheckRunHandler,
+	createCheckSuiteHandler,
+	createCommitStatusHandler,
+	getCheckRunHandler,
+	getCheckSuiteHandler,
+	getCombinedStatusForRef,
+	listCheckRunsForRef,
+	listCheckRunsForSuite,
+	listCheckSuitesForRef,
+	listCommitStatusesForRef,
+	updateCheckRunHandler,
+} from "./checks";
+import {
 	createComment,
 	deleteComment,
 	getComment,
@@ -144,6 +157,17 @@ const HANDLERS = {
 	"repos/delete-commit-comment": deleteCommitCommentHandler,
 	"repos/list-comments-for-commit": listCommentsForCommit,
 	"repos/create-commit-comment": createCommitCommentHandler,
+	"repos/create-commit-status": createCommitStatusHandler,
+	"repos/list-commit-statuses-for-ref": listCommitStatusesForRef,
+	"repos/get-combined-status-for-ref": getCombinedStatusForRef,
+	"checks/create": createCheckRunHandler,
+	"checks/get": getCheckRunHandler,
+	"checks/update": updateCheckRunHandler,
+	"checks/create-suite": createCheckSuiteHandler,
+	"checks/get-suite": getCheckSuiteHandler,
+	"checks/list-for-suite": listCheckRunsForSuite,
+	"checks/list-for-ref": listCheckRunsForRef,
+	"checks/list-suites-for-ref": listCheckSuitesForRef,
 	"repos/get-commit": getCommitDetail,
 	"repos/compare-commits-with-basehead": compareCommits,
 	"git/get-ref": getRef,

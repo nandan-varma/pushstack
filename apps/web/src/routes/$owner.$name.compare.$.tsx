@@ -260,6 +260,7 @@ function ComparePage() {
 						<CommitList
 							owner={owner}
 							name={name}
+							repoId={repo?.id}
 							commits={comparison.commits}
 							header={
 								<h2 className="text-sm font-semibold text-bjork-text-strong">
