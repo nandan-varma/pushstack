@@ -1,6 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Copy, Download, FileCode, Link2 } from "lucide-react";
+import {
+	Check,
+	Copy,
+	Download,
+	FileCode,
+	Link2,
+	UserRound,
+} from "lucide-react";
 import { lazy, Suspense } from "react";
 import {
 	FileCommitBanner,
@@ -227,6 +234,11 @@ function FileBlobPage() {
 										fileName={fileName}
 										content={file.kind === "text" ? file.content : undefined}
 										permalink={permalink}
+										blame={
+											file.kind === "text"
+												? { owner, name, branch, path: filePath }
+												: undefined
+										}
 									/>
 								}
 							>
@@ -309,11 +321,14 @@ function FileActions({
 	fileName,
 	content,
 	permalink,
+	blame,
 }: {
 	rawUrl: string;
 	fileName: string;
 	content?: string;
 	permalink?: string;
+	/** Text files only: where the blame view of this file lives. */
+	blame?: { owner: string; name: string; branch: string; path: string };
 }) {
 	const contentCopy = useCopyToClipboard();
 	const linkCopy = useCopyToClipboard();
@@ -330,6 +345,22 @@ function FileActions({
 				>
 					{contentCopy.copied ? <Check className="text-success" /> : <Copy />}
 				</button>
+			)}
+			{blame && (
+				<Link
+					to="/$owner/$name/blame/$branch/$"
+					params={{
+						owner: blame.owner,
+						name: blame.name,
+						branch: blame.branch,
+						_splat: blame.path,
+					}}
+					className={iconButton}
+					aria-label="Blame"
+					title="Blame"
+				>
+					<UserRound />
+				</Link>
 			)}
 			<button
 				type="button"

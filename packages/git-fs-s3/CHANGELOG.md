@@ -3,6 +3,17 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `getBlame(repo, { ref, filePath, maxDepth? }, hooks?)` in `/ops`: line ranges
+  grouped by the commit that introduced them, following the first-parent chain.
+  Work is bounded (1 MiB file, 20,000 lines, 16 MiB of blob reads, 400 commits);
+  oversized or binary files throw `BlameLimitError` (406) and ranges beyond the
+  depth budget come back flagged `boundary`. Memoized per head commit and path
+  under the new `blame:` result-key prefix.
+
 ## [0.19.1] - 2026-10-22
 
 ### Fixed

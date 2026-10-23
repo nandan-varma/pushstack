@@ -7,6 +7,8 @@ import {
 } from "git-fs-s3";
 import {
 	BANNER_WALK_DEPTH,
+	BlameLimitError,
+	type BlameResult,
 	type CommitInfo,
 	type CommitSummary,
 	type DiffResult,
@@ -20,6 +22,7 @@ import {
 	listTags,
 	type OpsHooks,
 	analyzeMerge as opsAnalyzeMerge,
+	getBlame as opsGetBlame,
 	getCommit as opsGetCommit,
 	getCommitDiff as opsGetCommitDiff,
 	getCommitHistory as opsGetCommitHistory,
@@ -298,6 +301,35 @@ export async function getFileHistory(
 		{ ref, filePath, limit, maxDepth: HISTORY_WALK_DEPTH },
 		hooks,
 	);
+}
+
+/** A blame, or the reason this file can't be blamed within the work budget. */
+export type BlameView =
+	| ({ kind: "blame" } & BlameResult)
+	| { kind: "too-large"; metric: "bytes" | "lines"; limit: number }
+	| { kind: "binary" };
+
+export async function getBlame(
+	ownerKey: string,
+	repoName: string,
+	ref: string,
+	filePath: string,
+): Promise<BlameView> {
+	try {
+		const blame = await opsGetBlame(
+			repoFor(ownerKey, repoName),
+			{ ref, filePath },
+			opsHooksFor(ownerKey, repoName),
+		);
+		return { kind: "blame", ...blame };
+	} catch (err) {
+		if (err instanceof BlameLimitError) {
+			return err.metric === "binary"
+				? { kind: "binary" }
+				: { kind: "too-large", metric: err.metric, limit: err.limit };
+		}
+		throw err;
+	}
 }
 
 export function getCommitDiff(

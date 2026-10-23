@@ -1,4 +1,16 @@
 export {
+	type BlameCommit,
+	BlameLimitError,
+	type BlameLimitMetric,
+	type BlameOptions,
+	type BlameRange,
+	type BlameResult,
+	getBlame,
+	MAX_BLAME_BYTES,
+	MAX_BLAME_FILE_BYTES,
+	MAX_BLAME_LINES,
+} from "./blame.js";
+export {
 	assertBranchExists,
 	assertSafeBranchName,
 	type Branch,
