@@ -15,7 +15,9 @@ import {
 	getCommitDiff,
 	getCommitHistory,
 	getCommitsBetween,
+	getDirectDiff,
 	getFileHistory,
+	getMergeBase,
 } from "../git-read";
 import { safeCommitRevSchema, safeRepoPathSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -303,7 +305,9 @@ export async function compareCommits(ctx: ApiContext) {
 			baseInfo.oid,
 			MAX_HISTORY_WALK,
 		),
-		getBranchDiff(ownerKey, repo.name, baseInfo.oid, headInfo.oid),
+		separator === ".."
+			? getDirectDiff(ownerKey, repo.name, baseInfo.oid, headInfo.oid)
+			: getBranchDiff(ownerKey, repo.name, baseInfo.oid, headInfo.oid),
 	]);
 	const aheadBy = ahead.commits.length;
 	const behindBy = behind.commits.length;
@@ -340,8 +344,12 @@ export async function compareCommits(ctx: ApiContext) {
 		}
 		return mediaResponse(sections.join(""), format, TEXT);
 	}
-	const mergeBase = diff.oldRef
-		? await getCommit(ownerKey, repo.name, diff.oldRef)
+	const mergeBaseOid =
+		separator === ".."
+			? await getMergeBase(ownerKey, repo.name, baseInfo.oid, headInfo.oid)
+			: diff.oldRef;
+	const mergeBase = mergeBaseOid
+		? await getCommit(ownerKey, repo.name, mergeBaseOid)
 		: baseInfo;
 
 	// Without pagination parameters GitHub returns up to 250 commits; with
@@ -364,13 +372,13 @@ export async function compareCommits(ctx: ApiContext) {
 		mergeBase.oid,
 		...commits.map((info) => info.oid),
 	]);
-	const spec = `${encodePath(base)}...${encodePath(head)}`;
+	const spec = `${encodePath(base)}${separator}${encodePath(head)}`;
 	return json(
 		{
 			url: apiUrl(`/repos/${fullName}/compare/${spec}`),
 			html_url: htmlUrl(`/${fullName}/compare/${spec}`),
 			permalink_url: htmlUrl(
-				`/${fullName}/compare/${baseInfo.oid}...${headInfo.oid}`,
+				`/${fullName}/compare/${baseInfo.oid}${separator}${headInfo.oid}`,
 			),
 			diff_url: htmlUrl(`/${fullName}/compare/${spec}.diff`),
 			patch_url: htmlUrl(`/${fullName}/compare/${spec}.patch`),

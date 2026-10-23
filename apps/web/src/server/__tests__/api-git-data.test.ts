@@ -230,6 +230,30 @@ describe("compare", () => {
 		expect(body.files[0].status).toBe("added");
 	});
 
+	it("diffs the tips directly for a two-dot comparison", async () => {
+		const { status, body } = await call(
+			"/repos/alice/proj/compare/main..topic",
+		);
+		expect(status).toBe(200);
+		expect(body).toMatchObject({
+			status: "diverged",
+			ahead_by: 1,
+			behind_by: 1,
+			url: `${BASE}/repos/alice/proj/compare/main..topic`,
+			diff_url: `${WEB}/alice/proj/compare/main..topic.diff`,
+			merge_base_commit: { sha: second },
+		});
+		expect(
+			body.files.map((f: { filename: string; status: string }) => [
+				f.filename,
+				f.status,
+			]),
+		).toEqual([
+			["b.txt", "added"],
+			["c.txt", "removed"],
+		]);
+	});
+
 	it("reports ahead, behind and identical", async () => {
 		const ahead = await call(`/repos/alice/proj/compare/${first}...main`);
 		expect(ahead.body).toMatchObject({

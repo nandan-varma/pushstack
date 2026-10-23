@@ -3,6 +3,13 @@
 Releases of `git-fs-s3`, derived from this repository's release history. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees
+  compared directly) and `getMergeBaseOid` from `git-fs-s3/ops`.
+
 ## [0.19.1] - 2026-10-22
 
 ### Fixed
