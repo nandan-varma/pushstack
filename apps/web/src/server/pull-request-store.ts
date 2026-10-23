@@ -79,6 +79,7 @@ export async function insertPullRequest(
 		actorId: userId,
 		actorReason: "author",
 		text: pr.body,
+		newThread: true,
 	});
 	await recordActivity(userId, repoId, {
 		type: "pr",

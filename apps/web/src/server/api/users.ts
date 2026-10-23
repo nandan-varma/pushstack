@@ -3,6 +3,7 @@ import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
+import { followCounts } from "../watch-store";
 import { type ApiContext, requireCaller } from "./auth";
 import { json, notFoundError } from "./http";
 import { pathParams } from "./input";
@@ -21,7 +22,17 @@ async function repositoryCounts(ownerId: string) {
 	return { publicRepos: of("public"), privateRepos: of("private") };
 }
 
-const serialize = (row: UserRow, publicRepos: number) =>
+async function userFollowCounts(userId: string) {
+	return (
+		(await followCounts([userId])).get(userId) ?? { followers: 0, following: 0 }
+	);
+}
+
+const serialize = (
+	row: UserRow,
+	publicRepos: number,
+	follow: { followers: number; following: number },
+) =>
 	publicUser(
 		{
 			id: row.id,
@@ -32,7 +43,7 @@ const serialize = (row: UserRow, publicRepos: number) =>
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		},
-		{ publicRepos },
+		{ publicRepos, ...follow },
 	);
 
 /** `GET /user`: the token's owner, with their private repository counts. */
@@ -40,9 +51,12 @@ export async function getAuthenticatedUser(ctx: ApiContext) {
 	const { userId } = requireCaller(ctx);
 	const [row] = await db.select().from(user).where(eq(user.id, userId));
 	if (!row) throw notFoundError();
-	const counts = await repositoryCounts(row.id);
+	const [counts, follow] = await Promise.all([
+		repositoryCounts(row.id),
+		userFollowCounts(row.id),
+	]);
 	return json({
-		...serialize(row, counts.publicRepos),
+		...serialize(row, counts.publicRepos, follow),
 		total_private_repos: counts.privateRepos,
 		owned_private_repos: counts.privateRepos,
 	});
@@ -53,8 +67,11 @@ export async function getUserById(ctx: ApiContext) {
 	const { account_id: apiId } = pathParams(ctx, "users/get-by-id");
 	const [row] = await db.select().from(user).where(eq(user.apiId, apiId));
 	if (!row) throw notFoundError();
-	const counts = await repositoryCounts(row.id);
-	return json(serialize(row, counts.publicRepos));
+	const [counts, follow] = await Promise.all([
+		repositoryCounts(row.id),
+		userFollowCounts(row.id),
+	]);
+	return json(serialize(row, counts.publicRepos, follow));
 }
 
 export async function getUser(ctx: ApiContext) {
@@ -62,6 +79,9 @@ export async function getUser(ctx: ApiContext) {
 	if (!STORAGE_NAME_RE.test(username)) throw notFoundError();
 	const [row] = await db.select().from(user).where(eq(user.username, username));
 	if (!row) throw notFoundError();
-	const counts = await repositoryCounts(row.id);
-	return json(serialize(row, counts.publicRepos));
+	const [counts, follow] = await Promise.all([
+		repositoryCounts(row.id),
+		userFollowCounts(row.id),
+	]);
+	return json(serialize(row, counts.publicRepos, follow));
 }

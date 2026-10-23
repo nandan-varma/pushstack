@@ -41,6 +41,7 @@ import {
 	type ThreadSubscriptionState,
 } from "#/lib/notifications";
 import { canReadRepositoryCondition } from "./repo-access";
+import { ignoringUsers, watcherIds } from "./watch-store";
 
 export interface ThreadActivity {
 	thread: { id: number; repoId: number };
@@ -55,7 +56,16 @@ export interface ThreadActivity {
 	direct?: { userIds: string[]; reason: NotificationReason };
 	/** Whether the thread's subscribers hear about it (default true). */
 	notifySubscribers?: boolean;
+	/** A just-opened issue or pull request: the repository's watchers hear about it. */
+	newThread?: boolean;
 }
+
+/** What still reaches someone who ignores the repository. */
+const DIRECT_REASONS: ReadonlySet<NotificationReason> = new Set([
+	"mention",
+	"assign",
+	"review_requested",
+]);
 
 /** Ranks a recipient's reasons: the most direct one names the notification. */
 const REASON_RANK: Record<NotificationReason, number> = {
@@ -139,7 +149,18 @@ export async function recordThreadActivity(
 							)
 					).map((row) => row.id),
 				);
-	const newSubscriptions = involved.filter((i) => readers.has(i.userId));
+	// Watchers (all activity) hear about a new thread and follow it from then on.
+	const watching = new Set(
+		activity.newThread
+			? (await watcherIds(thread.repoId)).filter((id) => id !== actorId)
+			: [],
+	);
+	const newSubscriptions = [
+		...involved.filter((i) => readers.has(i.userId)),
+		...[...watching]
+			.filter((userId) => !involved.some((i) => i.userId === userId))
+			.map((userId) => ({ userId, reason: "subscribed" as const })),
+	];
 	if (newSubscriptions.length > 0) {
 		// An existing row wins: it keeps its first reason and an explicit
 		// unsubscribe stays one.
@@ -168,6 +189,13 @@ export async function recordThreadActivity(
 		for (const s of subscribers) offer(s.userId, s.reason);
 	}
 	for (const s of newSubscriptions) offer(s.userId, s.reason);
+	// Someone who ignores the repository hears only what is addressed to them.
+	const ignoring = await ignoringUsers(thread.repoId, [...reasons.keys()]);
+	for (const [userId, reason] of reasons) {
+		if (ignoring.has(userId) && !DIRECT_REASONS.has(reason)) {
+			reasons.delete(userId);
+		}
+	}
 	if (reasons.size === 0) return;
 
 	const now = new Date();
