@@ -17,6 +17,7 @@ import {
 	gitFs,
 	moveRepoStorage,
 	registerRepoGitdir,
+	transferRepoStorage,
 } from "./git-fs";
 import { withRepositoryLock } from "./git-repo-lock";
 import { getRepoGitStorageRoot } from "./git-storage-naming";
@@ -90,6 +91,18 @@ export async function renameRepositoryStorage(
 	await moveRepoStorage(ownerKey, oldRepoName, newRepoName);
 	invalidateRepoCache(ownerKey, oldRepoName);
 	invalidateRepoCache(ownerKey, newRepoName);
+}
+
+/** Move storage to another owner (a transfer). Callers hold both repo locks. */
+export async function transferRepositoryStorage(
+	oldOwnerKey: string,
+	oldRepoName: string,
+	newOwnerKey: string,
+	newRepoName: string,
+): Promise<void> {
+	await transferRepoStorage(oldOwnerKey, oldRepoName, newOwnerKey, newRepoName);
+	invalidateRepoCache(oldOwnerKey, oldRepoName);
+	invalidateRepoCache(newOwnerKey, newRepoName);
 }
 
 /**

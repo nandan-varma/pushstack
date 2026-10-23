@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { desc } from "drizzle-orm";
+import { and, desc, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
+import { parseRepositoryQuery } from "#/lib/topics";
 import { listUserActivity } from "./activity";
 import { containing } from "./db-filters";
 import { perfContext } from "./perf-log";
@@ -13,14 +14,27 @@ const searchSchema = z.object({
 	limit: z.number().int().min(1).max(100).default(20),
 });
 
-/** Repositories by name: public ones, plus the caller's own private ones. */
+/**
+ * Repositories by name or `topic:` qualifier: public ones, plus the caller's
+ * own private ones.
+ */
 export const searchRepositories = createServerFn({ method: "GET" })
 	.validator(searchSchema)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUserOptional();
+		const { text, topics } = parseRepositoryQuery(data.query);
 		return db.query.repositories.findMany({
 			where: {
-				name: { ilike: containing(data.query) },
+				...(text && { name: { ilike: containing(text) } }),
+				...(topics.length > 0 && {
+					RAW: (table) =>
+						and(
+							...topics.map(
+								(topic) =>
+									sql`${table.topics} @> ${JSON.stringify([topic])}::jsonb`,
+							),
+						) as SQL,
+				}),
 				OR: [
 					{ visibility: "public" },
 					...(currentUser ? [{ ownerId: currentUser.id }] : []),

@@ -36,6 +36,16 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"activity/mark-thread-as-done":
 		"`204`: the thread leaves the inbox until new activity",
 	"repos/get": "",
+	"repos/update":
+		"owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`; other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts",
+	"repos/delete": "owner only (`403` otherwise); `204`",
+	"repos/get-all-topics": "",
+	"repos/replace-all-topics":
+		"`names` (at most 20, lowercase letters, digits and hyphens, at most 50 characters each; invalid is `422`)",
+	"repos/transfer":
+		"`new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` ignored; the old URL does not redirect",
+	"repos/create-using-template":
+		"the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` is ignored; issues, labels, topics and settings are not copied",
 	"activity/list-repo-notifications-for-authenticated-user":
 		"as `GET /notifications`, for one repository",
 	"activity/mark-repo-notifications-as-read":

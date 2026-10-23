@@ -45,6 +45,16 @@ export const repositories = pgTable(
 			.notNull()
 			.default("public"),
 		defaultBranch: text("default_branch").notNull().default("main"),
+		/** Read-only: pushes and every write (issues, comments, PRs) are refused. */
+		archived: boolean("archived").notNull().default(false),
+		homepage: text("homepage"),
+		/** Lowercase, at most 20 (`MAX_REPO_TOPICS`). */
+		topics: jsonb("topics").$type<string[]>().notNull().default([]),
+		isTemplate: boolean("is_template").notNull().default(false),
+		/** No wiki or projects exist yet, so these default off (GitHub: on). */
+		hasIssues: boolean("has_issues").notNull().default(true),
+		hasWiki: boolean("has_wiki").notNull().default(false),
+		hasProjects: boolean("has_projects").notNull().default(false),
 		/** The tree view's per-file "last commit" column — a history walk per view, so opt-in. */
 		showLastCommitColumn: boolean("show_last_commit_column")
 			.notNull()

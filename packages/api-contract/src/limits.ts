@@ -14,6 +14,9 @@ export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 export const MAX_LABELS_PER_THREAD = 100;
 export const MAX_ASSIGNEES = 10;
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
+export const MAX_REPO_HOMEPAGE_CHARS = 255;
+export const MAX_REPO_TOPICS = 20;
+export const MAX_REPO_TOPIC_CHARS = 50;
 export const MAX_STORAGE_NAME_LENGTH = 100;
 
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */

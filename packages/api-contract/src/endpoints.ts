@@ -27,6 +27,9 @@ import {
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+	MAX_REPO_TOPIC_CHARS,
+	MAX_REPO_TOPICS,
 } from "./limits";
 import {
 	blob,
@@ -79,6 +82,7 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 }
 
 const noContent = z.null();
+const topicList = z.strictObject({ names: z.array(z.string()) });
 
 /** Entries one `POST …/git/trees` may carry (the request body cap binds first). */
 const MAX_TREE_ENTRIES = 10_000;
@@ -224,6 +228,58 @@ export const endpoints = defineEndpoints({
 	},
 	"repos/get": {
 		params: repoParams,
+		response: repository,
+	},
+	"repos/update": {
+		params: repoParams,
+		body: z.object({
+			name: repoName.optional(),
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
+			homepage: z.string().trim().max(MAX_REPO_HOMEPAGE_CHARS).nullish(),
+			private: z.boolean().optional(),
+			visibility: z.enum(["public", "private"]).optional(),
+			has_issues: z.boolean().optional(),
+			has_projects: z.boolean().optional(),
+			has_wiki: z.boolean().optional(),
+			is_template: z.boolean().optional(),
+			default_branch: z.string().optional(),
+			archived: z.boolean().optional(),
+		}),
+		response: repository,
+	},
+	"repos/delete": {
+		params: repoParams,
+		response: noContent,
+	},
+	"repos/get-all-topics": {
+		params: repoParams,
+		response: topicList,
+	},
+	"repos/replace-all-topics": {
+		params: repoParams,
+		body: z.object({
+			names: z.array(z.string().max(MAX_REPO_TOPIC_CHARS)).max(MAX_REPO_TOPICS),
+		}),
+		response: topicList,
+	},
+	"repos/transfer": {
+		params: repoParams,
+		body: z.object({
+			new_owner: z.string().min(1),
+			new_name: repoName.optional(),
+			team_ids: z.array(z.number().int()).optional(),
+		}),
+		response: repository,
+	},
+	"repos/create-using-template": {
+		params: z.object({ template_owner: z.string(), template_repo: z.string() }),
+		body: z.object({
+			owner: z.string().optional(),
+			name: repoName,
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
+			include_all_branches: z.boolean().default(false),
+			private: z.boolean().default(false),
+		}),
 		response: repository,
 	},
 	"activity/list-repo-notifications-for-authenticated-user": {

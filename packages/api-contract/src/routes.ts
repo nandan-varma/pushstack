@@ -109,6 +109,39 @@ export const routes = {
 		path: "/repos/{owner}/{repo}",
 		docs: `${DOCS}/repos/repos#get-a-repository`,
 	},
+	"repos/update": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}",
+		docs: `${DOCS}/repos/repos#update-a-repository`,
+	},
+	"repos/delete": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}",
+		docs: `${DOCS}/repos/repos#delete-a-repository`,
+		status: 204,
+	},
+	"repos/get-all-topics": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/topics",
+		docs: `${DOCS}/repos/repos#get-all-repository-topics`,
+	},
+	"repos/replace-all-topics": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/topics",
+		docs: `${DOCS}/repos/repos#replace-all-repository-topics`,
+	},
+	"repos/transfer": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/transfer",
+		docs: `${DOCS}/repos/repos#transfer-a-repository`,
+		status: 202,
+	},
+	"repos/create-using-template": {
+		method: "POST",
+		path: "/repos/{template_owner}/{template_repo}/generate",
+		docs: `${DOCS}/repos/repos#create-a-repository-using-a-template`,
+		status: 201,
+	},
 	"activity/list-repo-notifications-for-authenticated-user": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/notifications",
