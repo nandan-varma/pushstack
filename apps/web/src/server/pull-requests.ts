@@ -19,6 +19,7 @@ import {
 	deleteHeadBranch,
 	insertPullRequest,
 	mergePullRequestBranches,
+	setPullRequestDraft,
 	updatePullRequestFields,
 } from "./pull-request-store";
 import { readInput, threadNumberSchema } from "./read-input";
@@ -49,6 +50,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			sourceBranchName: safeBranchNameSchema,
 			targetBranchName: safeBranchNameSchema,
+			draft: z.boolean().optional(),
 		}),
 	)
 	.handler(({ data }) =>
@@ -69,6 +71,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 				body: data.body,
 				sourceBranch: data.sourceBranchName,
 				targetBranch: data.targetBranchName,
+				draft: data.draft ?? false,
 			});
 		}),
 	);
@@ -194,6 +197,26 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 		});
 	});
 
+/**
+ * Mark a draft ready for review (`draft: false`) or convert an open pull
+ * request back to a draft (`draft: true`): the author or anyone with write
+ * access, as on GitHub.
+ */
+export const setPullRequestDraftState = createServerFn({ method: "POST" })
+	.validator(z.object({ prId: z.number(), draft: z.boolean() }))
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const pr = await findPullRequestById(data.prId);
+		if (!pr) throw notFound();
+		if (
+			pr.authorId !== currentUser.id &&
+			!(await canWriteRepo(pr.repoId, currentUser.id))
+		) {
+			throw new Error("Access denied");
+		}
+		return setPullRequestDraft(pr, currentUser.id, data.draft);
+	});
+
 export const mergePullRequest = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
@@ -209,6 +232,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		if (pr.status !== "open") throw new Error("Pull request is not open");
+		if (pr.isDraft) throw new Error("Draft pull requests can't be merged");
 		// GitHub blocks the merge while a reviewer's latest review requested
 		// changes; an owner/admin may override, as GitHub's admin permission can.
 		if (

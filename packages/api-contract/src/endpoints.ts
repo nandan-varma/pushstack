@@ -586,6 +586,7 @@ export const endpoints = defineEndpoints({
 			body: threadBody.nullish(),
 			head: z.string().min(1).max(300),
 			base: z.string().min(1).max(300),
+			draft: z.boolean().optional(),
 		}),
 		response: pullRequest,
 	},

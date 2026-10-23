@@ -388,6 +388,7 @@ export async function createPull(ctx: ApiContext) {
 		body: data.body ?? undefined,
 		sourceBranch,
 		targetBranch,
+		draft: data.draft ?? false,
 	});
 	const record = await findPull(repo.id, created.number);
 	if (!record) throw new Error("Pull request missing after insert");
@@ -470,7 +471,7 @@ export async function mergePull(ctx: ApiContext) {
 			`${data.merge_method === "squash" ? "Squash merges" : "Rebase merges"} are not allowed on this repository.`,
 		);
 	}
-	if (pr.status !== "open") throw notMergeable();
+	if (pr.status !== "open" || pr.isDraft) throw notMergeable();
 	const headModified = () =>
 		new ApiError(
 			409,

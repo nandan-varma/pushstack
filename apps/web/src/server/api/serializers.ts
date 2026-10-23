@@ -359,6 +359,8 @@ export function timelineEvent(
 				},
 			};
 		case "head_ref_deleted":
+		case "ready_for_review":
+		case "convert_to_draft":
 			return { ...base, event: entry.event };
 		case "renamed":
 			return {
@@ -534,7 +536,7 @@ export function pullRequest(
 			},
 		},
 		auto_merge: null,
-		draft: false,
+		draft: row.isDraft,
 	};
 	if (!detail) return simple;
 	return {
