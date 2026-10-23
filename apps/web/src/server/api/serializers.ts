@@ -20,6 +20,7 @@ import type {
 	CheckSuiteRow,
 	CommitStatusRow,
 } from "../check-store";
+import { encodeNodeId } from "../graphql/node-id";
 import type { MilestoneView } from "../milestone-store";
 import type { ReactionWithUser } from "../reaction-store";
 import type { PublicUser } from "../repository-lookup";
@@ -170,6 +171,92 @@ export function label(
 			(d) => d.name.toLowerCase() === value.name.toLowerCase(),
 		),
 		description: value.description,
+	};
+}
+
+export interface ReleaseAssetShapeInput {
+	id: number;
+	name: string;
+	label: string | null;
+	state: "open" | "uploaded";
+	contentType: string;
+	size: number;
+	downloadCount: number;
+	createdAt: Date;
+	updatedAt: Date;
+	uploader: PublicUser | null;
+}
+
+export function releaseAsset(
+	repo: { fullName: string },
+	tagName: string,
+	asset: ReleaseAssetShapeInput,
+): Shape<"releaseAsset"> {
+	return {
+		url: apiUrl(`/repos/${repo.fullName}/releases/assets/${asset.id}`),
+		browser_download_url: htmlUrl(
+			`/${repo.fullName}/releases/download/${encodePath(tagName)}/${encodeURIComponent(asset.name)}`,
+		),
+		id: asset.id,
+		node_id: encodeNodeId("ReleaseAsset", asset.id),
+		name: asset.name,
+		label: asset.label,
+		state: asset.state,
+		content_type: asset.contentType,
+		size: asset.size,
+		download_count: asset.downloadCount,
+		created_at: isoTimestamp(asset.createdAt),
+		updated_at: isoTimestamp(asset.updatedAt),
+		uploader: asset.uploader ? simpleUser(asset.uploader) : null,
+	};
+}
+
+export interface ReleaseShapeInput {
+	id: number;
+	tagName: string;
+	targetCommitish: string;
+	name: string | null;
+	body: string | null;
+	draft: boolean;
+	prerelease: boolean;
+	createdAt: Date;
+	publishedAt: Date | null;
+	author: PublicUser;
+	assets: ReleaseAssetShapeInput[];
+}
+
+export function release(
+	repo: { fullName: string },
+	value: ReleaseShapeInput,
+): Shape<"release"> {
+	const api = `/repos/${repo.fullName}/releases/${value.id}`;
+	return {
+		url: apiUrl(api),
+		html_url: htmlUrl(
+			`/${repo.fullName}/releases/tag/${encodePath(value.tagName)}`,
+		),
+		assets_url: apiUrl(`${api}/assets`),
+		upload_url: `${apiUrl(`${api}/assets`)}{?name,label}`,
+		tarball_url: apiUrl(
+			`/repos/${repo.fullName}/tarball/${encodePath(value.tagName)}`,
+		),
+		zipball_url: apiUrl(
+			`/repos/${repo.fullName}/zipball/${encodePath(value.tagName)}`,
+		),
+		id: value.id,
+		node_id: encodeNodeId("Release", value.id),
+		tag_name: value.tagName,
+		target_commitish: value.targetCommitish,
+		name: value.name,
+		body: value.body,
+		draft: value.draft,
+		prerelease: value.prerelease,
+		created_at: isoTimestamp(value.createdAt),
+		published_at: value.publishedAt ? isoTimestamp(value.publishedAt) : null,
+		author: simpleUser(value.author),
+		assets: value.assets.map((asset) =>
+			releaseAsset(repo, value.tagName, asset),
+		),
 	};
 }
 

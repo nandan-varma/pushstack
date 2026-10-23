@@ -36,6 +36,42 @@ export function getRepoGitStoragePrefix(
 	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
 }
 
+/**
+ * Release assets live beside the git data, under
+ * `repos/{ownerKey}/{repoName}/releases/`, keyed by the asset's immutable id
+ * (its name and label are editable and may hold any character).
+ */
+export function getRepoReleaseStoragePrefix(
+	ownerKey: string,
+	repoName: string,
+): string {
+	return `repos/${segment(ownerKey, "owner")}/${segment(repoName, "repository name")}/releases/`;
+}
+
+/**
+ * Where a presigned upload lands. `finish` copies the verified object to
+ * {@link getReleaseAssetKey} and deletes this one, so a `PUT` replayed to the
+ * (still valid) URL after `finish` cannot change a published asset.
+ */
+export function getReleaseAssetUploadKey(
+	ownerKey: string,
+	repoName: string,
+	assetId: number,
+): string {
+	return `${getRepoReleaseStoragePrefix(ownerKey, repoName)}uploads/${getReleaseAssetKey(ownerKey, repoName, assetId).split("/").at(-1)}`;
+}
+
+export function getReleaseAssetKey(
+	ownerKey: string,
+	repoName: string,
+	assetId: number,
+): string {
+	if (!Number.isSafeInteger(assetId) || assetId <= 0) {
+		throw new Error(`Invalid release asset id for storage: ${assetId}`);
+	}
+	return `${getRepoReleaseStoragePrefix(ownerKey, repoName)}${assetId}`;
+}
+
 export interface RepoGitStorageKey {
 	ownerKey: string;
 	repoName: string;

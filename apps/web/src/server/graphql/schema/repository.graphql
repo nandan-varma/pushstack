@@ -419,6 +419,10 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 	"""
 	isTemplate: Boolean!
 	"""
+	Get the latest release for the repository if one exists.
+	"""
+	latestRelease: Release
+	"""
 	Whether or not PRs are merged with a merge commit on this repository.
 	"""
 	mergeCommitAllowed: Boolean!
@@ -473,6 +477,40 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 		"""
 		qualifiedName: String!
 	): Ref
+	"""
+	Lookup a single release given various criteria.
+	"""
+	release(
+		"""
+		The name of the Tag the Release was created from
+		"""
+		tagName: String!
+	): Release
+	"""
+	List of releases which are dependent on this repository.
+	"""
+	releases(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		Order for connection
+		"""
+		orderBy: ReleaseOrder
+	): ReleaseConnection!
 	"""
 	The HTTP path for this repository
 	"""
@@ -892,3 +930,248 @@ type CreateRepositoryPayload {
 Git SSH string
 """
 scalar GitSSHRemote
+
+"""
+A release contains the content for a release.
+"""
+type Release implements Node & UniformResourceLocatable {
+	"""
+	The author of the release
+	"""
+	author: User
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	Identifies the primary key from the database.
+	"""
+	databaseId: Int
+	"""
+	The description of the release.
+	"""
+	description: String
+	"""
+	The Node ID of the Release object
+	"""
+	id: ID!
+	"""
+	Whether or not the release is immutable
+	"""
+	immutable: Boolean!
+	"""
+	Whether or not the release is a draft
+	"""
+	isDraft: Boolean!
+	"""
+	Whether or not the release is the latest releast
+	"""
+	isLatest: Boolean!
+	"""
+	Whether or not the release is a prerelease
+	"""
+	isPrerelease: Boolean!
+	"""
+	The title of the release.
+	"""
+	name: String
+	"""
+	Identifies the date and time when the release was created.
+	"""
+	publishedAt: DateTime
+	"""
+	List of releases assets which are dependent on this release.
+	"""
+	releaseAssets(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		A name to filter the assets by.
+		"""
+		name: String
+	): ReleaseAssetConnection!
+	"""
+	The repository that the release belongs to.
+	"""
+	repository: Repository!
+	"""
+	The HTTP path for this issue
+	"""
+	resourcePath: URI!
+	"""
+	The name of the release's Git tag
+	"""
+	tagName: String!
+	"""
+	Identifies the date and time when the object was last updated.
+	"""
+	updatedAt: DateTime!
+	"""
+	The HTTP URL for this issue
+	"""
+	url: URI!
+}
+
+"""
+A release asset contains the content for a release asset.
+"""
+type ReleaseAsset implements Node {
+	"""
+	The asset's content-type
+	"""
+	contentType: String!
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	The number of times this asset was downloaded
+	"""
+	downloadCount: Int!
+	"""
+	Identifies the URL where you can download the release asset via the browser.
+	"""
+	downloadUrl: URI!
+	"""
+	The Node ID of the ReleaseAsset object
+	"""
+	id: ID!
+	"""
+	Identifies the title of the release asset.
+	"""
+	name: String!
+	"""
+	Release that the asset is associated with
+	"""
+	release: Release
+	"""
+	The size (in bytes) of the asset
+	"""
+	size: Int!
+	"""
+	Identifies the date and time when the object was last updated.
+	"""
+	updatedAt: DateTime!
+	"""
+	The user that performed the upload
+	"""
+	uploadedBy: User!
+	"""
+	Identifies the URL of the release asset.
+	"""
+	url: URI!
+}
+
+"""
+The connection type for Release.
+"""
+type ReleaseConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [ReleaseEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [Release]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type ReleaseEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: Release
+}
+
+"""
+The connection type for ReleaseAsset.
+"""
+type ReleaseAssetConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [ReleaseAssetEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [ReleaseAsset]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type ReleaseAssetEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: ReleaseAsset
+}
+
+"""
+Ways in which lists of releases can be ordered upon return.
+"""
+input ReleaseOrder {
+	"""
+	The direction in which to order releases by the specified field.
+	"""
+	direction: OrderDirection!
+	"""
+	The field in which to order releases by.
+	"""
+	field: ReleaseOrderField!
+}
+
+"""
+Properties by which release connections can be ordered.
+"""
+enum ReleaseOrderField {
+	"""
+	Order releases by creation time
+	"""
+	CREATED_AT
+	"""
+	Order releases alphabetically by name
+	"""
+	NAME
+}

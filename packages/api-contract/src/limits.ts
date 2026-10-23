@@ -31,6 +31,11 @@ export const MAX_LABELS_PER_THREAD = 100;
 export const MAX_MILESTONE_TITLE_CHARS = 256;
 export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;
 export const MAX_ASSIGNEES = 10;
+export const MAX_RELEASE_NAME_CHARS = 256;
+export const MAX_RELEASE_TAG_CHARS = 255;
+export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
+export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
+export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;
 /** GitHub: at most 15 users and 15 teams per request-reviewers call. */
 export const MAX_REVIEWERS_PER_REQUEST = 15;
 export const MAX_REPO_DESCRIPTION_CHARS = 500;

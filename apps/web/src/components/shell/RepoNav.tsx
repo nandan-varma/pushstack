@@ -4,6 +4,7 @@ import {
 	GitCompareArrowsIcon,
 	HistoryIcon,
 	SettingsIcon,
+	TagIcon,
 } from "@animateicons/react/lucide";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
@@ -141,6 +142,15 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					icon={HistoryIcon}
 					label="Commits"
 					active={commitsActive}
+				/>
+				<SidebarLink
+					to="/$owner/$name/releases"
+					params={{ owner, name }}
+					icon={TagIcon}
+					label="Releases"
+					active={Boolean(
+						matchRoute({ to: "/$owner/$name/releases", fuzzy: true }),
+					)}
 				/>
 				{isOwner && (
 					<SidebarLink

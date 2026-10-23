@@ -22,14 +22,20 @@ import {
 } from "git-fs-s3";
 import type { FetchS3ObjectStore } from "git-fs-s3/fetch-s3";
 import { FileObjectStore } from "git-fs-s3/node";
-import { createR2ObjectStoreFromEnv, isR2Configured } from "#/lib/r2";
+import {
+	createR2ObjectStoreFromEnv,
+	isR2Configured,
+	presignR2Put,
+} from "#/lib/r2";
 import { GIT_CACHE_MAX_BYTES, GIT_CACHE_TTL_MS } from "./config";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
+	getRepoReleaseStoragePrefix,
 	parseRepoGitStorageKey,
 } from "./git-storage-naming";
 import {
+	logError,
 	logWarn,
 	perfNote,
 	perfR2,
@@ -217,12 +223,16 @@ export function putStorageObject(key: string, data: Uint8Array): Promise<void> {
 	return networkStore.put(key, data);
 }
 
-/** Delete all of a repo's storage. Callers hold the repo lock. */
+/** Delete all of a repo's storage (git data and release assets). Callers hold the repo lock. */
 export async function deleteRepoStorage(
 	ownerKey: string,
 	repoName: string,
 ): Promise<void> {
 	await deletePrefix(networkStore, getRepoGitStoragePrefix(ownerKey, repoName));
+	await deletePrefix(
+		networkStore,
+		getRepoReleaseStoragePrefix(ownerKey, repoName),
+	);
 	invalidateRepoGitStorage(ownerKey, repoName);
 }
 
@@ -239,21 +249,71 @@ export async function moveRepoStorage(
 	await transferRepoStorage(ownerKey, oldRepoName, ownerKey, newRepoName);
 }
 
-/** {@link moveRepoStorage} across owners (a transfer): same copy-then-delete. */
+/**
+ * {@link moveRepoStorage} across owners (a transfer): same copy-then-delete,
+ * for the git data and the release assets, whose keys also derive from the
+ * owner and name.
+ */
 export async function transferRepoStorage(
 	oldOwnerKey: string,
 	oldRepoName: string,
 	newOwnerKey: string,
 	newRepoName: string,
 ): Promise<void> {
-	const oldPrefix = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
-	const newPrefix = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
 	const { r2 } = getBackend();
-	await movePrefix(networkStore, oldPrefix, newPrefix, {
-		copy: r2
-			? (from, to) => perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
-			: undefined,
-	});
+	const copy = r2
+		? (from: string, to: string) =>
+				perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
+		: undefined;
+	const gitFrom = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
+	const gitTo = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
+	await movePrefix(networkStore, gitFrom, gitTo, { copy });
+	try {
+		await movePrefix(
+			networkStore,
+			getRepoReleaseStoragePrefix(oldOwnerKey, oldRepoName),
+			getRepoReleaseStoragePrefix(newOwnerKey, newRepoName),
+			{ copy },
+		);
+	} catch (error) {
+		// Never leave the git data at the new name with the releases behind:
+		// the caller's row still names the old location.
+		try {
+			await movePrefix(networkStore, gitTo, gitFrom, { copy });
+		} catch (rollbackError) {
+			logError(
+				"git-fs",
+				`moving ${gitTo} back after a failed release move failed`,
+				rollbackError,
+			);
+		}
+		invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
+		invalidateRepoGitStorage(newOwnerKey, newRepoName);
+		throw error;
+	}
 	invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
 	invalidateRepoGitStorage(newOwnerKey, newRepoName);
 }
+
+/**
+ * Release-asset objects bypass the git cache (they are large and read once):
+ * straight to R2 through the retry layer.
+ */
+export const releaseAssetStorage = {
+	put: (key: string, data: Uint8Array) => networkStore.put(key, data),
+	delete: (key: string) => networkStore.delete(key),
+	head: (key: string) => networkStore.head(key),
+	/** Server-side on R2; read-and-write elsewhere (dev and tests only). */
+	copy: async (from: string, to: string) => {
+		const { r2 } = getBackend();
+		if (r2) return perfR2(`R2 COPY ${from}`, () => r2.copy(from, to));
+		const data = await networkStore.get(from);
+		if (!data) throw new Error(`Cannot copy missing object ${from}`);
+		await networkStore.put(to, data);
+	},
+	getRange: (key: string, start: number, end: number) =>
+		networkStore.getRange?.(key, start, end) ?? Promise.resolve(null),
+	/** A presigned PUT URL, or null when this deployment has no R2. */
+	presignPut: (key: string, ttlSeconds: number) =>
+		getBackend().r2 ? presignR2Put(key, ttlSeconds) : Promise.resolve(null),
+};

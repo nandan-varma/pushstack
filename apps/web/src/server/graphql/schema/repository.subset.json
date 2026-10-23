@@ -106,6 +106,7 @@
 		"isMirror",
 		"isPrivate",
 		"isTemplate",
+		"latestRelease",
 		"mergeCommitAllowed",
 		"mirrorUrl",
 		"name",
@@ -121,6 +122,14 @@
 		{
 			"name": "ref",
 			"args": ["qualifiedName"]
+		},
+		{
+			"name": "release",
+			"args": ["tagName"]
+		},
+		{
+			"name": "releases",
+			"args": ["after", "before", "first", "last", "orderBy"]
 		},
 		"resourcePath",
 		"squashMergeAllowed",
@@ -169,5 +178,52 @@
 	"RepositoryVisibility": "*",
 	"CreateRepositoryInput": "*",
 	"CreateRepositoryPayload": "*",
-	"GitSSHRemote": "*"
+	"GitSSHRemote": "*",
+	"Release": {
+		"$implements": ["Node", "UniformResourceLocatable"],
+		"fields": [
+			"author",
+			"createdAt",
+			"databaseId",
+			"description",
+			"id",
+			"immutable",
+			"isDraft",
+			"isLatest",
+			"isPrerelease",
+			"name",
+			"publishedAt",
+			{
+				"name": "releaseAssets",
+				"args": ["after", "before", "first", "last", "name"]
+			},
+			"repository",
+			"resourcePath",
+			"tagName",
+			"updatedAt",
+			"url"
+		]
+	},
+	"ReleaseAsset": {
+		"$implements": ["Node"],
+		"fields": [
+			"contentType",
+			"createdAt",
+			"downloadCount",
+			"downloadUrl",
+			"id",
+			"name",
+			"release",
+			"size",
+			"updatedAt",
+			"uploadedBy",
+			"url"
+		]
+	},
+	"ReleaseConnection": "*",
+	"ReleaseEdge": "*",
+	"ReleaseAssetConnection": "*",
+	"ReleaseAssetEdge": "*",
+	"ReleaseOrder": "*",
+	"ReleaseOrderField": "*"
 }

@@ -131,6 +131,34 @@ export const relations = defineRelations(
 				optional: false,
 			}),
 		},
+		releases: {
+			repository: r.one.repositories({
+				from: r.releases.repoId,
+				to: r.repositories.id,
+				optional: false,
+			}),
+			author: r.one.user({
+				from: r.releases.authorId,
+				to: r.user.id,
+				optional: false,
+			}),
+			assets: r.many.releaseAssets({
+				from: r.releases.id,
+				to: r.releaseAssets.releaseId,
+			}),
+		},
+		releaseAssets: {
+			release: r.one.releases({
+				from: r.releaseAssets.releaseId,
+				to: r.releases.id,
+				optional: false,
+			}),
+			uploader: r.one.user({
+				from: r.releaseAssets.uploaderId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
 		commitComments: {
 			repository: r.one.repositories({
 				from: r.commitComments.repoId,

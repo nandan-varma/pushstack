@@ -62,6 +62,11 @@ import type {
 	Ref,
 	UserRepositoriesArgs,
 } from "./generated";
+import {
+	releaseNodeLoaders,
+	releaseTypeResolvers,
+	repositoryReleaseFields,
+} from "./releases";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 type Role = "owner" | "admin" | "write" | "read" | "anonymous";
@@ -539,7 +544,9 @@ export const repositoryResolvers: DomainResolvers = {
 		Commit: {
 			blame: (source, args) => blameOf(source, args),
 		},
+		...releaseTypeResolvers,
 		Repository: {
+			...repositoryReleaseFields,
 			owner: async (source: RepositoryNode, _args, ctx) => {
 				const row = await loadUser(ctx, source.row.ownerId);
 				if (!row) throw new Error("Repository owner missing");
@@ -564,5 +571,6 @@ export const repositoryResolvers: DomainResolvers = {
 		Repository: loadRepositoryNode,
 		Ref: loadRefNode,
 		Commit: loadCommitNode,
+		...releaseNodeLoaders(loadRepositoryNode),
 	},
 };

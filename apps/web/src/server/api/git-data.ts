@@ -28,6 +28,7 @@ import { safeCommitRevSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import { deleteTag } from "../git-write";
 import { deleteHeadBranch } from "../pull-request-store";
+import { draftReleasesForDeletedTag } from "../release-store";
 import type { RepositoryRowWithOwner } from "../repository-lookup";
 import { type ApiContext, callerIdentity } from "./auth";
 import { apiCaps } from "./caps";
@@ -131,8 +132,10 @@ export async function deleteRef(ctx: ApiContext) {
 	}
 	try {
 		if (branch) await deleteHeadBranch(repo, branch, caller.userId);
-		else if (tag) await deleteTag(ownerKeyOf(repo), repo.name, tag);
-		else throw new ApiError(422, "Reference does not exist");
+		else if (tag) {
+			await deleteTag(ownerKeyOf(repo), repo.name, tag);
+			await draftReleasesForDeletedTag(repo.id, tag);
+		} else throw new ApiError(422, "Reference does not exist");
 	} catch (error) {
 		if (isNotFoundError(error)) {
 			throw new ApiError(422, "Reference does not exist");

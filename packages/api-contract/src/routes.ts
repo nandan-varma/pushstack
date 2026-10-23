@@ -244,6 +244,87 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#list-repository-tags`,
 	},
 
+	"repos/list-releases": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/releases",
+		docs: `${DOCS}/releases/releases#list-releases`,
+	},
+	"repos/create-release": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/releases",
+		docs: `${DOCS}/releases/releases#create-a-release`,
+		status: 201,
+	},
+	"repos/generate-release-notes": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/releases/generate-notes",
+		docs: `${DOCS}/releases/releases#generate-release-notes-content-for-a-release`,
+	},
+	"repos/get-latest-release": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/releases/latest",
+		docs: `${DOCS}/releases/releases#get-the-latest-release`,
+	},
+	"repos/get-release-by-tag": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/releases/tags/{tag}",
+		docs: `${DOCS}/releases/releases#get-a-release-by-tag-name`,
+	},
+	"repos/get-release-asset": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/releases/assets/{asset_id}",
+		docs: `${DOCS}/releases/assets#get-a-release-asset`,
+	},
+	"repos/update-release-asset": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/releases/assets/{asset_id}",
+		docs: `${DOCS}/releases/assets#update-a-release-asset`,
+	},
+	"repos/delete-release-asset": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/releases/assets/{asset_id}",
+		docs: `${DOCS}/releases/assets#delete-a-release-asset`,
+		status: 204,
+	},
+	"repos/finish-release-asset-upload": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/releases/assets/{asset_id}/finish",
+		docs: `${DOCS}/releases/assets`,
+	},
+	"repos/get-release": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/releases/{release_id}",
+		docs: `${DOCS}/releases/releases#get-a-release`,
+	},
+	"repos/update-release": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/releases/{release_id}",
+		docs: `${DOCS}/releases/releases#update-a-release`,
+	},
+	"repos/delete-release": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/releases/{release_id}",
+		docs: `${DOCS}/releases/releases#delete-a-release`,
+		status: 204,
+	},
+	"repos/list-release-assets": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/releases/{release_id}/assets",
+		docs: `${DOCS}/releases/assets#list-release-assets`,
+	},
+	"repos/upload-release-asset": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/releases/{release_id}/assets",
+		docs: `${DOCS}/releases/assets#upload-a-release-asset`,
+		status: 201,
+	},
+	"repos/create-release-asset-upload": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/releases/{release_id}/assets/uploads",
+		docs: `${DOCS}/releases/assets`,
+		status: 201,
+	},
+
 	"repos/get-content": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/contents/{+path}",

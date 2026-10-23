@@ -47,6 +47,28 @@ export const MAX_RAW_BYTES = 50 * 1024 * 1024;
  */
 export const MAX_ARCHIVE_ENTRIES = 50_000;
 export const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
+/**
+ * Release assets. A function request body is capped at 4.5 MB on Vercel, so
+ * an upload through the API carries at most `MAX_RELEASE_ASSET_DIRECT_BYTES`;
+ * anything larger goes straight to R2 on a presigned URL and is finalized
+ * (verified against its declared size) afterwards, up to
+ * `MAX_RELEASE_ASSET_BYTES`. GitHub's own limit is 2 GiB per asset.
+ */
+export const MAX_RELEASE_ASSET_DIRECT_BYTES = 4_000_000;
+export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;
+/**
+ * The web form uploads files up to this size through a server function (as
+ * base64: 4/3 larger, under Vercel's 4.5 MB body cap); bigger ones are PUT
+ * to R2 on a presigned URL.
+ */
+export const MAX_RELEASE_ASSET_INLINE_BYTES = 3_000_000;
+export const MAX_RELEASE_ASSETS = 1000;
+/** Seconds a presigned upload URL stays valid. */
+export const RELEASE_UPLOAD_URL_TTL_SECONDS = 900;
+export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
+export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
+export const MAX_RELEASE_NAME_CHARS = 256;
+export const MAX_RELEASE_TAG_CHARS = 255;
 /** Longest path (UTF-8 bytes) an archive entry may have. */
 export const MAX_ARCHIVE_PATH_BYTES = 4096;
 

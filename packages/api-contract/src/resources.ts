@@ -518,6 +518,50 @@ export const branch = z.strictObject({
 
 export const tag = z.strictObject({ name: z.string(), commit: commitRef });
 
+/** A file attached to a release. */
+export const releaseAsset = z.strictObject({
+	url,
+	browser_download_url: url,
+	id: z.number().int(),
+	node_id: z.string(),
+	name: z.string(),
+	label: z.string().nullable(),
+	state: z.enum(["uploaded", "open"]),
+	content_type: z.string(),
+	size: count,
+	download_count: count,
+	created_at: timestamp,
+	updated_at: timestamp,
+	uploader: simpleUser.nullable(),
+});
+
+export const release = z.strictObject({
+	url,
+	html_url: url,
+	assets_url: url,
+	upload_url: url,
+	tarball_url: url.nullable(),
+	zipball_url: url.nullable(),
+	id: z.number().int(),
+	node_id: z.string(),
+	tag_name: z.string(),
+	target_commitish: z.string(),
+	name: z.string().nullable(),
+	body: z.string().nullable(),
+	draft: z.boolean(),
+	prerelease: z.boolean(),
+	created_at: timestamp,
+	published_at: timestamp.nullable(),
+	author: simpleUser,
+	assets: z.array(releaseAsset),
+});
+
+/** `POST …/releases/generate-notes`. */
+export const releaseNotes = z.strictObject({
+	name: z.string(),
+	body: z.string(),
+});
+
 const pullSide = z.strictObject({
 	label: z.string(),
 	ref: z.string(),

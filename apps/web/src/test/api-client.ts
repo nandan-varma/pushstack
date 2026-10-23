@@ -25,17 +25,19 @@ export async function mintToken(
 interface CallOptions {
 	authorization?: string;
 	method?: string;
-	body?: string;
+	body?: string | Uint8Array;
+	/** Extra request headers (e.g. `Content-Type` of a raw upload). */
+	headers?: Record<string, string>;
 }
 
 export async function call(path: string, options: CallOptions = {}) {
-	const headers: Record<string, string> = {};
+	const headers: Record<string, string> = { ...options.headers };
 	if (options.authorization) headers.authorization = options.authorization;
 	const response = await handleApiRequest(
 		new Request(`${BASE}${path}`, {
 			method: options.method ?? "GET",
 			headers,
-			body: options.body,
+			body: options.body as BodyInit | undefined,
 		}),
 	);
 	const text = await response.text();

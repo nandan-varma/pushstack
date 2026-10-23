@@ -54,6 +54,19 @@ functions:
   another repository's prefix. Repo names and usernames are restricted to the
   same pattern at input. See [security.md](/docs/internals/security).
 - `parseRepoGitStorageKey(key)` — the inverse, for classifying keys.
+- `getRepoReleaseStoragePrefix` / `getReleaseAssetKey(ownerKey, repoName, assetId)` —
+  release assets, beside the git data at `repos/{ownerKey}/{repoName}/releases/{assetId}`. The
+  key holds only the immutable asset id: names and labels are editable and live in the
+  `release_assets` row. Renaming or deleting a repository moves or deletes this prefix with the
+  git data. Downloads stream chunked `Range` reads (a buffered Vercel response is capped at 4.5 MB).
+  Uploads of up to 4,000,000 bytes pass through a function; larger ones (up to 2 GiB) are `PUT`
+  straight to R2 on a presigned URL, because a function request body is capped at 4.5 MB. The URL
+  cannot bind a size and stays valid for 15 minutes, so the bytes land at `releases/uploads/{assetId}`:
+  finishing the upload (`…/assets/{id}/finish`) `HEAD`s that object, discards it unless its size equals the
+  declared one, then copies it server-side to `releases/{assetId}` and deletes the upload object, so a
+  `PUT` replayed after finish changes nothing. Uploads never finished are deleted once the URL has expired,
+  opportunistically when a release's assets are listed or added (there are no background workers). A single presigned `PUT` (R2 allows 5 GiB)
+  is used rather than multipart: the 2 GiB cap fits, and there is no part bookkeeping to expire.
 
 ## The storage stack: `git-fs.ts`
 

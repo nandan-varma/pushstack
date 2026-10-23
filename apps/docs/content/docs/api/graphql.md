@@ -35,6 +35,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo create` | Works (GraphQL `createRepository`) |
 | `gh repo clone` | Works (git at `https://HOST/OWNER/REPO.git`) |
 | `gh repo edit`, `gh repo delete`, `gh repo archive` | REST `PATCH`/`DELETE /repos/{owner}/{repo}` are served; topic edits and `gh repo view --json repositoryTopics` need GraphQL `repositoryTopics` (not yet) |
+| `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue …`, `gh label …` | Not yet (issues domain) |
 | `gh pr …` | Not yet (pulls domain) |
 
@@ -129,6 +130,14 @@ to diff, attribute the unresolved lines to the oldest commit examined. `age`
 is a heuristic, not GitHub's exact quantile: 1 (newest) to 10 (oldest), by the
 rank of the range's commit date among the commit dates in that file's blame.
 A blame costs 5 rate-limit points and a query may ask for at most one.
+
+`Repository.releases(first:, after:, orderBy:)`, `release(tagName:)` and
+`latestRelease` serve `Release` (`name`, `tagName`, `description`, `isDraft`,
+`isLatest`, `isPrerelease`, `createdAt`, `publishedAt`, `author`,
+`releaseAssets`, `url`) and `ReleaseAsset` (`name`, `size`, `contentType`,
+`downloadCount`, `downloadUrl`, `uploadedBy`). Drafts appear to writers only,
+and `release(tagName:)` finds published releases. `tag`, `tagCommit`,
+reactions and mentions are not served.
 
 `createRepository` refuses what PushStack cannot do (`teamId`, `template`,
 `homepageUrl`, `INTERNAL`, disabling issues) with `UNPROCESSABLE`; it accepts

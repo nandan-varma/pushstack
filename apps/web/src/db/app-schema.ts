@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
+	bigint,
 	boolean,
 	check,
 	index,
@@ -481,6 +482,80 @@ export const checkRuns = pgTable(
 			table.id,
 		),
 		suiteIdx: index("check_run_suite_idx").on(table.suiteId, table.id),
+	}),
+);
+
+/**
+ * GitHub releases: a tag with notes and downloadable assets. `tag_name` is a
+ * name, not a reference: deleting the tag keeps the release (it becomes a
+ * draft, as on GitHub). Published releases are unique per tag; drafts may
+ * repeat a tag. `make_latest` is GitHub's `true`/`false`/`legacy`.
+ */
+export const releases = pgTable(
+	"releases",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		tagName: text("tag_name").notNull(),
+		targetCommitish: text("target_commitish").notNull(),
+		name: text("name"),
+		body: text("body"),
+		draft: boolean("draft").notNull().default(false),
+		prerelease: boolean("prerelease").notNull().default(false),
+		makeLatest: text("make_latest")
+			.$type<"true" | "false" | "legacy">()
+			.notNull()
+			.default("legacy"),
+		authorId: text("author_id")
+			.notNull()
+			.references(() => user.id),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		/** Null while a draft; set when it is published. */
+		publishedAt: timestamptz("published_at"),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoCreatedIdx: index("release_repo_created_idx").on(
+			table.repoId,
+			table.createdAt,
+		),
+		publishedTagIdx: uniqueIndex("release_published_tag_idx")
+			.on(table.repoId, table.tagName)
+			.where(sql`${table.draft} = false`),
+	}),
+);
+
+/**
+ * A file attached to a release. The bytes live in R2 at
+ * `getReleaseAssetKey(owner, repo, id)`; `state` is `open` while a presigned
+ * upload is pending and `uploaded` once the bytes are verified.
+ */
+export const releaseAssets = pgTable(
+	"release_assets",
+	{
+		id: serial("id").primaryKey(),
+		releaseId: integer("release_id")
+			.notNull()
+			.references(() => releases.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		label: text("label"),
+		contentType: text("content_type").notNull(),
+		size: bigint("size", { mode: "number" }).notNull(),
+		state: text("state").$type<"open" | "uploaded">().notNull(),
+		downloadCount: integer("download_count").notNull().default(0),
+		uploaderId: text("uploader_id")
+			.notNull()
+			.references(() => user.id),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		releaseNameIdx: uniqueIndex("release_asset_release_name_idx").on(
+			table.releaseId,
+			table.name,
+		),
 	}),
 );
 
