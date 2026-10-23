@@ -83,6 +83,22 @@ beforeAll(async () => {
 	await check("/users/alice/repos");
 	await check("/repos/alice/proj", auth);
 
+	// Watching and following.
+	await check("/repos/alice/proj/subscription", auth);
+	await check("/repos/alice/proj/subscription", put(alice, { ignored: true }));
+	await check("/repos/alice/proj/subscribers");
+	await check("/user/subscriptions", auth);
+	await check("/users/alice/subscriptions");
+	await check("/repos/alice/proj/subscription", del(alice));
+	await check("/user/following/bob", put(alice));
+	await check("/user/following/bob", auth);
+	await check("/user/following", auth);
+	await check("/user/followers", auth);
+	await check("/users/alice/following");
+	await check("/users/alice/followers");
+	await check("/users/alice/following/bob");
+	await check("/user/following/bob", del(alice));
+
 	signIn(users.alice);
 	await files.createBranch({ data: { repoId: repo.id, name: "topic" } });
 	await files.uploadFile({
