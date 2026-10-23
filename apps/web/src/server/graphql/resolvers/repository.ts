@@ -38,8 +38,8 @@ import {
 } from "../../repo-access";
 import {
 	createRepositoryForUser,
+	createRepositoryInputSchema,
 	RepositoryExistsError,
-	repoNameSchema,
 } from "../../repository-create";
 import {
 	findRepositoryByName,
@@ -447,11 +447,16 @@ async function createRepository(
 	if (input.visibility === "INTERNAL") {
 		throw unprocessable("Internal repositories are not supported.");
 	}
-	const name = repoNameSchema.safeParse(input.name);
-	if (!name.success) {
-		throw unprocessable(
-			`Name ${name.error.issues[0]?.message ?? "is invalid"}`,
-		);
+	// The same validation as every other create path (limits.ts bounds).
+	const parsed = createRepositoryInputSchema.safeParse({
+		name: input.name,
+		description: input.description ?? undefined,
+		visibility: input.visibility === "PRIVATE" ? "private" : "public",
+	});
+	if (!parsed.success) {
+		const issue = parsed.error.issues[0];
+		const field = issue?.path[0] === "description" ? "Description" : "Name";
+		throw unprocessable(`${field} ${issue?.message ?? "is invalid"}`);
 	}
 	const [owner] = await db
 		.select({ ...publicUserColumns, email: user.email })
@@ -459,12 +464,7 @@ async function createRepository(
 		.where(eq(user.id, viewer.id));
 	if (!owner) throw new Error("Authenticated user missing");
 	try {
-		const repo = await createRepositoryForUser(owner, {
-			name: name.data,
-			description: input.description ?? undefined,
-			visibility: input.visibility === "PRIVATE" ? "private" : "public",
-			autoInit: false,
-		});
+		const repo = await createRepositoryForUser(owner, parsed.data);
 		return {
 			clientMutationId: input.clientMutationId ?? null,
 			repository: repositoryNode({ ...repo, owner }, "owner"),

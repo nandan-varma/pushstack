@@ -125,13 +125,35 @@ async function serve(request: Request): Promise<Response> {
 		if ("errors" in coerced && coerced.errors) {
 			return json(errorsBody(coerced.errors.map(formatError)));
 		}
-		const { nodeCount, cost } = analyzeQuery(
+		const { nodeCount, cost, mutations } = analyzeQuery(
 			schema,
 			document,
 			operation,
 			coerced.variableValues,
 		);
 
+		// Writes also count against the REST API's write bucket, one per
+		// mutation field, so GraphQL is no way around it.
+		if (mutations > 0) {
+			const writes = await hitRateLimit(
+				"core-write",
+				identityFor(request, caller.userId),
+				mutations,
+			);
+			if (writes?.exceeded) {
+				return applyRateHeaders(
+					json(
+						errorsBody([
+							{
+								type: "RATE_LIMITED",
+								message: rateLimitExceededMessage(writes),
+							},
+						]),
+					),
+					writes,
+				);
+			}
+		}
 		rate = await hitRateLimit(
 			"graphql",
 			identityFor(request, caller.userId),

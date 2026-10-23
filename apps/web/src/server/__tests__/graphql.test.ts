@@ -236,6 +236,25 @@ describe("connections", () => {
 		expect(next.body.data.viewer.repositories.pageInfo.hasNextPage).toBe(false);
 	});
 
+	it("reports no next page when paging backward with before, as GitHub does", async () => {
+		const first = await graphql(
+			alice,
+			"{ viewer { repositories(first: 2, orderBy: {field: NAME, direction: ASC}) { pageInfo { endCursor } } } }",
+		);
+		const before = first.body.data.viewer.repositories.pageInfo.endCursor;
+		const { body } = await graphql(
+			alice,
+			`query($before: String) { viewer { repositories(last: 1, before: $before, orderBy: {field: NAME, direction: ASC}) { nodes { name } pageInfo { hasNextPage hasPreviousPage } } } }`,
+			{ before },
+		);
+		expect(body.errors).toBeUndefined();
+		expect(body.data.viewer.repositories.nodes).toHaveLength(1);
+		expect(body.data.viewer.repositories.pageInfo).toEqual({
+			hasNextPage: false,
+			hasPreviousPage: false,
+		});
+	});
+
 	it("lists only what the viewer may read", async () => {
 		const { body } = await graphql(
 			bob,
@@ -367,6 +386,23 @@ describe("width limits", () => {
 			after.body.data.rateLimit.used - before.body.data.rateLimit.used,
 		).toBe(6);
 	});
+
+	it("charges each aliased mutation, in the graphql and core-write buckets", async () => {
+		const rate = async () =>
+			(await call("/rate_limit", asToken(alice))).body.resources;
+		const before = await graphql(alice, "{ rateLimit { used } }");
+		const writesBefore = (await rate()).core_write.used;
+		await graphql(
+			alice,
+			'mutation { a: createRepository(input: {name: "costly-a", visibility: PUBLIC}) { repository { name } } b: createRepository(input: {name: "costly-b", visibility: PUBLIC}) { repository { name } } }',
+		);
+		const after = await graphql(alice, "{ rateLimit { used } }");
+		expect(
+			after.body.data.rateLimit.used - before.body.data.rateLimit.used,
+		).toBe(11);
+		// /rate_limit itself is a core read, not a write.
+		expect((await rate()).core_write.used - writesBefore).toBe(2);
+	});
 });
 
 describe("errors", () => {
@@ -408,6 +444,36 @@ describe("createRepository", () => {
 		expect(body.errors[0].type).toBe("INSUFFICIENT_SCOPES");
 		// A read-only token has no classic scopes to list.
 		expect(body.errors[0].message).toMatch(/granted the: \[\] scopes\.$/);
+	});
+
+	it("bounds and trims the description like every other create path", async () => {
+		const tooLong = await graphql(
+			alice,
+			`mutation($input: CreateRepositoryInput!) { createRepository(input: $input) { repository { name } } }`,
+			{
+				input: {
+					name: "long-desc",
+					visibility: "PUBLIC",
+					description: "x".repeat(501),
+				},
+			},
+		);
+		expect(tooLong.body.errors[0].type).toBe("UNPROCESSABLE");
+		expect(tooLong.body.errors[0].message).toMatch(/^Description /);
+		const trimmed = await graphql(
+			alice,
+			`mutation($input: CreateRepositoryInput!) { createRepository(input: $input) { repository { description } } }`,
+			{
+				input: {
+					name: "trimmed-desc",
+					visibility: "PUBLIC",
+					description: "  spaced  ",
+				},
+			},
+		);
+		expect(trimmed.body.data.createRepository.repository.description).toBe(
+			"spaced",
+		);
 	});
 
 	it("refuses an existing name", async () => {

@@ -70,7 +70,8 @@ export async function offsetConnection<T>(
 		pageInfo: {
 			startCursor: edges[0]?.cursor ?? null,
 			endCursor: edges.at(-1)?.cursor ?? null,
-			hasNextPage: start + nodes.length < total,
+			// GitHub: paging backward with `before` reports no next page.
+			hasNextPage: args.before == null && start + nodes.length < total,
 			hasPreviousPage: start > 0,
 		},
 	};

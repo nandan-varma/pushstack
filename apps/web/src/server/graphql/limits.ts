@@ -12,8 +12,9 @@
  *   bounded, and `nodes(ids:)` takes at most 100 ids.
  *
  * It also computes GitHub's rate-limit cost: the number of connection and
- * lookup requests the query implies, divided by 100, at least 1 (5 for a
- * mutation). Lookups and `nodes` ids count toward the node limit.
+ * lookup requests the query implies, divided by 100, at least 1; a mutation
+ * costs at least 5 per top-level mutation field, so aliasing many writes into
+ * one request is charged for each. Lookups and `nodes` ids count toward the node limit.
  */
 import {
 	type DocumentNode,
@@ -57,6 +58,8 @@ export const MUTATION_COST = 5;
 export interface QueryCost {
 	nodeCount: number;
 	cost: number;
+	/** Top-level mutation fields (aliases and fragments included). */
+	mutations: number;
 }
 
 const isConnection = (type: GraphQLCompositeType) =>
@@ -78,11 +81,12 @@ export function analyzeQuery(
 		operation.operation === "mutation"
 			? schema.getMutationType()
 			: schema.getQueryType();
-	if (!root) return { nodeCount: 0, cost: 1 };
+	if (!root) return { nodeCount: 0, cost: 1, mutations: 0 };
 
 	let nodeCount = 0;
 	let requests = 0;
 	let fields = 0;
+	let mutations = 0;
 
 	const countField = () => {
 		fields += 1;
@@ -176,6 +180,13 @@ export function analyzeQuery(
 		spreads: ReadonlySet<string>,
 	) => {
 		countField();
+		if (
+			parent === root &&
+			operation.operation === "mutation" &&
+			!node.name.value.startsWith("__")
+		) {
+			mutations += 1;
+		}
 		if (!node.selectionSet) return;
 		const field =
 			isObjectType(parent) || isInterfaceType(parent)
@@ -222,7 +233,10 @@ export function analyzeQuery(
 	return {
 		nodeCount,
 		cost:
-			operation.operation === "mutation" ? Math.max(MUTATION_COST, cost) : cost,
+			operation.operation === "mutation"
+				? Math.max(MUTATION_COST * Math.max(1, mutations), cost)
+				: cost,
+		mutations,
 	};
 }
 
