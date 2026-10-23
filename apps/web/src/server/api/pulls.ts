@@ -471,7 +471,10 @@ export async function mergePull(ctx: ApiContext) {
 			`${data.merge_method === "squash" ? "Squash merges" : "Rebase merges"} are not allowed on this repository.`,
 		);
 	}
-	if (pr.status !== "open" || pr.isDraft) throw notMergeable();
+	if (pr.status === "open" && pr.isDraft) {
+		throw new ApiError(405, "Pull Request is still a draft");
+	}
+	if (pr.status !== "open") throw notMergeable();
 	const headModified = () =>
 		new ApiError(
 			409,

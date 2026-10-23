@@ -232,7 +232,7 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		if (pr.status !== "open") throw new Error("Pull request is not open");
-		if (pr.isDraft) throw new Error("Draft pull requests can't be merged");
+		if (pr.isDraft) throw new Error("Pull Request is still a draft");
 		// GitHub blocks the merge while a reviewer's latest review requested
 		// changes; an owner/admin may override, as GitHub's admin permission can.
 		if (

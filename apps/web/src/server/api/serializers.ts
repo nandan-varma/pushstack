@@ -546,7 +546,7 @@ export function pullRequest(
 		// is "not yet known", which GitHub also reports while it computes.
 		mergeable: merged ? false : null,
 		rebaseable: false,
-		mergeable_state: "unknown",
+		mergeable_state: row.isDraft ? "draft" : "unknown",
 		merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
 		comments: input.commentsCount,
 		review_comments: detail.reviewComments,

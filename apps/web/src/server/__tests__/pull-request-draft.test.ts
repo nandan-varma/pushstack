@@ -78,8 +78,10 @@ describe("draft pull requests", () => {
 			body: "{}",
 		});
 		expect(merge.status).toBe(405);
+		expect(merge.body.message).toBe("Pull Request is still a draft");
 		const got = await call(`/repos/alice/proj/pulls/${number}`);
 		expect(got.body.draft).toBe(true);
+		expect(got.body.mergeable_state).toBe("draft");
 		expect(got.body.merged).toBe(false);
 		const list = await call("/repos/alice/proj/pulls");
 		expect(
@@ -109,7 +111,7 @@ describe("draft pull requests", () => {
 		expect(pr.isDraft).toBe(true);
 		await expect(
 			pulls.mergePullRequest({ data: { prId: pr.id } }),
-		).rejects.toThrow("Draft pull requests can't be merged");
+		).rejects.toThrow("Pull Request is still a draft");
 
 		const ready = await pulls.setPullRequestDraftState({
 			data: { prId: pr.id, draft: false },
