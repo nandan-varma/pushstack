@@ -431,12 +431,33 @@ export async function applyReceivePack(
 		for (const update of acceptedUpdates) {
 			if (update.oldOid !== ZERO_OID) haveOids.add(update.oldOid);
 		}
-		const { complete } = await collectReachableOids(
+		const { complete, invalidTreeEntry } = await collectReachableOids(
 			repo,
 			newTips,
 			hooks,
 			haveOids,
+			// Only trees this push introduces are read (the rest are in haveOids).
+			{ checkTreeNames: true },
 		);
+		if (invalidTreeEntry) {
+			// What `receive.fsckObjects` refuses: names that become path
+			// traversal or a nested `.git` in an archive or a checkout.
+			for (const filepath of removableIncoming) {
+				await fsp.unlink(filepath).catch(() => {});
+			}
+			return {
+				results: preflight.map((result) =>
+					result.ok
+						? {
+								...result,
+								ok: false,
+								reason: `fsck error in packed object: ${invalidTreeEntry.message}`,
+							}
+						: result,
+				),
+				stalePackPaths: [],
+			};
+		}
 		if (!complete) {
 			for (const filepath of removableIncoming) {
 				await fsp.unlink(filepath).catch(() => {});

@@ -2,6 +2,7 @@ import git from "isomorphic-git";
 import { getObjectTypes } from "../object-size.js";
 import type { Repo } from "../ops/types.js";
 import { createSemaphore } from "../semaphore.js";
+import { treeEntryNameProblem } from "./fsck.js";
 import type { HttpHooks } from "./types.js";
 
 export interface ReachabilityResult {
@@ -13,9 +14,20 @@ export interface ReachabilityResult {
 	 * from "some objects silently failed".
 	 */
 	complete: boolean;
+	/**
+	 * With `checkTreeNames`: the first tree entry (among the trees the walk
+	 * read, so only objects not in `haveOids`) whose name git's fsck rejects.
+	 */
+	invalidTreeEntry?: { tree: string; message: string };
 }
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The entry name isomorphic-git refused to parse, or null for any other error. */
+function unsafeTreeEntry(error: unknown): string | null {
+	const e = error as { code?: string; data?: { filepath?: string } } | null;
+	return e?.code === "UnsafeFilepathError" ? (e.data?.filepath ?? "") : null;
+}
 
 /**
  * A read landing in the gap between a repack's new consolidated pack being
@@ -69,7 +81,7 @@ export async function collectReachableOids(
 	startOids: string[],
 	hooks?: HttpHooks,
 	haveOids?: ReadonlySet<string> | readonly string[],
-	options?: { verifyBlobs?: boolean },
+	options?: { verifyBlobs?: boolean; checkTreeNames?: boolean },
 ): Promise<ReachabilityResult> {
 	const verifyBlobs = options?.verifyBlobs ?? true;
 	const have = haveOids instanceof Set ? haveOids : new Set(haveOids ?? []);
@@ -78,6 +90,7 @@ export async function collectReachableOids(
 	const promises = new Map<string, Promise<void>>();
 	const reads = createSemaphore(MAX_CONCURRENT_READS);
 	const blobs: string[] = [];
+	let invalidTreeEntry: ReachabilityResult["invalidTreeEntry"];
 
 	async function readAndVisitChildren(oid: string): Promise<void> {
 		const obj = await reads.run(() => git.readObject({ ...repo, oid }));
@@ -88,8 +101,17 @@ export async function collectReachableOids(
 			children.push([commit.tree, "tree"]);
 			for (const parent of commit.parent) children.push([parent, "commit"]);
 		} else if (obj.type === "tree") {
-			const tree = obj.object as { oid: string; type: string }[];
+			const tree = obj.object as { oid: string; type: string; path: string }[];
 			for (const entry of tree) {
+				const problem = options?.checkTreeNames
+					? treeEntryNameProblem(entry.path)
+					: null;
+				if (problem && !invalidTreeEntry) {
+					invalidTreeEntry = {
+						tree: oid,
+						message: `object ${oid}: ${problem.id}: ${problem.message}`,
+					};
+				}
 				// Gitlinks (submodules, mode 160000) point at commits in another
 				// repository; git never stores them here, so following one would
 				// report a "missing" object and fail every walk over that history.
@@ -120,7 +142,20 @@ export async function collectReachableOids(
 		const p = (async () => {
 			try {
 				await readAndVisitChildren(oid);
-			} catch {
+			} catch (first) {
+				// isomorphic-git refuses to parse a tree with an unsafe entry name
+				// (`..`, `.git`, a backslash, …): not a missing object, so no retry.
+				const unsafe = unsafeTreeEntry(first);
+				if (unsafe !== null) {
+					if (options?.checkTreeNames) {
+						const problem = treeEntryNameProblem(unsafe);
+						invalidTreeEntry ??= {
+							tree: oid,
+							message: `object ${oid}: ${problem?.id ?? "hasUnsafeName"}: ${problem?.message ?? `contains unsafe name '${unsafe}'`}`,
+						};
+						return;
+					}
+				}
 				try {
 					await delay(MISSING_OBJECT_RETRY_DELAY_MS);
 					await readAndVisitChildren(oid);
@@ -139,7 +174,7 @@ export async function collectReachableOids(
 	const missingBlobs = await missingStoredBlobs(repo, blobs, hooks);
 	for (const oid of blobs) if (!missingBlobs.has(oid)) seen.add(oid);
 	if (missingBlobs.size > 0) complete = false;
-	return { oids: Array.from(seen), complete };
+	return { oids: Array.from(seen), complete, invalidTreeEntry };
 }
 
 /**
