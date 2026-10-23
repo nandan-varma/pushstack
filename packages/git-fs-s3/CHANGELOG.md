@@ -16,7 +16,9 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   caller already listed under the repository lock.
 - `RepackOptions.packDirectory` lets a lock-holding caller pass the
   `objects/pack` entries it already listed; `applyReceivePack` uses it so the
-  post-push repack check no longer lists the pack directory again.
+  post-push repack check no longer lists the pack directory again. When the
+  push's own listing failed (anything but an absent directory), the repack
+  lists the directory itself instead of trusting an incomplete set.
 ### Added
 
 - `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees

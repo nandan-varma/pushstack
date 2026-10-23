@@ -2,6 +2,8 @@ import git from "isomorphic-git";
 import { concat, decodeAscii, decodeUtf8 } from "../edge-utils.js";
 import { isAbsentError, isNotFoundError } from "../git-errors.js";
 import {
+	getPromisesFs,
+	hasRecursiveFileLister,
 	listAllRefNames,
 	refCollisionIn,
 	resolveLooseRefFast,
@@ -168,21 +170,13 @@ async function checkRefCas(
  * updates.
  */
 async function snapshotRefNames(repo: Repo): Promise<string[]> {
-	const fs = repo.fs as {
-		listFilesRecursively?: (dirpath: string) => Promise<string[]>;
-		promises?: {
-			readFile(path: string, encoding: "utf8"): Promise<string | Uint8Array>;
-		};
-	};
-	if (
-		typeof fs.listFilesRecursively !== "function" ||
-		fs.promises === undefined
-	) {
+	const promises = getPromisesFs(repo.fs);
+	if (!hasRecursiveFileLister(repo.fs) || !promises) {
 		return listAllRefNames(repo);
 	}
 	const [loose, packed] = await Promise.all([
-		fs.listFilesRecursively(`${repo.gitdir}/refs`),
-		fs.promises
+		repo.fs.listFilesRecursively(`${repo.gitdir}/refs`),
+		promises
 			.readFile(`${repo.gitdir}/packed-refs`, "utf8")
 			.then((content) =>
 				typeof content === "string" ? content : decodeUtf8(content),
@@ -445,9 +439,14 @@ export async function applyReceivePack(
 	);
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
-	const existingPacks = new Set(
-		await fsp.readdir(packDir).catch(() => [] as string[]),
-	);
+	// Null when the listing failed for a reason other than the directory being
+	// absent: the post-push repack must then list the directory itself.
+	const listedPacks = await fsp.readdir(packDir).catch((error: unknown) => {
+		if (isAbsentError(error)) return [] as string[];
+		hooks?.onWarn?.("receive-pack: listing the pack directory failed", error);
+		return null;
+	});
+	const existingPacks = new Set(listedPacks ?? []);
 	let incomingPackPaths: string[];
 	try {
 		incomingPackPaths = await indexIncomingPack(
@@ -533,14 +532,22 @@ export async function applyReceivePack(
 	let stalePackPaths: string[] = [];
 	if (repackOptions !== false) {
 		// The lock is held, so the pack directory is what was listed before
-		// indexing plus the pack this push stored: no need to list it again.
-		const packDirectory = [
-			...existingPacks,
-			...incomingPackPaths.map((path) => path.slice(packDir.length + 1)),
-		];
+		// indexing plus the pack this push stored: no need to list it again
+		// (unless that listing failed, when the repack lists it itself).
+		const packDirectory =
+			listedPacks === null
+				? undefined
+				: [
+						...existingPacks,
+						...incomingPackPaths.map((path) => path.slice(packDir.length + 1)),
+					];
 		try {
 			stalePackPaths = await runStep(hooks, "repack", () =>
-				repackRepository(repo, { ...repackOptions, packDirectory }, hooks),
+				repackRepository(
+					repo,
+					packDirectory ? { ...repackOptions, packDirectory } : repackOptions,
+					hooks,
+				),
 			);
 		} catch (error) {
 			hooks?.onWarn?.("repack after push failed (non-fatal)", error);
