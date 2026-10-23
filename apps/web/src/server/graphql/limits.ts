@@ -54,6 +54,13 @@ export const MAX_FIELDS = 500;
 export const MAX_NODE_IDS = 100;
 /** Mutations weigh more than queries, as in GitHub's secondary limits. */
 export const MUTATION_COST = 5;
+/**
+ * `Commit.blame` walks history and diffs file revisions: each one costs as
+ * much as this many requests (5 rate-limit points), and a query may ask for
+ * at most MAX_BLAMES of them, so aliasing cannot multiply the work.
+ */
+export const BLAME_REQUEST_WEIGHT = 500;
+export const MAX_BLAMES = 1;
 
 export interface QueryCost {
 	nodeCount: number;
@@ -87,6 +94,7 @@ export function analyzeQuery(
 	let requests = 0;
 	let fields = 0;
 	let mutations = 0;
+	let blames = 0;
 
 	const countField = () => {
 		fields += 1;
@@ -219,6 +227,15 @@ export function analyzeQuery(
 			requests += multiplier;
 			next = multiplier * ids.length;
 			addNodes(next);
+		} else if (parent.name === "Commit" && field.name === "blame") {
+			blames += multiplier;
+			if (blames > MAX_BLAMES) {
+				throw new GitHubGraphQLError(
+					"MAX_NODE_LIMIT_EXCEEDED",
+					`A query may request blame for at most ${MAX_BLAMES} file${MAX_BLAMES === 1 ? "" : "s"}.`,
+				);
+			}
+			requests += BLAME_REQUEST_WEIGHT * multiplier;
 		} else if (field.args.length > 0) {
 			// A lookup (`repository(...)`, `user(login:)`, `node(id:)`): one
 			// fetched node per parent.

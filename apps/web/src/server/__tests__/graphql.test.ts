@@ -211,6 +211,33 @@ describe("Commit.blame", () => {
 		expect(body.errors[0].message).toContain("blame limit");
 	});
 
+	it("answers a path-traversing or malformed expression with null, not a lookup", async () => {
+		for (const expression of ["refs/../../secret/x", "../x", "a..b", ""]) {
+			const { body } = await graphql(
+				alice,
+				`query($e: String) { repository(owner: "alice", name: "public-one") { object(expression: $e) { oid } } }`,
+				{ e: expression },
+			);
+			expect(body.errors).toBeUndefined();
+			expect(body.data.repository.object).toBeNull();
+		}
+	});
+
+	it("weighs blame heavily and allows one per query", async () => {
+		const one = `object(expression: "HEAD") { ... on Commit { blame(path: "README.md") { ranges { startingLine } } } }`;
+		const { body } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { ${one} } }`,
+		);
+		expect(body.errors).toBeUndefined();
+		const { body: two } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { a: ${one} b: ${one} } }`,
+		);
+		expect(two.errors[0].type).toBe("MAX_NODE_LIMIT_EXCEEDED");
+		expect(two.errors[0].message).toContain("blame");
+	});
+
 	it("does not expose commits of an unreadable repository", async () => {
 		const { body } = await graphql(
 			bob,

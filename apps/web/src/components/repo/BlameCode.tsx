@@ -7,6 +7,11 @@ import type { BlameView } from "@/server/git-read";
 type Blame = Extract<BlameView, { kind: "blame" }>;
 
 /** Matches `.code-viewer-html pre.shiki`: 13px type on a 1.6 line height. */
+/*
+ * Alignment assumes every source line renders on exactly one row: the Shiki
+ * block is `white-space: pre` (no wrapping), so N lines are N * this height.
+ * If wrapping is ever enabled, the blame cells must be measured instead.
+ */
 const LINE_HEIGHT_REM = 0.8125 * 1.6;
 /** The code block's top padding, which the blame column must mirror. */
 const TOP_PADDING_REM = 0.875;

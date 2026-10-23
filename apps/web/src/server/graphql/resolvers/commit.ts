@@ -8,7 +8,7 @@
 import { isNotFoundError } from "git-fs-s3";
 import { htmlUrl } from "../../api/http";
 import { getBlame, getCommit } from "../../git-read";
-import { safeRepoPathSchema } from "../../git-ref-name";
+import { safeCommitRevSchema, safeRepoPathSchema } from "../../git-ref-name";
 import { ownerKeyOf } from "../../git-storage-naming";
 import { notFound, unprocessable } from "../errors";
 import { encodeNodeId } from "../node-id";
@@ -54,6 +54,17 @@ export function commitNode(
 
 /** The commit a branch, `HEAD` or sha names, or null (also for an invalid name). */
 export async function readCommitNode(
+	repo: RepositoryNode,
+	rev: string,
+): Promise<CommitNode | null> {
+	// The revision is caller-controlled and reaches storage paths: only a
+	// branch name, `HEAD` or a sha is looked up (anything else is null, with
+	// no storage read).
+	if (!safeCommitRevSchema.safeParse(rev).success) return Promise.resolve(null);
+	return readValidCommitNode(repo, rev);
+}
+
+async function readValidCommitNode(
 	repo: RepositoryNode,
 	rev: string,
 ): Promise<CommitNode | null> {

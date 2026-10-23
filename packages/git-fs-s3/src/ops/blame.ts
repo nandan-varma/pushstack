@@ -22,6 +22,12 @@ export const MAX_BLAME_LINES = 20000;
 export const MAX_BLAME_BYTES = 16 * 1024 * 1024;
 /** Largest line-diff edit script computed per revision pair. */
 const MAX_EDIT_LENGTH = 4000;
+/**
+ * Line-diff work one blame may spend across all revision pairs, in
+ * (old + new lines) x edit-script-length units. A diff that would exceed what
+ * is left is not run; its lines come back `boundary` rather than an error.
+ */
+export const MAX_BLAME_DIFF_WORK = 100_000_000;
 
 export type BlameLimitMetric = "bytes" | "lines" | "binary";
 
@@ -79,6 +85,8 @@ export interface BlameOptions {
 	maxFileBytes?: number;
 	maxLines?: number;
 	maxBytes?: number;
+	/** Cumulative line-diff work, see {@link MAX_BLAME_DIFF_WORK}. */
+	maxDiffWork?: number;
 }
 
 function splitLines(content: string): string[] {
@@ -91,29 +99,45 @@ function splitLines(content: string): string[] {
 /**
  * Line map from the new side of a diff to the old side: `map[i]` is the old
  * index of unchanged new line `i`, or -1 when the line was added/changed.
- * `null` when the edit script exceeds its budget (treat every line as new).
+ * `null` when the diff would exceed the per-pair edit-script cap or what is
+ * left of the cumulative `budget` (the caller marks those lines `boundary`).
  */
 function mapUnchangedLines(
 	oldLines: string[],
 	newLines: string[],
+	budget: { remaining: number },
 ): Int32Array | null {
-	const parts = diffArrays(oldLines, newLines, {
-		maxEditLength: MAX_EDIT_LENGTH,
-	});
-	if (!parts) return null;
+	const size = Math.max(1, oldLines.length + newLines.length);
+	const maxEditLength = Math.min(
+		MAX_EDIT_LENGTH,
+		Math.floor(budget.remaining / size),
+	);
+	if (maxEditLength < 1) return null;
+	const parts = diffArrays(oldLines, newLines, { maxEditLength });
+	if (!parts) {
+		// Ran to the cap: the work was spent even though no map came out.
+		budget.remaining -= maxEditLength * size;
+		return null;
+	}
 	const map = new Int32Array(newLines.length).fill(-1);
 	let oldIdx = 0;
 	let newIdx = 0;
+	let edits = 0;
 	for (const part of parts) {
 		const count = part.count ?? part.value.length;
-		if (part.added) newIdx += count;
-		else if (part.removed) oldIdx += count;
-		else {
+		if (part.added) {
+			newIdx += count;
+			edits += count;
+		} else if (part.removed) {
+			oldIdx += count;
+			edits += count;
+		} else {
 			for (let k = 0; k < count; k++) map[newIdx + k] = oldIdx + k;
 			oldIdx += count;
 			newIdx += count;
 		}
 	}
+	budget.remaining -= size * (edits + 1);
 	return map;
 }
 
@@ -125,7 +149,7 @@ function mapUnchangedLines(
  * appearance at this path is the origin).
  *
  * Work is bounded: the file's size and line count, the bytes read across all
- * compared revisions, the edit script per revision pair, and the commit depth
+ * compared revisions, the edit script per revision pair, the cumulative diff work, and the commit depth
  * (ranges the walk could not resolve come back as `boundary`). Results are
  * memoized per head commit and path in `hooks.resultCache`.
  */
@@ -142,7 +166,9 @@ export async function getBlame(
 
 	if (hooks?.prefetch) await runStep(hooks, "prefetch", hooks.prefetch);
 	const headSha = await resolveCommitOid(repo, ref);
-	const cacheKey = `blame:${repo.gitdir}:${headSha}:${filePath}:${maxDepth}:${maxFileBytes}:${maxLines}:${maxBytes}`;
+	const maxDiffWork = options.maxDiffWork ?? MAX_BLAME_DIFF_WORK;
+	const cacheKey = `blame:${repo.gitdir}:${headSha}:${filePath}:${maxDepth}:${maxFileBytes}:${maxLines}:${maxBytes}:${maxDiffWork}`;
+	const diffBudget = { remaining: maxDiffWork };
 	const cached = hooks?.resultCache?.get<BlameResult>(cacheKey);
 	if (cached) {
 		hooks?.onNote?.("getBlame: result-cache HIT");
@@ -263,6 +289,7 @@ export async function getBlame(
 		// Lines unchanged against a parent go to the first parent that has
 		// them; the rest were introduced by this commit.
 		let rest = pend;
+		let unresolved = false;
 		const currentLines = await readLines(commitOid as string);
 		for (const [i, parent] of parents.entries()) {
 			const parentOid = parentOids[i];
@@ -270,18 +297,24 @@ export async function getBlame(
 			const unchanged = mapUnchangedLines(
 				await readLines(parentOid),
 				currentLines,
+				diffBudget,
 			);
+			if (!unchanged) {
+				// Too costly to compare: what is left stops here, flagged.
+				unresolved = true;
+				break;
+			}
 			const next: Pending[] = [];
 			const passed: Pending[] = [];
 			for (const line of rest) {
-				const oldIdx = unchanged ? (unchanged[line.at] ?? -1) : -1;
+				const oldIdx = unchanged[line.at] ?? -1;
 				if (oldIdx < 0) next.push(line);
 				else passed.push({ final: line.final, at: oldIdx });
 			}
 			if (passed.length > 0) passDown(parent, passed);
 			rest = next;
 		}
-		if (rest.length > 0) attribute(rest, commit, hasMissing);
+		if (rest.length > 0) attribute(rest, commit, hasMissing || unresolved);
 	}
 
 	const ranges: BlameRange[] = [];

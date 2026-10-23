@@ -112,6 +112,22 @@ mirrors, archiving, wikis, `parent`). `pushedAt` is `null` (not tracked yet;
 `PUSHED_AT` ordering uses `updatedAt`, as the REST API's `pushed` sort does).
 `sshUrl` follows GitHub's format, but PushStack serves git over HTTPS only.
 
+Commits are reachable through `Repository.object(expression:)` (a branch, `HEAD`
+or a full sha; anything else, including trees, blobs and malformed names, is
+`null`), `Repository.ref(qualifiedName:)` and `Ref.target`. `Commit` serves
+`oid`, `abbreviatedOid`, `message`, `messageHeadline`, `authoredDate`,
+`committedDate`, `url`, `resourcePath`, `repository` and `blame(path:)`.
+
+`Commit.blame(path:)` returns `Blame { ranges { startingLine endingLine age
+commit } }`, attributing each line to the commit that introduced it across all
+parents, like `git blame` (renames are not followed). It is bounded work: a
+file over 1 MiB or 20,000 lines, or a binary file, is `UNPROCESSABLE`; a
+missing path is `NOT_FOUND`. Histories deeper than 400 commits, or too costly
+to diff, attribute the unresolved lines to the oldest commit examined. `age`
+is a heuristic, not GitHub's exact quantile: 1 (newest) to 10 (oldest), by the
+rank of the range's commit date among the commit dates in that file's blame.
+A blame costs 5 rate-limit points and a query may ask for at most one.
+
 `createRepository` refuses what PushStack cannot do (`teamId`, `template`,
 `homepageUrl`, `INTERNAL`, disabling issues) with `UNPROCESSABLE`; it accepts
 `hasWikiEnabled`, which gh always sends, and the repository reports

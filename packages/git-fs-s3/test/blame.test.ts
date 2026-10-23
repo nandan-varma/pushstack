@@ -48,6 +48,40 @@ function memoryCache(): ResultCache & { store: Map<string, unknown> } {
 	};
 }
 
+describe("getBlame diff budgets", () => {
+	it("marks lines boundary once the cumulative diff work is spent", async () => {
+		const repo = await makeRepo();
+		const c1 = await commit(repo, "one\n", "a\nb\nc\n");
+		await commit(repo, "two\n", "a\nb\nc\nd\n");
+		const c3 = await commit(repo, "three\n", "a\nb\nc\nd\ne\n");
+		const blame = await getBlame(repo, {
+			ref: "main",
+			filePath: "src/a.txt",
+			maxDiffWork: 1,
+		});
+		expect(blame.truncated).toBe(true);
+		expect(blame.ranges).toEqual([
+			{ startLine: 1, endLine: 5, sha: c3, boundary: true },
+		]);
+		const full = await getBlame(repo, { ref: "main", filePath: "src/a.txt" });
+		expect(full.truncated).toBe(false);
+		expect(full.ranges[0]?.sha).toBe(c1);
+	});
+
+	it("marks lines boundary when a revision pair exceeds the edit-script cap", async () => {
+		const repo = await makeRepo();
+		const lines = (prefix: string) =>
+			Array.from({ length: 2500 }, (_, i) => `${prefix}${i}`).join("\n");
+		await commit(repo, "old\n", `${lines("x")}\n`);
+		const rewritten = await commit(repo, "rewrite\n", `${lines("y")}\n`);
+		const blame = await getBlame(repo, { ref: "main", filePath: "src/a.txt" });
+		expect(blame.truncated).toBe(true);
+		expect(blame.ranges).toEqual([
+			{ startLine: 1, endLine: 2500, sha: rewritten, boundary: true },
+		]);
+	});
+});
+
 describe("getBlame merges", () => {
 	it("passes lines to the second parent instead of the merge", async () => {
 		const repo = await makeRepo();
