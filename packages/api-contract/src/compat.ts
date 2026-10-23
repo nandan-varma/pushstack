@@ -87,10 +87,30 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`commit_sha` a full or abbreviated sha; unknown is `422`; oldest first; pagination",
 	"repos/create-commit-comment":
 		"any signed-in reader (`repo:write` token scope); `body`, optional `path` (a file the commit changes, else `422`) with `position` (1-based line of that file's diff) and deprecated `line` (stored and echoed)",
+	"repos/create-commit-status":
+		"write access (`repo:write` token scope); `sha` a full or abbreviated sha of a commit in the repository, else `422`; `state`, `target_url` (http or https), `description` (up to 140 characters), `context` (default `default`); up to 1,000 statuses per commit and context (`422` beyond); no `node_id`",
+	"repos/list-commit-statuses-for-ref":
+		"`ref` a branch, tag or sha (a branch name with `/` percent-encoded); newest first, every status of every context; pagination; no `node_id`",
+	"repos/get-combined-status-for-ref":
+		"the newest status of each context; `state` is `failure` when any is `failure` or `error`, `pending` when any is pending or there are none, else `success`; `required` is `null` (required checks aren't enforced); `statuses` are paginated; no `node_id`; `repository` is the minimal shape",
+	"checks/list-for-ref":
+		"`check_name`, `status`, `filter` (`latest` default: the newest run per name; `all`), pagination; `{ total_count, check_runs }`",
+	"checks/list-suites-for-ref":
+		"a commit has at most one suite (there are no GitHub Apps); `{ total_count, check_suites }`",
 	"repos/get-commit":
 		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`",
 	"repos/compare-commits-with-basehead":
 		"`base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit)",
+	"checks/create":
+		"write access (`repo:write` token scope; GitHub requires a GitHub App); `name`, `head_sha` (a commit of the repository, else `422`), `status` (default `queued`; `conclusion` implies `completed`), `started_at`, `completed_at`, `details_url`, `external_id`, `output` (`title`, `summary`, `text`); `completed` needs a `conclusion`; annotations, images and actions are ignored and `annotations_count` is `0` (no `annotations_url`); up to 1,000 runs per commit; `app`, `pull_requests`, `node_id` and `deployment` are omitted",
+	"checks/get": "",
+	"checks/update":
+		"write access (`repo:write` token scope); the same fields as create, all optional; a `completed` run cannot go back to `queued` or `in_progress`",
+	"checks/create-suite":
+		"write access; `head_sha`; `201` with the commit's suite, created if absent (GitHub answers `200` when it exists)",
+	"checks/get-suite":
+		"`status` and `conclusion` are computed from the suite's runs; `app`, `pull_requests`, `before` and `after` are omitted",
+	"checks/list-for-suite": "as `checks/list-for-ref`, for one suite",
 	"git/get-ref":
 		'branches and tags; annotated tags are `type: "tag"` (unpeeled)',
 	"git/list-refs": "`{ref}` may be empty (every ref)",

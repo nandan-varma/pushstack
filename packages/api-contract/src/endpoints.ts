@@ -23,17 +23,27 @@ import {
 	threadTitle,
 } from "./inputs";
 import {
+	MAX_CHECK_NAME_CHARS,
+	MAX_CHECK_OUTPUT_CHARS,
+	MAX_CHECK_TITLE_CHARS,
 	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPORT_URL_CHARS,
+	MAX_STATUS_CONTEXT_CHARS,
+	MAX_STATUS_DESCRIPTION_CHARS,
 } from "./limits";
 import {
 	blob,
 	branch,
+	checkRun,
+	checkSuite,
+	combinedCommitStatus,
 	commit,
 	commitComment,
 	commitDetail,
+	commitStatus,
 	comparison,
 	contents,
 	createdBlob,
@@ -120,6 +130,56 @@ const commentParams = repoParams.extend({ comment_id: positiveInt });
 /** A full or abbreviated sha; the handler resolves it (unknown = 422). */
 const commitShaParams = repoParams.extend({
 	commit_sha: z.string().min(1).max(100),
+});
+const refParams = repoParams.extend({ ref: z.string().min(1).max(255) });
+const checkRunParams = repoParams.extend({ check_run_id: positiveInt });
+const checkSuiteParams = repoParams.extend({ check_suite_id: positiveInt });
+/** An absolute http(s) URL a CI links its report to. */
+const reportUrl = z
+	.string()
+	.max(MAX_REPORT_URL_CHARS)
+	.refine((value) => {
+		try {
+			return ["http:", "https:"].includes(new URL(value).protocol);
+		} catch {
+			return false;
+		}
+	}, "Must be an http(s) URL");
+const checkStatus = z.enum(["queued", "in_progress", "completed"]);
+const checkConclusion = z.enum([
+	"action_required",
+	"cancelled",
+	"failure",
+	"neutral",
+	"success",
+	"skipped",
+	"stale",
+	"timed_out",
+]);
+const checkOutput = z.object({
+	title: z.string().min(1).max(MAX_CHECK_TITLE_CHARS),
+	summary: z.string().min(1).max(MAX_CHECK_OUTPUT_CHARS),
+	text: z.string().max(MAX_CHECK_OUTPUT_CHARS).optional(),
+});
+const checkRunFields = {
+	details_url: reportUrl.optional(),
+	external_id: z.string().max(MAX_CHECK_NAME_CHARS).optional(),
+	status: checkStatus.optional(),
+	started_at: isoDate.optional(),
+	conclusion: checkConclusion.optional(),
+	completed_at: isoDate.optional(),
+	output: checkOutput.optional(),
+};
+const checkRunList = {
+	query: pagination.extend({
+		check_name: z.string().max(MAX_CHECK_NAME_CHARS).optional(),
+		status: checkStatus.optional().catch(undefined),
+		filter: z.enum(["latest", "all"]).optional().catch(undefined),
+	}),
+};
+const checkRunsResponse = z.object({
+	total_count: z.number().int().nonnegative(),
+	check_runs: z.array(checkRun),
 });
 const reactionList = {
 	query: pagination.extend({ content: reactionContent.optional() }),
@@ -402,6 +462,39 @@ export const endpoints = defineEndpoints({
 		}),
 		response: commitComment,
 	},
+	"repos/create-commit-status": {
+		params: repoParams.extend({ sha: z.string().min(1).max(100) }),
+		body: z.object({
+			state: z.enum(["error", "failure", "pending", "success"]),
+			target_url: reportUrl.nullish(),
+			description: z.string().max(MAX_STATUS_DESCRIPTION_CHARS).nullish(),
+			context: z.string().min(1).max(MAX_STATUS_CONTEXT_CHARS).optional(),
+		}),
+		response: commitStatus,
+	},
+	"repos/list-commit-statuses-for-ref": {
+		params: refParams,
+		query: pagination,
+		response: z.array(commitStatus),
+	},
+	"repos/get-combined-status-for-ref": {
+		params: refParams,
+		query: pagination,
+		response: combinedCommitStatus,
+	},
+	"checks/list-for-ref": {
+		params: refParams,
+		...checkRunList,
+		response: checkRunsResponse,
+	},
+	"checks/list-suites-for-ref": {
+		params: refParams,
+		query: pagination,
+		response: z.object({
+			total_count: z.number().int().nonnegative(),
+			check_suites: z.array(checkSuite),
+		}),
+	},
 	"repos/get-commit": {
 		params: repoParams.extend({ ref: z.string().min(1) }),
 		response: commitDetail,
@@ -413,6 +506,35 @@ export const endpoints = defineEndpoints({
 			per_page: positiveInt.optional().catch(undefined),
 		}),
 		response: comparison,
+	},
+	"checks/create": {
+		params: repoParams,
+		body: z.object({
+			name: z.string().min(1).max(MAX_CHECK_NAME_CHARS),
+			head_sha: z.string().min(1).max(100),
+			...checkRunFields,
+		}),
+		response: checkRun,
+	},
+	"checks/get": { params: checkRunParams, response: checkRun },
+	"checks/update": {
+		params: checkRunParams,
+		body: z.object({
+			name: z.string().min(1).max(MAX_CHECK_NAME_CHARS).optional(),
+			...checkRunFields,
+		}),
+		response: checkRun,
+	},
+	"checks/create-suite": {
+		params: repoParams,
+		body: z.object({ head_sha: z.string().min(1).max(100) }),
+		response: checkSuite,
+	},
+	"checks/get-suite": { params: checkSuiteParams, response: checkSuite },
+	"checks/list-for-suite": {
+		params: checkSuiteParams,
+		...checkRunList,
+		response: checkRunsResponse,
 	},
 
 	"git/get-ref": {
