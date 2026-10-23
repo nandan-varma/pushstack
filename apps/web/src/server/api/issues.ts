@@ -8,6 +8,11 @@
 import { replaceThreadAssignees } from "../assignees-store";
 import { createIssueForUser, updateIssueThreadFields } from "../issue-store";
 import { setThreadLabels } from "../label-store";
+import {
+	findMilestoneByNumber,
+	setThreadMilestone,
+	UnknownMilestoneError,
+} from "../milestone-store";
 import { perfStep } from "../perf-log";
 import { updatePullRequestFields } from "../pull-request-store";
 import { findThread, listThreads, pullRequestOfThread } from "../thread-store";
@@ -25,6 +30,25 @@ import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { fullNameOf, serializeThread, serializeThreads } from "./threads";
 
+const invalidMilestoneError = () =>
+	validationFailedError("Validation Failed", [
+		{ resource: "Issue", field: "milestone", code: "invalid" },
+	]);
+
+/** Set `milestone` (a number, or `null` to clear), mapping an unknown one to 422. */
+async function applyMilestone(
+	thread: { id: number; repoId: number },
+	milestone: number | null,
+	userId: string,
+) {
+	try {
+		await setThreadMilestone(thread, milestone, userId);
+	} catch (error) {
+		if (error instanceof UnknownMilestoneError) throw invalidMilestoneError();
+		throw error;
+	}
+}
+
 export async function listIssues(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const params = pageParams(ctx.url.searchParams);
@@ -40,6 +64,12 @@ export async function listIssues(ctx: ApiContext) {
 				...(filters.state !== "all" && { state: filters.state }),
 				...(filters.assignee && { assignees: [filters.assignee] }),
 				labels: filters.labels ?? [],
+				...(filters.milestone !== undefined && {
+					milestoneNumber:
+						filters.milestone === "*" || filters.milestone === "none"
+							? filters.milestone
+							: Number(filters.milestone),
+				}),
 			},
 			{
 				sort: { by: filters.sort, direction: filters.direction },
@@ -69,6 +99,14 @@ export async function createIssue(ctx: ApiContext) {
 	const data = await requestBody(ctx, "issues/create", "Issue");
 	// Labels and assignees are triage: a participant without write access opens
 	// the issue unlabeled and unassigned, as on GitHub.
+	// An unknown milestone is rejected before anything is created.
+	const milestone = access.canWrite ? (data.milestone ?? null) : null;
+	if (
+		milestone !== null &&
+		!(await findMilestoneByNumber(repo.id, milestone))
+	) {
+		throw invalidMilestoneError();
+	}
 	const created = await createIssueForUser(repo.id, caller.userId, {
 		title: data.title,
 		body: data.body ?? undefined,
@@ -76,6 +114,9 @@ export async function createIssue(ctx: ApiContext) {
 	});
 	if (access.canWrite && data.assignees && data.assignees.length > 0) {
 		await replaceThreadAssignees(created, data.assignees, caller.userId);
+	}
+	if (milestone !== null) {
+		await applyMilestone(created, milestone, caller.userId);
 	}
 	const thread = await findThread(repo.id, created.number);
 	if (!thread) throw new Error("Issue missing after insert");
@@ -144,6 +185,9 @@ export async function updateIssue(ctx: ApiContext) {
 		}
 		if (data.assignees !== undefined) {
 			await replaceThreadAssignees(issue, data.assignees, caller.userId);
+		}
+		if (data.milestone !== undefined) {
+			await applyMilestone(issue, data.milestone, caller.userId);
 		}
 	}
 	const thread = await findThread(repo.id, number);

@@ -13,6 +13,10 @@ import {
 	labelDescription,
 	labelName,
 	labelNames,
+	milestoneDescription,
+	milestoneDueOn,
+	milestoneRef,
+	milestoneTitle,
 	pagination,
 	positiveInt,
 	pullParams,
@@ -48,6 +52,7 @@ import {
 	issueEvent,
 	label,
 	mergeResult,
+	milestone,
 	notificationThread,
 	privateUser,
 	publicUser,
@@ -122,6 +127,7 @@ const reactionList = {
 	response: z.array(reaction),
 };
 const reactionBody = z.object({ content: reactionContent });
+const milestoneParams = repoParams.extend({ milestone_number: positiveInt });
 const labelParams = repoParams.extend({ name: z.string().min(1) });
 const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
@@ -459,6 +465,13 @@ export const endpoints = defineEndpoints({
 			/** A login, `none` (unassigned) or `*` (anyone). */
 			assignee: z.string().max(100).optional(),
 			labels: commaList(labelName, MAX_LABELS_PER_THREAD).optional(),
+			/** A milestone number, `*` (any) or `none`. */
+			milestone: z
+				.union([
+					z.literal(["*", "none"]),
+					z.string().regex(/^[1-9][0-9]{0,9}$/),
+				])
+				.optional(),
 			sort: z
 				.enum(["created", "updated", "comments"])
 				.default("created")
@@ -474,6 +487,7 @@ export const endpoints = defineEndpoints({
 			body: threadBody.nullish(),
 			labels: labelNames.optional(),
 			assignees: assigneeLogins.optional(),
+			milestone: milestoneRef.nullish(),
 		}),
 		response: issue,
 	},
@@ -516,6 +530,7 @@ export const endpoints = defineEndpoints({
 			state_reason: stateReason.nullish(),
 			labels: labelNames.optional(),
 			assignees: assigneeLogins.optional(),
+			milestone: milestoneRef.nullish(),
 		}),
 		response: issue,
 	},
@@ -636,6 +651,47 @@ export const endpoints = defineEndpoints({
 		params: pullParams,
 		query: pagination,
 		response: z.array(diffEntry),
+	},
+
+	"issues/list-milestones": {
+		params: repoParams,
+		query: pagination.extend({
+			state: listState,
+			sort: z
+				.enum(["due_on", "completeness"])
+				.default("due_on")
+				.catch("due_on"),
+			direction: z.enum(["asc", "desc"]).default("asc").catch("asc"),
+		}),
+		response: z.array(milestone),
+	},
+	"issues/create-milestone": {
+		params: repoParams,
+		body: z.object({
+			title: milestoneTitle,
+			state: z.enum(["open", "closed"]).default("open"),
+			description: milestoneDescription.nullish(),
+			due_on: milestoneDueOn.nullish(),
+		}),
+		response: milestone,
+	},
+	"issues/get-milestone": {
+		params: milestoneParams,
+		response: milestone,
+	},
+	"issues/update-milestone": {
+		params: milestoneParams,
+		body: z.object({
+			title: milestoneTitle.optional(),
+			state: z.enum(["open", "closed"]).optional(),
+			description: milestoneDescription.nullish(),
+			due_on: milestoneDueOn.nullish(),
+		}),
+		response: milestone,
+	},
+	"issues/delete-milestone": {
+		params: milestoneParams,
+		response: noContent,
 	},
 
 	"issues/list-labels-for-repo": {

@@ -18,6 +18,8 @@ export function searchFilter(
 		mentions: search.mentions,
 		labels: search.labels,
 		noLabel: search.noLabel,
+		milestones: search.milestones,
+		noMilestone: search.noMilestone,
 		assignees: [...(search.noAssignee ? ["none"] : []), ...search.assignees],
 	};
 }

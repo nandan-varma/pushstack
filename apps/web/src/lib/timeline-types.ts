@@ -50,6 +50,9 @@ export type TimelineEvent =
 	/** A label was applied or removed; the name and color are a snapshot. */
 	| { event: "labeled"; label: LabelSnapshot }
 	| { event: "unlabeled"; label: LabelSnapshot }
+	/** A milestone was set or cleared; the title is a snapshot. */
+	| { event: "milestoned"; milestone: { title: string } }
+	| { event: "demilestoned"; milestone: { title: string } }
 	| { event: "assigned"; assignee: TimelineUser }
 	| { event: "unassigned"; assignee: TimelineUser }
 	| { event: "reviewed"; state: ReviewedState; reviewId: number };

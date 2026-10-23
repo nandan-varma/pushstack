@@ -6,7 +6,7 @@ import {
 	useLocation,
 	useNavigate,
 } from "@tanstack/react-router";
-import { Tag } from "lucide-react";
+import { Milestone, Tag } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Toolbar } from "@/components/layout/page";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
@@ -155,6 +155,14 @@ function IssuesPage() {
 							>
 								<Tag aria-hidden="true" />
 								Labels
+							</Link>
+							<Link
+								to="/$owner/$name/milestones"
+								params={{ owner, name }}
+								className={buttonVariants({ variant: "outline" })}
+							>
+								<Milestone aria-hidden="true" />
+								Milestones
 							</Link>
 							{!session?.user ? (
 								<SignInButton>Sign in to create an issue</SignInButton>

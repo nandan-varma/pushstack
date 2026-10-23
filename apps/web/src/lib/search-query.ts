@@ -1,6 +1,6 @@
 /**
  * GitHub's issue/pull-request query syntax: `is:`, `label:`, `author:`,
- * `assignee:`, `mentions:`, `no:`, `sort:` and free text.
+ * `assignee:`, `mentions:`, `milestone:`, `no:`, `sort:` and free text.
  *
  * Pure and database-independent. The list routes parse a `?q=` string with
  * `parseSearchQuery` and hand the typed result to the server functions; the
@@ -52,6 +52,9 @@ export interface SearchQuery {
 	noAssignee: boolean;
 	/** `mentions:` usernames; every one must be mentioned. */
 	mentions: string[];
+	/** `milestone:` titles (ignoring case); an issue has one, so two differing match nothing. */
+	milestones: string[];
+	noMilestone: boolean;
 	sort: SearchSort;
 }
 
@@ -75,6 +78,7 @@ const KNOWN_QUALIFIERS = new Set([
 	"author",
 	"assignee",
 	"mentions",
+	"milestone",
 	"sort",
 ]);
 
@@ -172,6 +176,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 	const authors: string[] = [];
 	const assignees: string[] = [];
 	const mentions: string[] = [];
+	const milestones: string[] = [];
+	let noMilestone = false;
 	let noLabel = false;
 	let noAssignee = false;
 	let sort: SearchSort = DEFAULT_SEARCH_SORT;
@@ -195,6 +201,7 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case "no":
 				if (value.toLowerCase() === "label") noLabel = true;
 				else if (value.toLowerCase() === "assignee") noAssignee = true;
+				else if (value.toLowerCase() === "milestone") noMilestone = true;
 				break;
 			case "author":
 				if (value) authors.push(value);
@@ -204,6 +211,9 @@ export function parseSearchQuery(input: string): SearchQuery {
 				break;
 			case "mentions":
 				if (value) mentions.push(value);
+				break;
+			case "milestone":
+				if (value) milestones.push(value);
 				break;
 			case "sort":
 				if ((SEARCH_SORTS as readonly string[]).includes(value.toLowerCase()))
@@ -237,6 +247,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 		assignees: dedupe(assignees),
 		noAssignee,
 		mentions: dedupe(mentions),
+		milestones: dedupe(milestones),
+		noMilestone,
 		sort,
 	};
 }

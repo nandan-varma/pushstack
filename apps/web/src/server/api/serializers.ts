@@ -10,6 +10,7 @@ import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
+import type { MilestoneView } from "../milestone-store";
 import type { ReactionWithUser } from "../reaction-store";
 import type { PublicUser } from "../repository-lookup";
 import type { PullRequest, ThreadKind } from "../thread-store";
@@ -100,6 +101,32 @@ export function branchHtmlUrl(fullName: string, branch: string) {
 	return htmlUrl(`/${fullName}/tree/${encodePath(branch)}`);
 }
 
+/** GitHub's milestone shape; `node_id` is the legacy `09:Milestone<id>` id. */
+export function milestone(
+	repo: { fullName: string },
+	value: MilestoneView,
+): Shape<"milestone"> {
+	const url = apiUrl(`/repos/${repo.fullName}/milestones/${value.number}`);
+	return {
+		url,
+		html_url: htmlUrl(`/${repo.fullName}/milestone/${value.number}`),
+		labels_url: `${url}/labels`,
+		id: value.id,
+		node_id: Buffer.from(`09:Milestone${value.id}`).toString("base64"),
+		number: value.number,
+		state: value.state,
+		title: value.title,
+		description: value.description,
+		creator: value.creator ? simpleUser(value.creator) : null,
+		open_issues: value.openIssues,
+		closed_issues: value.closedIssues,
+		created_at: isoTimestamp(value.createdAt),
+		updated_at: isoTimestamp(value.updatedAt),
+		closed_at: value.closedAt ? isoTimestamp(value.closedAt) : null,
+		due_on: value.dueOn ? isoTimestamp(value.dueOn) : null,
+	};
+}
+
 export function label(
 	repo: { fullName: string },
 	value: LabelView,
@@ -137,6 +164,7 @@ export interface IssueShapeInput {
 	author: PublicUser;
 	labels: LabelView[];
 	assignees: PublicUser[];
+	milestone: MilestoneView | null;
 	commentsCount: number;
 	reactions: ReactionRollup;
 }
@@ -198,7 +226,9 @@ export function issue(input: IssueShapeInput): Shape<"issue"> {
 		locked: false,
 		active_lock_reason: null,
 		comments: input.commentsCount,
-		milestone: null,
+		milestone: input.milestone
+			? milestone({ fullName }, input.milestone)
+			: null,
 		created_at: isoTimestamp(input.createdAt),
 		updated_at: isoTimestamp(input.updatedAt),
 		closed_at: input.closedAt ? isoTimestamp(input.closedAt) : null,
@@ -373,6 +403,13 @@ export function timelineEvent(
 				event: entry.event,
 				label: { name: entry.label.name, color: entry.label.color },
 			};
+		case "milestoned":
+		case "demilestoned":
+			return {
+				...base,
+				event: entry.event,
+				milestone: { title: entry.milestone.title },
+			};
 		case "assigned":
 		case "unassigned":
 			return {
@@ -450,6 +487,7 @@ export interface PullShapeInput {
 	row: PullRequest;
 	author: PublicUser;
 	labels: LabelView[];
+	milestone: MilestoneView | null;
 	commentsCount: number;
 	headSha: string;
 	baseSha: string;
@@ -504,7 +542,9 @@ export function pullRequest(
 		user: simpleUser(input.author),
 		body: row.body,
 		labels: input.labels.map((value) => label({ fullName }, value)),
-		milestone: null,
+		milestone: input.milestone
+			? milestone({ fullName }, input.milestone)
+			: null,
 		active_lock_reason: null,
 		created_at: isoTimestamp(row.createdAt),
 		updated_at: isoTimestamp(row.updatedAt),

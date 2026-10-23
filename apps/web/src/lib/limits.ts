@@ -79,6 +79,9 @@ export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 
 export const MAX_LABELS_PER_THREAD = 100;
 
+export const MAX_MILESTONE_TITLE_CHARS = 256;
+export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;
+
 /**
  * The longest supported issue/PR search query (`?q=`). GitHub caps a search
  * query at 256 characters, so a longer one is rejected rather than parsed into
