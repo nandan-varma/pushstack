@@ -7,6 +7,7 @@ vi.mock("#/db", async () => ({
 
 import {
 	analyzeMerge,
+	getBlame,
 	getBranchDiff,
 	getBranches,
 	getCommit,
@@ -170,6 +171,54 @@ describe("getCommitHistory (pagination)", () => {
 	it("skip past end returns empty array", async () => {
 		const history = await getCommitHistory(OWNER, REPO, "main", 10, 999);
 		expect(history).toHaveLength(0);
+	});
+});
+
+describe("getBlame", () => {
+	it("attributes README lines to the commits that wrote them", async () => {
+		const blame = await getBlame(OWNER, REPO, "main", "README.md");
+		if (blame.kind !== "blame") throw new Error("expected a blame");
+		expect(blame.lines).toEqual(["# Updated Repo", "", "Some content."]);
+		// Every line was rewritten by the second commit.
+		expect(blame.ranges).toEqual([
+			{ startLine: 1, endLine: 3, sha: shas.second },
+		]);
+		expect(blame.commits[shas.second]).toMatchObject({
+			message: "Add source file",
+			parentSha: shas.initial,
+		});
+	});
+
+	it("returns a too-large or binary state instead of throwing", async () => {
+		await createCommit(OWNER, REPO, {
+			branch: "feature-branch",
+			message: "Add blame edge cases",
+			files: [
+				{ path: "wide.txt", content: "a".repeat(1024 * 1024 + 1) },
+				{ path: "tall.txt", content: "a\n".repeat(20001) },
+				{ path: "blob.bin", content: "a\u0000b" },
+			],
+			author: { name: "Test User", email: "test@example.com" },
+		});
+		expect(await getBlame(OWNER, REPO, "feature-branch", "wide.txt")).toEqual({
+			kind: "too-large",
+			metric: "bytes",
+			limit: 1024 * 1024,
+		});
+		expect(await getBlame(OWNER, REPO, "feature-branch", "tall.txt")).toEqual({
+			kind: "too-large",
+			metric: "lines",
+			limit: 20000,
+		});
+		expect(await getBlame(OWNER, REPO, "feature-branch", "blob.bin")).toEqual({
+			kind: "binary",
+		});
+	});
+
+	it("blames a path on another branch and rejects a missing file", async () => {
+		const blame = await getBlame(OWNER, REPO, "feature-branch", "feature.txt");
+		expect(blame).toMatchObject({ kind: "blame", truncated: false });
+		await expect(getBlame(OWNER, REPO, "main", "nope.txt")).rejects.toThrow();
 	});
 });
 

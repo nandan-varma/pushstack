@@ -435,6 +435,19 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 	"""
 	nameWithOwner: String!
 	"""
+	A Git object in the repository
+	"""
+	object(
+		"""
+		A Git revision expression suitable for rev-parse
+		"""
+		expression: String
+		"""
+		The Git object ID
+		"""
+		oid: GitObjectID
+	): GitObject
+	"""
 	The User owner of the repository.
 	"""
 	owner: RepositoryOwner!
@@ -450,6 +463,16 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 	Whether or not rebase-merging is enabled on this repository.
 	"""
 	rebaseMergeAllowed: Boolean!
+	"""
+	Fetch a given ref from the repository
+	"""
+	ref(
+		"""
+		The ref to retrieve. Fully qualified matches are checked in order
+		(`refs/heads/master`) before falling back onto checks for short name matches (`master`).
+		"""
+		qualifiedName: String!
+	): Ref
 	"""
 	The HTTP path for this repository
 	"""
@@ -548,7 +571,128 @@ type Ref implements Node {
 	The ref's prefix, such as `refs/heads/` or `refs/tags/`.
 	"""
 	prefix: String!
+	"""
+	The object the ref points to. Returns null when object does not exist.
+	"""
+	target: GitObject
 }
+
+"""
+Represents a Git object.
+"""
+interface GitObject {
+	"""
+	An abbreviated version of the Git object ID
+	"""
+	abbreviatedOid: String!
+	"""
+	The Node ID of the GitObject object
+	"""
+	id: ID!
+	"""
+	The Git object ID
+	"""
+	oid: GitObjectID!
+	"""
+	The Repository the Git object belongs to
+	"""
+	repository: Repository!
+}
+
+"""
+Represents a Git commit.
+"""
+type Commit implements GitObject & Node {
+	"""
+	An abbreviated version of the Git object ID
+	"""
+	abbreviatedOid: String!
+	"""
+	The datetime when this commit was authored.
+	"""
+	authoredDate: DateTime!
+	"""
+	The datetime when this commit was committed.
+	"""
+	committedDate: DateTime!
+	"""
+	The Node ID of the Commit object
+	"""
+	id: ID!
+	"""
+	The Git commit message
+	"""
+	message: String!
+	"""
+	The Git commit message headline
+	"""
+	messageHeadline: String!
+	"""
+	The Git object ID
+	"""
+	oid: GitObjectID!
+	"""
+	The Repository this commit belongs to
+	"""
+	repository: Repository!
+	"""
+	The HTTP path for this commit
+	"""
+	resourcePath: URI!
+	"""
+	The HTTP URL for this commit
+	"""
+	url: URI!
+	"""
+	Fetches `git blame` information.
+	"""
+	blame(
+		"""
+		The file whose Git blame information you want.
+		"""
+		path: String!
+	): Blame!
+}
+
+"""
+Represents a Git blame.
+"""
+type Blame {
+	"""
+	The list of ranges from a Git blame.
+	"""
+	ranges: [BlameRange!]!
+}
+
+"""
+Represents a range of information from a Git blame.
+"""
+type BlameRange {
+	"""
+	Identifies the recency of the change, from 1 (new) to 10 (old). This is
+	calculated as a 2-quantile and determines the length of distance between the
+	median age of all the changes in the file and the recency of the current
+	range's change.
+	"""
+	age: Int!
+	"""
+	Identifies the line author
+	"""
+	commit: Commit!
+	"""
+	The ending line for the range
+	"""
+	endingLine: Int!
+	"""
+	The starting line for the range
+	"""
+	startingLine: Int!
+}
+
+"""
+A Git object ID.
+"""
+scalar GitObjectID
 
 """
 Ordering options for repository connections
@@ -658,10 +802,6 @@ enum RepositoryPermission {
 	Can read and clone this repository. Can also manage issues and pull requests
 	"""
 	TRIAGE
-	"""
-	Can read and clone this repository. Can also manage issues and pull requests, plus additional triage abilities
-	"""
-	TRIAGE_PLUS
 	"""
 	Can read, clone, and push to this repository. Can also manage issues and pull requests
 	"""

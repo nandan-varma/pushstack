@@ -50,7 +50,7 @@ for other server modules: `findRepositoryByName` (cached) and
 
 ### `files.ts` — files, branches, commits
 Reads (`getFile`, `getTreePageData`, `getLastCommits`,
-`getFileHistory` with `depth: "banner" | "full"`, `getBranches`,
+`getBlame` (a `BlameView`: blame, `too-large` or `binary`; backs the `/{owner}/{repo}/blame/{ref}/{path}` page), `getFileHistory` with `depth: "banner" | "full"`, `getBranches`,
 `getCommits`, `getCommit`, `getCommitDiff`, `getBranchDiff`) go through
 `git-read.ts`; writes (`uploadFile`, `deleteFile`, `createBranch`,
 `deleteBranch`) through `git-write.ts`, each recording a commit activity

@@ -10,6 +10,7 @@ import { getAssignableUsers, getAssignedThreads } from "@/server/assignees";
 import { getComments } from "@/server/comments";
 import { getCommitComments } from "@/server/commit-comments";
 import {
+	getBlame,
 	getBranchDiff,
 	getBranches,
 	getCommit,
@@ -136,6 +137,8 @@ export const queryKeys = {
 			limit,
 			depth,
 		] as const,
+	repoBlame: (repoId: number, branchName: string, path: string) =>
+		["repos", repoId, "files", "blame", branchName, path] as const,
 	repoAssignable: (repoId: number) =>
 		["repos", repoId, "assignable-users"] as const,
 	repoLabels: (repoId: number) => ["repos", repoId, "labels"] as const,
@@ -473,6 +476,26 @@ export function repositoryFileHistoryQueryOptions({
 					getFileHistory({
 						data: { repoId, branchName, path, limit, depth },
 					}),
+			),
+		staleTime: LONG_LIVED_STALE_TIME,
+		gcTime: LONG_LIVED_GC_TIME,
+	});
+}
+
+export function repositoryBlameQueryOptions({
+	repoId,
+	branchName,
+	path,
+}: {
+	repoId: number;
+	branchName: string;
+	path: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoBlame(repoId, branchName, path),
+		queryFn: () =>
+			perfTime(`query blame repo=${repoId} ${branchName}:${path}`, () =>
+				getBlame({ data: { repoId, branchName, path } }),
 			),
 		staleTime: LONG_LIVED_STALE_TIME,
 		gcTime: LONG_LIVED_GC_TIME,

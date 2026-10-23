@@ -21,6 +21,12 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   lists the directory itself instead of trusting an incomplete set.
 ### Added
 
+- `getBlame(repo, { ref, filePath, maxDepth? }, hooks?)` in `/ops`: line ranges
+  grouped by the commit that introduced them, following the first-parent chain.
+  Work is bounded (1 MiB file, 20,000 lines, 16 MiB of blob reads, 400 commits);
+  oversized or binary files throw `BlameLimitError` (406) and ranges beyond the
+  depth budget come back flagged `boundary`. Memoized per head commit and path
+  under the new `blame:` result-key prefix.
 - `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees
   compared directly) and `getMergeBaseOid` from `git-fs-s3/ops`.
 

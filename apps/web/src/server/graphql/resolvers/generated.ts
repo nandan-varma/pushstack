@@ -1,6 +1,7 @@
 import type { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } from 'graphql';
 import type { UserNode } from './core';
-import type { RepositoryNode } from './repository';
+import type { RepositoryNode, RefNode } from './repository';
+import type { CommitNode } from './commit';
 import type { RateLimitInfo, GraphQLContext } from '../context';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -17,6 +18,8 @@ export type Scalars = {
   DateTime: { input: string; output: string; }
   /** An RFC 3986, RFC 3987, and RFC 6570 (level 4) compliant URI string. */
   URI: { input: string; output: string; }
+  /** A Git object ID. */
+  GitObjectID: { input: string; output: string; }
   /** Git SSH string */
   GitSSHRemote: { input: string; output: string; }
 };
@@ -340,6 +343,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   name: Scalars['String']['output'];
   /** The repository's name with owner. */
   nameWithOwner: Scalars['String']['output'];
+  /** A Git object in the repository */
+  object?: Maybe<GitObject>;
   /** The User owner of the repository. */
   owner: RepositoryOwner;
   /** The repository parent, if this is a fork. */
@@ -348,6 +353,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   pushedAt?: Maybe<Scalars['DateTime']['output']>;
   /** Whether or not rebase-merging is enabled on this repository. */
   rebaseMergeAllowed: Scalars['Boolean']['output'];
+  /** Fetch a given ref from the repository */
+  ref?: Maybe<Ref>;
   /** The HTTP path for this repository */
   resourcePath: Scalars['URI']['output'];
   /** Whether or not squash-merging is enabled on this repository. */
@@ -370,6 +377,19 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   viewerPermission?: Maybe<RepositoryPermission>;
   /** Indicates the repository's visibility level. */
   visibility: RepositoryVisibility;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryObjectArgs = {
+  expression?: InputMaybe<Scalars['String']['input']>;
+  oid?: InputMaybe<Scalars['GitObjectID']['input']>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryRefArgs = {
+  qualifiedName: Scalars['String']['input'];
 };
 
 /** A list of repositories owned by the subject. */
@@ -403,6 +423,78 @@ export type Ref = Node & {
   name: Scalars['String']['output'];
   /** The ref's prefix, such as `refs/heads/` or `refs/tags/`. */
   prefix: Scalars['String']['output'];
+  /** The object the ref points to. Returns null when object does not exist. */
+  target?: Maybe<GitObject>;
+};
+
+/** Represents a Git object. */
+export type GitObject = {
+  /** An abbreviated version of the Git object ID */
+  abbreviatedOid: Scalars['String']['output'];
+  /** The Node ID of the GitObject object */
+  id: Scalars['ID']['output'];
+  /** The Git object ID */
+  oid: Scalars['GitObjectID']['output'];
+  /** The Repository the Git object belongs to */
+  repository: Repository;
+};
+
+/** Represents a Git commit. */
+export type Commit = GitObject & Node & {
+  __typename?: 'Commit';
+  /** An abbreviated version of the Git object ID */
+  abbreviatedOid: Scalars['String']['output'];
+  /** The datetime when this commit was authored. */
+  authoredDate: Scalars['DateTime']['output'];
+  /** The datetime when this commit was committed. */
+  committedDate: Scalars['DateTime']['output'];
+  /** The Node ID of the Commit object */
+  id: Scalars['ID']['output'];
+  /** The Git commit message */
+  message: Scalars['String']['output'];
+  /** The Git commit message headline */
+  messageHeadline: Scalars['String']['output'];
+  /** The Git object ID */
+  oid: Scalars['GitObjectID']['output'];
+  /** The Repository this commit belongs to */
+  repository: Repository;
+  /** The HTTP path for this commit */
+  resourcePath: Scalars['URI']['output'];
+  /** The HTTP URL for this commit */
+  url: Scalars['URI']['output'];
+  /** Fetches `git blame` information. */
+  blame: Blame;
+};
+
+
+/** Represents a Git commit. */
+export type CommitBlameArgs = {
+  path: Scalars['String']['input'];
+};
+
+/** Represents a Git blame. */
+export type Blame = {
+  __typename?: 'Blame';
+  /** The list of ranges from a Git blame. */
+  ranges: Array<BlameRange>;
+};
+
+/** Represents a range of information from a Git blame. */
+export type BlameRange = {
+  __typename?: 'BlameRange';
+  /**
+   * Identifies the recency of the change, from 1 (new) to 10 (old). This is
+   * calculated as a 2-quantile and determines the length of distance between the
+   * median age of all the changes in the file and the recency of the current
+   * range's change.
+   */
+  age: Scalars['Int']['output'];
+  /** Identifies the line author */
+  commit: Commit;
+  /** The ending line for the range */
+  endingLine: Scalars['Int']['output'];
+  /** The starting line for the range */
+  startingLine: Scalars['Int']['output'];
 };
 
 /** Ordering options for repository connections */
@@ -465,8 +557,6 @@ export type RepositoryPermission =
   | 'READ'
   /** Can read and clone this repository. Can also manage issues and pull requests */
   | 'TRIAGE'
-  /** Can read and clone this repository. Can also manage issues and pull requests, plus additional triage abilities */
-  | 'TRIAGE_PLUS'
   /** Can read, clone, and push to this repository. Can also manage issues and pull requests */
   | 'WRITE';
 
@@ -593,7 +683,8 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
   Node:
     | ( UserNode )
     | ( RepositoryNode )
-    | ( Ref )
+    | ( RefNode )
+    | ( CommitNode )
   ;
   UniformResourceLocatable:
     | ( UserNode )
@@ -603,6 +694,7 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
   RepositoryOwner: ( UserNode );
   RepositoryInfo: ( RepositoryNode );
   Starrable: ( RepositoryNode );
+  GitObject: ( CommitNode );
 };
 
 /** Mapping between all available schema types and the resolvers types */
@@ -627,7 +719,12 @@ export type ResolversTypes = {
   Repository: ResolverTypeWrapper<RepositoryNode>;
   RepositoryConnection: ResolverTypeWrapper<Omit<RepositoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['RepositoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Repository']>>> }>;
   RepositoryEdge: ResolverTypeWrapper<Omit<RepositoryEdge, 'node'> & { node?: Maybe<ResolversTypes['Repository']> }>;
-  Ref: ResolverTypeWrapper<Ref>;
+  Ref: ResolverTypeWrapper<RefNode>;
+  GitObject: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitObject']>;
+  Commit: ResolverTypeWrapper<CommitNode>;
+  Blame: ResolverTypeWrapper<Omit<Blame, 'ranges'> & { ranges: Array<ResolversTypes['BlameRange']> }>;
+  BlameRange: ResolverTypeWrapper<Omit<BlameRange, 'commit'> & { commit: ResolversTypes['Commit'] }>;
+  GitObjectID: ResolverTypeWrapper<Scalars['GitObjectID']['output']>;
   RepositoryOrder: RepositoryOrder;
   RepositoryOrderField: RepositoryOrderField;
   OrderDirection: OrderDirection;
@@ -662,7 +759,12 @@ export type ResolversParentTypes = {
   Repository: RepositoryNode;
   RepositoryConnection: Omit<RepositoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['RepositoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Repository']>>> };
   RepositoryEdge: Omit<RepositoryEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Repository']> };
-  Ref: Ref;
+  Ref: RefNode;
+  GitObject: ResolversInterfaceTypes<ResolversParentTypes>['GitObject'];
+  Commit: CommitNode;
+  Blame: Omit<Blame, 'ranges'> & { ranges: Array<ResolversParentTypes['BlameRange']> };
+  BlameRange: Omit<BlameRange, 'commit'> & { commit: ResolversParentTypes['Commit'] };
+  GitObjectID: Scalars['GitObjectID']['output'];
   RepositoryOrder: RepositoryOrder;
   CreateRepositoryInput: CreateRepositoryInput;
   CreateRepositoryPayload: Omit<CreateRepositoryPayload, 'repository'> & { repository?: Maybe<ResolversParentTypes['Repository']> };
@@ -680,7 +782,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -771,10 +873,12 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   mirrorUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   nameWithOwner?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  object?: Resolver<Maybe<ResolversTypes['GitObject']>, ParentType, ContextType, Partial<RepositoryObjectArgs>>;
   owner?: Resolver<ResolversTypes['RepositoryOwner'], ParentType, ContextType>;
   parent?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;
   pushedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   rebaseMergeAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  ref?: Resolver<Maybe<ResolversTypes['Ref']>, ParentType, ContextType, RequireFields<RepositoryRefArgs, 'qualifiedName'>>;
   resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   squashMergeAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   sshUrl?: Resolver<ResolversTypes['GitSSHRemote'], ParentType, ContextType>;
@@ -805,8 +909,43 @@ export type RefResolvers<ContextType = GraphQLContext, ParentType extends Resolv
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   prefix?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  target?: Resolver<Maybe<ResolversTypes['GitObject']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
+
+export type GitObjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitObject'] = ResolversParentTypes['GitObject']> = {
+  __resolveType: TypeResolveFn<'Commit', ParentType, ContextType>;
+};
+
+export type CommitResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Commit'] = ResolversParentTypes['Commit']> = {
+  abbreviatedOid?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  authoredDate?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  committedDate?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  message?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  messageHeadline?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  oid?: Resolver<ResolversTypes['GitObjectID'], ParentType, ContextType>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  blame?: Resolver<ResolversTypes['Blame'], ParentType, ContextType, RequireFields<CommitBlameArgs, 'path'>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type BlameResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Blame'] = ResolversParentTypes['Blame']> = {
+  ranges?: Resolver<Array<ResolversTypes['BlameRange']>, ParentType, ContextType>;
+};
+
+export type BlameRangeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['BlameRange'] = ResolversParentTypes['BlameRange']> = {
+  age?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  commit?: Resolver<ResolversTypes['Commit'], ParentType, ContextType>;
+  endingLine?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  startingLine?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export interface GitObjectIdScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['GitObjectID'], any> {
+  name: 'GitObjectID';
+}
 
 export type CreateRepositoryPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CreateRepositoryPayload'] = ResolversParentTypes['CreateRepositoryPayload']> = {
   clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -835,6 +974,11 @@ export type Resolvers<ContextType = GraphQLContext> = {
   RepositoryConnection?: RepositoryConnectionResolvers<ContextType>;
   RepositoryEdge?: RepositoryEdgeResolvers<ContextType>;
   Ref?: RefResolvers<ContextType>;
+  GitObject?: GitObjectResolvers<ContextType>;
+  Commit?: CommitResolvers<ContextType>;
+  Blame?: BlameResolvers<ContextType>;
+  BlameRange?: BlameRangeResolvers<ContextType>;
+  GitObjectID?: GraphQLScalarType;
   CreateRepositoryPayload?: CreateRepositoryPayloadResolvers<ContextType>;
   GitSSHRemote?: GraphQLScalarType;
 };

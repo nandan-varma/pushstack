@@ -43,7 +43,8 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 	const ref = branch ?? repo.defaultBranch;
 	const codeActive = Boolean(
 		matchRoute({ to: "/$owner/$name/tree/$branch/$", fuzzy: true }) ||
-			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }),
+			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }) ||
+			matchRoute({ to: "/$owner/$name/blame/$branch/$", fuzzy: true }),
 	);
 	const commitsActive = Boolean(
 		matchRoute({ to: "/$owner/$name/commits/$branch", fuzzy: true }) ||

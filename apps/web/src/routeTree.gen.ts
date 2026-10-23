@@ -47,6 +47,7 @@ import { Route as OwnerNameIssuesIdRouteImport } from './routes/$owner.$name.iss
 import { Route as OwnerNameLegacyDottarDotgzSplatRouteImport } from './routes/$owner.$name.legacy[.]tar[.]gz.$'
 import { Route as OwnerNameLegacyDotzipSplatRouteImport } from './routes/$owner.$name.legacy[.]zip.$'
 import { Route as OwnerNameRawSplatRouteImport } from './routes/$owner.$name.raw.$'
+import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
 import { Route as OwnerNameTreeBranchSplatRouteImport } from './routes/$owner.$name.tree.$branch.$'
 import { Route as OwnerNameUploadBranchSplatRouteImport } from './routes/$owner.$name.upload.$branch.$'
@@ -242,6 +243,12 @@ const OwnerNameRawSplatRoute = OwnerNameRawSplatRouteImport.update({
   path: '/raw/$',
   getParentRoute: () => OwnerNameRoute,
 } as any)
+const OwnerNameBlameBranchSplatRoute =
+  OwnerNameBlameBranchSplatRouteImport.update({
+    id: '/blame/$branch/$',
+    path: '/blame/$branch/$',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
 const OwnerNameBlobBranchSplatRoute =
   OwnerNameBlobBranchSplatRouteImport.update({
     id: '/blob/$branch/$',
@@ -304,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
+  '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
@@ -344,6 +352,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
+  '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
@@ -389,6 +398,7 @@ export interface FileRoutesById {
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
+  '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/raw/$'
+    | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/raw/$'
+    | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
@@ -517,6 +529,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/raw/$'
+    | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
@@ -810,6 +823,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameRawSplatRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/blame/$branch/$': {
+      id: '/$owner/$name/blame/$branch/$'
+      path: '/blame/$branch/$'
+      fullPath: '/$owner/$name/blame/$branch/$'
+      preLoaderRoute: typeof OwnerNameBlameBranchSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/blob/$branch/$': {
       id: '/$owner/$name/blob/$branch/$'
       path: '/blob/$branch/$'
@@ -911,6 +931,7 @@ interface OwnerNameRouteChildren {
   OwnerNameLegacyDottarDotgzSplatRoute: typeof OwnerNameLegacyDottarDotgzSplatRoute
   OwnerNameLegacyDotzipSplatRoute: typeof OwnerNameLegacyDotzipSplatRoute
   OwnerNameRawSplatRoute: typeof OwnerNameRawSplatRoute
+  OwnerNameBlameBranchSplatRoute: typeof OwnerNameBlameBranchSplatRoute
   OwnerNameBlobBranchSplatRoute: typeof OwnerNameBlobBranchSplatRoute
   OwnerNameTreeBranchSplatRoute: typeof OwnerNameTreeBranchSplatRoute
   OwnerNameUploadBranchSplatRoute: typeof OwnerNameUploadBranchSplatRoute
@@ -933,6 +954,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameLegacyDottarDotgzSplatRoute: OwnerNameLegacyDottarDotgzSplatRoute,
   OwnerNameLegacyDotzipSplatRoute: OwnerNameLegacyDotzipSplatRoute,
   OwnerNameRawSplatRoute: OwnerNameRawSplatRoute,
+  OwnerNameBlameBranchSplatRoute: OwnerNameBlameBranchSplatRoute,
   OwnerNameBlobBranchSplatRoute: OwnerNameBlobBranchSplatRoute,
   OwnerNameTreeBranchSplatRoute: OwnerNameTreeBranchSplatRoute,
   OwnerNameUploadBranchSplatRoute: OwnerNameUploadBranchSplatRoute,
