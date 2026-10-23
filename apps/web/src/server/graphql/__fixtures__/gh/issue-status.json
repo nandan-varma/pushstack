@@ -1,0 +1,17 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh issue status -R HOST/octo/hello",
+	"requests": [
+		{
+			"query": "query UserCurrent{viewer{login}}"
+		},
+		{
+			"query": "fragment issue on Issue{number,title,url,state,updatedAt,labels(first:100){nodes{id,name,description,color},totalCount}}\n\tquery IssueStatus($owner: String!, $repo: String!, $viewer: String!, $per_page: Int = 10) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\thasIssuesEnabled\n\t\t\tassigned: issues(filterBy: {assignee: $viewer, states: OPEN}, first: $per_page, orderBy: {field: UPDATED_AT, direction: DESC}) {\n\t\t\t\ttotalCount\n\t\t\t\tnodes {\n\t\t\t\t\t...issue\n\t\t\t\t}\n\t\t\t}\n\t\t\tmentioned: issues(filterBy: {mentioned: $viewer, states: OPEN}, first: $per_page, orderBy: {field: UPDATED_AT, direction: DESC}) {\n\t\t\t\ttotalCount\n\t\t\t\tnodes {\n\t\t\t\t\t...issue\n\t\t\t\t}\n\t\t\t}\n\t\t\tauthored: issues(filterBy: {createdBy: $viewer, states: OPEN}, first: $per_page, orderBy: {field: UPDATED_AT, direction: DESC}) {\n\t\t\t\ttotalCount\n\t\t\t\tnodes {\n\t\t\t\t\t...issue\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"owner": "octo",
+				"repo": "hello",
+				"viewer": "octo"
+			}
+		}
+	]
+}

@@ -3,7 +3,7 @@ import { isNotFoundError } from "git-fs-s3";
 import { DiffLimitError } from "git-fs-s3/ops";
 import { currentRequestId, logError, perfContext } from "../perf-log";
 import type { RateStatus } from "../rate-limit";
-import type { ApiContext } from "./auth";
+import { type ApiContext, oauthScopesHeader } from "./auth";
 import { getBranch, listBranches } from "./branches";
 import {
 	createComment,
@@ -52,6 +52,7 @@ import {
 	setIssueLabels,
 	updateLabel,
 } from "./labels";
+import { getRoot } from "./meta";
 import {
 	deleteThreadSubscription,
 	getThread,
@@ -103,6 +104,7 @@ import { getAuthenticatedUser, getUser, getUserById } from "./users";
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
 const HANDLERS = {
+	"meta/root": getRoot,
 	"rate-limit/get": getRateLimit,
 	"users/get-authenticated": getAuthenticatedUser,
 	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
@@ -238,6 +240,8 @@ async function dispatch(
 			params: matched.params,
 			caller,
 		});
+		const scopes = caller && oauthScopesHeader(caller.scopes);
+		if (scopes) response.headers.set("X-OAuth-Scopes", scopes);
 		return applyRateHeaders(
 			isHead
 				? new Response(null, {

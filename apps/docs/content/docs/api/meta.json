@@ -1,5 +1,5 @@
 {
 	"title": "REST API",
 	"root": true,
-	"pages": ["index"]
+	"pages": ["index", "graphql"]
 }

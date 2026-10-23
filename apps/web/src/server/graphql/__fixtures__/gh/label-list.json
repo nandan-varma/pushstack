@@ -1,0 +1,19 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh label list -R HOST/octo/hello",
+	"requests": [
+		{
+			"query": "fragment label on Label{color,description,name}\n\tquery LabelList($owner: String!, $repo: String!, $limit: Int!, $endCursor: String, $query: String, $orderBy: LabelOrder) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\tlabels(first: $limit, after: $endCursor, query: $query, orderBy: $orderBy) {\n\t\t\t\ttotalCount,\n\t\t\t\tnodes {\n\t\t\t\t\t...label\n\t\t\t\t}\n\t\t\t\tpageInfo {\n\t\t\t\t\thasNextPage\n\t\t\t\t\tendCursor\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"limit": 30,
+				"orderBy": {
+					"direction": "ASC",
+					"field": "CREATED_AT"
+				},
+				"owner": "octo",
+				"query": "",
+				"repo": "hello"
+			}
+		}
+	]
+}

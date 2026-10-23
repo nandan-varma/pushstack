@@ -1,0 +1,142 @@
+{
+	"Query": [
+		{
+			"name": "repository",
+			"args": ["name", "owner"]
+		},
+		"repositoryOwner",
+		"user"
+	],
+	"Mutation": ["createRepository"],
+	"RepositoryOwner": [
+		"id",
+		"login",
+		{
+			"name": "repositories",
+			"args": [
+				"affiliations",
+				"after",
+				"before",
+				"first",
+				"isArchived",
+				"isFork",
+				"last",
+				"orderBy",
+				"ownerAffiliations",
+				"privacy",
+				"visibility"
+			]
+		},
+		{
+			"name": "repository",
+			"args": ["name"]
+		},
+		"resourcePath",
+		"url"
+	],
+	"User": [
+		{
+			"name": "repositories",
+			"args": [
+				"affiliations",
+				"after",
+				"before",
+				"first",
+				"isArchived",
+				"isFork",
+				"last",
+				"orderBy",
+				"ownerAffiliations",
+				"privacy",
+				"visibility"
+			]
+		},
+		{
+			"name": "repository",
+			"args": ["name"]
+		}
+	],
+	"RepositoryInfo": [
+		"archivedAt",
+		"createdAt",
+		"description",
+		"forkCount",
+		"hasDiscussionsEnabled",
+		"hasIssuesEnabled",
+		"hasProjectsEnabled",
+		"hasWikiEnabled",
+		"homepageUrl",
+		"isArchived",
+		"isFork",
+		"isInOrganization",
+		"isLocked",
+		"isMirror",
+		"isPrivate",
+		"isTemplate",
+		"mirrorUrl",
+		"name",
+		"nameWithOwner",
+		"owner",
+		"pushedAt",
+		"resourcePath",
+		"updatedAt",
+		"url",
+		"visibility"
+	],
+	"Starrable": ["id", "stargazerCount", "viewerHasStarred"],
+	"Repository": [
+		"archivedAt",
+		"createdAt",
+		"databaseId",
+		"defaultBranchRef",
+		"deleteBranchOnMerge",
+		"description",
+		"forkCount",
+		"hasDiscussionsEnabled",
+		"hasIssuesEnabled",
+		"hasProjectsEnabled",
+		"hasWikiEnabled",
+		"homepageUrl",
+		"id",
+		"isArchived",
+		"isEmpty",
+		"isFork",
+		"isInOrganization",
+		"isLocked",
+		"isMirror",
+		"isPrivate",
+		"isTemplate",
+		"mergeCommitAllowed",
+		"mirrorUrl",
+		"name",
+		"nameWithOwner",
+		"owner",
+		"parent",
+		"pushedAt",
+		"rebaseMergeAllowed",
+		"resourcePath",
+		"squashMergeAllowed",
+		"sshUrl",
+		"stargazerCount",
+		"templateRepository",
+		"updatedAt",
+		"url",
+		"viewerCanAdminister",
+		"viewerHasStarred",
+		"viewerPermission",
+		"visibility"
+	],
+	"RepositoryConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"RepositoryEdge": "*",
+	"Ref": ["id", "name", "prefix"],
+	"RepositoryOrder": "*",
+	"RepositoryOrderField": "*",
+	"OrderDirection": "*",
+	"RepositoryPrivacy": "*",
+	"RepositoryAffiliation": "*",
+	"RepositoryPermission": "*",
+	"RepositoryVisibility": "*",
+	"CreateRepositoryInput": "*",
+	"CreateRepositoryPayload": "*",
+	"GitSSHRemote": "*"
+}
