@@ -291,6 +291,63 @@ function toStatus(
 }
 
 /**
+ * Buckets this instance has seen over their limit, with the window's reset
+ * (epoch seconds). Counters only grow within a window, so an exhausted bucket
+ * stays exhausted until its reset: denying from memory is exact, costs no
+ * database round trip, and keeps an over-limit client from making the server
+ * do handler work. Bounded; entries lapse at their reset.
+ */
+const EXHAUSTED_MAX = 5_000;
+const exhaustedBuckets = new Map<string, number>();
+
+function rememberExhausted(
+	resource: RateLimitResource,
+	who: RateIdentity,
+	reset: number,
+): void {
+	const key = bucketKey(resource, who);
+	exhaustedBuckets.delete(key);
+	exhaustedBuckets.set(key, reset);
+	while (exhaustedBuckets.size > EXHAUSTED_MAX) {
+		const oldest = exhaustedBuckets.keys().next().value;
+		if (oldest === undefined) break;
+		exhaustedBuckets.delete(oldest);
+	}
+}
+
+/** Forget remembered exhaustion (tests simulating a window rollover). */
+export function resetRateLimitMemory(): void {
+	exhaustedBuckets.clear();
+}
+
+/**
+ * The exhausted bucket for `resource`/`who` if this instance already saw it
+ * over its limit in the current window (no database), else null.
+ */
+export function knownExhausted(
+	resource: RateLimitResource,
+	who: RateIdentity,
+): RateStatus | null {
+	const key = bucketKey(resource, who);
+	const reset = exhaustedBuckets.get(key);
+	if (reset === undefined) return null;
+	if (reset <= Math.floor(Date.now() / 1000)) {
+		exhaustedBuckets.delete(key);
+		return null;
+	}
+	const limit = limitFor(resource, who.kind);
+	return {
+		resource,
+		limit,
+		used: limit,
+		remaining: 0,
+		reset,
+		exceeded: true,
+		identity: describeIdentity(who),
+	};
+}
+
+/**
  * Count one request against `resource` for `who` and report the bucket.
  *
  * Fails open: this is abuse mitigation, not authorization, so a limiter error
@@ -323,7 +380,9 @@ export async function hitRateLimit(
 				extract(epoch from (window_started_at + make_interval(secs => ${window})))::bigint as reset
 		`);
 		await pruneExpiredCounters();
-		return toStatus(resource, who, result.rows[0]);
+		const status = toStatus(resource, who, result.rows[0]);
+		if (status.exceeded) rememberExhausted(resource, who, status.reset);
+		return status;
 	} catch (error) {
 		logWarn("rate-limit", "Request limiter failed; serving the request", error);
 		return null;
