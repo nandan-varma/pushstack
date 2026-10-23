@@ -246,12 +246,13 @@ export const getComparison = createServerFn({ method: "GET" })
 				repoId: z.number(),
 				base: safeCommitRevSchema,
 				head: safeCommitRevSchema,
+				separator: z.enum(["...", ".."]).default("..."),
 			}),
 		),
 	)
 	.handler(({ data }) =>
 		readGit(
-			`getComparison ${data.base}...${data.head}`,
+			`getComparison ${data.base}${data.separator}${data.head}`,
 			data.repoId,
 			async (owner, name) => {
 				const { commits, ...comparison } = await compareRevisions(
@@ -259,6 +260,7 @@ export const getComparison = createServerFn({ method: "GET" })
 					name,
 					data.base,
 					data.head,
+					data.separator,
 				);
 				return { ...comparison, commits: commits.map(summarizeCommit) };
 			},

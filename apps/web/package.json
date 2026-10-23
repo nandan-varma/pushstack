@@ -52,6 +52,7 @@
 		"drizzle-orm": "1.0.0-rc.5-5935859",
 		"git-edge": "workspace:*",
 		"git-fs-s3": "workspace:*",
+		"graphql": "^17.0.2",
 		"isomorphic-git": "^1.44.3",
 		"lucide-react": "^1.59.0",
 		"mdast-util-find-and-replace": "^3.0.3",

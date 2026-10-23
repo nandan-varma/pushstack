@@ -1,0 +1,26 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh pr status -R HOST/octo/hello",
+	"requests": [
+		{
+			"query": "query PullRequest_fields2{WorkflowRun: __type(name: \"WorkflowRun\"){fields(includeDeprecated: true){name}}}"
+		},
+		{
+			"query": "query PullRequest_fields{PullRequest: __type(name: \"PullRequest\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \"StatusCheckRollupContextConnection\"){fields(includeDeprecated: true){name}}}"
+		},
+		{
+			"query": "query UserCurrent{viewer{login}}"
+		},
+		{
+			"query": "\n\tfragment pr on PullRequest {number,title,state,url,isDraft,isCrossRepository,headRefName,headRepositoryOwner{id,login,...on User{name}},mergeStateStatus,baseRef{branchProtectionRule{requiresStrictStatusChecks}},autoMergeRequest {authorEmail,commitBody,commitHeadline,mergeMethod,enabledAt,enabledBy{login,...on User{id,name}}},statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}}}\n\tfragment prWithReviews on PullRequest {...pr,reviewDecision,latestReviews(first: 100) {nodes {author{login},authorAssociation,submittedAt,body,state}}}\n\t\n\tquery PullRequestStatus($owner: String!, $repo: String!, $headRefName: String!, $viewerQuery: String!, $reviewerQuery: String!, $per_page: Int = 10) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\tdefaultBranchRef {\n\t\t\t\tname\n\t\t\t}\n\t\t\tpullRequests(headRefName: $headRefName, first: $per_page, orderBy: { field: CREATED_AT, direction: DESC }) {\n\t\t\t\ttotalCount\n\t\t\t\tedges {\n\t\t\t\t\tnode {\n\t\t\t\t\t\t...prWithReviews\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\n\t\t\tviewerCreated: search(query: $viewerQuery, type: ISSUE, first: $per_page) {\n\t\t\t\ttotalCount: issueCount\n\t\t\t\tedges {\n\t\t\t\t\tnode {\n\t\t\t\t\t...prWithReviews\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\treviewRequested: search(query: $reviewerQuery, type: ISSUE, first: $per_page) {\n\t\t\t\ttotalCount: issueCount\n\t\t\t\tedges {\n\t\t\t\t\tnode {\n\t\t\t\t\t...pr\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t",
+			"variables": {
+				"headRefName": "",
+				"number": 0,
+				"owner": "octo",
+				"repo": "hello",
+				"reviewerQuery": "repo:octo/hello state:open review-requested:octo",
+				"viewerQuery": "repo:octo/hello state:open is:pr author:octo"
+			}
+		}
+	]
+}

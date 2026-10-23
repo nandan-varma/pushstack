@@ -2,7 +2,7 @@
  * A comparison of two revisions, as GitHub's compare page and
  * `/compare/{spec}.diff|.patch` show it: the commits `head` has that `base`
  * doesn't (oldest first, capped like the API), how far each side is ahead,
- * and the three-dot diff against the merge base.
+ * and the diff: three-dot against the merge base, or two-dot directly.
  */
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import {
@@ -10,6 +10,8 @@ import {
 	getCommit,
 	getCommitInfosBetween,
 	getCommitsBetween,
+	getDirectDiff,
+	getMergeBase,
 } from "./git-read";
 
 /** GitHub lists at most 250 commits in a comparison. */
@@ -22,6 +24,7 @@ export async function compareRevisions(
 	repoName: string,
 	base: string,
 	head: string,
+	separator: "..." | ".." = "...",
 ) {
 	const [baseInfo, headInfo] = await Promise.all([
 		getCommit(ownerKey, repoName, base),
@@ -42,8 +45,16 @@ export async function compareRevisions(
 			baseInfo.oid,
 			MAX_HISTORY_WALK,
 		),
-		getBranchDiff(ownerKey, repoName, baseInfo.oid, headInfo.oid),
+		separator === ".."
+			? getDirectDiff(ownerKey, repoName, baseInfo.oid, headInfo.oid)
+			: getBranchDiff(ownerKey, repoName, baseInfo.oid, headInfo.oid),
 	]);
+	// A two-dot diff starts at base itself; GitHub still reports the merge base.
+	const mergeBaseSha =
+		separator === ".."
+			? ((await getMergeBase(ownerKey, repoName, baseInfo.oid, headInfo.oid)) ??
+				baseInfo.oid)
+			: (diff.oldRef ?? baseInfo.oid);
 	const aheadBy = ahead.commits.length;
 	const behindBy = behind.commits.length;
 	const status: CompareStatus =
@@ -57,7 +68,7 @@ export async function compareRevisions(
 	return {
 		baseSha: baseInfo.oid,
 		headSha: headInfo.oid,
-		mergeBaseSha: diff.oldRef ?? baseInfo.oid,
+		mergeBaseSha,
 		status,
 		aheadBy,
 		behindBy,

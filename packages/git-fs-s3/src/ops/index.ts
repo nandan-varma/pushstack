@@ -25,6 +25,8 @@ export {
 	type DiffResult,
 	getCommitDiff,
 	getDiffBetweenRefs,
+	getDirectDiffBetweenRefs,
+	getMergeBaseOid,
 	MAX_DIFF_BYTES,
 	MAX_DIFF_FILES,
 	MAX_DIFF_TEXT_BYTES,

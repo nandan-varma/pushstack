@@ -455,6 +455,8 @@ export const rateLimitOverview = z.strictObject({
 		git: rate,
 		/** Authenticated callers only: their mutating-request bucket. */
 		core_write: rate.optional(),
+		/** Authenticated callers only (GraphQL requires a token): query-cost points. */
+		graphql: rate.optional(),
 	}),
 	rate,
 });

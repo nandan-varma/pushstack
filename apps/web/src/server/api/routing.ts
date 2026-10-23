@@ -11,7 +11,7 @@ const ROUTES = Object.entries(routes).flatMap(([id, route]) => {
 	const compiled = (pattern: string) => ({
 		...base,
 		pattern,
-		parts: pattern.split("/").slice(1),
+		parts: pattern.split("/").filter(Boolean),
 	});
 	return pattern.includes("*")
 		? [compiled(pattern.slice(0, pattern.lastIndexOf("/"))), compiled(pattern)]

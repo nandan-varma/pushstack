@@ -140,14 +140,20 @@ describe("plain-text URLs", () => {
 		]);
 	});
 
-	it("is 404 for two-dot comparisons, which aren't served yet", async () => {
+	it("serves a two-dot comparison as a direct diff", async () => {
 		const response = await serveComparePatch(
 			"alice",
 			"proj",
 			"main..feature",
 			"diff",
 		);
-		expect(response.status).toBe(404);
+		expect(response.status).toBe(200);
+		expect(await response.text()).toContain("+TWO");
+		const reverse = await (
+			await serveComparePatch("alice", "proj", "feature..main", "diff")
+		).text();
+		expect(reverse).toContain("-TWO");
+		expect(reverse).toContain("+++ /dev/null");
 	});
 
 	it("refuses bodies over the cap with 406", async () => {

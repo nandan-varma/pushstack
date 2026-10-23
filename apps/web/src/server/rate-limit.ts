@@ -147,6 +147,7 @@ export const rateLimitStorage: RateLimitStorage = {
 export type RateLimitResource =
 	| "core"
 	| "core-write"
+	| "graphql"
 	| "git"
 	| "git-write"
 	| "auth-failure";
@@ -251,6 +252,9 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 				: config.RATE_LIMIT_API_ANONYMOUS;
 		case "core-write":
 			return config.RATE_LIMIT_API_WRITE;
+		// GitHub's GraphQL budget is points (query cost), same size as core's.
+		case "graphql":
+			return config.RATE_LIMIT_API_AUTHENTICATED;
 		case "git":
 			return kind === "user"
 				? config.RATE_LIMIT_GIT_READ_AUTHENTICATED
@@ -350,7 +354,8 @@ export function knownExhausted(
 }
 
 /**
- * Count one request against `resource` for `who` and report the bucket.
+ * Count one request (or `amount` points: a GraphQL query's cost) against
+ * `resource` for `who` and report the bucket.
  *
  * Fails open: this is abuse mitigation, not authorization, so a limiter error
  * (database down, table missing) logs and serves the request (returns null)
@@ -360,17 +365,18 @@ export function knownExhausted(
 export async function hitRateLimit(
 	resource: RateLimitResource,
 	who: RateIdentity,
+	amount = 1,
 ): Promise<RateStatus | null> {
 	const window = config.RATE_LIMIT_WINDOW_SECONDS;
 	try {
 		const result = await db.execute<StatusRow>(sql`
 			insert into rate_limits (key, count, window_started_at)
-			values (${bucketKey(resource, who)}, 1, now())
+			values (${bucketKey(resource, who)}, ${amount}, now())
 			on conflict (key) do update set
 				count = case
 					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
-						then 1
-					else rate_limits.count + 1
+						then ${amount}
+					else rate_limits.count + ${amount}
 				end,
 				window_started_at = case
 					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
@@ -427,7 +433,9 @@ export function rateLimitHeaders(status: RateStatus): Record<string, string> {
 		"X-RateLimit-Resource":
 			status.resource === "git" || status.resource === "git-write"
 				? "git"
-				: "core",
+				: status.resource === "graphql"
+					? "graphql"
+					: "core",
 	};
 	if (status.exceeded) {
 		headers["Retry-After"] = String(
