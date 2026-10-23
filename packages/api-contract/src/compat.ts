@@ -9,8 +9,10 @@
 import { type OperationId, routes } from "./routes";
 
 export const compatibilityNotes: Record<OperationId, string> = {
+	"meta/root":
+		"URL templates for the served endpoints only; gh reads `X-OAuth-Scopes` here",
 	"rate-limit/get":
-		"`resources.core`, `git` and (authenticated) `core_write`; not counted; no `search`/`graphql`",
+		"`resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search`",
 	"users/get-authenticated": "",
 	"repos/list-for-authenticated-user":
 		"`visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction`",

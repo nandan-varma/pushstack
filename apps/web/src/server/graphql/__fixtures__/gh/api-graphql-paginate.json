@@ -1,0 +1,21 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh api graphql --hostname HOST --paginate -f query=query($endCursor: String) { viewer { repositories(first: 1, after: $endCursor, orderBy: {field: NAME, direction: ASC}) { nodes { name } pageInfo { hasNextPage endCursor } } } } --jq .data.viewer.repositories.nodes[].name",
+	"requests": [
+		{
+			"query": "query($endCursor: String) { viewer { repositories(first: 1, after: $endCursor, orderBy: {field: NAME, direction: ASC}) { nodes { name } pageInfo { hasNextPage endCursor } } } }"
+		},
+		{
+			"query": "query($endCursor: String) { viewer { repositories(first: 1, after: $endCursor, orderBy: {field: NAME, direction: ASC}) { nodes { name } pageInfo { hasNextPage endCursor } } } }",
+			"variables": {
+				"endCursor": "Y3Vyc29yOnYyOjA="
+			}
+		},
+		{
+			"query": "query($endCursor: String) { viewer { repositories(first: 1, after: $endCursor, orderBy: {field: NAME, direction: ASC}) { nodes { name } pageInfo { hasNextPage endCursor } } } }",
+			"variables": {
+				"endCursor": "Y3Vyc29yOnYyOjE="
+			}
+		}
+	]
+}

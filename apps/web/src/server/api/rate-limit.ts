@@ -69,12 +69,17 @@ export async function getRateLimit(ctx: ApiContext): Promise<Response> {
 		git: shape(git as RateStatus),
 	};
 	let writes: RateStatus | undefined;
+	let graphql: RateStatus | undefined;
 	if (ctx.caller) {
-		[writes] = await peekRateLimits(["core-write"], who);
+		[writes, graphql] = await peekRateLimits(["core-write", "graphql"], who);
 	}
 	return json(
 		{
-			resources: { ...resources, ...(writes && { core_write: shape(writes) }) },
+			resources: {
+				...resources,
+				...(writes && { core_write: shape(writes) }),
+				...(graphql && { graphql: shape(graphql) }),
+			},
 			rate: resources.core,
 		},
 		200,

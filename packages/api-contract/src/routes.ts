@@ -16,6 +16,11 @@ import {
 const DOCS = "https://docs.github.com/rest";
 
 export const routes = {
+	"meta/root": {
+		method: "GET",
+		path: "/",
+		docs: `${DOCS}/meta/meta#github-api-root`,
+	},
 	"rate-limit/get": {
 		method: "GET",
 		path: "/rate_limit",

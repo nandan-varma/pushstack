@@ -108,7 +108,8 @@ export function matchPath(
 	template: string,
 	pathname: string,
 ): Record<string, string> | null {
-	const parts = template.split("/").slice(1);
+	// The root template "/" has no segments.
+	const parts = template === "/" ? [] : template.split("/").slice(1);
 	let end = pathname.length;
 	// A loop rather than /\/+$/, which backtracks quadratically on many slashes.
 	while (end > 0 && pathname.charCodeAt(end - 1) === 47) end--;

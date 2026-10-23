@@ -70,6 +70,7 @@ beforeAll(async () => {
 	alice = await mintToken(users.alice, ["repo:write"]);
 	const auth = asToken(alice);
 
+	await check("/", auth);
 	await check("/rate_limit", auth);
 	const me = await check("/user", auth);
 	await check(`/user/${me.id}`);
