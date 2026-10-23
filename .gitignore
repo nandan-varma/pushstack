@@ -23,7 +23,10 @@ coverage/
 
 .vitest/
 
-.claude/
+# Agent state stays local; only the shared cloud-session hook is tracked.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 .pi/
 
 plans/
