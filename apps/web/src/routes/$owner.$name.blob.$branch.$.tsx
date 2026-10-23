@@ -32,6 +32,7 @@ import {
 	formatFileSize,
 } from "@/lib/language-detection";
 import {
+	fileOwnersQueryOptions,
 	repositoryByNameQueryOptions,
 	repositoryFileHistoryQueryOptions,
 	repositoryFileQueryOptions,
@@ -99,6 +100,14 @@ function FileBlobPage() {
 			branchName: branch,
 			path: filePath,
 			limit: 1,
+		}),
+		enabled: !!repo,
+	});
+	const { data: owners } = useQuery({
+		...fileOwnersQueryOptions({
+			repoId: repo?.id ?? 0,
+			branchName: branch,
+			path: filePath,
 		}),
 		enabled: !!repo,
 	});
@@ -188,6 +197,26 @@ function FileBlobPage() {
 						<span>{formatFileSize(file.size)}</span>
 						<span aria-hidden="true">·</span>
 						<span>{language}</span>
+						{owners && owners.owners.length > 0 && (
+							<>
+								<span aria-hidden="true">·</span>
+								<span title={`${owners.file}: ${owners.pattern}`}>
+									Owned by{" "}
+									{owners.owners.map((owner, i) => (
+										<span key={owner}>
+											{i > 0 && ", "}
+											<Link
+												to="/$owner"
+												params={{ owner }}
+												className="font-medium text-bjork-text-muted hover:text-bjork-accent"
+											>
+												@{owner}
+											</Link>
+										</span>
+									))}
+								</span>
+							</>
+						)}
 					</p>
 				</div>
 				<TabsList>

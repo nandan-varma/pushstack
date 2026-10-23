@@ -135,6 +135,12 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/list-commits": "oldest first, up to 250",
 	"pulls/list-files":
 		"up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips)",
+	"pulls/list-requested-reviewers":
+		"`{ users, teams }`; `teams` is always empty (no teams yet)",
+	"pulls/request-reviewers":
+		"`reviewers` (collaborators only, at most 15; never the author); `team_reviewers` is refused. Each new request is a `review_requested` event and notifies the reviewer (`reason: review_requested`). Needs write access or authorship. `201` with the pull request",
+	"pulls/remove-requested-reviewers":
+		"`reviewers` must all have a pending request (`422` otherwise); records `review_request_removed`. Returns the pull request",
 	"issues/list-labels-for-repo": "",
 	"issues/create-label":
 		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`",

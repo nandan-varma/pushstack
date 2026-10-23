@@ -22,6 +22,7 @@ import { SplitLayout } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { ReactionBar } from "@/components/ReactionBar";
 import { RelativeTime } from "@/components/RelativeTime";
+import { ReviewRequests } from "@/components/ReviewRequests";
 import { CommitList } from "@/components/repo/CommitList";
 import { DeleteMergedBranchCard } from "@/components/repo/DeleteMergedBranchCard";
 import { StatePill } from "@/components/StatePill";
@@ -499,6 +500,22 @@ function PullRequestDetailPage() {
 									repoId={pr.repoId}
 									assignees={pr.assignees.map((a) => a.user)}
 									canEdit={pr.viewer.canWrite}
+									onChanged={() => {
+										queryClient.invalidateQueries({
+											queryKey: pullRequestByNumberQueryOptions({
+												owner,
+												name,
+												number: pr.number,
+											}).queryKey,
+										});
+									}}
+								/>
+								<ReviewRequests
+									pullRequestId={pr.id}
+									repoId={pr.repoId}
+									authorId={pr.authorId}
+									reviewers={pr.requestedReviewers}
+									canEdit={canEdit && pr.status === "open"}
 									onChanged={() => {
 										queryClient.invalidateQueries({
 											queryKey: pullRequestByNumberQueryOptions({

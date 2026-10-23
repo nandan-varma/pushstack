@@ -8,6 +8,7 @@ import { and, count, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
+import { requestCodeownerReviews } from "../codeowners";
 import { commitCommentCounts } from "../commit-comment-store";
 import {
 	analyzeMerge,
@@ -25,6 +26,12 @@ import {
 	updatePullRequestFields,
 } from "../pull-request-store";
 import type { RepositoryRowWithOwner } from "../repository-lookup";
+import {
+	listRequestedReviewers,
+	ReviewRequestError,
+	removeReviewRequests,
+	requestReviewers,
+} from "../review-request-store";
 import { reviewSummaryFor } from "../review-store";
 import {
 	findPullRequestByNumber,
@@ -56,6 +63,7 @@ import {
 	commitObject,
 	pullRequest as pullRequestShape,
 	repository,
+	simpleUser,
 } from "./serializers";
 import { fullNameOf } from "./threads";
 
@@ -144,6 +152,7 @@ function findPull(repoId: number, number: number): Promise<Thread | null> {
 
 function pullShapeOf(thread: Thread) {
 	return {
+		requestedReviewers: thread.requestedReviewers,
 		row: pullRequestOfThread(thread),
 		author: thread.author,
 		labels: thread.labels,
@@ -389,6 +398,7 @@ export async function createPull(ctx: ApiContext) {
 		sourceBranch,
 		targetBranch,
 	});
+	await requestCodeownerReviews(repo, created);
 	const record = await findPull(repo.id, created.number);
 	if (!record) throw new Error("Pull request missing after insert");
 	return json(await serializeDetail(repo, record, access.role), 201, {
@@ -577,4 +587,102 @@ export async function listPullFiles(ctx: ApiContext) {
 		: [];
 	const body = await diffFileObjects(ownerKey, repo.name, fullName, diff, page);
 	return json(body, 200, linkHeader(ctx.url, params, files.length));
+}
+
+/** GitHub answers review-request writes with the pull request's simple shape. */
+async function serializeSimple(
+	repo: RepositoryRowWithOwner,
+	number: number,
+	access: { role: Parameters<typeof repository>[1]["role"] },
+	ctx: ApiContext,
+) {
+	const fresh = await findPull(repo.id, number);
+	if (!fresh) throw notFoundError();
+	const [shape] = await serializeList(
+		repo,
+		[fresh],
+		ctx.caller ? access.role : undefined,
+	);
+	return shape;
+}
+
+export async function listPullRequestedReviewers(ctx: ApiContext) {
+	const { repo } = await readableRepository(ctx);
+	const { pull_number } = pathParams(ctx, "pulls/list-requested-reviewers");
+	const record = await findPull(repo.id, pull_number);
+	if (!record) throw notFoundError();
+	const users = await listRequestedReviewers(record.id);
+	return json({ users: users.map(simpleUser), teams: [] });
+}
+
+/** Shared by request and remove: the pull request, once the caller may manage its reviewers. */
+async function pullForReviewerChange(
+	ctx: ApiContext,
+	operation: "pulls/request-reviewers" | "pulls/remove-requested-reviewers",
+) {
+	const caller = requireScope(ctx, "repo:write");
+	const { repo, access } = await readableRepository(ctx);
+	const { pull_number } = pathParams(ctx, operation);
+	const record = await findPull(repo.id, pull_number);
+	if (!record) throw notFoundError();
+	if (record.authorId !== caller.userId && !access.canWrite) {
+		throw forbiddenError(
+			"You do not have permission to manage review requests on this pull request",
+		);
+	}
+	return { caller, repo, access, record };
+}
+
+/** GitHub's wording for a request naming a team: teams don't exist here yet. */
+function refuseTeams(
+	repo: RepositoryRowWithOwner,
+	teams: string[] | undefined,
+) {
+	if (teams && teams.length > 0) {
+		throw validationFailedError(
+			`Reviews may only be requested from collaborators. One or more of the users or teams you specified is not a collaborator of the ${fullNameOf(repo)} repository.`,
+			[],
+		);
+	}
+}
+
+function reviewerError(error: unknown): never {
+	if (error instanceof ReviewRequestError) {
+		throw validationFailedError(error.message, []);
+	}
+	throw error;
+}
+
+export async function requestPullReviewers(ctx: ApiContext) {
+	const { caller, repo, access, record } = await pullForReviewerChange(
+		ctx,
+		"pulls/request-reviewers",
+	);
+	const data = await requestBody(ctx, "pulls/request-reviewers", "PullRequest");
+	refuseTeams(repo, data.team_reviewers);
+	const reviewers = data.reviewers ?? [];
+	if (reviewers.length === 0) {
+		throw validationFailedError("Validation Failed", [
+			customError("Must provide at least one of reviewers or team_reviewers"),
+		]);
+	}
+	await requestReviewers(record, reviewers, caller.userId).catch(reviewerError);
+	return json(await serializeSimple(repo, record.number, access, ctx), 201);
+}
+
+export async function removePullRequestedReviewers(ctx: ApiContext) {
+	const { caller, repo, access, record } = await pullForReviewerChange(
+		ctx,
+		"pulls/remove-requested-reviewers",
+	);
+	const data = await requestBody(
+		ctx,
+		"pulls/remove-requested-reviewers",
+		"PullRequest",
+	);
+	refuseTeams(repo, data.team_reviewers);
+	await removeReviewRequests(record, data.reviewers, caller.userId).catch(
+		reviewerError,
+	);
+	return json(await serializeSimple(repo, record.number, access, ctx));
 }

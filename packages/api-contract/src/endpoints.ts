@@ -19,6 +19,7 @@ import {
 	queryBoolean,
 	repoName,
 	repoParams,
+	reviewerLogins,
 	threadBody,
 	threadTitle,
 } from "./inputs";
@@ -57,6 +58,7 @@ import {
 	reaction,
 	reactionContent,
 	repository,
+	requestedReviewers,
 	shortBranch,
 	stateReason,
 	tag,
@@ -636,6 +638,27 @@ export const endpoints = defineEndpoints({
 		params: pullParams,
 		query: pagination,
 		response: z.array(diffEntry),
+	},
+
+	"pulls/list-requested-reviewers": {
+		params: pullParams,
+		response: requestedReviewers,
+	},
+	"pulls/request-reviewers": {
+		params: pullParams,
+		body: z.object({
+			reviewers: reviewerLogins.optional(),
+			team_reviewers: reviewerLogins.optional(),
+		}),
+		response: pullRequestSimple,
+	},
+	"pulls/remove-requested-reviewers": {
+		params: pullParams,
+		body: z.object({
+			reviewers: reviewerLogins,
+			team_reviewers: reviewerLogins.optional(),
+		}),
+		response: pullRequestSimple,
 	},
 
 	"issues/list-labels-for-repo": {

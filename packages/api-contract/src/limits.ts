@@ -13,6 +13,8 @@ export const MAX_LABEL_NAME_CHARS = 50;
 export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 export const MAX_LABELS_PER_THREAD = 100;
 export const MAX_ASSIGNEES = 10;
+/** GitHub: at most 15 users and 15 teams per request-reviewers call. */
+export const MAX_REVIEWERS_PER_REQUEST = 15;
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
 export const MAX_STORAGE_NAME_LENGTH = 100;
 

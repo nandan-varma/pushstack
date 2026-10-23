@@ -299,6 +299,8 @@ export interface TimelineContext {
 	fullName: string;
 	/** The serialized thread (`issue`) each `#N` names, for `source` objects. */
 	threadByNumber: Map<number, Shape<"issue">>;
+	/** Users named by `review_requested` events, by lower-cased username. */
+	reviewers: Map<string, PublicUser>;
 }
 
 /**
@@ -384,6 +386,17 @@ export function timelineEvent(
 					type: "User" as const,
 				},
 			};
+		case "review_requested":
+		case "review_request_removed": {
+			const reviewer = ctx.reviewers.get(entry.reviewer.username.toLowerCase());
+			if (!reviewer) return null;
+			return {
+				...base,
+				event: entry.event,
+				review_requester: simpleUser(entry.actor),
+				requested_reviewer: simpleUser(reviewer),
+			};
+		}
 		case "reviewed":
 			return null;
 	}
@@ -445,6 +458,7 @@ export function commitObject(
 
 export interface PullShapeInput {
 	assignees: PublicUser[];
+	requestedReviewers: PublicUser[];
 	repo: Repository & { owner: PublicUser };
 	repoShape: Shape<"repository">;
 	row: PullRequest;
@@ -513,7 +527,7 @@ export function pullRequest(
 		merge_commit_sha: row.mergeCommitSha,
 		assignee: input.assignees[0] ? simpleUser(input.assignees[0]) : null,
 		assignees: input.assignees.map(simpleUser),
-		requested_reviewers: [],
+		requested_reviewers: input.requestedReviewers.map(simpleUser),
 		requested_teams: [],
 		head: side(row.sourceBranch, input.headSha),
 		base: side(row.targetBranch, input.baseSha),

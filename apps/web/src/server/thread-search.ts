@@ -9,8 +9,17 @@
 import type { SearchQuery, SearchSort } from "#/lib/search-query";
 import type { ThreadFilter, ThreadSort } from "./thread-store";
 
+/** `@me` becomes the viewer; a signed-out `@me` names no one (matches nothing). */
+function resolveMe(values: string[], viewer?: string | null): string[] {
+	return values.map((value) =>
+		value.toLowerCase() === "@me" ? (viewer ?? "") : value,
+	);
+}
+
 export function searchFilter(
 	search: SearchQuery,
+	/** Who `@me` means; without one it matches nothing. */
+	viewerUsername?: string | null,
 ): Omit<ThreadFilter, "repoId" | "kind" | "state"> {
 	return {
 		terms: search.terms,
@@ -18,6 +27,8 @@ export function searchFilter(
 		mentions: search.mentions,
 		labels: search.labels,
 		noLabel: search.noLabel,
+		reviewRequested: resolveMe(search.reviewRequested, viewerUsername),
+		reviewedBy: resolveMe(search.reviewedBy, viewerUsername),
 		assignees: [...(search.noAssignee ? ["none"] : []), ...search.assignees],
 	};
 }

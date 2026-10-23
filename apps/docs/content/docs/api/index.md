@@ -181,6 +181,9 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge` | [`pulls/merge`](https://docs.github.com/rest/pulls/pulls#merge-a-pull-request) | `commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge` only; `squash`/`rebase` are `405`). A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/commits` | [`pulls/list-commits`](https://docs.github.com/rest/pulls/pulls#list-commits-on-a-pull-request) | oldest first, up to 250 |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/files` | [`pulls/list-files`](https://docs.github.com/rest/pulls/pulls#list-pull-requests-files) | up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips) |
+| `GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers` | [`pulls/list-requested-reviewers`](https://docs.github.com/rest/pulls/review-requests#get-all-requested-reviewers-for-a-pull-request) | `{ users, teams }`; `teams` is always empty (no teams yet) |
+| `POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers` | [`pulls/request-reviewers`](https://docs.github.com/rest/pulls/review-requests#request-reviewers-for-a-pull-request) | `reviewers` (collaborators only, at most 15; never the author); `team_reviewers` is refused. Each new request is a `review_requested` event and notifies the reviewer (`reason: review_requested`). Needs write access or authorship. `201` with the pull request |
+| `DELETE /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers` | [`pulls/remove-requested-reviewers`](https://docs.github.com/rest/pulls/review-requests#remove-requested-reviewers-from-a-pull-request) | `reviewers` must all have a pending request (`422` otherwise); records `review_request_removed`. Returns the pull request |
 | `GET /repos/{owner}/{repo}/labels` | [`issues/list-labels-for-repo`](https://docs.github.com/rest/issues/labels#list-labels-for-a-repository) | |
 | `POST /repos/{owner}/{repo}/labels` | [`issues/create-label`](https://docs.github.com/rest/issues/labels#create-a-label) | write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists` |
 | `GET /repos/{owner}/{repo}/labels/{name}` | [`issues/get-label`](https://docs.github.com/rest/issues/labels#get-a-label) | |
@@ -260,8 +263,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   same repository and a `head` of another owner is `422`. `mergeable` is `null`
   for an open pull request (`false` once merged) and `mergeable_state` is always
   `unknown`: conflicts are only detected by the merge itself, which then answers
-  `405`. `rebaseable` is `false`, `draft` always `false`, `requested_reviewers`
-  empty, and `author_association`, `node_id` and `auto_merge`
+  `405`. `rebaseable` is `false`, `draft` always `false`, `requested_teams`
+  empty (there are no teams yet; `team_reviewers` is `422`), and `author_association`, `node_id` and `auto_merge`
   details are omitted or `null`. Creating a pull request doesn't require commits
   between the branches (the web UI doesn't either). A closed pull request whose
   head branch was deleted reports `head.sha` as 40 zeros and empty files and

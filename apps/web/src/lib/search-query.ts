@@ -49,6 +49,10 @@ export interface SearchQuery {
 	authors: string[];
 	/** `assignee:` values: a username, `none` or `*`. */
 	assignees: string[];
+	/** `review-requested:` values: a username or `@me`. */
+	reviewRequested: string[];
+	/** `reviewed-by:` values: a username or `@me`. */
+	reviewedBy: string[];
 	noAssignee: boolean;
 	/** `mentions:` usernames; every one must be mentioned. */
 	mentions: string[];
@@ -75,6 +79,8 @@ const KNOWN_QUALIFIERS = new Set([
 	"author",
 	"assignee",
 	"mentions",
+	"review-requested",
+	"reviewed-by",
 	"sort",
 ]);
 
@@ -172,6 +178,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 	const authors: string[] = [];
 	const assignees: string[] = [];
 	const mentions: string[] = [];
+	const reviewRequested: string[] = [];
+	const reviewedBy: string[] = [];
 	let noLabel = false;
 	let noAssignee = false;
 	let sort: SearchSort = DEFAULT_SEARCH_SORT;
@@ -205,6 +213,12 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case "mentions":
 				if (value) mentions.push(value);
 				break;
+			case "review-requested":
+				if (value) reviewRequested.push(value);
+				break;
+			case "reviewed-by":
+				if (value) reviewedBy.push(value);
+				break;
 			case "sort":
 				if ((SEARCH_SORTS as readonly string[]).includes(value.toLowerCase()))
 					sort = value.toLowerCase() as SearchSort;
@@ -237,6 +251,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 		assignees: dedupe(assignees),
 		noAssignee,
 		mentions: dedupe(mentions),
+		reviewRequested: dedupe(reviewRequested),
+		reviewedBy: dedupe(reviewedBy),
 		sort,
 	};
 }

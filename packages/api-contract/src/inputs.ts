@@ -12,6 +12,7 @@ import {
 	MAX_LABEL_NAME_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_PER_PAGE,
+	MAX_REVIEWERS_PER_REQUEST,
 	MAX_STORAGE_NAME_LENGTH,
 	MAX_THREAD_TITLE_CHARS,
 	STORAGE_NAME_RE,
@@ -93,6 +94,10 @@ export const labelDescription = z
 	.trim()
 	.max(MAX_LABEL_DESCRIPTION_CHARS);
 export const labelNames = z.array(labelName).max(MAX_LABELS_PER_THREAD);
+
+export const reviewerLogins = z
+	.array(z.string().trim().min(1).max(100))
+	.max(MAX_REVIEWERS_PER_REQUEST);
 
 export const assigneeLogins = z
 	.array(z.string().trim().min(1).max(100))

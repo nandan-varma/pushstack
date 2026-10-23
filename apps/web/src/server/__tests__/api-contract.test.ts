@@ -20,6 +20,7 @@ vi.mock(
 
 const { createUsers, signIn } = await import("../../test/app-harness");
 const files = await import("../files");
+const repositories = await import("../repositories");
 const { asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
@@ -175,6 +176,17 @@ beforeAll(async () => {
 		"/repos/alice/proj/pulls/2",
 		patch(alice, { body: "Closes #1." }),
 	);
+	await repositories.addCollaboratorByUsername({
+		data: { repoId: repo.id, username: "bob", role: "write" },
+	});
+	const reviewers = "/repos/alice/proj/pulls/2/requested_reviewers";
+	await check(reviewers, post(alice, { reviewers: ["bob"] }));
+	await check(reviewers);
+	await check(reviewers, {
+		...asToken(alice),
+		method: "DELETE",
+		body: JSON.stringify({ reviewers: ["bob"] }),
+	});
 	await check("/repos/alice/proj/pulls/2/commits");
 	await check("/repos/alice/proj/pulls/2/files");
 	await check(

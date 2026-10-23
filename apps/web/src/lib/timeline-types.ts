@@ -52,6 +52,9 @@ export type TimelineEvent =
 	| { event: "unlabeled"; label: LabelSnapshot }
 	| { event: "assigned"; assignee: TimelineUser }
 	| { event: "unassigned"; assignee: TimelineUser }
+	/** Review requested from (or withdrawn for) a user; the actor is the requester. */
+	| { event: "review_requested"; reviewer: TimelineUser }
+	| { event: "review_request_removed"; reviewer: TimelineUser }
 	| { event: "reviewed"; state: ReviewedState; reviewId: number };
 
 export type TimelineEventType = TimelineEvent["event"];

@@ -12,6 +12,7 @@ import {
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
+import { requestCodeownerReviews } from "./codeowners";
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
@@ -64,12 +65,14 @@ export const createPullRequest = createServerFn({ method: "POST" })
 			);
 			if (!canMerge) throw new Error("Both branches must exist");
 
-			return insertPullRequest(repo.id, currentUser.id, {
+			const created = await insertPullRequest(repo.id, currentUser.id, {
 				title: data.title,
 				body: data.body,
 				sourceBranch: data.sourceBranchName,
 				targetBranch: data.targetBranchName,
 			});
+			await requestCodeownerReviews(repo, created);
+			return created;
 		}),
 	);
 
@@ -92,6 +95,9 @@ export const getPullRequests = createServerFn({ method: "GET" })
 			data.repoId,
 			async () => {
 				if (matchesNothing) return [];
+				const needsViewer =
+					search.reviewRequested.length + search.reviewedBy.length > 0;
+				const viewer = needsViewer ? await getCurrentUserOptional() : null;
 				const { threads } = await listThreads(
 					{
 						repoId: data.repoId,
@@ -100,7 +106,7 @@ export const getPullRequests = createServerFn({ method: "GET" })
 						...(status === "open" && { state: "open" }),
 						...(status === "closed" && { state: "closed", merged: false }),
 						...(status === "merged" && { state: "closed", merged: true }),
-						...searchFilter(search),
+						...searchFilter(search, viewer?.username),
 					},
 					{
 						sort: searchSort(search.sort),
