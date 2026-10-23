@@ -371,6 +371,12 @@ export const issueEvent = z.discriminatedUnion("event", [
 	}),
 	z.strictObject({
 		...eventBase,
+		event: z.literal(["review_requested", "review_request_removed"]),
+		review_requester: simpleUser,
+		requested_reviewer: simpleUser,
+	}),
+	z.strictObject({
+		...eventBase,
 		event: z.literal(["milestoned", "demilestoned"]),
 		milestone: z.strictObject({ title: z.string() }),
 	}),
@@ -387,6 +393,12 @@ export const issueEvent = z.discriminatedUnion("event", [
 ]);
 
 const href = z.strictObject({ href: url });
+
+/** `GET …/pulls/{n}/requested_reviewers`: users and (not yet supported) teams. */
+export const requestedReviewers = z.strictObject({
+	users: z.array(simpleUser),
+	teams: z.array(z.never()),
+});
 
 /** A submitted pull request review on the timeline (GitHub's `reviewed` item). */
 export const reviewedItem = z.strictObject({

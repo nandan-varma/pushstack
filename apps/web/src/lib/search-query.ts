@@ -49,6 +49,10 @@ export interface SearchQuery {
 	authors: string[];
 	/** `assignee:` values: a username, `none` or `*`. */
 	assignees: string[];
+	/** `review-requested:` values: a username or `@me`. */
+	reviewRequested: string[];
+	/** `reviewed-by:` values: a username or `@me`. */
+	reviewedBy: string[];
 	noAssignee: boolean;
 	/** `mentions:` usernames; every one must be mentioned. */
 	mentions: string[];
@@ -80,6 +84,8 @@ const KNOWN_QUALIFIERS = new Set([
 	"author",
 	"assignee",
 	"mentions",
+	"review-requested",
+	"reviewed-by",
 	"milestone",
 	"draft",
 	"sort",
@@ -179,6 +185,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 	const authors: string[] = [];
 	const assignees: string[] = [];
 	const mentions: string[] = [];
+	const reviewRequested: string[] = [];
+	const reviewedBy: string[] = [];
 	const milestones: string[] = [];
 	let noMilestone = false;
 	let noLabel = false;
@@ -215,6 +223,12 @@ export function parseSearchQuery(input: string): SearchQuery {
 				break;
 			case "mentions":
 				if (value) mentions.push(value);
+				break;
+			case "review-requested":
+				if (value) reviewRequested.push(value);
+				break;
+			case "reviewed-by":
+				if (value) reviewedBy.push(value);
 				break;
 			case "milestone":
 				if (value) milestones.push(value);
@@ -260,6 +274,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 		assignees: dedupe(assignees),
 		noAssignee,
 		mentions: dedupe(mentions),
+		reviewRequested: dedupe(reviewRequested),
+		reviewedBy: dedupe(reviewedBy),
 		milestones: dedupe(milestones),
 		noMilestone,
 		...(drafts.size === 1 && { draft: [...drafts][0] }),

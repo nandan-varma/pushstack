@@ -236,6 +236,19 @@ creating them or use **Assignees → Edit** on an existing issue or pull request
 Assignment changes appear in the thread timeline. Readers can see assignments
 but cannot change them.
 
+**Review requests.** A pull request's author, or anyone with write access, can
+ask the owner or a collaborator (never the author) for a review under
+**Reviewers** in the pull request sidebar. The reviewer is notified, the request
+shows in the timeline, and submitting a review clears it (you can ask again).
+Search pull requests with `review-requested:@me` or `reviewed-by:username`.
+
+**CODEOWNERS.** Put a `CODEOWNERS` file in `.github/`, the repository root or
+`docs/` (the first found on the base branch is used). Patterns follow
+gitignore-style rules and the last matching line wins. When a pull request opens,
+the owners of the changed paths who are collaborators are requested
+automatically, and a file's owners show above it in the blob view. Only
+`@username` owners count for now; teams and e-mail owners are ignored.
+
 ## Find things
 
 - `/search` finds repositories (public ones, plus your own private ones) and

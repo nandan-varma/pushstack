@@ -1,3 +1,4 @@
+import { db } from "#/db";
 import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import {
@@ -6,7 +7,11 @@ import {
 } from "../comment-store";
 import { commentReactionRollups } from "../reaction-store";
 import { getAccessForRepository } from "../repo-access";
-import type { RepositoryRowWithOwner } from "../repository-lookup";
+import {
+	type PublicUser,
+	publicUserFields,
+	type RepositoryRowWithOwner,
+} from "../repository-lookup";
 import { submittedReviewsByIds } from "../review-store";
 import { findThreadByNumber, type ThreadRef } from "../thread-store";
 import { countTimeline, listTimeline } from "../timeline-store";
@@ -22,6 +27,27 @@ import {
 	timelineEvent,
 } from "./serializers";
 import { fullNameOf, serializeThreadsByNumber } from "./threads";
+
+/** The users `review_requested`/`review_request_removed` events name. */
+async function reviewersOf(
+	entries: TimelineEntry[],
+): Promise<Map<string, PublicUser>> {
+	const names = new Set<string>();
+	for (const entry of entries) {
+		if (
+			entry.event === "review_requested" ||
+			entry.event === "review_request_removed"
+		) {
+			names.add(entry.reviewer.username);
+		}
+	}
+	if (names.size === 0) return new Map();
+	const users = await db.query.user.findMany({
+		...publicUserFields,
+		where: { username: { in: [...names] } },
+	});
+	return new Map(users.map((u) => [u.username.toLowerCase(), u]));
+}
 
 type CommentRow = Awaited<ReturnType<typeof listCommentsForThread>>[number];
 
@@ -150,6 +176,9 @@ export async function listTimelineItems(ctx: ApiContext) {
 				: [],
 		),
 	);
+	const reviewers = await reviewersOf(
+		merged.flatMap((item) => (item.kind === "event" ? [item.entry] : [])),
+	);
 	return json(
 		merged.flatMap((item) => {
 			if (item.kind === "comment") {
@@ -174,7 +203,11 @@ export async function listTimelineItems(ctx: ApiContext) {
 					}),
 				];
 			}
-			const event = timelineEvent(item.entry, { fullName, threadByNumber });
+			const event = timelineEvent(item.entry, {
+				fullName,
+				threadByNumber,
+				reviewers,
+			});
 			return event ? [event] : [];
 		}),
 		200,
@@ -205,9 +238,14 @@ export async function listEvents(ctx: ApiContext) {
 			entry.event === "cross-referenced" ? [entry.source.number] : [],
 		),
 	);
+	const reviewers = await reviewersOf(entries);
 	return json(
 		entries.flatMap((entry) => {
-			const event = timelineEvent(entry, { fullName, threadByNumber });
+			const event = timelineEvent(entry, {
+				fullName,
+				threadByNumber,
+				reviewers,
+			});
 			return event ? [event] : [];
 		}),
 		200,

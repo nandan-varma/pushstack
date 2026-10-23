@@ -23,6 +23,7 @@ import {
 	queryBoolean,
 	repoName,
 	repoParams,
+	reviewerLogins,
 	threadBody,
 	threadTitle,
 } from "./inputs";
@@ -85,6 +86,7 @@ import {
 	releaseNotes,
 	repository,
 	repositorySubscription,
+	requestedReviewers,
 	shortBranch,
 	simpleUser,
 	stateReason,
@@ -1001,6 +1003,26 @@ export const endpoints = defineEndpoints({
 		response: z.array(diffEntry),
 	},
 
+	"pulls/list-requested-reviewers": {
+		params: pullParams,
+		response: requestedReviewers,
+	},
+	"pulls/request-reviewers": {
+		params: pullParams,
+		body: z.object({
+			reviewers: reviewerLogins.optional(),
+			team_reviewers: reviewerLogins.optional(),
+		}),
+		response: pullRequestSimple,
+	},
+	"pulls/remove-requested-reviewers": {
+		params: pullParams,
+		body: z.object({
+			reviewers: reviewerLogins,
+			team_reviewers: reviewerLogins.optional(),
+		}),
+		response: pullRequestSimple,
+	},
 	"issues/list-milestones": {
 		params: repoParams,
 		query: pagination.extend({

@@ -700,6 +700,22 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/pulls/{pull_number}/files",
 		docs: `${DOCS}/pulls/pulls#list-pull-requests-files`,
 	},
+	"pulls/list-requested-reviewers": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+		docs: `${DOCS}/pulls/review-requests#get-all-requested-reviewers-for-a-pull-request`,
+	},
+	"pulls/request-reviewers": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+		docs: `${DOCS}/pulls/review-requests#request-reviewers-for-a-pull-request`,
+		status: 201,
+	},
+	"pulls/remove-requested-reviewers": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+		docs: `${DOCS}/pulls/review-requests#remove-requested-reviewers-from-a-pull-request`,
+	},
 
 	"issues/list-milestones": {
 		method: "GET",

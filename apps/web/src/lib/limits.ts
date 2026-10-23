@@ -118,6 +118,12 @@ export const MAX_SEARCH_QUERY_CHARS = 256;
 /** GitHub's cap on assignees per issue. */
 export const MAX_ASSIGNEES = 10;
 
+/** GitHub's cap on reviewers named in one request-reviewers call. */
+export const MAX_REVIEWERS_PER_REQUEST = 15;
+
+/** GitHub ignores a CODEOWNERS file over 3 MB; so do we. */
+export const MAX_CODEOWNERS_BYTES = 3 * 1024 * 1024;
+
 /**
  * A review comment's diff path. A git path is far shorter than this in
  * practice; the bound exists so an unvalidated-looking path can't be persisted

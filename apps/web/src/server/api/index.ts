@@ -102,8 +102,11 @@ import {
 	getPull,
 	listPullCommits,
 	listPullFiles,
+	listPullRequestedReviewers,
 	listPulls,
 	mergePull,
+	removePullRequestedReviewers,
+	requestPullReviewers,
 	updatePull,
 } from "./pulls";
 import {
@@ -297,6 +300,9 @@ const HANDLERS = {
 	"pulls/merge": mergePull,
 	"pulls/list-commits": listPullCommits,
 	"pulls/list-files": listPullFiles,
+	"pulls/list-requested-reviewers": listPullRequestedReviewers,
+	"pulls/request-reviewers": requestPullReviewers,
+	"pulls/remove-requested-reviewers": removePullRequestedReviewers,
 	"issues/list-labels-for-repo": listRepoLabels,
 	"issues/create-label": createLabel,
 	"issues/get-label": getLabel,

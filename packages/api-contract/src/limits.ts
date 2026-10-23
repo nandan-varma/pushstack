@@ -36,6 +36,8 @@ export const MAX_RELEASE_TAG_CHARS = 255;
 export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
 export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
 export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;
+/** GitHub: at most 15 users and 15 teams per request-reviewers call. */
+export const MAX_REVIEWERS_PER_REQUEST = 15;
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
 export const MAX_REPO_HOMEPAGE_CHARS = 255;
 export const MAX_REPO_TOPICS = 20;

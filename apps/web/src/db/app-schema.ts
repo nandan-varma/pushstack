@@ -252,6 +252,35 @@ export const threadAssignees = pgTable(
 );
 
 /**
+ * Users whose review is requested on a pull request (GitHub's
+ * `requested_reviewers`). A submitted review or an explicit removal deletes the
+ * row; requesting again re-adds it. Teams are not modelled yet.
+ */
+export const pullRequestReviewRequests = pgTable(
+	"pull_request_review_requests",
+	{
+		id: serial("id").primaryKey(),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		requesterId: text("requester_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		issueUserIdx: uniqueIndex("review_request_issue_user_idx").on(
+			table.issueId,
+			table.userId,
+		),
+		userIdx: index("review_request_user_idx").on(table.userId),
+	}),
+);
+
+/**
  * What a pull request adds to its issue (1:1 by `issue_id`): the branches,
  * and once merged, who merged it, when, and the exact commit range.
  */

@@ -19,6 +19,8 @@ describe("parseSearchQuery", () => {
 			assignees: [],
 			noAssignee: false,
 			mentions: [],
+			reviewRequested: [],
+			reviewedBy: [],
 			milestones: [],
 			noMilestone: false,
 			sort: "created-desc",
