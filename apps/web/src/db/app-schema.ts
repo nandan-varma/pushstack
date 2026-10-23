@@ -215,6 +215,8 @@ export const pullRequests = pgTable(
 		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
+		/** A draft can't be merged until it is marked ready for review. */
+		isDraft: boolean("is_draft").notNull().default(false),
 		/** The base and head tips that were merged: the PR's exact commit range. */
 		baseSha: text("base_sha"),
 		headSha: text("head_sha"),

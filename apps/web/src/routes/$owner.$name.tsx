@@ -120,7 +120,8 @@ function RepositoryPage() {
 
 	const isCodeActive = Boolean(
 		matchRoute({ to: "/$owner/$name/tree/$branch/$", fuzzy: true }) ||
-			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }),
+			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }) ||
+			matchRoute({ to: "/$owner/$name/blame/$branch/$", fuzzy: true }),
 	);
 	const isCommitsActive = Boolean(
 		matchRoute({ to: "/$owner/$name/commits/$branch", fuzzy: true }),
@@ -157,7 +158,8 @@ function RepositoryPage() {
 					gitRef={currentBranch}
 					activePath={_splat ?? ""}
 					kind={
-						matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true })
+						matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }) ||
+						matchRoute({ to: "/$owner/$name/blame/$branch/$", fuzzy: true })
 							? "blob"
 							: "tree"
 					}

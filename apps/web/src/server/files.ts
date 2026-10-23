@@ -132,6 +132,17 @@ export const getFileHistory = createServerFn({ method: "GET" })
 		),
 	);
 
+export const getBlame = createServerFn({ method: "GET" })
+	.validator(readInput(refPath))
+	.handler(({ data }) =>
+		readGit(
+			`getBlame ${data.branchName}:${data.path}`,
+			data.repoId,
+			(owner, name) =>
+				gitRead.getBlame(owner, name, data.branchName, data.path),
+		),
+	);
+
 export const getBranches = createServerFn({ method: "GET" })
 	.validator(readInput(z.object({ repoId: z.number() })))
 	.handler(({ data }) =>

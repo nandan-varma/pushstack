@@ -36,6 +36,7 @@ export async function insertPullRequest(
 		body?: string;
 		sourceBranch: string;
 		targetBranch: string;
+		draft?: boolean;
 	},
 ): Promise<PullRequest> {
 	const [issue] = await db
@@ -56,6 +57,7 @@ export async function insertPullRequest(
 			issueId: issue.id,
 			sourceBranch: data.sourceBranch,
 			targetBranch: data.targetBranch,
+			isDraft: data.draft ?? false,
 		})
 		.returning()
 		.catch(async (error: unknown) => {
@@ -160,7 +162,48 @@ export async function updatePullRequestFields(
 		mergeCommitSha: pr.mergeCommitSha,
 		baseSha: pr.baseSha,
 		headSha: pr.headSha,
+		isDraft: pr.isDraft,
 	});
+}
+
+/**
+ * Mark a draft ready for review, or convert an open pull request back to a
+ * draft, recording `ready_for_review` / `convert_to_draft`. The caller checked
+ * access. A no-op (already in that state) records nothing; a pull request that
+ * is not open can't change (GitHub refuses both on closed and merged ones).
+ */
+export async function setPullRequestDraft(
+	pr: PullRequest,
+	userId: string,
+	draft: boolean,
+): Promise<PullRequest> {
+	if (pr.status !== "open") {
+		throw new Error(
+			"Only an open pull request can be marked ready for review or converted to a draft",
+		);
+	}
+	// Conditional on the old state, so of two racing requests only one records.
+	const [changed] = await db
+		.update(pullRequests)
+		.set({ isDraft: draft })
+		.where(
+			and(eq(pullRequests.issueId, pr.id), eq(pullRequests.isDraft, !draft)),
+		)
+		.returning({ id: pullRequests.issueId });
+	if (!changed) return { ...pr, isDraft: draft };
+	await db
+		.update(issues)
+		.set({ updatedAt: new Date() })
+		.where(eq(issues.id, pr.id));
+	await recordTimelineEvent(pr.id, userId, {
+		event: draft ? "convert_to_draft" : "ready_for_review",
+	});
+	await recordThreadActivity({
+		thread: pr,
+		actorId: userId,
+		actorReason: "state_change",
+	});
+	return { ...pr, isDraft: draft };
 }
 
 /**

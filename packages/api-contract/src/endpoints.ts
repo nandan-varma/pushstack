@@ -319,6 +319,14 @@ export const endpoints = defineEndpoints({
 		query: z.object({ ref: z.string().optional() }),
 		response: contents,
 	},
+	"repos/download-tarball-archive": {
+		params: repoParams.extend({ ref: z.string().default("") }),
+		response: noContent,
+	},
+	"repos/download-zipball-archive": {
+		params: repoParams.extend({ ref: z.string().default("") }),
+		response: noContent,
+	},
 	"repos/create-or-update-file-contents": {
 		params: repoParams.extend({ path: z.string().min(1) }),
 		body: z.object({
@@ -649,6 +657,7 @@ export const endpoints = defineEndpoints({
 			body: threadBody.nullish(),
 			head: z.string().min(1).max(300),
 			base: z.string().min(1).max(300),
+			draft: z.boolean().optional(),
 		}),
 		response: pullRequest,
 	},

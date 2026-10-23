@@ -94,6 +94,8 @@ export interface ThreadFilter {
 	noLabel?: boolean;
 	/** Each a username, `none` (unassigned) or `*` (assigned to anyone); ANDed. */
 	assignees?: string[];
+	/** Pull requests only: drafts (true) or ready for review (false). */
+	draft?: boolean;
 	/** Head branch; `null` matches nothing (a head from another owner). */
 	head?: string | null;
 	base?: string;
@@ -260,6 +262,10 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 	if (filter.head === null) add(sql`false`);
 	else if (filter.head) add(eq(pullRequests.sourceBranch, filter.head));
 	if (filter.base) add(eq(pullRequests.targetBranch, filter.base));
+	if (filter.draft !== undefined) {
+		add(eq(issues.isPullRequest, true));
+		add(eq(pullRequests.isDraft, filter.draft));
+	}
 	return and(...conditions);
 }
 

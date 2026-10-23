@@ -214,6 +214,8 @@ beforeAll(async () => {
 
 	await check("/repos/alice/proj/contents");
 	await check("/repos/alice/proj/contents/b.txt");
+	await check("/repos/alice/proj/zipball/main");
+	await check("/repos/alice/proj/tarball/main");
 	// Creating is a 201; the update is the route's documented 200.
 	const created = await call(
 		"/repos/alice/proj/contents/written.txt",

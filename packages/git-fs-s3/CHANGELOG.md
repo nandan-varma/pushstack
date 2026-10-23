@@ -5,10 +5,47 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- `applyReceivePack` lists refs once per push (one recursive LIST of `refs/`)
+  and derives the existing tips and the file/directory collision set from it,
+  instead of listing branches, tags and all refs separately; a push that
+  creates no ref skips the collision listing. A small push to an existing
+  repository drops from 32 to 23 storage calls.
+- `applyRefUpdates` takes an optional fourth argument, the ref names the
+  caller already listed under the repository lock.
+- `RepackOptions.packDirectory` lets a lock-holding caller pass the
+  `objects/pack` entries it already listed; `applyReceivePack` uses it so the
+  post-push repack check no longer lists the pack directory again. When the
+  push's own listing failed (anything but an absent directory), the repack
+  lists the directory itself instead of trusting an incomplete set.
 ### Added
 
+- `getBlame(repo, { ref, filePath, maxDepth? }, hooks?)` in `/ops`: line ranges
+  grouped by the commit that introduced them, following the first-parent chain.
+  Work is bounded (1 MiB file, 20,000 lines, 16 MiB of blob reads, 400 commits);
+  oversized or binary files throw `BlameLimitError` (406) and ranges beyond the
+  depth budget come back flagged `boundary`. Memoized per head commit and path
+  under the new `blame:` result-key prefix.
 - `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees
   compared directly) and `getMergeBaseOid` from `git-fs-s3/ops`.
+
+### Fixed
+
+- `applyReceivePack` refuses a push whose new trees hold an entry name git's
+  fsck rejects (`.`, `..`, `.git` in any case or NTFS/HFS spelling, an empty
+  name, `/`, NUL, `.git\…`) and reports it as
+  `ng <ref> fsck error in packed object: object <oid>: hasDotdot: contains '..'`
+  (hasDot, hasDotgit, fullPathname, emptyName, nulInName). Before,
+  most of these were refused only as "incomplete object graph" after a retry
+  delay, and an empty name was accepted. Every tree in the push's own pack is checked,
+  reachable or not (an unreferenced bad tree cannot be parked for a later push);
+  older trees the walk passes through are not. An object whose type
+  cannot be read from its header is read and checked too, and rejected as
+  unreadable if that fails. Names with a backslash (`a\\b`) are refused as
+  unsafe because isomorphic-git cannot parse them, although git allows them.
+  `collectReachableOids` takes `{ checkTreeNames: Set<oid> }` and returns
+  `invalidTreeEntry`.
 
 ## [0.19.1] - 2026-10-22
 

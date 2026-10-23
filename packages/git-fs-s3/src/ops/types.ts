@@ -58,5 +58,6 @@ export function resultKeyPrefixes(gitdir: string): string[] {
 		`tree:${gitdir}:`,
 		`last-commits:${gitdir}:`,
 		`file-history:${gitdir}:`,
+		`blame:${gitdir}:`,
 	];
 }

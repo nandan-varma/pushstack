@@ -140,6 +140,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `GET /repos/{owner}/{repo}/contents/{path}` | [`repos/get-content`](https://docs.github.com/rest/repos/contents#get-repository-content) | `ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. Media types: `raw` (a file's bytes, up to 50 MB, `application/octet-stream`), `object` (a directory as one object with `entries`); `html` is served as JSON |
 | `PUT /repos/{owner}/{repo}/contents/{path}` | [`repos/create-or-update-file-contents`](https://docs.github.com/rest/repos/contents#create-or-update-file-contents) | write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; in an empty repository the first write creates the branch it names and makes it the default |
 | `DELETE /repos/{owner}/{repo}/contents/{path}` | [`repos/delete-file`](https://docs.github.com/rest/repos/contents#delete-a-file) | write access; `message`, `branch`, `sha` (required; `409` when stale) |
+| `GET /repos/{owner}/{repo}/tarball/{ref}` | [`repos/download-tarball-archive`](https://docs.github.com/rest/repos/contents#download-a-repository-archive-tar) | `302` to `/{owner}/{repo}/legacy.tar.gz/{refs/heads/branch\|refs/tags/tag\|sha}` on this origin, which streams the archive (GitHub redirects to codeload's `legacy.tar.gz`); `ref` is a branch, tag or full commit sha (default branch when omitted), `404` otherwise; entries sit under `{owner}-{repo}-{short sha}/`; submodules are empty directories; `.gitattributes` `export-ignore` and `export-subst` are not applied; up to 50,000 entries and 256 MiB, above that `413` |
+| `GET /repos/{owner}/{repo}/zipball/{ref}` | [`repos/download-zipball-archive`](https://docs.github.com/rest/repos/contents#download-a-repository-archive-zip) | as `tarball`, redirecting to `legacy.zip` |
 | `GET /repos/{owner}/{repo}/commits` | [`repos/list-commits`](https://docs.github.com/rest/commits/commits#list-commits) | `sha`, `path` (a file), `author`/`committer` (an email, or a login matching that account's email), `since`/`until` (committer date), pagination; newest first; `409` for an empty repository; filters search the newest 10,100 commits; `Link` has `next` but no `last` |
 | `GET /repos/{owner}/{repo}/comments` | [`repos/list-commit-comments-for-repo`](https://docs.github.com/rest/commits/comments#list-commit-comments-for-a-repository) | oldest first; pagination |
 | `GET /repos/{owner}/{repo}/comments/{comment_id}` | [`repos/get-commit-comment`](https://docs.github.com/rest/commits/comments#get-a-commit-comment) | no `node_id` or `author_association`; `reactions` is always empty (commit comment reactions aren't served) |
@@ -186,7 +188,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels` | [`issues/remove-all-labels`](https://docs.github.com/rest/issues/labels#remove-all-labels-from-an-issue) | write access; `204` |
 | `DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}` | [`issues/remove-label`](https://docs.github.com/rest/issues/labels#remove-a-label-from-an-issue) | write access; returns the remaining labels |
 | `GET /repos/{owner}/{repo}/pulls` | [`pulls/list`](https://docs.github.com/rest/pulls/pulls#list-pull-requests) | `state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults) |
-| `POST /repos/{owner}/{repo}/pulls` | [`pulls/create`](https://docs.github.com/rest/pulls/pulls#create-a-pull-request) | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
+| `POST /repos/{owner}/{repo}/pulls` | [`pulls/create`](https://docs.github.com/rest/pulls/pulls#create-a-pull-request) | write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}` | [`pulls/get`](https://docs.github.com/rest/pulls/pulls#get-a-pull-request) | |
 | `PATCH /repos/{owner}/{repo}/pulls/{pull_number}` | [`pulls/update`](https://docs.github.com/rest/pulls/pulls#update-a-pull-request) | the author or a writer; `title`, `body`, `state`; changing `base` is `422` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/merge` | [`pulls/check-if-merged`](https://docs.github.com/rest/pulls/pulls#check-if-a-pull-request-has-been-merged) | `204` once merged, else `404` |
@@ -270,9 +272,9 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   Commit `verification` is always `unsigned`. Only branch and tag refs exist.
 - Pull requests: there are no forks, so `head.repo` and `base.repo` are the
   same repository and a `head` of another owner is `422`. `mergeable` is `null`
-  for an open pull request (`false` once merged) and `mergeable_state` is always
-  `unknown`: conflicts are only detected by the merge itself, which then answers
-  `405`. `rebaseable` is `false`, `draft` always `false`, `requested_reviewers`
+  for an open pull request (`false` once merged) and `mergeable_state` is
+  `draft` for a draft and otherwise `unknown`: conflicts are only detected by the merge itself, which then answers
+  `405`. `rebaseable` is `false`, `draft` reflects the draft state (merging a draft is `405` "Pull Request is still a draft"; REST cannot change it after creation, as on GitHub), `requested_reviewers`
   empty, and `author_association`, `node_id` and `auto_merge`
   details are omitted or `null`. Creating a pull request doesn't require commits
   between the branches (the web UI doesn't either). A closed pull request whose

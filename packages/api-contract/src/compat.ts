@@ -67,6 +67,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/list-tags": "version order",
 	"repos/get-content":
 		"`ref` (branch, tag or sha; default branch); a file is base64 `content`, a directory an array, `{path}` empty for the root. Media types: `raw` (a file's bytes, up to 50 MB, `application/octet-stream`), `object` (a directory as one object with `entries`); `html` is served as JSON",
+	"repos/download-tarball-archive":
+		"`302` to `/{owner}/{repo}/legacy.tar.gz/{refs/heads/branch|refs/tags/tag|sha}` on this origin, which streams the archive (GitHub redirects to codeload's `legacy.tar.gz`); `ref` is a branch, tag or full commit sha (default branch when omitted), `404` otherwise; entries sit under `{owner}-{repo}-{short sha}/`; submodules are empty directories; `.gitattributes` `export-ignore` and `export-subst` are not applied; up to 50,000 entries and 256 MiB, above that `413`",
+	"repos/download-zipball-archive": "as `tarball`, redirecting to `legacy.zip`",
 	"repos/create-or-update-file-contents":
 		"write access; base64 `content` (bounded by the 1 MB API body cap), `message`, `branch` (default branch), `sha` (required to replace; `409` when stale), `author`/`committer` (`date` ignored); `201` creates, `200` replaces; in an empty repository the first write creates the branch it names and makes it the default",
 	"repos/delete-file":
@@ -144,7 +147,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/list":
 		"`state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults)",
 	"pulls/create":
-		"write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
+		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
 	"pulls/get": "",
 	"pulls/update":
 		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`",

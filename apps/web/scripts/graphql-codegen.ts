@@ -53,10 +53,17 @@ export async function generateResolverTypes(): Promise<string> {
 			useTypeImports: true,
 			enumsAsTypes: true,
 			contextType: "../context#GraphQLContext",
-			scalars: { DateTime: "string", URI: "string", GitSSHRemote: "string" },
+			scalars: {
+				DateTime: "string",
+				URI: "string",
+				GitSSHRemote: "string",
+				GitObjectID: "string",
+			},
 			mappers: {
 				User: "./core#UserNode",
 				Repository: "./repository#RepositoryNode",
+				Ref: "./repository#RefNode",
+				Commit: "./commit#CommitNode",
 				RateLimit: "../context#RateLimitInfo",
 			},
 		},
