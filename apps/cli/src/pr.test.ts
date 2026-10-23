@@ -162,6 +162,16 @@ describe("pr commands", () => {
 		expect(io.stdout).toHaveBeenCalledWith(`${pull.html_url}\n`);
 	});
 
+	it("creates a draft pull request with --draft", async () => {
+		const { io, fetch, git } = await fixture();
+		git.mockResolvedValueOnce("topic\n");
+		fetch
+			.mockResolvedValueOnce(json({ default_branch: "trunk" }))
+			.mockResolvedValueOnce(json({ ...pull, draft: true }, undefined, 201));
+		expect(await run(["pr", "create", "-t", "Topic", "--draft"], io)).toBe(0);
+		expect(sent(fetch, 1)).toMatchObject({ head: "topic", draft: true });
+	});
+
 	it("merges with subject, body and head guard", async () => {
 		const { io, fetch } = await fixture();
 		fetch

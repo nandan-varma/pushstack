@@ -36,7 +36,7 @@ const HELP: Record<string, string> = {
 	list: "pst pr list [--repo OWNER/REPO] [--hostname HOST] [-L|--limit N] [-s|--state open|closed|merged|all] [-H|--head BRANCH] [-B|--base BRANCH] [--json FIELDS]\nDefault: 30 open pull requests.\n",
 	view: `pst pr view ${TARGET} [--repo OWNER/REPO] [--hostname HOST] [--json FIELDS]\nWithout an argument, the pull request for the current branch.\n`,
 	create:
-		"pst pr create -t|--title TITLE [-b|--body BODY | -F|--body-file FILE] [-B|--base BRANCH] [-H|--head BRANCH] [--repo OWNER/REPO] [--hostname HOST]\nDefaults: base is the repository's default branch, head is the current branch. Use --body-file - for stdin.\n",
+		"pst pr create -t|--title TITLE [-b|--body BODY | -F|--body-file FILE] [-B|--base BRANCH] [-H|--head BRANCH] [-d|--draft] [--repo OWNER/REPO] [--hostname HOST]\nDefaults: base is the repository's default branch, head is the current branch. Use --body-file - for stdin.\n",
 	merge: `pst pr merge ${TARGET} [-m|--merge] [-t|--subject TEXT] [-b|--body TEXT | -F|--body-file FILE] [--match-head-commit SHA] [-d|--delete-branch] [--repo OWNER/REPO] [--hostname HOST]\nOnly merge commits are supported; --squash and --rebase are rejected by the server.\n`,
 	close: `pst pr close ${TARGET} [-c|--comment TEXT] [--repo OWNER/REPO] [--hostname HOST]\n`,
 	reopen: `pst pr reopen ${TARGET} [-c|--comment TEXT] [--repo OWNER/REPO] [--hostname HOST]\n`,
@@ -200,6 +200,7 @@ async function create(io: Io, args: string[]) {
 		"body-file": { type: "string", short: "F" },
 		base: { type: "string", short: "B" },
 		head: { type: "string", short: "H" },
+		draft: { type: "boolean", short: "d" },
 	});
 	if (values.help) {
 		io.stdout(HELP.create as string);
@@ -224,6 +225,7 @@ async function create(io: Io, args: string[]) {
 		body,
 		head,
 		base,
+		...(values.draft && { draft: true }),
 	});
 	io.stdout(`${data.html_url}\n`);
 }

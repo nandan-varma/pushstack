@@ -174,7 +174,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels` | [`issues/remove-all-labels`](https://docs.github.com/rest/issues/labels#remove-all-labels-from-an-issue) | write access; `204` |
 | `DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}` | [`issues/remove-label`](https://docs.github.com/rest/issues/labels#remove-a-label-from-an-issue) | write access; returns the remaining labels |
 | `GET /repos/{owner}/{repo}/pulls` | [`pulls/list`](https://docs.github.com/rest/pulls/pulls#list-pull-requests) | `state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults) |
-| `POST /repos/{owner}/{repo}/pulls` | [`pulls/create`](https://docs.github.com/rest/pulls/pulls#create-a-pull-request) | write access; `title`, `body`, `head`, `base` (`draft`, `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
+| `POST /repos/{owner}/{repo}/pulls` | [`pulls/create`](https://docs.github.com/rest/pulls/pulls#create-a-pull-request) | write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}` | [`pulls/get`](https://docs.github.com/rest/pulls/pulls#get-a-pull-request) | |
 | `PATCH /repos/{owner}/{repo}/pulls/{pull_number}` | [`pulls/update`](https://docs.github.com/rest/pulls/pulls#update-a-pull-request) | the author or a writer; `title`, `body`, `state`; changing `base` is `422` |
 | `GET /repos/{owner}/{repo}/pulls/{pull_number}/merge` | [`pulls/check-if-merged`](https://docs.github.com/rest/pulls/pulls#check-if-a-pull-request-has-been-merged) | `204` once merged, else `404` |
@@ -258,9 +258,9 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   Commit `verification` is always `unsigned`. Only branch and tag refs exist.
 - Pull requests: there are no forks, so `head.repo` and `base.repo` are the
   same repository and a `head` of another owner is `422`. `mergeable` is `null`
-  for an open pull request (`false` once merged) and `mergeable_state` is always
-  `unknown`: conflicts are only detected by the merge itself, which then answers
-  `405`. `rebaseable` is `false`, `draft` always `false`, `requested_reviewers`
+  for an open pull request (`false` once merged) and `mergeable_state` is
+  `draft` for a draft and otherwise `unknown`: conflicts are only detected by the merge itself, which then answers
+  `405`. `rebaseable` is `false`, `draft` reflects the draft state (merging a draft is `405` "Pull Request is still a draft"; REST cannot change it after creation, as on GitHub), `requested_reviewers`
   empty, and `author_association`, `node_id` and `auto_merge`
   details are omitted or `null`. Creating a pull request doesn't require commits
   between the branches (the web UI doesn't either). A closed pull request whose
