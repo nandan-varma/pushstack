@@ -302,7 +302,10 @@ async function userRepositories(
 	const where = and(
 		affiliated(
 			owner.userId,
-			present(args.ownerAffiliations) ?? ["OWNER", "COLLABORATOR"],
+			// Only nulls (or nothing) left: the schema's default, not "none".
+			present(args.ownerAffiliations)?.length
+				? (present(args.ownerAffiliations) ?? [])
+				: ["OWNER", "COLLABORATOR"],
 		),
 		args.affiliations
 			? affiliated(viewer, present(args.affiliations) ?? [])
