@@ -35,6 +35,7 @@ import {
 	parseRepoGitStorageKey,
 } from "./git-storage-naming";
 import {
+	logError,
 	logWarn,
 	perfNote,
 	perfR2,
@@ -264,18 +265,32 @@ export async function transferRepoStorage(
 		? (from: string, to: string) =>
 				perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
 		: undefined;
-	await movePrefix(
-		networkStore,
-		getRepoGitStoragePrefix(oldOwnerKey, oldRepoName),
-		getRepoGitStoragePrefix(newOwnerKey, newRepoName),
-		{ copy },
-	);
-	await movePrefix(
-		networkStore,
-		getRepoReleaseStoragePrefix(oldOwnerKey, oldRepoName),
-		getRepoReleaseStoragePrefix(newOwnerKey, newRepoName),
-		{ copy },
-	);
+	const gitFrom = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
+	const gitTo = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
+	await movePrefix(networkStore, gitFrom, gitTo, { copy });
+	try {
+		await movePrefix(
+			networkStore,
+			getRepoReleaseStoragePrefix(oldOwnerKey, oldRepoName),
+			getRepoReleaseStoragePrefix(newOwnerKey, newRepoName),
+			{ copy },
+		);
+	} catch (error) {
+		// Never leave the git data at the new name with the releases behind:
+		// the caller's row still names the old location.
+		try {
+			await movePrefix(networkStore, gitTo, gitFrom, { copy });
+		} catch (rollbackError) {
+			logError(
+				"git-fs",
+				`moving ${gitTo} back after a failed release move failed`,
+				rollbackError,
+			);
+		}
+		invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
+		invalidateRepoGitStorage(newOwnerKey, newRepoName);
+		throw error;
+	}
 	invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
 	invalidateRepoGitStorage(newOwnerKey, newRepoName);
 }
