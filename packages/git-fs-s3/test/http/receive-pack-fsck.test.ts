@@ -6,6 +6,7 @@ import {
 	applyReceivePack,
 	parseReceivePackBody,
 } from "../../src/http/receive-pack.js";
+import { rawFs } from "../../src/http/types.js";
 import { createGitFs, MemoryObjectStore } from "../../src/index.js";
 import { authorNow, type Repo } from "../../src/ops/index.js";
 
@@ -144,7 +145,7 @@ describe("receive-pack tree entry names", () => {
 			git.resolveRef({ ...repo, ref: "refs/heads/main" }),
 		).rejects.toThrow();
 		// No pack is left behind for a refused push.
-		const packs = await repo.fs.promises
+		const packs = await rawFs(repo)
 			.readdir("git/objects/pack")
 			.catch(() => [] as string[]);
 		expect(packs).toEqual([]);
