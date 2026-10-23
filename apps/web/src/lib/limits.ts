@@ -128,6 +128,9 @@ export const MAX_REVIEW_PATH_CHARS = 4096;
 export const MAX_THREAD_TITLE_CHARS = 256;
 
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
+export const MAX_REPO_HOMEPAGE_CHARS = 255;
+export const MAX_REPO_TOPICS = 20;
+export const MAX_REPO_TOPIC_CHARS = 50;
 
 export const MAX_TOKEN_NAME_CHARS = 100;
 

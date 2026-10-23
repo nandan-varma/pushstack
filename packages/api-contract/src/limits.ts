@@ -37,6 +37,9 @@ export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
 export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
 export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
+export const MAX_REPO_HOMEPAGE_CHARS = 255;
+export const MAX_REPO_TOPICS = 20;
+export const MAX_REPO_TOPIC_CHARS = 50;
 export const MAX_STORAGE_NAME_LENGTH = 100;
 
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */

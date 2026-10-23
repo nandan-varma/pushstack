@@ -339,6 +339,15 @@ export async function updateAssetRow(
 		});
 }
 
+/** Delete the row only while it is still `open`; false when it finished meanwhile. */
+export async function deleteOpenAssetRow(assetId: number): Promise<boolean> {
+	const deleted = await db
+		.delete(releaseAssets)
+		.where(and(eq(releaseAssets.id, assetId), eq(releaseAssets.state, "open")))
+		.returning({ id: releaseAssets.id });
+	return deleted.length > 0;
+}
+
 export async function deleteAssetRow(assetId: number): Promise<void> {
 	await db.delete(releaseAssets).where(eq(releaseAssets.id, assetId));
 }

@@ -169,7 +169,7 @@ export async function markNotificationsRead(ctx: ApiContext) {
 /** `PUT /repos/{owner}/{repo}/notifications`. */
 export async function markRepoNotificationsRead(ctx: ApiContext) {
 	const caller = requireCaller(ctx);
-	const { repo } = await readableRepository(ctx);
+	const { repo } = await readableRepository(ctx, { allowArchivedWrites: true });
 	const body = await requestBody(
 		ctx,
 		"activity/mark-repo-notifications-as-read",

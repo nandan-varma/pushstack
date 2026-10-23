@@ -1,5 +1,9 @@
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
-import { getAccessForRepository, type RepositoryAccess } from "../repo-access";
+import {
+	ARCHIVED_MESSAGE,
+	getAccessForRepository,
+	type RepositoryAccess,
+} from "../repo-access";
 import {
 	findRepositoryByName,
 	type RepositoryRowWithOwner,
@@ -14,6 +18,7 @@ import { forbiddenError, notFoundError } from "./http";
  */
 export async function readableRepository(
 	ctx: ApiContext,
+	options: { allowArchivedWrites?: boolean } = {},
 ): Promise<{ repo: RepositoryRowWithOwner; access: RepositoryAccess }> {
 	const { owner, repo: name } = ctx.params;
 	if (!owner || !name) throw notFoundError();
@@ -25,6 +30,16 @@ export async function readableRepository(
 	if (!repo) throw notFoundError();
 	const access = await getAccessForRepository(repo, ctx.caller?.userId);
 	if (!access.canRead) throw notFoundError();
+	// Every write to an archived repository is refused here, in one place
+	// (handlers that must still act on it, like unarchiving, opt out).
+	if (
+		repo.archived &&
+		!options.allowArchivedWrites &&
+		ctx.request.method !== "GET" &&
+		ctx.request.method !== "HEAD"
+	) {
+		throw forbiddenError(ARCHIVED_MESSAGE);
+	}
 	return { repo, access };
 }
 

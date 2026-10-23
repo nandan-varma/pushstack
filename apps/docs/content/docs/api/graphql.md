@@ -34,7 +34,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo list` (text, `--json`, `--visibility`) | Works |
 | `gh repo create` | Works (GraphQL `createRepository`) |
 | `gh repo clone` | Works (git at `https://HOST/OWNER/REPO.git`) |
-| `gh repo edit`, `gh repo delete` | Not yet: gh uses REST `PATCH`/`DELETE /repos/{owner}/{repo}` |
+| `gh repo edit`, `gh repo delete`, `gh repo archive` | REST `PATCH`/`DELETE /repos/{owner}/{repo}` are served; topic edits and `gh repo view --json repositoryTopics` need GraphQL `repositoryTopics` (not yet) |
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue …`, `gh label …` | Not yet (issues domain) |
 | `gh pr …` | Not yet (pulls domain) |
@@ -108,8 +108,10 @@ REST `node_id`, and resolve through `node(id:)` / `nodes(ids:)`.
 `Repository`: identity and URLs, `visibility`, `isPrivate`, `isEmpty`,
 `defaultBranchRef`, `owner`, `stargazerCount`, `viewerHasStarred`,
 `viewerPermission`, `viewerCanAdminister`, merge-method flags and the
-always-false/null facts PushStack has no notion of (forks, templates,
-mirrors, archiving, wikis, `parent`). `pushedAt` is `null` (not tracked yet;
+`isArchived`, `isTemplate`, `homepageUrl`, `hasIssuesEnabled`, `hasWikiEnabled`,
+`hasProjectsEnabled` (the repository's settings; wikis and projects default off
+because none exist) and the always-false/null facts PushStack has no notion of
+(forks, mirrors, `parent`, `repositoryTopics`). `pushedAt` is `null` (not tracked yet;
 `PUSHED_AT` ordering uses `updatedAt`, as the REST API's `pushed` sort does).
 `sshUrl` follows GitHub's format, but PushStack serves git over HTTPS only.
 
@@ -140,7 +142,7 @@ reactions and mentions are not served.
 `createRepository` refuses what PushStack cannot do (`teamId`, `template`,
 `homepageUrl`, `INTERNAL`, disabling issues) with `UNPROCESSABLE`; it accepts
 `hasWikiEnabled`, which gh always sends, and the repository reports
-`hasWikiEnabled: false`.
+the default (`hasWikiEnabled: false`).
 
 ## Extending the schema
 

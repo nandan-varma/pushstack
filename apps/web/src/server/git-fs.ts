@@ -245,6 +245,20 @@ export async function moveRepoStorage(
 	oldRepoName: string,
 	newRepoName: string,
 ): Promise<void> {
+	await transferRepoStorage(ownerKey, oldRepoName, ownerKey, newRepoName);
+}
+
+/**
+ * {@link moveRepoStorage} across owners (a transfer): same copy-then-delete,
+ * for the git data and the release assets, whose keys also derive from the
+ * owner and name.
+ */
+export async function transferRepoStorage(
+	oldOwnerKey: string,
+	oldRepoName: string,
+	newOwnerKey: string,
+	newRepoName: string,
+): Promise<void> {
 	const { r2 } = getBackend();
 	const copy = r2
 		? (from: string, to: string) =>
@@ -252,18 +266,18 @@ export async function moveRepoStorage(
 		: undefined;
 	await movePrefix(
 		networkStore,
-		getRepoGitStoragePrefix(ownerKey, oldRepoName),
-		getRepoGitStoragePrefix(ownerKey, newRepoName),
+		getRepoGitStoragePrefix(oldOwnerKey, oldRepoName),
+		getRepoGitStoragePrefix(newOwnerKey, newRepoName),
 		{ copy },
 	);
 	await movePrefix(
 		networkStore,
-		getRepoReleaseStoragePrefix(ownerKey, oldRepoName),
-		getRepoReleaseStoragePrefix(ownerKey, newRepoName),
+		getRepoReleaseStoragePrefix(oldOwnerKey, oldRepoName),
+		getRepoReleaseStoragePrefix(newOwnerKey, newRepoName),
 		{ copy },
 	);
-	invalidateRepoGitStorage(ownerKey, oldRepoName);
-	invalidateRepoGitStorage(ownerKey, newRepoName);
+	invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
+	invalidateRepoGitStorage(newOwnerKey, newRepoName);
 }
 
 /**

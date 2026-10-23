@@ -29,6 +29,7 @@ import {
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
+	requireNotArchived,
 	writeWithAccess,
 } from "./repo-access";
 import { readRepoByName } from "./repository-lookup";
@@ -181,6 +182,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 		const currentUser = await getCurrentUser();
 		const pr = await findPullRequestById(data.prId);
 		if (!pr) throw notFound();
+		await requireNotArchived(pr.repoId);
 		if (
 			pr.authorId !== currentUser.id &&
 			!(await canWriteRepo(pr.repoId, currentUser.id))

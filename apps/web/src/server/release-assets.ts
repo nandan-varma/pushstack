@@ -24,6 +24,7 @@ import {
 	createAssetRow,
 	DuplicateAssetError,
 	deleteAssetRow,
+	deleteOpenAssetRow,
 	findDraftReleaseByTag,
 	findReleaseByTag,
 	incrementDownloadCount,
@@ -73,8 +74,10 @@ export async function reapStaleUploads(
 		new Date(Date.now() - RELEASE_UPLOAD_URL_TTL_SECONDS * 1000),
 	);
 	for (const { id } of stale) {
-		await releaseAssetStorage.delete(uploadKeyOf(repo, id)).catch(() => {});
-		await deleteAssetRow(id);
+		// Only a row still open: a finish that raced this must keep its asset.
+		if (await deleteOpenAssetRow(id)) {
+			await releaseAssetStorage.delete(uploadKeyOf(repo, id)).catch(() => {});
+		}
 	}
 }
 

@@ -128,6 +128,12 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `PATCH /notifications/threads/{thread_id}` | [`activity/mark-thread-as-read`](https://docs.github.com/rest/activity/notifications#mark-a-thread-as-read) | `205` |
 | `DELETE /notifications/threads/{thread_id}` | [`activity/mark-thread-as-done`](https://docs.github.com/rest/activity/notifications#mark-a-thread-as-done) | `204`: the thread leaves the inbox until new activity |
 | `GET /repos/{owner}/{repo}` | [`repos/get`](https://docs.github.com/rest/repos/repos#get-a-repository) | |
+| `PATCH /repos/{owner}/{repo}` | [`repos/update`](https://docs.github.com/rest/repos/repos#update-a-repository) | owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`; other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts |
+| `DELETE /repos/{owner}/{repo}` | [`repos/delete`](https://docs.github.com/rest/repos/repos#delete-a-repository) | owner only (`403` otherwise); `204` |
+| `GET /repos/{owner}/{repo}/topics` | [`repos/get-all-topics`](https://docs.github.com/rest/repos/repos#get-all-repository-topics) | |
+| `PUT /repos/{owner}/{repo}/topics` | [`repos/replace-all-topics`](https://docs.github.com/rest/repos/repos#replace-all-repository-topics) | `names` (at most 20, lowercase letters, digits and hyphens, at most 50 characters each; invalid is `422`) |
+| `POST /repos/{owner}/{repo}/transfer` | [`repos/transfer`](https://docs.github.com/rest/repos/repos#transfer-a-repository) | `new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` ignored; the old URL does not redirect |
+| `POST /repos/{template_owner}/{template_repo}/generate` | [`repos/create-using-template`](https://docs.github.com/rest/repos/repos#create-a-repository-using-a-template) | the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` is ignored; issues, labels, topics and settings are not copied |
 | `GET /repos/{owner}/{repo}/subscribers` | [`activity/list-watchers-for-repo`](https://docs.github.com/rest/activity/watching#list-watchers) | people watching (not ignoring) who can still read the repository; pagination |
 | `GET /repos/{owner}/{repo}/subscription` | [`activity/get-repo-subscription`](https://docs.github.com/rest/activity/watching#get-a-repository-subscription) | `404` when you are not subscribed; `reason` is always `null` |
 | `PUT /repos/{owner}/{repo}/subscription` | [`activity/set-repo-subscription`](https://docs.github.com/rest/activity/watching#set-a-repository-subscription) | `repo:write` token; `ignored: true` ignores the repository, otherwise you watch all activity; `subscribed: false` without `ignored` removes the subscription |
@@ -246,9 +252,10 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 - Repository objects carry the fields PushStack has an equivalent for:
   `id, name, full_name, private, owner, html_url, description, fork, url,
   clone_url, created_at, updated_at, default_branch, visibility, archived,
-  disabled, stargazers_count, watchers_count, forks_count` and (when
+  disabled, homepage, topics, is_template, has_issues, has_wiki, has_projects,
+  stargazers_count, watchers_count, forks_count` and (when
   authenticated, on repo and `/user/repos`) `permissions`. `fork` is always
-  `false`, `forks_count` `0`. Everything else (`topics`, `language`, `size`,
+  `false`, `forks_count` `0`. Everything else (`language`, `size`,
   `license`, `ssh_url`, …) is omitted.
 - `GET /users/{username}/repos` ignores `type`; there are no organizations, so
   `organization_member` affiliation matches nothing and every owner is a user.
