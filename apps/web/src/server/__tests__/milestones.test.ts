@@ -80,6 +80,9 @@ describe("milestone CRUD", () => {
 			}),
 		);
 		expect(created.status).toBe(201);
+		expect(created.headers.get("location")).toBe(
+			`${BASE}/repos/alice/proj/milestones/1`,
+		);
 		expect(created.body).toMatchObject({
 			number: 1,
 			title: "v1",
@@ -289,6 +292,14 @@ describe("milestones on issues and pull requests", () => {
 		expect(unknown.body.errors).toEqual([
 			{ resource: "Issue", field: "milestone", code: "invalid" },
 		]);
+		// A rejected milestone writes nothing: the other edits are not applied.
+		const partial = await call(
+			`/repos/alice/proj/issues/${issueNumber}`,
+			patch(alice, { title: "Renamed", state: "open", milestone: 99 }),
+		);
+		expect(partial.status).toBe(422);
+		const unchanged = await call(`/repos/alice/proj/issues/${issueNumber}`);
+		expect(unchanged.body.title).toBe("Tracked");
 		const create = await call(
 			"/repos/alice/proj/issues",
 			post(alice, { title: "Bad", milestone: 99 }),

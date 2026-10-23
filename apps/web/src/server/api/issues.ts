@@ -135,6 +135,14 @@ export async function updateIssue(ctx: ApiContext) {
 		throw forbiddenError("You do not have permission to edit this issue");
 	}
 	const data = await requestBody(ctx, "issues/update", "Issue");
+	// An unknown milestone is rejected before any edit is written.
+	if (
+		access.canWrite &&
+		typeof data.milestone === "number" &&
+		!(await findMilestoneByNumber(repo.id, data.milestone))
+	) {
+		throw invalidMilestoneError();
+	}
 	// The state the issue ends in decides which reasons make sense: `reopened`
 	// only on an open issue, `completed`/`not_planned` only on a closed one.
 	const finalState = data.state ?? issue.status;

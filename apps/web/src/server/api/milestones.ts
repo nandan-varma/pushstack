@@ -14,6 +14,7 @@ import {
 } from "../milestone-store";
 import { type ApiContext, requireScope } from "./auth";
 import {
+	apiUrl,
 	forbiddenError,
 	json,
 	linkHeader,
@@ -72,7 +73,11 @@ export async function createMilestone(ctx: ApiContext) {
 			description: data.description,
 			dueOn: data.due_on ? new Date(data.due_on) : null,
 		});
-		return json(milestone({ fullName: fullNameOf(repo) }, created), 201);
+		return json(milestone({ fullName: fullNameOf(repo) }, created), 201, {
+			Location: apiUrl(
+				`/repos/${fullNameOf(repo)}/milestones/${created.number}`,
+			),
+		});
 	} catch (error) {
 		if (error instanceof DuplicateMilestoneError) throw duplicateTitleError();
 		throw error;

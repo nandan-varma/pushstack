@@ -41,7 +41,7 @@ const noCommitError = (rev: string) =>
 	new ApiError(422, `No commit found for SHA: ${rev}`);
 
 /** The full sha `rev` names in `repo`; GitHub's 422 when it names none. */
-async function resolveCommitSha(
+export async function resolveCommitSha(
 	repo: RepositoryRowWithOwner,
 	rev: string,
 ): Promise<string> {
