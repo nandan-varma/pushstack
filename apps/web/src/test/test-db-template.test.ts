@@ -257,5 +257,7 @@ describe("createTestDb", () => {
 		expect(await second.select().from(user)).toHaveLength(0);
 		await first.$client.close();
 		await second.$client.close();
-	});
+		// Two real pglite boots are the point of this test: about 2.5s each
+		// idle, several times that while the full suite loads every core.
+	}, 30_000);
 });

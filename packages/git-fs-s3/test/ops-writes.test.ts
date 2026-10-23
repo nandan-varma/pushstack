@@ -345,6 +345,43 @@ describe("getDiffBetweenRefs (pull request diff)", () => {
 	});
 });
 
+describe("getDirectDiffBetweenRefs (two-dot compare)", () => {
+	it("compares the tips directly, including base-only changes", async () => {
+		const { createBranchFrom, getDirectDiffBetweenRefs, getMergeBaseOid } =
+			await import("../src/ops/index.js");
+		const { repo } = await makeRepo();
+		await commitFilesToBare(repo, {
+			branch: "main",
+			message: "base\n",
+			author,
+			files: [{ path: "shared.txt", content: "v1\n" }],
+		});
+		await createBranchFrom(repo, "feature", "main");
+		await commitFilesToBare(repo, {
+			branch: "feature",
+			message: "feature\n",
+			author,
+			files: [{ path: "feature.txt", content: "f\n" }],
+		});
+		await commitFilesToBare(repo, {
+			branch: "main",
+			message: "main moves\n",
+			author,
+			files: [{ path: "shared.txt", content: "v2\n" }],
+		});
+
+		const diff = await getDirectDiffBetweenRefs(repo, "main", "feature");
+		expect(diff.files.map((f) => [f.path, f.status])).toEqual([
+			["feature.txt", "added"],
+			["shared.txt", "modified"],
+		]);
+		const main = (await git.log({ ...repo, ref: "main" }))[0];
+		expect(diff.oldRef).toBe(main?.oid);
+		const root = (await git.log({ ...repo, ref: "main" })).at(-1);
+		expect(await getMergeBaseOid(repo, "main", "feature")).toBe(root?.oid);
+	});
+});
+
 describe("ref read failures are not absence (#93)", () => {
 	function failReads(repo: Repo, match: (path: string) => boolean) {
 		const promises = (

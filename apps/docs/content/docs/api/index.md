@@ -136,7 +136,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `GET /repos/{owner}/{repo}/commits/{commit_sha}/comments` | [`repos/list-comments-for-commit`](https://docs.github.com/rest/commits/comments#list-commit-comments) | `commit_sha` a full or abbreviated sha; unknown is `422`; oldest first; pagination |
 | `POST /repos/{owner}/{repo}/commits/{commit_sha}/comments` | [`repos/create-commit-comment`](https://docs.github.com/rest/commits/comments#create-a-commit-comment) | any signed-in reader (`repo:write` token scope); `body`, optional `path` (a file the commit changes, else `422`) with `position` (1-based line of that file's diff) and deprecated `line` (stored and echoed) |
 | `GET /repos/{owner}/{repo}/commits/{ref}` | [`repos/get-commit`](https://docs.github.com/rest/commits/commits#get-a-commit) | with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha` |
-| `GET /repos/{owner}/{repo}/compare/{basehead}` | [`repos/compare-commits-with-basehead`](https://docs.github.com/rest/commits/commits#compare-two-commits) | `base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head) and `patch` (one message per commit) |
+| `GET /repos/{owner}/{repo}/compare/{basehead}` | [`repos/compare-commits-with-basehead`](https://docs.github.com/rest/commits/commits#compare-two-commits) | `base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit) |
 | `GET /repos/{owner}/{repo}/git/ref/{ref}` | [`git/get-ref`](https://docs.github.com/rest/git/refs#get-a-reference) | branches and tags; annotated tags are `type: "tag"` (unpeeled) |
 | `GET /repos/{owner}/{repo}/git/refs/{ref}` | [`git/list-refs`](https://docs.github.com/rest/git/refs#get-a-reference) | `{ref}` may be empty (every ref) |
 | `GET /repos/{owner}/{repo}/git/matching-refs/{ref}` | [`git/list-matching-refs`](https://docs.github.com/rest/git/refs#list-matching-references) | |
@@ -246,10 +246,12 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   endpoint is `422 No commit found for SHA`, as on GitHub. A single commit or a
   comparison lists at most 300 `files` (no file pagination) under the shared
   2 MiB patch budget.
-- Compare: `base..head` is treated as `base...head`; an `owner:` prefix must
+- Compare: `base..head` diffs the two tips directly (`base...head` diffs from
+  the merge base; `merge_base_commit` is the real merge base either way); an `owner:` prefix must
   name the repository's owner (there are no forks). `ahead_by`/`behind_by`
   come from bounded history walks (400 commits per side). `html_url`,
-  `diff_url` and `patch_url` point at pages the web UI doesn't serve yet.
+  `diff_url` and `patch_url` point at the web UI's compare page and its
+  plain-text `.diff`/`.patch` URLs.
 - Git database: trees list at most 10,000 entries (GitHub: 100,000) before
   `truncated: true`; `/git/trees/{sha}` also accepts a branch, tag or commit;
   blobs over 3 MB are `403` (GitHub: 100 MB), because responses are buffered.

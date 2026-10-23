@@ -407,3 +407,43 @@ export async function getDiffBetweenRefs(
 		newRef: compare.oid,
 	};
 }
+
+/**
+ * Git's two-dot `baseRef..compareRef`: the trees of the two commits compared
+ * directly, not from their merge base, so changes that landed on `baseRef`
+ * since the branch point show up reversed. `oldRef` is the base commit.
+ * Throws GitRefNotFoundError for a missing ref.
+ */
+export async function getDirectDiffBetweenRefs(
+	repo: Repo,
+	baseRef: string,
+	compareRef: string,
+	limits: DiffLimits = {},
+): Promise<DiffResult> {
+	const [base, compare] = await Promise.all([
+		resolveCommit(repo, baseRef),
+		resolveCommit(repo, compareRef),
+	]);
+	return {
+		...(await diffTrees(repo, base.commit.tree, compare.commit.tree, limits)),
+		oldRef: base.oid,
+		newRef: compare.oid,
+	};
+}
+
+/** The best common ancestor of two refs, or undefined when unrelated. */
+export async function getMergeBaseOid(
+	repo: Repo,
+	refA: string,
+	refB: string,
+): Promise<string | undefined> {
+	const [a, b] = await Promise.all([
+		resolveCommit(repo, refA),
+		resolveCommit(repo, refB),
+	]);
+	const [mergeBase] = await git.findMergeBase({
+		...repo,
+		oids: [a.oid, b.oid],
+	});
+	return mergeBase;
+}

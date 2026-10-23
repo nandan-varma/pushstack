@@ -146,3 +146,24 @@ pnpm typecheck  # tsc --noEmit
 ```
 
 Biome (not ESLint/Prettier) — config in `biome.json`.
+
+## Troubleshooting: every turbo task fails with "Exec format error"
+
+`package.json` pins pnpm through `packageManager`, so pnpm downloads that
+version into `~/.local/share/pnpm/.tools/pnpm/<version>/`. When that download
+runs without lifecycle scripts, its `bin/pnpm` stays a shebang-less
+placeholder script. A shell runs it fine, so `pnpm …` works, but turbo
+executes it directly and the kernel answers `ENOEXEC`: every task reports
+`unable to spawn child process: Exec format error (os error 8)`. Install the
+native binary by running the package's own setup script once:
+
+```bash
+node ~/.local/share/pnpm/.tools/pnpm/<version>/node_modules/pnpm/install.js
+```
+
+The first four bytes of `bin/pnpm` are then `\x7fELF`.
+
+Tests that are heavy by nature (pglite boots, thousands of git objects) set
+an explicit per-test timeout with a comment saying why. Expensive setup that
+is not under test, such as the first pglite boot, belongs at module load or
+in a hook, not in the first test that happens to touch it.
