@@ -177,6 +177,23 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/labels/triage", del(alice));
 
 	await check(
+		"/repos/alice/proj/milestones",
+		post(alice, { title: "v1", due_on: "2030-01-31T00:00:00Z" }),
+	);
+	await check("/repos/alice/proj/milestones");
+	await check("/repos/alice/proj/milestones/1");
+	await check(
+		"/repos/alice/proj/milestones/1",
+		patch(alice, { description: "First release" }),
+	);
+	await check("/repos/alice/proj/issues/1", patch(alice, { milestone: 1 }));
+	await check("/repos/alice/proj/issues?milestone=1");
+	await check("/repos/alice/proj/issues/1/events");
+	await check("/repos/alice/proj/issues/1/timeline");
+	await check("/repos/alice/proj/issues/1", patch(alice, { milestone: null }));
+	await check("/repos/alice/proj/milestones/1", del(alice));
+
+	await check(
 		"/repos/alice/proj/pulls",
 		post(alice, {
 			title: "Add b",

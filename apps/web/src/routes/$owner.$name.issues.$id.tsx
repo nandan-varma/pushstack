@@ -20,6 +20,7 @@ import {
 	useThreadComments,
 } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import { ThreadMilestone } from "@/components/ThreadMilestone";
 import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
@@ -314,6 +315,14 @@ function IssueDetail({
 							repoId={issue.repoId}
 							number={issue.number}
 							labels={issue.labels}
+							canEdit={issue.viewer.canWrite}
+						/>
+						<ThreadMilestone
+							owner={owner}
+							name={name}
+							repoId={issue.repoId}
+							number={issue.number}
+							milestone={issue.milestone}
 							canEdit={issue.viewer.canWrite}
 						/>
 						{issue.viewer.canParticipate && (

@@ -148,6 +148,7 @@ function pullShapeOf(thread: Thread) {
 		author: thread.author,
 		labels: thread.labels,
 		assignees: thread.assignees,
+		milestone: thread.milestone,
 		commentsCount: thread.commentsCount,
 	};
 }
