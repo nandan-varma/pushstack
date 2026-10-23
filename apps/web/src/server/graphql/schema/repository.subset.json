@@ -110,10 +110,18 @@
 		"mirrorUrl",
 		"name",
 		"nameWithOwner",
+		{
+			"name": "object",
+			"args": ["expression", "oid"]
+		},
 		"owner",
 		"parent",
 		"pushedAt",
 		"rebaseMergeAllowed",
+		{
+			"name": "ref",
+			"args": ["qualifiedName"]
+		},
 		"resourcePath",
 		"squashMergeAllowed",
 		"sshUrl",
@@ -128,7 +136,30 @@
 	],
 	"RepositoryConnection": ["edges", "nodes", "pageInfo", "totalCount"],
 	"RepositoryEdge": "*",
-	"Ref": ["id", "name", "prefix"],
+	"Ref": ["id", "name", "prefix", "target"],
+	"GitObject": ["abbreviatedOid", "id", "oid", "repository"],
+	"Commit": {
+		"$implements": ["GitObject", "Node"],
+		"fields": [
+			"abbreviatedOid",
+			"authoredDate",
+			"committedDate",
+			"id",
+			"message",
+			"messageHeadline",
+			"oid",
+			"repository",
+			"resourcePath",
+			"url",
+			{
+				"name": "blame",
+				"args": ["path"]
+			}
+		]
+	},
+	"Blame": "*",
+	"BlameRange": "*",
+	"GitObjectID": "*",
 	"RepositoryOrder": "*",
 	"RepositoryOrderField": "*",
 	"OrderDirection": "*",

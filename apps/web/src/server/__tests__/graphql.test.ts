@@ -151,6 +151,103 @@ describe("repository", () => {
 	});
 });
 
+describe("Commit.blame", () => {
+	const blameQuery = (path: string) => `{
+		repository(owner: "alice", name: "public-one") {
+			ref(qualifiedName: "refs/heads/main") {
+				target { ... on Commit { oid blame(path: "${path}") { ranges { startingLine endingLine age commit { oid messageHeadline } } } } }
+			}
+		}
+	}`;
+
+	it("returns line ranges grouped by commit, through ref and object", async () => {
+		const { body } = await graphql(alice, blameQuery("README.md"));
+		expect(body.errors).toBeUndefined();
+		const { oid, blame } = body.data.repository.ref.target;
+		expect(blame.ranges).toHaveLength(1);
+		expect(blame.ranges[0]).toMatchObject({
+			startingLine: 1,
+			endingLine: 1,
+			age: 1,
+			commit: { oid, messageHeadline: "init" },
+		});
+
+		const { body: byObject } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") {
+				object(expression: "HEAD") { ... on Commit { oid blame(path: "README.md") { ranges { startingLine } } } }
+			} }`,
+		);
+		expect(byObject.data.repository.object.blame.ranges).toEqual([
+			{ startingLine: 1 },
+		]);
+	});
+
+	it("reports a missing path as NOT_FOUND and an invalid one as UNPROCESSABLE", async () => {
+		const { body: missing } = await graphql(alice, blameQuery("nope.txt"));
+		expect(missing.errors[0].type).toBe("NOT_FOUND");
+		const { body: invalid } = await graphql(alice, blameQuery("../x"));
+		expect(invalid.errors[0].type).toBe("UNPROCESSABLE");
+	});
+
+	it("maps a file too large to blame to UNPROCESSABLE, not a timeout", async () => {
+		const repo = await repositories.getRepositoryByName({
+			data: { owner: "alice", name: "public-one" },
+		});
+		await files.uploadFile({
+			data: {
+				repoId: repo.id,
+				branchName: "main",
+				path: "wide.txt",
+				content: btoa("a".repeat(1024 * 1024 + 1)),
+				commitMessage: "wide",
+			},
+		});
+		const { body } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { object(expression: "main") { ... on Commit { blame(path: "wide.txt") { ranges { startingLine } } } } } }`,
+		);
+		expect(body.errors[0].type).toBe("UNPROCESSABLE");
+		expect(body.errors[0].message).toContain("blame limit");
+	});
+
+	it("answers a path-traversing or malformed expression with null, not a lookup", async () => {
+		for (const expression of ["refs/../../secret/x", "../x", "a..b", ""]) {
+			const { body } = await graphql(
+				alice,
+				`query($e: String) { repository(owner: "alice", name: "public-one") { object(expression: $e) { oid } } }`,
+				{ e: expression },
+			);
+			expect(body.errors).toBeUndefined();
+			expect(body.data.repository.object).toBeNull();
+		}
+	});
+
+	it("weighs blame heavily and allows one per query", async () => {
+		const one = `object(expression: "HEAD") { ... on Commit { blame(path: "README.md") { ranges { startingLine } } } }`;
+		const { body } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { ${one} } }`,
+		);
+		expect(body.errors).toBeUndefined();
+		const { body: two } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { a: ${one} b: ${one} } }`,
+		);
+		expect(two.errors[0].type).toBe("MAX_NODE_LIMIT_EXCEEDED");
+		expect(two.errors[0].message).toContain("blame");
+	});
+
+	it("does not expose commits of an unreadable repository", async () => {
+		const { body } = await graphql(
+			bob,
+			`{ repository(owner: "alice", name: "secret") { object(expression: "HEAD") { oid } } }`,
+		);
+		expect(body.data.repository).toBeNull();
+		expect(body.errors[0].type).toBe("NOT_FOUND");
+	});
+});
+
 describe("node ids", () => {
 	it("round-trips repository and user ids through node(id:)", async () => {
 		const { body } = await graphql(
@@ -264,6 +361,16 @@ describe("connections", () => {
 			totalCount: 1,
 			nodes: [{ name: "public-one" }],
 		});
+	});
+
+	it("drops null list items: ownerAffiliations falls back to its default, affiliations matches nothing", async () => {
+		const query = `query($owner: [RepositoryAffiliation], $mine: [RepositoryAffiliation]) { user(login: "alice") { repositories(first: 10, ownerAffiliations: $owner, affiliations: $mine) { totalCount } } }`;
+		const defaulted = await graphql(bob, query, { owner: [null] });
+		expect(defaulted.body.errors).toBeUndefined();
+		expect(defaulted.body.data.user.repositories.totalCount).toBe(1);
+		const none = await graphql(bob, query, { mine: [null] });
+		expect(none.body.errors).toBeUndefined();
+		expect(none.body.data.user.repositories.totalCount).toBe(0);
 	});
 
 	it("requires first or last, at most 100", async () => {

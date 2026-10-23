@@ -64,6 +64,7 @@ Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page
 | Repository | `/{owner}/{repo}` |
 | Directory, file | `/{owner}/{repo}/tree/{ref}/{path}`, `/{owner}/{repo}/blob/{ref}/{path}` |
 | Raw file bytes | `/{owner}/{repo}/raw/{ref}/{path}` |
+| Source archive | `/{owner}/{repo}/archive/refs/heads/{branch}.zip`, `…/refs/tags/{tag}.tar.gz`, `…/archive/{sha}.zip` |
 | Commits, one commit | `/{owner}/{repo}/commits/{ref}`, `/{owner}/{repo}/commit/{sha}` (`.diff`, `.patch`) |
 | Compare | `/{owner}/{repo}/compare/{base}...{head}` (`.diff`, `.patch`) |
 | Issues, one issue | `/{owner}/{repo}/issues`, `/{owner}/{repo}/issues/{n}` |
@@ -158,6 +159,10 @@ The web UI can do most of what the CLI can, without a clone:
   repository it points at; the parent repository stores only that pointer.
 - **Raw and download** — every file has a `/{owner}/{repo}/raw/{ref}/{path}` URL serving its exact
   bytes, used by downloads, images and media previews.
+- **Source archives** — `/{owner}/{repo}/archive/refs/heads/{branch}.zip` (or `.tar.gz`, `refs/tags/{tag}`, a
+  full commit SHA) streams a zipball or tarball whose entries sit under `{repo}-{ref}/`, as on GitHub; the
+  commit SHA is the zip comment. The REST `zipball` and `tarball` routes (default branch when no ref) answer `302` to `/{owner}/{repo}/legacy.zip/{ref}` (or `legacy.tar.gz`), whose entries are named `{owner}-{repo}-{short sha}`. Archive downloads count against the API rate limit.
+  Submodules become empty directories, and a private repository's archive accepts a personal access token.
 
 Markdown is rendered for READMEs, issue and pull request bodies, and comments.
 Relative links and images resolve against the file that contains them, so
@@ -225,6 +230,7 @@ but cannot change them.
 | --- | --- |
 | Web file upload | 25 MB per file |
 | Raw file download (`/{owner}/{repo}/raw/…`) | 50 MB — above that, `git clone` |
+| Source archive (`/{owner}/{repo}/archive/…`) | 50,000 entries and 256 MiB of files — above that, `413` and `git clone` |
 | Git push request body | 50 MB |
 | Issue, pull request and comment body | 65,536 characters |
 | Commit message (web UI) | 10,000 characters |

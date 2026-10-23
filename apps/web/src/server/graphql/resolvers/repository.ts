@@ -46,7 +46,7 @@ import {
 	type PublicUser,
 	publicUserColumns,
 } from "../../repository-lookup";
-import { type ConnectionArgs, offsetConnection } from "../connection";
+import { offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import {
 	GitHubGraphQLError,
@@ -55,7 +55,13 @@ import {
 	unprocessable,
 } from "../errors";
 import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
+import { blameOf, readCommitNode, resolveObject } from "./commit";
 import { loadUser, loadUserByLogin, type UserNode, userNode } from "./core";
+import type {
+	CreateRepositoryInput,
+	Ref,
+	UserRepositoriesArgs,
+} from "./generated";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 type Role = "owner" | "admin" | "write" | "read" | "anonymous";
@@ -203,13 +209,32 @@ async function defaultBranchRef(repo: RepositoryNode, ctx: GraphQLContext) {
 	return branches.includes(name) ? refNode(repo, name) : null;
 }
 
-function refNode(repo: RepositoryNode, branch: string) {
+export interface RefNode extends Ref {
+	/** Internal: the repository, for `target`. */
+	repo: RepositoryNode;
+}
+
+function refNode(repo: RepositoryNode, branch: string): RefNode {
 	return {
 		__typename: "Ref",
 		id: encodeNodeId("Ref", `${repo.row.id}:refs/heads/${branch}`),
 		name: branch,
 		prefix: "refs/heads/",
+		/** Internal: for `target`. */
+		repo,
 	};
+}
+
+/** `Repository.ref(qualifiedName:)`: a branch as `main` or `refs/heads/main`. */
+async function refByName(
+	repo: RepositoryNode,
+	qualifiedName: string,
+	ctx: GraphQLContext,
+) {
+	const name = qualifiedName.replace(/^refs\/heads\//, "");
+	return (await branchesOf(ctx, repo)).includes(name)
+		? refNode(repo, name)
+		: null;
 }
 
 function loadStarCount(ctx: GraphQLContext, repoId: number) {
@@ -234,20 +259,11 @@ function loadViewerHasStarred(ctx: GraphQLContext, repoId: number) {
 		.then((starred) => starred === true);
 }
 
-interface RepositoriesArgs extends ConnectionArgs {
-	affiliations?: ("OWNER" | "COLLABORATOR" | "ORGANIZATION_MEMBER")[] | null;
-	ownerAffiliations?:
-		| ("OWNER" | "COLLABORATOR" | "ORGANIZATION_MEMBER")[]
-		| null;
-	privacy?: "PUBLIC" | "PRIVATE" | null;
-	visibility?: "PUBLIC" | "PRIVATE" | "INTERNAL" | null;
-	isFork?: boolean | null;
-	isArchived?: boolean | null;
-	orderBy?: {
-		field: "CREATED_AT" | "NAME" | "PUSHED_AT" | "STARGAZERS" | "UPDATED_AT";
-		direction: "ASC" | "DESC";
-	} | null;
-}
+type RepositoriesArgs = UserRepositoriesArgs;
+
+/** A list argument without its null items (GraphQL allows `[X]`). */
+const present = <T>(list: (T | null)[] | null | undefined) =>
+	list?.filter((item): item is T => item != null);
 
 const collaboratorOf = (userId: string) =>
 	exists(
@@ -306,9 +322,14 @@ async function userRepositories(
 	const where = and(
 		affiliated(
 			owner.userId,
-			args.ownerAffiliations ?? ["OWNER", "COLLABORATOR"],
+			// Only nulls (or nothing) left: the schema's default, not "none".
+			present(args.ownerAffiliations)?.length
+				? (present(args.ownerAffiliations) ?? [])
+				: ["OWNER", "COLLABORATOR"],
 		),
-		args.affiliations ? affiliated(viewer, args.affiliations) : undefined,
+		args.affiliations
+			? affiliated(viewer, present(args.affiliations) ?? [])
+			: undefined,
 		readableRepositoriesCondition(viewer),
 		privacy
 			? eq(
@@ -405,18 +426,13 @@ const loadRefNode: NodeLoader = async (key, ctx) => {
 	return refNode(node, name);
 };
 
-interface CreateRepositoryInput {
-	clientMutationId?: string | null;
-	name: string;
-	description?: string | null;
-	visibility: "PUBLIC" | "PRIVATE" | "INTERNAL";
-	ownerId?: string | null;
-	teamId?: string | null;
-	template?: boolean | null;
-	homepageUrl?: string | null;
-	hasIssuesEnabled?: boolean | null;
-	hasWikiEnabled?: boolean | null;
-}
+const loadCommitNode: NodeLoader = async (key, ctx) => {
+	const match = /^(\d{1,10}):([0-9a-f]{40})$/.exec(key);
+	if (!match) return null;
+	const repo = await loadRepositoryNode(match[1] as string, ctx);
+	if (!repo) return null;
+	return readCommitNode(repo as RepositoryNode, match[2] as string);
+};
 
 async function createRepository(
 	input: CreateRepositoryInput,
@@ -518,6 +534,12 @@ export const repositoryResolvers: DomainResolvers = {
 			repository: (source: UserNode, args: { name: string }, ctx) =>
 				readableRepositoryNode(ctx, source.login, args.name),
 		},
+		Ref: {
+			target: (source) => readCommitNode(source.repo, source.name),
+		},
+		Commit: {
+			blame: (source, args) => blameOf(source, args),
+		},
 		Repository: {
 			owner: async (source: RepositoryNode, _args, ctx) => {
 				const row = await loadUser(ctx, source.row.ownerId);
@@ -526,6 +548,8 @@ export const repositoryResolvers: DomainResolvers = {
 			},
 			defaultBranchRef: (source: RepositoryNode, _args, ctx) =>
 				defaultBranchRef(source, ctx),
+			object: (source, args) => resolveObject(source, args),
+			ref: (source, args, ctx) => refByName(source, args.qualifiedName, ctx),
 			isEmpty: async (source: RepositoryNode, _args, ctx) =>
 				(await branchesOf(ctx, source)).length === 0,
 			stargazerCount: (source: RepositoryNode, _args, ctx) =>
@@ -537,5 +561,9 @@ export const repositoryResolvers: DomainResolvers = {
 				source.role === "owner" || source.role === "admin",
 		},
 	},
-	nodes: { Repository: loadRepositoryNode, Ref: loadRefNode },
+	nodes: {
+		Repository: loadRepositoryNode,
+		Ref: loadRefNode,
+		Commit: loadCommitNode,
+	},
 };

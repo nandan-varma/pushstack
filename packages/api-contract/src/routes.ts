@@ -152,6 +152,18 @@ export const routes = {
 		docs: `${DOCS}/repos/contents#delete-a-file`,
 		deleteBody: true,
 	},
+	"repos/download-tarball-archive": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/tarball/{+ref}",
+		docs: `${DOCS}/repos/contents#download-a-repository-archive-tar`,
+		status: 302,
+	},
+	"repos/download-zipball-archive": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/zipball/{+ref}",
+		docs: `${DOCS}/repos/contents#download-a-repository-archive-zip`,
+		status: 302,
+	},
 	"repos/list-commits": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/commits",

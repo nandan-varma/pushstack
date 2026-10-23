@@ -40,7 +40,7 @@ type RecursiveFileLister = {
 	listFilesRecursively(dirpath: string): Promise<string[]>;
 };
 
-function hasRecursiveFileLister(
+export function hasRecursiveFileLister(
 	fs: Repo["fs"],
 ): fs is Repo["fs"] & RecursiveFileLister {
 	return (
@@ -62,7 +62,7 @@ type PromisesFs = {
 // this just keeps the callback-style branch honest instead of crashing on
 // it. Shared by every loose-ref fast path below instead of each repeating
 // the same cast + presence check.
-function getPromisesFs(fs: Repo["fs"]): PromisesFs | null {
+export function getPromisesFs(fs: Repo["fs"]): PromisesFs | null {
 	const promises = (fs as { promises?: PromisesFs }).promises;
 	return promises ?? null;
 }

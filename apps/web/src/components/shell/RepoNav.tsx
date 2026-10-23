@@ -43,7 +43,8 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 	const ref = branch ?? repo.defaultBranch;
 	const codeActive = Boolean(
 		matchRoute({ to: "/$owner/$name/tree/$branch/$", fuzzy: true }) ||
-			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }),
+			matchRoute({ to: "/$owner/$name/blob/$branch/$", fuzzy: true }) ||
+			matchRoute({ to: "/$owner/$name/blame/$branch/$", fuzzy: true }),
 	);
 	const commitsActive = Boolean(
 		matchRoute({ to: "/$owner/$name/commits/$branch", fuzzy: true }) ||
@@ -123,6 +124,13 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 			<div className="space-y-2 px-1">
 				<RepoStar owner={owner} name={name} repo={repo} />
 				<CopyField value={getCloneUrl(owner, name)} label="Copy clone URL" />
+				<a
+					href={`/${owner}/${name}/archive/${ref.split("/").map(encodeURIComponent).join("/")}.zip`}
+					download
+					className="block px-1 text-[13px] text-bjork-text-soft hover:text-bjork-text-strong hover:underline"
+				>
+					Download ZIP
+				</a>
 			</div>
 		</div>
 	);

@@ -1,10 +1,17 @@
 import git from "isomorphic-git";
 import { concat, decodeAscii, decodeUtf8 } from "../edge-utils.js";
-import { isNotFoundError } from "../git-errors.js";
-import { listAllRefNames, refCollisionIn } from "../ops/branch.js";
+import { isAbsentError, isNotFoundError } from "../git-errors.js";
+import {
+	getPromisesFs,
+	hasRecursiveFileLister,
+	listAllRefNames,
+	refCollisionIn,
+	resolveLooseRefFast,
+} from "../ops/branch.js";
 import type { Repo } from "../ops/types.js";
 import { storePack } from "../pack-write.js";
 import { isSafeFullRefName } from "../refs.js";
+import { findInvalidTree } from "./fsck.js";
 import { FLUSH, pktLine, sideBandPackfile } from "./pkt-line.js";
 import { collectReachableOids } from "./reachability.js";
 import { type RepackOptions, repackRepository } from "./repack.js";
@@ -96,20 +103,31 @@ export async function indexIncomingPack(
 	packData: Uint8Array,
 	hooks?: HttpHooks,
 ): Promise<string[]> {
-	if (packData.length < 4) return [];
-	const packName = await runStep(
+	return (await storeIncomingPack(repo, packData, hooks)).paths;
+}
+
+/** {@link indexIncomingPack}, also returning the oids the pack's index lists. */
+async function storeIncomingPack(
+	repo: Repo,
+	packData: Uint8Array,
+	hooks?: HttpHooks,
+): Promise<{ paths: string[]; oids: string[] }> {
+	if (packData.length < 4) return { paths: [], oids: [] };
+	const stored = await runStep(
 		hooks,
 		"write + indexPack incoming pack",
 		async () => {
 			// Named by checksum (`pack-<sha>`), stored pack first, index last.
-			const { base } = await storePack(repo, packData);
-			return base;
+			return storePack(repo, packData);
 		},
 	);
-	return [
-		`${repo.gitdir}/objects/pack/${packName}.pack`,
-		`${repo.gitdir}/objects/pack/${packName}.idx`,
-	];
+	return {
+		paths: [
+			`${repo.gitdir}/objects/pack/${stored.base}.pack`,
+			`${repo.gitdir}/objects/pack/${stored.base}.idx`,
+		],
+		oids: stored.oids,
+	};
 }
 
 /**
@@ -152,21 +170,55 @@ async function checkRefCas(
 			};
 }
 
-/** Every branch/tag tip currently in the repo, as a validation boundary — see
- * its call site in {@link applyReceivePack}. */
-async function collectExistingRefTips(repo: Repo): Promise<Set<string>> {
-	const [branches, tags] = await Promise.all([
-		git.listBranches(repo),
-		git.listTags(repo),
+/**
+ * Every ref's full name, from one listing. On an object store that is a
+ * single recursive LIST of `refs/` (plus a read of `packed-refs`, which is
+ * free for a gitdir registered as never having one); otherwise it falls back
+ * to isomorphic-git's directory walk. A push derives the tips to validate
+ * against and the file/directory collision set from this one snapshot instead
+ * of listing refs three separate ways. The caller holds the repository lock,
+ * so nothing else moves a ref between the snapshot and the writes; the
+ * compare-and-swap in {@link applyRefUpdates} still re-reads every ref it
+ * updates.
+ */
+async function snapshotRefNames(repo: Repo): Promise<string[]> {
+	const promises = getPromisesFs(repo.fs);
+	if (!hasRecursiveFileLister(repo.fs) || !promises) {
+		return listAllRefNames(repo);
+	}
+	const [loose, packed] = await Promise.all([
+		repo.fs.listFilesRecursively(`${repo.gitdir}/refs`),
+		promises
+			.readFile(`${repo.gitdir}/packed-refs`, "utf8")
+			.then((content) =>
+				typeof content === "string" ? content : decodeUtf8(content),
+			)
+			.catch((error: unknown) => {
+				if (isAbsentError(error)) return "";
+				throw error;
+			}),
 	]);
-	const refs = [
-		...branches.map((b) => `refs/heads/${b}`),
-		...tags.map((t) => `refs/tags/${t}`),
-	];
+	const names = new Set(loose.map((name) => `refs/${name}`));
+	for (const line of packed.split("\n")) {
+		const match = /^[0-9a-f]{40} (refs\/.+)$/i.exec(line.trim());
+		if (match?.[1]) names.add(match[1]);
+	}
+	return [...names];
+}
+
+/** Every branch/tag tip among `refNames`, as a validation boundary — see its
+ * call site in {@link applyReceivePack}. */
+async function collectExistingRefTips(
+	repo: Repo,
+	refNames: readonly string[],
+): Promise<Set<string>> {
+	const refs = refNames.filter(
+		(name) => name.startsWith("refs/heads/") || name.startsWith("refs/tags/"),
+	);
 	const oids = await Promise.all(
 		refs.map(async (ref) => {
 			try {
-				return await git.resolveRef({ ...repo, ref });
+				return await resolveLooseRefFast(repo, ref);
 			} catch (error) {
 				// A tip that disappeared between list and resolve is a race; dropping
 				// it can only widen the walk below (conservative), so skip it. A real
@@ -225,6 +277,10 @@ async function validateRefUpdates(
 	);
 }
 
+function isCreation({ oldOid, newOid }: RefUpdateCommand): boolean {
+	return oldOid === ZERO_OID && newOid !== ZERO_OID;
+}
+
 /**
  * Apply ref updates, enforcing compare-and-swap against each command's
  * claimed oldOid. Every client-supplied refName is validated before any
@@ -234,11 +290,17 @@ export async function applyRefUpdates(
 	repo: Repo,
 	refUpdates: RefUpdateCommand[],
 	hooks?: HttpHooks,
+	/** Every ref name, when the caller already listed them under the lock. */
+	knownRefNames?: readonly string[],
 ): Promise<RefUpdateResult[]> {
 	return runStep(hooks, "apply ref updates", async () => {
-		// Listed once per push: a creation may collide with an existing ref or
-		// with another creation in the same push (the later one is refused).
-		const taken = await listAllRefNames(repo);
+		// Listed at most once per push, and not at all when nothing is created:
+		// a creation may collide with an existing ref or with another creation
+		// in the same push (the later one is refused).
+		const taken = [
+			...(knownRefNames ??
+				(refUpdates.some(isCreation) ? await snapshotRefNames(repo) : [])),
+		];
 		return Promise.all(
 			refUpdates.map(async ({ oldOid, newOid, refName }) => {
 				const failure = await checkRefCas(repo, refName, oldOid);
@@ -389,18 +451,26 @@ export async function applyReceivePack(
 	);
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
-	const existingPacks = new Set(
-		await fsp.readdir(packDir).catch(() => [] as string[]),
-	);
+	// Null when the listing failed for a reason other than the directory being
+	// absent: the post-push repack must then list the directory itself.
+	const listedPacks = await fsp.readdir(packDir).catch((error: unknown) => {
+		if (isAbsentError(error)) return [] as string[];
+		hooks?.onWarn?.("receive-pack: listing the pack directory failed", error);
+		return null;
+	});
+	const existingPacks = new Set(listedPacks ?? []);
 	let incomingPackPaths: string[];
+	let incomingOids: ReadonlySet<string> = new Set();
 	try {
-		incomingPackPaths = await indexIncomingPack(
+		const stored = await storeIncomingPack(
 			repo,
 			acceptedUpdates.some((update) => update.newOid !== ZERO_OID)
 				? parsed.packData
 				: new Uint8Array(),
 			hooks,
 		);
+		incomingPackPaths = stored.paths;
+		incomingOids = new Set(stored.oids);
 	} catch (err) {
 		hooks?.onWarn?.("receive-pack: incoming pack rejected", err);
 		return {
@@ -417,6 +487,29 @@ export async function applyReceivePack(
 		.filter((path) => !existingPacks.has(path.slice(packDir.length + 1)))
 		.sort((a, b) => Number(b.endsWith(".idx")) - Number(a.endsWith(".idx")));
 
+	// Listed at most once, only when the tips or the collision check need it.
+	let refNames: string[] | undefined;
+	// Every tree the pack holds is name-checked, reachable or not: otherwise an
+	// unreferenced bad tree could be stored by one push and referenced by the
+	// next, which only checks its own pack.
+	const badTree = await findInvalidTree(repo, incomingOids);
+	if (badTree) {
+		for (const filepath of removableIncoming) {
+			await fsp.unlink(filepath).catch(() => {});
+		}
+		return {
+			results: preflight.map((result) =>
+				result.ok
+					? {
+							...result,
+							ok: false,
+							reason: `fsck error in packed object: ${badTree}`,
+						}
+					: result,
+			),
+			stalePackPaths: [],
+		};
+	}
 	const newTips = acceptedUpdates
 		.filter((update) => update.newOid !== ZERO_OID)
 		.map((update) => update.newOid);
@@ -427,16 +520,39 @@ export async function applyReceivePack(
 		// own) is the common case this matters for: creating a branch off an
 		// existing one is still just one new commit's worth of new objects,
 		// and shouldn't cost a walk of the entire repo history to validate.
-		const haveOids = await collectExistingRefTips(repo);
+		refNames = await snapshotRefNames(repo);
+		const haveOids = await collectExistingRefTips(repo, refNames);
 		for (const update of acceptedUpdates) {
 			if (update.oldOid !== ZERO_OID) haveOids.add(update.oldOid);
 		}
-		const { complete } = await collectReachableOids(
+		const { complete, invalidTreeEntry } = await collectReachableOids(
 			repo,
 			newTips,
 			hooks,
 			haveOids,
+			// Only the trees this push stored are checked: older trees the walk
+			// passes through were accepted by earlier pushes.
+			{ checkTreeNames: incomingOids },
 		);
+		if (invalidTreeEntry) {
+			// What `receive.fsckObjects` refuses: names that become path
+			// traversal or a nested `.git` in an archive or a checkout.
+			for (const filepath of removableIncoming) {
+				await fsp.unlink(filepath).catch(() => {});
+			}
+			return {
+				results: preflight.map((result) =>
+					result.ok
+						? {
+								...result,
+								ok: false,
+								reason: `fsck error in packed object: ${invalidTreeEntry.message}`,
+							}
+						: result,
+				),
+				stalePackPaths: [],
+			};
+		}
 		if (!complete) {
 			for (const filepath of removableIncoming) {
 				await fsp.unlink(filepath).catch(() => {});
@@ -452,7 +568,7 @@ export async function applyReceivePack(
 		}
 	}
 
-	const applied = await applyRefUpdates(repo, acceptedUpdates, hooks);
+	const applied = await applyRefUpdates(repo, acceptedUpdates, hooks, refNames);
 	const results = preflight.map((result, index) =>
 		result.ok
 			? (applied.find(
@@ -473,9 +589,23 @@ export async function applyReceivePack(
 	// durable, and the next push repacks.
 	let stalePackPaths: string[] = [];
 	if (repackOptions !== false) {
+		// The lock is held, so the pack directory is what was listed before
+		// indexing plus the pack this push stored: no need to list it again
+		// (unless that listing failed, when the repack lists it itself).
+		const packDirectory =
+			listedPacks === null
+				? undefined
+				: [
+						...existingPacks,
+						...incomingPackPaths.map((path) => path.slice(packDir.length + 1)),
+					];
 		try {
 			stalePackPaths = await runStep(hooks, "repack", () =>
-				repackRepository(repo, repackOptions, hooks),
+				repackRepository(
+					repo,
+					packDirectory ? { ...repackOptions, packDirectory } : repackOptions,
+					hooks,
+				),
 			);
 		} catch (error) {
 			hooks?.onWarn?.("repack after push failed (non-fatal)", error);

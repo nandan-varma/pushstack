@@ -530,7 +530,7 @@ describe("ops end-to-end over MemoryObjectStore", () => {
 
 	it("resultKeyPrefixes covers every cache kind ops write to", async () => {
 		const prefixes = resultKeyPrefixes(repo.gitdir);
-		expect(prefixes).toHaveLength(4);
+		expect(prefixes).toHaveLength(5);
 		for (const prefix of prefixes) {
 			expect(prefix.endsWith(":")).toBe(true);
 			expect(prefix).toContain(repo.gitdir);
