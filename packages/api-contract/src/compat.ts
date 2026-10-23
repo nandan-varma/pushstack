@@ -63,7 +63,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/get-commit":
 		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`",
 	"repos/compare-commits-with-basehead":
-		"`base...head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head) and `patch` (one message per commit)",
+		"`base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit)",
 	"git/get-ref":
 		'branches and tags; annotated tags are `type: "tag"` (unpeeled)',
 	"git/list-refs": "`{ref}` may be empty (every ref)",
