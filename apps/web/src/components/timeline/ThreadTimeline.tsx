@@ -17,6 +17,7 @@ import {
 	type LucideIcon,
 	MessageSquare,
 	MessageSquareQuote,
+	Milestone,
 	Pencil,
 	Tag,
 	UserRound,
@@ -303,6 +304,19 @@ function describe(
 				text: (
 					<>
 						deleted the <code className="font-mono">{event.branch}</code> branch
+					</>
+				),
+			};
+		case "milestoned":
+		case "demilestoned":
+			return {
+				icon: Milestone,
+				text: (
+					<>
+						{event.event === "milestoned"
+							? "added this to the"
+							: "removed this from the"}{" "}
+						<b>{event.milestone.title}</b> milestone
 					</>
 				),
 			};

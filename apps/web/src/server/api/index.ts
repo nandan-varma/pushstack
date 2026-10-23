@@ -78,6 +78,13 @@ import {
 } from "./labels";
 import { getRoot } from "./meta";
 import {
+	createMilestone,
+	deleteMilestone,
+	getMilestone,
+	listRepoMilestones,
+	updateMilestone,
+} from "./milestones";
+import {
 	deleteThreadSubscription,
 	getThread,
 	getThreadSubscription,
@@ -283,6 +290,11 @@ const HANDLERS = {
 	"issues/get-label": getLabel,
 	"issues/update-label": updateLabel,
 	"issues/delete-label": deleteLabel,
+	"issues/list-milestones": listRepoMilestones,
+	"issues/create-milestone": createMilestone,
+	"issues/get-milestone": getMilestone,
+	"issues/update-milestone": updateMilestone,
+	"issues/delete-milestone": deleteMilestone,
 } satisfies Record<OperationId, Handler>;
 
 /** Every method the route table uses; `routes/api/v3.$.ts` must serve each. */

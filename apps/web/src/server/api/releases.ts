@@ -12,6 +12,7 @@ import {
 	deleteAsset,
 	finishAssetUpload,
 	PresignUnavailableError,
+	reapStaleUploads,
 	startAssetUpload,
 	uploadAssetBytes,
 } from "../release-assets";
@@ -246,6 +247,7 @@ export async function listReleaseAssetsHandler(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const { release_id } = pathParams(ctx, "repos/list-release-assets");
 	const row = visible(await findRelease(repo.id, release_id), access.canWrite);
+	await reapStaleUploads(repo, row.id);
 	const params = pageParams(ctx.url.searchParams);
 	const [assets, total] = await Promise.all([
 		params.reachable
@@ -295,6 +297,7 @@ export async function getReleaseAssetHandler(ctx: ApiContext) {
 	) {
 		return assetResponse(repo, asset, ctx.request, {
 			isPublic: repo.visibility === "public",
+			draft: asset.release.draft,
 		});
 	}
 	return json(

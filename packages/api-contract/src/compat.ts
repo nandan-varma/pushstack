@@ -80,7 +80,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/update-release-asset": "write access; `name`, `label`",
 	"repos/delete-release-asset": "write access; removes the stored file",
 	"repos/finish-release-asset-upload":
-		"PushStack extension: completes a presigned upload started with `POST …/assets/uploads` after the bytes were PUT to R2; the stored size must equal the declared one, else the asset is discarded and the answer is `422`",
+		"PushStack extension: completes a presigned upload started with `POST …/assets/uploads` after the bytes were PUT to R2; the stored size must equal the declared one, else the asset is discarded and the answer is `422`; the verified object is copied to its final key, so later `PUT`s to the URL have no effect; unfinished uploads are removed after the URL's 15 minutes",
 	"repos/get-release": "drafts for write access only (`404` otherwise)",
 	"repos/update-release":
 		"write access; as create; publishing a draft sets `published_at` and creates a missing tag; `make_latest: true` moves the badge",
@@ -160,9 +160,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"git/create-tag":
 		"unsigned; create the `refs/tags/…` ref separately, as on GitHub",
 	"issues/list-for-repo":
-		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`",
+		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`",
 	"issues/create":
-		"any signed-in reader; `title`, `body`, `labels`, `assignees` (labels/assignees need write access)",
+		"any signed-in reader; `title`, `body`, `labels`, `assignees`, `milestone` (number; labels/assignees/milestone need write access, an unknown milestone is `422`)",
 	"issues/get-comment": "",
 	"issues/update-comment": "",
 	"issues/delete-comment": "`204`",
@@ -173,7 +173,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/get":
 		"a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason`",
 	"issues/update":
-		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`; also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened",
+		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`, `milestone` (number, or `null` to clear; writers only; records `milestoned`/`demilestoned` events); also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened",
 	"issues/list-comments": "comments of an issue or a pull request",
 	"issues/create-comment": "any signed-in reader",
 	"issues/list-events-for-timeline":
@@ -203,6 +203,14 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/list-commits": "oldest first, up to 250",
 	"pulls/list-files":
 		"up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips)",
+	"issues/list-milestones":
+		"`state` (`open` default, `closed`, `all`), `sort` (`due_on` default, `completeness`), `direction`; `open_issues`/`closed_issues` count issues and pull requests",
+	"issues/create-milestone":
+		"write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists`",
+	"issues/get-milestone": "",
+	"issues/update-milestone": "write access",
+	"issues/delete-milestone":
+		"write access; `204`; issues and pull requests in it lose the milestone",
 	"issues/list-labels-for-repo": "",
 	"issues/create-label":
 		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`",

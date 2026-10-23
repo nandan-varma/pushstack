@@ -80,6 +80,25 @@ export const label = z.strictObject({
 	description: z.string().nullable(),
 });
 
+export const milestone = z.strictObject({
+	url,
+	html_url: url,
+	labels_url: url,
+	id: z.number().int(),
+	node_id: z.string(),
+	number: z.number().int().positive(),
+	state: z.enum(["open", "closed"]),
+	title: z.string(),
+	description: z.string().nullable(),
+	creator: simpleUser.nullable(),
+	open_issues: count,
+	closed_issues: count,
+	created_at: timestamp,
+	updated_at: timestamp,
+	closed_at: timestamp.nullable(),
+	due_on: timestamp.nullable(),
+});
+
 /** GitHub's reaction `content` values. */
 export const reactionContent = z.enum([
 	"+1",
@@ -137,7 +156,7 @@ export const issue = z.strictObject({
 	locked: z.boolean(),
 	active_lock_reason: z.string().nullable(),
 	comments: count,
-	milestone: z.null(),
+	milestone: milestone.nullable(),
 	created_at: timestamp,
 	updated_at: timestamp,
 	closed_at: timestamp.nullable(),
@@ -346,6 +365,11 @@ export const issueEvent = z.discriminatedUnion("event", [
 	}),
 	z.strictObject({
 		...eventBase,
+		event: z.literal(["milestoned", "demilestoned"]),
+		milestone: z.strictObject({ title: z.string() }),
+	}),
+	z.strictObject({
+		...eventBase,
 		event: z.literal(["assigned", "unassigned"]),
 		/** A partial user: the event records the login and name only. */
 		assignee: z.strictObject({
@@ -548,7 +572,7 @@ export const pullRequestSimple = z.strictObject({
 	user: simpleUser,
 	body: z.string().nullable(),
 	labels: z.array(label),
-	milestone: z.null(),
+	milestone: milestone.nullable(),
 	active_lock_reason: z.string().nullable(),
 	created_at: timestamp,
 	updated_at: timestamp,

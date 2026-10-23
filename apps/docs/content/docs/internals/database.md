@@ -53,6 +53,7 @@ schema before deploying code that selects it.
 | `issues` | **Every issue and pull request**: title, body, status (`open`/`closed`), `state_reason`, `closed_at`, `closed_by_id`, repository-scoped `number`, `is_pull_request` |
 | `pullRequests` | Only what a pull request adds, 1:1 by `issue_id`: source/target branch **names** (branches are git refs, not rows) and merge metadata (`merged_at`, `merged_by`, merge commit, merged range) |
 | `labels`, `threadLabels` | Repository labels and their application to an issue (`issue_id`) |
+| `milestones` | Repository milestones (`number` is its own per-repo sequence, `repositories.next_milestone_number`); an issue or pull request carries at most one through `issues.milestone_id` (`on delete set null`) |
 | `threadAssignees` | Users assigned to an issue or pull request, unique per (`issue_id`, user) |
 | `comments`, `timelineEvents` | On an issue or pull request (`issue_id`) |
 | `pullRequestReviews`, `pullRequestReviewComments` | On a pull request (`pull_request_id` → `pull_requests.issue_id`) |

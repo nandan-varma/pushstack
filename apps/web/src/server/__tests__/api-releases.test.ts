@@ -26,7 +26,9 @@ const { asToken, call, mintToken, patch, post } = await import(
 const { handleApiRequest } = await import("../api");
 const { serveReleaseDownload } = await import("../release-assets");
 const { releaseAssetStorage } = await import("../git-fs");
-const { getReleaseAssetKey } = await import("../git-storage-naming");
+const { getReleaseAssetKey, getReleaseAssetUploadKey } = await import(
+	"../git-storage-naming"
+);
 
 const del = (token: string) => ({ ...asToken(token), method: "DELETE" });
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -395,6 +397,7 @@ describe("release assets", () => {
 		);
 		expect(response.headers.get("content-disposition")).toContain("attachment");
 		expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+		expect(response.headers.get("cache-control")).toContain("public");
 		expect(response.headers.get("content-length")).toBe(String(payload.length));
 		await vi.waitFor(async () => {
 			expect(
@@ -545,11 +548,20 @@ describe("release assets", () => {
 		const url = "/alice/proj/releases/download/assets-draft/d.txt";
 		signOut();
 		expect((await download(url)).status).toBe(404);
-		expect(
-			await (
-				await download(url, { headers: { authorization: `token ${alice}` } })
-			).text(),
-		).toBe("draft");
+		const asWriter = await download(url, {
+			headers: { authorization: `token ${alice}` },
+		});
+		expect(await asWriter.text()).toBe("draft");
+		expect(asWriter.headers.get("cache-control")).toBe("private, no-store");
+		const viaApi = await handleApiRequest(
+			new Request(`http://localhost:3000/api/v3${path}`, {
+				headers: {
+					accept: "application/octet-stream",
+					authorization: `token ${alice}`,
+				},
+			}),
+		);
+		expect(viaApi.headers.get("cache-control")).toBe("private, no-store");
 	});
 });
 
@@ -604,9 +616,16 @@ describe("presigned asset uploads", () => {
 		// Nothing uploaded yet.
 		expect((await call(finishPath, post(alice, {}))).status).toBe(422);
 		const key = getReleaseAssetKey("alice", "proj", id);
-		await releaseAssetStorage.put(key, bytes("12345"));
+		const uploadKey = getReleaseAssetUploadKey("alice", "proj", id);
+		await releaseAssetStorage.put(uploadKey, bytes("12345"));
 		const finished = await call(finishPath, post(alice, {}));
 		expect(finished.status).toBe(200);
+		// The bytes now live at the final key; the upload object is gone, so a
+		// replayed PUT to the presigned URL cannot change the asset.
+		expect(await releaseAssetStorage.head(uploadKey)).toBeNull();
+		expect((await releaseAssetStorage.head(key))?.size).toBe(5);
+		await releaseAssetStorage.put(uploadKey, bytes("tampered!!"));
+		expect((await releaseAssetStorage.head(key))?.size).toBe(5);
 		expect(finished.body).toMatchObject({ state: "uploaded", size: 5 });
 		expect(
 			(await call(`/repos/alice/proj/releases/${releaseId}/assets`)).body,
@@ -623,7 +642,7 @@ describe("presigned asset uploads", () => {
 		);
 		presign.mockRestore();
 		const id = started.body.id;
-		const key = getReleaseAssetKey("alice", "proj", id);
+		const key = getReleaseAssetUploadKey("alice", "proj", id);
 		await releaseAssetStorage.put(key, bytes("123"));
 		const finished = await call(
 			`/repos/alice/proj/releases/assets/${id}/finish`,
@@ -631,6 +650,32 @@ describe("presigned asset uploads", () => {
 		);
 		expect(finished.status).toBe(422);
 		expect(await releaseAssetStorage.head(key)).toBeNull();
+		expect(
+			(await call(`/repos/alice/proj/releases/assets/${id}`, asToken(alice)))
+				.status,
+		).toBe(404);
+	});
+
+	it("reaps open uploads whose URL has expired when assets are listed", async () => {
+		const presign = vi
+			.spyOn(releaseAssetStorage, "presignPut")
+			.mockResolvedValue("https://r2.example/u");
+		const started = await call(
+			`/repos/alice/proj/releases/${releaseId}/assets/uploads`,
+			post(alice, { name: "stale.bin", size: 3 }),
+		);
+		presign.mockRestore();
+		const id = started.body.id;
+		const uploadKey = getReleaseAssetUploadKey("alice", "proj", id);
+		await releaseAssetStorage.put(uploadKey, bytes("abc"));
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(Date.now() + 16 * 60 * 1000);
+		try {
+			await call(`/repos/alice/proj/releases/${releaseId}/assets`);
+		} finally {
+			vi.useRealTimers();
+		}
+		expect(await releaseAssetStorage.head(uploadKey)).toBeNull();
 		expect(
 			(await call(`/repos/alice/proj/releases/assets/${id}`, asToken(alice)))
 				.status,

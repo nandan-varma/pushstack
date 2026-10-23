@@ -274,6 +274,14 @@ export const releaseAssetStorage = {
 	put: (key: string, data: Uint8Array) => networkStore.put(key, data),
 	delete: (key: string) => networkStore.delete(key),
 	head: (key: string) => networkStore.head(key),
+	/** Server-side on R2; read-and-write elsewhere (dev and tests only). */
+	copy: async (from: string, to: string) => {
+		const { r2 } = getBackend();
+		if (r2) return perfR2(`R2 COPY ${from}`, () => r2.copy(from, to));
+		const data = await networkStore.get(from);
+		if (!data) throw new Error(`Cannot copy missing object ${from}`);
+		await networkStore.put(to, data);
+	},
 	getRange: (key: string, start: number, end: number) =>
 		networkStore.getRange?.(key, start, end) ?? Promise.resolve(null),
 	/** A presigned PUT URL, or null when this deployment has no R2. */

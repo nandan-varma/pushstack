@@ -73,6 +73,7 @@ Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page
 | Labels | `/{owner}/{repo}/labels` |
 | Releases | `/{owner}/{repo}/releases`, `…/releases/tag/{tag}`, `…/releases/latest`, `…/releases/new`, `…/releases/edit/{tag}` |
 | Release asset download | `/{owner}/{repo}/releases/download/{tag}/{asset}` |
+| Milestones | `/{owner}/{repo}/milestones`, `/{owner}/{repo}/milestone/{n}` |
 | Upload a file | `/{owner}/{repo}/upload/{branch}/{directory}` |
 | Clone | `/{owner}/{repo}.git` |
 | New repository | `/new` |

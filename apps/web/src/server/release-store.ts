@@ -308,6 +308,14 @@ export async function createAssetRow(input: {
 	return { id: row.id, replacedPending };
 }
 
+/** Assets whose presigned upload was started before `before` and never finished. */
+export function staleOpenAssets(releaseId: number, before: Date) {
+	return db.query.releaseAssets.findMany({
+		where: { releaseId, state: "open", createdAt: { lt: before } },
+		columns: { id: true },
+	});
+}
+
 export async function markAssetUploaded(
 	assetId: number,
 	size: number,

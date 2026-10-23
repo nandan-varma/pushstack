@@ -668,6 +668,34 @@ export const routes = {
 		docs: `${DOCS}/pulls/pulls#list-pull-requests-files`,
 	},
 
+	"issues/list-milestones": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/milestones",
+		docs: `${DOCS}/issues/milestones#list-milestones`,
+	},
+	"issues/create-milestone": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/milestones",
+		docs: `${DOCS}/issues/milestones#create-a-milestone`,
+		status: 201,
+	},
+	"issues/get-milestone": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/milestones/{milestone_number}",
+		docs: `${DOCS}/issues/milestones#get-a-milestone`,
+	},
+	"issues/update-milestone": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/milestones/{milestone_number}",
+		docs: `${DOCS}/issues/milestones#update-a-milestone`,
+	},
+	"issues/delete-milestone": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/milestones/{milestone_number}",
+		docs: `${DOCS}/issues/milestones#delete-a-milestone`,
+		status: 204,
+	},
+
 	"issues/list-labels-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/labels",

@@ -13,7 +13,11 @@ import {
 } from "#/lib/limits";
 import { downloadNotFound, resolveDownloader } from "./download-auth";
 import { releaseAssetStorage } from "./git-fs";
-import { getReleaseAssetKey, ownerKeyOf } from "./git-storage-naming";
+import {
+	getReleaseAssetKey,
+	getReleaseAssetUploadKey,
+	ownerKeyOf,
+} from "./git-storage-naming";
 import { logError } from "./perf-log";
 import {
 	countAssets,
@@ -25,6 +29,7 @@ import {
 	incrementDownloadCount,
 	markAssetUploaded,
 	type ReleaseAssetRow,
+	staleOpenAssets,
 } from "./release-store";
 import { getAccessForRepository } from "./repo-access";
 import { findRepositoryByName } from "./repository-lookup";
@@ -51,6 +56,27 @@ type RepoKey = { name: string; owner: { username: string } };
 
 const keyOf = (repo: RepoKey, assetId: number) =>
 	getReleaseAssetKey(ownerKeyOf(repo), repo.name, assetId);
+const uploadKeyOf = (repo: RepoKey, assetId: number) =>
+	getReleaseAssetUploadKey(ownerKeyOf(repo), repo.name, assetId);
+
+/**
+ * Remove presigned uploads that were never finished: once the URL's lifetime
+ * has passed nothing can complete them. Opportunistic (run when assets are
+ * listed or added), since there are no background workers.
+ */
+export async function reapStaleUploads(
+	repo: RepoKey,
+	releaseId: number,
+): Promise<void> {
+	const stale = await staleOpenAssets(
+		releaseId,
+		new Date(Date.now() - RELEASE_UPLOAD_URL_TTL_SECONDS * 1000),
+	);
+	for (const { id } of stale) {
+		await releaseAssetStorage.delete(uploadKeyOf(repo, id)).catch(() => {});
+		await deleteAssetRow(id);
+	}
+}
 
 /** Names are file names: one path segment, no control characters. */
 export function isValidAssetName(name: string): boolean {
@@ -73,13 +99,14 @@ async function createRow(
 	input: Parameters<typeof createAssetRow>[0],
 ): Promise<number> {
 	validated(input);
+	await reapStaleUploads(repo, input.releaseId);
 	if ((await countAssets(input.releaseId)) >= MAX_RELEASE_ASSETS) {
 		throw new AssetInputError("release", "too_large", "Too many assets");
 	}
 	try {
 		const { id, replacedPending } = await createAssetRow(input);
 		if (replacedPending !== null) {
-			await releaseAssetStorage.delete(keyOf(repo, replacedPending));
+			await releaseAssetStorage.delete(uploadKeyOf(repo, replacedPending));
 		}
 		return id;
 	} catch (error) {
@@ -144,7 +171,7 @@ export async function startAssetUpload(
 	}
 	const id = await createRow(repo, { ...input, state: "open" });
 	const uploadUrl = await releaseAssetStorage
-		.presignPut(keyOf(repo, id), RELEASE_UPLOAD_URL_TTL_SECONDS)
+		.presignPut(uploadKeyOf(repo, id), RELEASE_UPLOAD_URL_TTL_SECONDS)
 		.catch(async (error: unknown) => {
 			await deleteAssetRow(id).catch(() => {});
 			throw error;
@@ -165,13 +192,13 @@ export async function finishAssetUpload(
 	asset: ReleaseAssetRow,
 ): Promise<void> {
 	if (asset.state === "uploaded") return;
-	const key = keyOf(repo, asset.id);
-	const stat = await releaseAssetStorage.head(key);
+	const uploadKey = uploadKeyOf(repo, asset.id);
+	const stat = await releaseAssetStorage.head(uploadKey);
 	if (!stat) {
 		throw new AssetInputError("size", "missing_field", "Nothing was uploaded");
 	}
 	if (stat.size !== asset.size || stat.size > MAX_RELEASE_ASSET_BYTES) {
-		await releaseAssetStorage.delete(key);
+		await releaseAssetStorage.delete(uploadKey);
 		await deleteAssetRow(asset.id);
 		throw new AssetInputError(
 			"size",
@@ -179,11 +206,16 @@ export async function finishAssetUpload(
 			"The uploaded size differs from the declared size",
 		);
 	}
+	// Publish a copy under the final key and drop the upload object, so the
+	// presigned URL (valid until it expires) can no longer alter the asset.
+	await releaseAssetStorage.copy(uploadKey, keyOf(repo, asset.id));
+	await releaseAssetStorage.delete(uploadKey);
 	await markAssetUploaded(asset.id, stat.size);
 }
 
 export async function deleteAsset(repo: RepoKey, assetId: number) {
 	await releaseAssetStorage.delete(keyOf(repo, assetId));
+	await releaseAssetStorage.delete(uploadKeyOf(repo, assetId));
 	await deleteAssetRow(assetId);
 }
 
@@ -250,16 +282,19 @@ export function assetResponse(
 	repo: RepoKey,
 	asset: ReleaseAssetRow,
 	request: Request,
-	options: { isPublic: boolean },
+	options: { isPublic: boolean; draft: boolean },
 ): Response {
 	const headers: Record<string, string> = {
 		"Content-Type": "application/octet-stream",
 		"Content-Disposition": `attachment; filename="${asset.name.replace(/[^A-Za-z0-9._-]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(asset.name)}`,
 		"X-Content-Type-Options": "nosniff",
 		"Accept-Ranges": "bytes",
-		"Cache-Control": options.isPublic
-			? "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
-			: "private, max-age=60",
+		// A draft is for writers: never shared-cacheable, even in a public repo.
+		"Cache-Control": options.draft
+			? "private, no-store"
+			: options.isPublic
+				? "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+				: "private, max-age=60",
 	};
 	const rangeHeader = request.headers.get("range");
 	const range = rangeHeader ? parseRange(rangeHeader, asset.size) : null;
@@ -320,6 +355,7 @@ export async function serveReleaseDownload(
 		if (!asset) return downloadNotFound();
 		return assetResponse(repository, asset, request, {
 			isPublic: repository.visibility === "public",
+			draft: release?.draft ?? false,
 		});
 	} catch (error) {
 		logError("release", `GET ${owner}/${name} release download failed`, error);

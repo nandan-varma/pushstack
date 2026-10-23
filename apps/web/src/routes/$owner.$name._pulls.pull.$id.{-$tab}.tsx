@@ -34,6 +34,7 @@ import {
 	useThreadComments,
 } from "@/components/ThreadConversation";
 import { ThreadLabels } from "@/components/ThreadLabels";
+import { ThreadMilestone } from "@/components/ThreadMilestone";
 import { ThreadSubscriptionButton } from "@/components/ThreadSubscriptionButton";
 import { MergeBox } from "@/components/thread/MergeBox";
 import { useToast } from "@/components/toast-provider";
@@ -581,6 +582,14 @@ function PullRequestDetailPage() {
 									repoId={pr.repoId}
 									number={pr.number}
 									labels={pr.labels}
+									canEdit={pr.viewer.canWrite}
+								/>
+								<ThreadMilestone
+									owner={owner}
+									name={name}
+									repoId={pr.repoId}
+									number={pr.number}
+									milestone={pr.milestone}
 									canEdit={pr.viewer.canWrite}
 								/>
 								{pr.viewer.canParticipate && (

@@ -48,6 +48,19 @@ export function getRepoReleaseStoragePrefix(
 	return `repos/${segment(ownerKey, "owner")}/${segment(repoName, "repository name")}/releases/`;
 }
 
+/**
+ * Where a presigned upload lands. `finish` copies the verified object to
+ * {@link getReleaseAssetKey} and deletes this one, so a `PUT` replayed to the
+ * (still valid) URL after `finish` cannot change a published asset.
+ */
+export function getReleaseAssetUploadKey(
+	ownerKey: string,
+	repoName: string,
+	assetId: number,
+): string {
+	return `${getRepoReleaseStoragePrefix(ownerKey, repoName)}uploads/${getReleaseAssetKey(ownerKey, repoName, assetId).split("/").at(-1)}`;
+}
+
 export function getReleaseAssetKey(
 	ownerKey: string,
 	repoName: string,

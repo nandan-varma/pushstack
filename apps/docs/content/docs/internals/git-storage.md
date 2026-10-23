@@ -61,8 +61,11 @@ functions:
   git data. Downloads stream chunked `Range` reads (a buffered Vercel response is capped at 4.5 MB).
   Uploads of up to 4,000,000 bytes pass through a function; larger ones (up to 2 GiB) are `PUT`
   straight to R2 on a presigned URL, because a function request body is capped at 4.5 MB. The URL
-  cannot bind a size, so finishing the upload (`…/assets/{id}/finish`) `HEAD`s the object and
-  discards it unless its size equals the declared one. A single presigned `PUT` (R2 allows 5 GiB)
+  cannot bind a size and stays valid for 15 minutes, so the bytes land at `releases/uploads/{assetId}`:
+  finishing the upload (`…/assets/{id}/finish`) `HEAD`s that object, discards it unless its size equals the
+  declared one, then copies it server-side to `releases/{assetId}` and deletes the upload object, so a
+  `PUT` replayed after finish changes nothing. Uploads never finished are deleted once the URL has expired,
+  opportunistically when a release's assets are listed or added (there are no background workers). A single presigned `PUT` (R2 allows 5 GiB)
   is used rather than multipart: the 2 GiB cap fits, and there is no part bookkeeping to expire.
 
 ## The storage stack: `git-fs.ts`
