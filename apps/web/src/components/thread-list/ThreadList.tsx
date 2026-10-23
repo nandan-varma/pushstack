@@ -6,6 +6,7 @@ import {
 	GitMerge,
 	GitPullRequest,
 	GitPullRequestClosed,
+	GitPullRequestDraft,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
@@ -81,6 +82,8 @@ type ThreadSummary = {
 	number: number;
 	title: string;
 	status: string;
+	/** Pull requests only: an open draft shows as a draft. */
+	isDraft?: boolean;
 	createdAt: Date | string;
 	author: { name: string };
 	labels: {
@@ -108,6 +111,14 @@ function StatusIcon({
 			<CircleDot className={`${iconClass} text-success`} aria-hidden="true" />
 		) : (
 			<CircleCheck className={`${iconClass} text-merged`} aria-hidden="true" />
+		);
+	}
+	if (status === "draft") {
+		return (
+			<GitPullRequestDraft
+				className={`${iconClass} text-muted-foreground`}
+				aria-hidden="true"
+			/>
 		);
 	}
 	if (status === "open") {
@@ -153,15 +164,19 @@ export function ThreadRow({
 	children?: ReactNode;
 }) {
 	const createdAt = new Date(thread.createdAt);
+	const status =
+		kind === "pull" && thread.status === "open" && thread.isDraft
+			? "draft"
+			: thread.status;
 	const content = (
 		<>
-			<StatusIcon kind={kind} status={thread.status} />
+			<StatusIcon kind={kind} status={status} />
 			<div className="min-w-0 flex-1">
 				<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
 					<span className="min-w-0 break-words text-sm font-semibold text-bjork-text">
 						{thread.title}
 					</span>
-					<span className="sr-only">({thread.status})</span>
+					<span className="sr-only">({status})</span>
 					{thread.labels.map((label) => (
 						<LabelChip key={label.id} {...label} />
 					))}

@@ -326,6 +326,10 @@ export const issueEvent = z.discriminatedUnion("event", [
 	z.strictObject({ ...eventBase, event: z.literal("head_ref_deleted") }),
 	z.strictObject({
 		...eventBase,
+		event: z.literal(["ready_for_review", "convert_to_draft"]),
+	}),
+	z.strictObject({
+		...eventBase,
 		event: z.literal("renamed"),
 		rename: z.strictObject({ from: z.string(), to: z.string() }),
 	}),
