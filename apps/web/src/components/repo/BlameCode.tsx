@@ -53,22 +53,28 @@ export default function BlameCode({
 							style={{ height: `${lineCount * LINE_HEIGHT_REM}rem` }}
 						>
 							{commit ? (
-								<div className="min-w-0 flex-1 leading-[1.3rem]">
+								<div
+									className={
+										lineCount > 1
+											? "min-w-0 flex-1 leading-[1.3rem]"
+											: "flex min-w-0 flex-1 items-center gap-x-1.5 leading-[1.3rem]"
+									}
+								>
 									<Link
 										to="/$owner/$name/commit/$sha"
 										params={{ owner, name, sha: commit.sha }}
 										title={commit.message}
-										className="block truncate text-bjork-text hover:text-bjork-accent"
+										className={`truncate text-bjork-text hover:text-bjork-accent ${lineCount > 1 ? "block" : "min-w-0 flex-1"}`}
 									>
 										{commit.message.split("\n")[0]}
 									</Link>
-									{lineCount > 1 ? (
-										<p className="flex items-center gap-x-1.5 truncate leading-[1.3rem] text-bjork-text-soft">
-											<span className="truncate">{commit.authorName}</span>
-											<span aria-hidden="true">·</span>
-											<RelativeTime date={commit.createdAt} strict />
-										</p>
-									) : null}
+									<p className="flex shrink-0 items-center gap-x-1.5 leading-[1.3rem] text-bjork-text-soft">
+										<span className="max-w-[5rem] truncate">
+											{commit.authorName}
+										</span>
+										<span aria-hidden="true">·</span>
+										<RelativeTime date={commit.createdAt} strict />
+									</p>
 								</div>
 							) : (
 								<span className="text-bjork-text-soft leading-[1.3rem]">

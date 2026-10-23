@@ -151,6 +151,76 @@ describe("repository", () => {
 	});
 });
 
+describe("Commit.blame", () => {
+	const blameQuery = (path: string) => `{
+		repository(owner: "alice", name: "public-one") {
+			ref(qualifiedName: "refs/heads/main") {
+				target { ... on Commit { oid blame(path: "${path}") { ranges { startingLine endingLine age commit { oid messageHeadline } } } } }
+			}
+		}
+	}`;
+
+	it("returns line ranges grouped by commit, through ref and object", async () => {
+		const { body } = await graphql(alice, blameQuery("README.md"));
+		expect(body.errors).toBeUndefined();
+		const { oid, blame } = body.data.repository.ref.target;
+		expect(blame.ranges).toHaveLength(1);
+		expect(blame.ranges[0]).toMatchObject({
+			startingLine: 1,
+			endingLine: 1,
+			age: 1,
+			commit: { oid, messageHeadline: "init" },
+		});
+
+		const { body: byObject } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") {
+				object(expression: "HEAD") { ... on Commit { oid blame(path: "README.md") { ranges { startingLine } } } }
+			} }`,
+		);
+		expect(byObject.data.repository.object.blame.ranges).toEqual([
+			{ startingLine: 1 },
+		]);
+	});
+
+	it("reports a missing path as NOT_FOUND and an invalid one as UNPROCESSABLE", async () => {
+		const { body: missing } = await graphql(alice, blameQuery("nope.txt"));
+		expect(missing.errors[0].type).toBe("NOT_FOUND");
+		const { body: invalid } = await graphql(alice, blameQuery("../x"));
+		expect(invalid.errors[0].type).toBe("UNPROCESSABLE");
+	});
+
+	it("maps a file too large to blame to UNPROCESSABLE, not a timeout", async () => {
+		const repo = await repositories.getRepositoryByName({
+			data: { owner: "alice", name: "public-one" },
+		});
+		await files.uploadFile({
+			data: {
+				repoId: repo.id,
+				branchName: "main",
+				path: "wide.txt",
+				content: btoa("a".repeat(1024 * 1024 + 1)),
+				commitMessage: "wide",
+			},
+		});
+		const { body } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { object(expression: "main") { ... on Commit { blame(path: "wide.txt") { ranges { startingLine } } } } } }`,
+		);
+		expect(body.errors[0].type).toBe("UNPROCESSABLE");
+		expect(body.errors[0].message).toContain("blame limit");
+	});
+
+	it("does not expose commits of an unreadable repository", async () => {
+		const { body } = await graphql(
+			bob,
+			`{ repository(owner: "alice", name: "secret") { object(expression: "HEAD") { oid } } }`,
+		);
+		expect(body.data.repository).toBeNull();
+		expect(body.errors[0].type).toBe("NOT_FOUND");
+	});
+});
+
 describe("node ids", () => {
 	it("round-trips repository and user ids through node(id:)", async () => {
 		const { body } = await graphql(

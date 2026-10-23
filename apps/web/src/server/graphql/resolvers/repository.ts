@@ -55,6 +55,7 @@ import {
 	unprocessable,
 } from "../errors";
 import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
+import { blameOf, readCommitNode, resolveObject } from "./commit";
 import { loadUser, loadUserByLogin, type UserNode, userNode } from "./core";
 import type { DomainResolvers, NodeLoader } from "./types";
 
@@ -209,7 +210,21 @@ function refNode(repo: RepositoryNode, branch: string) {
 		id: encodeNodeId("Ref", `${repo.row.id}:refs/heads/${branch}`),
 		name: branch,
 		prefix: "refs/heads/",
+		/** Internal: for `target`. */
+		repo,
 	};
+}
+
+/** `Repository.ref(qualifiedName:)`: a branch as `main` or `refs/heads/main`. */
+async function refByName(
+	repo: RepositoryNode,
+	qualifiedName: string,
+	ctx: GraphQLContext,
+) {
+	const name = qualifiedName.replace(/^refs\/heads\//, "");
+	return (await branchesOf(ctx, repo)).includes(name)
+		? refNode(repo, name)
+		: null;
 }
 
 function loadStarCount(ctx: GraphQLContext, repoId: number) {
@@ -405,6 +420,14 @@ const loadRefNode: NodeLoader = async (key, ctx) => {
 	return refNode(node, name);
 };
 
+const loadCommitNode: NodeLoader = async (key, ctx) => {
+	const match = /^(\d{1,10}):([0-9a-f]{40})$/.exec(key);
+	if (!match) return null;
+	const repo = await loadRepositoryNode(match[1] as string, ctx);
+	if (!repo) return null;
+	return readCommitNode(repo as RepositoryNode, match[2] as string);
+};
+
 interface CreateRepositoryInput {
 	clientMutationId?: string | null;
 	name: string;
@@ -518,6 +541,14 @@ export const repositoryResolvers: DomainResolvers = {
 			repository: (source: UserNode, args: { name: string }, ctx) =>
 				readableRepositoryNode(ctx, source.login, args.name),
 		},
+		Ref: {
+			target: (source: ReturnType<typeof refNode>) =>
+				readCommitNode(source.repo, source.name),
+		},
+		Commit: {
+			blame: (source: Parameters<typeof blameOf>[0], args: { path: string }) =>
+				blameOf(source, args),
+		},
 		Repository: {
 			owner: async (source: RepositoryNode, _args, ctx) => {
 				const row = await loadUser(ctx, source.row.ownerId);
@@ -526,6 +557,12 @@ export const repositoryResolvers: DomainResolvers = {
 			},
 			defaultBranchRef: (source: RepositoryNode, _args, ctx) =>
 				defaultBranchRef(source, ctx),
+			object: (
+				source: RepositoryNode,
+				args: { expression?: string | null; oid?: string | null },
+			) => resolveObject(source, args),
+			ref: (source: RepositoryNode, args: { qualifiedName: string }, ctx) =>
+				refByName(source, args.qualifiedName, ctx),
 			isEmpty: async (source: RepositoryNode, _args, ctx) =>
 				(await branchesOf(ctx, source)).length === 0,
 			stargazerCount: (source: RepositoryNode, _args, ctx) =>
@@ -537,5 +574,9 @@ export const repositoryResolvers: DomainResolvers = {
 				source.role === "owner" || source.role === "admin",
 		},
 	},
-	nodes: { Repository: loadRepositoryNode, Ref: loadRefNode },
+	nodes: {
+		Repository: loadRepositoryNode,
+		Ref: loadRefNode,
+		Commit: loadCommitNode,
+	},
 };
