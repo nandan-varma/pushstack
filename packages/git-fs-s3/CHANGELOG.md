@@ -30,6 +30,23 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees
   compared directly) and `getMergeBaseOid` from `git-fs-s3/ops`.
 
+### Fixed
+
+- `applyReceivePack` refuses a push whose new trees hold an entry name git's
+  fsck rejects (`.`, `..`, `.git` in any case or NTFS/HFS spelling, an empty
+  name, `/`, NUL, `.git\…`) and reports it as
+  `ng <ref> fsck error in packed object: object <oid>: hasDotdot: contains '..'`
+  (hasDot, hasDotgit, fullPathname, emptyName, nulInName). Before,
+  most of these were refused only as "incomplete object graph" after a retry
+  delay, and an empty name was accepted. Every tree in the push's own pack is checked,
+  reachable or not (an unreferenced bad tree cannot be parked for a later push);
+  older trees the walk passes through are not. An object whose type
+  cannot be read from its header is read and checked too, and rejected as
+  unreadable if that fails. Names with a backslash (`a\\b`) are refused as
+  unsafe because isomorphic-git cannot parse them, although git allows them.
+  `collectReachableOids` takes `{ checkTreeNames: Set<oid> }` and returns
+  `invalidTreeEntry`.
+
 ## [0.19.1] - 2026-10-22
 
 ### Fixed

@@ -11,6 +11,7 @@ import {
 import type { Repo } from "../ops/types.js";
 import { storePack } from "../pack-write.js";
 import { isSafeFullRefName } from "../refs.js";
+import { findInvalidTree } from "./fsck.js";
 import { FLUSH, pktLine, sideBandPackfile } from "./pkt-line.js";
 import { collectReachableOids } from "./reachability.js";
 import { type RepackOptions, repackRepository } from "./repack.js";
@@ -102,20 +103,31 @@ export async function indexIncomingPack(
 	packData: Uint8Array,
 	hooks?: HttpHooks,
 ): Promise<string[]> {
-	if (packData.length < 4) return [];
-	const packName = await runStep(
+	return (await storeIncomingPack(repo, packData, hooks)).paths;
+}
+
+/** {@link indexIncomingPack}, also returning the oids the pack's index lists. */
+async function storeIncomingPack(
+	repo: Repo,
+	packData: Uint8Array,
+	hooks?: HttpHooks,
+): Promise<{ paths: string[]; oids: string[] }> {
+	if (packData.length < 4) return { paths: [], oids: [] };
+	const stored = await runStep(
 		hooks,
 		"write + indexPack incoming pack",
 		async () => {
 			// Named by checksum (`pack-<sha>`), stored pack first, index last.
-			const { base } = await storePack(repo, packData);
-			return base;
+			return storePack(repo, packData);
 		},
 	);
-	return [
-		`${repo.gitdir}/objects/pack/${packName}.pack`,
-		`${repo.gitdir}/objects/pack/${packName}.idx`,
-	];
+	return {
+		paths: [
+			`${repo.gitdir}/objects/pack/${stored.base}.pack`,
+			`${repo.gitdir}/objects/pack/${stored.base}.idx`,
+		],
+		oids: stored.oids,
+	};
 }
 
 /**
@@ -448,14 +460,17 @@ export async function applyReceivePack(
 	});
 	const existingPacks = new Set(listedPacks ?? []);
 	let incomingPackPaths: string[];
+	let incomingOids: ReadonlySet<string> = new Set();
 	try {
-		incomingPackPaths = await indexIncomingPack(
+		const stored = await storeIncomingPack(
 			repo,
 			acceptedUpdates.some((update) => update.newOid !== ZERO_OID)
 				? parsed.packData
 				: new Uint8Array(),
 			hooks,
 		);
+		incomingPackPaths = stored.paths;
+		incomingOids = new Set(stored.oids);
 	} catch (err) {
 		hooks?.onWarn?.("receive-pack: incoming pack rejected", err);
 		return {
@@ -474,6 +489,27 @@ export async function applyReceivePack(
 
 	// Listed at most once, only when the tips or the collision check need it.
 	let refNames: string[] | undefined;
+	// Every tree the pack holds is name-checked, reachable or not: otherwise an
+	// unreferenced bad tree could be stored by one push and referenced by the
+	// next, which only checks its own pack.
+	const badTree = await findInvalidTree(repo, incomingOids);
+	if (badTree) {
+		for (const filepath of removableIncoming) {
+			await fsp.unlink(filepath).catch(() => {});
+		}
+		return {
+			results: preflight.map((result) =>
+				result.ok
+					? {
+							...result,
+							ok: false,
+							reason: `fsck error in packed object: ${badTree}`,
+						}
+					: result,
+			),
+			stalePackPaths: [],
+		};
+	}
 	const newTips = acceptedUpdates
 		.filter((update) => update.newOid !== ZERO_OID)
 		.map((update) => update.newOid);
@@ -489,12 +525,34 @@ export async function applyReceivePack(
 		for (const update of acceptedUpdates) {
 			if (update.oldOid !== ZERO_OID) haveOids.add(update.oldOid);
 		}
-		const { complete } = await collectReachableOids(
+		const { complete, invalidTreeEntry } = await collectReachableOids(
 			repo,
 			newTips,
 			hooks,
 			haveOids,
+			// Only the trees this push stored are checked: older trees the walk
+			// passes through were accepted by earlier pushes.
+			{ checkTreeNames: incomingOids },
 		);
+		if (invalidTreeEntry) {
+			// What `receive.fsckObjects` refuses: names that become path
+			// traversal or a nested `.git` in an archive or a checkout.
+			for (const filepath of removableIncoming) {
+				await fsp.unlink(filepath).catch(() => {});
+			}
+			return {
+				results: preflight.map((result) =>
+					result.ok
+						? {
+								...result,
+								ok: false,
+								reason: `fsck error in packed object: ${invalidTreeEntry.message}`,
+							}
+						: result,
+				),
+				stalePackPaths: [],
+			};
+		}
 		if (!complete) {
 			for (const filepath of removableIncoming) {
 				await fsp.unlink(filepath).catch(() => {});
