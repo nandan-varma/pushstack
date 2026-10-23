@@ -166,8 +166,12 @@ export const queryKeys = {
 		["pull-requests", prId, "comments"] as const,
 	pullRequestCommits: (prId: number) =>
 		["pull-requests", prId, "commits"] as const,
-	comparison: (repoId: number, base: string, head: string) =>
-		["repos", repoId, "compare", base, head] as const,
+	comparison: (
+		repoId: number,
+		base: string,
+		head: string,
+		separator: "..." | ".." = "...",
+	) => ["repos", repoId, "compare", base, head, separator] as const,
 	pullRequestDiff: (
 		repoId: number,
 		sourceBranch: string,
@@ -773,14 +777,16 @@ export function repositoryComparisonQueryOptions({
 	repoId,
 	base,
 	head,
+	separator = "...",
 }: {
 	repoId: number;
 	base: string;
 	head: string;
+	separator?: "..." | "..";
 }) {
 	return queryOptions({
-		queryKey: queryKeys.comparison(repoId, base, head),
-		queryFn: () => getComparison({ data: { repoId, base, head } }),
+		queryKey: queryKeys.comparison(repoId, base, head, separator),
+		queryFn: () => getComparison({ data: { repoId, base, head, separator } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

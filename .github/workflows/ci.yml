@@ -27,8 +27,9 @@ jobs:
       fail-fast: false
       matrix:
         # smoke:git drives the real `git` binary against the app's smart-HTTP
-        # route (pglite + in-memory S3, scratch HOME): the only suite that
-        # exercises the wire protocol. audit fails on any known advisory.
+        # route and the real `gh` against its REST and GraphQL routes over
+        # loopback HTTPS (pglite + in-memory S3, scratch HOME): the only suites
+        # that exercise the wire protocols. audit fails on any known advisory.
         task: [check, typecheck, test, build, "smoke:git", audit]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,6 +41,17 @@ jobs:
           path: .turbo/cache
           key: turbo-${{ matrix.task }}-${{ github.sha }}
           restore-keys: turbo-${{ matrix.task }}-
+      # The gh version the GraphQL fixtures were captured from
+      # (apps/web/src/server/graphql/__fixtures__/gh), not the runner's.
+      - name: Install gh 2.102.1
+        if: matrix.task == 'smoke:git'
+        run: |
+          curl -sSfLo gh.tgz \
+            https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_linux_amd64.tar.gz
+          echo "77b9e297e94c50336823d0f84de7ef1be60cba704601fa0d98f129f47a94987b  gh.tgz" \
+            | sha256sum -c
+          tar -xzf gh.tgz
+          echo "$PWD/gh_2.102.1_linux_amd64/bin" >> "$GITHUB_PATH"
       - run: pnpm ${{ matrix.task }}
 
   secrets:

@@ -1,0 +1,13 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh repo list octo --json nameWithOwner,isPrivate,description,visibility",
+	"requests": [
+		{
+			"query": "query RepositoryList($perPage:Int!,$endCursor:String,$privacy:RepositoryPrivacy,$fork:Boolean,$owner:String!) {\n\t\trepositoryOwner(login: $owner) {\n\t\t\tlogin\n\t\t\trepositories(first: $perPage, after: $endCursor, privacy: $privacy, isFork: $fork, ownerAffiliations: OWNER, orderBy: { field: PUSHED_AT, direction: DESC }) {\n\t\t\t\tnodes{nameWithOwner,isPrivate,description,visibility}\n\t\t\t\ttotalCount\n\t\t\t\tpageInfo{hasNextPage,endCursor}\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"owner": "octo",
+				"perPage": 30
+			}
+		}
+	]
+}

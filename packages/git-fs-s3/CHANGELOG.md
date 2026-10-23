@@ -13,6 +13,8 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   oversized or binary files throw `BlameLimitError` (406) and ranges beyond the
   depth budget come back flagged `boundary`. Memoized per head commit and path
   under the new `blame:` result-key prefix.
+- `getDirectDiffBetweenRefs` (two-dot `base..head`: the two commits' trees
+  compared directly) and `getMergeBaseOid` from `git-fs-s3/ops`.
 
 ## [0.19.1] - 2026-10-22
 

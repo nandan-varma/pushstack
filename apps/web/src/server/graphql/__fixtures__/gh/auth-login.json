@@ -1,0 +1,10 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh auth login --with-token --hostname HOST",
+	"requests": [
+		{
+			"query": "query UserCurrent{viewer{login}}",
+			"variables": null
+		}
+	]
+}

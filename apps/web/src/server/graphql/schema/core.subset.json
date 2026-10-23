@@ -1,0 +1,31 @@
+{
+	"Query": {
+		"$implements": [],
+		"fields": [
+			"viewer",
+			"node",
+			"nodes",
+			{
+				"name": "rateLimit",
+				"args": []
+			}
+		]
+	},
+	"Node": "*",
+	"PageInfo": "*",
+	"RateLimit": "*",
+	"UniformResourceLocatable": "*",
+	"Actor": ["login", "resourcePath", "url"],
+	"User": [
+		"createdAt",
+		"databaseId",
+		"id",
+		"login",
+		"name",
+		"resourcePath",
+		"updatedAt",
+		"url"
+	],
+	"DateTime": "*",
+	"URI": "*"
+}

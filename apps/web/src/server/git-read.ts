@@ -15,6 +15,8 @@ import {
 	type FileHistoryResult,
 	getBlob,
 	getDiffBetweenRefs,
+	getDirectDiffBetweenRefs,
+	getMergeBaseOid,
 	getSubmodules,
 	getTreeFromRef,
 	HISTORY_WALK_DEPTH,
@@ -347,6 +349,29 @@ export function getBranchDiff(
 	compareRef: string,
 ): Promise<DiffResult> {
 	return getDiffBetweenRefs(repoFor(ownerKey, repoName), baseRef, compareRef);
+}
+
+/** Two-dot `base..head`: the two commits' trees compared directly. */
+export function getDirectDiff(
+	ownerKey: string,
+	repoName: string,
+	baseRef: string,
+	compareRef: string,
+): Promise<DiffResult> {
+	return getDirectDiffBetweenRefs(
+		repoFor(ownerKey, repoName),
+		baseRef,
+		compareRef,
+	);
+}
+
+export function getMergeBase(
+	ownerKey: string,
+	repoName: string,
+	refA: string,
+	refB: string,
+): Promise<string | undefined> {
+	return getMergeBaseOid(repoFor(ownerKey, repoName), refA, refB);
 }
 
 /** The commits `head` has that `base` doesn't, oldest first (as GitHub lists them). */

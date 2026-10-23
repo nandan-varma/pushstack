@@ -1,0 +1,23 @@
+{
+	"gh": "gh version 2.102.1 (2026-10-20)",
+	"command": "gh issue create -R HOST/octo/hello --title T --body B",
+	"requests": [
+		{
+			"query": "\n\tquery IssueRepositoryInfo($owner: String!, $name: String!) {\n\t\trepository(owner: $owner, name: $name) {\n\t\t\tid\n\t\t\tdatabaseId\n\t\t\tname\n\t\t\towner { login }\n\t\t\thasIssuesEnabled\n\t\t\tviewerPermission\n\t\t}\n\t}",
+			"variables": {
+				"name": "hello",
+				"owner": "octo"
+			}
+		},
+		{
+			"query": "\n\tmutation IssueCreate($input: CreateIssueInput!) {\n\t\tcreateIssue(input: $input) {\n\t\t\tissue {\n\t\t\t\tid\n\t\t\t\turl\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"input": {
+					"body": "B",
+					"repositoryId": "MTA6UmVwb3NpdG9yeTE=",
+					"title": "T"
+				}
+			}
+		}
+	]
+}
