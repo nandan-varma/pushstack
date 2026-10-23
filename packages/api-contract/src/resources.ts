@@ -190,6 +190,108 @@ export const commitComment = z.strictObject({
 	reactions: reactionRollup,
 });
 
+/** A repository as other resources embed it (GitHub's `minimal-repository`). */
+export const minimalRepository = z.strictObject({
+	id: z.number().int(),
+	name: z.string(),
+	full_name: z.string(),
+	owner: simpleUser,
+	private: z.boolean(),
+	html_url: url,
+	description: z.string().nullable(),
+	fork: z.boolean(),
+	url,
+});
+
+const statusState = z.enum(["error", "failure", "pending", "success"]);
+
+/** A commit status (`POST …/statuses/{sha}`, `GET …/commits/{ref}/statuses`). */
+export const commitStatus = z.strictObject({
+	url,
+	avatar_url: z.string().nullable(),
+	id: z.number().int(),
+	state: statusState,
+	description: z.string().nullable(),
+	target_url: z.string().nullable(),
+	context: z.string(),
+	created_at: timestamp,
+	updated_at: timestamp,
+	creator: simpleUser,
+});
+
+/** One status inside the combined status. */
+export const simpleCommitStatus = z.strictObject({
+	description: z.string().nullable(),
+	id: z.number().int(),
+	state: statusState,
+	context: z.string(),
+	target_url: z.string().nullable(),
+	required: z.boolean().nullable(),
+	avatar_url: z.string().nullable(),
+	url,
+	created_at: timestamp,
+	updated_at: timestamp,
+});
+
+/** `GET …/commits/{ref}/status`. */
+export const combinedCommitStatus = z.strictObject({
+	state: statusState,
+	statuses: z.array(simpleCommitStatus),
+	sha,
+	total_count: count,
+	repository: minimalRepository,
+	commit_url: url,
+	url,
+});
+
+const checkConclusion = z.enum([
+	"action_required",
+	"cancelled",
+	"failure",
+	"neutral",
+	"success",
+	"skipped",
+	"stale",
+	"timed_out",
+]);
+
+/** A check run (`POST …/check-runs`, `GET …/check-runs/{id}`). */
+export const checkRun = z.strictObject({
+	id: z.number().int(),
+	head_sha: sha,
+	external_id: z.string().nullable(),
+	url,
+	html_url: url.nullable(),
+	details_url: url.nullable(),
+	status: z.enum(["queued", "in_progress", "completed"]),
+	conclusion: checkConclusion.nullable(),
+	started_at: timestamp.nullable(),
+	completed_at: timestamp.nullable(),
+	output: z.strictObject({
+		title: z.string().nullable(),
+		summary: z.string().nullable(),
+		text: z.string().nullable(),
+		annotations_count: count,
+	}),
+	name: z.string(),
+	check_suite: z.strictObject({ id: z.number().int() }),
+});
+
+/** A check suite (`GET …/check-suites/{id}`). */
+export const checkSuite = z.strictObject({
+	id: z.number().int(),
+	head_branch: z.string().nullable(),
+	head_sha: sha,
+	status: z.enum(["queued", "in_progress", "completed"]),
+	conclusion: checkConclusion.nullable(),
+	url,
+	created_at: timestamp,
+	updated_at: timestamp,
+	latest_check_runs_count: count,
+	check_runs_url: url,
+	repository: minimalRepository,
+});
+
 const eventBase = {
 	id: z.number().int(),
 	url,

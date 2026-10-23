@@ -296,6 +296,37 @@ beforeAll(async () => {
 		patch(alice, { body: "Nicer commit" }),
 	);
 	await check(`/repos/alice/proj/comments/${commitComment.id}`, del(alice));
+	await check(
+		`/repos/alice/proj/statuses/${head.sha}`,
+		post(alice, { state: "success", context: "ci/build" }),
+	);
+	await check(`/repos/alice/proj/commits/${head.sha}/statuses`);
+	await check(`/repos/alice/proj/commits/${head.sha}/status`);
+	const run = await check(
+		"/repos/alice/proj/check-runs",
+		post(alice, {
+			name: "build",
+			head_sha: head.sha,
+			status: "completed",
+			conclusion: "success",
+			output: { title: "Built", summary: "All good" },
+		}),
+	);
+	await check(`/repos/alice/proj/check-runs/${run.id}`);
+	await check(
+		`/repos/alice/proj/check-runs/${run.id}`,
+		patch(alice, { name: "build (linux)" }),
+	);
+	await check(`/repos/alice/proj/commits/${head.sha}/check-runs`);
+	await check(`/repos/alice/proj/commits/${head.sha}/check-suites`);
+	await check(
+		"/repos/alice/proj/check-suites",
+		post(alice, { head_sha: head.sha }),
+	);
+	await check(`/repos/alice/proj/check-suites/${run.check_suite.id}`);
+	await check(
+		`/repos/alice/proj/check-suites/${run.check_suite.id}/check-runs`,
+	);
 	const newBlob = await check(
 		"/repos/alice/proj/git/blobs",
 		post(alice, { content: "new" }),

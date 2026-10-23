@@ -135,7 +135,13 @@ function CommitsPage() {
 				<EmptyState message="No commits on this branch yet." />
 			) : (
 				<>
-					<CommitList owner={owner} name={name} commits={commits} groupByDay />
+					<CommitList
+						owner={owner}
+						name={name}
+						repoId={repo?.id}
+						commits={commits}
+						groupByDay
+					/>
 
 					<nav
 						aria-label="Pagination"

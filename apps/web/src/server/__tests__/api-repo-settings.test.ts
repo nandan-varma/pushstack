@@ -389,6 +389,37 @@ describe("transfer", () => {
 	});
 });
 
+describe("concurrency", () => {
+	it("opposite transfers finish instead of deadlocking on each other's locks", async () => {
+		await call("/user/repos", post(alice, { name: "ping", auto_init: true }));
+		await call("/user/repos", post(bob, { name: "pong", auto_init: true }));
+		const [one, two] = await Promise.all([
+			call("/repos/alice/ping/transfer", post(alice, { new_owner: "bob" })),
+			call("/repos/bob/pong/transfer", post(bob, { new_owner: "alice" })),
+		]);
+		expect([one.status, two.status]).toEqual([202, 202]);
+		expect((await call("/repos/bob/ping")).status).toBe(200);
+		expect((await call("/repos/alice/pong")).status).toBe(200);
+	}, 20_000);
+
+	it("a create racing a delete keeps its storage", async () => {
+		await call("/user/repos", post(alice, { name: "race", auto_init: true }));
+		const removal = call("/repos/alice/race", del(alice));
+		const creation = call(
+			"/user/repos",
+			post(alice, { name: "race", auto_init: true }),
+		);
+		const [removed, created] = await Promise.all([removal, creation]);
+		expect(removed.status).toBe(204);
+		// Either the name was still taken or the new repository kept its commit.
+		if (created.status === 201) {
+			expect((await call("/repos/alice/race/branches/main")).status).toBe(200);
+		} else {
+			expect(created.status).toBe(422);
+		}
+	}, 20_000);
+});
+
 describe("DELETE /repos/{owner}/{repo}", () => {
 	it("deletes for the owner with 204, 403 for others", async () => {
 		await call("/user/repos", post(alice, { name: "gone", auto_init: true }));

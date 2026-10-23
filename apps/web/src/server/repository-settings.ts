@@ -131,20 +131,22 @@ export async function deleteRepositoryAndStorage(
 	repo: RepositoryWithOwner,
 ): Promise<void> {
 	const ownerKey = ownerKeyOf(repo);
-	// The row first (cascading to issues, PRs, …): once it's gone nothing
-	// resolves this repository, so a failed storage cleanup only leaves
+	// The lock spans the row and the storage: a same-name create in between
+	// inserts its row at once but initialises storage only under this lock, so
+	// it cannot have its fresh storage wiped by our cleanup. The row goes
+	// first (cascading to issues, PRs, …); a failed storage cleanup only leaves
 	// unreachable objects, which the next create under this name clears.
-	await db.delete(repositories).where(eq(repositories.id, repo.id));
-	evictAll(repo);
-	await withRepositoryLock(ownerKey, repo.name, () =>
-		deleteRepositoryStorage(ownerKey, repo.name),
-	).catch((error: unknown) =>
-		logError(
-			"repositories",
-			`Repository ${repo.id} deleted, but its storage cleanup failed`,
-			error,
-		),
-	);
+	await withRepositoryLock(ownerKey, repo.name, async () => {
+		await db.delete(repositories).where(eq(repositories.id, repo.id));
+		evictAll(repo);
+		await deleteRepositoryStorage(ownerKey, repo.name).catch((error: unknown) =>
+			logError(
+				"repositories",
+				`Repository ${repo.id} deleted, but its storage cleanup failed`,
+				error,
+			),
+		);
+	});
 }
 
 /**
@@ -163,35 +165,46 @@ export async function transferRepository(
 	const from = ownerKeyOf(repo);
 	const to = newOwner.username;
 	if (newOwner.id === repo.ownerId && targetName === repo.name) return repo;
-	const clash = await db.query.repositories.findFirst({
-		columns: { id: true },
-		where: { ownerId: newOwner.id, name: targetName },
-	});
-	if (clash && clash.id !== repo.id) throw new RepositoryNameTakenError();
-
-	const move = () =>
-		withRepositoryLock(to, targetName, async () => {
-			// Leftovers of a failed delete under the destination must not merge in.
-			await deleteRepositoryStorage(to, targetName);
-			await transferRepositoryStorage(from, repo.name, to, targetName);
-			try {
-				return await db
-					.update(repositories)
-					.set({
-						ownerId: newOwner.id,
-						name: targetName,
-						updatedAt: new Date(),
-					})
-					.where(eq(repositories.id, repo.id))
-					.returning()
-					.then(([row]) => row as Repository);
-			} catch (error) {
-				await transferRepositoryStorage(to, targetName, from, repo.name);
-				if (isUniqueViolation(error)) throw new RepositoryNameTakenError();
-				throw error;
-			}
+	const move = async () => {
+		// Under both locks, so a concurrent create cannot take the name between
+		// this check and the update.
+		const clash = await db.query.repositories.findFirst({
+			columns: { id: true },
+			where: { ownerId: newOwner.id, name: targetName },
 		});
-	const updated = await withRepositoryLock(from, repo.name, move);
+		if (clash && clash.id !== repo.id) throw new RepositoryNameTakenError();
+		// Leftovers of a failed delete under the destination must not merge in.
+		await deleteRepositoryStorage(to, targetName);
+		await transferRepositoryStorage(from, repo.name, to, targetName);
+		try {
+			return await db
+				.update(repositories)
+				.set({
+					ownerId: newOwner.id,
+					name: targetName,
+					updatedAt: new Date(),
+				})
+				.where(eq(repositories.id, repo.id))
+				.returning()
+				.then(([row]) => row as Repository);
+		} catch (error) {
+			await transferRepositoryStorage(to, targetName, from, repo.name);
+			if (isUniqueViolation(error)) throw new RepositoryNameTakenError();
+			throw error;
+		}
+	};
+	// Locks are taken in key order whatever the direction, so two opposite
+	// transfers cannot each hold one lock and wait for the other's.
+	const [first, second] = [
+		[from, repo.name],
+		[to, targetName],
+	].sort((x, y) => `${x[0]}/${x[1]}`.localeCompare(`${y[0]}/${y[1]}`)) as [
+		[string, string],
+		[string, string],
+	];
+	const updated = await withRepositoryLock(first[0], first[1], () =>
+		withRepositoryLock(second[0], second[1], move),
+	);
 
 	evictRepoByName(from, repo.name, repo.id);
 	evictRepoByName(to, targetName, repo.id);

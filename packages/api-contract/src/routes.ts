@@ -309,6 +309,32 @@ export const routes = {
 		docs: `${DOCS}/commits/comments#create-a-commit-comment`,
 		status: 201,
 	},
+	"repos/create-commit-status": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/statuses/{sha}",
+		docs: `${DOCS}/commits/statuses#create-a-commit-status`,
+		status: 201,
+	},
+	"repos/list-commit-statuses-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/statuses",
+		docs: `${DOCS}/commits/statuses#list-commit-statuses-for-a-reference`,
+	},
+	"repos/get-combined-status-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/status",
+		docs: `${DOCS}/commits/statuses#get-the-combined-status-for-a-specific-reference`,
+	},
+	"checks/list-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/check-runs",
+		docs: `${DOCS}/checks/runs#list-check-runs-for-a-git-reference`,
+	},
+	"checks/list-suites-for-ref": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/commits/{ref}/check-suites",
+		docs: `${DOCS}/checks/suites#list-check-suites-for-a-git-reference`,
+	},
 	"repos/get-commit": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/commits/{+ref}",
@@ -318,6 +344,38 @@ export const routes = {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/compare/{+basehead}",
 		docs: `${DOCS}/commits/commits#compare-two-commits`,
+	},
+	"checks/create": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/check-runs",
+		docs: `${DOCS}/checks/runs#create-a-check-run`,
+		status: 201,
+	},
+	"checks/get": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/check-runs/{check_run_id}",
+		docs: `${DOCS}/checks/runs#get-a-check-run`,
+	},
+	"checks/update": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/check-runs/{check_run_id}",
+		docs: `${DOCS}/checks/runs#update-a-check-run`,
+	},
+	"checks/create-suite": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/check-suites",
+		docs: `${DOCS}/checks/suites#create-a-check-suite`,
+		status: 201,
+	},
+	"checks/get-suite": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/check-suites/{check_suite_id}",
+		docs: `${DOCS}/checks/suites#get-a-check-suite`,
+	},
+	"checks/list-for-suite": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/check-suites/{check_suite_id}/check-runs",
+		docs: `${DOCS}/checks/runs#list-check-runs-in-a-check-suite`,
 	},
 
 	"git/get-ref": {

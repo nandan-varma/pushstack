@@ -6,6 +6,7 @@ import { CopyField } from "@/components/CopyField";
 import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { RelativeTime } from "@/components/RelativeTime";
+import { CommitChecks } from "@/components/repo/Checks";
 import { CommitComments } from "@/components/repo/CommitComments";
 import { CommitMessage } from "@/components/repo/CommitMessage";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
@@ -218,6 +219,8 @@ function CommitDetailPage() {
 					)}
 				</div>
 			</header>
+
+			{repo && <CommitChecks repoId={repo.id} rev={commit.sha} />}
 
 			<FileDiffViewer
 				files={diffData?.files}

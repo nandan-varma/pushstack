@@ -473,6 +473,7 @@ function PullRequestDetailPage() {
 										<>
 											{pr.status === "open" && (
 												<MergeBox
+													repoId={repo?.id}
 													canMerge={canMerge}
 													draft={pr.isDraft}
 													canMarkReady={canChangeStatus}
@@ -604,6 +605,7 @@ function PullRequestDetailPage() {
 							<CommitList
 								owner={owner}
 								name={name}
+								repoId={repo?.id}
 								commits={prCommits.commits}
 							/>
 							{prCommits.incomplete ? (
