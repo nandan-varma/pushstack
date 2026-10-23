@@ -8,6 +8,7 @@ import {
 	authFailuresExhausted,
 	hitRateLimit,
 	identityFor,
+	knownExhausted,
 	peekRateLimits,
 	type RateStatus,
 	rateLimitExceededMessage,
@@ -26,6 +27,31 @@ export class RateLimitedError extends ApiError {
 	}
 }
 
+/** The metered bucket for this request. */
+function meterTarget(request: Request, caller: Caller | null) {
+	const who = identityFor(request, caller?.userId ?? null);
+	const resource =
+		caller && !READ_METHODS.has(request.method) ? "core-write" : "core";
+	return { who, resource } as const;
+}
+
+/**
+ * Refuse, without a database round trip, a caller whose bucket this instance
+ * already saw exhausted in the current window.
+ */
+export function denyIfKnownExhausted(
+	request: Request,
+	caller: Caller | null,
+): void {
+	const { who, resource } = meterTarget(request, caller);
+	const rate = knownExhausted(resource, who);
+	if (rate) throw new RateLimitedError(rate);
+}
+
+/** Whether a request's handler may run while its count is in flight. */
+export const canOverlapMetering = (request: Request): boolean =>
+	READ_METHODS.has(request.method);
+
 /**
  * Count this request. Returns the bucket (null when the limiter failed open)
  * and throws {@link RateLimitedError} when it is over its limit.
@@ -34,9 +60,7 @@ export async function meterApiRequest(
 	request: Request,
 	caller: Caller | null,
 ): Promise<RateStatus | null> {
-	const who = identityFor(request, caller?.userId ?? null);
-	const resource =
-		caller && !READ_METHODS.has(request.method) ? "core-write" : "core";
+	const { who, resource } = meterTarget(request, caller);
 	const rate = await hitRateLimit(resource, who);
 	if (rate?.exceeded) throw new RateLimitedError(rate);
 	return rate;

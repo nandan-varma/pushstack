@@ -20,6 +20,7 @@
 		"test:e2e:headed": "playwright test --headed",
 		"smoke:git": "vitest run --config vitest.smoke.config.ts",
 		"typecheck": "tsc --noEmit",
+		"graphql:codegen": "tsx scripts/graphql-codegen.ts",
 		"db:push": "drizzle-kit push",
 		"db:pull": "drizzle-kit pull",
 		"db:studio": "drizzle-kit studio",
@@ -73,6 +74,9 @@
 	},
 	"devDependencies": {
 		"@electric-sql/pglite": "^0.5.10",
+		"@graphql-codegen/core": "6.2.2",
+		"@graphql-codegen/typescript": "6.1.1",
+		"@graphql-codegen/typescript-resolvers": "6.1.1",
 		"@playwright/test": "^1.64.1",
 		"@pstk/cli": "workspace:*",
 		"@pushstack/tsconfig": "workspace:*",

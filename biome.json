@@ -10,6 +10,7 @@
 		"includes": [
 			"**",
 			"!**/routeTree.gen.ts",
+			"!apps/web/src/server/graphql/resolvers/generated.ts",
 			"!apps/web/src/styles.css",
 			"!**/*.md"
 		]
