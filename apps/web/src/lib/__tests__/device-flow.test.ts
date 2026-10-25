@@ -5,9 +5,11 @@ import {
 	newDeviceCode,
 	newUserCode,
 	oauthResponse,
+	RequestBodyTooLargeError,
 	readRequestParams,
 	tokenScopesFromGitHub,
 } from "../device-flow";
+import { MAX_DEVICE_REQUEST_BYTES } from "../limits";
 
 describe("device codes", () => {
 	it("issues 40-hex device codes and XXXX-XXXX user codes from the consonant alphabet", () => {
@@ -80,5 +82,31 @@ describe("OAuth wire format", () => {
 			body: "{not json",
 		});
 		expect([...(await readRequestParams(broken)).keys()]).toEqual([]);
+	});
+
+	it("refuses a body over the cap, declared or streamed, instead of parsing it", async () => {
+		const oversize = `client_id=abc&pad=${"x".repeat(MAX_DEVICE_REQUEST_BYTES)}`;
+		const declared = new Request("https://git.test/login/device/code", {
+			method: "POST",
+			headers: { "content-type": "application/x-www-form-urlencoded" },
+			body: oversize,
+		});
+		await expect(readRequestParams(declared)).rejects.toBeInstanceOf(
+			RequestBodyTooLargeError,
+		);
+		const streamed = new Request("https://git.test/login/device/code", {
+			method: "POST",
+			headers: { "content-type": "application/x-www-form-urlencoded" },
+			body: new ReadableStream({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode(oversize));
+					controller.close();
+				},
+			}),
+			duplex: "half",
+		} as RequestInit);
+		await expect(readRequestParams(streamed)).rejects.toBeInstanceOf(
+			RequestBodyTooLargeError,
+		);
 	});
 });

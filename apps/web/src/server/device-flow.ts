@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { MAX_DEVICE_USER_CODE_CHARS } from "#/lib/limits";
-import { decideDeviceCode, findPendingDeviceCode } from "./device-flow-store";
+import {
+	decideDeviceCode,
+	findPendingDeviceCode,
+	meterUserCodeAttempt,
+} from "./device-flow-store";
 import { getCurrentUser } from "./session";
 
 /**
@@ -12,7 +17,8 @@ import { getCurrentUser } from "./session";
 export const getDeviceAuthorization = createServerFn({ method: "GET" })
 	.validator(z.object({ userCode: z.string().max(MAX_DEVICE_USER_CODE_CHARS) }))
 	.handler(async ({ data }) => {
-		await getCurrentUser();
+		const user = await getCurrentUser();
+		await meterUserCodeAttempt(getRequest(), user.id);
 		return findPendingDeviceCode(data.userCode);
 	});
 
@@ -26,6 +32,7 @@ export const decideDeviceAuthorization = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
+		await meterUserCodeAttempt(getRequest(), user.id);
 		const decided = await decideDeviceCode({
 			userCode: data.userCode,
 			userId: user.id,

@@ -5,7 +5,7 @@
  * (The Neon HTTP driver has no transactions, so a token insert that fails
  * after the code is consumed burns the code; the user runs the login again.)
  */
-import { and, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { deviceCodes, tokens } from "#/db/app-schema";
 import { bytesToBase64Url, randomBytes, sha256Hex } from "#/lib/bytes";
@@ -19,10 +19,32 @@ import {
 	SLOW_DOWN_STEP_SECONDS,
 } from "#/lib/device-flow";
 import { TOKEN_PREFIX, type TokenScope } from "#/lib/token-scopes";
+import { hitRateLimit, identityFor } from "./rate-limit";
 
 /** The name a token issued by the device flow carries in the settings list. */
 const DEVICE_TOKEN_NAME = "Device login";
 const MAX_USER_CODE_ATTEMPTS = 5;
+
+/**
+ * Every user code typed on the approval page is an attempt to guess one: count
+ * it against the signed-in user and the client IP, and refuse once either
+ * bucket is spent. Both buckets are checked, so neither a single account nor
+ * one address can be used to brute-force codes.
+ */
+export async function meterUserCodeAttempt(
+	request: Request,
+	userId: string,
+): Promise<void> {
+	const rates = await Promise.all([
+		hitRateLimit("device-user-code", identityFor(request, userId)),
+		hitRateLimit("device-user-code", identityFor(request, null)),
+	]);
+	const exceeded = rates.find((rate) => rate?.exceeded);
+	if (exceeded) {
+		const seconds = Math.max(1, exceeded.reset - Math.floor(Date.now() / 1000));
+		throw new Error(`Too many code attempts. Try again in ${seconds} seconds.`);
+	}
+}
 
 export interface DeviceCodeGrant {
 	deviceCode: string;
@@ -96,19 +118,36 @@ export async function pollDeviceCode(input: {
 	const now = new Date();
 	if (row.expiresAt <= now) return { ok: false, error: "expired_token" };
 
-	const lastPolled = row.lastPolledAt?.getTime() ?? 0;
-	if (lastPolled > 0 && now.getTime() - lastPolled < row.interval * 1000) {
-		const interval = row.interval + SLOW_DOWN_STEP_SECONDS;
-		await db
-			.update(deviceCodes)
-			.set({ interval, lastPolledAt: now })
-			.where(eq(deviceCodes.id, row.id));
-		return { ok: false, error: "slow_down", interval };
-	}
-	await db
+	// The polling gate is one conditional write. A poll is admitted only if the
+	// previous one is at least `interval` seconds old, and the check and the
+	// stamp are the same statement, so two racing polls cannot both pass it.
+	const [admitted] = await db
 		.update(deviceCodes)
-		.set({ lastPolledAt: now })
-		.where(eq(deviceCodes.id, row.id));
+		.set({ lastPolledAt: sql`now()` })
+		.where(
+			and(
+				eq(deviceCodes.id, row.id),
+				or(
+					isNull(deviceCodes.lastPolledAt),
+					sql`${deviceCodes.lastPolledAt} <= now() - make_interval(secs => ${deviceCodes.interval})`,
+				),
+			),
+		)
+		.returning({ id: deviceCodes.id });
+	if (!admitted) {
+		// Too soon: each such poll adds a step. The increment is computed in SQL
+		// from the stored interval, so concurrent slow-downs all count.
+		const [slowed] = await db
+			.update(deviceCodes)
+			.set({
+				interval: sql`${deviceCodes.interval} + ${SLOW_DOWN_STEP_SECONDS}`,
+				lastPolledAt: sql`now()`,
+			})
+			.where(eq(deviceCodes.id, row.id))
+			.returning({ interval: deviceCodes.interval });
+		if (!slowed) return { ok: false, error: "incorrect_device_code" };
+		return { ok: false, error: "slow_down", interval: slowed.interval };
+	}
 
 	if (row.status === "denied") return { ok: false, error: "access_denied" };
 	if (row.status === "pending") {
