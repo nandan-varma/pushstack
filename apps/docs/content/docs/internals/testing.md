@@ -104,8 +104,10 @@ Everything stays in a scratch directory; never use `~/.config/gh` or any git
 config. Work from a scratch directory outside the repository for the cert,
 the token file and the gh config, and run the server from the repository root.
 
-1. Start the server: `pnpm dev:local` (port 3000, data in `.pushstack-local/`).
-   Its log prints each verification email, including the `verify-email` link.
+1. Start the server with its log in a scratch file:
+   `mkdir -p /tmp/gh && pnpm dev:local > /tmp/gh/dev-local.log 2>&1 &`
+   (port 3000, data in `.pushstack-local/`). The log prints each verification
+   email, including the `verify-email` link.
 
 2. Make an account. Sign-up requires `name`, `email`, `password` and
    `username`; the address must be verified before sign-in succeeds:
@@ -114,7 +116,8 @@ the token file and the gh config, and run the server from the repository root.
    curl -s -c jar -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
      localhost:3000/api/auth/sign-up/email \
      -d '{"name":"Octo","email":"octo@example.test","password":"correct-horse-battery-9","username":"octo"}'
-   # open the verify-email URL from the dev:local log (it is a GET with the cookie jar)
+   # the dev:local log prints the verify-email link; take the last one and GET it with the cookie jar
+   VERIFY_URL=$(grep -o 'http://localhost:3000/api/auth/verify-email[^ ]*' /tmp/gh/dev-local.log | tail -1)
    curl -s -o /dev/null -b jar -c jar "$VERIFY_URL"
    curl -s -c jar -b jar -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
      localhost:3000/api/auth/sign-in/email -d '{"email":"octo@example.test","password":"correct-horse-battery-9"}'
@@ -153,6 +156,7 @@ the token file and the gh config, and run the server from the repository root.
    Generate a self-signed certificate for `localhost` and run the proxy:
 
    ```sh
+   mkdir -p /tmp/gh
    openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/gh/key.pem -out /tmp/gh/cert.pem \
      -days 2 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
    ```
