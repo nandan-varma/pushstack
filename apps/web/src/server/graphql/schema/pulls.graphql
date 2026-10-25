@@ -2,3 +2,1429 @@
 # (https://docs.github.com/public/fpt/schema.docs.graphql). Do not edit:
 # change pulls.subset.json and re-run the script.
 
+extend type Repository {
+	"""
+	Returns a single pull request from the current repository by number.
+	"""
+	pullRequest(
+		"""
+		The number for the pull request to be returned.
+		"""
+		number: Int!
+	): PullRequest
+	"""
+	A list of pull requests that have been opened in the repository.
+	"""
+	pullRequests(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		A list of states to filter the pull requests by.
+		"""
+		states: [PullRequestState!]
+		"""
+		The base ref name to filter the pull requests by.
+		"""
+		baseRefName: String
+		"""
+		The head ref name to filter the pull requests by.
+		"""
+		headRefName: String
+		"""
+		A list of label names to filter the pull requests by.
+		"""
+		labels: [String!]
+		"""
+		Ordering options for pull requests returned from the connection.
+		"""
+		orderBy: IssueOrder
+	): PullRequestConnection!
+}
+
+extend type Mutation {
+	"""
+	Create a new pull request
+	"""
+	createPullRequest(
+		"""
+		Parameters for CreatePullRequest
+		"""
+		input: CreatePullRequestInput!
+	): CreatePullRequestPayload
+	"""
+	Marks a pull request ready for review.
+	"""
+	markPullRequestReadyForReview(
+		"""
+		Parameters for MarkPullRequestReadyForReview
+		"""
+		input: MarkPullRequestReadyForReviewInput!
+	): MarkPullRequestReadyForReviewPayload
+	"""
+	Converts a pull request to draft
+	"""
+	convertPullRequestToDraft(
+		"""
+		Parameters for ConvertPullRequestToDraft
+		"""
+		input: ConvertPullRequestToDraftInput!
+	): ConvertPullRequestToDraftPayload
+}
+
+"""
+A repository pull request.
+"""
+type PullRequest implements Node & UniformResourceLocatable {
+	"""
+	The Node ID of the PullRequest object
+	"""
+	id: ID!
+	"""
+	Identifies the primary key from the database.
+	"""
+	databaseId: Int
+		@deprecated(
+			reason: "`databaseId` will be removed because it does not support 64-bit signed integer identifiers. Use `fullDatabaseId` instead. Removal on 2024-07-01 UTC."
+		)
+	"""
+	Identifies the pull request number.
+	"""
+	number: Int!
+	"""
+	Identifies the pull request title.
+	"""
+	title: String!
+	"""
+	The body as Markdown.
+	"""
+	body: String!
+	"""
+	Identifies the state of the pull request.
+	"""
+	state: PullRequestState!
+	"""
+	Identifies if the pull request is a draft.
+	"""
+	isDraft: Boolean!
+	"""
+	The HTTP URL for this pull request.
+	"""
+	url: URI!
+	"""
+	The HTTP path for this pull request.
+	"""
+	resourcePath: URI!
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	Identifies the date and time when the object was last updated.
+	"""
+	updatedAt: DateTime!
+	"""
+	Identifies the date and time when the object was closed.
+	"""
+	closedAt: DateTime
+	"""
+	The date and time that the pull request was merged.
+	"""
+	mergedAt: DateTime
+	"""
+	`true` if the pull request is closed
+	"""
+	closed: Boolean!
+	"""
+	Whether or not the pull request was merged.
+	"""
+	merged: Boolean!
+	"""
+	The actor who authored the comment.
+	"""
+	author: Actor
+	"""
+	The repository associated with this node.
+	"""
+	repository: Repository!
+	"""
+	Identifies the name of the head Ref associated with the pull request, even if the ref has been deleted.
+	"""
+	headRefName: String!
+	"""
+	Identifies the name of the base Ref associated with the pull request, even if the ref has been deleted.
+	"""
+	baseRefName: String!
+	"""
+	The repository associated with this pull request's head Ref.
+	"""
+	headRepository: Repository
+	"""
+	The owner of the repository associated with this pull request's head Ref.
+	"""
+	headRepositoryOwner: RepositoryOwner
+	"""
+	The head and base repositories are different.
+	"""
+	isCrossRepository: Boolean!
+	"""
+	Returns the auto-merge request object if one exists for this pull request.
+	"""
+	autoMergeRequest: AutoMergeRequest
+	"""
+	Indicates whether maintainers can modify the pull request.
+	"""
+	maintainerCanModify: Boolean!
+	"""
+	Whether or not the pull request can be merged based on the existence of merge conflicts.
+	"""
+	mergeable: MergeableState!
+	"""
+	The number of additions in this pull request.
+	"""
+	additions: Int!
+	"""
+	The number of deletions in this pull request.
+	"""
+	deletions: Int!
+	"""
+	A list of commits present in this pull request's head branch not present in the base branch.
+	"""
+	commits(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): PullRequestCommitConnection!
+	"""
+	A list of review requests associated with the pull request.
+	"""
+	reviewRequests(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): ReviewRequestConnection
+	"""
+	A list of reviews associated with the pull request.
+	"""
+	reviews(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): PullRequestReviewConnection
+	"""
+	A list of Users assigned to this object.
+	"""
+	assignees(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): UserConnection!
+	"""
+	A list of labels associated with the object.
+	"""
+	labels(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): LabelConnection
+	"""
+	Identifies the milestone associated with the pull request.
+	"""
+	milestone: Milestone
+	"""
+	A list of comments associated with the pull request.
+	"""
+	comments(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): IssueCommentConnection!
+	"""
+	A list of reactions grouped by content left on the subject.
+	"""
+	reactionGroups: [ReactionGroup!]
+}
+
+"""
+The possible states of a pull request.
+"""
+enum PullRequestState {
+	"""
+	A pull request that has been closed without being merged.
+	"""
+	CLOSED
+	"""
+	A pull request that has been closed by being merged.
+	"""
+	MERGED
+	"""
+	A pull request that is still open.
+	"""
+	OPEN
+}
+
+"""
+The connection type for PullRequest.
+"""
+type PullRequestConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [PullRequestEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [PullRequest]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type PullRequestEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: PullRequest
+}
+
+"""
+Ways in which lists of issues can be ordered upon return.
+"""
+input IssueOrder {
+	"""
+	The direction in which to order issues by the specified field.
+	"""
+	direction: OrderDirection!
+	"""
+	The field in which to order issues by.
+	"""
+	field: IssueOrderField!
+}
+
+"""
+Properties by which issue connections can be ordered.
+"""
+enum IssueOrderField {
+	"""
+	Order issues by comment count
+	"""
+	COMMENTS
+	"""
+	Order issues by creation time
+	"""
+	CREATED_AT
+	"""
+	Order issues by update time
+	"""
+	UPDATED_AT
+}
+
+"""
+Autogenerated input type of CreatePullRequest
+"""
+input CreatePullRequestInput {
+	"""
+	The name of the branch you want your changes pulled into. This should be an existing branch
+	on the current repository. You cannot update the base branch on a pull request to point
+	to another repository.
+	"""
+	baseRefName: String!
+	"""
+	The contents of the pull request.
+	"""
+	body: String
+	"""
+	A unique identifier for the client performing the mutation.
+	"""
+	clientMutationId: String
+	"""
+	Indicates whether this pull request should be a draft.
+	"""
+	draft: Boolean = false
+	"""
+	The name of the branch where your changes are implemented. For cross-repository pull requests
+	in the same network, namespace `head_ref_name` with a user like this: `username:branch`.
+	"""
+	headRefName: String!
+	"""
+	The Node ID of the head repository.
+	"""
+	headRepositoryId: ID
+	"""
+	Indicates whether maintainers can modify the pull request.
+	"""
+	maintainerCanModify: Boolean = true
+	"""
+	The Node ID of the repository.
+	"""
+	repositoryId: ID!
+	"""
+	The title of the pull request.
+	"""
+	title: String!
+}
+
+"""
+Autogenerated return type of CreatePullRequest.
+"""
+type CreatePullRequestPayload {
+	"""
+	A unique identifier for the client performing the mutation.
+	"""
+	clientMutationId: String
+	"""
+	The new pull request.
+	"""
+	pullRequest: PullRequest
+}
+
+"""
+Autogenerated input type of MarkPullRequestReadyForReview
+"""
+input MarkPullRequestReadyForReviewInput {
+	"""
+	A unique identifier for the client performing the mutation.
+	"""
+	clientMutationId: String
+	"""
+	ID of the pull request to be marked as ready for review.
+	"""
+	pullRequestId: ID!
+}
+
+"""
+Autogenerated return type of MarkPullRequestReadyForReview.
+"""
+type MarkPullRequestReadyForReviewPayload {
+	"""
+	A unique identifier for the client performing the mutation.
+	"""
+	clientMutationId: String
+	"""
+	The pull request that is ready for review.
+	"""
+	pullRequest: PullRequest
+}
+
+"""
+Autogenerated input type of ConvertPullRequestToDraft
+"""
+input ConvertPullRequestToDraftInput {
+	"""
+	A unique identifier for the client performing the mutation.
+	"""
+	clientMutationId: String
+	"""
+	ID of the pull request to convert to draft
+	"""
+	pullRequestId: ID!
+}
+
+"""
+Autogenerated return type of ConvertPullRequestToDraft.
+"""
+type ConvertPullRequestToDraftPayload {
+	"""
+	A unique identifier for the client performing the mutation.
+	"""
+	clientMutationId: String
+	"""
+	The pull request that is now a draft.
+	"""
+	pullRequest: PullRequest
+}
+
+extend type Commit {
+	"""
+	Returns a URL to download a zipball archive for a repository.
+	Note: For private repositories, these links are temporary and expire after five minutes.
+	"""
+	zipballUrl: URI!
+	"""
+	Returns a URL to download a tarball archive for a repository.
+	Note: For private repositories, these links are temporary and expire after five minutes.
+	"""
+	tarballUrl: URI!
+	"""
+	Check and Status rollup information for this commit.
+	"""
+	statusCheckRollup: StatusCheckRollup
+}
+
+"""
+Represents an auto-merge request for a pull request
+"""
+type AutoMergeRequest {
+	"""
+	The email address of the author of this auto-merge request.
+	"""
+	authorEmail: String
+	"""
+	The commit message of the auto-merge request. If a merge queue is required by
+	the base branch, this value will be set by the merge queue when merging.
+	"""
+	commitBody: String
+	"""
+	The commit title of the auto-merge request. If a merge queue is required by
+	the base branch, this value will be set by the merge queue when merging
+	"""
+	commitHeadline: String
+	"""
+	The merge method of the auto-merge request. If a merge queue is required by
+	the base branch, this value will be set by the merge queue when merging.
+	"""
+	mergeMethod: PullRequestMergeMethod!
+	"""
+	When was this auto-merge request was enabled.
+	"""
+	enabledAt: DateTime
+	"""
+	The actor who created the auto-merge request.
+	"""
+	enabledBy: Actor
+}
+
+"""
+Represents available types of methods to use when merging a pull request.
+"""
+enum PullRequestMergeMethod {
+	"""
+	Add all commits from the head branch to the base branch with a merge commit.
+	"""
+	MERGE
+	"""
+	Add all commits from the head branch onto the base branch individually.
+	"""
+	REBASE
+	"""
+	Combine all commits from the head branch into a single commit in the base branch.
+	"""
+	SQUASH
+}
+
+"""
+Whether or not a PullRequest can be merged.
+"""
+enum MergeableState {
+	"""
+	The pull request cannot be merged due to merge conflicts.
+	"""
+	CONFLICTING
+	"""
+	The pull request can be merged.
+	"""
+	MERGEABLE
+	"""
+	The mergeability of the pull request is still being calculated.
+	"""
+	UNKNOWN
+}
+
+"""
+Represents a Git commit part of a pull request.
+"""
+type PullRequestCommit {
+	"""
+	The Git commit object
+	"""
+	commit: Commit!
+}
+
+"""
+The connection type for PullRequestCommit.
+"""
+type PullRequestCommitConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [PullRequestCommit]
+	"""
+	A list of edges.
+	"""
+	edges: [PullRequestCommitEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type PullRequestCommitEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: PullRequestCommit
+}
+
+"""
+A request for a user to review a pull request.
+"""
+type ReviewRequest {
+	"""
+	The reviewer that is requested.
+	"""
+	requestedReviewer: RequestedReviewer
+}
+
+"""
+Types that can be requested reviewers.
+"""
+union RequestedReviewer = Bot | Team | User
+
+"""
+The connection type for ReviewRequest.
+"""
+type ReviewRequestConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [ReviewRequest]
+	"""
+	A list of edges.
+	"""
+	edges: [ReviewRequestEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type ReviewRequestEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: ReviewRequest
+}
+
+"""
+A special type of user which takes actions on behalf of GitHub Apps.
+"""
+type Bot {
+	"""
+	The username of the actor.
+	"""
+	login: String!
+}
+
+"""
+A team of users in an organization.
+"""
+type Team {
+	"""
+	The organization that owns this team.
+	"""
+	organization: Organization!
+	"""
+	The name of the team.
+	"""
+	name: String!
+	"""
+	The slug corresponding to the team.
+	"""
+	slug: String!
+}
+
+"""
+An account on GitHub, with one or more owners, that has repositories, members and teams.
+"""
+type Organization {
+	"""
+	The organization's login name.
+	"""
+	login: String!
+}
+
+"""
+A review object for a given pull request.
+"""
+type PullRequestReview implements Node {
+	"""
+	The Node ID of the PullRequestReview object
+	"""
+	id: ID!
+	"""
+	The actor who authored the comment.
+	"""
+	author: Actor
+	"""
+	Author's association with the subject of the comment.
+	"""
+	authorAssociation: CommentAuthorAssociation!
+	"""
+	Identifies when the Pull Request Review was submitted
+	"""
+	submittedAt: DateTime
+	"""
+	Identifies the pull request review body.
+	"""
+	body: String!
+	"""
+	Identifies the current state of the pull request review.
+	"""
+	state: PullRequestReviewState!
+	"""
+	Identifies the commit associated with this pull request review.
+	"""
+	commit: Commit
+	"""
+	A list of reactions grouped by content left on the subject.
+	"""
+	reactionGroups: [ReactionGroup!]
+}
+
+"""
+The possible states of a pull request review.
+"""
+enum PullRequestReviewState {
+	"""
+	A review allowing the pull request to merge.
+	"""
+	APPROVED
+	"""
+	A review blocking the pull request from merging.
+	"""
+	CHANGES_REQUESTED
+	"""
+	An informational review.
+	"""
+	COMMENTED
+	"""
+	A review that has been dismissed.
+	"""
+	DISMISSED
+	"""
+	A review that has not yet been submitted.
+	"""
+	PENDING
+}
+
+"""
+A comment author association with repository.
+"""
+enum CommentAuthorAssociation {
+	"""
+	Author has been invited to collaborate on the repository.
+	"""
+	COLLABORATOR
+	"""
+	Author has previously committed to the repository.
+	"""
+	CONTRIBUTOR
+	"""
+	Author has not previously committed to GitHub.
+	"""
+	FIRST_TIMER
+	"""
+	Author has not previously committed to the repository.
+	"""
+	FIRST_TIME_CONTRIBUTOR
+	"""
+	Author is a placeholder for an unclaimed user.
+	"""
+	MANNEQUIN
+	"""
+	Author is a member of the organization that owns the repository.
+	"""
+	MEMBER
+	"""
+	Author has no association with the repository.
+	"""
+	NONE
+	"""
+	Author is the owner of the repository.
+	"""
+	OWNER
+}
+
+"""
+The connection type for PullRequestReview.
+"""
+type PullRequestReviewConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [PullRequestReview]
+	"""
+	A list of edges.
+	"""
+	edges: [PullRequestReviewEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type PullRequestReviewEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: PullRequestReview
+}
+
+"""
+A list of users.
+"""
+type UserConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [User]
+	"""
+	A list of edges.
+	"""
+	edges: [UserEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+Represents a user.
+"""
+type UserEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: User
+}
+
+"""
+A label for categorizing Issues, Pull Requests, Milestones, or Discussions with a given Repository.
+"""
+type Label implements Node {
+	"""
+	The Node ID of the Label object
+	"""
+	id: ID!
+	"""
+	Identifies the label name.
+	"""
+	name: String!
+	"""
+	A brief description of this label.
+	"""
+	description: String
+	"""
+	Identifies the label color.
+	"""
+	color: String!
+}
+
+"""
+The connection type for Label.
+"""
+type LabelConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [Label]
+	"""
+	A list of edges.
+	"""
+	edges: [LabelEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type LabelEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: Label
+}
+
+"""
+Represents a Milestone object on a given repository.
+"""
+type Milestone {
+	"""
+	Identifies the number of the milestone.
+	"""
+	number: Int!
+	"""
+	Identifies the title of the milestone.
+	"""
+	title: String!
+	"""
+	Identifies the description of the milestone.
+	"""
+	description: String
+	"""
+	Identifies the due date of the milestone.
+	"""
+	dueOn: DateTime
+}
+
+"""
+Represents a comment on an Issue.
+"""
+type IssueComment implements Node {
+	"""
+	The Node ID of the IssueComment object
+	"""
+	id: ID!
+	"""
+	The actor who authored the comment.
+	"""
+	author: Actor
+	"""
+	Author's association with the subject of the comment.
+	"""
+	authorAssociation: CommentAuthorAssociation!
+	"""
+	The body as Markdown.
+	"""
+	body: String!
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	Check if this comment was edited and includes an edit with the creation data
+	"""
+	includesCreatedEdit: Boolean!
+	"""
+	Returns whether or not a comment has been minimized.
+	"""
+	isMinimized: Boolean!
+	"""
+	Returns why the comment was minimized. One of `abuse`, `off-topic`,
+	`outdated`, `resolved`, `duplicate`, `spam`, and `low-quality`. Note that the
+	case and formatting of these values differs from the inputs to the
+	`MinimizeComment` mutation.
+	"""
+	minimizedReason: String
+	"""
+	A list of reactions grouped by content left on the subject.
+	"""
+	reactionGroups: [ReactionGroup!]
+	"""
+	The HTTP URL for this issue comment
+	"""
+	url: URI!
+	"""
+	Did the viewer author this comment.
+	"""
+	viewerDidAuthor: Boolean!
+}
+
+"""
+The connection type for IssueComment.
+"""
+type IssueCommentConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [IssueComment]
+	"""
+	A list of edges.
+	"""
+	edges: [IssueCommentEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type IssueCommentEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: IssueComment
+}
+
+"""
+A group of emoji reactions to a particular piece of content.
+"""
+type ReactionGroup {
+	"""
+	Identifies the emoji reaction.
+	"""
+	content: ReactionContent!
+	"""
+	Users who have reacted to the reaction subject with the emotion represented by this reaction group
+	"""
+	users: ReactingUserConnection!
+		@deprecated(
+			reason: "Reactors can now be mannequins, bots, and organizations. Use the `reactors` field instead. Removal on 2021-10-01 UTC."
+		)
+}
+
+"""
+Emojis that can be attached to Issues, Pull Requests and Comments.
+"""
+enum ReactionContent {
+	"""
+	Represents the `:confused:` emoji.
+	"""
+	CONFUSED
+	"""
+	Represents the `:eyes:` emoji.
+	"""
+	EYES
+	"""
+	Represents the `:heart:` emoji.
+	"""
+	HEART
+	"""
+	Represents the `:hooray:` emoji.
+	"""
+	HOORAY
+	"""
+	Represents the `:laugh:` emoji.
+	"""
+	LAUGH
+	"""
+	Represents the `:rocket:` emoji.
+	"""
+	ROCKET
+	"""
+	Represents the `:-1:` emoji.
+	"""
+	THUMBS_DOWN
+	"""
+	Represents the `:+1:` emoji.
+	"""
+	THUMBS_UP
+}
+
+"""
+Represents the rollup for both the check runs and status for a commit.
+"""
+type StatusCheckRollup {
+	"""
+	A list of status contexts and check runs for this commit.
+	"""
+	contexts(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): StatusCheckRollupContextConnection!
+}
+
+"""
+Types that can be inside a StatusCheckRollup context.
+"""
+union StatusCheckRollupContext = CheckRun | StatusContext
+
+"""
+The connection type for StatusCheckRollupContext.
+"""
+type StatusCheckRollupContextConnection {
+	"""
+	A list of nodes.
+	"""
+	nodes: [StatusCheckRollupContext]
+	"""
+	A list of edges.
+	"""
+	edges: [StatusCheckRollupContextEdge]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type StatusCheckRollupContextEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: StatusCheckRollupContext
+}
+
+"""
+Represents an individual commit status context
+"""
+type StatusContext {
+	"""
+	The name of this status context.
+	"""
+	context: String!
+	"""
+	The state of this status context.
+	"""
+	state: StatusState!
+	"""
+	The URL for this status context.
+	"""
+	targetUrl: URI
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	The description for this status context.
+	"""
+	description: String
+}
+
+"""
+The possible commit status states.
+"""
+enum StatusState {
+	"""
+	Status is errored.
+	"""
+	ERROR
+	"""
+	Status is expected.
+	"""
+	EXPECTED
+	"""
+	Status is failing.
+	"""
+	FAILURE
+	"""
+	Status is pending.
+	"""
+	PENDING
+	"""
+	Status is successful.
+	"""
+	SUCCESS
+}
+
+"""
+A check run.
+"""
+type CheckRun {
+	"""
+	The name of the check for this check run.
+	"""
+	name: String!
+	"""
+	The check suite that this run is a part of.
+	"""
+	checkSuite: CheckSuite!
+	"""
+	The current status of the check run.
+	"""
+	status: CheckStatusState!
+	"""
+	The conclusion of the check run.
+	"""
+	conclusion: CheckConclusionState
+	"""
+	Identifies the date and time when the check run was started.
+	"""
+	startedAt: DateTime
+	"""
+	Identifies the date and time when the check run was completed.
+	"""
+	completedAt: DateTime
+	"""
+	The URL from which to find full details of the check run on the integrator's site.
+	"""
+	detailsUrl: URI
+}
+
+"""
+The possible states for a check suite or run status.
+"""
+enum CheckStatusState {
+	"""
+	The check suite or run has been completed.
+	"""
+	COMPLETED
+	"""
+	The check suite or run is in progress.
+	"""
+	IN_PROGRESS
+	"""
+	The check suite or run is in pending state.
+	"""
+	PENDING
+	"""
+	The check suite or run has been queued.
+	"""
+	QUEUED
+	"""
+	The check suite or run has been requested.
+	"""
+	REQUESTED
+	"""
+	The check suite or run is in waiting state.
+	"""
+	WAITING
+}
+
+"""
+The possible states for a check suite or run conclusion.
+"""
+enum CheckConclusionState {
+	"""
+	The check suite or run requires action.
+	"""
+	ACTION_REQUIRED
+	"""
+	The check suite or run has been cancelled.
+	"""
+	CANCELLED
+	"""
+	The check suite or run has failed.
+	"""
+	FAILURE
+	"""
+	The check suite or run was neutral.
+	"""
+	NEUTRAL
+	"""
+	The check suite or run was skipped.
+	"""
+	SKIPPED
+	"""
+	The check suite or run was marked stale by GitHub. Only GitHub can use this conclusion.
+	"""
+	STALE
+	"""
+	The check suite or run has failed at startup.
+	"""
+	STARTUP_FAILURE
+	"""
+	The check suite or run has succeeded.
+	"""
+	SUCCESS
+	"""
+	The check suite or run has timed out.
+	"""
+	TIMED_OUT
+}
+
+"""
+A check suite.
+"""
+type CheckSuite {
+	"""
+	The workflow run associated with this check suite.
+	"""
+	workflowRun: WorkflowRun
+}
+
+"""
+A workflow run.
+"""
+type WorkflowRun {
+	"""
+	The workflow executed in this workflow run.
+	"""
+	workflow: Workflow!
+}
+
+"""
+A workflow contains meta information about an Actions workflow file.
+"""
+type Workflow {
+	"""
+	The name of the workflow.
+	"""
+	name: String!
+}
+
+"""
+The connection type for User.
+"""
+type ReactingUserConnection {
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+extend type Release {
+	"""
+	The tag commit for this release.
+	"""
+	tagCommit: Commit
+}

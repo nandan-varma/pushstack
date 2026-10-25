@@ -373,10 +373,19 @@ describe("connections", () => {
 		expect(none.body.data.user.repositories.totalCount).toBe(0);
 	});
 
+	it("allows count-only connections through fragments without page boundaries", async () => {
+		const result = await graphql(
+			alice,
+			`query { viewer { repositories { ...Count } } } fragment Count on RepositoryConnection { totalCount }`,
+		);
+		expect(result.body.errors).toBeUndefined();
+		expect(result.body.data.viewer.repositories.totalCount).toBe(2);
+	});
+
 	it("requires first or last, at most 100", async () => {
 		const missing = await graphql(
 			alice,
-			"{ viewer { repositories { totalCount } } }",
+			"{ viewer { repositories { nodes { name } } } }",
 		);
 		expect(missing.body).toEqual({
 			errors: [

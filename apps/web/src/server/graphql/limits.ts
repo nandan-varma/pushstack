@@ -180,6 +180,17 @@ export function analyzeQuery(
 		}
 	};
 
+	/** Counts do not fetch a page; gh asks for commits { totalCount }. */
+	const selectsPage = (selectionSet: SelectionSetNode): boolean =>
+		selectionSet.selections.some((selection) => {
+			if (selection.kind === Kind.FIELD)
+				return !["totalCount", "__typename"].includes(selection.name.value);
+			if (selection.kind === Kind.INLINE_FRAGMENT)
+				return selectsPage(selection.selectionSet);
+			const fragment = fragments.get(selection.name.value);
+			return fragment ? selectsPage(fragment.selectionSet) : false;
+		});
+
 	const visitField = (
 		parent: GraphQLCompositeType,
 		node: FieldNode,
@@ -211,7 +222,12 @@ export function analyzeQuery(
 		let next = multiplier;
 		if (isConnection(type)) {
 			const args = getArgumentValues(field, node, variableValues);
-			const size = pageSize(field.name, args);
+			const size =
+				selectsPage(node.selectionSet) ||
+				args.first != null ||
+				args.last != null
+					? pageSize(field.name, args)
+					: 0;
 			requests += multiplier;
 			next = multiplier * size;
 			addNodes(next);

@@ -1,1 +1,235 @@
-{}
+{
+	"Repository": [
+		"pullRequest",
+		{
+			"name": "pullRequests",
+			"args": [
+				"after",
+				"before",
+				"first",
+				"last",
+				"states",
+				"baseRefName",
+				"headRefName",
+				"labels",
+				"orderBy"
+			]
+		}
+	],
+	"Mutation": [
+		"createPullRequest",
+		"markPullRequestReadyForReview",
+		"convertPullRequestToDraft"
+	],
+	"PullRequest": {
+		"$implements": ["Node", "UniformResourceLocatable"],
+		"fields": [
+			"id",
+			"databaseId",
+			"number",
+			"title",
+			"body",
+			"state",
+			"isDraft",
+			"url",
+			"resourcePath",
+			"createdAt",
+			"updatedAt",
+			"closedAt",
+			"mergedAt",
+			"closed",
+			"merged",
+			"author",
+			"repository",
+			"headRefName",
+			"baseRefName",
+			"headRepository",
+			"headRepositoryOwner",
+			"isCrossRepository",
+			"autoMergeRequest",
+			"maintainerCanModify",
+			"mergeable",
+			"additions",
+			"deletions",
+			{
+				"name": "commits",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "reviewRequests",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "reviews",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "assignees",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "labels",
+				"args": ["after", "before", "first", "last"]
+			},
+			"milestone",
+			{
+				"name": "comments",
+				"args": ["after", "before", "first", "last"]
+			},
+			"reactionGroups"
+		]
+	},
+	"PullRequestState": "*",
+	"PullRequestConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"PullRequestEdge": "*",
+	"IssueOrder": "*",
+	"IssueOrderField": "*",
+	"CreatePullRequestInput": "*",
+	"CreatePullRequestPayload": "*",
+	"MarkPullRequestReadyForReviewInput": "*",
+	"MarkPullRequestReadyForReviewPayload": "*",
+	"ConvertPullRequestToDraftInput": "*",
+	"ConvertPullRequestToDraftPayload": "*",
+	"Commit": ["zipballUrl", "tarballUrl", "statusCheckRollup"],
+	"AutoMergeRequest": {
+		"$implements": [],
+		"fields": [
+			"authorEmail",
+			"commitBody",
+			"commitHeadline",
+			"mergeMethod",
+			"enabledAt",
+			"enabledBy"
+		]
+	},
+	"PullRequestMergeMethod": "*",
+	"MergeableState": "*",
+	"PullRequestCommit": {
+		"$implements": [],
+		"fields": ["commit"]
+	},
+	"PullRequestCommitConnection": ["nodes", "edges", "pageInfo", "totalCount"],
+	"PullRequestCommitEdge": "*",
+	"ReviewRequest": {
+		"$implements": [],
+		"fields": ["requestedReviewer"]
+	},
+	"RequestedReviewer": ["User", "Bot", "Team"],
+	"ReviewRequestConnection": ["nodes", "edges", "pageInfo", "totalCount"],
+	"ReviewRequestEdge": "*",
+	"Bot": {
+		"$implements": [],
+		"fields": ["login"]
+	},
+	"Team": {
+		"$implements": [],
+		"fields": ["organization", "name", "slug"]
+	},
+	"Organization": {
+		"$implements": [],
+		"fields": ["login"]
+	},
+	"PullRequestReview": {
+		"$implements": ["Node"],
+		"fields": [
+			"id",
+			"author",
+			"authorAssociation",
+			"submittedAt",
+			"body",
+			"state",
+			"commit",
+			"reactionGroups"
+		]
+	},
+	"PullRequestReviewState": "*",
+	"CommentAuthorAssociation": "*",
+	"PullRequestReviewConnection": ["nodes", "edges", "pageInfo", "totalCount"],
+	"PullRequestReviewEdge": "*",
+	"UserConnection": ["nodes", "edges", "pageInfo", "totalCount"],
+	"UserEdge": "*",
+	"Label": {
+		"$implements": ["Node"],
+		"fields": ["id", "name", "description", "color"]
+	},
+	"LabelConnection": ["nodes", "edges", "pageInfo", "totalCount"],
+	"LabelEdge": "*",
+	"Milestone": {
+		"$implements": [],
+		"fields": ["number", "title", "description", "dueOn"]
+	},
+	"IssueComment": {
+		"$implements": ["Node"],
+		"fields": [
+			"id",
+			"author",
+			"authorAssociation",
+			"body",
+			"createdAt",
+			"includesCreatedEdit",
+			"isMinimized",
+			"minimizedReason",
+			"reactionGroups",
+			"url",
+			"viewerDidAuthor"
+		]
+	},
+	"IssueCommentConnection": ["nodes", "edges", "pageInfo", "totalCount"],
+	"IssueCommentEdge": "*",
+	"ReactionGroup": {
+		"$implements": [],
+		"fields": [
+			"content",
+			{
+				"name": "users",
+				"args": []
+			}
+		]
+	},
+	"ReactionContent": "*",
+	"StatusCheckRollup": {
+		"$implements": [],
+		"fields": ["contexts"]
+	},
+	"StatusCheckRollupContext": ["CheckRun", "StatusContext"],
+	"StatusCheckRollupContextConnection": [
+		"nodes",
+		"edges",
+		"pageInfo",
+		"totalCount"
+	],
+	"StatusCheckRollupContextEdge": "*",
+	"StatusContext": {
+		"$implements": [],
+		"fields": ["context", "state", "targetUrl", "createdAt", "description"]
+	},
+	"StatusState": "*",
+	"CheckRun": {
+		"$implements": [],
+		"fields": [
+			"name",
+			"checkSuite",
+			"status",
+			"conclusion",
+			"startedAt",
+			"completedAt",
+			"detailsUrl"
+		]
+	},
+	"CheckStatusState": "*",
+	"CheckConclusionState": "*",
+	"CheckSuite": {
+		"$implements": [],
+		"fields": ["workflowRun"]
+	},
+	"WorkflowRun": {
+		"$implements": [],
+		"fields": ["workflow"]
+	},
+	"Workflow": {
+		"$implements": [],
+		"fields": ["name"]
+	},
+	"ReactingUserConnection": ["totalCount"],
+	"Release": ["tagCommit"]
+}

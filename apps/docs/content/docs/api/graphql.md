@@ -37,7 +37,8 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo edit`, `gh repo delete`, `gh repo archive` | REST `PATCH`/`DELETE /repos/{owner}/{repo}` are served; topic edits and `gh repo view --json repositoryTopics` need GraphQL `repositoryTopics` (not yet) |
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue …`, `gh label …` | Not yet (issues domain) |
-| `gh pr …` | Not yet (pulls domain) |
+| `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested, not yet measured with real gh |
+| `gh pr status` | Not yet (requires GraphQL search) |
 
 ## Authentication and scopes
 
@@ -80,7 +81,8 @@ Errors use GitHub's shape, with the machine-readable `type` beside the message:
 
 Checked before any resolver runs:
 
-- Every connection needs `first` or `last`, each at most 100
+- Every connection that reads a page needs `first` or `last`, each at most 100
+  (count-only `totalCount` selections need neither)
   (`MISSING_PAGINATION_BOUNDARIES`, `EXCESSIVE_PAGINATION`).
 - The node count (each connection's page size times its parents') is at most
   50,000 (`MAX_NODE_LIMIT_EXCEEDED`), deliberately tighter than GitHub's
@@ -136,8 +138,36 @@ A blame costs 5 rate-limit points and a query may ask for at most one.
 `isLatest`, `isPrerelease`, `createdAt`, `publishedAt`, `author`,
 `releaseAssets`, `url`) and `ReleaseAsset` (`name`, `size`, `contentType`,
 `downloadCount`, `downloadUrl`, `uploadedBy`). Drafts appear to writers only,
-and `release(tagName:)` finds published releases. `tag`, `tagCommit`,
-reactions and mentions are not served.
+and `release(tagName:)` finds published releases. `tag`, reactions and mentions are not served; `tagCommit` resolves the tagged commit.
+
+`Repository.pullRequest(number:)` and `pullRequests(first:, after:, states:,
+baseRefName:, headRefName:, labels:, orderBy:)` serve GitHub's `PullRequest`
+shape, including `isDraft`, identity, branches, author, state, comments,
+labels, assignees, milestone, reviews, review requests, reactions, diff totals,
+and commits with status/check rollups. `CLOSED` excludes merged pull requests;
+`MERGED` selects them. Default `gh pr list` and `gh pr view` documents are
+validated and executed against the real stores in behavior tests. There are
+no cross-repository pulls, native auto-merge, or native Actions workflows.
+Review reactions are not stored. Mergeability reports `UNKNOWN` until a merge
+is attempted. Commit walks and page offsets are bounded; exceeding a bound
+returns `UNPROCESSABLE`, never a truncated connection presented as complete.
+
+`createPullRequest(input:)` accepts `draft`, repository node id, head/base
+branches, title and body. It requires write access and a `repo:write` token,
+rejects missing branches, duplicate open pulls and branches with no new
+commits, and applies the same text limits as REST/web. Cross-repository heads
+and disabling maintainer modifications are unsupported and rejected.
+`markPullRequestReadyForReview` and `convertPullRequestToDraft` accept a pull
+request node id, preserve `clientMutationId`, and allow its author or a writer
+to change an open pull request. Marking ready requests CODEOWNERS reviews.
+Every top-level mutation costs at least five GraphQL rate-limit points,
+including aliases.
+
+`Commit.zipballUrl` and `Commit.tarballUrl` point to source archives pinned to
+the commit sha. Reach them through `Ref.target` or `Repository.object` using
+an inline fragment on `Commit`, as in GitHub's schema; these fields are not
+on `Repository`, `Ref`, or `Release`. Releases expose the commit through `Release.tagCommit`. Private archive downloads require an
+authorized session or PAT, just like other archive URLs.
 
 `createRepository` refuses what PushStack cannot do (`teamId`, `template`,
 `homepageUrl`, `INTERNAL`, disabling issues) with `UNPROCESSABLE`; it accepts

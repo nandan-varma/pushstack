@@ -14,7 +14,6 @@ import {
 	getOperationAST,
 	getVariableValues,
 	parse,
-	specifiedRules,
 	validate,
 } from "graphql";
 import { oauthScopesHeader } from "../api/auth";
@@ -39,6 +38,7 @@ import {
 } from "./errors";
 import { analyzeQuery } from "./limits";
 import { getSchema } from "./schema";
+import { githubValidationRules } from "./validation";
 
 const GRAPHQL_DOCS =
 	"https://docs.github.com/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql";
@@ -102,7 +102,7 @@ async function serve(request: Request): Promise<Response> {
 			}
 			throw error;
 		}
-		const invalid = validate(schema, document, specifiedRules);
+		const invalid = validate(schema, document, githubValidationRules);
 		if (invalid.length > 0) return json(errorsBody(invalid.map(formatError)));
 
 		const operation = getOperationAST(document, operationName ?? undefined);
