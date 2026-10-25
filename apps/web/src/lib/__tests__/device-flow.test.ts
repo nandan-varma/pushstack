@@ -84,6 +84,50 @@ describe("OAuth wire format", () => {
 		expect([...(await readRequestParams(broken)).keys()]).toEqual([]);
 	});
 
+	it("refuses on a declared Content-Length over the cap without reading the body", async () => {
+		const body = new ReadableStream({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode("client_id=abc"));
+				controller.close();
+			},
+		});
+		const request = new Request("https://git.test/login/device/code", {
+			method: "POST",
+			headers: {
+				"content-type": "application/x-www-form-urlencoded",
+				"content-length": String(MAX_DEVICE_REQUEST_BYTES + 1),
+			},
+			body,
+			duplex: "half",
+		} as RequestInit);
+		await expect(readRequestParams(request)).rejects.toBeInstanceOf(
+			RequestBodyTooLargeError,
+		);
+		// The declared length is checked before any body byte is read.
+		expect(request.bodyUsed).toBe(false);
+	});
+
+	it("refuses a chunked body over the cap even when its declared length is small", async () => {
+		const oversize = "x".repeat(MAX_DEVICE_REQUEST_BYTES + 1);
+		const request = new Request("https://git.test/login/device/code", {
+			method: "POST",
+			headers: {
+				"content-type": "application/x-www-form-urlencoded",
+				"content-length": "10",
+			},
+			body: new ReadableStream({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode(oversize));
+					controller.close();
+				},
+			}),
+			duplex: "half",
+		} as RequestInit);
+		await expect(readRequestParams(request)).rejects.toBeInstanceOf(
+			RequestBodyTooLargeError,
+		);
+	});
+
 	it("refuses a body over the cap, declared or streamed, instead of parsing it", async () => {
 		const oversize = `client_id=abc&pad=${"x".repeat(MAX_DEVICE_REQUEST_BYTES)}`;
 		const declared = new Request("https://git.test/login/device/code", {

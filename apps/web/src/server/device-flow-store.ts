@@ -31,19 +31,30 @@ const MAX_USER_CODE_ATTEMPTS = 5;
  * bucket is spent. Both buckets are checked, so neither a single account nor
  * one address can be used to brute-force codes.
  */
-export async function meterUserCodeAttempt(
+/** Seconds a refused caller is told to wait when the limiter could not count. */
+const USER_CODE_UNCOUNTED_RETRY_SECONDS = 60;
+
+/**
+ * Counts one user-code attempt and returns the seconds to wait when it is
+ * refused, or null when it may proceed. Fails closed: when the counter cannot
+ * be read (hitRateLimit returns null on a database error), the attempt is
+ * refused, because brute force is the threat this bucket exists for. The
+ * approval page needs the database anyway, so nothing else is lost.
+ */
+export async function userCodeAttemptRefusal(
 	request: Request,
 	userId: string,
-): Promise<void> {
+): Promise<number | null> {
 	const rates = await Promise.all([
 		hitRateLimit("device-user-code", identityFor(request, userId)),
 		hitRateLimit("device-user-code", identityFor(request, null)),
 	]);
-	const exceeded = rates.find((rate) => rate?.exceeded);
-	if (exceeded) {
-		const seconds = Math.max(1, exceeded.reset - Math.floor(Date.now() / 1000));
-		throw new Error(`Too many code attempts. Try again in ${seconds} seconds.`);
+	if (rates.some((rate) => rate === null)) {
+		return USER_CODE_UNCOUNTED_RETRY_SECONDS;
 	}
+	const exceeded = rates.find((rate) => rate?.exceeded);
+	if (!exceeded) return null;
+	return Math.max(1, exceeded.reset - Math.floor(Date.now() / 1000));
 }
 
 export interface DeviceCodeGrant {

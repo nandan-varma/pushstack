@@ -117,7 +117,12 @@ Limits (`rate-limit.ts`, the same counters as `/api/v3`, knobs in `config.ts`):
   `Retry-After`.
 - Every user code typed on the approval page (a lookup or a decision) is
   counted per signed-in user and per client IP (`RATE_LIMIT_DEVICE_USER_CODE_USER`,
-  20; `RATE_LIMIT_DEVICE_USER_CODE_IP`, 60). Over either limit the call fails.
+  20; `RATE_LIMIT_DEVICE_USER_CODE_IP`, 60). Over either limit the call answers
+  `429` with `Retry-After`. The approval page's server functions are plain
+  text, not GitHub's API error body. This bucket fails **closed**: if the
+  counter cannot be read, the attempt is refused with a 60 second retry, since
+  brute force is the threat and the page needs the database anyway. Starts
+  (above) fail **open** instead, because a start guesses nothing.
 - Polls are gated by one conditional `UPDATE` (a poll is admitted only when the
   previous one is at least `interval` old). A too-soon poll is `slow_down`, and
   its interval step is computed in SQL from the stored interval, so concurrent

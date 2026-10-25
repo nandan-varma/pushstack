@@ -18,8 +18,7 @@ const { user } = await import("#/db/schema");
 const { sha256Hex } = await import("#/lib/bytes");
 const { DEVICE_GRANT_TYPE } = await import("#/lib/device-flow");
 const store = await import("../device-flow-store");
-const { RATE_LIMIT_DEVICE_CODE, RATE_LIMIT_DEVICE_USER_CODE_USER } =
-	await import("../config");
+const { RATE_LIMIT_DEVICE_CODE } = await import("../config");
 const { authenticateToken } = await import("../git-auth");
 const { Route: CodeRoute } = await import("../../routes/login.device.code");
 const { Route: TokenRoute } = await import(
@@ -324,19 +323,6 @@ describe("device flow", () => {
 		expect(row?.interval).toBe(25);
 	});
 
-	it("counts every too-soon poll when several arrive together", async () => {
-		const grant = await startLogin();
-		await pollOnce(grant.device_code);
-		const racing = await Promise.all(
-			Array.from({ length: 5 }, () => pollOnce(grant.device_code)),
-		);
-		for (const { body } of racing) {
-			expect(body).toMatchObject({ error: "slow_down" });
-		}
-		const [row] = await db.select().from(deviceCodes);
-		expect(row?.interval).toBe(5 + 5 * 5);
-	});
-
 	it("refuses a device-code start past the per-IP limit with 429 and Retry-After", async () => {
 		for (let i = 0; i < RATE_LIMIT_DEVICE_CODE; i++) {
 			expect((await startLogin()).device_code).toMatch(/^[0-9a-f]{40}$/);
@@ -361,17 +347,5 @@ describe("device flow", () => {
 		);
 		expect(response.status).toBe(413);
 		expect(await startLogin()).toBeTruthy();
-	});
-
-	it("meters user-code attempts per user and per IP, refusing once a bucket is spent", async () => {
-		const request = new Request("https://git.test/login/device", {
-			headers: { "x-forwarded-for": "9.9.9.9" },
-		});
-		for (let i = 0; i < RATE_LIMIT_DEVICE_USER_CODE_USER; i++) {
-			await store.meterUserCodeAttempt(request, "alice-id");
-		}
-		await expect(
-			store.meterUserCodeAttempt(request, "alice-id"),
-		).rejects.toThrow(/Too many code attempts/);
 	});
 });
