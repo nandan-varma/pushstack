@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db } from "#/db";
-import { pullRequestReviews } from "#/db/app-schema";
+import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { anchorKey, collectDiffAnchors } from "#/lib/diff";
+import { MAX_REVIEW_COMMENTS_PER_PULL_REQUEST } from "#/lib/limits";
 import type {
 	PullRequestReviewSummary,
 	ReviewCommentView,
@@ -23,8 +24,22 @@ type PendingReview = NonNullable<Awaited<ReturnType<typeof pendingReviewFor>>>;
 
 type ReviewCommentRow = Awaited<ReturnType<typeof listReviewComments>>[number];
 
+/** Refuse a new review comment once the pull request holds the cap. */
+export async function assertReviewCommentCapacity(pullRequestId: number) {
+	const [row] = await db
+		.select({ total: count() })
+		.from(pullRequestReviewComments)
+		.where(eq(pullRequestReviewComments.pullRequestId, pullRequestId));
+	if ((row?.total ?? 0) >= MAX_REVIEW_COMMENTS_PER_PULL_REQUEST) {
+		throw new Error(
+			`A pull request holds at most ${MAX_REVIEW_COMMENTS_PER_PULL_REQUEST} review comments`,
+		);
+	}
+}
+
 export async function listReviewComments(pullRequestId: number) {
 	return db.query.pullRequestReviewComments.findMany({
+		limit: MAX_REVIEW_COMMENTS_PER_PULL_REQUEST,
 		where: { pullRequestId },
 		with: {
 			author: publicUserFields,

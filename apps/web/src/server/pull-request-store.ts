@@ -14,6 +14,7 @@ import { recordActivity } from "./activity";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
 import { recordThreadActivity } from "./notification-store";
+import { logError } from "./perf-log";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import {
 	findPullRequestById,
@@ -27,6 +28,24 @@ import {
 } from "./timeline-store";
 
 export type { PullRequest };
+
+/**
+ * Compensating delete for a half-made pull request. It never throws: the
+ * caller rethrows the original error, and a failed cleanup (an orphaned row)
+ * is logged for someone to remove.
+ */
+async function discardIssueRow(issueId: number, why: string): Promise<void> {
+	await db
+		.delete(issues)
+		.where(eq(issues.id, issueId))
+		.catch((cleanup: unknown) =>
+			logError(
+				"pull-request-store",
+				`Issue row ${issueId} was left behind after a ${why}`,
+				cleanup,
+			),
+		);
+}
 
 export async function insertPullRequest(
 	repoId: number,
@@ -63,29 +82,36 @@ export async function insertPullRequest(
 		.catch(async (error: unknown) => {
 			// No half-made pull request: an issue row flagged as one without
 			// its branches would break every read of it.
-			await db.delete(issues).where(eq(issues.id, issue.id));
+			await discardIssueRow(issue.id, "failed pull request insert");
 			throw error;
 		});
 	if (!fields) throw new Error("Pull request insert returned no row");
 	const { issueId: _, ...prFields } = fields;
 	const pr = pullRequestOf(issue, prFields);
-	await recordCrossReferences(
-		repoId,
-		pr.id,
-		{ kind: "pull_request", number: pr.number, title: pr.title },
-		pr.body,
-		userId,
-	);
-	await recordThreadActivity({
-		thread: pr,
-		actorId: userId,
-		actorReason: "author",
-		text: pr.body,
-	});
-	await recordActivity(userId, repoId, {
-		type: "pr",
-		metadata: { number: pr.number, title: pr.title, action: "opened" },
-	});
+	// Compensate a failed write by deleting the rows (cascading to the pull
+	// request fields). A retry is duplicate-free when cleanup succeeds.
+	try {
+		await recordCrossReferences(
+			repoId,
+			pr.id,
+			{ kind: "pull_request", number: pr.number, title: pr.title },
+			pr.body,
+			userId,
+		);
+		await recordThreadActivity({
+			thread: pr,
+			actorId: userId,
+			actorReason: "author",
+			text: pr.body,
+		});
+		await recordActivity(userId, repoId, {
+			type: "pr",
+			metadata: { number: pr.number, title: pr.title, action: "opened" },
+		});
+	} catch (error) {
+		await discardIssueRow(issue.id, "failed pull request write");
+		throw error;
+	}
 	return pr;
 }
 
@@ -249,6 +275,9 @@ export async function mergePullRequestBranches(
 		.where(and(eq(issues.id, pr.id), eq(issues.status, "open")))
 		.returning({ id: issues.id });
 	if (!closed) return { success: true, commitSha: result.commitSha };
+	// The status flip above already claimed the merge. If recording it fails,
+	// reopen, or the pull request would stay closed-but-unmerged for good
+	// (git's side is done, so a retry merges again).
 	await db
 		.update(pullRequests)
 		.set({
@@ -258,7 +287,26 @@ export async function mergePullRequestBranches(
 			baseSha: result.baseSha,
 			headSha: result.headSha,
 		})
-		.where(eq(pullRequests.issueId, pr.id));
+		.where(eq(pullRequests.issueId, pr.id))
+		.catch(async (error: unknown) => {
+			await db
+				.update(issues)
+				.set({
+					status: "open",
+					closedAt: null,
+					closedById: null,
+					updatedAt: new Date(),
+				})
+				.where(eq(issues.id, pr.id))
+				.catch((cleanup: unknown) =>
+					logError(
+						"pull-request-store",
+						`Reopen of #${pr.number} failed`,
+						cleanup,
+					),
+				);
+			throw error;
+		});
 	await recordTimelineEvent(pr.id, user.id, {
 		event: "merged",
 		commitSha: result.commitSha,

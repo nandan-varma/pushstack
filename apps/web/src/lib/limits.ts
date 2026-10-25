@@ -133,6 +133,9 @@ export const MAX_CODEOWNERS_BYTES = 3 * 1024 * 1024;
  */
 export const MAX_REVIEW_PATH_CHARS = 4096;
 
+/** Review comments (line comments and replies) one pull request holds. */
+export const MAX_REVIEW_COMMENTS_PER_PULL_REQUEST = 2000;
+
 export const MAX_THREAD_TITLE_CHARS = 256;
 
 /** A template query parameter names one file in ISSUE_TEMPLATE. */

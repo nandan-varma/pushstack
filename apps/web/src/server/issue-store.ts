@@ -11,10 +11,11 @@ import { db } from "#/db";
 import { type Issue, issues } from "#/db/app-schema";
 import { labelNameSchema } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
-import { recordActivity } from "./activity";
+import { deleteActivity, recordActivity } from "./activity";
 import { replaceThreadAssignees } from "./assignees-store";
 import { setThreadLabels } from "./label-store";
 import { recordThreadActivity } from "./notification-store";
+import { logError } from "./perf-log";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
 
@@ -28,7 +29,7 @@ export const issueLabelsSchema = z
  * Create an issue with its labels and assignees. All-or-nothing: the Neon HTTP
  * driver has no interactive transactions, so any failure after the row exists
  * deletes it again (cascading to labels and assignees). A retry then creates
- * one issue, never a duplicate.
+ * one issue when cleanup succeeds; cleanup failures are logged.
  */
 export async function createIssueForUser(
 	repoId: number,
@@ -51,6 +52,7 @@ export async function createIssueForUser(
 		})
 		.returning();
 	if (!issue) throw new Error("Issue insert returned no row");
+	let activityId: number | undefined;
 	try {
 		const labels = await setThreadLabels(issue, data.labels, userId);
 		if (data.assignees?.length)
@@ -62,19 +64,39 @@ export async function createIssueForUser(
 			issue.body,
 			userId,
 		);
+		// Record activity before the final author/mention notifications.
+		activityId = await recordActivity(userId, repoId, {
+			type: "issue",
+			metadata: { number: issue.number, title: issue.title, action: "opened" },
+		});
 		await recordThreadActivity({
 			thread: issue,
 			actorId: userId,
 			actorReason: "author",
 			text: issue.body,
 		});
-		await recordActivity(userId, repoId, {
-			type: "issue",
-			metadata: { number: issue.number, title: issue.title, action: "opened" },
-		});
 		return { ...issue, labels };
 	} catch (error) {
-		await db.delete(issues).where(eq(issues.id, issue.id));
+		// Cascades remove the issue's notifications; the activity row has no
+		// foreign key, so it is removed here.
+		if (activityId !== undefined)
+			await deleteActivity(activityId).catch((cleanup: unknown) =>
+				logError(
+					"issue-store",
+					`Activity ${activityId} was not removed after a failed issue write`,
+					cleanup,
+				),
+			);
+		await db
+			.delete(issues)
+			.where(eq(issues.id, issue.id))
+			.catch((cleanup: unknown) =>
+				logError(
+					"issue-store",
+					`Issue ${issue.id} was not removed after a failed write`,
+					cleanup,
+				),
+			);
 		throw error;
 	}
 }

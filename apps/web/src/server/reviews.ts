@@ -14,6 +14,7 @@ import {
 } from "./repo-access";
 import {
 	assertReviewAnchor,
+	assertReviewCommentCapacity,
 	buildReviewThreads,
 	findOrCreatePendingReview,
 	listReviewComments,
@@ -101,6 +102,7 @@ export const createReviewComment = createServerFn({ method: "POST" })
 			pr.repoId,
 			async (repo) => {
 				await requireParticipateAccess(pr.repoId, currentUser.id);
+				await assertReviewCommentCapacity(pr.id);
 
 				if (data.inReplyToId !== undefined) {
 					const parent = await db.query.pullRequestReviewComments.findFirst({
