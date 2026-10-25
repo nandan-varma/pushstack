@@ -10,9 +10,12 @@ vi.mock(
 	async () => (await import("../../test/app-harness")).sessionModule,
 );
 const { createUsers, signIn } = await import("../../test/app-harness");
-const { call, post, mintToken } = await import("../../test/api-client");
+const { call, patch, post, mintToken } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { encodeNodeId } = await import("../graphql/node-id");
+const repositories = await import("../repositories");
+const reviews = await import("../reviews");
+const { findPullRequestByNumber } = await import("../thread-store");
 const files = await import("../files");
 const users = await createUsers("alice", "bob");
 let token: string;
@@ -410,6 +413,176 @@ it("creates exactly one pull request when concurrent creates race for the same h
 	expect(
 		results.filter((r) => r.body.errors?.[0]?.type === "UNPROCESSABLE"),
 	).toHaveLength(2);
+});
+
+it("merges with the REST rules, reports the actor and refuses a second merge or a reopen", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/merge-me", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "merge-me",
+			path: "merge.txt",
+			content: btoa("merge\n"),
+			commitMessage: "Merge me",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"merge-me",baseRefName:"main",title:"Merge me"}) { pullRequest { id } } }`,
+	);
+	const { id } = created.body.data.createPullRequest.pullRequest;
+	const squash = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${id}",mergeMethod:SQUASH}) { pullRequest { state } } }`,
+	);
+	expect(squash.body.errors[0].type).toBe("UNPROCESSABLE");
+	expect(squash.body.errors[0].message).toBe(
+		"Squash merges are not allowed on this repository.",
+	);
+	const stale = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${id}",expectedHeadOid:"${"0".repeat(40)}"}) { pullRequest { state } } }`,
+	);
+	expect(stale.body.errors[0].message).toBe(
+		"Head branch was modified. Review and try the merge again.",
+	);
+	const denied = await graphql(
+		reader,
+		`mutation { mergePullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state } } }`,
+	);
+	expect(denied.body.errors[0].type).toMatch(/FORBIDDEN|INSUFFICIENT_SCOPES/);
+	const merged = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${id}",clientMutationId:"m",commitHeadline:"Land it"}) { clientMutationId actor { login } pullRequest { state merged mergedAt } } }`,
+	);
+	expect(merged.body.errors).toBeUndefined();
+	expect(merged.body.data.mergePullRequest).toEqual({
+		clientMutationId: "m",
+		actor: { login: "alice" },
+		pullRequest: {
+			state: "MERGED",
+			merged: true,
+			mergedAt: expect.any(String),
+		},
+	});
+	const again = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state } } }`,
+	);
+	expect(again.body.errors[0].type).toBe("UNPROCESSABLE");
+	const reopen = await graphql(
+		token,
+		`mutation { reopenPullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state } } }`,
+	);
+	expect(reopen.body.errors[0].message).toBe(
+		"A merged pull request can't be reopened",
+	);
+	const retitled = await graphql(
+		token,
+		`mutation { updatePullRequest(input:{pullRequestId:"${id}",title:"Landed"}) { actor { login } pullRequest { title state } } }`,
+	);
+	expect(retitled.body.errors).toBeUndefined();
+	expect(retitled.body.data.updatePullRequest).toEqual({
+		actor: { login: "alice" },
+		pullRequest: { title: "Landed", state: "MERGED" },
+	});
+});
+
+it("refuses to merge in an archived repository", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/archived-pr", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "archived-pr",
+			path: "archived.txt",
+			content: btoa("archived\n"),
+			commitMessage: "Archived",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"archived-pr",baseRefName:"main",title:"Archived"}) { pullRequest { id } } }`,
+	);
+	const { id } = created.body.data.createPullRequest.pullRequest;
+	expect(
+		(await call("/repos/alice/proj", patch(token, { archived: true }))).status,
+	).toBe(200);
+	const merged = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state } } }`,
+	);
+	expect(merged.body.errors[0].message).toBe("Repository is archived");
+	const open = await graphql(
+		token,
+		`query { node(id:"${id}") { ... on PullRequest { state } } }`,
+	);
+	expect(open.body.data.node.state).toBe("OPEN");
+	await call("/repos/alice/proj", patch(token, { archived: false }));
+});
+
+it("blocks a write collaborator's merge while changes are requested, and lets the owner override", async () => {
+	signIn(users.alice);
+	const repoRest = await call("/repos/alice/proj");
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/blocked", sha: ref.body.object.sha }),
+	);
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "blocked",
+			path: "blocked.txt",
+			content: btoa("blocked\n"),
+			commitMessage: "Blocked",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"blocked",baseRefName:"main",title:"Blocked"}) { pullRequest { id number } } }`,
+	);
+	const { id, number } = created.body.data.createPullRequest.pullRequest;
+	await repositories.addCollaboratorByUsername({
+		data: { repoId: repoRest.body.id, username: "bob", role: "write" },
+	});
+	try {
+		signIn(users.bob);
+		const pr = await findPullRequestByNumber(repoRest.body.id, number);
+		if (!pr) throw new Error("The pull request is missing");
+		await reviews.submitReview({
+			data: { prId: pr.id, event: "request_changes" },
+		});
+		signIn(users.alice);
+		const blocked = await graphql(
+			reader,
+			`mutation { mergePullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state } } }`,
+		);
+		expect(blocked.body.errors[0].message).toBe(
+			"Pull Request is not mergeable",
+		);
+		const override = await graphql(
+			token,
+			`mutation { mergePullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state } } }`,
+		);
+		expect(override.body.errors).toBeUndefined();
+		expect(override.body.data.mergePullRequest.pullRequest.state).toBe(
+			"MERGED",
+		);
+	} finally {
+		await repositories.removeCollaborator({
+			data: { repoId: repoRest.body.id, userId: users.bob.id },
+		});
+	}
 });
 
 it("closes, reopens and updates a pull request, refusing base changes and blank titles", async () => {
