@@ -69,7 +69,3 @@ export const labelDescriptionSchema = z
 	.string()
 	.trim()
 	.max(MAX_LABEL_DESCRIPTION_CHARS);
-
-// Client components import this from `label-color.ts`: this module builds zod
-// schemas at load, which would pull zod into the browser bundle.
-export { labelTextColor } from "#/lib/label-color";

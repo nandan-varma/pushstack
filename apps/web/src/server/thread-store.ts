@@ -594,24 +594,6 @@ export async function findIssueById(id: number): Promise<Issue | null> {
 	return row ?? null;
 }
 
-export async function findIssueByNumber(
-	repoId: number,
-	number: number,
-): Promise<Issue | null> {
-	const [row] = await db
-		.select()
-		.from(issues)
-		.where(
-			and(
-				eq(issues.repoId, repoId),
-				eq(issues.number, number),
-				eq(issues.isPullRequest, false),
-			),
-		)
-		.limit(1);
-	return row ?? null;
-}
-
 export async function findPullRequestByNumber(
 	repoId: number,
 	number: number,
