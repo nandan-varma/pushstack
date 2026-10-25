@@ -29,9 +29,14 @@ function sameShape(left: GraphQLOutputType, right: GraphQLOutputType): boolean {
 			isListType(right) &&
 			sameShape(left.ofType, right.ofType)
 		);
-	// GitHub answers two enums under one response name (`Issue.state` and
-	// `PullRequest.state` in `gh issue view`), so enums of any name match.
-	if (isEnumType(left) && isEnumType(right)) return true;
+	// GitHub answers `Issue.state` and `PullRequest.state` under one response
+	// name (`gh issue view`); both carry the same OPEN/CLOSED string values.
+	if (
+		isEnumType(left) &&
+		isEnumType(right) &&
+		[left.name, right.name].sort().join(" ") === "IssueState PullRequestState"
+	)
+		return true;
 	return left === right;
 }
 const githubOverlappingFieldsRule: ValidationRule = (context) => {

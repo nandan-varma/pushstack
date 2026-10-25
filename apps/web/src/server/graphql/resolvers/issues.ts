@@ -166,9 +166,9 @@ async function issues(repo: RepositoryNode, args: RepositoryIssuesArgs) {
 	return offsetConnection(args, total, async (offset, limit) => {
 		if (offset > MAX_LIST_SKIP)
 			throw unprocessable("Pagination offset exceeds the maximum");
-		return (await listThreads(filter, { offset, limit, sort })).threads.map(
-			(row) => issueNode(repo, row),
-		);
+		const { threads } = await listThreads(filter, { offset, limit, sort });
+		assertTextBytes(threads);
+		return threads.map((row) => issueNode(repo, row));
 	});
 }
 
@@ -182,6 +182,8 @@ const threadReactions = (node: IssueNode, ctx: GraphQLContext) =>
 		listThreadReactions(node.row.id, ctx.caller.userId),
 	);
 
+type AuthorAssociation = "OWNER" | "NONE" | "COLLABORATOR";
+
 async function commentNodes(
 	node: IssueNode,
 	ctx: GraphQLContext,
@@ -191,20 +193,32 @@ async function commentNodes(
 	const rows = await listCommentsForThread(node.row, { offset, limit });
 	assertTextBytes(rows);
 	const reactions = await threadReactions(node, ctx);
+	// One access lookup per distinct author on the page, not per comment.
+	const associations = new Map<string, Promise<AuthorAssociation>>();
+	const associationOf = (userId: string) => {
+		let association = associations.get(userId);
+		if (!association) {
+			association = getAccessForRepository(node.repo.row, userId).then(
+				(access): AuthorAssociation =>
+					access.role === "owner"
+						? "OWNER"
+						: access.role === "anonymous"
+							? "NONE"
+							: "COLLABORATOR",
+			);
+			associations.set(userId, association);
+		}
+		return association;
+	};
 	return Promise.all(
 		rows.map(async (row) => {
 			const author = await loadUser(ctx, row.authorId);
 			if (!author) throw new Error("Comment author missing");
-			const access = await getAccessForRepository(node.repo.row, row.authorId);
+			const association = await associationOf(row.authorId);
 			return {
 				id: encodeNodeId("IssueComment", row.id),
 				author: userNode(author),
-				authorAssociation:
-					access.role === "owner"
-						? ("OWNER" as const)
-						: access.role === "anonymous"
-							? ("NONE" as const)
-							: ("COLLABORATOR" as const),
+				authorAssociation: association,
 				body: row.body,
 				createdAt: isoTimestamp(row.createdAt),
 				includesCreatedEdit: row.editedAt !== null,

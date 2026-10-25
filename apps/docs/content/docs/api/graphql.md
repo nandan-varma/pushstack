@@ -148,23 +148,26 @@ and `release(tagName:)` finds published releases. `tag`, reactions and mentions 
 
 `Repository.pullRequest(number:)` and `pullRequests(first:, after:, states:,
 baseRefName:, headRefName:, labels:, orderBy:)` serve GitHub's `PullRequest`
-shape, including `isDraft`, identity, branches, author, state, comments,
-labels, assignees, milestone, reviews, review requests, reactions, diff totals,
-and commits with status/check rollups. A `labels` filter takes at most 100 names (`UNPROCESSABLE` beyond that). `CLOSED` excludes merged pull requests;
-`MERGED` selects them. Default `gh pr list` and `gh pr view` documents are
-validated and executed against the real stores in behavior tests. There are
-no cross-repository pulls, native auto-merge, or native Actions workflows.
-Review reactions are not stored. Mergeability reports `UNKNOWN` until a merge
-is attempted. Commit walks and page offsets are bounded; exceeding a bound
-returns `UNPROCESSABLE`, never a truncated connection presented as complete.
+shape, including `isDraft`, identity, branches, author, state, comments, labels,
+assignees, milestone, reviews, review requests, reactions, diff totals, and
+commits with status/check rollups. A `labels` filter takes at most 100 names
+(`UNPROCESSABLE` beyond that). `CLOSED` excludes merged pull requests; `MERGED`
+selects them. Default `gh pr list` and `gh pr view` documents are validated and
+executed against the real stores in behavior tests. There are no cross-
+repository pulls, native auto-merge, or native Actions workflows. Review
+reactions are not stored. Mergeability reports `UNKNOWN` until a merge is
+attempted. Commit walks and page offsets are bounded; exceeding a bound returns
+`UNPROCESSABLE`, never a truncated connection presented as complete.
 
 `createPullRequest(input:)` accepts `draft`, repository node id, head/base
 branches, title and body. It requires write access and a `repo:write` token,
-rejects missing branches, duplicate open pulls (checked and inserted under the repository lock, so concurrent creates cannot both succeed) and branches with no new
-commits, and applies the same text limits as REST/web. Cross-repository heads
-and disabling maintainer modifications are unsupported and rejected.
+rejects missing branches, duplicate open pulls (checked and inserted under the
+repository lock, so concurrent creates cannot both succeed) and branches with no
+new commits, and applies the same text limits as REST/web. Cross-repository
+heads and disabling maintainer modifications are unsupported and rejected.
 `markPullRequestReadyForReview` and `convertPullRequestToDraft` accept a pull
 request node id, preserve `clientMutationId`, and allow its author or a writer
+<<<<<<< HEAD
 to change an open pull request. Marking ready requests CODEOWNERS reviews.
 `closePullRequest`, `reopenPullRequest` and `updatePullRequest` (title, body,
 `state`) follow the same author-or-writer rule. Closing a merged pull request
@@ -173,6 +176,11 @@ refuses a changed `baseRefName` and labels, assignees, milestone and projects
 are not yet accepted (unknown fields fail validation rather than being ignored).
 Every top-level mutation costs at least five GraphQL rate-limit points,
 including aliases.
+=======
+to change an open pull request. Marking ready requests CODEOWNERS reviews. Every
+top-level mutation costs at least five GraphQL rate-limit points, including
+aliases.
+>>>>>>> ab1d005 (GraphQL issues: bound issue page bodies, dedupe comment associations, narrow the state-enum overlap rule (#270))
 
 `Commit.zipballUrl` and `Commit.tarballUrl` point to source archives pinned to
 the commit sha. Reach them through `Ref.target` or `Repository.object` using
@@ -185,17 +193,20 @@ authorized session or PAT, just like other archive URLs.
 `hasWikiEnabled`, which gh always sends, and the repository reports
 the default (`hasWikiEnabled: false`).
 
-`Repository.issue(number:)`, `issueOrPullRequest(number:)` and
-`issues(first:, after:, last:, before:, states:, labels:, orderBy:, filterBy:)`
-serve `Issue` (identity, `title`, `body`, `state`, `stateReason`, `closed`,
-`closedAt`, `author`, `repository`, `milestone`, `labels`, `assignees`,
-`comments`, `reactionGroups`, URLs). `states` and `filterBy.states` both narrow,
-and `filterBy` serves `assignee`, `createdBy`, `mentioned`, `labels` and
-`milestone`; `since` and `viewerSubscribed: true` are `UNPROCESSABLE`. An issue
-has no type, parent or sub-issues in PushStack, so `issueType` and `parent` are
+`Repository.issue(number:)`, `issueOrPullRequest(number:)` and `issues(first:,
+after:, last:, before:, states:, labels:, orderBy:, filterBy:)` serve `Issue`
+(identity, `title`, `body`, `state`, `stateReason`, `closed`, `closedAt`,
+`author`, `repository`, `milestone`, `labels`, `assignees`, `comments`,
+`reactionGroups`, URLs). `states` and `filterBy.states` both narrow, and
+`filterBy` serves `assignee`, `createdBy`, `mentioned`, `labels` and
+`milestone`; `since` and `viewerSubscribed: true` are `UNPROCESSABLE`. Labels
+filters, `labels` and `filterBy.labels` together, take at most 100 names
+(`UNPROCESSABLE` beyond that). An issue page whose bodies exceed the 1 MB
+comment-style budget is `UNPROCESSABLE`, so ask for fewer issues. An issue has
+no type, parent or sub-issues in PushStack, so `issueType` and `parent` are
 null, `subIssues` is empty and `subIssuesSummary` is zero. Without a `states`
-argument every issue is listed. An unknown number is `NOT_FOUND`, and an issue
-is a `node(id:)` target. Issue mutations are not served yet.
+argument every issue is listed. An unknown or unreadable number is `NOT_FOUND`,
+and an issue is a `node(id:)` target. Issue mutations are not served yet.
 
 The GraphQL overlap check accepts two enum types under one response name, as
 GitHub does for `Issue.state` and `PullRequest.state` in `gh issue view`.

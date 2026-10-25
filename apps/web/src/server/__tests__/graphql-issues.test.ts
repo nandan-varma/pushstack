@@ -7,8 +7,11 @@
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+const { queries } = vi.hoisted(() => ({ queries: [] as string[] }));
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/pglite-db")).createTestDb({
+		onQuery: (query) => queries.push(query),
+	}),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
@@ -25,6 +28,7 @@ const { db } = await import("#/db");
 const users = await createUsers("alice", "bob");
 let alice: string;
 let bob: string;
+let repoId: number;
 
 const LIST = `query IssueList($owner: String!, $name: String!, $first: Int, $states: [IssueState!], $orderBy: IssueOrder) {
   repository(owner: $owner, name: $name) {
@@ -44,6 +48,7 @@ beforeAll(async () => {
 		where: { name: "proj" },
 	});
 	if (!repo) throw new Error("alice/proj missing");
+	repoId = repo.id;
 	for (const title of ["first", "second", "third"]) {
 		await createIssueForUser(repo.id, users.alice.id, {
 			title,
@@ -105,6 +110,86 @@ describe("Repository.issues", () => {
 		expect(body.errors?.map((e: { type?: string }) => e.type)).toEqual([
 			"NOT_FOUND",
 		]);
+	});
+});
+
+describe("response and query budgets", () => {
+	it("refuses an issue page whose bodies exceed the response budget", async () => {
+		const body = "x".repeat(65_536);
+		for (let i = 0; i < 16; i++) {
+			await createIssueForUser(repoId, users.alice.id, {
+				title: `big ${i}`,
+				body,
+				labels: [],
+			});
+		}
+		const query = `query($first: Int!) { repository(owner: "alice", name: "proj") { issues(first: $first) { nodes { body } } } }`;
+		const over = await graphql(bob, query, { first: 16 });
+		expect(over.body.data.repository).toBeNull();
+		expect(over.body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+		const under = await graphql(bob, query, { first: 10 });
+		expect(under.body.errors).toBeUndefined();
+		expect(under.body.data.repository.issues.nodes).toHaveLength(10);
+	});
+
+	it("looks up each comment author's association once per page", async () => {
+		for (const text of ["one", "two", "three"]) {
+			const posted = await call(
+				"/repos/alice/proj/issues/1/comments",
+				post(bob, { body: text }),
+			);
+			expect(posted.status).toBe(201);
+		}
+		// Comment reads: one collaborator lookup for the viewer, however many
+		// comments (all by one non-owner author) the page holds.
+		const lookups = async (last: number) => {
+			queries.length = 0;
+			const { body } = await graphql(
+				bob,
+				`{ repository(owner: "alice", name: "proj") { issue(number: 1) { comments(last: ${last}) { nodes { authorAssociation } } } } }`,
+			);
+			expect(body.errors).toBeUndefined();
+			return queries.filter((q) => q.includes('"repository_collaborators"'))
+				.length;
+		};
+		expect(await lookups(10)).toBe(await lookups(1));
+	});
+});
+
+describe("private repositories", () => {
+	it("answers NOT_FOUND to a non-collaborator for every issue read", async () => {
+		await call("/user/repos", post(alice, { name: "secret", private: true }));
+		const repo = await db.query.repositories.findFirst({
+			where: { name: "secret" },
+		});
+		if (!repo) throw new Error("alice/secret missing");
+		await createIssueForUser(repo.id, users.alice.id, {
+			title: "private",
+			labels: [],
+		});
+		const issue = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "secret") { issue(number: 1) { id } } }`,
+		);
+		const id = issue.body.data.repository.issue.id;
+		const reads = [
+			`{ repository(owner: "alice", name: "secret") { issue(number: 1) { id } } }`,
+			`{ repository(owner: "alice", name: "secret") { issues(first: 5) { totalCount } } }`,
+			`{ repository(owner: "alice", name: "secret") { issueOrPullRequest(number: 1) { __typename } } }`,
+		];
+		for (const query of reads) {
+			const { body } = await graphql(bob, query);
+			expect(body.data.repository).toBeNull();
+			expect(body.errors?.map((e: { type?: string }) => e.type)).toEqual([
+				"NOT_FOUND",
+			]);
+		}
+		const { body } = await graphql(
+			bob,
+			`query($id: ID!) { node(id: $id) { ... on Issue { number } } }`,
+			{ id },
+		);
+		expect(body.data.node).toBeNull();
 	});
 });
 
