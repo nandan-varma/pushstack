@@ -205,17 +205,21 @@ export async function loadRepositoryTemplates(repo: {
 		function withinFileLimit(): boolean {
 			return fileCount++ < MAX_TEMPLATE_FILES;
 		}
-		async function read(entry: TreeEntry): Promise<string> {
+		async function read(entry: TreeEntry): Promise<string | undefined> {
+			if (totalBytes >= MAX_TEMPLATE_TOTAL_BYTES) return undefined;
 			const size = await getBlobSize(owner, repo.name, entry.oid);
+			if (size > MAX_TEMPLATE_FILE_BYTES) return undefined;
+			if (totalBytes + size > MAX_TEMPLATE_TOTAL_BYTES) {
+				totalBytes = MAX_TEMPLATE_TOTAL_BYTES;
+				return undefined;
+			}
 			totalBytes += size;
-			if (
-				size > MAX_TEMPLATE_FILE_BYTES ||
-				totalBytes > MAX_TEMPLATE_TOTAL_BYTES
-			)
-				throw new Error("Repository templates exceed the size limit");
-			return new TextDecoder("utf-8", { fatal: true }).decode(
-				await getBlobByOid(owner, repo.name, entry.oid),
-			);
+			const bytes = await getBlobByOid(owner, repo.name, entry.oid);
+			try {
+				return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+			} catch {
+				return undefined;
+			}
 		}
 		const root = await getTree(owner, repo.name, commit);
 		async function directory(
@@ -235,9 +239,9 @@ export async function loadRepositoryTemplates(repo: {
 			const filename = entry.path.split("/").at(-1) ?? entry.path;
 			if (!/\.(md|ya?ml)$/i.test(filename)) continue;
 			if (!withinFileLimit()) break;
-			// Keep storage/size failures visible; only repository-authored parse errors
-			// are ignored, independently for each file.
+			// Storage failures remain visible; malformed repository files are omitted.
 			const source = await read(entry);
+			if (source === undefined) continue;
 			try {
 				if (/^config\.ya?ml$/i.test(filename)) {
 					const config = configSchema.parse(yaml(source));
@@ -272,11 +276,14 @@ export async function loadRepositoryTemplates(repo: {
 						!item.filename.toLowerCase().includes("pull_request_template/"),
 				) &&
 				withinFileLimit()
-			)
-				result.pullRequestTemplates.unshift({
-					filename: defaultFile.path,
-					body: await read(defaultFile),
-				});
+			) {
+				const body = await read(defaultFile);
+				if (body !== undefined)
+					result.pullRequestTemplates.unshift({
+						filename: defaultFile.path,
+						body,
+					});
+			}
 			const folder = entries.find(
 				(item) =>
 					item.type === "tree" &&
@@ -294,11 +301,11 @@ export async function loadRepositoryTemplates(repo: {
 							/\.md$/i.test(item.path),
 					)
 					.sort((a, b) => a.path.localeCompare(b.path)))
-					if (withinFileLimit())
-						result.pullRequestTemplates.push({
-							filename: entry.path,
-							body: await read(entry),
-						});
+					if (withinFileLimit()) {
+						const body = await read(entry);
+						if (body !== undefined)
+							result.pullRequestTemplates.push({ filename: entry.path, body });
+					}
 		}
 		return result;
 	});

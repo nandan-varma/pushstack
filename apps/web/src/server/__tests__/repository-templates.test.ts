@@ -27,7 +27,7 @@ async function setup(visibility: "public" | "private" = "public") {
 async function upload(
 	repoId: number,
 	path: string,
-	content: string,
+	content: string | Uint8Array,
 	branchName = "main",
 ) {
 	await files.uploadFile({
@@ -227,9 +227,9 @@ body:
 		);
 		await expect(
 			getRepositoryTemplates({ data: { repoId: repo.id } }),
-		).rejects.toThrow("size limit");
+		).resolves.toMatchObject({ pullRequestTemplates: [] });
 	});
-	it("rejects an oversized template instead of truncating the issue body", async () => {
+	it("omits an oversized PR template instead of truncating the body", async () => {
 		const repo = await setup();
 		await upload(
 			repo.id,
@@ -238,8 +238,27 @@ body:
 		);
 		await expect(
 			getRepositoryTemplates({ data: { repoId: repo.id } }),
-		).rejects.toThrow("size limit");
+		).resolves.toMatchObject({ pullRequestTemplates: [] });
 	});
+	it.each([
+		["oversized", "x".repeat(70_000)],
+		["invalid UTF-8", new Uint8Array([0xc3, 0x28])],
+	] as const)(
+		"omits an %s issue template while preserving valid templates",
+		async (_name, content) => {
+			const repo = await setup();
+			await upload(repo.id, ".github/ISSUE_TEMPLATE/aaa.md", content);
+			await upload(repo.id, ".github/ISSUE_TEMPLATE/bug.md", markdown);
+			await upload(repo.id, ".github/pull_request_template.md", "PR body");
+			const result = await getRepositoryTemplates({
+				data: { repoId: repo.id },
+			});
+			expect(result.issueTemplates.map((item) => item.filename)).toEqual([
+				"bug.md",
+			]);
+			expect(result.pullRequestTemplates[0]?.body).toBe("PR body");
+		},
+	);
 	it("applies only trusted template metadata for a reporter without write access", async () => {
 		const repo = await setup();
 		await upload(
