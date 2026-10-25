@@ -1,6 +1,6 @@
 name: Feature
 description: A capability PushStack should have (usually GitHub parity)
-labels: ["type:feature"]
+labels: ["feature"]
 body:
   - type: textarea
     id: goal
