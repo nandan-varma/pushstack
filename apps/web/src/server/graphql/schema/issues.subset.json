@@ -1,1 +1,84 @@
-{}
+{
+	"Repository": [
+		{
+			"name": "issue",
+			"args": ["number"]
+		},
+		{
+			"name": "issueOrPullRequest",
+			"args": ["number"]
+		},
+		{
+			"name": "issues",
+			"args": [
+				"after",
+				"before",
+				"first",
+				"last",
+				"labels",
+				"orderBy",
+				"states",
+				"filterBy"
+			]
+		}
+	],
+	"Issue": {
+		"$implements": ["Node", "UniformResourceLocatable"],
+		"fields": [
+			"id",
+			"databaseId",
+			"number",
+			"title",
+			"body",
+			"state",
+			"stateReason",
+			"url",
+			"resourcePath",
+			"createdAt",
+			"updatedAt",
+			"closedAt",
+			"closed",
+			"author",
+			"repository",
+			"milestone",
+			{
+				"name": "assignees",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "labels",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "comments",
+				"args": ["after", "before", "first", "last"]
+			},
+			"reactionGroups",
+			"issueType",
+			"parent",
+			{
+				"name": "subIssues",
+				"args": ["after", "before", "first", "last"]
+			},
+			"subIssuesSummary"
+		]
+	},
+	"IssueOrPullRequest": "*",
+	"IssueConnection": "*",
+	"IssueEdge": "*",
+	"IssueState": "*",
+	"IssueStateReason": "*",
+	"IssueFilters": [
+		"assignee",
+		"createdBy",
+		"labels",
+		"mentioned",
+		"milestone",
+		"since",
+		"states",
+		"viewerSubscribed"
+	],
+	"IssueTypeColor": "*",
+	"IssueType": ["id", "name", "description", "color"],
+	"SubIssuesSummary": "*"
+}

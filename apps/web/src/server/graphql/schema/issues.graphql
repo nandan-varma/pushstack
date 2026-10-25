@@ -2,3 +2,435 @@
 # (https://docs.github.com/public/fpt/schema.docs.graphql). Do not edit:
 # change issues.subset.json and re-run the script.
 
+extend type Repository {
+	"""
+	Returns a single issue from the current repository by number.
+	"""
+	issue(
+		"""
+		The number for the issue to be returned.
+		"""
+		number: Int!
+	): Issue
+	"""
+	Returns a single issue-like object from the current repository by number.
+	"""
+	issueOrPullRequest(
+		"""
+		The number for the issue to be returned.
+		"""
+		number: Int!
+	): IssueOrPullRequest
+	"""
+	A list of issues that have been opened in the repository.
+	"""
+	issues(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		A list of label names to filter the pull requests by.
+		"""
+		labels: [String!]
+		"""
+		Ordering options for issues returned from the connection.
+		"""
+		orderBy: IssueOrder
+		"""
+		A list of states to filter the issues by.
+		"""
+		states: [IssueState!]
+		"""
+		Filtering options for issues returned from the connection.
+		"""
+		filterBy: IssueFilters
+	): IssueConnection!
+}
+
+"""
+An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project.
+"""
+type Issue implements Node & UniformResourceLocatable {
+	"""
+	The Node ID of the Issue object
+	"""
+	id: ID!
+	"""
+	Identifies the primary key from the database.
+	"""
+	databaseId: Int
+	"""
+	Identifies the issue number.
+	"""
+	number: Int!
+	"""
+	Identifies the issue title.
+	"""
+	title: String!
+	"""
+	Identifies the body of the issue.
+	"""
+	body: String!
+	"""
+	Identifies the state of the issue.
+	"""
+	state: IssueState!
+	"""
+	Identifies the reason for the issue state.
+	"""
+	stateReason(
+		"""
+		Whether or not to return state reason for duplicates
+
+		**Upcoming Change on 2025-10-01 UTC**
+		**Description:** `enableDuplicate` will be removed.
+		**Reason:** The state reason for duplicate issue is now returned by default.
+		"""
+		enableDuplicate: Boolean = false
+	): IssueStateReason
+	"""
+	The HTTP URL for this issue
+	"""
+	url: URI!
+	"""
+	The HTTP path for this issue
+	"""
+	resourcePath: URI!
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	Identifies the date and time when the object was last updated.
+	"""
+	updatedAt: DateTime!
+	"""
+	Identifies the date and time when the object was closed.
+	"""
+	closedAt: DateTime
+	"""
+	Indicates if the object is closed (definition of closed may depend on type)
+	"""
+	closed: Boolean!
+	"""
+	The actor who authored the comment.
+	"""
+	author: Actor
+	"""
+	The repository associated with this node.
+	"""
+	repository: Repository!
+	"""
+	Identifies the milestone associated with the issue.
+	"""
+	milestone: Milestone
+	"""
+	A list of Users assigned to this object.
+	"""
+	assignees(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): UserConnection!
+	"""
+	A list of labels associated with the object.
+	"""
+	labels(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): LabelConnection
+	"""
+	A list of comments associated with the Issue.
+	"""
+	comments(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): IssueCommentConnection!
+	"""
+	A list of reactions grouped by content left on the subject.
+	"""
+	reactionGroups: [ReactionGroup!]
+	"""
+	The issue type for this Issue
+	"""
+	issueType: IssueType
+	"""
+	The parent entity of the issue.
+	"""
+	parent: Issue
+	"""
+	A list of sub-issues associated with the Issue.
+	"""
+	subIssues(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): IssueConnection!
+	"""
+	Summary of the state of an issue's sub-issues
+	"""
+	subIssuesSummary: SubIssuesSummary!
+}
+
+"""
+Used for return value of Repository.issueOrPullRequest.
+"""
+union IssueOrPullRequest = Issue | PullRequest
+
+"""
+The connection type for Issue.
+"""
+type IssueConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [IssueEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [Issue]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type IssueEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: Issue
+}
+
+"""
+The possible states of an issue.
+"""
+enum IssueState {
+	"""
+	An issue that has been closed
+	"""
+	CLOSED
+	"""
+	An issue that is still open
+	"""
+	OPEN
+}
+
+"""
+The possible state reasons of an issue.
+"""
+enum IssueStateReason {
+	"""
+	An issue that has been closed as completed
+	"""
+	COMPLETED
+	"""
+	An issue that has been closed as a duplicate.
+	"""
+	DUPLICATE
+	"""
+	An issue that has been closed as not planned
+	"""
+	NOT_PLANNED
+	"""
+	An issue that has been reopened
+	"""
+	REOPENED
+}
+
+"""
+Ways in which to filter lists of issues.
+"""
+input IssueFilters {
+	"""
+	List issues assigned to given name. Pass in `null` for issues with no assigned
+	user, and `*` for issues assigned to any user.
+	"""
+	assignee: String
+	"""
+	List issues created by given name.
+	"""
+	createdBy: String
+	"""
+	List issues where the list of label names exist on the issue.
+	"""
+	labels: [String!]
+	"""
+	List issues where the given name is mentioned in the issue.
+	"""
+	mentioned: String
+	"""
+	List issues by given milestone argument. If an string representation of an
+	integer is passed, it should refer to a milestone by its database ID. Pass in
+	`null` for issues with no milestone, and `*` for issues that are assigned to any milestone.
+	"""
+	milestone: String
+	"""
+	List issues that have been updated at or after the given date.
+	"""
+	since: DateTime
+	"""
+	List issues filtered by the list of states given.
+	"""
+	states: [IssueState!]
+	"""
+	List issues subscribed to by viewer.
+	"""
+	viewerSubscribed: Boolean = false
+}
+
+"""
+The possible color for an issue type
+"""
+enum IssueTypeColor {
+	"""
+	blue
+	"""
+	BLUE
+	"""
+	gray
+	"""
+	GRAY
+	"""
+	green
+	"""
+	GREEN
+	"""
+	orange
+	"""
+	ORANGE
+	"""
+	pink
+	"""
+	PINK
+	"""
+	purple
+	"""
+	PURPLE
+	"""
+	red
+	"""
+	RED
+	"""
+	yellow
+	"""
+	YELLOW
+}
+
+"""
+Represents the type of Issue.
+"""
+type IssueType implements Node {
+	"""
+	The Node ID of the IssueType object
+	"""
+	id: ID!
+	"""
+	The issue type's name.
+	"""
+	name: String!
+	"""
+	The issue type's description.
+	"""
+	description: String
+	"""
+	The issue type's color.
+	"""
+	color: IssueTypeColor!
+}
+
+"""
+Summary of the state of an issue's sub-issues
+"""
+type SubIssuesSummary {
+	"""
+	Count of completed sub-issues
+	"""
+	completed: Int!
+	"""
+	Percent of sub-issues which are completed
+	"""
+	percentCompleted: Int!
+	"""
+	Count of total number of sub-issues
+	"""
+	total: Int!
+}

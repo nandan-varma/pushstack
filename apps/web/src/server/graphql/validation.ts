@@ -7,6 +7,7 @@ import {
 	type FieldNode,
 	type GraphQLCompositeType,
 	type GraphQLOutputType,
+	isEnumType,
 	isListType,
 	isNonNullType,
 	isObjectType,
@@ -28,6 +29,14 @@ function sameShape(left: GraphQLOutputType, right: GraphQLOutputType): boolean {
 			isListType(right) &&
 			sameShape(left.ofType, right.ofType)
 		);
+	// GitHub answers `Issue.state` and `PullRequest.state` under one response
+	// name (`gh issue view`); both carry the same OPEN/CLOSED string values.
+	if (
+		isEnumType(left) &&
+		isEnumType(right) &&
+		[left.name, right.name].sort().join(" ") === "IssueState PullRequestState"
+	)
+		return true;
 	return left === right;
 }
 const githubOverlappingFieldsRule: ValidationRule = (context) => {
