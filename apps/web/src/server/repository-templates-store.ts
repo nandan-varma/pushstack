@@ -16,7 +16,7 @@ import type {
 	IssueTemplate,
 	RepositoryTemplates,
 } from "#/lib/repository-templates";
-import { getBlobByOid, getBlobSize, getBranches, getTree } from "./git-read";
+import { getBlobByOid, getBlobSizes, getBranches, getTree } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { createTtlCoalescedCache } from "./ttl-cache";
 
@@ -205,9 +205,14 @@ export async function loadRepositoryTemplates(repo: {
 		function withinFileLimit(): boolean {
 			return fileCount++ < MAX_TEMPLATE_FILES;
 		}
+		// Sizes for every blob this discovery may read come from one batched lookup
+		// (see `candidates` below), filled in before any file is read.
+		let sizes = new Map<string, number>();
 		async function read(entry: TreeEntry): Promise<string | undefined> {
 			if (totalBytes >= MAX_TEMPLATE_TOTAL_BYTES) return undefined;
-			const size = await getBlobSize(owner, repo.name, entry.oid);
+			const size = sizes.get(entry.oid);
+			if (size === undefined)
+				throw new Error(`Template ${entry.path} was not sized`);
 			if (size > MAX_TEMPLATE_FILE_BYTES) return undefined;
 			if (totalBytes + size > MAX_TEMPLATE_TOTAL_BYTES) {
 				totalBytes = MAX_TEMPLATE_TOTAL_BYTES;
@@ -233,11 +238,52 @@ export async function loadRepositoryTemplates(repo: {
 		}
 		const github = await directory(root, ".github");
 		const issueFiles = await directory(github, "ISSUE_TEMPLATE");
-		for (const entry of issueFiles
-			.filter((item) => item.type === "blob" && item.mode !== "120000")
-			.sort((a, b) => a.path.localeCompare(b.path))) {
+		const docs = await directory(root, "docs");
+		const dirs = [github, root, docs];
+		const isDefault = (item: TreeEntry) =>
+			item.type === "blob" &&
+			item.mode !== "120000" &&
+			/^pull_request_template\.md$/i.test(item.path.split("/").at(-1) ?? "");
+		const prFolders: TreeEntry[][] = [];
+		for (const entries of dirs) {
+			const folder = entries.find(
+				(item) =>
+					item.type === "tree" &&
+					item.path.split("/").at(-1)?.toLowerCase() ===
+						"pull_request_template",
+			);
+			prFolders.push(
+				folder
+					? (await getTree(owner, repo.name, commit, folder.path))
+							.filter(
+								(item) =>
+									item.type === "blob" &&
+									item.mode !== "120000" &&
+									/\.md$/i.test(item.path),
+							)
+							.sort((a, b) => a.path.localeCompare(b.path))
+					: [],
+			);
+		}
+		const issueBlobs = issueFiles
+			.filter(
+				(item) =>
+					item.type === "blob" &&
+					item.mode !== "120000" &&
+					/\.(md|ya?ml)$/i.test(item.path.split("/").at(-1) ?? item.path),
+			)
+			.sort((a, b) => a.path.localeCompare(b.path));
+		// Each list is consumed in order and capped by withinFileLimit, so its first
+		// MAX_TEMPLATE_FILES entries cover everything that can be read.
+		const candidates = [
+			...issueBlobs.slice(0, MAX_TEMPLATE_FILES),
+			...dirs.flatMap((entries) => entries.filter(isDefault)),
+			...prFolders.flatMap((list) => list.slice(0, MAX_TEMPLATE_FILES)),
+		];
+		const oids = [...new Set(candidates.map((entry) => entry.oid))];
+		if (oids.length > 0) sizes = await getBlobSizes(owner, repo.name, oids);
+		for (const entry of issueBlobs) {
 			const filename = entry.path.split("/").at(-1) ?? entry.path;
-			if (!/\.(md|ya?ml)$/i.test(filename)) continue;
 			if (!withinFileLimit()) break;
 			// Storage failures remain visible; malformed repository files are omitted.
 			const source = await read(entry);
@@ -259,16 +305,8 @@ export async function loadRepositoryTemplates(repo: {
 				a.filename.localeCompare(b.filename),
 		);
 		// The default template is first; directory templates remain individually selectable.
-		const docs = await directory(root, "docs");
-		for (const entries of [github, root, docs]) {
-			const defaultFile = entries.find(
-				(item) =>
-					item.type === "blob" &&
-					item.mode !== "120000" &&
-					/^pull_request_template\.md$/i.test(
-						item.path.split("/").at(-1) ?? "",
-					),
-			);
+		for (const [index, entries] of dirs.entries()) {
+			const defaultFile = entries.find(isDefault);
 			if (
 				defaultFile &&
 				!result.pullRequestTemplates.some(
@@ -284,28 +322,13 @@ export async function loadRepositoryTemplates(repo: {
 						body,
 					});
 			}
-			const folder = entries.find(
-				(item) =>
-					item.type === "tree" &&
-					item.path.split("/").at(-1)?.toLowerCase() ===
-						"pull_request_template",
-			);
-			if (folder)
-				for (const entry of (
-					await getTree(owner, repo.name, commit, folder.path)
-				)
-					.filter(
-						(item) =>
-							item.type === "blob" &&
-							item.mode !== "120000" &&
-							/\.md$/i.test(item.path),
-					)
-					.sort((a, b) => a.path.localeCompare(b.path)))
-					if (withinFileLimit()) {
-						const body = await read(entry);
-						if (body !== undefined)
-							result.pullRequestTemplates.push({ filename: entry.path, body });
-					}
+			for (const entry of prFolders[index] ?? []) {
+				if (withinFileLimit()) {
+					const body = await read(entry);
+					if (body !== undefined)
+						result.pullRequestTemplates.push({ filename: entry.path, body });
+				}
+			}
 		}
 		return result;
 	});
