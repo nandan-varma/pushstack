@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	parseSearchQuery,
+	splitRepoQualifiers,
 	withoutSearchAssignee,
 	withSearchLabel,
 	withSearchStatus,
@@ -102,6 +103,12 @@ describe("parseSearchQuery", () => {
 		});
 	});
 
+	it("reads state: as an alias of is:", () => {
+		expect(parseSearchQuery("state:open")).toMatchObject({ status: "open" });
+		expect(parseSearchQuery("is:open state:closed").matchesNothing).toBe(true);
+		expect(parseSearchQuery("state:bogus").status).toBeUndefined();
+	});
+
 	it("parses sort and ignores unknown sorts", () => {
 		expect(parseSearchQuery("sort:comments-asc").sort).toBe("comments-asc");
 		expect(parseSearchQuery("sort:bogus").sort).toBe("created-desc");
@@ -155,6 +162,12 @@ describe("query-string editing", () => {
 		);
 	});
 
+	it("replaces a state: alias too", () => {
+		expect(withSearchStatus("state:open is:pr", "closed")).toBe(
+			"is:pr is:closed",
+		);
+	});
+
 	it("replaces every label: with one quoted label, or removes them", () => {
 		expect(withSearchLabel("label:a label:b is:open", "help wanted")).toBe(
 			'is:open label:"help wanted"',
@@ -166,5 +179,28 @@ describe("query-string editing", () => {
 		expect(
 			withoutSearchAssignee("assignee:me no:assignee no:label is:open"),
 		).toBe("no:label is:open");
+	});
+});
+
+describe("splitRepoQualifiers", () => {
+	it("takes repo: qualifiers out and keeps the rest verbatim", () => {
+		expect(splitRepoQualifiers("is:pr repo:octo/hello author:octo")).toEqual({
+			repos: ["octo/hello"],
+			rest: "is:pr author:octo",
+		});
+	});
+
+	it("keeps a quoted repo: phrase as search text, not a qualifier", () => {
+		expect(splitRepoQualifiers('"repo:octo/hello" crash')).toEqual({
+			repos: [],
+			rest: '"repo:octo/hello" crash',
+		});
+	});
+
+	it("returns every repo: value so the caller can refuse several", () => {
+		expect(splitRepoQualifiers("repo:a/b repo:c/d").repos).toEqual([
+			"a/b",
+			"c/d",
+		]);
 	});
 });
