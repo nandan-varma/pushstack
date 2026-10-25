@@ -40,7 +40,8 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue list`, `gh issue view`, `gh issue status` | GraphQL reads served (`Repository.issues`/`issue`/`issueOrPullRequest`); fixture-tested, not yet measured with real gh |
 | `gh label list` | GraphQL `Repository.labels` served; fixture-tested, not yet measured with real gh |
-| `gh issue create`, `gh issue edit`, `gh issue close`, `gh label create/edit/delete` | Not yet (issue mutations; label mutations are served in GraphQL as below, not yet measured with real gh) |
+| `gh issue create`, `gh issue close`, `gh issue reopen` | GraphQL mutations served; fixture-tested for `issue create`, not yet measured with real gh |
+| `gh issue edit`, `gh label create/edit/delete` | Mutations served, not yet measured with real gh |
 | `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested, not yet measured with real gh |
 | `gh pr status` | Not yet (requires GraphQL search) |
 
@@ -209,7 +210,19 @@ response budget is `UNPROCESSABLE`, so ask for fewer issues. An issue has
 no type, parent or sub-issues in PushStack, so `issueType` and `parent` are
 null, `subIssues` is empty and `subIssuesSummary` is zero. Without a `states`
 argument every issue is listed. An unknown or unreadable number is `NOT_FOUND`,
-and an issue is a `node(id:)` target. Issue mutations are not served yet.
+and an issue is a `node(id:)` target. Issue mutations: `createIssue`, `updateIssue`, `closeIssue` (reason `COMPLETED`
+or `NOT_PLANNED`), `reopenIssue`, `addLabelsToLabelable`,
+`removeLabelsFromLabelable`, `addAssigneesToAssignable`,
+`removeAssigneesFromAssignable` and `addComment` answer GitHub's payloads and
+need a `repo:write` token. Creating, editing, labelling or assigning is triage:
+a reader may open an issue or comment, but labels and assignees need write
+access, and an edit needs the author or a writer. Label and user node ids must
+name labels in the repository and existing users, or the mutation answers
+NOT_FOUND before writing anything; a create that fails leaves no issue. Titles
+and bodies use the REST caps, and a label list is at most 100. Milestones on
+issues, closing as a duplicate, and any mutation on a pull request are
+`UNPROCESSABLE` for now. Assignees that cannot be assigned are ignored, as on
+REST.
 
 The GraphQL overlap check accepts two enum types under one response name, as
 GitHub does for `Issue.state` and `PullRequest.state` in `gh issue view`.

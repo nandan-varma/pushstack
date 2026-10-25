@@ -23,7 +23,12 @@
 		}
 	],
 	"Issue": {
-		"$implements": ["Node", "UniformResourceLocatable"],
+		"$implements": [
+			"Node",
+			"UniformResourceLocatable",
+			"Labelable",
+			"Assignable"
+		],
 		"fields": [
 			"id",
 			"databaseId",
@@ -80,5 +85,76 @@
 	],
 	"IssueTypeColor": "*",
 	"IssueType": ["id", "name", "description", "color"],
-	"SubIssuesSummary": "*"
+	"SubIssuesSummary": "*",
+	"Labelable": [
+		{
+			"name": "labels",
+			"args": ["after", "before", "first", "last"]
+		}
+	],
+	"Assignable": ["assignees"],
+	"Mutation": [
+		"createIssue",
+		"updateIssue",
+		"closeIssue",
+		"reopenIssue",
+		"addLabelsToLabelable",
+		"removeLabelsFromLabelable",
+		"addAssigneesToAssignable",
+		"removeAssigneesFromAssignable",
+		"addComment"
+	],
+	"CreateIssueInput": [
+		"repositoryId",
+		"title",
+		"body",
+		"assigneeIds",
+		"labelIds",
+		"milestoneId",
+		"clientMutationId"
+	],
+	"CreateIssuePayload": ["clientMutationId", "issue"],
+	"UpdateIssueInput": [
+		"id",
+		"title",
+		"body",
+		"state",
+		"assigneeIds",
+		"labelIds",
+		"milestoneId",
+		"clientMutationId"
+	],
+	"UpdateIssuePayload": ["clientMutationId", "issue"],
+	"CloseIssueInput": [
+		"issueId",
+		"stateReason",
+		"duplicateIssueId",
+		"clientMutationId"
+	],
+	"CloseIssuePayload": ["clientMutationId", "issue"],
+	"ReopenIssueInput": ["issueId", "clientMutationId"],
+	"ReopenIssuePayload": ["clientMutationId", "issue"],
+	"AddLabelsToLabelableInput": ["labelableId", "labelIds", "clientMutationId"],
+	"AddLabelsToLabelablePayload": ["clientMutationId", "labelable"],
+	"RemoveLabelsFromLabelableInput": [
+		"labelableId",
+		"labelIds",
+		"clientMutationId"
+	],
+	"RemoveLabelsFromLabelablePayload": ["clientMutationId", "labelable"],
+	"AddAssigneesToAssignableInput": [
+		"assignableId",
+		"assigneeIds",
+		"clientMutationId"
+	],
+	"AddAssigneesToAssignablePayload": ["clientMutationId", "assignable"],
+	"RemoveAssigneesFromAssignableInput": [
+		"assignableId",
+		"assigneeIds",
+		"clientMutationId"
+	],
+	"RemoveAssigneesFromAssignablePayload": ["clientMutationId", "assignable"],
+	"AddCommentInput": ["subjectId", "body", "clientMutationId"],
+	"AddCommentPayload": ["clientMutationId", "commentEdge", "subject"],
+	"IssueClosedStateReason": "*"
 }
