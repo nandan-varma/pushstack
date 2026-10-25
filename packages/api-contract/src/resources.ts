@@ -41,6 +41,7 @@ export const privateUser = z.strictObject({
 
 export const repository = z.strictObject({
 	id: z.number().int(),
+	node_id: z.string(),
 	name: z.string(),
 	full_name: z.string(),
 	private: z.boolean(),
@@ -212,6 +213,7 @@ export const commitComment = z.strictObject({
 /** A repository as other resources embed it (GitHub's `minimal-repository`). */
 export const minimalRepository = z.strictObject({
 	id: z.number().int(),
+	node_id: z.string(),
 	name: z.string(),
 	full_name: z.string(),
 	owner: simpleUser,
@@ -574,6 +576,7 @@ const pullSide = z.strictObject({
 export const pullRequestSimple = z.strictObject({
 	url,
 	id: z.number().int(),
+	node_id: z.string(),
 	html_url: url,
 	diff_url: url,
 	patch_url: url,

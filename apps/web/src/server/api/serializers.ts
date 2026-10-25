@@ -89,6 +89,7 @@ export function repository(
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return {
 		id: repo.id,
+		node_id: encodeNodeId("Repository", repo.id),
 		name: repo.name,
 		full_name: fullName,
 		private: repo.visibility === "private",
@@ -445,6 +446,7 @@ export function minimalRepository(
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return {
 		id: repo.id,
+		node_id: encodeNodeId("Repository", repo.id),
 		name: repo.name,
 		full_name: fullName,
 		owner: simpleUser(repo.owner),
@@ -763,6 +765,7 @@ export function pullRequest(
 	const simple: Shape<"pullRequestSimple"> = {
 		url,
 		id: row.id,
+		node_id: encodeNodeId("PullRequest", row.id),
 		html_url: web,
 		diff_url: `${web}.diff`,
 		patch_url: `${web}.patch`,
