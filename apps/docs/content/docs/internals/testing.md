@@ -152,14 +152,10 @@ pnpm typecheck  # tsc --noEmit
 
 Biome (not ESLint/Prettier) — config in `biome.json`.
 
-Race tests: pglite runs queries one at a time on a single connection, so two
-concurrent requests never interleave on their own. To test a check-then-insert
-race, hold one request between its check and its insert (a short delay in a
-mocked store call, as `api-pulls.test.ts` does for the `race` head) so the
+Race tests: a check-then-insert race needs a deliberate delay to interleave.
+Hold one request between its check and its insert (a short delay in a mocked
+store call, as `api-pulls.test.ts` does for the `race` head, lines 13-25) so the
 unlocked version fails deterministically.
-
-In a non-interactive shell, install with `pnpm install </dev/null` rather than
-piping input into it.
 
 ## Troubleshooting: every turbo task fails with "Exec format error"
 
