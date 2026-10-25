@@ -44,6 +44,7 @@ import {
 import {
 	ArchivedRepositoryError,
 	deleteRepositoryAndStorage,
+	InvalidHomepageError,
 	RepositoryNameTakenError,
 	transferRepository,
 	updateRepositorySettings,
@@ -396,6 +397,11 @@ async function respondWithRepository(
 const mapSettingsError = (error: unknown): never => {
 	if (error instanceof ArchivedRepositoryError) {
 		throw forbiddenError(ARCHIVED_MESSAGE);
+	}
+	if (error instanceof InvalidHomepageError) {
+		throw validationFailedError("Validation Failed", [
+			{ resource: "Repository", field: "homepage", code: "invalid" },
+		]);
 	}
 	if (error instanceof RepositoryNameTakenError) {
 		throw validationFailedError("Repository creation failed.", [

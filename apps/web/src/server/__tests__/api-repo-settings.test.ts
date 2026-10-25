@@ -77,6 +77,30 @@ describe("PATCH /repos/{owner}/{repo}", () => {
 		});
 	});
 
+	it("refuses homepages that are not absolute http(s) URLs with a 422 and keeps the stored one", async () => {
+		await call(
+			"/repos/alice/proj",
+			patch(alice, { homepage: "https://kept.example" }),
+		);
+		for (const homepage of [
+			"javascript:alert(1)",
+			"data:text/html,<b>x</b>",
+			"/relative/path",
+			"example.com",
+		]) {
+			const response = await call(
+				"/repos/alice/proj",
+				patch(alice, { homepage }),
+			);
+			expect(response.status).toBe(422);
+			expect(response.body.errors).toEqual([
+				{ resource: "Repository", field: "homepage", code: "invalid" },
+			]);
+		}
+		const current = await call("/repos/alice/proj");
+		expect(current.body.homepage).toBe("https://kept.example");
+	});
+
 	it("is for owners and admins only", async () => {
 		const anonymous = await call("/repos/alice/proj", {
 			method: "PATCH",

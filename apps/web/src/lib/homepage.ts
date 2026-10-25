@@ -16,3 +16,17 @@ export function safeHomepageUrl(homepage: string | null): string | null {
 		return null;
 	}
 }
+
+/**
+ * Whether a stored homepage is an absolute `http(s)` URL. This is the write-time
+ * rule: javascript:, data:, relative and bare host values are refused, so no
+ * consumer of the field (REST, GraphQL, the UI) ever receives an unsafe target.
+ */
+export function isHttpUrl(value: string): boolean {
+	try {
+		const { protocol } = new URL(value.trim());
+		return protocol === "http:" || protocol === "https:";
+	} catch {
+		return false;
+	}
+}

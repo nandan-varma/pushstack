@@ -7,6 +7,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "#/db";
 import { type Repository, repositories } from "#/db/app-schema";
+import { isHttpUrl } from "#/lib/homepage";
 import { isUniqueViolation } from "./db-errors";
 import {
 	deleteRepositoryStorage,
@@ -28,6 +29,12 @@ import { evictRepoByName } from "./repository-lookup";
 export class ArchivedRepositoryError extends Error {
 	constructor() {
 		super(ARCHIVED_MESSAGE);
+	}
+}
+
+export class InvalidHomepageError extends Error {
+	constructor() {
+		super("Homepage must be an http or https URL");
 	}
 }
 
@@ -75,6 +82,9 @@ export async function updateRepositorySettings(
 		changes.some(([key, value]) => !(key === "archived" && value === false))
 	) {
 		throw new ArchivedRepositoryError();
+	}
+	if (settings.homepage && !isHttpUrl(settings.homepage)) {
+		throw new InvalidHomepageError();
 	}
 	const ownerKey = ownerKeyOf(repo);
 
