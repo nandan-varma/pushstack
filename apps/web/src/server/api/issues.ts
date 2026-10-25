@@ -111,10 +111,8 @@ export async function createIssue(ctx: ApiContext) {
 		title: data.title,
 		body: data.body ?? undefined,
 		labels: access.canWrite ? (data.labels ?? []) : [],
+		assignees: access.canWrite ? data.assignees : undefined,
 	});
-	if (access.canWrite && data.assignees && data.assignees.length > 0) {
-		await replaceThreadAssignees(created, data.assignees, caller.userId);
-	}
 	if (milestone !== null) {
 		await applyMilestone(created, milestone, caller.userId);
 	}

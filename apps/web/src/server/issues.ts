@@ -13,7 +13,6 @@ import {
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
-import { replaceThreadAssignees } from "./assignees-store";
 import {
 	createIssueForUser,
 	issueLabelsSchema,
@@ -61,11 +60,10 @@ export const createIssue = createServerFn({ method: "POST" })
 					data.repoId,
 					async (repo) => {
 						const templates = await loadRepositoryTemplates(repo);
-						const selected = templates.issueTemplates.find(
+						// Like GitHub, an unknown template name falls back to a blank issue.
+						return templates.issueTemplates.find(
 							(item) => item.filename === data.template,
 						);
-						if (!selected) throw notFound();
-						return selected;
 					},
 				)
 			: undefined;
@@ -82,14 +80,12 @@ export const createIssue = createServerFn({ method: "POST" })
 		const assignees = canWrite
 			? (data.assignees ?? template?.assignees ?? [])
 			: (template?.assignees ?? []);
-		const issue = await createIssueForUser(data.repoId, currentUser.id, {
+		return createIssueForUser(data.repoId, currentUser.id, {
 			title: data.title,
 			body: data.body,
 			labels,
+			assignees,
 		});
-		if (assignees.length > 0)
-			await replaceThreadAssignees(issue, assignees, currentUser.id);
-		return issue;
 	});
 
 export const getIssues = createServerFn({ method: "GET" })

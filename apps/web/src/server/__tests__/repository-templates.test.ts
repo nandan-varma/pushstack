@@ -302,15 +302,17 @@ body:
 			},
 		});
 		expect(blank.labels).toEqual([]);
-		await expect(
-			createIssue({
-				data: {
-					repoId: repo.id,
-					title: "Forged template",
-					template: "missing.md",
-				},
-			}),
-		).rejects.toBeDefined();
+		// Like GitHub, an unknown template name opens a blank issue instead of failing.
+		const fallback = await createIssue({
+			data: {
+				repoId: repo.id,
+				title: "Unknown template",
+				template: "missing.md",
+				labels: ["enhancement"],
+			},
+		});
+		expect(fallback.labels).toEqual([]);
+		expect(fallback.body).toBeNull();
 	});
 	it("lets a writer override trusted template metadata explicitly", async () => {
 		const repo = await setup();

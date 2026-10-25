@@ -12,6 +12,7 @@ import { type Issue, issues } from "#/db/app-schema";
 import { labelNameSchema } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { recordActivity } from "./activity";
+import { replaceThreadAssignees } from "./assignees-store";
 import { setThreadLabels } from "./label-store";
 import { recordThreadActivity } from "./notification-store";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
@@ -23,10 +24,21 @@ export const issueLabelsSchema = z
 	.array(labelNameSchema)
 	.max(MAX_LABELS_PER_THREAD);
 
+/**
+ * Create an issue with its labels and assignees. All-or-nothing: the Neon HTTP
+ * driver has no interactive transactions, so any failure after the row exists
+ * deletes it again (cascading to labels and assignees). A retry then creates
+ * one issue, never a duplicate.
+ */
 export async function createIssueForUser(
 	repoId: number,
 	userId: string,
-	data: { title: string; body?: string; labels: string[] },
+	data: {
+		title: string;
+		body?: string;
+		labels: string[];
+		assignees?: string[];
+	},
 ) {
 	const [issue] = await db
 		.insert(issues)
@@ -39,25 +51,32 @@ export async function createIssueForUser(
 		})
 		.returning();
 	if (!issue) throw new Error("Issue insert returned no row");
-	const labels = await setThreadLabels(issue, data.labels, userId);
-	await recordCrossReferences(
-		repoId,
-		issue.id,
-		{ kind: "issue", number: issue.number, title: issue.title },
-		issue.body,
-		userId,
-	);
-	await recordThreadActivity({
-		thread: issue,
-		actorId: userId,
-		actorReason: "author",
-		text: issue.body,
-	});
-	await recordActivity(userId, repoId, {
-		type: "issue",
-		metadata: { number: issue.number, title: issue.title, action: "opened" },
-	});
-	return { ...issue, labels };
+	try {
+		const labels = await setThreadLabels(issue, data.labels, userId);
+		if (data.assignees?.length)
+			await replaceThreadAssignees(issue, data.assignees, userId);
+		await recordCrossReferences(
+			repoId,
+			issue.id,
+			{ kind: "issue", number: issue.number, title: issue.title },
+			issue.body,
+			userId,
+		);
+		await recordThreadActivity({
+			thread: issue,
+			actorId: userId,
+			actorReason: "author",
+			text: issue.body,
+		});
+		await recordActivity(userId, repoId, {
+			type: "issue",
+			metadata: { number: issue.number, title: issue.title, action: "opened" },
+		});
+		return { ...issue, labels };
+	} catch (error) {
+		await db.delete(issues).where(eq(issues.id, issue.id));
+		throw error;
+	}
 }
 
 /**
