@@ -4,8 +4,12 @@ import {
 	count,
 	desc,
 	eq,
+	exists,
+	gte,
 	inArray,
 	isNotNull,
+	lt,
+	ne,
 	or,
 	type SQL,
 	sql,
@@ -19,6 +23,7 @@ import {
 	stars,
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { isHttpUrl } from "#/lib/homepage";
 import { MAX_REPO_TOPICS } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
@@ -251,6 +256,13 @@ export async function listAuthenticatedUserRepositories(ctx: ApiContext) {
 				visibility === "all"
 					? undefined
 					: eq(repositories.visibility, visibility),
+				// `since` and `before` bound the last update, as GitHub's do.
+				query.since
+					? gte(repositories.updatedAt, new Date(query.since))
+					: undefined,
+				query.before
+					? lt(repositories.updatedAt, new Date(query.before))
+					: undefined,
 			),
 		},
 		(row) =>
@@ -268,10 +280,31 @@ export async function listUserRepositories(ctx: ApiContext) {
 		.from(user)
 		.where(eq(user.username, username));
 	if (!owner) throw notFoundError();
+	const ownedBy = eq(repositories.ownerId, owner.id);
+	// `member`: repositories the user collaborates on, owned by someone else.
+	const collaboratedBy = and(
+		ne(repositories.ownerId, owner.id),
+		exists(
+			db
+				.select({ id: repositoryCollaborators.id })
+				.from(repositoryCollaborators)
+				.where(
+					and(
+						eq(repositoryCollaborators.repoId, repositories.id),
+						eq(repositoryCollaborators.userId, owner.id),
+					),
+				),
+		),
+	);
+	const type = order.type ?? "owner";
 	return respondWithRepositories(ctx.url, {
 		order,
 		where: and(
-			eq(repositories.ownerId, owner.id),
+			type === "owner"
+				? ownedBy
+				: type === "member"
+					? collaboratedBy
+					: or(ownedBy, collaboratedBy),
 			eq(repositories.visibility, "public"),
 		),
 	});
@@ -320,13 +353,23 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 		.where(eq(user.id, userId));
 	if (!owner) throw notFoundError();
 
+	if (data.homepage && !isHttpUrl(data.homepage)) {
+		throw validationFailedError("Repository creation failed.", [
+			{ resource: "Repository", field: "homepage", code: "invalid" },
+		]);
+	}
 	let repo: Awaited<ReturnType<typeof createRepositoryForUser>>;
 	try {
 		repo = await createRepositoryForUser(owner, {
 			name: data.name,
 			description: data.description ?? undefined,
+			homepage: data.homepage || undefined,
 			visibility: data.private ? "private" : "public",
 			autoInit: data.auto_init,
+			hasIssues: data.has_issues,
+			hasWiki: data.has_wiki,
+			hasProjects: data.has_projects,
+			isTemplate: data.is_template,
 			// GitHub applies the templates only together with auto_init.
 			gitignoreTemplate: data.auto_init ? gitignoreTemplate : undefined,
 			licenseTemplate: data.auto_init ? licenseTemplate : undefined,
@@ -505,7 +548,11 @@ export async function deleteRepositoryHandler(ctx: ApiContext) {
 /** `GET /repos/{owner}/{repo}/topics`. */
 export async function getTopics(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	return json({ names: repo.topics });
+	const params = pageParams(ctx.url.searchParams);
+	const names = params.reachable
+		? repo.topics.slice(params.offset, params.offset + params.perPage)
+		: [];
+	return json({ names }, 200, linkHeader(ctx.url, params, repo.topics.length));
 }
 
 /** `PUT /repos/{owner}/{repo}/topics`. */

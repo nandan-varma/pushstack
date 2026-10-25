@@ -4,7 +4,7 @@
  * GitHub), query (strict values = 422, lenient ones fall back in the schema)
  * and the JSON body (422 with one error per field).
  */
-import { endpoints, type OperationId } from "@pushstack/api-contract";
+import { endpoints, inputs, type OperationId } from "@pushstack/api-contract";
 import type { z } from "zod";
 import type { ApiContext } from "./auth";
 import {
@@ -56,7 +56,7 @@ export function queryParams<Id extends OperationId>(
 	if (!parsed.success) {
 		throw validationFailedError(
 			"Validation Failed",
-			fieldErrors(parsed.error, raw, resource).map((error) => ({
+			fieldErrors(parsed.error.issues, raw, resource).map((error) => ({
 				...error,
 				code: "invalid",
 				...(error.field !== undefined &&
@@ -88,28 +88,61 @@ export async function requestBody<Id extends OperationId>(
 	if (!parsed.success) {
 		throw validationFailedError(
 			options.message ?? "Validation Failed",
-			fieldErrors(parsed.error, body, resource),
+			fieldErrors(parsed.error.issues, body, resource),
 		);
 	}
 	return parsed.data as RequestBody<Id>;
 }
 
+/**
+ * Refuses a query parameter PushStack does not implement (GitHub's name, which
+ * the contract declares `unsupported`). Runs before every handler, so a
+ * filter is never silently dropped; the handler's own parse reports the rest.
+ */
+export function rejectUnsupportedQuery(url: URL, id: OperationId): void {
+	const schema = (endpoints[id] as { query?: z.ZodType }).query;
+	if (!schema) return;
+	const raw = Object.fromEntries(url.searchParams);
+	const parsed = schema.safeParse(raw);
+	if (parsed.success) return;
+	const refused = parsed.error.issues.filter(isUnsupported);
+	if (refused.length === 0) return;
+	throw validationFailedError("Validation Failed", fieldErrors(refused, raw));
+}
+
+const isUnsupported = (issue: { message: string }) =>
+	issue.message === inputs.UNSUPPORTED_PARAMETER;
+
+/**
+ * One error per failing field. `resource` names the model; an unsupported
+ * field is a `custom` error carrying its message instead.
+ */
 function fieldErrors(
-	error: z.ZodError,
+	issues: readonly { path: PropertyKey[]; message: string }[],
 	input: Record<string, unknown>,
-	resource: string,
+	resource?: string,
 ): FieldError[] {
 	const seen = new Set<string>();
 	const errors: FieldError[] = [];
-	for (const issue of error.issues) {
+	for (const issue of issues) {
 		const field = String(issue.path[0] ?? "");
 		if (seen.has(field)) continue;
 		seen.add(field);
-		errors.push({
-			resource,
-			field,
-			code: input[field] === undefined ? "missing_field" : "invalid",
-		});
+		const scope = resource === undefined ? {} : { resource };
+		errors.push(
+			isUnsupported(issue)
+				? {
+						...scope,
+						field,
+						code: "custom",
+						message: `${field} ${inputs.UNSUPPORTED_PARAMETER}`,
+					}
+				: {
+						...scope,
+						field,
+						code: input[field] === undefined ? "missing_field" : "invalid",
+					},
+		);
 	}
 	return errors;
 }

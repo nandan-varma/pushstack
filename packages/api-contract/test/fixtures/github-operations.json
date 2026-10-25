@@ -1,0 +1,725 @@
+{
+	"operations": {
+		"activity/delete-repo-subscription": {
+			"query": [],
+			"body": []
+		},
+		"activity/delete-thread-subscription": {
+			"query": [],
+			"body": []
+		},
+		"activity/get-repo-subscription": {
+			"query": [],
+			"body": []
+		},
+		"activity/get-thread": {
+			"query": [],
+			"body": []
+		},
+		"activity/get-thread-subscription-for-authenticated-user": {
+			"query": [],
+			"body": []
+		},
+		"activity/list-notifications-for-authenticated-user": {
+			"query": ["all", "before", "page", "participating", "per_page", "since"],
+			"body": []
+		},
+		"activity/list-repo-notifications-for-authenticated-user": {
+			"query": ["all", "before", "page", "participating", "per_page", "since"],
+			"body": []
+		},
+		"activity/list-repos-watched-by-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"activity/list-watched-repos-for-authenticated-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"activity/list-watchers-for-repo": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"activity/mark-notifications-as-read": {
+			"query": [],
+			"body": ["last_read_at", "read"]
+		},
+		"activity/mark-repo-notifications-as-read": {
+			"query": [],
+			"body": ["last_read_at"]
+		},
+		"activity/mark-thread-as-done": {
+			"query": [],
+			"body": []
+		},
+		"activity/mark-thread-as-read": {
+			"query": [],
+			"body": []
+		},
+		"activity/set-repo-subscription": {
+			"query": [],
+			"body": ["ignored", "subscribed"]
+		},
+		"activity/set-thread-subscription": {
+			"query": [],
+			"body": ["ignored"]
+		},
+		"checks/create": {
+			"query": [],
+			"body": [
+				"actions",
+				"completed_at",
+				"conclusion",
+				"details_url",
+				"external_id",
+				"head_sha",
+				"name",
+				"output",
+				"started_at",
+				"status"
+			]
+		},
+		"checks/create-suite": {
+			"query": [],
+			"body": ["head_sha"]
+		},
+		"checks/get": {
+			"query": [],
+			"body": []
+		},
+		"checks/get-suite": {
+			"query": [],
+			"body": []
+		},
+		"checks/list-for-ref": {
+			"query": ["app_id", "check_name", "filter", "page", "per_page", "status"],
+			"body": []
+		},
+		"checks/list-for-suite": {
+			"query": ["check_name", "filter", "page", "per_page", "status"],
+			"body": []
+		},
+		"checks/list-suites-for-ref": {
+			"query": ["app_id", "check_name", "page", "per_page"],
+			"body": []
+		},
+		"checks/update": {
+			"query": [],
+			"body": [
+				"actions",
+				"completed_at",
+				"conclusion",
+				"details_url",
+				"external_id",
+				"name",
+				"output",
+				"started_at",
+				"status"
+			]
+		},
+		"git/create-blob": {
+			"query": [],
+			"body": ["content", "encoding"]
+		},
+		"git/create-commit": {
+			"query": [],
+			"body": ["author", "committer", "message", "parents", "signature", "tree"]
+		},
+		"git/create-ref": {
+			"query": [],
+			"body": ["ref", "sha"]
+		},
+		"git/create-tag": {
+			"query": [],
+			"body": ["message", "object", "tag", "tagger", "type"]
+		},
+		"git/create-tree": {
+			"query": [],
+			"body": ["base_tree", "tree"]
+		},
+		"git/delete-ref": {
+			"query": [],
+			"body": []
+		},
+		"git/get-blob": {
+			"query": [],
+			"body": []
+		},
+		"git/get-commit": {
+			"query": [],
+			"body": []
+		},
+		"git/get-ref": {
+			"query": [],
+			"body": []
+		},
+		"git/get-tag": {
+			"query": [],
+			"body": []
+		},
+		"git/get-tree": {
+			"query": ["recursive"],
+			"body": []
+		},
+		"git/list-matching-refs": {
+			"query": [],
+			"body": []
+		},
+		"git/update-ref": {
+			"query": [],
+			"body": ["force", "sha"]
+		},
+		"issues/add-labels": {
+			"query": [],
+			"body": ["labels"]
+		},
+		"issues/create": {
+			"query": [],
+			"body": [
+				"assignee",
+				"assignees",
+				"body",
+				"issue_field_values",
+				"labels",
+				"milestone",
+				"parent_issue_id",
+				"title",
+				"type"
+			]
+		},
+		"issues/create-comment": {
+			"query": [],
+			"body": ["body"]
+		},
+		"issues/create-label": {
+			"query": [],
+			"body": ["color", "description", "name"]
+		},
+		"issues/create-milestone": {
+			"query": [],
+			"body": ["description", "due_on", "state", "title"]
+		},
+		"issues/delete-comment": {
+			"query": [],
+			"body": []
+		},
+		"issues/delete-label": {
+			"query": [],
+			"body": []
+		},
+		"issues/delete-milestone": {
+			"query": [],
+			"body": []
+		},
+		"issues/get": {
+			"query": [],
+			"body": []
+		},
+		"issues/get-comment": {
+			"query": [],
+			"body": []
+		},
+		"issues/get-label": {
+			"query": [],
+			"body": []
+		},
+		"issues/get-milestone": {
+			"query": [],
+			"body": []
+		},
+		"issues/list-comments": {
+			"query": ["page", "per_page", "since"],
+			"body": []
+		},
+		"issues/list-events": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"issues/list-events-for-timeline": {
+			"query": ["exclude", "page", "per_page"],
+			"body": []
+		},
+		"issues/list-for-repo": {
+			"query": [
+				"assignee",
+				"creator",
+				"direction",
+				"issue_field_values",
+				"labels",
+				"mentioned",
+				"milestone",
+				"page",
+				"per_page",
+				"since",
+				"sort",
+				"state",
+				"type"
+			],
+			"body": []
+		},
+		"issues/list-labels-for-repo": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"issues/list-labels-on-issue": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"issues/list-milestones": {
+			"query": ["direction", "page", "per_page", "sort", "state"],
+			"body": []
+		},
+		"issues/remove-all-labels": {
+			"query": [],
+			"body": []
+		},
+		"issues/remove-label": {
+			"query": [],
+			"body": []
+		},
+		"issues/set-labels": {
+			"query": [],
+			"body": ["labels"]
+		},
+		"issues/update": {
+			"query": [],
+			"body": [
+				"assignee",
+				"assignees",
+				"body",
+				"duplicate_issue_id",
+				"issue_field_values",
+				"labels",
+				"milestone",
+				"state",
+				"state_reason",
+				"title",
+				"type"
+			]
+		},
+		"issues/update-comment": {
+			"query": [],
+			"body": ["body"]
+		},
+		"issues/update-label": {
+			"query": [],
+			"body": ["archived", "color", "description", "new_name"]
+		},
+		"issues/update-milestone": {
+			"query": [],
+			"body": ["description", "due_on", "state", "title"]
+		},
+		"meta/root": {
+			"query": [],
+			"body": []
+		},
+		"pulls/check-if-merged": {
+			"query": [],
+			"body": []
+		},
+		"pulls/create": {
+			"query": [],
+			"body": [
+				"base",
+				"body",
+				"draft",
+				"head",
+				"head_repo",
+				"issue",
+				"maintainer_can_modify",
+				"title"
+			]
+		},
+		"pulls/get": {
+			"query": [],
+			"body": []
+		},
+		"pulls/list": {
+			"query": [
+				"base",
+				"direction",
+				"head",
+				"page",
+				"per_page",
+				"sort",
+				"state"
+			],
+			"body": []
+		},
+		"pulls/list-commits": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"pulls/list-files": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"pulls/list-requested-reviewers": {
+			"query": [],
+			"body": []
+		},
+		"pulls/merge": {
+			"query": [],
+			"body": ["commit_message", "commit_title", "merge_method", "sha"]
+		},
+		"pulls/remove-requested-reviewers": {
+			"query": [],
+			"body": ["reviewers", "team_reviewers"]
+		},
+		"pulls/request-reviewers": {
+			"query": [],
+			"body": ["reviewers", "team_reviewers"]
+		},
+		"pulls/update": {
+			"query": [],
+			"body": ["base", "body", "maintainer_can_modify", "state", "title"]
+		},
+		"rate-limit/get": {
+			"query": [],
+			"body": []
+		},
+		"reactions/create-for-issue": {
+			"query": [],
+			"body": ["content"]
+		},
+		"reactions/create-for-issue-comment": {
+			"query": [],
+			"body": ["content"]
+		},
+		"reactions/delete-for-issue": {
+			"query": [],
+			"body": []
+		},
+		"reactions/delete-for-issue-comment": {
+			"query": [],
+			"body": []
+		},
+		"reactions/list-for-issue": {
+			"query": ["content", "page", "per_page"],
+			"body": []
+		},
+		"reactions/list-for-issue-comment": {
+			"query": ["content", "page", "per_page"],
+			"body": []
+		},
+		"repos/create-commit-comment": {
+			"query": [],
+			"body": ["body", "line", "path", "position"]
+		},
+		"repos/create-commit-status": {
+			"query": [],
+			"body": ["context", "description", "state", "target_url"]
+		},
+		"repos/create-for-authenticated-user": {
+			"query": [],
+			"body": [
+				"allow_auto_merge",
+				"allow_merge_commit",
+				"allow_rebase_merge",
+				"allow_squash_merge",
+				"auto_init",
+				"delete_branch_on_merge",
+				"description",
+				"gitignore_template",
+				"has_discussions",
+				"has_downloads",
+				"has_issues",
+				"has_projects",
+				"has_wiki",
+				"homepage",
+				"is_template",
+				"license_template",
+				"merge_commit_message",
+				"merge_commit_title",
+				"name",
+				"private",
+				"squash_merge_commit_message",
+				"squash_merge_commit_title",
+				"team_id"
+			]
+		},
+		"repos/create-or-update-file-contents": {
+			"query": [],
+			"body": ["author", "branch", "committer", "content", "message", "sha"]
+		},
+		"repos/create-release": {
+			"query": [],
+			"body": [
+				"body",
+				"discussion_category_name",
+				"draft",
+				"generate_release_notes",
+				"make_latest",
+				"name",
+				"prerelease",
+				"tag_name",
+				"target_commitish"
+			]
+		},
+		"repos/create-using-template": {
+			"query": [],
+			"body": [
+				"description",
+				"include_all_branches",
+				"name",
+				"owner",
+				"private"
+			]
+		},
+		"repos/delete": {
+			"query": [],
+			"body": []
+		},
+		"repos/delete-commit-comment": {
+			"query": [],
+			"body": []
+		},
+		"repos/delete-file": {
+			"query": [],
+			"body": ["author", "branch", "committer", "message", "sha"]
+		},
+		"repos/delete-release": {
+			"query": [],
+			"body": []
+		},
+		"repos/delete-release-asset": {
+			"query": [],
+			"body": []
+		},
+		"repos/download-tarball-archive": {
+			"query": [],
+			"body": []
+		},
+		"repos/download-zipball-archive": {
+			"query": [],
+			"body": []
+		},
+		"repos/generate-release-notes": {
+			"query": [],
+			"body": [
+				"configuration_file_path",
+				"previous_tag_name",
+				"tag_name",
+				"target_commitish"
+			]
+		},
+		"repos/get": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-all-topics": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/get-branch": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-combined-status-for-ref": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/get-commit": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/get-commit-comment": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-content": {
+			"query": ["ref"],
+			"body": []
+		},
+		"repos/get-latest-release": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-release": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-release-asset": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-release-by-tag": {
+			"query": [],
+			"body": []
+		},
+		"repos/list-branches": {
+			"query": ["page", "per_page", "protected"],
+			"body": []
+		},
+		"repos/list-comments-for-commit": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/list-commit-comments-for-repo": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/list-commit-statuses-for-ref": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/list-commits": {
+			"query": [
+				"author",
+				"committer",
+				"page",
+				"path",
+				"per_page",
+				"sha",
+				"since",
+				"until"
+			],
+			"body": []
+		},
+		"repos/list-for-authenticated-user": {
+			"query": [
+				"affiliation",
+				"before",
+				"direction",
+				"page",
+				"per_page",
+				"since",
+				"sort",
+				"type",
+				"visibility"
+			],
+			"body": []
+		},
+		"repos/list-for-user": {
+			"query": ["direction", "page", "per_page", "sort", "type"],
+			"body": []
+		},
+		"repos/list-release-assets": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/list-releases": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/list-tags": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/replace-all-topics": {
+			"query": [],
+			"body": ["names"]
+		},
+		"repos/transfer": {
+			"query": [],
+			"body": ["new_name", "new_owner", "team_ids"]
+		},
+		"repos/update": {
+			"query": [],
+			"body": [
+				"allow_auto_merge",
+				"allow_forking",
+				"allow_merge_commit",
+				"allow_rebase_merge",
+				"allow_squash_merge",
+				"allow_update_branch",
+				"archived",
+				"default_branch",
+				"delete_branch_on_merge",
+				"description",
+				"has_issues",
+				"has_projects",
+				"has_pull_requests",
+				"has_wiki",
+				"homepage",
+				"is_template",
+				"merge_commit_message",
+				"merge_commit_title",
+				"name",
+				"private",
+				"pull_request_creation_policy",
+				"security_and_analysis",
+				"squash_merge_commit_message",
+				"squash_merge_commit_title",
+				"use_squash_pr_title_as_default",
+				"visibility",
+				"web_commit_signoff_required"
+			]
+		},
+		"repos/update-commit-comment": {
+			"query": [],
+			"body": ["body"]
+		},
+		"repos/update-release": {
+			"query": [],
+			"body": [
+				"body",
+				"discussion_category_name",
+				"draft",
+				"make_latest",
+				"name",
+				"prerelease",
+				"tag_name",
+				"target_commitish"
+			]
+		},
+		"repos/update-release-asset": {
+			"query": [],
+			"body": ["label", "name", "state"]
+		},
+		"repos/upload-release-asset": {
+			"query": ["label", "name"],
+			"body": []
+		},
+		"users/check-following-for-user": {
+			"query": [],
+			"body": []
+		},
+		"users/check-person-is-followed-by-authenticated": {
+			"query": [],
+			"body": []
+		},
+		"users/follow": {
+			"query": [],
+			"body": []
+		},
+		"users/get-authenticated": {
+			"query": [],
+			"body": []
+		},
+		"users/get-by-id": {
+			"query": [],
+			"body": []
+		},
+		"users/get-by-username": {
+			"query": [],
+			"body": []
+		},
+		"users/list-followed-by-authenticated-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"users/list-followers-for-authenticated-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"users/list-followers-for-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"users/list-following-for-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"users/unfollow": {
+			"query": [],
+			"body": []
+		}
+	},
+	"absentFromGitHub": [
+		"repos/finish-release-asset-upload",
+		"repos/create-release-asset-upload",
+		"repos/compare-commits-with-basehead",
+		"git/list-refs"
+	]
+}

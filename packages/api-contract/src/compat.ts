@@ -15,9 +15,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search`",
 	"users/get-authenticated": "",
 	"repos/list-for-authenticated-user":
-		"`visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction`",
+		"`visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction`, `since` and `before` (bound the last update)",
 	"repos/create-for-authenticated-user":
-		"`name`, `description`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`); other fields ignored",
+		"`name`, `description`, `homepage`, `private`, `auto_init`, `gitignore_template`, `license_template` (templates apply only with `auto_init`, an unknown template is `422`), `has_issues`, `has_projects`, `has_wiki`, `is_template`; other GitHub fields, such as `allow_squash_merge` or `team_id`, are `422`",
 	"users/list-followers-for-authenticated-user": "pagination",
 	"users/list-followed-by-authenticated-user": "pagination",
 	"users/check-person-is-followed-by-authenticated": "`204` or `404`",
@@ -35,11 +35,12 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"users/check-following-for-user": "`204` or `404`",
 	"activity/list-repos-watched-by-user":
 		"only repositories both the user and the caller can read; pagination",
-	"repos/list-for-user": "public repositories only; `sort`, `direction`",
+	"repos/list-for-user":
+		"public repositories only; `type` (`owner` by default, `member`, `all`), `sort`, `direction`",
 	"activity/list-notifications-for-authenticated-user":
 		"any token; unread unless `all=true`; `participating`, `since`, `before`, `per_page` (up to 50); threads in repositories you can no longer read are hidden",
 	"activity/mark-notifications-as-read":
-		"marks threads updated at or before `last_read_at` (default now) read and answers `205`",
+		"marks threads updated at or before `last_read_at` (default now) read and answers `205`; `read` is accepted only as `true`",
 	"activity/get-thread-subscription-for-authenticated-user":
 		"`reason` is always `null`",
 	"activity/set-thread-subscription": "`ignored: true` mutes the thread",
@@ -51,15 +52,15 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`204`: the thread leaves the inbox until new activity",
 	"repos/get": "",
 	"repos/update":
-		"owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`, `allow_merge_commit`, `allow_squash_merge`, `allow_rebase_merge` (the merge methods pull requests may use; all on by default, and at least one must stay on, else `422`); other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts",
+		"owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`, `allow_merge_commit`, `allow_squash_merge`, `allow_rebase_merge` (the merge methods pull requests may use; all on by default, and at least one must stay on, else `422`); other GitHub fields, such as `allow_auto_merge`, are `422`. Renaming moves the storage; unarchiving is the only change an archived repository accepts",
 	"repos/delete": "owner only (`403` otherwise); `204`",
-	"repos/get-all-topics": "",
+	"repos/get-all-topics": "paginated",
 	"repos/replace-all-topics":
 		"`names` (at most 20, lowercase letters, digits and hyphens, at most 50 characters each; invalid is `422`)",
 	"repos/transfer":
-		"`new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` ignored; the old URL does not redirect",
+		"`new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` is `422` (there are no teams); the old URL does not redirect",
 	"repos/create-using-template":
-		"the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` is ignored; issues, labels, topics and settings are not copied",
+		"the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` must be `false` (`true` is `422`); issues, labels, topics and settings are not copied",
 	"activity/list-watchers-for-repo":
 		"people watching (not ignoring) who can still read the repository; pagination",
 	"activity/get-repo-subscription":
@@ -72,15 +73,16 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"as `GET /notifications`, for one repository",
 	"activity/mark-repo-notifications-as-read":
 		"as `PUT /notifications`, for one repository",
-	"repos/list-branches": "sorted by name",
+	"repos/list-branches":
+		"sorted by name; `protected` is `422` (there is no branch protection)",
 	"repos/get-branch": "branch names may contain `/`",
 	"repos/list-tags": "version order",
 	"repos/list-releases":
 		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
 	"repos/create-release":
-		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` ignored; at 1,000 releases in the repository it is `422`",
+		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` is `422`; at 1,000 releases in the repository it is `422`",
 	"repos/generate-release-notes":
-		"write access; a bulleted list of the commits since `previous_tag_name` (default: the tag before `tag_name`) and a `Full Changelog` compare link; no pull request grouping, `.github/release.yml` or new-contributor section",
+		"write access; a bulleted list of the commits since `previous_tag_name` (default: the tag before `tag_name`) and a `Full Changelog` compare link; no pull request grouping, `.github/release.yml` (`configuration_file_path` is `422`) or new-contributor section",
 	"repos/get-latest-release":
 		"the published, non-prerelease release marked `make_latest: true`, else the newest not marked `false`; `404` when there is none",
 	"repos/get-release-by-tag":
@@ -93,7 +95,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"PushStack extension: completes a presigned upload started with `POST …/assets/uploads` after the bytes were PUT to R2; the stored size must equal the declared one, else the asset is discarded and the answer is `422`; the verified object is copied to its final key, so later `PUT`s to the URL have no effect; unfinished uploads are removed after the URL's 15 minutes",
 	"repos/get-release": "drafts for write access only (`404` otherwise)",
 	"repos/update-release":
-		"write access; as create; publishing a draft sets `published_at` and creates a missing tag; `make_latest: true` moves the badge",
+		"write access; as create (`discussion_category_name` is `422`); publishing a draft sets `published_at` and creates a missing tag; `make_latest: true` moves the badge",
 	"repos/delete-release":
 		"write access; the tag stays, the assets are removed from storage; `204`",
 	"repos/list-release-assets": "uploaded assets only; pagination",
@@ -130,15 +132,15 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/get-combined-status-for-ref":
 		"the newest status of each context; `state` is `failure` when any is `failure` or `error`, `pending` when any is pending or there are none, else `success`; `required` is `null` (required checks aren't enforced); `statuses` are paginated; no `node_id`; `repository` is the minimal shape",
 	"checks/list-for-ref":
-		"`check_name`, `status`, `filter` (`latest` default: the newest run per name; `all`), pagination; `{ total_count, check_runs }`",
+		"`check_name`, `status`, `filter` (`latest` default: the newest run per name; `all`), pagination; `app_id` is `422`; `{ total_count, check_runs }`",
 	"checks/list-suites-for-ref":
-		"a commit has at most one suite (there are no GitHub Apps); `{ total_count, check_suites }`",
+		"a commit has at most one suite (there are no GitHub Apps); `app_id` and `check_name` are `422`; `{ total_count, check_suites }`",
 	"repos/get-commit":
 		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`; `diff` and `patch` past the 4 MB media cap are `406`",
 	"repos/compare-commits-with-basehead":
 		"`base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit); `diff` and `patch` past the 4 MB media cap are `406`",
 	"checks/create":
-		"write access (`repo:write` token scope; GitHub requires a GitHub App); `name`, `head_sha` (a commit of the repository, else `422`), `status` (default `queued`; `conclusion` implies `completed`), `started_at`, `completed_at`, `details_url`, `external_id`, `output` (`title`, `summary`, `text`); `completed` needs a `conclusion`; annotations, images and actions are ignored and `annotations_count` is `0` (no `annotations_url`); up to 1,000 runs per commit; `app`, `pull_requests`, `node_id` and `deployment` are omitted",
+		"write access (`repo:write` token scope; GitHub requires a GitHub App); `name`, `head_sha` (a commit of the repository, else `422`), `status` (default `queued`; `conclusion` implies `completed`), `started_at`, `completed_at`, `details_url`, `external_id`, `output` (`title`, `summary`, `text`); `completed` needs a `conclusion`; `actions`, `output.annotations` and `output.images` are `422`, and `annotations_count` is `0` (no `annotations_url`); up to 1,000 runs per commit; `app`, `pull_requests`, `node_id` and `deployment` are omitted",
 	"checks/get": "",
 	"checks/update":
 		"write access (`repo:write` token scope); the same fields as create, all optional; a `completed` run cannot go back to `queued` or `in_progress`",
@@ -165,14 +167,14 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"git/create-tree":
 		"`tree` entries (`path`, `mode`, `type`, and `sha` or `content`; nested paths edit subtrees, `sha: null` deletes) over an optional `base_tree`; up to 10,000 entries",
 	"git/create-commit":
-		"`message`, `tree`, `parents`, `author`/`committer` (with `date`; default the caller, now); no ref moves",
+		"`message`, `tree`, `parents`, `author`/`committer` (with `date`; default the caller, now); no ref moves; `signature` is `422`",
 	"git/get-tag": "annotated tag objects (unsigned)",
 	"git/create-tag":
 		"unsigned; create the `refs/tags/…` ref separately, as on GitHub",
 	"issues/list-for-repo":
-		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`",
+		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`, `creator`, `mentioned`, `type` (`issue`/`pr`), `since` (last updated at or after; `issue_field_values` is `422`)",
 	"issues/create":
-		"any signed-in reader; `title`, `body`, `labels`, `assignees`, `milestone` (number; labels/assignees/milestone need write access, an unknown milestone is `422`)",
+		"any signed-in reader; `title`, `body`, `labels`, `assignees`, `assignee` (deprecated: one login, added to `assignees`), `milestone` (number; labels/assignees/milestone need write access, an unknown milestone is `422`); `type`, `parent_issue_id` and `issue_field_values` are `422`",
 	"issues/get-comment": "",
 	"issues/update-comment": "",
 	"issues/delete-comment": "`204`",
@@ -183,11 +185,12 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/get":
 		"a pull request number returns the pull request; `closed_by` (the user who last closed it, else `null`) appears here only, not on lists; issues carry `state_reason`",
 	"issues/update":
-		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`, `milestone` (number, or `null` to clear; writers only; records `milestoned`/`demilestoned` events); also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened",
-	"issues/list-comments": "comments of an issue or a pull request",
+		"the author or a writer; `title`, `body`, `state`, `state_reason` (`completed` default, `not_planned`, `reopened`; one that contradicts the state is `422`), `labels`, `assignees`, `assignee` (deprecated: one login, `null` clears; added to `assignees`), `milestone` (number, or `null` to clear; writers only; records `milestoned`/`demilestoned` events); also accepts pull request numbers (state reasons are ignored for pull requests); merged pull requests stay closed and cannot be reopened; `type`, `duplicate_issue_id` and `issue_field_values` are `422`",
+	"issues/list-comments":
+		"comments of an issue or a pull request; `since` (updated at or after)",
 	"issues/create-comment": "any signed-in reader",
 	"issues/list-events-for-timeline":
-		"comments, events and submitted reviews (`reviewed` items with `state`, `body`, `commit_id`, `author_association` `OWNER`/`COLLABORATOR`/`NONE`), oldest first",
+		"comments, events and submitted reviews (`reviewed` items with `state`, `body`, `commit_id`, `author_association` `OWNER`/`COLLABORATOR`/`NONE`), oldest first; `exclude` is `422`",
 	"issues/list-events":
 		"issue events only (no comments or reviews, as on GitHub), oldest first",
 	"reactions/list-for-issue":
@@ -195,7 +198,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"reactions/create-for-issue":
 		"any signed-in reader (`repo:write` token); `201` when new, `200` with the existing reaction",
 	"reactions/delete-for-issue": "only your own reaction; `204`",
-	"issues/list-labels-on-issue": "",
+	"issues/list-labels-on-issue": "paginated",
 	"issues/add-labels": "write access; returns every label",
 	"issues/set-labels": "write access; returns every label",
 	"issues/remove-all-labels": "write access; `204`",
@@ -203,11 +206,11 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/list":
 		"`state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults)",
 	"pulls/create":
-		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
+		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `head_repo` and `maintainer_can_modify` are `422`); unknown or equal branches and an already-open pull request are `422`",
 	"pulls/get":
 		"media types `diff` (the unified diff, base to head) and `patch` (one format-patch section per commit, oldest first, up to 250 commits); both are `text/plain; charset=utf-8` (an inert type with `nosniff`, not GitHub's `application/vnd.github.v3.diff`/`.patch` Content-Type) and stream up to the 4 MB media cap, past which the answer is `406`",
 	"pulls/update":
-		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`",
+		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`; `maintainer_can_modify` is `422`",
 	"pulls/check-if-merged": "`204` once merged, else `404`",
 	"pulls/merge":
 		"`commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge`, `squash` or `rebase`; a method the repository disallows is `405`). Squash makes one commit on the target, titled `<title> (#N)` by default, with a bulleted list of the commits (up to 250, then a truncation line) when there are several; rebase replays the branch's commits without a merge commit and ignores `commit_title`/`commit_message`; a branch of more than 250 commits, or one with a merge commit, is `405`. A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }`",
@@ -232,7 +235,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/create-label":
 		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`; at 1,000 labels in the repository it is `422`",
 	"issues/get-label": "",
-	"issues/update-label": "write access",
+	"issues/update-label": "write access; `archived` is `422`",
 	"issues/delete-label": "write access; `204`",
 };
 

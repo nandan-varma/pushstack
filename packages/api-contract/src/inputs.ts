@@ -119,6 +119,21 @@ export const milestoneRef = z.union([
 		.transform(Number),
 ]);
 
+/** The deprecated singular `assignee`: one login. */
+export const assigneeLogin = z.string().trim().min(1).max(100);
 export const assigneeLogins = z
 	.array(z.string().trim().min(1).max(100))
 	.max(MAX_ASSIGNEES);
+
+/** The message of an {@link unsupported} field's refusal; the server maps it to a 422 error. */
+export const UNSUPPORTED_PARAMETER = "is not supported by PushStack";
+
+/**
+ * A GitHub query or body field PushStack does not implement. Sending it is a
+ * 422 naming the field: a field that is silently dropped looks accepted and
+ * changes nothing (a filter that is ignored returns the wrong rows).
+ */
+export const unsupported = z
+	.any()
+	.refine((value) => value === undefined, UNSUPPORTED_PARAMETER)
+	.optional();

@@ -5,7 +5,8 @@ export const API_PREFIX = "/api/v3";
 const DOCUMENTATION_URL = "https://docs.github.com/rest";
 
 export interface FieldError {
-	resource: string;
+	/** The model the field belongs to; absent for a parameter refused as unsupported. */
+	resource?: string;
 	field?: string;
 	code: "missing" | "missing_field" | "invalid" | "already_exists" | "custom";
 	message?: string;

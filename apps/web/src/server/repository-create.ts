@@ -2,7 +2,11 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { repositories } from "#/db/app-schema";
-import { MAX_ARCHIVE_BYTES, MAX_REPO_DESCRIPTION_CHARS } from "#/lib/limits";
+import {
+	MAX_ARCHIVE_BYTES,
+	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+} from "#/lib/limits";
 import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
@@ -33,6 +37,12 @@ export const repoNameSchema = z
 export const createRepositoryInputSchema = z.object({
 	name: repoNameSchema,
 	description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).optional(),
+	/** An http(s) URL; the REST handler checks it before the row is written. */
+	homepage: z.string().trim().max(MAX_REPO_HOMEPAGE_CHARS).optional(),
+	hasIssues: z.boolean().optional(),
+	hasWiki: z.boolean().optional(),
+	hasProjects: z.boolean().optional(),
+	isTemplate: z.boolean().optional(),
 	visibility: z.enum(["public", "private"]).default("public"),
 	autoInit: z.boolean().default(false),
 	gitignoreTemplate: z.enum(GITIGNORE_TEMPLATE_NAMES).optional(),
@@ -86,8 +96,13 @@ export async function createRepositoryForUser(
 			ownerId: owner.id,
 			name: data.name,
 			description: data.description || null,
+			homepage: data.homepage || null,
 			visibility: data.visibility,
 			defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
+			hasIssues: data.hasIssues ?? true,
+			hasWiki: data.hasWiki ?? false,
+			hasProjects: data.hasProjects ?? false,
+			isTemplate: data.isTemplate ?? false,
 		})
 		.returning()
 		.then(([row]) => row)
