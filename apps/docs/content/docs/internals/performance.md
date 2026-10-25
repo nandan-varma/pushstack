@@ -126,6 +126,11 @@ the codebase, worth matching the shape of when adding new code:
   file in parallel *before* a sequential `git.log` walk starts, rather than
   letting isomorphic-git fetch packs lazily and serially as the walk needs
   them. It fires on every cache-miss history walk and tree read.
+- Receive-pack checks every incoming tree name, including unreachable trees,
+  using the incoming pack bytes and the index generated during indexing.
+  This avoids reading the pack back from storage for the fsck scan; unknown
+  object types still require repository reads and fail closed if unreadable.
+  The small-push regression test caps storage calls at 23.
 - Receive-pack applies every ref update in a
   push (compare-and-swap check, then write/delete) in one `Promise.all` —
   each ref only touches its own ref file, so a multi-ref push (`git push

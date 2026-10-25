@@ -134,12 +134,11 @@ describe("applyReceivePack storage calls", () => {
 		expect(calls.filter((call) => call.startsWith("PUT git/refs"))).toEqual([
 			"PUT git/refs/heads/main",
 		]);
-		// Pinned. Includes the whole-pack tree-name scan (#236), which lists and
-		// reads the incoming pack once more (6 calls) for security.
+		// Tree-name validation uses the incoming bytes, without storage reads.
 		expect(
 			calls.filter((call) => call === "LIST git/objects/pack/").length,
-		).toBe(7);
-		expect(calls.length).toBeLessThanOrEqual(29);
+		).toBe(5);
+		expect(calls.length).toBeLessThanOrEqual(23);
 	});
 });
 

@@ -5,9 +5,12 @@
  */
 
 import git from "isomorphic-git";
+import { createGitFs } from "../git-fs.js";
 import { getObjectTypes } from "../object-size.js";
 import type { Repo } from "../ops/types.js";
 import { createSemaphore } from "../semaphore.js";
+import { MemoryObjectStore } from "../stores/memory.js";
+import { rawFs } from "./types.js";
 
 export interface TreeNameProblem {
 	/** git's fsck message id (`hasDotdot`, …). */
@@ -68,8 +71,24 @@ export function treeEntryNameProblem(name: string): TreeNameProblem | null {
 export async function findInvalidTree(
 	repo: Repo,
 	oids: Iterable<string>,
+	packed?: { base: string; pack: Uint8Array; index: Uint8Array },
 ): Promise<string | null> {
-	const types = await getObjectTypes(repo, [...oids]);
+	// A private read view keeps the incoming pack and freshly generated index
+	// in memory. Unknown types (including external delta bases) still use the
+	// repository below, so thin packs retain their existing validation.
+	let readRepo = repo;
+	if (packed) {
+		readRepo = {
+			fs: createGitFs(new MemoryObjectStore()),
+			gitdir: repo.gitdir,
+			cache: {},
+		};
+		const fsp = rawFs(readRepo);
+		const prefix = `${repo.gitdir}/objects/pack/${packed.base}`;
+		await fsp.writeFile(`${prefix}.pack`, packed.pack);
+		await fsp.writeFile(`${prefix}.idx`, packed.index);
+	}
+	const types = await getObjectTypes(readRepo, [...oids]);
 	// A type the headers could not give (null) fails closed: the object is
 	// read and checked if it is a tree, and rejected if it cannot be read.
 	const candidates = [...types].filter(
@@ -82,7 +101,10 @@ export async function findInvalidTree(
 			reads.run(async () => {
 				if (found) return;
 				try {
-					const obj = await git.readObject({ ...repo, oid });
+					const obj = await git.readObject({
+						...(type === null ? repo : readRepo),
+						oid,
+					});
 					if (obj.type !== "tree") return;
 					for (const entry of obj.object as { path: string }[]) {
 						const problem = treeEntryNameProblem(entry.path);

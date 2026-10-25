@@ -111,7 +111,11 @@ async function storeIncomingPack(
 	repo: Repo,
 	packData: Uint8Array,
 	hooks?: HttpHooks,
-): Promise<{ paths: string[]; oids: string[] }> {
+): Promise<{
+	paths: string[];
+	oids: string[];
+	packed?: { base: string; pack: Uint8Array; index: Uint8Array };
+}> {
 	if (packData.length < 4) return { paths: [], oids: [] };
 	const stored = await runStep(
 		hooks,
@@ -127,6 +131,7 @@ async function storeIncomingPack(
 			`${repo.gitdir}/objects/pack/${stored.base}.idx`,
 		],
 		oids: stored.oids,
+		packed: { base: stored.base, pack: packData, index: stored.index },
 	};
 }
 
@@ -460,6 +465,7 @@ export async function applyReceivePack(
 	});
 	const existingPacks = new Set(listedPacks ?? []);
 	let incomingPackPaths: string[];
+	let incomingPacked: Awaited<ReturnType<typeof storeIncomingPack>>["packed"];
 	let incomingOids: ReadonlySet<string> = new Set();
 	try {
 		const stored = await storeIncomingPack(
@@ -470,6 +476,7 @@ export async function applyReceivePack(
 			hooks,
 		);
 		incomingPackPaths = stored.paths;
+		incomingPacked = stored.packed;
 		incomingOids = new Set(stored.oids);
 	} catch (err) {
 		hooks?.onWarn?.("receive-pack: incoming pack rejected", err);
@@ -492,7 +499,7 @@ export async function applyReceivePack(
 	// Every tree the pack holds is name-checked, reachable or not: otherwise an
 	// unreferenced bad tree could be stored by one push and referenced by the
 	// next, which only checks its own pack.
-	const badTree = await findInvalidTree(repo, incomingOids);
+	const badTree = await findInvalidTree(repo, incomingOids, incomingPacked);
 	if (badTree) {
 		for (const filepath of removableIncoming) {
 			await fsp.unlink(filepath).catch(() => {});
