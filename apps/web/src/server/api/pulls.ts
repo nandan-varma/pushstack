@@ -18,6 +18,7 @@ import {
 	getCommitsBetween,
 } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
+import { withRepositoryLock } from "../git-repo-lock";
 import { ownerKeyOf } from "../git-storage-naming";
 import { perfStep } from "../perf-log";
 import {
@@ -364,23 +365,6 @@ export async function createPull(ctx: ApiContext) {
 			customError(`No commits between ${targetBranch} and ${sourceBranch}`),
 		]);
 	}
-	const duplicate = await listThreads(
-		{
-			repoId: repo.id,
-			kind: "pull_request",
-			state: "open",
-			head: sourceBranch,
-			base: targetBranch,
-		},
-		{ limit: 1 },
-	);
-	if (duplicate.total > 0) {
-		throw validationFailedError("Validation Failed", [
-			customError(
-				`A pull request already exists for ${repo.owner.username}:${sourceBranch}.`,
-			),
-		]);
-	}
 	const { canMerge } = await analyzeMerge(
 		ownerKeyOf(repo),
 		repo.name,
@@ -393,13 +377,38 @@ export async function createPull(ctx: ApiContext) {
 		]);
 	}
 
-	const created = await insertPullRequest(repo.id, caller.userId, {
-		title: data.title,
-		body: data.body ?? undefined,
-		sourceBranch,
-		targetBranch,
-		draft: data.draft ?? false,
-	});
+	// Check-then-insert must be atomic per repository, or two concurrent
+	// creates for the same head both pass the duplicate check.
+	const created = await withRepositoryLock(
+		ownerKeyOf(repo),
+		repo.name,
+		async () => {
+			const duplicate = await listThreads(
+				{
+					repoId: repo.id,
+					kind: "pull_request",
+					state: "open",
+					head: sourceBranch,
+					base: targetBranch,
+				},
+				{ limit: 1 },
+			);
+			if (duplicate.total > 0) {
+				throw validationFailedError("Validation Failed", [
+					customError(
+						`A pull request already exists for ${repo.owner.username}:${sourceBranch}.`,
+					),
+				]);
+			}
+			return insertPullRequest(repo.id, caller.userId, {
+				title: data.title,
+				body: data.body ?? undefined,
+				sourceBranch,
+				targetBranch,
+				draft: data.draft ?? false,
+			});
+		},
+	);
 	await requestCodeownerReviews(repo, created);
 	const record = await findPull(repo.id, created.number);
 	if (!record) throw new Error("Pull request missing after insert");

@@ -152,6 +152,12 @@ pnpm typecheck  # tsc --noEmit
 
 Biome (not ESLint/Prettier) — config in `biome.json`.
 
+Agents working in a git worktree run under a guard that refuses commands it
+cannot prove stay inside the worktree: piped or chained `cd && git …`, more
+than one `git` per command, and `-C`/`--git-dir` tricks. Run one git command
+per Bash call from the worktree root, and use `pnpm --dir <abs path>` rather
+than `cd`.
+
 ## Troubleshooting: every turbo task fails with "Exec format error"
 
 `package.json` pins pnpm through `packageManager`, so pnpm downloads that
