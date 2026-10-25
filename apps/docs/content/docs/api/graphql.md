@@ -170,6 +170,14 @@ to change an open pull request. Marking ready requests CODEOWNERS reviews.
 is a no-op and reopening one is refused, as on REST. `updatePullRequest`
 refuses a changed `baseRefName` and labels, assignees, milestone and projects
 are not yet accepted (unknown fields fail validation rather than being ignored).
+`mergePullRequest` follows the REST merge rules: it needs write access (or
+`canMergePullRequest`) and a `repo:write` token, refuses archived repositories,
+drafts and closed or merged pulls, and is blocked by a changes-requested review
+unless the caller can moderate. `expectedHeadOid` must match the head branch
+(`UNPROCESSABLE` otherwise). Only `mergeMethod: MERGE` is supported; `SQUASH`
+and `REBASE` are refused like REST's `405`. `commitHeadline` and `commitBody`
+set the merge commit message. `authorEmail` is not accepted. Both
+`mergePullRequest` and `updatePullRequest` resolve `actor` to the caller.
 Every top-level mutation costs at least five GraphQL rate-limit points,
 including aliases.
 

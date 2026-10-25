@@ -7,20 +7,29 @@ import {
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { tokenAllows } from "#/lib/token-scopes";
+import { callerIdentity } from "../../api/auth";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import {
 	requestCodeownerReviews,
 	requestCodeownerReviewsFor,
 } from "../../codeowners";
-import { analyzeMerge, getCommitsBetween, getTags } from "../../git-read";
+import {
+	analyzeMerge,
+	getBranches,
+	getCommitsBetween,
+	getTags,
+} from "../../git-read";
 import { safeBranchNameSchema } from "../../git-ref-name";
 import { withRepositoryLock } from "../../git-repo-lock";
 import { ownerKeyOf } from "../../git-storage-naming";
 import {
 	insertPullRequest,
+	mergePullRequestBranches,
 	setPullRequestDraft,
 	updatePullRequestFields,
 } from "../../pull-request-store";
+import { canMergePullRequest, canModerateRepo } from "../../repo-access";
+import { reviewSummaryFor } from "../../review-store";
 import {
 	findPullRequestById,
 	findPullRequestByNumber,
@@ -42,6 +51,7 @@ import { readCommitNode } from "./commit";
 import { loadUser, userNode } from "./core";
 import type {
 	CreatePullRequestInput,
+	MergePullRequestInput,
 	RepositoryPullRequestsArgs,
 	UpdatePullRequestInput,
 } from "./generated";
@@ -240,8 +250,8 @@ async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 		pullRequest: pullNode(repo, row),
 	};
 }
-/** The pull request a mutation may change: its author or a writer, in an unarchived repository. */
-async function writablePull(
+/** The pull request a mutation names, with the repo:write scope checked. */
+async function mutationPull(
 	input: { pullRequestId: string },
 	ctx: GraphQLContext,
 ) {
@@ -253,10 +263,26 @@ async function writablePull(
 		throw notFound(
 			`Could not resolve to a node with the global id of '${input.pullRequestId}'`,
 		);
+	return node;
+}
+
+/** The pull request a mutation may change: its author or a writer, in an unarchived repository. */
+async function writablePull(
+	input: { pullRequestId: string },
+	ctx: GraphQLContext,
+) {
+	const node = await mutationPull(input, ctx);
 	if (node.row.authorId !== ctx.caller.userId && !canWrite(node.repo))
 		throw forbidden("You do not have permission to update this pull request");
 	if (node.repo.row.archived) throw forbidden("Repository is archived");
 	return node;
+}
+
+/** The caller, as the actor who performed a mutation. */
+async function actorOf(_payload: unknown, _args: unknown, ctx: GraphQLContext) {
+	const row = await loadUser(ctx, ctx.caller.userId);
+	if (!row) throw new Error("Authenticated user missing");
+	return userNode(row);
 }
 
 /** The pull request as it reads after a write, with its shared repository node. */
@@ -308,6 +334,68 @@ async function updatePull(input: UpdatePullRequestInput, ctx: GraphQLContext) {
 				status: input.state === "OPEN" ? "open" : "closed",
 			}),
 	});
+	return reloadedPull(node, input.clientMutationId);
+}
+
+/**
+ * `mergePullRequest`: the REST merge rules. Only a merge commit is supported
+ * (as REST's `merge_method`), so SQUASH and REBASE are refused.
+ */
+async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
+	const node = await mutationPull(input, ctx);
+	if (node.repo.row.archived) throw forbidden("Repository is archived");
+	if (!(await canMergePullRequest(node.repo.row.id, ctx.caller.userId)))
+		throw forbidden("You do not have permission to merge this pull request");
+	if (input.mergeMethod && input.mergeMethod !== "MERGE")
+		throw unprocessable(
+			`${input.mergeMethod === "SQUASH" ? "Squash" : "Rebase"} merges are not allowed on this repository.`,
+		);
+	if (node.row.status === "open" && node.row.isDraft)
+		throw unprocessable("Pull Request is still a draft");
+	if (node.row.status !== "open")
+		throw unprocessable("Pull Request is not mergeable");
+	const headModified = () =>
+		unprocessable("Head branch was modified. Review and try the merge again.");
+	const expectedHeadOid = input.expectedHeadOid ?? undefined;
+	// A fast path; the merge re-checks under the repository lock.
+	if (expectedHeadOid) {
+		const branches = await getBranches(
+			ownerKeyOf(node.repo.row),
+			node.repo.row.name,
+		);
+		const head = branches.find(
+			(branch) => branch.name === node.row.sourceBranch,
+		);
+		if (head?.commit !== expectedHeadOid) throw headModified();
+	}
+	// GitHub blocks the merge while changes are requested; an owner/admin may override.
+	if (
+		(await reviewSummaryFor(node.row.id)).blocksMerge &&
+		!(await canModerateRepo(node.repo.row.id, ctx.caller.userId))
+	)
+		throw unprocessable("Pull Request is not mergeable");
+
+	const committer = await callerIdentity(ctx.caller);
+	const title = input.commitHeadline?.trim();
+	const body = input.commitBody?.trim();
+	const commitMessage = title
+		? body
+			? `${title}\n\n${body}`
+			: title
+		: body
+			? `Merge pull request #${node.row.number}: ${node.row.title}\n\n${body}`
+			: undefined;
+	const result = await mergePullRequestBranches(
+		node.repo.row,
+		node.row,
+		committer,
+		commitMessage,
+		expectedHeadOid,
+	);
+	if (!result.success)
+		throw result.headModified
+			? headModified()
+			: unprocessable("Pull Request is not mergeable");
 	return reloadedPull(node, input.clientMutationId);
 }
 
@@ -409,7 +497,10 @@ export const pullsResolvers: DomainResolvers = {
 			reopenPullRequest: (_source, args, ctx) =>
 				setPullStatus(args.input, ctx, "open"),
 			updatePullRequest: (_source, args, ctx) => updatePull(args.input, ctx),
+			mergePullRequest: (_source, args, ctx) => mergePull(args.input, ctx),
 		},
+		UpdatePullRequestPayload: { actor: actorOf },
+		MergePullRequestPayload: { actor: actorOf },
 		Release: {
 			tagCommit: async (node, _args, ctx) => {
 				const tags = await ctx.memo(`release-tags:${node.repo.row.id}`, () =>

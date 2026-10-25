@@ -22,7 +22,8 @@
 		"convertPullRequestToDraft",
 		"closePullRequest",
 		"reopenPullRequest",
-		"updatePullRequest"
+		"updatePullRequest",
+		"mergePullRequest"
 	],
 	"PullRequest": {
 		"$implements": ["Node", "UniformResourceLocatable"],
@@ -110,6 +111,18 @@
 		]
 	},
 	"UpdatePullRequestPayload": "*",
+	"MergePullRequestInput": {
+		"$implements": [],
+		"fields": [
+			"clientMutationId",
+			"pullRequestId",
+			"mergeMethod",
+			"commitHeadline",
+			"commitBody",
+			"expectedHeadOid"
+		]
+	},
+	"MergePullRequestPayload": "*",
 	"Commit": ["zipballUrl", "tarballUrl", "statusCheckRollup"],
 	"AutoMergeRequest": {
 		"$implements": [],
