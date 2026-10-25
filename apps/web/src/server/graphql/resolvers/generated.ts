@@ -2,6 +2,8 @@ import type { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } f
 import type { UserNode } from './core';
 import type { RepositoryNode, RefNode } from './repository';
 import type { CommitNode } from './commit';
+import type { PullRequestNode } from './pulls';
+import type { ReviewNode, CommentNode, RollupNode } from './pulls-detail';
 import type { ReleaseNode, ReleaseAssetNode } from './releases';
 import type { RateLimitInfo, GraphQLContext } from '../context';
 export type Maybe<T> = T | null;
@@ -181,12 +183,36 @@ export type Mutation = {
   __typename?: 'Mutation';
   /** Create a new repository. */
   createRepository?: Maybe<CreateRepositoryPayload>;
+  /** Create a new pull request */
+  createPullRequest?: Maybe<CreatePullRequestPayload>;
+  /** Marks a pull request ready for review. */
+  markPullRequestReadyForReview?: Maybe<MarkPullRequestReadyForReviewPayload>;
+  /** Converts a pull request to draft */
+  convertPullRequestToDraft?: Maybe<ConvertPullRequestToDraftPayload>;
 };
 
 
 /** The root query for implementing GraphQL mutations. */
 export type MutationCreateRepositoryArgs = {
   input: CreateRepositoryInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationCreatePullRequestArgs = {
+  input: CreatePullRequestInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationMarkPullRequestReadyForReviewArgs = {
+  input: MarkPullRequestReadyForReviewInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationConvertPullRequestToDraftArgs = {
+  input: ConvertPullRequestToDraftInput;
 };
 
 /** Represents an owner of a Repository. */
@@ -384,6 +410,10 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   viewerPermission?: Maybe<RepositoryPermission>;
   /** Indicates the repository's visibility level. */
   visibility: RepositoryVisibility;
+  /** Returns a single pull request from the current repository by number. */
+  pullRequest?: Maybe<PullRequest>;
+  /** A list of pull requests that have been opened in the repository. */
+  pullRequests: PullRequestConnection;
 };
 
 
@@ -413,6 +443,26 @@ export type RepositoryReleasesArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   orderBy?: InputMaybe<ReleaseOrder>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryPullRequestArgs = {
+  number: Scalars['Int']['input'];
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryPullRequestsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  states?: InputMaybe<Array<PullRequestState>>;
+  baseRefName?: InputMaybe<Scalars['String']['input']>;
+  headRefName?: InputMaybe<Scalars['String']['input']>;
+  labels?: InputMaybe<Array<Scalars['String']['input']>>;
+  orderBy?: InputMaybe<IssueOrder>;
 };
 
 /** A list of repositories owned by the subject. */
@@ -487,6 +537,18 @@ export type Commit = GitObject & Node & {
   url: Scalars['URI']['output'];
   /** Fetches `git blame` information. */
   blame: Blame;
+  /**
+   * Returns a URL to download a zipball archive for a repository.
+   * Note: For private repositories, these links are temporary and expire after five minutes.
+   */
+  zipballUrl: Scalars['URI']['output'];
+  /**
+   * Returns a URL to download a tarball archive for a repository.
+   * Note: For private repositories, these links are temporary and expire after five minutes.
+   */
+  tarballUrl: Scalars['URI']['output'];
+  /** Check and Status rollup information for this commit. */
+  statusCheckRollup?: Maybe<StatusCheckRollup>;
 };
 
 
@@ -668,6 +730,8 @@ export type Release = Node & UniformResourceLocatable & {
   updatedAt: Scalars['DateTime']['output'];
   /** The HTTP URL for this issue */
   url: Scalars['URI']['output'];
+  /** The tag commit for this release. */
+  tagCommit?: Maybe<Commit>;
 };
 
 
@@ -766,6 +830,770 @@ export type ReleaseOrderField =
   /** Order releases alphabetically by name */
   | 'NAME';
 
+/** A repository pull request. */
+export type PullRequest = Node & UniformResourceLocatable & {
+  __typename?: 'PullRequest';
+  /** The Node ID of the PullRequest object */
+  id: Scalars['ID']['output'];
+  /**
+   * Identifies the primary key from the database.
+   * @deprecated `databaseId` will be removed because it does not support 64-bit signed integer identifiers. Use `fullDatabaseId` instead. Removal on 2024-07-01 UTC.
+   */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** Identifies the pull request number. */
+  number: Scalars['Int']['output'];
+  /** Identifies the pull request title. */
+  title: Scalars['String']['output'];
+  /** The body as Markdown. */
+  body: Scalars['String']['output'];
+  /** Identifies the state of the pull request. */
+  state: PullRequestState;
+  /** Identifies if the pull request is a draft. */
+  isDraft: Scalars['Boolean']['output'];
+  /** The HTTP URL for this pull request. */
+  url: Scalars['URI']['output'];
+  /** The HTTP path for this pull request. */
+  resourcePath: Scalars['URI']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was closed. */
+  closedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** The date and time that the pull request was merged. */
+  mergedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** `true` if the pull request is closed */
+  closed: Scalars['Boolean']['output'];
+  /** Whether or not the pull request was merged. */
+  merged: Scalars['Boolean']['output'];
+  /** The actor who authored the comment. */
+  author?: Maybe<Actor>;
+  /** The repository associated with this node. */
+  repository: Repository;
+  /** Identifies the name of the head Ref associated with the pull request, even if the ref has been deleted. */
+  headRefName: Scalars['String']['output'];
+  /** Identifies the name of the base Ref associated with the pull request, even if the ref has been deleted. */
+  baseRefName: Scalars['String']['output'];
+  /** The repository associated with this pull request's head Ref. */
+  headRepository?: Maybe<Repository>;
+  /** The owner of the repository associated with this pull request's head Ref. */
+  headRepositoryOwner?: Maybe<RepositoryOwner>;
+  /** The head and base repositories are different. */
+  isCrossRepository: Scalars['Boolean']['output'];
+  /** Returns the auto-merge request object if one exists for this pull request. */
+  autoMergeRequest?: Maybe<AutoMergeRequest>;
+  /** Indicates whether maintainers can modify the pull request. */
+  maintainerCanModify: Scalars['Boolean']['output'];
+  /** Whether or not the pull request can be merged based on the existence of merge conflicts. */
+  mergeable: MergeableState;
+  /** The number of additions in this pull request. */
+  additions: Scalars['Int']['output'];
+  /** The number of deletions in this pull request. */
+  deletions: Scalars['Int']['output'];
+  /** A list of commits present in this pull request's head branch not present in the base branch. */
+  commits: PullRequestCommitConnection;
+  /** A list of review requests associated with the pull request. */
+  reviewRequests?: Maybe<ReviewRequestConnection>;
+  /** A list of reviews associated with the pull request. */
+  reviews?: Maybe<PullRequestReviewConnection>;
+  /** A list of Users assigned to this object. */
+  assignees: UserConnection;
+  /** A list of labels associated with the object. */
+  labels?: Maybe<LabelConnection>;
+  /** Identifies the milestone associated with the pull request. */
+  milestone?: Maybe<Milestone>;
+  /** A list of comments associated with the pull request. */
+  comments: IssueCommentConnection;
+  /** A list of reactions grouped by content left on the subject. */
+  reactionGroups?: Maybe<Array<ReactionGroup>>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestCommitsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestReviewRequestsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestReviewsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestAssigneesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestLabelsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestCommentsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** The possible states of a pull request. */
+export type PullRequestState =
+  /** A pull request that has been closed without being merged. */
+  | 'CLOSED'
+  /** A pull request that has been closed by being merged. */
+  | 'MERGED'
+  /** A pull request that is still open. */
+  | 'OPEN';
+
+/** The connection type for PullRequest. */
+export type PullRequestConnection = {
+  __typename?: 'PullRequestConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<PullRequestEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<PullRequest>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type PullRequestEdge = {
+  __typename?: 'PullRequestEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<PullRequest>;
+};
+
+/** Ways in which lists of issues can be ordered upon return. */
+export type IssueOrder = {
+  /** The direction in which to order issues by the specified field. */
+  direction: OrderDirection;
+  /** The field in which to order issues by. */
+  field: IssueOrderField;
+};
+
+/** Properties by which issue connections can be ordered. */
+export type IssueOrderField =
+  /** Order issues by comment count */
+  | 'COMMENTS'
+  /** Order issues by creation time */
+  | 'CREATED_AT'
+  /** Order issues by update time */
+  | 'UPDATED_AT';
+
+/** Autogenerated input type of CreatePullRequest */
+export type CreatePullRequestInput = {
+  /**
+   * The name of the branch you want your changes pulled into. This should be an existing branch
+   * on the current repository. You cannot update the base branch on a pull request to point
+   * to another repository.
+   */
+  baseRefName: Scalars['String']['input'];
+  /** The contents of the pull request. */
+  body?: InputMaybe<Scalars['String']['input']>;
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** Indicates whether this pull request should be a draft. */
+  draft?: InputMaybe<Scalars['Boolean']['input']>;
+  /**
+   * The name of the branch where your changes are implemented. For cross-repository pull requests
+   * in the same network, namespace `head_ref_name` with a user like this: `username:branch`.
+   */
+  headRefName: Scalars['String']['input'];
+  /** The Node ID of the head repository. */
+  headRepositoryId?: InputMaybe<Scalars['ID']['input']>;
+  /** Indicates whether maintainers can modify the pull request. */
+  maintainerCanModify?: InputMaybe<Scalars['Boolean']['input']>;
+  /** The Node ID of the repository. */
+  repositoryId: Scalars['ID']['input'];
+  /** The title of the pull request. */
+  title: Scalars['String']['input'];
+};
+
+/** Autogenerated return type of CreatePullRequest. */
+export type CreatePullRequestPayload = {
+  __typename?: 'CreatePullRequestPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The new pull request. */
+  pullRequest?: Maybe<PullRequest>;
+};
+
+/** Autogenerated input type of MarkPullRequestReadyForReview */
+export type MarkPullRequestReadyForReviewInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** ID of the pull request to be marked as ready for review. */
+  pullRequestId: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of MarkPullRequestReadyForReview. */
+export type MarkPullRequestReadyForReviewPayload = {
+  __typename?: 'MarkPullRequestReadyForReviewPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The pull request that is ready for review. */
+  pullRequest?: Maybe<PullRequest>;
+};
+
+/** Autogenerated input type of ConvertPullRequestToDraft */
+export type ConvertPullRequestToDraftInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** ID of the pull request to convert to draft */
+  pullRequestId: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of ConvertPullRequestToDraft. */
+export type ConvertPullRequestToDraftPayload = {
+  __typename?: 'ConvertPullRequestToDraftPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The pull request that is now a draft. */
+  pullRequest?: Maybe<PullRequest>;
+};
+
+/** Represents an auto-merge request for a pull request */
+export type AutoMergeRequest = {
+  __typename?: 'AutoMergeRequest';
+  /** The email address of the author of this auto-merge request. */
+  authorEmail?: Maybe<Scalars['String']['output']>;
+  /**
+   * The commit message of the auto-merge request. If a merge queue is required by
+   * the base branch, this value will be set by the merge queue when merging.
+   */
+  commitBody?: Maybe<Scalars['String']['output']>;
+  /**
+   * The commit title of the auto-merge request. If a merge queue is required by
+   * the base branch, this value will be set by the merge queue when merging
+   */
+  commitHeadline?: Maybe<Scalars['String']['output']>;
+  /**
+   * The merge method of the auto-merge request. If a merge queue is required by
+   * the base branch, this value will be set by the merge queue when merging.
+   */
+  mergeMethod: PullRequestMergeMethod;
+  /** When was this auto-merge request was enabled. */
+  enabledAt?: Maybe<Scalars['DateTime']['output']>;
+  /** The actor who created the auto-merge request. */
+  enabledBy?: Maybe<Actor>;
+};
+
+/** Represents available types of methods to use when merging a pull request. */
+export type PullRequestMergeMethod =
+  /** Add all commits from the head branch to the base branch with a merge commit. */
+  | 'MERGE'
+  /** Add all commits from the head branch onto the base branch individually. */
+  | 'REBASE'
+  /** Combine all commits from the head branch into a single commit in the base branch. */
+  | 'SQUASH';
+
+/** Whether or not a PullRequest can be merged. */
+export type MergeableState =
+  /** The pull request cannot be merged due to merge conflicts. */
+  | 'CONFLICTING'
+  /** The pull request can be merged. */
+  | 'MERGEABLE'
+  /** The mergeability of the pull request is still being calculated. */
+  | 'UNKNOWN';
+
+/** Represents a Git commit part of a pull request. */
+export type PullRequestCommit = {
+  __typename?: 'PullRequestCommit';
+  /** The Git commit object */
+  commit: Commit;
+};
+
+/** The connection type for PullRequestCommit. */
+export type PullRequestCommitConnection = {
+  __typename?: 'PullRequestCommitConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<PullRequestCommit>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<PullRequestCommitEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type PullRequestCommitEdge = {
+  __typename?: 'PullRequestCommitEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<PullRequestCommit>;
+};
+
+/** A request for a user to review a pull request. */
+export type ReviewRequest = {
+  __typename?: 'ReviewRequest';
+  /** The reviewer that is requested. */
+  requestedReviewer?: Maybe<RequestedReviewer>;
+};
+
+/** Types that can be requested reviewers. */
+export type RequestedReviewer = Bot | Team | User;
+
+/** The connection type for ReviewRequest. */
+export type ReviewRequestConnection = {
+  __typename?: 'ReviewRequestConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ReviewRequest>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ReviewRequestEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type ReviewRequestEdge = {
+  __typename?: 'ReviewRequestEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<ReviewRequest>;
+};
+
+/** A special type of user which takes actions on behalf of GitHub Apps. */
+export type Bot = {
+  __typename?: 'Bot';
+  /** The username of the actor. */
+  login: Scalars['String']['output'];
+};
+
+/** A team of users in an organization. */
+export type Team = {
+  __typename?: 'Team';
+  /** The organization that owns this team. */
+  organization: Organization;
+  /** The name of the team. */
+  name: Scalars['String']['output'];
+  /** The slug corresponding to the team. */
+  slug: Scalars['String']['output'];
+};
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type Organization = {
+  __typename?: 'Organization';
+  /** The organization's login name. */
+  login: Scalars['String']['output'];
+};
+
+/** A review object for a given pull request. */
+export type PullRequestReview = Node & {
+  __typename?: 'PullRequestReview';
+  /** The Node ID of the PullRequestReview object */
+  id: Scalars['ID']['output'];
+  /** The actor who authored the comment. */
+  author?: Maybe<Actor>;
+  /** Author's association with the subject of the comment. */
+  authorAssociation: CommentAuthorAssociation;
+  /** Identifies when the Pull Request Review was submitted */
+  submittedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** Identifies the pull request review body. */
+  body: Scalars['String']['output'];
+  /** Identifies the current state of the pull request review. */
+  state: PullRequestReviewState;
+  /** Identifies the commit associated with this pull request review. */
+  commit?: Maybe<Commit>;
+  /** A list of reactions grouped by content left on the subject. */
+  reactionGroups?: Maybe<Array<ReactionGroup>>;
+};
+
+/** The possible states of a pull request review. */
+export type PullRequestReviewState =
+  /** A review allowing the pull request to merge. */
+  | 'APPROVED'
+  /** A review blocking the pull request from merging. */
+  | 'CHANGES_REQUESTED'
+  /** An informational review. */
+  | 'COMMENTED'
+  /** A review that has been dismissed. */
+  | 'DISMISSED'
+  /** A review that has not yet been submitted. */
+  | 'PENDING';
+
+/** A comment author association with repository. */
+export type CommentAuthorAssociation =
+  /** Author has been invited to collaborate on the repository. */
+  | 'COLLABORATOR'
+  /** Author has previously committed to the repository. */
+  | 'CONTRIBUTOR'
+  /** Author has not previously committed to GitHub. */
+  | 'FIRST_TIMER'
+  /** Author has not previously committed to the repository. */
+  | 'FIRST_TIME_CONTRIBUTOR'
+  /** Author is a placeholder for an unclaimed user. */
+  | 'MANNEQUIN'
+  /** Author is a member of the organization that owns the repository. */
+  | 'MEMBER'
+  /** Author has no association with the repository. */
+  | 'NONE'
+  /** Author is the owner of the repository. */
+  | 'OWNER';
+
+/** The connection type for PullRequestReview. */
+export type PullRequestReviewConnection = {
+  __typename?: 'PullRequestReviewConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<PullRequestReview>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<PullRequestReviewEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type PullRequestReviewEdge = {
+  __typename?: 'PullRequestReviewEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<PullRequestReview>;
+};
+
+/** A list of users. */
+export type UserConnection = {
+  __typename?: 'UserConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<User>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<UserEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** Represents a user. */
+export type UserEdge = {
+  __typename?: 'UserEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<User>;
+};
+
+/** A label for categorizing Issues, Pull Requests, Milestones, or Discussions with a given Repository. */
+export type Label = Node & {
+  __typename?: 'Label';
+  /** The Node ID of the Label object */
+  id: Scalars['ID']['output'];
+  /** Identifies the label name. */
+  name: Scalars['String']['output'];
+  /** A brief description of this label. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** Identifies the label color. */
+  color: Scalars['String']['output'];
+};
+
+/** The connection type for Label. */
+export type LabelConnection = {
+  __typename?: 'LabelConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Label>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<LabelEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type LabelEdge = {
+  __typename?: 'LabelEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Label>;
+};
+
+/** Represents a Milestone object on a given repository. */
+export type Milestone = {
+  __typename?: 'Milestone';
+  /** Identifies the number of the milestone. */
+  number: Scalars['Int']['output'];
+  /** Identifies the title of the milestone. */
+  title: Scalars['String']['output'];
+  /** Identifies the description of the milestone. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** Identifies the due date of the milestone. */
+  dueOn?: Maybe<Scalars['DateTime']['output']>;
+};
+
+/** Represents a comment on an Issue. */
+export type IssueComment = Node & {
+  __typename?: 'IssueComment';
+  /** The Node ID of the IssueComment object */
+  id: Scalars['ID']['output'];
+  /** The actor who authored the comment. */
+  author?: Maybe<Actor>;
+  /** Author's association with the subject of the comment. */
+  authorAssociation: CommentAuthorAssociation;
+  /** The body as Markdown. */
+  body: Scalars['String']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Check if this comment was edited and includes an edit with the creation data */
+  includesCreatedEdit: Scalars['Boolean']['output'];
+  /** Returns whether or not a comment has been minimized. */
+  isMinimized: Scalars['Boolean']['output'];
+  /**
+   * Returns why the comment was minimized. One of `abuse`, `off-topic`,
+   * `outdated`, `resolved`, `duplicate`, `spam`, and `low-quality`. Note that the
+   * case and formatting of these values differs from the inputs to the
+   * `MinimizeComment` mutation.
+   */
+  minimizedReason?: Maybe<Scalars['String']['output']>;
+  /** A list of reactions grouped by content left on the subject. */
+  reactionGroups?: Maybe<Array<ReactionGroup>>;
+  /** The HTTP URL for this issue comment */
+  url: Scalars['URI']['output'];
+  /** Did the viewer author this comment. */
+  viewerDidAuthor: Scalars['Boolean']['output'];
+};
+
+/** The connection type for IssueComment. */
+export type IssueCommentConnection = {
+  __typename?: 'IssueCommentConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<IssueComment>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<IssueCommentEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type IssueCommentEdge = {
+  __typename?: 'IssueCommentEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<IssueComment>;
+};
+
+/** A group of emoji reactions to a particular piece of content. */
+export type ReactionGroup = {
+  __typename?: 'ReactionGroup';
+  /** Identifies the emoji reaction. */
+  content: ReactionContent;
+  /**
+   * Users who have reacted to the reaction subject with the emotion represented by this reaction group
+   * @deprecated Reactors can now be mannequins, bots, and organizations. Use the `reactors` field instead. Removal on 2021-10-01 UTC.
+   */
+  users: ReactingUserConnection;
+};
+
+/** Emojis that can be attached to Issues, Pull Requests and Comments. */
+export type ReactionContent =
+  /** Represents the `:confused:` emoji. */
+  | 'CONFUSED'
+  /** Represents the `:eyes:` emoji. */
+  | 'EYES'
+  /** Represents the `:heart:` emoji. */
+  | 'HEART'
+  /** Represents the `:hooray:` emoji. */
+  | 'HOORAY'
+  /** Represents the `:laugh:` emoji. */
+  | 'LAUGH'
+  /** Represents the `:rocket:` emoji. */
+  | 'ROCKET'
+  /** Represents the `:-1:` emoji. */
+  | 'THUMBS_DOWN'
+  /** Represents the `:+1:` emoji. */
+  | 'THUMBS_UP';
+
+/** Represents the rollup for both the check runs and status for a commit. */
+export type StatusCheckRollup = {
+  __typename?: 'StatusCheckRollup';
+  /** A list of status contexts and check runs for this commit. */
+  contexts: StatusCheckRollupContextConnection;
+};
+
+
+/** Represents the rollup for both the check runs and status for a commit. */
+export type StatusCheckRollupContextsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** Types that can be inside a StatusCheckRollup context. */
+export type StatusCheckRollupContext = CheckRun | StatusContext;
+
+/** The connection type for StatusCheckRollupContext. */
+export type StatusCheckRollupContextConnection = {
+  __typename?: 'StatusCheckRollupContextConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<StatusCheckRollupContext>>>;
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<StatusCheckRollupContextEdge>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type StatusCheckRollupContextEdge = {
+  __typename?: 'StatusCheckRollupContextEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<StatusCheckRollupContext>;
+};
+
+/** Represents an individual commit status context */
+export type StatusContext = {
+  __typename?: 'StatusContext';
+  /** The name of this status context. */
+  context: Scalars['String']['output'];
+  /** The state of this status context. */
+  state: StatusState;
+  /** The URL for this status context. */
+  targetUrl?: Maybe<Scalars['URI']['output']>;
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** The description for this status context. */
+  description?: Maybe<Scalars['String']['output']>;
+};
+
+/** The possible commit status states. */
+export type StatusState =
+  /** Status is errored. */
+  | 'ERROR'
+  /** Status is expected. */
+  | 'EXPECTED'
+  /** Status is failing. */
+  | 'FAILURE'
+  /** Status is pending. */
+  | 'PENDING'
+  /** Status is successful. */
+  | 'SUCCESS';
+
+/** A check run. */
+export type CheckRun = {
+  __typename?: 'CheckRun';
+  /** The name of the check for this check run. */
+  name: Scalars['String']['output'];
+  /** The check suite that this run is a part of. */
+  checkSuite: CheckSuite;
+  /** The current status of the check run. */
+  status: CheckStatusState;
+  /** The conclusion of the check run. */
+  conclusion?: Maybe<CheckConclusionState>;
+  /** Identifies the date and time when the check run was started. */
+  startedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** Identifies the date and time when the check run was completed. */
+  completedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** The URL from which to find full details of the check run on the integrator's site. */
+  detailsUrl?: Maybe<Scalars['URI']['output']>;
+};
+
+/** The possible states for a check suite or run status. */
+export type CheckStatusState =
+  /** The check suite or run has been completed. */
+  | 'COMPLETED'
+  /** The check suite or run is in progress. */
+  | 'IN_PROGRESS'
+  /** The check suite or run is in pending state. */
+  | 'PENDING'
+  /** The check suite or run has been queued. */
+  | 'QUEUED'
+  /** The check suite or run has been requested. */
+  | 'REQUESTED'
+  /** The check suite or run is in waiting state. */
+  | 'WAITING';
+
+/** The possible states for a check suite or run conclusion. */
+export type CheckConclusionState =
+  /** The check suite or run requires action. */
+  | 'ACTION_REQUIRED'
+  /** The check suite or run has been cancelled. */
+  | 'CANCELLED'
+  /** The check suite or run has failed. */
+  | 'FAILURE'
+  /** The check suite or run was neutral. */
+  | 'NEUTRAL'
+  /** The check suite or run was skipped. */
+  | 'SKIPPED'
+  /** The check suite or run was marked stale by GitHub. Only GitHub can use this conclusion. */
+  | 'STALE'
+  /** The check suite or run has failed at startup. */
+  | 'STARTUP_FAILURE'
+  /** The check suite or run has succeeded. */
+  | 'SUCCESS'
+  /** The check suite or run has timed out. */
+  | 'TIMED_OUT';
+
+/** A check suite. */
+export type CheckSuite = {
+  __typename?: 'CheckSuite';
+  /** The workflow run associated with this check suite. */
+  workflowRun?: Maybe<WorkflowRun>;
+};
+
+/** A workflow run. */
+export type WorkflowRun = {
+  __typename?: 'WorkflowRun';
+  /** The workflow executed in this workflow run. */
+  workflow: Workflow;
+};
+
+/** A workflow contains meta information about an Actions workflow file. */
+export type Workflow = {
+  __typename?: 'Workflow';
+  /** The name of the workflow. */
+  name: Scalars['String']['output'];
+};
+
+/** The connection type for User. */
+export type ReactingUserConnection = {
+  __typename?: 'ReactingUserConnection';
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
 
 
 export type ResolverTypeWrapper<T> = Promise<T> | T;
@@ -835,6 +1663,18 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 
 
 
+/** Mapping of union types */
+export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
+  RequestedReviewer:
+    | ( Bot )
+    | ( Team )
+    | ( UserNode )
+  ;
+  StatusCheckRollupContext:
+    | ( CheckRun )
+    | ( StatusContext )
+  ;
+};
 
 /** Mapping of interface types */
 export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = {
@@ -845,11 +1685,16 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( CommitNode )
     | ( ReleaseNode )
     | ( ReleaseAssetNode )
+    | ( PullRequestNode )
+    | ( ReviewNode )
+    | ( Label )
+    | ( CommentNode )
   ;
   UniformResourceLocatable:
     | ( UserNode )
     | ( RepositoryNode )
     | ( ReleaseNode )
+    | ( PullRequestNode )
   ;
   Actor: ( UserNode );
   RepositoryOwner: ( UserNode );
@@ -904,6 +1749,60 @@ export type ResolversTypes = {
   ReleaseAssetEdge: ResolverTypeWrapper<Omit<ReleaseAssetEdge, 'node'> & { node?: Maybe<ResolversTypes['ReleaseAsset']> }>;
   ReleaseOrder: ReleaseOrder;
   ReleaseOrderField: ReleaseOrderField;
+  PullRequest: ResolverTypeWrapper<PullRequestNode>;
+  PullRequestState: PullRequestState;
+  PullRequestConnection: ResolverTypeWrapper<Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequest']>>> }>;
+  PullRequestEdge: ResolverTypeWrapper<Omit<PullRequestEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequest']> }>;
+  IssueOrder: IssueOrder;
+  IssueOrderField: IssueOrderField;
+  CreatePullRequestInput: CreatePullRequestInput;
+  CreatePullRequestPayload: ResolverTypeWrapper<Omit<CreatePullRequestPayload, 'pullRequest'> & { pullRequest?: Maybe<ResolversTypes['PullRequest']> }>;
+  MarkPullRequestReadyForReviewInput: MarkPullRequestReadyForReviewInput;
+  MarkPullRequestReadyForReviewPayload: ResolverTypeWrapper<Omit<MarkPullRequestReadyForReviewPayload, 'pullRequest'> & { pullRequest?: Maybe<ResolversTypes['PullRequest']> }>;
+  ConvertPullRequestToDraftInput: ConvertPullRequestToDraftInput;
+  ConvertPullRequestToDraftPayload: ResolverTypeWrapper<Omit<ConvertPullRequestToDraftPayload, 'pullRequest'> & { pullRequest?: Maybe<ResolversTypes['PullRequest']> }>;
+  AutoMergeRequest: ResolverTypeWrapper<Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversTypes['Actor']> }>;
+  PullRequestMergeMethod: PullRequestMergeMethod;
+  MergeableState: MergeableState;
+  PullRequestCommit: ResolverTypeWrapper<Omit<PullRequestCommit, 'commit'> & { commit: ResolversTypes['Commit'] }>;
+  PullRequestCommitConnection: ResolverTypeWrapper<Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>> }>;
+  PullRequestCommitEdge: ResolverTypeWrapper<Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestCommit']> }>;
+  ReviewRequest: ResolverTypeWrapper<Omit<ReviewRequest, 'requestedReviewer'> & { requestedReviewer?: Maybe<ResolversTypes['RequestedReviewer']> }>;
+  RequestedReviewer: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['RequestedReviewer']>;
+  ReviewRequestConnection: ResolverTypeWrapper<Omit<ReviewRequestConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['ReviewRequest']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['ReviewRequestEdge']>>> }>;
+  ReviewRequestEdge: ResolverTypeWrapper<Omit<ReviewRequestEdge, 'node'> & { node?: Maybe<ResolversTypes['ReviewRequest']> }>;
+  Bot: ResolverTypeWrapper<Bot>;
+  Team: ResolverTypeWrapper<Team>;
+  Organization: ResolverTypeWrapper<Organization>;
+  PullRequestReview: ResolverTypeWrapper<ReviewNode>;
+  PullRequestReviewState: PullRequestReviewState;
+  CommentAuthorAssociation: CommentAuthorAssociation;
+  PullRequestReviewConnection: ResolverTypeWrapper<Omit<PullRequestReviewConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestReview']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestReviewEdge']>>> }>;
+  PullRequestReviewEdge: ResolverTypeWrapper<Omit<PullRequestReviewEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestReview']> }>;
+  UserConnection: ResolverTypeWrapper<Omit<UserConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['User']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['UserEdge']>>> }>;
+  UserEdge: ResolverTypeWrapper<Omit<UserEdge, 'node'> & { node?: Maybe<ResolversTypes['User']> }>;
+  Label: ResolverTypeWrapper<Label>;
+  LabelConnection: ResolverTypeWrapper<LabelConnection>;
+  LabelEdge: ResolverTypeWrapper<LabelEdge>;
+  Milestone: ResolverTypeWrapper<Milestone>;
+  IssueComment: ResolverTypeWrapper<CommentNode>;
+  IssueCommentConnection: ResolverTypeWrapper<Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['IssueCommentEdge']>>> }>;
+  IssueCommentEdge: ResolverTypeWrapper<Omit<IssueCommentEdge, 'node'> & { node?: Maybe<ResolversTypes['IssueComment']> }>;
+  ReactionGroup: ResolverTypeWrapper<ReactionGroup>;
+  ReactionContent: ReactionContent;
+  StatusCheckRollup: ResolverTypeWrapper<RollupNode>;
+  StatusCheckRollupContext: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['StatusCheckRollupContext']>;
+  StatusCheckRollupContextConnection: ResolverTypeWrapper<Omit<StatusCheckRollupContextConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['StatusCheckRollupContext']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['StatusCheckRollupContextEdge']>>> }>;
+  StatusCheckRollupContextEdge: ResolverTypeWrapper<Omit<StatusCheckRollupContextEdge, 'node'> & { node?: Maybe<ResolversTypes['StatusCheckRollupContext']> }>;
+  StatusContext: ResolverTypeWrapper<StatusContext>;
+  StatusState: StatusState;
+  CheckRun: ResolverTypeWrapper<CheckRun>;
+  CheckStatusState: CheckStatusState;
+  CheckConclusionState: CheckConclusionState;
+  CheckSuite: ResolverTypeWrapper<CheckSuite>;
+  WorkflowRun: ResolverTypeWrapper<WorkflowRun>;
+  Workflow: ResolverTypeWrapper<Workflow>;
+  ReactingUserConnection: ResolverTypeWrapper<ReactingUserConnection>;
 };
 
 /** Mapping between all available schema types and the resolvers parents */
@@ -945,6 +1844,50 @@ export type ResolversParentTypes = {
   ReleaseAssetConnection: Omit<ReleaseAssetConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseAssetEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseAsset']>>> };
   ReleaseAssetEdge: Omit<ReleaseAssetEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ReleaseAsset']> };
   ReleaseOrder: ReleaseOrder;
+  PullRequest: PullRequestNode;
+  PullRequestConnection: Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequest']>>> };
+  PullRequestEdge: Omit<PullRequestEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequest']> };
+  IssueOrder: IssueOrder;
+  CreatePullRequestInput: CreatePullRequestInput;
+  CreatePullRequestPayload: Omit<CreatePullRequestPayload, 'pullRequest'> & { pullRequest?: Maybe<ResolversParentTypes['PullRequest']> };
+  MarkPullRequestReadyForReviewInput: MarkPullRequestReadyForReviewInput;
+  MarkPullRequestReadyForReviewPayload: Omit<MarkPullRequestReadyForReviewPayload, 'pullRequest'> & { pullRequest?: Maybe<ResolversParentTypes['PullRequest']> };
+  ConvertPullRequestToDraftInput: ConvertPullRequestToDraftInput;
+  ConvertPullRequestToDraftPayload: Omit<ConvertPullRequestToDraftPayload, 'pullRequest'> & { pullRequest?: Maybe<ResolversParentTypes['PullRequest']> };
+  AutoMergeRequest: Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversParentTypes['Actor']> };
+  PullRequestCommit: Omit<PullRequestCommit, 'commit'> & { commit: ResolversParentTypes['Commit'] };
+  PullRequestCommitConnection: Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommitEdge']>>> };
+  PullRequestCommitEdge: Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestCommit']> };
+  ReviewRequest: Omit<ReviewRequest, 'requestedReviewer'> & { requestedReviewer?: Maybe<ResolversParentTypes['RequestedReviewer']> };
+  RequestedReviewer: ResolversUnionTypes<ResolversParentTypes>['RequestedReviewer'];
+  ReviewRequestConnection: Omit<ReviewRequestConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['ReviewRequest']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['ReviewRequestEdge']>>> };
+  ReviewRequestEdge: Omit<ReviewRequestEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ReviewRequest']> };
+  Bot: Bot;
+  Team: Team;
+  Organization: Organization;
+  PullRequestReview: ReviewNode;
+  PullRequestReviewConnection: Omit<PullRequestReviewConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestReview']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestReviewEdge']>>> };
+  PullRequestReviewEdge: Omit<PullRequestReviewEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestReview']> };
+  UserConnection: Omit<UserConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['User']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['UserEdge']>>> };
+  UserEdge: Omit<UserEdge, 'node'> & { node?: Maybe<ResolversParentTypes['User']> };
+  Label: Label;
+  LabelConnection: LabelConnection;
+  LabelEdge: LabelEdge;
+  Milestone: Milestone;
+  IssueComment: CommentNode;
+  IssueCommentConnection: Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueCommentEdge']>>> };
+  IssueCommentEdge: Omit<IssueCommentEdge, 'node'> & { node?: Maybe<ResolversParentTypes['IssueComment']> };
+  ReactionGroup: ReactionGroup;
+  StatusCheckRollup: RollupNode;
+  StatusCheckRollupContext: ResolversUnionTypes<ResolversParentTypes>['StatusCheckRollupContext'];
+  StatusCheckRollupContextConnection: Omit<StatusCheckRollupContextConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['StatusCheckRollupContext']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['StatusCheckRollupContextEdge']>>> };
+  StatusCheckRollupContextEdge: Omit<StatusCheckRollupContextEdge, 'node'> & { node?: Maybe<ResolversParentTypes['StatusCheckRollupContext']> };
+  StatusContext: StatusContext;
+  CheckRun: CheckRun;
+  CheckSuite: CheckSuite;
+  WorkflowRun: WorkflowRun;
+  Workflow: Workflow;
+  ReactingUserConnection: ReactingUserConnection;
 };
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = {
@@ -958,7 +1901,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -978,7 +1921,7 @@ export type RateLimitResolvers<ContextType = GraphQLContext, ParentType extends 
 };
 
 export type UniformResourceLocatableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UniformResourceLocatable'] = ResolversParentTypes['UniformResourceLocatable']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'PullRequest', ParentType, ContextType>;
 };
 
 export type ActorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Actor'] = ResolversParentTypes['Actor']> = {
@@ -1009,6 +1952,9 @@ export interface UriScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes[
 
 export type MutationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Mutation'] = ResolversParentTypes['Mutation']> = {
   createRepository?: Resolver<Maybe<ResolversTypes['CreateRepositoryPayload']>, ParentType, ContextType, RequireFields<MutationCreateRepositoryArgs, 'input'>>;
+  createPullRequest?: Resolver<Maybe<ResolversTypes['CreatePullRequestPayload']>, ParentType, ContextType, RequireFields<MutationCreatePullRequestArgs, 'input'>>;
+  markPullRequestReadyForReview?: Resolver<Maybe<ResolversTypes['MarkPullRequestReadyForReviewPayload']>, ParentType, ContextType, RequireFields<MutationMarkPullRequestReadyForReviewArgs, 'input'>>;
+  convertPullRequestToDraft?: Resolver<Maybe<ResolversTypes['ConvertPullRequestToDraftPayload']>, ParentType, ContextType, RequireFields<MutationConvertPullRequestToDraftArgs, 'input'>>;
 };
 
 export type RepositoryOwnerResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RepositoryOwner'] = ResolversParentTypes['RepositoryOwner']> = {
@@ -1069,6 +2015,8 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   viewerHasStarred?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   viewerPermission?: Resolver<Maybe<ResolversTypes['RepositoryPermission']>, ParentType, ContextType>;
   visibility?: Resolver<ResolversTypes['RepositoryVisibility'], ParentType, ContextType>;
+  pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType, RequireFields<RepositoryPullRequestArgs, 'number'>>;
+  pullRequests?: Resolver<ResolversTypes['PullRequestConnection'], ParentType, ContextType, Partial<RepositoryPullRequestsArgs>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -1108,6 +2056,9 @@ export type CommitResolvers<ContextType = GraphQLContext, ParentType extends Res
   resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   blame?: Resolver<ResolversTypes['Blame'], ParentType, ContextType, RequireFields<CommitBlameArgs, 'path'>>;
+  zipballUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  tarballUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  statusCheckRollup?: Resolver<Maybe<ResolversTypes['StatusCheckRollup']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -1153,6 +2104,7 @@ export type ReleaseResolvers<ContextType = GraphQLContext, ParentType extends Re
   tagName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  tagCommit?: Resolver<Maybe<ResolversTypes['Commit']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -1195,6 +2147,284 @@ export type ReleaseAssetEdgeResolvers<ContextType = GraphQLContext, ParentType e
   node?: Resolver<Maybe<ResolversTypes['ReleaseAsset']>, ParentType, ContextType>;
 };
 
+export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequest'] = ResolversParentTypes['PullRequest']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['PullRequestState'], ParentType, ContextType>;
+  isDraft?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  closedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  mergedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  closed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  merged?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  headRefName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  baseRefName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  headRepository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;
+  headRepositoryOwner?: Resolver<Maybe<ResolversTypes['RepositoryOwner']>, ParentType, ContextType>;
+  isCrossRepository?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  autoMergeRequest?: Resolver<Maybe<ResolversTypes['AutoMergeRequest']>, ParentType, ContextType>;
+  maintainerCanModify?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  mergeable?: Resolver<ResolversTypes['MergeableState'], ParentType, ContextType>;
+  additions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  deletions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  commits?: Resolver<ResolversTypes['PullRequestCommitConnection'], ParentType, ContextType, Partial<PullRequestCommitsArgs>>;
+  reviewRequests?: Resolver<Maybe<ResolversTypes['ReviewRequestConnection']>, ParentType, ContextType, Partial<PullRequestReviewRequestsArgs>>;
+  reviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestReviewsArgs>>;
+  assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<PullRequestAssigneesArgs>>;
+  labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<PullRequestLabelsArgs>>;
+  milestone?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
+  comments?: Resolver<ResolversTypes['IssueCommentConnection'], ParentType, ContextType, Partial<PullRequestCommentsArgs>>;
+  reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type PullRequestConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestConnection'] = ResolversParentTypes['PullRequestConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequest']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type PullRequestEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestEdge'] = ResolversParentTypes['PullRequestEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType>;
+};
+
+export type CreatePullRequestPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CreatePullRequestPayload'] = ResolversParentTypes['CreatePullRequestPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType>;
+};
+
+export type MarkPullRequestReadyForReviewPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MarkPullRequestReadyForReviewPayload'] = ResolversParentTypes['MarkPullRequestReadyForReviewPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType>;
+};
+
+export type ConvertPullRequestToDraftPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ConvertPullRequestToDraftPayload'] = ResolversParentTypes['ConvertPullRequestToDraftPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType>;
+};
+
+export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AutoMergeRequest'] = ResolversParentTypes['AutoMergeRequest']> = {
+  authorEmail?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  commitBody?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  commitHeadline?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  mergeMethod?: Resolver<ResolversTypes['PullRequestMergeMethod'], ParentType, ContextType>;
+  enabledAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  enabledBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+};
+
+export type PullRequestCommitResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommit'] = ResolversParentTypes['PullRequestCommit']> = {
+  commit?: Resolver<ResolversTypes['Commit'], ParentType, ContextType>;
+};
+
+export type PullRequestCommitConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommitConnection'] = ResolversParentTypes['PullRequestCommitConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type PullRequestCommitEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommitEdge'] = ResolversParentTypes['PullRequestCommitEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['PullRequestCommit']>, ParentType, ContextType>;
+};
+
+export type ReviewRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReviewRequest'] = ResolversParentTypes['ReviewRequest']> = {
+  requestedReviewer?: Resolver<Maybe<ResolversTypes['RequestedReviewer']>, ParentType, ContextType>;
+};
+
+export type RequestedReviewerResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RequestedReviewer'] = ResolversParentTypes['RequestedReviewer']> = {
+  __resolveType: TypeResolveFn<'Bot' | 'Team' | 'User', ParentType, ContextType>;
+};
+
+export type ReviewRequestConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReviewRequestConnection'] = ResolversParentTypes['ReviewRequestConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ReviewRequest']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ReviewRequestEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ReviewRequestEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReviewRequestEdge'] = ResolversParentTypes['ReviewRequestEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['ReviewRequest']>, ParentType, ContextType>;
+};
+
+export type BotResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Bot'] = ResolversParentTypes['Bot']> = {
+  login?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type TeamResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Team'] = ResolversParentTypes['Team']> = {
+  organization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type OrganizationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Organization'] = ResolversParentTypes['Organization']> = {
+  login?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type PullRequestReviewResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestReview'] = ResolversParentTypes['PullRequestReview']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  authorAssociation?: Resolver<ResolversTypes['CommentAuthorAssociation'], ParentType, ContextType>;
+  submittedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['PullRequestReviewState'], ParentType, ContextType>;
+  commit?: Resolver<Maybe<ResolversTypes['Commit']>, ParentType, ContextType>;
+  reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type PullRequestReviewConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestReviewConnection'] = ResolversParentTypes['PullRequestReviewConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestReview']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestReviewEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type PullRequestReviewEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestReviewEdge'] = ResolversParentTypes['PullRequestReviewEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['PullRequestReview']>, ParentType, ContextType>;
+};
+
+export type UserConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserConnection'] = ResolversParentTypes['UserConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['User']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['UserEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type UserEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserEdge'] = ResolversParentTypes['UserEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+};
+
+export type LabelResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Label'] = ResolversParentTypes['Label']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  color?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type LabelConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelConnection'] = ResolversParentTypes['LabelConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Label']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['LabelEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type LabelEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelEdge'] = ResolversParentTypes['LabelEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Label']>, ParentType, ContextType>;
+};
+
+export type MilestoneResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Milestone'] = ResolversParentTypes['Milestone']> = {
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  dueOn?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+};
+
+export type IssueCommentResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueComment'] = ResolversParentTypes['IssueComment']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  authorAssociation?: Resolver<ResolversTypes['CommentAuthorAssociation'], ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  includesCreatedEdit?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isMinimized?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  minimizedReason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  viewerDidAuthor?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type IssueCommentConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueCommentConnection'] = ResolversParentTypes['IssueCommentConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['IssueComment']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['IssueCommentEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type IssueCommentEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueCommentEdge'] = ResolversParentTypes['IssueCommentEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['IssueComment']>, ParentType, ContextType>;
+};
+
+export type ReactionGroupResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReactionGroup'] = ResolversParentTypes['ReactionGroup']> = {
+  content?: Resolver<ResolversTypes['ReactionContent'], ParentType, ContextType>;
+  users?: Resolver<ResolversTypes['ReactingUserConnection'], ParentType, ContextType>;
+};
+
+export type StatusCheckRollupResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StatusCheckRollup'] = ResolversParentTypes['StatusCheckRollup']> = {
+  contexts?: Resolver<ResolversTypes['StatusCheckRollupContextConnection'], ParentType, ContextType, Partial<StatusCheckRollupContextsArgs>>;
+};
+
+export type StatusCheckRollupContextResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StatusCheckRollupContext'] = ResolversParentTypes['StatusCheckRollupContext']> = {
+  __resolveType: TypeResolveFn<'CheckRun' | 'StatusContext', ParentType, ContextType>;
+};
+
+export type StatusCheckRollupContextConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StatusCheckRollupContextConnection'] = ResolversParentTypes['StatusCheckRollupContextConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['StatusCheckRollupContext']>>>, ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['StatusCheckRollupContextEdge']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type StatusCheckRollupContextEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StatusCheckRollupContextEdge'] = ResolversParentTypes['StatusCheckRollupContextEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['StatusCheckRollupContext']>, ParentType, ContextType>;
+};
+
+export type StatusContextResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StatusContext'] = ResolversParentTypes['StatusContext']> = {
+  context?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['StatusState'], ParentType, ContextType>;
+  targetUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type CheckRunResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CheckRun'] = ResolversParentTypes['CheckRun']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  checkSuite?: Resolver<ResolversTypes['CheckSuite'], ParentType, ContextType>;
+  status?: Resolver<ResolversTypes['CheckStatusState'], ParentType, ContextType>;
+  conclusion?: Resolver<Maybe<ResolversTypes['CheckConclusionState']>, ParentType, ContextType>;
+  startedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  completedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  detailsUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type CheckSuiteResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CheckSuite'] = ResolversParentTypes['CheckSuite']> = {
+  workflowRun?: Resolver<Maybe<ResolversTypes['WorkflowRun']>, ParentType, ContextType>;
+};
+
+export type WorkflowRunResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['WorkflowRun'] = ResolversParentTypes['WorkflowRun']> = {
+  workflow?: Resolver<ResolversTypes['Workflow'], ParentType, ContextType>;
+};
+
+export type WorkflowResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Workflow'] = ResolversParentTypes['Workflow']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ReactingUserConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReactingUserConnection'] = ResolversParentTypes['ReactingUserConnection']> = {
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
 export type Resolvers<ContextType = GraphQLContext> = {
   Query?: QueryResolvers<ContextType>;
   Node?: NodeResolvers<ContextType>;
@@ -1226,5 +2456,45 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ReleaseEdge?: ReleaseEdgeResolvers<ContextType>;
   ReleaseAssetConnection?: ReleaseAssetConnectionResolvers<ContextType>;
   ReleaseAssetEdge?: ReleaseAssetEdgeResolvers<ContextType>;
+  PullRequest?: PullRequestResolvers<ContextType>;
+  PullRequestConnection?: PullRequestConnectionResolvers<ContextType>;
+  PullRequestEdge?: PullRequestEdgeResolvers<ContextType>;
+  CreatePullRequestPayload?: CreatePullRequestPayloadResolvers<ContextType>;
+  MarkPullRequestReadyForReviewPayload?: MarkPullRequestReadyForReviewPayloadResolvers<ContextType>;
+  ConvertPullRequestToDraftPayload?: ConvertPullRequestToDraftPayloadResolvers<ContextType>;
+  AutoMergeRequest?: AutoMergeRequestResolvers<ContextType>;
+  PullRequestCommit?: PullRequestCommitResolvers<ContextType>;
+  PullRequestCommitConnection?: PullRequestCommitConnectionResolvers<ContextType>;
+  PullRequestCommitEdge?: PullRequestCommitEdgeResolvers<ContextType>;
+  ReviewRequest?: ReviewRequestResolvers<ContextType>;
+  RequestedReviewer?: RequestedReviewerResolvers<ContextType>;
+  ReviewRequestConnection?: ReviewRequestConnectionResolvers<ContextType>;
+  ReviewRequestEdge?: ReviewRequestEdgeResolvers<ContextType>;
+  Bot?: BotResolvers<ContextType>;
+  Team?: TeamResolvers<ContextType>;
+  Organization?: OrganizationResolvers<ContextType>;
+  PullRequestReview?: PullRequestReviewResolvers<ContextType>;
+  PullRequestReviewConnection?: PullRequestReviewConnectionResolvers<ContextType>;
+  PullRequestReviewEdge?: PullRequestReviewEdgeResolvers<ContextType>;
+  UserConnection?: UserConnectionResolvers<ContextType>;
+  UserEdge?: UserEdgeResolvers<ContextType>;
+  Label?: LabelResolvers<ContextType>;
+  LabelConnection?: LabelConnectionResolvers<ContextType>;
+  LabelEdge?: LabelEdgeResolvers<ContextType>;
+  Milestone?: MilestoneResolvers<ContextType>;
+  IssueComment?: IssueCommentResolvers<ContextType>;
+  IssueCommentConnection?: IssueCommentConnectionResolvers<ContextType>;
+  IssueCommentEdge?: IssueCommentEdgeResolvers<ContextType>;
+  ReactionGroup?: ReactionGroupResolvers<ContextType>;
+  StatusCheckRollup?: StatusCheckRollupResolvers<ContextType>;
+  StatusCheckRollupContext?: StatusCheckRollupContextResolvers<ContextType>;
+  StatusCheckRollupContextConnection?: StatusCheckRollupContextConnectionResolvers<ContextType>;
+  StatusCheckRollupContextEdge?: StatusCheckRollupContextEdgeResolvers<ContextType>;
+  StatusContext?: StatusContextResolvers<ContextType>;
+  CheckRun?: CheckRunResolvers<ContextType>;
+  CheckSuite?: CheckSuiteResolvers<ContextType>;
+  WorkflowRun?: WorkflowRunResolvers<ContextType>;
+  Workflow?: WorkflowResolvers<ContextType>;
+  ReactingUserConnection?: ReactingUserConnectionResolvers<ContextType>;
 };
 

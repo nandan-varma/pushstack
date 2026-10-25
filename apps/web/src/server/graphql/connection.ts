@@ -54,6 +54,8 @@ export async function offsetConnection<T>(
 ): Promise<Connection<T>> {
 	let start = args.after != null ? decodeCursor(args.after) + 1 : 0;
 	let end = args.before != null ? decodeCursor(args.before) : total;
+	// Count-only selections need no pagination boundary and fetch no rows.
+	if (args.first == null && args.last == null) end = start;
 	start = Math.min(start, total);
 	end = Math.max(start, Math.min(end, total));
 	if (args.first != null) end = Math.min(end, start + args.first);

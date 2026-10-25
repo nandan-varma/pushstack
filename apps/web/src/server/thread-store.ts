@@ -113,6 +113,8 @@ export interface ThreadFilter {
 	noMilestone?: boolean;
 	/** Pull requests only: drafts (true) or ready for review (false). */
 	draft?: boolean;
+	/** GitHub GraphQL pull request states (closed excludes merged). */
+	pullRequestStates?: ("OPEN" | "CLOSED" | "MERGED")[];
 	/** Head branch; `null` matches nothing (a head from another owner). */
 	head?: string | null;
 	base?: string;
@@ -354,6 +356,19 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 	if (filter.head === null) add(sql`false`);
 	else if (filter.head) add(eq(pullRequests.sourceBranch, filter.head));
 	if (filter.base) add(eq(pullRequests.targetBranch, filter.base));
+	if (filter.pullRequestStates) {
+		add(
+			or(
+				...filter.pullRequestStates.map((state) =>
+					state === "OPEN"
+						? eq(issues.status, "open")
+						: state === "MERGED"
+							? isNotNull(pullRequests.mergedAt)
+							: and(eq(issues.status, "closed"), isNull(pullRequests.mergedAt)),
+				),
+			) ?? sql`false`,
+		);
+	}
 	if (filter.draft !== undefined) {
 		add(eq(issues.isPullRequest, true));
 		add(eq(pullRequests.isDraft, filter.draft));

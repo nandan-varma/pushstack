@@ -43,6 +43,7 @@ const { createUsers, signIn } = await import("../../test/app-harness");
 const { mintToken } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { getSchema } = await import("../graphql/schema");
+const { githubValidationRules } = await import("../graphql/validation");
 const repositories = await import("../repositories");
 
 interface Fixture {
@@ -71,14 +72,13 @@ const PENDING: Record<string, "issues" | "pulls"> = {
 	"issue-status": "issues",
 	"issue-view": "issues",
 	"label-list": "issues",
-	"pr-list": "pulls",
 	"pr-status": "pulls",
-	"pr-view": "pulls",
 };
 
 /** Errors a served fixture is expected to answer with (by fixture name). */
 const EXPECTED_ERRORS: Record<string, string[]> = {
 	"repo-view-missing": ["NOT_FOUND"],
+	"pr-view": ["NOT_FOUND"],
 };
 
 const schema = getSchema();
@@ -184,7 +184,9 @@ describe("captured gh documents", () => {
 		if (pending) {
 			it(`${fixture.name} (${fixture.command}) is not served yet: ${pending}`, () => {
 				const failing = fixture.requests.filter(
-					(request) => validate(schema, parse(request.query)).length > 0,
+					(request) =>
+						validate(schema, parse(request.query), githubValidationRules)
+							.length > 0,
 				);
 				expect(
 					failing.length,
@@ -197,7 +199,11 @@ describe("captured gh documents", () => {
 		it(`${fixture.name}: ${fixture.command}`, async () => {
 			for (const request of fixture.requests) {
 				const document = parse(request.query);
-				expect(validate(schema, document).map((e) => e.message)).toEqual([]);
+				expect(
+					validate(schema, document, githubValidationRules).map(
+						(e) => e.message,
+					),
+				).toEqual([]);
 
 				const { status, body } = await graphql(
 					token,
