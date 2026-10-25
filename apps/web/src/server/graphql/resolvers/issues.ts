@@ -15,7 +15,11 @@ import {
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { REACTION_CONTENTS, type ReactionContent } from "#/lib/reactions";
-import { parseSearchQuery, splitRepoQualifiers } from "#/lib/search-query";
+import {
+	parseSearchQuery,
+	splitRepoQualifiers,
+	unservedQualifier,
+} from "#/lib/search-query";
 import { tokenAllows } from "#/lib/token-scopes";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import { replaceThreadAssignees } from "../../assignees-store";
@@ -272,7 +276,8 @@ async function commentNodes(
  * `Query.search`: GitHub's issue and pull request search, scoped to one
  * repository by its `repo:owner/name` qualifier (search across repositories
  * is not served yet). A repository the caller cannot read, and a contradictory
- * query, both answer no results, as GitHub's do.
+ * query, both answer no results, as GitHub's do. A qualifier or value the
+ * search does not serve is refused (`UNPROCESSABLE`), never read as text.
  */
 async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 	if (args.type !== "ISSUE") throw unprocessable("Only ISSUE search is served");
@@ -287,6 +292,9 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 		throw unprocessable(
 			"A search must name one repository as repo:owner/name; searching across repositories is not served yet",
 		);
+	const unserved = unservedQualifier(rest);
+	if (unserved)
+		throw unprocessable(`The search qualifier ${unserved} is not served`);
 	const query = parseSearchQuery(rest);
 	const repo = await readableRepositoryNode(
 		ctx,

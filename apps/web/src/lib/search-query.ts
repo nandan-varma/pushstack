@@ -286,6 +286,44 @@ export function parseSearchQuery(input: string): SearchQuery {
 	};
 }
 
+/**
+ * The first part of a query that a strict reader cannot serve, or null. The
+ * GraphQL search refuses rather than reading these as the lenient list parser
+ * does: an unquoted `name:` that is not a qualifier (`in:title`, which would
+ * otherwise be literal text), a negated qualifier (`-label:x`), a qualifier
+ * with no value, and a value the search does not serve (`is:locked`,
+ * `no:project`, `draft:maybe`, an unknown `sort:`). Quoted text is text.
+ */
+export function unservedQualifier(input: string): string | null {
+	const servedStates: readonly string[] = [
+		"open",
+		"closed",
+		"merged",
+		"all",
+		"issue",
+		"pr",
+	];
+	for (const token of tokenize(input)) {
+		const named = /^(-?)([A-Za-z][\w-]*):/.exec(token.raw);
+		if (!named) continue;
+		if (named[1] === "-" || !token.name) return token.raw;
+		const value = token.value.trim().toLowerCase();
+		if (value === "") return token.raw;
+		const served =
+			token.name === "is" || token.name === "state"
+				? servedStates.includes(value)
+				: token.name === "no"
+					? ["label", "assignee", "milestone"].includes(value)
+					: token.name === "draft"
+						? value === "true" || value === "false"
+						: token.name === "sort"
+							? (SEARCH_SORTS as readonly string[]).includes(value)
+							: true;
+		if (!served) return token.raw;
+	}
+	return null;
+}
+
 function join(tokens: Token[]): string {
 	return tokens.map((token) => token.raw).join(" ");
 }

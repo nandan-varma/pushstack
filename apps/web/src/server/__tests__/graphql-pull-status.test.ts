@@ -17,7 +17,8 @@ const { pullRequestReviews } = await import("#/db/app-schema");
 const { encodeNodeId } = await import("../graphql/node-id");
 const { findPullRequestByNumber } = await import("../thread-store");
 const files = await import("../files");
-const { MAX_SEARCH_QUERY_CHARS } = await import("#/lib/limits");
+const { MAX_SEARCH_QUERY_CHARS, MAX_LIST_SKIP } = await import("#/lib/limits");
+const { encodeCursor } = await import("../graphql/connection");
 
 const users = await createUsers("alice", "bob", "carol");
 let alice: string;
@@ -152,6 +153,20 @@ describe("pull request status fields", () => {
 		expect(pr.latestReviews.totalCount).toBe(2);
 	});
 
+	it("keeps the decision through a later comment by the same author", async () => {
+		// Approve, then comment (PR 2): still approved. Request changes, then comment (PR 1): still changes requested.
+		await review(2, users.bob.id, "commented", 3);
+		await review(1, users.bob.id, "commented", 4);
+		const approved = await decisionOf(2);
+		expect(approved.reviewDecision).toBe("APPROVED");
+		expect(
+			approved.latestReviews.nodes.map((n: { state: string }) => n.state),
+		).toEqual(["COMMENTED", "COMMENTED"]);
+		const changed = await decisionOf(1);
+		expect(changed.reviewDecision).toBe("CHANGES_REQUESTED");
+		expect(changed.latestReviews.totalCount).toBe(2);
+	});
+
 	it("serves no project items: an empty connection, not an error", async () => {
 		const { body } = await graphql(
 			alice,
@@ -162,6 +177,28 @@ describe("pull request status fields", () => {
 			totalCount: 0,
 			nodes: [],
 			pageInfo: { hasNextPage: false, endCursor: null },
+		});
+	});
+
+	it("refuses a skip past MAX_LIST_SKIP, whatever the total", async () => {
+		const past = encodeCursor(MAX_LIST_SKIP + 1);
+		const reviews = await graphql(
+			alice,
+			`query($after: String) { repository(owner:"alice",name:"proj") { pullRequest(number:1) { latestReviews(first:1, after:$after) { nodes { state } } } } }`,
+			{ after: past },
+		);
+		expect(reviews.body.errors?.[0]).toMatchObject({
+			type: "UNPROCESSABLE",
+			message: "Pagination offset exceeds the maximum",
+		});
+		const found = await graphql(
+			alice,
+			`query($after: String) { search(query:"repo:alice/proj", type:ISSUE, first:1, after:$after) { issueCount } }`,
+			{ after: past },
+		);
+		expect(found.body.errors?.[0]).toMatchObject({
+			type: "UNPROCESSABLE",
+			message: "Pagination offset exceeds the maximum",
 		});
 	});
 
@@ -228,6 +265,33 @@ describe("Query.search over issues and pull requests", () => {
 			issueCount: 1,
 			nodes: [{ __typename: "Issue", number: created.body.number }],
 		});
+	});
+
+	it.each([
+		"in:title broken",
+		"comments:>3 is:open",
+		"created:>2020-01-01 is:open",
+		"is:locked",
+		"no:project",
+		"-label:bug",
+		"label: is:open",
+		"sort:bogus",
+		"draft:maybe",
+		"is:public",
+	])(
+		"refuses the unserved qualifier in %j as UNPROCESSABLE",
+		async (qualifier) => {
+			const { body } = await search(alice, `repo:alice/proj ${qualifier}`);
+			expect(body.data).toBeNull();
+			expect(body.errors[0].type).toBe("UNPROCESSABLE");
+			expect(body.errors[0].message).toMatch(/is not served$/);
+		},
+	);
+
+	it("reads a quoted qualifier-looking phrase as text, and served qualifiers as served", async () => {
+		const quoted = await search(alice, 'repo:alice/proj "in:title" is:pr');
+		expect(quoted.body.errors).toBeUndefined();
+		expect(quoted.body.data.search.issueCount).toBe(0);
 	});
 
 	it("refuses what it does not serve, with errors rather than empty results", async () => {

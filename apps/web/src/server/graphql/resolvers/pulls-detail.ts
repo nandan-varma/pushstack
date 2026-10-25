@@ -227,21 +227,41 @@ async function commentNodes(
 		})),
 	);
 }
-/** Each author's latest submitted review (pending ones excluded), oldest first. */
-function latestReviewRows(node: PullRequestNode, ctx: GraphQLContext) {
-	return ctx.memo(`pull-latest-reviews:${node.row.id}`, async () => {
-		const rows = await db.query.pullRequestReviews.findMany({
-			where: { pullRequestId: node.row.id, state: { ne: "pending" } },
-			orderBy: { createdAt: "asc", id: "asc" },
-		});
-		const latest = new Map<string, (typeof rows)[number]>();
-		for (const row of rows) {
-			latest.delete(row.authorId);
-			latest.set(row.authorId, row);
-		}
-		return [...latest.values()];
-	});
+type ReviewRow = typeof pullRequestReviews.$inferSelect;
+
+/**
+ * Each author's latest review among `states` (every submitted state when
+ * absent), oldest first. A review history past MAX_HISTORY_WALK is refused, as
+ * a commit walk is, rather than summarised from a partial list.
+ */
+function latestReviewRows(
+	node: PullRequestNode,
+	ctx: GraphQLContext,
+	states?: readonly string[],
+) {
+	return ctx.memo(
+		`pull-latest-reviews:${node.row.id}:${states?.join(",") ?? "all"}`,
+		async () => {
+			const rows = await db.query.pullRequestReviews.findMany({
+				where: { pullRequestId: node.row.id, state: { ne: "pending" } },
+				orderBy: { createdAt: "asc", id: "asc" },
+				limit: MAX_HISTORY_WALK + 1,
+			});
+			if (rows.length > MAX_HISTORY_WALK)
+				throw unprocessable("Review history exceeds the supported limit");
+			const latest = new Map<string, ReviewRow>();
+			for (const row of rows) {
+				if (states && !states.includes(row.state)) continue;
+				latest.delete(row.authorId);
+				latest.set(row.authorId, row);
+			}
+			return [...latest.values()];
+		},
+	);
 }
+
+/** The states GitHub's reviewDecision is computed from. */
+const OPINIONATED_STATES = ["approved", "changes_requested"] as const;
 
 export const pullDetailResolvers = {
 	autoMergeRequest: () => null,
@@ -273,7 +293,9 @@ export const pullDetailResolvers = {
 		_args: unknown,
 		ctx: GraphQLContext,
 	) => {
-		const states = (await latestReviewRows(node, ctx)).map((row) => row.state);
+		const states = (await latestReviewRows(node, ctx, OPINIONATED_STATES)).map(
+			(row) => row.state,
+		);
 		if (states.includes("changes_requested"))
 			return "CHANGES_REQUESTED" as const;
 		if (states.includes("approved")) return "APPROVED" as const;

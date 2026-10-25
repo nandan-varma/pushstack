@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	parseSearchQuery,
 	splitRepoQualifiers,
+	unservedQualifier,
 	withoutSearchAssignee,
 	withSearchLabel,
 	withSearchStatus,
@@ -202,5 +203,28 @@ describe("splitRepoQualifiers", () => {
 			"a/b",
 			"c/d",
 		]);
+	});
+});
+
+describe("unservedQualifier", () => {
+	it("passes queries made of served qualifiers, quoted text and free text", () => {
+		expect(
+			unservedQualifier(
+				'is:open is:pr label:"help wanted" no:assignee sort:updated-desc draft:true',
+			),
+		).toBeNull();
+		expect(unservedQualifier('"in:title" broken')).toBeNull();
+		expect(unservedQualifier("http:x")).toBe("http:x");
+	});
+
+	it("names the first unserved qualifier, unknown, negated, empty or unserved-valued", () => {
+		expect(unservedQualifier("in:title broken")).toBe("in:title");
+		expect(unservedQualifier("is:open comments:>3")).toBe("comments:>3");
+		expect(unservedQualifier("-label:bug")).toBe("-label:bug");
+		expect(unservedQualifier("label:")).toBe("label:");
+		expect(unservedQualifier("is:locked")).toBe("is:locked");
+		expect(unservedQualifier("no:project")).toBe("no:project");
+		expect(unservedQualifier("draft:maybe")).toBe("draft:maybe");
+		expect(unservedQualifier("sort:bogus")).toBe("sort:bogus");
 	});
 });

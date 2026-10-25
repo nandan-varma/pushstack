@@ -5,6 +5,7 @@
  * `first`/`last` bounds (1–100, one of them required) are enforced before
  * execution by limits.ts, so resolvers can trust them here.
  */
+import { MAX_LIST_SKIP } from "#/lib/limits";
 import { unprocessable } from "./errors";
 
 export const MAX_PAGE_SIZE = 100;
@@ -53,6 +54,9 @@ export async function offsetConnection<T>(
 	fetch: (offset: number, limit: number) => Promise<T[]>,
 ): Promise<Connection<T>> {
 	let start = args.after != null ? decodeCursor(args.after) + 1 : 0;
+	// Refused whatever the total, so a skip past the bound never reads as an empty page.
+	if (start > MAX_LIST_SKIP)
+		throw unprocessable("Pagination offset exceeds the maximum");
 	let end = args.before != null ? decodeCursor(args.before) : total;
 	// Count-only selections need no pagination boundary and fetch no rows.
 	if (args.first == null && args.last == null) end = start;
