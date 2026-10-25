@@ -247,7 +247,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 - User, repository and pull request `id`s are integers. Their `node_id`s, like a
   reaction's (`base64("08:Reaction<id>")`), are GitHub's legacy form
   (`base64("04:User<id>")`, `"010:Repository<id>"`, `"011:PullRequest<id>"`) and
-  resolve through GraphQL `node(id:)`; other objects omit `node_id`.
+  resolve through GraphQL `node(id:)`. Milestone, release and release asset
+  objects also carry a legacy `node_id`; other objects omit it.
 - **`avatar_url` is `null`** when the user has no image (GitHub always has one).
 - `email` on a user is always `null`, and the `email` of a commit author or
   committer is always the placeholder `noreply@<host>`: web commits carry the

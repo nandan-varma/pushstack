@@ -100,8 +100,11 @@ Connections have GitHub's shape: `nodes`, `edges { cursor node }`,
 `pageInfo { hasNextPage hasPreviousPage startCursor endCursor }` and
 `totalCount`. Cursors are opaque.
 
-Global ids are GitHub's legacy node ids (base64 of `04:User1`), the same as
-REST `node_id`, and resolve through `node(id:)` / `nodes(ids:)`.
+Global ids resolve through `node(id:)` / `nodes(ids:)`. Ids of most types are
+GitHub's legacy node ids (base64 of `04:User1`), the same as REST `node_id`.
+Commit, release and release asset ids are not verified against GitHub's format
+yet (tracked in #269), and GitHub itself uses a newer id format for those types,
+so do not rely on their exact encoding.
 
 ## Served schema
 

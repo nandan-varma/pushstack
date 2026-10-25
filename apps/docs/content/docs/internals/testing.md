@@ -152,11 +152,14 @@ pnpm typecheck  # tsc --noEmit
 
 Biome (not ESLint/Prettier) — config in `biome.json`.
 
-Agents working in a git worktree run under a guard that refuses commands it
-cannot prove stay inside the worktree: piped or chained `cd && git …`, more
-than one `git` per command, and `-C`/`--git-dir` tricks. Run one git command
-per Bash call from the worktree root, and use `pnpm --dir <abs path>` rather
-than `cd`.
+Race tests: pglite runs queries one at a time on a single connection, so two
+concurrent requests never interleave on their own. To test a check-then-insert
+race, hold one request between its check and its insert (a short delay in a
+mocked store call, as `api-pulls.test.ts` does for the `race` head) so the
+unlocked version fails deterministically.
+
+In a non-interactive shell, install with `pnpm install </dev/null` rather than
+piping input into it.
 
 ## Troubleshooting: every turbo task fails with "Exec format error"
 
