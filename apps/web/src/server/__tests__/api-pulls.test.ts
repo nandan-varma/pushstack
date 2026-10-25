@@ -10,6 +10,22 @@ vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
+// Holds the `race` head's insert for a moment after its duplicate check, so
+// an unlocked check-then-insert interleaves deterministically in pglite.
+vi.mock("../pull-request-store", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../pull-request-store")>();
+	return {
+		...actual,
+		insertPullRequest: async (
+			...args: Parameters<typeof actual.insertPullRequest>
+		) => {
+			if (args[2].sourceBranch === "race") {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+			return actual.insertPullRequest(...args);
+		},
+	};
+});
 vi.mock(
 	"#/server/session",
 	async () => (await import("../../test/app-harness")).sessionModule,
@@ -636,5 +652,24 @@ describe("reviews on the timeline", () => {
 		);
 		expect(first.body).toHaveLength(2);
 		expect(first.headers.get("link")).toContain('rel="last"');
+	});
+});
+
+describe("concurrent pull request creation", () => {
+	it("lets exactly one of two concurrent creates for the same head succeed", async () => {
+		await branchFrom("race");
+		await commitFile("race", "r.txt", "r\n");
+		const create = () =>
+			call(
+				"/repos/alice/proj/pulls",
+				post(alice, { title: "Race", head: "race", base: "main" }),
+			);
+		const [one, two] = await Promise.all([create(), create()]);
+		expect([one.status, two.status].sort()).toEqual([201, 422]);
+		const loser = one.status === 422 ? one : two;
+		expect(loser.body.errors[0]).toMatchObject({
+			code: "custom",
+			message: "A pull request already exists for alice:race.",
+		});
 	});
 });
