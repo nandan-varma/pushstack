@@ -9,7 +9,7 @@ import {
 	deleteRepoLabelById,
 	findLabelByName,
 	labelsOfThread,
-	listLabels,
+	listLabelsPage,
 	setThreadLabels,
 	UnknownLabelError,
 	updateRepoLabelById,
@@ -20,9 +20,10 @@ import {
 	type FieldError,
 	forbiddenError,
 	json,
+	linkHeader,
 	noContent,
 	notFoundError,
-	pagedList,
+	pageParams,
 	validationFailedError,
 } from "./http";
 import { pathParams, requestBody } from "./input";
@@ -71,9 +72,17 @@ async function applyThreadLabels(
 
 export async function listRepoLabels(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const labels = await listLabels(repo.id);
-	return pagedList(ctx.url, labels, (value) =>
-		label({ fullName: `${repo.owner.username}/${repo.name}` }, value),
+	const params = pageParams(ctx.url.searchParams);
+	if (!params.reachable) return json([], 200, {});
+	const { labels, total } = await listLabelsPage(repo.id, {
+		limit: params.perPage,
+		offset: params.offset,
+	});
+	const fullName = `${repo.owner.username}/${repo.name}`;
+	return json(
+		labels.map((value) => label({ fullName }, value)),
+		200,
+		linkHeader(ctx.url, params, total),
 	);
 }
 

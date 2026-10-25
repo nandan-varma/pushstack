@@ -106,6 +106,14 @@ export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 export const MAX_LABELS_PER_THREAD = 100;
 /** The `query` of `Repository.labels`: a name or description search term. */
 export const MAX_LABEL_SEARCH_CHARS = 100;
+/**
+ * Per-repository collections a writer can grow without limit otherwise: each
+ * one is listed whole by some reader. Creating past a cap is a 422.
+ */
+export const MAX_LABELS_PER_REPOSITORY = 1000;
+export const MAX_MILESTONES_PER_REPOSITORY = 1000;
+export const MAX_RELEASES_PER_REPOSITORY = 1000;
+export const MAX_COLLABORATORS_PER_REPOSITORY = 1000;
 
 export const MAX_MILESTONE_TITLE_CHARS = 256;
 export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;

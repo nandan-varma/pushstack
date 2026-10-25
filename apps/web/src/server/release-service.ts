@@ -7,11 +7,13 @@
 
 import { isNotFoundError, isSafeBranchName } from "git-fs-s3";
 import { getGitBaseUrl } from "#/lib/git-utils";
+import { MAX_RELEASES_PER_REPOSITORY } from "#/lib/limits";
 import { createRef } from "./git-objects";
 import { getCommit, getCommitsBetween, getTags } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteReleaseAssetObjects } from "./release-assets";
 import {
+	countReleases,
 	createReleaseRow,
 	DuplicateReleaseError,
 	deleteReleaseRow,
@@ -20,6 +22,7 @@ import {
 	type ReleaseRow,
 	updateReleaseRow,
 } from "./release-store";
+import { assertRepositoryCapacity } from "./repository-capacity";
 
 /** The parts of a repository these functions read. */
 export interface ReleaseRepo {
@@ -85,6 +88,11 @@ export async function createRelease(
 	input: ReleaseInput,
 ): Promise<number> {
 	assertTagName(input.tagName);
+	assertRepositoryCapacity(
+		await countReleases(repo.id, true),
+		MAX_RELEASES_PER_REPOSITORY,
+		`A repository holds at most ${MAX_RELEASES_PER_REPOSITORY} releases`,
+	);
 	if (!input.draft) {
 		if (await findReleaseByTag(repo.id, input.tagName)) {
 			throw new ReleaseInputError("tag_name", "already_exists");

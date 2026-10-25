@@ -5,9 +5,10 @@
  * turns that into its own error (the server functions throw, the API answers
  * 403).
  */
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { comments } from "#/db/app-schema";
+import { getReferencedIssueNumbers } from "#/lib/issue-references";
 import { deleteActivity, recordActivity } from "./activity";
 import { recordThreadActivity } from "./notification-store";
 import { logError } from "./perf-log";
@@ -169,17 +170,30 @@ export async function updateCommentRow(
 /**
  * Delete a comment and drop the cross-references only it created. `thread` is
  * the comment's thread (its body and the other comments keep theirs).
+ *
+ * Only the other comments that mention one of the numbers this comment did can
+ * keep such a reference alive, so only those are read. The database filter is
+ * a superset of the parser (`#007` is `#7`, so leading zeros are allowed); the
+ * exact check stays in `removeCrossReferences`.
  */
 export async function deleteCommentRow(
 	comment: Comment,
 	thread: ThreadRef,
 ): Promise<void> {
 	await db.delete(comments).where(eq(comments.id, comment.id));
+	const numbers = getReferencedIssueNumbers(comment.body);
+	if (numbers.length === 0) return;
+	// The numbers are integers the parser produced, so the pattern is plain.
+	const mentions = `#0*(${numbers.join("|")})([^0-9]|$)`;
 	const others = await db
 		.select({ body: comments.body })
 		.from(comments)
 		.where(
-			and(eq(comments.issueId, comment.issueId), ne(comments.id, comment.id)),
+			and(
+				eq(comments.issueId, comment.issueId),
+				ne(comments.id, comment.id),
+				sql`${comments.body} ~ ${mentions}`,
+			),
 		);
 	await removeCrossReferences(thread.repoId, thread.id, comment.body, [
 		thread.body,

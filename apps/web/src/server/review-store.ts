@@ -15,6 +15,7 @@ import { getBranchDiff, getBranches } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { recordThreadActivity } from "./notification-store";
 import type { RepositoryWithOwner } from "./repo-access";
+import { assertRepositoryCapacity } from "./repository-capacity";
 import { publicUserFields } from "./repository-lookup";
 import { clearReviewRequest } from "./review-request-store";
 import type { PullRequest } from "./thread-store";
@@ -30,11 +31,11 @@ export async function assertReviewCommentCapacity(pullRequestId: number) {
 		.select({ total: count() })
 		.from(pullRequestReviewComments)
 		.where(eq(pullRequestReviewComments.pullRequestId, pullRequestId));
-	if ((row?.total ?? 0) >= MAX_REVIEW_COMMENTS_PER_PULL_REQUEST) {
-		throw new Error(
-			`A pull request holds at most ${MAX_REVIEW_COMMENTS_PER_PULL_REQUEST} review comments`,
-		);
-	}
+	assertRepositoryCapacity(
+		row?.total ?? 0,
+		MAX_REVIEW_COMMENTS_PER_PULL_REQUEST,
+		`A pull request holds at most ${MAX_REVIEW_COMMENTS_PER_PULL_REQUEST} review comments`,
+	);
 }
 
 export async function listReviewComments(pullRequestId: number) {

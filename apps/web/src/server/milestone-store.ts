@@ -5,11 +5,13 @@
  * carries its open and closed counts (issues and pull requests together, as on
  * GitHub); a merged pull request counts as closed.
  */
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, milestones, repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { MAX_MILESTONES_PER_REPOSITORY } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
+import { assertRepositoryCapacity } from "./repository-capacity";
 import type { PublicUser } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
 
@@ -199,6 +201,15 @@ export async function createMilestone(
 		state?: "open" | "closed";
 	},
 ): Promise<MilestoneView> {
+	const [held] = await db
+		.select({ total: count() })
+		.from(milestones)
+		.where(eq(milestones.repoId, repoId));
+	assertRepositoryCapacity(
+		Number(held?.total ?? 0),
+		MAX_MILESTONES_PER_REPOSITORY,
+		`A repository holds at most ${MAX_MILESTONES_PER_REPOSITORY} milestones`,
+	);
 	// Checked before claiming a number so a rejected duplicate leaves no gap
 	// (the unique index still decides a race).
 	const [taken] = await db

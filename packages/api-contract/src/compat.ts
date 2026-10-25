@@ -78,7 +78,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/list-releases":
 		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
 	"repos/create-release":
-		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` ignored",
+		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` ignored; at 1,000 releases in the repository it is `422`",
 	"repos/generate-release-notes":
 		"write access; a bulleted list of the commits since `previous_tag_name` (default: the tag before `tag_name`) and a `Full Changelog` compare link; no pull request grouping, `.github/release.yml` or new-contributor section",
 	"repos/get-latest-release":
@@ -223,14 +223,14 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/list-milestones":
 		"`state` (`open` default, `closed`, `all`), `sort` (`due_on` default, `completeness`), `direction`; `open_issues`/`closed_issues` count issues and pull requests",
 	"issues/create-milestone":
-		"write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists`",
+		"write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists`; at 1,000 milestones in the repository it is `422`",
 	"issues/get-milestone": "",
 	"issues/update-milestone": "write access",
 	"issues/delete-milestone":
 		"write access; `204`; issues and pull requests in it lose the milestone",
 	"issues/list-labels-for-repo": "",
 	"issues/create-label":
-		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`",
+		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`; at 1,000 labels in the repository it is `422`",
 	"issues/get-label": "",
 	"issues/update-label": "write access",
 	"issues/delete-label": "write access; `204`",

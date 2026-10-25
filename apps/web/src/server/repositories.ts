@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "#/db";
 import { issues, repositoryCollaborators, stars } from "#/db/app-schema";
 import {
+	MAX_COLLABORATORS_PER_REPOSITORY,
 	MAX_LIST_SKIP,
 	MAX_REPO_DESCRIPTION_CHARS,
 	MAX_REPO_HOMEPAGE_CHARS,
@@ -25,6 +26,7 @@ import {
 	invalidateRepositoryAccess,
 	requireOwner,
 } from "./repo-access";
+import { assertRepositoryCapacity } from "./repository-capacity";
 import {
 	createRepositoryForUser,
 	createRepositoryInputSchema,
@@ -354,6 +356,28 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 		if (!target) throw new Error(`User "${data.username}" not found`);
 		if (target.id === currentUser.id)
 			throw new Error("You already own this repository");
+		// Changing an existing collaborator's role is not growth; a new one is.
+		const [existing] = await db
+			.select({ userId: repositoryCollaborators.userId })
+			.from(repositoryCollaborators)
+			.where(
+				and(
+					eq(repositoryCollaborators.repoId, data.repoId),
+					eq(repositoryCollaborators.userId, target.id),
+				),
+			)
+			.limit(1);
+		if (!existing) {
+			const [held] = await db
+				.select({ total: count() })
+				.from(repositoryCollaborators)
+				.where(eq(repositoryCollaborators.repoId, data.repoId));
+			assertRepositoryCapacity(
+				Number(held?.total ?? 0),
+				MAX_COLLABORATORS_PER_REPOSITORY,
+				`A repository holds at most ${MAX_COLLABORATORS_PER_REPOSITORY} collaborators`,
+			);
+		}
 
 		const [collaborator] = await db
 			.insert(repositoryCollaborators)
