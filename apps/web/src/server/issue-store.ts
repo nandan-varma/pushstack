@@ -11,7 +11,7 @@ import { db } from "#/db";
 import { type Issue, issues } from "#/db/app-schema";
 import { labelNameSchema } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
-import { recordActivity } from "./activity";
+import { deleteActivity, recordActivity } from "./activity";
 import { replaceThreadAssignees } from "./assignees-store";
 import { setThreadLabels } from "./label-store";
 import { recordThreadActivity } from "./notification-store";
@@ -52,6 +52,7 @@ export async function createIssueForUser(
 		})
 		.returning();
 	if (!issue) throw new Error("Issue insert returned no row");
+	let activityId: number | undefined;
 	try {
 		const labels = await setThreadLabels(issue, data.labels, userId);
 		if (data.assignees?.length)
@@ -64,7 +65,7 @@ export async function createIssueForUser(
 			userId,
 		);
 		// Record activity before the final author/mention notifications.
-		await recordActivity(userId, repoId, {
+		activityId = await recordActivity(userId, repoId, {
 			type: "issue",
 			metadata: { number: issue.number, title: issue.title, action: "opened" },
 		});
@@ -76,6 +77,16 @@ export async function createIssueForUser(
 		});
 		return { ...issue, labels };
 	} catch (error) {
+		// Cascades remove the issue's notifications; the activity row has no
+		// foreign key, so it is removed here.
+		if (activityId !== undefined)
+			await deleteActivity(activityId).catch((cleanup: unknown) =>
+				logError(
+					"issue-store",
+					`Activity ${activityId} was not removed after a failed issue write`,
+					cleanup,
+				),
+			);
 		await db
 			.delete(issues)
 			.where(eq(issues.id, issue.id))

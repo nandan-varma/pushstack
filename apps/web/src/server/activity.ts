@@ -3,12 +3,22 @@ import { db } from "#/db";
 import { activities, repositories } from "#/db/app-schema";
 import type { ActivityEvent } from "#/lib/activity-types";
 
+/** Records one event and returns its id, so a failed write can remove it. */
 export async function recordActivity(
 	userId: string,
 	repoId: number,
 	event: ActivityEvent,
-): Promise<void> {
-	await db.insert(activities).values({ userId, repoId, ...event });
+): Promise<number> {
+	const [row] = await db
+		.insert(activities)
+		.values({ userId, repoId, ...event })
+		.returning({ id: activities.id });
+	if (!row) throw new Error("Activity insert returned no row");
+	return row.id;
+}
+
+export async function deleteActivity(id: number): Promise<void> {
+	await db.delete(activities).where(eq(activities.id, id));
 }
 
 /**

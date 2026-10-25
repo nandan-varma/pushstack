@@ -8,7 +8,7 @@
 import { and, count, eq, ne } from "drizzle-orm";
 import { db } from "#/db";
 import { comments } from "#/db/app-schema";
-import { recordActivity } from "./activity";
+import { deleteActivity, recordActivity } from "./activity";
 import { recordThreadActivity } from "./notification-store";
 import { logError } from "./perf-log";
 import { canWriteRepo, getRepositoryAccess } from "./repo-access";
@@ -69,7 +69,9 @@ export async function createCommentForUser(
 		.returning();
 	if (!comment) throw new Error("Comment insert returned no row");
 	// The Neon HTTP driver has no transactions: compensate a failed write by
-	// removing its comment. A retry is duplicate-free when cleanup succeeds.
+	// removing its comment and the activity row it recorded. A retry is
+	// duplicate-free when cleanup succeeds.
+	let activityId: number | undefined;
 	try {
 		await recordCrossReferences(
 			thread.repoId,
@@ -78,15 +80,15 @@ export async function createCommentForUser(
 			body,
 			userId,
 		);
-		// Notifications last: they are one statement that cannot half-land, and
-		// nobody is told about a comment that is then removed.
-		await recordActivity(userId, thread.repoId, {
+		activityId = await recordActivity(userId, thread.repoId, {
 			type: "comment",
 			metadata: {
 				on: thread.kind === "issue" ? "issue" : "pr",
 				number: thread.number,
 			},
 		});
+		// Notifications last: they are one statement that cannot half-land, and
+		// nobody is told about a comment that is then removed.
 		await recordThreadActivity({
 			thread,
 			actorId: userId,
@@ -94,6 +96,14 @@ export async function createCommentForUser(
 			text: body,
 		});
 	} catch (error) {
+		if (activityId !== undefined)
+			await deleteActivity(activityId).catch((cleanup: unknown) =>
+				logError(
+					"comment-store",
+					`Activity ${activityId} was not removed after a failed comment write`,
+					cleanup,
+				),
+			);
 		await deleteCommentRow(comment, thread).catch((cleanup: unknown) =>
 			logError(
 				"comment-store",

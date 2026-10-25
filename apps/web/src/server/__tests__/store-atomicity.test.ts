@@ -186,6 +186,43 @@ describe("multi-step writes undo themselves", () => {
 		expect(await notices()).toHaveLength(1);
 	});
 
+	it.each([
+		[
+			"comment",
+			async () => {
+				const host = await issues.createIssue({
+					data: { repoId, title: "Activity host" },
+				});
+				return () =>
+					comments.createComment({
+						data: { issueId: host.id, body: "ping @atom-reader" },
+					});
+			},
+		],
+		[
+			"issue",
+			async () => () =>
+				issues.createIssue({
+					data: { repoId, title: "Activity issue", body: "ping @atom-reader" },
+				}),
+		],
+	])(
+		"a %s whose notification write fails leaves no activity row",
+		async (_kind, prepare) => {
+			const write = await prepare();
+			const activityRows = () =>
+				db
+					.select()
+					.from(schema.activities)
+					.where(eq(schema.activities.repoId, repoId));
+			const before = (await activityRows()).length;
+			failOn = /insert into "notifications"/i;
+			await expect(write()).rejects.toThrow("injected failure");
+			failOn = undefined;
+			expect(await activityRows()).toHaveLength(before);
+		},
+	);
+
 	it("a comment whose follow-up writes fail is removed, and a retry posts one", async () => {
 		const issue = await issues.createIssue({
 			data: { repoId, title: "Commented" },
