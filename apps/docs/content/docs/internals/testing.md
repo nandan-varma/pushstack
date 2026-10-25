@@ -101,33 +101,96 @@ are covered only by e2e.
 
 `gh` is the compatibility bar, so check it by hand against the local server.
 Everything stays in a scratch directory; never use `~/.config/gh` or any git
-config.
+config. Work from a scratch directory outside the repository for the cert,
+the token file and the gh config, and run the server from the repository root.
 
 1. Start the server: `pnpm dev:local` (port 3000, data in `.pushstack-local/`).
-2. Make an account: `POST /api/auth/sign-up/email`, then open the
-   `verify-email` link printed in the dev:local log. Sign in with
-   `POST /api/auth/sign-in/email`.
-3. Mint a token. The `createToken` server function is not reachable over plain
-   HTTP, so insert the row directly while the server is stopped: `tokens` with
-   `token_hash` = SHA-256 hex of a `pst_…` value, and `scopes` a JSON array
-   (`["repo:read","repo:write"]`).
-4. gh only speaks HTTPS, so front the server with a loopback TLS proxy using a
-   self-signed certificate for `localhost` (`node:https` piping to
-   `localhost:3000`).
+   Its log prints each verification email, including the `verify-email` link.
+
+2. Make an account. Sign-up requires `name`, `email`, `password` and
+   `username`; the address must be verified before sign-in succeeds:
+
+   ```sh
+   curl -s -c jar -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
+     localhost:3000/api/auth/sign-up/email \
+     -d '{"name":"Octo","email":"octo@example.test","password":"correct-horse-battery-9","username":"octo"}'
+   # open the verify-email URL from the dev:local log (it is a GET with the cookie jar)
+   curl -s -o /dev/null -b jar -c jar "$VERIFY_URL"
+   curl -s -c jar -b jar -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
+     localhost:3000/api/auth/sign-in/email -d '{"email":"octo@example.test","password":"correct-horse-battery-9"}'
+   ```
+
+3. Mint a token by inserting its row while the server is stopped (the
+   `createToken` server function is not reachable over plain HTTP). Stop the
+   server, then run a script outside the repository that resolves
+   `@electric-sql/pglite` from the web app and writes to the same on-disk
+   database:
+
+   ```js
+   // /tmp/mint.mjs — node /tmp/mint.mjs <absolute path to apps/web>
+   import { createRequire } from "node:module";
+   import { createHash, randomBytes } from "node:crypto";
+   const web = process.argv[2];
+   const require = createRequire(`${web}/package.json`);
+   const { PGlite } = require("@electric-sql/pglite");
+   const client = new PGlite(`${web}/.pushstack-local/db`);
+   const token = `pst_${randomBytes(30).toString("base64url")}`;
+   const hash = createHash("sha256").update(token).digest("hex");
+   const { rows } = await client.query(`select id from "user" where username = 'octo'`);
+   await client.query(
+     `insert into tokens (user_id, name, token_hash, scopes) values ($1, 'gh', $2, '["repo:read","repo:write"]'::jsonb)`,
+     [rows[0].id, hash],
+   );
+   await client.close();
+   console.log(token);
+   ```
+
+   Save the printed value to a file (`/tmp/gh-token`) and restart the server.
+   Note: `"user"` is the Better Auth table; the `username` column holds the
+   account name.
+
+4. gh only speaks HTTPS, so front the server with a TLS proxy on port 3443.
+   Generate a self-signed certificate for `localhost` and run the proxy:
+
+   ```sh
+   openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/gh/key.pem -out /tmp/gh/cert.pem \
+     -days 2 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost"
+   ```
+
+   ```js
+   // /tmp/gh/tls-proxy.mjs — node /tmp/gh/tls-proxy.mjs
+   import { createServer } from "node:https";
+   import { request } from "node:http";
+   import { readFileSync } from "node:fs";
+   createServer(
+     { key: readFileSync("/tmp/gh/key.pem"), cert: readFileSync("/tmp/gh/cert.pem") },
+     (req, res) => {
+       const up = request(
+         { host: "localhost", port: 3000, path: req.url, method: req.method, headers: req.headers },
+         (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res); },
+       );
+       up.on("error", (e) => { res.writeHead(502); res.end(String(e)); });
+       req.pipe(up);
+     },
+   ).listen(3443);
+   ```
+
 5. Run gh through a wrapper that sets, per call:
-   `GH_CONFIG_DIR=<scratch dir>`, `GH_HOST=localhost:3443`,
-   `GH_ENTERPRISE_TOKEN=<pst_…>` (the variable for non-github.com hosts, not
-   `GH_TOKEN`), `SSL_CERT_FILE=<cert>`, `GH_DEBUG=api`, `GH_PROMPT_DISABLED=1`.
+   `GH_CONFIG_DIR=/tmp/gh/config`, `GH_HOST=localhost:3443`,
+   `GH_ENTERPRISE_TOKEN=$(cat /tmp/gh-token)` (the variable for non-github.com
+   hosts, not `GH_TOKEN`), `SSL_CERT_FILE=/tmp/gh/cert.pem`, `GH_DEBUG=api`,
+   `GH_PROMPT_DISABLED=1`. Example: `gh pr diff 1 -R octo/hello`.
    `GH_DEBUG=api` prints each GraphQL document and its variables on stderr,
    which is how fixtures are captured.
+
 6. Git operations (`repo create`, `pr create` with a pushed head) use a
    scratch `HOME`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1` and
-   `GIT_SSL_CAINFO=<cert>`.
+   `GIT_SSL_CAINFO=/tmp/gh/cert.pem`. Push with
+   `https://octo:$(cat /tmp/gh-token)@localhost:3443/octo/hello.git`.
 
-Known harness limit: with gh 2.103.1, `gh pr checkout` reports that no git
-remote corresponds to `GH_HOST` when the host has a port (`localhost:3443`),
-even with a matching `origin`. Its GraphQL request is the same as `pr view`'s,
-which the fixtures cover.
+`gh pr checkout` from a clone whose remote is on `localhost:3443` was observed
+once to report that no remote matches `GH_HOST`. This is not reproduced or
+verified with a fix; the GraphQL request it sends is the one `pr view` sends.
 
 ## End-to-end tests (Playwright)
 
