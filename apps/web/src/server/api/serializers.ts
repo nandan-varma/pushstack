@@ -34,16 +34,11 @@ export type Shape<K extends keyof typeof resources> = z.output<
 
 export type RepoRole = "owner" | "admin" | "write" | "read" | "anonymous";
 
-/** GitHub's legacy global id for a user: base64 of `04:User<id>`. */
-function userNodeId(apiId: number) {
-	return Buffer.from(`04:User${apiId}`).toString("base64");
-}
-
 export function simpleUser(user: PublicUser): Shape<"simpleUser"> {
 	return {
 		login: user.username,
 		id: user.apiId,
-		node_id: userNodeId(user.apiId),
+		node_id: encodeNodeId("User", user.apiId),
 		avatar_url: user.image,
 		url: apiUrl(`/users/${user.username}`),
 		html_url: htmlUrl(`/${user.username}`),
@@ -131,7 +126,7 @@ export function branchHtmlUrl(fullName: string, branch: string) {
 	return htmlUrl(`/${fullName}/tree/${encodePath(branch)}`);
 }
 
-/** GitHub's milestone shape; `node_id` is the legacy `09:Milestone<id>` id. */
+/** GitHub's milestone shape. */
 export function milestone(
 	repo: { fullName: string },
 	value: MilestoneView,
@@ -142,7 +137,7 @@ export function milestone(
 		html_url: htmlUrl(`/${repo.fullName}/milestone/${value.number}`),
 		labels_url: `${url}/labels`,
 		id: value.id,
-		node_id: Buffer.from(`09:Milestone${value.id}`).toString("base64"),
+		node_id: encodeNodeId("Milestone", value.id),
 		number: value.number,
 		state: value.state,
 		title: value.title,
@@ -308,7 +303,7 @@ export function reactionRollup(
 export function reaction(value: ReactionWithUser): Shape<"reaction"> {
 	return {
 		id: value.id,
-		node_id: Buffer.from(`08:Reaction${value.id}`).toString("base64"),
+		node_id: encodeNodeId("Reaction", value.id),
 		user: simpleUser(value.user),
 		content: value.content,
 		created_at: isoTimestamp(value.createdAt),
