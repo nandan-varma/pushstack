@@ -97,6 +97,38 @@ helpers (e.g. `MarkdownRenderer`'s `isSafeHref`/`isSafeImageSrc`). The
 high-churn routes (PR pages, tree/blob/commit viewers, upload, comment forms)
 are covered only by e2e.
 
+### Running real gh against `pnpm dev:local`
+
+`gh` is the compatibility bar, so check it by hand against the local server.
+Everything stays in a scratch directory; never use `~/.config/gh` or any git
+config.
+
+1. Start the server: `pnpm dev:local` (port 3000, data in `.pushstack-local/`).
+2. Make an account: `POST /api/auth/sign-up/email`, then open the
+   `verify-email` link printed in the dev:local log. Sign in with
+   `POST /api/auth/sign-in/email`.
+3. Mint a token. The `createToken` server function is not reachable over plain
+   HTTP, so insert the row directly while the server is stopped: `tokens` with
+   `token_hash` = SHA-256 hex of a `pst_…` value, and `scopes` a JSON array
+   (`["repo:read","repo:write"]`).
+4. gh only speaks HTTPS, so front the server with a loopback TLS proxy using a
+   self-signed certificate for `localhost` (`node:https` piping to
+   `localhost:3000`).
+5. Run gh through a wrapper that sets, per call:
+   `GH_CONFIG_DIR=<scratch dir>`, `GH_HOST=localhost:3443`,
+   `GH_ENTERPRISE_TOKEN=<pst_…>` (the variable for non-github.com hosts, not
+   `GH_TOKEN`), `SSL_CERT_FILE=<cert>`, `GH_DEBUG=api`, `GH_PROMPT_DISABLED=1`.
+   `GH_DEBUG=api` prints each GraphQL document and its variables on stderr,
+   which is how fixtures are captured.
+6. Git operations (`repo create`, `pr create` with a pushed head) use a
+   scratch `HOME`, `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1` and
+   `GIT_SSL_CAINFO=<cert>`.
+
+Known harness limit: with gh 2.103.1, `gh pr checkout` reports that no git
+remote corresponds to `GH_HOST` when the host has a port (`localhost:3443`),
+even with a matching `origin`. Its GraphQL request is the same as `pr view`'s,
+which the fixtures cover.
+
 ## End-to-end tests (Playwright)
 
 Live in `apps/web/e2e/`: `auth.spec.ts`, `navigation.spec.ts`, `repositories.spec.ts`,
