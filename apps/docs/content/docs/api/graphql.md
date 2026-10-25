@@ -186,7 +186,9 @@ set the merge commit message. `authorEmail` is not accepted. Both
 `addPullRequestReview` takes `event` `APPROVE`, `COMMENT` or `REQUEST_CHANGES`
 and submits in one step, under the web review rules: any reader may comment,
 approving or requesting changes needs write access, and an author can't review
-their own pull request. Pending (event-less) reviews, `DISMISS`, inline
+their own pull request. Closed and merged pull requests stay reviewable, as on
+REST (`submitReview`), which has no status check either. An archived repository
+refuses reviews with `FORBIDDEN`, and `DISMISS` is refused. Pending (event-less) reviews, `DISMISS`, inline
 `comments`, `threads` and `commitOID` are not served.
 Every top-level mutation costs at least five GraphQL rate-limit points,
 including aliases.

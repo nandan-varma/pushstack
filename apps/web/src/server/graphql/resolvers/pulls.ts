@@ -29,10 +29,10 @@ import {
 	updatePullRequestFields,
 } from "../../pull-request-store";
 import {
+	ARCHIVED_MESSAGE,
 	canMergePullRequest,
 	canModerateRepo,
 	canWriteRepo,
-	requireParticipateAccess,
 } from "../../repo-access";
 import {
 	findOrCreatePendingReview,
@@ -425,18 +425,15 @@ async function addReview(
 	const node = await mutationPull(input, ctx);
 	const repoId = node.repo.row.id;
 	const reviewer = ctx.caller.userId;
-	if (node.repo.row.archived) throw forbidden("Repository is archived");
+	// A reader who can see the pull request can always comment (participate),
+	// so the only participate refusal is the archived one, checked here.
+	if (node.repo.row.archived) throw forbidden(ARCHIVED_MESSAGE);
 	if (!input.event)
 		throw unprocessable(
 			"A review needs an event; pending reviews are not supported yet",
 		);
 	if (input.event === "DISMISS")
 		throw unprocessable("Reviews can't be dismissed by this mutation");
-	try {
-		await requireParticipateAccess(repoId, reviewer);
-	} catch (error) {
-		throw forbidden(error instanceof Error ? error.message : "Forbidden");
-	}
 	if (input.event !== "COMMENT") {
 		if (!(await canWriteRepo(repoId, reviewer)))
 			throw forbidden("You need write access to approve or request changes");
