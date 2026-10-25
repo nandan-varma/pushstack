@@ -793,3 +793,209 @@ describe("updateRepository", () => {
 		expect(body.errors[0].type).toBe("NOT_FOUND");
 	});
 });
+
+describe("labels", () => {
+	const repoId = async (token: string) => {
+		const { body } = await graphql(
+			token,
+			`{ repository(owner: "alice", name: "public-one") { id } }`,
+		);
+		return body.data.repository.id as string;
+	};
+	const create = `mutation($input: CreateLabelInput!) { createLabel(input: $input) { clientMutationId label { id name color description } } }`;
+	const update = `mutation($input: UpdateLabelInput!) { updateLabel(input: $input) { clientMutationId label { id name color description } } }`;
+	const remove = `mutation($input: DeleteLabelInput!) { deleteLabel(input: $input) { clientMutationId } }`;
+
+	it("creates, edits and deletes labels, round-tripping through Repository.labels", async () => {
+		const repositoryId = await repoId(alice);
+		const created = await graphql(alice, create, {
+			input: {
+				clientMutationId: "c1",
+				repositoryId,
+				name: "gql-label",
+				color: "#ABCDEF",
+				description: "from graphql",
+			},
+		});
+		expect(created.body.errors).toBeUndefined();
+		const label = created.body.data.createLabel;
+		expect(label.clientMutationId).toBe("c1");
+		expect(label.label).toMatchObject({
+			name: "gql-label",
+			color: "abcdef",
+			description: "from graphql",
+		});
+
+		const edited = await graphql(alice, update, {
+			input: { id: label.label.id, name: "gql-renamed", description: "" },
+		});
+		expect(edited.body.errors).toBeUndefined();
+		expect(edited.body.data.updateLabel.label).toMatchObject({
+			name: "gql-renamed",
+			description: null,
+		});
+
+		const listed = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { labels(first: 100, query: "gql-") { totalCount nodes { id name } } } }`,
+		);
+		expect(listed.body.data.repository.labels.nodes).toEqual([
+			{ id: label.label.id, name: "gql-renamed" },
+		]);
+		expect(listed.body.data.repository.labels.totalCount).toBe(1);
+
+		const deleted = await graphql(alice, remove, {
+			input: { clientMutationId: "d1", id: label.label.id },
+		});
+		expect(deleted.body.data.deleteLabel).toEqual({ clientMutationId: "d1" });
+		const again = await graphql(alice, remove, {
+			input: { id: label.label.id },
+		});
+		expect(again.body.errors[0].type).toBe("NOT_FOUND");
+	});
+
+	it("pages labels with first, after and totalCount", async () => {
+		const { body } = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { labels(first: 2, orderBy: {field: NAME, direction: ASC}) { totalCount pageInfo { hasNextPage endCursor } nodes { name } } } }`,
+		);
+		const page = body.data.repository.labels;
+		expect(page.nodes).toHaveLength(2);
+		expect(page.totalCount).toBeGreaterThan(2);
+		expect(page.pageInfo.hasNextPage).toBe(true);
+		const next = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { labels(first: 2, after: "${page.pageInfo.endCursor}", orderBy: {field: NAME, direction: ASC}) { nodes { name } } } }`,
+		);
+		const after = next.body.data.repository.labels.nodes.map(
+			(node: { name: string }) => node.name,
+		);
+		expect(after.length).toBeGreaterThan(0);
+		expect(after).not.toContain(page.nodes[0].name);
+		expect(after).not.toContain(page.nodes[1].name);
+	});
+
+	it("refuses ordering by issue count and over-long searches", async () => {
+		const byCount = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { labels(first: 1, orderBy: {field: ISSUE_COUNT, direction: DESC}) { totalCount } } }`,
+		);
+		expect(byCount.body.errors[0].type).toBe("UNPROCESSABLE");
+		const long = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { labels(first: 1, query: "${"q".repeat(101)}") { totalCount } } }`,
+		);
+		expect(long.body.errors[0].type).toBe("UNPROCESSABLE");
+	});
+
+	it("rejects duplicate names, bad colors and over-long names", async () => {
+		const repositoryId = await repoId(alice);
+		const duplicate = await graphql(alice, create, {
+			input: { repositoryId, name: "BUG", color: "ff0000" },
+		});
+		expect(duplicate.body.errors[0]).toMatchObject({
+			type: "UNPROCESSABLE",
+			message: "Label already exists",
+		});
+		const color = await graphql(alice, create, {
+			input: { repositoryId, name: "bad-color", color: "red" },
+		});
+		expect(color.body.errors[0].type).toBe("UNPROCESSABLE");
+		const name = await graphql(alice, create, {
+			input: { repositoryId, name: "n".repeat(51), color: "ff0000" },
+		});
+		expect(name.body.errors[0].type).toBe("UNPROCESSABLE");
+	});
+
+	it("needs a repo:write token and push access", async () => {
+		const repositoryId = await repoId(alice);
+		const scoped = await graphql(aliceRead, create, {
+			input: { repositoryId, name: "nope", color: "ff0000" },
+		});
+		expect(scoped.body.errors[0].type).toBe("INSUFFICIENT_SCOPES");
+		expect(scoped.body.errors[0].message).toMatch(/'createLabel' field/);
+		const notWriter = await graphql(bob, create, {
+			input: { repositoryId, name: "nope", color: "ff0000" },
+		});
+		expect(notWriter.body.errors[0]).toMatchObject({
+			type: "FORBIDDEN",
+			message: "Must have push access to Repository.",
+		});
+	});
+
+	it("answers NOT_FOUND for an unknown label id", async () => {
+		const { body } = await graphql(alice, update, {
+			input: { id: encodeNodeId("Label", 999_999), name: "x" },
+		});
+		expect(body.errors[0].type).toBe("NOT_FOUND");
+	});
+});
+
+describe("label guards", () => {
+	const idOf = async (token: string, name: string) => {
+		const { body } = await graphql(
+			token,
+			`{ repository(owner: "alice", name: "${name}") { id } }`,
+		);
+		return body.data.repository.id as string;
+	};
+	const create = `mutation($input: CreateLabelInput!) { createLabel(input: $input) { label { id } } }`;
+	const update = `mutation($input: UpdateLabelInput!) { updateLabel(input: $input) { label { id name } } }`;
+
+	it("bounds the description like REST", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const { body } = await graphql(alice, create, {
+			input: {
+				repositoryId,
+				name: "long-desc",
+				color: "ff0000",
+				description: "d".repeat(101),
+			},
+		});
+		expect(body.errors[0].type).toBe("UNPROCESSABLE");
+		expect(body.errors[0].message).toMatch(/^Description /);
+	});
+
+	it("refuses a rename onto another label's name", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const made = await graphql(alice, create, {
+			input: { repositoryId, name: "guard-target", color: "00ff00" },
+		});
+		const other = await graphql(alice, create, {
+			input: { repositoryId, name: "guard-source", color: "00ff00" },
+		});
+		expect(made.body.errors).toBeUndefined();
+		const { body } = await graphql(alice, update, {
+			input: { id: other.body.data.createLabel.label.id, name: "GUARD-target" },
+		});
+		expect(body.errors[0]).toMatchObject({
+			type: "UNPROCESSABLE",
+			message: "Label already exists",
+		});
+	});
+
+	it("refuses label writes on an archived repository, as REST does", async () => {
+		const settings = await import("../repository-settings");
+		const lookup = await import("../repository-lookup");
+		const row = await lookup.findRepositoryByName("alice", "public-one");
+		if (!row) throw new Error("fixture repository missing");
+		const repositoryId = await idOf(alice, "public-one");
+		const { body: before } = await graphql(alice, create, {
+			input: { repositoryId, name: "pre-archive", color: "00ff00" },
+		});
+		expect(before.errors).toBeUndefined();
+		await settings.updateRepositorySettings(row, { archived: true });
+		try {
+			const denied = await graphql(alice, create, {
+				input: { repositoryId, name: "post-archive", color: "00ff00" },
+			});
+			expect(denied.body.errors[0].type).toBe("FORBIDDEN");
+			const renamed = await graphql(alice, update, {
+				input: { id: before.data.createLabel.label.id, name: "nope" },
+			});
+			expect(renamed.body.errors[0].type).toBe("FORBIDDEN");
+		} finally {
+			await settings.updateRepositorySettings(row, { archived: false });
+		}
+	});
+});

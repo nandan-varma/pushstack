@@ -7,7 +7,13 @@
 		"repositoryOwner",
 		"user"
 	],
-	"Mutation": ["createRepository", "updateRepository"],
+	"Mutation": [
+		"createRepository",
+		"updateRepository",
+		"createLabel",
+		"updateLabel",
+		"deleteLabel"
+	],
 	"RepositoryOwner": [
 		"id",
 		"login",
@@ -143,7 +149,11 @@
 		"viewerCanAdminister",
 		"viewerHasStarred",
 		"viewerPermission",
-		"visibility"
+		"visibility",
+		{
+			"name": "labels",
+			"args": ["after", "before", "first", "last", "orderBy", "query"]
+		}
 	],
 	"RepositoryConnection": ["edges", "nodes", "pageInfo", "totalCount"],
 	"RepositoryEdge": "*",
@@ -192,6 +202,14 @@
 		"template"
 	],
 	"UpdateRepositoryPayload": "*",
+	"CreateLabelInput": "*",
+	"CreateLabelPayload": "*",
+	"UpdateLabelInput": "*",
+	"UpdateLabelPayload": "*",
+	"DeleteLabelInput": "*",
+	"DeleteLabelPayload": "*",
+	"LabelOrder": "*",
+	"LabelOrderField": "*",
 	"GitSSHRemote": "*",
 	"Release": {
 		"$implements": ["Node", "UniformResourceLocatable"],
