@@ -204,7 +204,8 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults)",
 	"pulls/create":
 		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
-	"pulls/get": "",
+	"pulls/get":
+		"media types `diff` (the unified diff, base to head) and `patch` (one format-patch section per commit, oldest first, up to 250 commits); both are `text/plain; charset=utf-8` (an inert type with `nosniff`, not GitHub's `application/vnd.github.v3.diff`/`.patch` Content-Type) and stream up to the 10 MiB media cap, past which the answer is `406`",
 	"pulls/update":
 		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`",
 	"pulls/check-if-merged": "`204` once merged, else `404`",

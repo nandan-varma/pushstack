@@ -711,6 +711,9 @@ describe("node ids", () => {
 });
 
 describe("pull request media types", () => {
+	/** The pull request the first test opens; the cap test reads it by number. */
+	let mediaPull: number;
+
 	async function raw(path: string, mediaType: string) {
 		const response = await handleApiRequest(
 			new Request(`${BASE}${path}`, {
@@ -733,6 +736,7 @@ describe("pull request media types", () => {
 		);
 		expect(created.status).toBe(201);
 		const n = created.body.number;
+		mediaPull = n;
 
 		const diff = await raw(
 			`/repos/alice/proj/pulls/${n}`,
@@ -756,16 +760,19 @@ describe("pull request media types", () => {
 		expect(json.body.number).toBe(n);
 	});
 
-	it("answers 406 when the diff exceeds the media byte cap", async () => {
-		const number = (await call("/repos/alice/proj/pulls?state=all")).body[0]
-			.number;
+	it("answers 406 when the diff or the patches exceed the media byte cap", async () => {
 		caps.apiCaps.diffMediaBytes = 4;
 		try {
-			const tooBig = await raw(
-				`/repos/alice/proj/pulls/${number}`,
+			for (const mediaType of [
 				"application/vnd.github.diff",
-			);
-			expect(tooBig.status).toBe(406);
+				"application/vnd.github.patch",
+			]) {
+				const tooBig = await raw(
+					`/repos/alice/proj/pulls/${mediaPull}`,
+					mediaType,
+				);
+				expect(tooBig.status).toBe(406);
+			}
 		} finally {
 			caps.apiCaps.diffMediaBytes = caps.DEFAULT_API_CAPS.diffMediaBytes;
 		}
