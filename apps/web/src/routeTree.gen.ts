@@ -45,6 +45,7 @@ import { Route as OwnerNameCommitsBranchRouteImport } from './routes/$owner.$nam
 import { Route as OwnerNameCompareSplatRouteImport } from './routes/$owner.$name.compare.$'
 import { Route as OwnerNameInfoRefsRouteImport } from './routes/$owner.$name.info.refs'
 import { Route as OwnerNameIssuesIdRouteImport } from './routes/$owner.$name.issues.$id'
+import { Route as OwnerNameIssuesNewRouteImport } from './routes/$owner.$name.issues_.new'
 import { Route as OwnerNameLegacyDottarDotgzSplatRouteImport } from './routes/$owner.$name.legacy[.]tar[.]gz.$'
 import { Route as OwnerNameLegacyDotzipSplatRouteImport } from './routes/$owner.$name.legacy[.]zip.$'
 import { Route as OwnerNameMilestonesIndexRouteImport } from './routes/$owner.$name.milestones.index'
@@ -55,6 +56,7 @@ import { Route as OwnerNameReleasesLatestRouteImport } from './routes/$owner.$na
 import { Route as OwnerNameReleasesNewRouteImport } from './routes/$owner.$name.releases.new'
 import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
+import { Route as OwnerNameIssuesNewChooseRouteImport } from './routes/$owner.$name.issues_.new_.choose'
 import { Route as OwnerNameMilestoneNumberIndexRouteImport } from './routes/$owner.$name.milestone.$number.index'
 import { Route as OwnerNameMilestoneNumberEditRouteImport } from './routes/$owner.$name.milestone.$number.edit'
 import { Route as OwnerNameReleasesDownloadSplatRouteImport } from './routes/$owner.$name.releases.download.$'
@@ -242,6 +244,11 @@ const OwnerNameIssuesIdRoute = OwnerNameIssuesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => OwnerNameIssuesRoute,
 } as any)
+const OwnerNameIssuesNewRoute = OwnerNameIssuesNewRouteImport.update({
+  id: '/issues_/new',
+  path: '/issues/new',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const OwnerNameLegacyDottarDotgzSplatRoute =
   OwnerNameLegacyDottarDotgzSplatRouteImport.update({
     id: '/legacy.tar.gz/$',
@@ -295,6 +302,12 @@ const OwnerNameBlobBranchSplatRoute =
   OwnerNameBlobBranchSplatRouteImport.update({
     id: '/blob/$branch/$',
     path: '/blob/$branch/$',
+    getParentRoute: () => OwnerNameRoute,
+  } as any)
+const OwnerNameIssuesNewChooseRoute =
+  OwnerNameIssuesNewChooseRouteImport.update({
+    id: '/issues_/new_/choose',
+    path: '/issues/new/choose',
     getParentRoute: () => OwnerNameRoute,
   } as any)
 const OwnerNameMilestoneNumberIndexRoute =
@@ -381,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
+  '/$owner/$name/issues/new': typeof OwnerNameIssuesNewRoute
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/milestones/new': typeof OwnerNameMilestonesNewRoute
@@ -391,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
+  '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
   '/$owner/$name/milestone/$number/edit': typeof OwnerNameMilestoneNumberEditRoute
   '/$owner/$name/releases/download/$': typeof OwnerNameReleasesDownloadSplatRoute
   '/$owner/$name/releases/edit/$': typeof OwnerNameReleasesEditSplatRoute
@@ -433,6 +448,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
+  '/$owner/$name/issues/new': typeof OwnerNameIssuesNewRoute
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/milestones/new': typeof OwnerNameMilestonesNewRoute
@@ -443,6 +459,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
+  '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
   '/$owner/$name/milestone/$number/edit': typeof OwnerNameMilestoneNumberEditRoute
   '/$owner/$name/releases/download/$': typeof OwnerNameReleasesDownloadSplatRoute
   '/$owner/$name/releases/edit/$': typeof OwnerNameReleasesEditSplatRoute
@@ -490,6 +507,7 @@ export interface FileRoutesById {
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
+  '/$owner/$name/issues_/new': typeof OwnerNameIssuesNewRoute
   '/$owner/$name/legacy.tar.gz/$': typeof OwnerNameLegacyDottarDotgzSplatRoute
   '/$owner/$name/legacy.zip/$': typeof OwnerNameLegacyDotzipSplatRoute
   '/$owner/$name/milestones/new': typeof OwnerNameMilestonesNewRoute
@@ -500,6 +518,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
+  '/$owner/$name/issues_/new_/choose': typeof OwnerNameIssuesNewChooseRoute
   '/$owner/$name/milestone/$number/edit': typeof OwnerNameMilestoneNumberEditRoute
   '/$owner/$name/releases/download/$': typeof OwnerNameReleasesDownloadSplatRoute
   '/$owner/$name/releases/edit/$': typeof OwnerNameReleasesEditSplatRoute
@@ -546,6 +565,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/compare/$'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
+    | '/$owner/$name/issues/new'
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/milestones/new'
@@ -556,6 +576,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
+    | '/$owner/$name/issues/new/choose'
     | '/$owner/$name/milestone/$number/edit'
     | '/$owner/$name/releases/download/$'
     | '/$owner/$name/releases/edit/$'
@@ -598,6 +619,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/compare/$'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
+    | '/$owner/$name/issues/new'
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/milestones/new'
@@ -608,6 +630,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
+    | '/$owner/$name/issues/new/choose'
     | '/$owner/$name/milestone/$number/edit'
     | '/$owner/$name/releases/download/$'
     | '/$owner/$name/releases/edit/$'
@@ -654,6 +677,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/compare/$'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
+    | '/$owner/$name/issues_/new'
     | '/$owner/$name/legacy.tar.gz/$'
     | '/$owner/$name/legacy.zip/$'
     | '/$owner/$name/milestones/new'
@@ -664,6 +688,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
+    | '/$owner/$name/issues_/new_/choose'
     | '/$owner/$name/milestone/$number/edit'
     | '/$owner/$name/releases/download/$'
     | '/$owner/$name/releases/edit/$'
@@ -947,6 +972,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameIssuesIdRouteImport
       parentRoute: typeof OwnerNameIssuesRoute
     }
+    '/$owner/$name/issues_/new': {
+      id: '/$owner/$name/issues_/new'
+      path: '/issues/new'
+      fullPath: '/$owner/$name/issues/new'
+      preLoaderRoute: typeof OwnerNameIssuesNewRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/legacy.tar.gz/$': {
       id: '/$owner/$name/legacy.tar.gz/$'
       path: '/legacy.tar.gz/$'
@@ -1015,6 +1047,13 @@ declare module '@tanstack/react-router' {
       path: '/blob/$branch/$'
       fullPath: '/$owner/$name/blob/$branch/$'
       preLoaderRoute: typeof OwnerNameBlobBranchSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/issues_/new_/choose': {
+      id: '/$owner/$name/issues_/new_/choose'
+      path: '/issues/new/choose'
+      fullPath: '/$owner/$name/issues/new/choose'
+      preLoaderRoute: typeof OwnerNameIssuesNewChooseRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/$owner/$name/milestone/$number/': {
@@ -1144,6 +1183,7 @@ interface OwnerNameRouteChildren {
   OwnerNameCommitsBranchRoute: typeof OwnerNameCommitsBranchRoute
   OwnerNameCompareSplatRoute: typeof OwnerNameCompareSplatRoute
   OwnerNameInfoRefsRoute: typeof OwnerNameInfoRefsRoute
+  OwnerNameIssuesNewRoute: typeof OwnerNameIssuesNewRoute
   OwnerNameLegacyDottarDotgzSplatRoute: typeof OwnerNameLegacyDottarDotgzSplatRoute
   OwnerNameLegacyDotzipSplatRoute: typeof OwnerNameLegacyDotzipSplatRoute
   OwnerNameMilestonesNewRoute: typeof OwnerNameMilestonesNewRoute
@@ -1154,6 +1194,7 @@ interface OwnerNameRouteChildren {
   OwnerNameReleasesIndexRoute: typeof OwnerNameReleasesIndexRoute
   OwnerNameBlameBranchSplatRoute: typeof OwnerNameBlameBranchSplatRoute
   OwnerNameBlobBranchSplatRoute: typeof OwnerNameBlobBranchSplatRoute
+  OwnerNameIssuesNewChooseRoute: typeof OwnerNameIssuesNewChooseRoute
   OwnerNameMilestoneNumberEditRoute: typeof OwnerNameMilestoneNumberEditRoute
   OwnerNameReleasesDownloadSplatRoute: typeof OwnerNameReleasesDownloadSplatRoute
   OwnerNameReleasesEditSplatRoute: typeof OwnerNameReleasesEditSplatRoute
@@ -1178,6 +1219,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameCommitsBranchRoute: OwnerNameCommitsBranchRoute,
   OwnerNameCompareSplatRoute: OwnerNameCompareSplatRoute,
   OwnerNameInfoRefsRoute: OwnerNameInfoRefsRoute,
+  OwnerNameIssuesNewRoute: OwnerNameIssuesNewRoute,
   OwnerNameLegacyDottarDotgzSplatRoute: OwnerNameLegacyDottarDotgzSplatRoute,
   OwnerNameLegacyDotzipSplatRoute: OwnerNameLegacyDotzipSplatRoute,
   OwnerNameMilestonesNewRoute: OwnerNameMilestonesNewRoute,
@@ -1188,6 +1230,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameReleasesIndexRoute: OwnerNameReleasesIndexRoute,
   OwnerNameBlameBranchSplatRoute: OwnerNameBlameBranchSplatRoute,
   OwnerNameBlobBranchSplatRoute: OwnerNameBlobBranchSplatRoute,
+  OwnerNameIssuesNewChooseRoute: OwnerNameIssuesNewChooseRoute,
   OwnerNameMilestoneNumberEditRoute: OwnerNameMilestoneNumberEditRoute,
   OwnerNameReleasesDownloadSplatRoute: OwnerNameReleasesDownloadSplatRoute,
   OwnerNameReleasesEditSplatRoute: OwnerNameReleasesEditSplatRoute,

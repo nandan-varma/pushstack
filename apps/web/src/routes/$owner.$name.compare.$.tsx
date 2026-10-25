@@ -29,6 +29,7 @@ import {
 	repositoryBranchesQueryOptions,
 	repositoryByNameQueryOptions,
 	repositoryComparisonQueryOptions,
+	repositoryTemplatesQueryOptions,
 } from "@/lib/query-options";
 import { createPullRequest } from "@/server/pull-requests";
 
@@ -106,9 +107,15 @@ function ComparePage() {
 		enabled: !!repo && !!spec,
 	});
 
+	const { data: templates, error: templatesError } = useQuery({
+		...repositoryTemplatesQueryOptions(repo?.id ?? 0),
+		enabled: !!repo,
+	});
+
 	const [open, setOpen] = useState(false);
 	const [title, setTitle] = useState("");
 	const [body, setBody] = useState("");
+	const [bodyInitialized, setBodyInitialized] = useState(false);
 	const [draft, setDraft] = useState(false);
 	const createMutation = useMutation({
 		mutationFn: createPullRequest,
@@ -133,6 +140,7 @@ function ComparePage() {
 		},
 	});
 
+	if (templatesError) throw templatesError;
 	if (!repo) return null;
 	if (!spec || isError) {
 		return (
@@ -180,11 +188,15 @@ function ComparePage() {
 					/>
 				</div>
 				<div className="flex items-center gap-2">
-					{canOpenPull && (
+					{canOpenPull && templates && (
 						<NewThreadDialog
 							open={open}
 							onOpenChange={(next) => {
 								setOpen(next);
+								if (next && !bodyInitialized) {
+									setBody(templates.pullRequestTemplates[0]?.body ?? "");
+									setBodyInitialized(true);
+								}
 								if (next && !title && comparison?.commits.length === 1) {
 									setTitle(comparison.commits[0]?.message.split("\n")[0] ?? "");
 								}

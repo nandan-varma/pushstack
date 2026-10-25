@@ -51,6 +51,7 @@ import {
 	getRepositoryByName,
 	getUserRepositories,
 } from "@/server/repositories";
+import { getRepositoryTemplates } from "@/server/repository-templates";
 import { getFileOwners, getReviewerCandidates } from "@/server/review-requests";
 import {
 	getMyPendingReview,
@@ -81,6 +82,8 @@ export const queryKeys = {
 	searchRepositories: (query: string) =>
 		["search", "repositories", query] as const,
 	searchUsers: (query: string) => ["search", "users", query] as const,
+	repoTemplates: (repoId: number) =>
+		["repos", repoId, "files", "templates"] as const,
 	repoBranches: (repoId: number) => ["repos", repoId, "branches"] as const,
 	repoTags: (repoId: number) => ["repos", repoId, "tags"] as const,
 	/** Every timeline in a repo: a mention, merge or close can touch several. */
@@ -345,6 +348,14 @@ export function repositoryByNameQueryOptions({
 			perfTime(`query repositoryByName ${owner}/${name}`, () =>
 				getRepositoryByName({ data: { owner, name } }),
 			),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryTemplatesQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoTemplates(repoId),
+		queryFn: () => getRepositoryTemplates({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

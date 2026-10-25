@@ -69,6 +69,7 @@ export async function generateResolverTypes(): Promise<string> {
 				IssueComment: "./pulls-detail#CommentNode",
 				StatusCheckRollup: "./pulls-detail#RollupNode",
 				Release: "./releases#ReleaseNode",
+				IssueTemplate: "./templates#IssueTemplateNode",
 				ReleaseAsset: "./releases#ReleaseAssetNode",
 				RateLimit: "../context#RateLimitInfo",
 			},

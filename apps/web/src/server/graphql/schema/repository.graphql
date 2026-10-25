@@ -419,6 +419,10 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 	"""
 	isTemplate: Boolean!
 	"""
+	Returns a list of issue templates associated to the repository
+	"""
+	issueTemplates: [IssueTemplate!]
+	"""
 	Get the latest release for the repository if one exists.
 	"""
 	latestRelease: Release
@@ -459,6 +463,10 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 	The repository parent, if this is a fork.
 	"""
 	parent: Repository
+	"""
+	Returns a list of pull request templates associated to the repository
+	"""
+	pullRequestTemplates: [PullRequestTemplate!]
 	"""
 	Identifies the date and time when the repository was last pushed to.
 	"""
@@ -841,6 +849,10 @@ enum RepositoryPermission {
 	"""
 	TRIAGE
 	"""
+	Can read and clone this repository. Can also manage issues and pull requests, plus additional triage abilities
+	"""
+	TRIAGE_PLUS
+	"""
 	Can read, clone, and push to this repository. Can also manage issues and pull requests
 	"""
 	WRITE
@@ -1174,4 +1186,90 @@ enum ReleaseOrderField {
 	Order releases alphabetically by name
 	"""
 	NAME
+}
+
+"""
+A repository issue template.
+"""
+type IssueTemplate {
+	"""
+	The template purpose.
+	"""
+	about: String
+	"""
+	The suggested assignees.
+	"""
+	assignees(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): UserConnection!
+	"""
+	The suggested issue body.
+	"""
+	body: String
+	"""
+	The template filename.
+	"""
+	filename: String!
+	"""
+	The suggested issue labels
+	"""
+	labels(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): LabelConnection
+	"""
+	The template name.
+	"""
+	name: String!
+	"""
+	The suggested issue title.
+	"""
+	title: String
+}
+
+"""
+A repository pull request template.
+"""
+type PullRequestTemplate {
+	"""
+	The body of the template
+	"""
+	body: String
+	"""
+	The filename of the template
+	"""
+	filename: String
+	"""
+	The repository the template belongs to
+	"""
+	repository: Repository!
 }
