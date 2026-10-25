@@ -110,12 +110,44 @@ Responses are form-encoded unless the client sends `Accept: application/json`,
 which gh does. Codes older than their 900 seconds are deleted when the next
 code is created, so unauthenticated starts cannot grow the table.
 
-**Not yet**: OAuth apps (a registered `client_id` and secret, the
-authorization-code flow at `/login/oauth/authorize`). Until then `client_id` is
-accepted as any non-empty string. The approval page is login-gated but a user
-code (8 characters from a 20-letter alphabet, live for 900 seconds) is not
-rate-limited per user yet, so brute force is not ruled out. Both belong to the
-follow-up issue on OAuth apps.
+## OAuth apps and the authorization-code flow
+
+A user registers an app at `/settings/developers` (`routes/settings_.developers.tsx`,
+`server/oauth-apps.ts`). The app gets a `client_id` (`Iv1.` plus 16 hex) and a
+40-hex client secret. The secret is shown once; `oauth_apps.client_secret_hash`
+keeps only its SHA-256, and the app's one `callback_url` is the only redirect a
+flow may use. Callback URLs are absolute `https` URLs (`http` for loopback
+hosts only), with no fragment and no credentials (`isValidCallbackUrl`).
+
+1. The app sends the user to `GET /login/oauth/authorize?client_id&redirect_uri
+   &scope&state` (`routes/login.oauth.authorize.tsx`). A signed-out user goes to
+   `/login?redirect=…`, and login follows only a path on this site
+   (`safeInternalPath`). `redirect_uri` must equal the registered callback
+   exactly. An unknown client, or any other URI, is an error page, and the user
+   is never redirected there.
+2. The user approves or cancels. The decision is a server function POST that
+   must carry the site's own `Origin` (`isSameOriginRequest`), so a cross-site
+   page cannot submit it. The request is checked again on the server, and the
+   redirect is built from the registered callback (`authorizationRedirect`),
+   with `code` (approve) or `error=access_denied` (cancel) and `state` echoed.
+3. `POST /login/oauth/access_token` with `grant_type=authorization_code`,
+   `client_id`, `client_secret`, `code` and `redirect_uri` (optional, but when
+   sent it must match) exchanges the code. The secret is compared in constant
+   time against its hash, the code's client and URI are checked, and then the
+   code is consumed by one conditional `UPDATE`, so a replay or a concurrent
+   second exchange gets `bad_verification_code`. Codes live 600 seconds and
+   store only their SHA-256 (`oauth_codes`). A wrong secret or URI does not
+   spend the code. Success is a `pst_` token with `oauth_app_id` set, scopes as
+   for any token, and the GitHub-style `scope` echo.
+
+Tokens an app holds are not listed with personal access tokens. They appear at
+`/settings/applications` (`routes/settings_.applications.tsx`) with their scopes
+and date, and revoking an app deletes them. Deleting an app cascades to its
+tokens and codes. PKCE is not required.
+
+**Not yet**: the device flow still accepts any non-empty `client_id`, because
+`gh` sends a fixed id that is not a registered app. Whether that id must be
+registered is an open question on #215.
 
 ## `RepositoryAccess` — the single access-control computation
 

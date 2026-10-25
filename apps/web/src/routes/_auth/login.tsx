@@ -8,13 +8,19 @@ import { Input } from "@/components/ui/input";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { authClient } from "@/lib/auth-client";
 import { queryKeys } from "@/lib/query-options";
+import { safeInternalPath } from "@/lib/safe-redirect";
 
 export const Route = createFileRoute("/_auth/login")({
+	// Where to return after signing in (a consent page, say). Only a path on
+	// this site is followed; see lib/safe-redirect.ts.
+	validateSearch: (search: Record<string, unknown>): { redirect?: string } =>
+		typeof search.redirect === "string" ? { redirect: search.redirect } : {},
 	component: LoginPage,
 });
 
 function LoginPage() {
 	const navigate = useNavigate();
+	const { redirect } = Route.useSearch();
 	const queryClient = useQueryClient();
 	const [identifier, setIdentifier] = useState("");
 	const [password, setPassword] = useState("");
@@ -49,7 +55,12 @@ function LoginPage() {
 
 	const handleSuccess = async () => {
 		await queryClient.invalidateQueries({ queryKey: queryKeys.authSession });
-		navigate({ to: "/dashboard" });
+		const target = safeInternalPath(redirect);
+		if (target) {
+			navigate({ href: target });
+		} else {
+			navigate({ to: "/dashboard" });
+		}
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {

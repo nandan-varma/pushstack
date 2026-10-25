@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { AccessTokensSection } from "@/components/settings/AccessTokensSection";
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
@@ -58,6 +58,21 @@ function SettingsPage() {
 						id: "developer",
 						label: "Developer",
 						content: <DeveloperSection />,
+					},
+					{
+						id: "applications",
+						label: "OAuth apps",
+						content: (
+							<p className="text-sm text-muted-foreground">
+								<Link to="/settings/developers" className="underline">
+									Register an OAuth app
+								</Link>
+								{" · "}
+								<Link to="/settings/applications" className="underline">
+									Review authorized apps
+								</Link>
+							</p>
+						),
 					},
 				]}
 			/>

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { tokens } from "#/db/app-schema";
@@ -26,7 +26,8 @@ export const listTokens = createServerFn({ method: "GET" }).handler(() =>
 					createdAt: tokens.createdAt,
 				})
 				.from(tokens)
-				.where(eq(tokens.userId, user.id))
+				// Tokens an OAuth app holds are listed and revoked at /settings/applications.
+				.where(and(eq(tokens.userId, user.id), isNull(tokens.oauthAppId)))
 				.orderBy(desc(tokens.createdAt)),
 		);
 	}),

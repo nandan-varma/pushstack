@@ -19,7 +19,13 @@ describe("reserved top-level names", () => {
 		);
 		const routes = entries
 			.filter((entry) => !entry.startsWith("$") && !entry.startsWith("__"))
-			.map((entry) => entry.replace(/\.tsx?$/, "").split(".")[0] as string)
+			// A trailing `_` escapes nesting (`settings_.developers.tsx` is /settings/developers).
+			.map((entry) =>
+				(entry.replace(/\.tsx?$/, "").split(".")[0] as string).replace(
+					/_$/,
+					"",
+				),
+			)
 			.filter((segment) => segment !== "index");
 		const files = readdirSync(join(web, "public"));
 		for (const name of [...routes, ...files])

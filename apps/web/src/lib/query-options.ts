@@ -38,6 +38,7 @@ import {
 	getThreadSubscription,
 	getUnreadNotificationCount,
 } from "@/server/notifications";
+import { getAuthorizedApps, getOAuthApps } from "@/server/oauth-apps";
 import {
 	getPullRequestByNumber,
 	getPullRequestCommits,
@@ -70,6 +71,8 @@ export const queryKeys = {
 	assignedThreads: ["threads", "assigned", "self"] as const,
 	authSession: ["auth", "session"] as const,
 	accessTokens: ["auth", "access-tokens"] as const,
+	oauthApps: ["auth", "oauth-apps"] as const,
+	authorizedApps: ["auth", "authorized-apps"] as const,
 	authSessions: ["auth", "sessions"] as const,
 	userRepositories: (userId?: string) =>
 		["repositories", "user", userId ?? "self"] as const,
@@ -246,6 +249,22 @@ export function accessTokensQueryOptions() {
 	return queryOptions({
 		queryKey: queryKeys.accessTokens,
 		queryFn: () => listTokens(),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function oauthAppsQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.oauthApps,
+		queryFn: () => getOAuthApps(),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function authorizedAppsQueryOptions() {
+	return queryOptions({
+		queryKey: queryKeys.authorizedApps,
+		queryFn: () => getAuthorizedApps(),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
