@@ -9,6 +9,7 @@ import {
 	MAX_BODY_CHARS,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
+	MAX_TEMPLATE_FILENAME_CHARS,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
@@ -18,6 +19,7 @@ import {
 	issueLabelsSchema,
 	updateIssueThreadFields,
 } from "./issue-store";
+import { listLabels } from "./label-store";
 import { readInput, threadNumberSchema } from "./read-input";
 import {
 	canWriteRepo,
@@ -27,6 +29,7 @@ import {
 	requireParticipateAccess,
 } from "./repo-access";
 import { readRepoByName } from "./repository-lookup";
+import { loadRepositoryTemplates } from "./repository-templates-store";
 import { getCurrentUser } from "./session";
 import { searchFilter, searchSort } from "./thread-search";
 import {
@@ -42,24 +45,50 @@ export const createIssue = createServerFn({ method: "POST" })
 			repoId: z.number(),
 			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
-			labels: issueLabelsSchema.default([]),
-			assignees: z.array(z.string().max(100)).max(MAX_ASSIGNEES).default([]),
+			labels: issueLabelsSchema.optional(),
+			assignees: z.array(z.string().max(100)).max(MAX_ASSIGNEES).optional(),
+			template: z.string().min(1).max(MAX_TEMPLATE_FILENAME_CHARS).optional(),
 		}),
 	)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		await requireParticipateAccess(data.repoId, currentUser.id);
-		// Labels are triage: a participant without write access opens the issue
-		// unlabeled, as on GitHub.
+		// A template's metadata is trusted repository configuration. Resolve it at
+		// the default branch rather than trusting a reporter's submitted labels.
+		const template = data.template
+			? await readWithAccess(
+					"createIssue template",
+					data.repoId,
+					async (repo) => {
+						const templates = await loadRepositoryTemplates(repo);
+						const selected = templates.issueTemplates.find(
+							(item) => item.filename === data.template,
+						);
+						if (!selected) throw notFound();
+						return selected;
+					},
+				)
+			: undefined;
+		const knownLabels = template ? await listLabels(data.repoId) : [];
+		const templateLabels = knownLabels
+			.filter((label) =>
+				template?.labels.some(
+					(name) => name.toLowerCase() === label.name.toLowerCase(),
+				),
+			)
+			.map((label) => label.name);
 		const canWrite = await canWriteRepo(data.repoId, currentUser.id);
-		const labels = canWrite ? data.labels : [];
+		const labels = canWrite ? (data.labels ?? templateLabels) : templateLabels;
+		const assignees = canWrite
+			? (data.assignees ?? template?.assignees ?? [])
+			: (template?.assignees ?? []);
 		const issue = await createIssueForUser(data.repoId, currentUser.id, {
 			title: data.title,
 			body: data.body,
 			labels,
 		});
-		if (canWrite && data.assignees.length > 0)
-			await replaceThreadAssignees(issue, data.assignees, currentUser.id);
+		if (assignees.length > 0)
+			await replaceThreadAssignees(issue, assignees, currentUser.id);
 		return issue;
 	});
 

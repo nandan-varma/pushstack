@@ -5,6 +5,7 @@ import type { CommitNode } from './commit';
 import type { PullRequestNode } from './pulls';
 import type { ReviewNode, CommentNode, RollupNode } from './pulls-detail';
 import type { ReleaseNode, ReleaseAssetNode } from './releases';
+import type { IssueTemplateNode } from './templates';
 import type { RateLimitInfo, GraphQLContext } from '../context';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -362,6 +363,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   isPrivate: Scalars['Boolean']['output'];
   /** Identifies if the repository is a template that can be used to generate new repositories. */
   isTemplate: Scalars['Boolean']['output'];
+  /** Returns a list of issue templates associated to the repository */
+  issueTemplates?: Maybe<Array<IssueTemplate>>;
   /** Get the latest release for the repository if one exists. */
   latestRelease?: Maybe<Release>;
   /** Whether or not PRs are merged with a merge commit on this repository. */
@@ -378,6 +381,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   owner: RepositoryOwner;
   /** The repository parent, if this is a fork. */
   parent?: Maybe<Repository>;
+  /** Returns a list of pull request templates associated to the repository */
+  pullRequestTemplates?: Maybe<Array<PullRequestTemplate>>;
   /** Identifies the date and time when the repository was last pushed to. */
   pushedAt?: Maybe<Scalars['DateTime']['output']>;
   /** Whether or not rebase-merging is enabled on this repository. */
@@ -642,6 +647,8 @@ export type RepositoryPermission =
   | 'READ'
   /** Can read and clone this repository. Can also manage issues and pull requests */
   | 'TRIAGE'
+  /** Can read and clone this repository. Can also manage issues and pull requests, plus additional triage abilities */
+  | 'TRIAGE_PLUS'
   /** Can read, clone, and push to this repository. Can also manage issues and pull requests */
   | 'WRITE';
 
@@ -829,6 +836,111 @@ export type ReleaseOrderField =
   | 'CREATED_AT'
   /** Order releases alphabetically by name */
   | 'NAME';
+
+/** A repository issue template. */
+export type IssueTemplate = {
+  __typename?: 'IssueTemplate';
+  /** The template purpose. */
+  about?: Maybe<Scalars['String']['output']>;
+  /** The suggested assignees. */
+  assignees: UserConnection;
+  /** The suggested issue body. */
+  body?: Maybe<Scalars['String']['output']>;
+  /** The template filename. */
+  filename: Scalars['String']['output'];
+  /** The suggested issue labels */
+  labels?: Maybe<LabelConnection>;
+  /** The template name. */
+  name: Scalars['String']['output'];
+  /** The suggested issue title. */
+  title?: Maybe<Scalars['String']['output']>;
+};
+
+
+/** A repository issue template. */
+export type IssueTemplateAssigneesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository issue template. */
+export type IssueTemplateLabelsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** A repository pull request template. */
+export type PullRequestTemplate = {
+  __typename?: 'PullRequestTemplate';
+  /** The body of the template */
+  body?: Maybe<Scalars['String']['output']>;
+  /** The filename of the template */
+  filename?: Maybe<Scalars['String']['output']>;
+  /** The repository the template belongs to */
+  repository: Repository;
+};
+
+/** A list of users. */
+export type UserConnection = {
+  __typename?: 'UserConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<UserEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<User>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** Represents a user. */
+export type UserEdge = {
+  __typename?: 'UserEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<User>;
+};
+
+/** The connection type for Label. */
+export type LabelConnection = {
+  __typename?: 'LabelConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<LabelEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Label>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type LabelEdge = {
+  __typename?: 'LabelEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Label>;
+};
+
+/** A label for categorizing Issues, Pull Requests, Milestones, or Discussions with a given Repository. */
+export type Label = Node & {
+  __typename?: 'Label';
+  /** Identifies the label name. */
+  name: Scalars['String']['output'];
+  /** Identifies the label color. */
+  color: Scalars['String']['output'];
+  /** A brief description of this label. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** The Node ID of the Label object */
+  id: Scalars['ID']['output'];
+};
 
 /** A repository pull request. */
 export type PullRequest = Node & UniformResourceLocatable & {
@@ -1287,63 +1399,6 @@ export type PullRequestReviewEdge = {
   node?: Maybe<PullRequestReview>;
 };
 
-/** A list of users. */
-export type UserConnection = {
-  __typename?: 'UserConnection';
-  /** A list of nodes. */
-  nodes?: Maybe<Array<Maybe<User>>>;
-  /** A list of edges. */
-  edges?: Maybe<Array<Maybe<UserEdge>>>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-  /** Identifies the total count of items in the connection. */
-  totalCount: Scalars['Int']['output'];
-};
-
-/** Represents a user. */
-export type UserEdge = {
-  __typename?: 'UserEdge';
-  /** A cursor for use in pagination. */
-  cursor: Scalars['String']['output'];
-  /** The item at the end of the edge. */
-  node?: Maybe<User>;
-};
-
-/** A label for categorizing Issues, Pull Requests, Milestones, or Discussions with a given Repository. */
-export type Label = Node & {
-  __typename?: 'Label';
-  /** The Node ID of the Label object */
-  id: Scalars['ID']['output'];
-  /** Identifies the label name. */
-  name: Scalars['String']['output'];
-  /** A brief description of this label. */
-  description?: Maybe<Scalars['String']['output']>;
-  /** Identifies the label color. */
-  color: Scalars['String']['output'];
-};
-
-/** The connection type for Label. */
-export type LabelConnection = {
-  __typename?: 'LabelConnection';
-  /** A list of nodes. */
-  nodes?: Maybe<Array<Maybe<Label>>>;
-  /** A list of edges. */
-  edges?: Maybe<Array<Maybe<LabelEdge>>>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-  /** Identifies the total count of items in the connection. */
-  totalCount: Scalars['Int']['output'];
-};
-
-/** An edge in a connection. */
-export type LabelEdge = {
-  __typename?: 'LabelEdge';
-  /** A cursor for use in pagination. */
-  cursor: Scalars['String']['output'];
-  /** The item at the end of the edge. */
-  node?: Maybe<Label>;
-};
-
 /** Represents a Milestone object on a given repository. */
 export type Milestone = {
   __typename?: 'Milestone';
@@ -1685,9 +1740,9 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( CommitNode )
     | ( ReleaseNode )
     | ( ReleaseAssetNode )
+    | ( Label )
     | ( PullRequestNode )
     | ( ReviewNode )
-    | ( Label )
     | ( CommentNode )
   ;
   UniformResourceLocatable:
@@ -1749,6 +1804,13 @@ export type ResolversTypes = {
   ReleaseAssetEdge: ResolverTypeWrapper<Omit<ReleaseAssetEdge, 'node'> & { node?: Maybe<ResolversTypes['ReleaseAsset']> }>;
   ReleaseOrder: ReleaseOrder;
   ReleaseOrderField: ReleaseOrderField;
+  IssueTemplate: ResolverTypeWrapper<IssueTemplateNode>;
+  PullRequestTemplate: ResolverTypeWrapper<Omit<PullRequestTemplate, 'repository'> & { repository: ResolversTypes['Repository'] }>;
+  UserConnection: ResolverTypeWrapper<Omit<UserConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['UserEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['User']>>> }>;
+  UserEdge: ResolverTypeWrapper<Omit<UserEdge, 'node'> & { node?: Maybe<ResolversTypes['User']> }>;
+  LabelConnection: ResolverTypeWrapper<LabelConnection>;
+  LabelEdge: ResolverTypeWrapper<LabelEdge>;
+  Label: ResolverTypeWrapper<Label>;
   PullRequest: ResolverTypeWrapper<PullRequestNode>;
   PullRequestState: PullRequestState;
   PullRequestConnection: ResolverTypeWrapper<Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequest']>>> }>;
@@ -1779,11 +1841,6 @@ export type ResolversTypes = {
   CommentAuthorAssociation: CommentAuthorAssociation;
   PullRequestReviewConnection: ResolverTypeWrapper<Omit<PullRequestReviewConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestReview']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestReviewEdge']>>> }>;
   PullRequestReviewEdge: ResolverTypeWrapper<Omit<PullRequestReviewEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestReview']> }>;
-  UserConnection: ResolverTypeWrapper<Omit<UserConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['User']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['UserEdge']>>> }>;
-  UserEdge: ResolverTypeWrapper<Omit<UserEdge, 'node'> & { node?: Maybe<ResolversTypes['User']> }>;
-  Label: ResolverTypeWrapper<Label>;
-  LabelConnection: ResolverTypeWrapper<LabelConnection>;
-  LabelEdge: ResolverTypeWrapper<LabelEdge>;
   Milestone: ResolverTypeWrapper<Milestone>;
   IssueComment: ResolverTypeWrapper<CommentNode>;
   IssueCommentConnection: ResolverTypeWrapper<Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['IssueCommentEdge']>>> }>;
@@ -1844,6 +1901,13 @@ export type ResolversParentTypes = {
   ReleaseAssetConnection: Omit<ReleaseAssetConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseAssetEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ReleaseAsset']>>> };
   ReleaseAssetEdge: Omit<ReleaseAssetEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ReleaseAsset']> };
   ReleaseOrder: ReleaseOrder;
+  IssueTemplate: IssueTemplateNode;
+  PullRequestTemplate: Omit<PullRequestTemplate, 'repository'> & { repository: ResolversParentTypes['Repository'] };
+  UserConnection: Omit<UserConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['UserEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['User']>>> };
+  UserEdge: Omit<UserEdge, 'node'> & { node?: Maybe<ResolversParentTypes['User']> };
+  LabelConnection: LabelConnection;
+  LabelEdge: LabelEdge;
+  Label: Label;
   PullRequest: PullRequestNode;
   PullRequestConnection: Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequest']>>> };
   PullRequestEdge: Omit<PullRequestEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequest']> };
@@ -1868,11 +1932,6 @@ export type ResolversParentTypes = {
   PullRequestReview: ReviewNode;
   PullRequestReviewConnection: Omit<PullRequestReviewConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestReview']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestReviewEdge']>>> };
   PullRequestReviewEdge: Omit<PullRequestReviewEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestReview']> };
-  UserConnection: Omit<UserConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['User']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['UserEdge']>>> };
-  UserEdge: Omit<UserEdge, 'node'> & { node?: Maybe<ResolversParentTypes['User']> };
-  Label: Label;
-  LabelConnection: LabelConnection;
-  LabelEdge: LabelEdge;
   Milestone: Milestone;
   IssueComment: CommentNode;
   IssueCommentConnection: Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueCommentEdge']>>> };
@@ -1901,7 +1960,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Label' | 'PullRequest' | 'PullRequestReview' | 'IssueComment', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -1991,6 +2050,7 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   isMirror?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   isPrivate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   isTemplate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  issueTemplates?: Resolver<Maybe<Array<ResolversTypes['IssueTemplate']>>, ParentType, ContextType>;
   latestRelease?: Resolver<Maybe<ResolversTypes['Release']>, ParentType, ContextType>;
   mergeCommitAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   mirrorUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
@@ -1999,6 +2059,7 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   object?: Resolver<Maybe<ResolversTypes['GitObject']>, ParentType, ContextType, Partial<RepositoryObjectArgs>>;
   owner?: Resolver<ResolversTypes['RepositoryOwner'], ParentType, ContextType>;
   parent?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;
+  pullRequestTemplates?: Resolver<Maybe<Array<ResolversTypes['PullRequestTemplate']>>, ParentType, ContextType>;
   pushedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   rebaseMergeAllowed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   ref?: Resolver<Maybe<ResolversTypes['Ref']>, ParentType, ContextType, RequireFields<RepositoryRefArgs, 'qualifiedName'>>;
@@ -2145,6 +2206,54 @@ export type ReleaseAssetConnectionResolvers<ContextType = GraphQLContext, Parent
 export type ReleaseAssetEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReleaseAssetEdge'] = ResolversParentTypes['ReleaseAssetEdge']> = {
   cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   node?: Resolver<Maybe<ResolversTypes['ReleaseAsset']>, ParentType, ContextType>;
+};
+
+export type IssueTemplateResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueTemplate'] = ResolversParentTypes['IssueTemplate']> = {
+  about?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<IssueTemplateAssigneesArgs>>;
+  body?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  filename?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<IssueTemplateLabelsArgs>>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  title?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+};
+
+export type PullRequestTemplateResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestTemplate'] = ResolversParentTypes['PullRequestTemplate']> = {
+  body?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  filename?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+};
+
+export type UserConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserConnection'] = ResolversParentTypes['UserConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['UserEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['User']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type UserEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserEdge'] = ResolversParentTypes['UserEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+};
+
+export type LabelConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelConnection'] = ResolversParentTypes['LabelConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['LabelEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Label']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type LabelEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelEdge'] = ResolversParentTypes['LabelEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Label']>, ParentType, ContextType>;
+};
+
+export type LabelResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Label'] = ResolversParentTypes['Label']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  color?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequest'] = ResolversParentTypes['PullRequest']> = {
@@ -2298,38 +2407,6 @@ export type PullRequestReviewEdgeResolvers<ContextType = GraphQLContext, ParentT
   node?: Resolver<Maybe<ResolversTypes['PullRequestReview']>, ParentType, ContextType>;
 };
 
-export type UserConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserConnection'] = ResolversParentTypes['UserConnection']> = {
-  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['User']>>>, ParentType, ContextType>;
-  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['UserEdge']>>>, ParentType, ContextType>;
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
-  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-};
-
-export type UserEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UserEdge'] = ResolversParentTypes['UserEdge']> = {
-  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  node?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
-};
-
-export type LabelResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Label'] = ResolversParentTypes['Label']> = {
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  color?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
-export type LabelConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelConnection'] = ResolversParentTypes['LabelConnection']> = {
-  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Label']>>>, ParentType, ContextType>;
-  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['LabelEdge']>>>, ParentType, ContextType>;
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
-  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-};
-
-export type LabelEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelEdge'] = ResolversParentTypes['LabelEdge']> = {
-  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  node?: Resolver<Maybe<ResolversTypes['Label']>, ParentType, ContextType>;
-};
-
 export type MilestoneResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Milestone'] = ResolversParentTypes['Milestone']> = {
   number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
@@ -2456,6 +2533,13 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ReleaseEdge?: ReleaseEdgeResolvers<ContextType>;
   ReleaseAssetConnection?: ReleaseAssetConnectionResolvers<ContextType>;
   ReleaseAssetEdge?: ReleaseAssetEdgeResolvers<ContextType>;
+  IssueTemplate?: IssueTemplateResolvers<ContextType>;
+  PullRequestTemplate?: PullRequestTemplateResolvers<ContextType>;
+  UserConnection?: UserConnectionResolvers<ContextType>;
+  UserEdge?: UserEdgeResolvers<ContextType>;
+  LabelConnection?: LabelConnectionResolvers<ContextType>;
+  LabelEdge?: LabelEdgeResolvers<ContextType>;
+  Label?: LabelResolvers<ContextType>;
   PullRequest?: PullRequestResolvers<ContextType>;
   PullRequestConnection?: PullRequestConnectionResolvers<ContextType>;
   PullRequestEdge?: PullRequestEdgeResolvers<ContextType>;
@@ -2476,11 +2560,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   PullRequestReview?: PullRequestReviewResolvers<ContextType>;
   PullRequestReviewConnection?: PullRequestReviewConnectionResolvers<ContextType>;
   PullRequestReviewEdge?: PullRequestReviewEdgeResolvers<ContextType>;
-  UserConnection?: UserConnectionResolvers<ContextType>;
-  UserEdge?: UserEdgeResolvers<ContextType>;
-  Label?: LabelResolvers<ContextType>;
-  LabelConnection?: LabelConnectionResolvers<ContextType>;
-  LabelEdge?: LabelEdgeResolvers<ContextType>;
   Milestone?: MilestoneResolvers<ContextType>;
   IssueComment?: IssueCommentResolvers<ContextType>;
   IssueCommentConnection?: IssueCommentConnectionResolvers<ContextType>;

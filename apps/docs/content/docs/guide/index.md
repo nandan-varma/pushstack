@@ -78,6 +78,7 @@ Web URLs are GitHub's, so swapping the host in a GitHub link opens the same page
 | Source archive | `/{owner}/{repo}/archive/refs/heads/{branch}.zip`, `…/refs/tags/{tag}.tar.gz`, `…/archive/{sha}.zip` |
 | Commits, one commit | `/{owner}/{repo}/commits/{ref}`, `/{owner}/{repo}/commit/{sha}` (`.diff`, `.patch`) |
 | Compare | `/{owner}/{repo}/compare/{base}...{head}` (`.diff`, `.patch`) |
+| New issue, template chooser | `/{owner}/{repo}/issues/new`, `…/issues/new/choose` |
 | Issues, one issue | `/{owner}/{repo}/issues`, `/{owner}/{repo}/issues/{n}` |
 | Pull requests | `/{owner}/{repo}/pulls` |
 | One pull request | `/{owner}/{repo}/pull/{n}`, `…/pull/{n}/commits`, `…/pull/{n}/files` (`.diff`, `.patch`) |
@@ -213,6 +214,31 @@ fast-forward when the target hasn't moved, and an object-level three-way merge
 otherwise. If both sides changed the same file incompatibly, the merge is
 refused and the conflicting paths are listed; resolve them in git and push
 again. A merged pull request can no longer be edited or reopened.
+
+### Issue and pull request templates
+
+Commit templates on the repository's default branch. Markdown issue templates
+live in `.github/ISSUE_TEMPLATE/*.md` and use YAML front matter with `name`,
+`about`, and optional `title`, `labels` and `assignees`. The remaining Markdown
+prefills the issue description. YAML issue forms (`*.yml` or `*.yaml`) in that
+directory use GitHub's `name`, `description` and `body` schema: Markdown
+instructions, text inputs, textareas, dropdowns and checkboxes. Submitted answers
+become a Markdown issue body.
+
+**New issue** opens `/{owner}/{repo}/issues/new/choose`. The directory's
+`config.yml` controls `blank_issues_enabled` and `contact_links` (`name`, `url`,
+`about`). To link directly to a template, use
+`/{owner}/{repo}/issues/new?template=bug_report.md`. The `title`, `body`, `labels`
+and `assignees` query parameters override template defaults; separate multiple
+labels or usernames with commas. Changing labels and assignees requires write
+access; repository-configured template defaults also apply for other reporters.
+Missing template labels and ineligible assignees are ignored. Maintainers can
+still open blank issues when `blank_issues_enabled` is false.
+
+A `pull_request_template.md` file in `.github/`, the repository root or `docs/`
+prefills the description when opening a pull request on the compare page.
+GraphQL exposes `Repository.issueTemplates` and `Repository.pullRequestTemplates`
+for clients such as `gh`.
 
 ## Collaborate
 

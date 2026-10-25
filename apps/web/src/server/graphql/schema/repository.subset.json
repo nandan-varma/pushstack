@@ -106,6 +106,7 @@
 		"isMirror",
 		"isPrivate",
 		"isTemplate",
+		"issueTemplates",
 		"latestRelease",
 		"mergeCommitAllowed",
 		"mirrorUrl",
@@ -117,6 +118,7 @@
 		},
 		"owner",
 		"parent",
+		"pullRequestTemplates",
 		"pushedAt",
 		"rebaseMergeAllowed",
 		{
@@ -225,5 +227,26 @@
 	"ReleaseAssetConnection": "*",
 	"ReleaseAssetEdge": "*",
 	"ReleaseOrder": "*",
-	"ReleaseOrderField": "*"
+	"ReleaseOrderField": "*",
+	"IssueTemplate": [
+		"about",
+		"assignees",
+		"body",
+		"filename",
+		{
+			"name": "labels",
+			"args": ["after", "before", "first", "last"]
+		},
+		"name",
+		"title"
+	],
+	"PullRequestTemplate": "*",
+	"UserConnection": "*",
+	"UserEdge": "*",
+	"LabelConnection": "*",
+	"LabelEdge": "*",
+	"Label": {
+		"$implements": [],
+		"fields": ["name", "color", "description"]
+	}
 }

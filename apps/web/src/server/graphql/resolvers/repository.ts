@@ -67,6 +67,7 @@ import {
 	releaseTypeResolvers,
 	repositoryReleaseFields,
 } from "./releases";
+import { repositoryTemplateFields, templateTypeResolvers } from "./templates";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 type Role = "owner" | "admin" | "write" | "read" | "anonymous";
@@ -545,8 +546,10 @@ export const repositoryResolvers: DomainResolvers = {
 			blame: (source, args) => blameOf(source, args),
 		},
 		...releaseTypeResolvers,
+		...templateTypeResolvers,
 		Repository: {
 			...repositoryReleaseFields,
+			...repositoryTemplateFields,
 			owner: async (source: RepositoryNode, _args, ctx) => {
 				const row = await loadUser(ctx, source.row.ownerId);
 				if (!row) throw new Error("Repository owner missing");

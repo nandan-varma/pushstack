@@ -133,6 +133,9 @@ export const MAX_REVIEW_PATH_CHARS = 4096;
 
 export const MAX_THREAD_TITLE_CHARS = 256;
 
+/** A template query parameter names one file in ISSUE_TEMPLATE. */
+export const MAX_TEMPLATE_FILENAME_CHARS = 255;
+
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
 export const MAX_REPO_HOMEPAGE_CHARS = 255;
 export const MAX_REPO_TOPICS = 20;

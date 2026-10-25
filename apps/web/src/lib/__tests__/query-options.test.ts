@@ -49,6 +49,7 @@ describe("queryKeys", () => {
 			const root = queryKeys.repoFilesRoot(1);
 			for (const key of [
 				queryKeys.repoFile(1, "main", "README.md"),
+				queryKeys.repoTemplates(1),
 				queryKeys.repoTreePage(1, "main", "src"),
 				queryKeys.repoLastCommits(1, "main", "src"),
 				queryKeys.repoFileHistory(1, "main", "README.md"),
