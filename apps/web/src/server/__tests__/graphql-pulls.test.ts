@@ -101,6 +101,15 @@ it("creates a draft, lists it, reads the REST-compatible node id and transitions
 	);
 	expect(node.body.data.node).toEqual({ number: 1, isDraft: true });
 });
+it("bounds the label filter on pull request lists", async () => {
+	const labels = Array.from({ length: 101 }, (_, i) => `label-${i}`);
+	const result = await graphql(
+		reader,
+		`query($labels:[String!]) { repository(owner:"alice",name:"proj") { pullRequests(first:1, labels:$labels) { totalCount } } }`,
+		{ labels },
+	);
+	expect(result.body.errors[0].type).toBe("UNPROCESSABLE");
+});
 it("rejects readers and insufficient token scopes without changing draft state", async () => {
 	for (const caller of [reader, await mintToken(users.alice, ["repo:read"])]) {
 		const result = await graphql(
@@ -370,4 +379,35 @@ it("exposes pinned archives through Release.tagCommit and downloads them", async
 		expect(response.status).toBe(200);
 		expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0);
 	}
+});
+it("creates exactly one pull request when concurrent creates race for the same head", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/race", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "race",
+			path: "race.txt",
+			content: btoa("race\n"),
+			commitMessage: "Race",
+		},
+	});
+	const mutation = `mutation($input: CreatePullRequestInput!) { createPullRequest(input: $input) { pullRequest { number } } }`;
+	const input = {
+		repositoryId: repoId,
+		headRefName: "race",
+		baseRefName: "main",
+		title: "Race",
+	};
+	const results = await Promise.all(
+		[1, 2, 3].map(() => graphql(token, mutation, { input })),
+	);
+	expect(results.filter((r) => !r.body.errors)).toHaveLength(1);
+	expect(
+		results.filter((r) => r.body.errors?.[0]?.type === "UNPROCESSABLE"),
+	).toHaveLength(2);
 });

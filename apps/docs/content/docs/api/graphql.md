@@ -144,7 +144,7 @@ and `release(tagName:)` finds published releases. `tag`, reactions and mentions 
 baseRefName:, headRefName:, labels:, orderBy:)` serve GitHub's `PullRequest`
 shape, including `isDraft`, identity, branches, author, state, comments,
 labels, assignees, milestone, reviews, review requests, reactions, diff totals,
-and commits with status/check rollups. `CLOSED` excludes merged pull requests;
+and commits with status/check rollups. A `labels` filter takes at most 100 names (`UNPROCESSABLE` beyond that). `CLOSED` excludes merged pull requests;
 `MERGED` selects them. Default `gh pr list` and `gh pr view` documents are
 validated and executed against the real stores in behavior tests. There are
 no cross-repository pulls, native auto-merge, or native Actions workflows.
@@ -154,7 +154,7 @@ returns `UNPROCESSABLE`, never a truncated connection presented as complete.
 
 `createPullRequest(input:)` accepts `draft`, repository node id, head/base
 branches, title and body. It requires write access and a `repo:write` token,
-rejects missing branches, duplicate open pulls and branches with no new
+rejects missing branches, duplicate open pulls (checked and inserted under the repository lock, so concurrent creates cannot both succeed) and branches with no new
 commits, and applies the same text limits as REST/web. Cross-repository heads
 and disabling maintainer modifications are unsupported and rejected.
 `markPullRequestReadyForReview` and `convertPullRequestToDraft` accept a pull

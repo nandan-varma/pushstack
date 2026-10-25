@@ -2,6 +2,7 @@
 import { db } from "#/db";
 import {
 	MAX_BODY_CHARS,
+	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
@@ -13,6 +14,7 @@ import {
 } from "../../codeowners";
 import { analyzeMerge, getCommitsBetween, getTags } from "../../git-read";
 import { safeBranchNameSchema } from "../../git-ref-name";
+import { withRepositoryLock } from "../../git-repo-lock";
 import { ownerKeyOf } from "../../git-storage-naming";
 import {
 	insertPullRequest,
@@ -183,14 +185,6 @@ async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 		throw unprocessable("Invalid pull request title or body");
 	if (head === base)
 		throw unprocessable(`No commits between ${base} and ${head}`);
-	const duplicate = await listThreads(
-		{ repoId: repo.row.id, kind: "pull_request", state: "open", head, base },
-		{ limit: 1 },
-	);
-	if (duplicate.total)
-		throw unprocessable(
-			`A pull request already exists for ${repo.row.owner.username}:${head}.`,
-		);
 	const analysis = await analyzeMerge(
 		ownerKeyOf(repo.row),
 		repo.name,
@@ -209,13 +203,35 @@ async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 		throw unprocessable("Pull request history exceeds the supported limit");
 	if (!range.commits.length)
 		throw unprocessable(`No commits between ${base} and ${head}`);
-	const row = await insertPullRequest(repo.row.id, ctx.caller.userId, {
-		title,
-		body: input.body ?? undefined,
-		sourceBranch: head,
-		targetBranch: base,
-		draft: input.draft ?? false,
-	});
+	// Check-then-insert must be atomic per repository, or two concurrent
+	// creates for the same head both pass the duplicate check.
+	const row = await withRepositoryLock(
+		ownerKeyOf(repo.row),
+		repo.name,
+		async () => {
+			const duplicate = await listThreads(
+				{
+					repoId: repo.row.id,
+					kind: "pull_request",
+					state: "open",
+					head,
+					base,
+				},
+				{ limit: 1 },
+			);
+			if (duplicate.total)
+				throw unprocessable(
+					`A pull request already exists for ${repo.row.owner.username}:${head}.`,
+				);
+			return insertPullRequest(repo.row.id, ctx.caller.userId, {
+				title,
+				body: input.body ?? undefined,
+				sourceBranch: head,
+				targetBranch: base,
+				draft: input.draft ?? false,
+			});
+		},
+	);
 	await requestCodeownerReviews(repo.row, row);
 	return {
 		clientMutationId: input.clientMutationId ?? null,
@@ -256,12 +272,17 @@ async function draftState(
 }
 async function pulls(repo: RepositoryNode, args: RepositoryPullRequestsArgs) {
 	const states = args.states?.filter((s) => s != null);
+	const labels = args.labels?.filter((s): s is string => s != null);
+	if (labels && labels.length > MAX_LABELS_PER_THREAD)
+		throw unprocessable(
+			`At most ${MAX_LABELS_PER_THREAD} labels can be filtered`,
+		);
 	const filter: ThreadFilter = {
 		repoId: repo.row.id,
 		kind: "pull_request",
 		head: args.headRefName ?? undefined,
 		base: args.baseRefName ?? undefined,
-		labels: args.labels?.filter((s): s is string => s != null),
+		labels,
 		pullRequestStates: states,
 	};
 	const by = args.orderBy?.field;
