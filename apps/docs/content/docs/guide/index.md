@@ -238,18 +238,19 @@ access; repository-configured template defaults also apply for other reporters.
 Missing template labels and ineligible assignees are ignored. An unknown
 `template` name opens a blank issue, as on GitHub. A new issue is created
 all-or-nothing: if any step after the insert fails, the issue is removed, so a
-retry never duplicates it. Maintainers can
-still open blank issues when `blank_issues_enabled` is false. Invalid issue
-template files, including oversized files and invalid UTF-8, are omitted; invalid chooser configuration uses the defaults.
-Discovery reads at most 50 template files, each at most 65,536 bytes, with a
+retry never duplicates it. Maintainers can still open blank issues when
+`blank_issues_enabled` is false. Invalid issue template files, including
+oversized files and invalid UTF-8, are omitted; invalid chooser configuration
+uses the defaults. Discovery reads at most 50 template files, each at most 65,536 bytes, with a
 combined limit of 256,000 bytes.
 
 A `pull_request_template.md` file in `.github/`, the repository root or `docs/`
 prefills the description when opening a pull request on the compare page. Under
 `.github/PULL_REQUEST_TEMPLATE/` (or the same folder at the root or `docs/`), each
 `*.md` file is a separate template; with several, the compare dialog offers a
-chooser, and picking one replaces the description. GraphQL exposes `Repository.issueTemplates` and `Repository.pullRequestTemplates`
-for clients such as `gh`.
+chooser, and picking one replaces the description. GraphQL exposes
+`Repository.issueTemplates` and `Repository.pullRequestTemplates` for clients such
+as `gh`.
 
 ## Collaborate
 
