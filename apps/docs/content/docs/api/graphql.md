@@ -34,7 +34,9 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo list` (text, `--json`, `--visibility`) | Works |
 | `gh repo create` | Works (GraphQL `createRepository`) |
 | `gh repo clone` | Works (git at `https://HOST/OWNER/REPO.git`) |
-| `gh repo edit`, `gh repo delete`, `gh repo archive` | REST `PATCH`/`DELETE /repos/{owner}/{repo}` are served; topic edits and `gh repo view --json repositoryTopics` need GraphQL `repositoryTopics` (not yet) |
+| `gh repo edit` | Settings go through GraphQL `updateRepository` (name, description, homepage, issue, wiki and project flags, template); visibility and topics use REST `PATCH /repos/{owner}/{repo}` and `PUT …/topics`, and topic edits need GraphQL `repositoryTopics` (not yet). Not yet measured with real gh |
+| `gh repo delete` | REST `DELETE /repos/{owner}/{repo}` (GitHub has no delete mutation in GraphQL either) |
+| `gh repo archive` | Not yet (`archiveRepository` is not served; REST `PATCH` with `archived` is) |
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue list`, `gh issue view`, `gh issue status` | GraphQL reads served (`Repository.issues`/`issue`/`issueOrPullRequest`); fixture-tested, not yet measured with real gh |
 | `gh issue create`, `gh issue edit`, `gh issue close`, `gh label …` | Not yet (issue mutations and labels) |
@@ -203,6 +205,15 @@ and an issue is a `node(id:)` target. Issue mutations are not served yet.
 
 The GraphQL overlap check accepts two enum types under one response name, as
 GitHub does for `Issue.state` and `PullRequest.state` in `gh issue view`.
+
+`updateRepository(input:)` takes `repositoryId` and the fields GitHub's
+`UpdateRepositoryInput` has for settings PushStack keeps: `name`, `description`,
+`homepageUrl`, `hasIssuesEnabled`, `hasWikiEnabled`, `hasProjectsEnabled` and
+`template`. Other fields fail validation. It needs a `repo:write` token and an
+owner or admin (`FORBIDDEN` for other writers, `NOT_FOUND` for a repository
+they cannot read). Names follow the create rules, the description and homepage
+are capped as in REST, and an archived repository refuses changes as REST does.
+GitHub has no `deleteRepository` mutation; `gh repo delete` uses REST.
 
 ## Extending the schema
 

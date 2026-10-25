@@ -25,6 +25,10 @@ import {
 	stars,
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import {
+	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+} from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { tokenAllows } from "#/lib/token-scopes";
 import { oauthScopesHeader } from "../../api/auth";
@@ -33,6 +37,7 @@ import { starCounts } from "../../api/repos";
 import { getBranches } from "../../git-read";
 import { ownerKeyOf } from "../../git-storage-naming";
 import {
+	ARCHIVED_MESSAGE,
 	getAccessForRepository,
 	readableRepositoriesCondition,
 } from "../../repo-access";
@@ -40,15 +45,22 @@ import {
 	createRepositoryForUser,
 	createRepositoryInputSchema,
 	RepositoryExistsError,
+	repoNameSchema,
 } from "../../repository-create";
 import {
 	findRepositoryByName,
 	type PublicUser,
 	publicUserColumns,
 } from "../../repository-lookup";
+import {
+	ArchivedRepositoryError,
+	RepositoryNameTakenError,
+	updateRepositorySettings,
+} from "../../repository-settings";
 import { offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import {
+	forbidden,
 	GitHubGraphQLError,
 	notFound,
 	repositoryNotFound,
@@ -60,6 +72,7 @@ import { loadUser, loadUserByLogin, type UserNode, userNode } from "./core";
 import type {
 	CreateRepositoryInput,
 	Ref,
+	UpdateRepositoryInput,
 	UserRepositoriesArgs,
 } from "./generated";
 import {
@@ -184,7 +197,7 @@ export async function readableRepositoryNode(
 	});
 }
 
-function requireRepoScope(ctx: GraphQLContext) {
+function requireRepoScope(ctx: GraphQLContext, field: string) {
 	if (!tokenAllows(ctx.caller.scopes, "repo:write")) {
 		// The token's classic scopes, as X-OAuth-Scopes reports them.
 		const granted = (oauthScopesHeader(ctx.caller.scopes) ?? "")
@@ -194,7 +207,7 @@ function requireRepoScope(ctx: GraphQLContext) {
 			.join(", ");
 		throw new GitHubGraphQLError(
 			"INSUFFICIENT_SCOPES",
-			`Your token has not been granted the required scopes to execute this query. The 'createRepository' field requires one of the following scopes: ['repo'], but your token has only been granted the: [${granted}] scopes.`,
+			`Your token has not been granted the required scopes to execute this query. The '${field}' field requires one of the following scopes: ['repo'], but your token has only been granted the: [${granted}] scopes.`,
 		);
 	}
 }
@@ -443,7 +456,7 @@ async function createRepository(
 	input: CreateRepositoryInput,
 	ctx: GraphQLContext,
 ) {
-	requireRepoScope(ctx);
+	requireRepoScope(ctx, "createRepository");
 	const viewer = await loadUser(ctx, ctx.caller.userId);
 	if (!viewer) throw new Error("Authenticated user missing");
 	if (input.ownerId != null) {
@@ -498,6 +511,101 @@ async function createRepository(
 	}
 }
 
+/**
+ * `updateRepository`: the settings REST `PATCH /repos/{owner}/{repo}` changes
+ * (name, description, homepage, issues, wiki, projects, template), through the
+ * same `updateRepositorySettings` path. Owners and admins only; an archived
+ * repository refuses everything but unarchiving, as REST does. Visibility,
+ * topics and default branch are REST-only, as GitHub's input has no field
+ * for them.
+ */
+async function updateRepository(
+	input: UpdateRepositoryInput,
+	ctx: GraphQLContext,
+) {
+	requireRepoScope(ctx, "updateRepository");
+	const decoded = decodeNodeId(input.repositoryId);
+	const repoId =
+		decoded?.type === "Repository" ? rowIdOfNodeKey(decoded.key) : null;
+	if (repoId === null) {
+		throw notFound(
+			`Could not resolve to a node with the global id of '${input.repositoryId}'`,
+		);
+	}
+	// A fresh row, never the 5 s cache: the change acts on what is stored now.
+	const [found] = await db
+		.select({ repo: repositories, owner: publicUserColumns })
+		.from(repositories)
+		.innerJoin(user, eq(repositories.ownerId, user.id))
+		.where(eq(repositories.id, repoId))
+		.limit(1);
+	const access = found
+		? await getAccessForRepository(found.repo, ctx.caller.userId)
+		: null;
+	if (!found || !access?.canRead) {
+		throw notFound(
+			`Could not resolve to a node with the global id of '${input.repositoryId}'`,
+		);
+	}
+	if (access.role !== "owner" && access.role !== "admin") {
+		throw forbidden("Must have admin rights to Repository.");
+	}
+	const name = input.name ?? undefined;
+	if (name !== undefined) {
+		const parsed = repoNameSchema.safeParse(name);
+		if (!parsed.success) {
+			throw unprocessable(
+				`Name ${parsed.error.issues[0]?.message ?? "is invalid"}`,
+			);
+		}
+	}
+	if (
+		input.description != null &&
+		input.description.trim().length > MAX_REPO_DESCRIPTION_CHARS
+	) {
+		throw unprocessable(
+			`Description is too long (maximum is ${MAX_REPO_DESCRIPTION_CHARS} characters)`,
+		);
+	}
+	if (
+		input.homepageUrl != null &&
+		input.homepageUrl.trim().length > MAX_REPO_HOMEPAGE_CHARS
+	) {
+		throw unprocessable(
+			`Homepage is too long (maximum is ${MAX_REPO_HOMEPAGE_CHARS} characters)`,
+		);
+	}
+	try {
+		const updated = await updateRepositorySettings(
+			{ ...found.repo, owner: found.owner },
+			{
+				name,
+				description: input.description?.trim(),
+				homepage: input.homepageUrl?.trim(),
+				hasIssues: input.hasIssuesEnabled ?? undefined,
+				hasWiki: input.hasWikiEnabled ?? undefined,
+				hasProjects: input.hasProjectsEnabled ?? undefined,
+				isTemplate: input.template ?? undefined,
+			},
+		);
+		return {
+			clientMutationId: input.clientMutationId ?? null,
+			repository: repositoryNode(
+				{ ...updated, owner: found.owner },
+				access.role,
+			),
+		};
+	} catch (error) {
+		if (error instanceof ArchivedRepositoryError) {
+			throw forbidden(ARCHIVED_MESSAGE);
+		}
+		if (error instanceof RepositoryNameTakenError) {
+			throw unprocessable("Name already exists on this account");
+		}
+		throw error;
+	}
+}
+
 export const repositoryResolvers: DomainResolvers = {
 	types: {
 		Query: {
@@ -532,6 +640,11 @@ export const repositoryResolvers: DomainResolvers = {
 				args: { input: CreateRepositoryInput },
 				ctx,
 			) => createRepository(args.input, ctx),
+			updateRepository: (
+				_source,
+				args: { input: UpdateRepositoryInput },
+				ctx,
+			) => updateRepository(args.input, ctx),
 		},
 		User: {
 			repositories: (source: UserNode, args: RepositoriesArgs, ctx) =>
