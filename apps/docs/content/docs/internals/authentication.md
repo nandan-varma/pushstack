@@ -137,7 +137,12 @@ hosts only), with no fragment and no credentials (`isValidCallbackUrl`).
    code is consumed by one conditional `UPDATE`, so a replay or a concurrent
    second exchange gets `bad_verification_code`. Codes live 600 seconds and
    store only their SHA-256 (`oauth_codes`). A wrong secret or URI does not
-   spend the code. Success is a `pst_` token with `oauth_app_id` set, scopes as
+   spend the code. Each exchange is counted per client IP
+   (`RATE_LIMIT_OAUTH_TOKEN_IP`, 300) and per client id
+   (`RATE_LIMIT_OAUTH_TOKEN_CLIENT`, 1000), before the secret is compared.
+   Over either limit, or when the counter cannot be read, the response is `429`
+   with `Retry-After` (fail closed). Expired codes are swept when a new one is
+   issued. Success is a `pst_` token with `oauth_app_id` set, scopes as
    for any token, and the GitHub-style `scope` echo.
 
 Tokens an app holds are not listed with personal access tokens. They appear at
