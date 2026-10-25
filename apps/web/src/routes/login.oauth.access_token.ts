@@ -30,7 +30,7 @@ export const Route = createFileRoute("/login/oauth/access_token")({
 				const accept = request.headers.get("accept");
 				const params = await readRequestParams(request);
 				if (params.get("grant_type") === AUTHORIZATION_CODE_GRANT_TYPE) {
-					return exchangeCode(params, accept);
+					return exchangeCode(request, params, accept);
 				}
 				const { pollDeviceCode } = await import("#/server/device-flow-store");
 				if (params.get("grant_type") !== DEVICE_GRANT_TYPE) {
@@ -62,7 +62,46 @@ export const Route = createFileRoute("/login/oauth/access_token")({
 	},
 });
 
+/** Seconds a refused exchange is told to wait when the limiter could not count. */
+const EXCHANGE_UNCOUNTED_RETRY_SECONDS = 60;
+
+/**
+ * Counts one exchange against the caller's IP and the client id. Returns the
+ * seconds to wait when refused, or null. Fails closed: an exchange the counter
+ * cannot record is refused, because it is a guess at a secret.
+ */
+async function exchangeRefusal(
+	request: Request,
+	clientId: string,
+): Promise<number | null> {
+	const { hitRateLimit, identityFor } = await import("#/server/rate-limit");
+	const byIp = await hitRateLimit("oauth-token-ip", identityFor(request, null));
+	// A client id is not a user or an address: its bucket reuses the IP kind,
+	// keyed by the id under its own resource name.
+	const byClient = await hitRateLimit("oauth-token-client", {
+		kind: "ip",
+		id: clientId,
+	});
+	if (byIp === null || byClient === null) {
+		return EXCHANGE_UNCOUNTED_RETRY_SECONDS;
+	}
+	const exceeded = [byIp, byClient].find((rate) => rate.exceeded);
+	if (!exceeded) return null;
+	return Math.max(1, exceeded.reset - Math.floor(Date.now() / 1000));
+}
+
+function tooManyExchanges(retryAfter: number): Response {
+	return new Response("API rate limit exceeded for this client.\n", {
+		status: 429,
+		headers: {
+			"content-type": "text/plain; charset=utf-8",
+			"Retry-After": String(retryAfter),
+		},
+	});
+}
+
 async function exchangeCode(
+	request: Request,
 	params: URLSearchParams,
 	accept: string | null,
 ): Promise<Response> {
@@ -81,6 +120,10 @@ async function exchangeCode(
 	if (!code || code.length > MAX_OAUTH_CODE_CHARS) {
 		return deviceFlowError("bad_verification_code", accept);
 	}
+	// Counted before any secret is compared: each exchange is a guess at a
+	// client secret, so the per-IP and per-client buckets bound the guessing.
+	const retryAfter = await exchangeRefusal(request, clientId);
+	if (retryAfter !== null) return tooManyExchanges(retryAfter);
 	const { exchangeAuthorizationCode } = await import(
 		"#/server/oauth-apps-store"
 	);

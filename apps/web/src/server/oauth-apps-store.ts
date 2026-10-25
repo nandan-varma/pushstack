@@ -5,7 +5,7 @@
  * conditional UPDATE, and the tokens are the same `pst_` tokens as any other.
  */
 import { timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { oauthApps, oauthCodes, tokens } from "#/db/app-schema";
 import { bytesToBase64Url, randomBytes, sha256Hex } from "#/lib/bytes";
@@ -187,6 +187,9 @@ export async function findAuthorizationApp(input: {
 	};
 }
 
+/** A SHA-256-shaped value no client secret hashes to; compared for unknown clients. */
+const UNKNOWN_CLIENT_DIGEST = "0".repeat(64);
+
 /** Issues a code for the user's approval. Only its SHA-256 is stored. */
 export async function issueAuthorizationCode(input: {
 	appId: number;
@@ -194,6 +197,9 @@ export async function issueAuthorizationCode(input: {
 	redirectUri: string;
 	scopes: TokenScope[];
 }): Promise<string> {
+	// Expired codes can never be exchanged: drop them so the table stays bounded,
+	// as the device flow does for its codes.
+	await db.delete(oauthCodes).where(lt(oauthCodes.expiresAt, new Date()));
 	const code = newAuthorizationCode();
 	await db.insert(oauthCodes).values({
 		codeHash: await sha256Hex(code),
@@ -234,10 +240,15 @@ export async function exchangeAuthorizationCode(input: {
 	const app = await db.query.oauthApps.findFirst({
 		where: { clientId: input.clientId },
 	});
-	if (
-		!app ||
-		!safeEqualHex(await sha256Hex(input.clientSecret), app.clientSecretHash)
-	) {
+	// The presented secret is hashed and compared even when the client id is
+	// unknown, against a dummy digest, so the response time does not reveal
+	// which client ids exist.
+	const presented = await sha256Hex(input.clientSecret);
+	const matches = safeEqualHex(
+		presented,
+		app?.clientSecretHash ?? UNKNOWN_CLIENT_DIGEST,
+	);
+	if (!app || !matches) {
 		return { ok: false, error: "incorrect_client_credentials" };
 	}
 

@@ -53,3 +53,13 @@ export const RATE_LIMIT_AUTH_FAILURES = positiveInt(
 	"RATE_LIMIT_AUTH_FAILURES",
 	30,
 );
+/** OAuth code exchanges (`/login/oauth/access_token`) per client IP. */
+export const RATE_LIMIT_OAUTH_TOKEN_IP = positiveInt(
+	"RATE_LIMIT_OAUTH_TOKEN_IP",
+	300,
+);
+/** OAuth code exchanges per client id (an app's secret guesses, across IPs). */
+export const RATE_LIMIT_OAUTH_TOKEN_CLIENT = positiveInt(
+	"RATE_LIMIT_OAUTH_TOKEN_CLIENT",
+	1000,
+);

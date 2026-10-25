@@ -150,7 +150,9 @@ export type RateLimitResource =
 	| "graphql"
 	| "git"
 	| "git-write"
-	| "auth-failure";
+	| "auth-failure"
+	| "oauth-token-ip"
+	| "oauth-token-client";
 
 export interface RateStatus {
 	resource: RateLimitResource;
@@ -263,6 +265,10 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 			return config.RATE_LIMIT_GIT_WRITE;
 		case "auth-failure":
 			return config.RATE_LIMIT_AUTH_FAILURES;
+		case "oauth-token-ip":
+			return config.RATE_LIMIT_OAUTH_TOKEN_IP;
+		case "oauth-token-client":
+			return config.RATE_LIMIT_OAUTH_TOKEN_CLIENT;
 	}
 }
 
