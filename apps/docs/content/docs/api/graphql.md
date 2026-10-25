@@ -199,10 +199,9 @@ after:, last:, before:, states:, labels:, orderBy:, filterBy:)` serve `Issue`
 `author`, `repository`, `milestone`, `labels`, `assignees`, `comments`,
 `reactionGroups`, URLs). `states` and `filterBy.states` both narrow, and
 `filterBy` serves `assignee`, `createdBy`, `mentioned`, `labels` and
-`milestone`; `since` and `viewerSubscribed: true` are `UNPROCESSABLE`. Labels
-filters, `labels` and `filterBy.labels` together, take at most 100 names
+`milestone`; `since` and `viewerSubscribed: true` are `UNPROCESSABLE`. The `labels` and `filterBy.labels` arguments, together, take at most 100 names
 (`UNPROCESSABLE` beyond that). An issue page whose bodies exceed the 1 MB
-comment-style budget is `UNPROCESSABLE`, so ask for fewer issues. An issue has
+response budget is `UNPROCESSABLE`, so ask for fewer issues. An issue has
 no type, parent or sub-issues in PushStack, so `issueType` and `parent` are
 null, `subIssues` is empty and `subIssuesSummary` is zero. Without a `states`
 argument every issue is listed. An unknown or unreadable number is `NOT_FOUND`,
