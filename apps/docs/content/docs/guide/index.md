@@ -58,8 +58,9 @@ marks it a **template repository**. Others then see **Use this template** and
 get a copy of its files as one `Initial commit`. **Danger zone** archives the
 repository, transfers it to another user, or deletes it (type the name to
 confirm). An archived repository is read-only for everyone, owner included:
-pushes are refused with `Repository was archived so is read-only.`, and issues,
-comments, pull requests, labels and settings are locked until it is unarchived.
+pushes are refused with `Repository was archived so is read-only.`, and
+issues, comments, pull requests, labels and settings are locked until it is
+unarchived.
 A transfer is immediate (there is no invitation to accept) and the old URL does
 not redirect. These settings are also `PATCH`/`DELETE /repos/{owner}/{repo}`,
 `PUT /repos/{owner}/{repo}/topics`, `POST …/transfer` and `POST …/generate` in
@@ -252,9 +253,9 @@ username, with one of three roles:
 
 | Role | Can do |
 | --- | --- |
-| `read` | Clone, fetch, browse files, commits, issues and pull requests; open issues; comment on issues and pull requests. |
-| `write` | Everything `read` can, plus push, open pull requests, label and assign, review, and merge. |
-| `admin` | Everything `write` can, plus moderate comments and merge past blocking reviews, and view the collaborator list. |
+| `read` | Clone, fetch, browse files, commits, issues and pull requests; open issues; comment on issues and pull requests, and submit comment-only reviews. |
+| `write` | Everything `read` can, plus push, open pull requests, label and assign, approve or request changes on reviews, edit or delete others' comments, and merge. |
+| `admin` | Everything `write` can, plus merge past blocking reviews, and view the collaborator list. |
 | (owner) | Everything, plus repository settings, collaborators, repack and delete. |
 
 Only the **owner** changes settings, collaborators and deletion — `admin` can
