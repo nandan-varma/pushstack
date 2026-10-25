@@ -118,3 +118,33 @@ it("caps aggregate comparison patches across commits", async () => {
 		apiCaps.diffMediaBytes = before;
 	}
 });
+
+it("refuses an oversized commit diff, commit patch and compare diff with 406", async () => {
+	const media = (path: string, accept: string) =>
+		handleApiRequest(
+			new Request(`${BASE}/repos/alice/proj${path}`, { headers: { accept } }),
+		);
+	const cases = [
+		["/commits/small", "application/vnd.github.diff"],
+		["/commits/small", "application/vnd.github.patch"],
+		["/compare/main...small", "application/vnd.github.diff"],
+	] as const;
+	for (const [path, accept] of cases) {
+		const full = await media(path, accept);
+		expect(full.status).toBe(200);
+		const text = await full.text();
+		expect(text.length).toBeGreaterThan(0);
+		const size = new TextEncoder().encode(text).byteLength;
+		const before = apiCaps.diffMediaBytes;
+		try {
+			apiCaps.diffMediaBytes = size - 1;
+			expect((await media(path, accept)).status).toBe(406);
+			apiCaps.diffMediaBytes = size;
+			const exact = await media(path, accept);
+			expect(exact.status).toBe(200);
+			expect(await exact.text()).toBe(text);
+		} finally {
+			apiCaps.diffMediaBytes = before;
+		}
+	}
+});

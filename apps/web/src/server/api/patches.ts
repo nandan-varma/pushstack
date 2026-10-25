@@ -3,7 +3,12 @@
  * unified diff (`git diff`) and mailbox patches (`git format-patch`). Author
  * emails are the same noreply placeholder the JSON shapes use.
  */
-import type { CommitInfo, DiffResult } from "git-fs-s3/ops";
+import {
+	type CommitInfo,
+	DiffLimitError,
+	type DiffResult,
+} from "git-fs-s3/ops";
+import { apiCaps } from "./caps";
 import { gitIdentity } from "./serializers";
 
 type DiffFile = DiffResult["files"][number];
@@ -37,6 +42,18 @@ export function* unifiedDiffSections(diff: DiffResult): Generator<string> {
 /** `git diff` output for `diff`. */
 export function unifiedDiff(diff: DiffResult): string {
 	return diff.files.map(fileDiff).join("");
+}
+
+/**
+ * A rendered diff or patch, refused (406, as GitHub answers an oversized diff)
+ * past `apiCaps.diffMediaBytes`. Checked on the rendered bytes: the headers
+ * the rendering adds are not in the library's own budget.
+ */
+export function withinDiffCap(text: string): string {
+	if (new TextEncoder().encode(text).byteLength > apiCaps.diffMediaBytes) {
+		throw new DiffLimitError("bytes", apiCaps.diffMediaBytes);
+	}
+	return text;
 }
 
 /** git's mailbox date: `Thu, 2 Jan 2020 03:04:05 +0000`. */
