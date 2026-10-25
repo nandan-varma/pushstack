@@ -155,4 +155,4 @@ safe or replace reviewing the `--explain` plan.
 
 ## Multi-step writes
 
-Production uses the Neon HTTP driver, which has no interactive transactions (`db.transaction` throws). `db.batch` is atomic only for statements that do not need an id from an earlier one. For a write that spans steps, persist the root row, then delete it in a `catch` if a later step fails. Deletion cascades to child rows. `createIssueForUser` and `insertPullRequest` follow this pattern.
+Production uses the Neon HTTP driver, which has no interactive transactions (`db.transaction` throws). `db.batch` is atomic only for statements that do not need an id from an earlier one. For a write that spans steps, persist the root row, then delete it in a `catch` if a later step fails. Deletion cascades to child rows. `createIssueForUser`, `insertPullRequest` and `createCommentForUser` follow this pattern; `mergePullRequestBranches` reopens the pull request if recording the merge fails. `store-atomicity.test.ts` injects failures by SQL text through the test db logger.
