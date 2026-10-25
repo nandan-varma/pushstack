@@ -30,8 +30,6 @@ import {
 	MAX_REPO_HOMEPAGE_CHARS,
 } from "#/lib/limits";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
-import { tokenAllows } from "#/lib/token-scopes";
-import { oauthScopesHeader } from "../../api/auth";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import { starCounts } from "../../api/repos";
 import { getBranches } from "../../git-read";
@@ -61,7 +59,6 @@ import { offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import {
 	forbidden,
-	GitHubGraphQLError,
 	notFound,
 	repositoryNotFound,
 	unprocessable,
@@ -80,6 +77,11 @@ import {
 	releaseTypeResolvers,
 	repositoryReleaseFields,
 } from "./releases";
+import {
+	labelMutationResolvers,
+	repositoryLabelFields,
+} from "./repository-labels";
+import { loadRepositoryById, requireRepoScope } from "./repository-write";
 import { repositoryTemplateFields, templateTypeResolvers } from "./templates";
 import type { DomainResolvers, NodeLoader } from "./types";
 
@@ -195,21 +197,6 @@ export async function readableRepositoryNode(
 		const access = await getAccessForRepository(row, ctx.caller.userId);
 		return access.canRead ? repositoryNode(row, access.role) : null;
 	});
-}
-
-function requireRepoScope(ctx: GraphQLContext, field: string) {
-	if (!tokenAllows(ctx.caller.scopes, "repo:write")) {
-		// The token's classic scopes, as X-OAuth-Scopes reports them.
-		const granted = (oauthScopesHeader(ctx.caller.scopes) ?? "")
-			.split(", ")
-			.filter(Boolean)
-			.map((scope) => `'${scope}'`)
-			.join(", ");
-		throw new GitHubGraphQLError(
-			"INSUFFICIENT_SCOPES",
-			`Your token has not been granted the required scopes to execute this query. The '${field}' field requires one of the following scopes: ['repo'], but your token has only been granted the: [${granted}] scopes.`,
-		);
-	}
 }
 
 /** Branch names, once per repository per request (empty repositories have none). */
@@ -532,21 +519,11 @@ async function updateRepository(
 			`Could not resolve to a node with the global id of '${input.repositoryId}'`,
 		);
 	}
-	// A fresh row, never the 5 s cache: the change acts on what is stored now.
-	const [found] = await db
-		.select({ repo: repositories, owner: publicUserColumns })
-		.from(repositories)
-		.innerJoin(user, eq(repositories.ownerId, user.id))
-		.where(eq(repositories.id, repoId))
-		.limit(1);
-	const access = found
-		? await getAccessForRepository(found.repo, ctx.caller.userId)
-		: null;
-	if (!found || !access?.canRead) {
-		throw notFound(
-			`Could not resolve to a node with the global id of '${input.repositoryId}'`,
-		);
-	}
+	const {
+		repo: row,
+		owner,
+		access,
+	} = await loadRepositoryById(ctx, input.repositoryId);
 	if (access.role !== "owner" && access.role !== "admin") {
 		throw forbidden("Must have admin rights to Repository.");
 	}
@@ -577,7 +554,7 @@ async function updateRepository(
 	}
 	try {
 		const updated = await updateRepositorySettings(
-			{ ...found.repo, owner: found.owner },
+			{ ...row, owner },
 			{
 				name,
 				description: input.description?.trim(),
@@ -590,10 +567,7 @@ async function updateRepository(
 		);
 		return {
 			clientMutationId: input.clientMutationId ?? null,
-			repository: repositoryNode(
-				{ ...updated, owner: found.owner },
-				access.role,
-			),
+			repository: repositoryNode({ ...updated, owner }, access.role),
 		};
 	} catch (error) {
 		if (error instanceof ArchivedRepositoryError) {
@@ -645,6 +619,7 @@ export const repositoryResolvers: DomainResolvers = {
 				args: { input: UpdateRepositoryInput },
 				ctx,
 			) => updateRepository(args.input, ctx),
+			...labelMutationResolvers,
 		},
 		User: {
 			repositories: (source: UserNode, args: RepositoriesArgs, ctx) =>
@@ -663,6 +638,7 @@ export const repositoryResolvers: DomainResolvers = {
 		Repository: {
 			...repositoryReleaseFields,
 			...repositoryTemplateFields,
+			...repositoryLabelFields,
 			owner: async (source: RepositoryNode, _args, ctx) => {
 				const row = await loadUser(ctx, source.row.ownerId);
 				if (!row) throw new Error("Repository owner missing");

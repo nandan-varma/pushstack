@@ -104,6 +104,8 @@ export const MAX_LABEL_NAME_CHARS = 50;
 export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 
 export const MAX_LABELS_PER_THREAD = 100;
+/** The `query` of `Repository.labels`: a name or description search term. */
+export const MAX_LABEL_SEARCH_CHARS = 100;
 
 export const MAX_MILESTONE_TITLE_CHARS = 256;
 export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;

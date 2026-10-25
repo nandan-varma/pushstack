@@ -39,7 +39,8 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo archive` | Not yet (`archiveRepository` is not served; REST `PATCH` with `archived` is) |
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue list`, `gh issue view`, `gh issue status` | GraphQL reads served (`Repository.issues`/`issue`/`issueOrPullRequest`); fixture-tested, not yet measured with real gh |
-| `gh issue create`, `gh issue edit`, `gh issue close`, `gh label …` | Not yet (issue mutations and labels) |
+| `gh label list` | GraphQL `Repository.labels` served; fixture-tested, not yet measured with real gh |
+| `gh issue create`, `gh issue edit`, `gh issue close`, `gh label create/edit/delete` | Not yet (issue mutations; label mutations are served in GraphQL as below, not yet measured with real gh) |
 | `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested, not yet measured with real gh |
 | `gh pr status` | Not yet (requires GraphQL search) |
 
@@ -222,6 +223,17 @@ owner or admin (`FORBIDDEN` for other writers, `NOT_FOUND` for a repository
 they cannot read). Names follow the create rules, the description and homepage
 are capped as in REST, and an archived repository refuses changes as REST does.
 GitHub has no `deleteRepository` mutation; `gh repo delete` uses REST.
+
+`Repository.labels(first:, after:, last:, before:, query:, orderBy:)` serves
+`LabelConnection` with `totalCount`. `orderBy` is `CREATED_AT` (the default) or
+`NAME`, each with a direction; `ISSUE_COUNT` is `UNPROCESSABLE`. `query` matches
+a name or description, case-insensitively, up to 100 characters. `Label`
+serves `id`, `name`, `color` and `description`; `url`, `isDefault`, `createdAt`
+and the label's issues and pull requests are not served yet.
+`createLabel`, `updateLabel` and `deleteLabel` take the REST rules for names
+(50 characters), colors (six hex digits, `#` optional) and descriptions (100
+characters), need a `repo:write` token and push access (`FORBIDDEN`
+otherwise), and refuse a duplicate name with `UNPROCESSABLE`.
 
 ## Extending the schema
 
