@@ -411,3 +411,75 @@ it("creates exactly one pull request when concurrent creates race for the same h
 		results.filter((r) => r.body.errors?.[0]?.type === "UNPROCESSABLE"),
 	).toHaveLength(2);
 });
+
+it("closes, reopens and updates a pull request, refusing base changes and blank titles", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/edit", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "edit",
+			path: "edit.txt",
+			content: btoa("edit\n"),
+			commitMessage: "Edit",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"edit",baseRefName:"main",title:"Edit me"}) { pullRequest { id number } } }`,
+	);
+	expect(created.body.errors).toBeUndefined();
+	const { id, number } = created.body.data.createPullRequest.pullRequest;
+	const close = await graphql(
+		token,
+		`mutation { closePullRequest(input:{pullRequestId:"${id}",clientMutationId:"close"}) { clientMutationId pullRequest { state closed closedAt } } }`,
+	);
+	expect(close.body.errors).toBeUndefined();
+	expect(close.body.data.closePullRequest).toEqual({
+		clientMutationId: "close",
+		pullRequest: {
+			state: "CLOSED",
+			closed: true,
+			closedAt: expect.any(String),
+		},
+	});
+	const rest = await call(`/repos/alice/proj/pulls/${number}`);
+	expect(rest.body.state).toBe("closed");
+	const reopen = await graphql(
+		token,
+		`mutation { reopenPullRequest(input:{pullRequestId:"${id}"}) { pullRequest { state closedAt } } }`,
+	);
+	expect(reopen.body.data.reopenPullRequest.pullRequest).toEqual({
+		state: "OPEN",
+		closedAt: null,
+	});
+	const updated = await graphql(
+		token,
+		`mutation { updatePullRequest(input:{pullRequestId:"${id}",title:"  Renamed ",body:"New body",state:CLOSED}) { pullRequest { title body state } } }`,
+	);
+	expect(updated.body.errors).toBeUndefined();
+	expect(updated.body.data.updatePullRequest.pullRequest).toEqual({
+		title: "Renamed",
+		body: "New body",
+		state: "CLOSED",
+	});
+	const blankTitle = await graphql(
+		token,
+		`mutation { updatePullRequest(input:{pullRequestId:"${id}",title:"   "}) { pullRequest { id } } }`,
+	);
+	expect(blankTitle.body.errors[0].type).toBe("UNPROCESSABLE");
+	const baseChange = await graphql(
+		token,
+		`mutation { updatePullRequest(input:{pullRequestId:"${id}",baseRefName:"edit"}) { pullRequest { id } } }`,
+	);
+	expect(baseChange.body.errors[0].type).toBe("UNPROCESSABLE");
+	const denied = await graphql(
+		reader,
+		`mutation { closePullRequest(input:{pullRequestId:"${id}"}) { pullRequest { id } } }`,
+	);
+	expect(denied.body.errors[0].type).toMatch(/FORBIDDEN|INSUFFICIENT_SCOPES/);
+});

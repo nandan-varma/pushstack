@@ -19,6 +19,7 @@ import { ownerKeyOf } from "../../git-storage-naming";
 import {
 	insertPullRequest,
 	setPullRequestDraft,
+	updatePullRequestFields,
 } from "../../pull-request-store";
 import {
 	findPullRequestById,
@@ -42,6 +43,7 @@ import { loadUser, userNode } from "./core";
 import type {
 	CreatePullRequestInput,
 	RepositoryPullRequestsArgs,
+	UpdatePullRequestInput,
 } from "./generated";
 import {
 	commitDetailResolvers,
@@ -238,10 +240,10 @@ async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 		pullRequest: pullNode(repo, row),
 	};
 }
-async function draftState(
-	input: { pullRequestId: string; clientMutationId?: string | null },
+/** The pull request a mutation may change: its author or a writer, in an unarchived repository. */
+async function writablePull(
+	input: { pullRequestId: string },
 	ctx: GraphQLContext,
-	draft: boolean,
 ) {
 	requireScope(ctx);
 	const decoded = decodeNodeId(input.pullRequestId);
@@ -254,6 +256,67 @@ async function draftState(
 	if (node.row.authorId !== ctx.caller.userId && !canWrite(node.repo))
 		throw forbidden("You do not have permission to update this pull request");
 	if (node.repo.row.archived) throw forbidden("Repository is archived");
+	return node;
+}
+
+/** The pull request as it reads after a write, with its shared repository node. */
+async function reloadedPull(
+	node: PullRequestNode,
+	clientMutationId?: string | null,
+) {
+	const row = await findPullRequestById(node.row.id);
+	if (!row) throw new Error("Pull request missing after update");
+	return {
+		clientMutationId: clientMutationId ?? null,
+		pullRequest: pullNode(node.repo, row),
+	};
+}
+
+async function setPullStatus(
+	input: { pullRequestId: string; clientMutationId?: string | null },
+	ctx: GraphQLContext,
+	status: "open" | "closed",
+) {
+	const node = await writablePull(input, ctx);
+	// A merged pull request is CLOSED on GitHub: closing it is a no-op, reopening is refused.
+	if (node.row.status === "merged") {
+		if (status === "open")
+			throw unprocessable("A merged pull request can't be reopened");
+		return reloadedPull(node, input.clientMutationId);
+	}
+	if (node.row.status !== status)
+		await updatePullRequestFields(node.row, ctx.caller.userId, { status });
+	return reloadedPull(node, input.clientMutationId);
+}
+
+async function updatePull(input: UpdatePullRequestInput, ctx: GraphQLContext) {
+	const node = await writablePull(input, ctx);
+	if (input.baseRefName != null && input.baseRefName !== node.row.targetBranch)
+		throw unprocessable("Changing the base branch is not supported");
+	if (input.state === "OPEN" && node.row.status === "merged")
+		throw unprocessable("A merged pull request can't be reopened");
+	const title = input.title?.trim();
+	if (title !== undefined && (!title || title.length > MAX_THREAD_TITLE_CHARS))
+		throw unprocessable("Invalid pull request title");
+	if ((input.body?.length ?? 0) > MAX_BODY_CHARS)
+		throw unprocessable("Invalid pull request body");
+	await updatePullRequestFields(node.row, ctx.caller.userId, {
+		...(title !== undefined && { title }),
+		...(input.body != null && { body: input.body }),
+		...(input.state != null &&
+			node.row.status !== "merged" && {
+				status: input.state === "OPEN" ? "open" : "closed",
+			}),
+	});
+	return reloadedPull(node, input.clientMutationId);
+}
+
+async function draftState(
+	input: { pullRequestId: string; clientMutationId?: string | null },
+	ctx: GraphQLContext,
+	draft: boolean,
+) {
+	const node = await writablePull(input, ctx);
 	if (node.row.status !== "open")
 		throw unprocessable("Only an open pull request can change draft state");
 	const row = await setPullRequestDraft(node.row, ctx.caller.userId, draft);
@@ -341,6 +404,11 @@ export const pullsResolvers: DomainResolvers = {
 				draftState(args.input, ctx, false),
 			convertPullRequestToDraft: (_source, args, ctx) =>
 				draftState(args.input, ctx, true),
+			closePullRequest: (_source, args, ctx) =>
+				setPullStatus(args.input, ctx, "closed"),
+			reopenPullRequest: (_source, args, ctx) =>
+				setPullStatus(args.input, ctx, "open"),
+			updatePullRequest: (_source, args, ctx) => updatePull(args.input, ctx),
 		},
 		Release: {
 			tagCommit: async (node, _args, ctx) => {
