@@ -167,7 +167,6 @@ new commits, and applies the same text limits as REST/web. Cross-repository
 heads and disabling maintainer modifications are unsupported and rejected.
 `markPullRequestReadyForReview` and `convertPullRequestToDraft` accept a pull
 request node id, preserve `clientMutationId`, and allow its author or a writer
-<<<<<<< HEAD
 to change an open pull request. Marking ready requests CODEOWNERS reviews.
 `closePullRequest`, `reopenPullRequest` and `updatePullRequest` (title, body,
 `state`) follow the same author-or-writer rule. Closing a merged pull request
@@ -176,11 +175,6 @@ refuses a changed `baseRefName` and labels, assignees, milestone and projects
 are not yet accepted (unknown fields fail validation rather than being ignored).
 Every top-level mutation costs at least five GraphQL rate-limit points,
 including aliases.
-=======
-to change an open pull request. Marking ready requests CODEOWNERS reviews. Every
-top-level mutation costs at least five GraphQL rate-limit points, including
-aliases.
->>>>>>> ab1d005 (GraphQL issues: bound issue page bodies, dedupe comment associations, narrow the state-enum overlap rule (#270))
 
 `Commit.zipballUrl` and `Commit.tarballUrl` point to source archives pinned to
 the commit sha. Reach them through `Ref.target` or `Repository.object` using
