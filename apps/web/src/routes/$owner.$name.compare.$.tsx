@@ -116,6 +116,7 @@ function ComparePage() {
 	const [title, setTitle] = useState("");
 	const [body, setBody] = useState("");
 	const [bodyInitialized, setBodyInitialized] = useState(false);
+	const [templateName, setTemplateName] = useState("");
 	const [draft, setDraft] = useState(false);
 	const createMutation = useMutation({
 		mutationFn: createPullRequest,
@@ -194,7 +195,9 @@ function ComparePage() {
 							onOpenChange={(next) => {
 								setOpen(next);
 								if (next && !bodyInitialized) {
-									setBody(templates.pullRequestTemplates[0]?.body ?? "");
+									const first = templates.pullRequestTemplates[0];
+									setTemplateName(first?.filename ?? "");
+									setBody(first?.body ?? "");
 									setBodyInitialized(true);
 								}
 								if (next && !title && comparison?.commits.length === 1) {
@@ -229,6 +232,35 @@ function ComparePage() {
 									placeholder="Pull request title"
 								/>
 							</div>
+							{templates.pullRequestTemplates.length > 1 && (
+								<div className="space-y-1.5">
+									<Label htmlFor="compare-template">Template</Label>
+									{/* Choosing a template replaces the description, as on GitHub. */}
+									<Select
+										value={templateName}
+										onValueChange={(next) => {
+											if (!next) return;
+											setTemplateName(next);
+											setBody(
+												templates.pullRequestTemplates.find(
+													(item) => item.filename === next,
+												)?.body ?? "",
+											);
+										}}
+									>
+										<SelectTrigger id="compare-template" className="w-full">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{templates.pullRequestTemplates.map((item) => (
+												<SelectItem key={item.filename} value={item.filename}>
+													{item.filename.split("/").at(-1)}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
 							<div className="space-y-1.5">
 								<Label htmlFor="compare-body">Description</Label>
 								<Textarea
