@@ -234,7 +234,7 @@ labels or usernames with commas. Changing labels and assignees requires write
 access; repository-configured template defaults also apply for other reporters.
 Missing template labels and ineligible assignees are ignored. Maintainers can
 still open blank issues when `blank_issues_enabled` is false. Invalid issue
-template files are omitted; invalid chooser configuration uses the defaults.
+template files, including oversized files and invalid UTF-8, are omitted; invalid chooser configuration uses the defaults.
 Discovery reads at most 50 template files, each at most 65,536 bytes, with a
 combined limit of 256,000 bytes.
 

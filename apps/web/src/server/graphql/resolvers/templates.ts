@@ -4,6 +4,7 @@ import { listAssignableUsers } from "../../assignees-store";
 import { listLabels } from "../../label-store";
 import { loadRepositoryTemplates } from "../../repository-templates-store";
 import { offsetConnection } from "../connection";
+import { encodeNodeId } from "../node-id";
 import { loadUser, userNode } from "./core";
 import type { Resolvers } from "./generated";
 import type { RepositoryNode } from "./repository";
@@ -51,7 +52,10 @@ export const templateTypeResolvers = {
 				wanted.has(label.name.toLowerCase()),
 			);
 			return offsetConnection(args, selected.length, async (offset, limit) =>
-				selected.slice(offset, offset + limit),
+				selected.slice(offset, offset + limit).map((label) => ({
+					...label,
+					id: encodeNodeId("Label", label.id),
+				})),
 			);
 		},
 		assignees: async ({ template, repo }, args, ctx) => {

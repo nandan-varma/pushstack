@@ -240,13 +240,5 @@
 		"name",
 		"title"
 	],
-	"PullRequestTemplate": "*",
-	"UserConnection": "*",
-	"UserEdge": "*",
-	"LabelConnection": "*",
-	"LabelEdge": "*",
-	"Label": {
-		"$implements": [],
-		"fields": ["name", "color", "description"]
-	}
+	"PullRequestTemplate": "*"
 }
