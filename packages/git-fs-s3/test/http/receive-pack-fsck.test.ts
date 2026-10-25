@@ -9,7 +9,7 @@ import {
 import { rawFs } from "../../src/http/types.js";
 import { createGitFs, MemoryObjectStore } from "../../src/index.js";
 import { authorNow, type Repo } from "../../src/ops/index.js";
-import { storePack } from "../../src/pack-write.js";
+import { encodePack, storePack } from "../../src/pack-write.js";
 
 const author = authorNow("Test", "test@example.com");
 const ZERO_OID = "0".repeat(40);
@@ -322,4 +322,21 @@ describe("receive-pack tree entry names: only this push's trees", () => {
 			.catch(() => [] as string[]);
 		expect(packs).toEqual([]);
 	});
+});
+
+describe("storePack path normalization", () => {
+	it.each(["./git", "git/", "/git"])(
+		"captures the index for gitdir %s",
+		async (gitdir) => {
+			const repo = { ...makeRepo(), gitdir };
+			const pack = await encodePack([
+				{ type: "blob", content: new TextEncoder().encode("x") },
+			]);
+			const stored = await storePack(repo, pack);
+			expect(stored.oids).toHaveLength(1);
+			expect(stored.index).toEqual(
+				await rawFs(repo).readFile(`${gitdir}/objects/pack/${stored.base}.idx`),
+			);
+		},
+	);
 });

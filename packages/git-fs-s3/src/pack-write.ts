@@ -109,16 +109,41 @@ export function packBaseName(pack: Uint8Array): string {
 export async function storePack(
 	repo: Repo,
 	pack: Uint8Array,
-): Promise<{ base: string; oids: string[] }> {
+): Promise<{ base: string; oids: string[]; index: Uint8Array }> {
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
 	const base = packBaseName(pack);
 	await fsp.mkdir(packDir, { recursive: true });
 	await fsp.writeFile(`${packDir}/${packFileName(base, "pack")}`, pack);
+	let index: Uint8Array | undefined;
+	// The checksum names the bytes uniquely, regardless of gitdir spelling.
+	const packSuffix = `/${packFileName(base, "pack")}`;
+	const indexSuffix = `/${packFileName(base, "idx")}`;
 	const { oids } = await git.indexPack({
 		...repo,
+		fs: new Proxy(repo.fs, {
+			get(target, property) {
+				if (property !== "promises") return Reflect.get(target, property);
+				return new Proxy(fsp, {
+					get(target, property) {
+						if (property === "readFile") {
+							return async (path: string) =>
+								path.endsWith(packSuffix) ? pack : fsp.readFile(path);
+						}
+						if (property === "writeFile") {
+							return async (path: string, data: Uint8Array) => {
+								if (path.endsWith(indexSuffix)) index = data;
+								await fsp.writeFile(path, data);
+							};
+						}
+						return Reflect.get(target, property);
+					},
+				});
+			},
+		}),
 		dir: packDir,
 		filepath: packFileName(base, "pack"),
 	});
-	return { base, oids };
+	if (!index) throw new Error("indexPack did not write an index");
+	return { base, oids, index };
 }
