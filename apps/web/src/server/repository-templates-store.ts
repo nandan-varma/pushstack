@@ -7,6 +7,9 @@ import {
 	MAX_BODY_CHARS,
 	MAX_LABEL_NAME_CHARS,
 	MAX_LABELS_PER_THREAD,
+	MAX_TEMPLATE_FILE_BYTES,
+	MAX_TEMPLATE_FILES,
+	MAX_TEMPLATE_TOTAL_BYTES,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import type {
@@ -198,10 +201,17 @@ export async function loadRepositoryTemplates(repo: {
 	return cache.get(`${owner}/${repo.name}:${commit}`, async () => {
 		const result = empty();
 		let totalBytes = 0;
+		let fileCount = 0;
+		function withinFileLimit(): boolean {
+			return fileCount++ < MAX_TEMPLATE_FILES;
+		}
 		async function read(entry: TreeEntry): Promise<string> {
 			const size = await getBlobSize(owner, repo.name, entry.oid);
 			totalBytes += size;
-			if (size > MAX_BODY_CHARS || totalBytes > 256_000)
+			if (
+				size > MAX_TEMPLATE_FILE_BYTES ||
+				totalBytes > MAX_TEMPLATE_TOTAL_BYTES
+			)
 				throw new Error("Repository templates exceed the size limit");
 			return new TextDecoder("utf-8", { fatal: true }).decode(
 				await getBlobByOid(owner, repo.name, entry.oid),
@@ -223,12 +233,21 @@ export async function loadRepositoryTemplates(repo: {
 			.filter((item) => item.type === "blob" && item.mode !== "120000")
 			.sort((a, b) => a.path.localeCompare(b.path))) {
 			const filename = entry.path.split("/").at(-1) ?? entry.path;
-			if (/^config\.ya?ml$/i.test(filename)) {
-				const config = configSchema.parse(yaml(await read(entry)));
-				result.blankIssuesEnabled = config.blank_issues_enabled;
-				result.contactLinks = config.contact_links;
-			} else if (/\.(md|ya?ml)$/i.test(filename))
-				result.issueTemplates.push(issueTemplate(filename, await read(entry)));
+			if (!/\.(md|ya?ml)$/i.test(filename)) continue;
+			if (!withinFileLimit()) break;
+			// Keep storage/size failures visible; only repository-authored parse errors
+			// are ignored, independently for each file.
+			const source = await read(entry);
+			try {
+				if (/^config\.ya?ml$/i.test(filename)) {
+					const config = configSchema.parse(yaml(source));
+					result.blankIssuesEnabled = config.blank_issues_enabled;
+					result.contactLinks = config.contact_links;
+				} else if (/\.(md|ya?ml)$/i.test(filename))
+					result.issueTemplates.push(issueTemplate(filename, source));
+			} catch {
+				// GitHub omits invalid templates and ignores invalid chooser config.
+			}
 		}
 		result.issueTemplates.sort(
 			(a, b) =>
@@ -251,7 +270,8 @@ export async function loadRepositoryTemplates(repo: {
 				!result.pullRequestTemplates.some(
 					(item) =>
 						!item.filename.toLowerCase().includes("pull_request_template/"),
-				)
+				) &&
+				withinFileLimit()
 			)
 				result.pullRequestTemplates.unshift({
 					filename: defaultFile.path,
@@ -274,10 +294,11 @@ export async function loadRepositoryTemplates(repo: {
 							/\.md$/i.test(item.path),
 					)
 					.sort((a, b) => a.path.localeCompare(b.path)))
-					result.pullRequestTemplates.push({
-						filename: entry.path,
-						body: await read(entry),
-					});
+					if (withinFileLimit())
+						result.pullRequestTemplates.push({
+							filename: entry.path,
+							body: await read(entry),
+						});
 		}
 		return result;
 	});

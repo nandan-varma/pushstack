@@ -34,7 +34,7 @@ async function upload(
 		data: {
 			repoId,
 			path,
-			content: btoa(content),
+			content: Buffer.from(content).toString("base64"),
 			branchName,
 			commitMessage: `Add ${path}`,
 		},
@@ -203,6 +203,32 @@ body:
 			},
 		]);
 	});
+	it("caps discovery at 50 files across issue and PR templates", async () => {
+		const repo = await setup();
+		for (let index = 0; index < 51; index++) {
+			await upload(
+				repo.id,
+				`.github/ISSUE_TEMPLATE/report-${String(index).padStart(2, "0")}.md`,
+				markdown,
+			);
+		}
+		await upload(repo.id, ".github/pull_request_template.md", "PR body");
+		const result = await getRepositoryTemplates({ data: { repoId: repo.id } });
+		expect(result.issueTemplates).toHaveLength(50);
+		expect(result.issueTemplates.at(-1)?.filename).toBe("report-49.md");
+		expect(result.pullRequestTemplates).toHaveLength(0);
+	});
+	it("checks UTF-8 bytes rather than character count", async () => {
+		const repo = await setup();
+		await upload(
+			repo.id,
+			".github/pull_request_template.md",
+			"界".repeat(22_000),
+		);
+		await expect(
+			getRepositoryTemplates({ data: { repoId: repo.id } }),
+		).rejects.toThrow("size limit");
+	});
 	it("rejects an oversized template instead of truncating the issue body", async () => {
 		const repo = await setup();
 		await upload(
@@ -290,15 +316,32 @@ body:
 		expect(loaded.labels.map((label) => label.name)).toEqual(["enhancement"]);
 		expect(loaded.assignees).toEqual([]);
 	});
-	it("surfaces malformed template YAML rather than silently hiding a failure", async () => {
+	it("omits malformed templates and config while preserving valid issue and PR templates", async () => {
 		const repo = await setup();
+		await upload(repo.id, ".github/ISSUE_TEMPLATE/bug.md", markdown);
+		await upload(repo.id, ".github/ISSUE_TEMPLATE/broken.yml", "body: [");
+		await upload(
+			repo.id,
+			".github/ISSUE_TEMPLATE/invalid.md",
+			"No frontmatter",
+		);
 		await upload(
 			repo.id,
 			".github/ISSUE_TEMPLATE/config.yml",
 			"contact_links: [",
 		);
-		await expect(
-			getRepositoryTemplates({ data: { repoId: repo.id } }),
-		).rejects.toThrow();
+		await upload(repo.id, ".github/pull_request_template.md", "PR body");
+		const result = await getRepositoryTemplates({ data: { repoId: repo.id } });
+		expect(result.issueTemplates.map((item) => item.filename)).toEqual([
+			"bug.md",
+		]);
+		expect(result.blankIssuesEnabled).toBe(true);
+		expect(result.pullRequestTemplates[0]?.body).toBe("PR body");
+		const { createIssue } = await import("../issues");
+		expect(
+			await createIssue({
+				data: { repoId: repo.id, title: "Report", template: "bug.md" },
+			}),
+		).toMatchObject({ title: "Report" });
 	});
 });

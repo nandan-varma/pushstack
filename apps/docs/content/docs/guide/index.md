@@ -233,7 +233,10 @@ and `assignees` query parameters override template defaults; separate multiple
 labels or usernames with commas. Changing labels and assignees requires write
 access; repository-configured template defaults also apply for other reporters.
 Missing template labels and ineligible assignees are ignored. Maintainers can
-still open blank issues when `blank_issues_enabled` is false.
+still open blank issues when `blank_issues_enabled` is false. Invalid issue
+template files are omitted; invalid chooser configuration uses the defaults.
+Discovery reads at most 50 template files, each at most 65,536 bytes, with a
+combined limit of 256,000 bytes.
 
 A `pull_request_template.md` file in `.github/`, the repository root or `docs/`
 prefills the description when opening a pull request on the compare page.

@@ -135,6 +135,10 @@ export const MAX_THREAD_TITLE_CHARS = 256;
 
 /** A template query parameter names one file in ISSUE_TEMPLATE. */
 export const MAX_TEMPLATE_FILENAME_CHARS = 255;
+/** Bounds on default-branch issue and pull request template discovery. */
+export const MAX_TEMPLATE_FILES = 50;
+export const MAX_TEMPLATE_FILE_BYTES = 65_536;
+export const MAX_TEMPLATE_TOTAL_BYTES = 256_000;
 
 export const MAX_REPO_DESCRIPTION_CHARS = 500;
 export const MAX_REPO_HOMEPAGE_CHARS = 255;

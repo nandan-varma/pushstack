@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { isSafeHref } from "@/components/MarkdownRenderer";
 import { PageHeader } from "@/components/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -91,7 +92,7 @@ function Chooser({
 							<p className="text-sm text-bjork-text-muted">{link.about}</p>
 						</div>
 						<a
-							href={link.url}
+							href={isSafeHref(link.url) ? link.url : undefined}
 							className={buttonVariants({ variant: "outline" })}
 						>
 							Open

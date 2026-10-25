@@ -102,13 +102,21 @@ describe("Repository templates", () => {
 		expect(body.errors[0].type).toBe("NOT_FOUND");
 	});
 
-	it("propagates invalid template configuration as a GraphQL error", async () => {
+	it("keeps both template fields usable alongside malformed files and config", async () => {
 		await write(
 			".github/ISSUE_TEMPLATE/config.yml",
 			"blank_issues_enabled: [\n",
 		);
+		await write(".github/ISSUE_TEMPLATE/broken.yml", "body: [");
 		const { body } = await graphql(alice, QUERY, { name: "templates" });
-		expect(body.errors).toBeDefined();
-		expect(body.errors.length).toBeGreaterThan(0);
+		expect(body.errors).toBeUndefined();
+		expect(
+			body.data.repository.issueTemplates.map(
+				(item: { filename: string }) => item.filename,
+			),
+		).toEqual(["bug.md"]);
+		expect(body.data.repository.pullRequestTemplates[0].body).toBe(
+			"## Changes\n\n## Testing\n",
+		);
 	});
 });
