@@ -221,6 +221,9 @@ GitHub does for `Issue.state` and `PullRequest.state` in `gh issue view`.
 owner or admin (`FORBIDDEN` for other writers, `NOT_FOUND` for a repository
 they cannot read). Names follow the create rules, the description and homepage
 are capped as in REST, and an archived repository refuses changes as REST does.
+A homepage must be an absolute `http(s)` URL (or empty to clear it): `javascript:`,
+`data:`, relative and bare-host values are `UNPROCESSABLE` here and a `422` on
+REST, and the stored value is kept.
 GitHub has no `deleteRepository` mutation; `gh repo delete` uses REST.
 
 ## Extending the schema

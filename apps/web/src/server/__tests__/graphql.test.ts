@@ -16,7 +16,9 @@ vi.mock(
 );
 
 const { createUsers, signIn } = await import("../../test/app-harness");
-const { asToken, call, mintToken } = await import("../../test/api-client");
+const { asToken, call, mintToken, patch } = await import(
+	"../../test/api-client"
+);
 const { graphql } = await import("../../test/graphql-client");
 const repositories = await import("../repositories");
 const files = await import("../files");
@@ -701,6 +703,84 @@ describe("updateRepository", () => {
 			input: { repositoryId: secretId, description: "mine" },
 		});
 		expect(hidden.body.errors[0].type).toBe("NOT_FOUND");
+	});
+
+	it("refuses homepages that are not absolute http(s) URLs, and clears with an empty one", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		for (const homepageUrl of [
+			"javascript:alert(1)",
+			"data:text/html,<b>x</b>",
+			"/relative/path",
+			"example.com",
+		]) {
+			const { body } = await graphql(alice, update, {
+				input: { repositoryId, homepageUrl },
+			});
+			expect(body.errors[0]).toMatchObject({
+				type: "UNPROCESSABLE",
+				message: "Homepage must be an http or https URL",
+			});
+		}
+		const cleared = await graphql(alice, update, {
+			input: { repositoryId, homepageUrl: "" },
+		});
+		expect(cleared.body.errors).toBeUndefined();
+		expect(
+			cleared.body.data.updateRepository.repository.homepageUrl,
+		).toBeNull();
+	});
+
+	it("sets the wiki, projects and template flags and reads them back", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const { body } = await graphql(alice, update, {
+			input: {
+				repositoryId,
+				hasWikiEnabled: true,
+				hasProjectsEnabled: true,
+				template: true,
+			},
+		});
+		expect(body.errors).toBeUndefined();
+		const flags = await graphql(
+			alice,
+			`{ repository(owner: "alice", name: "public-one") { hasWikiEnabled hasProjectsEnabled isTemplate } }`,
+		);
+		expect(flags.body.data.repository).toEqual({
+			hasWikiEnabled: true,
+			hasProjectsEnabled: true,
+			isTemplate: true,
+		});
+		await graphql(alice, update, {
+			input: {
+				repositoryId,
+				hasWikiEnabled: false,
+				hasProjectsEnabled: false,
+				template: false,
+			},
+		});
+	});
+
+	it("refuses every edit to an archived repository but accepts unarchiving over REST", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		expect(
+			(await call("/repos/alice/public-one", patch(alice, { archived: true })))
+				.status,
+		).toBe(200);
+		try {
+			const { body } = await graphql(alice, update, {
+				input: { repositoryId, description: "while archived" },
+			});
+			expect(body.errors[0]).toMatchObject({
+				type: "FORBIDDEN",
+				message: "Repository was archived so is read-only.",
+			});
+		} finally {
+			await call("/repos/alice/public-one", patch(alice, { archived: false }));
+		}
+		const after = await graphql(alice, update, {
+			input: { repositoryId, description: "unarchived" },
+		});
+		expect(after.body.errors).toBeUndefined();
 	});
 
 	it("answers NOT_FOUND for an id that is not a repository", async () => {

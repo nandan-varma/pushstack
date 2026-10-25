@@ -54,6 +54,7 @@ import {
 } from "../../repository-lookup";
 import {
 	ArchivedRepositoryError,
+	InvalidHomepageError,
 	RepositoryNameTakenError,
 	updateRepositorySettings,
 } from "../../repository-settings";
@@ -598,6 +599,9 @@ async function updateRepository(
 	} catch (error) {
 		if (error instanceof ArchivedRepositoryError) {
 			throw forbidden(ARCHIVED_MESSAGE);
+		}
+		if (error instanceof InvalidHomepageError) {
+			throw unprocessable("Homepage must be an http or https URL");
 		}
 		if (error instanceof RepositoryNameTakenError) {
 			throw unprocessable("Name already exists on this account");
