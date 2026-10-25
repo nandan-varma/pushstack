@@ -45,6 +45,8 @@ const { graphql } = await import("../../test/graphql-client");
 const { getSchema } = await import("../graphql/schema");
 const { githubValidationRules } = await import("../graphql/validation");
 const repositories = await import("../repositories");
+const { createIssueForUser } = await import("../issue-store");
+const { db } = await import("#/db");
 
 interface Fixture {
 	gh: string;
@@ -68,9 +70,6 @@ const fixtures = readdirSync(FIXTURES_DIR)
 /** Captured, not served yet: the domain that will serve each. */
 const PENDING: Record<string, "issues" | "pulls"> = {
 	"issue-create": "issues",
-	"issue-list": "issues",
-	"issue-status": "issues",
-	"issue-view": "issues",
 	"label-list": "issues",
 	"pr-status": "pulls",
 };
@@ -98,6 +97,16 @@ beforeAll(async () => {
 	});
 	await repositories.createRepository({
 		data: { name: "hidden", visibility: "private" },
+	});
+	// `gh issue view 1` reads issue #1 of octo/hello.
+	const hello = await db.query.repositories.findFirst({
+		where: { name: "hello" },
+	});
+	if (!hello) throw new Error("octo/hello missing");
+	await createIssueForUser(hello.id, users.octo.id, {
+		title: "Hello issue",
+		body: "Body of the hello issue.",
+		labels: [],
 	});
 });
 

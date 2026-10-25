@@ -7,6 +7,7 @@ import {
 	type FieldNode,
 	type GraphQLCompositeType,
 	type GraphQLOutputType,
+	isEnumType,
 	isListType,
 	isNonNullType,
 	isObjectType,
@@ -28,6 +29,9 @@ function sameShape(left: GraphQLOutputType, right: GraphQLOutputType): boolean {
 			isListType(right) &&
 			sameShape(left.ofType, right.ofType)
 		);
+	// GitHub answers two enums under one response name (`Issue.state` and
+	// `PullRequest.state` in `gh issue view`), so enums of any name match.
+	if (isEnumType(left) && isEnumType(right)) return true;
 	return left === right;
 }
 const githubOverlappingFieldsRule: ValidationRule = (context) => {

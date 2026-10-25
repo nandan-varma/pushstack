@@ -76,7 +76,10 @@ export interface PullRequestNode {
 	row: PullRequest;
 	repo: RepositoryNode;
 }
-function pullNode(repo: RepositoryNode, row: PullRequest): PullRequestNode {
+export function pullNode(
+	repo: RepositoryNode,
+	row: PullRequest,
+): PullRequestNode {
 	const path = `/${repo.nameWithOwner}/pull/${row.number}`;
 	return {
 		__typename: "PullRequest",

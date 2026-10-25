@@ -29,7 +29,7 @@ import { loadUser, userNode } from "./core";
 import type { PullRequestNode } from "./pulls";
 import type { RepositoryNode } from "./repository";
 
-function assertTextBytes(rows: readonly { body: string | null }[]) {
+export function assertTextBytes(rows: readonly { body: string | null }[]) {
 	if (
 		rows.reduce(
 			(bytes, row) => bytes + Buffer.byteLength(JSON.stringify(row.body)),
@@ -40,7 +40,7 @@ function assertTextBytes(rows: readonly { body: string | null }[]) {
 			"Comment connection exceeds the response size limit; request fewer items",
 		);
 }
-async function userFor(ctx: GraphQLContext, id: string) {
+export async function userFor(ctx: GraphQLContext, id: string) {
 	const row = await loadUser(ctx, id);
 	if (!row) throw new Error("Thread user missing");
 	return userNode(row);
@@ -72,7 +72,7 @@ async function thread(node: PullRequestNode, ctx: GraphQLContext) {
 		return row;
 	});
 }
-function arrayConnection<T>(args: ConnectionArgs, rows: T[]) {
+export function arrayConnection<T>(args: ConnectionArgs, rows: T[]) {
 	return offsetConnection(args, rows.length, async (offset, limit) => {
 		bounds(offset);
 		return rows.slice(offset, offset + limit);
@@ -98,7 +98,7 @@ const contentNames: Record<
 	rocket: "ROCKET",
 	eyes: "EYES",
 };
-function groups(counts: Record<ReactionContent, number>) {
+export function groups(counts: Record<ReactionContent, number>) {
 	return REACTION_CONTENTS.map((content) => ({
 		content: contentNames[content],
 		users: {

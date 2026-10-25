@@ -64,6 +64,7 @@ export async function generateResolverTypes(): Promise<string> {
 				Repository: "./repository#RepositoryNode",
 				Ref: "./repository#RefNode",
 				Commit: "./commit#CommitNode",
+				Issue: "./issues#IssueNode",
 				PullRequest: "./pulls#PullRequestNode",
 				PullRequestReview: "./pulls-detail#ReviewNode",
 				IssueComment: "./pulls-detail#CommentNode",

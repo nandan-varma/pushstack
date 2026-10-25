@@ -2,6 +2,7 @@ import type { GraphQLResolveInfo, GraphQLScalarType, GraphQLScalarTypeConfig } f
 import type { UserNode } from './core';
 import type { RepositoryNode, RefNode } from './repository';
 import type { CommitNode } from './commit';
+import type { IssueNode } from './issues';
 import type { PullRequestNode } from './pulls';
 import type { ReviewNode, CommentNode, RollupNode } from './pulls-detail';
 import type { ReleaseNode, ReleaseAssetNode } from './releases';
@@ -439,6 +440,12 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   viewerPermission?: Maybe<RepositoryPermission>;
   /** Indicates the repository's visibility level. */
   visibility: RepositoryVisibility;
+  /** Returns a single issue from the current repository by number. */
+  issue?: Maybe<Issue>;
+  /** Returns a single issue-like object from the current repository by number. */
+  issueOrPullRequest?: Maybe<IssueOrPullRequest>;
+  /** A list of issues that have been opened in the repository. */
+  issues: IssueConnection;
   /** Returns a single pull request from the current repository by number. */
   pullRequest?: Maybe<PullRequest>;
   /** A list of pull requests that have been opened in the repository. */
@@ -472,6 +479,31 @@ export type RepositoryReleasesArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   orderBy?: InputMaybe<ReleaseOrder>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryIssueArgs = {
+  number: Scalars['Int']['input'];
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryIssueOrPullRequestArgs = {
+  number: Scalars['Int']['input'];
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryIssuesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  labels?: InputMaybe<Array<Scalars['String']['input']>>;
+  orderBy?: InputMaybe<IssueOrder>;
+  states?: InputMaybe<Array<IssueState>>;
+  filterBy?: InputMaybe<IssueFilters>;
 };
 
 
@@ -907,6 +939,214 @@ export type PullRequestTemplate = {
   filename?: Maybe<Scalars['String']['output']>;
   /** The repository the template belongs to */
   repository: Repository;
+};
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type Issue = Node & UniformResourceLocatable & {
+  __typename?: 'Issue';
+  /** The Node ID of the Issue object */
+  id: Scalars['ID']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** Identifies the issue number. */
+  number: Scalars['Int']['output'];
+  /** Identifies the issue title. */
+  title: Scalars['String']['output'];
+  /** Identifies the body of the issue. */
+  body: Scalars['String']['output'];
+  /** Identifies the state of the issue. */
+  state: IssueState;
+  /** Identifies the reason for the issue state. */
+  stateReason?: Maybe<IssueStateReason>;
+  /** The HTTP URL for this issue */
+  url: Scalars['URI']['output'];
+  /** The HTTP path for this issue */
+  resourcePath: Scalars['URI']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was closed. */
+  closedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** Indicates if the object is closed (definition of closed may depend on type) */
+  closed: Scalars['Boolean']['output'];
+  /** The actor who authored the comment. */
+  author?: Maybe<Actor>;
+  /** The repository associated with this node. */
+  repository: Repository;
+  /** Identifies the milestone associated with the issue. */
+  milestone?: Maybe<Milestone>;
+  /** A list of Users assigned to this object. */
+  assignees: UserConnection;
+  /** A list of labels associated with the object. */
+  labels?: Maybe<LabelConnection>;
+  /** A list of comments associated with the Issue. */
+  comments: IssueCommentConnection;
+  /** A list of reactions grouped by content left on the subject. */
+  reactionGroups?: Maybe<Array<ReactionGroup>>;
+  /** The issue type for this Issue */
+  issueType?: Maybe<IssueType>;
+  /** The parent entity of the issue. */
+  parent?: Maybe<Issue>;
+  /** A list of sub-issues associated with the Issue. */
+  subIssues: IssueConnection;
+  /** Summary of the state of an issue's sub-issues */
+  subIssuesSummary: SubIssuesSummary;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueStateReasonArgs = {
+  enableDuplicate?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueAssigneesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueLabelsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueCommentsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueSubIssuesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** Used for return value of Repository.issueOrPullRequest. */
+export type IssueOrPullRequest = Issue | PullRequest;
+
+/** The connection type for Issue. */
+export type IssueConnection = {
+  __typename?: 'IssueConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<IssueEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Issue>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type IssueEdge = {
+  __typename?: 'IssueEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Issue>;
+};
+
+/** The possible states of an issue. */
+export type IssueState =
+  /** An issue that has been closed */
+  | 'CLOSED'
+  /** An issue that is still open */
+  | 'OPEN';
+
+/** The possible state reasons of an issue. */
+export type IssueStateReason =
+  /** An issue that has been closed as completed */
+  | 'COMPLETED'
+  /** An issue that has been closed as a duplicate. */
+  | 'DUPLICATE'
+  /** An issue that has been closed as not planned */
+  | 'NOT_PLANNED'
+  /** An issue that has been reopened */
+  | 'REOPENED';
+
+/** Ways in which to filter lists of issues. */
+export type IssueFilters = {
+  /**
+   * List issues assigned to given name. Pass in `null` for issues with no assigned
+   * user, and `*` for issues assigned to any user.
+   */
+  assignee?: InputMaybe<Scalars['String']['input']>;
+  /** List issues created by given name. */
+  createdBy?: InputMaybe<Scalars['String']['input']>;
+  /** List issues where the list of label names exist on the issue. */
+  labels?: InputMaybe<Array<Scalars['String']['input']>>;
+  /** List issues where the given name is mentioned in the issue. */
+  mentioned?: InputMaybe<Scalars['String']['input']>;
+  /**
+   * List issues by given milestone argument. If an string representation of an
+   * integer is passed, it should refer to a milestone by its database ID. Pass in
+   * `null` for issues with no milestone, and `*` for issues that are assigned to any milestone.
+   */
+  milestone?: InputMaybe<Scalars['String']['input']>;
+  /** List issues that have been updated at or after the given date. */
+  since?: InputMaybe<Scalars['DateTime']['input']>;
+  /** List issues filtered by the list of states given. */
+  states?: InputMaybe<Array<IssueState>>;
+  /** List issues subscribed to by viewer. */
+  viewerSubscribed?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+/** The possible color for an issue type */
+export type IssueTypeColor =
+  /** blue */
+  | 'BLUE'
+  /** gray */
+  | 'GRAY'
+  /** green */
+  | 'GREEN'
+  /** orange */
+  | 'ORANGE'
+  /** pink */
+  | 'PINK'
+  /** purple */
+  | 'PURPLE'
+  /** red */
+  | 'RED'
+  /** yellow */
+  | 'YELLOW';
+
+/** Represents the type of Issue. */
+export type IssueType = Node & {
+  __typename?: 'IssueType';
+  /** The Node ID of the IssueType object */
+  id: Scalars['ID']['output'];
+  /** The issue type's name. */
+  name: Scalars['String']['output'];
+  /** The issue type's description. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** The issue type's color. */
+  color: IssueTypeColor;
+};
+
+/** Summary of the state of an issue's sub-issues */
+export type SubIssuesSummary = {
+  __typename?: 'SubIssuesSummary';
+  /** Count of completed sub-issues */
+  completed: Scalars['Int']['output'];
+  /** Percent of sub-issues which are completed */
+  percentCompleted: Scalars['Int']['output'];
+  /** Count of total number of sub-issues */
+  total: Scalars['Int']['output'];
 };
 
 /** A repository pull request. */
@@ -1815,6 +2055,10 @@ export type DirectiveResolverFn<TResult = Record<PropertyKey, never>, TParent = 
 
 /** Mapping of union types */
 export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
+  IssueOrPullRequest:
+    | ( IssueNode )
+    | ( PullRequestNode )
+  ;
   RequestedReviewer:
     | ( Bot )
     | ( Team )
@@ -1835,6 +2079,8 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( CommitNode )
     | ( ReleaseNode )
     | ( ReleaseAssetNode )
+    | ( IssueNode )
+    | ( IssueType )
     | ( PullRequestNode )
     | ( ReviewNode )
     | ( Label )
@@ -1844,6 +2090,7 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( UserNode )
     | ( RepositoryNode )
     | ( ReleaseNode )
+    | ( IssueNode )
     | ( PullRequestNode )
   ;
   Actor: ( UserNode );
@@ -1901,6 +2148,16 @@ export type ResolversTypes = {
   ReleaseOrderField: ReleaseOrderField;
   IssueTemplate: ResolverTypeWrapper<IssueTemplateNode>;
   PullRequestTemplate: ResolverTypeWrapper<Omit<PullRequestTemplate, 'repository'> & { repository: ResolversTypes['Repository'] }>;
+  Issue: ResolverTypeWrapper<IssueNode>;
+  IssueOrPullRequest: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['IssueOrPullRequest']>;
+  IssueConnection: ResolverTypeWrapper<Omit<IssueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['IssueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Issue']>>> }>;
+  IssueEdge: ResolverTypeWrapper<Omit<IssueEdge, 'node'> & { node?: Maybe<ResolversTypes['Issue']> }>;
+  IssueState: IssueState;
+  IssueStateReason: IssueStateReason;
+  IssueFilters: IssueFilters;
+  IssueTypeColor: IssueTypeColor;
+  IssueType: ResolverTypeWrapper<IssueType>;
+  SubIssuesSummary: ResolverTypeWrapper<SubIssuesSummary>;
   PullRequest: ResolverTypeWrapper<PullRequestNode>;
   PullRequestState: PullRequestState;
   PullRequestConnection: ResolverTypeWrapper<Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequest']>>> }>;
@@ -2005,6 +2262,13 @@ export type ResolversParentTypes = {
   ReleaseOrder: ReleaseOrder;
   IssueTemplate: IssueTemplateNode;
   PullRequestTemplate: Omit<PullRequestTemplate, 'repository'> & { repository: ResolversParentTypes['Repository'] };
+  Issue: IssueNode;
+  IssueOrPullRequest: ResolversUnionTypes<ResolversParentTypes>['IssueOrPullRequest'];
+  IssueConnection: Omit<IssueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Issue']>>> };
+  IssueEdge: Omit<IssueEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Issue']> };
+  IssueFilters: IssueFilters;
+  IssueType: IssueType;
+  SubIssuesSummary: SubIssuesSummary;
   PullRequest: PullRequestNode;
   PullRequestConnection: Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequest']>>> };
   PullRequestEdge: Omit<PullRequestEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequest']> };
@@ -2068,7 +2332,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -2088,7 +2352,7 @@ export type RateLimitResolvers<ContextType = GraphQLContext, ParentType extends 
 };
 
 export type UniformResourceLocatableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UniformResourceLocatable'] = ResolversParentTypes['UniformResourceLocatable']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'PullRequest', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'Issue' | 'PullRequest', ParentType, ContextType>;
 };
 
 export type ActorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Actor'] = ResolversParentTypes['Actor']> = {
@@ -2187,6 +2451,9 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   viewerHasStarred?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   viewerPermission?: Resolver<Maybe<ResolversTypes['RepositoryPermission']>, ParentType, ContextType>;
   visibility?: Resolver<ResolversTypes['RepositoryVisibility'], ParentType, ContextType>;
+  issue?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<RepositoryIssueArgs, 'number'>>;
+  issueOrPullRequest?: Resolver<Maybe<ResolversTypes['IssueOrPullRequest']>, ParentType, ContextType, RequireFields<RepositoryIssueOrPullRequestArgs, 'number'>>;
+  issues?: Resolver<ResolversTypes['IssueConnection'], ParentType, ContextType, Partial<RepositoryIssuesArgs>>;
   pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType, RequireFields<RepositoryPullRequestArgs, 'number'>>;
   pullRequests?: Resolver<ResolversTypes['PullRequestConnection'], ParentType, ContextType, Partial<RepositoryPullRequestsArgs>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
@@ -2333,6 +2600,64 @@ export type PullRequestTemplateResolvers<ContextType = GraphQLContext, ParentTyp
   body?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   filename?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+};
+
+export type IssueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Issue'] = ResolversParentTypes['Issue']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['IssueState'], ParentType, ContextType>;
+  stateReason?: Resolver<Maybe<ResolversTypes['IssueStateReason']>, ParentType, ContextType, RequireFields<IssueStateReasonArgs, 'enableDuplicate'>>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  closedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  closed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  milestone?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
+  assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<IssueAssigneesArgs>>;
+  labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<IssueLabelsArgs>>;
+  comments?: Resolver<ResolversTypes['IssueCommentConnection'], ParentType, ContextType, Partial<IssueCommentsArgs>>;
+  reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
+  issueType?: Resolver<Maybe<ResolversTypes['IssueType']>, ParentType, ContextType>;
+  parent?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType>;
+  subIssues?: Resolver<ResolversTypes['IssueConnection'], ParentType, ContextType, Partial<IssueSubIssuesArgs>>;
+  subIssuesSummary?: Resolver<ResolversTypes['SubIssuesSummary'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type IssueOrPullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueOrPullRequest'] = ResolversParentTypes['IssueOrPullRequest']> = {
+  __resolveType: TypeResolveFn<'Issue' | 'PullRequest', ParentType, ContextType>;
+};
+
+export type IssueConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueConnection'] = ResolversParentTypes['IssueConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['IssueEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Issue']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type IssueEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueEdge'] = ResolversParentTypes['IssueEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType>;
+};
+
+export type IssueTypeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueType'] = ResolversParentTypes['IssueType']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  color?: Resolver<ResolversTypes['IssueTypeColor'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type SubIssuesSummaryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SubIssuesSummary'] = ResolversParentTypes['SubIssuesSummary']> = {
+  completed?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  percentCompleted?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  total?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 };
 
 export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequest'] = ResolversParentTypes['PullRequest']> = {
@@ -2662,6 +2987,12 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ReleaseAssetEdge?: ReleaseAssetEdgeResolvers<ContextType>;
   IssueTemplate?: IssueTemplateResolvers<ContextType>;
   PullRequestTemplate?: PullRequestTemplateResolvers<ContextType>;
+  Issue?: IssueResolvers<ContextType>;
+  IssueOrPullRequest?: IssueOrPullRequestResolvers<ContextType>;
+  IssueConnection?: IssueConnectionResolvers<ContextType>;
+  IssueEdge?: IssueEdgeResolvers<ContextType>;
+  IssueType?: IssueTypeResolvers<ContextType>;
+  SubIssuesSummary?: SubIssuesSummaryResolvers<ContextType>;
   PullRequest?: PullRequestResolvers<ContextType>;
   PullRequestConnection?: PullRequestConnectionResolvers<ContextType>;
   PullRequestEdge?: PullRequestEdgeResolvers<ContextType>;

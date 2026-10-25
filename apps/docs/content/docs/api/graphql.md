@@ -36,7 +36,8 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh repo clone` | Works (git at `https://HOST/OWNER/REPO.git`) |
 | `gh repo edit`, `gh repo delete`, `gh repo archive` | REST `PATCH`/`DELETE /repos/{owner}/{repo}` are served; topic edits and `gh repo view --json repositoryTopics` need GraphQL `repositoryTopics` (not yet) |
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
-| `gh issue …`, `gh label …` | Not yet (issues domain) |
+| `gh issue list`, `gh issue view`, `gh issue status` | GraphQL reads served (`Repository.issues`/`issue`/`issueOrPullRequest`); fixture-tested, not yet measured with real gh |
+| `gh issue create`, `gh issue edit`, `gh issue close`, `gh label …` | Not yet (issue mutations and labels) |
 | `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested, not yet measured with real gh |
 | `gh pr status` | Not yet (requires GraphQL search) |
 
@@ -183,6 +184,21 @@ authorized session or PAT, just like other archive URLs.
 `homepageUrl`, `INTERNAL`, disabling issues) with `UNPROCESSABLE`; it accepts
 `hasWikiEnabled`, which gh always sends, and the repository reports
 the default (`hasWikiEnabled: false`).
+
+`Repository.issue(number:)`, `issueOrPullRequest(number:)` and
+`issues(first:, after:, last:, before:, states:, labels:, orderBy:, filterBy:)`
+serve `Issue` (identity, `title`, `body`, `state`, `stateReason`, `closed`,
+`closedAt`, `author`, `repository`, `milestone`, `labels`, `assignees`,
+`comments`, `reactionGroups`, URLs). `states` and `filterBy.states` both narrow,
+and `filterBy` serves `assignee`, `createdBy`, `mentioned`, `labels` and
+`milestone`; `since` and `viewerSubscribed: true` are `UNPROCESSABLE`. An issue
+has no type, parent or sub-issues in PushStack, so `issueType` and `parent` are
+null, `subIssues` is empty and `subIssuesSummary` is zero. Without a `states`
+argument every issue is listed. An unknown number is `NOT_FOUND`, and an issue
+is a `node(id:)` target. Issue mutations are not served yet.
+
+The GraphQL overlap check accepts two enum types under one response name, as
+GitHub does for `Issue.state` and `PullRequest.state` in `gh issue view`.
 
 ## Extending the schema
 
