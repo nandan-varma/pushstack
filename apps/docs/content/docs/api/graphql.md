@@ -223,6 +223,9 @@ and bodies use the REST caps, and a label list is at most 100. Milestones on
 issues, closing as a duplicate, and any mutation on a pull request are
 `UNPROCESSABLE` for now. Assignees that cannot be assigned are ignored, as on
 REST.
+`updateIssue` is not all-or-nothing: every field and id is checked before any
+write, but the title, labels and assignees are then saved one after another, so a
+store failure in a later step can leave an earlier one applied.
 
 The GraphQL overlap check accepts two enum types under one response name, as
 GitHub does for `Issue.state` and `PullRequest.state` in `gh issue view`.

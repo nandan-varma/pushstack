@@ -546,7 +546,7 @@ async function updateIssueMutation(
 			? await assigneeNamesOf(input.assigneeIds, ctx)
 			: undefined;
 	await updateIssueThreadFields(thread, ctx.caller.userId, {
-		...(input.title != null && { title: input.title }),
+		...(input.title != null && { title: input.title.trim() }),
 		...(input.body != null && { body: input.body }),
 		...(input.state != null && {
 			status: input.state === "OPEN" ? "open" : "closed",

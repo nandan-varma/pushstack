@@ -18,7 +18,7 @@ vi.mock(
 );
 
 const { createUsers } = await import("../../test/app-harness");
-const { call, mintToken, post } = await import("../../test/api-client");
+const { call, mintToken, patch, post } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { db } = await import("#/db");
 const { encodeNodeId } = await import("../graphql/node-id");
@@ -273,5 +273,124 @@ describe("addComment", () => {
 			{ id: issueNodeId, body: "z".repeat(65_537) },
 		);
 		expect(big.body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+	});
+});
+
+/** Each refusal guard on its own: removing any one fails its test. */
+describe("guards", () => {
+	const issueNodeOf = async (title: string) => {
+		const row = await db.query.issues.findFirst({ where: { title } });
+		if (!row) throw new Error(`no issue titled ${title}`);
+		return encodeNodeId("Issue", row.id);
+	};
+	const repoNodeOf = async (name: string) => {
+		const row = await db.query.repositories.findFirst({ where: { name } });
+		if (!row) throw new Error(`no repository ${name}`);
+		return encodeNodeId("Repository", row.id);
+	};
+
+	it("refuses every write to an archived repository", async () => {
+		await call("/user/repos", post(alice, { name: "frozen", auto_init: true }));
+		const frozen = await repoNodeOf("frozen");
+		const made = await graphql(alice, CREATE, {
+			input: { repositoryId: frozen, title: "Before archive" },
+		});
+		expect(made.body.errors).toBeUndefined();
+		const id = made.body.data.createIssue.issue.id;
+		const archived = await call(
+			"/repos/alice/frozen",
+			patch(alice, { archived: true }),
+		);
+		expect(archived.status).toBe(200);
+
+		const create = await graphql(alice, CREATE, {
+			input: { repositoryId: frozen, title: "After archive" },
+		});
+		expect(create.body.errors?.[0]?.type).toBe("FORBIDDEN");
+		const update = await graphql(
+			alice,
+			`mutation($id: ID!) { updateIssue(input: {id: $id, title: "Edit"}) { issue { title } } }`,
+			{ id },
+		);
+		expect(update.body.errors?.[0]?.type).toBe("FORBIDDEN");
+		const close = await graphql(
+			alice,
+			`mutation($id: ID!) { closeIssue(input: {issueId: $id}) { issue { state } } }`,
+			{ id },
+		);
+		expect(close.body.errors?.[0]?.type).toBe("FORBIDDEN");
+		const comment = await graphql(
+			alice,
+			`mutation($id: ID!) { addComment(input: {subjectId: $id, body: "Hi"}) { commentEdge { cursor } } }`,
+			{ id },
+		);
+		expect(comment.body.errors?.[0]?.type).toBe("FORBIDDEN");
+	});
+
+	it("caps the label list at 100 ids before resolving them", async () => {
+		const ids = Array.from({ length: 101 }, (_, i) =>
+			encodeNodeId("Label", 1_000_000 + i),
+		);
+		const { body } = await graphql(alice, CREATE, {
+			input: {
+				repositoryId: repoNodeId,
+				title: "Too many labels",
+				labelIds: ids,
+			},
+		});
+		expect(body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+	});
+
+	it("caps the assignee list at 10 ids before resolving them", async () => {
+		const ids = Array.from({ length: 11 }, (_, i) =>
+			encodeNodeId("User", `ghost-${i}`),
+		);
+		const { body } = await graphql(alice, CREATE, {
+			input: {
+				repositoryId: repoNodeId,
+				title: "Too many assignees",
+				assigneeIds: ids,
+			},
+		});
+		expect(body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+	});
+
+	it("lets only the author or a writer close or reopen an issue", async () => {
+		const made = await graphql(alice, CREATE, {
+			input: { repositoryId: repoNodeId, title: "Open for strangers" },
+		});
+		const id = made.body.data.createIssue.issue.id;
+		const close = await graphql(
+			bob,
+			`mutation($id: ID!) { closeIssue(input: {issueId: $id}) { issue { state } } }`,
+			{ id },
+		);
+		expect(close.body.errors?.[0]?.type).toBe("FORBIDDEN");
+		const reopen = await graphql(
+			bob,
+			`mutation($id: ID!) { reopenIssue(input: {issueId: $id}) { issue { state } } }`,
+			{ id },
+		);
+		expect(reopen.body.errors?.[0]?.type).toBe("FORBIDDEN");
+	});
+
+	it("keeps labels off a reader's own issue on update", async () => {
+		const id = await issueNodeOf("Reader issue");
+		const { body } = await graphql(
+			bob,
+			`mutation($id: ID!, $labels: [ID!]) { updateIssue(input: {id: $id, labelIds: $labels}) { issue { title } } }`,
+			{ id, labels: [bugLabelNodeId] },
+		);
+		expect(body.errors?.[0]?.type).toBe("FORBIDDEN");
+	});
+
+	it("keeps assignees off a reader's request", async () => {
+		const id = await issueNodeOf("Open for strangers");
+		const { body } = await graphql(
+			bob,
+			`mutation($id: ID!, $who: [ID!]!) { addAssigneesToAssignable(input: {assignableId: $id, assigneeIds: $who}) { assignable { __typename } } }`,
+			{ id, who: [encodeNodeId("User", users.bob.id)] },
+		);
+		expect(body.errors?.[0]?.type).toBe("FORBIDDEN");
 	});
 });
