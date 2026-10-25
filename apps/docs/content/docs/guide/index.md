@@ -235,7 +235,10 @@ become a Markdown issue body.
 and `assignees` query parameters override template defaults; separate multiple
 labels or usernames with commas. Changing labels and assignees requires write
 access; repository-configured template defaults also apply for other reporters.
-Missing template labels and ineligible assignees are ignored. Maintainers can
+Missing template labels and ineligible assignees are ignored. An unknown
+`template` name opens a blank issue, as on GitHub. A new issue is created
+all-or-nothing: if any step after the insert fails, the issue is removed, so a
+retry never duplicates it. Maintainers can
 still open blank issues when `blank_issues_enabled` is false. Invalid issue
 template files, including oversized files and invalid UTF-8, are omitted; invalid chooser configuration uses the defaults.
 Discovery reads at most 50 template files, each at most 65,536 bytes, with a
