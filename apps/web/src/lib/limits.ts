@@ -147,6 +147,11 @@ export const MAX_REPO_TOPIC_CHARS = 50;
 
 export const MAX_TOKEN_NAME_CHARS = 100;
 
+/** Device flow (`/login/device/code`): the client id a device code is bound to. */
+export const MAX_DEVICE_CLIENT_ID_CHARS = 100;
+/** Device flow: a user code typed on the approval page, before normalizing. */
+export const MAX_DEVICE_USER_CODE_CHARS = 64;
+
 /**
  * What one function response may carry: Vercel's buffered-response cap is
  * 4.5 MB; this leaves headroom for the rest of the payload and the framing.

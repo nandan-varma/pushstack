@@ -25,6 +25,7 @@ import { Route as AuthPassword_resetRouteImport } from './routes/_auth/password_
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as ApiGraphqlRouteImport } from './routes/api/graphql'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as LoginDeviceRouteImport } from './routes/login.device'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
 import { Route as OwnerNamePullsRouteImport } from './routes/$owner.$name._pulls'
@@ -38,6 +39,8 @@ import { Route as OwnerNameSetupRouteImport } from './routes/$owner.$name.setup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiDebugPerfRouteImport } from './routes/api/debug.perf'
 import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
+import { Route as LoginDeviceCodeRouteImport } from './routes/login.device.code'
+import { Route as LoginOauthAccess_tokenRouteImport } from './routes/login.oauth.access_token'
 import { Route as OwnerNamePullsPullsRouteImport } from './routes/$owner.$name._pulls.pulls'
 import { Route as OwnerNameArchiveSplatRouteImport } from './routes/$owner.$name.archive.$'
 import { Route as OwnerNameCommitShaRouteImport } from './routes/$owner.$name.commit.$sha'
@@ -145,6 +148,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginDeviceRoute = LoginDeviceRouteImport.update({
+  id: '/login/device',
+  path: '/login/device',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RepositoriesIndexRoute = RepositoriesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -207,6 +215,16 @@ const ApiDebugPerfRoute = ApiDebugPerfRouteImport.update({
 const ApiV3SplatRoute = ApiV3SplatRouteImport.update({
   id: '/api/v3/$',
   path: '/api/v3/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginDeviceCodeRoute = LoginDeviceCodeRouteImport.update({
+  id: '/code',
+  path: '/code',
+  getParentRoute: () => LoginDeviceRoute,
+} as any)
+const LoginOauthAccess_tokenRoute = LoginOauthAccess_tokenRouteImport.update({
+  id: '/login/oauth/access_token',
+  path: '/login/oauth/access_token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OwnerNamePullsPullsRoute = OwnerNamePullsPullsRouteImport.update({
@@ -374,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof AuthSignupRoute
   '/api/graphql': typeof ApiGraphqlRoute
   '/api/health': typeof ApiHealthRoute
+  '/login/device': typeof LoginDeviceRouteWithChildren
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/generate': typeof OwnerNameGenerateRoute
@@ -386,6 +405,8 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
+  '/login/device/code': typeof LoginDeviceCodeRoute
+  '/login/oauth/access_token': typeof LoginOauthAccess_tokenRoute
   '/$owner/$name/': typeof OwnerNameIndexRoute
   '/$owner/$name/pulls': typeof OwnerNamePullsPullsRoute
   '/$owner/$name/archive/$': typeof OwnerNameArchiveSplatRoute
@@ -428,6 +449,7 @@ export interface FileRoutesByTo {
   '/signup': typeof AuthSignupRoute
   '/api/graphql': typeof ApiGraphqlRoute
   '/api/health': typeof ApiHealthRoute
+  '/login/device': typeof LoginDeviceRouteWithChildren
   '/$owner': typeof OwnerIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/$owner/$name': typeof OwnerNameIndexRoute
@@ -441,6 +463,8 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
+  '/login/device/code': typeof LoginDeviceCodeRoute
+  '/login/oauth/access_token': typeof LoginOauthAccess_tokenRoute
   '/$owner/$name/pulls': typeof OwnerNamePullsPullsRoute
   '/$owner/$name/archive/$': typeof OwnerNameArchiveSplatRoute
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
@@ -486,6 +510,7 @@ export interface FileRoutesById {
   '/_auth/signup': typeof AuthSignupRoute
   '/api/graphql': typeof ApiGraphqlRoute
   '/api/health': typeof ApiHealthRoute
+  '/login/device': typeof LoginDeviceRouteWithChildren
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/_pulls': typeof OwnerNamePullsRouteWithChildren
@@ -499,6 +524,8 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
+  '/login/device/code': typeof LoginDeviceCodeRoute
+  '/login/oauth/access_token': typeof LoginOauthAccess_tokenRoute
   '/$owner/$name/': typeof OwnerNameIndexRoute
   '/$owner/$name/_pulls/pulls': typeof OwnerNamePullsPullsRoute
   '/$owner/$name/archive/$': typeof OwnerNameArchiveSplatRoute
@@ -545,6 +572,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/graphql'
     | '/api/health'
+    | '/login/device'
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/generate'
@@ -557,6 +585,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/debug/perf'
     | '/api/v3/$'
+    | '/login/device/code'
+    | '/login/oauth/access_token'
     | '/$owner/$name/'
     | '/$owner/$name/pulls'
     | '/$owner/$name/archive/$'
@@ -599,6 +629,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/api/graphql'
     | '/api/health'
+    | '/login/device'
     | '/$owner'
     | '/repositories'
     | '/$owner/$name'
@@ -612,6 +643,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/debug/perf'
     | '/api/v3/$'
+    | '/login/device/code'
+    | '/login/oauth/access_token'
     | '/$owner/$name/pulls'
     | '/$owner/$name/archive/$'
     | '/$owner/$name/commit/$sha'
@@ -656,6 +689,7 @@ export interface FileRouteTypes {
     | '/_auth/signup'
     | '/api/graphql'
     | '/api/health'
+    | '/login/device'
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/_pulls'
@@ -669,6 +703,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/debug/perf'
     | '/api/v3/$'
+    | '/login/device/code'
+    | '/login/oauth/access_token'
     | '/$owner/$name/'
     | '/$owner/$name/_pulls/pulls'
     | '/$owner/$name/archive/$'
@@ -712,10 +748,12 @@ export interface RootRouteChildren {
   OwnerNameRoute: typeof OwnerNameRouteWithChildren
   ApiGraphqlRoute: typeof ApiGraphqlRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  LoginDeviceRoute: typeof LoginDeviceRouteWithChildren
   OwnerIndexRoute: typeof OwnerIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiDebugPerfRoute: typeof ApiDebugPerfRoute
   ApiV3SplatRoute: typeof ApiV3SplatRoute
+  LoginOauthAccess_tokenRoute: typeof LoginOauthAccess_tokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -832,6 +870,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login/device': {
+      id: '/login/device'
+      path: '/login/device'
+      fullPath: '/login/device'
+      preLoaderRoute: typeof LoginDeviceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/repositories/': {
       id: '/repositories/'
       path: '/'
@@ -921,6 +966,20 @@ declare module '@tanstack/react-router' {
       path: '/api/v3/$'
       fullPath: '/api/v3/$'
       preLoaderRoute: typeof ApiV3SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login/device/code': {
+      id: '/login/device/code'
+      path: '/code'
+      fullPath: '/login/device/code'
+      preLoaderRoute: typeof LoginDeviceCodeRouteImport
+      parentRoute: typeof LoginDeviceRoute
+    }
+    '/login/oauth/access_token': {
+      id: '/login/oauth/access_token'
+      path: '/login/oauth/access_token'
+      fullPath: '/login/oauth/access_token'
+      preLoaderRoute: typeof LoginOauthAccess_tokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$owner/$name/_pulls/pulls': {
@@ -1244,6 +1303,18 @@ const OwnerNameRouteWithChildren = OwnerNameRoute._addFileChildren(
   OwnerNameRouteChildren,
 )
 
+interface LoginDeviceRouteChildren {
+  LoginDeviceCodeRoute: typeof LoginDeviceCodeRoute
+}
+
+const LoginDeviceRouteChildren: LoginDeviceRouteChildren = {
+  LoginDeviceCodeRoute: LoginDeviceCodeRoute,
+}
+
+const LoginDeviceRouteWithChildren = LoginDeviceRoute._addFileChildren(
+  LoginDeviceRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
@@ -1257,10 +1328,12 @@ const rootRouteChildren: RootRouteChildren = {
   OwnerNameRoute: OwnerNameRouteWithChildren,
   ApiGraphqlRoute: ApiGraphqlRoute,
   ApiHealthRoute: ApiHealthRoute,
+  LoginDeviceRoute: LoginDeviceRouteWithChildren,
   OwnerIndexRoute: OwnerIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiDebugPerfRoute: ApiDebugPerfRoute,
   ApiV3SplatRoute: ApiV3SplatRoute,
+  LoginOauthAccess_tokenRoute: LoginOauthAccess_tokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

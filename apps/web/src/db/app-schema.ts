@@ -15,6 +15,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
+import type { DeviceCodeStatus } from "#/lib/device-flow";
 import type { NotificationReason } from "#/lib/notifications";
 import type { ReactionContent } from "#/lib/reactions";
 import type { ReviewSide, ReviewState } from "#/lib/review-types";
@@ -887,6 +888,35 @@ export const tokens = pgTable(
 	},
 	(table) => ({
 		userIdx: index("token_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * Device-flow authorizations (`gh auth login`). Only the SHA-256 of the device
+ * code is stored; the user code is the short code typed on `/login/device`.
+ * A row is single-use: `consumedAt` is set when its token is issued.
+ */
+export const deviceCodes = pgTable(
+	"device_codes",
+	{
+		id: serial("id").primaryKey(),
+		deviceCodeHash: text("device_code_hash").notNull().unique(),
+		/** Canonical `XXXX-XXXX` form. */
+		userCode: text("user_code").notNull().unique(),
+		clientId: text("client_id").notNull(),
+		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
+		status: text("status").$type<DeviceCodeStatus>().notNull(),
+		/** Set on approval or denial. */
+		userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+		/** Seconds the client must wait between polls; grows on slow_down. */
+		interval: integer("interval").notNull(),
+		lastPolledAt: timestamptz("last_polled_at"),
+		expiresAt: timestamptz("expires_at").notNull(),
+		consumedAt: timestamptz("consumed_at"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		expiresIdx: index("device_code_expires_idx").on(table.expiresAt),
 	}),
 );
 
