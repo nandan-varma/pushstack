@@ -231,15 +231,6 @@ export async function draftReleasesForDeletedTag(
 		);
 }
 
-/** Tag names with a published release (for the tags list). */
-export async function releaseTagNames(repoId: number): Promise<Set<string>> {
-	const rows = await db
-		.selectDistinct({ tagName: releases.tagName })
-		.from(releases)
-		.where(and(eq(releases.repoId, repoId), eq(releases.draft, false)));
-	return new Set(rows.map((row) => row.tagName));
-}
-
 // Assets ----------------------------------------------------------------
 
 export function findAsset(repoId: number, assetId: number) {
