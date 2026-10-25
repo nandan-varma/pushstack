@@ -14,7 +14,10 @@ export const SLOW_DOWN_STEP_SECONDS = 5;
 
 export type DeviceCodeStatus = "pending" | "approved" | "denied";
 
-/** Error codes of GitHub's device-flow token endpoint, verbatim. */
+/**
+ * Error codes of GitHub's token endpoint, verbatim: the device grant's and the
+ * authorization-code grant's (`bad_verification_code`, `redirect_uri_mismatch`).
+ */
 export type DeviceFlowError =
 	| "authorization_pending"
 	| "slow_down"
@@ -22,7 +25,9 @@ export type DeviceFlowError =
 	| "access_denied"
 	| "incorrect_device_code"
 	| "incorrect_client_credentials"
-	| "unsupported_grant_type";
+	| "unsupported_grant_type"
+	| "bad_verification_code"
+	| "redirect_uri_mismatch";
 
 /** Consonants only, as GitHub uses, so a user code never spells a word. */
 const USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ";
@@ -110,6 +115,10 @@ const ERROR_DESCRIPTIONS: Record<DeviceFlowError, string> = {
 		"The client_id and device_code do not match, or the client_id is missing.",
 	unsupported_grant_type:
 		"The grant_type must be urn:ietf:params:oauth:grant-type:device_code.",
+	bad_verification_code:
+		"The code passed is incorrect or expired, or was already used.",
+	redirect_uri_mismatch:
+		"The redirect_uri passed does not match the one the app registered.",
 };
 
 /** A device-flow error body, shaped like GitHub's (their status is 200). */

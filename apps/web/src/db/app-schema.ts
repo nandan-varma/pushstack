@@ -884,10 +884,63 @@ export const tokens = pgTable(
 		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
 		lastUsedAt: timestamptz("last_used_at"),
 		expiresAt: timestamptz("expires_at"),
+		/** Set on tokens issued through an OAuth app's authorization code flow. */
+		oauthAppId: integer("oauth_app_id").references(() => oauthApps.id, {
+			onDelete: "cascade",
+		}),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 	},
 	(table) => ({
 		userIdx: index("token_user_idx").on(table.userId),
+		oauthAppIdx: index("token_oauth_app_idx").on(table.oauthAppId),
+	}),
+);
+
+/**
+ * OAuth apps a user registered at /settings/developers. The client secret is
+ * shown once and only its SHA-256 is stored, like a token.
+ */
+export const oauthApps = pgTable(
+	"oauth_apps",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		/** The one redirect URI an authorization may send the user back to. */
+		callbackUrl: text("callback_url").notNull(),
+		clientId: text("client_id").notNull().unique(),
+		clientSecretHash: text("client_secret_hash").notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		userIdx: index("oauth_app_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * Authorization codes from /login/oauth/authorize, exchanged once at
+ * /login/oauth/access_token. Only the SHA-256 of the code is stored.
+ */
+export const oauthCodes = pgTable(
+	"oauth_codes",
+	{
+		codeHash: text("code_hash").primaryKey(),
+		appId: integer("app_id")
+			.notNull()
+			.references(() => oauthApps.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		redirectUri: text("redirect_uri").notNull(),
+		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
+		expiresAt: timestamptz("expires_at").notNull(),
+		consumedAt: timestamptz("consumed_at"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		expiresIdx: index("oauth_code_expires_idx").on(table.expiresAt),
 	}),
 );
 

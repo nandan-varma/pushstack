@@ -153,6 +153,21 @@ export const MAX_TOKEN_NAME_CHARS = 100;
 export const MAX_DEVICE_CLIENT_ID_CHARS = 100;
 /** Device flow: a user code typed on the approval page, before normalizing. */
 export const MAX_DEVICE_USER_CODE_CHARS = 64;
+/** OAuth apps (/settings/developers): the name a user gives an app. */
+export const MAX_OAUTH_APP_NAME_CHARS = 100;
+/** OAuth apps: registrations one user may hold at once. */
+export const MAX_OAUTH_APPS_PER_USER = 100;
+/** OAuth authorization: the `scope` a client asks for (GitHub scope names). */
+export const MAX_OAUTH_SCOPE_CHARS = 1000;
+/** OAuth apps: the registered redirect URI (also the longest one accepted). */
+export const MAX_OAUTH_CALLBACK_URL_CHARS = 2048;
+/** OAuth authorization: the `state` a client sends, echoed back unchanged. */
+export const MAX_OAUTH_STATE_CHARS = 1000;
+/** OAuth token exchange: the client id and secret a client presents. */
+export const MAX_OAUTH_CLIENT_ID_CHARS = 100;
+export const MAX_OAUTH_CLIENT_SECRET_CHARS = 100;
+/** OAuth token exchange: the authorization code a client presents. */
+export const MAX_OAUTH_CODE_CHARS = 100;
 
 /**
  * What one function response may carry: Vercel's buffered-response cap is
