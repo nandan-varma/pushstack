@@ -58,8 +58,9 @@ marks it a **template repository**. Others then see **Use this template** and
 get a copy of its files as one `Initial commit`. **Danger zone** archives the
 repository, transfers it to another user, or deletes it (type the name to
 confirm). An archived repository is read-only for everyone, owner included:
-pushes are refused with `Repository was archived so is read-only.`, and issues,
-comments, pull requests, labels and settings are locked until it is unarchived.
+pushes are refused with `Repository was archived so is read-only.`, and
+issues, comments, pull requests, labels and settings are locked until it is
+unarchived.
 A transfer is immediate (there is no invitation to accept) and the old URL does
 not redirect. These settings are also `PATCH`/`DELETE /repos/{owner}/{repo}`,
 `PUT /repos/{owner}/{repo}/topics`, `POST …/transfer` and `POST …/generate` in
@@ -194,9 +195,11 @@ Relative links and images resolve against the file that contains them, so
 
 ## Issues and pull requests
 
-Opening an issue, commenting, or opening a pull request all require **write
-access** to the repository — the same permission that lets you push. Read-only
-collaborators can browse and clone but not comment.
+Anyone who can read a repository — a signed-in user, collaborator or not, and
+read-only collaborators included — can **open an issue** and **comment** on
+issues and pull requests, as on GitHub. Opening a **pull request** needs
+**write access**, the same permission that lets you push. Labels, assignees,
+and merging need write access too (see below).
 
 Issues and pull requests share one number sequence per repository (`#1`, `#2`,
 …), the same way GitHub's do. In any markdown body:
@@ -250,13 +253,13 @@ username, with one of three roles:
 
 | Role | Can do |
 | --- | --- |
-| `read` | Clone, fetch, browse files, commits, issues and pull requests. |
-| `write` | Everything `read` can, plus push, comment, open issues and pull requests, and merge. |
-| `admin` | Everything `write` can, plus view the collaborator list. |
+| `read` | Clone, fetch, browse files, commits, issues and pull requests; open issues; comment on issues and pull requests, and submit comment-only reviews. |
+| `write` | Everything `read` can, plus push, open pull requests, label and assign, approve or request changes on reviews, edit or delete others' comments, and merge. |
+| `admin` | Everything `write` can, plus merge past blocking reviews, and view the collaborator list. |
 | (owner) | Everything, plus repository settings, collaborators, repack and delete. |
 
-Only the **owner** changes settings, collaborators and deletion — `admin` is
-currently limited to seeing who the collaborators are. Removing a collaborator
+Only the **owner** changes settings, collaborators and deletion — `admin` can
+see who the collaborators are but not change them. Removing a collaborator
 takes effect immediately.
 
 Writers can assign issues and pull requests to the repository owner or a
