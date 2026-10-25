@@ -77,6 +77,10 @@
 				"args": ["after", "before", "first", "last"]
 			},
 			{
+				"name": "projectItems",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
 				"name": "assignees",
 				"args": ["after", "before", "first", "last"]
 			},
@@ -157,6 +161,20 @@
 	"MergeableState": "*",
 	"MergeStateStatus": "*",
 	"PullRequestReviewDecision": "*",
+	"ProjectV2ItemConnection": ["nodes", "pageInfo", "totalCount"],
+	"ProjectV2Item": {
+		"$implements": [],
+		"fields": ["id", "project", "fieldValueByName"]
+	},
+	"ProjectV2": {
+		"$implements": [],
+		"fields": ["id", "title"]
+	},
+	"ProjectV2ItemFieldValue": ["ProjectV2ItemFieldSingleSelectValue"],
+	"ProjectV2ItemFieldSingleSelectValue": {
+		"$implements": [],
+		"fields": ["optionId", "name"]
+	},
 	"PullRequestCommit": {
 		"$implements": [],
 		"fields": ["commit"]

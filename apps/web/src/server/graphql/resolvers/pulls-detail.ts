@@ -262,6 +262,10 @@ export const pullDetailResolvers = {
 		if (!branch) throw new Error("Pull request head branch missing");
 		return branch.commit;
 	},
+	// Projects (v2) are not served, so a pull request is in no project: an empty
+	// connection, which is what GitHub answers for one in none.
+	projectItems: (_node: PullRequestNode, args: ConnectionArgs) =>
+		offsetConnection(args, 0, async () => []),
 	// No branch protection exists, so no review is required and REVIEW_REQUIRED
 	// never applies: the latest opinionated review of each author decides.
 	reviewDecision: async (

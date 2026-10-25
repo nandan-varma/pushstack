@@ -1778,6 +1778,8 @@ export type PullRequest = Node & UniformResourceLocatable & {
   reviews?: Maybe<PullRequestReviewConnection>;
   /** A list of latest reviews per user associated with the pull request that are not also pending review. */
   latestReviews?: Maybe<PullRequestReviewConnection>;
+  /** List of project items associated with this pull request. */
+  projectItems?: Maybe<ProjectV2ItemConnection>;
   /** A list of Users assigned to this object. */
   assignees: UserConnection;
   /** A list of labels associated with the object. */
@@ -1820,6 +1822,15 @@ export type PullRequestReviewsArgs = {
 
 /** A repository pull request. */
 export type PullRequestLatestReviewsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestProjectItemsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -2174,6 +2185,55 @@ export type PullRequestReviewDecision =
   | 'CHANGES_REQUESTED'
   /** A review is required before the pull request can be merged. */
   | 'REVIEW_REQUIRED';
+
+/** The connection type for ProjectV2Item. */
+export type ProjectV2ItemConnection = {
+  __typename?: 'ProjectV2ItemConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ProjectV2Item>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An item within a Project. */
+export type ProjectV2Item = {
+  __typename?: 'ProjectV2Item';
+  /** The Node ID of the ProjectV2Item object */
+  id: Scalars['ID']['output'];
+  /** The project that contains this item. */
+  project: ProjectV2;
+  /** The field value of the first project field which matches the 'name' argument that is set on the item. */
+  fieldValueByName?: Maybe<ProjectV2ItemFieldValue>;
+};
+
+
+/** An item within a Project. */
+export type ProjectV2ItemFieldValueByNameArgs = {
+  name: Scalars['String']['input'];
+};
+
+/** New projects that manage issues, pull requests and drafts using tables and boards. */
+export type ProjectV2 = {
+  __typename?: 'ProjectV2';
+  /** The Node ID of the ProjectV2 object */
+  id: Scalars['ID']['output'];
+  /** The project's name. */
+  title: Scalars['String']['output'];
+};
+
+/** Project field values */
+export type ProjectV2ItemFieldValue = ProjectV2ItemFieldSingleSelectValue;
+
+/** The value of a single select field in a Project item. */
+export type ProjectV2ItemFieldSingleSelectValue = {
+  __typename?: 'ProjectV2ItemFieldSingleSelectValue';
+  /** The id of the selected single select option. */
+  optionId?: Maybe<Scalars['String']['output']>;
+  /** The name of the selected single select option. */
+  name?: Maybe<Scalars['String']['output']>;
+};
 
 /** Represents a Git commit part of a pull request. */
 export type PullRequestCommit = {
@@ -2722,6 +2782,7 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
     | ( IssueNode )
     | ( PullRequestNode )
   ;
+  ProjectV2ItemFieldValue: ( ProjectV2ItemFieldSingleSelectValue );
   RequestedReviewer:
     | ( Bot )
     | ( Team )
@@ -2888,6 +2949,11 @@ export type ResolversTypes = {
   MergeableState: MergeableState;
   MergeStateStatus: MergeStateStatus;
   PullRequestReviewDecision: PullRequestReviewDecision;
+  ProjectV2ItemConnection: ResolverTypeWrapper<Omit<ProjectV2ItemConnection, 'nodes'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>> }>;
+  ProjectV2Item: ResolverTypeWrapper<Omit<ProjectV2Item, 'project' | 'fieldValueByName'> & { project: ResolversTypes['ProjectV2'], fieldValueByName?: Maybe<ResolversTypes['ProjectV2ItemFieldValue']> }>;
+  ProjectV2: ResolverTypeWrapper<ProjectV2>;
+  ProjectV2ItemFieldValue: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['ProjectV2ItemFieldValue']>;
+  ProjectV2ItemFieldSingleSelectValue: ResolverTypeWrapper<ProjectV2ItemFieldSingleSelectValue>;
   PullRequestCommit: ResolverTypeWrapper<Omit<PullRequestCommit, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   PullRequestCommitConnection: ResolverTypeWrapper<Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>> }>;
   PullRequestCommitEdge: ResolverTypeWrapper<Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestCommit']> }>;
@@ -3031,6 +3097,11 @@ export type ResolversParentTypes = {
   AddPullRequestReviewInput: AddPullRequestReviewInput;
   AddPullRequestReviewPayload: Omit<AddPullRequestReviewPayload, 'pullRequestReview'> & { pullRequestReview?: Maybe<ResolversParentTypes['PullRequestReview']> };
   AutoMergeRequest: Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversParentTypes['Actor']> };
+  ProjectV2ItemConnection: Omit<ProjectV2ItemConnection, 'nodes'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2Item']>>> };
+  ProjectV2Item: Omit<ProjectV2Item, 'project' | 'fieldValueByName'> & { project: ResolversParentTypes['ProjectV2'], fieldValueByName?: Maybe<ResolversParentTypes['ProjectV2ItemFieldValue']> };
+  ProjectV2: ProjectV2;
+  ProjectV2ItemFieldValue: ResolversUnionTypes<ResolversParentTypes>['ProjectV2ItemFieldValue'];
+  ProjectV2ItemFieldSingleSelectValue: ProjectV2ItemFieldSingleSelectValue;
   PullRequestCommit: Omit<PullRequestCommit, 'commit'> & { commit: ResolversParentTypes['Commit'] };
   PullRequestCommitConnection: Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommitEdge']>>> };
   PullRequestCommitEdge: Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestCommit']> };
@@ -3552,6 +3623,7 @@ export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extend
   reviewRequests?: Resolver<Maybe<ResolversTypes['ReviewRequestConnection']>, ParentType, ContextType, Partial<PullRequestReviewRequestsArgs>>;
   reviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestReviewsArgs>>;
   latestReviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestLatestReviewsArgs>>;
+  projectItems?: Resolver<Maybe<ResolversTypes['ProjectV2ItemConnection']>, ParentType, ContextType, Partial<PullRequestProjectItemsArgs>>;
   assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<PullRequestAssigneesArgs>>;
   labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<PullRequestLabelsArgs>>;
   milestone?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
@@ -3621,6 +3693,33 @@ export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType e
   mergeMethod?: Resolver<ResolversTypes['PullRequestMergeMethod'], ParentType, ContextType>;
   enabledAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   enabledBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+};
+
+export type ProjectV2ItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemConnection'] = ResolversParentTypes['ProjectV2ItemConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ProjectV2ItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Item'] = ResolversParentTypes['ProjectV2Item']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  project?: Resolver<ResolversTypes['ProjectV2'], ParentType, ContextType>;
+  fieldValueByName?: Resolver<Maybe<ResolversTypes['ProjectV2ItemFieldValue']>, ParentType, ContextType, RequireFields<ProjectV2ItemFieldValueByNameArgs, 'name'>>;
+};
+
+export type ProjectV2Resolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2'] = ResolversParentTypes['ProjectV2']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValue'] = ResolversParentTypes['ProjectV2ItemFieldValue']> = {
+  __resolveType: TypeResolveFn<'ProjectV2ItemFieldSingleSelectValue', ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldSingleSelectValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue'] = ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue']> = {
+  optionId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type PullRequestCommitResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommit'] = ResolversParentTypes['PullRequestCommit']> = {
@@ -3896,6 +3995,11 @@ export type Resolvers<ContextType = GraphQLContext> = {
   MergePullRequestPayload?: MergePullRequestPayloadResolvers<ContextType>;
   AddPullRequestReviewPayload?: AddPullRequestReviewPayloadResolvers<ContextType>;
   AutoMergeRequest?: AutoMergeRequestResolvers<ContextType>;
+  ProjectV2ItemConnection?: ProjectV2ItemConnectionResolvers<ContextType>;
+  ProjectV2Item?: ProjectV2ItemResolvers<ContextType>;
+  ProjectV2?: ProjectV2Resolvers<ContextType>;
+  ProjectV2ItemFieldValue?: ProjectV2ItemFieldValueResolvers<ContextType>;
+  ProjectV2ItemFieldSingleSelectValue?: ProjectV2ItemFieldSingleSelectValueResolvers<ContextType>;
   PullRequestCommit?: PullRequestCommitResolvers<ContextType>;
   PullRequestCommitConnection?: PullRequestCommitConnectionResolvers<ContextType>;
   PullRequestCommitEdge?: PullRequestCommitEdgeResolvers<ContextType>;

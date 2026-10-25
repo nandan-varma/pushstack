@@ -42,7 +42,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh label list` | GraphQL `Repository.labels` served; fixture-tested, not yet measured with real gh |
 | `gh issue create`, `gh issue close`, `gh issue reopen` | GraphQL mutations served; fixture-tested for `issue create`, not yet measured with real gh |
 | `gh issue edit`, `gh label create/edit/delete` | Mutations served, not yet measured with real gh |
-| `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested, not yet measured with real gh |
+| `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; `gh pr view` also reads `projectItems` (always empty); fixture-tested, not yet measured with real gh |
 | `gh pr status` | GraphQL `Query.search` (repository-scoped) and the PR status fields served; fixture-tested, not yet measured with real gh |
 
 ## Authentication and scopes
@@ -159,7 +159,9 @@ is not served; `mergeStateStatus` is `DRAFT` for a draft and `UNKNOWN` otherwise
 `latestReviews` is each author's latest submitted review; `reviewDecision` is
 `CHANGES_REQUESTED` if any author's latest approving-or-requesting review requests
 changes, else `APPROVED` if one approves, else null. Without branch protection
-nothing requires a review, so `REVIEW_REQUIRED` is never returned. A `labels` filter takes at most 100 names
+nothing requires a review, so `REVIEW_REQUIRED` is never returned.
+`projectItems` is always empty: Projects (v2) are not served, so a pull request
+is in no project. `gh pr view` requests the field and fails without it. A `labels` filter takes at most 100 names
 (`UNPROCESSABLE` beyond that). `CLOSED` excludes merged pull requests; `MERGED`
 selects them. Default `gh pr list` and `gh pr view` documents are validated and
 executed against the real stores in behavior tests. There are no cross-

@@ -152,6 +152,19 @@ describe("pull request status fields", () => {
 		expect(pr.latestReviews.totalCount).toBe(2);
 	});
 
+	it("serves no project items: an empty connection, not an error", async () => {
+		const { body } = await graphql(
+			alice,
+			`query { repository(owner:"alice",name:"proj") { pullRequest(number:1) { projectItems(first:100) { totalCount nodes { id } pageInfo { hasNextPage endCursor } } } } }`,
+		);
+		expect(body.errors).toBeUndefined();
+		expect(body.data.repository.pullRequest.projectItems).toEqual({
+			totalCount: 0,
+			nodes: [],
+			pageInfo: { hasNextPage: false, endCursor: null },
+		});
+	});
+
 	it("pages latestReviews and bounds its skip", async () => {
 		const { body } = await graphql(
 			alice,
