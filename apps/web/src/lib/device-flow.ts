@@ -4,6 +4,7 @@
  * polling state machine live in server/device-flow-store.ts.
  */
 import { randomBytes } from "./bytes";
+import { MAX_DEVICE_REQUEST_BYTES } from "./limits";
 import type { TokenScope } from "./token-scopes";
 
 export const DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
@@ -139,11 +140,35 @@ export function deviceFlowError(
 	);
 }
 
-/** The parameters of a form or JSON request body, as GitHub reads them. */
+/** Thrown by {@link readRequestParams} when a body exceeds its cap. */
+export class RequestBodyTooLargeError extends Error {
+	constructor() {
+		super("Request body too large");
+	}
+}
+
+/** The 413 a device endpoint answers when {@link readRequestParams} refuses a body. */
+export const requestBodyTooLarge = (): Response =>
+	new Response("Request body too large\n", {
+		status: 413,
+		headers: { "content-type": "text/plain; charset=utf-8" },
+	});
+
+/**
+ * The parameters of a form or JSON request body, as GitHub reads them. The
+ * body is capped at {@link MAX_DEVICE_REQUEST_BYTES}, both as declared and as
+ * streamed (a chunked body declares no length), so an oversized request is
+ * refused rather than parsed as a truncated or empty one.
+ */
 export async function readRequestParams(
 	request: Request,
 ): Promise<URLSearchParams> {
-	const text = await request.text();
+	const declared = request.headers.get("content-length");
+	if (declared !== null && Number(declared) > MAX_DEVICE_REQUEST_BYTES) {
+		throw new RequestBodyTooLargeError();
+	}
+	const bytes = await readCappedBytes(request, MAX_DEVICE_REQUEST_BYTES);
+	const text = new TextDecoder().decode(bytes);
 	if (request.headers.get("content-type")?.includes("application/json")) {
 		let parsed: unknown;
 		try {
@@ -162,4 +187,31 @@ export async function readRequestParams(
 		return params;
 	}
 	return new URLSearchParams(text);
+}
+
+async function readCappedBytes(
+	request: Request,
+	cap: number,
+): Promise<Uint8Array> {
+	if (!request.body) return new Uint8Array(0);
+	const reader = request.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.byteLength;
+		if (total > cap) {
+			await reader.cancel();
+			throw new RequestBodyTooLargeError();
+		}
+		chunks.push(value);
+	}
+	const bytes = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return bytes;
 }

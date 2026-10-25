@@ -13,11 +13,12 @@ vi.mock("#/db", async () => ({
 }));
 
 const { db } = await import("#/db");
-const { deviceCodes, tokens } = await import("#/db/app-schema");
+const { deviceCodes, rateLimits, tokens } = await import("#/db/app-schema");
 const { user } = await import("#/db/schema");
 const { sha256Hex } = await import("#/lib/bytes");
 const { DEVICE_GRANT_TYPE } = await import("#/lib/device-flow");
 const store = await import("../device-flow-store");
+const { RATE_LIMIT_DEVICE_CODE } = await import("../config");
 const { authenticateToken } = await import("../git-auth");
 const { Route: CodeRoute } = await import("../../routes/login.device.code");
 const { Route: TokenRoute } = await import(
@@ -97,6 +98,7 @@ describe("device flow", () => {
 	beforeEach(async () => {
 		await db.delete(tokens);
 		await db.delete(deviceCodes);
+		await db.delete(rateLimits);
 		await db.delete(user);
 		const now = new Date();
 		await db.insert(user).values({
@@ -288,5 +290,62 @@ describe("device flow", () => {
 			approve: false,
 		});
 		expect(await store.findPendingDeviceCode(grant.user_code)).toBeNull();
+	});
+
+	it("computes a slow_down from the stored interval, not from the row this poll read", async () => {
+		const grant = await startLogin();
+		await pollOnce(grant.device_code); // stamps the poll, so the next is too soon
+		const deviceCodeHash = await sha256Hex(grant.device_code);
+		const [stale] = await db
+			.select()
+			.from(deviceCodes)
+			.where(eq(deviceCodes.deviceCodeHash, deviceCodeHash));
+
+		// A racing poll raises the interval to 20 after this poll's read.
+		await db
+			.update(deviceCodes)
+			.set({ interval: 20 })
+			.where(eq(deviceCodes.deviceCodeHash, deviceCodeHash));
+		const read = vi
+			.spyOn(db.query.deviceCodes, "findFirst")
+			.mockResolvedValueOnce(stale);
+		const outcome = await store.pollDeviceCode({
+			clientId: "gh-cli",
+			deviceCode: grant.device_code,
+		});
+		read.mockRestore();
+
+		expect(outcome).toEqual({ ok: false, error: "slow_down", interval: 25 });
+		const [row] = await db
+			.select()
+			.from(deviceCodes)
+			.where(eq(deviceCodes.deviceCodeHash, deviceCodeHash));
+		expect(row?.interval).toBe(25);
+	});
+
+	it("refuses a device-code start past the per-IP limit with 429 and Retry-After", async () => {
+		for (let i = 0; i < RATE_LIMIT_DEVICE_CODE; i++) {
+			expect((await startLogin()).device_code).toMatch(/^[0-9a-f]{40}$/);
+		}
+		const refused = await startCode(
+			formRequest(
+				"https://git.test/login/device/code",
+				{ client_id: "gh-cli", scope: "repo" },
+				"application/json",
+			),
+		);
+		expect(refused.status).toBe(429);
+		expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
+	});
+
+	it("answers 413 to a device-flow body over the cap", async () => {
+		const response = await startCode(
+			formRequest("https://git.test/login/device/code", {
+				client_id: "gh-cli",
+				pad: "x".repeat(9 * 1024),
+			}),
+		);
+		expect(response.status).toBe(413);
+		expect(await startLogin()).toBeTruthy();
 	});
 });

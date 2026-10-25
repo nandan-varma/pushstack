@@ -1,8 +1,32 @@
 import { createServerFn } from "@tanstack/react-start";
+import {
+	getRequest,
+	setResponseHeader,
+	setResponseStatus,
+} from "@tanstack/react-start/server";
 import { z } from "zod";
 import { MAX_DEVICE_USER_CODE_CHARS } from "#/lib/limits";
-import { decideDeviceCode, findPendingDeviceCode } from "./device-flow-store";
+import {
+	decideDeviceCode,
+	findPendingDeviceCode,
+	userCodeAttemptRefusal,
+} from "./device-flow-store";
 import { getCurrentUser } from "./session";
+
+/**
+ * Counts one user-code attempt for the signed-in user. A refusal is a real
+ * 429 with Retry-After; the message is plain text, because this is the
+ * approval page's own server function, not a GitHub API response.
+ */
+async function meterUserCodeAttempt(userId: string): Promise<void> {
+	const retryAfter = await userCodeAttemptRefusal(getRequest(), userId);
+	if (retryAfter === null) return;
+	setResponseStatus(429);
+	setResponseHeader("Retry-After", String(retryAfter));
+	throw new Error(
+		`Too many code attempts. Try again in ${retryAfter} seconds.`,
+	);
+}
 
 /**
  * What the `/login/device` approval page needs: the user code's pending
@@ -12,7 +36,8 @@ import { getCurrentUser } from "./session";
 export const getDeviceAuthorization = createServerFn({ method: "GET" })
 	.validator(z.object({ userCode: z.string().max(MAX_DEVICE_USER_CODE_CHARS) }))
 	.handler(async ({ data }) => {
-		await getCurrentUser();
+		const user = await getCurrentUser();
+		await meterUserCodeAttempt(user.id);
 		return findPendingDeviceCode(data.userCode);
 	});
 
@@ -26,6 +51,7 @@ export const decideDeviceAuthorization = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data }) => {
 		const user = await getCurrentUser();
+		await meterUserCodeAttempt(user.id);
 		const decided = await decideDeviceCode({
 			userCode: data.userCode,
 			userId: user.id,

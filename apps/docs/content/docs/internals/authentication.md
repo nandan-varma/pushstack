@@ -110,6 +110,26 @@ Responses are form-encoded unless the client sends `Accept: application/json`,
 which gh does. Codes older than their 900 seconds are deleted when the next
 code is created, so unauthenticated starts cannot grow the table.
 
+Limits (`rate-limit.ts`, the same counters as `/api/v3`, knobs in `config.ts`):
+
+- Starts (`/login/device/code`) are counted per client IP before the body is
+  read (`RATE_LIMIT_DEVICE_CODE`, 50 per window). Over the limit: `429` with
+  `Retry-After`.
+- Every user code typed on the approval page (a lookup or a decision) is
+  counted per signed-in user and per client IP (`RATE_LIMIT_DEVICE_USER_CODE_USER`,
+  20; `RATE_LIMIT_DEVICE_USER_CODE_IP`, 60). Over either limit the call answers
+  `429` with `Retry-After`. The approval page's server functions are plain
+  text, not GitHub's API error body. This bucket fails **closed**: if the
+  counter cannot be read, the attempt is refused with a 60 second retry, since
+  brute force is the threat and the page needs the database anyway. Starts
+  (above) fail **open** instead, because a start guesses nothing.
+- Polls are gated by one conditional `UPDATE` (a poll is admitted only when the
+  previous one is at least `interval` old). A too-soon poll is `slow_down`, and
+  its interval step is computed in SQL from the stored interval, so concurrent
+  polls each count.
+- Bodies on the device endpoints are capped at `MAX_DEVICE_REQUEST_BYTES`
+  (`lib/limits.ts`), declared or streamed; larger bodies get `413`.
+
 ## OAuth apps and the authorization-code flow
 
 A user registers an app at `/settings/developers` (`routes/settings_.developers.tsx`,

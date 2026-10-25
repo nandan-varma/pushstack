@@ -153,6 +153,8 @@ export const MAX_TOKEN_NAME_CHARS = 100;
 export const MAX_DEVICE_CLIENT_ID_CHARS = 100;
 /** Device flow: a user code typed on the approval page, before normalizing. */
 export const MAX_DEVICE_USER_CODE_CHARS = 64;
+/** Device flow: a form or JSON body on the device endpoints (a few short fields). */
+export const MAX_DEVICE_REQUEST_BYTES = 8 * 1024;
 /** OAuth apps (/settings/developers): the name a user gives an app. */
 export const MAX_OAUTH_APP_NAME_CHARS = 100;
 /** OAuth apps: registrations one user may hold at once. */

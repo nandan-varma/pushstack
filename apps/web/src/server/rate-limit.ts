@@ -152,7 +152,9 @@ export type RateLimitResource =
 	| "git-write"
 	| "auth-failure"
 	| "oauth-token-ip"
-	| "oauth-token-client";
+	| "oauth-token-client"
+	| "device-code"
+	| "device-user-code";
 
 export interface RateStatus {
 	resource: RateLimitResource;
@@ -269,6 +271,12 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 			return config.RATE_LIMIT_OAUTH_TOKEN_IP;
 		case "oauth-token-client":
 			return config.RATE_LIMIT_OAUTH_TOKEN_CLIENT;
+		case "device-code":
+			return config.RATE_LIMIT_DEVICE_CODE;
+		case "device-user-code":
+			return kind === "user"
+				? config.RATE_LIMIT_DEVICE_USER_CODE_USER
+				: config.RATE_LIMIT_DEVICE_USER_CODE_IP;
 	}
 }
 

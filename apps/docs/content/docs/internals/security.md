@@ -211,6 +211,11 @@ refused before the token is hashed. That pre-auth check reads the database only
 for IPs that failed recently on the same instance (an in-memory hint), so clean
 requests stay at one limiter round trip. The client IP is read from
 `x-vercel-forwarded-for`, then `x-real-ip`, then the leftmost `x-forwarded-for`.
+Vercel documents `x-forwarded-for` as overwritten at its edge, so the client
+cannot choose the value, and documents the other two as identical to it
+([request headers](https://vercel.com/docs/headers/request-headers)). That holds
+only when no proxy sits in front of Vercel: a proxy that forwards its own
+headers can change what arrives, and the fallback order does not detect that.
 Pruning is per key family (`gh:` by the configured window, Better Auth's by its
 own), so neither deletes the other's live buckets. Auth endpoints beyond Better
 Auth's own limiter are not covered. Tests: `api-rate-limit.test.ts`.

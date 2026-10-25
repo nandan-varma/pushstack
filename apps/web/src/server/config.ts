@@ -63,3 +63,15 @@ export const RATE_LIMIT_OAUTH_TOKEN_CLIENT = positiveInt(
 	"RATE_LIMIT_OAUTH_TOKEN_CLIENT",
 	1000,
 );
+/** Device flow: device codes created per client IP (`/login/device/code`). */
+export const RATE_LIMIT_DEVICE_CODE = positiveInt("RATE_LIMIT_DEVICE_CODE", 50);
+/** Device flow: user codes typed on the approval page, per signed-in user. */
+export const RATE_LIMIT_DEVICE_USER_CODE_USER = positiveInt(
+	"RATE_LIMIT_DEVICE_USER_CODE_USER",
+	20,
+);
+/** Device flow: user codes typed on the approval page, per client IP. */
+export const RATE_LIMIT_DEVICE_USER_CODE_IP = positiveInt(
+	"RATE_LIMIT_DEVICE_USER_CODE_IP",
+	60,
+);

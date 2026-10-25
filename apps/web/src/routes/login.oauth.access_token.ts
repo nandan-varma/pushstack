@@ -4,7 +4,9 @@ import {
 	deviceFlowError,
 	gitHubScopeNames,
 	oauthResponse,
+	RequestBodyTooLargeError,
 	readRequestParams,
+	requestBodyTooLarge,
 } from "#/lib/device-flow";
 import {
 	MAX_OAUTH_CALLBACK_URL_CHARS,
@@ -28,7 +30,15 @@ export const Route = createFileRoute("/login/oauth/access_token")({
 		handlers: {
 			POST: async ({ request }) => {
 				const accept = request.headers.get("accept");
-				const params = await readRequestParams(request);
+				let params: URLSearchParams;
+				try {
+					params = await readRequestParams(request);
+				} catch (error) {
+					if (error instanceof RequestBodyTooLargeError) {
+						return requestBodyTooLarge();
+					}
+					throw error;
+				}
 				if (params.get("grant_type") === AUTHORIZATION_CODE_GRANT_TYPE) {
 					return exchangeCode(request, params, accept);
 				}
