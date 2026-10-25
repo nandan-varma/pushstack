@@ -19,7 +19,10 @@
 	"Mutation": [
 		"createPullRequest",
 		"markPullRequestReadyForReview",
-		"convertPullRequestToDraft"
+		"convertPullRequestToDraft",
+		"closePullRequest",
+		"reopenPullRequest",
+		"updatePullRequest"
 	],
 	"PullRequest": {
 		"$implements": ["Node", "UniformResourceLocatable"],
@@ -90,6 +93,23 @@
 	"MarkPullRequestReadyForReviewPayload": "*",
 	"ConvertPullRequestToDraftInput": "*",
 	"ConvertPullRequestToDraftPayload": "*",
+	"ClosePullRequestInput": "*",
+	"ClosePullRequestPayload": "*",
+	"ReopenPullRequestInput": "*",
+	"ReopenPullRequestPayload": "*",
+	"PullRequestUpdateState": "*",
+	"UpdatePullRequestInput": {
+		"$implements": [],
+		"fields": [
+			"clientMutationId",
+			"pullRequestId",
+			"baseRefName",
+			"body",
+			"state",
+			"title"
+		]
+	},
+	"UpdatePullRequestPayload": "*",
 	"Commit": ["zipballUrl", "tarballUrl", "statusCheckRollup"],
 	"AutoMergeRequest": {
 		"$implements": [],

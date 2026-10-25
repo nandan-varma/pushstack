@@ -160,6 +160,11 @@ and disabling maintainer modifications are unsupported and rejected.
 `markPullRequestReadyForReview` and `convertPullRequestToDraft` accept a pull
 request node id, preserve `clientMutationId`, and allow its author or a writer
 to change an open pull request. Marking ready requests CODEOWNERS reviews.
+`closePullRequest`, `reopenPullRequest` and `updatePullRequest` (title, body,
+`state`) follow the same author-or-writer rule. Closing a merged pull request
+is a no-op and reopening one is refused, as on REST. `updatePullRequest`
+refuses a changed `baseRefName` and labels, assignees, milestone and projects
+are not yet accepted (unknown fields fail validation rather than being ignored).
 Every top-level mutation costs at least five GraphQL rate-limit points,
 including aliases.
 
