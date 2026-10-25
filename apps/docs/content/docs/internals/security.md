@@ -159,6 +159,9 @@ neither a rate limiter nor CSRF protection is needed. See
 ## Personal Access Tokens
 
 PATs are stored as a SHA-256 hash (`tokens.tokenHash`), never in plaintext.
+The device flow (`gh auth login`) issues its tokens into the same table, and
+the device code itself is stored as a hash too (`device_codes`); see
+[authentication.md](/docs/internals/authentication#device-flow-gh-auth-login).
 This is the correct approach specifically because PATs are high-entropy random
 strings — unlike password hashing (which needs a slow, salted algorithm like
 bcrypt/argon2 to resist brute-forcing low-entropy human passwords), a fast

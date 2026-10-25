@@ -77,6 +77,46 @@ repo, needsWrite)` authenticates every git request on its own, with
 
 Credentials are never logged.
 
+## Device flow (`gh auth login`)
+
+`gh auth login` without `--with-token` runs GitHub's OAuth device flow, which
+issues a personal access token, so the result is one more `pst_` token with
+the same storage, revocation and scopes as any other:
+
+1. `POST /login/device/code` (`routes/login.device.code.ts`) takes `client_id`
+   and a GitHub `scope` (space or comma separated) and returns `device_code`,
+   `user_code` (`XXXX-XXXX`, consonants only), `verification_uri`
+   (`<origin>/login/device`), `expires_in` (900) and `interval` (5). The
+   device code is stored only as its SHA-256 (`device_codes.device_code_hash`).
+2. The user enters the user code on `/login/device` (`routes/login.device.tsx`)
+   while signed in, reads the scopes it asks for, and approves or denies. The
+   decision is one conditional `UPDATE` on a pending, unexpired row.
+3. `POST /login/oauth/access_token` (`routes/login.oauth.access_token.ts`) is
+   the poll. Its outcomes are GitHub's codes, carried as a 200 response with an
+   `error` field: `authorization_pending`, `slow_down` (the interval grows by 5
+   seconds and the new value is returned), `expired_token`, `access_denied`,
+   plus `incorrect_device_code` (unknown or already used),
+   `incorrect_client_credentials` (the client id does not match the code) and
+   `unsupported_grant_type`. Approval turns into a token exactly once: the poll
+   that flips `consumed_at` inserts the token; any other poll gets
+   `incorrect_device_code`.
+
+Scopes map by name (`tokenScopesFromGitHub` in `lib/device-flow.ts`):
+`repo` becomes `repo:write`; other GitHub names are dropped because nothing here
+grants them. The token response echoes `repo` in `scope`, and the REST API's
+`X-OAuth-Scopes` header is the same name as for any token.
+
+Responses are form-encoded unless the client sends `Accept: application/json`,
+which gh does. Codes older than their 900 seconds are deleted when the next
+code is created, so unauthenticated starts cannot grow the table.
+
+**Not yet**: OAuth apps (a registered `client_id` and secret, the
+authorization-code flow at `/login/oauth/authorize`). Until then `client_id` is
+accepted as any non-empty string. The approval page is login-gated but a user
+code (8 characters from a 20-letter alphabet, live for 900 seconds) is not
+rate-limited per user yet, so brute force is not ruled out. Both belong to the
+follow-up issue on OAuth apps.
+
 ## `RepositoryAccess` — the single access-control computation
 
 Every repository has:
