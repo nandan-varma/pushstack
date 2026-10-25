@@ -104,12 +104,11 @@ Connections have GitHub's shape: `nodes`, `edges { cursor node }`,
 `totalCount`. Cursors are opaque.
 
 Global ids resolve through `node(id:)` / `nodes(ids:)`. Users, repositories,
-issues, labels, refs, pull requests and issue comments use GitHub's legacy node
-id form (base64 of `04:User1`), the same as REST `node_id`. The codes for
-commits, milestones, reactions, pull request reviews, releases and release assets
-are not verified against GitHub yet (tracked in #269); GitHub gives commits,
-releases and release assets a newer id format, so do not rely on their exact
-encoding.
+issues, labels, refs, pull requests, pull request reviews, milestones and issue
+comments use GitHub's legacy node id form (base64 of `04:User1`), the same as
+REST `node_id`, with codes checked against cli/cli. GitHub serves commits,
+releases and release assets in its newer form (`C_…`, `RE_…`, `RA_…`), which
+PushStack does not emit yet, and reaction codes are unverified (#269).
 
 ## Served schema
 
