@@ -602,3 +602,114 @@ describe("createRepository", () => {
 		});
 	});
 });
+
+describe("updateRepository", () => {
+	const update = `mutation($input: UpdateRepositoryInput!) { updateRepository(input: $input) { clientMutationId repository { name description homepageUrl hasIssuesEnabled viewerPermission } } }`;
+	const idOf = async (token: string, name: string) => {
+		const { body } = await graphql(
+			token,
+			`{ repository(owner: "alice", name: "${name}") { id } }`,
+		);
+		return body.data.repository.id as string;
+	};
+
+	it("edits description and settings, and echoes clientMutationId", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const { body } = await graphql(alice, update, {
+			input: {
+				clientMutationId: "m1",
+				repositoryId,
+				description: "  Edited  ",
+				homepageUrl: "https://example.com",
+				hasIssuesEnabled: false,
+			},
+		});
+		expect(body.errors).toBeUndefined();
+		expect(body.data.updateRepository).toEqual({
+			clientMutationId: "m1",
+			repository: {
+				name: "public-one",
+				description: "Edited",
+				homepageUrl: "https://example.com",
+				hasIssuesEnabled: false,
+				viewerPermission: "ADMIN",
+			},
+		});
+	});
+
+	it("renames through the same validation as create", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const renamed = await graphql(alice, update, {
+			input: { repositoryId, name: "public-two" },
+		});
+		expect(renamed.body.data.updateRepository.repository.name).toBe(
+			"public-two",
+		);
+		const invalid = await graphql(alice, update, {
+			input: { repositoryId, name: "has space" },
+		});
+		expect(invalid.body.errors[0].type).toBe("UNPROCESSABLE");
+		expect(invalid.body.errors[0].message).toMatch(/^Name /);
+		await graphql(alice, update, {
+			input: { repositoryId, name: "public-one" },
+		});
+	});
+
+	it("refuses a name another repository of the owner already has", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const { body } = await graphql(alice, update, {
+			input: { repositoryId, name: "secret" },
+		});
+		expect(body.errors[0]).toMatchObject({
+			type: "UNPROCESSABLE",
+			message: "Name already exists on this account",
+		});
+	});
+
+	it("bounds the description and homepage", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const long = await graphql(alice, update, {
+			input: { repositoryId, description: "x".repeat(501) },
+		});
+		expect(long.body.errors[0].type).toBe("UNPROCESSABLE");
+		const homepage = await graphql(alice, update, {
+			input: { repositoryId, homepageUrl: "h".repeat(256) },
+		});
+		expect(homepage.body.errors[0].type).toBe("UNPROCESSABLE");
+	});
+
+	it("needs a repo:write token", async () => {
+		const repositoryId = await idOf(alice, "public-one");
+		const { body } = await graphql(aliceRead, update, {
+			input: { repositoryId, description: "nope" },
+		});
+		expect(body.errors[0].type).toBe("INSUFFICIENT_SCOPES");
+		expect(body.errors[0].message).toMatch(/'updateRepository' field/);
+	});
+
+	it("forbids writers who are not admins, and hides repositories they cannot read", async () => {
+		const publicId = await idOf(alice, "public-one");
+		const notAdmin = await graphql(bob, update, {
+			input: { repositoryId: publicId, description: "mine" },
+		});
+		expect(notAdmin.body.errors[0]).toMatchObject({
+			type: "FORBIDDEN",
+			message: "Must have admin rights to Repository.",
+		});
+		const secretId = await idOf(alice, "secret");
+		const hidden = await graphql(bob, update, {
+			input: { repositoryId: secretId, description: "mine" },
+		});
+		expect(hidden.body.errors[0].type).toBe("NOT_FOUND");
+	});
+
+	it("answers NOT_FOUND for an id that is not a repository", async () => {
+		const { body } = await graphql(alice, update, {
+			input: {
+				repositoryId: encodeNodeId("User", 999_999),
+				description: "x",
+			},
+		});
+		expect(body.errors[0].type).toBe("NOT_FOUND");
+	});
+});

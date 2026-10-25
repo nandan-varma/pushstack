@@ -7,7 +7,7 @@
 		"repositoryOwner",
 		"user"
 	],
-	"Mutation": ["createRepository"],
+	"Mutation": ["createRepository", "updateRepository"],
 	"RepositoryOwner": [
 		"id",
 		"login",
@@ -180,6 +180,18 @@
 	"RepositoryVisibility": "*",
 	"CreateRepositoryInput": "*",
 	"CreateRepositoryPayload": "*",
+	"UpdateRepositoryInput": [
+		"clientMutationId",
+		"repositoryId",
+		"name",
+		"description",
+		"homepageUrl",
+		"hasIssuesEnabled",
+		"hasWikiEnabled",
+		"hasProjectsEnabled",
+		"template"
+	],
+	"UpdateRepositoryPayload": "*",
 	"GitSSHRemote": "*",
 	"Release": {
 		"$implements": ["Node", "UniformResourceLocatable"],
