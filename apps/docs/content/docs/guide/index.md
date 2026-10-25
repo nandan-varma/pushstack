@@ -212,9 +212,11 @@ Issues and pull requests share one number sequence per repository (`#1`, `#2`,
   those issues when the pull request merges. Only those verbs count — a bare
   `#4` never closes anything.
 
-**Merging** is allowed for owners, admins and write collaborators. A merge is a
-fast-forward when the target hasn't moved, and an object-level three-way merge
-otherwise. If both sides changed the same file incompatibly, the merge is
+**Merging** is allowed for owners, admins and write collaborators, by a merge
+method the repository allows (`allow_merge_commit`, `allow_squash_merge`,
+`allow_rebase_merge`; all on by default). A merge commit is a fast-forward when
+the target hasn't moved, and an object-level three-way merge otherwise. A squash
+makes one commit on the target; a rebase replays the branch's commits onto it. If both sides changed the same file incompatibly, the merge is
 refused and the conflicting paths are listed; resolve them in git and push
 again. A merged pull request can no longer be edited or reopened.
 

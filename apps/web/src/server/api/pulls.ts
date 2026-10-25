@@ -24,6 +24,7 @@ import { withRepositoryLock } from "../git-repo-lock";
 import { ownerKeyOf } from "../git-storage-naming";
 import { perfStep } from "../perf-log";
 import {
+	disallowedMergeMethodMessage,
 	insertPullRequest,
 	mergePullRequestBranches,
 	updatePullRequestFields,
@@ -553,12 +554,9 @@ export async function mergePull(ctx: ApiContext) {
 	const data = await requestBody(ctx, "pulls/merge", "PullRequest", {
 		allowEmpty: true,
 	});
-	if (data.merge_method === "squash" || data.merge_method === "rebase") {
-		throw new ApiError(
-			405,
-			`${data.merge_method === "squash" ? "Squash merges" : "Rebase merges"} are not allowed on this repository.`,
-		);
-	}
+	const method = data.merge_method ?? "merge";
+	const refusal = disallowedMergeMethodMessage(repo, method);
+	if (refusal) throw new ApiError(405, refusal);
 	if (pr.status === "open" && pr.isDraft) {
 		throw new ApiError(405, "Pull Request is still a draft");
 	}
@@ -578,22 +576,12 @@ export async function mergePull(ctx: ApiContext) {
 	}
 
 	const committer = await callerIdentity(caller);
-	const title = data.commit_title?.trim();
-	const message = data.commit_message?.trim();
-	const commitMessage = title
-		? message
-			? `${title}\n\n${message}`
-			: title
-		: message
-			? `Merge pull request #${pr.number}: ${pr.title}\n\n${message}`
-			: undefined;
-	const result = await mergePullRequestBranches(
-		repo,
-		pr,
-		committer,
-		commitMessage,
-		data.sha ?? undefined,
-	);
+	const result = await mergePullRequestBranches(repo, pr, committer, {
+		method,
+		commitTitle: data.commit_title?.trim() || undefined,
+		commitMessage: data.commit_message?.trim() || undefined,
+		expectedHeadSha: data.sha ?? undefined,
+	});
 	if (!result.success) {
 		throw result.headModified ? headModified() : notMergeable();
 	}

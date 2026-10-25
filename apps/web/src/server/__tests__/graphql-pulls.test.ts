@@ -437,6 +437,7 @@ it("merges with the REST rules, reports the actor and refuses a second merge or 
 		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"merge-me",baseRefName:"main",title:"Merge me"}) { pullRequest { id } } }`,
 	);
 	const { id } = created.body.data.createPullRequest.pullRequest;
+	await call("/repos/alice/proj", patch(token, { allow_squash_merge: false }));
 	const squash = await graphql(
 		token,
 		`mutation { mergePullRequest(input:{pullRequestId:"${id}",mergeMethod:SQUASH}) { pullRequest { state } } }`,
@@ -492,6 +493,71 @@ it("merges with the REST rules, reports the actor and refuses a second merge or 
 		actor: { login: "alice" },
 		pullRequest: { title: "Landed", state: "MERGED" },
 	});
+});
+
+it("squashes and rebases through mergeMethod once the repository allows them", async () => {
+	await call(
+		"/repos/alice/proj",
+		patch(token, { allow_squash_merge: true, allow_rebase_merge: true }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	const ids: string[] = [];
+	for (const branch of ["squash-gql", "rebase-gql"]) {
+		await call(
+			"/repos/alice/proj/git/refs",
+			post(token, { ref: `refs/heads/${branch}`, sha: ref.body.object.sha }),
+		);
+		await files.uploadFile({
+			data: {
+				repoId: repoRest.body.id,
+				branchName: branch,
+				path: `${branch}.txt`,
+				content: btoa(`${branch}\n`),
+				commitMessage: `Add ${branch}`,
+			},
+		});
+		const created = await graphql(
+			token,
+			`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"${branch}",baseRefName:"main",title:"${branch}"}) { pullRequest { id } } }`,
+		);
+		ids.push(created.body.data.createPullRequest.pullRequest.id);
+	}
+	const squashHead = await call("/repos/alice/proj/git/ref/heads/squash-gql");
+	const open = await graphql(
+		token,
+		`query { node(id:"${ids[0]}") { ... on PullRequest { headRefOid mergeStateStatus } } }`,
+	);
+	expect(open.body.errors).toBeUndefined();
+	expect(open.body.data.node).toEqual({
+		headRefOid: squashHead.body.object.sha,
+		mergeStateStatus: "UNKNOWN",
+	});
+	const squashed = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${ids[0]}",mergeMethod:SQUASH,commitHeadline:"Squashed via GraphQL"}) { pullRequest { state merged } } }`,
+	);
+	expect(squashed.body.errors).toBeUndefined();
+	expect(squashed.body.data.mergePullRequest.pullRequest).toEqual({
+		state: "MERGED",
+		merged: true,
+	});
+	const rebased = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${ids[1]}",mergeMethod:REBASE}) { pullRequest { state merged } } }`,
+	);
+	expect(rebased.body.errors).toBeUndefined();
+	expect(rebased.body.data.mergePullRequest.pullRequest).toEqual({
+		state: "MERGED",
+		merged: true,
+	});
+	const head = await call("/repos/alice/proj/git/ref/heads/main");
+	const { body: commit } = await call(
+		`/repos/alice/proj/git/commits/${head.body.object.sha}`,
+	);
+	// The rebase replayed the branch's own commit, so no merge commit was made.
+	expect(commit.message.trimEnd()).toBe("Add rebase-gql");
+	expect(commit.parents).toHaveLength(1);
 });
 
 it("submits reviews by event with the submitReview rules", async () => {

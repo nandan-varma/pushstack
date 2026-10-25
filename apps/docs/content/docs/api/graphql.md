@@ -180,9 +180,11 @@ are not yet accepted (unknown fields fail validation rather than being ignored).
 `canMergePullRequest`) and a `repo:write` token, refuses archived repositories,
 drafts and closed or merged pulls, and is blocked by a changes-requested review
 unless the caller can moderate. `expectedHeadOid` must match the head branch
-(`UNPROCESSABLE` otherwise). Only `mergeMethod: MERGE` is supported; `SQUASH`
-and `REBASE` are refused like REST's `405`. `commitHeadline` and `commitBody`
-set the merge commit message. `authorEmail` is not accepted. Both
+(`UNPROCESSABLE` otherwise). `mergeMethod` is `MERGE`, `SQUASH` or `REBASE`, as
+REST's `merge_method`; a method the repository disallows
+(`squashMergeAllowed`, `rebaseMergeAllowed`, `mergeCommitAllowed`) is
+`UNPROCESSABLE`. `commitHeadline` and `commitBody` set the merge or squash
+commit message (a rebase ignores them). `authorEmail` is not accepted. Both
 `mergePullRequest` and `updatePullRequest` resolve `actor` to the caller.
 `addPullRequestReview` takes `event` `APPROVE`, `COMMENT` or `REQUEST_CHANGES`
 and submits in one step, under the web review rules: any reader may comment,

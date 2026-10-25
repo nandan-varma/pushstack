@@ -58,6 +58,10 @@ export const repositories = pgTable(
 		hasIssues: boolean("has_issues").notNull().default(true),
 		hasWiki: boolean("has_wiki").notNull().default(false),
 		hasProjects: boolean("has_projects").notNull().default(false),
+		/** Which merge methods a pull request may use (GitHub: all on, at least one needed). */
+		allowMergeCommit: boolean("allow_merge_commit").notNull().default(true),
+		allowSquashMerge: boolean("allow_squash_merge").notNull().default(true),
+		allowRebaseMerge: boolean("allow_rebase_merge").notNull().default(true),
 		/** The tree view's per-file "last commit" column — a history walk per view, so opt-in. */
 		showLastCommitColumn: boolean("show_last_commit_column")
 			.notNull()

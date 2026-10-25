@@ -15,7 +15,7 @@ vi.mock(
 );
 const { createUsers, signIn } = await import("../../test/app-harness");
 const { handleApiRequest } = await import("../api");
-const { mintToken } = await import("../../test/api-client");
+const { call, mintToken, patch } = await import("../../test/api-client");
 const users = await createUsers("alice");
 const configDir = await mkdtemp(join(tmpdir(), "pst-pulls-contract-"));
 let stdout = "";
@@ -118,6 +118,11 @@ describe("CLI pr commands against real REST dispatcher", () => {
 			"number",
 		);
 		expect(JSON.parse(listed.stdout)).toEqual([{ number: 1 }]);
+		const token = io.env.PST_TOKEN as string;
+		await call(
+			"/repos/alice/pulls",
+			patch(token, { allow_squash_merge: false }),
+		);
 		const squash = await invoke("pr", "merge", "1", "--squash");
 		expect(squash.code).toBe(1);
 		expect(squash.stderr).toContain("Squash merges are not allowed");

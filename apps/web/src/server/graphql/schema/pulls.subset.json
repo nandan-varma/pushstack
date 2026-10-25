@@ -47,6 +47,7 @@
 			"author",
 			"repository",
 			"headRefName",
+			"headRefOid",
 			"baseRefName",
 			"headRepository",
 			"headRepositoryOwner",
@@ -54,6 +55,7 @@
 			"autoMergeRequest",
 			"maintainerCanModify",
 			"mergeable",
+			"mergeStateStatus",
 			"additions",
 			"deletions",
 			{
@@ -147,6 +149,7 @@
 	},
 	"PullRequestMergeMethod": "*",
 	"MergeableState": "*",
+	"MergeStateStatus": "*",
 	"PullRequestCommit": {
 		"$implements": [],
 		"fields": ["commit"]

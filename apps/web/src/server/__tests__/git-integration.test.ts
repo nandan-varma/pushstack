@@ -514,7 +514,10 @@ describe("mergeBranches", () => {
 			REPO,
 			"feature-branch",
 			"merge-target",
-			{ message: "Merge feature-branch into merge-target" },
+			{
+				method: "merge",
+				message: "Merge feature-branch into merge-target",
+			},
 		);
 
 		expect(result.success).toBe(true);

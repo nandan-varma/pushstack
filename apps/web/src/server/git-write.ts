@@ -4,7 +4,13 @@
  * (git-fs-s3's packed writes) before any ref moves; commits and merges then
  * consolidate packs once enough have accumulated.
  */
-import { GitEdgeError, GitMergeConflictError, threeWayMerge } from "git-edge";
+import {
+	GitEdgeError,
+	GitMergeConflictError,
+	rebaseMerge,
+	squashMerge,
+	threeWayMerge,
+} from "git-edge";
 import {
 	GitInvalidRequestError,
 	GitPathNotFoundError,
@@ -305,30 +311,84 @@ export function setDefaultBranch(
 	});
 }
 
-export interface MergeOptions {
-	message?: string;
+export type MergeMethod = "merge" | "squash" | "rebase";
+
+/**
+ * A merge needs only its own message: a merge commit's, or a squash commit's
+ * (a function of the squashed commit messages, read under the lock). A
+ * rebase keeps each commit's own message.
+ */
+export type MergeOptions = {
 	authorName?: string;
 	authorEmail?: string;
 	/** Refuse (before writing) unless the source tip, read under the lock, is this. */
 	expectedHeadSha?: string;
-}
+} & (
+	| { method: "merge"; message: string }
+	| {
+			method: "squash";
+			message: string | ((commitMessages: string[]) => string);
+	  }
+	| { method: "rebase" }
+);
 
 export type MergeOutcome =
 	| { success: true; commitSha: string; baseSha: string; headSha: string }
 	| { success: false; conflicts: string[]; headModified?: true };
 
 /**
- * Merge `sourceBranch` into `targetBranch`: a fast-forward when possible,
- * otherwise git-edge's object-level three-way merge — both in one lock span,
- * so the fast-forward check can't go stale before the merge runs. Conflicts
- * and unrelated histories come back as `{ success: false }`.
+ * Merge `sourceBranch` into `targetBranch` by `options.method`: a merge
+ * commit (a fast-forward when possible), a squash, or a rebase — git-edge's
+ * object-level merges, all in one lock span, so the fast-forward check can't
+ * go stale before the merge runs. Conflicts and unrelated histories come back
+ * as `{ success: false }`.
  */
+async function mergeInto(
+	repo: Repo,
+	sourceBranch: string,
+	targetBranch: string,
+	options: MergeOptions,
+): Promise<string> {
+	const source = qualifyBranchRef(sourceBranch);
+	const target = qualifyBranchRef(targetBranch);
+	const author = {
+		authorName: options.authorName,
+		authorEmail: options.authorEmail,
+	};
+	switch (options.method) {
+		case "squash": {
+			const { commitOid } = await squashMerge(repo, source, target, {
+				...author,
+				message: options.message,
+			});
+			return commitOid;
+		}
+		case "rebase": {
+			const { commitOid } = await rebaseMerge(repo, source, target, author);
+			return commitOid;
+		}
+		case "merge": {
+			const fastForward = await fastForwardMerge(
+				repo,
+				sourceBranch,
+				targetBranch,
+			);
+			if (fastForward) return fastForward.commitSha;
+			const { commitOid } = await threeWayMerge(repo, source, target, {
+				...author,
+				message: options.message,
+			});
+			return commitOid;
+		}
+	}
+}
+
 export async function mergeBranches(
 	ownerKey: string,
 	repoName: string,
 	sourceBranch: string,
 	targetBranch: string,
-	options: MergeOptions = {},
+	options: MergeOptions,
 ): Promise<MergeOutcome> {
 	assertSafeBranchName(sourceBranch);
 	assertSafeBranchName(targetBranch);
@@ -345,29 +405,13 @@ export async function mergeBranches(
 					headModified: true as const,
 				};
 			}
-			const fastForward = await fastForwardMerge(
+			const commitSha = await mergeInto(
 				repo,
 				sourceBranch,
 				targetBranch,
+				options,
 			);
-			if (fastForward) return { ...fastForward, baseSha, headSha };
-			const { commitOid } = await threeWayMerge(
-				repo,
-				qualifyBranchRef(sourceBranch),
-				qualifyBranchRef(targetBranch),
-				{
-					message:
-						options.message || `Merge ${sourceBranch} into ${targetBranch}`,
-					authorName: options.authorName,
-					authorEmail: options.authorEmail,
-				},
-			);
-			return {
-				success: true as const,
-				commitSha: commitOid,
-				baseSha,
-				headSha,
-			};
+			return { success: true as const, commitSha, baseSha, headSha };
 		});
 	} catch (error) {
 		if (error instanceof GitMergeConflictError) {

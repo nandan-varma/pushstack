@@ -341,6 +341,7 @@ describe("native git against the pushstack git endpoint", () => {
 
 		const { mergeBranches } = await import("#/server/git-write");
 		const merged = await mergeBranches(USER.username, REPO, "topic", "main", {
+			method: "merge",
 			message: "Merge topic",
 			authorName: USER.name,
 			authorEmail: USER.email,

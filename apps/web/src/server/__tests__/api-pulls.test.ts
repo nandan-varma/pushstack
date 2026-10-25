@@ -332,12 +332,33 @@ describe("updating pull requests", () => {
 });
 
 describe("merging pull requests", () => {
-	it("refuses unsupported methods, a stale sha, a reader and anonymous", async () => {
+	it("refuses merge methods the repository disallows, a stale sha, a reader and anonymous", async () => {
+		const disabled = await call(
+			"/repos/alice/proj",
+			patch(alice, { allow_squash_merge: false, allow_rebase_merge: false }),
+		);
+		expect(disabled.status).toBe(200);
+		expect(disabled.body).toMatchObject({
+			allow_merge_commit: true,
+			allow_squash_merge: false,
+			allow_rebase_merge: false,
+		});
 		const squash = await call(
 			"/repos/alice/proj/pulls/1/merge",
 			put(alice, { merge_method: "squash" }),
 		);
 		expect(squash.status).toBe(405);
+		expect(squash.body.message).toBe(
+			"Squash merges are not allowed on this repository.",
+		);
+		const rebase = await call(
+			"/repos/alice/proj/pulls/1/merge",
+			put(alice, { merge_method: "rebase" }),
+		);
+		expect(rebase.status).toBe(405);
+		expect(rebase.body.message).toBe(
+			"Rebase merges are not allowed on this repository.",
+		);
 		const bogus = await call(
 			"/repos/alice/proj/pulls/1/merge",
 			put(alice, { merge_method: "octopus" }),
@@ -500,8 +521,7 @@ describe("response size and scopes", () => {
 			repo,
 			pr,
 			{ id: users.alice.id, name: "alice", email: "alice@example.com" },
-			undefined,
-			"0".repeat(40),
+			{ method: "merge", expectedHeadSha: "0".repeat(40) },
 		);
 		expect(result).toMatchObject({ success: false, headModified: true });
 		const after = await call(`/repos/alice/proj/pulls/${created.body.number}`);
@@ -776,5 +796,166 @@ describe("pull request media types", () => {
 		} finally {
 			caps.apiCaps.diffMediaBytes = caps.DEFAULT_API_CAPS.diffMediaBytes;
 		}
+	});
+});
+
+describe("merge methods", () => {
+	const repoPath = "/repos/alice/proj";
+
+	async function openPull(head: string, title: string): Promise<number> {
+		const created = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title, head, base: "main" }),
+		);
+		expect(created.status).toBe(201);
+		return created.body.number;
+	}
+
+	async function branchHead(name: string): Promise<string> {
+		const ref = await call(`${repoPath}/git/ref/heads/${name}`);
+		return ref.body.object.sha;
+	}
+
+	it("GitHub's merge settings default on, and PATCH sets each", async () => {
+		const enabled = await call(
+			repoPath,
+			patch(alice, {
+				allow_merge_commit: true,
+				allow_squash_merge: true,
+				allow_rebase_merge: true,
+			}),
+		);
+		expect(enabled.body).toMatchObject({
+			allow_merge_commit: true,
+			allow_squash_merge: true,
+			allow_rebase_merge: true,
+		});
+		const read = await call(repoPath);
+		expect(read.body).toMatchObject({
+			allow_merge_commit: true,
+			allow_squash_merge: true,
+			allow_rebase_merge: true,
+		});
+	});
+
+	it("squashes into one commit: the target as parent, GitHub's default title and a commit list body", async () => {
+		await branchFrom("sq");
+		await commitFile("sq", "s1.txt", "1\n");
+		await commitFile("sq", "s2.txt", "2\n");
+		const number = await openPull("sq", "Squash me");
+		const mainBefore = await branchHead("main");
+
+		const merged = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "squash" }),
+		);
+		expect(merged.status).toBe(200);
+
+		const { body: commit } = await call(
+			`${repoPath}/git/commits/${merged.body.sha}`,
+		);
+		expect(commit.parents.map((p: { sha: string }) => p.sha)).toEqual([
+			mainBefore,
+		]);
+		expect(commit.message.trimEnd()).toBe(
+			`Squash me (#${number})\n\n* Add s1.txt\n* Add s2.txt`,
+		);
+		expect(commit.author.name).toBe("Alice");
+		const pull = await call(`/repos/alice/proj/pulls/${number}`);
+		expect(pull.body).toMatchObject({
+			merged: true,
+			merge_commit_sha: merged.body.sha,
+		});
+	});
+
+	it("takes commit_title (and commit_message) as the squash commit's message", async () => {
+		await branchFrom("sq2");
+		await commitFile("sq2", "t1.txt", "1\n");
+		const number = await openPull("sq2", "Ignored title");
+
+		const merged = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, {
+				merge_method: "squash",
+				commit_title: "Ship sq2",
+				commit_message: "Details",
+			}),
+		);
+		expect(merged.status).toBe(200);
+		const { body: commit } = await call(
+			`${repoPath}/git/commits/${merged.body.sha}`,
+		);
+		expect(commit.message.trimEnd()).toBe("Ship sq2\n\nDetails");
+	});
+
+	it("rebases the branch's commits onto the target with no merge commit", async () => {
+		await branchFrom("rb");
+		await commitFile("rb", "r1.txt", "1\n");
+		await commitFile("rb", "r2.txt", "2\n");
+		// The target moves on, so the branch must be replayed, not fast-forwarded.
+		await commitFile("main", "after-rb.txt", "m\n");
+		const number = await openPull("rb", "Rebase me");
+		const mainBefore = await branchHead("main");
+
+		const merged = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "rebase" }),
+		);
+		expect(merged.status).toBe(200);
+
+		const { body: head } = await call(
+			`${repoPath}/git/commits/${merged.body.sha}`,
+		);
+		expect(head.message.trimEnd()).toBe("Add r2.txt");
+		expect(head.parents).toHaveLength(1);
+		const { body: first } = await call(
+			`${repoPath}/git/commits/${head.parents[0].sha}`,
+		);
+		expect(first.message.trimEnd()).toBe("Add r1.txt");
+		expect(first.parents.map((p: { sha: string }) => p.sha)).toEqual([
+			mainBefore,
+		]);
+		const pull = await call(`/repos/alice/proj/pulls/${number}`);
+		expect(pull.body).toMatchObject({
+			merged: true,
+			merge_commit_sha: merged.body.sha,
+		});
+	});
+
+	it("refuses a disallowed merge commit with 405, and merges by default once allowed", async () => {
+		await branchFrom("dis");
+		await commitFile("dis", "d.txt", "d\n");
+		await commitFile("main", "after-dis.txt", "m\n");
+		const number = await openPull("dis", "Default merge");
+
+		const disabled = await call(
+			repoPath,
+			patch(alice, { allow_merge_commit: false }),
+		);
+		expect(disabled.body.allow_merge_commit).toBe(false);
+		const refused = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice),
+		);
+		expect(refused.status).toBe(405);
+		expect(refused.body.message).toBe(
+			"Merge commits are not allowed on this repository.",
+		);
+
+		await call(repoPath, patch(alice, { allow_merge_commit: true }));
+		const head = await branchHead("dis");
+		const merged = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "merge" }),
+		);
+		expect(merged.status).toBe(200);
+		const { body: commit } = await call(
+			`${repoPath}/git/commits/${merged.body.sha}`,
+		);
+		expect(commit.parents).toHaveLength(2);
+		expect(commit.parents[1].sha).toBe(head);
+		expect(commit.message.trimEnd()).toBe(
+			`Merge pull request #${number} from alice/dis\n\nDefault merge`,
+		);
 	});
 });

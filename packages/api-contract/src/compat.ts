@@ -51,7 +51,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`204`: the thread leaves the inbox until new activity",
 	"repos/get": "",
 	"repos/update":
-		"owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`; other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts",
+		"owner or admin collaborator (`403` otherwise); `name`, `description`, `homepage`, `private`, `visibility`, `has_issues`, `has_projects`, `has_wiki`, `is_template`, `default_branch`, `archived`, `allow_merge_commit`, `allow_squash_merge`, `allow_rebase_merge` (the merge methods pull requests may use; all on by default); other fields ignored. Renaming moves the storage; unarchiving is the only change an archived repository accepts",
 	"repos/delete": "owner only (`403` otherwise); `204`",
 	"repos/get-all-topics": "",
 	"repos/replace-all-topics":
@@ -210,7 +210,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`",
 	"pulls/check-if-merged": "`204` once merged, else `404`",
 	"pulls/merge":
-		"`commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge` only; `squash`/`rebase` are `405`). A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }`",
+		"`commit_title`, `commit_message`, `sha` (`409` when the head moved), `merge_method` (`merge`, `squash` or `rebase`; a method the repository disallows is `405`). Squash makes one commit on the target, titled `<title> (#N)` by default, with a bulleted list of the commits when there are several; rebase replays the branch's commits without a merge commit and ignores `commit_title`/`commit_message`. A closed, merged, conflicting or review-blocked pull request is `405 Pull Request is not mergeable`. Returns `{ sha, merged, message }`",
 	"pulls/list-commits": "oldest first, up to 250",
 	"pulls/list-files":
 		"up to 3000 files, paginated; `patch` holds the hunks (absent for binary and oversized files, and for files past a 2 MiB per-response patch budget). The whole diff is computed per request (cached for 30 seconds by the compared tips)",

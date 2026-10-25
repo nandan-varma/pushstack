@@ -11,6 +11,7 @@ import {
 } from "../../comment-store";
 import {
 	getBranchDiff,
+	getBranches,
 	getCommit,
 	getCommitInfosBetween,
 } from "../../git-read";
@@ -231,6 +232,20 @@ export const pullDetailResolvers = {
 	maintainerCanModify: () => true,
 	// GitHub's UNKNOWN describes a mergeability result that has not been computed.
 	mergeable: () => "UNKNOWN" as const,
+	// As REST's mergeable_state: a draft, else not computed.
+	mergeStateStatus: (node: PullRequestNode) =>
+		node.row.status === "open" && node.row.isDraft
+			? ("DRAFT" as const)
+			: ("UNKNOWN" as const),
+	/** The merged head once merged (kept even if the branch is gone), else the branch tip. */
+	headRefOid: async (node: PullRequestNode) => {
+		if (node.row.headSha) return node.row.headSha;
+		const branch = (
+			await getBranches(ownerKeyOf(node.repo.row), node.repo.row.name)
+		).find((b) => b.name === node.row.sourceBranch);
+		if (!branch) throw new Error("Pull request head branch missing");
+		return branch.commit;
+	},
 	additions: async (
 		node: PullRequestNode,
 		_args: unknown,

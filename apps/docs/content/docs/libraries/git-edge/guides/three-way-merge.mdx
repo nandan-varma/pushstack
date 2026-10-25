@@ -1,6 +1,6 @@
 ---
 title: Three-way merge
-description: How threeWayMerge works — fast-forward shortcuts, tree-level content merge, and conflict handling.
+description: How threeWayMerge, squashMerge and rebaseMerge work — fast-forward shortcuts, tree-level content merge, and conflict handling.
 ---
 
 
@@ -105,3 +105,17 @@ conflicts; only a real `threeWayMerge` call does that.
 
 Returns `{ commitOid: string }` — the new merge commit's oid, or the
 fast-forwarded ref's new oid when no merge commit was needed.
+
+## Squash and rebase
+
+`squashMerge(repo, sourceRef, targetRef, { message, authorName, authorEmail })`
+writes the merged tree as one commit whose only parent is the target. Its
+`message` is a string, or a function of the squashed commit messages (oldest
+first, merge commits left out). `rebaseMerge(repo, sourceRef, targetRef, opts)`
+replays each commit of the branch onto the target, keeping each commit's author
+and message with the merger as committer, and moves the target to the last one.
+
+Both share the rules above: nothing is written on a conflict (`GitMergeConflictError`),
+and a target that already contains the source is a no-op. A rebase that finds a
+source already based on the target fast-forwards. A rebase refuses a branch with
+a merge commit (`GitEdgeError`), since its side history would be dropped.

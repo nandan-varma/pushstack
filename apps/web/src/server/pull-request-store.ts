@@ -8,11 +8,16 @@
  */
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
-import { issues, pullRequests } from "#/db/app-schema";
+import { issues, pullRequests, type Repository } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { recordActivity } from "./activity";
 import { ownerKeyOf } from "./git-storage-naming";
-import { deleteBranch, mergeBranches } from "./git-write";
+import {
+	deleteBranch,
+	type MergeMethod,
+	type MergeOptions,
+	mergeBranches,
+} from "./git-write";
 import { recordThreadActivity } from "./notification-store";
 import { logError } from "./perf-log";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
@@ -232,17 +237,115 @@ export async function setPullRequestDraft(
 	return { ...pr, isDraft: draft };
 }
 
+export type MergeMethodFlags = Pick<
+	Repository,
+	"allowMergeCommit" | "allowSquashMerge" | "allowRebaseMerge"
+>;
+
+const MERGE_METHOD_LABEL: Record<MergeMethod, string> = {
+	merge: "Merge commits",
+	squash: "Squash merges",
+	rebase: "Rebase merges",
+};
+
+/** GitHub's refusal of a merge method the repository disallows, or null when allowed. */
+export function disallowedMergeMethodMessage(
+	repo: MergeMethodFlags,
+	method: MergeMethod,
+): string | null {
+	const allowed =
+		method === "merge"
+			? repo.allowMergeCommit
+			: method === "squash"
+				? repo.allowSquashMerge
+				: repo.allowRebaseMerge;
+	return allowed
+		? null
+		: `${MERGE_METHOD_LABEL[method]} are not allowed on this repository.`;
+}
+
+export interface PullRequestMergeOptions {
+	method: MergeMethod;
+	/** The request's commit title and body (trimmed; absent when not given). */
+	commitTitle?: string;
+	commitMessage?: string;
+	/** Refuse unless the source tip, read under the lock, is this. */
+	expectedHeadSha?: string;
+}
+
 /**
- * Merge `pr`'s branches and record the merge: status, timeline, the issues its
- * body closes and activity. The caller checked that the pull request is open
- * and that `user` may merge it (and holds the write access the lock needs).
+ * GitHub's commit message: a given title (and body) replaces the default
+ * title; a given body alone replaces the default body. A rebase keeps the
+ * commits' own messages, so it has no composed message.
+ */
+function composeMergeMessage(
+	given: Pick<PullRequestMergeOptions, "commitTitle" | "commitMessage">,
+	defaults: { title: string; body?: string },
+): string {
+	if (given.commitTitle) {
+		return given.commitMessage
+			? `${given.commitTitle}\n\n${given.commitMessage}`
+			: given.commitTitle;
+	}
+	const body = given.commitMessage ?? defaults.body;
+	return body ? `${defaults.title}\n\n${body}` : defaults.title;
+}
+
+/** GitHub's default squash body: one bullet per commit, when there are several. */
+function squashBody(commitMessages: string[]): string | undefined {
+	if (commitMessages.length < 2) return undefined;
+	return commitMessages
+		.map((message) => `* ${message.trim().split("\n")[0]}`)
+		.join("\n");
+}
+
+function mergeOptionsFor(
+	repo: Parameters<typeof ownerKeyOf>[0] & { name: string },
+	pr: PullRequest,
+	user: { name: string; email: string },
+	options: PullRequestMergeOptions,
+): MergeOptions {
+	const author = {
+		authorName: user.name,
+		authorEmail: user.email,
+		expectedHeadSha: options.expectedHeadSha,
+	};
+	switch (options.method) {
+		case "merge":
+			return {
+				...author,
+				method: "merge",
+				message: composeMergeMessage(options, {
+					title: `Merge pull request #${pr.number} from ${ownerKeyOf(repo)}/${pr.sourceBranch}`,
+					body: pr.title,
+				}),
+			};
+		case "squash":
+			return {
+				...author,
+				method: "squash",
+				message: (commitMessages) =>
+					composeMergeMessage(options, {
+						title: `${pr.title} (#${pr.number})`,
+						body: squashBody(commitMessages),
+					}),
+			};
+		case "rebase":
+			return { ...author, method: "rebase" };
+	}
+}
+
+/**
+ * Merge `pr`'s branches by `options.method` and record the merge: status,
+ * timeline, the issues its body closes and activity. The caller checked that
+ * the pull request is open, that `user` may merge it (and holds the write
+ * access the lock needs) and that the repository allows the method.
  */
 export async function mergePullRequestBranches(
 	repo: Parameters<typeof ownerKeyOf>[0] & { name: string },
 	pr: PullRequest,
 	user: { id: string; name: string; email: string },
-	commitMessage?: string,
-	expectedHeadSha?: string,
+	options: PullRequestMergeOptions,
 ): Promise<
 	| { success: true; commitSha: string }
 	| { success: false; conflicts: string[]; headModified?: true }
@@ -252,12 +355,7 @@ export async function mergePullRequestBranches(
 		repo.name,
 		pr.sourceBranch,
 		pr.targetBranch,
-		{
-			message: commitMessage || `Merge pull request #${pr.number}: ${pr.title}`,
-			authorName: user.name,
-			authorEmail: user.email,
-			expectedHeadSha,
-		},
+		mergeOptionsFor(repo, pr, user, options),
 	);
 	if (!result.success) return result;
 

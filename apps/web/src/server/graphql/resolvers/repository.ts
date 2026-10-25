@@ -122,10 +122,9 @@ export interface RepositoryNode {
 	parent: null;
 	templateRepository: null;
 	forkCount: 0;
-	// git-write.ts's mergeBranches: fast-forward or a merge commit only.
-	mergeCommitAllowed: true;
-	squashMergeAllowed: false;
-	rebaseMergeAllowed: false;
+	mergeCommitAllowed: boolean;
+	squashMergeAllowed: boolean;
+	rebaseMergeAllowed: boolean;
 	deleteBranchOnMerge: false;
 	sshUrl: string;
 	/** Internal: the row and the caller's role, for the computed fields. */
@@ -166,9 +165,9 @@ export function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 		parent: null,
 		templateRepository: null,
 		forkCount: 0,
-		mergeCommitAllowed: true,
-		squashMergeAllowed: false,
-		rebaseMergeAllowed: false,
+		mergeCommitAllowed: row.allowMergeCommit,
+		squashMergeAllowed: row.allowSquashMerge,
+		rebaseMergeAllowed: row.allowRebaseMerge,
 		deleteBranchOnMerge: false,
 		sshUrl: `git@${host}:${fullName}.git`,
 		row,

@@ -460,6 +460,9 @@ export async function updateRepositoryHandler(ctx: ApiContext) {
 			isTemplate: data.is_template,
 			hasIssues: data.has_issues,
 			hasWiki: data.has_wiki,
+			allowMergeCommit: data.allow_merge_commit,
+			allowSquashMerge: data.allow_squash_merge,
+			allowRebaseMerge: data.allow_rebase_merge,
 			hasProjects: data.has_projects,
 		});
 		return respondWithRepository(

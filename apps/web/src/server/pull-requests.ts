@@ -256,12 +256,12 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 		}
 
 		return writeWithAccess(pr.repoId, async (repo) => {
-			const result = await mergePullRequestBranches(
-				repo,
-				pr,
-				currentUser,
-				data.commitMessage,
-			);
+			// The UI sends one free-text message, used verbatim as the commit
+			// message (a merge commit, as before).
+			const result = await mergePullRequestBranches(repo, pr, currentUser, {
+				method: "merge",
+				commitTitle: data.commitMessage,
+			});
 			if (!result.success) {
 				throw new Error(`Merge failed: ${result.conflicts.join(", ")}`);
 			}

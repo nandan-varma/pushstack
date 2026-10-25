@@ -215,6 +215,10 @@ type PullRequest implements Node & UniformResourceLocatable {
 	"""
 	headRefName: String!
 	"""
+	Identifies the oid of the head ref associated with the pull request, even if the ref has been deleted.
+	"""
+	headRefOid: GitObjectID!
+	"""
 	Identifies the name of the base Ref associated with the pull request, even if the ref has been deleted.
 	"""
 	baseRefName: String!
@@ -242,6 +246,10 @@ type PullRequest implements Node & UniformResourceLocatable {
 	Whether or not the pull request can be merged based on the existence of merge conflicts.
 	"""
 	mergeable: MergeableState!
+	"""
+	Detailed information about the current pull request merge state status.
+	"""
+	mergeStateStatus: MergeStateStatus!
 	"""
 	The number of additions in this pull request.
 	"""
@@ -896,6 +904,47 @@ enum MergeableState {
 	The mergeability of the pull request is still being calculated.
 	"""
 	UNKNOWN
+}
+
+"""
+Detailed status information about a pull request merge.
+"""
+enum MergeStateStatus {
+	"""
+	The head ref is out of date.
+	"""
+	BEHIND
+	"""
+	The merge is blocked.
+	"""
+	BLOCKED
+	"""
+	Mergeable and passing commit status.
+	"""
+	CLEAN
+	"""
+	The merge commit cannot be cleanly created.
+	"""
+	DIRTY
+	"""
+	The merge is blocked due to the pull request being a draft.
+	"""
+	DRAFT
+		@deprecated(
+			reason: "DRAFT state will be removed from this enum and `isDraft` should be used instead Use PullRequest.isDraft instead. Removal on 2021-01-01 UTC."
+		)
+	"""
+	Mergeable with passing commit status and pre-receive hooks.
+	"""
+	HAS_HOOKS
+	"""
+	The state cannot currently be determined.
+	"""
+	UNKNOWN
+	"""
+	Mergeable with non-passing commit status.
+	"""
+	UNSTABLE
 }
 
 """

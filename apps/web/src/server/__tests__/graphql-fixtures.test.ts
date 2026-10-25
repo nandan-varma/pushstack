@@ -275,8 +275,8 @@ describe("answers gh reads", () => {
 			hasWikiEnabled: false,
 			parent: null,
 			mergeCommitAllowed: true,
-			squashMergeAllowed: false,
-			rebaseMergeAllowed: false,
+			squashMergeAllowed: true,
+			rebaseMergeAllowed: true,
 		});
 	});
 
