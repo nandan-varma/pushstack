@@ -141,6 +141,44 @@ const threadRef = (node: PullRequestNode) => ({
 	kind: "pull_request" as const,
 });
 export type ReviewNode = Awaited<ReturnType<typeof reviewNodes>>[number];
+/** One submitted review as the GraphQL type reads it. */
+export async function reviewNodeFor(
+	repo: RepositoryNode,
+	row: typeof pullRequestReviews.$inferSelect,
+	ctx: GraphQLContext,
+) {
+	return {
+		id: encodeNodeId("PullRequestReview", row.id),
+		author: await userFor(ctx, row.authorId),
+		authorAssociation: await association(repo, row.authorId),
+		submittedAt: row.submittedAt ? isoTimestamp(row.submittedAt) : null,
+		body: row.body ?? "",
+		state: row.state.toUpperCase() as
+			| "APPROVED"
+			| "CHANGES_REQUESTED"
+			| "COMMENTED"
+			| "DISMISSED"
+			| "PENDING",
+		commit: row.commitSha
+			? commitNode(
+					repo,
+					await getCommit(ownerKeyOf(repo.row), repo.name, row.commitSha),
+				)
+			: null,
+		// Review reactions are not a stored feature; the supported reaction subjects are threads and comments.
+		reactionGroups: groups({
+			"+1": 0,
+			"-1": 0,
+			laugh: 0,
+			hooray: 0,
+			confused: 0,
+			heart: 0,
+			rocket: 0,
+			eyes: 0,
+		}),
+	};
+}
+
 async function reviewNodes(
 	node: PullRequestNode,
 	ctx: GraphQLContext,
@@ -157,42 +195,7 @@ async function reviewNodes(
 				with: { author: publicUserFields },
 				orderBy: { createdAt: "asc", id: "asc" },
 			});
-			return Promise.all(
-				rows.map(async (row) => ({
-					id: encodeNodeId("PullRequestReview", row.id),
-					author: await userFor(ctx, row.authorId),
-					authorAssociation: await association(node.repo, row.authorId),
-					submittedAt: row.submittedAt ? isoTimestamp(row.submittedAt) : null,
-					body: row.body ?? "",
-					state: row.state.toUpperCase() as
-						| "APPROVED"
-						| "CHANGES_REQUESTED"
-						| "COMMENTED"
-						| "DISMISSED"
-						| "PENDING",
-					commit: row.commitSha
-						? commitNode(
-								node.repo,
-								await getCommit(
-									ownerKeyOf(node.repo.row),
-									node.repo.name,
-									row.commitSha,
-								),
-							)
-						: null,
-					// Review reactions are not a stored feature; the supported reaction subjects are threads and comments.
-					reactionGroups: groups({
-						"+1": 0,
-						"-1": 0,
-						laugh: 0,
-						hooray: 0,
-						confused: 0,
-						heart: 0,
-						rocket: 0,
-						eyes: 0,
-					}),
-				})),
-			);
+			return Promise.all(rows.map((row) => reviewNodeFor(node.repo, row, ctx)));
 		},
 	);
 }

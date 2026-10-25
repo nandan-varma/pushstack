@@ -493,6 +493,65 @@ it("merges with the REST rules, reports the actor and refuses a second merge or 
 	});
 });
 
+it("submits reviews by event with the submitReview rules", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/review-me", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "review-me",
+			path: "review.txt",
+			content: btoa("review\n"),
+			commitMessage: "Review me",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"review-me",baseRefName:"main",title:"Review me"}) { pullRequest { id } } }`,
+	);
+	const { id } = created.body.data.createPullRequest.pullRequest;
+	const ownApproval = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:APPROVE}) { pullRequestReview { state } } }`,
+	);
+	expect(ownApproval.body.errors[0].message).toBe(
+		"You can't review your own pull request",
+	);
+	const pending = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",body:"later"}) { pullRequestReview { id } } }`,
+	);
+	expect(pending.body.errors[0].type).toBe("UNPROCESSABLE");
+	const dismiss = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:DISMISS}) { pullRequestReview { id } } }`,
+	);
+	expect(dismiss.body.errors[0].type).toBe("UNPROCESSABLE");
+	const comment = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:COMMENT,body:"  Looks fine  ",clientMutationId:"r"}) { clientMutationId pullRequestReview { state body author { login } commit { oid } } } }`,
+	);
+	expect(comment.body.errors).toBeUndefined();
+	expect(comment.body.data.addPullRequestReview).toEqual({
+		clientMutationId: "r",
+		pullRequestReview: {
+			state: "COMMENTED",
+			body: "Looks fine",
+			author: { login: "alice" },
+			commit: { oid: expect.any(String) },
+		},
+	});
+	const denied = await graphql(
+		reader,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:APPROVE}) { pullRequestReview { id } } }`,
+	);
+	expect(denied.body.errors[0].type).toBe("FORBIDDEN");
+});
+
 it("refuses to merge in an archived repository", async () => {
 	const ref = await call("/repos/alice/proj/git/ref/heads/main");
 	await call(

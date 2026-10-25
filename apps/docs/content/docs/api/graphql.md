@@ -183,6 +183,11 @@ unless the caller can moderate. `expectedHeadOid` must match the head branch
 and `REBASE` are refused like REST's `405`. `commitHeadline` and `commitBody`
 set the merge commit message. `authorEmail` is not accepted. Both
 `mergePullRequest` and `updatePullRequest` resolve `actor` to the caller.
+`addPullRequestReview` takes `event` `APPROVE`, `COMMENT` or `REQUEST_CHANGES`
+and submits in one step, under the web review rules: any reader may comment,
+approving or requesting changes needs write access, and an author can't review
+their own pull request. Pending (event-less) reviews, `DISMISS`, inline
+`comments`, `threads` and `commitOID` are not served.
 Every top-level mutation costs at least five GraphQL rate-limit points,
 including aliases.
 

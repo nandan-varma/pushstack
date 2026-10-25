@@ -23,7 +23,8 @@
 		"closePullRequest",
 		"reopenPullRequest",
 		"updatePullRequest",
-		"mergePullRequest"
+		"mergePullRequest",
+		"addPullRequestReview"
 	],
 	"PullRequest": {
 		"$implements": ["Node", "UniformResourceLocatable"],
@@ -123,6 +124,15 @@
 		]
 	},
 	"MergePullRequestPayload": "*",
+	"AddPullRequestReviewInput": {
+		"$implements": [],
+		"fields": ["clientMutationId", "pullRequestId", "event", "body"]
+	},
+	"AddPullRequestReviewPayload": {
+		"$implements": [],
+		"fields": ["clientMutationId", "pullRequestReview"]
+	},
+	"PullRequestReviewEvent": "*",
 	"Commit": ["zipballUrl", "tarballUrl", "statusCheckRollup"],
 	"AutoMergeRequest": {
 		"$implements": [],
