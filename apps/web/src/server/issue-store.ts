@@ -15,6 +15,7 @@ import { recordActivity } from "./activity";
 import { replaceThreadAssignees } from "./assignees-store";
 import { setThreadLabels } from "./label-store";
 import { recordThreadActivity } from "./notification-store";
+import { logError } from "./perf-log";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
 
@@ -28,7 +29,7 @@ export const issueLabelsSchema = z
  * Create an issue with its labels and assignees. All-or-nothing: the Neon HTTP
  * driver has no interactive transactions, so any failure after the row exists
  * deletes it again (cascading to labels and assignees). A retry then creates
- * one issue, never a duplicate.
+ * one issue when cleanup succeeds; cleanup failures are logged.
  */
 export async function createIssueForUser(
 	repoId: number,
@@ -62,19 +63,29 @@ export async function createIssueForUser(
 			issue.body,
 			userId,
 		);
+		// Record activity before the final author/mention notifications.
+		await recordActivity(userId, repoId, {
+			type: "issue",
+			metadata: { number: issue.number, title: issue.title, action: "opened" },
+		});
 		await recordThreadActivity({
 			thread: issue,
 			actorId: userId,
 			actorReason: "author",
 			text: issue.body,
 		});
-		await recordActivity(userId, repoId, {
-			type: "issue",
-			metadata: { number: issue.number, title: issue.title, action: "opened" },
-		});
 		return { ...issue, labels };
 	} catch (error) {
-		await db.delete(issues).where(eq(issues.id, issue.id));
+		await db
+			.delete(issues)
+			.where(eq(issues.id, issue.id))
+			.catch((cleanup: unknown) =>
+				logError(
+					"issue-store",
+					`Issue ${issue.id} was not removed after a failed write`,
+					cleanup,
+				),
+			);
 		throw error;
 	}
 }

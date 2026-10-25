@@ -14,7 +14,7 @@ import { recordActivity } from "./activity";
 import { ownerKeyOf } from "./git-storage-naming";
 import { deleteBranch, mergeBranches } from "./git-write";
 import { recordThreadActivity } from "./notification-store";
-import { logWarn } from "./perf-log";
+import { logError } from "./perf-log";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import {
 	findPullRequestById,
@@ -28,6 +28,24 @@ import {
 } from "./timeline-store";
 
 export type { PullRequest };
+
+/**
+ * Compensating delete for a half-made pull request. It never throws: the
+ * caller rethrows the original error, and a failed cleanup (an orphaned row)
+ * is logged for someone to remove.
+ */
+async function discardIssueRow(issueId: number, why: string): Promise<void> {
+	await db
+		.delete(issues)
+		.where(eq(issues.id, issueId))
+		.catch((cleanup: unknown) =>
+			logError(
+				"pull-request-store",
+				`Issue row ${issueId} was left behind after a ${why}`,
+				cleanup,
+			),
+		);
+}
 
 export async function insertPullRequest(
 	repoId: number,
@@ -64,15 +82,14 @@ export async function insertPullRequest(
 		.catch(async (error: unknown) => {
 			// No half-made pull request: an issue row flagged as one without
 			// its branches would break every read of it.
-			await db.delete(issues).where(eq(issues.id, issue.id));
+			await discardIssueRow(issue.id, "failed pull request insert");
 			throw error;
 		});
 	if (!fields) throw new Error("Pull request insert returned no row");
 	const { issueId: _, ...prFields } = fields;
 	const pr = pullRequestOf(issue, prFields);
-	// All-or-nothing, like createIssueForUser: a failure after the rows exist
-	// deletes them (cascading to the pull request fields), so a retry opens one
-	// pull request, not two.
+	// Compensate a failed write by deleting the rows (cascading to the pull
+	// request fields). A retry is duplicate-free when cleanup succeeds.
 	try {
 		await recordCrossReferences(
 			repoId,
@@ -92,7 +109,7 @@ export async function insertPullRequest(
 			metadata: { number: pr.number, title: pr.title, action: "opened" },
 		});
 	} catch (error) {
-		await db.delete(issues).where(eq(issues.id, issue.id));
+		await discardIssueRow(issue.id, "failed pull request write");
 		throw error;
 	}
 	return pr;
@@ -282,7 +299,7 @@ export async function mergePullRequestBranches(
 				})
 				.where(eq(issues.id, pr.id))
 				.catch((cleanup: unknown) =>
-					logWarn(
+					logError(
 						"pull-request-store",
 						`Reopen of #${pr.number} failed`,
 						cleanup,

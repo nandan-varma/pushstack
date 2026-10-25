@@ -10,7 +10,7 @@ import { db } from "#/db";
 import { comments } from "#/db/app-schema";
 import { recordActivity } from "./activity";
 import { recordThreadActivity } from "./notification-store";
-import { logWarn } from "./perf-log";
+import { logError } from "./perf-log";
 import { canWriteRepo, getRepositoryAccess } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 import { findThreadById, type ThreadRef } from "./thread-store";
@@ -68,9 +68,8 @@ export async function createCommentForUser(
 		})
 		.returning();
 	if (!comment) throw new Error("Comment insert returned no row");
-	// All-or-nothing, like createIssueForUser: the Neon HTTP driver has no
-	// transactions, so a failure after the row exists removes it again and a
-	// retry posts one comment, not two.
+	// The Neon HTTP driver has no transactions: compensate a failed write by
+	// removing its comment. A retry is duplicate-free when cleanup succeeds.
 	try {
 		await recordCrossReferences(
 			thread.repoId,
@@ -79,12 +78,8 @@ export async function createCommentForUser(
 			body,
 			userId,
 		);
-		await recordThreadActivity({
-			thread,
-			actorId: userId,
-			actorReason: "comment",
-			text: body,
-		});
+		// Notifications last: they are one statement that cannot half-land, and
+		// nobody is told about a comment that is then removed.
 		await recordActivity(userId, thread.repoId, {
 			type: "comment",
 			metadata: {
@@ -92,9 +87,19 @@ export async function createCommentForUser(
 				number: thread.number,
 			},
 		});
+		await recordThreadActivity({
+			thread,
+			actorId: userId,
+			actorReason: "comment",
+			text: body,
+		});
 	} catch (error) {
 		await deleteCommentRow(comment, thread).catch((cleanup: unknown) =>
-			logWarn("comment-store", `Comment ${comment.id} cleanup failed`, cleanup),
+			logError(
+				"comment-store",
+				`Comment ${comment.id} was not removed after a failed write`,
+				cleanup,
+			),
 		);
 		throw error;
 	}

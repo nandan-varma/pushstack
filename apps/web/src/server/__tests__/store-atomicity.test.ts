@@ -8,13 +8,16 @@
  * nothing half-made, and a retry works; a pull request holds a bounded number
  * of review comments.
  */
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 let failOn: RegExp | undefined;
+let failCleanup: RegExp | undefined;
 
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb({
 		onQuery: (query) => {
+			if (failCleanup?.test(query)) throw new Error("cleanup failure");
 			if (failOn?.test(query)) throw new Error("injected failure");
 		},
 	}),
@@ -37,7 +40,21 @@ const issues = await import("../issues");
 const comments = await import("../comments");
 const reviews = await import("../reviews");
 
-const users = await createUsers("atom-owner");
+const { db } = await import("#/db");
+const schema = await import("#/db/app-schema");
+const perfLog = await import("../perf-log");
+const { insertPullRequest } = await import("../pull-request-store");
+const users = await createUsers("atom-owner", "atom-reader");
+
+afterEach(async () => {
+	failOn = undefined;
+	failCleanup = undefined;
+	vi.restoreAllMocks();
+	// Deliberate cleanup failures leave malformed PRs; isolate later reads.
+	await db
+		.delete(schema.issues)
+		.where(eq(schema.issues.title, "Cleanup failure"));
+});
 let repoId: number;
 let branchSeq = 0;
 
@@ -84,6 +101,91 @@ beforeAll(async () => {
 });
 
 describe("multi-step writes undo themselves", () => {
+	it.each([
+		["pull request insert", /insert into "pull_requests"/i],
+		["pull request follow-up", /insert into "activities"/i],
+	])(
+		"preserves the %s error and logs a failed cleanup",
+		async (_stage, failure) => {
+			const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+			failOn = failure;
+			failCleanup = /delete from "issues"/i;
+			await expect(
+				insertPullRequest(repoId, users["atom-owner"].id, {
+					title: "Cleanup failure",
+					sourceBranch: "main",
+					targetBranch: "main",
+				}),
+			).rejects.toThrow("injected failure");
+			expect(logged).toHaveBeenCalledWith(
+				"pull-request-store",
+				expect.stringMatching(/Issue row \d+ was left behind/),
+				expect.objectContaining({ message: "cleanup failure" }),
+			);
+		},
+	);
+
+	it("preserves an issue write error when deleting its row also fails", async () => {
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		failOn = /insert into "activities"/i;
+		failCleanup = /delete from "issues"/i;
+		await expect(
+			issues.createIssue({ data: { repoId, title: "Cleanup fails" } }),
+		).rejects.toThrow("injected failure");
+		expect(logged).toHaveBeenCalledWith(
+			"issue-store",
+			expect.stringMatching(/Issue \d+ was not removed/),
+			expect.objectContaining({ message: "cleanup failure" }),
+		);
+	});
+
+	it("preserves a comment write error when deleting its row also fails", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Comment cleanup fails" },
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		failOn = /insert into "activities"/i;
+		failCleanup = /delete from "comments"/i;
+		await expect(
+			comments.createComment({ data: { issueId: issue.id, body: "hi" } }),
+		).rejects.toThrow("injected failure");
+		expect(logged).toHaveBeenCalledWith(
+			"comment-store",
+			expect.stringMatching(/Comment \d+ was not removed/),
+			expect.objectContaining({ message: "cleanup failure" }),
+		);
+	});
+
+	it("removes a failed comment's cross-reference without notifying a mentioned reader", async () => {
+		const target = await issues.createIssue({
+			data: { repoId, title: "Reference target" },
+		});
+		const source = await issues.createIssue({
+			data: { repoId, title: "Reference source" },
+		});
+		const body = `See #${target.number} @atom-reader`;
+		failOn = /insert into "activities"/i;
+		await expect(
+			comments.createComment({ data: { issueId: source.id, body } }),
+		).rejects.toThrow("injected failure");
+		failOn = undefined;
+		const refs = () =>
+			db
+				.select()
+				.from(schema.timelineEvents)
+				.where(eq(schema.timelineEvents.issueId, target.id));
+		const notices = () =>
+			db
+				.select()
+				.from(schema.notifications)
+				.where(eq(schema.notifications.issueId, source.id));
+		expect(await refs()).toHaveLength(0);
+		expect(await notices()).toHaveLength(0);
+		await comments.createComment({ data: { issueId: source.id, body } });
+		expect(await refs()).toHaveLength(1);
+		expect(await notices()).toHaveLength(1);
+	});
+
 	it("a comment whose follow-up writes fail is removed, and a retry posts one", async () => {
 		const issue = await issues.createIssue({
 			data: { repoId, title: "Commented" },
