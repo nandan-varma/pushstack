@@ -958,4 +958,90 @@ describe("merge methods", () => {
 			`Merge pull request #${number} from alice/dis\n\nDefault merge`,
 		);
 	});
+
+	it("refuses a rebase that conflicts with 405 and moves nothing", async () => {
+		await commitFile("main", "rc.txt", "base\n");
+		await branchFrom("rc");
+		await commitFile("rc", "rc.txt", "theirs\n");
+		await commitFile("main", "rc.txt", "ours\n");
+		const number = await openPull("rc", "Conflicting rebase");
+		const mainBefore = await branchHead("main");
+
+		const refused = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "rebase" }),
+		);
+		expect(refused.status).toBe(405);
+		expect(refused.body.message).toBe("Pull Request is not mergeable");
+		expect(await branchHead("main")).toBe(mainBefore);
+		const pull = await call(`/repos/alice/proj/pulls/${number}`);
+		expect(pull.body).toMatchObject({ state: "open", merged: false });
+	});
+
+	it("refuses a squash whose sha is stale with 409 and moves nothing", async () => {
+		await branchFrom("stale");
+		await commitFile("stale", "st.txt", "s\n");
+		const number = await openPull("stale", "Stale squash");
+		const mainBefore = await branchHead("main");
+
+		const refused = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "squash", sha: "0".repeat(40) }),
+		);
+		expect(refused.status).toBe(409);
+		expect(refused.body.message).toBe(
+			"Head branch was modified. Review and try the merge again.",
+		);
+		expect(await branchHead("main")).toBe(mainBefore);
+	});
+});
+
+describe("merge settings refusals", () => {
+	it("refuses disabling every merge method with 422 and keeps the settings", async () => {
+		const before = await call("/repos/alice/proj");
+		const refused = await call(
+			"/repos/alice/proj",
+			patch(alice, {
+				allow_merge_commit: false,
+				allow_squash_merge: false,
+				allow_rebase_merge: false,
+			}),
+		);
+		expect(refused.status).toBe(422);
+		expect(refused.body).toMatchObject({
+			message: "Validation Failed",
+			errors: [
+				{
+					resource: "Repository",
+					code: "custom",
+					message: "At least one merge type must be enabled.",
+				},
+			],
+		});
+		const after = await call("/repos/alice/proj");
+		expect(after.body).toMatchObject({
+			allow_merge_commit: before.body.allow_merge_commit,
+			allow_squash_merge: before.body.allow_squash_merge,
+			allow_rebase_merge: before.body.allow_rebase_merge,
+		});
+	});
+
+	it("allows disabling all but one merge method", async () => {
+		const kept = await call(
+			"/repos/alice/proj",
+			patch(alice, {
+				allow_merge_commit: false,
+				allow_squash_merge: false,
+				allow_rebase_merge: true,
+			}),
+		);
+		expect(kept.status).toBe(200);
+		await call(
+			"/repos/alice/proj",
+			patch(alice, {
+				allow_merge_commit: true,
+				allow_squash_merge: true,
+			}),
+		);
+	});
 });

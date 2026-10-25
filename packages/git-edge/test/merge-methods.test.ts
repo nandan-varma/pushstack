@@ -1,7 +1,12 @@
 import git, { type ReadCommitResult } from "isomorphic-git";
 import { describe, expect, it } from "vitest";
 import { GitEdgeError, GitMergeConflictError } from "../src/errors.js";
-import { type Repo, rebaseMerge, squashMerge } from "../src/merge.js";
+import {
+	MAX_RANGE_COMMITS,
+	type Repo,
+	rebaseMerge,
+	squashMerge,
+} from "../src/merge.js";
 import {
 	author,
 	commit,
@@ -186,6 +191,95 @@ describe("squashMerge", () => {
 		await commit(repo, "main", { "a.txt": "a\n" }, []);
 		await commit(repo, "feature", { "b.txt": "b\n" }, []);
 		await expect(squash(repo, "x")).rejects.toBeInstanceOf(GitEdgeError);
+	});
+});
+
+describe("range bounds", () => {
+	/** A linear branch of `count` commits on `branch`, from `parent`. */
+	async function chain(
+		repo: Repo,
+		branch: string,
+		parent: string,
+		count: number,
+	) {
+		let head = parent;
+		for (let i = 0; i < count; i++) {
+			head = await replay(
+				repo,
+				branch,
+				{ "a.txt": "a\n", [`f${i}.txt`]: `${i}\n` },
+				head,
+				`c${i}\n`,
+				author,
+			);
+		}
+		return head;
+	}
+
+	it("squash lists commits merged in through a second parent, leaving out merge commits", async () => {
+		const { repo } = await makeRepo();
+		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
+		const first = await replay(
+			repo,
+			"feature",
+			{ "a.txt": "a\n", "f.txt": "f\n" },
+			base,
+			"own work\n",
+			{ ...author, timestamp: 1_000_000_001 },
+		);
+		const side = await replay(
+			repo,
+			"side",
+			{ "a.txt": "a\n", "s.txt": "s\n" },
+			base,
+			"side work\n",
+			{ ...author, timestamp: 1_000_000_002 },
+		);
+		const merged = await git.writeCommit({
+			...repo,
+			commit: {
+				message: "merge side\n",
+				tree: await writeSpec(repo, {
+					"a.txt": "a\n",
+					"f.txt": "f\n",
+					"s.txt": "s\n",
+				}),
+				parent: [first, side],
+				author,
+				committer: author,
+			},
+		});
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/feature",
+			value: merged,
+			force: true,
+		});
+		await commit(repo, "main", { "a.txt": "a\n", "m.txt": "m\n" }, [base]);
+
+		const seen: string[][] = [];
+		await squash(repo, (messages) => {
+			seen.push(messages);
+			return "squashed";
+		});
+		expect(seen[0]?.map((m) => m.trim())).toEqual(["own work", "side work"]);
+	});
+
+	it("squash lists at most MAX_RANGE_COMMITS, and a rebase of more is refused", async () => {
+		const { repo } = await makeRepo();
+		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
+		await chain(repo, "feature", base, MAX_RANGE_COMMITS + 1);
+		await commit(repo, "main", { "a.txt": "a\n", "m.txt": "m\n" }, [base]);
+
+		let listed = -1;
+		await squash(repo, (messages) => {
+			listed = messages.length;
+			return "squashed";
+		});
+		expect(listed).toBe(MAX_RANGE_COMMITS);
+		await expect(
+			rebaseMerge(repo, "refs/heads/feature", "refs/heads/main"),
+		).rejects.toBeInstanceOf(GitEdgeError);
 	});
 });
 

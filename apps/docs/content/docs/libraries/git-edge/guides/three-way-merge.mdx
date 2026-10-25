@@ -118,4 +118,6 @@ and message with the merger as committer, and moves the target to the last one.
 Both share the rules above: nothing is written on a conflict (`GitMergeConflictError`),
 and a target that already contains the source is a no-op. A rebase that finds a
 source already based on the target fast-forwards. A rebase refuses a branch with
-a merge commit (`GitEdgeError`), since its side history would be dropped.
+a merge commit (`GitEdgeError`), since its side history would be dropped, and
+a branch of more than `MAX_RANGE_COMMITS` (250) commits. A squash lists at most
+250 commits, and includes those merged in through a second parent.

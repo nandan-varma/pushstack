@@ -233,6 +233,7 @@ interface RangeCommit {
 	tree: string;
 	message: string;
 	author: CommitObject["author"];
+	timestamp: number;
 }
 
 /** Commit identity for commits PushStack writes on a merge. */
@@ -323,20 +324,40 @@ async function mergeBaseOf(
 }
 
 /**
- * The commits from `baseOid` (exclusive) down to `headOid`, following first
- * parents, oldest first. Stops at any commit reachable from the base.
+ * The most commits a squash or rebase replays or lists. Beyond it a rebase is
+ * refused and a squash lists only this many commits (`truncated`).
+ */
+export const MAX_RANGE_COMMITS = 250;
+
+/**
+ * The commits reachable from `headOid` but not from `baseOid`, walking every
+ * parent (so commits merged in through a second parent are included), in
+ * breadth-first order from the head. Stops once `MAX_RANGE_COMMITS` commits
+ * are found, reporting `truncated`. The base's own history is read once, so
+ * this costs as much as the base history, like `findMergeBase`.
  */
 async function commitsAboveBase(
 	repo: Repo,
 	baseOid: string,
 	headOid: string,
-): Promise<RangeCommit[]> {
+): Promise<{ commits: RangeCommit[]; truncated: boolean }> {
 	const belowBase = new Set(
 		(await git.log({ ...repo, ref: baseOid })).map((entry) => entry.oid),
 	);
+	const queued = new Set<string>();
+	const queue: string[] = [];
+	const enqueue = (oid: string) => {
+		if (belowBase.has(oid) || queued.has(oid)) return;
+		queued.add(oid);
+		queue.push(oid);
+	};
+	enqueue(headOid);
 	const commits: RangeCommit[] = [];
-	let oid: string | undefined = headOid;
-	while (oid !== undefined && !belowBase.has(oid)) {
+	for (let next = 0; next < queue.length; next++) {
+		if (commits.length === MAX_RANGE_COMMITS) {
+			return { commits, truncated: true };
+		}
+		const oid = queue[next] as string;
 		const { commit } = await git.readCommit({ ...repo, oid });
 		commits.push({
 			oid,
@@ -344,10 +365,30 @@ async function commitsAboveBase(
 			tree: commit.tree,
 			message: commit.message,
 			author: commit.author,
+			timestamp: commit.committer.timestamp,
 		});
-		oid = commit.parent[0];
+		for (const parent of commit.parent) enqueue(parent);
 	}
-	return commits.reverse();
+	return { commits, truncated: false };
+}
+
+/**
+ * Orders a linear range oldest first by following first parents from the
+ * head. Throws when a commit has no single parent path covering the range.
+ */
+function linearOrder(headOid: string, commits: RangeCommit[]): RangeCommit[] {
+	const byOid = new Map(commits.map((commit) => [commit.oid, commit]));
+	const chain: RangeCommit[] = [];
+	let oid: string | undefined = headOid;
+	while (oid !== undefined && byOid.has(oid)) {
+		const commit = byOid.get(oid) as RangeCommit;
+		chain.push(commit);
+		oid = commit.parents[0];
+	}
+	if (chain.length !== commits.length) {
+		throw new GitEdgeError("Refusing to rebase a non-linear branch");
+	}
+	return chain.reverse();
 }
 
 /**
@@ -477,9 +518,13 @@ export async function squashMerge(
 			targetCommit.commit.tree,
 			sourceCommit.commit.tree,
 		);
-		const squashed = (
-			await commitsAboveBase(packed, baseOid, sourceOid)
-		).filter((commit) => commit.parents.length === 1);
+		const { commits } = await commitsAboveBase(packed, baseOid, sourceOid);
+		// Oldest first: reversed breadth-first order breaks committer-time ties.
+		// Merge commits are not listed.
+		const squashed = commits
+			.reverse()
+			.filter((commit) => commit.parents.length === 1)
+			.sort((a, b) => a.timestamp - b.timestamp);
 		const message =
 			typeof opts.message === "function"
 				? opts.message(squashed.map((commit) => commit.message))
@@ -540,12 +585,18 @@ export async function rebaseMerge(
 	}
 
 	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
-	const commits = await commitsAboveBase(repo, baseOid, sourceOid);
-	if (commits.some((commit) => commit.parents.length !== 1)) {
+	const range = await commitsAboveBase(repo, baseOid, sourceOid);
+	if (range.truncated) {
+		throw new GitEdgeError(
+			`Refusing to rebase ${sourceRef}: it has more than ${MAX_RANGE_COMMITS} commits`,
+		);
+	}
+	if (range.commits.some((commit) => commit.parents.length !== 1)) {
 		throw new GitEdgeError(
 			`Refusing to rebase ${sourceRef}: it contains a merge commit`,
 		);
 	}
+	const commits = linearOrder(sourceOid, range.commits);
 	const targetCommit = await git.readCommit({ ...repo, oid: targetOid });
 	const author = identityOf(opts);
 	const reads = createSemaphore(MAX_CONCURRENT_READS);

@@ -21,6 +21,7 @@ import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
 import {
 	deleteHeadBranch,
+	disallowedMergeMethodMessage,
 	insertPullRequest,
 	mergePullRequestBranches,
 	setPullRequestDraft,
@@ -256,6 +257,8 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 		}
 
 		return writeWithAccess(pr.repoId, async (repo) => {
+			const refusal = disallowedMergeMethodMessage(repo, "merge");
+			if (refusal) throw new Error(refusal);
 			// The UI sends one free-text message, used verbatim as the commit
 			// message (a merge commit, as before).
 			const result = await mergePullRequestBranches(repo, pr, currentUser, {

@@ -560,6 +560,62 @@ it("squashes and rebases through mergeMethod once the repository allows them", a
 	expect(commit.parents).toHaveLength(1);
 });
 
+it("refuses a rebase that conflicts with UNPROCESSABLE and moves nothing", async () => {
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "main",
+			path: "gq-conflict.txt",
+			content: btoa("base\n"),
+			commitMessage: "Base for conflict",
+		},
+	});
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, {
+			ref: "refs/heads/conflict-gql",
+			sha: ref.body.object.sha,
+		}),
+	);
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "conflict-gql",
+			path: "gq-conflict.txt",
+			content: btoa("theirs\n"),
+			commitMessage: "Theirs",
+		},
+	});
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "main",
+			path: "gq-conflict.txt",
+			content: btoa("ours\n"),
+			commitMessage: "Ours",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"conflict-gql",baseRefName:"main",title:"Conflict"}) { pullRequest { id } } }`,
+	);
+	const pullId = created.body.data.createPullRequest.pullRequest.id;
+	const mainBefore = (await call("/repos/alice/proj/git/ref/heads/main")).body
+		.object.sha;
+
+	const refused = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",mergeMethod:REBASE}) { pullRequest { state } } }`,
+	);
+	expect(refused.body.errors[0].type).toBe("UNPROCESSABLE");
+	expect(refused.body.errors[0].message).toBe("Pull Request is not mergeable");
+	expect(
+		(await call("/repos/alice/proj/git/ref/heads/main")).body.object.sha,
+	).toBe(mainBefore);
+});
+
 it("submits reviews by event with the submitReview rules", async () => {
 	const ref = await call("/repos/alice/proj/git/ref/heads/main");
 	await call(

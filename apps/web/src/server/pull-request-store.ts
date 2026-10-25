@@ -10,6 +10,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, pullRequests, type Repository } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
+import { MAX_COMMIT_MESSAGE_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { ownerKeyOf } from "./git-storage-naming";
 import {
@@ -291,12 +292,22 @@ function composeMergeMessage(
 	return body ? `${defaults.title}\n\n${body}` : defaults.title;
 }
 
-/** GitHub's default squash body: one bullet per commit, when there are several. */
+/** Longest subject quoted in a squash body's bullet. */
+const MAX_BULLET_CHARS = 200;
+
+/**
+ * GitHub's default squash body: one bullet per commit, when there are several.
+ * Each subject is cut to `MAX_BULLET_CHARS`, the body to a commit message's cap.
+ */
 function squashBody(commitMessages: string[]): string | undefined {
 	if (commitMessages.length < 2) return undefined;
 	return commitMessages
-		.map((message) => `* ${message.trim().split("\n")[0]}`)
-		.join("\n");
+		.map((message) => {
+			const subject = message.trim().split("\n")[0] ?? "";
+			return `* ${subject.slice(0, MAX_BULLET_CHARS)}`;
+		})
+		.join("\n")
+		.slice(0, MAX_COMMIT_MESSAGE_CHARS);
 }
 
 function mergeOptionsFor(

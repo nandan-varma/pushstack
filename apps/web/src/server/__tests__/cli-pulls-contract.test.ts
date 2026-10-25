@@ -119,10 +119,11 @@ describe("CLI pr commands against real REST dispatcher", () => {
 		);
 		expect(JSON.parse(listed.stdout)).toEqual([{ number: 1 }]);
 		const token = io.env.PST_TOKEN as string;
-		await call(
+		const disabled = await call(
 			"/repos/alice/pulls",
 			patch(token, { allow_squash_merge: false }),
 		);
+		expect(disabled.status).toBe(200);
 		const squash = await invoke("pr", "merge", "1", "--squash");
 		expect(squash.code).toBe(1);
 		expect(squash.stderr).toContain("Squash merges are not allowed");
