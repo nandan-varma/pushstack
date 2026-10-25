@@ -34,6 +34,7 @@ vi.mock(
 const { createUsers, signIn } = await import("../../test/app-harness");
 const files = await import("../files");
 const repositories = await import("../repositories");
+const { graphql } = await import("../../test/graphql-client");
 
 const users = await createUsers("alice", "bob", "dave");
 const { BASE, asToken, call, mintToken, patch, post } = await import(
@@ -670,6 +671,39 @@ describe("concurrent pull request creation", () => {
 		expect(loser.body.errors[0]).toMatchObject({
 			code: "custom",
 			message: "A pull request already exists for alice:race.",
+		});
+	});
+});
+
+describe("node ids", () => {
+	it("gives the repository and the pull request GitHub's node_id, resolvable through GraphQL node(id:)", async () => {
+		const repo = await call("/repos/alice/proj");
+		const pull = await call("/repos/alice/proj/pulls/1");
+		expect(Buffer.from(repo.body.node_id, "base64").toString()).toBe(
+			`010:Repository${repo.body.id}`,
+		);
+		expect(Buffer.from(pull.body.node_id, "base64").toString()).toBe(
+			`011:PullRequest${pull.body.id}`,
+		);
+		const nodes = await graphql(
+			alice,
+			`query($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Repository { name } ... on PullRequest { number } } }`,
+			{ ids: [repo.body.node_id, pull.body.node_id] },
+		);
+		expect(nodes.body.errors).toBeUndefined();
+		expect(nodes.body.data.nodes).toEqual([
+			{ __typename: "Repository", name: "proj" },
+			{ __typename: "PullRequest", number: 1 },
+		]);
+		const single = await graphql(
+			alice,
+			`query($id: ID!) { node(id: $id) { __typename ... on Repository { name } } }`,
+			{ id: repo.body.node_id },
+		);
+		expect(single.body.errors).toBeUndefined();
+		expect(single.body.data.node).toEqual({
+			__typename: "Repository",
+			name: "proj",
 		});
 	});
 });

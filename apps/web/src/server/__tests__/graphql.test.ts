@@ -20,6 +20,7 @@ const { asToken, call, mintToken } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const repositories = await import("../repositories");
 const files = await import("../files");
+const { encodeNodeId } = await import("../graphql/node-id");
 
 const users = await createUsers("alice", "bob", "carol");
 let alice: string;
@@ -273,10 +274,8 @@ describe("node ids", () => {
 			'{ repository(owner: "alice", name: "public-one") { id owner { id } } }',
 		);
 		const { id, owner } = body.data.repository;
-		const huge = (type: string) =>
-			Buffer.from(
-				`${String(type.length).padStart(2, "0")}:${type}9999999999`,
-			).toString("base64");
+		const huge = (type: "Repository" | "User") =>
+			encodeNodeId(type, 9999999999);
 		const nodes = await graphql(
 			alice,
 			`query($ids: [ID!]!) { nodes(ids: $ids) { __typename id } }`,

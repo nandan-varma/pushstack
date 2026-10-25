@@ -244,9 +244,10 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 
 ## Differences from GitHub
 
-- User and repository `id` are integers, and a user's `node_id` is GitHub's
-  legacy form (`base64("04:User<id>")`), as is a reaction's
-  (`base64("08:Reaction<id>")`); other objects omit `node_id`.
+- User, repository and pull request `id`s are integers. Their `node_id`s, like a
+  reaction's (`base64("08:Reaction<id>")`), are GitHub's legacy form
+  (`base64("04:User<id>")`, `"010:Repository<id>"`, `"011:PullRequest<id>"`) and
+  resolve through GraphQL `node(id:)`; other objects omit `node_id`.
 - **`avatar_url` is `null`** when the user has no image (GitHub always has one).
 - `email` on a user is always `null`, and the `email` of a commit author or
   committer is always the placeholder `noreply@<host>`: web commits carry the
@@ -323,7 +324,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   for an open pull request (`false` once merged) and `mergeable_state` is
   `draft` for a draft and otherwise `unknown`: conflicts are only detected by the merge itself, which then answers
   `405`. `rebaseable` is `false`, `draft` reflects the draft state (merging a draft is `405` "Pull Request is still a draft"; REST cannot change it after creation, as on GitHub), `requested_teams`
-  empty (there are no teams yet; `team_reviewers` is `422`), and `author_association`, `node_id` and `auto_merge`
+  empty (there are no teams yet; `team_reviewers` is `422`), and `author_association` and `auto_merge`
   details are omitted or `null`. Creating a pull request doesn't require commits
   between the branches (the web UI doesn't either). A closed pull request whose
   head branch was deleted reports `head.sha` as 40 zeros and empty files and
