@@ -6,6 +6,7 @@
 
 import { and, count, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
+import { DiffLimitError } from "git-fs-s3/ops";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { requestCodeownerReviews } from "../codeowners";
@@ -15,6 +16,7 @@ import {
 	getBranchDiff,
 	getBranches,
 	getCommit,
+	getCommitDiff,
 	getCommitsBetween,
 } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
@@ -44,6 +46,7 @@ import {
 } from "../thread-store";
 import { createTtlCoalescedCache } from "../ttl-cache";
 import { type ApiContext, callerIdentity, requireScope } from "./auth";
+import { apiCaps } from "./caps";
 import { diffFileObjects, UNKNOWN_SHA } from "./diff-files";
 import {
 	ApiError,
@@ -52,12 +55,15 @@ import {
 	forbiddenError,
 	json,
 	linkHeader,
+	mediaFormat,
+	mediaResponse,
 	noContent,
 	notFoundError,
 	pageParams,
 	validationFailedError,
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
+import { formatPatchSections, unifiedDiff } from "./patches";
 import { readableRepository } from "./repo-lookup";
 import { openIssueCounts, starCounts } from "./repos";
 import {
@@ -317,9 +323,71 @@ export async function listPulls(ctx: ApiContext) {
 	);
 }
 
+const PULL_MEDIA_TEXT = "text/plain; charset=utf-8" as const;
+
+/**
+ * `GET /repos/{owner}/{repo}/pulls/{n}` with `Accept: application/vnd.github.diff`
+ * (the unified diff, base to head) or `.patch` (one format-patch section per
+ * commit), as GitHub answers them. Both are bounded by `apiCaps.diffMediaBytes`
+ * and streamed; past the bound GitHub's 406 applies.
+ */
+async function pullMediaResponse(
+	repo: RepositoryRowWithOwner,
+	pr: PullRequest,
+	format: "diff" | "patch",
+): Promise<Response> {
+	const ownerKey = ownerKeyOf(repo);
+	const { baseSha, headSha } = tipShas(pr, await branchTips(repo));
+	if (baseSha === UNKNOWN_SHA || headSha === UNKNOWN_SHA) throw notFoundError();
+	if (format === "diff") {
+		const diff = await cachedDiff(`${repo.id}:${baseSha}..${headSha}`, () =>
+			getBranchDiff(ownerKey, repo.name, baseSha, headSha),
+		);
+		const body = unifiedDiff(diff);
+		if (new TextEncoder().encode(body).byteLength > apiCaps.diffMediaBytes) {
+			throw new DiffLimitError("bytes", apiCaps.diffMediaBytes);
+		}
+		return mediaResponse(body, format, PULL_MEDIA_TEXT);
+	}
+	const { commits } = await getCommitsBetween(
+		ownerKey,
+		repo.name,
+		baseSha,
+		headSha,
+		PULL_COMMITS_LIMIT,
+	);
+	const sections: string[] = [];
+	let bytes = 0;
+	for (const [index, commit] of commits.entries()) {
+		const [info, commitDiff] = await Promise.all([
+			getCommit(ownerKey, repo.name, commit.sha),
+			getCommitDiff(ownerKey, repo.name, commit.sha),
+		]);
+		for (const section of formatPatchSections(
+			info,
+			commitDiff,
+			index,
+			commits.length,
+		)) {
+			bytes += new TextEncoder().encode(section).byteLength;
+			if (bytes > apiCaps.diffMediaBytes) {
+				throw new DiffLimitError("bytes", apiCaps.diffMediaBytes);
+			}
+			sections.push(section);
+		}
+	}
+	return mediaResponse(sections.join(""), format, PULL_MEDIA_TEXT);
+}
+
 export async function getPull(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
 	const { pull_number } = pathParams(ctx, "pulls/get");
+	const format = mediaFormat(ctx.request);
+	if (format === "diff" || format === "patch") {
+		const pr = await findPullRequestByNumber(repo.id, pull_number);
+		if (!pr) throw notFoundError();
+		return pullMediaResponse(repo, pr, format);
+	}
 	const record = await findPull(repo.id, pull_number);
 	if (!record) throw notFoundError();
 	return json(

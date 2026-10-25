@@ -35,6 +35,8 @@ const { createUsers, signIn } = await import("../../test/app-harness");
 const files = await import("../files");
 const repositories = await import("../repositories");
 const { graphql } = await import("../../test/graphql-client");
+const { handleApiRequest } = await import("../api");
+const caps = await import("../api/caps");
 
 const users = await createUsers("alice", "bob", "dave");
 const { BASE, asToken, call, mintToken, patch, post } = await import(
@@ -705,5 +707,74 @@ describe("node ids", () => {
 			__typename: "Repository",
 			name: "proj",
 		});
+	});
+});
+
+describe("pull request media types", () => {
+	/** The pull request the first test opens; the cap test reads it by number. */
+	let mediaPull: number;
+
+	async function raw(path: string, mediaType: string) {
+		const response = await handleApiRequest(
+			new Request(`${BASE}${path}`, {
+				headers: { accept: mediaType, ...asToken(alice) },
+			}),
+		);
+		return {
+			status: response.status,
+			headers: response.headers,
+			text: await response.text(),
+		};
+	}
+
+	it("serves a pull request as its diff and as patches, else JSON", async () => {
+		await branchFrom("media");
+		await commitFile("media", "m.txt", "m\n");
+		const created = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Media", head: "media", base: "main" }),
+		);
+		expect(created.status).toBe(201);
+		const n = created.body.number;
+		mediaPull = n;
+
+		const diff = await raw(
+			`/repos/alice/proj/pulls/${n}`,
+			"application/vnd.github.diff",
+		);
+		expect(diff.status).toBe(200);
+		expect(diff.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+		expect(diff.text).toContain("diff --git a/m.txt b/m.txt");
+		expect(diff.text).toContain("+m\n");
+		expect(diff.text).not.toContain("b.txt");
+
+		const patch = await raw(
+			`/repos/alice/proj/pulls/${n}`,
+			"application/vnd.github.v3.patch",
+		);
+		expect(patch.status).toBe(200);
+		expect(patch.text).toContain("Subject: [PATCH] Add m.txt");
+
+		const json = await call(`/repos/alice/proj/pulls/${n}`);
+		expect(json.status).toBe(200);
+		expect(json.body.number).toBe(n);
+	});
+
+	it("answers 406 when the diff or the patches exceed the media byte cap", async () => {
+		caps.apiCaps.diffMediaBytes = 4;
+		try {
+			for (const mediaType of [
+				"application/vnd.github.diff",
+				"application/vnd.github.patch",
+			]) {
+				const tooBig = await raw(
+					`/repos/alice/proj/pulls/${mediaPull}`,
+					mediaType,
+				);
+				expect(tooBig.status).toBe(406);
+			}
+		} finally {
+			caps.apiCaps.diffMediaBytes = caps.DEFAULT_API_CAPS.diffMediaBytes;
+		}
 	});
 });
