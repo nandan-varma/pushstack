@@ -11,6 +11,9 @@ export {
 	type MergeOpts,
 	type MergeResult,
 	type Repo,
+	rebaseMerge,
+	type SquashOpts,
+	squashMerge,
 	threeWayMerge,
 } from "./merge.js";
 export { getRepoCache, invalidateRepoCache } from "./repo.js";
