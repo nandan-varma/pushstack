@@ -69,7 +69,6 @@ const fixtures = readdirSync(FIXTURES_DIR)
 
 /** Captured, not served yet: the domain that will serve each. */
 const PENDING: Record<string, "issues" | "pulls"> = {
-	"issue-create": "issues",
 	"pr-status": "pulls",
 	"pr-view-projects": "pulls",
 };
