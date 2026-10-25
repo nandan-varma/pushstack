@@ -157,7 +157,11 @@
 	],
 	"RepositoryConnection": ["edges", "nodes", "pageInfo", "totalCount"],
 	"RepositoryEdge": "*",
-	"Ref": ["id", "name", "prefix", "target"],
+	"Ref": ["id", "name", "prefix", "target", "branchProtectionRule"],
+	"BranchProtectionRule": {
+		"$implements": [],
+		"fields": ["requiresStrictStatusChecks"]
+	},
 	"GitObject": ["abbreviatedOid", "id", "oid", "repository"],
 	"Commit": {
 		"$implements": ["GitObject", "Node"],

@@ -227,6 +227,22 @@ async function commentNodes(
 		})),
 	);
 }
+/** Each author's latest submitted review (pending ones excluded), oldest first. */
+function latestReviewRows(node: PullRequestNode, ctx: GraphQLContext) {
+	return ctx.memo(`pull-latest-reviews:${node.row.id}`, async () => {
+		const rows = await db.query.pullRequestReviews.findMany({
+			where: { pullRequestId: node.row.id, state: { ne: "pending" } },
+			orderBy: { createdAt: "asc", id: "asc" },
+		});
+		const latest = new Map<string, (typeof rows)[number]>();
+		for (const row of rows) {
+			latest.delete(row.authorId);
+			latest.set(row.authorId, row);
+		}
+		return [...latest.values()];
+	});
+}
+
 export const pullDetailResolvers = {
 	autoMergeRequest: () => null,
 	maintainerCanModify: () => true,
@@ -245,6 +261,34 @@ export const pullDetailResolvers = {
 		).find((b) => b.name === node.row.sourceBranch);
 		if (!branch) throw new Error("Pull request head branch missing");
 		return branch.commit;
+	},
+	// No branch protection exists, so no review is required and REVIEW_REQUIRED
+	// never applies: the latest opinionated review of each author decides.
+	reviewDecision: async (
+		node: PullRequestNode,
+		_args: unknown,
+		ctx: GraphQLContext,
+	) => {
+		const states = (await latestReviewRows(node, ctx)).map((row) => row.state);
+		if (states.includes("changes_requested"))
+			return "CHANGES_REQUESTED" as const;
+		if (states.includes("approved")) return "APPROVED" as const;
+		return null;
+	},
+	latestReviews: async (
+		node: PullRequestNode,
+		args: ConnectionArgs,
+		ctx: GraphQLContext,
+	) => {
+		const rows = await latestReviewRows(node, ctx);
+		return offsetConnection(args, rows.length, async (offset, limit) => {
+			bounds(offset);
+			return Promise.all(
+				rows
+					.slice(offset, offset + limit)
+					.map((row) => reviewNodeFor(node.repo, row, ctx)),
+			);
+		});
 	},
 	additions: async (
 		node: PullRequestNode,

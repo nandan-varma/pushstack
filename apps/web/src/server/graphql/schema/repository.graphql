@@ -686,6 +686,20 @@ type Ref implements Node {
 	The object the ref points to. Returns null when object does not exist.
 	"""
 	target: GitObject
+	"""
+	Branch protection rules for this ref
+	"""
+	branchProtectionRule: BranchProtectionRule
+}
+
+"""
+A branch protection rule.
+"""
+type BranchProtectionRule {
+	"""
+	Are branches required to be up to date before merging.
+	"""
+	requiresStrictStatusChecks: Boolean!
 }
 
 """

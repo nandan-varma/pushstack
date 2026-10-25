@@ -56,6 +56,8 @@
 			"maintainerCanModify",
 			"mergeable",
 			"mergeStateStatus",
+			"reviewDecision",
+			"baseRef",
 			"additions",
 			"deletions",
 			{
@@ -68,6 +70,10 @@
 			},
 			{
 				"name": "reviews",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "latestReviews",
 				"args": ["after", "before", "first", "last"]
 			},
 			{
@@ -150,6 +156,7 @@
 	"PullRequestMergeMethod": "*",
 	"MergeableState": "*",
 	"MergeStateStatus": "*",
+	"PullRequestReviewDecision": "*",
 	"PullRequestCommit": {
 		"$implements": [],
 		"fields": ["commit"]

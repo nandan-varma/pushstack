@@ -43,7 +43,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh issue create`, `gh issue close`, `gh issue reopen` | GraphQL mutations served; fixture-tested for `issue create`, not yet measured with real gh |
 | `gh issue edit`, `gh label create/edit/delete` | Mutations served, not yet measured with real gh |
 | `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested, not yet measured with real gh |
-| `gh pr status` | Not yet (requires GraphQL search) |
+| `gh pr status` | GraphQL `Query.search` (repository-scoped) and the PR status fields served; fixture-tested, not yet measured with real gh |
 
 ## Authentication and scopes
 
@@ -153,7 +153,13 @@ and `release(tagName:)` finds published releases. `tag`, reactions and mentions 
 baseRefName:, headRefName:, labels:, orderBy:)` serve GitHub's `PullRequest`
 shape, including `isDraft`, identity, branches, author, state, comments, labels,
 assignees, milestone, reviews, review requests, reactions, diff totals, and
-commits with status/check rollups. A `labels` filter takes at most 100 names
+commits with status/check rollups. Status fields: `baseRef` (null once the base
+branch is gone) with `branchProtectionRule` always null, since branch protection
+is not served; `mergeStateStatus` is `DRAFT` for a draft and `UNKNOWN` otherwise;
+`latestReviews` is each author's latest submitted review; `reviewDecision` is
+`CHANGES_REQUESTED` if any author's latest approving-or-requesting review requests
+changes, else `APPROVED` if one approves, else null. Without branch protection
+nothing requires a review, so `REVIEW_REQUIRED` is never returned. A `labels` filter takes at most 100 names
 (`UNPROCESSABLE` beyond that). `CLOSED` excludes merged pull requests; `MERGED`
 selects them. Default `gh pr list` and `gh pr view` documents are validated and
 executed against the real stores in behavior tests. There are no cross-
@@ -161,6 +167,16 @@ repository pulls, native auto-merge, or native Actions workflows. Review
 reactions are not stored. Mergeability reports `UNKNOWN` until a merge is
 attempted. Commit walks and page offsets are bounded; exceeding a bound returns
 `UNPROCESSABLE`, never a truncated connection presented as complete.
+
+`Query.search(query:, type: ISSUE, first:, after:)` serves GitHub's issue and
+pull request search for one repository, named by a `repo:owner/name` qualifier
+(`UNPROCESSABLE` without one, or with two, and for any other `type`). The
+qualifiers are the list syntax (`is:`, `state:`, `author:`, `label:`,
+`assignee:`, `mentions:`, `review-requested:`, `reviewed-by:`, `milestone:`,
+`no:`, `draft:`, `sort:`), and the query is at most 256 characters. Results are
+`Issue` or `PullRequest` nodes, and `issueCount` is the exact total with no
+1,000-result cap. A repository the caller cannot read, and a contradictory query,
+answer zero results, as on GitHub, rather than an error.
 
 `createPullRequest(input:)` accepts `draft`, repository node id, head/base
 branches, title and body. It requires write access and a `repo:write` token,
