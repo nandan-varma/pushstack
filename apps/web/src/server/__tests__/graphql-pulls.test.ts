@@ -558,6 +558,7 @@ it("blocks a write collaborator's merge while changes are requested, and lets th
 	try {
 		signIn(users.bob);
 		const pr = await findPullRequestByNumber(repoRest.body.id, number);
+		if (!pr) throw new Error("The pull request is missing");
 		await reviews.submitReview({
 			data: { prId: pr.id, event: "request_changes" },
 		});
