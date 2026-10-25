@@ -1,0 +1,15 @@
+{
+	"gh": "gh version 2.103.1 (2026-10-23)",
+	"command": "gh pr view 1 -R HOST/octo/hello",
+	"requests": [
+		{
+			"query": "query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \"Status\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}",
+			"variables": {
+				"endCursor": null,
+				"name": "hello",
+				"number": 1,
+				"owner": "octo"
+			}
+		}
+	]
+}

@@ -72,6 +72,7 @@ const PENDING: Record<string, "issues" | "pulls"> = {
 	"issue-create": "issues",
 	"label-list": "issues",
 	"pr-status": "pulls",
+	"pr-view-projects": "pulls",
 };
 
 /** Errors a served fixture is expected to answer with (by fixture name). */
