@@ -14,6 +14,7 @@ const { call, patch, post, mintToken } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { encodeNodeId } = await import("../graphql/node-id");
 const repositories = await import("../repositories");
+const { MAX_BODY_CHARS } = await import("#/lib/limits");
 const reviews = await import("../reviews");
 const { findPullRequestByNumber } = await import("../thread-store");
 const files = await import("../files");
@@ -493,6 +494,65 @@ it("merges with the REST rules, reports the actor and refuses a second merge or 
 	});
 });
 
+it("submits reviews by event with the submitReview rules", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/review-me", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "review-me",
+			path: "review.txt",
+			content: btoa("review\n"),
+			commitMessage: "Review me",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"review-me",baseRefName:"main",title:"Review me"}) { pullRequest { id } } }`,
+	);
+	const { id } = created.body.data.createPullRequest.pullRequest;
+	const ownApproval = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:APPROVE}) { pullRequestReview { state } } }`,
+	);
+	expect(ownApproval.body.errors[0].message).toBe(
+		"You can't review your own pull request",
+	);
+	const pending = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",body:"later"}) { pullRequestReview { id } } }`,
+	);
+	expect(pending.body.errors[0].type).toBe("UNPROCESSABLE");
+	const dismiss = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:DISMISS}) { pullRequestReview { id } } }`,
+	);
+	expect(dismiss.body.errors[0].type).toBe("UNPROCESSABLE");
+	const comment = await graphql(
+		token,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:COMMENT,body:"  Looks fine  ",clientMutationId:"r"}) { clientMutationId pullRequestReview { state body author { login } commit { oid } } } }`,
+	);
+	expect(comment.body.errors).toBeUndefined();
+	expect(comment.body.data.addPullRequestReview).toEqual({
+		clientMutationId: "r",
+		pullRequestReview: {
+			state: "COMMENTED",
+			body: "Looks fine",
+			author: { login: "alice" },
+			commit: { oid: expect.any(String) },
+		},
+	});
+	const denied = await graphql(
+		reader,
+		`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:APPROVE}) { pullRequestReview { id } } }`,
+	);
+	expect(denied.body.errors[0].type).toBe("FORBIDDEN");
+});
+
 it("refuses to merge in an archived repository", async () => {
 	const ref = await call("/repos/alice/proj/git/ref/heads/main");
 	await call(
@@ -579,6 +639,65 @@ it("blocks a write collaborator's merge while changes are requested, and lets th
 			"MERGED",
 		);
 	} finally {
+		await repositories.removeCollaborator({
+			data: { repoId: repoRest.body.id, userId: users.bob.id },
+		});
+	}
+});
+
+it("guards addPullRequestReview: DISMISS, the body cap and archived repositories", async () => {
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/guard-me", sha: ref.body.object.sha }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "guard-me",
+			path: "guard.txt",
+			content: btoa("guard\n"),
+			commitMessage: "Guard me",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"guard-me",baseRefName:"main",title:"Guard me"}) { pullRequest { id } } }`,
+	);
+	const { id } = created.body.data.createPullRequest.pullRequest;
+	// Bob is a non-author writer, so his refusals come from the guard under test
+	// and not from the self-review rule.
+	await repositories.addCollaboratorByUsername({
+		data: { repoId: repoRest.body.id, username: "bob", role: "write" },
+	});
+	try {
+		const dismiss = await graphql(
+			reader,
+			`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:DISMISS}) { pullRequestReview { id } } }`,
+		);
+		expect(dismiss.body.errors[0].message).toBe(
+			"Reviews can't be dismissed by this mutation",
+		);
+		const long = await graphql(
+			reader,
+			`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:COMMENT,body:"${"x".repeat(MAX_BODY_CHARS + 1)}"}) { pullRequestReview { id } } }`,
+		);
+		expect(long.body.errors[0].message).toBe("Invalid review body");
+		expect(
+			(await call("/repos/alice/proj", patch(token, { archived: true })))
+				.status,
+		).toBe(200);
+		const archived = await graphql(
+			reader,
+			`mutation { addPullRequestReview(input:{pullRequestId:"${id}",event:COMMENT}) { pullRequestReview { id } } }`,
+		);
+		expect(archived.body.errors[0]).toMatchObject({
+			type: "FORBIDDEN",
+			message: "Repository was archived so is read-only.",
+		});
+	} finally {
+		await call("/repos/alice/proj", patch(token, { archived: false }));
 		await repositories.removeCollaborator({
 			data: { repoId: repoRest.body.id, userId: users.bob.id },
 		});

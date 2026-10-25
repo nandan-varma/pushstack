@@ -28,8 +28,17 @@ import {
 	setPullRequestDraft,
 	updatePullRequestFields,
 } from "../../pull-request-store";
-import { canMergePullRequest, canModerateRepo } from "../../repo-access";
-import { reviewSummaryFor } from "../../review-store";
+import {
+	ARCHIVED_MESSAGE,
+	canMergePullRequest,
+	canModerateRepo,
+	canWriteRepo,
+} from "../../repo-access";
+import {
+	findOrCreatePendingReview,
+	reviewSummaryFor,
+	submitPendingReview,
+} from "../../review-store";
 import {
 	findPullRequestById,
 	findPullRequestByNumber,
@@ -50,6 +59,7 @@ import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
 import { readCommitNode } from "./commit";
 import { loadUser, userNode } from "./core";
 import type {
+	AddPullRequestReviewInput,
 	CreatePullRequestInput,
 	MergePullRequestInput,
 	RepositoryPullRequestsArgs,
@@ -59,6 +69,7 @@ import {
 	commitDetailResolvers,
 	detailTypeResolvers,
 	pullDetailResolvers,
+	reviewNodeFor,
 } from "./pulls-detail";
 import { type RepositoryNode, readableRepositoryNode } from "./repository";
 import type { DomainResolvers } from "./types";
@@ -402,6 +413,55 @@ async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
 	return reloadedPull(node, input.clientMutationId);
 }
 
+/**
+ * `addPullRequestReview` with an event: submits the viewer's review in one
+ * step, under `submitReview`'s rules. Pending (event-less) reviews and inline
+ * comments are not served yet.
+ */
+async function addReview(
+	input: AddPullRequestReviewInput,
+	ctx: GraphQLContext,
+) {
+	const node = await mutationPull(input, ctx);
+	const repoId = node.repo.row.id;
+	const reviewer = ctx.caller.userId;
+	// A reader who can see the pull request can always comment (participate),
+	// so the only participate refusal is the archived one, checked here.
+	if (node.repo.row.archived) throw forbidden(ARCHIVED_MESSAGE);
+	if (!input.event)
+		throw unprocessable(
+			"A review needs an event; pending reviews are not supported yet",
+		);
+	if (input.event === "DISMISS")
+		throw unprocessable("Reviews can't be dismissed by this mutation");
+	if (input.event !== "COMMENT") {
+		if (!(await canWriteRepo(repoId, reviewer)))
+			throw forbidden("You need write access to approve or request changes");
+		if (node.row.authorId === reviewer)
+			throw unprocessable("You can't review your own pull request");
+	}
+	const body = input.body?.trim() ?? "";
+	if (body.length > MAX_BODY_CHARS) throw unprocessable("Invalid review body");
+	const state =
+		input.event === "APPROVE"
+			? "approved"
+			: input.event === "REQUEST_CHANGES"
+				? "changes_requested"
+				: "commented";
+	const review = await findOrCreatePendingReview(node.row, reviewer);
+	const submitted = await submitPendingReview(
+		node.repo.row,
+		node.row,
+		review,
+		state,
+		body || null,
+	);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		pullRequestReview: await reviewNodeFor(node.repo, submitted, ctx),
+	};
+}
+
 async function draftState(
 	input: { pullRequestId: string; clientMutationId?: string | null },
 	ctx: GraphQLContext,
@@ -501,6 +561,7 @@ export const pullsResolvers: DomainResolvers = {
 				setPullStatus(args.input, ctx, "open"),
 			updatePullRequest: (_source, args, ctx) => updatePull(args.input, ctx),
 			mergePullRequest: (_source, args, ctx) => mergePull(args.input, ctx),
+			addPullRequestReview: (_source, args, ctx) => addReview(args.input, ctx),
 		},
 		UpdatePullRequestPayload: { actor: actorOf },
 		MergePullRequestPayload: { actor: actorOf },

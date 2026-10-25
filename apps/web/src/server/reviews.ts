@@ -1,30 +1,28 @@
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { MAX_BODY_CHARS, MAX_REVIEW_PATH_CHARS } from "#/lib/limits";
 import type { ReviewState } from "#/lib/review-types";
 import { safeRepoPathSchema } from "./git-ref-name";
-import { recordThreadActivity } from "./notification-store";
 import {
 	canWriteRepo,
 	readWithAccess,
 	requireParticipateAccess,
 } from "./repo-access";
-import { clearReviewRequest } from "./review-request-store";
 import {
 	assertReviewAnchor,
 	buildReviewThreads,
-	headShaFor,
+	findOrCreatePendingReview,
 	listReviewComments,
 	pendingReviewFor,
+	submitPendingReview,
 	toView,
 } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 import { findPullRequestById, type PullRequest } from "./thread-store";
-import { recordTimelineEvent } from "./timeline-store";
 
 const reviewSideSchema = z.enum(["LEFT", "RIGHT"]);
 const reviewEventSchema = z.enum(["comment", "approve", "request_changes"]);
@@ -33,25 +31,6 @@ async function findPullRequest(prId: number): Promise<PullRequest> {
 	const pr = await findPullRequestById(prId);
 	if (!pr) throw notFound();
 	return pr;
-}
-
-/**
- * The viewer's pending review, created on first use. The partial unique index
- * on `(repo, pull request, author) WHERE state = 'pending'` makes the
- * concurrent double-click safe: the loser of the insert re-reads the winner's.
- */
-async function findOrCreatePendingReview(pr: PullRequest, authorId: string) {
-	const existing = await pendingReviewFor(pr.id, authorId);
-	if (existing) return existing;
-	const [created] = await db
-		.insert(pullRequestReviews)
-		.values({ repoId: pr.repoId, pullRequestId: pr.id, authorId })
-		.onConflictDoNothing()
-		.returning();
-	if (created) return created;
-	const raced = await pendingReviewFor(pr.id, authorId);
-	if (!raced) throw new Error("Could not open a pending review");
-	return raced;
 }
 
 export const getPullRequestReviewThreads = createServerFn({ method: "GET" })
@@ -233,38 +212,13 @@ export const submitReview = createServerFn({ method: "POST" })
 							? "changes_requested"
 							: "commented";
 				const review = await findOrCreatePendingReview(pr, currentUser.id);
-				const [submitted] = await db
-					.update(pullRequestReviews)
-					.set({
-						state,
-						body: data.body?.trim() ? data.body.trim() : null,
-						commitSha:
-							review.commitSha ?? (await headShaFor(repo, pr.sourceBranch)),
-						submittedAt: new Date(),
-						updatedAt: new Date(),
-					})
-					.where(
-						and(
-							eq(pullRequestReviews.id, review.id),
-							eq(pullRequestReviews.state, "pending"),
-						),
-					)
-					.returning();
-				if (!submitted) throw new Error("That review was already submitted");
-
-				await clearReviewRequest(pr.id, currentUser.id);
-				await recordTimelineEvent(pr.id, currentUser.id, {
-					event: "reviewed",
+				return submitPendingReview(
+					repo,
+					pr,
+					review,
 					state,
-					reviewId: submitted.id,
-				});
-				await recordThreadActivity({
-					thread: pr,
-					actorId: currentUser.id,
-					actorReason: "comment",
-					text: submitted.body,
-				});
-				return submitted;
+					data.body?.trim() ? data.body.trim() : null,
+				);
 			},
 		);
 	});

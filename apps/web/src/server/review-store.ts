@@ -1,17 +1,25 @@
+import { and, eq } from "drizzle-orm";
 import { db } from "#/db";
+import { pullRequestReviews } from "#/db/app-schema";
 import { anchorKey, collectDiffAnchors } from "#/lib/diff";
 import type {
 	PullRequestReviewSummary,
 	ReviewCommentView,
+	ReviewedState,
 	ReviewSide,
 	ReviewState,
 	ReviewThread,
 } from "#/lib/review-types";
 import { getBranchDiff, getBranches } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
+import { recordThreadActivity } from "./notification-store";
 import type { RepositoryWithOwner } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
+import { clearReviewRequest } from "./review-request-store";
 import type { PullRequest } from "./thread-store";
+import { recordTimelineEvent } from "./timeline-store";
+
+type PendingReview = NonNullable<Awaited<ReturnType<typeof pendingReviewFor>>>;
 
 type ReviewCommentRow = Awaited<ReturnType<typeof listReviewComments>>[number];
 
@@ -169,4 +177,70 @@ export async function headShaFor(
 ): Promise<string | null> {
 	const tips = await getBranches(ownerKeyOf(repo), repo.name);
 	return tips.find((branch) => branch.name === sourceBranch)?.commit ?? null;
+}
+
+/**
+ * The reviewer's pending review, created on first use. The partial unique index
+ * on `(repo, pull request, author) WHERE state = 'pending'` makes the
+ * concurrent double-click safe: the loser of the insert re-reads the winner's.
+ */
+export async function findOrCreatePendingReview(
+	pr: PullRequest,
+	authorId: string,
+) {
+	const existing = await pendingReviewFor(pr.id, authorId);
+	if (existing) return existing;
+	const [created] = await db
+		.insert(pullRequestReviews)
+		.values({ repoId: pr.repoId, pullRequestId: pr.id, authorId })
+		.onConflictDoNothing()
+		.returning();
+	if (created) return created;
+	const raced = await pendingReviewFor(pr.id, authorId);
+	if (!raced) throw new Error("Could not open a pending review");
+	return raced;
+}
+
+/**
+ * Submits a pending review as `state` and records it: the timeline event, the
+ * cleared review request and thread activity. The caller checked the
+ * reviewer's access.
+ */
+export async function submitPendingReview(
+	repo: RepositoryWithOwner,
+	pr: PullRequest,
+	review: PendingReview,
+	state: ReviewedState,
+	body: string | null,
+) {
+	const [submitted] = await db
+		.update(pullRequestReviews)
+		.set({
+			state,
+			body,
+			commitSha: review.commitSha ?? (await headShaFor(repo, pr.sourceBranch)),
+			submittedAt: new Date(),
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(pullRequestReviews.id, review.id),
+				eq(pullRequestReviews.state, "pending"),
+			),
+		)
+		.returning();
+	if (!submitted) throw new Error("That review was already submitted");
+	await clearReviewRequest(pr.id, review.authorId);
+	await recordTimelineEvent(pr.id, review.authorId, {
+		event: "reviewed",
+		state,
+		reviewId: submitted.id,
+	});
+	await recordThreadActivity({
+		thread: pr,
+		actorId: review.authorId,
+		actorReason: "comment",
+		text: submitted.body,
+	});
+	return submitted;
 }
