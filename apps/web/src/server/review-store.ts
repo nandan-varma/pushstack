@@ -11,6 +11,7 @@ import type {
 	ReviewState,
 	ReviewThread,
 } from "#/lib/review-types";
+import { bestEffort } from "./best-effort";
 import { getBranchDiff, getBranches } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { recordThreadActivity } from "./notification-store";
@@ -246,17 +247,28 @@ export async function submitPendingReview(
 		)
 		.returning();
 	if (!submitted) throw new Error("That review was already submitted");
-	await clearReviewRequest(pr.id, review.authorId);
-	await recordTimelineEvent(pr.id, review.authorId, {
-		event: "reviewed",
-		state,
-		reviewId: submitted.id,
-	});
-	await recordThreadActivity({
-		thread: pr,
-		actorId: review.authorId,
-		actorReason: "comment",
-		text: submitted.body,
-	});
+	// The review is committed above, so each follow-up is best-effort: a
+	// failure here must not look like a failed submit (a retry would then be
+	// refused as already submitted).
+	await bestEffort(
+		"review-store",
+		`Clearing the review request of #${pr.number}`,
+		() => clearReviewRequest(pr.id, review.authorId),
+	);
+	await bestEffort("review-store", `The review event on #${pr.number}`, () =>
+		recordTimelineEvent(pr.id, review.authorId, {
+			event: "reviewed",
+			state,
+			reviewId: submitted.id,
+		}),
+	);
+	await bestEffort("review-store", `The review notice on #${pr.number}`, () =>
+		recordThreadActivity({
+			thread: pr,
+			actorId: review.authorId,
+			actorReason: "comment",
+			text: submitted.body,
+		}),
+	);
 	return submitted;
 }

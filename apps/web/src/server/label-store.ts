@@ -3,6 +3,7 @@ import { db } from "#/db";
 import { labels, threadLabels } from "#/db/app-schema";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import { MAX_LABELS_PER_REPOSITORY, MAX_LABELS_PER_THREAD } from "#/lib/limits";
+import { bestEffort } from "./best-effort";
 import { isUniqueViolation } from "./db-errors";
 import { assertRepositoryCapacity } from "./repository-capacity";
 import { recordTimelineEvent } from "./timeline-store";
@@ -226,17 +227,22 @@ export async function setThreadLabels(
 			),
 		);
 	}
-	for (const label of added) {
-		await recordTimelineEvent(issueId, actorId, {
-			event: "labeled",
-			label: { name: label.name, color: label.color },
-		});
-	}
-	for (const label of removed) {
-		await recordTimelineEvent(issueId, actorId, {
-			event: "unlabeled",
-			label: { name: label.name, color: label.color },
-		});
+	// The label rows are committed above. Each event is best-effort on its own,
+	// so one failed event neither fails the change nor drops the others.
+	const events = [
+		...added.map((label) => ({ event: "labeled" as const, label })),
+		...removed.map((label) => ({ event: "unlabeled" as const, label })),
+	];
+	for (const { event, label } of events) {
+		await bestEffort(
+			"label-store",
+			`The ${event} event of label ${label.name}`,
+			() =>
+				recordTimelineEvent(issueId, actorId, {
+					event,
+					label: { name: label.name, color: label.color },
+				}),
+		);
 	}
 	return chosen.sort((a, b) => a.name.localeCompare(b.name));
 }
