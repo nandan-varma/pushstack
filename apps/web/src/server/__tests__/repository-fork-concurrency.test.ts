@@ -53,8 +53,13 @@ const { db } = await import("#/db");
 const { createCommit } = await import("../git-write");
 const { listRepoStorage, putStorageObject } = await import("../git-fs");
 const { createRepositoryForUser } = await import("../repository-create");
-const { forkRepositoryForUser } = await import("../repository-fork");
+const { ForkParentChangedError, forkRepositoryForUser } = await import(
+	"../repository-fork"
+);
 const { RepositoryExistsError } = await import("../repository-create");
+const { RepositoryNameTakenError, transferRepository } = await import(
+	"../repository-settings"
+);
 
 const parentOwner = { id: "parentowner-id", username: "parentowner" };
 
@@ -235,6 +240,49 @@ describe("duplicate and interrupted forks", () => {
 		).rejects.toBeInstanceOf(RepositoryExistsError);
 		expect(Date.now() - started).toBeLessThan(10_000);
 	}, 20_000);
+});
+
+describe("a move and a fork of the same pair, in mixed case", () => {
+	// `forker/alpha` and `forker/Zed` sort differently by code unit (`Z` before
+	// `a`) and by localeCompare (`alpha` before `Zed`). A move and a fork of
+	// this pair must agree on one order, or each holds one lock and waits on
+	// the other.
+	for (let round = 0; round < 3; round++) {
+		it(`settles at once, round ${round}`, async () => {
+			const source = `alpha${round}`;
+			const target = `Zed${round}`;
+			await createRepositoryForUser(users.forker, {
+				name: source,
+				visibility: "public",
+				autoInit: false,
+			});
+			const repo = await rowWithOwner("forker", source);
+			const newOwner = { id: users.forker.id, username: "forker" };
+
+			const started = Date.now();
+			const results = await Promise.allSettled([
+				transferRepository(repo, newOwner, target),
+				forkRepositoryForUser(repo, users.forker, target),
+			]);
+			expect(Date.now() - started).toBeLessThan(10_000);
+
+			const [moved, forked] = results;
+			if (moved.status === "rejected") {
+				expect(moved.reason).toBeInstanceOf(RepositoryNameTakenError);
+			}
+			// Whichever ran second sees the other's result: a fork whose parent
+			// was renamed away is refused, not copied.
+			if (forked.status === "rejected") {
+				expect([RepositoryExistsError, ForkParentChangedError]).toContainEqual(
+					forked.reason.constructor,
+				);
+			}
+			// Exactly one of the two takes the target name.
+			expect(
+				results.filter((result) => result.status === "fulfilled"),
+			).toHaveLength(1);
+		}, 20_000);
+	}
 });
 
 async function rowWithOwner(ownerName: string, name: string) {

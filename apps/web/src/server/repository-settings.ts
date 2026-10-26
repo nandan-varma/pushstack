@@ -14,7 +14,7 @@ import {
 	renameRepositoryStorage,
 	transferRepositoryStorage,
 } from "./git-repo";
-import { withRepositoryLock } from "./git-repo-lock";
+import { withRepositoryLock, withRepositoryLocks } from "./git-repo-lock";
 import { ownerKeyOf } from "./git-storage-naming";
 import { setDefaultBranch } from "./git-write";
 import { logError } from "./perf-log";
@@ -221,17 +221,15 @@ export async function transferRepository(
 			throw error;
 		}
 	};
-	// Locks are taken in key order whatever the direction, so two opposite
-	// transfers cannot each hold one lock and wait for the other's.
-	const [first, second] = [
-		[from, repo.name],
-		[to, targetName],
-	].sort((x, y) => `${x[0]}/${x[1]}`.localeCompare(`${y[0]}/${y[1]}`)) as [
-		[string, string],
-		[string, string],
-	];
-	const updated = await withRepositoryLock(first[0], first[1], () =>
-		withRepositoryLock(second[0], second[1], move),
+	// One global lock order (withRepositoryLocks), shared with forks: two
+	// opposite moves or a move and a fork of the same pair cannot each hold one
+	// lock and wait for the other's.
+	const updated = await withRepositoryLocks(
+		[
+			{ ownerKey: from, repoName: repo.name },
+			{ ownerKey: to, repoName: targetName },
+		],
+		move,
 	);
 
 	evictRepoByName(from, repo.name, repo.id);
