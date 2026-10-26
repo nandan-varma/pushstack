@@ -84,7 +84,10 @@ export interface Thread extends Issue {
 }
 
 export interface ThreadFilter {
-	repoId: number;
+	/** One repository. Omitted for a cross-repository search, which needs `repoScope`. */
+	repoId?: number;
+	/** A condition on the thread's repository, for cross-repository searches (ANDed). */
+	repoScope?: SQL;
 	/** One kind, or both (the REST issues list). */
 	kind?: ThreadKind;
 	/** The issue state; omitted for all. */
@@ -204,24 +207,37 @@ function assigneeCondition(assignee: string): SQL {
 }
 
 /** Issue ids carrying every one of `names` (GitHub's `label:a label:b` is an AND). */
-function issuesWithLabels(repoId: number, names: string[]) {
+/**
+ * Threads carrying every one of `names`: a label counts only when it belongs
+ * to the thread's own repository (labels are per repository).
+ */
+function issuesWithLabels(names: string[]) {
 	const wanted = [...new Set(names.map((name) => name.toLowerCase()))];
 	return db
 		.select({ issueId: threadLabels.issueId })
 		.from(threadLabels)
-		.innerJoin(labels, eq(labels.id, threadLabels.labelId))
-		.where(
+		.innerJoin(issues, eq(issues.id, threadLabels.issueId))
+		.innerJoin(
+			labels,
 			and(
-				eq(labels.repoId, repoId),
-				inArray(sql`lower(${labels.name})`, wanted),
+				eq(labels.id, threadLabels.labelId),
+				eq(labels.repoId, issues.repoId),
 			),
 		)
+		.where(inArray(sql`lower(${labels.name})`, wanted))
 		.groupBy(threadLabels.issueId)
 		.having(sql`count(distinct ${labels.id}) = ${wanted.length}`);
 }
 
 function whereOf(filter: ThreadFilter): SQL | undefined {
-	const conditions: (SQL | undefined)[] = [eq(issues.repoId, filter.repoId)];
+	if (filter.repoId === undefined && filter.repoScope === undefined) {
+		// Never an unscoped query: that would list every repository's threads.
+		throw new Error("A thread filter needs a repository or a repository scope");
+	}
+	const conditions: (SQL | undefined)[] = [
+		filter.repoId === undefined ? undefined : eq(issues.repoId, filter.repoId),
+		filter.repoScope,
+	];
 	const add = (condition: SQL | undefined) => conditions.push(condition);
 	if (filter.kind) {
 		add(eq(issues.isPullRequest, filter.kind === "pull_request"));
@@ -285,7 +301,7 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 			),
 		);
 	} else if (filter.labels && filter.labels.length > 0) {
-		add(inArray(issues.id, issuesWithLabels(filter.repoId, filter.labels)));
+		add(inArray(issues.id, issuesWithLabels(filter.labels)));
 	}
 	for (const assignee of filter.assignees ?? []) {
 		add(assigneeCondition(assignee));

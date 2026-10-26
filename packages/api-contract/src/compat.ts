@@ -11,6 +11,8 @@ import { type OperationId, routes } from "./routes";
 export const compatibilityNotes: Record<OperationId, string> = {
 	"meta/root":
 		"URL templates for the served endpoints only; gh reads `X-OAuth-Scopes` here",
+	"meta/get":
+		"`installed_version` is the placeholder `0.0.0` (PushStack is not a GitHub Enterprise release; gh needs a semver for a non-github.com host to choose its search syntax)",
 	"rate-limit/get":
 		"`resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search`",
 	"users/get-authenticated": "",
@@ -30,6 +32,10 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"users/get-by-id":
 		"public profile by integer id; `404` for an unknown or malformed id",
 	"users/get-by-username": "",
+	"search/repos":
+		"words match the name or description; `user:` (one), `is:public`/`is:private`, `topic:` (repeats AND); `org:` and other qualifiers are `422`; `sort` is only `updated` (no best-match ranking: newest first); only repositories the caller can read; the first 100 per page, pages past 10,000 items are empty",
+	"search/issues-and-pull-requests":
+		"GitHub's issue and pull request syntax over every repository the caller can read (or public ones, anonymously); `repo:` and `user:` (one each), `is:`, `type:`, `state:`, `author:`, `label:`, `assignee:`, `mentions:`, `review-requested:`, `reviewed-by:`, `milestone:`, `no:`, `draft:`; any other qualifier, a negated one or an unquoted `scheme:` is `422`; `sort` is `created`, `updated` or `comments`; pages past 10,000 items are empty",
 	"users/list-followers-for-user": "pagination",
 	"users/list-following-for-user": "pagination",
 	"users/check-following-for-user": "`204` or `404`",

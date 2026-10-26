@@ -78,7 +78,7 @@ import {
 	setIssueLabels,
 	updateLabel,
 } from "./labels";
-import { getRoot } from "./meta";
+import { getMeta, getRoot } from "./meta";
 import {
 	createMilestone,
 	deleteMilestone,
@@ -158,6 +158,7 @@ import {
 	updateRepositoryHandler,
 } from "./repos";
 import { matchApiRoute } from "./routing";
+import { searchIssuesHandler, searchRepositoriesHandler } from "./search";
 import { listTags } from "./tags";
 import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser, getUserById } from "./users";
@@ -174,6 +175,7 @@ type Handler = (ctx: ApiContext) => Promise<Response>;
 
 const HANDLERS = {
 	"meta/root": getRoot,
+	"meta/get": getMeta,
 	"rate-limit/get": getRateLimit,
 	"users/get-authenticated": getAuthenticatedUser,
 	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
@@ -187,6 +189,8 @@ const HANDLERS = {
 	"users/get-by-id": getUserById,
 	"users/get-by-username": getUser,
 	"repos/list-for-user": listUserRepositories,
+	"search/repos": searchRepositoriesHandler,
+	"search/issues-and-pull-requests": searchIssuesHandler,
 	"users/list-followers-for-user": listFollowersOfUser,
 	"users/list-following-for-user": listFollowingOfUser,
 	"users/check-following-for-user": checkUserFollows,
