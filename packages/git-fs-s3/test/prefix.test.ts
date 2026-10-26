@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	copyPrefix,
 	deletePrefix,
 	GitConflictError,
 	GitRefNotFoundError,
@@ -7,6 +8,7 @@ import {
 	isRetryableError,
 	MemoryObjectStore,
 	movePrefix,
+	PrefixTooLargeError,
 } from "../src/index.js";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -51,6 +53,43 @@ describe("movePrefix", () => {
 	it("rejects overlapping prefixes", async () => {
 		const store = await seeded(1);
 		await expect(movePrefix(store, "a/", "a/b/")).rejects.toThrow("overlap");
+	});
+});
+
+describe("copyPrefix", () => {
+	it("copies every object and leaves the source in place", async () => {
+		const store = await seeded(3);
+		expect(await copyPrefix(store, "a/", "b/")).toBe(3);
+		expect((await store.list("a/")).objects).toHaveLength(3);
+		expect(await store.get("b/2")).toEqual(bytes("2"));
+		expect(await store.get("ab/keep")).not.toBeNull();
+	});
+
+	it("refuses before copying anything when the source is over maxBytes", async () => {
+		const store = new MemoryObjectStore();
+		await store.put("a/big", bytes("0123456789"));
+		await store.put("a/small", bytes("01"));
+		const copied: string[] = [];
+		await expect(
+			copyPrefix(store, "a/", "b/", {
+				maxBytes: 5,
+				copy: async (from) => {
+					copied.push(from);
+				},
+			}),
+		).rejects.toBeInstanceOf(PrefixTooLargeError);
+		expect(copied).toEqual([]);
+	});
+
+	it("copies a source of exactly maxBytes", async () => {
+		const store = new MemoryObjectStore();
+		await store.put("a/x", bytes("0123456789"));
+		expect(await copyPrefix(store, "a/", "b/", { maxBytes: 10 })).toBe(1);
+	});
+
+	it("rejects overlapping prefixes", async () => {
+		const store = await seeded(1);
+		await expect(copyPrefix(store, "a/", "a/b/")).rejects.toThrow("overlap");
 	});
 });
 

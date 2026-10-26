@@ -56,7 +56,12 @@ export {
 	parsePackFileName,
 	READABLE_PACK_FILE_KINDS,
 } from "./pack-files.js";
-export { deletePrefix, movePrefix } from "./prefix.js";
+export {
+	copyPrefix,
+	deletePrefix,
+	movePrefix,
+	PrefixTooLargeError,
+} from "./prefix.js";
 export {
 	isFullSha,
 	isPullHeadRef,
