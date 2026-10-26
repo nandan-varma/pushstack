@@ -39,7 +39,7 @@ export const privateUser = z.strictObject({
 	owned_private_repos: count,
 });
 
-export const repository = z.strictObject({
+const repositoryFields = {
 	id: z.number().int(),
 	node_id: z.string(),
 	name: z.string(),
@@ -80,6 +80,16 @@ export const repository = z.strictObject({
 	permissions: z
 		.strictObject({ admin: z.boolean(), push: z.boolean(), pull: z.boolean() })
 		.optional(),
+};
+
+/**
+ * A repository as GitHub nests it: a fork's `parent` (its direct parent) and
+ * `source` (the root of its fork network). Neither nests again.
+ */
+export const repository = z.strictObject({
+	...repositoryFields,
+	parent: z.strictObject(repositoryFields).optional(),
+	source: z.strictObject(repositoryFields).optional(),
 });
 
 export const label = z.strictObject({

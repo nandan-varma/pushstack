@@ -147,6 +147,7 @@ import {
 } from "./releases";
 import {
 	createAuthenticatedUserRepository,
+	createForkHandler,
 	deleteRepositoryHandler,
 	generateFromTemplate,
 	getRepository,
@@ -208,6 +209,7 @@ const HANDLERS = {
 	"repos/replace-all-topics": replaceTopics,
 	"repos/transfer": transferRepositoryHandler,
 	"repos/create-using-template": generateFromTemplate,
+	"repos/create-fork": createForkHandler,
 	"activity/list-watchers-for-repo": listRepoWatchers,
 	"activity/get-repo-subscription": getRepoSubscriptionForCaller,
 	"activity/set-repo-subscription": putRepoSubscription,

@@ -134,6 +134,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | `PUT /repos/{owner}/{repo}/topics` | [`repos/replace-all-topics`](https://docs.github.com/rest/repos/repos#replace-all-repository-topics) | `names` (at most 20, lowercase letters, digits and hyphens, at most 50 characters each; invalid is `422`) |
 | `POST /repos/{owner}/{repo}/transfer` | [`repos/transfer`](https://docs.github.com/rest/repos/repos#transfer-a-repository) | `new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` is `422` (there are no teams); the old URL does not redirect |
 | `POST /repos/{template_owner}/{template_repo}/generate` | [`repos/create-using-template`](https://docs.github.com/rest/repos/repos#create-a-repository-using-a-template) | the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` must be `false` (`true` is `422`); issues, labels, topics and settings are not copied |
+| `POST /repos/{owner}/{repo}/forks` | [`repos/create-fork`](https://docs.github.com/rest/repos/forks#create-a-fork) | `202` with the fork (`fork`, `parent` and `source`); the fork is a copy of the parent's git data, so it carries every branch and tag (`default_branch_only` is ignored) and the parent's visibility, description and default branch, but not its issues, labels, topics, settings, releases or stars; `organization` must be the caller (no organizations); forking a repository you already forked under that name answers that fork; another repository of that name is `422`; a parent over 1 GiB of git data is `422`; forks per user per hour are limited (`RATE_LIMIT_FORKS_USER`, `403` when exceeded); an archived parent can be forked |
 | `GET /repos/{owner}/{repo}/subscribers` | [`activity/list-watchers-for-repo`](https://docs.github.com/rest/activity/watching#list-watchers) | people watching (not ignoring) who can still read the repository; pagination |
 | `GET /repos/{owner}/{repo}/subscription` | [`activity/get-repo-subscription`](https://docs.github.com/rest/activity/watching#get-a-repository-subscription) | `404` when you are not subscribed; `reason` is always `null` |
 | `PUT /repos/{owner}/{repo}/subscription` | [`activity/set-repo-subscription`](https://docs.github.com/rest/activity/watching#set-a-repository-subscription) | `repo:write` token; `ignored: true` ignores the repository, otherwise you watch all activity; `subscribed: false` without `ignored` removes the subscription |
@@ -262,9 +263,10 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   disabled, homepage, topics, is_template, has_issues, has_wiki, has_projects,
   allow_merge_commit, allow_squash_merge, allow_rebase_merge,
   stargazers_count, watchers_count, forks_count` and (when
-  authenticated, on repo and `/user/repos`) `permissions`. `fork` is always
-  `false`, `forks_count` `0`. Everything else (`language`, `size`,
-  `license`, `ssh_url`, …) is omitted.
+  authenticated, on repo and `/user/repos`) `permissions`. `fork` is true for a
+  fork, but `parent` and `source` appear only in the `POST …/forks` response
+  for now, and `forks_count` is `0` until forks can be listed. Everything else
+  (`language`, `size`, `license`, `ssh_url`, …) is omitted.
 - There are no organizations, so `organization_member` affiliation matches
   nothing and every owner is a user.
 - `GET /repos/{owner}/{repo}/issues` returns issues and pull requests together,

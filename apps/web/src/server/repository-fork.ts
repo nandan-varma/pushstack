@@ -14,8 +14,39 @@ import { deleteRepositoryStorage, forkRepositoryStorage } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { logError } from "./perf-log";
 import { RepositoryExistsError } from "./repository-create";
-import { evictRepoByName } from "./repository-lookup";
+import {
+	evictRepoByName,
+	publicUserFields,
+	type RepositoryRowWithOwner,
+} from "./repository-lookup";
 import { setRepoSubscription } from "./watch-store";
+
+/** Forks of forks deeper than this are not walked to their root (`source` is then omitted). */
+const MAX_FORK_CHAIN_DEPTH = 64;
+
+/**
+ * The root of a fork network (GitHub's `source`): the repository that is not
+ * itself a fork, reached by following `fork_of_id`. Null when the walk is too
+ * deep or a link was deleted, since the root is then unknown.
+ */
+export async function forkSourceOf(
+	repo: Repository,
+): Promise<RepositoryRowWithOwner | null> {
+	let current = repo;
+	for (let depth = 0; current.isFork; depth++) {
+		if (current.forkOfId === null || depth >= MAX_FORK_CHAIN_DEPTH) return null;
+		const parent = await db.query.repositories.findFirst({
+			where: { id: current.forkOfId },
+		});
+		if (!parent) return null;
+		current = parent;
+	}
+	const root = await db.query.repositories.findFirst({
+		where: { id: current.id },
+		with: { owner: publicUserFields },
+	});
+	return root ?? null;
+}
 
 /** The parent is too large to copy within one request. */
 export class ForkTooLargeError extends Error {

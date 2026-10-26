@@ -196,6 +196,12 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#create-a-repository-using-a-template`,
 		status: 201,
 	},
+	"repos/create-fork": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/forks",
+		docs: `${DOCS}/repos/forks#create-a-fork`,
+		status: 202,
+	},
 	"activity/list-watchers-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/subscribers",

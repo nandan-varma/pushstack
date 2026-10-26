@@ -34,12 +34,19 @@ import { parseTopics } from "#/lib/topics";
 import { ArchiveLimitError } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { perfStep } from "../perf-log";
+import { hitRateLimit, identityFor } from "../rate-limit";
 import { ARCHIVED_MESSAGE, getAccessForRepository } from "../repo-access";
 import {
 	createRepositoryForUser,
 	generateRepositoryFromTemplate,
 	RepositoryExistsError,
 } from "../repository-create";
+import {
+	ForkParentChangedError,
+	ForkTooLargeError,
+	forkRepositoryForUser,
+	forkSourceOf,
+} from "../repository-fork";
 import {
 	findRepositoryByName,
 	type PublicUser,
@@ -58,6 +65,7 @@ import {
 import { watcherCounts } from "../watch-store";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
+	ApiError,
 	apiUrl,
 	forbiddenError,
 	json,
@@ -69,6 +77,7 @@ import {
 	validationFailedError,
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
+import { RateLimitedError } from "./rate-limit";
 import { readableRepository } from "./repo-lookup";
 import { type RepoRole, repository } from "./serializers";
 
@@ -672,5 +681,89 @@ export async function generateFromTemplate(ctx: ApiContext) {
 		repository({ ...repo, owner }, { stars: 0, openIssues: 0, role: "owner" }),
 		201,
 		{ Location: apiUrl(`/repos/${owner.username}/${repo.name}`) },
+	);
+}
+
+/**
+ * `POST /repos/{owner}/{repo}/forks`: a copy of the repository under the
+ * caller's account, answered `202` with the fork and its `parent` and `source`.
+ * An archived parent may be forked: a fork only reads it.
+ */
+export async function createForkHandler(ctx: ApiContext) {
+	const { userId } = requireScope(ctx, "repo:write");
+	const { repo: parent } = await readableRepository(ctx, {
+		allowArchivedWrites: true,
+	});
+	const data = await requestBody(ctx, "repos/create-fork", "Repository", {
+		message: "Repository creation failed.",
+	});
+	const [owner] = await db
+		.select(publicUserColumns)
+		.from(user)
+		.where(eq(user.id, userId));
+	if (!owner) throw notFoundError();
+	if (data.organization !== undefined && data.organization !== owner.username) {
+		throw validationFailedError("Validation Failed", [
+			{ resource: "Repository", field: "organization", code: "invalid" },
+		]);
+	}
+	const rate = await hitRateLimit("fork", identityFor(ctx.request, userId));
+	if (rate?.exceeded) throw new RateLimitedError(rate);
+	let fork: Awaited<ReturnType<typeof forkRepositoryForUser>>;
+	try {
+		fork = await forkRepositoryForUser(parent, owner, data.name ?? parent.name);
+	} catch (error) {
+		if (error instanceof RepositoryExistsError) {
+			throw validationFailedError("Validation Failed", [
+				{
+					resource: "Repository",
+					code: "custom",
+					field: "name",
+					message: "name already exists on this account",
+				},
+			]);
+		}
+		if (error instanceof ForkTooLargeError) {
+			throw validationFailedError("Validation Failed", [
+				{ resource: "Repository", code: "custom", message: error.message },
+			]);
+		}
+		if (error instanceof ForkParentChangedError) {
+			throw new ApiError(409, error.message);
+		}
+		throw error;
+	}
+	const source = await forkSourceOf(parent);
+	const ids = [
+		parent.id,
+		...(source && source.id !== parent.id ? [source.id] : []),
+	];
+	const [stargazers, openIssues] = await Promise.all([
+		starCounts(ids),
+		openIssueCounts(ids),
+	]);
+	const shape = (
+		row: { id: number },
+		withRow: Parameters<typeof repository>[0],
+	) =>
+		repository(withRow, {
+			stars: stargazers.get(row.id) ?? 0,
+			openIssues: openIssues.get(row.id) ?? 0,
+		});
+	return json(
+		{
+			...repository(
+				{ ...fork, owner },
+				{
+					stars: 0,
+					openIssues: 0,
+					role: "owner",
+				},
+			),
+			parent: shape(parent, parent),
+			...(source && { source: shape(source, source) }),
+		},
+		202,
+		{ Location: apiUrl(`/repos/${owner.username}/${fork.name}`) },
 	);
 }
