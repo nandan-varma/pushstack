@@ -26,6 +26,8 @@ import {
 	withPackedWrites,
 } from "../../src/ops/index.js";
 import { parsePackFileName } from "../../src/pack-files.js";
+import { readPackIndex } from "../../src/pack-index.js";
+import { writeDeltaAgainstPrOnlyBlob } from "../support/packs.js";
 
 const author = authorNow("Test", "test@example.com");
 
@@ -551,5 +553,50 @@ describe("repackRepository — pull request roots", () => {
 		await deleteLooseObjects(repo, store);
 
 		await expect(git.readCommit({ ...repo, oid: tip })).rejects.toThrow();
+	});
+});
+
+describe("repackRepository — delta bases", () => {
+	/** Every object id the repository's pack indexes list. */
+	async function packedOids(repo: Repo): Promise<string[]> {
+		const fsp = rawFs(repo);
+		const packDir = `${repo.gitdir}/objects/pack`;
+		const oids: string[] = [];
+		for (const name of await fsp.readdir(packDir)) {
+			if (!name.endsWith(".idx")) continue;
+			const index = readPackIndex(
+				(await fsp.readFile(`${packDir}/${name}`)) as Uint8Array,
+			);
+			for (const entry of index ?? []) oids.push(entry.oid);
+		}
+		return oids;
+	}
+
+	it("does not copy into the consolidated pack a delta base that nothing reachable names", async () => {
+		const { repo } = makeRepo();
+		// main's blob is stored as a delta against a blob only PR 7 names.
+		const { baseBlob } = await writeDeltaAgainstPrOnlyBlob(repo, 7);
+		// Once the PR's head is gone, the base is unreachable.
+		await git.deleteRef({ ...repo, ref: "refs/pull/7/head" });
+		for (let i = 0; i < 3; i++) {
+			await commitFilesToBare(repo, {
+				branch: "main",
+				message: `more ${i}\n`,
+				author,
+				files: [{ path: "b.txt", content: `${i}\n` }],
+			});
+		}
+
+		await repackRepository(repo, { threshold: 4 });
+
+		expect(await packedOids(repo)).not.toContain(baseBlob);
+		// main still reads: its delta was re-encoded whole, not dropped.
+		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		const { blob } = await git.readBlob({
+			...repo,
+			oid: mainOid,
+			filepath: "a.txt",
+		});
+		expect(new TextDecoder().decode(blob)).toContain("tail that only main has");
 	});
 });

@@ -307,7 +307,11 @@ itself rejects so each caller makes that choice.
 ### Objects no ref names yet
 
 A repack keeps only objects reachable from a branch, a tag or a pull request head
-(`refs/pull/<n>/head`, see below). The REST API's
+(`refs/pull/<n>/head`, see below). Consolidation also
+re-encodes a delta whose base is outside that set, rather than copying the base
+into the new pack: an unreachable base is garbage, and once a pull head is
+deleted its objects must not survive the next repack. The cost is a larger pack
+where a reachable object was deltified against an unreachable one. The REST API's
 Git database writes (`git-objects.ts`: `POST …/git/blobs`, `/trees`,
 `/commits`, `/tags`) create objects *before* any ref names them — a client
 commits by writing a blob, a tree, a commit and only then moving a ref — so a

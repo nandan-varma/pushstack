@@ -16,6 +16,8 @@ const gate = vi.hoisted(() => ({
 	entered: null as (() => void) | null,
 	/** The next copy throws instead of copying. */
 	failNext: false,
+	/** Fork copies started (copyPrefix calls). */
+	copies: 0,
 }));
 
 vi.mock("git-fs-s3", async (importOriginal) => {
@@ -25,6 +27,7 @@ vi.mock("git-fs-s3", async (importOriginal) => {
 		copyPrefix: async (
 			...args: Parameters<typeof actual.copyPrefix>
 		): Promise<number> => {
+			gate.copies++;
 			if (gate.hold) {
 				gate.entered?.();
 				await gate.hold;
@@ -259,6 +262,7 @@ describe("a move and a fork of the same pair, in mixed case", () => {
 			const repo = await rowWithOwner("forker", source);
 			const newOwner = { id: users.forker.id, username: "forker" };
 
+			gate.copies = 0;
 			const started = Date.now();
 			const results = await Promise.allSettled([
 				transferRepository(repo, newOwner, target),
@@ -267,15 +271,25 @@ describe("a move and a fork of the same pair, in mixed case", () => {
 			expect(Date.now() - started).toBeLessThan(10_000);
 
 			const [moved, forked] = results;
-			if (moved.status === "rejected") {
+			if (moved.status === "fulfilled") {
+				// The move ran first. The fork's parent is no longer at the name it
+				// was asked for, so it is refused before any copy starts: no fork
+				// row, no fork storage.
+				expect(forked.status).toBe("rejected");
+				if (forked.status === "rejected") {
+					expect(forked.reason).toBeInstanceOf(ForkParentChangedError);
+				}
+				expect(gate.copies).toBe(0);
+				const row = await forkRow(target);
+				expect(row?.isFork).toBe(false);
+			} else {
+				// The fork ran first and owns the target name; the move is refused.
 				expect(moved.reason).toBeInstanceOf(RepositoryNameTakenError);
-			}
-			// Whichever ran second sees the other's result: a fork whose parent
-			// was renamed away is refused, not copied.
-			if (forked.status === "rejected") {
-				expect([RepositoryExistsError, ForkParentChangedError]).toContainEqual(
-					forked.reason.constructor,
-				);
+				expect(forked.status).toBe("fulfilled");
+				expect(gate.copies).toBe(1);
+				const row = await forkRow(target);
+				expect(row?.isFork).toBe(true);
+				expect(row?.forkOfId).toBe(repo.id);
 			}
 			// Exactly one of the two takes the target name.
 			expect(
