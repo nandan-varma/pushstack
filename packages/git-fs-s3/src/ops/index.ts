@@ -32,6 +32,13 @@ export {
 	writeCommitToBare,
 } from "./commit.js";
 export {
+	CopyLimitError,
+	type CopyLimitMetric,
+	type CopyMissingOptions,
+	type CopyMissingResult,
+	copyMissingObjects,
+} from "./copy-objects.js";
+export {
 	type DiffEntry,
 	type DiffFile,
 	DiffLimitError,

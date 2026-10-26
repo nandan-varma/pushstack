@@ -126,6 +126,11 @@ load-bearing:
    sanitizing, so a caller that skipped validation cannot reintroduce the bug by
    omission.
 
+Pull request heads (`refs/pull/<n>/head`) follow a stricter rule than branches
+and tags: only server code writes them, through `pullHeadRefName(n)`. A push
+can't name one (`isSafeFullRefName` covers branches and tags only), and
+`info/refs` never advertises one, so a client can't fetch it.
+
 Route handlers that read a ref or path straight off the URL are the exception to
 "server functions already validate" — `/{owner}/{repo}/raw/…` runs `isSafeRefName` and
 `isSafeRepoPath` itself. [Why the ref rules exist](/docs/internals/security-history#path-traversal-via-git-branchref-names).

@@ -283,7 +283,8 @@ itself rejects so each caller makes that choice.
 
 ### Objects no ref names yet
 
-A repack keeps only objects reachable from a branch or tag. The REST API's
+A repack keeps only objects reachable from a branch, a tag or a pull request head
+(`refs/pull/<n>/head`, see below). The REST API's
 Git database writes (`git-objects.ts`: `POST …/git/blobs`, `/trees`,
 `/commits`, `/tags`) create objects *before* any ref names them — a client
 commits by writing a blob, a tree, a commit and only then moving a ref — so a
@@ -294,6 +295,46 @@ it towards the threshold; once the date passes, the pack and its `.keep` are
 consolidated like any other and still-unreachable objects go, as git's gc
 drops them after its grace period. A `.keep` with any other content (git's
 own) protects its pack indefinitely.
+
+### Pull request heads and copied objects
+
+A pull request whose head lives in a fork is pinned in the base repository as
+`refs/pull/<n>/head`, the way GitHub does it, so the base can diff and merge it
+without the fork. Three rules keep that ref out of the way of clones and
+pushes:
+
+- **Repacks keep it.** `repackRepository` takes its roots from branches, tags
+  and every `refs/pull/<n>/head` (`listPullHeadRefNames`). Without that root a
+  consolidation would drop the PR's commits, because nothing else names them.
+- **Clients never see it.** `info/refs` advertises only HEAD, branches and tags,
+  and upload-pack only serves wants that are ancestors of those tips, so a
+  clone or fetch never downloads a PR ref.
+- **Pushes can't write it.** `isSafeFullRefName` accepts only `refs/heads/` and
+  `refs/tags/`, so receive-pack rejects a pull ref as an invalid ref name.
+  Server code creates one with `pullHeadRefName(n)`, which only accepts a
+  positive pull number.
+
+`copyMissingObjects(src, dst, headOid, { haves, maxObjects, maxBytes })` (in
+`git-fs-s3/ops`) copies what `dst` needs to reach `headOid`: the walk starts at
+the commit and stops at every object `dst` already has, so a fork that shares
+its parent's history copies only its own commits and the trees and blobs they
+changed. It writes one pack into `dst` through `withPackedWrites`, flushed before
+it returns, so the caller can move a ref to `headOid` afterwards. Nothing is
+written if a cap is exceeded: the walk is refused with `CopyLimitError` (422)
+before a pack exists. Two things hold it up:
+
+- **Bounded before reading.** Each level's objects are counted against
+  `maxObjects` before they are read, and their sizes come from the pack index
+  (`getObjectSizes`) before they are inflated, so a huge blob is refused without
+  being loaded. Memory stays within `maxBytes` plus one object.
+- **Trusts the destination's completeness.** "`dst` has this object" means
+  `dst` also has its whole graph, which holds for any repository this package
+  writes (pushes and packed writes never store a partial graph). Copied
+  objects are re-encoded whole, not deltified, so a copy is larger than the
+  same history pushed.
+
+It takes no lock. The caller holds `dst`'s repository lock for the write and
+decides whether it needs `src` stable while the walk runs.
 
 ## The Git smart HTTP protocol (`git-http.ts`)
 
