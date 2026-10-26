@@ -69,6 +69,18 @@ describe("labels", () => {
 		expect(response.body.message).toBe("A repository holds at most 13 labels");
 	});
 
+	it("answers a page past the skip bound empty, with the same Link as pagedList", async () => {
+		const page = await call(
+			"/repos/owner/caps/labels?per_page=5&page=10000",
+			auth(),
+		);
+		expect(page.status).toBe(200);
+		expect(page.body).toEqual([]);
+		const link = page.headers.get("link") ?? "";
+		expect(link).toContain('rel="prev"');
+		expect(link).toContain('rel="first"');
+	});
+
 	it("lists labels a page at a time, limited in SQL", async () => {
 		const all = (await labelFns.getLabels({ data: { repoId } })).labels.map(
 			(label) => label.name,

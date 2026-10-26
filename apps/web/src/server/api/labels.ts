@@ -4,6 +4,7 @@
  * percent-encoded by clients; the dispatcher decodes each segment.
  */
 import {
+	countLabels,
 	createRepoLabel,
 	DuplicateLabelError,
 	deleteRepoLabelById,
@@ -73,11 +74,14 @@ async function applyThreadLabels(
 export async function listRepoLabels(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const params = pageParams(ctx.url.searchParams);
-	if (!params.reachable) return json([], 200, {});
-	const { labels, total } = await listLabelsPage(repo.id, {
-		limit: params.perPage,
-		offset: params.offset,
-	});
+	// Past MAX_LIST_SKIP the page is empty, as in pagedList; the total still
+	// shapes the Link header.
+	const { labels, total } = params.reachable
+		? await listLabelsPage(repo.id, {
+				limit: params.perPage,
+				offset: params.offset,
+			})
+		: { labels: [], total: await countLabels(repo.id) };
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	return json(
 		labels.map((value) => label({ fullName }, value)),

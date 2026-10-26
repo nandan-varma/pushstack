@@ -134,6 +134,14 @@ export function listLabels(repoId: number): Promise<LabelView[]> {
 		.orderBy(asc(sql`lower(${labels.name})`), asc(labels.id));
 }
 
+export async function countLabels(repoId: number): Promise<number> {
+	const [held] = await db
+		.select({ total: count() })
+		.from(labels)
+		.where(eq(labels.repoId, repoId));
+	return Number(held?.total ?? 0);
+}
+
 /** One page of a repository's labels by name, with the total the Link header needs. */
 export async function listLabelsPage(
 	repoId: number,
