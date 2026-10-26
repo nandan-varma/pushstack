@@ -184,7 +184,8 @@ unless the caller can moderate. `expectedHeadOid` must match the head branch
 REST's `merge_method`; a method the repository disallows
 (`squashMergeAllowed`, `rebaseMergeAllowed`, `mergeCommitAllowed`) is
 `UNPROCESSABLE`. `commitHeadline` and `commitBody` set the merge or squash
-commit message (a rebase ignores them). `authorEmail` is not accepted. Both
+commit message (a rebase ignores them), each capped at 10,000 characters
+(`UNPROCESSABLE` beyond). `authorEmail` is not accepted. Both
 `mergePullRequest` and `updatePullRequest` resolve `actor` to the caller.
 `addPullRequestReview` takes `event` `APPROVE`, `COMMENT` or `REQUEST_CHANGES`
 and submits in one step, under the web review rules: any reader may comment,

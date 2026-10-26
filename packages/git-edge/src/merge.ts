@@ -475,10 +475,12 @@ export async function threeWayMerge(
 export interface SquashOpts extends Omit<MergeOpts, "message"> {
 	/**
 	 * The squash commit's message, or a function of the commit messages being
-	 * squashed (oldest first, merge commits left out) — for the default body
-	 * GitHub derives from them. Read under the same lock as the merge.
+	 * squashed (oldest first, merge commits left out; `truncated` when the
+	 * range held more than `MAX_RANGE_COMMITS`, so only the first were given) —
+	 * for the default body GitHub derives from them. Read under the same lock
+	 * as the merge.
 	 */
-	message: string | ((commitMessages: string[]) => string);
+	message: string | ((commitMessages: string[], truncated: boolean) => string);
 }
 
 /**
@@ -518,7 +520,8 @@ export async function squashMerge(
 			targetCommit.commit.tree,
 			sourceCommit.commit.tree,
 		);
-		const { commits } = await commitsAboveBase(packed, baseOid, sourceOid);
+		const range = await commitsAboveBase(packed, baseOid, sourceOid);
+		const commits = range.commits;
 		// Oldest first: reversed breadth-first order breaks committer-time ties.
 		// Merge commits are not listed.
 		const squashed = commits
@@ -527,7 +530,10 @@ export async function squashMerge(
 			.sort((a, b) => a.timestamp - b.timestamp);
 		const message =
 			typeof opts.message === "function"
-				? opts.message(squashed.map((commit) => commit.message))
+				? opts.message(
+						squashed.map((commit) => commit.message),
+						range.truncated,
+					)
 				: opts.message;
 		const author = identityOf(opts);
 		const commitOid = await git.writeCommit({

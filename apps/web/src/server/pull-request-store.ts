@@ -7,6 +7,7 @@
  * errors, the API answers 401/403/404/422.
  */
 import { and, eq, inArray } from "drizzle-orm";
+import { MAX_RANGE_COMMITS } from "git-edge";
 import { db } from "#/db";
 import { issues, pullRequests, type Repository } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
@@ -299,15 +300,21 @@ const MAX_BULLET_CHARS = 200;
  * GitHub's default squash body: one bullet per commit, when there are several.
  * Each subject is cut to `MAX_BULLET_CHARS`, the body to a commit message's cap.
  */
-function squashBody(commitMessages: string[]): string | undefined {
+function squashBody(
+	commitMessages: string[],
+	truncated: boolean,
+): string | undefined {
 	if (commitMessages.length < 2) return undefined;
-	return commitMessages
-		.map((message) => {
-			const subject = message.trim().split("\n")[0] ?? "";
-			return `* ${subject.slice(0, MAX_BULLET_CHARS)}`;
-		})
-		.join("\n")
-		.slice(0, MAX_COMMIT_MESSAGE_CHARS);
+	const bullets = commitMessages.map((message) => {
+		const subject = message.trim().split("\n")[0] ?? "";
+		return `* ${subject.slice(0, MAX_BULLET_CHARS)}`;
+	});
+	if (truncated) {
+		bullets.push(
+			`* (list truncated: only the first ${MAX_RANGE_COMMITS} commits are shown)`,
+		);
+	}
+	return bullets.join("\n").slice(0, MAX_COMMIT_MESSAGE_CHARS);
 }
 
 function mergeOptionsFor(
@@ -335,10 +342,10 @@ function mergeOptionsFor(
 			return {
 				...author,
 				method: "squash",
-				message: (commitMessages) =>
+				message: (commitMessages, truncated) =>
 					composeMergeMessage(options, {
 						title: `${pr.title} (#${pr.number})`,
-						body: squashBody(commitMessages),
+						body: squashBody(commitMessages, truncated),
 					}),
 			};
 		case "rebase":
@@ -359,7 +366,12 @@ export async function mergePullRequestBranches(
 	options: PullRequestMergeOptions,
 ): Promise<
 	| { success: true; commitSha: string }
-	| { success: false; conflicts: string[]; headModified?: true }
+	| {
+			success: false;
+			conflicts: string[];
+			headModified?: true;
+			refusal?: string;
+	  }
 > {
 	const result = await mergeBranches(
 		ownerKeyOf(repo),

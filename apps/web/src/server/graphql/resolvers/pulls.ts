@@ -2,6 +2,7 @@
 import { db } from "#/db";
 import {
 	MAX_BODY_CHARS,
+	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
 	MAX_THREAD_TITLE_CHARS,
@@ -367,6 +368,15 @@ async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
 	const method = MERGE_METHODS[input.mergeMethod ?? "MERGE"];
 	const refusal = disallowedMergeMethodMessage(node.repo.row, method);
 	if (refusal) throw unprocessable(refusal);
+	// The REST contract's caps: the same message is the only persisted text here.
+	if ((input.commitHeadline?.length ?? 0) > MAX_COMMIT_MESSAGE_CHARS)
+		throw unprocessable(
+			`Commit headline is too long (maximum is ${MAX_COMMIT_MESSAGE_CHARS} characters)`,
+		);
+	if ((input.commitBody?.length ?? 0) > MAX_COMMIT_MESSAGE_CHARS)
+		throw unprocessable(
+			`Commit body is too long (maximum is ${MAX_COMMIT_MESSAGE_CHARS} characters)`,
+		);
 	if (node.row.status === "open" && node.row.isDraft)
 		throw unprocessable("Pull Request is still a draft");
 	if (node.row.status !== "open")
@@ -404,10 +414,12 @@ async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
 			expectedHeadSha: expectedHeadOid,
 		},
 	);
-	if (!result.success)
+	if (!result.success) {
+		if (result.refusal) throw unprocessable(result.refusal);
 		throw result.headModified
 			? headModified()
 			: unprocessable("Pull Request is not mergeable");
+	}
 	return reloadedPull(node, input.clientMutationId);
 }
 

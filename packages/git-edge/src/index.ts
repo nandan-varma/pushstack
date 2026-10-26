@@ -8,6 +8,7 @@ export {
 	GitMergeConflictError,
 } from "./errors.js";
 export {
+	MAX_RANGE_COMMITS,
 	type MergeOpts,
 	type MergeResult,
 	type Repo,

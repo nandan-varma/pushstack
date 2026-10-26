@@ -1045,3 +1045,46 @@ describe("merge settings refusals", () => {
 		);
 	});
 });
+
+describe("long branches", () => {
+	it("refuses a rebase of more than 250 commits with the reason, and squashes the first 250 with a truncation note", async () => {
+		await branchFrom("long");
+		for (let i = 0; i < 251; i++) {
+			await commitFile("long", `l${i}.txt`, `${i}\n`);
+		}
+		await commitFile("main", "after-long.txt", "m\n");
+		const created = await call(
+			"/repos/alice/proj/pulls",
+			post(alice, { title: "Long branch", head: "long", base: "main" }),
+		);
+		expect(created.status).toBe(201);
+		const number = created.body.number;
+
+		const refused = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "rebase" }),
+		);
+		expect(refused.status).toBe(405);
+		expect(refused.body.message).toBe(
+			"Refusing to rebase refs/heads/long: it has more than 250 commits",
+		);
+
+		const squashed = await call(
+			`/repos/alice/proj/pulls/${number}/merge`,
+			put(alice, { merge_method: "squash" }),
+		);
+		expect(squashed.status).toBe(200);
+		const { body: commit } = await call(
+			`/repos/alice/proj/git/commits/${squashed.body.sha}`,
+		);
+		const lines = commit.message.trimEnd().split("\n");
+		expect(lines[0]).toBe(`Long branch (#${number})`);
+		expect(
+			lines.filter((line: string) => line.startsWith("* Add l")),
+		).toHaveLength(250);
+		expect(lines.at(-1)).toBe(
+			"* (list truncated: only the first 250 commits are shown)",
+		);
+		// 251 commits are written one by one; the default 5s is too tight under load.
+	}, 60_000);
+});

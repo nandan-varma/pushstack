@@ -327,14 +327,22 @@ export type MergeOptions = {
 	| { method: "merge"; message: string }
 	| {
 			method: "squash";
-			message: string | ((commitMessages: string[]) => string);
+			message:
+				| string
+				| ((commitMessages: string[], truncated: boolean) => string);
 	  }
 	| { method: "rebase" }
 );
 
 export type MergeOutcome =
 	| { success: true; commitSha: string; baseSha: string; headSha: string }
-	| { success: false; conflicts: string[]; headModified?: true };
+	| {
+			success: false;
+			conflicts: string[];
+			headModified?: true;
+			/** Why git-edge refused (a rebase of a merge commit, too many commits, unrelated histories). */
+			refusal?: string;
+	  };
 
 /**
  * Merge `sourceBranch` into `targetBranch` by `options.method`: a merge
@@ -419,7 +427,11 @@ export async function mergeBranches(
 		}
 		// e.g. unrelated histories: a refusal to show, not a server error.
 		if (error instanceof GitEdgeError) {
-			return { success: false, conflicts: [error.message] };
+			return {
+				success: false,
+				conflicts: [error.message],
+				refusal: error.message,
+			};
 		}
 		logError("git-write", "mergeBranches failed unexpectedly", error);
 		throw error;

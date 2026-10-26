@@ -583,6 +583,7 @@ export async function mergePull(ctx: ApiContext) {
 		expectedHeadSha: data.sha ?? undefined,
 	});
 	if (!result.success) {
+		if (result.refusal) throw new ApiError(405, result.refusal);
 		throw result.headModified ? headModified() : notMergeable();
 	}
 	return json({

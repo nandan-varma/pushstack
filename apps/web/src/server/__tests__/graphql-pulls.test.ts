@@ -616,6 +616,59 @@ it("refuses a rebase that conflicts with UNPROCESSABLE and moves nothing", async
 	).toBe(mainBefore);
 });
 
+it("caps commitHeadline and commitBody at the REST limit, refusing without merging", async () => {
+	const repoRest = await call("/repos/alice/proj");
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/cap-gql", sha: ref.body.object.sha }),
+	);
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "cap-gql",
+			path: "cap.txt",
+			content: btoa("cap\n"),
+			commitMessage: "Cap",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"cap-gql",baseRefName:"main",title:"Cap"}) { pullRequest { id } } }`,
+	);
+	const pullId = created.body.data.createPullRequest.pullRequest.id;
+	const over = "x".repeat(10_001);
+
+	const longBody = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",commitBody:"${over}"}) { pullRequest { state } } }`,
+	);
+	expect(longBody.body.errors[0].type).toBe("UNPROCESSABLE");
+	expect(longBody.body.errors[0].message).toBe(
+		"Commit body is too long (maximum is 10000 characters)",
+	);
+	const longHeadline = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",commitHeadline:"${over}"}) { pullRequest { state } } }`,
+	);
+	expect(longHeadline.body.errors[0].message).toBe(
+		"Commit headline is too long (maximum is 10000 characters)",
+	);
+	const stillOpen = await call("/repos/alice/proj/pulls?state=open");
+	expect(
+		stillOpen.body.some(
+			(pull: { head: { ref: string } }) => pull.head.ref === "cap-gql",
+		),
+	).toBe(true);
+
+	const atCap = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",commitBody:"${"x".repeat(10_000)}"}) { pullRequest { state } } }`,
+	);
+	expect(atCap.body.errors).toBeUndefined();
+	expect(atCap.body.data.mergePullRequest.pullRequest.state).toBe("MERGED");
+});
+
 it("submits reviews by event with the submitReview rules", async () => {
 	const ref = await call("/repos/alice/proj/git/ref/heads/main");
 	await call(
