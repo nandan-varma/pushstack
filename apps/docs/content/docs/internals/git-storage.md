@@ -80,9 +80,16 @@ are not copied. The copy holds the parent's lock for its whole duration, so a
 repack cannot delete a pack between the listing and its copy, and a ref cannot
 move under a copy that already took the object list; the fork's lock is held
 too. The cap is `MAX_FORK_COPY_BYTES` (1 GiB): a larger parent is refused with
-`422` rather than copied in a request that might not finish. A failed copy
-deletes the partial prefix and the fork's row. Records of which repository a
-fork came from are in [database.md](/docs/internals/database).
+`422` rather than copied in a request that might not finish.
+
+The fork's row is inserted only after its copy and HEAD are written, so a row
+always names complete storage. A copy that throws removes its partial prefix
+(a removal that fails is logged and leaves an orphan prefix, cleared by the
+next fork or create under that name). A copy killed mid-way (a timeout) leaves
+the partial prefix and no row; the next attempt under that name clears the
+prefix before copying. Concurrent duplicates wait on the fork name's lock and
+then answer the row that the first attempt committed. Records of which
+repository a fork came from are in [database.md](/docs/internals/database).
 
 ## The storage stack: `git-fs.ts`
 

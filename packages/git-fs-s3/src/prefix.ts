@@ -64,7 +64,7 @@ async function listForCopy(
 	maxBytes: number | undefined,
 ): Promise<ListResult["objects"]> {
 	if (from.startsWith(to) || to.startsWith(from)) {
-		throw new Error(`movePrefix: prefixes overlap (${from} -> ${to})`);
+		throw new Error(`Prefixes overlap (${from} -> ${to})`);
 	}
 	const { objects } = await store.list(from);
 	if (maxBytes !== undefined) {
