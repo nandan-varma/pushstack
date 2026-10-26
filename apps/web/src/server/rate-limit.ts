@@ -154,7 +154,8 @@ export type RateLimitResource =
 	| "oauth-token-ip"
 	| "oauth-token-client"
 	| "device-code"
-	| "device-user-code";
+	| "device-user-code"
+	| "fork";
 
 export interface RateStatus {
 	resource: RateLimitResource;
@@ -277,6 +278,8 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 			return kind === "user"
 				? config.RATE_LIMIT_DEVICE_USER_CODE_USER
 				: config.RATE_LIMIT_DEVICE_USER_CODE_IP;
+		case "fork":
+			return config.RATE_LIMIT_FORKS_USER;
 	}
 }
 

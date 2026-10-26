@@ -167,6 +167,14 @@ export const MAX_REPO_HOMEPAGE_CHARS = 255;
 export const MAX_REPO_TOPICS = 20;
 export const MAX_REPO_TOPIC_CHARS = 50;
 
+/**
+ * Bytes a fork may copy. A fork copies its parent's git prefix server-side in
+ * one synchronous request (no background workers), so the copy's time and R2
+ * cost grow with the source. Larger sources are refused with 422 until a
+ * multipart copy exists; R2's single `CopyObject` tops out at 5 GiB.
+ */
+export const MAX_FORK_COPY_BYTES = 1024 ** 3;
+
 export const MAX_TOKEN_NAME_CHARS = 100;
 
 /** Device flow (`/login/device/code`): the client id a device code is bound to. */

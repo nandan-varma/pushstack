@@ -54,6 +54,16 @@ export const repositories = pgTable(
 		/** Lowercase, at most 20 (`MAX_REPO_TOPICS`). */
 		topics: jsonb("topics").$type<string[]>().notNull().default([]),
 		isTemplate: boolean("is_template").notNull().default(false),
+		/**
+		 * The repository this one was forked from (GitHub's `parent`). Null for a
+		 * repository that is not a fork, or once its parent is deleted.
+		 */
+		forkOfId: integer("fork_of_id").references(
+			(): AnyPgColumn => repositories.id,
+			{ onDelete: "set null" },
+		),
+		/** GitHub's `fork`: stays true after the parent is deleted. */
+		isFork: boolean("is_fork").notNull().default(false),
 		/** No wiki or projects exist yet, so these default off (GitHub: on). */
 		hasIssues: boolean("has_issues").notNull().default(true),
 		hasWiki: boolean("has_wiki").notNull().default(false),
@@ -91,6 +101,7 @@ export const repositories = pgTable(
 		),
 		nameIdx: index("repo_name_idx").on(table.name),
 		visibilityIdx: index("repo_visibility_idx").on(table.visibility),
+		forkOfIdx: index("repo_fork_of_idx").on(table.forkOfId),
 	}),
 );
 
