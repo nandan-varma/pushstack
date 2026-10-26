@@ -1,5 +1,6 @@
 import git from "isomorphic-git";
 import { concat } from "../edge-utils.js";
+import { listPullHeadRefNames } from "../ops/branch.js";
 import type { Repo } from "../ops/types.js";
 import { packFileName, parsePackDirectory } from "../pack-files.js";
 import { readPackIndex } from "../pack-index.js";
@@ -95,6 +96,11 @@ export function parseUploadPackRequest(body: Uint8Array): {
  * when nothing lives outside it (no loose objects, exactly one pack) and it
  * holds every wanted object — a repo with commits written as loose objects
  * after its last repack would otherwise clone incomplete.
+ *
+ * It must also hold nothing a clone may not have. A pack's contents are not
+ * limited to what the refs reach: a repack keeps every pull request head, and
+ * a `.keep` pack keeps objects no ref names yet. Either makes the pack hold
+ * objects outside the advertised history, so it is never served verbatim.
  */
 async function servableSinglePack(
 	repo: Repo,
@@ -113,11 +119,12 @@ async function servableSinglePack(
 			]),
 	);
 	if (objectEntries.some((name) => LOOSE_FANOUT_RE.test(name))) return null;
-	const packs = parsePackDirectory(packEntries).filter(
-		(file) => file.kind === "pack",
-	);
+	const listed = parsePackDirectory(packEntries);
+	if (listed.some((file) => file.kind === "keep")) return null;
+	const packs = listed.filter((file) => file.kind === "pack");
 	const pack = packs[0];
 	if (packs.length !== 1 || pack === undefined) return null;
+	if ((await listPullHeadRefNames(repo)).length > 0) return null;
 	const [packData, idxData] = await runStep(
 		hooks,
 		"read consolidated pack (fast path)",
@@ -252,10 +259,11 @@ export async function handleUploadPack(
 
 	// Copy stored (already compressed, possibly deltified) entries when every
 	// object is packed; build from scratch only when some aren't.
+	// Delta bases must be ones the request is entitled to (see the function).
 	const reused = await runStep(
 		hooks,
 		`reuse pack entries (${oids.length} oids)`,
-		() => buildPackFromExistingPacks(repo, oids),
+		() => buildPackFromExistingPacks(repo, oids, undefined, new Set(wantOids)),
 	);
 	const packBytes =
 		reused ??

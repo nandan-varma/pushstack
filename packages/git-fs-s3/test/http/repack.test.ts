@@ -509,3 +509,47 @@ describe("consolidateKeptPacks", () => {
 		).toEqual([]);
 	});
 });
+
+describe("repackRepository — pull request roots", () => {
+	/** A commit that only `refs/pull/7/head` names once its branch is gone. */
+	async function prOnlyCommit(repo: Repo, namePull: boolean) {
+		await seed(repo, 2);
+		const tip = await commitFilesToBare(repo, {
+			branch: "topic",
+			message: "pr work\n",
+			author,
+			files: [{ path: "pr.txt", content: "pr\n" }],
+		});
+		if (namePull) {
+			await git.writeRef({ ...repo, ref: "refs/pull/7/head", value: tip });
+		}
+		await git.deleteRef({ ...repo, ref: "refs/heads/topic" });
+		await addDummyPackFiles(repo, 4);
+		return tip;
+	}
+
+	it("keeps objects reachable only from refs/pull/<n>/head", async () => {
+		const { repo, store } = makeRepo();
+		const tip = await prOnlyCommit(repo, true);
+
+		await repackRepository(repo, { threshold: 4 });
+		await deleteLooseObjects(repo, store);
+
+		const { blob } = await git.readBlob({
+			...repo,
+			oid: tip,
+			filepath: "pr.txt",
+		});
+		expect(new TextDecoder().decode(blob)).toBe("pr\n");
+	});
+
+	it("drops the same commit once no ref names it (control for the test above)", async () => {
+		const { repo, store } = makeRepo();
+		const tip = await prOnlyCommit(repo, false);
+
+		await repackRepository(repo, { threshold: 4 });
+		await deleteLooseObjects(repo, store);
+
+		await expect(git.readCommit({ ...repo, oid: tip })).rejects.toThrow();
+	});
+});

@@ -4,7 +4,7 @@ import {
 	GitInvalidRequestError,
 	isAbsentError,
 } from "../git-errors.js";
-import { isSafeBranchName } from "../refs.js";
+import { isPullHeadRef, isSafeBranchName } from "../refs.js";
 import { peelToCommit } from "./history.js";
 import type { Repo } from "./types.js";
 
@@ -95,6 +95,18 @@ export async function listLooseRefNames(
 	if (!hasRecursiveFileLister(repo.fs)) return null;
 	const names = await repo.fs.listFilesRecursively(`${repo.gitdir}/${dir}`);
 	return names.filter(isSafeBranchName);
+}
+
+/**
+ * Every `refs/pull/<n>/head` ref. An object store lists the whole `refs/pull`
+ * tree in one recursive LIST; isomorphic-git's walk would read one directory
+ * per pull request, so it is only the fallback for other filesystems.
+ */
+export async function listPullHeadRefNames(repo: Repo): Promise<string[]> {
+	const names = hasRecursiveFileLister(repo.fs)
+		? await repo.fs.listFilesRecursively(`${repo.gitdir}/refs/pull`)
+		: await git.listRefs({ ...repo, filepath: "refs/pull" });
+	return names.map((name) => `refs/pull/${name}`).filter(isPullHeadRef);
 }
 
 /** Read packed branch refs so the object-store fast path preserves Git semantics. */

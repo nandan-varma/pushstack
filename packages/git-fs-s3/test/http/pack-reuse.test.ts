@@ -86,4 +86,59 @@ describe("buildPackFromExistingPacks", () => {
 		const oids = [...(await reachableFromMain(repo)), loose];
 		expect(await buildPackFromExistingPacks(repo, oids)).toBeNull();
 	});
+
+	it("refuses to reuse a delta whose base the caller is not entitled to", async () => {
+		const { repo } = await loadFixture();
+		const oids = await reachableFromMain(repo);
+
+		// A deltified object's single-object pack also carries its delta base.
+		let delta: { oid: string; base: string } | undefined;
+		for (const oid of oids) {
+			const pack = await buildPackFromExistingPacks(repo, [oid]);
+			const members = pack ? await indexedOids(pack) : [];
+			const base = members.find((member) => member !== oid);
+			if (base !== undefined) {
+				delta = { oid, base };
+				break;
+			}
+		}
+		if (delta === undefined) throw new Error("fixture has no deltified object");
+
+		// Without the guard the base is copied in, even though only `oid` was asked for.
+		expect(await buildPackFromExistingPacks(repo, [delta.oid])).not.toBeNull();
+		expect(
+			await buildPackFromExistingPacks(
+				repo,
+				[delta.oid],
+				undefined,
+				new Set([delta.oid]),
+			),
+		).toBeNull();
+		expect(
+			await buildPackFromExistingPacks(
+				repo,
+				[delta.oid],
+				undefined,
+				new Set([delta.oid, delta.base]),
+			),
+		).not.toBeNull();
+	});
 });
+
+/** The oids a pack's index lists, indexed into a scratch repository. */
+async function indexedOids(pack: Uint8Array): Promise<string[]> {
+	const scratch: Repo = {
+		fs: createGitFs(new MemoryObjectStore()),
+		gitdir: "scratch",
+		cache: {},
+	};
+	await git.init({ ...scratch, dir: scratch.gitdir, bare: true });
+	const packDir = `${scratch.gitdir}/objects/pack`;
+	await rawFs(scratch).writeFile(`${packDir}/reused.pack`, pack);
+	const { oids } = await git.indexPack({
+		...scratch,
+		dir: packDir,
+		filepath: "reused.pack",
+	});
+	return oids;
+}

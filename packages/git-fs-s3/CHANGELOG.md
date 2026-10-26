@@ -7,6 +7,11 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `repackRepository` keeps every `refs/pull/<n>/head` as a root, so a pull
+  request's head commit survives consolidation when no branch names it.
+  Because the consolidated pack can now hold pull request objects, upload-pack
+  skips its single-pack clone fast path while a pull head or `.keep` exists, and
+  reuses a delta only when its base is one the request wants.
 - `applyReceivePack` lists refs once per push (one recursive LIST of `refs/`)
   and derives the existing tips and the file/directory collision set from it,
   instead of listing branches, tags and all refs separately; a push that
@@ -20,6 +25,18 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   push's own listing failed (anything but an absent directory), the repack
   lists the directory itself instead of trusting an incomplete set.
 ### Added
+
+- `copyMissingObjects(src, dst, headOid, { haves, maxObjects, maxBytes })` in
+  `/ops`: copies the objects `dst` lacks to reach `headOid` as one pack, flushed
+  before it returns. The walk stops at `haves` and at objects `dst` already has,
+  so a fork copies only its own history. Over either cap it throws
+  `CopyLimitError` (422) before writing anything; sizes are checked before
+  objects are inflated.
+- `isPullHeadRef(ref)` and `pullHeadRefName(n)` (exported from the root and
+  `/ops`) for `refs/pull/<n>/head`, the ref that pins a pull request's head.
+  `isSafeFullRefName` still accepts only branches and tags, so a push can't
+  write one, and `info/refs` doesn't advertise them.
+- `listPullHeadRefNames(repo)` in `/ops`: every pull head ref in a repository.
 
 - `getBlame(repo, { ref, filePath, maxDepth? }, hooks?)` in `/ops`: line ranges
   grouped by the commit that introduced them, following the first-parent chain.

@@ -19,6 +19,7 @@ export {
 	deleteBranchByName,
 	findRefCollision,
 	listBranches,
+	listPullHeadRefNames,
 	listTags,
 	resolveLooseRefFast,
 	type Tag,
@@ -30,6 +31,13 @@ export {
 	deleteFileFromBare,
 	writeCommitToBare,
 } from "./commit.js";
+export {
+	CopyLimitError,
+	type CopyLimitMetric,
+	type CopyMissingOptions,
+	type CopyMissingResult,
+	copyMissingObjects,
+} from "./copy-objects.js";
 export {
 	type DiffEntry,
 	type DiffFile,
