@@ -4,10 +4,12 @@
  * Repositories the caller can't read are 404s (readable-only listings), and
  * watchers/subscriptions only ever include people who can still read them.
  */
+
 import { eq } from "drizzle-orm";
 import { db } from "#/db";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
+import { readableForkCounts } from "../repository-fork";
 import {
 	deleteRepoSubscription,
 	getRepoSubscription,
@@ -123,9 +125,10 @@ async function respondWithWatched(
 		offset: params.offset,
 	});
 	const repoIds = rows.map((row) => row.repo.id);
-	const [stars, openIssues] = await Promise.all([
+	const [stars, openIssues, forks] = await Promise.all([
 		starCounts(repoIds),
 		openIssueCounts(repoIds),
+		readableForkCounts(repoIds, viewerId),
 	]);
 	return json(
 		rows.map((row) =>
@@ -134,6 +137,7 @@ async function respondWithWatched(
 				{
 					stars: stars.get(row.repo.id) ?? 0,
 					openIssues: openIssues.get(row.repo.id) ?? 0,
+					forksCount: forks.get(row.repo.id) ?? 0,
 				},
 			),
 		),

@@ -9,6 +9,8 @@
  * and the next attempt under the same name clears that storage before copying.
  * Concurrent duplicates wait on the fork-name lock and then find the row.
  */
+
+import { and, count, inArray } from "drizzle-orm";
 import { PrefixTooLargeError } from "git-fs-s3";
 import { db } from "#/db";
 import { type Repository, repositories } from "#/db/app-schema";
@@ -17,6 +19,7 @@ import { isUniqueViolation } from "./db-errors";
 import { deleteRepositoryStorage, forkRepositoryStorage } from "./git-repo";
 import { withRepositoryLocks } from "./git-repo-lock";
 import { logError } from "./perf-log";
+import { getRepositoryAccess, readableForViewer } from "./repo-access";
 import { RepositoryExistsError } from "./repository-create";
 import {
 	evictRepoByName,
@@ -191,4 +194,61 @@ async function insertForkRow(
 		if (isUniqueViolation(error)) throw new RepositoryExistsError();
 		throw error;
 	}
+}
+
+/**
+ * `forks_count` for each repository: the forks of it the viewer can read, so
+ * a count never reveals a private fork. Repositories with none are absent.
+ */
+export async function readableForkCounts(
+	repoIds: number[],
+	viewerId: string | null | undefined,
+): Promise<Map<number, number>> {
+	if (repoIds.length === 0) return new Map();
+	const rows = await db
+		.select({ parentId: repositories.forkOfId, total: count() })
+		.from(repositories)
+		.where(
+			and(inArray(repositories.forkOfId, repoIds), readableForViewer(viewerId)),
+		)
+		.groupBy(repositories.forkOfId);
+	return new Map(
+		rows.flatMap((row) =>
+			row.parentId === null ? [] : [[row.parentId, row.total] as const],
+		),
+	);
+}
+
+/**
+ * A fork's `parent` and `source` for a viewer, each present only when the
+ * viewer can read it: an unreadable link is omitted, never named. A fork whose
+ * parent was deleted has neither.
+ */
+export async function readableForkLinks(
+	repo: Repository,
+	viewerId: string | null | undefined,
+): Promise<{
+	parent?: RepositoryRowWithOwner;
+	source?: RepositoryRowWithOwner;
+}> {
+	if (!repo.isFork) return {};
+	const readable = async (row: RepositoryRowWithOwner | null) =>
+		row && (await getRepositoryAccess(row.id, viewerId))?.canRead ? row : null;
+	const parentRow =
+		repo.forkOfId === null
+			? null
+			: await db.query.repositories.findFirst({
+					where: { id: repo.forkOfId },
+					with: { owner: publicUserFields },
+				});
+	const parent = await readable(parentRow ?? null);
+	const sourceRow = await forkSourceOf(repo);
+	const source =
+		sourceRow && parent && sourceRow.id === parent.id
+			? parent
+			: await readable(sourceRow);
+	return {
+		...(parent && { parent }),
+		...(source && { source }),
+	};
 }

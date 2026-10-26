@@ -76,6 +76,8 @@ export function repository(
 	options: {
 		stars: number;
 		openIssues: number;
+		/** Forks the viewer can read (see readableForkCounts). */
+		forksCount: number;
 		role?: RepoRole;
 		/** People watching: only the single-repository resource carries it. */
 		subscribers?: number;
@@ -115,7 +117,7 @@ export function repository(
 		...(options.subscribers !== undefined && {
 			subscribers_count: options.subscribers,
 		}),
-		forks_count: 0,
+		forks_count: options.forksCount,
 		open_issues_count: options.openIssues,
 		...(options.role && { permissions: permissionsFor(options.role) }),
 	};

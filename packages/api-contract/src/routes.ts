@@ -211,6 +211,11 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#create-a-repository-using-a-template`,
 		status: 201,
 	},
+	"repos/list-forks": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/forks",
+		docs: `${DOCS}/repos/forks#list-forks`,
+	},
 	"repos/create-fork": {
 		method: "POST",
 		path: "/repos/{owner}/{repo}/forks",

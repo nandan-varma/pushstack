@@ -606,6 +606,10 @@
 			"query": ["direction", "page", "per_page", "sort", "type"],
 			"body": []
 		},
+		"repos/list-forks": {
+			"query": ["page", "per_page", "sort"],
+			"body": []
+		},
 		"repos/list-release-assets": {
 			"query": ["page", "per_page"],
 			"body": []

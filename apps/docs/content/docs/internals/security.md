@@ -26,6 +26,37 @@ logic wrong (e.g. forgetting the "public + anonymous = readable" case, or the
 distinction between a write collaborator and the owner for owner-only
 actions).
 
+## Fork visibility
+
+A fork is an independent repository: its own storage, its own visibility, its
+own access list. Nothing a fork exposes depends on its parent's access, and
+nothing about a parent is shown through a fork unless the viewer can read it.
+
+- **Visibility is copied once** at fork time from the parent. Changing the
+  parent later changes nothing about existing forks, and changing a fork never
+  changes the parent.
+- **Listing** (`GET /repos/{o}/{r}/forks`) returns only the forks the viewer
+  can read, by the same rule as any repository (`readableForViewer`, which is
+  `readableRepositoriesCondition` for a signed-in viewer and public-only for an
+  anonymous one). A private parent the viewer cannot read is `404`, not an
+  empty list. A collaborator on the parent does not read the parent's private
+  forks unless they can also read the fork.
+- **`forks_count`** counts the same readable forks, so a count never reveals a
+  private fork.
+- **`parent` and `source`** on a fork are each included only when the viewer
+  can read that repository. An unreadable link is omitted, never replaced with
+  its name. The root of the fork network (`source`) is found by following
+  `fork_of_id` up to a bounded depth; past it, or past a deleted link, `source`
+  is omitted.
+- **Deleting a parent** sets `fork_of_id` to null (`on delete set null`) and
+  keeps `is_fork`, so the fork stays readable and reports `fork: true` with no
+  `parent`. **Deleting a fork** leaves the parent untouched.
+- **Forks are not shared storage, and they copy everything.** A fork's git data
+  is a copy of its parent's whole prefix, so the parent's unreachable objects
+  are copied too until the fork's own repack drops them. Any read path that
+  serves a fork's objects must honour the fork's own visibility, not the
+  parent's.
+
 ## Attacker-controlled content
 
 Issue bodies, pull request bodies, comments and READMEs are written by anyone

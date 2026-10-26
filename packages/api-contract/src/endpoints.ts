@@ -508,6 +508,14 @@ export const endpoints = defineEndpoints({
 		}),
 		response: repository,
 	},
+	"repos/list-forks": {
+		params: repoParams,
+		query: pagination.extend({
+			/** `newest` (GitHub's default), `oldest`, or by stars (`stargazers`, `watchers`). */
+			sort: z.enum(["newest", "oldest", "stargazers", "watchers"]).optional(),
+		}),
+		response: z.array(repository),
+	},
 	"repos/create-fork": {
 		params: repoParams,
 		body: z.object({

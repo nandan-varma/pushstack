@@ -361,6 +361,17 @@ const READ_ROLES = (["admin", "write", "read"] as const).filter(
 	(role) => PERMISSIONS[role].canRead,
 );
 
+/**
+ * Repositories a viewer may read, for any viewer: a signed-in user gets
+ * {@link readableRepositoriesCondition}; an anonymous one gets public only.
+ * Always a complete condition (never an empty AND/OR).
+ */
+export function readableForViewer(viewerId: string | null | undefined) {
+	return viewerId
+		? readableRepositoriesCondition(viewerId)
+		: eq(repositories.visibility, "public");
+}
+
 /** SQL read access for cross-repository lists; apply before pagination. */
 export function readableRepositoriesCondition(userId: string) {
 	return or(

@@ -22,6 +22,7 @@ import {
 	type NotificationFilter,
 	setThreadSubscription,
 } from "../notification-store";
+import { readableForkCounts } from "../repository-fork";
 import { publicUserFields } from "../repository-lookup";
 import { type ApiContext, requireCaller } from "./auth";
 import {
@@ -42,17 +43,19 @@ const threadUrl = (id: number) => apiUrl(`/notifications/threads/${id}`);
 /** Serialize a page of notifications: repositories, stars, open issue counts and latest comments in four queries. */
 async function serializeNotifications(
 	items: NotificationItem[],
+	viewerId: string,
 ): Promise<Shape<"notificationThread">[]> {
 	if (items.length === 0) return [];
 	const repoIds = [...new Set(items.map((item) => item.repoId))];
 	const issueIds = [...new Set(items.map((item) => item.issueId))];
-	const [repos, stars, openIssues, latest] = await Promise.all([
+	const [repos, stars, openIssues, forks, latest] = await Promise.all([
 		db.query.repositories.findMany({
 			where: { id: { in: repoIds } },
 			with: { owner: publicUserFields },
 		}),
 		starCounts(repoIds),
 		openIssueCounts(repoIds),
+		readableForkCounts(repoIds, viewerId),
 		db
 			.select({ issueId: comments.issueId, id: max(comments.id) })
 			.from(comments)
@@ -74,6 +77,7 @@ async function serializeNotifications(
 			repository: repository(repo, {
 				stars: stars.get(repo.id) ?? 0,
 				openIssues: openIssues.get(repo.id) ?? 0,
+				forksCount: forks.get(repo.id) ?? 0,
 			}),
 			subject: {
 				title: item.subject.title,
@@ -125,7 +129,7 @@ async function listNotifications(
 		countNotificationsForUser(caller.userId, filter),
 	]);
 	return json(
-		await serializeNotifications(items),
+		await serializeNotifications(items, caller.userId),
 		200,
 		linkHeader(ctx.url, params, total),
 	);
@@ -203,8 +207,8 @@ async function callerThread(ctx: ApiContext, id: ThreadOperation) {
 
 /** `GET /notifications/threads/{thread_id}`. */
 export async function getThread(ctx: ApiContext) {
-	const { item } = await callerThread(ctx, "activity/get-thread");
-	const [thread] = await serializeNotifications([item]);
+	const { caller, item } = await callerThread(ctx, "activity/get-thread");
+	const [thread] = await serializeNotifications([item], caller.userId);
 	return json(thread);
 }
 

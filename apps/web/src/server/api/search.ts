@@ -61,7 +61,7 @@ export async function searchRepositoriesHandler(ctx: ApiContext) {
 		{
 			total_count: total,
 			incomplete_results: false,
-			items: await repositoryShapes(rows),
+			items: await repositoryShapes(rows, undefined, viewer),
 		},
 		200,
 		linkHeader(ctx.url, params, total),

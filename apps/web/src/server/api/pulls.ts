@@ -29,6 +29,7 @@ import {
 	mergePullRequestBranches,
 	updatePullRequestFields,
 } from "../pull-request-store";
+import { readableForkCounts } from "../repository-fork";
 import type { RepositoryRowWithOwner } from "../repository-lookup";
 import {
 	listRequestedReviewers,
@@ -174,15 +175,18 @@ async function serializeList(
 	repo: RepositoryRowWithOwner,
 	threads: Thread[],
 	role: Parameters<typeof repository>[1]["role"],
+	viewerId: string | null,
 ) {
-	const [tips, stargazers, openIssues] = await Promise.all([
+	const [tips, stargazers, openIssues, forks] = await Promise.all([
 		branchTips(repo),
 		starCounts([repo.id]),
 		openIssueCounts([repo.id]),
+		readableForkCounts([repo.id], viewerId),
 	]);
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
 		openIssues: openIssues.get(repo.id) ?? 0,
+		forksCount: forks.get(repo.id) ?? 0,
 		role,
 	});
 	return threads.map((thread) => {
@@ -200,6 +204,7 @@ async function serializeDetail(
 	repo: RepositoryRowWithOwner,
 	thread: Thread,
 	role: Parameters<typeof repository>[1]["role"],
+	viewerId: string | null,
 ) {
 	const shape = pullShapeOf(thread);
 	const { row } = shape;
@@ -209,12 +214,13 @@ async function serializeDetail(
 		commits: { commits: [], truncated: false, incomplete: false },
 		diff: { totalAdditions: 0, totalDeletions: 0, totalFiles: 0 },
 	};
-	const [tips, stargazers, openIssues, reviewComments, commits, diff] =
+	const [tips, stargazers, openIssues, forks, reviewComments, commits, diff] =
 		await perfStep("pull detail", () =>
 			Promise.all([
 				branchTips(repo),
 				starCounts([repo.id]),
 				openIssueCounts([repo.id]),
+				readableForkCounts([repo.id], viewerId),
 				db
 					.select({ total: count() })
 					.from(pullRequestReviewComments)
@@ -249,6 +255,7 @@ async function serializeDetail(
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
 		openIssues: openIssues.get(repo.id) ?? 0,
+		forksCount: forks.get(repo.id) ?? 0,
 		role,
 	});
 	return pullRequestShape({
@@ -318,7 +325,7 @@ export async function listPulls(ctx: ApiContext) {
 	);
 	const role = ctx.caller ? access.role : undefined;
 	return json(
-		await serializeList(repo, threads, role),
+		await serializeList(repo, threads, role, ctx.caller?.userId ?? null),
 		200,
 		linkHeader(ctx.url, params, total),
 	);
@@ -392,7 +399,12 @@ export async function getPull(ctx: ApiContext) {
 	const record = await findPull(repo.id, pull_number);
 	if (!record) throw notFoundError();
 	return json(
-		await serializeDetail(repo, record, ctx.caller ? access.role : undefined),
+		await serializeDetail(
+			repo,
+			record,
+			ctx.caller ? access.role : undefined,
+			ctx.caller?.userId ?? null,
+		),
 	);
 }
 
@@ -481,9 +493,18 @@ export async function createPull(ctx: ApiContext) {
 	await requestCodeownerReviews(repo, created);
 	const record = await findPull(repo.id, created.number);
 	if (!record) throw new Error("Pull request missing after insert");
-	return json(await serializeDetail(repo, record, access.role), 201, {
-		Location: apiUrl(`/repos/${fullNameOf(repo)}/pulls/${created.number}`),
-	});
+	return json(
+		await serializeDetail(
+			repo,
+			record,
+			access.role,
+			ctx.caller?.userId ?? null,
+		),
+		201,
+		{
+			Location: apiUrl(`/repos/${fullNameOf(repo)}/pulls/${created.number}`),
+		},
+	);
 }
 
 export async function updatePull(ctx: ApiContext) {
@@ -521,7 +542,12 @@ export async function updatePull(ctx: ApiContext) {
 	const updated = await findPull(repo.id, pr.number);
 	if (!updated) throw new Error("Pull request missing after update");
 	return json(
-		await serializeDetail(repo, updated, ctx.caller ? access.role : undefined),
+		await serializeDetail(
+			repo,
+			updated,
+			ctx.caller ? access.role : undefined,
+			ctx.caller?.userId ?? null,
+		),
 	);
 }
 
@@ -673,6 +699,7 @@ async function serializeSimple(
 		repo,
 		[fresh],
 		ctx.caller ? access.role : undefined,
+		ctx.caller?.userId ?? null,
 	);
 	return shape;
 }
