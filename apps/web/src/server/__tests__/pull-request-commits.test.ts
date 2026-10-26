@@ -100,13 +100,13 @@ describe("getPullRequestCommits", () => {
 		const pr = await open("side");
 		expect(await messages(pr.id)).toEqual([
 			"Side work",
-			`Merge pull request #${sync.number}: main into side`,
+			`Merge pull request #${sync.number} from owner/main\n\nmain into side`,
 		]);
 		await pulls.mergePullRequest({ data: { prId: pr.id } });
 		await commit("main", "m4.txt", "After");
 		expect(await messages(pr.id)).toEqual([
 			"Side work",
-			`Merge pull request #${sync.number}: main into side`,
+			`Merge pull request #${sync.number} from owner/main\n\nmain into side`,
 		]);
 	});
 

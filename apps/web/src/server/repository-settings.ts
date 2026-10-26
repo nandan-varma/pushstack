@@ -38,6 +38,13 @@ export class InvalidHomepageError extends Error {
 	}
 }
 
+/** GitHub keeps at least one merge method enabled. */
+export class NoMergeMethodError extends Error {
+	constructor() {
+		super("At least one merge type must be enabled.");
+	}
+}
+
 export class RepositoryNameTakenError extends Error {
 	constructor() {
 		super("Repository with this name already exists");
@@ -57,6 +64,9 @@ export interface RepositorySettingsPatch {
 	hasIssues?: boolean;
 	hasWiki?: boolean;
 	hasProjects?: boolean;
+	allowMergeCommit?: boolean;
+	allowSquashMerge?: boolean;
+	allowRebaseMerge?: boolean;
 	topics?: string[];
 }
 
@@ -85,6 +95,14 @@ export async function updateRepositorySettings(
 	}
 	if (settings.homepage && !isHttpUrl(settings.homepage)) {
 		throw new InvalidHomepageError();
+	}
+	const mergeMethods = {
+		allowMergeCommit: settings.allowMergeCommit ?? repo.allowMergeCommit,
+		allowSquashMerge: settings.allowSquashMerge ?? repo.allowSquashMerge,
+		allowRebaseMerge: settings.allowRebaseMerge ?? repo.allowRebaseMerge,
+	};
+	if (!Object.values(mergeMethods).some(Boolean)) {
+		throw new NoMergeMethodError();
 	}
 	const ownerKey = ownerKeyOf(repo);
 

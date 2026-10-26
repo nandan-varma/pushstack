@@ -91,8 +91,8 @@ the current branch's open pull request. List and view accept `--json` with
 `pr create` requires `--title/-t` and takes `--body/-b` or `--body-file/-F`;
 `--head/-H` defaults to the current branch and `--base/-B` to the repository's
 default branch. It prints the pull request URL. `pr merge` creates a merge
-commit (`--merge/-m`, the default; `--squash`/`--rebase` are rejected by the
-server) with optional `--subject/-t`, `--body/-b`/`--body-file/-F` and
+commit (`--merge/-m`, the default; `--squash`/`--rebase` need the repository to
+allow them) with optional `--subject/-t`, `--body/-b`/`--body-file/-F` and
 `--match-head-commit SHA`; `--delete-branch/-d` then deletes the head branch on
 the server. `pr close` and `pr reopen` accept
 `--comment/-c TEXT`; merged pull requests can't be closed or reopened.

@@ -380,6 +380,9 @@ export const endpoints = defineEndpoints({
 			is_template: z.boolean().optional(),
 			default_branch: z.string().optional(),
 			archived: z.boolean().optional(),
+			allow_merge_commit: z.boolean().optional(),
+			allow_squash_merge: z.boolean().optional(),
+			allow_rebase_merge: z.boolean().optional(),
 		}),
 		response: repository,
 	},
@@ -987,7 +990,7 @@ export const endpoints = defineEndpoints({
 			commit_message: z.string().max(MAX_COMMIT_MESSAGE_CHARS).nullish(),
 			/** The head the merge expects; 409 when the branch moved. */
 			sha: z.string().max(100).nullish(),
-			/** Only `merge` is allowed (405 otherwise). */
+			/** `merge`, `squash` or `rebase`; a method the repository disallows is `405`. */
 			merge_method: z.enum(["merge", "squash", "rebase"]).nullish(),
 		}),
 		response: mergeResult,

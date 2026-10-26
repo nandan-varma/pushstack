@@ -45,6 +45,7 @@ import {
 	ArchivedRepositoryError,
 	deleteRepositoryAndStorage,
 	InvalidHomepageError,
+	NoMergeMethodError,
 	RepositoryNameTakenError,
 	transferRepository,
 	updateRepositorySettings,
@@ -398,6 +399,15 @@ const mapSettingsError = (error: unknown): never => {
 	if (error instanceof ArchivedRepositoryError) {
 		throw forbiddenError(ARCHIVED_MESSAGE);
 	}
+	if (error instanceof NoMergeMethodError) {
+		throw validationFailedError("Validation Failed", [
+			{
+				resource: "Repository",
+				code: "custom",
+				message: "At least one merge type must be enabled.",
+			},
+		]);
+	}
 	if (error instanceof InvalidHomepageError) {
 		throw validationFailedError("Validation Failed", [
 			{ resource: "Repository", field: "homepage", code: "invalid" },
@@ -460,6 +470,9 @@ export async function updateRepositoryHandler(ctx: ApiContext) {
 			isTemplate: data.is_template,
 			hasIssues: data.has_issues,
 			hasWiki: data.has_wiki,
+			allowMergeCommit: data.allow_merge_commit,
+			allowSquashMerge: data.allow_squash_merge,
+			allowRebaseMerge: data.allow_rebase_merge,
 			hasProjects: data.has_projects,
 		});
 		return respondWithRepository(

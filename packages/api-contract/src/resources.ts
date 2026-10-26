@@ -55,6 +55,10 @@ export const repository = z.strictObject({
 	has_issues: z.boolean(),
 	has_wiki: z.boolean(),
 	has_projects: z.boolean(),
+	/** The merge methods pull requests may use (`merge`, `squash`, `rebase`). */
+	allow_merge_commit: z.boolean(),
+	allow_squash_merge: z.boolean(),
+	allow_rebase_merge: z.boolean(),
 	url,
 	clone_url: url,
 	created_at: timestamp,

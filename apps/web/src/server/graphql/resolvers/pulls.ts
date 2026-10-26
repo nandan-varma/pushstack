@@ -2,6 +2,7 @@
 import { db } from "#/db";
 import {
 	MAX_BODY_CHARS,
+	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
 	MAX_THREAD_TITLE_CHARS,
@@ -23,6 +24,7 @@ import { safeBranchNameSchema } from "../../git-ref-name";
 import { withRepositoryLock } from "../../git-repo-lock";
 import { ownerKeyOf } from "../../git-storage-naming";
 import {
+	disallowedMergeMethodMessage,
 	insertPullRequest,
 	mergePullRequestBranches,
 	setPullRequestDraft,
@@ -351,18 +353,29 @@ async function updatePull(input: UpdatePullRequestInput, ctx: GraphQLContext) {
 	return reloadedPull(node, input.clientMutationId);
 }
 
-/**
- * `mergePullRequest`: the REST merge rules. Only a merge commit is supported
- * (as REST's `merge_method`), so SQUASH and REBASE are refused.
- */
+const MERGE_METHODS = {
+	MERGE: "merge",
+	SQUASH: "squash",
+	REBASE: "rebase",
+} as const;
+
+/** `mergePullRequest`: the REST merge rules, with `mergeMethod` as REST's `merge_method`. */
 async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
 	const node = await mutationPull(input, ctx);
 	if (node.repo.row.archived) throw forbidden("Repository is archived");
 	if (!(await canMergePullRequest(node.repo.row.id, ctx.caller.userId)))
 		throw forbidden("You do not have permission to merge this pull request");
-	if (input.mergeMethod && input.mergeMethod !== "MERGE")
+	const method = MERGE_METHODS[input.mergeMethod ?? "MERGE"];
+	const refusal = disallowedMergeMethodMessage(node.repo.row, method);
+	if (refusal) throw unprocessable(refusal);
+	// The REST contract's caps: the same message is the only persisted text here.
+	if ((input.commitHeadline?.length ?? 0) > MAX_COMMIT_MESSAGE_CHARS)
 		throw unprocessable(
-			`${input.mergeMethod === "SQUASH" ? "Squash" : "Rebase"} merges are not allowed on this repository.`,
+			`Commit headline is too long (maximum is ${MAX_COMMIT_MESSAGE_CHARS} characters)`,
+		);
+	if ((input.commitBody?.length ?? 0) > MAX_COMMIT_MESSAGE_CHARS)
+		throw unprocessable(
+			`Commit body is too long (maximum is ${MAX_COMMIT_MESSAGE_CHARS} characters)`,
 		);
 	if (node.row.status === "open" && node.row.isDraft)
 		throw unprocessable("Pull Request is still a draft");
@@ -390,26 +403,23 @@ async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
 		throw unprocessable("Pull Request is not mergeable");
 
 	const committer = await callerIdentity(ctx.caller);
-	const title = input.commitHeadline?.trim();
-	const body = input.commitBody?.trim();
-	const commitMessage = title
-		? body
-			? `${title}\n\n${body}`
-			: title
-		: body
-			? `Merge pull request #${node.row.number}: ${node.row.title}\n\n${body}`
-			: undefined;
 	const result = await mergePullRequestBranches(
 		node.repo.row,
 		node.row,
 		committer,
-		commitMessage,
-		expectedHeadOid,
+		{
+			method,
+			commitTitle: input.commitHeadline?.trim() || undefined,
+			commitMessage: input.commitBody?.trim() || undefined,
+			expectedHeadSha: expectedHeadOid,
+		},
 	);
-	if (!result.success)
+	if (!result.success) {
+		if (result.refusal) throw unprocessable(result.refusal);
 		throw result.headModified
 			? headModified()
 			: unprocessable("Pull Request is not mergeable");
+	}
 	return reloadedPull(node, input.clientMutationId);
 }
 

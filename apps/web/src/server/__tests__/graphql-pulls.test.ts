@@ -437,6 +437,7 @@ it("merges with the REST rules, reports the actor and refuses a second merge or 
 		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"merge-me",baseRefName:"main",title:"Merge me"}) { pullRequest { id } } }`,
 	);
 	const { id } = created.body.data.createPullRequest.pullRequest;
+	await call("/repos/alice/proj", patch(token, { allow_squash_merge: false }));
 	const squash = await graphql(
 		token,
 		`mutation { mergePullRequest(input:{pullRequestId:"${id}",mergeMethod:SQUASH}) { pullRequest { state } } }`,
@@ -492,6 +493,180 @@ it("merges with the REST rules, reports the actor and refuses a second merge or 
 		actor: { login: "alice" },
 		pullRequest: { title: "Landed", state: "MERGED" },
 	});
+});
+
+it("squashes and rebases through mergeMethod once the repository allows them", async () => {
+	await call(
+		"/repos/alice/proj",
+		patch(token, { allow_squash_merge: true, allow_rebase_merge: true }),
+	);
+	const repoRest = await call("/repos/alice/proj");
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	const ids: string[] = [];
+	for (const branch of ["squash-gql", "rebase-gql"]) {
+		await call(
+			"/repos/alice/proj/git/refs",
+			post(token, { ref: `refs/heads/${branch}`, sha: ref.body.object.sha }),
+		);
+		await files.uploadFile({
+			data: {
+				repoId: repoRest.body.id,
+				branchName: branch,
+				path: `${branch}.txt`,
+				content: btoa(`${branch}\n`),
+				commitMessage: `Add ${branch}`,
+			},
+		});
+		const created = await graphql(
+			token,
+			`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"${branch}",baseRefName:"main",title:"${branch}"}) { pullRequest { id } } }`,
+		);
+		ids.push(created.body.data.createPullRequest.pullRequest.id);
+	}
+	const squashHead = await call("/repos/alice/proj/git/ref/heads/squash-gql");
+	const open = await graphql(
+		token,
+		`query { node(id:"${ids[0]}") { ... on PullRequest { headRefOid mergeStateStatus } } }`,
+	);
+	expect(open.body.errors).toBeUndefined();
+	expect(open.body.data.node).toEqual({
+		headRefOid: squashHead.body.object.sha,
+		mergeStateStatus: "UNKNOWN",
+	});
+	const squashed = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${ids[0]}",mergeMethod:SQUASH,commitHeadline:"Squashed via GraphQL"}) { pullRequest { state merged } } }`,
+	);
+	expect(squashed.body.errors).toBeUndefined();
+	expect(squashed.body.data.mergePullRequest.pullRequest).toEqual({
+		state: "MERGED",
+		merged: true,
+	});
+	const rebased = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${ids[1]}",mergeMethod:REBASE}) { pullRequest { state merged } } }`,
+	);
+	expect(rebased.body.errors).toBeUndefined();
+	expect(rebased.body.data.mergePullRequest.pullRequest).toEqual({
+		state: "MERGED",
+		merged: true,
+	});
+	const head = await call("/repos/alice/proj/git/ref/heads/main");
+	const { body: commit } = await call(
+		`/repos/alice/proj/git/commits/${head.body.object.sha}`,
+	);
+	// The rebase replayed the branch's own commit, so no merge commit was made.
+	expect(commit.message.trimEnd()).toBe("Add rebase-gql");
+	expect(commit.parents).toHaveLength(1);
+});
+
+it("refuses a rebase that conflicts with UNPROCESSABLE and moves nothing", async () => {
+	const repoRest = await call("/repos/alice/proj");
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "main",
+			path: "gq-conflict.txt",
+			content: btoa("base\n"),
+			commitMessage: "Base for conflict",
+		},
+	});
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, {
+			ref: "refs/heads/conflict-gql",
+			sha: ref.body.object.sha,
+		}),
+	);
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "conflict-gql",
+			path: "gq-conflict.txt",
+			content: btoa("theirs\n"),
+			commitMessage: "Theirs",
+		},
+	});
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "main",
+			path: "gq-conflict.txt",
+			content: btoa("ours\n"),
+			commitMessage: "Ours",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"conflict-gql",baseRefName:"main",title:"Conflict"}) { pullRequest { id } } }`,
+	);
+	const pullId = created.body.data.createPullRequest.pullRequest.id;
+	const mainBefore = (await call("/repos/alice/proj/git/ref/heads/main")).body
+		.object.sha;
+
+	const refused = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",mergeMethod:REBASE}) { pullRequest { state } } }`,
+	);
+	expect(refused.body.errors[0].type).toBe("UNPROCESSABLE");
+	expect(refused.body.errors[0].message).toBe("Pull Request is not mergeable");
+	expect(
+		(await call("/repos/alice/proj/git/ref/heads/main")).body.object.sha,
+	).toBe(mainBefore);
+});
+
+it("caps commitHeadline and commitBody at the REST limit, refusing without merging", async () => {
+	const repoRest = await call("/repos/alice/proj");
+	const ref = await call("/repos/alice/proj/git/ref/heads/main");
+	await call(
+		"/repos/alice/proj/git/refs",
+		post(token, { ref: "refs/heads/cap-gql", sha: ref.body.object.sha }),
+	);
+	await files.uploadFile({
+		data: {
+			repoId: repoRest.body.id,
+			branchName: "cap-gql",
+			path: "cap.txt",
+			content: btoa("cap\n"),
+			commitMessage: "Cap",
+		},
+	});
+	const created = await graphql(
+		token,
+		`mutation { createPullRequest(input:{repositoryId:"${repoId}",headRefName:"cap-gql",baseRefName:"main",title:"Cap"}) { pullRequest { id } } }`,
+	);
+	const pullId = created.body.data.createPullRequest.pullRequest.id;
+	const over = "x".repeat(10_001);
+
+	const longBody = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",commitBody:"${over}"}) { pullRequest { state } } }`,
+	);
+	expect(longBody.body.errors[0].type).toBe("UNPROCESSABLE");
+	expect(longBody.body.errors[0].message).toBe(
+		"Commit body is too long (maximum is 10000 characters)",
+	);
+	const longHeadline = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",commitHeadline:"${over}"}) { pullRequest { state } } }`,
+	);
+	expect(longHeadline.body.errors[0].message).toBe(
+		"Commit headline is too long (maximum is 10000 characters)",
+	);
+	const stillOpen = await call("/repos/alice/proj/pulls?state=open");
+	expect(
+		stillOpen.body.some(
+			(pull: { head: { ref: string } }) => pull.head.ref === "cap-gql",
+		),
+	).toBe(true);
+
+	const atCap = await graphql(
+		token,
+		`mutation { mergePullRequest(input:{pullRequestId:"${pullId}",commitBody:"${"x".repeat(10_000)}"}) { pullRequest { state } } }`,
+	);
+	expect(atCap.body.errors).toBeUndefined();
+	expect(atCap.body.data.mergePullRequest.pullRequest.state).toBe("MERGED");
 });
 
 it("submits reviews by event with the submitReview rules", async () => {

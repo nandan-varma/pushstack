@@ -1673,6 +1673,8 @@ export type PullRequest = Node & UniformResourceLocatable & {
   repository: Repository;
   /** Identifies the name of the head Ref associated with the pull request, even if the ref has been deleted. */
   headRefName: Scalars['String']['output'];
+  /** Identifies the oid of the head ref associated with the pull request, even if the ref has been deleted. */
+  headRefOid: Scalars['GitObjectID']['output'];
   /** Identifies the name of the base Ref associated with the pull request, even if the ref has been deleted. */
   baseRefName: Scalars['String']['output'];
   /** The repository associated with this pull request's head Ref. */
@@ -1687,6 +1689,8 @@ export type PullRequest = Node & UniformResourceLocatable & {
   maintainerCanModify: Scalars['Boolean']['output'];
   /** Whether or not the pull request can be merged based on the existence of merge conflicts. */
   mergeable: MergeableState;
+  /** Detailed information about the current pull request merge state status. */
+  mergeStateStatus: MergeStateStatus;
   /** The number of additions in this pull request. */
   additions: Scalars['Int']['output'];
   /** The number of deletions in this pull request. */
@@ -2056,6 +2060,25 @@ export type MergeableState =
   | 'MERGEABLE'
   /** The mergeability of the pull request is still being calculated. */
   | 'UNKNOWN';
+
+/** Detailed status information about a pull request merge. */
+export type MergeStateStatus =
+  /** The head ref is out of date. */
+  | 'BEHIND'
+  /** The merge is blocked. */
+  | 'BLOCKED'
+  /** Mergeable and passing commit status. */
+  | 'CLEAN'
+  /** The merge commit cannot be cleanly created. */
+  | 'DIRTY'
+  /** The merge is blocked due to the pull request being a draft. */
+  | 'DRAFT'
+  /** Mergeable with passing commit status and pre-receive hooks. */
+  | 'HAS_HOOKS'
+  /** The state cannot currently be determined. */
+  | 'UNKNOWN'
+  /** Mergeable with non-passing commit status. */
+  | 'UNSTABLE';
 
 /** Represents a Git commit part of a pull request. */
 export type PullRequestCommit = {
@@ -2759,6 +2782,7 @@ export type ResolversTypes = {
   AutoMergeRequest: ResolverTypeWrapper<Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversTypes['Actor']> }>;
   PullRequestMergeMethod: PullRequestMergeMethod;
   MergeableState: MergeableState;
+  MergeStateStatus: MergeStateStatus;
   PullRequestCommit: ResolverTypeWrapper<Omit<PullRequestCommit, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   PullRequestCommitConnection: ResolverTypeWrapper<Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>> }>;
   PullRequestCommitEdge: ResolverTypeWrapper<Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestCommit']> }>;
@@ -3380,6 +3404,7 @@ export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extend
   author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
   repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
   headRefName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  headRefOid?: Resolver<ResolversTypes['GitObjectID'], ParentType, ContextType>;
   baseRefName?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   headRepository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;
   headRepositoryOwner?: Resolver<Maybe<ResolversTypes['RepositoryOwner']>, ParentType, ContextType>;
@@ -3387,6 +3412,7 @@ export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extend
   autoMergeRequest?: Resolver<Maybe<ResolversTypes['AutoMergeRequest']>, ParentType, ContextType>;
   maintainerCanModify?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   mergeable?: Resolver<ResolversTypes['MergeableState'], ParentType, ContextType>;
+  mergeStateStatus?: Resolver<ResolversTypes['MergeStateStatus'], ParentType, ContextType>;
   additions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   deletions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   commits?: Resolver<ResolversTypes['PullRequestCommitConnection'], ParentType, ContextType, Partial<PullRequestCommitsArgs>>;
