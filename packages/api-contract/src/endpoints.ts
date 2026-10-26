@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import {
+	assigneeLogin,
 	assigneeLogins,
 	commaList,
 	commentBody,
@@ -26,6 +27,8 @@ import {
 	reviewerLogins,
 	threadBody,
 	threadTitle,
+	unsupported,
+	unsupportedUnless,
 } from "./inputs";
 import {
 	MAX_BODY_CHARS,
@@ -143,7 +146,10 @@ const notificationQuery = z.object({
 const markReadBody = z.object({
 	/** Default: now. */
 	last_read_at: isoDate.optional(),
-	read: z.boolean().optional(),
+});
+/** `read: true` is the default (mark read); GitHub's `false` is not implemented. */
+const markAllReadBody = markReadBody.extend({
+	read: unsupportedUnless((value) => value === true),
 });
 const listState = z.enum(["open", "closed", "all"]).default("open");
 const commentParams = repoParams.extend({ comment_id: positiveInt });
@@ -180,6 +186,13 @@ const checkOutput = z.object({
 	title: z.string().min(1).max(MAX_CHECK_TITLE_CHARS),
 	summary: z.string().min(1).max(MAX_CHECK_OUTPUT_CHARS),
 	text: z.string().max(MAX_CHECK_OUTPUT_CHARS).optional(),
+	/** Empty is a no-op (no annotations or images are served); otherwise `422`. */
+	annotations: unsupportedUnless(
+		(value) => Array.isArray(value) && value.length === 0,
+	),
+	images: unsupportedUnless(
+		(value) => Array.isArray(value) && value.length === 0,
+	),
 });
 const checkRunFields = {
 	details_url: reportUrl.optional(),
@@ -189,6 +202,7 @@ const checkRunFields = {
 	conclusion: checkConclusion.optional(),
 	completed_at: isoDate.optional(),
 	output: checkOutput.optional(),
+	actions: unsupported,
 };
 const checkRunList = {
 	query: pagination.extend({
@@ -212,6 +226,7 @@ const releaseParams = repoParams.extend({ release_id: positiveInt });
 const assetParams = repoParams.extend({ asset_id: positiveInt });
 const releaseTagName = z.string().min(1).max(MAX_RELEASE_TAG_CHARS);
 const releaseFields = {
+	discussion_category_name: unsupported,
 	target_commitish: z.string().min(1).max(300).optional(),
 	name: z.string().max(MAX_RELEASE_NAME_CHARS).nullish(),
 	body: z.string().max(MAX_BODY_CHARS).nullish(),
@@ -262,6 +277,8 @@ export const endpoints = defineEndpoints({
 			type: z.enum(["all", "owner", "public", "private", "member"]).optional(),
 			sort: repoListSort,
 			direction,
+			since: isoDate.optional(),
+			before: isoDate.optional(),
 		}),
 		response: z.array(repository),
 	},
@@ -274,6 +291,23 @@ export const endpoints = defineEndpoints({
 			/** A template name; the server checks it against its list. */
 			gitignore_template: z.string().optional(),
 			license_template: z.string().optional(),
+			homepage: z.string().trim().max(MAX_REPO_HOMEPAGE_CHARS).nullish(),
+			has_issues: z.boolean().optional(),
+			has_projects: z.boolean().optional(),
+			has_wiki: z.boolean().optional(),
+			is_template: z.boolean().optional(),
+			allow_auto_merge: unsupported,
+			allow_merge_commit: unsupported,
+			allow_rebase_merge: unsupported,
+			allow_squash_merge: unsupported,
+			delete_branch_on_merge: unsupported,
+			has_discussions: unsupported,
+			has_downloads: unsupported,
+			merge_commit_message: unsupported,
+			merge_commit_title: unsupported,
+			squash_merge_commit_message: unsupported,
+			squash_merge_commit_title: unsupported,
+			team_id: unsupported,
 		}),
 		response: repository,
 	},
@@ -305,7 +339,12 @@ export const endpoints = defineEndpoints({
 	},
 	"repos/list-for-user": {
 		params: z.object({ username: z.string() }),
-		query: pagination.extend({ sort: repoListSort, direction }),
+		query: pagination.extend({
+			/** GitHub's default is `owner`. */
+			type: z.enum(["all", "owner", "member"]).optional(),
+			sort: repoListSort,
+			direction,
+		}),
 		response: z.array(repository),
 	},
 
@@ -334,7 +373,7 @@ export const endpoints = defineEndpoints({
 		response: z.array(notificationThread),
 	},
 	"activity/mark-notifications-as-read": {
-		body: markReadBody,
+		body: markAllReadBody,
 		response: noContent,
 	},
 	"activity/get-thread-subscription-for-authenticated-user": {
@@ -383,6 +422,19 @@ export const endpoints = defineEndpoints({
 			allow_merge_commit: z.boolean().optional(),
 			allow_squash_merge: z.boolean().optional(),
 			allow_rebase_merge: z.boolean().optional(),
+			allow_auto_merge: unsupported,
+			allow_forking: unsupported,
+			allow_update_branch: unsupported,
+			delete_branch_on_merge: unsupported,
+			has_pull_requests: unsupported,
+			merge_commit_message: unsupported,
+			merge_commit_title: unsupported,
+			pull_request_creation_policy: unsupported,
+			security_and_analysis: unsupported,
+			squash_merge_commit_message: unsupported,
+			squash_merge_commit_title: unsupported,
+			use_squash_pr_title_as_default: unsupported,
+			web_commit_signoff_required: unsupported,
 		}),
 		response: repository,
 	},
@@ -392,6 +444,7 @@ export const endpoints = defineEndpoints({
 	},
 	"repos/get-all-topics": {
 		params: repoParams,
+		query: pagination,
 		response: topicList,
 	},
 	"repos/replace-all-topics": {
@@ -406,7 +459,7 @@ export const endpoints = defineEndpoints({
 		body: z.object({
 			new_owner: z.string().min(1),
 			new_name: repoName.optional(),
-			team_ids: z.array(z.number().int()).optional(),
+			team_ids: unsupported,
 		}),
 		response: repository,
 	},
@@ -416,7 +469,8 @@ export const endpoints = defineEndpoints({
 			owner: z.string().optional(),
 			name: repoName,
 			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
-			include_all_branches: z.boolean().default(false),
+			/** Only the default branch is copied; `true` is `422`. */
+			include_all_branches: z.literal(false).default(false),
 			private: z.boolean().default(false),
 		}),
 		response: repository,
@@ -454,7 +508,7 @@ export const endpoints = defineEndpoints({
 	},
 	"repos/list-branches": {
 		params: repoParams,
-		query: pagination,
+		query: pagination.extend({ protected: unsupported }),
 		response: z.array(shortBranch),
 	},
 	"repos/get-branch": {
@@ -491,6 +545,7 @@ export const endpoints = defineEndpoints({
 				.min(1)
 				.max(MAX_RELEASE_TAG_CHARS)
 				.optional(),
+			configuration_file_path: unsupported,
 		}),
 		response: releaseNotes,
 	},
@@ -657,12 +712,12 @@ export const endpoints = defineEndpoints({
 	},
 	"checks/list-for-ref": {
 		params: refParams,
-		...checkRunList,
+		query: checkRunList.query.extend({ app_id: unsupported }),
 		response: checkRunsResponse,
 	},
 	"checks/list-suites-for-ref": {
 		params: refParams,
-		query: pagination,
+		query: pagination.extend({ app_id: unsupported, check_name: unsupported }),
 		response: z.object({
 			total_count: z.number().int().nonnegative(),
 			check_suites: z.array(checkSuite),
@@ -670,9 +725,10 @@ export const endpoints = defineEndpoints({
 	},
 	"repos/get-commit": {
 		params: repoParams.extend({ ref: z.string().min(1) }),
+		query: pagination,
 		response: commitDetail,
 	},
-	"repos/compare-commits-with-basehead": {
+	"repos/compare-commits": {
 		params: repoParams.extend({ basehead: z.string().min(1) }),
 		query: z.object({
 			page: positiveInt.optional().catch(undefined),
@@ -791,6 +847,7 @@ export const endpoints = defineEndpoints({
 			parents: z.array(z.string().max(100)).max(MAX_COMMIT_PARENTS).default([]),
 			author: commitIdentity.optional(),
 			committer: commitIdentity.optional(),
+			signature: unsupported,
 		}),
 		response: gitCommit,
 	},
@@ -829,6 +886,18 @@ export const endpoints = defineEndpoints({
 				.default("created")
 				.catch("created"),
 			direction: z.enum(["asc", "desc"]).default("desc").catch("desc"),
+			/** The author's login. */
+			creator: z.string().max(100).optional(),
+			/** A login mentioned in the title, body or a comment. */
+			mentioned: z.string().max(100).optional(),
+			/**
+			 * GitHub's issue-type filter. PushStack has no issue types, so `*`
+			 * (any) and `none` both match every issue; any other name is `422`.
+			 */
+			type: z.enum(["*", "none"]).optional(),
+			/** Updated at or after this time. */
+			since: isoDate.optional(),
+			issue_field_values: unsupported,
 		}),
 		response: z.array(issue),
 	},
@@ -838,8 +907,12 @@ export const endpoints = defineEndpoints({
 			title: threadTitle,
 			body: threadBody.nullish(),
 			labels: labelNames.optional(),
+			assignee: assigneeLogin.nullish(),
 			assignees: assigneeLogins.optional(),
 			milestone: milestoneRef.nullish(),
+			type: unsupported,
+			parent_issue_id: unsupported,
+			issue_field_values: unsupported,
 		}),
 		response: issue,
 	},
@@ -881,14 +954,18 @@ export const endpoints = defineEndpoints({
 			state: z.enum(["open", "closed"]).optional(),
 			state_reason: stateReason.nullish(),
 			labels: labelNames.optional(),
+			assignee: assigneeLogin.nullish(),
 			assignees: assigneeLogins.optional(),
 			milestone: milestoneRef.nullish(),
+			duplicate_issue_id: unsupported,
+			issue_field_values: unsupported,
+			type: unsupported,
 		}),
 		response: issue,
 	},
 	"issues/list-comments": {
 		params: issueParams,
-		query: pagination,
+		query: pagination.extend({ since: isoDate.optional() }),
 		response: z.array(issueComment),
 	},
 	"issues/create-comment": {
@@ -898,7 +975,7 @@ export const endpoints = defineEndpoints({
 	},
 	"issues/list-events-for-timeline": {
 		params: issueParams,
-		query: pagination,
+		query: pagination.extend({ exclude: unsupported }),
 		response: z.array(timelineItem),
 	},
 	"issues/list-events": {
@@ -918,6 +995,7 @@ export const endpoints = defineEndpoints({
 	},
 	"issues/list-labels-on-issue": {
 		params: issueParams,
+		query: pagination,
 		response: z.array(label),
 	},
 	"issues/add-labels": {
@@ -962,6 +1040,9 @@ export const endpoints = defineEndpoints({
 			head: z.string().min(1).max(300),
 			base: z.string().min(1).max(300),
 			draft: z.boolean().optional(),
+			head_repo: unsupported,
+			issue: unsupported,
+			maintainer_can_modify: unsupported,
 		}),
 		response: pullRequest,
 	},
@@ -976,6 +1057,7 @@ export const endpoints = defineEndpoints({
 			body: threadBody.nullish(),
 			state: z.enum(["open", "closed"]).optional(),
 			base: z.string().min(1).max(300).optional(),
+			maintainer_can_modify: unsupported,
 		}),
 		response: pullRequest,
 	},
@@ -1091,6 +1173,7 @@ export const endpoints = defineEndpoints({
 			new_name: labelName.optional(),
 			color: labelColor.optional(),
 			description: labelDescription.nullish(),
+			archived: unsupported,
 		}),
 		response: label,
 	},

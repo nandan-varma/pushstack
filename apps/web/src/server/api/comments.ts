@@ -27,7 +27,7 @@ import {
 	notFoundError,
 	pageParams,
 } from "./http";
-import { pathParams, requestBody } from "./input";
+import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { issueComment } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -38,14 +38,17 @@ export async function listComments(ctx: ApiContext) {
 	const thread = await findThreadByNumber(repo.id, number);
 	if (!thread) throw notFoundError();
 	const params = pageParams(ctx.url.searchParams);
+	const { since } = queryParams(ctx, "issues/list-comments", "IssueComment");
+	const updatedSince = since ? new Date(since) : undefined;
 	const [comments, total] = await Promise.all([
 		params.reachable
 			? listCommentsForThread(thread, {
 					limit: params.perPage,
 					offset: params.offset,
+					since: updatedSince,
 				})
 			: [],
-		countCommentsForThread(thread),
+		countCommentsForThread(thread, updatedSince),
 	]);
 	const fullName = fullNameOf(repo);
 	const rollups = await commentReactionRollups(comments.map((c) => c.id));

@@ -5,7 +5,7 @@
  * turns that into its own error (the server functions throw, the API answers
  * 403).
  */
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, gte, ne, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { comments } from "#/db/app-schema";
 import { getReferencedIssueNumbers } from "#/lib/issue-references";
@@ -30,13 +30,19 @@ export function findCommentWithAuthor(commentId: number) {
 	});
 }
 
-/** A thread's comments, oldest first. `options` bound one page for the API. */
+/**
+ * A thread's comments, oldest first. `options` bound one page for the API;
+ * `since` keeps the comments updated at or after it (the REST `since`).
+ */
 export function listCommentsForThread(
 	thread: ThreadRef,
-	options?: { limit?: number; offset?: number },
+	options?: { limit?: number; offset?: number; since?: Date },
 ) {
 	return db.query.comments.findMany({
-		where: { issueId: thread.id },
+		where: {
+			issueId: thread.id,
+			...(options?.since && { updatedAt: { gte: options.since } }),
+		},
 		with: { author: publicUserFields },
 		orderBy: (table) => [table.createdAt, table.id],
 		...(options?.limit !== undefined && { limit: options.limit }),
@@ -46,11 +52,17 @@ export function listCommentsForThread(
 
 export async function countCommentsForThread(
 	thread: ThreadRef,
+	since?: Date,
 ): Promise<number> {
 	const [row] = await db
 		.select({ total: count() })
 		.from(comments)
-		.where(eq(comments.issueId, thread.id));
+		.where(
+			and(
+				eq(comments.issueId, thread.id),
+				since ? gte(comments.updatedAt, since) : undefined,
+			),
+		);
 	return row?.total ?? 0;
 }
 

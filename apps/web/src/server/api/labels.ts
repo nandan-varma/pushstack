@@ -24,6 +24,7 @@ import {
 	linkHeader,
 	noContent,
 	notFoundError,
+	pagedList,
 	pageParams,
 	validationFailedError,
 } from "./http";
@@ -195,7 +196,7 @@ export async function listIssueLabels(ctx: ApiContext) {
 	);
 	const labels = await labelsOfThread(thread.id);
 	const fullName = fullNameOf(repo);
-	return json(labels.map((value) => label({ fullName }, value)));
+	return pagedList(ctx.url, labels, (value) => label({ fullName }, value));
 }
 
 /** `POST /repos/{owner}/{repo}/issues/{number}/labels` — add, return every label. */

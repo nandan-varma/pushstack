@@ -64,6 +64,7 @@ import {
 	updateGitRef,
 } from "./git-data";
 import { API_PREFIX, ApiError, errorResponse, notFoundError } from "./http";
+import { rejectUnsupportedQuery } from "./input";
 import { createIssue, getIssue, listIssues, updateIssue } from "./issues";
 import {
 	addIssueLabels,
@@ -256,7 +257,7 @@ const HANDLERS = {
 	"checks/list-for-ref": listCheckRunsForRef,
 	"checks/list-suites-for-ref": listCheckSuitesForRef,
 	"repos/get-commit": getCommitDetail,
-	"repos/compare-commits-with-basehead": compareCommits,
+	"repos/compare-commits": compareCommits,
 	"git/get-ref": getRef,
 	"git/list-refs": listRefs,
 	"git/list-matching-refs": listMatchingRefs,
@@ -360,8 +361,15 @@ async function dispatch(
 			if (metered) rate = await meterApiRequest(request, caller);
 			throw notFoundError();
 		}
-		const handle = async () =>
-			HANDLERS[matched.id]({ request, url, params: matched.params, caller });
+		const handle = async () => {
+			rejectUnsupportedQuery(url, matched.id);
+			return HANDLERS[matched.id]({
+				request,
+				url,
+				params: matched.params,
+				caller,
+			});
+		};
 		let response: Response;
 		if (metered && canOverlapMetering(request)) {
 			// Safe reads run while the count is in flight, saving a serial

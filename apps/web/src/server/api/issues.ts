@@ -49,6 +49,23 @@ async function applyMilestone(
 	}
 }
 
+/**
+ * `assignees`, plus the deprecated singular `assignee` (one login; `null`
+ * clears it). Undefined when neither is sent, so the assignees stay as they are.
+ */
+function assigneesOf(data: {
+	assignee?: string | null;
+	assignees?: string[];
+}): string[] | undefined {
+	if (data.assignee === undefined) return data.assignees;
+	return [
+		...new Set([
+			...(data.assignees ?? []),
+			...(data.assignee ? [data.assignee] : []),
+		]),
+	];
+}
+
 export async function listIssues(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const params = pageParams(ctx.url.searchParams);
@@ -63,6 +80,9 @@ export async function listIssues(ctx: ApiContext) {
 				repoId: repo.id,
 				...(filters.state !== "all" && { state: filters.state }),
 				...(filters.assignee && { assignees: [filters.assignee] }),
+				...(filters.creator && { authors: [filters.creator] }),
+				...(filters.mentioned && { mentions: [filters.mentioned] }),
+				...(filters.since && { updatedSince: new Date(filters.since) }),
 				labels: filters.labels ?? [],
 				...(filters.milestone !== undefined && {
 					milestoneNumber:
@@ -111,7 +131,7 @@ export async function createIssue(ctx: ApiContext) {
 		title: data.title,
 		body: data.body ?? undefined,
 		labels: access.canWrite ? (data.labels ?? []) : [],
-		assignees: access.canWrite ? data.assignees : undefined,
+		assignees: access.canWrite ? assigneesOf(data) : undefined,
 	});
 	if (milestone !== null) {
 		await applyMilestone(created, milestone, caller.userId);
@@ -189,8 +209,9 @@ export async function updateIssue(ctx: ApiContext) {
 		if (data.labels !== undefined) {
 			await setThreadLabels(issue, data.labels, caller.userId);
 		}
-		if (data.assignees !== undefined) {
-			await replaceThreadAssignees(issue, data.assignees, caller.userId);
+		const assignees = assigneesOf(data);
+		if (assignees !== undefined) {
+			await replaceThreadAssignees(issue, assignees, caller.userId);
 		}
 		if (data.milestone !== undefined) {
 			await applyMilestone(issue, data.milestone, caller.userId);

@@ -288,7 +288,7 @@ function compareSide(side: string, repo: RepositoryRowWithOwner): string {
 
 export async function compareCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
-	const { basehead } = pathParams(ctx, "repos/compare-commits-with-basehead");
+	const { basehead } = pathParams(ctx, "repos/compare-commits");
 	const separator = basehead.includes("...") ? "..." : "..";
 	const at = basehead.indexOf(separator);
 	if (at <= 0 || at + separator.length >= basehead.length) {

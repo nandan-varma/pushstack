@@ -15,6 +15,7 @@ import {
 	desc,
 	eq,
 	exists,
+	gte,
 	ilike,
 	inArray,
 	isNotNull,
@@ -91,6 +92,8 @@ export interface ThreadFilter {
 	/** Pull requests only: merged (true) or closed without merging (false). */
 	merged?: boolean;
 	numbers?: number[];
+	/** Last updated at or after this time (the REST `since`). */
+	updatedSince?: Date;
 	/** Title or body contains every term. */
 	terms?: string[];
 	/** Authored by every one of these usernames. */
@@ -232,6 +235,7 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 		);
 	}
 	if (filter.numbers) add(inArray(issues.number, filter.numbers));
+	if (filter.updatedSince) add(gte(issues.updatedAt, filter.updatedSince));
 	for (const term of filter.terms ?? []) {
 		add(
 			or(

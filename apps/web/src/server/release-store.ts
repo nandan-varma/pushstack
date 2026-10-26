@@ -5,10 +5,11 @@
  * `release-assets.ts`); deleting rows returns what the caller must delete
  * from storage.
  */
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { releaseAssets, releases } from "#/db/app-schema";
 import { isUniqueViolation } from "./db-errors";
+import { logError } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
 
 export type ReleaseRow = typeof releases.$inferSelect;
@@ -138,15 +139,44 @@ export interface ReleaseInput {
 }
 
 /** `make_latest: true` takes the badge from every other release. */
-async function demoteOtherLatest(repoId: number, keepId: number) {
-	await db
+/**
+ * Clears `make_latest` on the repository's latest releases (but `exceptId`)
+ * and returns their ids. One statement, so it either applies or does not.
+ */
+async function demoteLatest(repoId: number, exceptId?: number) {
+	const rows = await db
 		.update(releases)
 		.set({ makeLatest: "legacy" })
 		.where(
 			and(
 				eq(releases.repoId, repoId),
 				eq(releases.makeLatest, "true"),
-				ne(releases.id, keepId),
+				exceptId === undefined ? undefined : ne(releases.id, exceptId),
+			),
+		)
+		.returning({ id: releases.id });
+	return rows.map((row) => row.id);
+}
+
+/**
+ * Puts `make_latest` back on the releases `demoteLatest` cleared, when the
+ * write that demoted them failed. There are no transactions on the Neon HTTP
+ * driver, so this compensates. A failed restore is logged, not thrown: if the
+ * database fails both writes, the repository can be left with no latest release
+ * until one is set. Concurrent creates are not serialized, so two can still
+ * clear the others before either inserts and leave two latest releases.
+ */
+async function restoreLatest(ids: number[]) {
+	if (ids.length === 0) return;
+	await db
+		.update(releases)
+		.set({ makeLatest: "true" })
+		.where(inArray(releases.id, ids))
+		.catch((cleanup: unknown) =>
+			logError(
+				"release-store",
+				`Latest release(s) ${ids.join(", ")} were not restored after a failed write`,
+				cleanup,
 			),
 		);
 }
@@ -156,20 +186,28 @@ export async function createReleaseRow(
 	authorId: string,
 	input: ReleaseInput,
 ): Promise<number> {
-	const [row] = await db
-		.insert(releases)
-		.values({
-			repoId,
-			authorId,
-			...input,
-			publishedAt: input.draft ? null : new Date(),
-		})
-		.returning({ id: releases.id })
-		.catch((error: unknown) => {
-			throw isUniqueViolation(error) ? new DuplicateReleaseError() : error;
-		});
-	if (!row) throw new Error("Release insert returned no row");
-	if (input.makeLatest === "true") await demoteOtherLatest(repoId, row.id);
+	// The previous latest is cleared before the insert and restored if the insert
+	// fails. Sequential failures leave the previous latest in place; see restoreLatest.
+	const demoted = input.makeLatest === "true" ? await demoteLatest(repoId) : [];
+	let row: { id: number } | undefined;
+	try {
+		[row] = await db
+			.insert(releases)
+			.values({
+				repoId,
+				authorId,
+				...input,
+				publishedAt: input.draft ? null : new Date(),
+			})
+			.returning({ id: releases.id });
+	} catch (error) {
+		await restoreLatest(demoted);
+		throw isUniqueViolation(error) ? new DuplicateReleaseError() : error;
+	}
+	if (!row) {
+		await restoreLatest(demoted);
+		throw new Error("Release insert returned no row");
+	}
 	return row.id;
 }
 
@@ -181,20 +219,24 @@ export async function updateReleaseRow(
 ): Promise<void> {
 	const publishing = fields.draft === false && existing.draft;
 	const draftAgain = fields.draft === true && !existing.draft;
-	await db
-		.update(releases)
-		.set({
-			...fields,
-			// GitHub stamps `published_at` when a draft is published.
-			...(publishing && { publishedAt: new Date() }),
-			...(draftAgain && { publishedAt: null }),
-			updatedAt: new Date(),
-		})
-		.where(and(eq(releases.repoId, repoId), eq(releases.id, releaseId)))
-		.catch((error: unknown) => {
-			throw isUniqueViolation(error) ? new DuplicateReleaseError() : error;
-		});
-	if (fields.makeLatest === "true") await demoteOtherLatest(repoId, releaseId);
+	// As on create: the others are cleared first and restored if this update fails.
+	const demoted =
+		fields.makeLatest === "true" ? await demoteLatest(repoId, releaseId) : [];
+	try {
+		await db
+			.update(releases)
+			.set({
+				...fields,
+				// GitHub stamps `published_at` when a draft is published.
+				...(publishing && { publishedAt: new Date() }),
+				...(draftAgain && { publishedAt: null }),
+				updatedAt: new Date(),
+			})
+			.where(and(eq(releases.repoId, repoId), eq(releases.id, releaseId)));
+	} catch (error) {
+		await restoreLatest(demoted);
+		throw isUniqueViolation(error) ? new DuplicateReleaseError() : error;
+	}
 }
 
 /** Delete the release; returns its asset ids for the caller to remove from storage. */

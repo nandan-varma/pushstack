@@ -421,7 +421,7 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/commits/{+ref}",
 		docs: `${DOCS}/commits/commits#get-a-commit`,
 	},
-	"repos/compare-commits-with-basehead": {
+	"repos/compare-commits": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/compare/{+basehead}",
 		docs: `${DOCS}/commits/commits#compare-two-commits`,

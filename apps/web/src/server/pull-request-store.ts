@@ -13,6 +13,7 @@ import { issues, pullRequests, type Repository } from "#/db/app-schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { MAX_COMMIT_MESSAGE_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
+import { bestEffort } from "./best-effort";
 import { ownerKeyOf } from "./git-storage-naming";
 import {
 	deleteBranch,
@@ -428,59 +429,88 @@ export async function mergePullRequestBranches(
 				);
 			throw error;
 		});
-	await recordTimelineEvent(pr.id, user.id, {
-		event: "merged",
-		commitSha: result.commitSha,
-		base: pr.targetBranch,
-	});
-	await recordThreadActivity({
-		thread: pr,
-		actorId: user.id,
-		actorReason: "state_change",
-	});
-
+	// The merge is recorded above. Its follow-ups are best-effort: a failure
+	// must not report an error for a merged pull request.
+	const followUp = (what: string, effect: () => Promise<unknown>) =>
+		bestEffort("pull-request-store", `${what} of #${pr.number}`, effect);
+	await followUp("The merged event", () =>
+		recordTimelineEvent(pr.id, user.id, {
+			event: "merged",
+			commitSha: result.commitSha,
+			base: pr.targetBranch,
+		}),
+	);
+	await followUp("The merge notice", () =>
+		recordThreadActivity({
+			thread: pr,
+			actorId: user.id,
+			actorReason: "state_change",
+		}),
+	);
 	const closing = getClosingIssueNumbers(pr.body);
 	if (closing.length > 0) {
-		const closedIssues = await db
-			.update(issues)
-			.set({
-				status: "closed",
-				stateReason: "completed",
-				closedAt: now,
-				closedById: user.id,
-				updatedAt: now,
-			})
-			.where(
-				and(
-					eq(issues.repoId, pr.repoId),
-					inArray(issues.number, closing),
-					eq(issues.isPullRequest, false),
-					eq(issues.status, "open"),
-				),
-			)
-			.returning({ id: issues.id });
-		await recordTimelineEvents(
-			closedIssues.map((issue) => issue.id),
-			user.id,
-			{
-				event: "closed",
-				closer: { kind: "pull_request", number: pr.number, title: pr.title },
-				stateReason: "completed",
-			},
+		await followUp("Closing the linked issues", () =>
+			closeLinkedIssues(pr, closing, user.id, now),
 		);
-		// GitHub sends each closed issue's subscribers a state change.
-		for (const issue of closedIssues) {
-			await recordThreadActivity({
-				thread: { id: issue.id, repoId: pr.repoId },
-				actorId: user.id,
-			});
-		}
 	}
-	await recordActivity(user.id, pr.repoId, {
-		type: "pr",
-		metadata: { number: pr.number, title: pr.title, action: "merged" },
-	});
+	await followUp("The merge activity", () =>
+		recordActivity(user.id, pr.repoId, {
+			type: "pr",
+			metadata: { number: pr.number, title: pr.title, action: "merged" },
+		}),
+	);
 	return { success: true, commitSha: result.commitSha };
+}
+
+/**
+ * Closes the open issues a merged pull request names (`Closes #N`), records
+ * each close and tells its subscribers. Called after the merge is recorded.
+ */
+async function closeLinkedIssues(
+	pr: PullRequest,
+	numbers: number[],
+	actorId: string,
+	now: Date,
+) {
+	const closedIssues = await db
+		.update(issues)
+		.set({
+			status: "closed",
+			stateReason: "completed",
+			closedAt: now,
+			closedById: actorId,
+			updatedAt: now,
+		})
+		.where(
+			and(
+				eq(issues.repoId, pr.repoId),
+				inArray(issues.number, numbers),
+				eq(issues.isPullRequest, false),
+				eq(issues.status, "open"),
+			),
+		)
+		.returning({ id: issues.id });
+	await recordTimelineEvents(
+		closedIssues.map((issue) => issue.id),
+		actorId,
+		{
+			event: "closed",
+			closer: { kind: "pull_request", number: pr.number, title: pr.title },
+			stateReason: "completed",
+		},
+	);
+	// GitHub sends each closed issue's subscribers a state change.
+	for (const issue of closedIssues) {
+		await bestEffort(
+			"pull-request-store",
+			`The close notice of issue ${issue.id}`,
+			() =>
+				recordThreadActivity({
+					thread: { id: issue.id, repoId: pr.repoId },
+					actorId,
+				}),
+		);
+	}
 }
 
 /**

@@ -13,6 +13,7 @@ import { labelNameSchema } from "#/lib/labels";
 import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { deleteActivity, recordActivity } from "./activity";
 import { replaceThreadAssignees } from "./assignees-store";
+import { bestEffort } from "./best-effort";
 import { setThreadLabels } from "./label-store";
 import { recordThreadActivity } from "./notification-store";
 import { logError } from "./perf-log";
@@ -151,50 +152,64 @@ export async function updateIssueThreadFields(
 		.where(eq(issues.id, issue.id))
 		.returning();
 	if (!updated) throw new Error("Issue update returned no row");
+	// The update above is committed: each follow-up is best-effort, so a failed
+	// timeline row or notice does not fail an edit that happened.
+	const followUp = (what: string, effect: () => Promise<unknown>) =>
+		bestEffort("issue-store", `${what} of #${issue.number}`, effect);
 	if (titleChanged) {
-		await recordTimelineEvent(issue.id, userId, {
-			event: "renamed",
-			from: issue.title,
-			to: updated.title,
-		});
+		await followUp("The rename event", () =>
+			recordTimelineEvent(issue.id, userId, {
+				event: "renamed",
+				from: issue.title,
+				to: updated.title,
+			}),
+		);
 	}
 	if (bodyChanged) {
-		await recordCrossReferences(
-			issue.repoId,
-			issue.id,
-			{ kind: "issue", number: issue.number, title: updated.title },
-			fields.body,
-			userId,
+		await followUp("The cross references", () =>
+			recordCrossReferences(
+				issue.repoId,
+				issue.id,
+				{ kind: "issue", number: issue.number, title: updated.title },
+				fields.body,
+				userId,
+			),
 		);
 	}
 	if (bodyChanged || statusChanged) {
 		// New @mentions in an edited body notify; a close or reopen tells
 		// every subscriber.
-		await recordThreadActivity({
-			thread: issue,
-			actorId: userId,
-			...(statusChanged && { actorReason: "state_change" as const }),
-			...(bodyChanged && { text: fields.body, previousText: issue.body }),
-			notifySubscribers: statusChanged,
-		});
+		await followUp("The notification", () =>
+			recordThreadActivity({
+				thread: issue,
+				actorId: userId,
+				...(statusChanged && { actorReason: "state_change" as const }),
+				...(bodyChanged && { text: fields.body, previousText: issue.body }),
+				notifySubscribers: statusChanged,
+			}),
+		);
 	}
 	if (fields.status && fields.status !== issue.status) {
-		await recordTimelineEvent(issue.id, userId, {
-			...(fields.status === "closed"
-				? {
-						event: "closed" as const,
-						stateReason: fields.stateReason ?? "completed",
-					}
-				: { event: "reopened" as const }),
-		});
-		await recordActivity(userId, issue.repoId, {
-			type: "issue",
-			metadata: {
-				number: issue.number,
-				title: issue.title,
-				action: fields.status === "closed" ? "closed" : "reopened",
-			},
-		});
+		await followUp("The status event", () =>
+			recordTimelineEvent(issue.id, userId, {
+				...(fields.status === "closed"
+					? {
+							event: "closed" as const,
+							stateReason: fields.stateReason ?? "completed",
+						}
+					: { event: "reopened" as const }),
+			}),
+		);
+		await followUp("The status activity", () =>
+			recordActivity(userId, issue.repoId, {
+				type: "issue",
+				metadata: {
+					number: issue.number,
+					title: issue.title,
+					action: fields.status === "closed" ? "closed" : "reopened",
+				},
+			}),
+		);
 	}
 	return updated;
 }
