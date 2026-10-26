@@ -101,6 +101,14 @@ export async function buildPackFromExistingPacks(
 	oids: readonly string[],
 	/** Read only these packs (by base name); default every pack. */
 	fromPacks?: ReadonlySet<string>,
+	/**
+	 * When given, a delta whose base is outside this set makes the reuse fail
+	 * (null), so the caller rebuilds from whole objects. A base is otherwise
+	 * copied into the pack even when nobody asked for it: a clone must not
+	 * receive an object that is reachable only from a pull request head, just
+	 * because a delta in its history was stored against it.
+	 */
+	allowedBases?: ReadonlySet<string>,
 ): Promise<Uint8Array | null> {
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
@@ -144,6 +152,13 @@ export async function buildPackFromExistingPacks(
 		if (pending.has(oid)) return false; // a delta cycle means corruption
 		const entry = locate(oid);
 		if (!entry) return false;
+		if (
+			entry.baseOid !== null &&
+			allowedBases !== undefined &&
+			!allowedBases.has(entry.baseOid)
+		) {
+			return false;
+		}
 		pending.add(oid);
 		if (entry.baseOid !== null && !visit(entry.baseOid)) return false;
 		pending.delete(oid);

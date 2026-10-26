@@ -9,6 +9,9 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `repackRepository` keeps every `refs/pull/<n>/head` as a root, so a pull
   request's head commit survives consolidation when no branch names it.
+  Because the consolidated pack can now hold pull request objects, upload-pack
+  skips its single-pack clone fast path while a pull head or `.keep` exists, and
+  reuses a delta only when its base is one the request wants.
 - `applyReceivePack` lists refs once per push (one recursive LIST of `refs/`)
   and derives the existing tips and the file/directory collision set from it,
   instead of listing branches, tags and all refs separately; a push that

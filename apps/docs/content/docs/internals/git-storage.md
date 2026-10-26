@@ -307,8 +307,15 @@ pushes:
   and every `refs/pull/<n>/head` (`listPullHeadRefNames`). Without that root a
   consolidation would drop the PR's commits, because nothing else names them.
 - **Clients never see it.** `info/refs` advertises only HEAD, branches and tags,
-  and upload-pack only serves wants that are ancestors of those tips, so a
-  clone or fetch never downloads a PR ref.
+  and upload-pack only serves wants that are ancestors of those tips. A PR's
+  objects can still sit in a pack that a clone is served from, so two things
+  keep them out of a clone's response. The single-pack fast path (a clone
+  served the stored pack verbatim) is skipped while any pull head or `.keep`
+  exists, because such a pack holds objects no branch or tag reaches. And a
+  delta is reused only when its base is among the objects the request wants
+  (`buildPackFromExistingPacks`' `allowedBases`); otherwise the object is sent
+  whole. A repository with open pull requests therefore clones through the
+  general walk, not the fast path.
 - **Pushes can't write it.** `isSafeFullRefName` accepts only `refs/heads/` and
   `refs/tags/`, so receive-pack rejects a pull ref as an invalid ref name.
   Server code creates one with `pullHeadRefName(n)`, which only accepts a
@@ -329,12 +336,20 @@ before a pack exists. Two things hold it up:
   being loaded. Memory stays within `maxBytes` plus one object.
 - **Trusts the destination's completeness.** "`dst` has this object" means
   `dst` also has its whole graph, which holds for any repository this package
-  writes (pushes and packed writes never store a partial graph). Copied
-  objects are re-encoded whole, not deltified, so a copy is larger than the
-  same history pushed.
+  writes (pushes and packed writes never store a partial graph). `haves` must
+  be commits `dst` holds: each is probed and a missing or non-commit one is an
+  error, before anything is written. Copied objects are re-encoded whole, not
+  deltified, so a copy is larger than the same history pushed.
+- **Loose sources are bounded one at a time.** A source object the pack index
+  can't size (a loose object) is inflated alone and checked against the byte
+  cap immediately, so at most one such object is ever over the budget.
 
-It takes no lock. The caller holds `dst`'s repository lock for the write and
-decides whether it needs `src` stable while the walk runs.
+It takes no lock, so the caller must hold `dst`'s repository lock across the
+copy **and** the ref move that makes `headOid` reachable. The pack has no
+`.keep`, so a repack of `dst` that runs between the two would see those objects
+as unreachable and drop them. The source is read unlocked: if it is repacked
+mid-walk the read fails and nothing is written, so no partial graph is copied.
+Hold the source's lock too when that failure matters.
 
 ## The Git smart HTTP protocol (`git-http.ts`)
 

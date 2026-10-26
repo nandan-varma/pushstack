@@ -11,13 +11,21 @@
  * repository this package writes, since pushes and packed writes never store
  * a partial graph.
  *
- * Everything is bounded before it is read: the object count and the inflated
+ * Everything is bounded before it is read: the object count, and the inflated
  * bytes, checked against the sizes the pack index already knows before the
- * object is inflated, so a huge blob is refused without being loaded. Memory
+ * object is inflated, so a huge blob is refused without being loaded. Objects
+ * the index can't size (loose ones, or a store without range reads) are read
+ * one at a time and checked as soon as they are inflated. Memory therefore
  * stays within `maxBytes` plus one object.
  *
- * Takes no lock: the caller holds the destination's repository lock for the
- * write, and holds the source's where it needs a stable view of its packs.
+ * Locking: this function takes no lock. The caller must hold the destination's
+ * repository lock across this call AND the ref update that makes `headOid`
+ * reachable. The pack is written without a `.keep`, so a repack of the
+ * destination that runs between the copy and the ref move sees these objects
+ * as unreachable and drops them. The source is read without a lock: if it is
+ * repacked during the walk the read fails (a missing object) and nothing is
+ * written, so a partial graph is never copied. Hold the source's lock as well
+ * when that failure would be unacceptable.
  */
 import git from "isomorphic-git";
 import { decodeAscii, decodeUtf8, toHex } from "../edge-utils.js";
@@ -44,8 +52,12 @@ export class CopyLimitError extends GitError {
 
 export interface CopyMissingOptions {
 	/**
-	 * Commits the destination already has. The walk stops at them (their
-	 * history is present there too), so they must really be in the destination.
+	 * Commits the destination already has, with their whole history. Each is
+	 * checked to be a commit present in the destination (a cheap probe, not a
+	 * walk of its closure: callers pass only ref tips of the destination, whose
+	 * closure the destination holds by its completeness invariant). The walk
+	 * stops at them. A have that isn't present is an error and nothing is
+	 * written.
 	 */
 	haves?: readonly string[];
 	/** Refuse (with {@link CopyLimitError}) before copying more objects than this. */
@@ -172,6 +184,16 @@ export async function copyMissingObjects(
 	options: CopyMissingOptions,
 ): Promise<CopyMissingResult> {
 	const haves = new Set(options.haves ?? []);
+	for (const batch of chunks([...haves], PROBE_BATCH)) {
+		const types = await getObjectTypes(dst, batch);
+		for (const oid of batch) {
+			if (types.get(oid) !== "commit") {
+				throw new Error(
+					`copyMissingObjects: have ${oid} is not a commit in the destination`,
+				);
+			}
+		}
+	}
 	const seen = new Set<string>([headOid]);
 	const copied = new Map<string, CopiedObject>();
 	let bytes = 0;
@@ -192,32 +214,40 @@ export async function copyMissingObjects(
 		}
 
 		const next: string[] = [];
+		const accept = (oid: string, object: CopiedObject) => {
+			bytes += object.content.length;
+			if (bytes > options.maxBytes) {
+				throw new CopyLimitError("bytes", options.maxBytes);
+			}
+			copied.set(oid, object);
+			for (const child of childrenOf(object.type, object.content)) {
+				if (haves.has(child) || seen.has(child)) continue;
+				seen.add(child);
+				next.push(child);
+			}
+		};
 		for (const batch of chunks(wanted, PROBE_BATCH)) {
-			// Known sizes are checked before anything is inflated.
+			// Known sizes are checked before anything is inflated, and the
+			// sized objects are read in parallel: their total is what remains
+			// of the budget. Unsized ones (loose objects) are read one at a
+			// time, so at most one of them is inflated past the budget.
 			const sizes = await getObjectSizes(src, batch);
 			let known = 0;
 			for (const size of sizes.values()) known += size ?? 0;
 			if (bytes + known > options.maxBytes) {
 				throw new CopyLimitError("bytes", options.maxBytes);
 			}
-			for (const readBatch of chunks(batch, READ_BATCH)) {
+			const sized = batch.filter((oid) => sizes.get(oid) != null);
+			for (const readBatch of chunks(sized, READ_BATCH)) {
 				const objects = await Promise.all(
 					readBatch.map((oid) => readVerified(src, oid)),
 				);
 				for (let i = 0; i < readBatch.length; i++) {
-					const oid = readBatch[i] as string;
-					const object = objects[i] as CopiedObject;
-					bytes += object.content.length;
-					if (bytes > options.maxBytes) {
-						throw new CopyLimitError("bytes", options.maxBytes);
-					}
-					copied.set(oid, object);
-					for (const child of childrenOf(object.type, object.content)) {
-						if (haves.has(child) || seen.has(child)) continue;
-						seen.add(child);
-						next.push(child);
-					}
+					accept(readBatch[i] as string, objects[i] as CopiedObject);
 				}
+			}
+			for (const oid of batch) {
+				if (sizes.get(oid) == null) accept(oid, await readVerified(src, oid));
 			}
 		}
 		frontier = next;

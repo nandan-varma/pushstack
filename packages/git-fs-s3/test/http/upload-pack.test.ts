@@ -424,3 +424,88 @@ describe("handleUploadPack — edge cases", () => {
 		expect(log).toHaveLength(4);
 	});
 });
+
+/** The object ids a served pack would hand a client, as the client indexes them. */
+async function servedOids(packfile: Uint8Array): Promise<string[]> {
+	const scratch = makeRepo();
+	await git.init({
+		...scratch,
+		dir: scratch.gitdir,
+		bare: true,
+		defaultBranch: "main",
+	});
+	const packDir = `${scratch.gitdir}/objects/pack`;
+	await rawFs(scratch).writeFile(`${packDir}/served.pack`, packfile);
+	const { oids } = await git.indexPack({
+		...scratch,
+		dir: packDir,
+		filepath: "served.pack",
+	});
+	return oids;
+}
+
+/** A response body with its leading ACK/NAK pkt-line removed, then the framed pack. */
+function packOfResponse(body: Uint8Array): Uint8Array {
+	const headLen = Number.parseInt(
+		new TextDecoder().decode(body.subarray(0, 4)),
+		16,
+	);
+	return decodeSideBandPackfile(body.subarray(headLen));
+}
+
+describe("handleUploadPack and pull request heads", () => {
+	/**
+	 * main with two commits, plus a commit only `refs/pull/7/head` names, then
+	 * consolidated by a repack that keeps the pull head as a root.
+	 */
+	async function repoWithPrOnlyObjects() {
+		const repo = makeRepo();
+		await seed(repo, 2);
+		const seedHead = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		const seedHeadCommit = await git.readCommit({ ...repo, oid: seedHead });
+		const mainFirst = seedHeadCommit.commit.parent[0] as string;
+		const prTip = await commitFilesToBare(repo, {
+			branch: "topic",
+			message: "secret pr\n",
+			author,
+			files: [{ path: "pr-secret.txt", content: "secret\n" }],
+		});
+		await git.writeRef({ ...repo, ref: "refs/pull/7/head", value: prTip });
+		await git.deleteRef({ ...repo, ref: "refs/heads/topic" });
+		await repackRepository(repo, { threshold: 2 });
+
+		const prCommit = await git.readCommit({ ...repo, oid: prTip });
+		const prTree = await git.readTree({ ...repo, oid: prCommit.commit.tree });
+		const prBlob = prTree.tree.find((e) => e.path === "pr-secret.txt")?.oid;
+		if (prBlob === undefined) throw new Error("fixture: no PR blob");
+		const prOnly = [prTip, prCommit.commit.tree, prBlob];
+		const mainHead = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
+		return { repo, mainFirst, mainHead, prOnly };
+	}
+
+	it("a fresh clone of main receives none of the pull-request-only objects", async () => {
+		const { repo, mainHead, prOnly } = await repoWithPrOnlyObjects();
+
+		const result = await handleUploadPack(repo, cloneRequest(mainHead));
+		const oids = await servedOids(packOfResponse(result.body));
+
+		expect(oids).toContain(mainHead);
+		for (const oid of prOnly) expect(oids).not.toContain(oid);
+	});
+
+	it("a fetch from a client with main's first commit receives none either", async () => {
+		const { repo, mainFirst, mainHead, prOnly } = await repoWithPrOnlyObjects();
+		const body = concatBuffers(
+			pktLine(`want ${mainHead} side-band-64k\n`),
+			new TextEncoder().encode("0000"),
+			pktLine(`have ${mainFirst}\n`),
+			pktLine("done\n"),
+		);
+
+		const result = await handleUploadPack(repo, body);
+		const oids = await servedOids(packOfResponse(result.body));
+
+		expect(oids).toContain(mainHead);
+		for (const oid of prOnly) expect(oids).not.toContain(oid);
+	});
+});
