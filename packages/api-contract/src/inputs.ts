@@ -133,7 +133,14 @@ export const UNSUPPORTED_PARAMETER = "is not supported by PushStack";
  * 422 naming the field: a field that is silently dropped looks accepted and
  * changes nothing (a filter that is ignored returns the wrong rows).
  */
-export const unsupported = z
-	.any()
-	.refine((value) => value === undefined, UNSUPPORTED_PARAMETER)
-	.optional();
+export const unsupportedUnless = (accept: (value: unknown) => boolean) =>
+	z
+		.any()
+		.refine(
+			(value) => value === undefined || accept(value),
+			UNSUPPORTED_PARAMETER,
+		)
+		.optional();
+
+/** Refused whenever sent. */
+export const unsupported = unsupportedUnless(() => false);

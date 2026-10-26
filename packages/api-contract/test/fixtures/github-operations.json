@@ -402,6 +402,10 @@
 			"query": ["content", "page", "per_page"],
 			"body": []
 		},
+		"repos/compare-commits": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
 		"repos/create-commit-comment": {
 			"query": [],
 			"body": ["body", "line", "path", "position"]
@@ -719,7 +723,6 @@
 	"absentFromGitHub": [
 		"repos/finish-release-asset-upload",
 		"repos/create-release-asset-upload",
-		"repos/compare-commits-with-basehead",
 		"git/list-refs"
 	]
 }

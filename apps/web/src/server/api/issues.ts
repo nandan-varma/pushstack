@@ -82,9 +82,6 @@ export async function listIssues(ctx: ApiContext) {
 				...(filters.assignee && { assignees: [filters.assignee] }),
 				...(filters.creator && { authors: [filters.creator] }),
 				...(filters.mentioned && { mentions: [filters.mentioned] }),
-				...(filters.type && {
-					kind: filters.type === "pr" ? "pull_request" : "issue",
-				}),
 				...(filters.since && { updatedSince: new Date(filters.since) }),
 				labels: filters.labels ?? [],
 				...(filters.milestone !== undefined && {

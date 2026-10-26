@@ -161,7 +161,10 @@ async function demoteLatest(repoId: number, exceptId?: number) {
 /**
  * Puts `make_latest` back on the releases `demoteLatest` cleared, when the
  * write that demoted them failed. There are no transactions on the Neon HTTP
- * driver, so this compensates; a failed restore is logged.
+ * driver, so this compensates. A failed restore is logged, not thrown: if the
+ * database fails both writes, the repository can be left with no latest release
+ * until one is set. Concurrent creates are not serialized, so two can still
+ * clear the others before either inserts and leave two latest releases.
  */
 async function restoreLatest(ids: number[]) {
 	if (ids.length === 0) return;
@@ -184,7 +187,7 @@ export async function createReleaseRow(
 	input: ReleaseInput,
 ): Promise<number> {
 	// The previous latest is cleared before the insert and restored if the insert
-	// fails, so a failed create never leaves two latest releases or none.
+	// fails. Sequential failures leave the previous latest in place; see restoreLatest.
 	const demoted = input.makeLatest === "true" ? await demoteLatest(repoId) : [];
 	let row: { id: number } | undefined;
 	try {

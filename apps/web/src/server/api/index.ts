@@ -257,7 +257,7 @@ const HANDLERS = {
 	"checks/list-for-ref": listCheckRunsForRef,
 	"checks/list-suites-for-ref": listCheckSuitesForRef,
 	"repos/get-commit": getCommitDetail,
-	"repos/compare-commits-with-basehead": compareCommits,
+	"repos/compare-commits": compareCommits,
 	"git/get-ref": getRef,
 	"git/list-refs": listRefs,
 	"git/list-matching-refs": listMatchingRefs,

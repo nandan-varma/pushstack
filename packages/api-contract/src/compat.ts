@@ -137,10 +137,10 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"a commit has at most one suite (there are no GitHub Apps); `app_id` and `check_name` are `422`; `{ total_count, check_suites }`",
 	"repos/get-commit":
 		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`; `diff` and `patch` past the 4 MB media cap are `406`",
-	"repos/compare-commits-with-basehead":
+	"repos/compare-commits":
 		"`base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit); `diff` and `patch` past the 4 MB media cap are `406`",
 	"checks/create":
-		"write access (`repo:write` token scope; GitHub requires a GitHub App); `name`, `head_sha` (a commit of the repository, else `422`), `status` (default `queued`; `conclusion` implies `completed`), `started_at`, `completed_at`, `details_url`, `external_id`, `output` (`title`, `summary`, `text`); `completed` needs a `conclusion`; `actions`, `output.annotations` and `output.images` are `422`, and `annotations_count` is `0` (no `annotations_url`); up to 1,000 runs per commit; `app`, `pull_requests`, `node_id` and `deployment` are omitted",
+		"write access (`repo:write` token scope; GitHub requires a GitHub App); `name`, `head_sha` (a commit of the repository, else `422`), `status` (default `queued`; `conclusion` implies `completed`), `started_at`, `completed_at`, `details_url`, `external_id`, `output` (`title`, `summary`, `text`); `completed` needs a `conclusion`; `actions` is `422`; `output.annotations` and `output.images` are `422` unless empty (a no-op); `annotations_count` is `0` (no `annotations_url`); up to 1,000 runs per commit; `app`, `pull_requests`, `node_id` and `deployment` are omitted",
 	"checks/get": "",
 	"checks/update":
 		"write access (`repo:write` token scope); the same fields as create, all optional; a `completed` run cannot go back to `queued` or `in_progress`",
@@ -172,7 +172,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"git/create-tag":
 		"unsigned; create the `refs/tags/…` ref separately, as on GitHub",
 	"issues/list-for-repo":
-		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`, `creator`, `mentioned`, `type` (`issue`/`pr`), `since` (last updated at or after; `issue_field_values` is `422`)",
+		"returns issues **and pull requests** (a pull request carries a `pull_request` object); `state` (`open`/`closed`/`all`), `labels`, `milestone` (number, `none`, `*`), `assignee` (login, `none`, `*`), `sort` (`created`/`updated`/`comments`), `direction`, `creator`, `mentioned`, `type` (`*` or `none`: PushStack has no issue types, so both match every issue; a named type is `422`), `since` (last updated at or after; `issue_field_values` is `422`)",
 	"issues/create":
 		"any signed-in reader; `title`, `body`, `labels`, `assignees`, `assignee` (deprecated: one login, added to `assignees`), `milestone` (number; labels/assignees/milestone need write access, an unknown milestone is `422`); `type`, `parent_issue_id` and `issue_field_values` are `422`",
 	"issues/get-comment": "",

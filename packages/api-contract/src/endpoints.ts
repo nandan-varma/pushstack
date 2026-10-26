@@ -28,6 +28,7 @@ import {
 	threadBody,
 	threadTitle,
 	unsupported,
+	unsupportedUnless,
 } from "./inputs";
 import {
 	MAX_BODY_CHARS,
@@ -148,7 +149,7 @@ const markReadBody = z.object({
 });
 /** `read: true` is the default (mark read); GitHub's `false` is not implemented. */
 const markAllReadBody = markReadBody.extend({
-	read: z.literal(true).optional(),
+	read: unsupportedUnless((value) => value === true),
 });
 const listState = z.enum(["open", "closed", "all"]).default("open");
 const commentParams = repoParams.extend({ comment_id: positiveInt });
@@ -185,8 +186,13 @@ const checkOutput = z.object({
 	title: z.string().min(1).max(MAX_CHECK_TITLE_CHARS),
 	summary: z.string().min(1).max(MAX_CHECK_OUTPUT_CHARS),
 	text: z.string().max(MAX_CHECK_OUTPUT_CHARS).optional(),
-	annotations: unsupported,
-	images: unsupported,
+	/** Empty is a no-op (no annotations or images are served); otherwise `422`. */
+	annotations: unsupportedUnless(
+		(value) => Array.isArray(value) && value.length === 0,
+	),
+	images: unsupportedUnless(
+		(value) => Array.isArray(value) && value.length === 0,
+	),
 });
 const checkRunFields = {
 	details_url: reportUrl.optional(),
@@ -722,7 +728,7 @@ export const endpoints = defineEndpoints({
 		query: pagination,
 		response: commitDetail,
 	},
-	"repos/compare-commits-with-basehead": {
+	"repos/compare-commits": {
 		params: repoParams.extend({ basehead: z.string().min(1) }),
 		query: z.object({
 			page: positiveInt.optional().catch(undefined),
@@ -884,8 +890,11 @@ export const endpoints = defineEndpoints({
 			creator: z.string().max(100).optional(),
 			/** A login mentioned in the title, body or a comment. */
 			mentioned: z.string().max(100).optional(),
-			/** `issue` or `pr`; absent lists both. */
-			type: z.enum(["issue", "pr"]).optional(),
+			/**
+			 * GitHub's issue-type filter. PushStack has no issue types, so `*`
+			 * (any) and `none` both match every issue; any other name is `422`.
+			 */
+			type: z.enum(["*", "none"]).optional(),
 			/** Updated at or after this time. */
 			since: isoDate.optional(),
 			issue_field_values: unsupported,

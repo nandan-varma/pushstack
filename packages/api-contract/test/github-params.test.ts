@@ -21,11 +21,26 @@ function declared(schema: z.ZodType | undefined): string[] {
 	return Object.keys(shape ?? {}).sort();
 }
 
+/**
+ * Served operations with no operation of the same id in GitHub's description,
+ * and why each is served anyway. Any other id absent from the fixture fails.
+ */
+const NOT_ON_GITHUB: Record<string, string> = {
+	"repos/create-release-asset-upload":
+		"PushStack's two-step asset upload (create, then finish); GitHub takes asset bytes on uploads.github.com",
+	"repos/finish-release-asset-upload": "the second step of the upload above",
+	"git/list-refs":
+		"GET /git/refs/{ref} is a PushStack extension; GitHub reads one ref at /git/ref/{ref} (git/get-ref) and lists by prefix at /git/matching-refs/{ref} (git/list-matching-refs)",
+};
+
 describe("GitHub parameters", () => {
 	it("is vendored for every served operation, and names the absent ones", () => {
 		expect(
 			[...Object.keys(github.operations), ...github.absentFromGitHub].sort(),
 		).toEqual(Object.keys(routes).sort());
+		expect(github.absentFromGitHub.sort()).toEqual(
+			Object.keys(NOT_ON_GITHUB).sort(),
+		);
 	});
 
 	for (const id of Object.keys(github.operations)) {

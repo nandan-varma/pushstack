@@ -103,9 +103,19 @@ describe("GET /repos/{owner}/{repo}/issues filters", () => {
 		expect(numbersOf(body)).toEqual([2]);
 	});
 
-	it("type=pr and type=issue split issues from pull requests", async () => {
-		expect(numbersOf((await list("type=pr")).body)).toEqual([3]);
-		expect(numbersOf((await list("type=issue")).body)).toEqual([1, 2]);
+	it("type=* and type=none match every issue (PushStack has no issue types)", async () => {
+		expect(numbersOf((await list("type=*")).body)).toEqual([1, 2, 3]);
+		expect(numbersOf((await list("type=none")).body)).toEqual([1, 2, 3]);
+	});
+
+	it("422s a named issue type, since none are served", async () => {
+		for (const type of ["pr", "issue", "bug"]) {
+			const { status, body } = await list(`type=${type}`);
+			expect(status).toBe(422);
+			expect(body.errors).toEqual([
+				{ resource: "Issue", field: "type", code: "invalid", value: type },
+			]);
+		}
 	});
 
 	it("mentioned keeps the threads that mention the login", async () => {
