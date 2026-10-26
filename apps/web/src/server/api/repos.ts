@@ -156,9 +156,11 @@ export async function listRepositories(
 	);
 	// Past the skip bound the page is empty, but the total is still the real one.
 	if (!params.reachable) {
+		// The same join as the page query: 'where' may name the collaborator row.
 		const [totalRow] = await db
 			.select({ total: count() })
 			.from(repositories)
+			.leftJoin(repositoryCollaborators, collaboratorJoin)
 			.where(where);
 		return { rows: [], params, total: totalRow?.total ?? 0 };
 	}

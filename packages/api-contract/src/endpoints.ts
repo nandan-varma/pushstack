@@ -48,6 +48,7 @@ import {
 	MAX_REPO_TOPIC_CHARS,
 	MAX_REPO_TOPICS,
 	MAX_REPORT_URL_CHARS,
+	MAX_SEARCH_QUERY_CHARS,
 	MAX_STATUS_CONTEXT_CHARS,
 	MAX_STATUS_DESCRIPTION_CHARS,
 } from "./limits";
@@ -240,9 +241,6 @@ const releaseFields = {
 };
 const assetName = z.string().trim().min(1).max(MAX_RELEASE_ASSET_NAME_CHARS);
 const assetLabel = z.string().max(MAX_RELEASE_ASSET_LABEL_CHARS);
-/** GitHub's search query cap (`q`), the web app's `MAX_SEARCH_QUERY_CHARS`. */
-const MAX_SEARCH_QUERY_CHARS = 256;
-
 /** GitHub's search envelope: `total_count` is exact, `items` is one page. */
 const searchResult = <T extends z.ZodType>(item: T) =>
 	z.strictObject({

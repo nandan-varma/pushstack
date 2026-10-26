@@ -47,3 +47,6 @@ export const MAX_STORAGE_NAME_LENGTH = 100;
 
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */
 export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
+
+/** GitHub's search query cap (`q`); the web app imports it from here. */
+export const MAX_SEARCH_QUERY_CHARS = 256;
