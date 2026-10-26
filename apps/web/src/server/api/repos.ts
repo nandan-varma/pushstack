@@ -18,6 +18,7 @@ import { GitInvalidRequestError, isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import {
 	issues,
+	type Repository,
 	repositories,
 	repositoryCollaborators,
 	stars,
@@ -35,7 +36,11 @@ import { ArchiveLimitError } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { perfStep } from "../perf-log";
 import { hitRateLimit, identityFor } from "../rate-limit";
-import { ARCHIVED_MESSAGE, getAccessForRepository } from "../repo-access";
+import {
+	ARCHIVED_MESSAGE,
+	getAccessForRepository,
+	readableForViewer,
+} from "../repo-access";
 import {
 	createRepositoryForUser,
 	generateRepositoryFromTemplate,
@@ -45,7 +50,8 @@ import {
 	ForkParentChangedError,
 	ForkTooLargeError,
 	forkRepositoryForUser,
-	forkSourceOf,
+	readableForkCounts,
+	readableForkLinks,
 } from "../repository-fork";
 import {
 	findRepositoryByName,
@@ -110,19 +116,80 @@ export async function openIssueCounts(
 
 export async function getRepository(ctx: ApiContext) {
 	const { repo, access } = await readableRepository(ctx);
-	const [stargazers, openIssues, watchers] = await Promise.all([
-		starCounts([repo.id]),
-		openIssueCounts([repo.id]),
-		watcherCounts([repo.id]),
-	]);
 	return json(
-		repository(repo, {
-			stars: stargazers.get(repo.id) ?? 0,
-			openIssues: openIssues.get(repo.id) ?? 0,
-			subscribers: watchers.get(repo.id) ?? 0,
+		await repositoryPayload(repo, ctx.caller?.userId ?? null, {
 			role: ctx.caller ? access.role : undefined,
+			subscribers: true,
 		}),
 	);
+}
+
+/**
+ * A repository payload for `viewerId`: its counts (forks only as the viewer
+ * can read them) and, for a fork, `parent` and `source` when the viewer can
+ * read them. The one place a single-repository response is built.
+ */
+export async function repositoryPayload(
+	repo: Repository & { owner: PublicUser },
+	viewerId: string | null,
+	options: { role?: RepoRole; subscribers?: boolean },
+) {
+	const links = await readableForkLinks(repo, viewerId);
+	const ids = [
+		repo.id,
+		...[links.parent, links.source].flatMap((row) =>
+			row && row.id !== repo.id ? [row.id] : [],
+		),
+	];
+	const [stargazers, openIssues, watchers, forks] = await Promise.all([
+		starCounts(ids),
+		openIssueCounts(ids),
+		options.subscribers ? watcherCounts(ids) : new Map<number, number>(),
+		readableForkCounts(ids, viewerId),
+	]);
+	const shape = (row: Repository & { owner: PublicUser }, extra = {}) =>
+		repository(row, {
+			stars: stargazers.get(row.id) ?? 0,
+			openIssues: openIssues.get(row.id) ?? 0,
+			forksCount: forks.get(row.id) ?? 0,
+			...extra,
+		});
+	return {
+		...shape(repo, {
+			role: options.role,
+			...(options.subscribers && {
+				subscribers: watchers.get(repo.id) ?? 0,
+			}),
+		}),
+		...(links.parent && { parent: shape(links.parent) }),
+		...(links.source && { source: shape(links.source) }),
+	};
+}
+
+/** `GET /repos/{owner}/{repo}/forks`: the forks the caller can read. */
+export async function listForks(ctx: ApiContext) {
+	const { repo } = await readableRepository(ctx);
+	const viewer = ctx.caller?.userId ?? null;
+	const { sort } = queryParams(ctx, "repos/list-forks", "Repository");
+	return respondWithRepositories(
+		ctx.url,
+		{
+			where: and(eq(repositories.forkOfId, repo.id), readableForViewer(viewer)),
+			orderBy: forksOrdering(sort ?? "newest"),
+		},
+		undefined,
+		viewer,
+	);
+}
+
+/** Forks by creation (newest or oldest), or by stars (watchers are stars here). */
+function forksOrdering(
+	sort: "newest" | "oldest" | "stargazers" | "watchers",
+): SQL[] {
+	const starred = sql`(select count(*) from ${stars} where ${stars.repoId} = ${repositories.id})`;
+	const column =
+		sort === "newest" || sort === "oldest" ? repositories.createdAt : starred;
+	return [sort === "oldest" ? asc(column) : desc(column), asc(repositories.id)];
 }
 
 interface Order {
@@ -149,14 +216,16 @@ function ordering(order: Order): SQL[] {
 
 export interface Listing {
 	where: SQL | undefined;
-	order: Order;
+	order?: Order;
+	/** Overrides `order` for listings with their own sorts (forks). */
+	orderBy?: SQL[];
 	/** The caller's collaborator row is joined for `/user/repos`. */
 	callerId?: string;
 }
 
 export async function listRepositories(
 	url: URL,
-	{ where, callerId, order }: Listing,
+	{ where, callerId, order = {}, orderBy }: Listing,
 ): Promise<{ rows: Row[]; params: PageParams; total: number }> {
 	const params = pageParams(url.searchParams);
 	const collaboratorJoin = and(
@@ -185,7 +254,7 @@ export async function listRepositories(
 				.innerJoin(user, eq(repositories.ownerId, user.id))
 				.leftJoin(repositoryCollaborators, collaboratorJoin)
 				.where(where)
-				.orderBy(...ordering(order))
+				.orderBy(...(orderBy ?? ordering(order)))
 				.limit(params.perPage)
 				.offset(params.offset),
 			db
@@ -208,11 +277,13 @@ export type Row = {
 export async function repositoryShapes(
 	rows: Row[],
 	roleOf?: (row: Row) => RepoRole,
+	viewerId?: string | null,
 ) {
 	const repoIds = rows.map((row) => row.repo.id);
-	const [stargazers, openIssues] = await Promise.all([
+	const [stargazers, openIssues, forks] = await Promise.all([
 		starCounts(repoIds),
 		openIssueCounts(repoIds),
+		readableForkCounts(repoIds, viewerId),
 	]);
 	return rows.map((row) =>
 		repository(
@@ -220,6 +291,7 @@ export async function repositoryShapes(
 			{
 				stars: stargazers.get(row.repo.id) ?? 0,
 				openIssues: openIssues.get(row.repo.id) ?? 0,
+				forksCount: forks.get(row.repo.id) ?? 0,
 				role: roleOf?.(row),
 			},
 		),
@@ -230,10 +302,11 @@ async function respondWithRepositories(
 	url: URL,
 	listing: Listing,
 	roleOf?: (row: Row) => RepoRole,
+	viewerId?: string | null,
 ) {
 	const { rows, params, total } = await listRepositories(url, listing);
 	return json(
-		await repositoryShapes(rows, roleOf),
+		await repositoryShapes(rows, roleOf, viewerId),
 		200,
 		linkHeader(url, params, total),
 	);
@@ -296,6 +369,7 @@ export async function listAuthenticatedUserRepositories(ctx: ApiContext) {
 		},
 		(row) =>
 			row.repo.ownerId === userId ? "owner" : (row.collaboratorRole ?? "read"),
+		userId,
 	);
 }
 
@@ -326,17 +400,22 @@ export async function listUserRepositories(ctx: ApiContext) {
 		),
 	);
 	const type = order.type ?? "owner";
-	return respondWithRepositories(ctx.url, {
-		order,
-		where: and(
-			type === "owner"
-				? ownedBy
-				: type === "member"
-					? collaboratedBy
-					: or(ownedBy, collaboratedBy),
-			eq(repositories.visibility, "public"),
-		),
-	});
+	return respondWithRepositories(
+		ctx.url,
+		{
+			order,
+			where: and(
+				type === "owner"
+					? ownedBy
+					: type === "member"
+						? collaboratedBy
+						: or(ownedBy, collaboratedBy),
+				eq(repositories.visibility, "public"),
+			),
+		},
+		undefined,
+		ctx.caller?.userId ?? null,
+	);
 }
 
 const TEMPLATES = {
@@ -417,7 +496,11 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 		throw error;
 	}
 	return json(
-		repository({ ...repo, owner }, { stars: 0, openIssues: 0, role: "owner" }),
+		// A new repository has no forks yet.
+		repository(
+			{ ...repo, owner },
+			{ stars: 0, openIssues: 0, forksCount: 0, role: "owner" },
+		),
 		201,
 		{ Location: apiUrl(`/repos/${owner.username}/${repo.name}`) },
 	);
@@ -448,21 +531,13 @@ async function adminRepository(
 }
 
 async function respondWithRepository(
-	_ctx: ApiContext,
+	ctx: ApiContext,
 	repo: Awaited<ReturnType<typeof readableRepository>>["repo"],
 	role: RepoRole,
 	status = 200,
 ) {
-	const [stargazers, openIssues] = await Promise.all([
-		starCounts([repo.id]),
-		openIssueCounts([repo.id]),
-	]);
 	return json(
-		repository(repo, {
-			stars: stargazers.get(repo.id) ?? 0,
-			openIssues: openIssues.get(repo.id) ?? 0,
-			role,
-		}),
+		await repositoryPayload(repo, ctx.caller?.userId ?? null, { role }),
 		status,
 	);
 }
@@ -698,7 +773,11 @@ export async function generateFromTemplate(ctx: ApiContext) {
 		throw error;
 	}
 	return json(
-		repository({ ...repo, owner }, { stars: 0, openIssues: 0, role: "owner" }),
+		// A new repository has no forks yet.
+		repository(
+			{ ...repo, owner },
+			{ stars: 0, openIssues: 0, forksCount: 0, role: "owner" },
+		),
 		201,
 		{ Location: apiUrl(`/repos/${owner.username}/${repo.name}`) },
 	);
@@ -753,36 +832,8 @@ export async function createForkHandler(ctx: ApiContext) {
 		}
 		throw error;
 	}
-	const source = await forkSourceOf(parent);
-	const ids = [
-		parent.id,
-		...(source && source.id !== parent.id ? [source.id] : []),
-	];
-	const [stargazers, openIssues] = await Promise.all([
-		starCounts(ids),
-		openIssueCounts(ids),
-	]);
-	const shape = (
-		row: { id: number },
-		withRow: Parameters<typeof repository>[0],
-	) =>
-		repository(withRow, {
-			stars: stargazers.get(row.id) ?? 0,
-			openIssues: openIssues.get(row.id) ?? 0,
-		});
 	return json(
-		{
-			...repository(
-				{ ...fork, owner },
-				{
-					stars: 0,
-					openIssues: 0,
-					role: "owner",
-				},
-			),
-			parent: shape(parent, parent),
-			...(source && { source: shape(source, source) }),
-		},
+		await repositoryPayload({ ...fork, owner }, owner.id, { role: "owner" }),
 		202,
 		{ Location: apiUrl(`/repos/${owner.username}/${fork.name}`) },
 	);
