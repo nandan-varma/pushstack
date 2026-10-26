@@ -21,6 +21,11 @@ export const routes = {
 		path: "/",
 		docs: `${DOCS}/meta/meta#github-api-root`,
 	},
+	"meta/get": {
+		method: "GET",
+		path: "/meta",
+		docs: `${DOCS}/meta/meta#get-github-meta-information`,
+	},
 	"rate-limit/get": {
 		method: "GET",
 		path: "/rate_limit",
@@ -90,6 +95,16 @@ export const routes = {
 		method: "GET",
 		path: "/users/{username}/repos",
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
+	},
+	"search/repos": {
+		method: "GET",
+		path: "/search/repositories",
+		docs: `${DOCS}/search/search#search-repositories`,
+	},
+	"search/issues-and-pull-requests": {
+		method: "GET",
+		path: "/search/issues",
+		docs: `${DOCS}/search/search#search-issues-and-pull-requests`,
 	},
 	"users/list-followers-for-user": {
 		method: "GET",

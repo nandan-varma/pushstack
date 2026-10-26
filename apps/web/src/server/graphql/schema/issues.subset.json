@@ -159,7 +159,13 @@
 	"IssueClosedStateReason": "*",
 	"Query": ["search"],
 	"SearchType": "*",
-	"SearchResultItem": ["Issue", "PullRequest"],
-	"SearchResultItemConnection": ["edges", "issueCount", "nodes", "pageInfo"],
+	"SearchResultItem": ["Issue", "PullRequest", "Repository"],
+	"SearchResultItemConnection": [
+		"edges",
+		"issueCount",
+		"nodes",
+		"pageInfo",
+		"repositoryCount"
+	],
 	"SearchResultItemEdge": ["cursor", "node"]
 }

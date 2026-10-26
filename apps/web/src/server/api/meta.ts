@@ -21,3 +21,13 @@ export async function getRoot(_ctx: ApiContext) {
 		),
 	});
 }
+
+/**
+ * `GET /meta`: gh asks a host for its metadata before `gh search` and, for a
+ * host that is not github.com, reads `installed_version` as a semver. PushStack
+ * is not a GitHub Enterprise release, so the version is a placeholder (0.0.0)
+ * that only tells gh to use the REST search syntax it serves.
+ */
+export async function getMeta(_ctx: ApiContext) {
+	return json({ installed_version: "0.0.0" });
+}

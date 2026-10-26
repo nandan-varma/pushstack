@@ -147,14 +147,14 @@ function ordering(order: Order): SQL[] {
 	];
 }
 
-interface Listing {
+export interface Listing {
 	where: SQL | undefined;
 	order: Order;
 	/** The caller's collaborator row is joined for `/user/repos`. */
 	callerId?: string;
 }
 
-async function listRepositories(
+export async function listRepositories(
 	url: URL,
 	{ where, callerId, order }: Listing,
 ): Promise<{ rows: Row[]; params: PageParams; total: number }> {
@@ -163,7 +163,16 @@ async function listRepositories(
 		eq(repositoryCollaborators.repoId, repositories.id),
 		eq(repositoryCollaborators.userId, callerId ?? ""),
 	);
-	if (!params.reachable) return { rows: [], params, total: 0 };
+	// Past the skip bound the page is empty, but the total is still the real one.
+	if (!params.reachable) {
+		// The same join as the page query: 'where' may name the collaborator row.
+		const [totalRow] = await db
+			.select({ total: count() })
+			.from(repositories)
+			.leftJoin(repositoryCollaborators, collaboratorJoin)
+			.where(where);
+		return { rows: [], params, total: totalRow?.total ?? 0 };
+	}
 	const [rows, [totalRow]] = await perfStep("db: list repositories", () =>
 		Promise.all([
 			db
@@ -189,24 +198,23 @@ async function listRepositories(
 	return { rows, params, total: totalRow?.total ?? 0 };
 }
 
-type Row = {
+export type Row = {
 	repo: typeof repositories.$inferSelect;
 	owner: PublicUser;
 	collaboratorRole: "read" | "write" | "admin" | null;
 };
 
-async function respondWithRepositories(
-	url: URL,
-	listing: Listing,
+/** Repository shapes for listed rows, with their star and open issue counts. */
+export async function repositoryShapes(
+	rows: Row[],
 	roleOf?: (row: Row) => RepoRole,
 ) {
-	const { rows, params, total } = await listRepositories(url, listing);
 	const repoIds = rows.map((row) => row.repo.id);
 	const [stargazers, openIssues] = await Promise.all([
 		starCounts(repoIds),
 		openIssueCounts(repoIds),
 	]);
-	const body = rows.map((row) =>
+	return rows.map((row) =>
 		repository(
 			{ ...row.repo, owner: row.owner },
 			{
@@ -216,7 +224,19 @@ async function respondWithRepositories(
 			},
 		),
 	);
-	return json(body, 200, linkHeader(url, params, total));
+}
+
+async function respondWithRepositories(
+	url: URL,
+	listing: Listing,
+	roleOf?: (row: Row) => RepoRole,
+) {
+	const { rows, params, total } = await listRepositories(url, listing);
+	return json(
+		await repositoryShapes(rows, roleOf),
+		200,
+		linkHeader(url, params, total),
+	);
 }
 
 /** `GET /user/repos`: owned and collaborated repositories, private included. */

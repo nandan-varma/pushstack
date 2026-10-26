@@ -81,6 +81,7 @@ const QUOTE = /["']/;
 const KNOWN_QUALIFIERS = new Set([
 	"is",
 	"state",
+	"type",
 	"label",
 	"no",
 	"author",
@@ -202,6 +203,13 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case undefined:
 				if (value) terms.push(value);
 				break;
+			case "type": {
+				// GitHub's `type:issue` / `type:pr`, the same as `is:issue` / `is:pr`.
+				const normalized = value.toLowerCase();
+				if (normalized === "issue" || normalized === "pr")
+					types.add(normalized);
+				break;
+			}
 			case "is":
 			case "state": {
 				const normalized = value.toLowerCase();
@@ -310,15 +318,17 @@ export function unservedQualifier(input: string): string | null {
 		const value = token.value.trim().toLowerCase();
 		if (value === "") return token.raw;
 		const served =
-			token.name === "is" || token.name === "state"
-				? servedStates.includes(value)
-				: token.name === "no"
-					? ["label", "assignee", "milestone"].includes(value)
-					: token.name === "draft"
-						? value === "true" || value === "false"
-						: token.name === "sort"
-							? (SEARCH_SORTS as readonly string[]).includes(value)
-							: true;
+			token.name === "type"
+				? value === "issue" || value === "pr"
+				: token.name === "is" || token.name === "state"
+					? servedStates.includes(value)
+					: token.name === "no"
+						? ["label", "assignee", "milestone"].includes(value)
+						: token.name === "draft"
+							? value === "true" || value === "false"
+							: token.name === "sort"
+								? (SEARCH_SORTS as readonly string[]).includes(value)
+								: true;
 		if (!served) return token.raw;
 	}
 	return null;
@@ -345,22 +355,26 @@ export function withSearchStatus(query: string, status: SearchStatus): string {
 }
 
 /**
- * The `repo:owner/name` qualifiers of a query and the query without them.
- * GitHub scopes a search to a repository this way; the list routes already
- * have one, so only the GraphQL search reads these.
+ * The scope qualifiers of a query and the query without them: `repo:owner/name`
+ * (the repositories) and `user:login` (their owner). GitHub scopes a search this
+ * way; a search without one spans every repository the caller can read.
  */
-export function splitRepoQualifiers(input: string): {
+export function splitScopeQualifiers(input: string): {
 	repos: string[];
+	owners: string[];
 	rest: string;
 } {
 	const repos: string[] = [];
+	const owners: string[] = [];
 	const rest: string[] = [];
 	for (const token of tokenize(input)) {
-		const match = /^repo:(.+)$/i.exec(token.raw);
-		if (match?.[1] !== undefined) repos.push(unquote(match[1]));
+		const repo = /^repo:(.+)$/i.exec(token.raw);
+		const owner = /^user:(.+)$/i.exec(token.raw);
+		if (repo?.[1] !== undefined) repos.push(unquote(repo[1]));
+		else if (owner?.[1] !== undefined) owners.push(unquote(owner[1]));
 		else rest.push(token.raw);
 	}
-	return { repos, rest: rest.join(" ") };
+	return { repos, owners, rest: rest.join(" ") };
 }
 
 export function withSearchLabel(query: string, label?: string): string {

@@ -48,6 +48,7 @@ import {
 	MAX_REPO_TOPIC_CHARS,
 	MAX_REPO_TOPICS,
 	MAX_REPORT_URL_CHARS,
+	MAX_SEARCH_QUERY_CHARS,
 	MAX_STATUS_CONTEXT_CHARS,
 	MAX_STATUS_DESCRIPTION_CHARS,
 } from "./limits";
@@ -240,6 +241,14 @@ const releaseFields = {
 };
 const assetName = z.string().trim().min(1).max(MAX_RELEASE_ASSET_NAME_CHARS);
 const assetLabel = z.string().max(MAX_RELEASE_ASSET_LABEL_CHARS);
+/** GitHub's search envelope: `total_count` is exact, `items` is one page. */
+const searchResult = <T extends z.ZodType>(item: T) =>
+	z.strictObject({
+		total_count: z.number().int().nonnegative(),
+		incomplete_results: z.literal(false),
+		items: z.array(item),
+	});
+
 const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
 	.optional()
@@ -249,6 +258,9 @@ export const endpoints = defineEndpoints({
 	/** URL templates for the endpoints served, keyed as on GitHub. */
 	"meta/root": {
 		response: z.record(z.string().regex(/_url$/), z.string()),
+	},
+	"meta/get": {
+		response: z.strictObject({ installed_version: z.string() }),
 	},
 	"rate-limit/get": {
 		response: rateLimitOverview,
@@ -348,6 +360,27 @@ export const endpoints = defineEndpoints({
 		response: z.array(repository),
 	},
 
+	"search/repos": {
+		query: pagination.extend({
+			/** The query: words (name and description), user:/org:, is:public|private, topic:. */
+			q: z.string().min(1).max(MAX_SEARCH_QUERY_CHARS),
+			sort: z.enum(["updated"]).optional(),
+			order: direction,
+		}),
+		response: searchResult(repository),
+	},
+	"search/issues-and-pull-requests": {
+		query: pagination.extend({
+			// GitHub's advanced (lexical, semantic) search: refused, never silently ignored.
+			advanced_search: unsupported,
+			search_type: unsupported,
+			/** The query: GitHub's issue and pull request syntax, across the repositories the caller can read. */
+			q: z.string().min(1).max(MAX_SEARCH_QUERY_CHARS),
+			sort: z.enum(["created", "updated", "comments"]).optional(),
+			order: direction,
+		}),
+		response: searchResult(issue),
+	},
 	"users/list-followers-for-user": {
 		params: usernameParams,
 		query: pagination,

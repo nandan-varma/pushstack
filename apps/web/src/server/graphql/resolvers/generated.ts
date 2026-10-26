@@ -1671,7 +1671,7 @@ export type SearchType =
   | 'USER';
 
 /** The results of a search. */
-export type SearchResultItem = Issue | PullRequest;
+export type SearchResultItem = Issue | PullRequest | Repository;
 
 /**
  * A list of results that matched against a search query. Regardless of the number
@@ -1691,6 +1691,12 @@ export type SearchResultItemConnection = {
   nodes?: Maybe<Array<Maybe<SearchResultItem>>>;
   /** Information to aid in pagination. */
   pageInfo: PageInfo;
+  /**
+   * The total number of repositories that matched the search query. Regardless of
+   * the total number of matches, a maximum of 1,000 results will be available
+   * across all types.
+   */
+  repositoryCount: Scalars['Int']['output'];
 };
 
 /** An edge in a connection. */
@@ -2781,6 +2787,7 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
   SearchResultItem:
     | ( IssueNode )
     | ( PullRequestNode )
+    | ( RepositoryNode )
   ;
   ProjectV2ItemFieldValue: ( ProjectV2ItemFieldSingleSelectValue );
   RequestedReviewer:
@@ -3572,7 +3579,7 @@ export type AddCommentPayloadResolvers<ContextType = GraphQLContext, ParentType 
 };
 
 export type SearchResultItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItem'] = ResolversParentTypes['SearchResultItem']> = {
-  __resolveType: TypeResolveFn<'Issue' | 'PullRequest', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'Issue' | 'PullRequest' | 'Repository', ParentType, ContextType>;
 };
 
 export type SearchResultItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItemConnection'] = ResolversParentTypes['SearchResultItemConnection']> = {
@@ -3580,6 +3587,7 @@ export type SearchResultItemConnectionResolvers<ContextType = GraphQLContext, Pa
   issueCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItem']>>>, ParentType, ContextType>;
   pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  repositoryCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 };
 
 export type SearchResultItemEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItemEdge'] = ResolversParentTypes['SearchResultItemEdge']> = {

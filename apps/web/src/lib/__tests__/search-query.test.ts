@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	parseSearchQuery,
-	splitRepoQualifiers,
+	splitScopeQualifiers,
 	unservedQualifier,
 	withoutSearchAssignee,
 	withSearchLabel,
@@ -183,23 +183,33 @@ describe("query-string editing", () => {
 	});
 });
 
-describe("splitRepoQualifiers", () => {
+describe("splitScopeQualifiers", () => {
+	it("takes user: owners out as well", () => {
+		expect(splitScopeQualifiers("user:octo is:open repo:octo/x")).toEqual({
+			repos: ["octo/x"],
+			owners: ["octo"],
+			rest: "is:open",
+		});
+	});
+
 	it("takes repo: qualifiers out and keeps the rest verbatim", () => {
-		expect(splitRepoQualifiers("is:pr repo:octo/hello author:octo")).toEqual({
+		expect(splitScopeQualifiers("is:pr repo:octo/hello author:octo")).toEqual({
 			repos: ["octo/hello"],
+			owners: [],
 			rest: "is:pr author:octo",
 		});
 	});
 
 	it("keeps a quoted repo: phrase as search text, not a qualifier", () => {
-		expect(splitRepoQualifiers('"repo:octo/hello" crash')).toEqual({
+		expect(splitScopeQualifiers('"repo:octo/hello" crash')).toEqual({
 			repos: [],
+			owners: [],
 			rest: '"repo:octo/hello" crash',
 		});
 	});
 
 	it("returns every repo: value so the caller can refuse several", () => {
-		expect(splitRepoQualifiers("repo:a/b repo:c/d").repos).toEqual([
+		expect(splitScopeQualifiers("repo:a/b repo:c/d").repos).toEqual([
 			"a/b",
 			"c/d",
 		]);

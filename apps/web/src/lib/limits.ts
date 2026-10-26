@@ -127,12 +127,8 @@ export const MAX_COLLABORATORS_PER_REPOSITORY = 1000;
 export const MAX_MILESTONE_TITLE_CHARS = 256;
 export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;
 
-/**
- * The longest supported issue/PR search query (`?q=`). GitHub caps a search
- * query at 256 characters, so a longer one is rejected rather than parsed into
- * an unbounded set of labels, authors and terms.
- */
-export const MAX_SEARCH_QUERY_CHARS = 256;
+/** GitHub's search query cap, defined once in the API contract. */
+export { MAX_SEARCH_QUERY_CHARS } from "@pushstack/api-contract/limits";
 
 /** GitHub's cap on assignees per issue. */
 export const MAX_ASSIGNEES = 10;

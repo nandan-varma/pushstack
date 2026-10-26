@@ -72,7 +72,10 @@ beforeAll(async () => {
 	const auth = asToken(alice);
 
 	await check("/", auth);
+	await check("/meta");
 	await check("/rate_limit", auth);
+	await check("/search/repositories?q=alice", auth);
+	await check("/search/issues?q=is:open", auth);
 	const me = await check("/user", auth);
 	await check(`/user/${me.id}`);
 	await check("/users/alice");
