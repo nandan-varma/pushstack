@@ -12,6 +12,10 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Because the consolidated pack can now hold pull request objects, upload-pack
   skips its single-pack clone fast path while a pull head or `.keep` exists, and
   reuses a delta only when its base is one the request wants.
+  Known window: repack copies stored deltas as they are, so a consolidated pack
+  can keep a delta base that only a deleted pull head named. After the pull head
+  is deleted, the fast path serves that pack verbatim, so a clone can receive
+  the base until nothing stores a reachable delta against it. See git-storage.md.
 - `applyReceivePack` lists refs once per push (one recursive LIST of `refs/`)
   and derives the existing tips and the file/directory collision set from it,
   instead of listing branches, tags and all refs separately; a push that

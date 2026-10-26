@@ -432,6 +432,47 @@ describe("copyMissingObjects", () => {
 			await expect(git.readCommit({ ...fork, oid: head })).rejects.toThrow();
 		});
 
+		it("a failure after the pack is written but before its index leaves nothing visible, and a retry completes", async () => {
+			const { parent, fork } = makePair();
+			await initBare(parent);
+			await initBare(fork);
+			const head = await commitFilesToBare(parent, {
+				branch: "main",
+				message: "flush\n",
+				author,
+				files: [
+					{ path: "a.txt", content: "a\n" },
+					{ path: "b.txt", content: "b\n" },
+				],
+			});
+			const spy = vi
+				.spyOn(git, "indexPack")
+				.mockRejectedValueOnce(new Error("index write failed"));
+			try {
+				await expect(
+					copyMissingObjects(parent, fork, head, generous),
+				).rejects.toThrow("index write failed");
+			} finally {
+				spy.mockRestore();
+			}
+
+			// The pack reached storage; its index did not, so no reader lists it.
+			const names = await rawFs(fork)
+				.readdir(`${fork.gitdir}/objects/pack`)
+				.catch(() => [] as string[]);
+			expect(names.some((name) => name.endsWith(".pack"))).toBe(true);
+			expect(names.some((name) => name.endsWith(".idx"))).toBe(false);
+			await expect(git.readCommit({ ...fork, oid: head })).rejects.toThrow();
+
+			await copyMissingObjects(parent, fork, head, generous);
+			const { blob } = await git.readBlob({
+				...fork,
+				oid: head,
+				filepath: "b.txt",
+			});
+			expect(new TextDecoder().decode(blob)).toBe("b\n");
+		});
+
 		it("bounds loose source objects, which the pack index cannot size", async () => {
 			const { parent, fork } = makePair();
 			await initBare(parent);

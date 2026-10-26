@@ -4,12 +4,15 @@ import { pktLine } from "../../src/http/pkt-line.js";
 import { repackRepository } from "../../src/http/repack.js";
 import { rawFs } from "../../src/http/types.js";
 import { handleUploadPack } from "../../src/http/upload-pack.js";
-import { createGitFs, MemoryObjectStore } from "../../src/index.js";
+import { copyPrefix, createGitFs, MemoryObjectStore } from "../../src/index.js";
 import {
 	authorNow,
 	commitFilesToBare,
 	type Repo,
+	withPackedWrites,
 } from "../../src/ops/index.js";
+import { parsePackDirectory } from "../../src/pack-files.js";
+import { writeDeltaAgainstPrOnlyBlob } from "../support/packs.js";
 
 const author = authorNow("Test", "test@example.com");
 
@@ -507,5 +510,113 @@ describe("handleUploadPack and pull request heads", () => {
 
 		expect(oids).toContain(mainHead);
 		for (const oid of prOnly) expect(oids).not.toContain(oid);
+	});
+});
+
+describe("handleUploadPack guards for pull request objects", () => {
+	it("a fresh clone of a fork (a copy of its parent's storage) receives no PR-only objects", async () => {
+		const store = new MemoryObjectStore();
+		const parent: Repo = {
+			fs: createGitFs(store),
+			gitdir: "repos/alice/parent/git",
+			cache: {},
+		};
+		const { mainHead, prHead, baseBlob } = await writeDeltaAgainstPrOnlyBlob(
+			parent,
+			7,
+		);
+		// The fork's storage is a prefix copy of the parent's, pull refs included.
+		await copyPrefix(store, "repos/alice/parent/git/", "repos/bob/fork/git/");
+		const fork: Repo = {
+			fs: createGitFs(store),
+			gitdir: "repos/bob/fork/git",
+			cache: {},
+		};
+		expect(await git.resolveRef({ ...fork, ref: "refs/pull/7/head" })).toBe(
+			prHead,
+		);
+
+		const result = await handleUploadPack(fork, cloneRequest(mainHead));
+		const oids = await servedOids(packOfResponse(result.body));
+
+		expect(oids).toContain(mainHead);
+		expect(oids).not.toContain(prHead);
+		expect(oids).not.toContain(baseBlob);
+	});
+
+	it("does not serve a single kept pack verbatim, since it can hold objects no ref names yet", async () => {
+		const repo = makeRepo();
+		await git.init({
+			...repo,
+			dir: repo.gitdir,
+			bare: true,
+			defaultBranch: "main",
+		});
+		const keepUntil = new Date(Date.now() + 86_400_000);
+		const { head, orphan } = await withPackedWrites(
+			repo,
+			async (packed) => {
+				const orphan = await git.writeBlob({
+					...packed,
+					blob: new TextEncoder().encode("written by the API, no ref yet\n"),
+				});
+				const blob = await git.writeBlob({
+					...packed,
+					blob: new TextEncoder().encode("main\n"),
+				});
+				const tree = await git.writeTree({
+					...packed,
+					tree: [{ path: "a.txt", mode: "100644", type: "blob", oid: blob }],
+				});
+				const head = await git.writeCommit({
+					...packed,
+					commit: {
+						message: "main\n",
+						tree,
+						parent: [],
+						author,
+						committer: author,
+					},
+				});
+				return { head, orphan };
+			},
+			{ keepUntil },
+		);
+		await git.writeRef({
+			...repo,
+			ref: "refs/heads/main",
+			value: head,
+			force: true,
+		});
+
+		// The shape the fast path would take: one pack, and it is kept.
+		const names = await rawFs(repo).readdir(`${repo.gitdir}/objects/pack`);
+		expect(
+			parsePackDirectory(names).filter((f) => f.kind === "pack"),
+		).toHaveLength(1);
+		expect(
+			parsePackDirectory(names).filter((f) => f.kind === "keep"),
+		).toHaveLength(1);
+
+		const result = await handleUploadPack(repo, cloneRequest(head));
+		const oids = await servedOids(packOfResponse(result.body));
+
+		expect(oids).toContain(head);
+		expect(oids).not.toContain(orphan);
+	});
+
+	it("reuses no delta whose base the request does not want, end to end", async () => {
+		const repo = makeRepo();
+		const { mainHead, prHead, baseBlob } = await writeDeltaAgainstPrOnlyBlob(
+			repo,
+			7,
+		);
+
+		const result = await handleUploadPack(repo, cloneRequest(mainHead));
+		const oids = await servedOids(packOfResponse(result.body));
+
+		expect(oids).toContain(mainHead);
+		expect(oids).not.toContain(baseBlob);
+		expect(oids).not.toContain(prHead);
 	});
 });
