@@ -15,7 +15,7 @@ import { type Repository, repositories } from "#/db/app-schema";
 import { MAX_FORK_COPY_BYTES } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
 import { deleteRepositoryStorage, forkRepositoryStorage } from "./git-repo";
-import { withRepositoryLock } from "./git-repo-lock";
+import { withRepositoryLocks } from "./git-repo-lock";
 import { logError } from "./perf-log";
 import { RepositoryExistsError } from "./repository-create";
 import {
@@ -78,14 +78,16 @@ export function forkRepositoryForUser(
 	owner: { id: string; username: string },
 	name: string,
 ): Promise<Repository> {
-	return withRepositoryLock(parent.owner.username, parent.name, () =>
-		withRepositoryLock(owner.username, name, () =>
-			forkUnderLocks(parent, owner, name),
-		),
+	return withRepositoryLocks(
+		[
+			{ ownerKey: parent.owner.username, repoName: parent.name },
+			{ ownerKey: owner.username, repoName: name },
+		],
+		() => forkUnderLocks(parent, owner, name),
 	);
 }
 
-/** Runs under the parent's and the fork name's locks. */
+/** Runs under the parent's and the fork name's locks (see withRepositoryLocks). */
 async function forkUnderLocks(
 	parent: Repository & { owner: { id: string; username: string } },
 	owner: { id: string; username: string },

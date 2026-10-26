@@ -110,3 +110,33 @@ export async function withRepositoryLock<T>(
 			);
 	}
 }
+
+/**
+ * Several repositories' locks at once, taken in one global order (by
+ * `ownerKey/repoName`), each distinct repository once. Two callers that need
+ * the same pair in opposite roles would otherwise hold one lock each and wait
+ * for the other until the acquire timeout. A repository named twice (a
+ * repository forked into its own name) is locked once, since the lock is not
+ * reentrant.
+ */
+export function withRepositoryLocks<T>(
+	repos: ReadonlyArray<{ ownerKey: string; repoName: string }>,
+	fn: () => Promise<T>,
+): Promise<T> {
+	const byKey = new Map<string, { ownerKey: string; repoName: string }>();
+	for (const repo of repos) {
+		byKey.set(`${repo.ownerKey}/${repo.repoName}`, repo);
+	}
+	const ordered = [...byKey.entries()]
+		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+		.map(([, repo]) => repo);
+	const run = (index: number): Promise<T> =>
+		index === ordered.length
+			? fn()
+			: withRepositoryLock(
+					ordered[index].ownerKey,
+					ordered[index].repoName,
+					() => run(index + 1),
+				);
+	return run(0);
+}

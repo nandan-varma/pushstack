@@ -54,6 +54,7 @@ const { createCommit } = await import("../git-write");
 const { listRepoStorage, putStorageObject } = await import("../git-fs");
 const { createRepositoryForUser } = await import("../repository-create");
 const { forkRepositoryForUser } = await import("../repository-fork");
+const { RepositoryExistsError } = await import("../repository-create");
 
 const parentOwner = { id: "parentowner-id", username: "parentowner" };
 
@@ -195,4 +196,53 @@ describe("duplicate and interrupted forks", () => {
 			"repos/forker/killed/git/objects/pack/partial.pack",
 		);
 	});
+
+	it("two reversed forks settle at once, without waiting out the lock timeout", async () => {
+		await createRepositoryForUser(users.forker, {
+			name: "rev-a",
+			visibility: "public",
+			autoInit: false,
+		});
+		await createRepositoryForUser(users.parentowner, {
+			name: "rev-b",
+			visibility: "public",
+			autoInit: false,
+		});
+		const underParentOwner = await rowWithOwner("parentowner", "rev-b");
+		const underForker = await rowWithOwner("forker", "rev-a");
+		// Each request's parent is the other's fork name: the same two lock keys,
+		// taken in opposite roles. Both names are taken, so both are refused,
+		// but only after both locks were taken and released in one order.
+		const started = Date.now();
+		const results = await Promise.allSettled([
+			forkRepositoryForUser(underParentOwner, users.forker, "rev-a"),
+			forkRepositoryForUser(underForker, users.parentowner, "rev-b"),
+		]);
+		expect(Date.now() - started).toBeLessThan(10_000);
+		for (const result of results) {
+			expect(result.status).toBe("rejected");
+			if (result.status === "rejected") {
+				expect(result.reason).toBeInstanceOf(RepositoryExistsError);
+			}
+		}
+	}, 20_000);
+
+	it("forking a repository into its own name is refused without locking it twice", async () => {
+		const own = await rowWithOwner("forker", "rev-a");
+		const started = Date.now();
+		await expect(
+			forkRepositoryForUser(own, users.forker, "rev-a"),
+		).rejects.toBeInstanceOf(RepositoryExistsError);
+		expect(Date.now() - started).toBeLessThan(10_000);
+	}, 20_000);
 });
+
+async function rowWithOwner(ownerName: string, name: string) {
+	const row = await db.query.repositories.findFirst({
+		where: { name },
+		with: { owner: { columns: { id: true, username: true } } },
+	});
+	if (!row || row.owner.username !== ownerName)
+		throw new Error(`no ${ownerName}/${name}`);
+	return row;
+}
