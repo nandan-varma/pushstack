@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labels, threadLabels } from "#/db/app-schema";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
-import { MAX_LABELS_PER_THREAD } from "#/lib/limits";
+import { MAX_LABELS_PER_REPOSITORY, MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
+import { assertRepositoryCapacity } from "./repository-capacity";
 import { recordTimelineEvent } from "./timeline-store";
 
 export class DuplicateLabelError extends Error {
@@ -25,11 +26,24 @@ const labelColumns = {
 	description: labels.description,
 };
 
-/** Create a label; a duplicate name (ignoring case) is a `DuplicateLabelError`. */
+/**
+ * Create a label; a duplicate name (ignoring case) is a `DuplicateLabelError`,
+ * and a repository at `MAX_LABELS_PER_REPOSITORY` refuses with a
+ * `RepositoryCapacityError`.
+ */
 export async function createRepoLabel(
 	repoId: number,
 	data: { name: string; color: string; description?: string },
 ): Promise<LabelView> {
+	const [held] = await db
+		.select({ total: count() })
+		.from(labels)
+		.where(eq(labels.repoId, repoId));
+	assertRepositoryCapacity(
+		Number(held?.total ?? 0),
+		MAX_LABELS_PER_REPOSITORY,
+		`A repository holds at most ${MAX_LABELS_PER_REPOSITORY} labels`,
+	);
 	const [label] = await db
 		.insert(labels)
 		.values({
@@ -117,7 +131,34 @@ export function listLabels(repoId: number): Promise<LabelView[]> {
 		.select(labelColumns)
 		.from(labels)
 		.where(eq(labels.repoId, repoId))
-		.orderBy(asc(sql`lower(${labels.name})`));
+		.orderBy(asc(sql`lower(${labels.name})`), asc(labels.id));
+}
+
+export async function countLabels(repoId: number): Promise<number> {
+	const [held] = await db
+		.select({ total: count() })
+		.from(labels)
+		.where(eq(labels.repoId, repoId));
+	return Number(held?.total ?? 0);
+}
+
+/** One page of a repository's labels by name, with the total the Link header needs. */
+export async function listLabelsPage(
+	repoId: number,
+	page: { limit: number; offset: number },
+): Promise<{ labels: LabelView[]; total: number }> {
+	const where = eq(labels.repoId, repoId);
+	const [rows, [held]] = await Promise.all([
+		db
+			.select(labelColumns)
+			.from(labels)
+			.where(where)
+			.orderBy(asc(sql`lower(${labels.name})`), asc(labels.id))
+			.limit(page.limit)
+			.offset(page.offset),
+		db.select({ total: count() }).from(labels).where(where),
+	]);
+	return { labels: rows, total: Number(held?.total ?? 0) };
 }
 
 export function labelsOfThread(issueId: number): Promise<LabelView[]> {

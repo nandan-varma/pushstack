@@ -100,12 +100,29 @@ export function maxBase64CharsForBytes(byteLength: number): number {
 
 export const MAX_API_BODY_BYTES = 1024 * 1024;
 
+/**
+ * A diff or patch the REST API renders (commit, compare and pull request media
+ * types). Below Vercel's 4.5 MB buffered-response cap with room for the framing,
+ * so an oversized diff is a 406 and never a response the platform cuts off.
+ * git-fs-s3's own budget (10 MiB of blob input) is larger on purpose: it bounds
+ * the work, this bounds the bytes sent.
+ */
+export const MAX_API_DIFF_BYTES = 4_000_000;
+
 export const MAX_LABEL_NAME_CHARS = 50;
 export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 
 export const MAX_LABELS_PER_THREAD = 100;
 /** The `query` of `Repository.labels`: a name or description search term. */
 export const MAX_LABEL_SEARCH_CHARS = 100;
+/**
+ * Per-repository collections a writer can grow without limit otherwise: each
+ * one is listed whole by some reader. Creating past a cap is a 422.
+ */
+export const MAX_LABELS_PER_REPOSITORY = 1000;
+export const MAX_MILESTONES_PER_REPOSITORY = 1000;
+export const MAX_RELEASES_PER_REPOSITORY = 1000;
+export const MAX_COLLABORATORS_PER_REPOSITORY = 1000;
 
 export const MAX_MILESTONE_TITLE_CHARS = 256;
 export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;

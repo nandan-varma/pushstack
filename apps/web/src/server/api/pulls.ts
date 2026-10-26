@@ -63,7 +63,7 @@ import {
 	validationFailedError,
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
-import { formatPatchSections, unifiedDiff } from "./patches";
+import { formatPatchSections, unifiedDiff, withinDiffCap } from "./patches";
 import { readableRepository } from "./repo-lookup";
 import { openIssueCounts, starCounts } from "./repos";
 import {
@@ -343,11 +343,11 @@ async function pullMediaResponse(
 		const diff = await cachedDiff(`${repo.id}:${baseSha}..${headSha}`, () =>
 			getBranchDiff(ownerKey, repo.name, baseSha, headSha),
 		);
-		const body = unifiedDiff(diff);
-		if (new TextEncoder().encode(body).byteLength > apiCaps.diffMediaBytes) {
-			throw new DiffLimitError("bytes", apiCaps.diffMediaBytes);
-		}
-		return mediaResponse(body, format, PULL_MEDIA_TEXT);
+		return mediaResponse(
+			withinDiffCap(unifiedDiff(diff)),
+			format,
+			PULL_MEDIA_TEXT,
+		);
 	}
 	const { commits } = await getCommitsBetween(
 		ownerKey,

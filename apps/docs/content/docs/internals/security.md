@@ -308,5 +308,7 @@ blob sizes count before inflation and patch formatting; unknown sizes count
 before decoding. File work and object reads are bounded to 16 concurrent
 operations, and queued work stops after a budget failure. The typed
 `DiffLimitError` propagates to Files views; REST and plain-text diff/patch
-endpoints return 406 instead of silently returning an empty diff. Per-file
+endpoints return 406 instead of silently returning an empty diff. The REST diff
+and patch media types also refuse a rendered diff over 4 MB (`MAX_API_DIFF_BYTES`,
+below Vercel's 4.5 MB buffered-response cap), with 406. Per-file
 oversize blobs retain their existing metadata-only representation.

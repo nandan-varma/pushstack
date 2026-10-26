@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	MAX_API_DIFF_BYTES,
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_HISTORY_WALK,
@@ -76,5 +77,17 @@ describe("thread page bound", () => {
 		}));
 		expect(JSON.stringify(page).length).toBeLessThan(4_500_000);
 		expect(THREAD_PAGE_SIZE).toBeLessThanOrEqual(MAX_THREAD_PAGE_SIZE);
+	});
+});
+
+describe("API diff media cap", () => {
+	it("stays under Vercel's 4.5 MB buffered-response cap, with headroom", () => {
+		expect(MAX_API_DIFF_BYTES).toBeLessThan(4_500_000);
+		expect(MAX_API_DIFF_BYTES).toBeGreaterThan(0);
+	});
+
+	it("is what the REST API's diff media types enforce by default", async () => {
+		const { DEFAULT_API_CAPS } = await import("../../server/api/caps");
+		expect(DEFAULT_API_CAPS.diffMediaBytes).toBe(MAX_API_DIFF_BYTES);
 	});
 });

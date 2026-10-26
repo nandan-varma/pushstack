@@ -38,7 +38,12 @@ import {
 	pageParams,
 } from "./http";
 import { pathParams, queryParams } from "./input";
-import { formatPatches, formatPatchSections, unifiedDiff } from "./patches";
+import {
+	formatPatches,
+	formatPatchSections,
+	unifiedDiff,
+	withinDiffCap,
+} from "./patches";
 import { readableRepository } from "./repo-lookup";
 import { commitObject } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -209,7 +214,8 @@ const TEXT = "text/plain; charset=utf-8" as const;
 /**
  * `GET /repos/{owner}/{repo}/commits/{ref}`: JSON with `stats` and `files`
  * (the first 300; `page`/`per_page` page through up to 3,000, as on GitHub),
- * or the `diff`, `patch` or `sha` media type.
+ * or the `diff`, `patch` or `sha` media type. A `diff` or `patch` past
+ * `apiCaps.diffMediaBytes` is 406.
  */
 export async function getCommitDetail(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
@@ -227,9 +233,15 @@ export async function getCommitDetail(ctx: ApiContext) {
 		commitCommentCounts(repo.id, [info.oid]),
 	]);
 	const commentCount = counts.get(info.oid);
-	if (format === "diff") return mediaResponse(unifiedDiff(diff), format, TEXT);
+	if (format === "diff") {
+		return mediaResponse(withinDiffCap(unifiedDiff(diff)), format, TEXT);
+	}
 	if (format === "patch") {
-		return mediaResponse(formatPatches([{ info, diff }]), format, TEXT);
+		return mediaResponse(
+			withinDiffCap(formatPatches([{ info, diff }])),
+			format,
+			TEXT,
+		);
 	}
 	const query = ctx.url.searchParams;
 	if (!(query.has("page") || query.has("per_page"))) {
@@ -320,7 +332,9 @@ export async function compareCommits(ctx: ApiContext) {
 					? "behind"
 					: "diverged";
 	const format = mediaFormat(ctx.request);
-	if (format === "diff") return mediaResponse(unifiedDiff(diff), format, TEXT);
+	if (format === "diff") {
+		return mediaResponse(withinDiffCap(unifiedDiff(diff)), format, TEXT);
+	}
 	if (format === "patch") {
 		const listed = ahead.commits.slice(0, apiCaps.compareCommits);
 		const sections: string[] = [];

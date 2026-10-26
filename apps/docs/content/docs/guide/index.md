@@ -307,6 +307,10 @@ automatically, and a file's owners show above it in the blob view. Only
 | Source archive (`/{owner}/{repo}/archive/…`) | 50,000 entries and 256 MiB of files — above that, `413` and `git clone` |
 | Release asset | 2 GiB per file, 1,000 files per release; 4,000,000 bytes through `POST …/assets` (larger: presigned upload) |
 | Git push request body | 50 MB |
+| Labels, milestones and releases per repository | 1,000 each — creating past it is `422` (REST) |
+| Collaborators per repository | 1,000 — adding a new one past it is refused |
+| Commit, compare and pull request `diff`/`patch` media types | 4 MB rendered — above that, `406` and `git clone` |
+| Review comments per pull request | 2,000 — past it, `422` |
 | Issue, pull request and comment body | 65,536 characters |
 | Commit message (web UI) | 10,000 characters |
 | Repository name | 100 characters |

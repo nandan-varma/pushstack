@@ -3,11 +3,11 @@
  * lower them (and restore them) instead of building huge fixtures. Responses
  * are buffered, and Vercel caps a buffered response at 4.5 MB.
  */
-import { MAX_DIFF_BYTES } from "git-fs-s3/ops";
+import { MAX_API_DIFF_BYTES } from "#/lib/limits";
 
 export const DEFAULT_API_CAPS = {
 	/** Aggregate UTF-8 bytes retained across a comparison's mailbox patches. */
-	diffMediaBytes: MAX_DIFF_BYTES,
+	diffMediaBytes: MAX_API_DIFF_BYTES,
 	/** Contents: files over this are `content: ""`, `encoding: "none"` (GitHub: 1 MB). */
 	contentsInlineBytes: 1024 * 1024,
 	/** Contents: a directory lists at most this many entries (GitHub: 1000). */

@@ -78,7 +78,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"repos/list-releases":
 		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
 	"repos/create-release":
-		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` ignored",
+		"write access (`repo:write`); `tag_name`, `target_commitish` (default branch; a missing tag is created there as a lightweight tag unless `draft`), `name`, `body`, `draft`, `prerelease`, `make_latest`, `generate_release_notes`; a published tag already used by a release is `422 already_exists`; `discussion_category_name` ignored; at 1,000 releases in the repository it is `422`",
 	"repos/generate-release-notes":
 		"write access; a bulleted list of the commits since `previous_tag_name` (default: the tag before `tag_name`) and a `Full Changelog` compare link; no pull request grouping, `.github/release.yml` or new-contributor section",
 	"repos/get-latest-release":
@@ -134,9 +134,9 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"checks/list-suites-for-ref":
 		"a commit has at most one suite (there are no GitHub Apps); `{ total_count, check_suites }`",
 	"repos/get-commit":
-		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`",
+		"with `stats` and up to 300 `files` (`page`/`per_page` page through up to 3,000); unknown ref is `422`; media types `diff`, `patch` (`format-patch`) and `sha`; `diff` and `patch` past the 4 MB media cap are `406`",
 	"repos/compare-commits-with-basehead":
-		"`base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit)",
+		"`base...head` or `base..head` (`owner:ref` sides); `status`, `ahead_by`, `behind_by`, `merge_base_commit`, up to 250 `commits` (paginated with `page`/`per_page`), up to 300 `files`; media types `diff` (merge base to head for `...`, tip to tip for `..`) and `patch` (one message per commit); `diff` and `patch` past the 4 MB media cap are `406`",
 	"checks/create":
 		"write access (`repo:write` token scope; GitHub requires a GitHub App); `name`, `head_sha` (a commit of the repository, else `422`), `status` (default `queued`; `conclusion` implies `completed`), `started_at`, `completed_at`, `details_url`, `external_id`, `output` (`title`, `summary`, `text`); `completed` needs a `conclusion`; annotations, images and actions are ignored and `annotations_count` is `0` (no `annotations_url`); up to 1,000 runs per commit; `app`, `pull_requests`, `node_id` and `deployment` are omitted",
 	"checks/get": "",
@@ -205,7 +205,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/create":
 		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `maintainer_can_modify` ignored); unknown or equal branches and an already-open pull request are `422`",
 	"pulls/get":
-		"media types `diff` (the unified diff, base to head) and `patch` (one format-patch section per commit, oldest first, up to 250 commits); both are `text/plain; charset=utf-8` (an inert type with `nosniff`, not GitHub's `application/vnd.github.v3.diff`/`.patch` Content-Type) and stream up to the 10 MiB media cap, past which the answer is `406`",
+		"media types `diff` (the unified diff, base to head) and `patch` (one format-patch section per commit, oldest first, up to 250 commits); both are `text/plain; charset=utf-8` (an inert type with `nosniff`, not GitHub's `application/vnd.github.v3.diff`/`.patch` Content-Type) and stream up to the 4 MB media cap, past which the answer is `406`",
 	"pulls/update":
 		"the author or a writer; `title`, `body`, `state`; changing `base` is `422`",
 	"pulls/check-if-merged": "`204` once merged, else `404`",
@@ -223,14 +223,14 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"issues/list-milestones":
 		"`state` (`open` default, `closed`, `all`), `sort` (`due_on` default, `completeness`), `direction`; `open_issues`/`closed_issues` count issues and pull requests",
 	"issues/create-milestone":
-		"write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists`",
+		"write access; `title`, `state`, `description`, `due_on`; a duplicate title is `422 already_exists`; at 1,000 milestones in the repository it is `422`",
 	"issues/get-milestone": "",
 	"issues/update-milestone": "write access",
 	"issues/delete-milestone":
 		"write access; `204`; issues and pull requests in it lose the milestone",
 	"issues/list-labels-for-repo": "",
 	"issues/create-label":
-		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`",
+		"write access; `color` optional (defaults to `ededed`); a duplicate name is `422 already_exists`; at 1,000 labels in the repository it is `422`",
 	"issues/get-label": "",
 	"issues/update-label": "write access",
 	"issues/delete-label": "write access; `204`",
