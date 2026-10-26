@@ -4,8 +4,8 @@ import { endpoints } from "../src";
 describe("unsupported fields", () => {
 	it("refuse any value of a field PushStack does not implement", () => {
 		const body = endpoints["repos/update"].body;
-		expect(body.safeParse({ allow_squash_merge: true }).success).toBe(false);
-		expect(body.safeParse({ allow_squash_merge: null }).success).toBe(false);
+		expect(body.safeParse({ allow_auto_merge: true }).success).toBe(false);
+		expect(body.safeParse({ allow_auto_merge: null }).success).toBe(false);
 		expect(body.safeParse({}).success).toBe(true);
 	});
 

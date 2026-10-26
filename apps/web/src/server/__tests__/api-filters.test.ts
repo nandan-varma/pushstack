@@ -338,6 +338,15 @@ describe("pagination the contract declares", () => {
 		);
 		expect(first.body).toHaveLength(2);
 		expect(second.body).toHaveLength(1);
+		// Two pages of labels: page 1 links forward to page 2, page 2 back to page 1.
+		const firstLink = first.headers.get("link") ?? "";
+		expect(firstLink).toMatch(/<[^>]*page=2>; rel="next"/);
+		expect(firstLink).toMatch(/<[^>]*page=2>; rel="last"/);
+		expect(firstLink).not.toContain('rel="prev"');
+		const secondLink = second.headers.get("link") ?? "";
+		expect(secondLink).toMatch(/<[^>]*page=1>; rel="prev"/);
+		expect(secondLink).toMatch(/<[^>]*page=1>; rel="first"/);
+		expect(secondLink).not.toContain('rel="next"');
 		const names = [...first.body, ...second.body].map(
 			(label: { name: string }) => label.name,
 		);
