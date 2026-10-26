@@ -73,7 +73,11 @@ import {
 	pullDetailResolvers,
 	reviewNodeFor,
 } from "./pulls-detail";
-import { type RepositoryNode, readableRepositoryNode } from "./repository";
+import {
+	branchRef,
+	type RepositoryNode,
+	readableRepositoryNode,
+} from "./repository";
 import type { DomainResolvers } from "./types";
 
 export interface PullRequestNode {
@@ -552,6 +556,8 @@ export const pullsResolvers: DomainResolvers = {
 				return userNode(row);
 			},
 			repository: (node) => node.repo,
+			baseRef: (node, _args, ctx) =>
+				branchRef(ctx, node.repo, node.row.targetBranch),
 			headRepository: (node) => node.repo,
 			headRepositoryOwner: async (node, _args, ctx) => {
 				const row = await loadUser(ctx, node.repo.row.ownerId);

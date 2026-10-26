@@ -68,15 +68,14 @@ const fixtures = readdirSync(FIXTURES_DIR)
 	}));
 
 /** Captured, not served yet: the domain that will serve each. */
-const PENDING: Record<string, "issues" | "pulls"> = {
-	"pr-status": "pulls",
-	"pr-view-projects": "pulls",
-};
+const PENDING: Record<string, "issues" | "pulls"> = {};
 
 /** Errors a served fixture is expected to answer with (by fixture name). */
 const EXPECTED_ERRORS: Record<string, string[]> = {
 	"repo-view-missing": ["NOT_FOUND"],
 	"pr-view": ["NOT_FOUND"],
+	// The fixture database has no pull request #1, as for pr-view.
+	"pr-view-projects": ["NOT_FOUND"],
 };
 
 const schema = getSchema();

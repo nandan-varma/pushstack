@@ -219,6 +219,17 @@ export interface RefNode extends Ref {
 	repo: RepositoryNode;
 }
 
+/** A branch of the repository as a Ref, or null when no such branch exists. */
+export async function branchRef(
+	ctx: GraphQLContext,
+	repo: RepositoryNode,
+	branch: string,
+): Promise<RefNode | null> {
+	return (await branchesOf(ctx, repo)).includes(branch)
+		? refNode(repo, branch)
+		: null;
+}
+
 function refNode(repo: RepositoryNode, branch: string): RefNode {
 	return {
 		__typename: "Ref",
@@ -632,6 +643,8 @@ export const repositoryResolvers: DomainResolvers = {
 		},
 		Ref: {
 			target: (source) => readCommitNode(source.repo, source.name),
+			// Branch protection is not served yet (it is backlogged), so no branch has a rule.
+			branchProtectionRule: () => null,
 		},
 		Commit: {
 			blame: (source, args) => blameOf(source, args),

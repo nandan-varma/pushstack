@@ -1,6 +1,7 @@
 /**
- * GitHub's issue/pull-request query syntax: `is:`, `label:`, `author:`,
- * `assignee:`, `mentions:`, `milestone:`, `no:`, `sort:` and free text.
+ * GitHub's issue/pull-request query syntax: `is:` (or its alias `state:`),
+ * `label:`, `author:`, `assignee:`, `mentions:`, `milestone:`, `no:`,
+ * `sort:` and free text.
  *
  * Pure and database-independent. The list routes parse a `?q=` string with
  * `parseSearchQuery` and hand the typed result to the server functions; the
@@ -79,6 +80,7 @@ const QUOTE = /["']/;
  */
 const KNOWN_QUALIFIERS = new Set([
 	"is",
+	"state",
 	"label",
 	"no",
 	"author",
@@ -200,7 +202,8 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case undefined:
 				if (value) terms.push(value);
 				break;
-			case "is": {
+			case "is":
+			case "state": {
 				const normalized = value.toLowerCase();
 				if (isStateToken(normalized)) statuses.add(normalized);
 				else if (normalized === "issue" || normalized === "pr")
@@ -283,6 +286,44 @@ export function parseSearchQuery(input: string): SearchQuery {
 	};
 }
 
+/**
+ * The first part of a query that a strict reader cannot serve, or null. The
+ * GraphQL search refuses rather than reading these as the lenient list parser
+ * does: an unquoted `name:` that is not a qualifier (`in:title`, which would
+ * otherwise be literal text), a negated qualifier (`-label:x`), a qualifier
+ * with no value, and a value the search does not serve (`is:locked`,
+ * `no:project`, `draft:maybe`, an unknown `sort:`). Quoted text is text.
+ */
+export function unservedQualifier(input: string): string | null {
+	const servedStates: readonly string[] = [
+		"open",
+		"closed",
+		"merged",
+		"all",
+		"issue",
+		"pr",
+	];
+	for (const token of tokenize(input)) {
+		const named = /^(-?)([A-Za-z][\w-]*):/.exec(token.raw);
+		if (!named) continue;
+		if (named[1] === "-" || !token.name) return token.raw;
+		const value = token.value.trim().toLowerCase();
+		if (value === "") return token.raw;
+		const served =
+			token.name === "is" || token.name === "state"
+				? servedStates.includes(value)
+				: token.name === "no"
+					? ["label", "assignee", "milestone"].includes(value)
+					: token.name === "draft"
+						? value === "true" || value === "false"
+						: token.name === "sort"
+							? (SEARCH_SORTS as readonly string[]).includes(value)
+							: true;
+		if (!served) return token.raw;
+	}
+	return null;
+}
+
 function join(tokens: Token[]): string {
 	return tokens.map((token) => token.raw).join(" ");
 }
@@ -294,10 +335,32 @@ function join(tokens: Token[]): string {
 export function withSearchStatus(query: string, status: SearchStatus): string {
 	const tokens = tokenize(query).filter(
 		(token) =>
-			!(token.name === "is" && isStateToken(token.value.toLowerCase())),
+			!(
+				(token.name === "is" || token.name === "state") &&
+				isStateToken(token.value.toLowerCase())
+			),
 	);
 	tokens.push({ raw: `is:${status}`, name: "is", value: status });
 	return join(tokens);
+}
+
+/**
+ * The `repo:owner/name` qualifiers of a query and the query without them.
+ * GitHub scopes a search to a repository this way; the list routes already
+ * have one, so only the GraphQL search reads these.
+ */
+export function splitRepoQualifiers(input: string): {
+	repos: string[];
+	rest: string;
+} {
+	const repos: string[] = [];
+	const rest: string[] = [];
+	for (const token of tokenize(input)) {
+		const match = /^repo:(.+)$/i.exec(token.raw);
+		if (match?.[1] !== undefined) repos.push(unquote(match[1]));
+		else rest.push(token.raw);
+	}
+	return { repos, rest: rest.join(" ") };
 }
 
 export function withSearchLabel(query: string, label?: string): string {

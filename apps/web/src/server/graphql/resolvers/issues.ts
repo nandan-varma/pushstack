@@ -11,9 +11,15 @@ import {
 	MAX_BODY_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_LIST_SKIP,
+	MAX_SEARCH_QUERY_CHARS,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { REACTION_CONTENTS, type ReactionContent } from "#/lib/reactions";
+import {
+	parseSearchQuery,
+	splitRepoQualifiers,
+	unservedQualifier,
+} from "#/lib/search-query";
 import { tokenAllows } from "#/lib/token-scopes";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import { replaceThreadAssignees } from "../../assignees-store";
@@ -26,12 +32,14 @@ import { createIssueForUser, updateIssueThreadFields } from "../../issue-store";
 import { setThreadLabels, UnknownLabelError } from "../../label-store";
 import { listThreadReactions } from "../../reaction-store";
 import { getAccessForRepository } from "../../repo-access";
+import { searchFilter, searchSort } from "../../thread-search";
 import {
 	findIssueById,
 	findThread,
 	findThreadById,
 	listThreads,
 	pullRequestOfThread,
+	pullRequestView,
 	type Thread,
 	type ThreadFilter,
 } from "../../thread-store";
@@ -55,6 +63,7 @@ import type {
 	IssueCommentsArgs,
 	IssueLabelsArgs,
 	IssueSubIssuesArgs,
+	QuerySearchArgs,
 	RemoveAssigneesFromAssignableInput,
 	RemoveLabelsFromLabelableInput,
 	RepositoryIssueArgs,
@@ -263,8 +272,84 @@ async function commentNodes(
 	);
 }
 
+/**
+ * `Query.search`: GitHub's issue and pull request search, scoped to one
+ * repository by its `repo:owner/name` qualifier (search across repositories
+ * is not served yet). A repository the caller cannot read, and a contradictory
+ * query, both answer no results, as GitHub's do. A qualifier or value the
+ * search does not serve is refused (`UNPROCESSABLE`), never read as text.
+ */
+async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
+	if (args.type !== "ISSUE") throw unprocessable("Only ISSUE search is served");
+	if (args.query.length > MAX_SEARCH_QUERY_CHARS)
+		throw unprocessable(
+			`The search query exceeds ${MAX_SEARCH_QUERY_CHARS} characters`,
+		);
+	const { repos, rest } = splitRepoQualifiers(args.query);
+	const coordinates =
+		repos.length === 1 ? /^([^/]+)\/([^/]+)$/.exec(repos[0] ?? "") : null;
+	if (!coordinates)
+		throw unprocessable(
+			"A search must name one repository as repo:owner/name; searching across repositories is not served yet",
+		);
+	const unserved = unservedQualifier(rest);
+	if (unserved)
+		throw unprocessable(`The search qualifier ${unserved} is not served`);
+	const query = parseSearchQuery(rest);
+	const repo = await readableRepositoryNode(
+		ctx,
+		coordinates[1] ?? "",
+		coordinates[2] ?? "",
+	);
+	if (!repo || query.matchesNothing)
+		return {
+			...(await offsetConnection(args, 0, async () => [])),
+			issueCount: 0,
+		};
+	const viewer = await loadUser(ctx, ctx.caller.userId);
+	if (!viewer) throw new Error("Authenticated user missing");
+	const filter: ThreadFilter = {
+		repoId: repo.row.id,
+		kind:
+			query.type === "pr"
+				? "pull_request"
+				: query.type === "issue"
+					? "issue"
+					: undefined,
+		state:
+			query.status === "open"
+				? "open"
+				: query.status === "closed" || query.status === "merged"
+					? "closed"
+					: undefined,
+		merged: query.status === "merged" ? true : undefined,
+		...searchFilter(query, viewer.username),
+	};
+	const sort = searchSort(query.sort);
+	const total = (await listThreads(filter, { limit: 1, sort })).total;
+	const connection = await offsetConnection(
+		args,
+		total,
+		async (offset, limit) => {
+			if (offset > MAX_LIST_SKIP)
+				throw unprocessable("Pagination offset exceeds the maximum");
+			const { threads } = await listThreads(filter, { offset, limit, sort });
+			assertTextBytes(threads);
+			return threads.map((row) =>
+				row.kind === "pull_request"
+					? pullNode(repo, pullRequestView(row))
+					: issueNode(repo, row),
+			);
+		},
+	);
+	return { ...connection, issueCount: total };
+}
+
 export const issuesResolvers: DomainResolvers = {
 	types: {
+		Query: {
+			search: (_source, args: QuerySearchArgs, ctx) => search(args, ctx),
+		},
 		Repository: {
 			issue: async (repo: RepositoryNode, args: RepositoryIssueArgs) => {
 				const row = await findThread(repo.row.id, args.number, "issue");

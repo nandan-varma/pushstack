@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	parseSearchQuery,
+	splitRepoQualifiers,
+	unservedQualifier,
 	withoutSearchAssignee,
 	withSearchLabel,
 	withSearchStatus,
@@ -102,6 +104,12 @@ describe("parseSearchQuery", () => {
 		});
 	});
 
+	it("reads state: as an alias of is:", () => {
+		expect(parseSearchQuery("state:open")).toMatchObject({ status: "open" });
+		expect(parseSearchQuery("is:open state:closed").matchesNothing).toBe(true);
+		expect(parseSearchQuery("state:bogus").status).toBeUndefined();
+	});
+
 	it("parses sort and ignores unknown sorts", () => {
 		expect(parseSearchQuery("sort:comments-asc").sort).toBe("comments-asc");
 		expect(parseSearchQuery("sort:bogus").sort).toBe("created-desc");
@@ -155,6 +163,12 @@ describe("query-string editing", () => {
 		);
 	});
 
+	it("replaces a state: alias too", () => {
+		expect(withSearchStatus("state:open is:pr", "closed")).toBe(
+			"is:pr is:closed",
+		);
+	});
+
 	it("replaces every label: with one quoted label, or removes them", () => {
 		expect(withSearchLabel("label:a label:b is:open", "help wanted")).toBe(
 			'is:open label:"help wanted"',
@@ -166,5 +180,51 @@ describe("query-string editing", () => {
 		expect(
 			withoutSearchAssignee("assignee:me no:assignee no:label is:open"),
 		).toBe("no:label is:open");
+	});
+});
+
+describe("splitRepoQualifiers", () => {
+	it("takes repo: qualifiers out and keeps the rest verbatim", () => {
+		expect(splitRepoQualifiers("is:pr repo:octo/hello author:octo")).toEqual({
+			repos: ["octo/hello"],
+			rest: "is:pr author:octo",
+		});
+	});
+
+	it("keeps a quoted repo: phrase as search text, not a qualifier", () => {
+		expect(splitRepoQualifiers('"repo:octo/hello" crash')).toEqual({
+			repos: [],
+			rest: '"repo:octo/hello" crash',
+		});
+	});
+
+	it("returns every repo: value so the caller can refuse several", () => {
+		expect(splitRepoQualifiers("repo:a/b repo:c/d").repos).toEqual([
+			"a/b",
+			"c/d",
+		]);
+	});
+});
+
+describe("unservedQualifier", () => {
+	it("passes queries made of served qualifiers, quoted text and free text", () => {
+		expect(
+			unservedQualifier(
+				'is:open is:pr label:"help wanted" no:assignee sort:updated-desc draft:true',
+			),
+		).toBeNull();
+		expect(unservedQualifier('"in:title" broken')).toBeNull();
+		expect(unservedQualifier("http:x")).toBe("http:x");
+	});
+
+	it("names the first unserved qualifier, unknown, negated, empty or unserved-valued", () => {
+		expect(unservedQualifier("in:title broken")).toBe("in:title");
+		expect(unservedQualifier("is:open comments:>3")).toBe("comments:>3");
+		expect(unservedQualifier("-label:bug")).toBe("-label:bug");
+		expect(unservedQualifier("label:")).toBe("label:");
+		expect(unservedQualifier("is:locked")).toBe("is:locked");
+		expect(unservedQualifier("no:project")).toBe("no:project");
+		expect(unservedQualifier("draft:maybe")).toBe("draft:maybe");
+		expect(unservedQualifier("sort:bogus")).toBe("sort:bogus");
 	});
 });

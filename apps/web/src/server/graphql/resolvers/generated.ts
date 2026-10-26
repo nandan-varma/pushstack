@@ -46,6 +46,8 @@ export type Query = {
   repositoryOwner?: Maybe<RepositoryOwner>;
   /** Lookup a user by login. */
   user?: Maybe<User>;
+  /** Perform a search across resources, returning a maximum of 1,000 results. */
+  search: SearchResultItemConnection;
 };
 
 
@@ -77,6 +79,17 @@ export type QueryRepositoryOwnerArgs = {
 /** The query root of GitHub's GraphQL interface. */
 export type QueryUserArgs = {
   login: Scalars['String']['input'];
+};
+
+
+/** The query root of GitHub's GraphQL interface. */
+export type QuerySearchArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  query: Scalars['String']['input'];
+  type: SearchType;
 };
 
 /** An object with an ID. */
@@ -699,6 +712,15 @@ export type Ref = Node & {
   prefix: Scalars['String']['output'];
   /** The object the ref points to. Returns null when object does not exist. */
   target?: Maybe<GitObject>;
+  /** Branch protection rules for this ref */
+  branchProtectionRule?: Maybe<BranchProtectionRule>;
+};
+
+/** A branch protection rule. */
+export type BranchProtectionRule = {
+  __typename?: 'BranchProtectionRule';
+  /** Are branches required to be up to date before merging. */
+  requiresStrictStatusChecks: Scalars['Boolean']['output'];
 };
 
 /** Represents a Git object. */
@@ -1631,6 +1653,55 @@ export type IssueClosedStateReason =
   /** An issue that has been closed as not planned */
   | 'NOT_PLANNED';
 
+/** Represents the individual results of a search. */
+export type SearchType =
+  /** Returns matching discussions in repositories. */
+  | 'DISCUSSION'
+  /** Returns results matching issues in repositories. */
+  | 'ISSUE'
+  /** Returns results matching issues in repositories. */
+  | 'ISSUE_ADVANCED'
+  /** Returns results matching issues using hybrid (lexical + semantic) search. */
+  | 'ISSUE_HYBRID'
+  /** Returns results matching issues using semantic search. */
+  | 'ISSUE_SEMANTIC'
+  /** Returns results matching repositories. */
+  | 'REPOSITORY'
+  /** Returns results matching users and organizations on GitHub. */
+  | 'USER';
+
+/** The results of a search. */
+export type SearchResultItem = Issue | PullRequest;
+
+/**
+ * A list of results that matched against a search query. Regardless of the number
+ * of matches, a maximum of 1,000 results will be available across all types,
+ * potentially split across many pages.
+ */
+export type SearchResultItemConnection = {
+  __typename?: 'SearchResultItemConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<SearchResultItemEdge>>>;
+  /**
+   * The total number of issues that matched the search query. Regardless of the
+   * total number of matches, a maximum of 1,000 results will be available across all types.
+   */
+  issueCount: Scalars['Int']['output'];
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<SearchResultItem>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+};
+
+/** An edge in a connection. */
+export type SearchResultItemEdge = {
+  __typename?: 'SearchResultItemEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<SearchResultItem>;
+};
+
 /** A repository pull request. */
 export type PullRequest = Node & UniformResourceLocatable & {
   __typename?: 'PullRequest';
@@ -1691,6 +1762,10 @@ export type PullRequest = Node & UniformResourceLocatable & {
   mergeable: MergeableState;
   /** Detailed information about the current pull request merge state status. */
   mergeStateStatus: MergeStateStatus;
+  /** The current status of this pull request with respect to code review. */
+  reviewDecision?: Maybe<PullRequestReviewDecision>;
+  /** Identifies the base Ref associated with the pull request. */
+  baseRef?: Maybe<Ref>;
   /** The number of additions in this pull request. */
   additions: Scalars['Int']['output'];
   /** The number of deletions in this pull request. */
@@ -1701,6 +1776,10 @@ export type PullRequest = Node & UniformResourceLocatable & {
   reviewRequests?: Maybe<ReviewRequestConnection>;
   /** A list of reviews associated with the pull request. */
   reviews?: Maybe<PullRequestReviewConnection>;
+  /** A list of latest reviews per user associated with the pull request that are not also pending review. */
+  latestReviews?: Maybe<PullRequestReviewConnection>;
+  /** List of project items associated with this pull request. */
+  projectItems?: Maybe<ProjectV2ItemConnection>;
   /** A list of Users assigned to this object. */
   assignees: UserConnection;
   /** A list of labels associated with the object. */
@@ -1734,6 +1813,24 @@ export type PullRequestReviewRequestsArgs = {
 
 /** A repository pull request. */
 export type PullRequestReviewsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestLatestReviewsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestProjectItemsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -2079,6 +2176,64 @@ export type MergeStateStatus =
   | 'UNKNOWN'
   /** Mergeable with non-passing commit status. */
   | 'UNSTABLE';
+
+/** The review status of a pull request. */
+export type PullRequestReviewDecision =
+  /** The pull request has received an approving review. */
+  | 'APPROVED'
+  /** Changes have been requested on the pull request. */
+  | 'CHANGES_REQUESTED'
+  /** A review is required before the pull request can be merged. */
+  | 'REVIEW_REQUIRED';
+
+/** The connection type for ProjectV2Item. */
+export type ProjectV2ItemConnection = {
+  __typename?: 'ProjectV2ItemConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ProjectV2Item>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An item within a Project. */
+export type ProjectV2Item = {
+  __typename?: 'ProjectV2Item';
+  /** The Node ID of the ProjectV2Item object */
+  id: Scalars['ID']['output'];
+  /** The project that contains this item. */
+  project: ProjectV2;
+  /** The field value of the first project field which matches the 'name' argument that is set on the item. */
+  fieldValueByName?: Maybe<ProjectV2ItemFieldValue>;
+};
+
+
+/** An item within a Project. */
+export type ProjectV2ItemFieldValueByNameArgs = {
+  name: Scalars['String']['input'];
+};
+
+/** New projects that manage issues, pull requests and drafts using tables and boards. */
+export type ProjectV2 = {
+  __typename?: 'ProjectV2';
+  /** The Node ID of the ProjectV2 object */
+  id: Scalars['ID']['output'];
+  /** The project's name. */
+  title: Scalars['String']['output'];
+};
+
+/** Project field values */
+export type ProjectV2ItemFieldValue = ProjectV2ItemFieldSingleSelectValue;
+
+/** The value of a single select field in a Project item. */
+export type ProjectV2ItemFieldSingleSelectValue = {
+  __typename?: 'ProjectV2ItemFieldSingleSelectValue';
+  /** The id of the selected single select option. */
+  optionId?: Maybe<Scalars['String']['output']>;
+  /** The name of the selected single select option. */
+  name?: Maybe<Scalars['String']['output']>;
+};
 
 /** Represents a Git commit part of a pull request. */
 export type PullRequestCommit = {
@@ -2623,6 +2778,11 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
     | ( IssueNode )
     | ( PullRequestNode )
   ;
+  SearchResultItem:
+    | ( IssueNode )
+    | ( PullRequestNode )
+  ;
+  ProjectV2ItemFieldValue: ( ProjectV2ItemFieldSingleSelectValue );
   RequestedReviewer:
     | ( Bot )
     | ( Team )
@@ -2671,11 +2831,11 @@ export type ResolversTypes = {
   Query: ResolverTypeWrapper<Record<PropertyKey, never>>;
   ID: ResolverTypeWrapper<Scalars['ID']['output']>;
   String: ResolverTypeWrapper<Scalars['String']['output']>;
+  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   Node: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['Node']>;
   PageInfo: ResolverTypeWrapper<PageInfo>;
   Boolean: ResolverTypeWrapper<Scalars['Boolean']['output']>;
   RateLimit: ResolverTypeWrapper<RateLimitInfo>;
-  Int: ResolverTypeWrapper<Scalars['Int']['output']>;
   UniformResourceLocatable: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['UniformResourceLocatable']>;
   Actor: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['Actor']>;
   User: ResolverTypeWrapper<UserNode>;
@@ -2689,6 +2849,7 @@ export type ResolversTypes = {
   RepositoryConnection: ResolverTypeWrapper<Omit<RepositoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['RepositoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Repository']>>> }>;
   RepositoryEdge: ResolverTypeWrapper<Omit<RepositoryEdge, 'node'> & { node?: Maybe<ResolversTypes['Repository']> }>;
   Ref: ResolverTypeWrapper<RefNode>;
+  BranchProtectionRule: ResolverTypeWrapper<BranchProtectionRule>;
   GitObject: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitObject']>;
   Commit: ResolverTypeWrapper<CommitNode>;
   Blame: ResolverTypeWrapper<Omit<Blame, 'ranges'> & { ranges: Array<ResolversTypes['BlameRange']> }>;
@@ -2755,6 +2916,10 @@ export type ResolversTypes = {
   AddCommentInput: AddCommentInput;
   AddCommentPayload: ResolverTypeWrapper<Omit<AddCommentPayload, 'commentEdge' | 'subject'> & { commentEdge?: Maybe<ResolversTypes['IssueCommentEdge']>, subject?: Maybe<ResolversTypes['Node']> }>;
   IssueClosedStateReason: IssueClosedStateReason;
+  SearchType: SearchType;
+  SearchResultItem: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['SearchResultItem']>;
+  SearchResultItemConnection: ResolverTypeWrapper<Omit<SearchResultItemConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['SearchResultItemEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['SearchResultItem']>>> }>;
+  SearchResultItemEdge: ResolverTypeWrapper<Omit<SearchResultItemEdge, 'node'> & { node?: Maybe<ResolversTypes['SearchResultItem']> }>;
   PullRequest: ResolverTypeWrapper<PullRequestNode>;
   PullRequestState: PullRequestState;
   PullRequestConnection: ResolverTypeWrapper<Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequest']>>> }>;
@@ -2783,6 +2948,12 @@ export type ResolversTypes = {
   PullRequestMergeMethod: PullRequestMergeMethod;
   MergeableState: MergeableState;
   MergeStateStatus: MergeStateStatus;
+  PullRequestReviewDecision: PullRequestReviewDecision;
+  ProjectV2ItemConnection: ResolverTypeWrapper<Omit<ProjectV2ItemConnection, 'nodes'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>> }>;
+  ProjectV2Item: ResolverTypeWrapper<Omit<ProjectV2Item, 'project' | 'fieldValueByName'> & { project: ResolversTypes['ProjectV2'], fieldValueByName?: Maybe<ResolversTypes['ProjectV2ItemFieldValue']> }>;
+  ProjectV2: ResolverTypeWrapper<ProjectV2>;
+  ProjectV2ItemFieldValue: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['ProjectV2ItemFieldValue']>;
+  ProjectV2ItemFieldSingleSelectValue: ResolverTypeWrapper<ProjectV2ItemFieldSingleSelectValue>;
   PullRequestCommit: ResolverTypeWrapper<Omit<PullRequestCommit, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   PullRequestCommitConnection: ResolverTypeWrapper<Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>> }>;
   PullRequestCommitEdge: ResolverTypeWrapper<Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestCommit']> }>;
@@ -2829,11 +3000,11 @@ export type ResolversParentTypes = {
   Query: Record<PropertyKey, never>;
   ID: Scalars['ID']['output'];
   String: Scalars['String']['output'];
+  Int: Scalars['Int']['output'];
   Node: ResolversInterfaceTypes<ResolversParentTypes>['Node'];
   PageInfo: PageInfo;
   Boolean: Scalars['Boolean']['output'];
   RateLimit: RateLimitInfo;
-  Int: Scalars['Int']['output'];
   UniformResourceLocatable: ResolversInterfaceTypes<ResolversParentTypes>['UniformResourceLocatable'];
   Actor: ResolversInterfaceTypes<ResolversParentTypes>['Actor'];
   User: UserNode;
@@ -2847,6 +3018,7 @@ export type ResolversParentTypes = {
   RepositoryConnection: Omit<RepositoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['RepositoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Repository']>>> };
   RepositoryEdge: Omit<RepositoryEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Repository']> };
   Ref: RefNode;
+  BranchProtectionRule: BranchProtectionRule;
   GitObject: ResolversInterfaceTypes<ResolversParentTypes>['GitObject'];
   Commit: CommitNode;
   Blame: Omit<Blame, 'ranges'> & { ranges: Array<ResolversParentTypes['BlameRange']> };
@@ -2901,6 +3073,9 @@ export type ResolversParentTypes = {
   RemoveAssigneesFromAssignablePayload: Omit<RemoveAssigneesFromAssignablePayload, 'assignable'> & { assignable?: Maybe<ResolversParentTypes['Assignable']> };
   AddCommentInput: AddCommentInput;
   AddCommentPayload: Omit<AddCommentPayload, 'commentEdge' | 'subject'> & { commentEdge?: Maybe<ResolversParentTypes['IssueCommentEdge']>, subject?: Maybe<ResolversParentTypes['Node']> };
+  SearchResultItem: ResolversUnionTypes<ResolversParentTypes>['SearchResultItem'];
+  SearchResultItemConnection: Omit<SearchResultItemConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['SearchResultItemEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['SearchResultItem']>>> };
+  SearchResultItemEdge: Omit<SearchResultItemEdge, 'node'> & { node?: Maybe<ResolversParentTypes['SearchResultItem']> };
   PullRequest: PullRequestNode;
   PullRequestConnection: Omit<PullRequestConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequest']>>> };
   PullRequestEdge: Omit<PullRequestEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequest']> };
@@ -2922,6 +3097,11 @@ export type ResolversParentTypes = {
   AddPullRequestReviewInput: AddPullRequestReviewInput;
   AddPullRequestReviewPayload: Omit<AddPullRequestReviewPayload, 'pullRequestReview'> & { pullRequestReview?: Maybe<ResolversParentTypes['PullRequestReview']> };
   AutoMergeRequest: Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversParentTypes['Actor']> };
+  ProjectV2ItemConnection: Omit<ProjectV2ItemConnection, 'nodes'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2Item']>>> };
+  ProjectV2Item: Omit<ProjectV2Item, 'project' | 'fieldValueByName'> & { project: ResolversParentTypes['ProjectV2'], fieldValueByName?: Maybe<ResolversParentTypes['ProjectV2ItemFieldValue']> };
+  ProjectV2: ProjectV2;
+  ProjectV2ItemFieldValue: ResolversUnionTypes<ResolversParentTypes>['ProjectV2ItemFieldValue'];
+  ProjectV2ItemFieldSingleSelectValue: ProjectV2ItemFieldSingleSelectValue;
   PullRequestCommit: Omit<PullRequestCommit, 'commit'> & { commit: ResolversParentTypes['Commit'] };
   PullRequestCommitConnection: Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommitEdge']>>> };
   PullRequestCommitEdge: Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestCommit']> };
@@ -2965,6 +3145,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   repository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType, RequireFields<QueryRepositoryArgs, 'name' | 'owner'>>;
   repositoryOwner?: Resolver<Maybe<ResolversTypes['RepositoryOwner']>, ParentType, ContextType, RequireFields<QueryRepositoryOwnerArgs, 'login'>>;
   user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType, RequireFields<QueryUserArgs, 'login'>>;
+  search?: Resolver<ResolversTypes['SearchResultItemConnection'], ParentType, ContextType, RequireFields<QuerySearchArgs, 'query' | 'type'>>;
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
@@ -3128,7 +3309,12 @@ export type RefResolvers<ContextType = GraphQLContext, ParentType extends Resolv
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   prefix?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   target?: Resolver<Maybe<ResolversTypes['GitObject']>, ParentType, ContextType>;
+  branchProtectionRule?: Resolver<Maybe<ResolversTypes['BranchProtectionRule']>, ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type BranchProtectionRuleResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['BranchProtectionRule'] = ResolversParentTypes['BranchProtectionRule']> = {
+  requiresStrictStatusChecks?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
 };
 
 export type GitObjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitObject'] = ResolversParentTypes['GitObject']> = {
@@ -3385,6 +3571,22 @@ export type AddCommentPayloadResolvers<ContextType = GraphQLContext, ParentType 
   subject?: Resolver<Maybe<ResolversTypes['Node']>, ParentType, ContextType>;
 };
 
+export type SearchResultItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItem'] = ResolversParentTypes['SearchResultItem']> = {
+  __resolveType: TypeResolveFn<'Issue' | 'PullRequest', ParentType, ContextType>;
+};
+
+export type SearchResultItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItemConnection'] = ResolversParentTypes['SearchResultItemConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItemEdge']>>>, ParentType, ContextType>;
+  issueCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItem']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+};
+
+export type SearchResultItemEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItemEdge'] = ResolversParentTypes['SearchResultItemEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['SearchResultItem']>, ParentType, ContextType>;
+};
+
 export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequest'] = ResolversParentTypes['PullRequest']> = {
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
@@ -3413,11 +3615,15 @@ export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extend
   maintainerCanModify?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   mergeable?: Resolver<ResolversTypes['MergeableState'], ParentType, ContextType>;
   mergeStateStatus?: Resolver<ResolversTypes['MergeStateStatus'], ParentType, ContextType>;
+  reviewDecision?: Resolver<Maybe<ResolversTypes['PullRequestReviewDecision']>, ParentType, ContextType>;
+  baseRef?: Resolver<Maybe<ResolversTypes['Ref']>, ParentType, ContextType>;
   additions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   deletions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   commits?: Resolver<ResolversTypes['PullRequestCommitConnection'], ParentType, ContextType, Partial<PullRequestCommitsArgs>>;
   reviewRequests?: Resolver<Maybe<ResolversTypes['ReviewRequestConnection']>, ParentType, ContextType, Partial<PullRequestReviewRequestsArgs>>;
   reviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestReviewsArgs>>;
+  latestReviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestLatestReviewsArgs>>;
+  projectItems?: Resolver<Maybe<ResolversTypes['ProjectV2ItemConnection']>, ParentType, ContextType, Partial<PullRequestProjectItemsArgs>>;
   assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<PullRequestAssigneesArgs>>;
   labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<PullRequestLabelsArgs>>;
   milestone?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
@@ -3487,6 +3693,33 @@ export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType e
   mergeMethod?: Resolver<ResolversTypes['PullRequestMergeMethod'], ParentType, ContextType>;
   enabledAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   enabledBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+};
+
+export type ProjectV2ItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemConnection'] = ResolversParentTypes['ProjectV2ItemConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ProjectV2ItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Item'] = ResolversParentTypes['ProjectV2Item']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  project?: Resolver<ResolversTypes['ProjectV2'], ParentType, ContextType>;
+  fieldValueByName?: Resolver<Maybe<ResolversTypes['ProjectV2ItemFieldValue']>, ParentType, ContextType, RequireFields<ProjectV2ItemFieldValueByNameArgs, 'name'>>;
+};
+
+export type ProjectV2Resolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2'] = ResolversParentTypes['ProjectV2']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValue'] = ResolversParentTypes['ProjectV2ItemFieldValue']> = {
+  __resolveType: TypeResolveFn<'ProjectV2ItemFieldSingleSelectValue', ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldSingleSelectValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue'] = ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue']> = {
+  optionId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type PullRequestCommitResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommit'] = ResolversParentTypes['PullRequestCommit']> = {
@@ -3710,6 +3943,7 @@ export type Resolvers<ContextType = GraphQLContext> = {
   RepositoryConnection?: RepositoryConnectionResolvers<ContextType>;
   RepositoryEdge?: RepositoryEdgeResolvers<ContextType>;
   Ref?: RefResolvers<ContextType>;
+  BranchProtectionRule?: BranchProtectionRuleResolvers<ContextType>;
   GitObject?: GitObjectResolvers<ContextType>;
   Commit?: CommitResolvers<ContextType>;
   Blame?: BlameResolvers<ContextType>;
@@ -3746,6 +3980,9 @@ export type Resolvers<ContextType = GraphQLContext> = {
   AddAssigneesToAssignablePayload?: AddAssigneesToAssignablePayloadResolvers<ContextType>;
   RemoveAssigneesFromAssignablePayload?: RemoveAssigneesFromAssignablePayloadResolvers<ContextType>;
   AddCommentPayload?: AddCommentPayloadResolvers<ContextType>;
+  SearchResultItem?: SearchResultItemResolvers<ContextType>;
+  SearchResultItemConnection?: SearchResultItemConnectionResolvers<ContextType>;
+  SearchResultItemEdge?: SearchResultItemEdgeResolvers<ContextType>;
   PullRequest?: PullRequestResolvers<ContextType>;
   PullRequestConnection?: PullRequestConnectionResolvers<ContextType>;
   PullRequestEdge?: PullRequestEdgeResolvers<ContextType>;
@@ -3758,6 +3995,11 @@ export type Resolvers<ContextType = GraphQLContext> = {
   MergePullRequestPayload?: MergePullRequestPayloadResolvers<ContextType>;
   AddPullRequestReviewPayload?: AddPullRequestReviewPayloadResolvers<ContextType>;
   AutoMergeRequest?: AutoMergeRequestResolvers<ContextType>;
+  ProjectV2ItemConnection?: ProjectV2ItemConnectionResolvers<ContextType>;
+  ProjectV2Item?: ProjectV2ItemResolvers<ContextType>;
+  ProjectV2?: ProjectV2Resolvers<ContextType>;
+  ProjectV2ItemFieldValue?: ProjectV2ItemFieldValueResolvers<ContextType>;
+  ProjectV2ItemFieldSingleSelectValue?: ProjectV2ItemFieldSingleSelectValueResolvers<ContextType>;
   PullRequestCommit?: PullRequestCommitResolvers<ContextType>;
   PullRequestCommitConnection?: PullRequestCommitConnectionResolvers<ContextType>;
   PullRequestCommitEdge?: PullRequestCommitEdgeResolvers<ContextType>;

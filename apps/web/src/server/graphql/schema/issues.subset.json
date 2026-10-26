@@ -156,5 +156,10 @@
 	"RemoveAssigneesFromAssignablePayload": ["clientMutationId", "assignable"],
 	"AddCommentInput": ["subjectId", "body", "clientMutationId"],
 	"AddCommentPayload": ["clientMutationId", "commentEdge", "subject"],
-	"IssueClosedStateReason": "*"
+	"IssueClosedStateReason": "*",
+	"Query": ["search"],
+	"SearchType": "*",
+	"SearchResultItem": ["Issue", "PullRequest"],
+	"SearchResultItemConnection": ["edges", "issueCount", "nodes", "pageInfo"],
+	"SearchResultItemEdge": ["cursor", "node"]
 }
