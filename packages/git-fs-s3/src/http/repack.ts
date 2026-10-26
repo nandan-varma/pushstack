@@ -172,7 +172,7 @@ export async function consolidateKeptPacks(
 	}
 	const wanted = [...oids];
 	const packBuffer =
-		(await buildPackFromExistingPacks(repo, wanted, bases, new Set(wanted))) ??
+		(await buildPackFromExistingPacks(repo, wanted, bases)) ??
 		(await (async () => {
 			const objects = await readAndVerifyObjects(repo, wanted);
 			return encodePack(wanted.map((oid) => objects.get(oid) as PackObject));
@@ -300,17 +300,10 @@ export async function repackRepository(
 
 	const packDir = `${repo.gitdir}/objects/pack`;
 	// Copy stored entries when everything is packed: keeps deltas, so
-	// Delta bases outside the reachable set are not copied: an unreachable
-	// base is garbage, and a delta on it is re-encoded whole instead.
 	// the consolidated pack is as compact as its sources. Loose objects
 	// fall back to a verified, non-deltified rebuild.
 	const packBuffer =
-		(await buildPackFromExistingPacks(
-			repo,
-			reachable,
-			undefined,
-			new Set(reachable),
-		)) ??
+		(await buildPackFromExistingPacks(repo, reachable)) ??
 		(await (async () => {
 			const objects = await readAndVerifyObjects(repo, reachable);
 			return encodePack(

@@ -307,11 +307,7 @@ itself rejects so each caller makes that choice.
 ### Objects no ref names yet
 
 A repack keeps only objects reachable from a branch, a tag or a pull request head
-(`refs/pull/<n>/head`, see below). Consolidation also
-re-encodes a delta whose base is outside that set, rather than copying the base
-into the new pack: an unreachable base is garbage, and once a pull head is
-deleted its objects must not survive the next repack. The cost is a larger pack
-where a reachable object was deltified against an unreachable one. The REST API's
+(`refs/pull/<n>/head`, see below). The REST API's
 Git database writes (`git-objects.ts`: `POST …/git/blobs`, `/trees`,
 `/commits`, `/tags`) create objects *before* any ref names them — a client
 commits by writing a blob, a tree, a commit and only then moving a ref — so a
@@ -343,6 +339,14 @@ pushes:
   (`buildPackFromExistingPacks`' `allowedBases`); otherwise the object is sent
   whole. A repository with open pull requests therefore clones through the
   general walk, not the fast path.
+- **The window after a pull head is deleted.** Repack copies stored deltas as
+  they are, so a consolidated pack can hold a delta base that only the deleted
+  pull head named. The fast path is enabled again once no pull head remains,
+  and it serves the stored pack verbatim, so a clone of the base can receive
+  that base. The base persists for as long as a reachable object is stored as
+  a delta against it, and no repack removes it. Closing this needs either a
+  fast-path check that the pack holds only reachable objects, or a repack that
+  re-encodes just the affected objects; neither is in place yet.
 - **Pushes can't write it.** `isSafeFullRefName` accepts only `refs/heads/` and
   `refs/tags/`, so receive-pack rejects a pull ref as an invalid ref name.
   Server code creates one with `pullHeadRefName(n)`, which only accepts a

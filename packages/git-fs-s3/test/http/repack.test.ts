@@ -572,11 +572,13 @@ describe("repackRepository — delta bases", () => {
 		return oids;
 	}
 
-	it("does not copy into the consolidated pack a delta base that nothing reachable names", async () => {
+	// Documented window (git-storage.md, "Objects no ref names yet"): repack
+	// copies stored deltas as they are, so a base that only a deleted pull
+	// head named stays in the consolidated pack while a reachable delta still
+	// needs it. Flip this assertion when the window is closed.
+	it("keeps a delta base that only a deleted pull head named, as documented", async () => {
 		const { repo } = makeRepo();
-		// main's blob is stored as a delta against a blob only PR 7 names.
 		const { baseBlob } = await writeDeltaAgainstPrOnlyBlob(repo, 7);
-		// Once the PR's head is gone, the base is unreachable.
 		await git.deleteRef({ ...repo, ref: "refs/pull/7/head" });
 		for (let i = 0; i < 3; i++) {
 			await commitFilesToBare(repo, {
@@ -589,8 +591,7 @@ describe("repackRepository — delta bases", () => {
 
 		await repackRepository(repo, { threshold: 4 });
 
-		expect(await packedOids(repo)).not.toContain(baseBlob);
-		// main still reads: its delta was re-encoded whole, not dropped.
+		expect(await packedOids(repo)).toContain(baseBlob);
 		const mainOid = await git.resolveRef({ ...repo, ref: "refs/heads/main" });
 		const { blob } = await git.readBlob({
 			...repo,
