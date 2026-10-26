@@ -19,6 +19,7 @@ export {
 	deleteBranchByName,
 	findRefCollision,
 	listBranches,
+	listPullHeadRefNames,
 	listTags,
 	resolveLooseRefFast,
 	type Tag,

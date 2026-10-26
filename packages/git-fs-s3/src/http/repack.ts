@@ -8,6 +8,7 @@
 
 import git from "isomorphic-git";
 import { isAbsentError, isNotFoundError } from "../git-errors.js";
+import { listPullHeadRefNames } from "../ops/branch.js";
 import type { Repo } from "../ops/types.js";
 import {
 	keepFileContent,
@@ -252,13 +253,18 @@ export async function repackRepository(
 		return [];
 	}
 
-	const [branches, tags] = await Promise.all([
+	// Pull head refs are roots too: a pull request's head commit lives only in
+	// this repository (its fork's objects were copied in), so dropping it would
+	// lose the PR's history. They are not advertised to clients (info-refs).
+	const [branches, tags, pulls] = await Promise.all([
 		git.listBranches(repo),
 		git.listTags(repo),
+		listPullHeadRefNames(repo),
 	]);
 	const refNames = [
 		...branches.map((b) => `refs/heads/${b}`),
 		...tags.map((t) => `refs/tags/${t}`),
+		...pulls,
 	];
 	const tipOids = (
 		await Promise.all(

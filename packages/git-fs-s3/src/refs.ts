@@ -20,7 +20,30 @@ const BAD_REF_COMPONENT =
 
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
 
-/** Validates a fully-qualified ref (must start with refs/heads/ or refs/tags/). */
+/**
+ * `refs/pull/<n>/head`: the ref that pins a pull request's head commit in the
+ * base repository (GitHub's convention), so the commit survives repacking and
+ * can be diffed and merged without the fork. Deliberately outside
+ * {@link isSafeFullRefName}: pushes may never write it, and clients never
+ * fetch it (it is not advertised).
+ */
+const PULL_HEAD_REF_RE = /^refs\/pull\/([1-9][0-9]{0,8})\/head$/;
+
+/** Whether `ref` is exactly `refs/pull/<n>/head` for a positive pull number. */
+export function isPullHeadRef(ref: string): boolean {
+	return PULL_HEAD_REF_RE.test(ref);
+}
+
+/** The `refs/pull/<n>/head` name for pull request `number` (a positive integer). */
+export function pullHeadRefName(number: number): string {
+	const ref = `refs/pull/${number}/head`;
+	if (!isPullHeadRef(ref)) {
+		throw new RangeError(`not a pull request number: ${number}`);
+	}
+	return ref;
+}
+
+/** Validates a fully-qualified branch or tag ref (refs/heads/ or refs/tags/). Pull refs are not pushable and use {@link isPullHeadRef}. */
 export function isSafeFullRefName(ref: string): boolean {
 	if (!ref.startsWith("refs/heads/") && !ref.startsWith("refs/tags/")) {
 		return false;

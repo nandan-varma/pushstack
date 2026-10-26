@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
 	isFullSha,
+	isPullHeadRef,
 	isSafeBranchName,
 	isSafeFullRefName,
 	isSafeRefName,
 	isSafeRepoPath,
+	pullHeadRefName,
 	qualifyBranchRef,
 } from "../src/index.js";
 
@@ -79,5 +81,41 @@ describe("qualifyBranchRef", () => {
 		expect(qualifyBranchRef("refs/tags/v1")).toBe("refs/tags/v1");
 		expect(qualifyBranchRef("HEAD")).toBe("HEAD");
 		expect(qualifyBranchRef(SHA)).toBe(SHA);
+	});
+});
+
+describe("pull head refs", () => {
+	it("accepts exactly refs/pull/<n>/head for a positive number", () => {
+		expect(isPullHeadRef("refs/pull/1/head")).toBe(true);
+		expect(isPullHeadRef("refs/pull/315/head")).toBe(true);
+		expect(isPullHeadRef("refs/pull/999999999/head")).toBe(true);
+	});
+
+	it("rejects other pull-shaped names", () => {
+		for (const ref of [
+			"refs/pull/0/head",
+			"refs/pull/01/head",
+			"refs/pull/1000000000/head",
+			"refs/pull/x/head",
+			"refs/pull/1/merge",
+			"refs/pull/1/head/extra",
+			"refs/pull/1/head.lock",
+			"refs/pull/../head",
+			"pull/1/head",
+			"refs/heads/pull/1/head",
+		]) {
+			expect(isPullHeadRef(ref), ref).toBe(false);
+		}
+	});
+
+	it("is never a pushable branch or tag ref", () => {
+		expect(isSafeFullRefName("refs/pull/1/head")).toBe(false);
+	});
+
+	it("builds the name from a pull request number", () => {
+		expect(pullHeadRefName(42)).toBe("refs/pull/42/head");
+		expect(() => pullHeadRefName(0)).toThrow(RangeError);
+		expect(() => pullHeadRefName(-1)).toThrow(RangeError);
+		expect(() => pullHeadRefName(1.5)).toThrow(RangeError);
 	});
 });

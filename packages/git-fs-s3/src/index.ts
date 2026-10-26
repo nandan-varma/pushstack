@@ -59,11 +59,13 @@ export {
 export { deletePrefix, movePrefix } from "./prefix.js";
 export {
 	isFullSha,
+	isPullHeadRef,
 	isSafeBranchName,
 	isSafeFullRefName,
 	isSafeRefName,
 	isSafeRepoPath,
 	isSafeTreePath,
+	pullHeadRefName,
 	qualifyBranchRef,
 } from "./refs.js";
 export {
