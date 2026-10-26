@@ -309,6 +309,10 @@
 			"query": [],
 			"body": ["description", "due_on", "state", "title"]
 		},
+		"meta/get": {
+			"query": [],
+			"body": []
+		},
 		"meta/root": {
 			"query": [],
 			"body": []
@@ -673,6 +677,22 @@
 		},
 		"repos/upload-release-asset": {
 			"query": ["label", "name"],
+			"body": []
+		},
+		"search/issues-and-pull-requests": {
+			"query": [
+				"advanced_search",
+				"order",
+				"page",
+				"per_page",
+				"q",
+				"search_type",
+				"sort"
+			],
+			"body": []
+		},
+		"search/repos": {
+			"query": ["order", "page", "per_page", "q", "sort"],
 			"body": []
 		},
 		"users/check-following-for-user": {

@@ -147,7 +147,12 @@ export async function searchIssuesHandler(ctx: ApiContext) {
 			shapes.set(shape.id, shape);
 		}
 	}
-	const items = found.threads.map((thread) => shapes.get(thread.id));
+	// A result whose repository did not load is a failure, not a null item.
+	const items = found.threads.map((thread) => {
+		const shape = shapes.get(thread.id);
+		if (!shape) throw new Error("Search result repository missing");
+		return shape;
+	});
 	return json(
 		{ total_count: found.total, incomplete_results: false, items },
 		200,

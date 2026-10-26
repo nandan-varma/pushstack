@@ -34,8 +34,6 @@ export const MAX_ASSIGNEES = 10;
 export const MAX_RELEASE_NAME_CHARS = 256;
 export const MAX_RELEASE_TAG_CHARS = 255;
 
-/** GitHub's search query cap (`q`); the same bound as the web app's. */
-export const MAX_SEARCH_QUERY_CHARS = 256;
 export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
 export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
 export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;

@@ -35,7 +35,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"search/repos":
 		"words match the name or description; `user:` (one), `is:public`/`is:private`, `topic:` (repeats AND); `org:` and other qualifiers are `422`; `sort` is only `updated` (no best-match ranking: newest first); only repositories the caller can read; the first 100 per page, pages past 10,000 items are empty",
 	"search/issues-and-pull-requests":
-		"GitHub's issue and pull request syntax over every repository the caller can read (or public ones, anonymously); `repo:` and `user:` (one each), `is:`, `type:`, `state:`, `author:`, `label:`, `assignee:`, `mentions:`, `review-requested:`, `reviewed-by:`, `milestone:`, `no:`, `draft:`; any other qualifier, a negated one or an unquoted `scheme:` is `422`; `sort` is `created`, `updated` or `comments`; pages past 10,000 items are empty",
+		"GitHub's issue and pull request syntax over every repository the caller can read (or public ones, anonymously); `repo:` and `user:` (one each), `is:`, `type:`, `state:`, `author:`, `label:`, `assignee:`, `mentions:`, `review-requested:`, `reviewed-by:`, `milestone:`, `no:`, `draft:`; any other qualifier, a negated one or an unquoted `scheme:` is `422`; `advanced_search` and `search_type` (GitHub's advanced and semantic search) are `422`; `sort` is `created`, `updated` or `comments`; pages past 10,000 items are empty",
 	"users/list-followers-for-user": "pagination",
 	"users/list-following-for-user": "pagination",
 	"users/check-following-for-user": "`204` or `404`",

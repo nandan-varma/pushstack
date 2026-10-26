@@ -51,6 +51,14 @@ beforeAll(async () => {
 		post(bob, { name: "bobs", description: "Another target" }),
 	);
 	expect(bobs.status).toBe(201);
+	for (const [name, description] of [
+		["literal", "50_off 100% sure"],
+		["lookalike", "50xoff 100 sure"],
+	] as const) {
+		expect(
+			(await call("/user/repos", post(bob, { name, description }))).status,
+		).toBe(201);
+	}
 
 	const first = await call(
 		"/repos/alice/proj/issues",
@@ -125,6 +133,30 @@ describe("GET /search/repositories", () => {
 		expect(other.body.total_count).toBe(0);
 	});
 
+	it("reads % and _ in q as literal characters, not wildcards", async () => {
+		expect(names((await call("/search/repositories?q=50_off")).body)).toEqual([
+			"bob/literal",
+		]);
+		expect(names((await call("/search/repositories?q=100%25")).body)).toEqual([
+			"bob/literal",
+		]);
+		expect((await call("/search/repositories?q=%25")).body.total_count).toBe(1);
+		// Only "50_off" holds an underscore; a wildcard would also match "50xoff".
+		expect((await call("/search/repositories?q=_")).body.total_count).toBe(1);
+	});
+
+	it("reports the real total_count past the skip bound, with an empty page", async () => {
+		const past = await call(
+			"/search/repositories?q=target&page=102&per_page=100",
+		);
+		expect(past.status).toBe(200);
+		expect(past.body).toEqual({
+			total_count: 2,
+			incomplete_results: false,
+			items: [],
+		});
+	});
+
 	it("narrows by user: and is:, and ANDs topics and words", async () => {
 		expect(
 			names((await call("/search/repositories?q=target+user:bob")).body),
@@ -187,6 +219,21 @@ describe("GET /search/issues", () => {
 		).toEqual(["Broken build", "Feature PR"]);
 	});
 
+	it("keeps a private repository's issues from a reader without access, and counts them as absent", async () => {
+		const reader = await call("/search/issues?q=secret", {
+			authorization: `token ${bob}`,
+		});
+		expect(reader.body).toEqual({
+			total_count: 0,
+			incomplete_results: false,
+			items: [],
+		});
+		const scoped = await call("/search/issues?q=repo:alice/secret", {
+			authorization: `token ${bob}`,
+		});
+		expect(scoped.body.total_count).toBe(0);
+	});
+
 	it("serves is:pr and type:pr, and a repo: scope", async () => {
 		const prs = await call("/search/issues?q=type:pr", {
 			authorization: `token ${alice}`,
@@ -241,6 +288,15 @@ describe("GET /search/issues", () => {
 				field: "q",
 				code: "invalid",
 			});
+		}
+	});
+
+	it("refuses GitHub's advanced and semantic search parameters, which are not served", async () => {
+		for (const param of ["advanced_search=true", "search_type=semantic"]) {
+			expect(
+				(await call(`/search/issues?q=state:open&${param}`)).status,
+				param,
+			).toBe(422);
 		}
 	});
 

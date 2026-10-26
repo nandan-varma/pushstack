@@ -154,7 +154,14 @@ export async function listRepositories(
 		eq(repositoryCollaborators.repoId, repositories.id),
 		eq(repositoryCollaborators.userId, callerId ?? ""),
 	);
-	if (!params.reachable) return { rows: [], params, total: 0 };
+	// Past the skip bound the page is empty, but the total is still the real one.
+	if (!params.reachable) {
+		const [totalRow] = await db
+			.select({ total: count() })
+			.from(repositories)
+			.where(where);
+		return { rows: [], params, total: totalRow?.total ?? 0 };
+	}
 	const [rows, [totalRow]] = await perfStep("db: list repositories", () =>
 		Promise.all([
 			db
