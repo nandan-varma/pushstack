@@ -44,6 +44,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh issue edit`, `gh label create/edit/delete` | Mutations served, not yet measured with real gh |
 | `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested; `gh pr view` checked by hand with gh 2.103.1 against `pnpm dev:local` (it reads `projectItems`, always empty) |
 | `gh pr status` | GraphQL `Query.search` (repository-scoped) and the PR status fields served; checked by hand with gh 2.103.1 against `pnpm dev:local`; fixture-tested |
+| `gh search repos`, `gh search issues`, `gh search prs` | REST `GET /search/repositories` and `GET /search/issues` (gh uses REST here, not GraphQL), plus `GET /meta`; checked by hand with gh 2.103.1 against `pnpm dev:local`; api-tested |
 
 ## Authentication and scopes
 
@@ -173,18 +174,25 @@ reactions are not stored. Mergeability reports `UNKNOWN` until a merge is
 attempted. Commit walks and page offsets are bounded; exceeding a bound returns
 `UNPROCESSABLE`, never a truncated connection presented as complete.
 
-`Query.search(query:, type: ISSUE, first:, after:)` serves GitHub's issue and
-pull request search for one repository, named by a `repo:owner/name` qualifier
-(`UNPROCESSABLE` without one, or with two, and for any other `type`). The
-qualifiers are the list syntax (`is:`, `state:`, `author:`, `label:`,
-`assignee:`, `mentions:`, `review-requested:`, `reviewed-by:`, `milestone:`,
-`no:`, `draft:`, `sort:`), and the query is at most 256 characters. Any other
-qualifier, a negated one (`-label:x`), an empty value, or a value not served
-(`is:locked`, `no:project`, `draft:maybe`, an unknown `sort:`) is `UNPROCESSABLE`,
-never read as text; put a phrase in quotes to search for it. Results are
-`Issue` or `PullRequest` nodes, and `issueCount` is the exact total with no
-1,000-result cap. A repository the caller cannot read, and a contradictory query,
-answer zero results, as on GitHub, rather than an error. A cursor past the
+`Query.search(query:, type:, first:, after:)` serves two types. `ISSUE` finds issues and
+pull requests (`Issue` and `PullRequest` nodes, `issueCount`) across every
+repository the caller can read (public ones anonymously); `repo:owner/name`
+and `user:login` narrow the scope, and two of either are `UNPROCESSABLE`.
+`REPOSITORY` finds repositories (`Repository` nodes, `repositoryCount`) by
+words in the name or description, `user:`, `is:public`/`is:private` and
+`topic:`. Asking the count of the other type is `UNPROCESSABLE`. `ISSUE_ADVANCED`
+and the other types are not served. The qualifiers are the list syntax (`is:`,
+`type:`, `state:`, `author:`, `label:`, `assignee:`, `mentions:`,
+`review-requested:`, `reviewed-by:`, `milestone:`, `no:`, `draft:`,
+`sort:`), and the query is at most 256 characters. Any other qualifier
+(`in:title`, `comments:>3`, `created:`), a negated one (`-label:x`), an empty
+value, or a value not served (`is:locked`, `no:project`, `draft:maybe`, an
+unknown `sort:`) is `UNPROCESSABLE`, never read as text. An unquoted `scheme:`
+word such as `http://…` is also `UNPROCESSABLE`, though GitHub would search for
+it as text; quote it (`"http://…"`) to search for it. Results are not ranked by
+relevance: they follow `sort:`, newest first by default. A repository the caller
+cannot read, and a contradictory query, answer zero results, as on GitHub, rather
+than an error. Counts are exact, with no 1,000-result cap. A cursor past the
 10,000-item skip bound is `UNPROCESSABLE` on every connection.
 
 `createPullRequest(input:)` accepts `draft`, repository node id, head/base

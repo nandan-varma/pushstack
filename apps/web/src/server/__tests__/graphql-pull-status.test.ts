@@ -10,7 +10,7 @@ vi.mock(
 	async () => (await import("../../test/app-harness")).sessionModule,
 );
 const { createUsers, signIn } = await import("../../test/app-harness");
-const { call, post, mintToken } = await import("../../test/api-client");
+const { call, patch, post, mintToken } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { db } = await import("#/db");
 const { pullRequestReviews } = await import("#/db/app-schema");
@@ -295,19 +295,43 @@ describe("Query.search over issues and pull requests", () => {
 	});
 
 	it("refuses what it does not serve, with errors rather than empty results", async () => {
-		const noRepo = await search(alice, "is:pr author:alice");
-		expect(noRepo.body.errors[0].type).toBe("UNPROCESSABLE");
+		// Without a repo: qualifier the search spans every readable repository.
+		const everywhere = await search(alice, "is:pr author:alice");
+		expect(everywhere.body.errors).toBeUndefined();
 		const twoRepos = await search(alice, "repo:alice/proj repo:alice/x");
 		expect(twoRepos.body.errors[0].type).toBe("UNPROCESSABLE");
 		const userSearch = await search(alice, "repo:alice/proj", "USER");
 		expect(userSearch.body.errors[0]).toMatchObject({
 			type: "UNPROCESSABLE",
-			message: "Only ISSUE search is served",
+			message: "USER search is not served (ISSUE and REPOSITORY are)",
 		});
 		const long = await search(
 			alice,
 			`repo:alice/proj ${"x".repeat(MAX_SEARCH_QUERY_CHARS)}`,
 		);
 		expect(long.body.errors[0].type).toBe("UNPROCESSABLE");
+	});
+});
+
+describe("merge state of a closed draft", () => {
+	it("is UNKNOWN once the draft is closed: DRAFT is for an open draft only", async () => {
+		expect(
+			(
+				await call(
+					"/repos/alice/proj/pulls/2",
+					patch(alice, { state: "closed" }),
+				)
+			).status,
+		).toBe(200);
+		const { body } = await graphql(
+			alice,
+			`query { repository(owner:"alice",name:"proj") { pullRequest(number:2) { state isDraft mergeStateStatus } } }`,
+		);
+		expect(body.errors).toBeUndefined();
+		expect(body.data.repository.pullRequest).toEqual({
+			state: "CLOSED",
+			isDraft: true,
+			mergeStateStatus: "UNKNOWN",
+		});
 	});
 });

@@ -3,7 +3,7 @@
  * and `issueOrPullRequest`, `Issue`, and `node(id:)`. Pull requests stay in
  * pulls.ts; an issue-or-pull lookup hands those to its node.
  */
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labels as labelsTable } from "#/db/app-schema";
 import {
@@ -16,8 +16,12 @@ import {
 } from "#/lib/limits";
 import { REACTION_CONTENTS, type ReactionContent } from "#/lib/reactions";
 import {
+	parseRepositorySearchQuery,
+	UnservedQuery,
+} from "#/lib/repository-search-query";
+import {
 	parseSearchQuery,
-	splitRepoQualifiers,
+	splitScopeQualifiers,
 	unservedQualifier,
 } from "#/lib/search-query";
 import { tokenAllows } from "#/lib/token-scopes";
@@ -32,6 +36,11 @@ import { createIssueForUser, updateIssueThreadFields } from "../../issue-store";
 import { setThreadLabels, UnknownLabelError } from "../../label-store";
 import { listThreadReactions } from "../../reaction-store";
 import { getAccessForRepository } from "../../repo-access";
+import {
+	findRepositorySearchPage,
+	repositorySearchWhere,
+} from "../../repository-search";
+import { repositoriesWithOwner, threadScope } from "../../search-scope";
 import { searchFilter, searchSort } from "../../thread-search";
 import {
 	findIssueById,
@@ -43,7 +52,7 @@ import {
 	type Thread,
 	type ThreadFilter,
 } from "../../thread-store";
-import { encodeCursor, offsetConnection } from "../connection";
+import { type Connection, encodeCursor, offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import {
 	forbidden,
@@ -273,58 +282,76 @@ async function commentNodes(
 }
 
 /**
- * `Query.search`: GitHub's issue and pull request search, scoped to one
- * repository by its `repo:owner/name` qualifier (search across repositories
- * is not served yet). A repository the caller cannot read, and a contradictory
- * query, both answer no results, as GitHub's do. A qualifier or value the
- * search does not serve is refused (`UNPROCESSABLE`), never read as text.
+ * A search's connection with its count: `issueCount` for an ISSUE search and
+ * `repositoryCount` for a REPOSITORY one. The other count is an error, not 0.
+ */
+function searchConnection<T>(
+	connection: Connection<T>,
+	searchType: "ISSUE" | "REPOSITORY",
+	total: number,
+) {
+	return {
+		...connection,
+		get issueCount() {
+			if (searchType !== "ISSUE")
+				throw unprocessable("issueCount is served for ISSUE searches only");
+			return total;
+		},
+		get repositoryCount() {
+			if (searchType !== "REPOSITORY")
+				throw unprocessable(
+					"repositoryCount is served for REPOSITORY searches only",
+				);
+			return total;
+		},
+	};
+}
+
+/**
+ * `Query.search`: GitHub's issue and pull request search (`ISSUE`) and its
+ * repository search (`REPOSITORY`) over the repositories the caller can read,
+ * or the public ones anonymously; `repo:` and `user:` narrow the scope. A
+ * qualifier or value the search does not serve is `UNPROCESSABLE`, never read as
+ * text or dropped; `ISSUE_ADVANCED` and the other types are not served.
  */
 async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
-	if (args.type !== "ISSUE") throw unprocessable("Only ISSUE search is served");
 	if (args.query.length > MAX_SEARCH_QUERY_CHARS)
 		throw unprocessable(
 			`The search query exceeds ${MAX_SEARCH_QUERY_CHARS} characters`,
 		);
-	const { repos, rest } = splitRepoQualifiers(args.query);
-	const coordinates =
-		repos.length === 1 ? /^([^/]+)\/([^/]+)$/.exec(repos[0] ?? "") : null;
-	if (!coordinates)
+	if (args.type === "REPOSITORY") return searchRepositories(args, ctx);
+	if (args.type !== "ISSUE")
 		throw unprocessable(
-			"A search must name one repository as repo:owner/name; searching across repositories is not served yet",
+			`${args.type} search is not served (ISSUE and REPOSITORY are)`,
 		);
-	const unserved = unservedQualifier(rest);
+	const scope = splitScopeQualifiers(args.query);
+	if (scope.repos.length > 1 || scope.owners.length > 1)
+		throw unprocessable("Only one repo: and one user: qualifier is served");
+	const unserved = unservedQualifier(scope.rest);
 	if (unserved)
 		throw unprocessable(`The search qualifier ${unserved} is not served`);
-	const query = parseSearchQuery(rest);
-	const repo = await readableRepositoryNode(
-		ctx,
-		coordinates[1] ?? "",
-		coordinates[2] ?? "",
-	);
-	if (!repo || query.matchesNothing)
-		return {
-			...(await offsetConnection(args, 0, async () => [])),
-			issueCount: 0,
-		};
+	const query = parseSearchQuery(scope.rest);
 	const viewer = await loadUser(ctx, ctx.caller.userId);
 	if (!viewer) throw new Error("Authenticated user missing");
-	const filter: ThreadFilter = {
-		repoId: repo.row.id,
-		kind:
-			query.type === "pr"
-				? "pull_request"
-				: query.type === "issue"
-					? "issue"
-					: undefined,
-		state:
-			query.status === "open"
-				? "open"
-				: query.status === "closed" || query.status === "merged"
-					? "closed"
-					: undefined,
-		merged: query.status === "merged" ? true : undefined,
-		...searchFilter(query, viewer.username),
-	};
+	const filter: ThreadFilter = query.matchesNothing
+		? { repoScope: sql`false` }
+		: {
+				repoScope: threadScope(ctx.caller.userId, scope),
+				kind:
+					query.type === "pr"
+						? "pull_request"
+						: query.type === "issue"
+							? "issue"
+							: undefined,
+				state:
+					query.status === "open"
+						? "open"
+						: query.status === "closed" || query.status === "merged"
+							? "closed"
+							: undefined,
+				merged: query.status === "merged" ? true : undefined,
+				...searchFilter(query, viewer.username),
+			};
 	const sort = searchSort(query.sort);
 	const total = (await listThreads(filter, { limit: 1, sort })).total;
 	const connection = await offsetConnection(
@@ -335,14 +362,62 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 				throw unprocessable("Pagination offset exceeds the maximum");
 			const { threads } = await listThreads(filter, { offset, limit, sort });
 			assertTextBytes(threads);
-			return threads.map((row) =>
-				row.kind === "pull_request"
-					? pullNode(repo, pullRequestView(row))
-					: issueNode(repo, row),
+			const repos = await repositoriesWithOwner([
+				...new Set(threads.map((thread) => thread.repoId)),
+			]);
+			return Promise.all(
+				threads.map(async (row) => {
+					const owned = repos.get(row.repoId);
+					if (!owned) throw new Error("Search result repository missing");
+					const repo = await readableRepositoryNode(
+						ctx,
+						owned.owner.username,
+						owned.name,
+					);
+					if (!repo) throw new Error("Search result repository unreadable");
+					return row.kind === "pull_request"
+						? pullNode(repo, pullRequestView(row))
+						: issueNode(repo, row);
+				}),
 			);
 		},
 	);
-	return { ...connection, issueCount: total };
+	return searchConnection(connection, "ISSUE", total);
+}
+
+/** `Query.search(type: REPOSITORY)`: the repositories a query names, newest first. */
+async function searchRepositories(args: QuerySearchArgs, ctx: GraphQLContext) {
+	let query: ReturnType<typeof parseRepositorySearchQuery>;
+	try {
+		query = parseRepositorySearchQuery(args.query);
+	} catch (error) {
+		if (error instanceof UnservedQuery) throw unprocessable(error.message);
+		throw error;
+	}
+	const where = repositorySearchWhere(query, ctx.caller.userId);
+	const total = (await findRepositorySearchPage(where, { limit: 1, offset: 0 }))
+		.total;
+	const connection = await offsetConnection(
+		args,
+		total,
+		async (offset, limit) => {
+			if (offset > MAX_LIST_SKIP)
+				throw unprocessable("Pagination offset exceeds the maximum");
+			const { rows } = await findRepositorySearchPage(where, { limit, offset });
+			return Promise.all(
+				rows.map(async (row) => {
+					const repo = await readableRepositoryNode(
+						ctx,
+						row.owner.username,
+						row.name,
+					);
+					if (!repo) throw new Error("Search result repository unreadable");
+					return repo;
+				}),
+			);
+		},
+	);
+	return searchConnection(connection, "REPOSITORY", total);
 }
 
 export const issuesResolvers: DomainResolvers = {

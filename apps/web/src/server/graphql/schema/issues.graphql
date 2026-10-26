@@ -992,7 +992,7 @@ enum SearchType {
 """
 The results of a search.
 """
-union SearchResultItem = Issue | PullRequest
+union SearchResultItem = Issue | PullRequest | Repository
 
 """
 A list of results that matched against a search query. Regardless of the number
@@ -1017,6 +1017,12 @@ type SearchResultItemConnection {
 	Information to aid in pagination.
 	"""
 	pageInfo: PageInfo!
+	"""
+	The total number of repositories that matched the search query. Regardless of
+	the total number of matches, a maximum of 1,000 results will be available
+	across all types.
+	"""
+	repositoryCount: Int!
 }
 
 """
