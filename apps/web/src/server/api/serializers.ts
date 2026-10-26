@@ -91,7 +91,7 @@ export function repository(
 		owner: simpleUser(repo.owner),
 		html_url: htmlUrl(`/${repo.owner.username}/${repo.name}`),
 		description: repo.description,
-		fork: false,
+		fork: repo.isFork,
 		homepage: repo.homepage,
 		topics: repo.topics,
 		is_template: repo.isTemplate,

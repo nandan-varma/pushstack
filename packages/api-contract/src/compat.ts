@@ -61,6 +61,8 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`new_owner` must be a user; the transfer is immediate (no pending invitation) and answers `202`; `new_name` renames; `team_ids` is `422` (there are no teams); the old URL does not redirect",
 	"repos/create-using-template":
 		"the template must be readable and `is_template`; copies the template's default branch as one `Initial commit` (files only: no history, symlinks, submodules or file modes); `owner` must be the caller (no organizations); `include_all_branches` must be `false` (`true` is `422`); issues, labels, topics and settings are not copied",
+	"repos/create-fork":
+		"`202` with the fork (`fork`, `parent` and `source`); the fork is a copy of the parent's git data, so it carries every branch and tag (`default_branch_only` is ignored) and the parent's visibility, description and default branch, but not its issues, labels, topics, settings, releases or stars; `organization` must be the caller (no organizations); forking a repository you already forked under that name answers that fork; another repository of that name is `422`; a parent over 1 GiB of git data is `422`; forks per user per hour are limited (`RATE_LIMIT_FORKS_USER`, `403` when exceeded); an archived parent can be forked",
 	"activity/list-watchers-for-repo":
 		"people watching (not ignoring) who can still read the repository; pagination",
 	"activity/get-repo-subscription":

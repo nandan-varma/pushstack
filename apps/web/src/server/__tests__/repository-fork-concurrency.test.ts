@@ -1,0 +1,296 @@
+/**
+ * @vitest-environment node
+ *
+ * Duplicate and interrupted fork requests must never answer an empty fork.
+ * A row exists only once its copy has committed, so these tests pin: a
+ * duplicate that arrives mid-copy waits and then answers the complete fork; a
+ * copy that failed under a waiting duplicate does not leak into its answer;
+ * and storage a killed copy left behind (no row) is cleared by the next attempt.
+ */
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
+const gate = vi.hoisted(() => ({
+	/** While set, a copy waits on this before it starts. */
+	hold: null as Promise<void> | null,
+	/** Called when a held copy has started waiting. */
+	entered: null as (() => void) | null,
+	/** The next copy throws instead of copying. */
+	failNext: false,
+}));
+
+vi.mock("git-fs-s3", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("git-fs-s3")>();
+	return {
+		...actual,
+		copyPrefix: async (
+			...args: Parameters<typeof actual.copyPrefix>
+		): Promise<number> => {
+			if (gate.hold) {
+				gate.entered?.();
+				await gate.hold;
+			}
+			if (gate.failNext) {
+				gate.failNext = false;
+				throw new Error("injected copy failure");
+			}
+			return actual.copyPrefix(...args);
+		},
+	};
+});
+
+vi.mock("#/db", async () => ({
+	db: await (await import("../../test/pglite-db")).createTestDb(),
+}));
+vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
+vi.mock(
+	"#/server/session",
+	async () => (await import("../../test/app-harness")).sessionModule,
+);
+
+const { createUsers } = await import("../../test/app-harness");
+const users = await createUsers("forker", "parentowner");
+const { db } = await import("#/db");
+const { createCommit } = await import("../git-write");
+const { listRepoStorage, putStorageObject } = await import("../git-fs");
+const { createRepositoryForUser } = await import("../repository-create");
+const { ForkParentChangedError, forkRepositoryForUser } = await import(
+	"../repository-fork"
+);
+const { RepositoryExistsError } = await import("../repository-create");
+const { RepositoryNameTakenError, transferRepository } = await import(
+	"../repository-settings"
+);
+
+const parentOwner = { id: "parentowner-id", username: "parentowner" };
+
+async function parentNamed(name: string) {
+	const row = await createRepositoryForUser(users.parentowner, {
+		name,
+		visibility: "public",
+		autoInit: false,
+	});
+	await createCommit("parentowner", name, {
+		branch: "main",
+		message: "root",
+		files: [
+			{ path: "README.md", content: "hello\n" },
+			{ path: "src/a.txt", content: "a\n" },
+		],
+		author: { name: "Parent", email: "parentowner@example.com" },
+	});
+	return { ...row, owner: parentOwner };
+}
+
+function forkRow(name: string) {
+	return db.query.repositories.findFirst({
+		where: { ownerId: users.forker.id, name },
+	});
+}
+
+/** Holds the next copy until `release()`; resolves `entered` once it is waiting. */
+function holdNextCopy() {
+	let release!: () => void;
+	gate.hold = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const entered = new Promise<void>((resolve) => {
+		gate.entered = resolve;
+	});
+	return {
+		entered,
+		release: () => {
+			gate.hold = null;
+			gate.entered = null;
+			release();
+		},
+	};
+}
+
+const settled = (promise: Promise<unknown>) => {
+	const state = { done: false };
+	promise.then(
+		() => {
+			state.done = true;
+		},
+		() => {
+			state.done = true;
+		},
+	);
+	return state;
+};
+
+const pause = () => new Promise((resolve) => setTimeout(resolve, 50));
+
+beforeAll(async () => {
+	await parentNamed("shared");
+});
+
+describe("duplicate and interrupted forks", () => {
+	it("a duplicate that arrives mid-copy waits, then answers the complete fork", async () => {
+		const parent = await db.query.repositories.findFirst({
+			where: { name: "shared" },
+			with: { owner: { columns: { id: true, username: true } } },
+		});
+		if (!parent) throw new Error("no parent");
+		const parentKeys = (await listRepoStorage("parentowner", "shared")).length;
+
+		const hold = holdNextCopy();
+		const first = forkRepositoryForUser(parent, users.forker, "dup");
+		await hold.entered;
+
+		const second = forkRepositoryForUser(parent, users.forker, "dup");
+		const secondState = settled(second);
+		await pause();
+		expect(secondState.done).toBe(false);
+		expect(await forkRow("dup")).toBeUndefined();
+
+		hold.release();
+		const [a, b] = await Promise.all([first, second]);
+		expect(b.id).toBe(a.id);
+		expect(a).toMatchObject({ isFork: true, forkOfId: parent.id });
+		expect((await listRepoStorage("forker", "dup")).length).toBe(parentKeys);
+	});
+
+	it("a duplicate after a copy that failed under it makes its own complete fork", async () => {
+		const parent = await db.query.repositories.findFirst({
+			where: { name: "shared" },
+			with: { owner: { columns: { id: true, username: true } } },
+		});
+		if (!parent) throw new Error("no parent");
+		const parentKeys = (await listRepoStorage("parentowner", "shared")).length;
+
+		const hold = holdNextCopy();
+		gate.failNext = true;
+		const first = forkRepositoryForUser(parent, users.forker, "flaky-dup");
+		await hold.entered;
+		const second = forkRepositoryForUser(parent, users.forker, "flaky-dup");
+		hold.release();
+
+		await expect(first).rejects.toThrow("injected copy failure");
+		const retried = await second;
+		expect(retried).toMatchObject({ isFork: true, forkOfId: parent.id });
+		expect((await listRepoStorage("forker", "flaky-dup")).length).toBe(
+			parentKeys,
+		);
+	});
+
+	it("a repeat after a killed copy (storage, no row) clears it and copies in full", async () => {
+		const parent = await db.query.repositories.findFirst({
+			where: { name: "shared" },
+			with: { owner: { columns: { id: true, username: true } } },
+		});
+		if (!parent) throw new Error("no parent");
+		const parentKeys = (await listRepoStorage("parentowner", "shared")).length;
+
+		// What a copy killed by a timeout leaves: part of the prefix, no row.
+		await putStorageObject(
+			"repos/forker/killed/git/objects/pack/partial.pack",
+			new Uint8Array([1, 2, 3]),
+		);
+		await putStorageObject(
+			"repos/forker/killed/git/HEAD",
+			new TextEncoder().encode("ref: refs/heads/stale\n"),
+		);
+		expect(await forkRow("killed")).toBeUndefined();
+
+		const fork = await forkRepositoryForUser(parent, users.forker, "killed");
+		expect(fork).toMatchObject({ isFork: true, forkOfId: parent.id });
+		const keys = (await listRepoStorage("forker", "killed")).map((o) => o.key);
+		expect(keys).toHaveLength(parentKeys);
+		expect(keys).not.toContain(
+			"repos/forker/killed/git/objects/pack/partial.pack",
+		);
+	});
+
+	it("two reversed forks settle at once, without waiting out the lock timeout", async () => {
+		await createRepositoryForUser(users.forker, {
+			name: "rev-a",
+			visibility: "public",
+			autoInit: false,
+		});
+		await createRepositoryForUser(users.parentowner, {
+			name: "rev-b",
+			visibility: "public",
+			autoInit: false,
+		});
+		const underParentOwner = await rowWithOwner("parentowner", "rev-b");
+		const underForker = await rowWithOwner("forker", "rev-a");
+		// Each request's parent is the other's fork name: the same two lock keys,
+		// taken in opposite roles. Both names are taken, so both are refused,
+		// but only after both locks were taken and released in one order.
+		const started = Date.now();
+		const results = await Promise.allSettled([
+			forkRepositoryForUser(underParentOwner, users.forker, "rev-a"),
+			forkRepositoryForUser(underForker, users.parentowner, "rev-b"),
+		]);
+		expect(Date.now() - started).toBeLessThan(10_000);
+		for (const result of results) {
+			expect(result.status).toBe("rejected");
+			if (result.status === "rejected") {
+				expect(result.reason).toBeInstanceOf(RepositoryExistsError);
+			}
+		}
+	}, 20_000);
+
+	it("forking a repository into its own name is refused without locking it twice", async () => {
+		const own = await rowWithOwner("forker", "rev-a");
+		const started = Date.now();
+		await expect(
+			forkRepositoryForUser(own, users.forker, "rev-a"),
+		).rejects.toBeInstanceOf(RepositoryExistsError);
+		expect(Date.now() - started).toBeLessThan(10_000);
+	}, 20_000);
+});
+
+describe("a move and a fork of the same pair, in mixed case", () => {
+	// `forker/alpha` and `forker/Zed` sort differently by code unit (`Z` before
+	// `a`) and by localeCompare (`alpha` before `Zed`). A move and a fork of
+	// this pair must agree on one order, or each holds one lock and waits on
+	// the other.
+	for (let round = 0; round < 3; round++) {
+		it(`settles at once, round ${round}`, async () => {
+			const source = `alpha${round}`;
+			const target = `Zed${round}`;
+			await createRepositoryForUser(users.forker, {
+				name: source,
+				visibility: "public",
+				autoInit: false,
+			});
+			const repo = await rowWithOwner("forker", source);
+			const newOwner = { id: users.forker.id, username: "forker" };
+
+			const started = Date.now();
+			const results = await Promise.allSettled([
+				transferRepository(repo, newOwner, target),
+				forkRepositoryForUser(repo, users.forker, target),
+			]);
+			expect(Date.now() - started).toBeLessThan(10_000);
+
+			const [moved, forked] = results;
+			if (moved.status === "rejected") {
+				expect(moved.reason).toBeInstanceOf(RepositoryNameTakenError);
+			}
+			// Whichever ran second sees the other's result: a fork whose parent
+			// was renamed away is refused, not copied.
+			if (forked.status === "rejected") {
+				expect([RepositoryExistsError, ForkParentChangedError]).toContainEqual(
+					forked.reason.constructor,
+				);
+			}
+			// Exactly one of the two takes the target name.
+			expect(
+				results.filter((result) => result.status === "fulfilled"),
+			).toHaveLength(1);
+		}, 20_000);
+	}
+});
+
+async function rowWithOwner(ownerName: string, name: string) {
+	const row = await db.query.repositories.findFirst({
+		where: { name },
+		with: { owner: { columns: { id: true, username: true } } },
+	});
+	if (!row || row.owner.username !== ownerName)
+		throw new Error(`no ${ownerName}/${name}`);
+	return row;
+}

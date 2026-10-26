@@ -475,6 +475,15 @@ export const endpoints = defineEndpoints({
 		}),
 		response: repository,
 	},
+	"repos/create-fork": {
+		params: repoParams,
+		body: z.object({
+			organization: z.string().optional(),
+			name: repoName.optional(),
+			default_branch_only: z.boolean().default(false),
+		}),
+		response: repository,
+	},
 	"activity/list-watchers-for-repo": {
 		params: repoParams,
 		query: pagination,

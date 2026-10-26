@@ -75,3 +75,5 @@ export const RATE_LIMIT_DEVICE_USER_CODE_IP = positiveInt(
 	"RATE_LIMIT_DEVICE_USER_CODE_IP",
 	60,
 );
+/** Forks created per signed-in user (`POST /repos/{owner}/{repo}/forks`). Each one copies storage. */
+export const RATE_LIMIT_FORKS_USER = positiveInt("RATE_LIMIT_FORKS_USER", 30);

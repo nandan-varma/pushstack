@@ -1,4 +1,4 @@
-import type { ObjectStore } from "./types.js";
+import type { ListResult, ObjectStore } from "./types.js";
 
 const BATCH = 20;
 
@@ -34,6 +34,81 @@ export interface MovePrefixOptions {
 	copy?: (fromKey: string, toKey: string) => Promise<void>;
 }
 
+export interface CopyPrefixOptions extends MovePrefixOptions {
+	/**
+	 * Refuse before copying anything when the objects under `from` add up to
+	 * more than this many bytes. Throws {@link PrefixTooLargeError}.
+	 */
+	maxBytes?: number;
+}
+
+/** A {@link copyPrefix} whose source holds more bytes than the caller allowed. */
+export class PrefixTooLargeError extends Error {
+	constructor(
+		readonly bytes: number,
+		readonly maxBytes: number,
+	) {
+		super(`Prefix holds ${bytes} bytes, more than the ${maxBytes} byte limit`);
+		this.name = "PrefixTooLargeError";
+	}
+}
+
+/**
+ * List the objects `from` to `to` will carry: rejects overlapping prefixes and
+ * a source over `maxBytes`, before any object is copied.
+ */
+async function listForCopy(
+	store: ObjectStore,
+	from: string,
+	to: string,
+	maxBytes: number | undefined,
+): Promise<ListResult["objects"]> {
+	if (from.startsWith(to) || to.startsWith(from)) {
+		throw new Error(`Prefixes overlap (${from} -> ${to})`);
+	}
+	const { objects } = await store.list(from);
+	if (maxBytes !== undefined) {
+		const bytes = objects.reduce((sum, object) => sum + object.size, 0);
+		if (bytes > maxBytes) throw new PrefixTooLargeError(bytes, maxBytes);
+	}
+	return objects;
+}
+
+async function copyObjects(
+	store: ObjectStore,
+	objects: ListResult["objects"],
+	from: string,
+	to: string,
+	options: MovePrefixOptions,
+): Promise<void> {
+	const copy =
+		options.copy ??
+		(async (fromKey: string, toKey: string) => {
+			const data = await store.get(fromKey);
+			if (data) await store.put(toKey, data);
+		});
+	await inBatches(objects, (object) =>
+		copy(object.key, to + object.key.slice(from.length)),
+	);
+}
+
+/**
+ * Copy every object under `from` to the same relative key under `to`, leaving
+ * the source in place. Returns the number of objects copied. A failed copy
+ * leaves a partial destination; call {@link deletePrefix} on it to clean up.
+ * `from` and `to` must not overlap.
+ */
+export async function copyPrefix(
+	store: ObjectStore,
+	from: string,
+	to: string,
+	options: CopyPrefixOptions = {},
+): Promise<number> {
+	const objects = await listForCopy(store, from, to, options.maxBytes);
+	await copyObjects(store, objects, from, to, options);
+	return objects.length;
+}
+
 /**
  * Move every object under `from` to the same relative key under `to`: copy
  * everything first, then delete the old keys only once every copy succeeded,
@@ -47,19 +122,8 @@ export async function movePrefix(
 	to: string,
 	options: MovePrefixOptions = {},
 ): Promise<number> {
-	if (from.startsWith(to) || to.startsWith(from)) {
-		throw new Error(`movePrefix: prefixes overlap (${from} -> ${to})`);
-	}
-	const copy =
-		options.copy ??
-		(async (fromKey: string, toKey: string) => {
-			const data = await store.get(fromKey);
-			if (data) await store.put(toKey, data);
-		});
-	const { objects } = await store.list(from);
-	await inBatches(objects, (object) =>
-		copy(object.key, to + object.key.slice(from.length)),
-	);
+	const objects = await listForCopy(store, from, to, undefined);
+	await copyObjects(store, objects, from, to, options);
 	await inBatches(objects, (object) => store.delete(object.key));
 	return objects.length;
 }

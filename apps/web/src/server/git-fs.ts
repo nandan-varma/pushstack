@@ -10,6 +10,7 @@
 import path from "node:path";
 import {
 	classifyGitdirPath,
+	copyPrefix,
 	createCachedStore,
 	createGitFs,
 	createRetryStore,
@@ -237,6 +238,43 @@ export async function deleteRepoStorage(
 }
 
 /**
+ * Server-side copy (R2 `CopyObject`) for storage that moves between keys, or
+ * undefined where there is no R2 and the library's read-and-write copy applies.
+ */
+function serverSideCopy():
+	| ((from: string, to: string) => Promise<void>)
+	| undefined {
+	const { r2 } = getBackend();
+	return r2
+		? (from: string, to: string) =>
+				perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
+		: undefined;
+}
+
+/**
+ * Copy a repository's git data (not its release assets) to a fork's storage.
+ * The parent is left in place. Refuses before any object is copied when the
+ * parent holds more than `maxBytes`; returns how many objects were copied.
+ * Callers hold both repositories' locks.
+ */
+export async function forkRepoGitStorage(
+	parentOwnerKey: string,
+	parentRepoName: string,
+	forkOwnerKey: string,
+	forkRepoName: string,
+	maxBytes: number,
+): Promise<number> {
+	const copied = await copyPrefix(
+		networkStore,
+		getRepoGitStoragePrefix(parentOwnerKey, parentRepoName),
+		getRepoGitStoragePrefix(forkOwnerKey, forkRepoName),
+		{ copy: serverSideCopy(), maxBytes },
+	);
+	invalidateRepoGitStorage(forkOwnerKey, forkRepoName);
+	return copied;
+}
+
+/**
  * Move a repo's storage to a new name: copy everything (server-side on R2),
  * then delete the old keys only once every copy succeeded — a failed copy
  * leaves the old storage untouched. Callers hold the repo lock.
@@ -260,11 +298,7 @@ export async function transferRepoStorage(
 	newOwnerKey: string,
 	newRepoName: string,
 ): Promise<void> {
-	const { r2 } = getBackend();
-	const copy = r2
-		? (from: string, to: string) =>
-				perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
-		: undefined;
+	const copy = serverSideCopy();
 	const gitFrom = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
 	const gitTo = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
 	await movePrefix(networkStore, gitFrom, gitTo, { copy });

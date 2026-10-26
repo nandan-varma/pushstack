@@ -68,6 +68,29 @@ functions:
   opportunistically when a release's assets are listed or added (there are no background workers). A single presigned `PUT` (R2 allows 5 GiB)
   is used rather than multipart: the 2 GiB cap fits, and there is no part bookkeeping to expire.
 
+### Forks copy the git prefix
+
+A fork (`POST /repos/{owner}/{repo}/forks`) is a separate repository whose git
+data is a server-side copy of its parent's `repos/{ownerKey}/{repoName}/git/`
+prefix, made with R2's `CopyObject` (the library's `copyPrefix`, with a byte
+cap checked from the listing before any object moves). Nothing is shared
+between the two afterwards, so a parent's repack, force-push or delete cannot
+touch a fork, and a fork has its own lock, repacks and deletion. Release assets
+are not copied. The copy holds the parent's lock for its whole duration, so a
+repack cannot delete a pack between the listing and its copy, and a ref cannot
+move under a copy that already took the object list; the fork's lock is held
+too. The cap is `MAX_FORK_COPY_BYTES` (1 GiB): a larger parent is refused with
+`422` rather than copied in a request that might not finish.
+
+The fork's row is inserted only after its copy and HEAD are written, so a row
+always names complete storage. A copy that throws removes its partial prefix
+(a removal that fails is logged and leaves an orphan prefix, cleared by the
+next fork or create under that name). A copy killed mid-way (a timeout) leaves
+the partial prefix and no row; the next attempt under that name clears the
+prefix before copying. Concurrent duplicates wait on the fork name's lock and
+then answer the row that the first attempt committed. Records of which
+repository a fork came from are in [database.md](/docs/internals/database).
+
 ## The storage stack: `git-fs.ts`
 
 `git-fs.ts` composes pushstack's R2-backed isomorphic-git `fs` from decorators

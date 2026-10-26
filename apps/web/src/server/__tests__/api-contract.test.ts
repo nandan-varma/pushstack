@@ -94,6 +94,10 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/topics");
 	await check("/repos/alice/proj/generate", post(alice, { name: "generated" }));
 	await check(
+		"/repos/alice/proj/forks",
+		post(await mintToken(users.bob, ["repo:write"]), { name: "proj-fork" }),
+	);
+	await check(
 		"/repos/alice/generated/transfer",
 		post(alice, { new_owner: "bob" }),
 	);

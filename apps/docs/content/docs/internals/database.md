@@ -49,7 +49,7 @@ schema before deploying code that selects it.
 | Table | Purpose |
 |---|---|
 | `user`, `session`, `account`, `verification` | Better Auth. Sessions cascade on user delete. |
-| `repositories` | Name, owner, visibility, default branch, `nextIssueNumber` |
+| `repositories` | Name, owner, visibility, default branch, `nextIssueNumber`. A fork has `is_fork` and `fork_of_id` (its parent, `on delete set null`, so `is_fork` outlives the parent) |
 | `issues` | **Every issue and pull request**: title, body, status (`open`/`closed`), `state_reason`, `closed_at`, `closed_by_id`, repository-scoped `number`, `is_pull_request` |
 | `pullRequests` | Only what a pull request adds, 1:1 by `issue_id`: source/target branch **names** (branches are git refs, not rows) and merge metadata (`merged_at`, `merged_by`, merge commit, merged range) |
 | `labels`, `threadLabels` | Repository labels and their application to an issue (`issue_id`) |
@@ -135,6 +135,7 @@ shapes:
 - `activity_user_created_idx`, `activity_repo_created_idx` — feeds by user
   or repo, newest first.
 - `repo_visibility_idx`, `repo_name_idx` — search and public listings.
+- `repo_fork_of_idx` — a repository's forks (`forks_count`, the fork list).
 - `session_user_idx`, `account_user_idx` — Better Auth doesn't index these.
 
 ## Migrations

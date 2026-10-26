@@ -442,6 +442,10 @@
 				"team_id"
 			]
 		},
+		"repos/create-fork": {
+			"query": [],
+			"body": ["default_branch_only", "name", "organization"]
+		},
 		"repos/create-or-update-file-contents": {
 			"query": [],
 			"body": ["author", "branch", "committer", "content", "message", "sha"]

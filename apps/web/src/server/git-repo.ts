@@ -14,6 +14,7 @@ import git from "isomorphic-git";
 import { invalidateResultCache } from "./git-cache";
 import {
 	deleteRepoStorage,
+	forkRepoGitStorage,
 	gitFs,
 	moveRepoStorage,
 	registerRepoGitdir,
@@ -76,6 +77,43 @@ export async function deleteRepositoryStorage(
 ): Promise<void> {
 	await deleteRepoStorage(ownerKey, repoName);
 	invalidateRepoCache(ownerKey, repoName);
+}
+
+/**
+ * Create a fork's git storage as a copy of its parent's, with HEAD on the
+ * fork's default branch. Any leftover under the fork's prefix is cleared
+ * first. Callers hold both repositories' locks; a failure is left for the
+ * caller to clean up with {@link deleteRepositoryStorage}.
+ */
+export async function forkRepositoryStorage(
+	parent: { ownerKey: string; repoName: string },
+	fork: { ownerKey: string; repoName: string },
+	defaultBranch: string,
+	maxBytes: number,
+): Promise<void> {
+	await deleteRepositoryStorage(fork.ownerKey, fork.repoName);
+	const copied = await forkRepoGitStorage(
+		parent.ownerKey,
+		parent.repoName,
+		fork.ownerKey,
+		fork.repoName,
+		maxBytes,
+	);
+	// A parent always holds at least its HEAD; an empty copy means the source
+	// was not there, and a "fork" of nothing must not be served.
+	if (copied === 0) {
+		throw new Error(
+			`Cannot fork ${parent.ownerKey}/${parent.repoName}: its storage is empty`,
+		);
+	}
+	await git.writeRef({
+		...repoFor(fork.ownerKey, fork.repoName),
+		ref: "HEAD",
+		value: `refs/heads/${defaultBranch}`,
+		symbolic: true,
+		force: true,
+	});
+	invalidateRepoCache(fork.ownerKey, fork.repoName);
 }
 
 /**
