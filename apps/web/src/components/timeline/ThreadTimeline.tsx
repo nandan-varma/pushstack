@@ -223,7 +223,7 @@ function CommitLink({
 	);
 }
 
-function describe(
+function describeEvent(
 	event: TimelineEntry,
 	owner: string,
 	name: string,
@@ -394,7 +394,7 @@ function TimelineEventRow({
 	owner: string;
 	name: string;
 }) {
-	const { icon: Icon, text } = describe(event, owner, name);
+	const { icon: Icon, text } = describeEvent(event, owner, name);
 	return (
 		<div className="relative flex min-h-9 items-center gap-3 px-5 text-[13px] text-bjork-text-muted">
 			<span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-bjork-border bg-bjork-surface-active text-bjork-text-soft">

@@ -27,6 +27,7 @@ export const searchRepositories = createServerFn({ method: "GET" })
 			where: {
 				...(text && { name: { ilike: containing(text) } }),
 				...(topics.length > 0 && {
+					// biome-ignore lint/correctness/noComponentHookFactories: RAW is Drizzle's relational-query filter key, not a React component
 					RAW: (table) =>
 						and(
 							...topics.map(

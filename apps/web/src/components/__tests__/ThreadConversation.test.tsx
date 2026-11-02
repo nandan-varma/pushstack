@@ -27,6 +27,40 @@ vi.mock("@/components/timeline/ThreadTimeline", () => ({
 	),
 }));
 
+function Page({
+	thread,
+	canParticipate,
+}: {
+	thread: { issueId: number } | { pullRequestId: number };
+	canParticipate: boolean;
+}) {
+	const options = issueCommentsQueryOptions(7);
+	const comments = useThreadComments({
+		thread,
+		commentsQueryKey: options.queryKey,
+	});
+	const [visible, setVisible] = useState(true);
+	return (
+		<>
+			<button type="button" onClick={() => setVisible(!visible)}>
+				Toggle tab
+			</button>
+			{visible && (
+				<ThreadConversation
+					owner="alice"
+					name="repo"
+					repoId={1}
+					number={7}
+					commentsOptions={options}
+					canParticipate={canParticipate}
+					canModerate={false}
+					comments={comments}
+				/>
+			)}
+		</>
+	);
+}
+
 function setup(
 	thread: { issueId: number } | { pullRequestId: number },
 	signedIn = true,
@@ -44,37 +78,10 @@ function setup(
 			? { user: { id: "user1", name: "Alice", username: "alice" } }
 			: null,
 	);
-	const options = issueCommentsQueryOptions(7);
-	function Page() {
-		const comments = useThreadComments({
-			thread,
-			commentsQueryKey: options.queryKey,
-		});
-		const [visible, setVisible] = useState(true);
-		return (
-			<>
-				<button type="button" onClick={() => setVisible(!visible)}>
-					Toggle tab
-				</button>
-				{visible && (
-					<ThreadConversation
-						owner="alice"
-						name="repo"
-						repoId={1}
-						number={7}
-						commentsOptions={options}
-						canParticipate={canParticipate}
-						canModerate={false}
-						comments={comments}
-					/>
-				)}
-			</>
-		);
-	}
 	render(
 		<QueryClientProvider client={client}>
 			<ToastProvider>
-				<Page />
+				<Page thread={thread} canParticipate={canParticipate} />
 			</ToastProvider>
 		</QueryClientProvider>,
 	);

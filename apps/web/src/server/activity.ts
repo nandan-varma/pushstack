@@ -39,7 +39,8 @@ export function listUserActivity(
 			userId,
 			...(options.includePrivate
 				? {}
-				: { RAW: (table) => inArray(table.repoId, publicRepoIds) }),
+				: // biome-ignore lint/correctness/noComponentHookFactories: RAW is Drizzle's relational-query filter key, not a React component
+					{ RAW: (table) => inArray(table.repoId, publicRepoIds) }),
 		},
 		columns: { id: true, type: true, metadata: true, createdAt: true },
 		with: {
