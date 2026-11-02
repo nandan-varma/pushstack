@@ -118,3 +118,8 @@ interface D1Database {
 	batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
 	exec(query: string): Promise<{ count: number; duration: number }>;
 }
+
+/** Cloudflare's Rate Limiting binding: allow or deny one request for a key. */
+interface RateLimit {
+	limit(options: { key: string }): Promise<{ success: boolean }>;
+}

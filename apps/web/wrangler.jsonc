@@ -28,6 +28,14 @@
 		"bindings": [{ "name": "REPO_LOCK", "class_name": "RepositoryLock" }]
 	},
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["RepositoryLock"] }],
+	// Caps one client's repo-view browsing (src/server/abuse-guard.ts).
+	"ratelimits": [
+		{
+			"name": "REPO_VIEW_LIMIT",
+			"namespace_id": "1001",
+			"simple": { "limit": 120, "period": 60 }
+		}
+	],
 	// Public configuration. Secrets are set with `wrangler secret put` and
 	// declared below so they are typed and checked.
 	"vars": {

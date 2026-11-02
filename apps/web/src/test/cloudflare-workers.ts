@@ -44,7 +44,11 @@ const lockNamespace: DurableObjectNamespace = {
 	},
 };
 
+/** Tests never trip the limiter; its own behavior is Cloudflare's. */
+const unlimited: RateLimit = { limit: async () => ({ success: true }) };
+
 const defaults: Cloudflare.Env = {
+	REPO_VIEW_LIMIT: unlimited,
 	REPO_LOCK: lockNamespace,
 	GIT_BUCKET: gitBucket,
 	DB: unavailableDatabase,

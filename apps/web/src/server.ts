@@ -1,5 +1,6 @@
 import { withSentry } from "@sentry/cloudflare";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
+import { rejectAbusiveRequest } from "./server/abuse-guard";
 
 /**
  * What `withSentry` wraps. Its types come from @cloudflare/workers-types, whose
@@ -9,7 +10,8 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 type WorkerHandler = Parameters<typeof withSentry<Cloudflare.Env>>[1];
 
 const serverEntry = createServerEntry({
-	fetch: (request, opts) => handler.fetch(request, opts),
+	fetch: async (request, opts) =>
+		(await rejectAbusiveRequest(request)) ?? handler.fetch(request, opts),
 });
 
 // The Worker boundary, wrapped so uncaught errors and the `captureException`
