@@ -160,8 +160,10 @@ describe("commit statuses", () => {
 	it("caps statuses per commit and context", async () => {
 		const { db } = await import("#/db");
 		const { commitStatuses } = await import("#/db/app-schema");
+		const { insertMany } = await import("#/db/insert-many");
 		const repo = (await call("/repos/alice/proj")).body;
-		await db.insert(commitStatuses).values(
+		await insertMany(
+			commitStatuses,
 			Array.from({ length: 1000 }, () => ({
 				repoId: repo.id,
 				sha: head,

@@ -183,7 +183,9 @@ describe("comment deletion", () => {
 		queries.log.length = 0;
 		await comments.deleteComment({ data: { commentId: gone.id } });
 		expect(
-			queries.log.some((sql) => /from "comments"/.test(sql) && / ~ /.test(sql)),
+			queries.log.some(
+				(sql) => /from "comments"/.test(sql) && /like '%#%'/.test(sql),
+			),
 		).toBe(true);
 		expect(await events()).toEqual(["cross-referenced"]);
 		await comments.deleteComment({ data: { commentId: kept.id } });

@@ -1,9 +1,10 @@
 /**
  * @vitest-environment node
  *
- * The Neon HTTP driver has no transactions, so multi-step writes undo
- * themselves on failure. Failures are injected by SQL text in the query
- * logger (it runs before the statement, so a throw fails that statement).
+ * D1 has no interactive transactions, so multi-step writes undo themselves on
+ * failure. Failures are injected by SQL text where each statement is prepared
+ * (src/test/test-db.ts), so a throw fails that statement; drizzle wraps it and
+ * the original is the `cause`.
  * Covers: a comment, a pull request and a merge record that die midway leave
  * nothing half-made, and a retry works; a pull request holds a bounded number
  * of review comments.
@@ -116,11 +117,13 @@ describe("multi-step writes undo themselves", () => {
 					sourceBranch: "main",
 					targetBranch: "main",
 				}),
-			).rejects.toThrow("injected failure");
+			).rejects.toMatchObject({ cause: { message: "injected failure" } });
 			expect(logged).toHaveBeenCalledWith(
 				"pull-request-store",
 				expect.stringMatching(/Issue row \d+ was left behind/),
-				expect.objectContaining({ message: "cleanup failure" }),
+				expect.objectContaining({
+					cause: expect.objectContaining({ message: "cleanup failure" }),
+				}),
 			);
 		},
 	);
@@ -131,11 +134,13 @@ describe("multi-step writes undo themselves", () => {
 		failCleanup = /delete from "issues"/i;
 		await expect(
 			issues.createIssue({ data: { repoId, title: "Cleanup fails" } }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		expect(logged).toHaveBeenCalledWith(
 			"issue-store",
 			expect.stringMatching(/Issue \d+ was not removed/),
-			expect.objectContaining({ message: "cleanup failure" }),
+			expect.objectContaining({
+				cause: expect.objectContaining({ message: "cleanup failure" }),
+			}),
 		);
 	});
 
@@ -148,11 +153,13 @@ describe("multi-step writes undo themselves", () => {
 		failCleanup = /delete from "comments"/i;
 		await expect(
 			comments.createComment({ data: { issueId: issue.id, body: "hi" } }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		expect(logged).toHaveBeenCalledWith(
 			"comment-store",
 			expect.stringMatching(/Comment \d+ was not removed/),
-			expect.objectContaining({ message: "cleanup failure" }),
+			expect.objectContaining({
+				cause: expect.objectContaining({ message: "cleanup failure" }),
+			}),
 		);
 	});
 
@@ -167,7 +174,7 @@ describe("multi-step writes undo themselves", () => {
 		failOn = /insert into "activities"/i;
 		await expect(
 			comments.createComment({ data: { issueId: source.id, body } }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		failOn = undefined;
 		const refs = () =>
 			db
@@ -217,7 +224,9 @@ describe("multi-step writes undo themselves", () => {
 					.where(eq(schema.activities.repoId, repoId));
 			const before = (await activityRows()).length;
 			failOn = /insert into "notifications"/i;
-			await expect(write()).rejects.toThrow("injected failure");
+			await expect(write()).rejects.toMatchObject({
+				cause: { message: "injected failure" },
+			});
 			failOn = undefined;
 			expect(await activityRows()).toHaveLength(before);
 		},
@@ -232,7 +241,7 @@ describe("multi-step writes undo themselves", () => {
 		failOn = notificationWrites;
 		await expect(
 			comments.createComment({ data: { issueId: issue.id, body: "hi" } }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		failOn = undefined;
 		expect(await count()).toBe(0);
 		await comments.createComment({ data: { issueId: issue.id, body: "hi" } });
@@ -249,7 +258,9 @@ describe("multi-step writes undo themselves", () => {
 			).length;
 		const before = await open();
 		failOn = notificationWrites;
-		await expect(openPull(branch)).rejects.toThrow("injected failure");
+		await expect(openPull(branch)).rejects.toMatchObject({
+			cause: { message: "injected failure" },
+		});
 		failOn = undefined;
 		expect(await open()).toBe(before);
 		await openPull(branch);
@@ -262,7 +273,7 @@ describe("multi-step writes undo themselves", () => {
 		failOn = /update "pull_requests"/i;
 		await expect(
 			pulls.mergePullRequest({ data: { prId: pr.id } }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		failOn = undefined;
 		const after = await pulls.getPullRequestByNumber({
 			data: { owner: "atom-owner", name: "atom", number: pr.number },

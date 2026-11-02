@@ -51,11 +51,28 @@ export async function createTestDb(options?: {
 	await d1.batch(
 		migrationStatements().map((statement) => d1.prepare(statement)),
 	);
-	const onQuery = options?.onQuery;
-	return drizzle(d1, {
-		relations,
-		...(onQuery && { logger: { logQuery: (query: string) => onQuery(query) } }),
-	});
+	const { onQuery } = options ?? {};
+	return drizzle(onQuery ? observed(d1, onQuery) : d1, { relations });
+}
+
+/**
+ * The same database, reporting every statement's SQL text as it is prepared.
+ * Watching the binding rather than drizzle's logger sees statements sent
+ * through `db.batch` too, and a throw from `onQuery` fails the statement
+ * before it runs (before the whole batch, when it is part of one).
+ */
+function observed(
+	d1: D1Database,
+	onQuery: (query: string) => void,
+): D1Database {
+	return {
+		prepare(query) {
+			onQuery(query);
+			return d1.prepare(query);
+		},
+		batch: (statements) => d1.batch(statements),
+		exec: (query) => d1.exec(query),
+	};
 }
 
 /** Shuts down every database this worker booted. */

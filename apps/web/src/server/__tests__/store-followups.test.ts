@@ -111,7 +111,9 @@ describe("a committed write survives a failed follow-up", () => {
 			expect.stringMatching(
 				/The review event on #\d+ failed after the write committed/,
 			),
-			expect.objectContaining({ message: "injected failure" }),
+			expect.objectContaining({
+				cause: expect.objectContaining({ message: "injected failure" }),
+			}),
 		);
 	});
 
@@ -210,7 +212,7 @@ describe("one latest release at a time", () => {
 		failOn = /update "releases" set "make_latest"/i;
 		await expect(
 			releases.createReleaseFn({ data: release("v2") }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		failOn = undefined;
 		expect(await latestTags()).toEqual(["v1"]);
 		await releases.createReleaseFn({ data: release("v2") });
@@ -221,7 +223,7 @@ describe("one latest release at a time", () => {
 		failOn = /insert into "releases"/i;
 		await expect(
 			releases.createReleaseFn({ data: release("v3") }),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		failOn = undefined;
 		expect(await latestTags()).toEqual(["v2"]);
 		await releases.createReleaseFn({ data: release("v3") });
@@ -238,7 +240,7 @@ describe("one latest release at a time", () => {
 			releases.updateReleaseFn({
 				data: { ...release("v1"), repoId, releaseId: v1?.id ?? 0 },
 			}),
-		).rejects.toThrow("injected failure");
+		).rejects.toMatchObject({ cause: { message: "injected failure" } });
 		failOn = undefined;
 		expect(await latestTags()).toEqual(["v3"]);
 	});

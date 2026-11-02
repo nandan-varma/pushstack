@@ -189,7 +189,11 @@ function forksOrdering(
 	const starred = sql`(select count(*) from ${stars} where ${stars.repoId} = ${repositories.id})`;
 	const column =
 		sort === "newest" || sort === "oldest" ? repositories.createdAt : starred;
-	return [sort === "oldest" ? asc(column) : desc(column), asc(repositories.id)];
+	const ascending = sort === "oldest";
+	return [
+		ascending ? asc(column) : desc(column),
+		ascending ? asc(repositories.id) : desc(repositories.id),
+	];
 }
 
 interface Order {
@@ -210,7 +214,7 @@ function ordering(order: Order): SQL[] {
 					repositories.updatedAt;
 	return [
 		direction === "asc" ? asc(column) : desc(column),
-		asc(repositories.id),
+		direction === "asc" ? asc(repositories.id) : desc(repositories.id),
 	];
 }
 
