@@ -8,6 +8,6 @@ CREATE TABLE `user_api_id_seq` (
 --> statement-breakpoint
 CREATE TRIGGER `user_assign_api_id` AFTER INSERT ON `user`
 BEGIN
-	INSERT INTO `user_api_id_seq` DEFAULT VALUES;
+	INSERT INTO `user_api_id_seq` (`id`) VALUES (NULL);
 	UPDATE `user` SET `apiId` = last_insert_rowid() WHERE `id` = NEW.`id`;
 END;
