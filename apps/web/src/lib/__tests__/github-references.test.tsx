@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * GitHub-flavored references through the real remark pipeline (parse → GFM →
  * our plugin → HTML), so "never inside code or existing links" is checked

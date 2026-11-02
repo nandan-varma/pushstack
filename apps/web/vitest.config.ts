@@ -17,7 +17,9 @@ export default defineConfig({
 	test: {
 		// Each behavior-test worker boots a workerd for its D1 database; bound memory and startup contention.
 		maxWorkers: 2,
-		environment: "jsdom",
+		// Server tests need a real Node (Miniflare boots a workerd and talks to it);
+		// the few DOM tests opt in with `// @vitest-environment jsdom`.
+		environment: "node",
 		env: {
 			// Out of the way of unrelated tests (they share one anonymous IP);
 			// rate-limit tests set their own small values.
