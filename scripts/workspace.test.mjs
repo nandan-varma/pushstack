@@ -107,7 +107,7 @@ test("shared direct dependencies use consistent version ranges", () => {
 	}
 });
 
-test("dependency policy has no overrides or advisory exclusions", () => {
+test("dependency policy allows only the documented temporary override", () => {
 	for (const workspace of [readJson("package.json"), ...workspaces]) {
 		assert.equal(workspace.pnpm?.overrides, undefined, workspace.name);
 		assert.equal(workspace.pnpm?.auditConfig, undefined, workspace.name);
@@ -115,9 +115,17 @@ test("dependency policy has no overrides or advisory exclusions", () => {
 		assert.equal(workspace.resolutions, undefined, workspace.name);
 	}
 	const settings = readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8");
+	assert.doesNotMatch(settings, /^\s*(auditConfig|ignoreGhsas|ignoreCves):/m);
+	// The only override allowed is the temporary Sentry glob pin, documented in
+	// apps/docs/content/docs/internals/security.md. Any other entry fails here.
+	const block = settings.match(/^overrides:\n((?:[ \t]+.*\n?)*)/m);
+	const keys = block
+		? [...block[1].matchAll(/^\s+"([^"]+)":/gm)].map((m) => m[1])
+		: [];
+	assert.deepEqual(keys, ["@sentry/bundler-plugins>glob"]);
 	assert.doesNotMatch(
-		settings,
-		/^\s*(overrides|auditConfig|ignoreGhsas|ignoreCves):/m,
+		settings.replace(/^overrides:\n(?:[ \t]+.*\n?)*/m, ""),
+		/^\s*overrides:/m,
 	);
 });
 

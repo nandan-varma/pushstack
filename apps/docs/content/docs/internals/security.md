@@ -315,9 +315,22 @@ import. No credential (password, PAT, session cookie) is ever passed to
 ## Dependencies
 
 Both `pnpm audit` and `pnpm audit --prod` report zero known vulnerabilities.
-There are no dependency overrides or ignored advisories. Upgrade or remove the
-package responsible for a vulnerable transitive dependency instead of forcing
-an unsupported version into its graph.
+There are no ignored advisories. Upgrade or remove the package responsible for
+a vulnerable transitive dependency instead of forcing an unsupported version
+into its graph. The one exception is listed below.
+
+### Temporary overrides
+
+- `@sentry/bundler-plugins>glob` is pinned to `>=14.0.2` in
+  `pnpm-workspace.yaml`. It is scoped to Sentry's bundler plugin only.
+  - Reason: `@sentry/bundler-plugins` 11.10.0 (latest) pins `glob` ^13, which
+    is vulnerable (GHSA-3g3m-2fjr-6pw4). Glob 14 also requires
+    `minimatch` ^11.0.2, which clears the minimatch advisory
+    (GHSA-g3hv-75wg-m249). Sentry's only call is `glob.glob()`, which glob 14
+    keeps.
+  - Removal: delete the override once a `@sentry/bundler-plugins` release
+    depends on a patched glob without it. Then run `pnpm audit` and the
+    workspace test, which fails on any override other than this one.
 
 pnpm 12 settings live in `pnpm-workspace.yaml`: build scripts require an
 explicit `allowBuilds` entry, bundled agent skills are denied per package,
@@ -334,7 +347,8 @@ or build dependencies. Add components with `pnpm dlx shadcn@latest add`.
 When a new finding appears, inspect its dependency path with `pnpm why` and
 `pnpm audit --json`, upgrade its owner, then run the full validation suite.
 [Earlier incidents](/docs/internals/security-history#dependency-vulnerabilities) explain
-why overrides and advisory exclusions were removed.
+why broad overrides and advisory exclusions were avoided. The temporary Sentry
+override above is the only exception.
 
 ## Aggregate diff work
 

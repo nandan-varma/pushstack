@@ -14,3 +14,10 @@ autoInstallPeers: false
 ignoredOptionalDependencies:
   # WASI fallback of oxc-parser (TanStack devtools); we only run on native linux/darwin.
   - "@oxc-parser/binding-wasm32-wasi"
+# TEMPORARY, owner-approved. Remove when @sentry/bundler-plugins ships a release
+# that depends on glob >=14.0.2 (its only call is glob.glob(), which glob 14 keeps).
+# Until then it fixes GHSA-3g3m-2fjr-6pw4 (glob) and, because glob 14 requires minimatch ^11.0.2,
+# GHSA-g3hv-75wg-m249 (minimatch). Both are reached only through
+# @sentry/tanstackstart-react -> @sentry/node -> @sentry/bundler-plugins.
+overrides:
+  "@sentry/bundler-plugins>glob": ">=14.0.2"

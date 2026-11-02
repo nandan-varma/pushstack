@@ -81,8 +81,8 @@ REST dispatcher with real personal access tokens. Native Git smoke tests use a
 scratch HOME and never modify the developer's global Git configuration.
 
 CI runs typecheck, tests, production builds, Biome, the full dependency audit,
-secret scanning and native Git smoke tests. Dependencies have no overrides or
-ignored advisories. pnpm build scripts are explicitly allowed, bundled agent
+secret scanning and native Git smoke tests. Dependencies have no ignored
+advisories; one temporary, scoped override is documented in the security guide. pnpm build scripts are explicitly allowed, bundled agent
 skills are denied, and optional peers are installed only when needed.
 
 ## Documentation and releases
