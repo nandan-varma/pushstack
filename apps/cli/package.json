@@ -48,10 +48,10 @@
 	},
 	"devDependencies": {
 		"@pushstack/api-contract": "workspace:*",
-		"@types/node": "^26.6.5",
-		"tsdown": "^0.23.1",
+		"@pushstack/tsconfig": "workspace:*",
+		"@types/node": "^26.6.6",
+		"tsdown": "^0.23.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.5",
-		"@pushstack/tsconfig": "workspace:*"
+		"vitest": "^5.0.5"
 	}
 }

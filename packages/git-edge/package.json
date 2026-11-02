@@ -1,7 +1,7 @@
 {
 	"name": "git-edge",
 	"version": "0.7.0",
-	"description": "High-level edge-compatible git operations \u2014 parsed-object cache, object-level three-way merge, and repo management utilities. Composes with git-fs-s3.",
+	"description": "High-level edge-compatible git operations — parsed-object cache, object-level three-way merge, and repo management utilities. Composes with git-fs-s3.",
 	"type": "module",
 	"exports": {
 		".": {
@@ -57,13 +57,13 @@
 		"isomorphic-git": ">=1.44.3"
 	},
 	"devDependencies": {
-		"@types/node": "^26.6.5",
+		"@pushstack/tsconfig": "workspace:*",
+		"@types/node": "^26.6.6",
 		"diff": "^9.0.0",
 		"git-fs-s3": "workspace:*",
-		"isomorphic-git": "^1.44.3",
-		"tsdown": "^0.23.1",
+		"isomorphic-git": "^1.44.9",
+		"tsdown": "^0.23.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.0.5",
-		"@pushstack/tsconfig": "workspace:*"
+		"vitest": "^5.0.5"
 	}
 }

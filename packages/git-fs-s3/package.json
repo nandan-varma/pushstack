@@ -1,7 +1,7 @@
 {
 	"name": "git-fs-s3",
 	"version": "0.19.1",
-	"description": "isomorphic-git filesystem backend for S3-compatible object storage (AWS S3, Cloudflare R2, MinIO) \u2014 run git servers without a disk",
+	"description": "isomorphic-git filesystem backend for S3-compatible object storage (AWS S3, Cloudflare R2, MinIO) — run git servers without a disk",
 	"type": "module",
 	"exports": {
 		".": {
@@ -81,8 +81,8 @@
 	"peerDependencies": {
 		"@aws-sdk/client-s3": ">=3.0.0",
 		"aws4fetch": ">=1.0.0",
-		"isomorphic-git": ">=1.44.3",
-		"diff": ">=5.0.0"
+		"diff": ">=5.0.0",
+		"isomorphic-git": ">=1.44.3"
 	},
 	"peerDependenciesMeta": {
 		"@aws-sdk/client-s3": {
@@ -99,14 +99,14 @@
 		}
 	},
 	"devDependencies": {
-		"@aws-sdk/client-s3": "^3.1149.0",
+		"@aws-sdk/client-s3": "^3.1161.0",
+		"@pushstack/tsconfig": "workspace:*",
+		"@types/node": "^26.6.6",
 		"aws4fetch": "^1.0.20",
-		"@types/node": "^26.6.5",
-		"isomorphic-git": "^1.44.3",
-		"tsdown": "^0.23.1",
-		"typescript": "^7.0.2",
-		"vitest": "^5.0.5",
 		"diff": "^9.0.0",
-		"@pushstack/tsconfig": "workspace:*"
+		"isomorphic-git": "^1.44.9",
+		"tsdown": "^0.23.4",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.5"
 	}
 }
