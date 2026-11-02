@@ -17,9 +17,6 @@ import type {
 } from "#/lib/timeline-types";
 import { publicUserFields } from "./repository-lookup";
 
-/** Under D1's 100 bound parameters for a row of `timelineEvents`'s seven columns. */
-const ROWS_PER_STATEMENT = 14;
-
 function toRow(
 	issueId: number,
 	actorId: string,
@@ -87,23 +84,14 @@ export async function recordCrossReferences(
 		sourceId,
 	);
 	if (targets.length === 0) return;
-	// One row per (issue, source) pair, so a repeat mention is ignored. insertMany
-	// cannot ignore conflicts, so the rows are chunked here, one batch.
-	const rows = targets.map((issueId) =>
-		toRow(issueId, actorId, { event: "cross-referenced", source }, sourceId),
-	);
-	const chunks: (typeof rows)[] = [];
-	for (let i = 0; i < rows.length; i += ROWS_PER_STATEMENT) {
-		chunks.push(rows.slice(i, i + ROWS_PER_STATEMENT));
-	}
-	const [first, ...rest] = chunks;
-	if (!first) return;
-	await db.batch([
-		db.insert(timelineEvents).values(first).onConflictDoNothing(),
-		...rest.map((values) =>
-			db.insert(timelineEvents).values(values).onConflictDoNothing(),
+	// One row per (issue, source) pair, so a repeat mention is ignored.
+	await insertMany(
+		timelineEvents,
+		targets.map((issueId) =>
+			toRow(issueId, actorId, { event: "cross-referenced", source }, sourceId),
 		),
-	]);
+		{ ignoreConflicts: true },
+	);
 }
 
 /**

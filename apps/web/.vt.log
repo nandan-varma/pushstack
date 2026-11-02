@@ -56,3 +56,264 @@ stdout | src/server/__tests__/api-repository-counts.test.ts
      × uses one grouped count query per page for both repository listings 69ms
  ❯ src/server/__tests__/api-forks.test.ts (0 test)
  ❯ src/server/__tests__/notifications.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 10 ⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/server/__tests__/api-forks-list.test.ts [ src/server/__tests__/api-forks-list.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: alice-id,Alice,alice@example.com,1,1793584890764,1793584890764,alice,0,bob-id,Bob,bob@example.com,1,1793584890764,1793584890764,bob,0,carol-id,Carol,carol@example.com,1,1793584890764,1793584890764,carol,0,dave-id,Dave,dave@example.com,1,1793584890764,1793584890764,dave,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/api-forks-list.test.ts:27:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/api-forks-list.test.ts:27:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  src/server/__tests__/api-forks.test.ts [ src/server/__tests__/api-forks.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: alice-id,Alice,alice@example.com,1,1793584892713,1793584892713,alice,0,bob-id,Bob,bob@example.com,1,1793584892713,1793584892713,bob,0,carol-id,Carol,carol@example.com,1,1793584892713,1793584892713,carol,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/api-forks.test.ts:25:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/api-forks.test.ts:25:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  src/server/__tests__/api-repo-settings.test.ts [ src/server/__tests__/api-repo-settings.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: alice-id,Alice,alice@example.com,1,1793584889409,1793584889409,alice,0,bob-id,Bob,bob@example.com,1,1793584889409,1793584889409,bob,0,carol-id,Carol,carol@example.com,1,1793584889409,1793584889409,carol,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/api-repo-settings.test.ts:20:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/api-repo-settings.test.ts:20:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  src/server/__tests__/api.test.ts [ src/server/__tests__/api.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: alice-id,Alice,alice@example.com,1,1793584890092,1793584890092,alice,0,bob-id,Bob,bob@example.com,1,1793584890092,1793584890092,bob,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/api.test.ts:28:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/api.test.ts:28:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  src/server/__tests__/graphql.test.ts [ src/server/__tests__/graphql.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: alice-id,Alice,alice@example.com,1,1793584889667,1793584889667,alice,0,bob-id,Bob,bob@example.com,1,1793584889667,1793584889667,bob,0,carol-id,Carol,carol@example.com,1,1793584889667,1793584889667,carol,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/graphql.test.ts:27:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/graphql.test.ts:27:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  src/server/__tests__/notifications.test.ts [ src/server/__tests__/notifications.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: owner-id,Owner,owner@example.com,1,1793584892871,1793584892871,owner,0,alice-id,Alice,alice@example.com,1,1793584892871,1793584892871,alice,0,bob-id,Bob,bob@example.com,1,1793584892871,1793584892871,bob,0,carol-id,Carol,carol@example.com,1,1793584892871,1793584892871,carol,0,eve-id,Eve,eve@example.com,1,1793584892871,1793584892871,eve,0,watcher1-id,Watcher1,watcher1@example.com,1,1793584892871,1793584892871,watcher1,0,watcher2-id,Watcher2,watcher2@example.com,1,1793584892871,1793584892871,watcher2,0,watcher3-id,Watcher3,watcher3@example.com,1,1793584892871,1793584892871,watcher3,0,watcher4-id,Watcher4,watcher4@example.com,1,1793584892871,1793584892871,watcher4,0,frank-id,Frank,frank@example.com,1,1793584892871,1793584892871,frank,0,gina-id,Gina,gina@example.com,1,1793584892871,1793584892871,gina,0,pager-id,Pager,pager@example.com,1,1793584892871,1793584892871,pager,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/notifications.test.ts:42:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/notifications.test.ts:42:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  src/server/__tests__/repositories.test.ts [ src/server/__tests__/repositories.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: owner-id,Owner,owner@example.com,1,1793584891400,1793584891400,owner,0,writer-id,Writer,writer@example.com,1,1793584891400,1793584891400,writer,0,reader-id,Reader,reader@example.com,1,1793584891400,1793584891400,reader,0,outsider-id,Outsider,outsider@example.com,1,1793584891400,1793584891400,outsider,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/repositories.test.ts:25:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/repositories.test.ts:25:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  src/server/__tests__/repository-caps.test.ts [ src/server/__tests__/repository-caps.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: owner-id,Owner,owner@example.com,1,1793584890349,1793584890349,owner,0,bob-id,Bob,bob@example.com,1,1793584890349,1793584890349,bob,0,carol-id,Carol,carol@example.com,1,1793584890349,1793584890349,carol,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/repository-caps.test.ts:42:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/repository-caps.test.ts:42:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  src/server/__tests__/repository-templates.test.ts [ src/server/__tests__/repository-templates.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: template-owner-id,Template-owner,template-owner@example.com,1,1793584892036,1793584892036,template-owner,0,template-outsider-id,Template-outsider,template-outsider@example.com,1,1793584892036,1793584892036,template-outsider,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/repository-templates.test.ts:19:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/repository-templates.test.ts:19:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  src/server/__tests__/store-atomicity.test.ts [ src/server/__tests__/store-atomicity.test.ts ]
+DrizzleQueryError: Failed query: insert into "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername", "apiId") values (?, ?, ?, ?, null, ?, ?, ?, null, ?), (?, ?, ?, ?, null, ?, ?, ?, null, ?)
+params: atom-owner-id,Atom-owner,atom-owner@example.com,1,1793584890996,1793584890996,atom-owner,0,atom-reader-id,Atom-reader,atom-reader@example.com,1,1793584890996,1793584890996,atom-reader,0
+ ❯ ../../node_modules/.pnpm/drizzle-orm@1.0.0-rc.5-5935859_@electric-sql+pglite@0.5.10_@neondatabase+serverless@1.2_aef94fac3a8333a376e176e6179da054/node_modules/src/sqlite-core/async/session.ts:170:11
+ ❯ createUsers src/test/app-harness.ts:53:2
+     51|  }));
+     52|  const now = new Date();
+     53|  await db.insert(user).values(
+       |  ^
+     54|   users.map((u) => ({
+     55|    ...u,
+ ❯ src/server/__tests__/store-atomicity.test.ts:47:15
+
+Caused by: Error: D1_ERROR: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ createUsers src/test/app-harness.ts:53:2
+ ❯ src/server/__tests__/store-atomicity.test.ts:47:15
+
+Caused by: Error: UNIQUE constraint failed: user.apiId: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+ ❯ D1DatabaseSessionAlwaysPrimary._sendOrThrow cloudflare-internal:d1-api:147:24
+ ❯ cloudflare-internal:d1-api:361:41
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/server/__tests__/api-repository-counts.test.ts > repository open_issues_count > uses one grouped count query per page for both repository listings
+AssertionError: expected 'select "repo_id", count(*) from "issu…' to contain '"issues"."repo_id" in ($1, $2, $3)'
+
+Expected: ""issues"."repo_id" in ($1, $2, $3)"
+Received: "select "repo_id", count(*) from "issues" where (("issues"."repo_id" in (select value from json_each(?))) and ("issues"."status" = ?)) group by "issues"."repo_id""
+
+ ❯ src/server/__tests__/api-repository-counts.test.ts:105:30
+    103|    ]);
+    104|    expect(countQueries()).toHaveLength(1);
+    105|    expect(countQueries()[0]).toContain('"issues"."repo_id" in ($1, $2,…
+       |                              ^
+    106|   }
+    107|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  11 failed | 25 passed (36)
+      Tests  1 failed | 238 passed (239)
+   Start at  18:01:28
+   Duration  30.53s (tests 70%, import 18%, setup 11%, transform 1%)
+
+    Isolate  36 workers spawned · ~111ms startup each (spawn + environment, per file)
+             at least ~1.89s faster with isolate: false — reuses workers across files instead of one per file
+

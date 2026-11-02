@@ -102,7 +102,9 @@ describe("repository open_issues_count", () => {
 				["populated", 2],
 			]);
 			expect(countQueries()).toHaveLength(1);
-			expect(countQueries()[0]).toContain('"issues"."repo_id" in ($1, $2, $3)');
+			expect(countQueries()[0]).toContain(
+				'"issues"."repo_id" in (select value from json_each(',
+			);
 		}
 	});
 

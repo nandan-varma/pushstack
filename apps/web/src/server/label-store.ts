@@ -216,6 +216,7 @@ export async function setThreadLabels(
 		await insertMany(
 			threadLabels,
 			added.map((label) => ({ issueId, labelId: label.id })),
+			{ ignoreConflicts: true },
 		);
 	}
 	if (removed.length > 0) {

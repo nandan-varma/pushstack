@@ -8,18 +8,24 @@ const MAX_BOUND_PARAMETERS = 100;
 /**
  * Insert any number of rows, split into statements that each stay under D1's
  * bound-parameter cap (a row spends up to one parameter per column) and sent
- * as one batch, which D1 runs atomically: either every row lands or none do.
+ * as one batch, which D1 runs atomically: either every row lands or none do
+ * (with `ignoreConflicts`, rows that collide with a unique index are skipped).
  */
 export async function insertMany<T extends SQLiteTable>(
 	table: T,
 	rows: readonly SQLiteInsertValue<T>[],
+	options: {
+		/** Skip rows that collide with a unique index instead of failing. */
+		ignoreConflicts?: boolean;
+	} = {},
 ): Promise<void> {
 	const [first, ...rest] = chunk(rows, rowsPerStatement(table));
 	if (!first) return;
-	await db.batch([
-		db.insert(table).values(first),
-		...rest.map((values) => db.insert(table).values(values)),
-	]);
+	const statement = (values: typeof first) => {
+		const insert = db.insert(table).values(values);
+		return options.ignoreConflicts ? insert.onConflictDoNothing() : insert;
+	};
+	await db.batch([statement(first), ...rest.map(statement)]);
 }
 
 function rowsPerStatement(table: SQLiteTable): number {
