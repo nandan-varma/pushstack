@@ -1,8 +1,4 @@
 # https://www.robotstxt.org/robotstxt.html
+# Crawlers get nothing: every request to a repo view runs a serverless function.
 User-agent: *
-Disallow: /dashboard
-Disallow: /settings
-Disallow: /auth
-Disallow: /repositories
-
-Sitemap: https://git.nandan.fyi/sitemap.xml
+Disallow: /

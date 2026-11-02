@@ -122,6 +122,32 @@ so a deploy that introduces it must have `pnpm db:push` run against the target
 database *before* the code that writes to it is live; otherwise the first
 rate-limited request fails against a missing table.
 
+## Crawler traffic
+
+Every repo view (`blob`, `blame`, `raw`, `tree`, `commit`, `archive`) renders in
+a serverless function, and the HTML is not CDN-cacheable: it carries a
+per-request CSP nonce and session-dependent content. A single crawler walking
+blame pages for every commit can burn a Hobby project's Fluid Active CPU
+allowance in a day, so crawlers are refused at three layers:
+
+- `apps/web/public/robots.txt` disallows everything for every agent, and
+  `apps/web/vercel.json` sends `X-Robots-Tag: noindex, nofollow, noarchive` on
+  every response. Well-behaved crawlers stop here.
+- The Vercel Firewall (project settings, not in git) denies the rest: the
+  managed **AI Bots** ruleset is set to deny, **Bot Protection** is log-only
+  (a challenge would break `git` and `gh`), a custom rule denies crawler and
+  scraper user agents, and a per-IP rate limit (120 requests per minute) covers
+  the repo views above. Git smart HTTP and `/api` are not rate limited. Generic
+  HTTP-client user agents (`python-requests`, `axios`) are deliberately not
+  blocked: scripts and migration tooling use them against the REST API.
+- `raw` and `archive` already set `Cache-Control` through `cacheControl()` in
+  `src/server/raw.ts`: commit-pinned URLs are immutable, branch URLs get a
+  60-second `s-maxage`.
+
+To see who is hitting a project, run `vercel logs requests -p <project> --since
+11h --json` and group by `clientUserAgent` (Hobby keeps 12 hours of request
+logs); the team usage page breaks Fluid Active CPU down by project.
+
 ## Monorepo hosting
 
 Two Vercel projects deploy from this repository's `main` branch:
