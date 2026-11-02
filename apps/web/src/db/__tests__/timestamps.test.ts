@@ -1,14 +1,12 @@
 /** @vitest-environment node */
-import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "../../test/test-db";
 import { repositories } from "../app-schema";
 import { user } from "../schema";
 
 describe("app timestamps", () => {
-	it("read back correctly when the database fills them under a non-UTC session", async () => {
+	it("read back as epoch milliseconds when the database fills them", async () => {
 		const db = await createTestDb();
-		await db.execute(sql`set timezone = 'America/Los_Angeles'`);
 		const now = new Date();
 		await db.insert(user).values({
 			id: "u1",
@@ -19,6 +17,7 @@ describe("app timestamps", () => {
 			createdAt: now,
 			updatedAt: now,
 		});
+		// No createdAt: the column default (unixepoch() * 1000) fills it.
 		const [repo] = await db
 			.insert(repositories)
 			.values({ ownerId: "u1", name: "r" })

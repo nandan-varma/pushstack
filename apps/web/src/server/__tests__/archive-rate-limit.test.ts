@@ -22,7 +22,7 @@ const { createUsers, signIn, signOut } = await import("../../test/app-harness");
 const { createRepository } = await import("../repositories");
 const { serveArchive } = await import("../archive");
 const { db } = await import("../../db");
-const { sql } = await import("drizzle-orm");
+const { rateLimits } = await import("#/db/app-schema");
 const { resetRateLimitMemory } = await import("../rate-limit");
 
 const users = await createUsers("alice");
@@ -47,7 +47,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
 	signOut();
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 	resetRateLimitMemory();
 });
 

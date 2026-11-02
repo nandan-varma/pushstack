@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * The approval page's server functions (`getDeviceAuthorization`,
- * `decideDeviceAuthorization`) against pglite: every user-code attempt is
+ * `decideDeviceAuthorization`) against a real D1 database: every user-code attempt is
  * counted per signed-in user and per client IP, a refusal is a 429 with
  * Retry-After, and an uncountable attempt is refused (fail closed).
  */
@@ -34,7 +34,7 @@ vi.mock("#/server/session", () =>
 );
 
 const { db } = await import("#/db");
-const { sql } = await import("drizzle-orm");
+const { rateLimits } = await import("#/db/app-schema");
 const { signIn } = await import("../../test/app-harness");
 const { RATE_LIMIT_DEVICE_USER_CODE_USER, RATE_LIMIT_DEVICE_USER_CODE_IP } =
 	await import("../config");
@@ -53,7 +53,7 @@ const lookup = (userCode = "BCDF-MGLX") =>
 	getDeviceAuthorization({ data: { userCode } });
 
 beforeEach(async () => {
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 	http.status = undefined;
 	http.headers = {};
 	http.request = new Request("https://git.test/login/device", {
@@ -105,7 +105,7 @@ describe("user-code attempt metering", () => {
 
 	it("fails closed: an attempt that cannot be counted is refused", async () => {
 		const broken = vi
-			.spyOn(db, "execute")
+			.spyOn(db, "all")
 			.mockRejectedValue(new Error("database unavailable"));
 		try {
 			await expect(lookup()).rejects.toThrow(/Too many code attempts/);

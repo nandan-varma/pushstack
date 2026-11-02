@@ -3,7 +3,7 @@
  *
  * Request limits for /api/v3 and git smart HTTP: GitHub's X-RateLimit-* headers,
  * the 403 body, per-user vs per-IP keying, window rollover, fail-open, and
- * GET /rate_limit. The real dispatcher and git handler over pglite.
+ * GET /rate_limit. The real dispatcher and git handler over a real D1 database.
  */
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,7 +30,7 @@ const { handleApiRequest } = await import("../api");
 const { serveGitRequest } = await import("../git-http");
 const { createRepository } = await import("../repositories");
 const { db } = await import("../../db");
-const { sql } = await import("drizzle-orm");
+const { rateLimits } = await import("#/db/app-schema");
 const { mintToken } = await import("../../test/api-client");
 const perfLog = await import("../perf-log");
 const { resetRateLimitMemory } = await import("../rate-limit");
@@ -60,7 +60,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 	resetRateLimitMemory();
 });
 
@@ -140,13 +140,12 @@ describe("/api/v3 limits", () => {
 	it("refuses a known-exhausted caller from memory, without the database", async () => {
 		for (let i = 0; i < 3; i++) await api("/users/alice", { ip: "5.5.5.5" });
 		expect((await api("/users/alice", { ip: "5.5.5.5" })).status).toBe(403);
-		await db.execute(sql`delete from rate_limits`);
+		await db.delete(rateLimits);
 		const denied = await api("/users/alice", { ip: "5.5.5.5" });
 		expect(denied.status).toBe(403);
 		expect(denied.headers.get("x-ratelimit-remaining")).toBe("0");
 		expect(Number(denied.headers.get("retry-after"))).toBeGreaterThan(0);
-		const rows = await db.execute(sql`select 1 from rate_limits`);
-		expect(rows.rows).toHaveLength(0);
+		expect(await db.select().from(rateLimits)).toHaveLength(0);
 	});
 
 	it("never returns handler output for an over-limit read that ran concurrently", async () => {
@@ -161,9 +160,9 @@ describe("/api/v3 limits", () => {
 	it("starts a new window once the old one has elapsed", async () => {
 		for (let i = 0; i < 3; i++) await api("/users/alice", { ip: "4.4.4.4" });
 		expect((await api("/users/alice", { ip: "4.4.4.4" })).status).toBe(403);
-		await db.execute(
-			sql`update rate_limits set window_started_at = now() - interval '2 hours'`,
-		);
+		await db
+			.update(rateLimits)
+			.set({ windowStartedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) });
 		resetRateLimitMemory();
 		const again = await api("/users/alice", { ip: "4.4.4.4" });
 		expect(again.status).toBe(200);
@@ -172,11 +171,9 @@ describe("/api/v3 limits", () => {
 
 	it("fails open and logs when the limiter errors", async () => {
 		const warn = vi.spyOn(perfLog, "logWarn").mockImplementation(() => {});
-		const execute = vi
-			.spyOn(db, "execute")
-			.mockRejectedValueOnce(new Error("db down"));
+		const all = vi.spyOn(db, "all").mockRejectedValueOnce(new Error("db down"));
 		const response = await api("/users/alice", { ip: "5.5.5.5" });
-		execute.mockRestore();
+		all.mockRestore();
 		expect(response.status).toBe(200);
 		expect(response.headers.get("x-ratelimit-limit")).toBeNull();
 		expect(warn).toHaveBeenCalledWith(
@@ -217,10 +214,12 @@ describe("/api/v3 limits", () => {
 
 describe("failed credentials", () => {
 	it("cost a clean authenticated request exactly one limiter query", async () => {
-		const execute = vi.spyOn(db, "execute");
+		const all = vi.spyOn(db, "all");
+		const run = vi.spyOn(db, "run");
 		const response = await api("/user", { ip: "10.9.9.9", token: alice });
-		const limiterCalls = execute.mock.calls.length;
-		execute.mockRestore();
+		const limiterCalls = all.mock.calls.length + run.mock.calls.length;
+		all.mockRestore();
+		run.mockRestore();
 		expect(response.status).toBe(200);
 		expect(limiterCalls).toBe(1);
 	});

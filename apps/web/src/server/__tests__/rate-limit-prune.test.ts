@@ -6,24 +6,30 @@
  * live buckets.
  */
 import { expect, it, vi } from "vitest";
+import { rateLimits } from "#/db/app-schema";
 
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
+const ago = (ms: number) => new Date(Date.now() - ms);
+
 it("a Better Auth consume + prune leaves live gh: buckets alone", async () => {
-	const { sql } = await import("drizzle-orm");
 	const { db } = await import("../../db");
 	const { rateLimitStorage } = await import("../rate-limit");
-	await db.execute(sql`
-		insert into rate_limits (key, count, window_started_at) values
-		('gh:core:ip:1.1.1.1', 5, now() - interval '120 seconds'),
-		('gh:core:ip:2.2.2.2', 5, now() - interval '2 hours'),
-		('1.1.1.1|/sign-in/email', 5, now() - interval '120 seconds')`);
+	await db.insert(rateLimits).values([
+		{ key: "gh:core:ip:1.1.1.1", count: 5, windowStartedAt: ago(120_000) },
+		{
+			key: "gh:core:ip:2.2.2.2",
+			count: 5,
+			windowStartedAt: ago(2 * 60 * 60 * 1000),
+		},
+		{ key: "1.1.1.1|/sign-in/email", count: 5, windowStartedAt: ago(120_000) },
+	]);
 	await rateLimitStorage.consume("fresh", { window: 60, max: 3 });
-	const keys = (
-		await db.execute<{ key: string }>(sql`select key from rate_limits`)
-	).rows.map((row) => row.key);
+	const keys = (await db.select({ key: rateLimits.key }).from(rateLimits)).map(
+		(row) => row.key,
+	);
 	expect(keys).toContain("gh:core:ip:1.1.1.1");
 	expect(keys).not.toContain("gh:core:ip:2.2.2.2");
 	expect(keys).not.toContain("1.1.1.1|/sign-in/email");

@@ -114,7 +114,7 @@ export const rateLimitStorage: RateLimitStorage = {
 				end
 			returning
 				count <= ${rule.max} as allowed,
-				max(0, (window_started_at + ${windowMs} - ${nowMs} + 999) / 1000) as retry_after
+				max(0, cast((window_started_at + ${windowMs} - ${nowMs} + 999) / 1000 as integer)) as retry_after
 		`);
 		if (!row) throw new Error("Rate-limit counter upsert returned no row");
 
@@ -389,7 +389,7 @@ export async function hitRateLimit(
 				end
 			returning
 				count,
-				(window_started_at + ${windowMs}) / 1000 as reset
+				cast((window_started_at + ${windowMs}) / 1000 as integer) as reset
 		`);
 		await pruneExpiredCounters();
 		const status = toStatus(resource, who, row);
@@ -411,7 +411,7 @@ export async function peekRateLimits(
 	try {
 		const windowMs = window * 1000;
 		const result = await db.all<StatusRow & { key: string }>(sql`
-			select key, count, (window_started_at + ${windowMs}) / 1000 as reset
+			select key, count, cast((window_started_at + ${windowMs}) / 1000 as integer) as reset
 			from rate_limits
 			where key in (${sql.join(
 				keys.map((key) => sql`${key}`),

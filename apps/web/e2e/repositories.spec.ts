@@ -1,8 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import {
-	dbClient,
 	deleteTestUser,
+	findUserEmails,
 	gotoAndWaitForHydration,
 	verifyUserEmail,
 } from "./helpers";
@@ -48,10 +48,7 @@ test.describe
 				timeout: 15000,
 			});
 
-			const sql = dbClient();
-			const rows =
-				await sql`SELECT email FROM "user" WHERE email = ${testUser.email}`;
-			expect(rows).toHaveLength(1);
+			expect(await findUserEmails(testUser.email)).toHaveLength(1);
 			await verifyUserEmail(testUser.email);
 		});
 
