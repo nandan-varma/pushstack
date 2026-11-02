@@ -214,21 +214,23 @@ the next repack drops), never a ref pointing at something missing.
 ### Locking
 
 Every write runs inside `withRepositoryLock(ownerKey, repoName, fn)`
-(`git-repo-lock.ts`) — a distributed lease-row lock backed by D1 (the
-`repo_locks` table), one row per `{ownerKey}/{repoName}` key, so concurrent
-writes to the same repo serialize instead of racing *even across different
-Worker isolates*. Requests are spread across many isolates, and a lock scoped to
-one isolate's memory gives zero protection — two concurrent pushes to the same
-repo can land on two isolates that share no state at all. Acquire is a single atomic `INSERT ... ON CONFLICT DO UPDATE ...
-WHERE expires_at < <nowMs> RETURNING`, where `nowMs` is the database clock
-from `db/sql.ts` (one statement, since D1 cannot hold a session lock or a
-long-lived transaction); release is a holder-scoped `DELETE`. The lease has a 60s TTL
-that a live holder renews every 20s (a holder-scoped `UPDATE ... RETURNING`),
-so a long push or repack never has its lock taken over mid-write; if a
-holder is cut off mid-critical-section by a platform limit,
-it stops renewing and the repo self-recovers within one TTL instead of
-staying locked forever. A renewal that finds the lease gone is logged as an
-error.
+(`git-repo-lock.ts`) — one `RepositoryLock` Durable Object per
+`{ownerKey}/{repoName}` (`src/server/repository-lock/`), so concurrent writes to
+the same repo serialize instead of racing *even across different Worker
+isolates and locations*. A lock scoped to one isolate's memory gives zero
+protection: two concurrent pushes to the same repo can land on two isolates that
+share nothing. The object is a FIFO lease queue (`lease-queue.ts`, pure logic
+with an injected clock): the first caller is granted the lock, later callers wait
+in arrival order, and release hands it to the next waiter. The lease has a 60s
+TTL that a live holder renews every 20s over RPC, so a long push or repack never
+has its lock taken over mid-write; if a holder is cut off mid-critical-section by
+a platform limit it stops renewing, an alarm frees the lease, and the repo
+self-recovers within one TTL instead of staying locked forever. The holder is
+persisted in the object's storage, so an object evicted mid-operation still
+honors the lease. A renewal that finds the lease gone is logged as an error.
+Tests run the same queue in memory (`src/test/cloudflare-workers.ts`); the
+runtime's `RepositoryLock` class is exported from the Worker's main module
+(`src/worker.ts`).
 
 **It is not reentrant**: a code path already holding the lock must never call
 another that tries to take it again for the same repo, or it

@@ -67,7 +67,6 @@ selects it.
 | `repositoryCollaborators` | Role `read`/`write`/`admin`, unique per (repo, user) — see [authentication.md](/docs/internals/authentication) |
 | `activities` | Feed events: `type` + `metadata` together form one `ActivityEvent` (`apps/web/src/lib/activity-types.ts`) |
 | `tokens` | Personal access tokens: SHA-256 hash, scopes, expiry |
-| `repoLocks` | The per-repo write lease (`git-repo-lock.ts`); see [git-storage.md](/docs/internals/git-storage#locking) |
 
 **A pull request is an issue**, as in GitHub's data model: one `issues` row
 per thread (with `is_pull_request`), plus a `pull_requests` row keyed by the

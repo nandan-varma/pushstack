@@ -18,6 +18,11 @@ builds it with `@cloudflare/vite-plugin`, and `apps/web/wrangler.jsonc` configur
 - `r2_buckets` binds the git bucket as `GIT_BUCKET`
   (see [git-storage.md](/docs/internals/git-storage)). The Worker never writes to a
   local filesystem: every git read and write goes through that binding.
+- `durable_objects` binds `REPO_LOCK`, the per-repository write lock (see
+  [git-storage.md](/docs/internals/git-storage#locking)). Its class is exported from
+  the Worker's main module, `apps/web/src/worker.ts`, which re-exports TanStack
+  Start's server entry (customized in `src/server.ts`); the runtime only finds a
+  Durable Object class among the main module's named exports.
 - `workers_dev` and `preview_urls` are off. The only route is the custom domain
   `pushstack.staging.nandan.fyi`.
 
