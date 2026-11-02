@@ -1,20 +1,9 @@
-import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-config({ path: [".env.local", ".env"] });
-
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-	throw new Error("DATABASE_URL is not set");
-}
-
+// Only generates SQL migrations from the schema; they are applied to D1 with
+// `wrangler d1 migrations apply` (`pnpm db:migrate:local` / `db:migrate:remote`).
 export default defineConfig({
-	out: "./drizzle",
+	out: "./migrations",
 	schema: ["./src/db/schema.ts", "./src/db/app-schema.ts"],
-	dialect: "postgresql",
-	schemaFilter: ["public"],
-	dbCredentials: {
-		url: databaseUrl,
-	},
+	dialect: "sqlite",
 });

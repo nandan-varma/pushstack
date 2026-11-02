@@ -4,7 +4,7 @@ import { MAX_DIFF_FILES } from "git-fs-s3/ops";
 import { beforeAll, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(

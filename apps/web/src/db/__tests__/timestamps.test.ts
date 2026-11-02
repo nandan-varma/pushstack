@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { createTestDb } from "../../test/pglite-db";
+import { createTestDb } from "../../test/test-db";
 import { repositories } from "../app-schema";
 import { user } from "../schema";
 

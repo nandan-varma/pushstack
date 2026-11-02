@@ -62,7 +62,7 @@ export function mediaFormat(request: Request): MediaFormat {
 	return (MEDIA_TYPE.exec(accept)?.[1]?.toLowerCase() as MediaFormat) ?? "json";
 }
 
-/** Bytes per chunk of a streamed body (a buffered one is capped at 4.5 MB on Vercel). */
+/** Bytes per chunk of a streamed body (a buffered one is capped at 4.5 MB as a memory bound). */
 const STREAM_CHUNK_BYTES = 256 * 1024;
 
 /**

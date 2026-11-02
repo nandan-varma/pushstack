@@ -10,7 +10,7 @@ vi.hoisted(() => {
 	process.env.RATE_LIMIT_API_ANONYMOUS = "2";
 });
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
@@ -30,7 +30,7 @@ const users = await createUsers("alice");
 const get = (ip: string) =>
 	serveArchive(
 		new Request("http://localhost:3000/alice/pub/archive/main.zip", {
-			headers: { "x-forwarded-for": `${ip}, 10.0.0.1` },
+			headers: { "cf-connecting-ip": `${ip}` },
 		}),
 		"alice",
 		"pub",

@@ -8,7 +8,7 @@
 import { expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 it("a Better Auth consume + prune leaves live gh: buckets alone", async () => {

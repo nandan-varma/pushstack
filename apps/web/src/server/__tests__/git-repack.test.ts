@@ -8,7 +8,7 @@ import { authorNow, commitFilesToBare } from "git-fs-s3/ops";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 // Boot the database (pglite) at collection, not inside the first test that

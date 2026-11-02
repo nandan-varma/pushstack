@@ -4,8 +4,8 @@ A GitHub-compatible code forge: Git over HTTPS, repositories, issues, pull
 requests, code browsing, and a REST API at `/api/v3`.
 
 The hosted app is [git.nandan.fyi](https://git.nandan.fyi). Git objects live in
-Cloudflare R2; application data lives in Neon Postgres. The server runs on
-Vercel's Node runtime without native Git or persistent disk.
+Cloudflare R2; application data lives in Neon Postgres. The server runs as a
+Cloudflare Worker without native Git or persistent disk.
 
 ## Workspace
 
@@ -34,12 +34,12 @@ pnpm dev:local                         # http://localhost:3000
 pnpm --filter @pushstack/docs dev       # http://localhost:3001
 ```
 
-Local development uses PGlite and on-disk Git under
+`pnpm dev:local` runs the Worker under workerd with a simulated R2 bucket and an
+on-disk PGlite database served over the Neon HTTP protocol, all under
 `apps/web/.pushstack-local/`. It needs no cloud accounts, survives restarts,
-and prints verification/reset email links in the terminal. The launcher blanks
-R2, Resend and Sentry credentials so it does not contact those services.
+and prints verification/reset email links in the terminal.
 
-To use real services, copy `apps/web/.env.example` to `apps/web/.env.local`,
+To use real services, copy `apps/web/.dev.vars.example` to `apps/web/.dev.vars`,
 set the database and auth variables, run `pnpm db:push`, then `pnpm dev`.
 See the [deployment guide](https://docs.git.nandan.fyi/docs/internals/deployment)
 for configuration and storage requirements.

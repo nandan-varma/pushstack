@@ -144,7 +144,7 @@ export type RawFileResult =
  * {@link MAX_RAW_BYTES}. The size is read from the object's pack entry *before*
  * anything is inflated, so an oversized file is refused without ever being
  * materialised; the raw file route streams from memory, so whatever reaches it is held
- * in the function's heap.
+ * in the Worker isolate's memory.
  *
  * A `null` size (a loose object, or a store without range reads) falls through
  * to reading, which is what every object did before this existed.
@@ -534,7 +534,7 @@ export type CommitsBetween = {
 /**
  * `log base..head`, composed from two memoized bounded walks: head's history
  * minus every commit in base's. Each side is bounded by `HISTORY_WALK_DEPTH`
- * (Vercel time limits). A missing ref has an empty history, so the result is
+ * (platform time limits). A missing ref has an empty history, so the result is
  * empty. `base` and `head` may be branch names or commit shas.
  */
 export async function getCommitsBetween(

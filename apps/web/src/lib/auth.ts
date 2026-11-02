@@ -4,29 +4,26 @@ import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
 import * as authSchema from "#/db/schema";
+import { env } from "#/server/env";
 import { rateLimitStorage } from "#/server/rate-limit";
 import { sendEmail } from "./email";
 import { isReservedName } from "./reserved-names";
 import { MAX_USERNAME_LENGTH, STORAGE_NAME_RE } from "./storage-name";
 
-const authSecret = process.env.BETTER_AUTH_SECRET;
+const authSecret = env.BETTER_AUTH_SECRET;
 
 if (!authSecret) {
 	throw new Error("BETTER_AUTH_SECRET environment variable is required");
 }
 
-// Vercel sets this per deployment. Add only the exact preview origin instead
-// of a wildcard so authenticated preview testing works without widening the
-// production CSRF trust boundary to arbitrary Vercel projects.
-const vercelPreviewUrl = process.env.VERCEL_URL
-	? `https://${process.env.VERCEL_URL}`
-	: undefined;
-const configuredAppUrl =
-	process.env.BETTER_AUTH_URL ?? "https://git.nandan.fyi";
-// Better Auth also uses baseURL when issuing cookies. A preview must use its
-// own host here; otherwise login succeeds server-side but the browser cannot
-// receive the session cookie for the preview origin.
-const APP_URL = vercelPreviewUrl ?? configuredAppUrl;
+// The origin this deployment is served from (a Worker `vars` entry). Better
+// Auth uses it as its trusted origin and for the cookies it issues, so every
+// deployment, staging included, names its own host.
+const APP_URL = env.BETTER_AUTH_URL;
+
+if (!APP_URL) {
+	throw new Error("BETTER_AUTH_URL environment variable is required");
+}
 
 function escapeHtml(text: string): string {
 	return text
@@ -103,9 +100,7 @@ export const auth = betterAuth({
 	},
 	secret: authSecret,
 	baseURL: APP_URL,
-	trustedOrigins: [configuredAppUrl, vercelPreviewUrl].filter(
-		(origin): origin is string => Boolean(origin),
-	),
+	trustedOrigins: [APP_URL],
 	session: {
 		expiresIn: 60 * 60 * 24 * 7,
 		updateAge: 60 * 60 * 24,
@@ -119,11 +114,14 @@ export const auth = betterAuth({
 		window: 60,
 		max: 20,
 		// Counters in Postgres rather than Better Auth's default per-instance
-		// Map — a limit that multiplies by the number of warm serverless
-		// instances is not a limit. See server/rate-limit.ts.
+		// Map — a limit that multiplies by the number of Worker isolates is not a
+		// limit. See server/rate-limit.ts.
 		customStorage: rateLimitStorage,
 	},
 	advanced: {
+		// Better Auth reads `X-Forwarded-For` by default, which the caller
+		// controls; `CF-Connecting-IP` is set by Cloudflare and cannot be spoofed.
+		ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
 		cookiePrefix: "pushstack",
 		useSecureCookies: true,
 		crossSubDomainCookies: {

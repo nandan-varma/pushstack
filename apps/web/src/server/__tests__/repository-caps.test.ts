@@ -10,7 +10,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 const queries = vi.hoisted(() => ({ log: [] as string[] }));
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb({
+	db: await (await import("../../test/test-db")).createTestDb({
 		onQuery: (query) => {
 			queries.log.push(query);
 		},

@@ -1,6 +1,8 @@
+import { env } from "./env";
+
 /** The env var as a positive integer; `fallback` only when it is unset or empty. */
-export function positiveInt(name: string, fallback: number): number {
-	const raw = process.env[name];
+export function positiveInt(name: keyof Tunables, fallback: number): number {
+	const raw = env[name];
 	if (raw === undefined || raw === "") return fallback;
 	const value = Number(raw);
 	if (!Number.isInteger(value) || value <= 0) {
@@ -9,15 +11,22 @@ export function positiveInt(name: string, fallback: number): number {
 	return value;
 }
 
-/** Budget for the git object cache; the parsed-result cache gets a quarter. */
-export const GIT_CACHE_MAX_BYTES = positiveInt("GIT_CACHE_MAX_SIZE", 1024 ** 3);
+/**
+ * Budget for the git object cache; the parsed-result cache gets a quarter. A
+ * Worker isolate has 128 MB for everything it is doing at once, so this is a
+ * small share of it, not the 1 GiB a long-lived Node process could afford.
+ */
+export const GIT_CACHE_MAX_BYTES = positiveInt(
+	"GIT_CACHE_MAX_SIZE",
+	16 * 1024 * 1024,
+);
 
 /** TTL for immutable cache entries (mutable refs/listings use 5s). */
 export const GIT_CACHE_TTL_MS = positiveInt("GIT_CACHE_TTL", 3600) * 1000;
 
 export const GIT_HTTP_MAX_BODY_BYTES = positiveInt(
 	"GIT_HTTP_MAX_BODY_BYTES",
-	50 * 1024 * 1024,
+	16 * 1024 * 1024,
 );
 
 export const SLOW_REQUEST_MS = positiveInt("SLOW_REQUEST_MS", 3000);

@@ -1,0 +1,39 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "pushstack-staging",
+	"main": "@tanstack/react-start/server-entry",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"routes": [
+		{ "pattern": "pushstack.staging.nandan.fyi", "custom_domain": true }
+	],
+	"workers_dev": false,
+	"preview_urls": false,
+	"observability": { "enabled": true },
+	"r2_buckets": [
+		{ "binding": "GIT_BUCKET", "bucket_name": "pushstack-staging" }
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "pushstack-staging",
+			"database_id": "515f5e1c-3e67-4cc6-86cb-5cfdc75a3a64",
+			"migrations_dir": "migrations",
+			// drizzle-kit writes one folder per migration.
+			"migrations_pattern": "migrations/*/migration.sql"
+		}
+	],
+	// Public configuration. Secrets are set with `wrangler secret put` and
+	// declared below so they are typed and checked.
+	"vars": {
+		"ENVIRONMENT": "staging",
+		"BETTER_AUTH_URL": "https://pushstack.staging.nandan.fyi",
+		// Presigned upload URLs (src/lib/r2.ts) are signed against R2's S3 API,
+		// the one thing a bucket binding cannot do.
+		"R2_BUCKET_NAME": "pushstack-staging",
+		"R2_ENDPOINT": "https://5ceb72cd1f443572c848732581140156.r2.cloudflarestorage.com"
+	},
+	"secrets": {
+		"required": ["BETTER_AUTH_SECRET"]
+	}
+}

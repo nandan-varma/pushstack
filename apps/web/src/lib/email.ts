@@ -1,6 +1,7 @@
 import { Resend } from "resend";
+import { env } from "#/server/env";
 
-const FROM = process.env.RESEND_EMAIL_FROM ?? "pushstack@nandanvarma.com";
+const FROM = env.RESEND_EMAIL_FROM ?? "pushstack@nandanvarma.com";
 
 /**
  * Sends a transactional email through Resend. Without `RESEND_API_KEY`
@@ -17,7 +18,7 @@ export async function sendEmail({
 	subject: string;
 	html: string;
 }) {
-	if (!process.env.RESEND_API_KEY) {
+	if (!env.RESEND_API_KEY) {
 		if (process.env.NODE_ENV === "production") {
 			throw new Error("RESEND_API_KEY is not set — cannot send email");
 		}
@@ -29,7 +30,7 @@ export async function sendEmail({
 		);
 		return;
 	}
-	const resend = new Resend(process.env.RESEND_API_KEY);
+	const resend = new Resend(env.RESEND_API_KEY);
 	const { error } = await resend.emails.send({ from: FROM, to, subject, html });
 	if (error) throw new Error(`Failed to send email: ${error.message}`);
 }

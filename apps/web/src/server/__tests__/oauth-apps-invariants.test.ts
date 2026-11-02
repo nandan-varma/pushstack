@@ -10,7 +10,7 @@ import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 const { db } = await import("#/db");
@@ -191,7 +191,7 @@ describe("token endpoint rate limits", () => {
 		`);
 		const response = await tokenPost({
 			request: exchangeRequest(exchangeFields(app, "0".repeat(40)), {
-				"x-forwarded-for": "9.9.9.9",
+				"cf-connecting-ip": "9.9.9.9",
 			}),
 		});
 		expect(response.status).toBe(429);
@@ -206,7 +206,7 @@ describe("token endpoint rate limits", () => {
 		`);
 		const response = await tokenPost({
 			request: exchangeRequest(exchangeFields(app, "0".repeat(40)), {
-				"x-forwarded-for": "8.8.8.8",
+				"cf-connecting-ip": "8.8.8.8",
 			}),
 		});
 		expect(response.status).toBe(429);

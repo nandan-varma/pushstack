@@ -9,7 +9,7 @@ function resetLockTracking() {
 }
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 vi.mock("git-edge", async (importOriginal) => {

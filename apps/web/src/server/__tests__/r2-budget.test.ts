@@ -3,8 +3,8 @@
  *
  * The R2 round-trip budget for repeated reads.
  *
- * "Keep R2 round trips low; cache aggressively" is a hard constraint — Vercel's
- * function limits, and R2 is the only object store — so it gets a mechanical
+ * "Keep R2 round trips low; cache aggressively" is a hard constraint — Worker
+ * isolate limits, and R2 is the only object store — so it gets a mechanical
  * guard rather than a prose rule. The perf tree's own counts are the evidence:
  * a repeated read that is supposed to be cached must report zero R2 calls, and
  * a cold read must stay inside a ceiling, so a change that reads per call (a
@@ -16,7 +16,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(

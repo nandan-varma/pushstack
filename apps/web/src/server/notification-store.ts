@@ -24,7 +24,7 @@ import {
 	ne,
 	sql,
 } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "#/db";
 import {
 	issues,

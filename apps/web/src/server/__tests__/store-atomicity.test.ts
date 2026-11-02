@@ -15,7 +15,7 @@ let failOn: RegExp | undefined;
 let failCleanup: RegExp | undefined;
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb({
+	db: await (await import("../../test/test-db")).createTestDb({
 		onQuery: (query) => {
 			if (failCleanup?.test(query)) throw new Error("cleanup failure");
 			if (failOn?.test(query)) throw new Error("injected failure");

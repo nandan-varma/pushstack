@@ -17,7 +17,7 @@ vi.hoisted(() => {
 	process.env.RATE_LIMIT_AUTH_FAILURES = "2";
 });
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
@@ -47,7 +47,7 @@ function api(
 	init: RequestInit & { ip?: string; token?: string } = {},
 ) {
 	const headers = new Headers(init.headers);
-	if (init.ip) headers.set("x-forwarded-for", `${init.ip}, 10.0.0.1`);
+	if (init.ip) headers.set("cf-connecting-ip", `${init.ip}`);
 	if (init.token) headers.set("authorization", `token ${init.token}`);
 	return handleApiRequest(new Request(`${API}${path}`, { ...init, headers }));
 }
@@ -242,7 +242,7 @@ describe("failed credentials", () => {
 	it("also bound bad git credentials per IP", async () => {
 		const bad = {
 			authorization: `Basic ${btoa("x:pst_nope")}`,
-			"x-vercel-forwarded-for": "10.2.2.2",
+			"cf-connecting-ip": "10.2.2.2",
 		};
 		const refs = () =>
 			serveGitRequest(
@@ -265,7 +265,7 @@ describe("git smart HTTP limits", () => {
 		);
 
 	it("403s anonymous clones per IP with a plain-text body and headers", async () => {
-		const ip = { "x-forwarded-for": "8.8.8.8" };
+		const ip = { "cf-connecting-ip": "8.8.8.8" };
 		expect((await refs(ip)).status).toBe(200);
 		const second = await refs(ip);
 		expect(second.status).toBe(200);
@@ -278,13 +278,13 @@ describe("git smart HTTP limits", () => {
 		expect(await refused.text()).toContain(
 			"API rate limit exceeded for 8.8.8.8",
 		);
-		expect((await refs({ "x-forwarded-for": "8.8.4.4" })).status).toBe(200);
+		expect((await refs({ "cf-connecting-ip": "8.8.4.4" })).status).toBe(200);
 	});
 
 	it("keys authenticated reads by user and meters pushes separately", async () => {
 		const basic = (token: string) => ({
 			authorization: `Basic ${btoa(`x:${token}`)}`,
-			"x-forwarded-for": "8.8.1.1",
+			"cf-connecting-ip": "8.8.1.1",
 		});
 		for (let i = 0; i < 3; i++)
 			expect((await refs(basic(alice))).status).toBe(200);

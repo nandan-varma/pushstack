@@ -11,7 +11,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 const RULE = { window: 60, max: 3 };

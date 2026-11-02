@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 const queries = vi.hoisted(() => ({ repositoryReads: 0 }));
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb({
+	db: await (await import("../../test/test-db")).createTestDb({
 		onQuery: (query: string) => {
 			if (/^select .* from "repositories"/.test(query)) {
 				queries.repositoryReads++;

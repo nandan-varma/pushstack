@@ -3,6 +3,7 @@ import fs, { promises as nodeFs } from "node:fs";
 import nodeHttp, { createServer, type Server } from "node:http";
 import git, { type HttpClient } from "isomorphic-git";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { gitBucket } from "#/test/cloudflare-workers";
 
 // isomorphic-git's bundled `isomorphic-git/http/node` transport (built on the
 // `simple-get` package) hung indefinitely against this test's plain
@@ -53,47 +54,15 @@ const nodeHttpClient: HttpClient = {
 	},
 };
 
-// Must be hoisted so r2.ts's isR2Configured() sees these before any source
-// module is imported.
 const ENV = vi.hoisted(() => {
 	const os = require("node:os");
 	const path = require("node:path");
 	const base = path.join(os.tmpdir(), `pushstack-lifecycle-${Date.now()}`);
-	process.env.R2_BUCKET_NAME = "test-bucket";
-	process.env.R2_ENDPOINT = "https://test-account.r2.cloudflarestorage.com";
-	process.env.R2_ACCESS_KEY_ID = "test-key";
-	process.env.R2_SECRET_ACCESS_KEY = "test-secret";
 	return { base, cloneDir: path.join(base, "clone") };
 });
 
-const fakeS3 = vi.hoisted(() => ({
-	objects: new Map<string, Uint8Array>(),
-}));
-
-vi.mock("#/lib/r2", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("#/lib/r2")>();
-	const { createFetchS3Store } = await import("git-fs-s3/fetch-s3");
-	const { createFakeS3 } = await import("git-fs-s3/testing");
-	const s3 = createFakeS3({ bucket: "test-bucket" });
-	fakeS3.objects = s3.objects;
-	return {
-		...actual,
-		createR2ObjectStoreFromEnv: (
-			contentType?: (key: string) => string | undefined,
-		) =>
-			createFetchS3Store({
-				endpoint: "https://test-account.r2.cloudflarestorage.com",
-				bucket: "test-bucket",
-				accessKeyId: "test-key",
-				secretAccessKey: "test-secret",
-				contentType,
-				fetch: s3.fetch,
-			}),
-	};
-});
-
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 const TEST_USER = {
@@ -207,7 +176,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 
 		// initBareRepo must leave HEAD/config in storage on its own — regression
 		// guard for the bug where a post-init sync call deleted them as "stale".
-		const keys = [...fakeS3.objects.keys()].filter((k) =>
+		const keys = [...gitBucket.objects.keys()].filter((k) =>
 			k.startsWith(`repos/${TEST_USER.username}/${REPO_NAME}/`),
 		);
 		expect(keys).toContain(`repos/${TEST_USER.username}/${REPO_NAME}/git/HEAD`);
@@ -283,9 +252,11 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 
 		const prefix = `repos/${TEST_USER.username}/${REPO_NAME}/git/`;
 		expect(
-			new TextDecoder().decode(fakeS3.objects.get(`${prefix}refs/heads/main`)),
+			new TextDecoder().decode(
+				gitBucket.objects.get(`${prefix}refs/heads/main`),
+			),
 		).toBe(`${pushedSha}\n`);
-		const packFiles = [...fakeS3.objects.keys()].filter((key) =>
+		const packFiles = [...gitBucket.objects.keys()].filter((key) =>
 			key.startsWith(`${prefix}objects/pack/`),
 		);
 		expect(packFiles.some((key) => key.endsWith(".pack"))).toBe(true);
@@ -469,7 +440,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		await updateRepository({ data: { id: repo.id, name: RENAMED } });
 		const oldPrefix = `repos/${TEST_USER.username}/${REPO_NAME}/`;
 		const newPrefix = `repos/${TEST_USER.username}/${RENAMED}/`;
-		const keys = [...fakeS3.objects.keys()];
+		const keys = [...gitBucket.objects.keys()];
 		expect(keys.filter((key) => key.startsWith(oldPrefix))).toHaveLength(0);
 		expect(keys).toContain(`${newPrefix}git/HEAD`);
 
@@ -484,7 +455,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 
 		await updateRepository({ data: { id: repo.id, name: REPO_NAME } });
 		expect(
-			[...fakeS3.objects.keys()].some((key) => key.startsWith(oldPrefix)),
+			[...gitBucket.objects.keys()].some((key) => key.startsWith(oldPrefix)),
 		).toBe(true);
 	});
 
@@ -503,7 +474,7 @@ describe("user -> repo -> clone with PAT -> delete repo -> delete user", () => {
 		const repoAfter = await findRepositoryByName(TEST_USER.username, REPO_NAME);
 		expect(repoAfter).toBeNull();
 
-		const remaining = [...fakeS3.objects.keys()].filter((k) =>
+		const remaining = [...gitBucket.objects.keys()].filter((k) =>
 			k.startsWith(`repos/${TEST_USER.username}/${REPO_NAME}/`),
 		);
 		expect(remaining).toHaveLength(0);

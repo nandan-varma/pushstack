@@ -14,7 +14,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 let failOn: RegExp | undefined;
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb({
+	db: await (await import("../../test/test-db")).createTestDb({
 		onQuery: (query) => {
 			if (failOn?.test(query)) throw new Error("injected failure");
 		},

@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 const queries = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb({
+	db: await (await import("../../test/test-db")).createTestDb({
 		onQuery: () => {
 			queries.count++;
 		},

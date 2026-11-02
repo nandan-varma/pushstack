@@ -52,7 +52,7 @@ describe("read bounds", () => {
 
 	it("serves raw bytes for anything a single push could have introduced", () => {
 		// The raw endpoint streams from memory, so its cap exists to bound the
-		// function's heap. It must not be smaller than a web upload, or a file
+		// Worker isolate's heap. It must not be smaller than a web upload, or a file
 		// the app itself accepted could not be downloaded again.
 		expect(MAX_RAW_BYTES).toBeGreaterThanOrEqual(MAX_WEB_UPLOAD_BYTES);
 	});
@@ -66,7 +66,7 @@ describe("text bounds", () => {
 });
 
 describe("thread page bound", () => {
-	it("keeps a page of worst-case comments under Vercel's 4.5 MB cap", () => {
+	it("keeps a page of worst-case comments under the 4.5 MB cap", () => {
 		// Control characters are JSON's most expensive escape: 6 bytes each.
 		const page = Array.from({ length: MAX_THREAD_PAGE_SIZE }, (_, id) => ({
 			id,
@@ -81,7 +81,7 @@ describe("thread page bound", () => {
 });
 
 describe("API diff media cap", () => {
-	it("stays under Vercel's 4.5 MB buffered-response cap, with headroom", () => {
+	it("stays under the 4.5 MB buffered-response cap, with headroom", () => {
 		expect(MAX_API_DIFF_BYTES).toBeLessThan(4_500_000);
 		expect(MAX_API_DIFF_BYTES).toBeGreaterThan(0);
 	});

@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/health")({
 						import("drizzle-orm"),
 						import("#/db/index"),
 					]);
-					await db.execute(sql`select 1`);
+					await db.run(sql`select 1`);
 					return Response.json({ status: "ok" });
 				} catch (err) {
 					return Response.json(

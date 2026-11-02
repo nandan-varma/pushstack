@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 // go through the actual Postgres database (see auth.spec.ts's original
 // comment) since there's no way to read the real verification email here.
 //
-// These helpers DELETE rows, and `.env.local` is the file a developer is most
+// These helpers DELETE rows, and `.dev.vars` is the file a developer is most
 // likely to have pointed at a real database, so the client refuses a non-local
 // host unless `E2E_ALLOW_REMOTE_DB=1` is set deliberately.
 export function dbClient() {

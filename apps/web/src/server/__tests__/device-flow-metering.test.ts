@@ -10,14 +10,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const http = vi.hoisted(() => ({
 	request: new Request("https://git.test/login/device", {
-		headers: { "x-forwarded-for": "9.9.9.9" },
+		headers: { "cf-connecting-ip": "9.9.9.9" },
 	}),
 	status: undefined as number | undefined,
 	headers: {} as Record<string, string>,
 }));
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock("@tanstack/react-start/server", () => ({
@@ -57,7 +57,7 @@ beforeEach(async () => {
 	http.status = undefined;
 	http.headers = {};
 	http.request = new Request("https://git.test/login/device", {
-		headers: { "x-forwarded-for": "9.9.9.9" },
+		headers: { "cf-connecting-ip": "9.9.9.9" },
 	});
 	signIn(user("alice-id"));
 });

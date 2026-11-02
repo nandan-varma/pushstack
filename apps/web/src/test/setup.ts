@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+import { afterAll } from "vitest";
+import { disposeTestDbs } from "./test-db";
 
 // @ts-expect-error - This is required for React Testing Library
 global.IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,3 +43,6 @@ if (typeof window !== "undefined") {
 
 	global.IntersectionObserver = MockIntersectionObserver;
 }
+
+// Each test file that built a D1 test database shuts its workerd down.
+afterAll(disposeTestDbs);

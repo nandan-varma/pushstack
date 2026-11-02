@@ -21,6 +21,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { formatMs, isPerfLogEnabled } from "#/lib/perf-log";
 import { SLOW_REQUEST_MS } from "./config";
+import { env } from "./env";
 
 interface PerfEntry {
 	depth: number;
@@ -244,23 +245,19 @@ export function recordCacheMiss(): void {
 /**
  * Sentry's server SDK, loaded on first use and only when a DSN is configured.
  * Without one there is nothing to report to, so there is no reason for this
- * module to be in the dependency graph of every route that logs. The fetch
- * wrapper (src/server.ts) and the middlewares (src/start.ts) are gated the same
- * way. Memoized, so the import happens at most once per process.
+ * module to be in the dependency graph of every route that logs. The Worker
+ * wrapper (src/server.ts) initializes the same SDK. Memoized, so the import happens at most once per process.
  */
-let sentrySdk: Promise<
-	typeof import("@sentry/tanstackstart-react") | null
-> | null = null;
+let sentrySdk: Promise<typeof import("@sentry/cloudflare") | null> | null =
+	null;
 
 function sentry() {
-	if (!process.env.VITE_SENTRY_DSN) return Promise.resolve(null);
-	sentrySdk ??= import("@sentry/tanstackstart-react").catch(
-		(error: unknown) => {
-			// A failure to load the reporter must not become the error being logged.
-			console.error(`[perf] could not load the Sentry SDK: ${String(error)}`);
-			return null;
-		},
-	);
+	if (!env.VITE_SENTRY_DSN) return Promise.resolve(null);
+	sentrySdk ??= import("@sentry/cloudflare").catch((error: unknown) => {
+		// A failure to load the reporter must not become the error being logged.
+		console.error(`[perf] could not load the Sentry SDK: ${String(error)}`);
+		return null;
+	});
 	return sentrySdk;
 }
 
@@ -271,7 +268,7 @@ function sentry() {
  * would turn one failure into two.
  */
 function reportWithSentry(
-	use: (client: typeof import("@sentry/tanstackstart-react")) => void,
+	use: (client: typeof import("@sentry/cloudflare")) => void,
 ): void {
 	void sentry().then((client) => {
 		if (!client) return;

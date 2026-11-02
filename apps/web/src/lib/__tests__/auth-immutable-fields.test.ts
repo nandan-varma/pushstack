@@ -17,7 +17,7 @@ vi.hoisted(() => {
 });
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 vi.mock("../email", () => ({ sendEmail: vi.fn(async () => undefined) }));
@@ -39,7 +39,7 @@ describe("immutable user fields", () => {
 					headers: {
 						"content-type": "application/json",
 						origin: String(auth.options.baseURL),
-						"x-forwarded-for": `192.0.2.${["repo", "users", "RePo", "UsErS"].indexOf(username) + 1}`,
+						"cf-connecting-ip": `192.0.2.${["repo", "users", "RePo", "UsErS"].indexOf(username) + 1}`,
 					},
 					body: JSON.stringify({
 						name: "Reserved",

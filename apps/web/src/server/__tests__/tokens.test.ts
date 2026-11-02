@@ -5,7 +5,7 @@ import { TOKEN_PREFIX } from "#/lib/token-scopes";
 vi.mock("@tanstack/react-start", () => import("@/test/server-test-utils"));
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 const currentUser = vi.hoisted(() => ({ id: "alice-id" }));
