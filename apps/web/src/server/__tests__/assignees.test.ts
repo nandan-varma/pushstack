@@ -289,18 +289,22 @@ it("serializes concurrent replacements instead of combining assignment sets", as
 it("bounds the dashboard and orders latest assignments before limiting", async () => {
 	const { db } = await import("#/db");
 	const { issues: table, threadAssignees } = await import("#/db/app-schema");
+	const { insertMany } = await import("#/db/insert-many");
+	const { and, eq, gte } = await import("drizzle-orm");
+	await insertMany(
+		table,
+		Array.from({ length: 25 }, (_, i) => ({
+			repoId,
+			number: 10000 + i,
+			authorId: users.owner.id,
+			title: `Bounded ${i}`,
+			updatedAt: new Date(Date.UTC(2030, 0, 1, 0, i)),
+		})),
+	);
 	const rows = await db
-		.insert(table)
-		.values(
-			Array.from({ length: 25 }, (_, i) => ({
-				repoId,
-				number: 10000 + i,
-				authorId: users.owner.id,
-				title: `Bounded ${i}`,
-				updatedAt: new Date(Date.UTC(2030, 0, 1, 0, i)),
-			})),
-		)
-		.returning();
+		.select({ id: table.id })
+		.from(table)
+		.where(and(eq(table.repoId, repoId), gte(table.number, 10000)));
 	await db
 		.insert(threadAssignees)
 		.values(rows.map((row) => ({ issueId: row.id, userId: users.owner.id })));
