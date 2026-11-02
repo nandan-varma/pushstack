@@ -3,7 +3,8 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
     # Wait a week before proposing a version: a compromised release is usually
     # yanked within days, and nothing here depends on being on the newest patch
     # the hour it lands.
@@ -12,24 +13,36 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+      major:
+        update-types: [major]
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
     cooldown:
       default-days: 7
     groups:
       actions:
         patterns: ["*"]
+        update-types: [minor, patch]
+      actions-major:
+        patterns: ["*"]
+        update-types: [major]
   # Actions used by our own composite action. A root entry does not scan
   # .github/actions, so this entry is what keeps the pins in
   # .github/actions/setup/action.yml fresh.
   - package-ecosystem: github-actions
     directory: /.github/actions/setup
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
     cooldown:
       default-days: 7
     groups:
       actions:
         patterns: ["*"]
+        update-types: [minor, patch]
+      actions-major:
+        patterns: ["*"]
+        update-types: [major]
