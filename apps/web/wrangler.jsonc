@@ -1,7 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "pushstack-staging",
-	"main": "@tanstack/react-start/server-entry",
+	"main": "src/worker.ts",
 	"compatibility_date": "2026-10-01",
 	"compatibility_flags": ["nodejs_compat"],
 	"routes": [

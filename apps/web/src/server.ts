@@ -1,5 +1,3 @@
-export { RepositoryLock } from "./server/repository-lock/durable-object";
-
 import { withSentry } from "@sentry/cloudflare";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
