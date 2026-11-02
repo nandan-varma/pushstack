@@ -16,7 +16,6 @@ import {
 	eq,
 	exists,
 	gte,
-	ilike,
 	inArray,
 	isNotNull,
 	isNull,
@@ -39,9 +38,10 @@ import {
 	threadAssignees,
 	threadLabels,
 } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import type { LabelView } from "#/lib/labels";
-import { containing } from "./db-filters";
+import { containsText, mentions } from "./db-filters";
 import { type MilestoneView, threadMilestoneJson } from "./milestone-store";
 import { type PublicUser, publicUserColumns } from "./repository-lookup";
 
@@ -139,35 +139,35 @@ const DEFAULT_SORT: ThreadSort = { by: "created", direction: "desc" };
 const json = <T>(value: unknown): T =>
 	(typeof value === "string" ? JSON.parse(value) : value) as T;
 
-const userJson = (id: AnyColumn) => sql`json_build_object(
+const userJson = (id: AnyColumn) => sql`json_object(
 	'id', ${user.id}, 'apiId', ${user.apiId}, 'username', ${user.username},
 	'name', ${user.name}, 'image', ${user.image}) from ${user} where ${user.id} = ${id}`;
 
-const commentCount = sql<number>`(select count(*)::int from ${comments} where ${comments.issueId} = ${issues.id})`;
+const commentCount = sql<number>`(select count(*) from ${comments} where ${comments.issueId} = ${issues.id})`;
 
 const threadColumns = {
 	issue: issues,
 	pr: pullRequests,
 	author: publicUserColumns,
-	labels: sql`coalesce((select json_agg(json_build_object(
+	labels: sql`coalesce((select json_group_array(json_object(
 		'id', ${labels.id}, 'name', ${labels.name}, 'color', ${labels.color},
 		'description', ${labels.description}) order by lower(${labels.name}))
 		from ${threadLabels} inner join ${labels} on ${labels.id} = ${threadLabels.labelId}
-		where ${threadLabels.issueId} = ${issues.id}), '[]'::json)`.mapWith(
+		where ${threadLabels.issueId} = ${issues.id}), '[]')`.mapWith(
 		json<LabelView[]>,
 	),
-	assignees: sql`coalesce((select json_agg(json_build_object(
+	assignees: sql`coalesce((select json_group_array(json_object(
 		'id', ${user.id}, 'apiId', ${user.apiId}, 'username', ${user.username},
 		'name', ${user.name}, 'image', ${user.image}) order by ${threadAssignees.id})
 		from ${threadAssignees} inner join ${user} on ${user.id} = ${threadAssignees.userId}
-		where ${threadAssignees.issueId} = ${issues.id}), '[]'::json)`.mapWith(
+		where ${threadAssignees.issueId} = ${issues.id}), '[]')`.mapWith(
 		json<PublicUser[]>,
 	),
-	requestedReviewers: sql`coalesce((select json_agg(json_build_object(
+	requestedReviewers: sql`coalesce((select json_group_array(json_object(
 		'id', ${user.id}, 'apiId', ${user.apiId}, 'username', ${user.username},
 		'name', ${user.name}, 'image', ${user.image}) order by ${pullRequestReviewRequests.id})
 		from ${pullRequestReviewRequests} inner join ${user} on ${user.id} = ${pullRequestReviewRequests.userId}
-		where ${pullRequestReviewRequests.issueId} = ${issues.id}), '[]'::json)`.mapWith(
+		where ${pullRequestReviewRequests.issueId} = ${issues.id}), '[]')`.mapWith(
 		json<PublicUser[]>,
 	),
 	milestone: threadMilestoneJson,
@@ -180,9 +180,6 @@ const threadColumns = {
 	commentsCount: commentCount.mapWith(Number),
 	total: sql<number>`count(*) over ()`.mapWith(Number),
 };
-
-const mentionPattern = (username: string) =>
-	`@${username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9._-])`;
 
 /** One assignee filter value: a username, `none` or `*`. */
 function assigneeCondition(assignee: string): SQL {
@@ -224,7 +221,7 @@ function issuesWithLabels(names: string[]) {
 				eq(labels.repoId, issues.repoId),
 			),
 		)
-		.where(inArray(sql`lower(${labels.name})`, wanted))
+		.where(inList(sql`lower(${labels.name})`, wanted))
 		.groupBy(threadLabels.issueId)
 		.having(sql`count(distinct ${labels.id}) = ${wanted.length}`);
 }
@@ -250,15 +247,10 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 				: isNull(pullRequests.mergedAt),
 		);
 	}
-	if (filter.numbers) add(inArray(issues.number, filter.numbers));
+	if (filter.numbers) add(inList(issues.number, filter.numbers));
 	if (filter.updatedSince) add(gte(issues.updatedAt, filter.updatedSince));
 	for (const term of filter.terms ?? []) {
-		add(
-			or(
-				ilike(issues.title, containing(term)),
-				ilike(issues.body, containing(term)),
-			),
-		);
+		add(or(containsText(issues.title, term), containsText(issues.body, term)));
 	}
 	for (const username of filter.authors ?? []) {
 		add(
@@ -272,11 +264,10 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 		);
 	}
 	for (const username of filter.mentions ?? []) {
-		const pattern = mentionPattern(username);
 		add(
 			or(
-				sql`${issues.title} ~* ${pattern}`,
-				sql`${issues.body} ~* ${pattern}`,
+				mentions(issues.title, username),
+				mentions(issues.body, username),
 				exists(
 					db
 						.select({ one: sql`1` })
@@ -284,7 +275,7 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 						.where(
 							and(
 								eq(comments.issueId, issues.id),
-								sql`${comments.body} ~* ${pattern}`,
+								mentions(comments.body, username),
 							),
 						),
 				),
@@ -373,7 +364,7 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 			),
 		);
 	}
-	if (filter.head === null) add(sql`false`);
+	if (filter.head === null) add(sql`0`);
 	else if (filter.head) add(eq(pullRequests.sourceBranch, filter.head));
 	if (filter.base) add(eq(pullRequests.targetBranch, filter.base));
 	if (filter.pullRequestStates) {
@@ -386,7 +377,7 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 							? isNotNull(pullRequests.mergedAt)
 							: and(eq(issues.status, "closed"), isNull(pullRequests.mergedAt)),
 				),
-			) ?? sql`false`,
+			) ?? sql`0`,
 		);
 	}
 	if (filter.draft !== undefined) {
@@ -465,7 +456,7 @@ export async function listThreads(
 	if (first) return { threads: records.map(toThread), total: first.total };
 	if (!options.offset) return { threads: [], total: 0 };
 	const [row] = await db
-		.select({ total: sql<number>`count(*)::int`.mapWith(Number) })
+		.select({ total: sql<number>`count(*)`.mapWith(Number) })
 		.from(issues)
 		.leftJoin(pullRequests, eq(pullRequests.issueId, issues.id))
 		.where(where);

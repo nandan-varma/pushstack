@@ -12,18 +12,8 @@
  * (`canReadRepositoryCondition`), checked again when the inbox is read so
  * losing access hides old notifications.
  */
-import {
-	and,
-	count,
-	desc,
-	eq,
-	gte,
-	inArray,
-	lt,
-	lte,
-	ne,
-	sql,
-} from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "#/db";
 import {
@@ -32,6 +22,7 @@ import {
 	repositories,
 	threadSubscriptions,
 } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import { getMentionedUsernames } from "#/lib/issue-references";
 import {
@@ -112,7 +103,7 @@ export async function recordThreadActivity(
 					await db
 						.select({ id: user.id })
 						.from(user)
-						.where(inArray(sql`lower(${user.username})`, mentioned))
+						.where(inList(sql`lower(${user.username})`, mentioned))
 				).map((row) => row.id);
 
 	const involved: { userId: string; reason: NotificationReason }[] = [
@@ -141,7 +132,7 @@ export async function recordThreadActivity(
 							.from(user)
 							.where(
 								and(
-									inArray(user.id, [...new Set(involved.map((i) => i.userId))]),
+									inList(user.id, [...new Set(involved.map((i) => i.userId))]),
 									canReadRepositoryCondition(user.id, repoId),
 								),
 							)
@@ -151,10 +142,12 @@ export async function recordThreadActivity(
 	if (newSubscriptions.length > 0) {
 		// An existing row wins: it keeps its first reason and an explicit
 		// unsubscribe stays one.
-		await db
-			.insert(threadSubscriptions)
-			.values(newSubscriptions.map((s) => ({ ...s, issueId: thread.id })))
-			.onConflictDoNothing();
+		await upsertEachRow(newSubscriptions, (s) =>
+			db
+				.insert(threadSubscriptions)
+				.values({ ...s, issueId: thread.id })
+				.onConflictDoNothing(),
+		);
 	}
 
 	if (activity.notifySubscribers !== false) {
@@ -189,7 +182,7 @@ export async function recordThreadActivity(
 							and(
 								eq(threadSubscriptions.issueId, thread.id),
 								eq(threadSubscriptions.subscribed, false),
-								inArray(threadSubscriptions.userId, watchers),
+								inList(threadSubscriptions.userId, watchers),
 							),
 						)
 				).map((row) => row.userId),
@@ -210,26 +203,39 @@ export async function recordThreadActivity(
 	if (reasons.size === 0) return;
 
 	const now = new Date();
-	await db
-		.insert(notifications)
-		.values(
-			[...reasons].map(([userId, reason]) => ({
+	await upsertEachRow([...reasons], ([userId, reason]) =>
+		db
+			.insert(notifications)
+			.values({
 				userId,
 				repoId: thread.repoId,
 				issueId: thread.id,
 				reason,
 				unread: true,
 				updatedAt: now,
-			})),
-		)
-		.onConflictDoUpdate({
-			target: [notifications.userId, notifications.issueId],
-			set: {
-				reason: sql`excluded.reason`,
-				unread: true,
-				updatedAt: now,
-			},
-		});
+			})
+			.onConflictDoUpdate({
+				target: [notifications.userId, notifications.issueId],
+				set: {
+					reason: sql`excluded.reason`,
+					unread: true,
+					updatedAt: now,
+				},
+			}),
+	);
+}
+
+/**
+ * One upsert per row, sent as one atomic batch: D1 caps a statement at 100
+ * bound parameters, so a list of rows can't share a single insert.
+ */
+async function upsertEachRow<R>(
+	rows: readonly R[],
+	upsert: (row: R) => BatchItem<"sqlite">,
+): Promise<void> {
+	const [first, ...rest] = rows;
+	if (!first) return;
+	await db.batch([upsert(first), ...rest.map((row) => upsert(row))]);
 }
 
 const owner = alias(user, "notification_repo_owner");
@@ -253,7 +259,7 @@ function notificationWhere(userId: string, filter: NotificationFilter) {
 		eq(notifications.userId, userId),
 		filter.all ? undefined : eq(notifications.unread, true),
 		filter.participating
-			? inArray(notifications.reason, [...PARTICIPATING_REASONS])
+			? inList(notifications.reason, [...PARTICIPATING_REASONS])
 			: undefined,
 		filter.since ? gte(notifications.updatedAt, filter.since) : undefined,
 		filter.before ? lt(notifications.updatedAt, filter.before) : undefined,

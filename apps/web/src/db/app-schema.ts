@@ -1084,13 +1084,6 @@ export const deviceCodes = sqliteTable(
 	}),
 );
 
-export const repoLocks = sqliteTable("repo_locks", {
-	/** `${ownerKey}/${repoName}` */
-	repoKey: text("repo_key").primaryKey(),
-	holder: text("holder").notNull(),
-	expiresAt: epochMs("expires_at").notNull(),
-});
-
 /**
  * Fixed-window request counters for Better Auth's rate limiter
  * (src/server/rate-limit.ts). One small row per rate-limited caller per

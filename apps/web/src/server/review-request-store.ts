@@ -7,15 +7,17 @@
  * silently, and asking again is allowed. Plain server-only helpers behind the
  * server functions in `review-requests.ts` and the REST API.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "#/db";
 import {
 	pullRequestReviewRequests,
 	repositoryCollaborators,
 } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { user } from "#/db/schema";
 import { MAX_REVIEWERS_PER_REQUEST } from "#/lib/limits";
 import { recordThreadActivity } from "./notification-store";
-import { type PublicUser, publicUserFields } from "./repository-lookup";
+import { type PublicUser, publicUserColumns } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
 
 /** A refused request: the message is GitHub's (REST turns it into a 422). */
@@ -35,12 +37,18 @@ export async function requestedReviewersByIssue(
 ): Promise<Map<number, PublicUser[]>> {
 	const out = new Map<number, PublicUser[]>();
 	if (issueIds.length === 0) return out;
-	const rows = await db.query.pullRequestReviewRequests.findMany({
-		columns: { issueId: true },
-		where: { issueId: { in: issueIds } },
-		with: { user: publicUserFields },
-		orderBy: { createdAt: "asc", id: "asc" },
-	});
+	const rows = await db
+		.select({
+			issueId: pullRequestReviewRequests.issueId,
+			user: publicUserColumns,
+		})
+		.from(pullRequestReviewRequests)
+		.innerJoin(user, eq(user.id, pullRequestReviewRequests.userId))
+		.where(inList(pullRequestReviewRequests.issueId, issueIds))
+		.orderBy(
+			asc(pullRequestReviewRequests.createdAt),
+			asc(pullRequestReviewRequests.id),
+		);
 	for (const row of rows) {
 		const list = out.get(row.issueId) ?? [];
 		list.push(row.user);
@@ -62,12 +70,12 @@ export async function listReviewerCandidates(
 		.select({ userId: repositoryCollaborators.userId })
 		.from(repositoryCollaborators)
 		.where(eq(repositoryCollaborators.repoId, repoId));
-	const users = await db.query.user.findMany({
-		...publicUserFields,
-		where: {
-			id: { in: [repo.ownerId, ...collaborators.map((c) => c.userId)] },
-		},
-	});
+	const users = await db
+		.select(publicUserColumns)
+		.from(user)
+		.where(
+			inList(user.id, [repo.ownerId, ...collaborators.map((c) => c.userId)]),
+		);
 	return users.sort((a, b) => a.username.localeCompare(b.username));
 }
 
@@ -159,7 +167,7 @@ export async function removeReviewRequests(
 		.where(
 			and(
 				eq(pullRequestReviewRequests.issueId, pr.id),
-				inArray(
+				inList(
 					pullRequestReviewRequests.userId,
 					found.map((u) => u.id),
 				),

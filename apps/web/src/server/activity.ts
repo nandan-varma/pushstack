@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { activities, repositories } from "#/db/app-schema";
 import type { ActivityEvent } from "#/lib/activity-types";
@@ -39,7 +39,7 @@ export function listUserActivity(
 			userId,
 			...(options.includePrivate
 				? {}
-				: { RAW: (table) => inArray(table.repoId, publicRepoIds) }),
+				: { RAW: (table) => sql`${table.repoId} in ${publicRepoIds}` }),
 		},
 		columns: { id: true, type: true, metadata: true, createdAt: true },
 		with: {

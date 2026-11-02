@@ -12,7 +12,6 @@ import {
 	desc,
 	eq,
 	exists,
-	inArray,
 	or,
 	type SQL,
 	sql,
@@ -24,6 +23,7 @@ import {
 	repositoryCollaborators,
 	stars,
 } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import {
 	MAX_REPO_DESCRIPTION_CHARS,
@@ -267,7 +267,7 @@ function loadViewerHasStarred(ctx: GraphQLContext, repoId: number) {
 				.select({ repoId: stars.repoId })
 				.from(stars)
 				.where(
-					and(eq(stars.userId, ctx.caller.userId), inArray(stars.repoId, ids)),
+					and(eq(stars.userId, ctx.caller.userId), inList(stars.repoId, ids)),
 				);
 			return new Map(rows.map((row) => [row.repoId, true as const]));
 		})
@@ -411,7 +411,7 @@ const loadRepositoryNode: NodeLoader = async (key, ctx) => {
 				.innerJoin(user, eq(repositories.ownerId, user.id))
 				.where(
 					and(
-						inArray(repositories.id, ids),
+						inList(repositories.id, ids),
 						readableRepositoriesCondition(viewer),
 					),
 				);

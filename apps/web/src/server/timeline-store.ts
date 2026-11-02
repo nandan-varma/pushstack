@@ -4,9 +4,11 @@
  * server functions after their own writes; never a server-function file.
  * Events belong to an issue id (a pull request's is its issue's).
  */
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, timelineEvents } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { insertMany } from "#/db/insert-many";
 import { getReferencedIssueNumbers } from "#/lib/issue-references";
 import type {
 	ThreadRef,
@@ -14,6 +16,9 @@ import type {
 	TimelineEvent,
 } from "#/lib/timeline-types";
 import { publicUserFields } from "./repository-lookup";
+
+/** Under D1's 100 bound parameters for a row of `timelineEvents`'s seven columns. */
+const ROWS_PER_STATEMENT = 14;
 
 function toRow(
 	issueId: number,
@@ -39,9 +44,10 @@ export async function recordTimelineEvents(
 	event: TimelineEvent,
 ): Promise<void> {
 	if (issueIds.length === 0) return;
-	await db
-		.insert(timelineEvents)
-		.values(issueIds.map((issueId) => toRow(issueId, actorId, event)));
+	await insertMany(
+		timelineEvents,
+		issueIds.map((issueId) => toRow(issueId, actorId, event)),
+	);
 }
 
 async function threadIds(
@@ -56,7 +62,7 @@ async function threadIds(
 		.where(
 			and(
 				eq(issues.repoId, repoId),
-				inArray(issues.number, numbers),
+				inList(issues.number, numbers),
 				ne(issues.id, exceptId),
 			),
 		);
@@ -81,19 +87,23 @@ export async function recordCrossReferences(
 		sourceId,
 	);
 	if (targets.length === 0) return;
-	await db
-		.insert(timelineEvents)
-		.values(
-			targets.map((issueId) =>
-				toRow(
-					issueId,
-					actorId,
-					{ event: "cross-referenced", source },
-					sourceId,
-				),
-			),
-		)
-		.onConflictDoNothing();
+	// One row per (issue, source) pair, so a repeat mention is ignored. insertMany
+	// cannot ignore conflicts, so the rows are chunked here, one batch.
+	const rows = targets.map((issueId) =>
+		toRow(issueId, actorId, { event: "cross-referenced", source }, sourceId),
+	);
+	const chunks: (typeof rows)[] = [];
+	for (let i = 0; i < rows.length; i += ROWS_PER_STATEMENT) {
+		chunks.push(rows.slice(i, i + ROWS_PER_STATEMENT));
+	}
+	const [first, ...rest] = chunks;
+	if (!first) return;
+	await db.batch([
+		db.insert(timelineEvents).values(first).onConflictDoNothing(),
+		...rest.map((values) =>
+			db.insert(timelineEvents).values(values).onConflictDoNothing(),
+		),
+	]);
 }
 
 /**
@@ -126,7 +136,7 @@ export async function removeCrossReferences(
 			and(
 				eq(timelineEvents.event, "cross-referenced"),
 				eq(timelineEvents.sourceIssueId, sourceId),
-				inArray(timelineEvents.issueId, dropped),
+				inList(timelineEvents.issueId, dropped),
 			),
 		);
 }

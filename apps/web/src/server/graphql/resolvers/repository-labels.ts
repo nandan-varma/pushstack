@@ -5,17 +5,7 @@
  * Label names and colors follow the REST rules (lib/labels.ts schemas,
  * limits.ts caps), so both surfaces accept the same labels.
  */
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	ilike,
-	or,
-	type SQL,
-	sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, or, type SQL, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labels } from "#/db/app-schema";
 import {
@@ -24,6 +14,7 @@ import {
 	labelNameSchema,
 } from "#/lib/labels";
 import { MAX_LABEL_SEARCH_CHARS } from "#/lib/limits";
+import { containsText } from "../../db-filters";
 import {
 	createRepoLabel,
 	DuplicateLabelError,
@@ -68,10 +59,6 @@ function labelNode(row: {
 	};
 }
 
-/** LIKE pattern for a literal search term (`%`, `_` and `\` are escaped). */
-const likeContains = (term: string) =>
-	`%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-
 /**
  * GitHub's label order: CREATED_AT (the default) or NAME, each with a
  * direction. ISSUE_COUNT needs per-label counts this domain does not compute,
@@ -101,8 +88,8 @@ async function repositoryLabels(
 		eq(labels.repoId, source.row.id),
 		term
 			? or(
-					ilike(labels.name, likeContains(term)),
-					ilike(labels.description, likeContains(term)),
+					containsText(labels.name, term),
+					containsText(labels.description, term),
 				)
 			: undefined,
 	);

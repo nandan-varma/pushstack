@@ -6,7 +6,6 @@ import {
 	eq,
 	exists,
 	gte,
-	inArray,
 	isNotNull,
 	lt,
 	ne,
@@ -23,6 +22,7 @@ import {
 	repositoryCollaborators,
 	stars,
 } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import { isHttpUrl } from "#/lib/homepage";
 import { MAX_REPO_TOPICS } from "#/lib/limits";
@@ -94,7 +94,7 @@ export async function starCounts(
 	const rows = await db
 		.select({ repoId: stars.repoId, total: count() })
 		.from(stars)
-		.where(inArray(stars.repoId, repoIds))
+		.where(inList(stars.repoId, repoIds))
 		.groupBy(stars.repoId);
 	return new Map(rows.map((row) => [row.repoId, row.total]));
 }
@@ -108,7 +108,7 @@ export async function openIssueCounts(
 		db
 			.select({ repoId: issues.repoId, total: count() })
 			.from(issues)
-			.where(and(inArray(issues.repoId, repoIds), eq(issues.status, "open")))
+			.where(and(inList(issues.repoId, repoIds), eq(issues.status, "open")))
 			.groupBy(issues.repoId),
 	);
 	return new Map(rows.map((row) => [row.repoId, row.total]));

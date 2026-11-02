@@ -23,6 +23,11 @@
 			"migrations_pattern": "migrations/*/migration.sql"
 		}
 	],
+	// One RepositoryLock object per repository serializes every writer to it.
+	"durable_objects": {
+		"bindings": [{ "name": "REPO_LOCK", "class_name": "RepositoryLock" }]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["RepositoryLock"] }],
 	// Public configuration. Secrets are set with `wrangler secret put` and
 	// declared below so they are typed and checked.
 	"vars": {

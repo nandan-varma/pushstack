@@ -51,8 +51,49 @@ declare namespace Cloudflare {
 // binding satisfies.
 type R2Bucket = import("git-fs-s3/r2").R2BucketLike;
 
+// Durable Object types, structural for the same reason as R2Bucket: the
+// Workers runtime types are not loaded. Only what this app uses is declared.
+interface DurableObjectId {
+	toString(): string;
+}
+
+interface DurableObjectStorage {
+	get<T>(key: string): Promise<T | undefined>;
+	put<T>(key: string, value: T): Promise<void>;
+	delete(key: string): Promise<boolean>;
+	setAlarm(scheduledTime: number): Promise<void>;
+	deleteAlarm(): Promise<void>;
+}
+
+interface DurableObjectState {
+	storage: DurableObjectStorage;
+	blockConcurrencyWhile<T>(callback: () => Promise<T>): Promise<T>;
+}
+
+/** What a RepositoryLock stub exposes over RPC. */
+type RepositoryLockRpc = Pick<
+	import("./server/repository-lock/durable-object").RepositoryLock,
+	"acquire" | "renew" | "release"
+>;
+
+/**
+ * `T` is the object's RPC surface: its stub exposes those methods directly.
+ * `wrangler types` emits the namespace without it, and RepositoryLock is the
+ * app's only Durable Object, so that is the default.
+ */
+interface DurableObjectNamespace<T = RepositoryLockRpc> {
+	idFromName(name: string): DurableObjectId;
+	get(id: DurableObjectId): T;
+}
+
 declare module "cloudflare:workers" {
 	export const env: Cloudflare.Env;
+
+	export abstract class DurableObject<E = unknown> {
+		protected readonly ctx: DurableObjectState;
+		protected readonly env: E;
+		constructor(ctx: DurableObjectState, env: E);
+	}
 }
 
 // D1's binding type, declared structurally for the same reason as R2Bucket

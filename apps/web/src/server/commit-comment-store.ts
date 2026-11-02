@@ -4,9 +4,10 @@
  * server-only module: permission checks return booleans and each caller turns
  * them into its own error.
  */
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { commitComments } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { canWriteRepo, getRepositoryAccess } from "./repo-access";
 import { publicUserFields } from "./repository-lookup";
 
@@ -72,7 +73,7 @@ export async function commitCommentCounts(
 		.where(
 			and(
 				eq(commitComments.repoId, repoId),
-				inArray(commitComments.commitSha, unique),
+				inList(commitComments.commitSha, unique),
 			),
 		)
 		.groupBy(commitComments.commitSha);

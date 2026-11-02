@@ -6,10 +6,11 @@
  * input checks stay with the caller: the server functions throw their own
  * errors, the API answers 401/403/404/422.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { MAX_RANGE_COMMITS } from "git-edge";
 import { db } from "#/db";
 import { issues, pullRequests, type Repository } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { MAX_COMMIT_MESSAGE_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
@@ -484,7 +485,7 @@ async function closeLinkedIssues(
 		.where(
 			and(
 				eq(issues.repoId, pr.repoId),
-				inArray(issues.number, numbers),
+				inList(issues.number, numbers),
 				eq(issues.isPullRequest, false),
 				eq(issues.status, "open"),
 			),

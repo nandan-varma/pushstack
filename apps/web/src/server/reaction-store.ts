@@ -3,9 +3,10 @@
  * `content` values), shared by the server functions and, later, the REST API.
  * Plain server-only module: no permission checks here.
  */
-import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { reactions } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import {
 	emptyReactionRollup,
@@ -44,8 +45,8 @@ export async function listThreadReactions(
 			content: reactions.content,
 			total: count(),
 			viewer: viewerId
-				? sql<boolean>`bool_or(${reactions.userId} = ${viewerId})`
-				: sql<boolean>`false`,
+				? sql<number>`max(${reactions.userId} = ${viewerId})`
+				: sql<number>`0`,
 		})
 		.from(reactions)
 		.where(eq(reactions.issueId, issueId))
@@ -65,7 +66,7 @@ export async function listThreadReactions(
 		}
 		summary.reactions[row.content] += row.total;
 		summary.reactions.total_count += row.total;
-		if (row.viewer) summary.viewerReactions.push(row.content);
+		if (row.viewer === 1) summary.viewerReactions.push(row.content);
 	}
 	return result;
 }
@@ -139,8 +140,8 @@ async function rollupsBy(
 		.from(reactions)
 		.where(
 			key === "issue"
-				? and(inArray(reactions.issueId, ids), isNull(reactions.commentId))
-				: inArray(reactions.commentId, ids),
+				? and(inList(reactions.issueId, ids), isNull(reactions.commentId))
+				: inList(reactions.commentId, ids),
 		)
 		.groupBy(column, reactions.content);
 	for (const row of rows) {

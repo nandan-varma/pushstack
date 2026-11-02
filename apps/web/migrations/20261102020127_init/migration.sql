@@ -365,12 +365,6 @@ CREATE TABLE `releases` (
 	CONSTRAINT `fk_releases_author_id_user_id_fk` FOREIGN KEY (`author_id`) REFERENCES `user`(`id`)
 );
 --> statement-breakpoint
-CREATE TABLE `repo_locks` (
-	`repo_key` text PRIMARY KEY,
-	`holder` text NOT NULL,
-	`expires_at` integer NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE `repositories` (
 	`id` integer PRIMARY KEY AUTOINCREMENT,
 	`owner_id` text NOT NULL,

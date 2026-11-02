@@ -1,11 +1,19 @@
 /**
- * Postgres driver errors, recognised by SQLSTATE. Plain server-only module so
- * both the repository and label code (and the REST API) can use it without
+ * Database driver errors, recognised by their message. Plain server-only module
+ * so both the repository and label code (and the REST API) can use it without
  * importing each other.
  */
 
-/** Postgres SQLSTATE 23505 (unique violation); Drizzle keeps it on `cause`. */
+const UNIQUE_VIOLATION = /UNIQUE constraint failed/;
+
+/**
+ * A unique index refused the row. D1 (SQLite) names it in the driver error,
+ * which Drizzle keeps on `cause` beneath its own "Failed query" message.
+ */
 export function isUniqueViolation(error: unknown): boolean {
-	const err = error as { code?: unknown; cause?: { code?: unknown } } | null;
-	return err?.code === "23505" || err?.cause?.code === "23505";
+	if (!(error instanceof Error)) return false;
+	return (
+		UNIQUE_VIOLATION.test(error.message) ||
+		(error.cause instanceof Error && UNIQUE_VIOLATION.test(error.cause.message))
+	);
 }

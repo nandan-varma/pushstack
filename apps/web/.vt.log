@@ -1,0 +1,58 @@
+
+ RUN  v5.0.5 /Users/nandan/dev/pushstack-cf/apps/web
+
+ ❯ src/server/__tests__/api-repo-settings.test.ts (0 test)
+ ❯ src/server/__tests__/graphql.test.ts (0 test)
+ ❯ src/server/__tests__/api.test.ts (0 test)
+ ❯ src/server/__tests__/repository-caps.test.ts (0 test)
+ ❯ src/server/__tests__/api-forks-list.test.ts (0 test)
+ ❯ src/server/__tests__/store-atomicity.test.ts (0 test)
+ ❯ src/server/__tests__/repositories.test.ts (0 test)
+ ❯ src/server/__tests__/repository-templates.test.ts (0 test)
+stdout | src/server/__tests__/api-repository-counts.test.ts > repository open_issues_count > uses one grouped count query per page for both repository listings
+[perf api GET /users/:username/repos#5f445864ae264b64ba363153e443de50] done 65.5ms · r2 0 calls 0.0ms · cache 0 hit 0 miss
+  · db: list repositories 16.1ms
+  · db: repository open issue counts 23.1ms
+
+stdout | src/server/__tests__/api-repository-counts.test.ts
+[perf createToken#0f15a84075674e1f883a85b69ef17219] done 12.4ms · r2 0 calls 0.0ms · cache 0 hit 0 miss
+  · db: tokens.insert 10.4ms
+
+stdout | src/server/__tests__/api-repository-counts.test.ts
+[perf api POST /user/repos#a0454f6145e64c2a868bf2e859553a61] done 87.2ms · r2 8 calls 0.2ms · cache 0 hit 4 miss
+  · R2 LIST repos/alice/populated/git/ 0.1ms
+  · R2 LIST repos/alice/populated/releases/ 0.0ms
+  · R2 HEAD repos/alice/populated/git 0.0ms
+  · R2 LIST repos/alice/populated/git/ 0.0ms
+  · R2 HEAD repos/alice/populated/git/config 0.0ms
+  · R2 LIST repos/alice/populated/git/config/ 0.0ms
+  · R2 PUT repos/alice/populated/git/config 0.0ms
+  · R2 PUT repos/alice/populated/git/HEAD 0.0ms
+
+stdout | src/server/__tests__/api-repository-counts.test.ts
+[perf api POST /user/repos#82c2c37706af46bc81824798c0034663] done 63.6ms · r2 8 calls 0.1ms · cache 0 hit 4 miss
+  · R2 LIST repos/alice/empty/git/ 0.0ms
+  · R2 LIST repos/alice/empty/releases/ 0.0ms
+  · R2 HEAD repos/alice/empty/git 0.0ms
+  · R2 LIST repos/alice/empty/git/ 0.0ms
+  · R2 HEAD repos/alice/empty/git/config 0.0ms
+  · R2 LIST repos/alice/empty/git/config/ 0.0ms
+  · R2 PUT repos/alice/empty/git/config 0.0ms
+  · R2 PUT repos/alice/empty/git/HEAD 0.0ms
+
+stdout | src/server/__tests__/api-repository-counts.test.ts
+[perf api POST /user/repos#44381809f3664b3787c1792e1ed68ce1] done 58.4ms · r2 8 calls 0.0ms · cache 0 hit 4 miss
+  · R2 LIST repos/alice/other/git/ 0.0ms
+  · R2 LIST repos/alice/other/releases/ 0.0ms
+  · R2 HEAD repos/alice/other/git 0.0ms
+  · R2 LIST repos/alice/other/git/ 0.0ms
+  · R2 HEAD repos/alice/other/git/config 0.0ms
+  · R2 LIST repos/alice/other/git/config/ 0.0ms
+  · R2 PUT repos/alice/other/git/config 0.0ms
+  · R2 PUT repos/alice/other/git/HEAD 0.0ms
+
+ ❯ src/server/__tests__/api-repository-counts.test.ts (3 tests | 1 failed) 556ms
+   ❯ repository open_issues_count (3)
+     × uses one grouped count query per page for both repository listings 69ms
+ ❯ src/server/__tests__/api-forks.test.ts (0 test)
+ ❯ src/server/__tests__/notifications.test.ts (0 test)

@@ -8,6 +8,8 @@
  * first, so a test configures one by assigning it, as it always has.
  */
 import { createFakeR2Bucket } from "git-fs-s3/testing";
+import { LeaseQueue } from "../server/repository-lock/lease-queue";
+import { LOCK_LEASE_MS } from "../server/repository-lock/settings";
 
 /** The Worker's repository bucket; tests read it to assert what was stored. */
 export const gitBucket = createFakeR2Bucket();
@@ -24,7 +26,26 @@ const unavailableDatabase: D1Database = {
 	exec: refuseDatabase,
 };
 
+/** In-memory stand-in for the RepositoryLock namespace: same queue, no workerd. */
+const repositoryLocks = new Map<string, LeaseQueue>();
+
+const lockNamespace: DurableObjectNamespace = {
+	idFromName: (name) => ({ toString: () => name }),
+	get: (id) => {
+		const name = id.toString();
+		const queue =
+			repositoryLocks.get(name) ?? new LeaseQueue({ leaseMs: LOCK_LEASE_MS });
+		repositoryLocks.set(name, queue);
+		return {
+			acquire: async (timeoutMs) => (await queue.acquire(timeoutMs)).token,
+			renew: async (token) => queue.renew(token),
+			release: async (token) => queue.release(token),
+		};
+	},
+};
+
 const defaults: Cloudflare.Env = {
+	REPO_LOCK: lockNamespace,
 	GIT_BUCKET: gitBucket,
 	DB: unavailableDatabase,
 	ENVIRONMENT: "test",

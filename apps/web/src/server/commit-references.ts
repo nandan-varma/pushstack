@@ -9,11 +9,13 @@
  * handful of batched queries however many commits or refs were pushed.
  */
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
 import { db } from "#/db";
 import { issues, timelineEvents } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { insertMany } from "#/db/insert-many";
 import {
 	getClosingIssueNumbers,
 	getReferencedIssueNumbers,
@@ -122,9 +124,7 @@ export async function recordPushReferences(input: {
 			status: issues.status,
 		})
 		.from(issues)
-		.where(
-			and(eq(issues.repoId, input.repoId), inArray(issues.number, wanted)),
-		);
+		.where(and(eq(issues.repoId, input.repoId), inList(issues.number, wanted)));
 	const existing = new Map(threads.map((row) => [row.number, row.id]));
 	const openIssues = new Set(
 		threads
@@ -138,14 +138,17 @@ export async function recordPushReferences(input: {
 	const prior = await db
 		.select({
 			issueId: timelineEvents.issueId,
-			sha: sql<string>`${timelineEvents.payload}->>'commitSha'`,
+			sha: sql<string>`json_extract(${timelineEvents.payload}, '$.commitSha')`,
 		})
 		.from(timelineEvents)
 		.where(
 			and(
 				eq(timelineEvents.event, "referenced"),
-				inArray(timelineEvents.issueId, [...existing.values()]),
-				inArray(sql`${timelineEvents.payload}->>'commitSha'`, shas),
+				inList(timelineEvents.issueId, [...existing.values()]),
+				inList(
+					sql`json_extract(${timelineEvents.payload}, '$.commitSha')`,
+					shas,
+				),
 			),
 		);
 	const recorded = new Set(prior.map((row) => `${row.issueId}:${row.sha}`));
@@ -192,7 +195,7 @@ export async function recordPushReferences(input: {
 					.where(
 						and(
 							eq(issues.repoId, input.repoId),
-							inArray(issues.number, [...toClose]),
+							inList(issues.number, [...toClose]),
 							eq(issues.status, "open"),
 						),
 					)
@@ -208,7 +211,7 @@ export async function recordPushReferences(input: {
 			stateReason: "completed",
 		});
 	}
-	if (rows.length > 0) await db.insert(timelineEvents).values(rows);
+	await insertMany(timelineEvents, rows);
 	for (const { number, title } of closed) {
 		await recordActivity(input.actorId, input.repoId, {
 			type: "issue",
