@@ -37,3 +37,4 @@ CONTEXT.md
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+.vt.log
