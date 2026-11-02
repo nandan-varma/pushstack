@@ -12,9 +12,9 @@ builds it with `@cloudflare/vite-plugin`, and `apps/web/wrangler.jsonc` configur
   that some dependencies still assume (Better Auth's scrypt via `node:crypto`,
   isomorphic-git's use of `Buffer`). The app's own server code uses only Web APIs
   (`fetch`, WebCrypto, `TextEncoder`, `CompressionStream`) and `node:async_hooks`.
-- `placement.region` is `aws:us-west-2`, next to the Neon database. Every request
-  makes at least one database round trip, so the Worker runs beside the database
-  rather than beside the visitor.
+- `d1_databases` binds the application database as `DB` (see
+  [database.md](/docs/internals/database)). The Worker reaches it only through that
+  binding; there is no connection string.
 - `r2_buckets` binds the git bucket as `GIT_BUCKET`
   (see [git-storage.md](/docs/internals/git-storage)). The Worker never writes to a
   local filesystem: every git read and write goes through that binding.
@@ -84,24 +84,24 @@ Optional vars:
 | `SLOW_REQUEST_MS` | Requests slower than this are logged as warnings. Default 3000. |
 | `RATE_LIMIT_*` | Rate-limit windows and counts, read in `apps/web/src/server/config.ts`. |
 
-Required secrets (`wrangler secret put`):
+Required secret (`wrangler secret put`):
 
 | Name | Purpose |
 | --- | --- |
-| `DATABASE_URL` | Neon connection string, used through Neon's HTTP driver. |
 | `BETTER_AUTH_SECRET` | Session signing secret. Generate with `pnpm dlx @better-auth/cli secret`. |
-| `R2_ACCESS_KEY_ID` | R2 S3 credential, used only to presign browser uploads (`presignR2Put` in `apps/web/src/lib/r2.ts`). |
-| `R2_SECRET_ACCESS_KEY` | Pair of `R2_ACCESS_KEY_ID`, same use. |
 
-Optional secret:
+Optional secrets:
 
 | Name | Purpose |
 | --- | --- |
 | `RESEND_API_KEY` | Sends password reset and email verification mail through Resend. |
+| `R2_ACCESS_KEY_ID` | R2 S3 credential, used only to presign browser uploads (`presignR2Put` in `apps/web/src/lib/r2.ts`). |
+| `R2_SECRET_ACCESS_KEY` | Pair of `R2_ACCESS_KEY_ID`, same use. |
 
 The R2 S3 credentials exist for one job. A bucket binding cannot sign a URL, so
 release-asset uploads too large for a request body are `PUT` by the browser straight
-to R2 on a presigned URL. Everything else goes through `GIT_BUCKET`.
+to R2 on a presigned URL. Without them, release assets over 4,000,000 bytes cannot
+be uploaded. Everything else goes through `GIT_BUCKET`.
 
 Build-time variables (read by `apps/web/vite.config.ts` in the Node build, not by the
 Worker):
@@ -117,20 +117,24 @@ need no Sentry account.
 
 ### Local development
 
-`pnpm dev` runs the Worker under workerd with a simulated local R2 bucket. Put the
-secrets and any optional vars in `apps/web/.dev.vars`, one `KEY=value` per line.
+`pnpm dev` runs the Worker under workerd with a simulated local R2 bucket and D1
+database. Put the secrets and any optional vars in `apps/web/.dev.vars`, one
+`KEY=value` per line. There is no database URL to set: `pnpm dev` uses the
+simulated D1 unless wrangler is told otherwise.
 
 ## Database
 
-Neon is reached through its HTTP driver (`apps/web/src/db/index.ts`). The driver is
-stateless, so the client is created at module scope and there is no connection pool.
+The database is Cloudflare D1 (SQLite), bound as `DB`. `apps/web/src/db/index.ts`
+wraps the binding in Drizzle's `drizzle-orm/d1` client, created at module scope.
+There is no connection string, pool or secret for it. See
+[database.md](/docs/internals/database) for the schema and migrations.
 
-Schema changes reach the database only through `pnpm db:push`; there are no migration
-files. See [database.md](/docs/internals/database). `rate_limits`, the shared
-auth rate-limiter counter table ([security.md](/docs/internals/security)), is part of
-that schema. A deploy that introduces it must have `pnpm db:push` run against the
-target database *before* the code that writes to it is live. Otherwise the first
-rate-limited request fails against a missing table.
+Schema changes reach the database only as migrations in `apps/web/migrations/`,
+applied with `pnpm --filter @pushstack/web db:migrate:remote`. `rate_limits`, the
+shared auth rate-limiter counter table ([security.md](/docs/internals/security)),
+is part of that schema. A deploy that introduces it must have the migrations
+applied to the target database *before* the code that writes to it is live.
+Otherwise the first rate-limited request fails against a missing table.
 
 ## Response headers
 

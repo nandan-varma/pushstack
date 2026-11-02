@@ -216,7 +216,7 @@ bcrypt/argon2 to resist brute-forcing low-entropy human passwords), a fast
 hash is fine for a token that's already unguessable. See
 [authentication.md](/docs/internals/authentication).
 
-## Rate limiting is shared (Postgres), not per-instance
+## Rate limiting is shared (D1), not per-instance
 
 Better Auth's limiter keeps its counters in a module-level `Map` by default
 (`options.rateLimit.storage` resolves to `"memory"` when nothing else is
@@ -226,12 +226,12 @@ isolates, so the configured `20 requests / 60 s` (`src/lib/auth.ts`) is really
 across them sees a ceiling far above what the configuration claims.
 
 `src/server/rate-limit.ts` supplies Better Auth's `rateLimit.customStorage` with
-counters in the `rate_limits` table, so the window is shared. One statement does
-the whole decision — Postgres starts a new window or advances the current one,
+counters in the `rate_limits` table in D1, so the window is shared. One statement does
+the whole decision — the database starts a new window or advances the current one,
 and reports whether the caller is inside the limit — so two concurrent requests
 cannot both read "under the limit": the check *is* the write. The elapsed-time
 and retry arithmetic happens in SQL too, so one clock decides and no driver date
-parsing is involved. `rate-limit.test.ts` runs the real SQL against pglite and
+parsing is involved. `rate-limit.test.ts` runs the real SQL against the test D1 and
 asserts the auth config actually uses this storage, since quietly falling back
 to the `Map` is the regression worth catching.
 
@@ -249,7 +249,7 @@ fetch (2000 authenticated, 120 anonymous), `git-write` pushes (500). All are
 `X-RateLimit-*` headers and `Retry-After` (a plain-text body on git so the
 client prints it). **The limiter fails open**: a database error is logged with
 `logWarn` and the request is served, because this is abuse mitigation, not
-authorization, and Postgres hiccups must not become outages. Failed credentials (bad token on the API or git) are counted per client IP
+authorization, and database hiccups must not become outages. Failed credentials (bad token on the API or git) are counted per client IP
 (`auth-failure`, 30 per window); once spent, requests carrying credentials are
 refused before the token is hashed. That pre-auth check reads the database only
 for IPs that failed recently on the same instance (an in-memory hint), so clean
@@ -334,9 +334,8 @@ and automatic peer installation is disabled. Install the drivers and adapters
 we actually use rather than every optional ORM peer.
 
 The app uses Drizzle ORM and Kit 1.0.0-rc.4 together. Relational queries use
-`defineRelations` and v2 filters; local schema pushes use
-`drizzle-kit/api-postgres`. The old Kit dependency pulled in a vulnerable
-esbuild release. Markdown styles and the shadcn Tailwind utilities live in the
+`defineRelations` and v2 filters; drizzle-kit generates the D1 migrations.
+Markdown styles and the shadcn Tailwind utilities live in the
 app's CSS, so the shadcn CLI and typography plugin aren't installed runtime
 or build dependencies. Add components with `pnpm dlx shadcn@latest add`.
 

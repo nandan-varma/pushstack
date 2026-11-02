@@ -214,15 +214,15 @@ the next repack drops), never a ref pointing at something missing.
 ### Locking
 
 Every write runs inside `withRepositoryLock(ownerKey, repoName, fn)`
-(`git-repo-lock.ts`) — a distributed lease-row lock backed by Postgres (the
+(`git-repo-lock.ts`) — a distributed lease-row lock backed by D1 (the
 `repo_locks` table), one row per `{ownerKey}/{repoName}` key, so concurrent
 writes to the same repo serialize instead of racing *even across different
 Worker isolates*. Requests are spread across many isolates, and a lock scoped to
 one isolate's memory gives zero protection — two concurrent pushes to the same
 repo can land on two isolates that share no state at all. Acquire is a single atomic `INSERT ... ON CONFLICT DO UPDATE ...
-WHERE expires_at < now() RETURNING` (works over Neon's stateless HTTP driver,
-which can't hold a session-scoped `pg_advisory_lock` or a long-lived
-transaction); release is a holder-scoped `DELETE`. The lease has a 60s TTL
+WHERE expires_at < <nowMs> RETURNING`, where `nowMs` is the database clock
+from `db/sql.ts` (one statement, since D1 cannot hold a session lock or a
+long-lived transaction); release is a holder-scoped `DELETE`. The lease has a 60s TTL
 that a live holder renews every 20s (a holder-scoped `UPDATE ... RETURNING`),
 so a long push or repack never has its lock taken over mid-write; if a
 holder is cut off mid-critical-section by a platform limit,
@@ -471,8 +471,8 @@ then upload-pack/receive-pack — at least two per operation) resolves the
 target repository by owner+name; this goes through
 `repository-lookup.ts`'s cached `findRepositoryByName`, shared with the web UI's
 repo pages — so the
-second request of a push typically gets a free cache hit instead of hitting
-Postgres again.
+second request of a push typically gets a free cache hit instead of querying
+D1 again.
 
 ## Environment variables that tune this layer
 

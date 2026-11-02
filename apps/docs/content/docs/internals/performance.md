@@ -372,9 +372,8 @@ Server code must not reach the browser either. TanStack Start strips server
 function bodies from the client build but keeps each file's top-level
 imports, so `apps/web/vite.config.ts` declares every module under `apps/web/src/db/` and
 `apps/web/src/server/` free of side effects (`treeshake.moduleSideEffects`): once their
-exports are unused, the bundler drops them. Before that, the Neon driver,
-Drizzle and the schema shipped to every visitor (the `query-options` chunk
-was 83 KB gzip; it's 16 KB). For the same reason `apps/web/src/start.ts` loads
+exports are unused, the bundler drops them. Otherwise the database client,
+Drizzle and the schema would ship to every visitor. For the same reason `apps/web/src/start.ts` loads
 Sentry's global middlewares with a server-only dynamic import — a static
 import put the whole SDK in the main chunk, whose client halves are no-ops.
 The main entry chunk is ~85 KB gzip; when it grows, check what's in it.

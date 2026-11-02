@@ -11,12 +11,10 @@ Live in `__tests__/` directories beside the code they cover; most are in
 **Behavior tests use real infrastructure, not module mocks.** The server
 functions run for real against:
 
-- **pglite** (`apps/web/src/test/pglite-db.ts`'s `createTestDb`) — an in-memory
-  Postgres holding the real schema, loaded from the template `globalSetup`
-  (`apps/web/src/test/test-db-template.ts`) builds once per run, so every
-  query, constraint and the repo lock's lease SQL are real. A new schema file
-  must be added to that module's `SCHEMA_SOURCE_FILES`, or the cached template
-  isn't rebuilt when it changes.
+- **a real D1 database** (`apps/web/src/test/test-db.ts`'s `createTestDb`) — a
+  SQLite database from Miniflare, one per test file, built by applying
+  `apps/web/migrations/` in order, so every query, constraint and the repo
+  lock's lease SQL are real. A new migration is picked up with no extra step.
 - **the in-memory git store** — R2 isn't configured in tests, so `git-fs.ts`
   backs the same storage stack production uses with an in-memory object
   store.
@@ -28,7 +26,7 @@ The setup at the top of such a file:
 
 ```ts
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock("#/server/session", async () => (await import("../../test/app-harness")).sessionModule);
@@ -123,32 +121,20 @@ the token file and the gh config, and run the server from the repository root.
      localhost:3000/api/auth/sign-in/email -d '{"email":"octo@example.test","password":"correct-horse-battery-9"}'
    ```
 
-3. Mint a token by inserting its row while the server is stopped (the
-   `createToken` server function is not reachable over plain HTTP). Stop the
-   server, then run a script outside the repository that resolves
-   `@electric-sql/pglite` from the web app and writes to the same on-disk
-   database:
+3. Mint a token by inserting its row into the local D1 (the `createToken` server
+   function is not reachable over plain HTTP). Generate the token and its
+   SHA-256 hash outside the repository, then insert the row with
+   `wrangler d1 execute`, which writes to the same simulated database the
+   server reads:
 
-   ```js
-   // /tmp/mint.mjs — node /tmp/mint.mjs <absolute path to apps/web>
-   import { createRequire } from "node:module";
-   import { createHash, randomBytes } from "node:crypto";
-   const web = process.argv[2];
-   const require = createRequire(`${web}/package.json`);
-   const { PGlite } = require("@electric-sql/pglite");
-   const client = new PGlite(`${web}/.pushstack-local/db`);
-   const token = `pst_${randomBytes(30).toString("base64url")}`;
-   const hash = createHash("sha256").update(token).digest("hex");
-   const { rows } = await client.query(`select id from "user" where username = 'octo'`);
-   await client.query(
-     `insert into tokens (user_id, name, token_hash, scopes) values ($1, 'gh', $2, '["repo:read","repo:write"]'::jsonb)`,
-     [rows[0].id, hash],
-   );
-   await client.close();
-   console.log(token);
+   ```sh
+   TOKEN="pst_$(node -e 'console.log(require("node:crypto").randomBytes(30).toString("base64url"))')"
+   HASH=$(printf %s "$TOKEN" | shasum -a 256 | cut -d' ' -f1)
+   pnpm --filter @pushstack/web exec wrangler d1 execute DB --local --command \
+     "insert into tokens (user_id, name, token_hash, scopes) select id, 'gh', '$HASH', '[\"repo:read\",\"repo:write\"]' from \"user\" where username = 'octo'"
+   printf %s "$TOKEN" > /tmp/gh-token
    ```
 
-   Save the printed value to a file (`/tmp/gh-token`) and restart the server.
    Note: `"user"` is the Better Auth table; the `username` column holds the
    account name.
 
@@ -211,16 +197,12 @@ pnpm test:e2e:headed  # headed browser
 Config: `apps/web/playwright.config.ts`. Two things worth knowing before touching this
 suite:
 
-- It **loads `.dev.vars`** directly (via `dotenv`) so both the dev server it
-  spins up and the test files themselves (which need direct DB access to
-  verify things like test-user email state) see the same environment `pnpm
-  dev` would. It creates and deletes users, so point `.dev.vars` at a dev
-  database before running it — never production. The helpers refuse to run
-  against a non-local `DATABASE_URL` unless `E2E_ALLOW_REMOTE_DB=1` is set,
-  because `.dev.vars` is the file most likely to be pointed at a real one.
+- It reads the database directly through `wrangler d1 execute DB --local`, the
+  same simulated D1 the dev server uses, to verify things like test-user email
+  state. It creates and deletes users, and it can only reach that local database.
 - It runs **serially, one worker** (`fullyParallel: false, workers: 1`) —
   deliberately, not for lack of trying parallelism elsewhere in this
-  codebase. All specs share one dev server, one real database, and one auth
+  codebase. All specs share one dev server, one local D1, and one auth
   rate limiter (20 requests/60s, configured in `apps/web/src/lib/auth.ts`). Running
   workers in parallel caused cross-file request contention that looked like
   flaky rate-limit false positives, and let client hydration lag behind test
@@ -272,7 +254,7 @@ node ~/.local/share/pnpm/.tools/pnpm/<version>/node_modules/pnpm/install.js
 
 The first four bytes of `bin/pnpm` are then `\x7fELF`.
 
-Tests that are heavy by nature (pglite boots, thousands of git objects) set
+Tests that are heavy by nature (D1 boots, thousands of git objects) set
 an explicit per-test timeout with a comment saying why. Expensive setup that
-is not under test, such as the first pglite boot, belongs at module load or
+is not under test, such as the first D1 boot, belongs at module load or
 in a hook, not in the first test that happens to touch it.

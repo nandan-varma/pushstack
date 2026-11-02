@@ -13,8 +13,8 @@ pieces fit together. For deep dives on any one piece, use the other pages in thi
 | Concern | Choice |
 | --- | --- |
 | Framework | [TanStack Start](https://tanstack.com/start) — file-based SSR router with server functions |
-| Database | Neon (serverless Postgres) via `@neondatabase/serverless` |
-| ORM | Drizzle |
+| Database | Cloudflare D1 (SQLite) through the `DB` Worker binding |
+| ORM | Drizzle (`drizzle-orm/d1`) |
 | Auth | Better Auth |
 | Git | [isomorphic-git](https://isomorphic-git.org/) — no native `git` binary dependency |
 | Object storage | Cloudflare R2, through the `GIT_BUCKET` Worker binding |
@@ -108,7 +108,7 @@ and is the only place that reaches for a Node built-in — `node:async_hooks`, i
 PushStack deliberately keeps two separate persistence layers, each doing the
 job it's actually good at:
 
-- **Postgres (Neon)** — structured metadata: users, repositories (name, owner,
+- **Cloudflare D1** — structured metadata: users, repositories (name, owner,
   visibility), issues, pull requests, comments, stars, collaborators, activity
   feed, PATs. Never git object data. See [database.md](/docs/internals/database).
 - **Cloudflare R2** — the actual git object data (commits, trees, blobs, packs,
@@ -116,7 +116,7 @@ job it's actually good at:
   [git-storage.md](/docs/internals/git-storage)). This is what makes horizontal
   scaling across Worker isolates possible — no repository data lives on any
   one machine's disk. Writes (push, in-browser file edits, merges) go straight
-  to R2 too, under a per-repo Postgres lease lock — there is no local scratch
+  to R2 too, under a per-repo D1 lease lock — there is no local scratch
   copy. Under vitest the same binding is backed by an in-memory R2 bucket.
 
 ## Access control
@@ -156,8 +156,8 @@ Those guards reject dependency version drift, missing validation commands and
 registry ranges for internal packages, and they check the workflow policy:
 every action pinned to a commit SHA, Node installed from `.node-version`, and
 dependencies installed through the shared `.github/actions/setup` action. Web
-test concurrency is bounded because each behavior worker starts a Postgres WASM
-instance.
+test concurrency is bounded because each behavior worker starts its own Miniflare
+D1 instance.
 
 Three workspaces are published to npm; [releasing.md](/docs/internals/releasing)
 covers the tag formats, the trusted-publisher setup and the release workflow.
