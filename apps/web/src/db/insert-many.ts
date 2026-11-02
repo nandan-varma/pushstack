@@ -1,29 +1,36 @@
 import { getTableColumns } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import type { SQLiteInsertValue, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { db } from "#/db";
 
 /** D1's cap on bound parameters in one statement. */
 const MAX_BOUND_PARAMETERS = 100;
 
+/** A statement under construction, before any conflict clause. */
+type PendingInsert<T extends SQLiteTable> = ReturnType<
+	ReturnType<typeof db.insert<T>>["values"]
+>;
+
 /**
  * Insert any number of rows, split into statements that each stay under D1's
  * bound-parameter cap (a row spends up to one parameter per column) and sent
  * as one batch, which D1 runs atomically: either every row lands or none do
- * (with `ignoreConflicts`, rows that collide with a unique index are skipped).
+ * (`onConflict` adds a conflict clause, e.g. `(insert) =>
+ * insert.onConflictDoNothing()`, to every statement; by default a row colliding
+ * with a unique index fails the insert).
  */
 export async function insertMany<T extends SQLiteTable>(
 	table: T,
 	rows: readonly SQLiteInsertValue<T>[],
 	options: {
-		/** Skip rows that collide with a unique index instead of failing. */
-		ignoreConflicts?: boolean;
+		onConflict?: (insert: PendingInsert<T>) => BatchItem<"sqlite">;
 	} = {},
 ): Promise<void> {
 	const [first, ...rest] = chunk(rows, rowsPerStatement(table));
 	if (!first) return;
 	const statement = (values: typeof first) => {
 		const insert = db.insert(table).values(values);
-		return options.ignoreConflicts ? insert.onConflictDoNothing() : insert;
+		return options.onConflict ? options.onConflict(insert) : insert;
 	};
 	await db.batch([statement(first), ...rest.map(statement)]);
 }

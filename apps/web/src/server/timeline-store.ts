@@ -90,7 +90,7 @@ export async function recordCrossReferences(
 		targets.map((issueId) =>
 			toRow(issueId, actorId, { event: "cross-referenced", source }, sourceId),
 		),
-		{ ignoreConflicts: true },
+		{ onConflict: (insert) => insert.onConflictDoNothing() },
 	);
 }
 

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { repositories } from "../app-schema";
 import { user } from "../schema";
@@ -49,5 +49,38 @@ describe("insertMany", () => {
 		).rejects.toThrow();
 		const [after] = await db.select({ n: count() }).from(repositories);
 		expect(after?.n).toBe(before?.n);
+	});
+
+	it("skips or updates colliding rows through onConflict", async () => {
+		await insertMany(repositories, [
+			{ ownerId: "u1", name: "dup", description: "first" },
+		]);
+		await insertMany(
+			repositories,
+			[{ ownerId: "u1", name: "dup", description: "second" }],
+			{ onConflict: (insert) => insert.onConflictDoNothing() },
+		);
+		const [kept] = await db
+			.select({ description: repositories.description })
+			.from(repositories)
+			.where(eq(repositories.name, "dup"));
+		expect(kept?.description).toBe("first");
+
+		await insertMany(
+			repositories,
+			[{ ownerId: "u1", name: "dup", description: "third" }],
+			{
+				onConflict: (insert) =>
+					insert.onConflictDoUpdate({
+						target: [repositories.ownerId, repositories.name],
+						set: { description: "third" },
+					}),
+			},
+		);
+		const [updated] = await db
+			.select({ description: repositories.description })
+			.from(repositories)
+			.where(eq(repositories.name, "dup"));
+		expect(updated?.description).toBe("third");
 	});
 });

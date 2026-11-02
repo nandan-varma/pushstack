@@ -13,7 +13,6 @@
  * losing access hides old notifications.
  */
 import { and, count, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
-import type { BatchItem } from "drizzle-orm/batch";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "#/db";
 import {
@@ -23,6 +22,7 @@ import {
 	threadSubscriptions,
 } from "#/db/app-schema";
 import { inList } from "#/db/in-list";
+import { insertMany } from "#/db/insert-many";
 import { user } from "#/db/schema";
 import { getMentionedUsernames } from "#/lib/issue-references";
 import {
@@ -142,11 +142,10 @@ export async function recordThreadActivity(
 	if (newSubscriptions.length > 0) {
 		// An existing row wins: it keeps its first reason and an explicit
 		// unsubscribe stays one.
-		await upsertEachRow(newSubscriptions, (s) =>
-			db
-				.insert(threadSubscriptions)
-				.values({ ...s, issueId: thread.id })
-				.onConflictDoNothing(),
+		await insertMany(
+			threadSubscriptions,
+			newSubscriptions.map((s) => ({ ...s, issueId: thread.id })),
+			{ onConflict: (insert) => insert.onConflictDoNothing() },
 		);
 	}
 
@@ -203,39 +202,24 @@ export async function recordThreadActivity(
 	if (reasons.size === 0) return;
 
 	const now = new Date();
-	await upsertEachRow([...reasons], ([userId, reason]) =>
-		db
-			.insert(notifications)
-			.values({
-				userId,
-				repoId: thread.repoId,
-				issueId: thread.id,
-				reason,
-				unread: true,
-				updatedAt: now,
-			})
-			.onConflictDoUpdate({
-				target: [notifications.userId, notifications.issueId],
-				set: {
-					reason: sql`excluded.reason`,
-					unread: true,
-					updatedAt: now,
-				},
-			}),
+	await insertMany(
+		notifications,
+		[...reasons].map(([userId, reason]) => ({
+			userId,
+			repoId: thread.repoId,
+			issueId: thread.id,
+			reason,
+			unread: true,
+			updatedAt: now,
+		})),
+		{
+			onConflict: (insert) =>
+				insert.onConflictDoUpdate({
+					target: [notifications.userId, notifications.issueId],
+					set: { reason: sql`excluded.reason`, unread: true, updatedAt: now },
+				}),
+		},
 	);
-}
-
-/**
- * One upsert per row, sent as one atomic batch: D1 caps a statement at 100
- * bound parameters, so a list of rows can't share a single insert.
- */
-async function upsertEachRow<R>(
-	rows: readonly R[],
-	upsert: (row: R) => BatchItem<"sqlite">,
-): Promise<void> {
-	const [first, ...rest] = rows;
-	if (!first) return;
-	await db.batch([upsert(first), ...rest.map((row) => upsert(row))]);
 }
 
 const owner = alias(user, "notification_repo_owner");
