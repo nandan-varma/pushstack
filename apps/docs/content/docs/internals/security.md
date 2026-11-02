@@ -324,7 +324,7 @@ explicit `allowBuilds` entry, bundled agent skills are denied per package,
 and automatic peer installation is disabled. Install the drivers and adapters
 we actually use rather than every optional ORM peer.
 
-The app uses Drizzle ORM and Kit 1.0.0-rc.4 together. Relational queries use
+The app uses Drizzle ORM and Kit 1.0.0-rc.5 together. Relational queries use
 `defineRelations` and v2 filters; local schema pushes use
 `drizzle-kit/api-postgres`. The old Kit dependency pulled in a vulnerable
 esbuild release. Markdown styles and the shadcn Tailwind utilities live in the
