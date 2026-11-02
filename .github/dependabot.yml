@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     # Wait a week before proposing a version: a compromised release is usually
     # yanked within days, and nothing here depends on being on the newest patch
     # the hour it lands.
@@ -15,7 +15,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     cooldown:
       default-days: 7
     groups:
@@ -27,7 +27,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /.github/actions/setup
     schedule:
-      interval: weekly
+      interval: monthly
     cooldown:
       default-days: 7
     groups:
