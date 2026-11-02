@@ -99,11 +99,11 @@
 		}
 	},
 	"devDependencies": {
-		"@aws-sdk/client-s3": "^3.1149.0",
+		"@aws-sdk/client-s3": "^3.1157.0",
 		"aws4fetch": "^1.0.20",
 		"@types/node": "^26.6.5",
-		"isomorphic-git": "^1.44.3",
-		"tsdown": "^0.23.1",
+		"isomorphic-git": "^1.44.5",
+		"tsdown": "^0.23.2",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.5",
 		"diff": "^9.0.0",

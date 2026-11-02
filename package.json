@@ -19,10 +19,10 @@
 		"test:workspace": "node --test scripts/workspace.test.mjs"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.15",
+		"@biomejs/biome": "2.6.3",
 		"husky": "^9.1.7",
 		"lint-staged": "^17.6.0",
-		"turbo": "^2.11.9"
+		"turbo": "^2.11.10"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx,json,css}": "biome check --write --no-errors-on-unmatched"
