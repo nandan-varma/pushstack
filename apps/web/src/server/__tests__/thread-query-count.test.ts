@@ -6,7 +6,7 @@
  * logger every query passes through (the same SQL notes the perf tree
  * prints), so a regression to per-row or per-kind queries fails here.
  */
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const queries = vi.hoisted(() => ({ count: 0 }));
 
@@ -84,6 +84,16 @@ beforeAll(async () => {
 		});
 	}
 	token = await mintToken(users.owner, ["repo:read"]);
+});
+
+// The repository and access caches expire after a few seconds of wall clock, so
+// on a slow run a counted read could pay for a lookup a fast run serves from
+// cache. Only `Date` is frozen: the database still runs on real time.
+beforeAll(() => {
+	vi.useFakeTimers({ toFake: ["Date"], now: Date.now() });
+});
+afterAll(() => {
+	vi.useRealTimers();
 });
 
 describe("database queries per thread read", () => {
