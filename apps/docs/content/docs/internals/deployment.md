@@ -1,170 +1,186 @@
 ---
 title: "Deployment"
-description: "Vercel and Nitro specifics and the environment variable reference."
+description: "The Cloudflare Workers that serve the web app and docs, their configuration, and the environment variable reference."
 ---
 
-## Target: Vercel, not Cloudflare
+## Runtime: a Cloudflare Worker
 
-The deployment target is **Vercel**, via Nitro's `vercel` preset
-(`nitro({ preset: "vercel" })` in `apps/web/vite.config.ts`) — despite Cloudflare R2
-being used for object storage, this is **not** a Cloudflare Pages/Workers
-deployment. Cloudflare's role here is exclusively R2 object storage via its
-S3-compatible API, nothing else — there's no `@cloudflare/vite-plugin` in the
-dependency tree.
+The web app is one Cloudflare Worker, `pushstack-staging`. `apps/web/vite.config.ts`
+builds it with `@cloudflare/vite-plugin`, and `apps/web/wrangler.jsonc` configures it:
 
-Functions run on Vercel's **Node runtime** (Fluid compute). The app never
-writes to the function's filesystem — every git read and write goes straight
-to R2 (see [git-storage.md](/docs/internals/git-storage)) — and server code relies on Web
-APIs (`fetch`, WebCrypto, `TextEncoder`, `CompressionStream`) plus
-`node:async_hooks` only. Vercel's Edge runtime isn't available through this
-stack: Nitro v3 removed the `vercel-edge` preset ("use `vercel` with Fluid
-compute"), and its per-route `functionRules` re-link the same Node bundle.
-Dependencies still assume Node in places (Better Auth's scrypt password
-hashing via `node:crypto`, the Sentry Node SDK, isomorphic-git's use of the
-global `Buffer`).
+- `compatibility_flags: ["nodejs_compat"]` supplies the Node built-ins and globals
+  that some dependencies still assume (Better Auth's scrypt via `node:crypto`,
+  isomorphic-git's use of `Buffer`). The app's own server code uses only Web APIs
+  (`fetch`, WebCrypto, `TextEncoder`, `CompressionStream`) and `node:async_hooks`.
+- `placement.region` is `aws:us-west-2`, next to the Neon database. Every request
+  makes at least one database round trip, so the Worker runs beside the database
+  rather than beside the visitor.
+- `r2_buckets` binds the git bucket as `GIT_BUCKET`
+  (see [git-storage.md](/docs/internals/git-storage)). The Worker never writes to a
+  local filesystem: every git read and write goes through that binding.
+- `workers_dev` and `preview_urls` are off. The only route is the custom domain
+  `pushstack.staging.nandan.fyi`.
+
+The docs site is a separate Worker, `pushstack-docs` (`apps/docs/wrangler.jsonc`). It
+is a Node-compat Worker serving static assets and SSR, with no bindings and no
+secrets.
+
+Both Workers are deployed with wrangler. Staging is deployed with:
 
 ```bash
-pnpm build    # production build
+pnpm --filter @pushstack/web deploy:staging   # vite build, then wrangler deploy
 ```
 
-## `apps/web/vite.config.ts` specifics worth knowing
+Production is a later cutover. It will add an `env.production` block to
+`apps/web/wrangler.jsonc`; until then, there is one environment.
 
-- `ssr.target: "node"` — the functions run Node. The app's own server code
-  would build for `webworker` (it imports no `node:*` module except
-  `node:async_hooks`), but dependencies above still need Node.
-- `nitro` is pinned to an **exact** beta version (no `^`/`~` range) in
-  `package.json` — deliberate, not a typo. Don't loosen it.
-- `nitro({ traceDeps: ["react*"] })` — required, not decorative. Vite/Nitro's
-  Rolldown-based SSR bundler wraps CJS-only transitive deps (e.g.
-  `use-sync-external-store`'s shim, pulled in by `@tanstack/react-store`) in
-  a CJS-interop shim, and that shim's own internal `require("react")` call
-  can't always be statically rewritten to point at the already-bundled
-  `react` module — it falls back to a real runtime `require()` via
-  `createRequire`. Without `traceDeps`, the deployed Vercel function ships
-  only the explicitly-traced files, not a full `node_modules/react`, so that
-  runtime require 404s with `Cannot find module 'react'` on **every single
-  request** — this took the entire production site down (every route hits
-  SSR) until traced back to this one line. `traceDeps` forces Nitro to
-  physically copy `react`'s package files into the function
-  bundle so the fallback require actually resolves, without needing to fix
-  the bundler's interop decision itself. If a future dependency upgrade
-  removes the CJS shim that trips this (or you see a similar
-  `Cannot find module '<pkg>'` from a `rolldown-runtime-*.mjs` stack trace,
-  routes `/__server`), the fix is the same shape: add the package to
-  `traceDeps` (or narrow it once the actual offending package is identified;
-  check the deployed function's `_ssr/ssr.mjs` for `__require("<pkg>")` call
-  sites the way this one was found).
+## Configuration: `env`, not `process.env`
 
-## isomorphic-git, not a native binary
+Server code reads configuration through `env` from `cloudflare:workers`, which
+`apps/web/src/server/env.ts` re-exports. Do not read `process.env` in server code.
+Two isomorphic modules are the exception: `src/lib/git-utils.ts` and
+`src/lib/perf-log.ts` read `process.env`, which the Worker fills from vars and secrets.
+They must not import `cloudflare:workers`, or the browser bundle would pull it in.
 
-There's no native `git` binary dependency anywhere — all git operations go
-through isomorphic-git, with a custom `fs` plugin (`git-fs.ts`, built on the
-published `git-fs-s3` package) that reads/writes objects
-directly to/from R2. See [git-storage.md](/docs/internals/git-storage)
-for the full read/write model. No operation needs a working directory —
-commits and merges are built on the object graph. The Vercel function
-environment does not need a `git` binary on `PATH`.
+Binding types come from the config:
+
+```bash
+pnpm --filter @pushstack/web cf-typegen   # regenerates worker-configuration.d.ts from wrangler.jsonc
+```
+
+Run it after any change to `apps/web/wrangler.jsonc`. Optional variables that wrangler
+does not declare are typed by hand in `src/env.d.ts`.
+
+Under vitest, `cloudflare:workers` is aliased to `src/test/cloudflare-workers.ts`. That
+module exports an `env` whose `GIT_BUCKET` is an in-memory R2 bucket
+(`createFakeR2Bucket` from `git-fs-s3/testing`). Every other name falls through to
+`process.env`.
 
 ## Environment variables
 
+Variables are public configuration and live in `wrangler.jsonc` under `vars`.
+Secrets are set with `wrangler secret put` and declared under `secrets.required`, so
+they are typed and checked.
+
+Required vars (`apps/web/wrangler.jsonc`):
+
+| Name | Purpose |
+| --- | --- |
+| `ENVIRONMENT` | `staging` or `production`. |
+| `BETTER_AUTH_URL` | The app's public origin, for example `https://pushstack.staging.nandan.fyi`. It is the only trusted origin for Better Auth. |
+| `R2_BUCKET_NAME` | Bucket name used to build presigned upload URLs. |
+| `R2_ENDPOINT` | R2 S3 API endpoint, `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`. Used only to presign URLs. |
+
+Optional vars:
+
+| Name | Purpose |
+| --- | --- |
+| `VITE_SENTRY_DSN` | Public Sentry DSN. Unset, the Sentry SDK does nothing. |
+| `RESEND_EMAIL_FROM` | Sender address for transactional email. |
+| `PUSHSTACK_PERF_LOG` | `1` turns on server-side perf logs (see [performance.md](/docs/internals/performance)). |
+| `GIT_CACHE_MAX_SIZE` | Byte budget for the raw R2 object cache. Default 16 MiB. |
+| `GIT_CACHE_TTL` | Default TTL for cached objects, in seconds. Default 3600. |
+| `GIT_HTTP_MAX_BODY_BYTES` | Largest git push body accepted. Default 16 MiB. |
+| `SLOW_REQUEST_MS` | Requests slower than this are logged as warnings. Default 3000. |
+| `RATE_LIMIT_*` | Rate-limit windows and counts, read in `apps/web/src/server/config.ts`. |
+
+Required secrets (`wrangler secret put`):
+
+| Name | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon connection string, used through Neon's HTTP driver. |
+| `BETTER_AUTH_SECRET` | Session signing secret. Generate with `pnpm dlx @better-auth/cli secret`. |
+| `R2_ACCESS_KEY_ID` | R2 S3 credential, used only to presign browser uploads (`presignR2Put` in `apps/web/src/lib/r2.ts`). |
+| `R2_SECRET_ACCESS_KEY` | Pair of `R2_ACCESS_KEY_ID`, same use. |
+
+Optional secret:
+
+| Name | Purpose |
+| --- | --- |
+| `RESEND_API_KEY` | Sends password reset and email verification mail through Resend. |
+
+The R2 S3 credentials exist for one job. A bucket binding cannot sign a URL, so
+release-asset uploads too large for a request body are `PUT` by the browser straight
+to R2 on a presigned URL. Everything else goes through `GIT_BUCKET`.
+
+Build-time variables (read by `apps/web/vite.config.ts` in the Node build, not by the
+Worker):
+
 ```bash
-DATABASE_URL=postgresql://...                    # Neon connection string
-BETTER_AUTH_SECRET=...                           # generate via: pnpm dlx @better-auth/cli secret
-BETTER_AUTH_URL=http://localhost:3000            # your app's base URL
-
-# Cloudflare R2 (S3-compatible object storage for all git data)
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET_NAME=...
-R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-
-# Optional tuning knobs
-GIT_HTTP_MAX_BODY_BYTES=52428800   # default 50MB — request body cap for git push
-GIT_CACHE_MAX_SIZE=1073741824      # default 1GB — shared budget for both in-process LRU caches
-GIT_CACHE_TTL=3600                 # default 1 hour (seconds)
-
-# Transactional email (password reset, email verification) via Resend
-RESEND_API_KEY=...
-RESEND_EMAIL_FROM=you@yourdomain.com   # optional, falls back to a hardcoded address in apps/web/src/lib/email.ts
-
-# Sentry (error tracking) — optional, the SDK no-ops without a DSN
-VITE_SENTRY_DSN=...                # public DSN, safe to expose client-side (see instrument.server.mjs / apps/web/src/router.tsx)
-SENTRY_AUTH_TOKEN=...               # build-time only, uploads source maps — unset skips this in apps/web/vite.config.ts
+SENTRY_AUTH_TOKEN=...   # when set, the Sentry Vite plugin uploads source maps
 SENTRY_ORG=...
 SENTRY_PROJECT=...
 ```
 
-If any of the four `R2_*` variables above are unset, `isR2Configured()`
-(`apps/web/src/lib/r2.ts`) returns `false` and `git-fs.ts` keeps git data in an
-in-memory object store instead — fine for a quick local run (repositories
-vanish when the dev server restarts; use a dev R2 bucket or any
-S3-compatible endpoint such as MinIO via `R2_ENDPOINT` to keep them). With
-`NODE_ENV=production` it refuses instead: every git operation throws "R2 is
-not configured" rather than silently losing pushes.
+Unset `SENTRY_AUTH_TOKEN` and the build skips the upload, so local and dev builds
+need no Sentry account.
 
-Local setup:
+### Local development
 
-```bash
-pnpm install
-cp apps/web/.env.example apps/web/.env.local
-pnpm dlx @better-auth/cli secret   # generate BETTER_AUTH_SECRET
-# fill in apps/web/.env.local
-pnpm db:push                       # apply schema to your database
-pnpm dev
-```
+`pnpm dev` runs the Worker under workerd with a simulated local R2 bucket. Put the
+secrets and any optional vars in `apps/web/.dev.vars`, one `KEY=value` per line.
 
 ## Database
 
-Schema changes reach the database only through `pnpm db:push` (no migration
-files). See [database.md](/docs/internals/database). `rate_limits` — the shared auth
-rate-limiter counters ([security.md](/docs/internals/security)) — is part of that schema,
-so a deploy that introduces it must have `pnpm db:push` run against the target
-database *before* the code that writes to it is live; otherwise the first
+Neon is reached through its HTTP driver (`apps/web/src/db/index.ts`). The driver is
+stateless, so the client is created at module scope and there is no connection pool.
+
+Schema changes reach the database only through `pnpm db:push`; there are no migration
+files. See [database.md](/docs/internals/database). `rate_limits`, the shared
+auth rate-limiter counter table ([security.md](/docs/internals/security)), is part of
+that schema. A deploy that introduces it must have `pnpm db:push` run against the
+target database *before* the code that writes to it is live. Otherwise the first
 rate-limited request fails against a missing table.
+
+## Response headers
+
+Dynamic responses get the static security headers and `X-Robots-Tag` from
+`apps/web/src/server/security-headers.ts`, applied by a request middleware registered
+in `src/start.ts`. Static assets get the same headers from `apps/web/public/_headers`,
+and a test keeps the two in step. The nonce-based Content-Security-Policy is built per
+request in `src/server/csp.ts`.
+
+Client IP comes from `CF-Connecting-IP`, which Cloudflare sets on every request. Rate
+limits and Better Auth both use it. `X-Forwarded-For` and `X-Real-IP` are ignored
+because a caller can set them.
+
+## Error tracking
+
+On the server, `withSentry` from `@sentry/cloudflare` wraps the Worker's default export
+in `apps/web/src/server.ts`. In the browser, the SDK is `@sentry/tanstackstart-react`,
+loaded lazily. Both are no-ops without a DSN.
 
 ## Crawler traffic
 
-Every repo view (`blob`, `blame`, `raw`, `tree`, `commit`, `archive`) renders in
-a serverless function, and the HTML is not CDN-cacheable: it carries a
-per-request CSP nonce and session-dependent content. A single crawler walking
-blame pages for every commit can burn a Hobby project's Fluid Active CPU
-allowance in a day, so crawlers are refused at three layers:
+Every repo view (`blob`, `blame`, `raw`, `tree`, `commit`, `archive`) renders in the
+Worker, and the HTML is not cacheable: it carries a per-request CSP nonce and
+session-dependent content. Crawlers are therefore refused at two layers:
 
-- `apps/web/public/robots.txt` disallows everything for every agent, and
-  `apps/web/vercel.json` sends `X-Robots-Tag: noindex, nofollow, noarchive` on
-  every response. Well-behaved crawlers stop here.
-- The Vercel Firewall (project settings, not in git) denies the rest: the
-  managed **AI Bots** ruleset is set to deny, **Bot Protection** is log-only
-  (a challenge would break `git` and `gh`), a custom rule denies crawler and
-  scraper user agents, and a per-IP rate limit (120 requests per minute) covers
-  the repo views above. Git smart HTTP and `/api` are not rate limited. Generic
-  HTTP-client user agents (`python-requests`, `axios`) are deliberately not
-  blocked: scripts and migration tooling use them against the REST API.
-- `raw` and `archive` already set `Cache-Control` through `cacheControl()` in
-  `src/server/raw.ts`: commit-pinned URLs are immutable, branch URLs get a
-  60-second `s-maxage`.
+- `apps/web/public/robots.txt` disallows everything for every agent. Every response
+  carries `X-Robots-Tag: noindex, nofollow, noarchive, noimageai, noai`. Well-behaved
+  crawlers stop here.
+- Rate limits in `apps/web/src/server/config.ts` cap anonymous git reads and API
+  requests per client IP. Git smart HTTP is limited separately from the REST API.
 
-To see who is hitting a project, run `vercel logs requests -p <project> --since
-11h --json` and group by `clientUserAgent` (Hobby keeps 12 hours of request
-logs); the team usage page breaks Fluid Active CPU down by project.
+`raw` and `archive` already set `Cache-Control` through `cacheControl()` in
+`src/server/raw.ts`: commit-pinned URLs are immutable, and branch URLs get a
+60-second `s-maxage`.
 
-## Monorepo hosting
+## isomorphic-git, not a native binary
 
-Two Vercel projects deploy from this repository's `main` branch:
+There's no native `git` binary dependency anywhere. All git operations go through
+isomorphic-git, with a custom `fs` plugin (`git-fs.ts`, built on the published
+`git-fs-s3` package) that reads and writes objects directly in R2. See
+[git-storage.md](/docs/internals/git-storage) for the read and write model. No
+operation needs a working directory, since commits and merges are built on the object
+graph. The Worker does not need a `git` binary.
 
-| Project | Root directory | Host |
+## Workers
+
+| Worker | Source | Config |
 | --- | --- | --- |
-| `pushstack` | `apps/web` | `git.nandan.fyi` |
-| `pushstack-docs` | `apps/docs` | `docs.git.nandan.fyi` |
+| `pushstack-staging` | `apps/web` | `apps/web/wrangler.jsonc` |
+| `pushstack-docs` | `apps/docs` | `apps/docs/wrangler.jsonc` |
 
-Both use Node 24, include source files outside the project root, and build
-through the filtered Turbo command in their own `vercel.json`. Affected-project
-skipping avoids rebuilding an app when its dependency graph is unchanged.
-The docs host has an unproxied Cloudflare CNAME to Vercel. Documentation needs
-no database, auth secret or object-storage credentials.
-
-When using the Vercel API, create the project with its Git repository and root
-directory, then update project settings for `nodeVersion` and
-`sourceFilesOutsideRootDirectory`; those settings are accepted by the update
-endpoint rather than the create endpoint. Read the current API schema before
-changing hosting settings.
+Both are Node-compat Workers deployed with wrangler. The docs site needs no database,
+auth secret or object-storage credentials.

@@ -17,23 +17,20 @@ pieces fit together. For deep dives on any one piece, use the other pages in thi
 | ORM | Drizzle |
 | Auth | Better Auth |
 | Git | [isomorphic-git](https://isomorphic-git.org/) — no native `git` binary dependency |
-| Object storage | Cloudflare R2 (S3-compatible) |
+| Object storage | Cloudflare R2, through the `GIT_BUCKET` Worker binding |
 | Email | Resend |
 | Styling / UI | Tailwind CSS, shadcn/ui |
 | Testing | Vitest (unit), Playwright (e2e) |
 | Lint/format | Biome |
-| Deployment | Vercel Functions (Node runtime, Fluid compute), via Nitro's `vercel` preset |
+| Deployment | Cloudflare Worker (`pushstack-staging`), built with `@cloudflare/vite-plugin` |
 
-Why isomorphic-git instead of shelling out to a real `git` binary: the deployment
-target is Vercel serverless functions, where a bundled native binary isn't a
-realistic option and the filesystem is ephemeral. isomorphic-git's `fs` plugin
-interface is also what makes it possible to read *and write* git objects
+Why isomorphic-git instead of shelling out to a real `git` binary: the app runs as
+a Worker, where there is no native binary and no persistent filesystem. isomorphic-git's
+`fs` plugin interface is also what makes it possible to read *and write* git objects
 directly in R2 without ever touching local disk (see
 [git-storage.md](/docs/internals/git-storage)). Server code uses only Web APIs plus
 `node:async_hooks`, so it isn't tied to Node's filesystem, `Buffer`, or
-`node:crypto`; Vercel's Edge runtime isn't an option with this stack (Nitro v3
-dropped its `vercel-edge` preset in favor of Fluid compute), but nothing in
-the app's own code would stop a Workers-style runtime.
+`node:crypto`.
 
 ## Two extracted packages, not just app code
 
@@ -117,11 +114,10 @@ job it's actually good at:
 - **Cloudflare R2** — the actual git object data (commits, trees, blobs, packs,
   refs) for every repository, addressed by a canonical key scheme (see
   [git-storage.md](/docs/internals/git-storage)). This is what makes horizontal
-  scaling/serverless deployment possible — no repository data lives on any
+  scaling across Worker isolates possible — no repository data lives on any
   one machine's disk. Writes (push, in-browser file edits, merges) go straight
   to R2 too, under a per-repo Postgres lease lock — there is no local scratch
-  copy. Without R2 configured (tests, a quick local run) the same stack runs
-  over an in-memory store.
+  copy. Under vitest the same binding is backed by an in-memory R2 bucket.
 
 ## Access control
 
@@ -144,7 +140,7 @@ full role/permission model.
 - [performance.md](/docs/internals/performance) — caching layers and the perf-log instrumentation convention
 - [security.md](/docs/internals/security) — the security model and invariants that must not be violated
 - [testing.md](/docs/internals/testing) — test layout and conventions
-- [deployment.md](/docs/internals/deployment) — Vercel/Nitro/R2 deployment and environment variables
+- [deployment.md](/docs/internals/deployment) — the Cloudflare Workers, their configuration and environment variables
 - [releasing.md](/docs/internals/releasing) — versioning, tagging and publishing the npm packages
 
 ## Workspace tooling

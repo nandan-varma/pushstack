@@ -10,24 +10,23 @@ native `git` binary.
 
 ## Why R2, and why isomorphic-git
 
-The deployment target is Vercel serverless functions — there is no persistent
-disk, and no realistic way to bundle a native `git` binary into a function. So:
+The app runs as a Cloudflare Worker — there is no persistent disk, and no way to
+bundle a native `git` binary into one. So:
 
 - **isomorphic-git** implements the git object model, protocol, and plumbing
   entirely in JS, against a pluggable `fs`-like interface. It doesn't care
   whether that interface is backed by a real filesystem or something else.
-- **Cloudflare R2** (S3-compatible object storage) is that "something else" —
-  for reads *and* writes. Every git object, ref, and pack file lives in R2
-  under a canonical key scheme, and `git-fs.ts` (built on the published
-  `git-fs-s3` package) speaks R2 on isomorphic-git's behalf.
+- **Cloudflare R2** is that "something else" — for reads *and* writes. Every git
+  object, ref, and pack file lives in R2 under a canonical key scheme, and `git-fs.ts`
+  (built on the published `git-fs-s3` package) speaks to the bucket binding on
+  isomorphic-git's behalf.
 
 There is no native `git` binary anywhere in the codebase, and no local
 filesystem either: no `/tmp` working copy, no hydrate/sync step, no scratch
 worktree. Server code uses only Web APIs (`fetch`, WebCrypto, `TextEncoder`,
 `CompressionStream`) plus `node:async_hooks` for perf-log's request context.
-Without R2 env vars (unit tests, a quick local run), `git-fs.ts` backs the same
-stack with an in-memory object store instead — repositories then last as long
-as the process; production refuses to start that way.
+Under vitest the `GIT_BUCKET` binding is an in-memory R2 bucket. There is no other
+store to fall back to.
 
 ## Storage key scheme
 
@@ -58,9 +57,10 @@ functions:
   release assets, beside the git data at `repos/{ownerKey}/{repoName}/releases/{assetId}`. The
   key holds only the immutable asset id: names and labels are editable and live in the
   `release_assets` row. Renaming or deleting a repository moves or deletes this prefix with the
-  git data. Downloads stream chunked `Range` reads (a buffered Vercel response is capped at 4.5 MB).
-  Uploads of up to 4,000,000 bytes pass through a function; larger ones (up to 2 GiB) are `PUT`
-  straight to R2 on a presigned URL, because a function request body is capped at 4.5 MB. The URL
+  git data. Downloads stream chunked `Range` reads, so no download is held in one buffer.
+  Uploads of up to 4,000,000 bytes (`MAX_RELEASE_ASSET_DIRECT_BYTES`) are buffered by the Worker;
+  larger ones (up to 2 GiB) are `PUT` straight to R2 on a presigned URL, so the bytes never sit in
+  isolate memory. The presigned URL is signed with the R2 S3 credentials, the one thing the binding cannot do. The URL
   cannot bind a size and stays valid for 15 minutes, so the bytes land at `releases/uploads/{assetId}`:
   finishing the upload (`…/assets/{id}/finish`) `HEAD`s that object, discards it unless its size equals the
   declared one, then copies it server-side to `releases/{assetId}` and deletes the upload object, so a
@@ -97,7 +97,7 @@ repository a fork came from are in [database.md](/docs/internals/database).
 the published `git-fs-s3` package provides, network-outward to gitdir-facing:
 
 ```text
-R2 store (git-fs-s3/fetch-s3, wired in apps/web/src/lib/r2.ts) → createRetryStore → perfR2 (perf-log.ts) → createCachedStore → createGitFs
+R2 binding (createR2Store, git-fs-s3/r2) → perfR2 (perf-log.ts) → createCachedStore → createGitFs
 ```
 
 Every git operation — clone, fetch, push, web-UI commits, merges, branch
@@ -107,24 +107,13 @@ Gitdirs are the full storage roots (`repos/{ownerKey}/{repoName}/git`), so fs
 paths map 1:1 onto R2 keys — the store is built with no key prefix. Each
 layer's job:
 
-- **R2 store** (`git-fs-s3/fetch-s3`'s `createFetchS3Store`, configured from env by `apps/web/src/lib/r2.ts`) — the raw
-  `GetObject`/`PutObject`/`DeleteObject`/`HeadObject`/`ListObjectsV2` (plus
-  server-side `CopyObject`, used by renames) calls against R2's S3 API, signed
-  with `aws4fetch` and sent with plain `fetch`: no AWS SDK, no `node:https`
-  agent. Node's built-in fetch pools keep-alive connections itself. Each
-  attempt has a timeout (`AbortSignal.timeout`: 30s for bodies, 10s for
-  metadata calls); failures throw `S3HttpError` carrying
-  `$metadata.httpStatusCode`, which the retry layer classifies. `git-fs.ts`
-  owns the app's single instance.
-- **`createRetryStore`** — exponential backoff + jitter, plus a per-instance
-  circuit breaker (5 consecutive non-404 failures within 30s opens it, failing
-  fast instead of piling up retries against an R2 outage). Placed directly
-  above the network store so the cache above it never stores a transient
-  failure, and callers coalesced onto one request (see below) share a single
-  retried attempt. The default `isRetryable` (the library's `isRetryableError`: 5xx, 429, fetch's
-  `TypeError` for a dropped connection, `TimeoutError`, Node socket codes) is used as is.
+- **R2 store** (`createR2Store` from `git-fs-s3/r2`, bound to `env.GIT_BUCKET` in `git-fs.ts`) —
+  the bucket binding's `get`/`put`/`delete`/`head`/`list`/range reads and `copy`. These are
+  calls on the binding, not signed HTTP requests: no signing, no HTTP round trip. R2 retries
+  transient failures internally. `copy` streams the body bucket to bucket, which renames use.
+  `git-fs.ts` owns the app's single instance, and ref and config files are tagged `text/plain`.
 - **`createCachedStore`** — an in-process LRU read cache
-  (`GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable, default 1GB / 1h), with:
+  (`GIT_CACHE_MAX_SIZE`/`GIT_CACHE_TTL`-tunable, default 16 MiB / 1h), with:
   - **Request coalescing** (on by default) — if 100 concurrent object reads
     all want the same not-yet-cached pack file, only one R2 `GetObject`
     fires; the other 99 await the same in-flight promise. Covers `get`/
@@ -164,8 +153,7 @@ layer's job:
     are never created or advertised), and a repo's gitdir is known to exist once its DB row is found.
     Registering the gitdir with `absentFiles: ["packed-refs", "shallow"]`
     answers all three with **zero** R2 calls — not even a cached miss, which
-    wouldn't help a cold serverless invocation's empty cache (the common case
-    on Vercel). `absentFiles` names top-level gitdir files only, so a branch
+    wouldn't help an isolate's empty cache on its first request (the common case). `absentFiles` names top-level gitdir files only, so a branch
     literally named `packed-refs` (`refs/heads/packed-refs`) is unaffected.
   - **Loose-object hint** (`detectLooseObjects`, exposed here as
     `detectLooseObjectsHint(ownerKey, repoName)`) — most repositories are
@@ -220,7 +208,7 @@ sync back. Each write path builds git objects and updates refs directly:
   index, CAS ref updates, pack consolidation.
 
 The order makes every write safe to interrupt: objects land before any ref
-names them, so a killed function leaves at most unreferenced objects (which
+names them, so an interrupted request leaves at most unreferenced objects (which
 the next repack drops), never a ref pointing at something missing.
 
 ### Locking
@@ -229,22 +217,21 @@ Every write runs inside `withRepositoryLock(ownerKey, repoName, fn)`
 (`git-repo-lock.ts`) — a distributed lease-row lock backed by Postgres (the
 `repo_locks` table), one row per `{ownerKey}/{repoName}` key, so concurrent
 writes to the same repo serialize instead of racing *even across different
-serverless instances*. This app runs on Vercel, where a lock scoped to one
-process's memory gives zero protection — two concurrent pushes to the same
-repo can land on two different, unrelated function invocations with no shared
-state at all. Acquire is a single atomic `INSERT ... ON CONFLICT DO UPDATE ...
+Worker isolates*. Requests are spread across many isolates, and a lock scoped to
+one isolate's memory gives zero protection — two concurrent pushes to the same
+repo can land on two isolates that share no state at all. Acquire is a single atomic `INSERT ... ON CONFLICT DO UPDATE ...
 WHERE expires_at < now() RETURNING` (works over Neon's stateless HTTP driver,
 which can't hold a session-scoped `pg_advisory_lock` or a long-lived
 transaction); release is a holder-scoped `DELETE`. The lease has a 60s TTL
 that a live holder renews every 20s (a holder-scoped `UPDATE ... RETURNING`),
 so a long push or repack never has its lock taken over mid-write; if a
-holder's function is killed mid-critical-section (Vercel's execution limit),
+holder is cut off mid-critical-section by a platform limit,
 it stops renewing and the repo self-recovers within one TTL instead of
 staying locked forever. A renewal that finds the lease gone is logged as an
 error.
 
-**It is not reentrant**: a function already holding the lock must never call
-another function that tries to take it again for the same repo, or it
+**It is not reentrant**: a code path already holding the lock must never call
+another that tries to take it again for the same repo, or it
 times out after ~65s and throws.
 
 `repoFor(ownerKey, repoName)` (`git-repo.ts`) is the handle every git call
@@ -417,7 +404,7 @@ post-push bookkeeping. Every service runs against `gitFs`.
   from `git-fs-s3/http`) — best-effort, so a failed consolidation is reported
   through `hooks.onWarn` and the push still succeeds — then
   `afterRepositoryPush`. The whole push body is held in memory, capped by
-  `GIT_HTTP_MAX_BODY_BYTES` — enforced while streaming (`readGitRequestBody`),
+  `GIT_HTTP_MAX_BODY_BYTES` (default 16 MiB) — enforced while streaming (`readGitRequestBody`),
   not just from `Content-Length`, which a chunked request doesn't send.
   Native Git gzip-compresses larger requests (including clone negotiations
   with many wanted refs); the app decodes `Content-Encoding: gzip` before
@@ -490,8 +477,8 @@ Postgres again.
 ## Environment variables that tune this layer
 
 ```bash
-GIT_HTTP_MAX_BODY_BYTES=52428800   # optional, default 50MB — request body cap for push
-GIT_CACHE_MAX_SIZE=1073741824      # optional, default 1GB — sizes git-fs.ts's raw R2 object cache directly; git-cache.ts's separate parsed-object cache (tree/commit results) budgets a quarter of this value
+GIT_HTTP_MAX_BODY_BYTES=16777216   # optional, default 16 MiB — request body cap for push; a larger push is refused
+GIT_CACHE_MAX_SIZE=16777216        # optional, default 16 MiB — sizes git-fs.ts's raw R2 object cache directly; git-cache.ts's separate parsed-object cache (tree/commit results) budgets a quarter of this value
 GIT_CACHE_TTL=3600                 # optional, default 1 hour (seconds)
 ```
 

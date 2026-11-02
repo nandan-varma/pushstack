@@ -190,8 +190,8 @@ The lesson: **when a structural problem is solved at some call sites, audit
 every place with the same shape** — `grep` the fix's call sites
 (`prefetchAllPacks(`) rather than trusting prose. `apps/web/scripts/perf-setup.ts` /
 `apps/web/scripts/perf-page-load.ts` are the profiling harness: real `git` CLI
-operations and direct read-path calls against a local dev server with real
-R2, reading `perf-log.ts`'s breakdown from its stdout.
+operations and direct read-path calls against a running dev server, reading
+`perf-log.ts`'s breakdown from its stdout.
 
 ## The `perf-log` instrumentation convention
 
@@ -291,31 +291,23 @@ that data doubles as its own freshness signal — only reach for a genuinely
 separate minimal query if the display data itself is too expensive to poll
 on a timer.
 
-## R2 resilience (`git-fs.ts` + `git-fs-s3/fetch-s3`)
+## R2 access (`git-fs.ts`)
 
-Every R2 call goes through `git-fs-s3`'s `createRetryStore`: retry with
-exponential backoff and jitter (5xx, 429, a dropped connection, a timed-out
-attempt), and a circuit breaker (5 consecutive failures within 30s opens the
-circuit, failing fast instead of piling up retries against an R2 outage). A
-missing object is never a failure — the store maps 404 to `null` — so it
-can't trip the breaker. Each attempt is bounded by `AbortSignal.timeout`
-(30s for object bodies, 10s for metadata calls), so a stalled connection
-fails fast into the retry loop rather than hanging on the OS TCP timeout.
-
-`git-fs-s3/fetch-s3` signs requests with `aws4fetch` and sends them with plain
-`fetch` — Node's built-in fetch keeps connections alive and pools them on its
-own, which is what the old explicit keep-alive `https.Agent` existed for (a
-single page load can fire hundreds of object reads). `git-fs.ts` owns the
-app's one store instance; never construct a second one.
+Every R2 call goes through the `GIT_BUCKET` binding, wrapped by `createR2Store`
+from `git-fs-s3/r2`. A binding call stays on Cloudflare's network with no request
+signing and no HTTP round trip, so a single page load can fire hundreds of object
+reads at the cost of in-process calls. R2 retries transient failures itself; the
+app adds no retry or circuit-breaker layer on top. `git-fs.ts` owns the app's one
+store instance; never construct a second one.
 
 ## The cost isomorphic-git pays before your first object read
 
 `isomorphic-git` verifies each pack against its index-recorded checksum the
 first time it reads from it in a process: it compares the pack's trailer to the
 index's record and then SHA-1s the **entire pack payload**, memoising the result
-per pack per process. On a serverless runtime that memo has the lifetime of an
-instance, so a cold instance serving one small object out of a large pack pays
-a whole-pack hash first (a few hundred milliseconds for a 200 MB pack). It is
+per pack per process. That memo has the lifetime of a Worker isolate, so a cold
+isolate serving one small object out of a large pack pays a whole-pack hash
+first, a cost that grows with the pack's size. It is
 not avoidable from here — the verification lives upstream and it is what makes
 a corrupted pack fail loudly instead of serving wrong bytes.
 
@@ -333,10 +325,29 @@ app where a wrong answer would be written back to storage permanently.
 Both `collectReachableOids` (a push's validation walk, `git-fs-s3/http`) and
 `mergeTrees` (`git-edge`) visit a tree's children concurrently, and a tree can
 be arbitrarily wide. Unbounded, one push or merge of a wide directory issues one
-object read per entry at once — enough to exhaust sockets or memory on a
-serverless function and to trip storage rate limits. Both now bound in-flight
+object read per entry at once — enough to exhaust a Worker isolate's memory
+budget (below) and to trip storage rate limits. Both now bound in-flight
 reads with a semaphore, releasing the permit *before* recursing into children so
 the limit cannot deadlock against itself.
+
+## Memory budget
+
+A Worker isolate has 128 MB shared by every request it is serving at once, so
+caches and buffers are sized for that share, not for a long-lived process:
+
+| Limit | Default | Governs |
+| --- | --- | --- |
+| `GIT_CACHE_MAX_SIZE` | 16 MiB | Raw R2 object cache. The parsed-result cache (`git-cache.ts`) gets a quarter. |
+| `GIT_HTTP_MAX_BODY_BYTES` | 16 MiB | Git push body, held in memory. A larger push is refused. |
+| `MAX_RAW_BYTES` | 16 MiB | Largest object the raw file route serves, held in memory. |
+| `MAX_ARCHIVE_BYTES` | 32 MiB | Uncompressed bytes of one source archive. The archive streams, so this caps work. |
+| `MAX_WEB_UPLOAD_BYTES` | 12 MiB | Largest web upload. It travels base64-encoded in one request, so the Worker holds it several times over. |
+
+These live in `apps/web/src/lib/limits.ts` and `apps/web/src/server/config.ts`.
+Above a cap the answer is an error, or `git clone` for repository content. Release
+assets follow the same rule: a direct upload is buffered up to 4,000,000 bytes, and
+larger ones go to R2 on a presigned URL (see
+[git-storage.md](/docs/internals/git-storage)).
 
 The diff path had the same shape plus one more: `diffTrees` read both sides of
 every changed blob and only then applied `MAX_DIFF_TEXT_BYTES`, so a commit
@@ -353,8 +364,8 @@ the tree page (repo home — the most-visited route in the app, most of whose
 visits don't render a README at all) and in `CommentCard`; `CodeViewer`
 (Shiki) is lazy-loaded on the blob page. Follow the same `lazy(() =>
 import(...))` + `Suspense` pattern for any new heavy, conditionally-rendered
-dependency — check the production build's chunk output (`pnpm build`, look at
-`.vercel/output/static/assets/`) to confirm a new heavy import actually lands
+dependency — check the production build's chunk output (`pnpm build`, look at the client
+assets under `apps/web/dist/`) to confirm a new heavy import actually lands
 in its own chunk rather than inflating a hot route's critical bundle.
 
 Server code must not reach the browser either. TanStack Start strips server
