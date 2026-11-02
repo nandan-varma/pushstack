@@ -6,15 +6,17 @@
  * endpoint's rate limits (fail closed). Each test is written so that removing
  * only the invariant it names makes it fail.
  */
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 const { db } = await import("#/db");
-const { oauthApps, oauthCodes, tokens } = await import("#/db/app-schema");
+const { oauthApps, oauthCodes, rateLimits, tokens } = await import(
+	"#/db/app-schema"
+);
 const { user } = await import("#/db/schema");
 const { sha256Hex } = await import("#/lib/bytes");
 const store = await import("../oauth-apps-store");
@@ -94,7 +96,7 @@ const codeRow = async (code: string) =>
 	});
 
 beforeEach(async () => {
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 	await db.delete(tokens);
 	await db.delete(oauthCodes);
 	await db.delete(oauthApps);
@@ -185,13 +187,14 @@ describe("expiry of a code", () => {
 describe("token endpoint rate limits", () => {
 	it("refuses an exchange once the caller's IP bucket is spent, before the secret is checked", async () => {
 		const app = await registerApp();
-		await db.execute(sql`
-			insert into rate_limits (key, count, window_started_at)
-			values ('gh:oauth-token-ip:ip:9.9.9.9', ${RATE_LIMIT_OAUTH_TOKEN_IP}, now())
-		`);
+		await db.insert(rateLimits).values({
+			key: "gh:oauth-token-ip:ip:9.9.9.9",
+			count: RATE_LIMIT_OAUTH_TOKEN_IP,
+			windowStartedAt: new Date(),
+		});
 		const response = await tokenPost({
 			request: exchangeRequest(exchangeFields(app, "0".repeat(40)), {
-				"x-forwarded-for": "9.9.9.9",
+				"cf-connecting-ip": "9.9.9.9",
 			}),
 		});
 		expect(response.status).toBe(429);
@@ -200,13 +203,14 @@ describe("token endpoint rate limits", () => {
 
 	it("refuses an exchange once the client id's bucket is spent, from any address", async () => {
 		const app = await registerApp();
-		await db.execute(sql`
-			insert into rate_limits (key, count, window_started_at)
-			values (${`gh:oauth-token-client:ip:${app.clientId}`}, ${RATE_LIMIT_OAUTH_TOKEN_CLIENT}, now())
-		`);
+		await db.insert(rateLimits).values({
+			key: `gh:oauth-token-client:ip:${app.clientId}`,
+			count: RATE_LIMIT_OAUTH_TOKEN_CLIENT,
+			windowStartedAt: new Date(),
+		});
 		const response = await tokenPost({
 			request: exchangeRequest(exchangeFields(app, "0".repeat(40)), {
-				"x-forwarded-for": "8.8.8.8",
+				"cf-connecting-ip": "8.8.8.8",
 			}),
 		});
 		expect(response.status).toBe(429);
@@ -216,7 +220,7 @@ describe("token endpoint rate limits", () => {
 		const app = await registerApp();
 		const code = await approve(app);
 		const broken = vi
-			.spyOn(db, "execute")
+			.spyOn(db, "all")
 			.mockRejectedValue(new Error("database unavailable"));
 		try {
 			const response = await tokenPost({

@@ -10,10 +10,11 @@
  * Concurrent duplicates wait on the fork-name lock and then find the row.
  */
 
-import { and, count, inArray } from "drizzle-orm";
+import { and, count } from "drizzle-orm";
 import { PrefixTooLargeError } from "git-fs-s3";
 import { db } from "#/db";
 import { type Repository, repositories } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { MAX_FORK_COPY_BYTES } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
 import { deleteRepositoryStorage, forkRepositoryStorage } from "./git-repo";
@@ -209,7 +210,7 @@ export async function readableForkCounts(
 		.select({ parentId: repositories.forkOfId, total: count() })
 		.from(repositories)
 		.where(
-			and(inArray(repositories.forkOfId, repoIds), readableForViewer(viewerId)),
+			and(inList(repositories.forkOfId, repoIds), readableForViewer(viewerId)),
 		)
 		.groupBy(repositories.forkOfId);
 	return new Map(

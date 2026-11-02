@@ -10,7 +10,7 @@ vi.hoisted(() => {
 	process.env.RATE_LIMIT_API_ANONYMOUS = "2";
 });
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
@@ -22,7 +22,7 @@ const { createUsers, signIn, signOut } = await import("../../test/app-harness");
 const { createRepository } = await import("../repositories");
 const { serveArchive } = await import("../archive");
 const { db } = await import("../../db");
-const { sql } = await import("drizzle-orm");
+const { rateLimits } = await import("#/db/app-schema");
 const { resetRateLimitMemory } = await import("../rate-limit");
 
 const users = await createUsers("alice");
@@ -30,7 +30,7 @@ const users = await createUsers("alice");
 const get = (ip: string) =>
 	serveArchive(
 		new Request("http://localhost:3000/alice/pub/archive/main.zip", {
-			headers: { "x-forwarded-for": `${ip}, 10.0.0.1` },
+			headers: { "cf-connecting-ip": `${ip}` },
 		}),
 		"alice",
 		"pub",
@@ -47,7 +47,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
 	signOut();
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 	resetRateLimitMemory();
 });
 

@@ -5,7 +5,7 @@
  * `GET /repos/{o}/{r}/zipball/{ref}` and `/tarball/{ref}` answer `302` to these
  * URLs, as GitHub's answer `302` to codeload. They are served on this origin
  * and stream while the archive is built, so nothing larger than one file is
- * ever held in memory (a buffered Vercel response is capped at 4.5 MB). Every
+ * ever held in memory (a buffered response is capped at 4.5 MB as a memory bound). Every
  * entry sits under `{repo}-{ref}/`, with the commit sha as the zip comment or
  * tar `comment`, and the archive is bounded (`limits.ts`).
  */

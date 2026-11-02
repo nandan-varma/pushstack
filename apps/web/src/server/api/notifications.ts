@@ -5,9 +5,10 @@
  * issue or pull request; someone else's id, or one in a repository the caller
  * can no longer read, is a 404.
  */
-import { inArray, max } from "drizzle-orm";
+import { max } from "drizzle-orm";
 import { db } from "#/db";
 import { comments } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { MAX_LIST_SKIP } from "#/lib/limits";
 import type { NotificationItem } from "#/lib/notifications";
 import {
@@ -50,7 +51,7 @@ async function serializeNotifications(
 	const issueIds = [...new Set(items.map((item) => item.issueId))];
 	const [repos, stars, openIssues, forks, latest] = await Promise.all([
 		db.query.repositories.findMany({
-			where: { id: { in: repoIds } },
+			where: { RAW: (table) => inList(table.id, repoIds) },
 			with: { owner: publicUserFields },
 		}),
 		starCounts(repoIds),
@@ -59,7 +60,7 @@ async function serializeNotifications(
 		db
 			.select({ issueId: comments.issueId, id: max(comments.id) })
 			.from(comments)
-			.where(inArray(comments.issueId, issueIds))
+			.where(inList(comments.issueId, issueIds))
 			.groupBy(comments.issueId),
 	]);
 	const repoById = new Map(repos.map((repo) => [repo.id, repo]));

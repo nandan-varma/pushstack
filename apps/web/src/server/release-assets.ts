@@ -3,7 +3,7 @@
  * for large ones, verified afterwards), deletion, and the streamed download
  * at `/{owner}/{repo}/releases/download/{tag}/{name}`. Bytes live at
  * `getReleaseAssetKey` and never pass through a buffered response: reads are
- * chunked ranges, because Vercel caps a buffered response at 4.5 MB.
+ * chunked ranges, because a buffered response is capped at 4.5 MB as a memory bound.
  */
 import {
 	MAX_RELEASE_ASSET_BYTES,

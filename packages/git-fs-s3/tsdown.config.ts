@@ -5,10 +5,11 @@ export default defineConfig({
 		index: "src/index.ts",
 		s3: "src/stores/s3.ts",
 		"fetch-s3": "src/stores/fetch-s3.ts",
+		r2: "src/stores/r2.ts",
 		node: "src/stores/file.ts",
 		ops: "src/ops/index.ts",
 		http: "src/http/index.ts",
-		testing: "src/testing/fake-s3.ts",
+		testing: "src/testing/index.ts",
 	},
 	format: ["esm"],
 	// Declarations come from `tsc -p tsconfig.build.json` (see the build script).

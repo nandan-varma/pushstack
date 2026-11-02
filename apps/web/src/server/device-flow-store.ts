@@ -2,12 +2,13 @@
  * The device flow's state machine: create a code, poll it, approve or deny it.
  * Every transition is one conditional UPDATE, so two racing requests cannot
  * both win: a code's token is issued by whichever poll flips `consumedAt`.
- * (The Neon HTTP driver has no transactions, so a token insert that fails
- * after the code is consumed burns the code; the user runs the login again.)
+ * (D1 has no interactive transactions, so a token insert that fails after the
+ * code is consumed burns the code; the user runs the login again.)
  */
 import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { deviceCodes, tokens } from "#/db/app-schema";
+import { nowMs } from "#/db/sql";
 import { bytesToBase64Url, randomBytes, sha256Hex } from "#/lib/bytes";
 import {
 	canonicalUserCode,
@@ -134,13 +135,13 @@ export async function pollDeviceCode(input: {
 	// stamp are the same statement, so two racing polls cannot both pass it.
 	const [admitted] = await db
 		.update(deviceCodes)
-		.set({ lastPolledAt: sql`now()` })
+		.set({ lastPolledAt: nowMs })
 		.where(
 			and(
 				eq(deviceCodes.id, row.id),
 				or(
 					isNull(deviceCodes.lastPolledAt),
-					sql`${deviceCodes.lastPolledAt} <= now() - make_interval(secs => ${deviceCodes.interval})`,
+					sql`${deviceCodes.lastPolledAt} <= ${nowMs} - ${deviceCodes.interval} * 1000`,
 				),
 			),
 		)
@@ -152,7 +153,7 @@ export async function pollDeviceCode(input: {
 			.update(deviceCodes)
 			.set({
 				interval: sql`${deviceCodes.interval} + ${SLOW_DOWN_STEP_SECONDS}`,
-				lastPolledAt: sql`now()`,
+				lastPolledAt: nowMs,
 			})
 			.where(eq(deviceCodes.id, row.id))
 			.returning({ interval: deviceCodes.interval });

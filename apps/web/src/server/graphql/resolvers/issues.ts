@@ -3,9 +3,10 @@
  * and `issueOrPullRequest`, `Issue`, and `node(id:)`. Pull requests stay in
  * pulls.ts; an issue-or-pull lookup hands those to its node.
  */
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labels as labelsTable } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import {
 	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
@@ -334,7 +335,7 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 	const viewer = await loadUser(ctx, ctx.caller.userId);
 	if (!viewer) throw new Error("Authenticated user missing");
 	const filter: ThreadFilter = query.matchesNothing
-		? { repoScope: sql`false` }
+		? { repoScope: sql`0` }
 		: {
 				repoScope: threadScope(ctx.caller.userId, scope),
 				kind:
@@ -579,7 +580,7 @@ async function labelNamesOf(ids: string[], repoId: number): Promise<string[]> {
 			repoId: labelsTable.repoId,
 		})
 		.from(labelsTable)
-		.where(inArray(labelsTable.id, keys));
+		.where(inList(labelsTable.id, keys));
 	if (rows.length !== new Set(keys).size)
 		throw notFound("Could not resolve a label node id");
 	if (rows.some((row) => row.repoId !== repoId))

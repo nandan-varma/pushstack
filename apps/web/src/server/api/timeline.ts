@@ -1,4 +1,5 @@
 import { db } from "#/db";
+import { inList } from "#/db/in-list";
 import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import {
@@ -44,7 +45,7 @@ async function reviewersOf(
 	if (names.size === 0) return new Map();
 	const users = await db.query.user.findMany({
 		...publicUserFields,
-		where: { username: { in: [...names] } },
+		where: { RAW: (table) => inList(table.username, [...names]) },
 	});
 	return new Map(users.map((u) => [u.username.toLowerCase(), u]));
 }

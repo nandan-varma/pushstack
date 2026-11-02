@@ -196,7 +196,9 @@ export async function deleteCommentRow(
 	const numbers = getReferencedIssueNumbers(comment.body);
 	if (numbers.length === 0) return;
 	// The numbers are integers the parser produced, so the pattern is plain.
-	const mentions = `#0*(${numbers.join("|")})([^0-9]|$)`;
+	// SQLite has no regular expressions: SQL narrows to bodies containing `#`,
+	// and the pattern decides here.
+	const mention = new RegExp(`#0*(${numbers.join("|")})([^0-9]|$)`);
 	const others = await db
 		.select({ body: comments.body })
 		.from(comments)
@@ -204,11 +206,11 @@ export async function deleteCommentRow(
 			and(
 				eq(comments.issueId, comment.issueId),
 				ne(comments.id, comment.id),
-				sql`${comments.body} ~ ${mentions}`,
+				sql`${comments.body} like '%#%'`,
 			),
 		);
 	await removeCrossReferences(thread.repoId, thread.id, comment.body, [
 		thread.body,
-		...others.map((other) => other.body),
+		...others.map((other) => other.body).filter((body) => mention.test(body)),
 	]);
 }

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import type { DiffFile } from "git-fs-s3/ops";
 import { describe, expect, it, vi } from "vitest";

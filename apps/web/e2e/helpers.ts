@@ -1,48 +1,92 @@
-import { neon } from "@neondatabase/serverless";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { promisify } from "node:util";
 import type { Page } from "@playwright/test";
+import { z } from "zod";
+
+const execFileAsync = promisify(execFile);
 
 // Shared across every e2e spec that needs a real, disposable user: registers
-// go through the actual Postgres database (see auth.spec.ts's original
-// comment) since there's no way to read the real verification email here.
+// go through the local database (see auth.spec.ts's original comment) since
+// there's no way to read the real verification email here.
 //
-// These helpers DELETE rows, and `.env.local` is the file a developer is most
-// likely to have pointed at a real database, so the client refuses a non-local
-// host unless `E2E_ALLOW_REMOTE_DB=1` is set deliberately.
-export function dbClient() {
-	const url = process.env.DATABASE_URL;
-	if (!url) {
-		throw new Error("DATABASE_URL is not set — cannot verify test user email");
-	}
-	let host: string;
-	try {
-		host = new URL(url).hostname;
-	} catch {
+// These helpers DELETE rows, so they only ever touch the local simulated D1
+// that `pnpm dev:local` persists under `.pushstack-local/state`
+// (scripts/dev-local.ts). `wrangler d1 execute --local --persist-to` cannot
+// reach a remote database, and the helpers refuse to run when that state is
+// missing rather than falling back to anything else.
+const LOCAL_STATE_DIR = path.resolve(
+	process.env.PUSHSTACK_LOCAL_DIR ?? ".pushstack-local",
+	"state",
+);
+
+// `wrangler d1 execute --json` prints one result set per statement.
+const d1OutputSchema = z.array(
+	z.object({ success: z.literal(true), results: z.array(z.unknown()) }),
+);
+
+/** A SQL string literal with single quotes doubled. For values the tests choose. */
+export function sqlLiteral(value: string): string {
+	return `'${value.replaceAll("'", "''")}'`;
+}
+
+async function runLocalSql(statement: string): Promise<unknown[]> {
+	if (!existsSync(LOCAL_STATE_DIR)) {
 		throw new Error(
-			"DATABASE_URL is not a valid URL — cannot verify test user email",
+			`No local database at ${LOCAL_STATE_DIR}: start the app once with pnpm dev:local.`,
 		);
 	}
-	const isLocal =
-		host === "localhost" || host === "127.0.0.1" || host === "::1";
-	if (!isLocal && process.env.E2E_ALLOW_REMOTE_DB !== "1") {
-		throw new Error(
-			`Refusing to run e2e against the remote database ${host}: these helpers ` +
-				"delete rows. Point DATABASE_URL at a local database, or set " +
-				"E2E_ALLOW_REMOTE_DB=1 to run against this one on purpose.",
-		);
-	}
-	return neon(url);
+	const { stdout } = await execFileAsync("pnpm", [
+		"exec",
+		"wrangler",
+		"d1",
+		"execute",
+		"DB",
+		"--local",
+		"--persist-to",
+		LOCAL_STATE_DIR,
+		"--json",
+		"--command",
+		statement,
+	]);
+	const [output] = d1OutputSchema.parse(JSON.parse(stdout));
+	if (!output) throw new Error("wrangler returned no result set");
+	return output.results;
+}
+
+/** Runs a SELECT and parses every row with `row`. */
+export async function queryLocal<S extends z.ZodType>(
+	row: S,
+	statement: string,
+): Promise<z.output<S>[]> {
+	return z.array(row).parse(await runLocalSql(statement));
+}
+
+const emailRow = z.object({ email: z.string() });
+
+export async function findUserEmails(email: string) {
+	return queryLocal(
+		emailRow,
+		`SELECT email FROM "user" WHERE email = ${sqlLiteral(email)}`,
+	);
 }
 
 export async function verifyUserEmail(email: string) {
-	const sql = dbClient();
-	await sql`UPDATE "user" SET "emailVerified" = true WHERE email = ${email}`;
+	await runLocalSql(
+		`UPDATE "user" SET "emailVerified" = 1 WHERE email = ${sqlLiteral(email)}`,
+	);
 }
 
 export async function deleteTestUser(email: string) {
-	const sql = dbClient();
-	await sql`DELETE FROM "session" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${email})`;
-	await sql`DELETE FROM "account" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${email})`;
-	await sql`DELETE FROM "user" WHERE email = ${email}`;
+	const literal = sqlLiteral(email);
+	await runLocalSql(
+		`DELETE FROM "session" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${literal})`,
+	);
+	await runLocalSql(
+		`DELETE FROM "account" WHERE "userId" IN (SELECT id FROM "user" WHERE email = ${literal})`,
+	);
+	await runLocalSql(`DELETE FROM "user" WHERE email = ${literal}`);
 }
 
 /**

@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { gitBucket } from "../../src/test/cloudflare-workers";
 
 const run = promisify(execFile);
 
@@ -28,42 +29,10 @@ vi.hoisted(() => {
 	process.env.BETTER_AUTH_SECRET ??=
 		"test-better-auth-secret-with-32-plus-characters";
 	process.env.BETTER_AUTH_URL ??= "http://localhost:3000";
-	process.env.R2_BUCKET_NAME = "smoke-bucket";
-	process.env.R2_ENDPOINT = "https://smoke.r2.cloudflarestorage.com";
-	process.env.R2_ACCESS_KEY_ID = "smoke-key";
-	process.env.R2_SECRET_ACCESS_KEY = "smoke-secret";
-});
-
-const fakeS3 = vi.hoisted(() => ({
-	objects: new Map<string, Uint8Array>(),
-	requests: [] as { method: string; key: string; query: string }[],
-}));
-
-vi.mock("#/lib/r2", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("#/lib/r2")>();
-	const { createFetchS3Store } = await import("git-fs-s3/fetch-s3");
-	const { createFakeS3 } = await import("git-fs-s3/testing");
-	const s3 = createFakeS3({ bucket: "smoke-bucket" });
-	fakeS3.objects = s3.objects;
-	fakeS3.requests = s3.requests;
-	return {
-		...actual,
-		createR2ObjectStoreFromEnv: (
-			contentType?: (key: string) => string | undefined,
-		) =>
-			createFetchS3Store({
-				endpoint: "https://smoke.r2.cloudflarestorage.com",
-				bucket: "smoke-bucket",
-				accessKeyId: "smoke-key",
-				secretAccessKey: "smoke-secret",
-				contentType,
-				fetch: s3.fetch,
-			}),
-	};
 });
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../src/test/pglite-db")).createTestDb(),
+	db: await (await import("../../src/test/test-db")).createTestDb(),
 }));
 
 vi.mock("#/lib/auth", () => ({
@@ -117,7 +86,7 @@ async function commitFile(dir: string, file: string, content: string) {
 }
 
 async function serverPackCount(): Promise<number> {
-	return [...fakeS3.objects.keys()].filter(
+	return [...gitBucket.objects.keys()].filter(
 		(key) =>
 			key.startsWith(`repos/${USER.username}/${REPO}/git/objects/pack/`) &&
 			key.endsWith(".pack"),
@@ -551,7 +520,7 @@ describe("native git against the pushstack git endpoint", () => {
 	}, 120_000);
 
 	it("never wrote a loose object to storage", () => {
-		const loose = [...fakeS3.objects.keys()].filter((key) =>
+		const loose = [...gitBucket.objects.keys()].filter((key) =>
 			/\/objects\/[0-9a-f]{2}\/[0-9a-f]{38}$/.test(key),
 		);
 		expect(loose).toEqual([]);

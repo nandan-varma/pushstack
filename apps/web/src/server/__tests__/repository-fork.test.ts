@@ -15,41 +15,11 @@ const ENV = vi.hoisted(() => {
 	const os = require("node:os");
 	const path = require("node:path");
 	const base = path.join(os.tmpdir(), `pushstack-fork-${Date.now()}`);
-	process.env.R2_BUCKET_NAME = "test-bucket";
-	process.env.R2_ENDPOINT = "https://test-account.r2.cloudflarestorage.com";
-	process.env.R2_ACCESS_KEY_ID = "test-key";
-	process.env.R2_SECRET_ACCESS_KEY = "test-secret";
 	return { base, cloneDir: path.join(base, "clone") };
 });
 
-const fakeS3 = vi.hoisted(() => ({
-	objects: new Map<string, Uint8Array>(),
-}));
-
-vi.mock("#/lib/r2", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("#/lib/r2")>();
-	const { createFetchS3Store } = await import("git-fs-s3/fetch-s3");
-	const { createFakeS3 } = await import("git-fs-s3/testing");
-	const s3 = createFakeS3({ bucket: "test-bucket" });
-	fakeS3.objects = s3.objects;
-	return {
-		...actual,
-		createR2ObjectStoreFromEnv: (
-			contentType?: (key: string) => string | undefined,
-		) =>
-			createFetchS3Store({
-				endpoint: "https://test-account.r2.cloudflarestorage.com",
-				bucket: "test-bucket",
-				accessKeyId: "test-key",
-				secretAccessKey: "test-secret",
-				contentType,
-				fetch: s3.fetch,
-			}),
-	};
-});
-
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(

@@ -1,7 +1,7 @@
 /**
  * Streaming zip and tar writers for source archives. Each yields the archive
  * chunk by chunk as entries are read, so only one file is ever held in memory
- * (a function response is capped at 4.5 MB on Vercel unless it streams).
+ * (a buffered response is capped at 4.5 MB as a memory bound unless it streams).
  *
  * Zip: deflate (stored when that is smaller), UTF-8 names, Unix modes in the
  * external attributes so executables and symlinks survive extraction, the

@@ -5,12 +5,8 @@ dist-ssr
 *.local
 .env
 .env.*
-.nitro
 .tanstack
 .wrangler
-.output
-.vinxi
-.vercel/output
 __unconfig*
 todos.json
 *.tsbuildinfo
@@ -27,7 +23,6 @@ coverage/
 .pi/
 
 plans/
-.vercel
 
 .env*
 !.env.example
@@ -37,3 +32,9 @@ plans/
 
 CONTEXT.md
 .turbo
+
+# Local Worker secrets (wrangler dev / vite dev)
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.vt.log

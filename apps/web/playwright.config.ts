@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 
 // Load DATABASE_URL etc. so both the dev webServer and test files (which need
 // direct DB access to verify test-user emails) see the same env as `pnpm dev`.
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".dev.vars" });
 
 export default defineConfig({
 	testDir: "./e2e",

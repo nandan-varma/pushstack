@@ -1,7 +1,8 @@
 /**
  * The REST API's response-size caps, in one object so behavior tests can
  * lower them (and restore them) instead of building huge fixtures. Responses
- * are buffered, and Vercel caps a buffered response at 4.5 MB.
+ * are buffered, and the 4.5 MB cap bounds a buffered response's memory in the
+ * Worker isolate (128 MB); larger ones stream.
  */
 import { MAX_API_DIFF_BYTES } from "#/lib/limits";
 

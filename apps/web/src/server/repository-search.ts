@@ -6,11 +6,10 @@
  */
 import {
 	and,
+	type Column,
 	count,
 	desc,
 	eq,
-	ilike,
-	inArray,
 	or,
 	type SQL,
 	sql,
@@ -26,6 +25,16 @@ import {
 	type RepositoryRowWithOwner,
 } from "./repository-lookup";
 
+/** `column` contains `text` anywhere, case-insensitively for ASCII (`%`, `_` and `\` in `text` are literal). */
+export function containsText(column: Column, text: string): SQL {
+	return sql`${column} like ${containing(text)} escape '\\'`;
+}
+
+/** The JSON array `column` holds `topic`. */
+export function hasTopic(column: Column, topic: string): SQL {
+	return sql`exists (select 1 from json_each(${column}) where value = ${topic})`;
+}
+
 /** The repositories a parsed query matches, for `viewerId` (null: anonymous). */
 export function repositorySearchWhere(
 	query: RepositorySearchQuery,
@@ -38,26 +47,20 @@ export function repositorySearchWhere(
 			: eq(repositories.visibility, "public"),
 		...query.terms.map((term) =>
 			or(
-				ilike(repositories.name, containing(term)),
-				ilike(repositories.description, containing(term)),
+				containsText(repositories.name, term),
+				containsText(repositories.description, term),
 			),
 		),
 		query.owner === undefined
 			? undefined
-			: inArray(
-					repositories.ownerId,
-					db
-						.select({ id: user.id })
-						.from(user)
-						.where(eq(user.username, query.owner)),
-				),
+			: sql`${repositories.ownerId} in ${db
+					.select({ id: user.id })
+					.from(user)
+					.where(eq(user.username, query.owner))}`,
 		query.visibility === undefined
 			? undefined
 			: eq(repositories.visibility, query.visibility),
-		...query.topics.map(
-			(topic) =>
-				sql`${repositories.topics} @> ${JSON.stringify([topic])}::jsonb`,
-		),
+		...query.topics.map((topic) => hasTopic(repositories.topics, topic)),
 	) as SQL;
 }
 

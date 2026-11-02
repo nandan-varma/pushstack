@@ -7,7 +7,7 @@
  * Use with, at the top of a test file (vi.mock is hoisted, so these lines
  * must be literal):
  *
- *   vi.mock("#/db", async () => ({ db: await (await import("<rel>/test/pglite-db")).createTestDb() }));
+ *   vi.mock("#/db", async () => ({ db: await (await import("<rel>/test/test-db")).createTestDb() }));
  *   vi.mock("@tanstack/react-start", () => import("<rel>/test/server-test-utils"));
  *   vi.mock("#/server/session", () => import("<rel>/test/app-harness").then((h) => h.sessionModule));
  */

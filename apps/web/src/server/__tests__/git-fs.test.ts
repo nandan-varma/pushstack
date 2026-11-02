@@ -86,18 +86,3 @@ describe("refAwareTtl", () => {
 		expect(refAwareTtl("repos/alice/blog/git/config")).toBeUndefined();
 	});
 });
-
-describe("store selection", () => {
-	it("refuses to fall back to the in-memory store in production", async () => {
-		vi.resetModules();
-		vi.stubEnv("NODE_ENV", "production");
-		try {
-			const fresh = await import("../git-fs");
-			await expect(
-				fresh.gitFs.promises.readFile("repos/alice/blog/git/HEAD"),
-			).rejects.toThrow(/R2 is not configured/);
-		} finally {
-			vi.unstubAllEnvs();
-		}
-	});
-});

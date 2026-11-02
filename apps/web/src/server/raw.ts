@@ -14,7 +14,7 @@ import { findRepositoryByName } from "./repository-lookup";
 import { getCurrentUserOptional } from "./session";
 
 const INLINE_MEDIA_PREFIXES = ["image/", "video/", "audio/"];
-/** Chunked: a non-streamed function response is capped at 4.5 MB on Vercel. */
+/** Chunked: a non-streamed response is capped at 4.5 MB as a memory bound. */
 const CHUNK_BYTES = 256 * 1024;
 
 function contentType(path: string, isBinary: boolean): string {

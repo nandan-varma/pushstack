@@ -69,7 +69,7 @@ vi.mock("#/lib/r2", async (importOriginal) => {
 });
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../src/test/pglite-db")).createTestDb(),
+	db: await (await import("../../src/test/test-db")).createTestDb(),
 }));
 vi.mock("#/lib/auth", () => ({
 	auth: { api: { getSession: vi.fn(async () => null) } },

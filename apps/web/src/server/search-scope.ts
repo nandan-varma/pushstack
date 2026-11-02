@@ -4,9 +4,10 @@
  * qualifiers. Shared by the REST `/search/issues` and the GraphQL `search`.
  * Plain server-only module (not a server-function file).
  */
-import { and, eq, exists, inArray, type SQL, sql } from "drizzle-orm";
+import { and, eq, exists, type SQL, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, repositories } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { canReadRepositoryCondition } from "./repo-access";
@@ -51,20 +52,17 @@ export function threadScope(
 			continue;
 		}
 		parts.push(
-			inArray(
-				issues.repoId,
-				db
-					.select({ id: repositories.id })
-					.from(repositories)
-					.innerJoin(user, eq(user.id, repositories.ownerId))
-					.where(and(eq(user.username, owner), eq(repositories.name, name))),
-			),
+			sql`${issues.repoId} in ${db
+				.select({ id: repositories.id })
+				.from(repositories)
+				.innerJoin(user, eq(user.id, repositories.ownerId))
+				.where(and(eq(user.username, owner), eq(repositories.name, name)))}`,
 		);
 	}
 	for (const login of scope.owners) {
 		parts.push(
 			STORAGE_NAME_RE.test(login)
-				? inArray(issues.repoId, ownedBy(login))
+				? sql`${issues.repoId} in ${ownedBy(login)}`
 				: sql`false`,
 		);
 	}
@@ -80,7 +78,7 @@ export async function repositoriesWithOwner(
 		.select({ repo: repositories, owner: publicUserColumns })
 		.from(repositories)
 		.innerJoin(user, eq(user.id, repositories.ownerId))
-		.where(inArray(repositories.id, ids));
+		.where(inList(repositories.id, ids));
 	return new Map(
 		rows.map((row) => [
 			row.repo.id,

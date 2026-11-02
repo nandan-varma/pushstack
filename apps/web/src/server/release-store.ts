@@ -5,9 +5,10 @@
  * `release-assets.ts`); deleting rows returns what the caller must delete
  * from storage.
  */
-import { and, count, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { releaseAssets, releases } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { isUniqueViolation } from "./db-errors";
 import { logError } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
@@ -160,8 +161,8 @@ async function demoteLatest(repoId: number, exceptId?: number) {
 
 /**
  * Puts `make_latest` back on the releases `demoteLatest` cleared, when the
- * write that demoted them failed. There are no transactions on the Neon HTTP
- * driver, so this compensates. A failed restore is logged, not thrown: if the
+ * write that demoted them failed. There are no interactive transactions on D1,
+ * so this compensates. A failed restore is logged, not thrown: if the
  * database fails both writes, the repository can be left with no latest release
  * until one is set. Concurrent creates are not serialized, so two can still
  * clear the others before either inserts and leave two latest releases.
@@ -171,7 +172,7 @@ async function restoreLatest(ids: number[]) {
 	await db
 		.update(releases)
 		.set({ makeLatest: "true" })
-		.where(inArray(releases.id, ids))
+		.where(inList(releases.id, ids))
 		.catch((cleanup: unknown) =>
 			logError(
 				"release-store",

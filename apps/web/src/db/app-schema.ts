@@ -1,19 +1,14 @@
 import { sql } from "drizzle-orm";
 import {
-	type AnyPgColumn,
-	bigint,
-	boolean,
+	type AnySQLiteColumn,
 	check,
 	index,
 	integer,
-	jsonb,
-	pgTable,
 	primaryKey,
-	serial,
+	sqliteTable,
 	text,
-	timestamp,
 	uniqueIndex,
-} from "drizzle-orm/pg-core";
+} from "drizzle-orm/sqlite-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
 import type { DeviceCodeStatus } from "#/lib/device-flow";
 import type { NotificationReason } from "#/lib/notifications";
@@ -27,17 +22,12 @@ import type {
 import type { TokenScope } from "#/lib/token-scopes";
 import { user } from "./schema";
 
-/**
- * Every app timestamp is `timestamp with time zone`. A plain `timestamp`
- * filled by the database's `now()` stores the session's wall clock, which
- * reads back shifted unless that session happens to be UTC.
- */
-const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
+const epochMs = (name: string) => integer(name, { mode: "timestamp_ms" });
 
-export const repositories = pgTable(
+export const repositories = sqliteTable(
 	"repositories",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		ownerId: text("owner_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -49,37 +39,54 @@ export const repositories = pgTable(
 			.default("public"),
 		defaultBranch: text("default_branch").notNull().default("main"),
 		/** Read-only: pushes and every write (issues, comments, PRs) are refused. */
-		archived: boolean("archived").notNull().default(false),
+		archived: integer("archived", { mode: "boolean" }).notNull().default(false),
 		homepage: text("homepage"),
 		/** Lowercase, at most 20 (`MAX_REPO_TOPICS`). */
-		topics: jsonb("topics").$type<string[]>().notNull().default([]),
-		isTemplate: boolean("is_template").notNull().default(false),
+		topics: text("topics", { mode: "json" })
+			.$type<string[]>()
+			.notNull()
+			.default([]),
+		isTemplate: integer("is_template", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		/**
 		 * The repository this one was forked from (GitHub's `parent`). Null for a
 		 * repository that is not a fork, or once its parent is deleted.
 		 */
 		forkOfId: integer("fork_of_id").references(
-			(): AnyPgColumn => repositories.id,
+			(): AnySQLiteColumn => repositories.id,
 			{ onDelete: "set null" },
 		),
 		/** GitHub's `fork`: stays true after the parent is deleted. */
-		isFork: boolean("is_fork").notNull().default(false),
+		isFork: integer("is_fork", { mode: "boolean" }).notNull().default(false),
 		/** No wiki or projects exist yet, so these default off (GitHub: on). */
-		hasIssues: boolean("has_issues").notNull().default(true),
-		hasWiki: boolean("has_wiki").notNull().default(false),
-		hasProjects: boolean("has_projects").notNull().default(false),
+		hasIssues: integer("has_issues", { mode: "boolean" })
+			.notNull()
+			.default(true),
+		hasWiki: integer("has_wiki", { mode: "boolean" }).notNull().default(false),
+		hasProjects: integer("has_projects", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		/**
 		 * Which merge methods a pull request may use; all on by default. At least
 		 * one stays on: `updateRepositorySettings` refuses a patch that leaves none.
 		 */
-		allowMergeCommit: boolean("allow_merge_commit").notNull().default(true),
-		allowSquashMerge: boolean("allow_squash_merge").notNull().default(true),
-		allowRebaseMerge: boolean("allow_rebase_merge").notNull().default(true),
+		allowMergeCommit: integer("allow_merge_commit", { mode: "boolean" })
+			.notNull()
+			.default(true),
+		allowSquashMerge: integer("allow_squash_merge", { mode: "boolean" })
+			.notNull()
+			.default(true),
+		allowRebaseMerge: integer("allow_rebase_merge", { mode: "boolean" })
+			.notNull()
+			.default(true),
 		/** The tree view's per-file "last commit" column — a history walk per view, so opt-in. */
-		showLastCommitColumn: boolean("show_last_commit_column")
+		showLastCommitColumn: integer("show_last_commit_column", {
+			mode: "boolean",
+		})
 			.notNull()
 			.default(false),
-		autoRefreshPrDiffs: boolean("auto_refresh_pr_diffs")
+		autoRefreshPrDiffs: integer("auto_refresh_pr_diffs", { mode: "boolean" })
 			.notNull()
 			.default(false),
 		/**
@@ -89,8 +96,12 @@ export const repositories = pgTable(
 		nextIssueNumber: integer("next_issue_number").notNull().default(1),
 		/** The next milestone `number` (its own per-repo sequence), claimed atomically. */
 		nextMilestoneNumber: integer("next_milestone_number").notNull().default(1),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		// Unique: storage keys derive from (owner, name), so a duplicate would
@@ -112,28 +123,34 @@ export const repositories = pgTable(
  * 1:1 by issue id. `status` is the issue state; a merged pull request is
  * `closed` with `pull_requests.merged_at` set.
  */
-export const issues = pgTable(
+export const issues = sqliteTable(
 	"issues",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
 		/** The repo-scoped `#N`, shared by issues and pull requests. */
 		number: integer("number").notNull(),
 		/** A pull request (its `pull_requests` row carries the branches). */
-		isPullRequest: boolean("is_pull_request").notNull().default(false),
+		isPullRequest: integer("is_pull_request", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
 		title: text("title").notNull(),
 		body: text("body"),
 		status: text("status").$type<"open" | "closed">().notNull().default("open"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 		/** When the body was last edited by hand (the "edited" marker); null if never. */
-		editedAt: timestamptz("edited_at"),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
-		closedAt: timestamptz("closed_at"),
+		editedAt: epochMs("edited_at"),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		closedAt: epochMs("closed_at"),
 		/** GitHub's `closed_by`: who closed it (or merged it); null while open. */
 		closedById: text("closed_by_id").references(() => user.id, {
 			onDelete: "set null",
@@ -142,7 +159,7 @@ export const issues = pgTable(
 		stateReason: text("state_reason").$type<IssueStateReason>(),
 		/** GitHub's `milestone`: at most one; deleting the milestone clears it. */
 		milestoneId: integer("milestone_id").references(
-			(): AnyPgColumn => milestones.id,
+			(): AnySQLiteColumn => milestones.id,
 			{ onDelete: "set null" },
 		),
 	},
@@ -180,10 +197,10 @@ export const issues = pgTable(
 );
 
 /** A repository's milestones; `number` is a per-repo sequence separate from `#N`. */
-export const milestones = pgTable(
+export const milestones = sqliteTable(
 	"milestones",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -191,13 +208,17 @@ export const milestones = pgTable(
 		title: text("title").notNull(),
 		description: text("description"),
 		state: text("state").$type<"open" | "closed">().notNull().default("open"),
-		dueOn: timestamptz("due_on"),
+		dueOn: epochMs("due_on"),
 		creatorId: text("creator_id").references(() => user.id, {
 			onDelete: "set null",
 		}),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
-		closedAt: timestamptz("closed_at"),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		closedAt: epochMs("closed_at"),
 	},
 	(table) => ({
 		repoNumberIdx: uniqueIndex("milestone_repo_number_idx").on(
@@ -211,10 +232,10 @@ export const milestones = pgTable(
 	}),
 );
 
-export const labels = pgTable(
+export const labels = sqliteTable(
 	"labels",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -222,7 +243,9 @@ export const labels = pgTable(
 		/** Lowercase hex without `#`, as the REST API returns it. */
 		color: text("color").notNull(),
 		description: text("description"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoNameIdx: uniqueIndex("label_repo_name_idx").on(
@@ -232,7 +255,7 @@ export const labels = pgTable(
 	}),
 );
 
-export const threadLabels = pgTable(
+export const threadLabels = sqliteTable(
 	"thread_labels",
 	{
 		issueId: integer("issue_id")
@@ -249,17 +272,19 @@ export const threadLabels = pgTable(
 );
 
 /** Who an issue or pull request is assigned to (GitHub: up to 10, each with write access). */
-export const threadAssignees = pgTable(
+export const threadAssignees = sqliteTable(
 	"thread_assignees",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		issueId: integer("issue_id")
 			.notNull()
 			.references(() => issues.id, { onDelete: "cascade" }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		issueUserIdx: uniqueIndex("thread_assignee_issue_user_idx").on(
@@ -275,10 +300,10 @@ export const threadAssignees = pgTable(
  * `requested_reviewers`). A submitted review or an explicit removal deletes the
  * row; requesting again re-adds it. Teams are not modelled yet.
  */
-export const pullRequestReviewRequests = pgTable(
+export const pullRequestReviewRequests = sqliteTable(
 	"pull_request_review_requests",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		issueId: integer("issue_id")
 			.notNull()
 			.references(() => issues.id, { onDelete: "cascade" }),
@@ -288,7 +313,9 @@ export const pullRequestReviewRequests = pgTable(
 		requesterId: text("requester_id").references(() => user.id, {
 			onDelete: "set null",
 		}),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		issueUserIdx: uniqueIndex("review_request_issue_user_idx").on(
@@ -303,7 +330,7 @@ export const pullRequestReviewRequests = pgTable(
  * What a pull request adds to its issue (1:1 by `issue_id`): the branches,
  * and once merged, who merged it, when, and the exact commit range.
  */
-export const pullRequests = pgTable(
+export const pullRequests = sqliteTable(
 	"pull_requests",
 	{
 		issueId: integer("issue_id")
@@ -311,11 +338,11 @@ export const pullRequests = pgTable(
 			.references(() => issues.id, { onDelete: "cascade" }),
 		sourceBranch: text("source_branch").notNull(),
 		targetBranch: text("target_branch").notNull(),
-		mergedAt: timestamptz("merged_at"),
+		mergedAt: epochMs("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
 		/** A draft can't be merged until it is marked ready for review. */
-		isDraft: boolean("is_draft").notNull().default(false),
+		isDraft: integer("is_draft", { mode: "boolean" }).notNull().default(false),
 		/** The base and head tips that were merged: the PR's exact commit range. */
 		baseSha: text("base_sha"),
 		headSha: text("head_sha"),
@@ -329,10 +356,10 @@ export const pullRequests = pgTable(
 	}),
 );
 
-export const comments = pgTable(
+export const comments = sqliteTable(
 	"comments",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -343,10 +370,14 @@ export const comments = pgTable(
 			.notNull()
 			.references(() => user.id),
 		body: text("body").notNull(),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 		/** When the body was last edited by hand (the "edited" marker); null if never. */
-		editedAt: timestamptz("edited_at"),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		editedAt: epochMs("edited_at"),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		issueCreatedIdx: index("comment_issue_created_idx").on(
@@ -361,10 +392,10 @@ export const comments = pgTable(
  * anchored to a file (`path`) and a line of its diff (`position`, GitHub's
  * diff-relative index) or of the file (`line`).
  */
-export const commitComments = pgTable(
+export const commitComments = sqliteTable(
 	"commit_comments",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -377,9 +408,13 @@ export const commitComments = pgTable(
 		path: text("path"),
 		position: integer("position"),
 		line: integer("line"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		editedAt: timestamptz("edited_at"),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		editedAt: epochMs("edited_at"),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoCommitIdx: index("commit_comment_repo_commit_idx").on(
@@ -399,10 +434,10 @@ export const commitComments = pgTable(
  * of an external CI for a commit and `context`. Rows are append-only; the
  * current status of a context is its newest row (highest id).
  */
-export const commitStatuses = pgTable(
+export const commitStatuses = sqliteTable(
 	"commit_statuses",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -417,7 +452,9 @@ export const commitStatuses = pgTable(
 		creatorId: text("creator_id")
 			.notNull()
 			.references(() => user.id),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoShaContextIdx: index("commit_status_repo_sha_context_idx").on(
@@ -433,10 +470,10 @@ export const commitStatuses = pgTable(
  * A check suite: the group of check runs reported for one commit. PushStack
  * has no GitHub Apps, so a commit has at most one suite (per repository).
  */
-export const checkSuites = pgTable(
+export const checkSuites = sqliteTable(
 	"check_suites",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -444,8 +481,12 @@ export const checkSuites = pgTable(
 		headSha: text("head_sha").notNull(),
 		/** The branch the caller named when creating the suite, if any. */
 		headBranch: text("head_branch"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoShaIdx: uniqueIndex("check_suite_repo_sha_idx").on(
@@ -456,10 +497,10 @@ export const checkSuites = pgTable(
 );
 
 /** A check run (GitHub's checks API) reported by an external CI. */
-export const checkRuns = pgTable(
+export const checkRuns = sqliteTable(
 	"check_runs",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -486,13 +527,17 @@ export const checkRuns = pgTable(
 				"timed_out",
 			],
 		}),
-		startedAt: timestamptz("started_at"),
-		completedAt: timestamptz("completed_at"),
+		startedAt: epochMs("started_at"),
+		completedAt: epochMs("completed_at"),
 		outputTitle: text("output_title"),
 		outputSummary: text("output_summary"),
 		outputText: text("output_text"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoShaIdx: index("check_run_repo_sha_idx").on(
@@ -510,10 +555,10 @@ export const checkRuns = pgTable(
  * draft, as on GitHub). Published releases are unique per tag; drafts may
  * repeat a tag. `make_latest` is GitHub's `true`/`false`/`legacy`.
  */
-export const releases = pgTable(
+export const releases = sqliteTable(
 	"releases",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -521,8 +566,10 @@ export const releases = pgTable(
 		targetCommitish: text("target_commitish").notNull(),
 		name: text("name"),
 		body: text("body"),
-		draft: boolean("draft").notNull().default(false),
-		prerelease: boolean("prerelease").notNull().default(false),
+		draft: integer("draft", { mode: "boolean" }).notNull().default(false),
+		prerelease: integer("prerelease", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		makeLatest: text("make_latest")
 			.$type<"true" | "false" | "legacy">()
 			.notNull()
@@ -530,10 +577,14 @@ export const releases = pgTable(
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 		/** Null while a draft; set when it is published. */
-		publishedAt: timestamptz("published_at"),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		publishedAt: epochMs("published_at"),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoCreatedIdx: index("release_repo_created_idx").on(
@@ -542,7 +593,7 @@ export const releases = pgTable(
 		),
 		publishedTagIdx: uniqueIndex("release_published_tag_idx")
 			.on(table.repoId, table.tagName)
-			.where(sql`${table.draft} = false`),
+			.where(sql`${table.draft} = 0`),
 	}),
 );
 
@@ -551,24 +602,28 @@ export const releases = pgTable(
  * `getReleaseAssetKey(owner, repo, id)`; `state` is `open` while a presigned
  * upload is pending and `uploaded` once the bytes are verified.
  */
-export const releaseAssets = pgTable(
+export const releaseAssets = sqliteTable(
 	"release_assets",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		releaseId: integer("release_id")
 			.notNull()
 			.references(() => releases.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		label: text("label"),
 		contentType: text("content_type").notNull(),
-		size: bigint("size", { mode: "number" }).notNull(),
+		size: integer("size").notNull(),
 		state: text("state").$type<"open" | "uploaded">().notNull(),
 		downloadCount: integer("download_count").notNull().default(0),
 		uploaderId: text("uploader_id")
 			.notNull()
 			.references(() => user.id),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		releaseNameIdx: uniqueIndex("release_asset_release_name_idx").on(
@@ -584,10 +639,10 @@ export const releaseAssets = pgTable(
  * the thread, so a thread's rollups are one indexed read. One row per user,
  * subject and content.
  */
-export const reactions = pgTable(
+export const reactions = sqliteTable(
 	"reactions",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		issueId: integer("issue_id")
 			.notNull()
 			.references(() => issues.id, { onDelete: "cascade" }),
@@ -598,7 +653,9 @@ export const reactions = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		content: text("content").$type<ReactionContent>().notNull(),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		issueUserContentIdx: uniqueIndex("reaction_issue_user_content_idx")
@@ -618,7 +675,7 @@ export const reactions = pgTable(
  * explicit unsubscribe, which later activity must not overwrite. Subscribers
  * are notified of new activity (src/server/notification-store.ts).
  */
-export const threadSubscriptions = pgTable(
+export const threadSubscriptions = sqliteTable(
 	"thread_subscriptions",
 	{
 		issueId: integer("issue_id")
@@ -627,10 +684,16 @@ export const threadSubscriptions = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		subscribed: boolean("subscribed").notNull().default(true),
+		subscribed: integer("subscribed", { mode: "boolean" })
+			.notNull()
+			.default(true),
 		reason: text("reason").$type<NotificationReason>().notNull(),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		pk: primaryKey({ columns: [table.issueId, table.userId] }),
@@ -644,10 +707,10 @@ export const threadSubscriptions = pgTable(
  * The inbox reads `(user_id, updated_at)`, the unread badge and filter the
  * partial `(user_id, updated_at) where unread`.
  */
-export const notifications = pgTable(
+export const notifications = sqliteTable(
 	"notifications",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -658,10 +721,14 @@ export const notifications = pgTable(
 			.notNull()
 			.references(() => issues.id, { onDelete: "cascade" }),
 		reason: text("reason").$type<NotificationReason>().notNull(),
-		unread: boolean("unread").notNull().default(true),
-		lastReadAt: timestamptz("last_read_at"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		unread: integer("unread", { mode: "boolean" }).notNull().default(true),
+		lastReadAt: epochMs("last_read_at"),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		userIssueIdx: uniqueIndex("notification_user_issue_idx").on(
@@ -674,7 +741,7 @@ export const notifications = pgTable(
 		),
 		userUnreadIdx: index("notification_user_unread_idx")
 			.on(table.userId, table.updatedAt)
-			.where(sql`${table.unread}`),
+			.where(sql`${table.unread} = 1`),
 		issueIdx: index("notification_issue_idx").on(table.issueId),
 	}),
 );
@@ -684,10 +751,10 @@ export const notifications = pgTable(
  * reviewer's unsubmitted draft; submitting sets one of the other states and
  * `submittedAt`. At most one pending review per reviewer per pull request.
  */
-export const pullRequestReviews = pgTable(
+export const pullRequestReviews = sqliteTable(
 	"pull_request_reviews",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -701,9 +768,13 @@ export const pullRequestReviews = pgTable(
 		body: text("body"),
 		/** The head tip the review was submitted against (GitHub's `commit_id`). */
 		commitSha: text("commit_sha"),
-		submittedAt: timestamptz("submitted_at"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		submittedAt: epochMs("submitted_at"),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		// One pending review per reviewer per pull request; submitted reviews
@@ -725,10 +796,10 @@ export const pullRequestReviews = pgTable(
  * plus its replies; `resolvedAt`/`resolvedById` live on the root. The anchor is
  * `(path, side, line)`, validated against the pull request's diff when written.
  */
-export const pullRequestReviewComments = pgTable(
+export const pullRequestReviewComments = sqliteTable(
 	"pull_request_review_comments",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -749,14 +820,18 @@ export const pullRequestReviewComments = pgTable(
 		commitSha: text("commit_sha"),
 		/** The comment this replies to; null for a thread root. */
 		inReplyToId: integer("in_reply_to_id").references(
-			(): AnyPgColumn => pullRequestReviewComments.id,
+			(): AnySQLiteColumn => pullRequestReviewComments.id,
 			{ onDelete: "cascade" },
 		),
 		/** Thread resolution, set on the root comment only. */
-		resolvedAt: timestamptz("resolved_at"),
+		resolvedAt: epochMs("resolved_at"),
 		resolvedById: text("resolved_by_id").references(() => user.id),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
-		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
+		updatedAt: epochMs("updated_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		prCreatedIdx: index("review_comment_pr_created_idx").on(
@@ -768,17 +843,19 @@ export const pullRequestReviewComments = pgTable(
 	}),
 );
 
-export const stars = pgTable(
+export const stars = sqliteTable(
 	"stars",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoUserIdx: uniqueIndex("star_repo_user_idx").on(
@@ -794,7 +871,7 @@ export const stars = pgTable(
  * `ignored = false` is "all activity", `ignored = true` is "ignore". No row
  * is "participating and @mentions" (the default).
  */
-export const repositorySubscriptions = pgTable(
+export const repositorySubscriptions = sqliteTable(
 	"repository_subscriptions",
 	{
 		repoId: integer("repo_id")
@@ -803,8 +880,10 @@ export const repositorySubscriptions = pgTable(
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		ignored: boolean("ignored").notNull().default(false),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		ignored: integer("ignored", { mode: "boolean" }).notNull().default(false),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		pk: primaryKey({ columns: [table.repoId, table.userId] }),
@@ -813,7 +892,7 @@ export const repositorySubscriptions = pgTable(
 );
 
 /** `follower_id` follows `followee_id` (never themselves). */
-export const follows = pgTable(
+export const follows = sqliteTable(
 	"follows",
 	{
 		followerId: text("follower_id")
@@ -822,7 +901,9 @@ export const follows = pgTable(
 		followeeId: text("followee_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		pk: primaryKey({ columns: [table.followerId, table.followeeId] }),
@@ -837,10 +918,10 @@ export const follows = pgTable(
 	}),
 );
 
-export const repositoryCollaborators = pgTable(
+export const repositoryCollaborators = sqliteTable(
 	"repository_collaborators",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
@@ -851,7 +932,9 @@ export const repositoryCollaborators = pgTable(
 			.$type<"read" | "write" | "admin">()
 			.notNull()
 			.default("read"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		repoUserIdx: uniqueIndex("collab_repo_user_idx").on(
@@ -862,10 +945,10 @@ export const repositoryCollaborators = pgTable(
 	}),
 );
 
-export const activities = pgTable(
+export const activities = sqliteTable(
 	"activities",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -874,8 +957,10 @@ export const activities = pgTable(
 		}),
 		/** With `metadata`, one ActivityEvent — written only via recordActivity. */
 		type: text("type").$type<ActivityType>().notNull(),
-		metadata: jsonb("metadata").$type<ActivityMetadata>(),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		metadata: text("metadata", { mode: "json" }).$type<ActivityMetadata>(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		userCreatedIdx: index("activity_user_created_idx").on(
@@ -890,23 +975,25 @@ export const activities = pgTable(
 );
 
 /** Personal access tokens for git over HTTPS; only the SHA-256 is stored. */
-export const tokens = pgTable(
+export const tokens = sqliteTable(
 	"tokens",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		tokenHash: text("token_hash").notNull().unique(),
-		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
-		lastUsedAt: timestamptz("last_used_at"),
-		expiresAt: timestamptz("expires_at"),
+		scopes: text("scopes", { mode: "json" }).$type<TokenScope[]>().notNull(),
+		lastUsedAt: epochMs("last_used_at"),
+		expiresAt: epochMs("expires_at"),
 		/** Set on tokens issued through an OAuth app's authorization code flow. */
 		oauthAppId: integer("oauth_app_id").references(() => oauthApps.id, {
 			onDelete: "cascade",
 		}),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		userIdx: index("token_user_idx").on(table.userId),
@@ -918,10 +1005,10 @@ export const tokens = pgTable(
  * OAuth apps a user registered at /settings/developers. The client secret is
  * shown once and only its SHA-256 is stored, like a token.
  */
-export const oauthApps = pgTable(
+export const oauthApps = sqliteTable(
 	"oauth_apps",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -930,7 +1017,9 @@ export const oauthApps = pgTable(
 		callbackUrl: text("callback_url").notNull(),
 		clientId: text("client_id").notNull().unique(),
 		clientSecretHash: text("client_secret_hash").notNull(),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		userIdx: index("oauth_app_user_idx").on(table.userId),
@@ -941,7 +1030,7 @@ export const oauthApps = pgTable(
  * Authorization codes from /login/oauth/authorize, exchanged once at
  * /login/oauth/access_token. Only the SHA-256 of the code is stored.
  */
-export const oauthCodes = pgTable(
+export const oauthCodes = sqliteTable(
 	"oauth_codes",
 	{
 		codeHash: text("code_hash").primaryKey(),
@@ -952,10 +1041,12 @@ export const oauthCodes = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		redirectUri: text("redirect_uri").notNull(),
-		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
-		expiresAt: timestamptz("expires_at").notNull(),
-		consumedAt: timestamptz("consumed_at"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		scopes: text("scopes", { mode: "json" }).$type<TokenScope[]>().notNull(),
+		expiresAt: epochMs("expires_at").notNull(),
+		consumedAt: epochMs("consumed_at"),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		expiresIdx: index("oauth_code_expires_idx").on(table.expiresAt),
@@ -967,48 +1058,43 @@ export const oauthCodes = pgTable(
  * code is stored; the user code is the short code typed on `/login/device`.
  * A row is single-use: `consumedAt` is set when its token is issued.
  */
-export const deviceCodes = pgTable(
+export const deviceCodes = sqliteTable(
 	"device_codes",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		deviceCodeHash: text("device_code_hash").notNull().unique(),
 		/** Canonical `XXXX-XXXX` form. */
 		userCode: text("user_code").notNull().unique(),
 		clientId: text("client_id").notNull(),
-		scopes: jsonb("scopes").$type<TokenScope[]>().notNull(),
+		scopes: text("scopes", { mode: "json" }).$type<TokenScope[]>().notNull(),
 		status: text("status").$type<DeviceCodeStatus>().notNull(),
 		/** Set on approval or denial. */
 		userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
 		/** Seconds the client must wait between polls; grows on slow_down. */
 		interval: integer("interval").notNull(),
-		lastPolledAt: timestamptz("last_polled_at"),
-		expiresAt: timestamptz("expires_at").notNull(),
-		consumedAt: timestamptz("consumed_at"),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		lastPolledAt: epochMs("last_polled_at"),
+		expiresAt: epochMs("expires_at").notNull(),
+		consumedAt: epochMs("consumed_at"),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		expiresIdx: index("device_code_expires_idx").on(table.expiresAt),
 	}),
 );
 
-export const repoLocks = pgTable("repo_locks", {
-	/** `${ownerKey}/${repoName}` */
-	repoKey: text("repo_key").primaryKey(),
-	holder: text("holder").notNull(),
-	expiresAt: timestamptz("expires_at").notNull(),
-});
-
 /**
  * Fixed-window request counters for Better Auth's rate limiter
  * (src/server/rate-limit.ts). One small row per rate-limited caller per
  * window; `key` is Better Auth's own limiter key (client IP + route).
  */
-export const rateLimits = pgTable(
+export const rateLimits = sqliteTable(
 	"rate_limits",
 	{
 		key: text("key").primaryKey(),
 		count: integer("count").notNull(),
-		windowStartedAt: timestamptz("window_started_at").notNull(),
+		windowStartedAt: epochMs("window_started_at").notNull(),
 	},
 	(table) => ({
 		// Supports the periodic expiry prune; without it every prune is a scan.
@@ -1029,10 +1115,10 @@ export type CollaboratorRole =
  * src/server/timeline-store.ts, on the issue (or pull request) `issue_id`.
  * `payload` is the event minus its `event` name.
  */
-export const timelineEvents = pgTable(
+export const timelineEvents = sqliteTable(
 	"timeline_events",
 	{
-		id: serial("id").primaryKey(),
+		id: integer("id").primaryKey({ autoIncrement: true }),
 		issueId: integer("issue_id")
 			.notNull()
 			.references(() => issues.id, { onDelete: "cascade" }),
@@ -1040,7 +1126,7 @@ export const timelineEvents = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		event: text("event").$type<TimelineEventType>().notNull(),
-		payload: jsonb("payload")
+		payload: text("payload", { mode: "json" })
 			.$type<Omit<TimelineEvent, "event">>()
 			.notNull()
 			.default({}),
@@ -1048,7 +1134,9 @@ export const timelineEvents = pgTable(
 		sourceIssueId: integer("source_issue_id").references(() => issues.id, {
 			onDelete: "cascade",
 		}),
-		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		createdAt: epochMs("created_at")
+			.notNull()
+			.default(sql`(unixepoch() * 1000)`),
 	},
 	(table) => ({
 		issueIdx: index("timeline_issue_idx").on(table.issueId, table.createdAt),

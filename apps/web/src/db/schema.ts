@@ -1,37 +1,31 @@
-import {
-	boolean,
-	index,
-	integer,
-	pgTable,
-	text,
-	timestamp,
-} from "drizzle-orm/pg-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Better Auth's tables, maintained by hand: diff against its core schema
 // (@better-auth/core's get-tables) before bumping better-auth.
-export const user = pgTable("user", {
+export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
 	email: text("email").notNull().unique(),
-	emailVerified: boolean("emailVerified").notNull(),
+	emailVerified: integer("emailVerified", { mode: "boolean" }).notNull(),
 	image: text("image"),
-	createdAt: timestamp("createdAt").notNull(),
-	updatedAt: timestamp("updatedAt").notNull(),
+	createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+	updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
 	username: text("username").notNull().unique(),
 	displayUsername: text("displayUsername"),
-	// GitHub-style integer id for /api/v3 clients. Not a Better Auth field:
-	// the identity default fills it on insert and backfills existing rows.
-	apiId: integer("apiId").notNull().unique().generatedAlwaysAsIdentity(),
+	// GitHub-style integer id for /api/v3 clients. Not a Better Auth field: an
+	// AFTER INSERT trigger in the migrations assigns the next value (a default of
+	// 0 only stands in until it fires).
+	apiId: integer("apiId").notNull().unique().default(0),
 });
 
-export const session = pgTable(
+export const session = sqliteTable(
 	"session",
 	{
 		id: text("id").primaryKey(),
-		expiresAt: timestamp("expiresAt").notNull(),
+		expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
 		token: text("token").notNull().unique(),
-		createdAt: timestamp("createdAt").notNull(),
-		updatedAt: timestamp("updatedAt").notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
 		ipAddress: text("ipAddress"),
 		userAgent: text("userAgent"),
 		userId: text("userId")
@@ -39,13 +33,13 @@ export const session = pgTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 	},
 	(table) => ({
-		// Postgres does not auto-index foreign key columns — session revocation
+		// SQLite does not auto-index foreign key columns — session revocation
 		// ("log out everywhere") looks up all sessions by userId.
 		userIdx: index("session_user_idx").on(table.userId),
 	}),
 );
 
-export const account = pgTable(
+export const account = sqliteTable(
 	"account",
 	{
 		id: text("id").primaryKey(),
@@ -57,12 +51,16 @@ export const account = pgTable(
 		accessToken: text("accessToken"),
 		refreshToken: text("refreshToken"),
 		idToken: text("idToken"),
-		accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
-		refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+		accessTokenExpiresAt: integer("accessTokenExpiresAt", {
+			mode: "timestamp_ms",
+		}),
+		refreshTokenExpiresAt: integer("refreshTokenExpiresAt", {
+			mode: "timestamp_ms",
+		}),
 		scope: text("scope"),
 		password: text("password"),
-		createdAt: timestamp("createdAt").notNull(),
-		updatedAt: timestamp("updatedAt").notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
 	},
 	(table) => ({
 		// git-auth.ts's password-auth path looks up the credential account by
@@ -72,11 +70,11 @@ export const account = pgTable(
 	}),
 );
 
-export const verification = pgTable("verification", {
+export const verification = sqliteTable("verification", {
 	id: text("id").primaryKey(),
 	identifier: text("identifier").notNull(),
 	value: text("value").notNull(),
-	expiresAt: timestamp("expiresAt").notNull(),
-	createdAt: timestamp("createdAt"),
-	updatedAt: timestamp("updatedAt"),
+	expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
+	createdAt: integer("createdAt", { mode: "timestamp_ms" }),
+	updatedAt: integer("updatedAt", { mode: "timestamp_ms" }),
 });

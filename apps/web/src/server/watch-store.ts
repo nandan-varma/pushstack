@@ -9,7 +9,7 @@
  * private repository never reveals or counts someone whose access was removed
  * and subscriptions need no cleanup when visibility or collaborators change.
  */
-import { and, asc, count, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, type SQL } from "drizzle-orm";
 import { db } from "#/db";
 import {
 	follows,
@@ -17,6 +17,7 @@ import {
 	repositories,
 	repositorySubscriptions,
 } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { user } from "#/db/schema";
 import {
 	canReadRepositoryCondition,
@@ -86,7 +87,7 @@ export async function deleteRepoSubscription(
 /** The watchers (not the ignorers) who can still read each repository. */
 const watchingReaders = (repoIds: number[]) =>
 	and(
-		inArray(repositorySubscriptions.repoId, repoIds),
+		inList(repositorySubscriptions.repoId, repoIds),
 		eq(repositorySubscriptions.ignored, false),
 		canReadRepositoryCondition(
 			repositorySubscriptions.userId,
@@ -202,7 +203,7 @@ export async function ignoringUsers(
 			and(
 				eq(repositorySubscriptions.repoId, repoId),
 				eq(repositorySubscriptions.ignored, true),
-				inArray(repositorySubscriptions.userId, candidates),
+				inList(repositorySubscriptions.userId, candidates),
 			),
 		);
 	return new Set(rows.map((row) => row.userId));
@@ -276,12 +277,12 @@ export async function followCounts(
 		db
 			.select({ id: follows.followeeId, total: count() })
 			.from(follows)
-			.where(inArray(follows.followeeId, userIds))
+			.where(inList(follows.followeeId, userIds))
 			.groupBy(follows.followeeId),
 		db
 			.select({ id: follows.followerId, total: count() })
 			.from(follows)
-			.where(inArray(follows.followerId, userIds))
+			.where(inList(follows.followerId, userIds))
 			.groupBy(follows.followerId),
 	]);
 	for (const row of followers) {

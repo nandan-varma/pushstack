@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isReservedName } from "../reserved-names";
+import { STORAGE_NAME_RE } from "../storage-name";
 
 const web = join(import.meta.dirname, "../../..");
 
@@ -27,7 +28,11 @@ describe("reserved top-level names", () => {
 				),
 			)
 			.filter((segment) => segment !== "index");
-		const files = readdirSync(join(web, "public"));
+		// `_headers` configures Cloudflare and is not served; like any name that is
+		// not a valid username, it cannot collide with one.
+		const files = readdirSync(join(web, "public")).filter((name) =>
+			STORAGE_NAME_RE.test(name),
+		);
 		for (const name of [...routes, ...files])
 			expect(isReservedName(name), name).toBe(true);
 	});

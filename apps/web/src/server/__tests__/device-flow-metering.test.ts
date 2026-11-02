@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * The approval page's server functions (`getDeviceAuthorization`,
- * `decideDeviceAuthorization`) against pglite: every user-code attempt is
+ * `decideDeviceAuthorization`) against a real D1 database: every user-code attempt is
  * counted per signed-in user and per client IP, a refusal is a 429 with
  * Retry-After, and an uncountable attempt is refused (fail closed).
  */
@@ -10,14 +10,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const http = vi.hoisted(() => ({
 	request: new Request("https://git.test/login/device", {
-		headers: { "x-forwarded-for": "9.9.9.9" },
+		headers: { "cf-connecting-ip": "9.9.9.9" },
 	}),
 	status: undefined as number | undefined,
 	headers: {} as Record<string, string>,
 }));
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock("@tanstack/react-start/server", () => ({
@@ -34,7 +34,7 @@ vi.mock("#/server/session", () =>
 );
 
 const { db } = await import("#/db");
-const { sql } = await import("drizzle-orm");
+const { rateLimits } = await import("#/db/app-schema");
 const { signIn } = await import("../../test/app-harness");
 const { RATE_LIMIT_DEVICE_USER_CODE_USER, RATE_LIMIT_DEVICE_USER_CODE_IP } =
 	await import("../config");
@@ -53,11 +53,11 @@ const lookup = (userCode = "BCDF-MGLX") =>
 	getDeviceAuthorization({ data: { userCode } });
 
 beforeEach(async () => {
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 	http.status = undefined;
 	http.headers = {};
 	http.request = new Request("https://git.test/login/device", {
-		headers: { "x-forwarded-for": "9.9.9.9" },
+		headers: { "cf-connecting-ip": "9.9.9.9" },
 	});
 	signIn(user("alice-id"));
 });
@@ -105,7 +105,7 @@ describe("user-code attempt metering", () => {
 
 	it("fails closed: an attempt that cannot be counted is refused", async () => {
 		const broken = vi
-			.spyOn(db, "execute")
+			.spyOn(db, "all")
 			.mockRejectedValue(new Error("database unavailable"));
 		try {
 			await expect(lookup()).rejects.toThrow(/Too many code attempts/);

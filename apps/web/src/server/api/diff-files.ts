@@ -20,7 +20,7 @@ type DiffFile = DiffResult["files"][number];
 
 /**
  * The given files of `diff` as GitHub diff entries. Patches count against one
- * `apiCaps.patchBudgetBytes` budget per call (Vercel caps buffered responses at
+ * `apiCaps.patchBudgetBytes` budget per call (buffered responses are bounded at
  * 4.5 MB); files past it, binary and oversized ones list without a patch.
  */
 export async function diffFileObjects(

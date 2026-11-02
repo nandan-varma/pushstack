@@ -6,20 +6,12 @@
  * missing one (404), so private repositories don't reveal they exist.
  */
 import { notFound } from "@tanstack/react-router";
-import {
-	and,
-	type Column,
-	eq,
-	exists,
-	inArray,
-	or,
-	type SQL,
-	sql,
-} from "drizzle-orm";
+import { and, type Column, eq, exists, or, type SQL, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import type { CollaboratorRole, Repository } from "#/db/app-schema";
 import { repositories, repositoryCollaborators } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import {
 	getCurrentUser,
@@ -385,7 +377,7 @@ export function readableRepositoriesCondition(userId: string) {
 					and(
 						eq(repositoryCollaborators.repoId, repositories.id),
 						eq(repositoryCollaborators.userId, userId),
-						inArray(repositoryCollaborators.role, READ_ROLES),
+						inList(repositoryCollaborators.role, READ_ROLES),
 					),
 				),
 		),
@@ -424,7 +416,7 @@ export function canReadRepositoryCondition(
 					and(
 						eq(repositoryCollaborators.repoId, repoId),
 						eq(repositoryCollaborators.userId, userId),
-						inArray(repositoryCollaborators.role, READ_ROLES),
+						inList(repositoryCollaborators.role, READ_ROLES),
 					),
 				),
 		),

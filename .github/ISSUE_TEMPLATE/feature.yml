@@ -23,4 +23,4 @@ body:
     id: constraints
     attributes:
       label: Constraints
-      description: Vercel Hobby limits, R2 round trips, security notes.
+      description: Worker CPU and memory limits, R2 round trips, security notes.

@@ -8,7 +8,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
@@ -158,10 +158,11 @@ describe("commit statuses", () => {
 	});
 
 	it("caps statuses per commit and context", async () => {
-		const { db } = await import("#/db");
 		const { commitStatuses } = await import("#/db/app-schema");
+		const { insertMany } = await import("#/db/insert-many");
 		const repo = (await call("/repos/alice/proj")).body;
-		await db.insert(commitStatuses).values(
+		await insertMany(
+			commitStatuses,
 			Array.from({ length: 1000 }, () => ({
 				repoId: repo.id,
 				sha: head,

@@ -1,27 +1,31 @@
 ---
 title: "Database"
-description: "Tables, relations, indices and db:push."
+description: "Tables, relations, indices and migrations."
 ---
 
-Neon (serverless Postgres) via `@neondatabase/serverless`, accessed through
-Drizzle ORM. ORM and Kit use the same 1.0 RC version. Two schema files define the tables:
+Cloudflare D1 (SQLite), bound to the Worker as `DB` and accessed through Drizzle
+ORM's `drizzle-orm/d1` client. ORM and Kit use the same 1.0 RC version. Two schema files define the tables:
 
 - **`apps/web/src/db/schema.ts`** — Better Auth's tables (`user`, `session`,
   `account`, `verification`).
 - **`apps/web/src/db/app-schema.ts`** — the app's tables, with typed `$type` columns
   (visibility, status, role, labels, activity type/metadata) and the row
-  types `Repository`, `Issue`, `PullRequest`, `CollaboratorRole`.
+  types `Repository`, `Issue`, `PullRequest`, `CollaboratorRole`. Both files
+  use drizzle's `sqlite-core` types.
 
 Git data (commits, trees, blobs, refs) lives in R2, not here — see
-[git-storage.md](/docs/internals/git-storage). Postgres holds metadata only.
+[git-storage.md](/docs/internals/git-storage). D1 holds metadata only.
 
 `apps/web/src/db/relations.ts` combines the tables with `defineRelations`, using
 explicit joins and required relations for non-null foreign keys. Database
-initialization passes these relations to both Neon and local pglite. Relational
-queries use v2 object filters; raw subqueries must use the callback table for
-correlated columns because Drizzle aliases the outer table. Better Auth receives
-its auth schema explicitly in the adapter configuration. Local schema pushes use
-`drizzle-kit/api-postgres`.
+initialization in `apps/web/src/db/index.ts` passes these relations to the D1
+client. Relational queries use v2 object filters; raw subqueries must use the
+callback table for correlated columns because Drizzle aliases the outer table.
+Better Auth receives its auth schema explicitly in the adapter configuration.
+
+Column conventions: booleans are integers 0/1 (`integer({ mode: "boolean" })`),
+timestamps are epoch milliseconds (`integer({ mode: "timestamp_ms" })`), JSON
+columns are `text({ mode: "json" })`, and ids are integer autoincrement or text.
 
 ## Better Auth's tables are hand-maintained
 
@@ -38,11 +42,13 @@ against `schema.ts`.**
 require it on create and refuse it on update): it's the first segment of
 every storage key.
 
-`user.apiId` is app-owned, outside Better Auth's schema: an
-`integer GENERATED ALWAYS AS IDENTITY` the REST API serves as GitHub's numeric
-user `id`. Better Auth never writes it (Drizzle's insert type omits it), so the
-`get-tables.mjs` diff above should show it as the one extra column. Push the
-schema before deploying code that selects it.
+`user.apiId` is app-owned, outside Better Auth's schema: an integer the REST API
+serves as GitHub's numeric user `id`. SQLite cannot auto-increment a column that
+is not the primary key, so an AFTER INSERT trigger assigns it from a sequence
+table (the hand-written migration `user_api_id`). Better Auth never writes it
+(Drizzle's insert type omits it), so the `get-tables.mjs` diff above should show
+it as the one extra column. Apply the migrations before deploying code that
+selects it.
 
 ## Tables
 
@@ -61,7 +67,6 @@ schema before deploying code that selects it.
 | `repositoryCollaborators` | Role `read`/`write`/`admin`, unique per (repo, user) — see [authentication.md](/docs/internals/authentication) |
 | `activities` | Feed events: `type` + `metadata` together form one `ActivityEvent` (`apps/web/src/lib/activity-types.ts`) |
 | `tokens` | Personal access tokens: SHA-256 hash, scopes, expiry |
-| `repoLocks` | The per-repo write lease (`git-repo-lock.ts`); see [git-storage.md](/docs/internals/git-storage#locking) |
 
 **A pull request is an issue**, as in GitHub's data model: one `issues` row
 per thread (with `is_pull_request`), plus a `pull_requests` row keyed by the
@@ -96,18 +101,15 @@ per list and detail read.
 
 ## Timestamps
 
-Every app timestamp is `timestamp with time zone` (`app-schema.ts`'s
-`timestamptz()` helper). A plain `timestamp` filled by the database's `now()`
-stores the session's wall-clock time, which reads back shifted by the session's
-UTC offset — Neon's session is GMT so production looked fine, but pglite (local
-dev, tests) and any non-UTC Postgres put every `created_at` hours off, and the
-repo lock compared JS-written `expires_at` against SQL `now()` across that
-offset. `apps/web/src/db/__tests__/timestamps.test.ts` pins it. Better Auth's tables are
-written with JS `Date`s only and keep its own column types.
+Every app timestamp is an integer count of epoch milliseconds
+(`integer({ mode: "timestamp_ms" })` in `app-schema.ts`), written by JavaScript.
+Raw SQL that needs the clock uses `nowMs` from `apps/web/src/db/sql.ts`, so
+the database clock and the application clock are the same number, such as the
+repo lock's `expires_at` comparison.
 
 ## Indices
 
-Postgres doesn't index foreign keys on its own; the indices match real query
+SQLite doesn't index foreign keys on its own; the indices match real query
 shapes:
 
 - `repo_owner_name_idx` — **unique** (owner, name): storage keys derive from
@@ -140,23 +142,29 @@ shapes:
 
 ## Migrations
 
-`pnpm db:push` is the only path: drizzle-kit diffs both schema files against
-the live database and applies the difference. Editing the schema alone
-changes nothing in Neon. Before applying a rollout, run
-`pnpm --filter @pushstack/web db:push --explain` against the intended rollout
-schema and database. It prints the SQL without applying changes; review the
-complete plan for unexpected drops, rewrites, and constraints before the actual
-push. For a staged replacement, keep tables still used by the deployed code in
-the rollout schema so the first push is additive. Remove them only after the
-replacement deployment is verified.
+Schema changes are SQL migrations in `apps/web/migrations/`, one folder per
+change (`<timestamp>_<name>/migration.sql`). `pnpm --filter @pushstack/web
+db:generate` has drizzle-kit write the migration for the difference between the
+schema files and the previous migrations. Hand-written migrations, such as
+`user_api_id`, sit in the same folder layout. Editing the schema alone changes
+nothing in any database.
 
-A change that drops or tightens columns (`NOT NULL`, unique) needs its data
-fixed first. `--force` skips confirmation; it does not make destructive changes
-safe or replace reviewing the `--explain` plan.
+- `db:migrate:local` runs `wrangler d1 migrations apply DB --local` against the
+  simulated D1 that `pnpm dev:local` uses. Tests build their database by applying
+  the same folder in order.
+- `db:migrate:remote` runs `wrangler d1 migrations apply DB --remote` against the
+  deployed database. Wrangler records which migrations have been applied.
+
+Review each generated `migration.sql` before applying it. SQLite has no in-place
+`ALTER COLUMN`, so a change to a column's constraints is generated as a table
+rebuild; check that the rebuilt table keeps its rows and indices. A migration
+that tightens columns (`NOT NULL`, unique) needs its data fixed first. Keep the
+tables still used by the deployed code in place until the replacement is
+deployed and verified.
 
 ## Multi-step writes
 
-Production uses the Neon HTTP driver, which has no interactive transactions (`db.transaction` throws), and the local pglite driver has no `db.batch`, so a multi-step write cannot rely on a transaction. Its rule depends on where the failure lands:
+D1 has no interactive transactions, and a multi-step write cannot wrap its steps in one. A write that must be all-or-nothing is a single `db.batch`, which D1 runs as one transaction. A write whose steps cannot share a batch follows the rule below. Its rule depends on where the failure lands:
 
 - **Before the change commits**, a failure leaves nothing behind. A write that spans steps persists its root row, then deletes it in a `catch` if a later step fails (deletion cascades to child rows). `createIssueForUser`, `insertPullRequest` and `createCommentForUser` follow this pattern, and `mergePullRequestBranches` reopens the pull request if recording the merge fails. Cleanup is best-effort: log cleanup failures at error level and rethrow the original write error. A failed cleanup can leave a row behind, so duplicate-free retries depend on successful cleanup.
 - **When several rows must agree**, as with a single latest release, clear the others first, write the change, and restore the cleared rows in the `catch` if the write fails (`release-store.ts`). This holds for sequential failures. A failed restore is logged, not thrown, so if the database fails both writes the repository can be left with no latest release until one is set. Writes are not serialized, so two concurrent creates with `make_latest` can both clear the others before either inserts, and two latest releases remain possible.

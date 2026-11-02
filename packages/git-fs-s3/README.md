@@ -10,7 +10,7 @@ An [isomorphic-git](https://isomorphic-git.org) filesystem backend for S3-compat
 isomorphic-git  ──fs──►  git-fs-s3  ──►  ObjectStore  ──►  S3 / R2 / MinIO / memory
 ```
 
-Extracted from the git layer of a production git-hosting service, where it serves clones, pushes, and repo browsing directly against Cloudflare R2 from Vercel functions. Three layers, usable independently:
+Extracted from the git layer of a production git-hosting service, where it serves clones, pushes, and repo browsing directly against Cloudflare R2 from Workers. Three layers, usable independently:
 
 - **root export** — the fs backend itself (`createGitFs`, stores, caching).
 - **`/http`** — a git smart-HTTP protocol handler (`upload-pack`/`receive-pack`) built on it.
@@ -42,7 +42,22 @@ npm install aws4fetch
 
 ## Quick start
 
-### Cloudflare R2 / AWS S3 / MinIO
+### Cloudflare R2 binding (Workers)
+
+```typescript
+import git from "isomorphic-git";
+import { createCachedStore, createGitFs } from "git-fs-s3";
+import { createR2Store } from "git-fs-s3/r2";
+
+// env.MY_BUCKET is the R2 binding declared in wrangler.jsonc
+const fs = createGitFs(createCachedStore(createR2Store(env.MY_BUCKET)), {
+  prefix: "repos/alice/blog",
+});
+
+await git.init({ fs, gitdir: "/git", bare: true, defaultBranch: "main" });
+```
+
+### S3-compatible endpoints (AWS S3, R2 over S3, MinIO)
 
 ```typescript
 import { S3Client } from "@aws-sdk/client-s3";
@@ -181,7 +196,11 @@ range reads of the pack.
 
 ### `createFetchS3Store({ endpoint, bucket, accessKeyId, secretAccessKey, region?, contentType?, fetch? })`
 
-From `git-fs-s3/fetch-s3`. An S3/R2/MinIO store over plain `fetch`, signed with [`aws4fetch`](https://github.com/mhart/aws4fetch) (optional peer dependency: `npm install aws4fetch`) — no AWS SDK, so it runs on Node, Vercel Functions and Workers alike. Implements `getRange`, ListObjectsV2 pagination and delimiters, and a server-side `copy(from, to)` (pass it to `movePrefix`). A 404 maps to `null`; any other failure throws `S3HttpError` with `$metadata.httpStatusCode` (429 is named `SlowDown`), which `isRetryableError` classifies. `region` defaults to `"auto"` (R2); timeouts are `bodyTimeoutMs` (30 s) and `metadataTimeoutMs` (10 s) per attempt. Retries are not built in — wrap it in `createRetryStore`.
+From `git-fs-s3/fetch-s3`, for S3-compatible endpoints (AWS, R2 over its S3 API, MinIO) from any runtime. An S3/R2/MinIO store over plain `fetch`, signed with [`aws4fetch`](https://github.com/mhart/aws4fetch) (optional peer dependency: `npm install aws4fetch`) — no AWS SDK, so it runs on Node, Workers and Vercel Functions alike. Implements `getRange`, ListObjectsV2 pagination and delimiters, and a server-side `copy(from, to)` (pass it to `movePrefix`). A 404 maps to `null`; any other failure throws `S3HttpError` with `$metadata.httpStatusCode` (429 is named `SlowDown`), which `isRetryableError` classifies. `region` defaults to `"auto"` (R2); timeouts are `bodyTimeoutMs` (30 s) and `metadataTimeoutMs` (10 s) per attempt. Retries are not built in — wrap it in `createRetryStore`.
+
+### `createR2Store(bucket, { contentType? })`
+
+From `git-fs-s3/r2`. An `ObjectStore` over a Cloudflare R2 *binding*: no credentials, no request signing, no HTTP round trip, so a Worker's reads and writes stay on Cloudflare's network. `bucket` is any object matching the structural `R2BucketLike` (the real binding, or a test double). Implements `getRange`, and `copy(from, to)` streams the body bucket to bucket, so it is never held in memory (pass it to `movePrefix`). Errors surface as the binding throws them; R2 retries transient failures itself, so do not wrap it in `createRetryStore`. Outside Cloudflare, use `createFetchS3Store`.
 
 ### `FileObjectStore(root)`
 
@@ -225,6 +244,10 @@ A FIFO semaphore (`Semaphore`, with `run(fn)`) bounding in-flight I/O; `limit` m
 ### `createFakeS3({ bucket, pageSize? })`
 
 From `git-fs-s3/testing`. **For tests only; unstable, may change in minor releases.** A dependency-free `fetch` speaking path-style GetObject, PutObject, DeleteObject, HeadObject, CopyObject and ListObjectsV2 (prefix, delimiter, pagination of `pageSize`, default 1000) over an in-memory `Map`; `Range` is ignored. Requests without a SigV4 `Authorization` header get a 403. Returns `{ fetch, objects, requests }`: pass `fetch` to `createFetchS3Store`, seed or inspect `objects`, assert on `requests`.
+
+### `createFakeR2Bucket()`
+
+From `git-fs-s3/testing`. An in-memory R2 binding for `createR2Store` tests, with the same test-only status as `createFakeS3`. Lists are lexicographically ordered, with delimiter grouping and cursor pagination (1000 per page by default). Returns the binding plus `objects` (the stored bytes) and `listCalls`, to assert pagination.
 
 ## Git smart-HTTP
 

@@ -10,6 +10,8 @@
 import { and, count, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { checkRuns, checkSuites, commitStatuses } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { user } from "#/db/schema";
 import {
 	type CheckRunState,
 	rollupState,
@@ -20,7 +22,7 @@ import {
 	MAX_STATUSES_PER_CONTEXT,
 } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
-import { publicUserFields } from "./repository-lookup";
+import { publicUserColumns, publicUserFields } from "./repository-lookup";
 
 export type CommitStatusRow = typeof commitStatuses.$inferSelect;
 export type CheckRunRow = typeof checkRuns.$inferSelect;
@@ -94,7 +96,7 @@ function latestStatusIds(repoId: number, shas: string[]) {
 		.select({ id: max(commitStatuses.id) })
 		.from(commitStatuses)
 		.where(
-			and(eq(commitStatuses.repoId, repoId), inArray(commitStatuses.sha, shas)),
+			and(eq(commitStatuses.repoId, repoId), inList(commitStatuses.sha, shas)),
 		)
 		.groupBy(commitStatuses.sha, commitStatuses.context);
 }
@@ -118,11 +120,22 @@ export async function latestCommitStatuses(
 		.limit(page?.limit ?? 100)
 		.offset(page?.offset ?? 0);
 	if (ids.length === 0) return [];
-	const rows = await db.query.commitStatuses.findMany({
-		where: { repoId, id: { in: ids.map((row) => row.id) } },
-		with: { creator: publicUserFields },
-	});
-	const byId = new Map(rows.map((row) => [row.id, row]));
+	const rows = await db
+		.select({ status: commitStatuses, creator: publicUserColumns })
+		.from(commitStatuses)
+		.innerJoin(user, eq(user.id, commitStatuses.creatorId))
+		.where(
+			and(
+				eq(commitStatuses.repoId, repoId),
+				inList(
+					commitStatuses.id,
+					ids.map((row) => row.id),
+				),
+			),
+		);
+	const byId = new Map(
+		rows.map(({ status, creator }) => [status.id, { ...status, creator }]),
+	);
 	return ids.flatMap(({ id }) => byId.get(id) ?? []);
 }
 
@@ -311,7 +324,7 @@ export async function latestRunCounts(
 			total: sql<number>`count(distinct ${checkRuns.name})`,
 		})
 		.from(checkRuns)
-		.where(inArray(checkRuns.suiteId, suiteIds))
+		.where(inList(checkRuns.suiteId, suiteIds))
 		.groupBy(checkRuns.suiteId);
 	return new Map(rows.map((row) => [row.suiteId, Number(row.total)]));
 }
@@ -336,7 +349,7 @@ async function latestRunsForShas(repoId: number, shas: string[]) {
 						.where(
 							and(
 								eq(checkRuns.repoId, repoId),
-								inArray(checkRuns.headSha, shas),
+								inList(checkRuns.headSha, shas),
 							),
 						)
 						.groupBy(checkRuns.headSha, checkRuns.name),

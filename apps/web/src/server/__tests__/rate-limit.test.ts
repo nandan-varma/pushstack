@@ -4,14 +4,17 @@
  * The rate limiter's counters live in the database (src/server/rate-limit.ts)
  * rather than in Better Auth's default per-instance `Map`, so that the window
  * is shared by every serverless instance. These tests run the real storage
- * against pglite — real SQL, real atomic upsert — and then assert the auth
+ * against a real D1 (Miniflare) — real SQL, real atomic upsert — and then assert the auth
  * config actually uses it, since silently falling back to the Map is exactly
  * the regression this guards.
  */
+
+import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { rateLimits } from "#/db/app-schema";
 
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/test-db")).createTestDb(),
 }));
 
 const RULE = { window: 60, max: 3 };
@@ -22,9 +25,8 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	const { sql } = await import("drizzle-orm");
 	const { db } = await import("../../db");
-	await db.execute(sql`delete from rate_limits`);
+	await db.delete(rateLimits);
 });
 
 describe("rateLimitStorage", () => {
@@ -59,21 +61,20 @@ describe("rateLimitStorage", () => {
 	});
 
 	it("keeps the counter in a table, so every instance reads the same window", async () => {
-		const { sql } = await import("drizzle-orm");
 		const { db } = await import("../../db");
 		const { rateLimitStorage } = await import("../rate-limit");
 
 		await rateLimitStorage.consume("ip:9.9.9.9:/sign-up/email", RULE);
 		await rateLimitStorage.consume("ip:9.9.9.9:/sign-up/email", RULE);
 
-		const result = await db.execute<{ count: number }>(
-			sql`select count from rate_limits where key = ${"ip:9.9.9.9:/sign-up/email"}`,
-		);
-		expect(result.rows[0]?.count).toBe(2);
+		const [row] = await db
+			.select({ count: rateLimits.count })
+			.from(rateLimits)
+			.where(eq(rateLimits.key, "ip:9.9.9.9:/sign-up/email"));
+		expect(row?.count).toBe(2);
 	});
 
 	it("lets the caller back in once the window has elapsed", async () => {
-		const { sql } = await import("drizzle-orm");
 		const { db } = await import("../../db");
 		const { rateLimitStorage } = await import("../rate-limit");
 		const key = "ip:5.5.5.5:/sign-in/email";
@@ -83,9 +84,9 @@ describe("rateLimitStorage", () => {
 		}
 		expect((await rateLimitStorage.consume(key, RULE)).allowed).toBe(false);
 
-		await db.execute(
-			sql`update rate_limits set window_started_at = now() - interval '10 minutes'`,
-		);
+		await db
+			.update(rateLimits)
+			.set({ windowStartedAt: new Date(Date.now() - 10 * 60 * 1000) });
 
 		await expect(rateLimitStorage.consume(key, RULE)).resolves.toEqual({
 			allowed: true,

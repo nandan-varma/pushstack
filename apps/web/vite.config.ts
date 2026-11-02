@@ -1,19 +1,34 @@
 import path from "node:path";
+import { cloudflare } from "@cloudflare/vite-plugin";
 import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
-import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 
 const serverOnlyDirs = ["db", "server"].map(
 	(dir) => `${path.resolve(import.meta.dirname, "src", dir)}${path.sep}`,
 );
 
+// `pnpm dev:local` (scripts/dev-local.ts) hands the Worker its variables and a
+// data directory for the simulated R2 bucket through the environment.
+const localVars = process.env.PUSHSTACK_LOCAL_VARS
+	? (JSON.parse(process.env.PUSHSTACK_LOCAL_VARS) as Record<string, string>)
+	: undefined;
+
 const config = defineConfig({
 	resolve: { tsconfigPaths: true },
 	plugins: [
+		cloudflare({
+			viteEnvironment: { name: "ssr" },
+			...(localVars && {
+				config: { vars: localVars },
+				persistState: {
+					path: path.join(process.env.PUSHSTACK_LOCAL_DIR ?? "", "state"),
+				},
+			}),
+		}),
 		devtools(),
 		tailwindcss(),
 		tanstackStart({
@@ -32,48 +47,6 @@ const config = defineConfig({
 						["notFoundComponent"],
 						["loader"],
 					],
-				},
-			},
-		}),
-		nitro({
-			preset: "vercel",
-			vercel: {
-				functions: {
-					// DATABASE_URL is a Neon instance in us-west-2 (Oregon); R2 is
-					// Cloudflare's anycast network so it terminates at whichever edge
-					// is nearest the function regardless of region, but Neon's HTTP
-					// driver is a real regional round trip on every DB read/write —
-					// at least one per request (session + repo lookup), often more.
-					// Vercel's function region defaults to iad1 (Virginia) when
-					// unset, adding a cross-country hop to every single one. pdx1
-					// (Portland) is Vercel's closest region to us-west-2.
-					regions: ["pdx1"],
-				},
-			},
-			// Some CJS-only transitive deps (e.g. use-sync-external-store's
-			// shim, pulled in by @tanstack/react-store) call `require("react")`
-			// from inside their own CJS module body. Rolldown's CJS/ESM interop
-			// can't always statically rewrite that nested require to reference
-			// the already-bundled `react` module, so it falls back to a real
-			// runtime `require()` (via createRequire in the generated
-			// rolldown-runtime chunk) — which fails in the deployed serverless
-			// function because only explicitly-traced files get shipped, not a
-			// full node_modules tree. traceDeps forces nitro to physically copy
-			// react's package files into the function bundle so that fallback
-			// require actually resolves at runtime, without needing to fix the
-			// bundler's interop decision itself.
-			traceDeps: ["react*"],
-			routeRules: {
-				// Static security headers for every response. The
-				// Content-Security-Policy is deliberately *not* here: it carries a
-				// per-request nonce, so it is set by the request middleware in
-				// src/server/csp.ts instead. See apps/docs/content/docs/internals/security.md.
-				"/**": {
-					headers: {
-						"X-Content-Type-Options": "nosniff",
-						"X-Frame-Options": "DENY",
-						"Referrer-Policy": "strict-origin-when-cross-origin",
-					},
 				},
 			},
 		}),

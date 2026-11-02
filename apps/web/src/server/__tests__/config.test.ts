@@ -1,26 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { positiveInt } from "../config";
 
+/** Any real tunable will do; the test stubs it and restores it after. */
+const KNOB = "SLOW_REQUEST_MS";
+
 describe("positiveInt", () => {
 	afterEach(() => {
 		vi.unstubAllEnvs();
 	});
 
 	it("uses the default when the variable is unset or empty", () => {
-		expect(positiveInt("PUSHSTACK_TEST_KNOB", 7)).toBe(7);
-		vi.stubEnv("PUSHSTACK_TEST_KNOB", "");
-		expect(positiveInt("PUSHSTACK_TEST_KNOB", 7)).toBe(7);
+		expect(positiveInt(KNOB, 7)).toBe(7);
+		vi.stubEnv(KNOB, "");
+		expect(positiveInt(KNOB, 7)).toBe(7);
 	});
 
 	it("reads a positive integer", () => {
-		vi.stubEnv("PUSHSTACK_TEST_KNOB", "42");
-		expect(positiveInt("PUSHSTACK_TEST_KNOB", 7)).toBe(42);
+		vi.stubEnv(KNOB, "42");
+		expect(positiveInt(KNOB, 7)).toBe(42);
 	});
 
 	it.each(["abc", "0", "-3", "1.5", "12x"])("rejects %s", (raw) => {
-		vi.stubEnv("PUSHSTACK_TEST_KNOB", raw);
-		expect(() => positiveInt("PUSHSTACK_TEST_KNOB", 7)).toThrow(
-			/PUSHSTACK_TEST_KNOB must be a positive integer/,
+		vi.stubEnv(KNOB, raw);
+		expect(() => positiveInt(KNOB, 7)).toThrow(
+			new RegExp(`${KNOB} must be a positive integer`),
 		);
 	});
 });

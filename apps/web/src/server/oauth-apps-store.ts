@@ -5,9 +5,10 @@
  * conditional UPDATE, and the tokens are the same `pst_` tokens as any other.
  */
 import { timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import { db } from "#/db";
 import { oauthApps, oauthCodes, tokens } from "#/db/app-schema";
+import { nowMs } from "#/db/sql";
 import { bytesToBase64Url, randomBytes, sha256Hex } from "#/lib/bytes";
 import type { DeviceFlowError } from "#/lib/device-flow";
 import {
@@ -271,12 +272,12 @@ export async function exchangeAuthorizationCode(input: {
 
 	const [consumed] = await db
 		.update(oauthCodes)
-		.set({ consumedAt: sql`now()` })
+		.set({ consumedAt: nowMs })
 		.where(
 			and(
 				eq(oauthCodes.codeHash, codeHash),
 				isNull(oauthCodes.consumedAt),
-				gt(oauthCodes.expiresAt, sql`now()`),
+				gt(oauthCodes.expiresAt, nowMs),
 			),
 		)
 		.returning({ userId: oauthCodes.userId, scopes: oauthCodes.scopes });

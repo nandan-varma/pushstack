@@ -3,11 +3,11 @@
  *
  * Better Auth's own default keeps them in a module-level `Map`
  * (`options.rateLimit.storage` resolves to `"memory"` when nothing else is
- * configured). On a serverless deployment that is one `Map` per warm instance,
+ * configured). On Cloudflare Workers that is one `Map` per Worker isolate,
  * so a configured "20 requests per 60 seconds" is really 20 × however many
- * instances happen to be serving, and an attacker who spreads requests across
- * instances sees a ceiling far above what the configuration claims. The
- * counters have to live where every instance can see them.
+ * isolates happen to be serving, and an attacker who spreads requests across
+ * isolates sees a ceiling far above what the configuration claims. The
+ * counters have to live where every isolate can see them.
  *
  * One statement does the whole decision: Postgres either starts a new window or
  * advances the current one, and reports whether the caller is inside the limit.
@@ -21,6 +21,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db } from "#/db";
+import { nowMs } from "#/db/sql";
 import * as config from "./config";
 import { logWarn } from "./perf-log";
 
@@ -41,15 +42,16 @@ export interface RateLimitStorage {
 	consume(key: string, rule: RateLimitRule): Promise<RateLimitDecision>;
 }
 
-interface DecisionRow extends Record<string, unknown> {
-	allowed: boolean;
+interface DecisionRow {
+	/** SQLite has no boolean: 1 when the caller is inside the limit. */
+	allowed: number;
 	retry_after: number;
 }
 
 /**
  * Expired rows are harmless (they only occupy a row until their key is seen
  * again), but they would accumulate one per caller forever, so they are
- * expired by a prune at most once a minute per instance.
+ * expired by a prune at most once a minute per isolate.
  */
 const PRUNE_INTERVAL_MS = 60_000;
 
@@ -78,13 +80,13 @@ async function pruneExpiredCounters(): Promise<void> {
 		// Auth's (high-water mark of the rules seen here) and the `gh:` request
 		// limits (config). Each is pruned by its own window, so one family's
 		// short window never deletes the other's live buckets.
-		await db.execute(sql`
+		await db.run(sql`
 			delete from rate_limits where
 				(key like ${REQUEST_KEY_PATTERN}
-					and window_started_at < now() - make_interval(secs => ${config.RATE_LIMIT_WINDOW_SECONDS}))
+					and window_started_at < ${nowMs} - ${config.RATE_LIMIT_WINDOW_SECONDS * 1000})
 				or (key not like ${REQUEST_KEY_PATTERN}
 					and ${longestWindowSeconds} > 0
-					and window_started_at < now() - make_interval(secs => ${longestWindowSeconds}))
+					and window_started_at < ${nowMs} - ${longestWindowSeconds * 1000})
 		`);
 	} catch (error) {
 		logWarn("rate-limit", "Failed to prune expired rate-limit counters", error);
@@ -95,44 +97,32 @@ export const rateLimitStorage: RateLimitStorage = {
 	async consume(key, rule) {
 		longestWindowSeconds = Math.max(longestWindowSeconds, rule.window);
 
-		const result = await db.execute<DecisionRow>(sql`
+		const windowMs = rule.window * 1000;
+		const [row] = await db.all<DecisionRow>(sql`
 			insert into rate_limits (key, count, window_started_at)
-			values (${key}, 1, now())
+			values (${key}, 1, ${nowMs})
 			on conflict (key) do update set
 				count = case
-					when rate_limits.window_started_at <= now() - make_interval(secs => ${rule.window})
+					when rate_limits.window_started_at <= ${nowMs} - ${windowMs}
 						then 1
 					else rate_limits.count + 1
 				end,
 				window_started_at = case
-					when rate_limits.window_started_at <= now() - make_interval(secs => ${rule.window})
-						then now()
+					when rate_limits.window_started_at <= ${nowMs} - ${windowMs}
+						then ${nowMs}
 					else rate_limits.window_started_at
 				end
 			returning
 				count <= ${rule.max} as allowed,
-				greatest(
-					0,
-					ceil(
-						extract(
-							epoch from (
-								window_started_at
-								+ make_interval(secs => ${rule.window})
-								- now()
-							)
-						)
-					)
-				)::int as retry_after
+				max(0, cast((window_started_at + ${windowMs} - ${nowMs} + 999) / 1000 as integer)) as retry_after
 		`);
-
-		const row = result.rows[0];
 		if (!row) throw new Error("Rate-limit counter upsert returned no row");
 
 		await pruneExpiredCounters();
 
 		return {
-			allowed: row.allowed,
-			retryAfter: row.allowed ? null : row.retry_after,
+			allowed: row.allowed === 1,
+			retryAfter: row.allowed === 1 ? null : row.retry_after,
 		};
 	},
 };
@@ -174,25 +164,21 @@ export interface RateIdentity {
 }
 
 /**
- * The client IP: `x-vercel-forwarded-for` (set by Vercel, not by the caller),
- * then `x-real-ip`, then the leftmost `x-forwarded-for` entry. A request with
- * no address shares one "unknown" bucket rather than being unlimited.
+ * The client IP, from `CF-Connecting-IP`. Cloudflare sets it on every request
+ * and overwrites any value the caller sent, so it is the only header that
+ * cannot be spoofed; `X-Forwarded-For` and `X-Real-IP` are caller-controlled
+ * and deliberately ignored. A request with no address shares one "unknown"
+ * bucket rather than being unlimited.
  */
 function clientIp(request: Request): string {
-	const { headers } = request;
-	return (
-		headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||
-		headers.get("x-real-ip")?.trim() ||
-		headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		"unknown"
-	);
+	return request.headers.get("cf-connecting-ip")?.trim() || "unknown";
 }
 
 /**
- * IPs that failed credentials recently on THIS instance. Only they pay the
+ * IPs that failed credentials recently on THIS isolate. Only they pay the
  * database read before authenticating, so clean requests stay at one limiter
  * round trip. Bounded; a flood from many instances is still counted (and
- * hinted) on each instance it reaches.
+ * hinted) on each isolate it reaches.
  */
 const FAILURE_HINT_TTL_MS = 5 * 60_000;
 const FAILURE_HINT_MAX = 5_000;
@@ -218,7 +204,7 @@ function recentlyFailed(ip: string): boolean {
 
 /**
  * Whether this IP has used up its failed-credential budget (no counting).
- * Free (no database) unless this instance saw the IP fail recently.
+ * Free (no database) unless this isolate saw the IP fail recently.
  */
 export async function authFailuresExhausted(
 	request: Request,
@@ -286,7 +272,7 @@ function limitFor(resource: RateLimitResource, kind: "user" | "ip"): number {
 const bucketKey = (resource: RateLimitResource, who: RateIdentity) =>
 	`gh:${resource}:${who.kind}:${who.id}`;
 
-interface StatusRow extends Record<string, unknown> {
+interface StatusRow {
 	count: number;
 	reset: number;
 }
@@ -312,11 +298,11 @@ function toStatus(
 }
 
 /**
- * Buckets this instance has seen over their limit, with the window's reset
+ * Buckets this isolate has seen over their limit, with the window's reset
  * (epoch seconds). Counters only grow within a window, so an exhausted bucket
  * stays exhausted until its reset: denying from memory is exact and costs no
- * database round trip or handler work. It is per instance: the first
- * over-limit request each instance sees (and any that were in flight with it)
+ * database round trip or handler work. It is per isolate: the first
+ * over-limit request each isolate sees (and any that were in flight with it)
  * still ran its read handler concurrently with the count, and that result is
  * discarded. Bounded; entries lapse at their reset.
  */
@@ -344,7 +330,7 @@ export function resetRateLimitMemory(): void {
 }
 
 /**
- * The exhausted bucket for `resource`/`who` if this instance already saw it
+ * The exhausted bucket for `resource`/`who` if this isolate already saw it
  * over its limit in the current window (no database), else null.
  */
 export function knownExhausted(
@@ -386,26 +372,27 @@ export async function hitRateLimit(
 ): Promise<RateStatus | null> {
 	const window = config.RATE_LIMIT_WINDOW_SECONDS;
 	try {
-		const result = await db.execute<StatusRow>(sql`
+		const windowMs = window * 1000;
+		const [row] = await db.all<StatusRow>(sql`
 			insert into rate_limits (key, count, window_started_at)
-			values (${bucketKey(resource, who)}, ${amount}, now())
+			values (${bucketKey(resource, who)}, ${amount}, ${nowMs})
 			on conflict (key) do update set
 				count = case
-					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
+					when rate_limits.window_started_at <= ${nowMs} - ${windowMs}
 						then ${amount}
 					else rate_limits.count + ${amount}
 				end,
 				window_started_at = case
-					when rate_limits.window_started_at <= now() - make_interval(secs => ${window})
-						then now()
+					when rate_limits.window_started_at <= ${nowMs} - ${windowMs}
+						then ${nowMs}
 					else rate_limits.window_started_at
 				end
 			returning
 				count,
-				extract(epoch from (window_started_at + make_interval(secs => ${window})))::bigint as reset
+				cast((window_started_at + ${windowMs}) / 1000 as integer) as reset
 		`);
 		await pruneExpiredCounters();
-		const status = toStatus(resource, who, result.rows[0]);
+		const status = toStatus(resource, who, row);
 		if (status.exceeded) rememberExhausted(resource, who, status.reset);
 		return status;
 	} catch (error) {
@@ -422,17 +409,17 @@ export async function peekRateLimits(
 	const keys = resources.map((resource) => bucketKey(resource, who));
 	const rows = new Map<string, StatusRow>();
 	try {
-		const result = await db.execute<StatusRow & { key: string }>(sql`
-			select key, count,
-				extract(epoch from (window_started_at + make_interval(secs => ${window})))::bigint as reset
+		const windowMs = window * 1000;
+		const result = await db.all<StatusRow & { key: string }>(sql`
+			select key, count, cast((window_started_at + ${windowMs}) / 1000 as integer) as reset
 			from rate_limits
 			where key in (${sql.join(
 				keys.map((key) => sql`${key}`),
 				sql`, `,
 			)})
-				and window_started_at > now() - make_interval(secs => ${window})
+				and window_started_at > ${nowMs} - ${windowMs}
 		`);
-		for (const row of result.rows) rows.set(row.key, row);
+		for (const row of result) rows.set(row.key, row);
 	} catch (error) {
 		logWarn("rate-limit", "Request limiter peek failed", error);
 	}

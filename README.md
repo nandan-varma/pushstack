@@ -4,8 +4,8 @@ A GitHub-compatible code forge: Git over HTTPS, repositories, issues, pull
 requests, code browsing, and a REST API at `/api/v3`.
 
 The hosted app is [git.nandan.fyi](https://git.nandan.fyi). Git objects live in
-Cloudflare R2; application data lives in Neon Postgres. The server runs on
-Vercel's Node runtime without native Git or persistent disk.
+Cloudflare R2; application data lives in Cloudflare D1. The server runs as a
+Cloudflare Worker without native Git or persistent disk.
 
 ## Workspace
 
@@ -34,13 +34,13 @@ pnpm dev:local                         # http://localhost:3000
 pnpm --filter @pushstack/docs dev       # http://localhost:3001
 ```
 
-Local development uses PGlite and on-disk Git under
-`apps/web/.pushstack-local/`. It needs no cloud accounts, survives restarts,
-and prints verification/reset email links in the terminal. The launcher blanks
-R2, Resend and Sentry credentials so it does not contact those services.
+`pnpm dev:local` runs the Worker under workerd with a simulated R2 bucket and a
+simulated D1 database, all under `apps/web/.pushstack-local/`. It applies the
+migrations first. It needs no cloud accounts, survives restarts, and prints
+verification/reset email links in the terminal.
 
-To use real services, copy `apps/web/.env.example` to `apps/web/.env.local`,
-set the database and auth variables, run `pnpm db:push`, then `pnpm dev`.
+To use real services, copy `apps/web/.dev.vars.example` to `apps/web/.dev.vars`,
+set the auth variables, then run `pnpm dev`.
 See the [deployment guide](https://docs.git.nandan.fyi/docs/internals/deployment)
 for configuration and storage requirements.
 
@@ -56,8 +56,14 @@ pnpm smoke:git          # real Git client against the smart HTTP endpoint
 pnpm check              # repository-wide Biome lint and format check
 pnpm lint               # workspace lint tasks
 pnpm format             # format with Biome
-pnpm db:push            # apply the web schema to the configured database
-pnpm db:studio          # inspect the configured database
+```
+
+Database migrations for the web app:
+
+```bash
+pnpm --filter @pushstack/web db:generate       # write a migration from schema changes
+pnpm --filter @pushstack/web db:migrate:local  # apply migrations to the local D1
+pnpm --filter @pushstack/web db:migrate:remote # apply migrations to the deployed D1
 ```
 
 Target a workspace for development or a specific test:
@@ -75,8 +81,8 @@ setup are separate release steps; see [the CLI README](apps/cli/README.md).
 
 ## Validation and dependency policy
 
-Behavior tests run real server functions and API handlers against PGlite with
-the real schema and in-memory object storage. CLI contract tests use the same
+Behavior tests run real server functions and API handlers against a real D1
+database (Miniflare) with the real migrations and in-memory object storage. CLI contract tests use the same
 REST dispatcher with real personal access tokens. Native Git smoke tests use a
 scratch HOME and never modify the developer's global Git configuration.
 
@@ -93,8 +99,9 @@ Start with the [user guide](https://docs.git.nandan.fyi/docs/guide),
 [architecture](https://docs.git.nandan.fyi/docs/internals).
 `CLAUDE.md` contains repository-specific engineering instructions.
 
-Production deploys from `main`. Database changes use `pnpm db:push`; there are
-no migration files. Library releases use annotated tags such as
+Production deploys from `main`. Database changes ship as migration files in
+`apps/web/migrations/`, applied to the deployed D1 with `db:migrate:remote`.
+Library releases use annotated tags such as
 `git-fs-s3@v0.15.3`, with matching package versions and changelogs, and npm trusted
 publishing through `.github/workflows/release-packages.yml`. Pushed tags are
 immutable: corrections get a new patch release.

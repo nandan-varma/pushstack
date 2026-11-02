@@ -1,34 +1,26 @@
 /**
  * The isomorphic-git filesystem every repository lives behind, composed from
- * git-fs-s3, network-outward: R2 store (src/lib/r2.ts; in-memory without R2
- * env) → retry + circuit breaker → perf instrumentation → LRU cache
+ * git-fs-s3, network-outward: the R2 bucket binding → perf instrumentation → LRU cache
  * (coalescing, miss/list caching) → git-aware fs (loose-object hints,
  * registered gitdirs). Gitdirs are full storage roots
  * (`repos/{ownerKey}/{repoName}/git`), so fs paths map 1:1 onto R2 keys.
  */
 
-import path from "node:path";
 import {
 	classifyGitdirPath,
 	copyPrefix,
 	createCachedStore,
 	createGitFs,
-	createRetryStore,
 	deletePrefix,
 	type GitdirEntry,
 	isMutableGitdirEntry,
-	MemoryObjectStore,
 	movePrefix,
 	type ObjectStore,
 } from "git-fs-s3";
-import type { FetchS3ObjectStore } from "git-fs-s3/fetch-s3";
-import { FileObjectStore } from "git-fs-s3/node";
-import {
-	createR2ObjectStoreFromEnv,
-	isR2Configured,
-	presignR2Put,
-} from "#/lib/r2";
+import { createR2Store } from "git-fs-s3/r2";
+import { presignR2Put } from "#/lib/r2";
 import { GIT_CACHE_MAX_BYTES, GIT_CACHE_TTL_MS } from "./config";
+import { env } from "./env";
 import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
@@ -37,7 +29,6 @@ import {
 } from "./git-storage-naming";
 import {
 	logError,
-	logWarn,
 	perfNote,
 	perfR2,
 	recordCacheHit,
@@ -73,60 +64,10 @@ function gitContentType(key: string): string | undefined {
 }
 
 /**
- * A store that can serve byte ranges. Both backends this app builds implement
- * `getRange` — the R2 store with S3's `Range` header, `MemoryObjectStore`
- * directly — and requiring it here is deliberate: the alternative is a wrapper
- * that silently drops the method, which does not fail loudly, it makes
- * `getObjectSize` answer "unknown" so every size gate quietly reads the whole
- * object instead of refusing it. A future backend without ranges should be a
- * type error, not a silent regression.
+ * The repository store: the app's one R2 bucket binding. Reads and writes stay
+ * on Cloudflare's network, and R2 retries transient failures itself.
  */
-type RangeCapableStore = ObjectStore & {
-	getRange: NonNullable<ObjectStore["getRange"]>;
-};
-
-// Without R2 env, repositories live on disk under PUSHSTACK_LOCAL_DIR
-// (`pnpm dev:local`) or, failing that (tests), in memory for the life of the
-// process; production refuses instead of silently losing pushes. Built on first use, never at import time.
-let backend: {
-	store: RangeCapableStore;
-	r2: FetchS3ObjectStore | null;
-} | null = null;
-
-function getBackend(): {
-	store: RangeCapableStore;
-	r2: FetchS3ObjectStore | null;
-} {
-	if (backend) return backend;
-	if (isR2Configured()) {
-		const r2 = createR2ObjectStoreFromEnv(gitContentType);
-		backend = { store: r2, r2 };
-	} else if (process.env.NODE_ENV === "production") {
-		throw new Error(
-			"R2 is not configured (R2_BUCKET_NAME/R2_ENDPOINT/R2_ACCESS_KEY_ID/" +
-				"R2_SECRET_ACCESS_KEY) — refusing to serve repositories from memory in production",
-		);
-	} else if (process.env.PUSHSTACK_LOCAL_DIR) {
-		const root = path.join(process.env.PUSHSTACK_LOCAL_DIR, "git");
-		backend = { store: new FileObjectStore(root), r2: null };
-	} else {
-		logWarn(
-			"git-fs",
-			"R2 is not configured: repositories are kept in memory and vanish when this process exits",
-		);
-		backend = { store: new MemoryObjectStore(), r2: null };
-	}
-	return backend;
-}
-
-const lazyStore: RangeCapableStore = {
-	get: (key) => getBackend().store.get(key),
-	put: (key, data) => getBackend().store.put(key, data),
-	delete: (key) => getBackend().store.delete(key),
-	head: (key) => getBackend().store.head(key),
-	list: (prefix, options) => getBackend().store.list(prefix, options),
-	getRange: (key, start, end) => getBackend().store.getRange(key, start, end),
-};
+const r2 = createR2Store(env.GIT_BUCKET, { contentType: gitContentType });
 
 function withPerfLogging(store: ObjectStore): ObjectStore {
 	// Forwarded explicitly: this returns a new object, and a dropped `getRange`
@@ -149,12 +90,11 @@ function withPerfLogging(store: ObjectStore): ObjectStore {
 	};
 }
 
-const networkStore = withPerfLogging(
-	createRetryStore(lazyStore, {
-		onRetry: ({ op, key, attempt }) =>
-			perfNote(`R2 ${op} ${key}: retry ${attempt}`),
-	}),
-);
+const networkStore = withPerfLogging(r2);
+
+/** Copy within the bucket, streamed through the binding rather than buffered. */
+const copyObject = (from: string, to: string) =>
+	perfR2(`R2 COPY ${from}`, () => r2.copy(from, to));
 
 const cachedStore = createCachedStore(networkStore, {
 	maxBytes: GIT_CACHE_MAX_BYTES,
@@ -238,20 +178,6 @@ export async function deleteRepoStorage(
 }
 
 /**
- * Server-side copy (R2 `CopyObject`) for storage that moves between keys, or
- * undefined where there is no R2 and the library's read-and-write copy applies.
- */
-function serverSideCopy():
-	| ((from: string, to: string) => Promise<void>)
-	| undefined {
-	const { r2 } = getBackend();
-	return r2
-		? (from: string, to: string) =>
-				perfR2(`R2 COPY ${from}`, () => r2.copy(from, to))
-		: undefined;
-}
-
-/**
  * Copy a repository's git data (not its release assets) to a fork's storage.
  * The parent is left in place. Refuses before any object is copied when the
  * parent holds more than `maxBytes`; returns how many objects were copied.
@@ -268,7 +194,7 @@ export async function forkRepoGitStorage(
 		networkStore,
 		getRepoGitStoragePrefix(parentOwnerKey, parentRepoName),
 		getRepoGitStoragePrefix(forkOwnerKey, forkRepoName),
-		{ copy: serverSideCopy(), maxBytes },
+		{ copy: copyObject, maxBytes },
 	);
 	invalidateRepoGitStorage(forkOwnerKey, forkRepoName);
 	return copied;
@@ -298,22 +224,21 @@ export async function transferRepoStorage(
 	newOwnerKey: string,
 	newRepoName: string,
 ): Promise<void> {
-	const copy = serverSideCopy();
 	const gitFrom = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
 	const gitTo = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
-	await movePrefix(networkStore, gitFrom, gitTo, { copy });
+	await movePrefix(networkStore, gitFrom, gitTo, { copy: copyObject });
 	try {
 		await movePrefix(
 			networkStore,
 			getRepoReleaseStoragePrefix(oldOwnerKey, oldRepoName),
 			getRepoReleaseStoragePrefix(newOwnerKey, newRepoName),
-			{ copy },
+			{ copy: copyObject },
 		);
 	} catch (error) {
 		// Never leave the git data at the new name with the releases behind:
 		// the caller's row still names the old location.
 		try {
-			await movePrefix(networkStore, gitTo, gitFrom, { copy });
+			await movePrefix(networkStore, gitTo, gitFrom, { copy: copyObject });
 		} catch (rollbackError) {
 			logError(
 				"git-fs",
@@ -337,17 +262,9 @@ export const releaseAssetStorage = {
 	put: (key: string, data: Uint8Array) => networkStore.put(key, data),
 	delete: (key: string) => networkStore.delete(key),
 	head: (key: string) => networkStore.head(key),
-	/** Server-side on R2; read-and-write elsewhere (dev and tests only). */
-	copy: async (from: string, to: string) => {
-		const { r2 } = getBackend();
-		if (r2) return perfR2(`R2 COPY ${from}`, () => r2.copy(from, to));
-		const data = await networkStore.get(from);
-		if (!data) throw new Error(`Cannot copy missing object ${from}`);
-		await networkStore.put(to, data);
-	},
+	copy: copyObject,
 	getRange: (key: string, start: number, end: number) =>
 		networkStore.getRange?.(key, start, end) ?? Promise.resolve(null),
-	/** A presigned PUT URL, or null when this deployment has no R2. */
-	presignPut: (key: string, ttlSeconds: number) =>
-		getBackend().r2 ? presignR2Put(key, ttlSeconds) : Promise.resolve(null),
+	/** A presigned PUT URL, or null when no S3 API credentials are configured. */
+	presignPut: presignR2Put,
 };

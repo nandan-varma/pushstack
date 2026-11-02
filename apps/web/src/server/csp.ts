@@ -28,6 +28,7 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { THEME_INIT_SCRIPT } from "#/lib/theme";
+import { env } from "./env";
 
 const NONCE_BYTES = 16;
 
@@ -76,7 +77,7 @@ export async function contentSecurityPolicy(
 
 	// The browser SDK posts error envelopes straight to Sentry's origin, which
 	// must be in connect-src or every client-captured error is dropped silently.
-	const sentryDsn = process.env.VITE_SENTRY_DSN ?? "";
+	const sentryDsn = env.VITE_SENTRY_DSN ?? "";
 	// With no DSN there is no ingest origin to allow, so connect-src keeps only
 	// the app's own origins.
 	let sentryOrigin = "";

@@ -1,17 +1,26 @@
+import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	plugins: [react()],
-	resolve: { tsconfigPaths: true },
+	resolve: {
+		tsconfigPaths: true,
+		// workerd's runtime module has no Node implementation; see the stand-in.
+		alias: {
+			"cloudflare:workers": path.resolve(
+				import.meta.dirname,
+				"src/test/cloudflare-workers.ts",
+			),
+		},
+	},
 	test: {
-		// Each behavior-test worker boots Postgres WASM; bound memory and startup contention.
+		// Each behavior-test worker boots a workerd for its D1 database; bound memory and startup contention.
 		maxWorkers: 2,
-		globalSetup: ["./src/test/global-setup.ts"],
-		environment: "jsdom",
-		// src/db requires a URL at import; nothing connects until a query runs.
+		// Server tests need a real Node (Miniflare boots a workerd and talks to it);
+		// the few DOM tests opt in with `// @vitest-environment jsdom`.
+		environment: "node",
 		env: {
-			DATABASE_URL: "postgresql://test@localhost/test",
 			// Out of the way of unrelated tests (they share one anonymous IP);
 			// rate-limit tests set their own small values.
 			RATE_LIMIT_API_ANONYMOUS: "1000000",

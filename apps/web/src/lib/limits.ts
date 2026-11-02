@@ -20,7 +20,11 @@ export const MAX_BODY_CHARS = 65_536;
 export const MAX_STATUSES_PER_CONTEXT = 1000;
 export const MAX_CHECK_RUNS_PER_COMMIT = 1000;
 
-export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
+/**
+ * A web upload travels base64-encoded inside one request, so the Worker holds
+ * it three times over (text, bytes, commit). The isolate has 128 MB in total.
+ */
+export const MAX_WEB_UPLOAD_BYTES = 12 * 1024 * 1024;
 
 /**
  * Where the browser starts warning about an upload's size. Deliberately *below*
@@ -32,12 +36,12 @@ export const UPLOAD_WARNING_BYTES = 10 * 1024 * 1024;
 
 /**
  * Largest object the raw file route will serve. That endpoint streams from memory, so a
- * file reaching it is a file held in the function's heap; this is the git push
+ * file reaching it is a file held in the Worker isolate's memory; this is the git push
  * body cap, and an object larger than it can only exist by growing through
  * successive deltas. Above it the honest answer is `git clone` (see
  * `apps/docs/content/docs/internals/security.md`).
  */
-export const MAX_RAW_BYTES = 50 * 1024 * 1024;
+export const MAX_RAW_BYTES = 16 * 1024 * 1024;
 
 /**
  * Bounds of one source archive (zipball/tarball). The archive streams, so
@@ -46,10 +50,9 @@ export const MAX_RAW_BYTES = 50 * 1024 * 1024;
  * Above them the answer is `git clone`.
  */
 export const MAX_ARCHIVE_ENTRIES = 50_000;
-export const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
+export const MAX_ARCHIVE_BYTES = 32 * 1024 * 1024;
 /**
- * Release assets. A function request body is capped at 4.5 MB on Vercel, so
- * an upload through the API carries at most `MAX_RELEASE_ASSET_DIRECT_BYTES`;
+ * Release assets. An upload through the API is buffered in the Worker isolate, so it carries at most `MAX_RELEASE_ASSET_DIRECT_BYTES`;
  * anything larger goes straight to R2 on a presigned URL and is finalized
  * (verified against its declared size) afterwards, up to
  * `MAX_RELEASE_ASSET_BYTES`. GitHub's own limit is 2 GiB per asset.
@@ -57,8 +60,8 @@ export const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 export const MAX_RELEASE_ASSET_DIRECT_BYTES = 4_000_000;
 export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;
 /**
- * The web form uploads files up to this size through a server function (as
- * base64: 4/3 larger, under Vercel's 4.5 MB body cap); bigger ones are PUT
+ * The web form uploads files up to this size through a server request (as
+ * base64: 4/3 larger, under the 4.5 MB body bound); bigger ones are PUT
  * to R2 on a presigned URL.
  */
 export const MAX_RELEASE_ASSET_INLINE_BYTES = 3_000_000;
@@ -102,7 +105,7 @@ export const MAX_API_BODY_BYTES = 1024 * 1024;
 
 /**
  * A diff or patch the REST API renders (commit, compare and pull request media
- * types). Below Vercel's 4.5 MB buffered-response cap with room for the framing,
+ * types). Below the 4.5 MB buffered-response bound with room for the framing,
  * so an oversized diff is a 406 and never a response the platform cuts off.
  * git-fs-s3's own budget (10 MiB of blob input) is larger on purpose: it bounds
  * the work, this bounds the bytes sent.
@@ -196,8 +199,8 @@ export const MAX_OAUTH_CLIENT_SECRET_CHARS = 100;
 export const MAX_OAUTH_CODE_CHARS = 100;
 
 /**
- * What one function response may carry: Vercel's buffered-response cap is
- * 4.5 MB; this leaves headroom for the rest of the payload and the framing.
+ * What one response may carry: the buffered-response bound is 4.5 MB;
+ * this leaves headroom for the rest of the payload and the framing.
  */
 const RESPONSE_BUDGET_BYTES = 4_000_000;
 
@@ -213,7 +216,7 @@ const MAX_COMMENT_RESPONSE_BYTES = MAX_BODY_CHARS * 6 + 1_000;
 /**
  * The most items a thread read (comments or timeline events) may ask for:
  * `floor(4,000,000 / (65,536 * 6 + 1,000))` = 10 comments of 394,216 bytes
- * each, so a page of worst-case comments stays under the 4.5 MB cap that an
+ * each, so a page of worst-case comments stays under the 4.5 MB bound that an
  * unbounded read of such a thread broke. `limits.test.ts` serializes one.
  */
 export const MAX_THREAD_PAGE_SIZE = Math.floor(

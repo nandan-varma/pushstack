@@ -1,6 +1,8 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { user } from "#/db/schema";
 import { anchorKey, collectDiffAnchors } from "#/lib/diff";
 import { MAX_REVIEW_COMMENTS_PER_PULL_REQUEST } from "#/lib/limits";
 import type {
@@ -17,7 +19,7 @@ import { ownerKeyOf } from "./git-storage-naming";
 import { recordThreadActivity } from "./notification-store";
 import type { RepositoryWithOwner } from "./repo-access";
 import { assertRepositoryCapacity } from "./repository-capacity";
-import { publicUserFields } from "./repository-lookup";
+import { publicUserColumns, publicUserFields } from "./repository-lookup";
 import { clearReviewRequest } from "./review-request-store";
 import type { PullRequest } from "./thread-store";
 import { recordTimelineEvent } from "./timeline-store";
@@ -52,12 +54,23 @@ export async function listReviewComments(pullRequestId: number) {
 }
 
 /** Submitted reviews by id, with their authors (for the REST timeline). */
-export function submittedReviewsByIds(pullRequestId: number, ids: number[]) {
-	if (ids.length === 0) return Promise.resolve([]);
-	return db.query.pullRequestReviews.findMany({
-		where: { pullRequestId, id: { in: ids }, state: { ne: "pending" } },
-		with: { author: publicUserFields },
-	});
+export async function submittedReviewsByIds(
+	pullRequestId: number,
+	ids: number[],
+) {
+	if (ids.length === 0) return [];
+	const rows = await db
+		.select({ review: pullRequestReviews, author: publicUserColumns })
+		.from(pullRequestReviews)
+		.innerJoin(user, eq(user.id, pullRequestReviews.authorId))
+		.where(
+			and(
+				eq(pullRequestReviews.pullRequestId, pullRequestId),
+				inList(pullRequestReviews.id, ids),
+				ne(pullRequestReviews.state, "pending"),
+			),
+		);
+	return rows.map(({ review, author }) => ({ ...review, author }));
 }
 
 export type SubmittedReviewRow = Awaited<

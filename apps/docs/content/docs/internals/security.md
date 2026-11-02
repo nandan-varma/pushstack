@@ -135,6 +135,14 @@ without it a submitted form can post anywhere. `img-src` allows any `https:`
 origin on purpose: READMEs reference remote images, and an image is a content
 decision rather than a script-execution one.
 
+## Other response headers and trusted origins
+
+`src/server/security-headers.ts` sets `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` and
+`X-Robots-Tag`. Static assets get the same values from `apps/web/public/_headers`.
+The only trusted origin is `BETTER_AUTH_URL`; there are no per-deployment
+preview origins to allow.
+
 ## Names are single safe segments
 
 A repository's storage prefix is `repos/{ownerKey}/{repoName}`, and `gitFs`
@@ -208,22 +216,22 @@ bcrypt/argon2 to resist brute-forcing low-entropy human passwords), a fast
 hash is fine for a token that's already unguessable. See
 [authentication.md](/docs/internals/authentication).
 
-## Rate limiting is shared (Postgres), not per-instance
+## Rate limiting is shared (D1), not per-instance
 
 Better Auth's limiter keeps its counters in a module-level `Map` by default
 (`options.rateLimit.storage` resolves to `"memory"` when nothing else is
-configured). On Vercel that is one `Map` per warm instance, so the configured
-`20 requests / 60 s` (`src/lib/auth.ts`) is really 20 × however many instances
-are serving, and an attacker spreading requests across instances sees a ceiling
-far above what the configuration claims.
+configured). On a Worker that is one `Map` per isolate, and Cloudflare runs many
+isolates, so the configured `20 requests / 60 s` (`src/lib/auth.ts`) is really
+20 × however many isolates are serving, and an attacker spreading requests
+across them sees a ceiling far above what the configuration claims.
 
 `src/server/rate-limit.ts` supplies Better Auth's `rateLimit.customStorage` with
-counters in the `rate_limits` table, so the window is shared. One statement does
-the whole decision — Postgres starts a new window or advances the current one,
+counters in the `rate_limits` table in D1, so the window is shared. One statement does
+the whole decision — the database starts a new window or advances the current one,
 and reports whether the caller is inside the limit — so two concurrent requests
 cannot both read "under the limit": the check *is* the write. The elapsed-time
 and retry arithmetic happens in SQL too, so one clock decides and no driver date
-parsing is involved. `rate-limit.test.ts` runs the real SQL against pglite and
+parsing is involved. `rate-limit.test.ts` runs the real SQL against the test D1 and
 asserts the auth config actually uses this storage, since quietly falling back
 to the `Map` is the regression worth catching.
 
@@ -233,7 +241,7 @@ The same table and the same one-statement upsert also meter requests
 (`hitRateLimit` in `src/server/rate-limit.ts`, keys prefixed `gh:`): one cheap
 round trip per API or git request, never on SSR pages. Identity is the user once
 authenticated (so users behind one NAT do not share a bucket), else the client
-IP (leftmost `x-forwarded-for`, which Vercel overwrites; a request with no
+IP from `CF-Connecting-IP` (Cloudflare sets and overwrites it; a request with no
 address shares one `unknown` bucket). Buckets: `core` reads (5000 authenticated,
 60 anonymous per hour), `core-write` mutating API calls (1000), `git` clone and
 fetch (2000 authenticated, 120 anonymous), `git-write` pushes (500). All are
@@ -241,18 +249,15 @@ fetch (2000 authenticated, 120 anonymous), `git-write` pushes (500). All are
 `X-RateLimit-*` headers and `Retry-After` (a plain-text body on git so the
 client prints it). **The limiter fails open**: a database error is logged with
 `logWarn` and the request is served, because this is abuse mitigation, not
-authorization, and Postgres hiccups must not become outages. Failed credentials (bad token on the API or git) are counted per client IP
+authorization, and database hiccups must not become outages. Failed credentials (bad token on the API or git) are counted per client IP
 (`auth-failure`, 30 per window); once spent, requests carrying credentials are
 refused before the token is hashed. That pre-auth check reads the database only
 for IPs that failed recently on the same instance (an in-memory hint), so clean
-requests stay at one limiter round trip. The client IP is read from
-`x-vercel-forwarded-for`, then `x-real-ip`, then the leftmost `x-forwarded-for`.
-Vercel documents `x-forwarded-for` as overwritten at its edge, so the client
-cannot choose the value, and documents the other two as identical to it
-([request headers](https://vercel.com/docs/headers/request-headers)). That holds
-only when no proxy sits in front of Vercel: a proxy that forwards its own
-headers can change what arrives, and the fallback order does not detect that.
-Pruning is per key family (`gh:` by the configured window, Better Auth's by its
+requests stay at one limiter round trip. The client IP comes from
+`CF-Connecting-IP` alone. Cloudflare sets it on every request and overwrites any
+value the client sent. `X-Forwarded-For`, `X-Real-IP` and similar headers are
+caller-controlled and ignored, so a client cannot pick its bucket or the address
+Better Auth records. Pruning is per key family (`gh:` by the configured window, Better Auth's by its
 own), so neither deletes the other's live buckets. Auth endpoints beyond Better
 Auth's own limiter are not covered. Tests: `api-rate-limit.test.ts`.
 
@@ -266,8 +271,13 @@ how much storage or how much rendering work one request may cause, and a commit
 message is not rendered small. The upload bound is shared with the browser, so
 what the UI warns about and what the server accepts cannot drift.
 
+The caps are also memory bounds. A Worker isolate has 128 MB for everything it
+is doing at once, so `MAX_RAW_BYTES` (16 MiB), `MAX_ARCHIVE_BYTES` (32 MiB),
+`MAX_WEB_UPLOAD_BYTES` (12 MiB) and `GIT_HTTP_MAX_BODY_BYTES` (16 MiB) keep one
+request from exhausting it. Big bodies stream.
+
 The raw-content endpoint bounds what it will serve: it reads the object's size
-from its pack entry and refuses anything over `MAX_RAW_BYTES` (50 MB) with a
+from its pack entry and refuses anything over `MAX_RAW_BYTES` with a
 `413` **without reading it**, because it streams from memory. That is the same
 size as the git push body cap, so anything one push could have introduced is
 still downloadable; a larger object can only exist by growing through
@@ -300,7 +310,7 @@ the new answer is live at once rather than up to a few seconds later.
 ## Request body limits on the git endpoint
 
 `upload-pack` is reachable anonymously on public repositories, so its request
-body is attacker-controlled. `GIT_HTTP_MAX_BODY_BYTES` (default 50 MB) is
+body is attacker-controlled. `GIT_HTTP_MAX_BODY_BYTES` (default 16 MiB) is
 enforced while the body streams in (`readGitRequestBody`), not just from a
 `Content-Length` header a chunked request never sends.
 
@@ -314,8 +324,7 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependencies
 
-Both `pnpm audit` and `pnpm audit --prod` report zero known vulnerabilities.
-There are no dependency overrides or ignored advisories. Upgrade or remove the
+CI runs `pnpm audit`; there are no dependency overrides or ignored advisories. Upgrade or remove the
 package responsible for a vulnerable transitive dependency instead of forcing
 an unsupported version into its graph.
 
@@ -325,9 +334,8 @@ and automatic peer installation is disabled. Install the drivers and adapters
 we actually use rather than every optional ORM peer.
 
 The app uses Drizzle ORM and Kit 1.0.0-rc.4 together. Relational queries use
-`defineRelations` and v2 filters; local schema pushes use
-`drizzle-kit/api-postgres`. The old Kit dependency pulled in a vulnerable
-esbuild release. Markdown styles and the shadcn Tailwind utilities live in the
+`defineRelations` and v2 filters; drizzle-kit generates the D1 migrations.
+Markdown styles and the shadcn Tailwind utilities live in the
 app's CSS, so the shadcn CLI and typography plugin aren't installed runtime
 or build dependencies. Add components with `pnpm dlx shadcn@latest add`.
 
@@ -346,5 +354,5 @@ operations, and queued work stops after a budget failure. The typed
 `DiffLimitError` propagates to Files views; REST and plain-text diff/patch
 endpoints return 406 instead of silently returning an empty diff. The REST diff
 and patch media types also refuse a rendered diff over 4 MB (`MAX_API_DIFF_BYTES`,
-below Vercel's 4.5 MB buffered-response cap), with 406. Per-file
+so the buffered response stays well inside the 128 MB isolate), with 406. Per-file
 oversize blobs retain their existing metadata-only representation.

@@ -47,15 +47,15 @@ export class UnknownMilestoneError extends Error {
 const json = <T>(value: unknown): T =>
 	(typeof value === "string" ? JSON.parse(value) : value) as T;
 
-const userObject = sql`json_build_object(
+const userObject = sql`json_object(
 	'id', ${user.id}, 'apiId', ${user.apiId}, 'username', ${user.username},
 	'name', ${user.name}, 'image', ${user.image})`;
 
 // Written out with the table name: drizzle leaves columns unqualified in a
 // single-table select, where `milestones.id` would read as `ms_issues.id`.
-const openCount = sql`(select count(*)::int from issues ms_issues
+const openCount = sql`(select count(*) from issues ms_issues
 	where ms_issues.milestone_id = "milestones"."id" and ms_issues.status = 'open')`;
-const closedCount = sql`(select count(*)::int from issues ms_issues
+const closedCount = sql`(select count(*) from issues ms_issues
 	where ms_issues.milestone_id = "milestones"."id" and ms_issues.status = 'closed')`;
 
 const creatorJson = sql`(select ${userObject} from ${user}
@@ -76,24 +76,26 @@ const milestoneColumns = {
 	closedIssues: closedCount.mapWith(Number),
 };
 
+/** A milestone as `threadMilestoneJson` returns it: timestamps are epoch ms. */
 interface MilestoneJson
 	extends Omit<
 		MilestoneView,
 		"dueOn" | "createdAt" | "updatedAt" | "closedAt"
 	> {
-	dueOn: string | null;
-	createdAt: string;
-	updatedAt: string;
-	closedAt: string | null;
+	dueOn: number | null;
+	createdAt: number;
+	updatedAt: number;
+	closedAt: number | null;
 }
 
-const date = (value: string | null) => (value ? new Date(value) : null);
+const date = (value: number | null) =>
+	value === null ? null : new Date(value);
 
 /**
  * The milestone of `issues.milestone_id` as one json value, for the thread
  * queries (one round trip per page); `null` when the thread has none.
  */
-export const threadMilestoneJson = sql`(select json_build_object(
+export const threadMilestoneJson = sql`(select json_object(
 	'id', ${milestones.id}, 'number', ${milestones.number},
 	'title', ${milestones.title}, 'description', ${milestones.description},
 	'state', ${milestones.state}, 'dueOn', ${milestones.dueOn},
@@ -128,7 +130,7 @@ export async function listMilestones(
 ): Promise<{ milestones: MilestoneView[]; total: number }> {
 	const order = options.direction === "asc" ? asc : desc;
 	const share = sql`case when ${openCount} + ${closedCount} = 0 then 0
-		else ${closedCount}::float / (${openCount} + ${closedCount}) end`;
+		else cast(${closedCount} as real) / (${openCount} + ${closedCount}) end`;
 	const key =
 		options.sort === "completeness"
 			? order(share)
@@ -156,7 +158,7 @@ export async function listMilestones(
 	}
 	if (!options.offset) return { milestones: [], total: 0 };
 	const [row] = await db
-		.select({ total: sql<number>`count(*)::int`.mapWith(Number) })
+		.select({ total: sql<number>`count(*)`.mapWith(Number) })
 		.from(milestones)
 		.where(where);
 	return { milestones: [], total: row?.total ?? 0 };
@@ -181,7 +183,7 @@ export async function countMilestones(
 	const rows = await db
 		.select({
 			state: milestones.state,
-			total: sql<number>`count(*)::int`.mapWith(Number),
+			total: sql<number>`count(*)`.mapWith(Number),
 		})
 		.from(milestones)
 		.where(eq(milestones.repoId, repoId))

@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, desc, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
 import { parseRepositoryQuery } from "#/lib/topics";
 import { listUserActivity } from "./activity";
-import { containing } from "./db-filters";
 import { perfContext } from "./perf-log";
 import { publicUserFields } from "./repository-lookup";
+import { containsText, hasTopic } from "./repository-search";
 import { getCurrentUserOptional } from "./session";
 
 const searchSchema = z.object({
@@ -25,20 +25,15 @@ export const searchRepositories = createServerFn({ method: "GET" })
 		const { text, topics } = parseRepositoryQuery(data.query);
 		return db.query.repositories.findMany({
 			where: {
-				...(text && { name: { ilike: containing(text) } }),
-				...(topics.length > 0 && {
-					RAW: (table) =>
-						and(
-							...topics.map(
-								(topic) =>
-									sql`${table.topics} @> ${JSON.stringify([topic])}::jsonb`,
-							),
-						) as SQL,
-				}),
-				OR: [
-					{ visibility: "public" },
-					...(currentUser ? [{ ownerId: currentUser.id }] : []),
-				],
+				RAW: (table) =>
+					and(
+						text ? containsText(table.name, text) : undefined,
+						...topics.map((topic) => hasTopic(table.topics, topic)),
+						or(
+							eq(table.visibility, "public"),
+							currentUser ? eq(table.ownerId, currentUser.id) : undefined,
+						),
+					) as SQL,
 			},
 			with: { owner: publicUserFields },
 			orderBy: (table) => [desc(table.updatedAt)],
@@ -53,10 +48,11 @@ export const searchUsers = createServerFn({ method: "GET" })
 		db.query.user.findMany({
 			...publicUserFields,
 			where: {
-				OR: [
-					{ name: { ilike: containing(data.query) } },
-					{ username: { ilike: containing(data.query) } },
-				],
+				RAW: (table) =>
+					or(
+						containsText(table.name, data.query),
+						containsText(table.username, data.query),
+					) as SQL,
 			},
 			limit: data.limit,
 		}),

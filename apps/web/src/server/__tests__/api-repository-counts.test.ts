@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const { queries } = vi.hoisted(() => ({ queries: [] as string[] }));
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb({
+	db: await (await import("../../test/test-db")).createTestDb({
 		onQuery: (query) => queries.push(query),
 	}),
 }));
@@ -102,7 +102,9 @@ describe("repository open_issues_count", () => {
 				["populated", 2],
 			]);
 			expect(countQueries()).toHaveLength(1);
-			expect(countQueries()[0]).toContain('"issues"."repo_id" in ($1, $2, $3)');
+			expect(countQueries()[0]).toContain(
+				'"issues"."repo_id" in (select value from json_each(',
+			);
 		}
 	});
 

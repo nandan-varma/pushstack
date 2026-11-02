@@ -4,13 +4,19 @@
  * {@link MAX_ASSIGNEES} per thread, and ineligible usernames are ignored. Plain
  * server-only helpers behind the server functions in `assignees.ts`.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "#/db";
 import { repositoryCollaborators, threadAssignees } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { user } from "#/db/schema";
 import { MAX_ASSIGNEES } from "#/lib/limits";
 import { withRepositoryLock } from "./git-repo-lock";
 import { recordThreadActivity } from "./notification-store";
-import { type PublicUser, publicUserFields } from "./repository-lookup";
+import {
+	type PublicUser,
+	publicUserColumns,
+	publicUserFields,
+} from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
 
 export async function listAssignableUsers(
@@ -27,14 +33,14 @@ export async function listAssignableUsers(
 		.where(
 			and(
 				eq(repositoryCollaborators.repoId, repoId),
-				inArray(repositoryCollaborators.role, ["write", "admin"]),
+				inList(repositoryCollaborators.role, ["write", "admin"]),
 			),
 		);
 	const ids = [repo.ownerId, ...collaborators.map((c) => c.userId)];
-	const users = await db.query.user.findMany({
-		...publicUserFields,
-		where: { id: { in: ids } },
-	});
+	const users = await db
+		.select(publicUserColumns)
+		.from(user)
+		.where(inList(user.id, ids));
 	return users.sort((a, b) => a.username.localeCompare(b.username));
 }
 
@@ -79,7 +85,7 @@ export async function replaceThreadAssignees(
 				await db.delete(threadAssignees).where(
 					and(
 						eq(threadAssignees.issueId, issue.id),
-						inArray(
+						inList(
 							threadAssignees.userId,
 							removed.map((a) => a.userId),
 						),

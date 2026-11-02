@@ -20,8 +20,7 @@ repos/alice/blog/objects/e6/9de29bb2d1d6434b8b29ae775ad8c2e48c5391
 ```
 
 Extracted from the git layer of a production git-hosting service, where it serves
-clones, pushes, and repo browsing directly against Cloudflare R2 from Vercel
-functions. Use it to build git-backed CMSes, notes apps with real version history,
+clones, pushes, and repo browsing directly against Cloudflare R2 from Workers. Use it to build git-backed CMSes, notes apps with real version history,
 lightweight code forges, or agent sandboxes with auditable file history.
 
 ## Three layers, usable independently
@@ -64,6 +63,9 @@ lightweight code forges, or agent sandboxes with auditable file history.
 	</Card>
 	<Card title="Composable stores">
 		The whole backend is five methods (`get`/`put`/`delete`/`head`/`list`).
+			Built in: an R2 binding (`git-fs-s3/r2`, no credentials), S3-compatible
+			endpoints (`git-fs-s3/fetch-s3`, `git-fs-s3/s3`), memory and disk for
+			development.
 		Implement `ObjectStore` for anything — GCS, Azure Blob, a database — and
 		every other piece keeps working.
 	</Card>

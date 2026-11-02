@@ -1,0 +1,25 @@
+# Copy to .dev.vars for `pnpm dev` (the Worker under workerd, simulated R2).
+# `pnpm dev:local` needs none of this: it supplies its own database and values.
+# Deployed secrets are set with `wrangler secret put`; public values live under
+# `vars` in wrangler.jsonc.
+DATABASE_URL=
+BETTER_AUTH_SECRET=
+# Only for presigned browser uploads; leave empty locally.
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+
+RESEND_API_KEY=
+RESEND_EMAIL_FROM=
+
+# Optional tuning knobs (defaults in src/server/config.ts).
+# GIT_HTTP_MAX_BODY_BYTES=16777216   # git push body cap, default 16 MiB
+# GIT_CACHE_MAX_SIZE=16777216        # git object cache budget, default 16 MiB
+# GIT_CACHE_TTL=3600                 # immutable cache entry TTL in seconds, default 1h
+# PUSHSTACK_PERF_LOG=1               # print the per-request timing tree in production
+
+# Sentry (error tracking). Safe to leave unset; the SDK stays off without a DSN.
+VITE_SENTRY_DSN=
+# Only needed to upload source maps at build time (CI/release builds).
+SENTRY_AUTH_TOKEN=
+SENTRY_ORG=
+SENTRY_PROJECT=

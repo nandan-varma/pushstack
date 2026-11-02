@@ -1,6 +1,8 @@
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { labels, threadLabels } from "#/db/app-schema";
+import { inList } from "#/db/in-list";
+import { insertMany } from "#/db/insert-many";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import { MAX_LABELS_PER_REPOSITORY, MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { bestEffort } from "./best-effort";
@@ -195,7 +197,7 @@ export async function setThreadLabels(
 					.where(
 						and(
 							eq(labels.repoId, repoId),
-							inArray(sql`lower(${labels.name})`, wanted),
+							inList(sql`lower(${labels.name})`, wanted),
 						),
 					);
 	const known = new Set(chosen.map((label) => label.name.toLowerCase()));
@@ -211,16 +213,17 @@ export async function setThreadLabels(
 	const removed = current.filter((label) => !chosenIds.has(label.id));
 
 	if (added.length > 0) {
-		await db
-			.insert(threadLabels)
-			.values(added.map((label) => ({ issueId, labelId: label.id })))
-			.onConflictDoNothing();
+		await insertMany(
+			threadLabels,
+			added.map((label) => ({ issueId, labelId: label.id })),
+			{ onConflict: (insert) => insert.onConflictDoNothing() },
+		);
 	}
 	if (removed.length > 0) {
 		await db.delete(threadLabels).where(
 			and(
 				eq(threadLabels.issueId, issueId),
-				inArray(
+				inList(
 					threadLabels.labelId,
 					removed.map((label) => label.id),
 				),
