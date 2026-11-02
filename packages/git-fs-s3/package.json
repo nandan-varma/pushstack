@@ -16,6 +16,10 @@
 			"types": "./dist/types/stores/fetch-s3.d.ts",
 			"import": "./dist/fetch-s3.js"
 		},
+		"./r2": {
+			"types": "./dist/types/stores/r2.d.ts",
+			"import": "./dist/r2.js"
+		},
 		"./node": {
 			"types": "./dist/types/stores/file.d.ts",
 			"import": "./dist/node.js"
@@ -29,7 +33,7 @@
 			"import": "./dist/http.js"
 		},
 		"./testing": {
-			"types": "./dist/types/testing/fake-s3.d.ts",
+			"types": "./dist/types/testing/index.d.ts",
 			"import": "./dist/testing.js"
 		}
 	},
