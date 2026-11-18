@@ -12,7 +12,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"meta/root":
 		"URL templates for the served endpoints only; gh reads `X-OAuth-Scopes` here",
 	"meta/get":
-		"`installed_version` is the placeholder `0.0.0` (PushStack is not a GitHub Enterprise release; gh needs a semver for a non-github.com host to choose its search syntax)",
+		"`installed_version` is the app's own version from `apps/web/package.json` (PushStack is not a GitHub Enterprise release; gh needs a semver for a non-github.com host to choose its search syntax)",
 	"rate-limit/get":
 		"`resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search`",
 	"users/get-authenticated": "",

@@ -442,14 +442,16 @@ function loadForkCount(ctx: GraphQLContext, repoId: number) {
 }
 
 /**
- * Repositories by id for `node(s)`: one query per request batch, readable
- * ones only (repo-access.ts's SQL read rule), with the caller's role.
+ * Repositories by row id, loaded in one query per request batch (`repository-node`),
+ * readable ones only (repo-access.ts's SQL read rule), with the caller's role.
+ * Null when the repository is missing or the caller cannot read it.
  */
-const loadRepositoryNode: NodeLoader = async (key, ctx) => {
-	const id = rowIdOfNodeKey(key);
-	if (id === null) return null;
+export function repositoryNodeById(
+	ctx: GraphQLContext,
+	id: number,
+): Promise<RepositoryNode | null> {
 	const viewer = ctx.caller.userId;
-	const node = await ctx
+	return ctx
 		.loader<number, RepositoryNode>("repository-node", async (ids) => {
 			const rows = await db
 				.select({
@@ -479,8 +481,14 @@ const loadRepositoryNode: NodeLoader = async (key, ctx) => {
 				]),
 			);
 		})
-		.load(id);
-	return node ?? null;
+		.load(id)
+		.then((node) => node ?? null);
+}
+
+/** `node(id:)` for a repository: {@link repositoryNodeById}. */
+const loadRepositoryNode: NodeLoader = async (key, ctx) => {
+	const id = rowIdOfNodeKey(key);
+	return id === null ? null : repositoryNodeById(ctx, id);
 };
 
 const loadRefNode: NodeLoader = async (key, ctx) => {

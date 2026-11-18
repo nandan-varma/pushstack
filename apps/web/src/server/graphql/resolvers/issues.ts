@@ -40,7 +40,7 @@ import {
 	findRepositorySearchPage,
 	repositorySearchWhere,
 } from "../../repository-search";
-import { repositoriesWithOwner, threadScope } from "../../search-scope";
+import { threadScope } from "../../search-scope";
 import { searchFilter, searchSort } from "../../thread-search";
 import {
 	findIssueById,
@@ -52,7 +52,12 @@ import {
 	type Thread,
 	type ThreadFilter,
 } from "../../thread-store";
-import { type Connection, encodeCursor, offsetConnection } from "../connection";
+import {
+	type Connection,
+	countedConnection,
+	encodeCursor,
+	offsetConnection,
+} from "../connection";
 import type { GraphQLContext } from "../context";
 import {
 	forbidden,
@@ -88,7 +93,11 @@ import {
 	commentNodes as pullCommentNodes,
 	userFor,
 } from "./pulls-detail";
-import { type RepositoryNode, readableRepositoryNode } from "./repository";
+import {
+	type RepositoryNode,
+	readableRepositoryNode,
+	repositoryNodeById,
+} from "./repository";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 export interface IssueNode {
@@ -354,36 +363,29 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 				...searchFilter(query, viewer.username),
 			};
 	const sort = searchSort(query.sort);
-	const total = (await listThreads(filter, { limit: 1, sort })).total;
-	const connection = await offsetConnection(
-		args,
-		total,
-		async (offset, limit) => {
-			if (offset > MAX_LIST_SKIP)
-				throw unprocessable("Pagination offset exceeds the maximum");
-			const { threads } = await listThreads(filter, { offset, limit, sort });
-			assertTextBytes(threads);
-			const repos = await repositoriesWithOwner([
-				...new Set(threads.map((thread) => thread.repoId)),
-			]);
-			return Promise.all(
-				threads.map(async (row) => {
-					const owned = repos.get(row.repoId);
-					if (!owned) throw new Error("Search result repository missing");
-					const repo = await readableRepositoryNode(
-						ctx,
-						owned.owner.username,
-						owned.name,
-					);
-					if (!repo) throw new Error("Search result repository unreadable");
-					return row.kind === "pull_request"
-						? pullNode(repo, pullRequestView(row))
-						: issueNode(repo, row);
-				}),
-			);
-		},
-	);
-	return searchConnection(connection, "ISSUE", total);
+	// The page query carries its own total (a window count), so a search costs no
+	// separate count query.
+	const connection = await countedConnection(args, async (offset, limit) => {
+		const { threads, total } = await listThreads(filter, {
+			offset,
+			limit,
+			sort,
+		});
+		assertTextBytes(threads);
+		// The rows are already readable (the filter says so); one batched lookup and
+		// access check gives each its node, not one lookup per row.
+		const items = await Promise.all(
+			threads.map(async (row) => {
+				const repo = await repositoryNodeById(ctx, row.repoId);
+				if (!repo) throw new Error("Search result repository unreadable");
+				return row.kind === "pull_request"
+					? pullNode(repo, pullRequestView(row))
+					: issueNode(repo, row);
+			}),
+		);
+		return { items, total };
+	});
+	return searchConnection(connection, "ISSUE", connection.totalCount);
 }
 
 /** `Query.search(type: REPOSITORY)`: the repositories a query names, newest first. */
@@ -405,13 +407,10 @@ async function searchRepositories(args: QuerySearchArgs, ctx: GraphQLContext) {
 			if (offset > MAX_LIST_SKIP)
 				throw unprocessable("Pagination offset exceeds the maximum");
 			const { rows } = await findRepositorySearchPage(where, { limit, offset });
+			// One batched lookup and access check for the page, not one per row.
 			return Promise.all(
 				rows.map(async (row) => {
-					const repo = await readableRepositoryNode(
-						ctx,
-						row.owner.username,
-						row.name,
-					);
+					const repo = await repositoryNodeById(ctx, row.id);
 					if (!repo) throw new Error("Search result repository unreadable");
 					return repo;
 				}),

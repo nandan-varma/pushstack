@@ -124,14 +124,10 @@ export async function searchIssuesHandler(ctx: ApiContext) {
 				const threadSort: ThreadSort = sort
 					? { by: sort, direction: order ?? "desc" }
 					: searchSort(query.sort);
-				const total = (
-					await listThreads(filter, { limit: 1, sort: threadSort })
-				).total;
-				if (!params.reachable || total === 0) {
-					return { threads: [], total };
-				}
-				const { threads } = await listThreads(filter, {
-					limit: params.perPage,
+				// One query: the page carries its own total (a window count), and a
+				// page past the skip bound still reports the real total.
+				const { threads, total } = await listThreads(filter, {
+					limit: params.reachable ? params.perPage : 0,
 					offset: params.offset,
 					sort: threadSort,
 				});
