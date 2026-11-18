@@ -41,6 +41,7 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh issue list`, `gh issue view`, `gh issue status` | GraphQL reads served (`Repository.issues`/`issue`/`issueOrPullRequest`); `gh issue status` checked by hand with gh 2.103.1 against `pnpm dev:local`; fixture-tested |
 | `gh label list` | GraphQL `Repository.labels` served; fixture-tested, not yet measured with real gh |
 | `gh issue create`, `gh issue comment`, `gh issue edit`, `gh issue close`, `gh issue reopen`, `gh label create/delete` | Measured with real gh 2.104.0 in the smoke (`pnpm smoke:git`); documents fixture-validated. `projectIds` is accepted when empty, as gh always sends it |
+| `gh issue create/edit/list --milestone`, `gh issue view --comments` | Measured with real gh 2.104.0 in the smoke: a title resolves through `Repository.milestones(states:)`, `createIssue`/`updateIssue` apply it, and `Issue.projectCards`/`projectItems` answer empty (gh asks for both) |
 | `gh pr create`, `gh pr view --json …` (every field), `gh pr diff`, `gh pr comment`, `gh pr review`, `gh pr edit`, `gh pr merge`, `gh pr close`, `gh pr reopen`, `gh pr ready` | Measured with real gh 2.104.0 in the smoke: a full pull request lifecycle. `gh pr create --head owner:branch` from a fork uses `headRepositoryId` (REST-tested; the smoke has one account). `files`, `changedFiles`, `mergeCommit`, `mergedBy`, `Commit.authors` and `messageBody` are served; `projectCards` (classic projects, which `pr edit` reads) is always empty |
 | `gh pr list` | GraphQL reads served; fixture-tested |
 | `gh pr status` | GraphQL `Query.search` (repository-scoped) and the PR status fields served; checked by hand with gh 2.103.1 against `pnpm dev:local`; fixture-tested |
@@ -265,10 +266,11 @@ a reader may open an issue or comment, but labels and assignees need write
 access, and an edit needs the author or a writer. Label and user node ids must
 name labels in the repository and existing users, or the mutation answers
 NOT_FOUND before writing anything; a create that fails leaves no issue. Titles
-and bodies use the REST caps, and a label list is at most 100. Milestones on
-issues, closing as a duplicate, and any mutation on a pull request are
-`UNPROCESSABLE` for now. Assignees that cannot be assigned are ignored, as on
-REST.
+and bodies use the REST caps, and a label list is at most 100. A milestone
+node id must name a milestone of the issue's repository, or the mutation
+answers `NOT_FOUND`; setting one is triage, like labels. Closing as a
+duplicate and any mutation on a pull request are `UNPROCESSABLE` for now.
+Assignees that cannot be assigned are ignored, as on REST.
 `updateIssue` is not all-or-nothing: every field and id is checked before any
 write, but the title, labels and assignees are then saved one after another, so a
 store failure in a later step can leave an earlier one applied.
@@ -287,6 +289,14 @@ A homepage must be an absolute `http(s)` URL (or empty to clear it): `javascript
 `data:`, relative and bare-host values are `UNPROCESSABLE` here and a `422` on
 REST, and the stored value is kept.
 GitHub has no `deleteRepository` mutation; `gh repo delete` uses REST.
+
+`Repository.milestones(first:, after:, last:, before:, states:, query:,
+orderBy:)` serves `MilestoneConnection` with `totalCount`. An absent `states`
+list names both states, and one naming neither matches nothing. `orderBy` is
+`DUE_DATE` (the default), `CREATED_AT`, `NUMBER` or `UPDATED_AT`, each with a
+direction; `query` matches the title, case-insensitively, up to 256
+characters. `Milestone` serves `id`, `number`, `title`, `description`, `dueOn`
+and `state`, and is a `node(id:)` target.
 
 `Repository.labels(first:, after:, last:, before:, query:, orderBy:)` serves
 `LabelConnection` with `totalCount`. `orderBy` is `CREATED_AT` (the default) or
