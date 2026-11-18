@@ -11,7 +11,7 @@ PushStack is a code forge that is **as close to GitHub as possible**: features, 
 pnpm + Turborepo monorepo.
 - `apps/web`: the product, TanStack Start on Vercel's Node runtime (no queues, cron, workers or SSH; Cloudflare only provides R2). `src/server` has per-resource server functions (`createServerFn`, exporting only server functions and types) plus `*-store.ts` helpers; `src/server/api` is the REST `/api/v3` dispatcher; `src/server/graphql` is `/api/graphql` (GitHub's own SDL, vendored per domain; never edit generated files). Git is isomorphic-git on R2 through `packages/git-fs-s3` (and `git-edge` for merges), imported from built `dist/`. Data is Postgres via Drizzle; `pnpm db:push` is the only migration path. Auth is Better Auth; git over HTTPS uses PATs only.
 - `packages/api-contract`: the `/api/v3` contract keyed by GitHub operation id; a new endpoint = route + schemas + handler in the operation map.
-- `apps/docs`: Fumadocs site, tested for links and code samples. `apps/cli` is being sunset for stock `gh`: take no CLI tickets.
+- `apps/docs`: Fumadocs site, tested for links and code samples.
 - Root commands: `pnpm dev:local` (pglite + disk git, no accounts), `pnpm test`, `pnpm typecheck`, `pnpm check`, `pnpm smoke:git`. Verify with `pnpm test && pnpm typecheck` and `pnpm exec biome check <paths>`. Add a dependency with `echo "Y" | pnpm install`. Tests import built `dist/` of packages: rebuild with `pnpm exec turbo run build --filter=<pkg>` after an edit or fresh checkout.
 
 ## Invariants (reviewers block on these)

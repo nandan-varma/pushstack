@@ -13,7 +13,6 @@ Vercel's Node runtime without native Git or persistent disk.
 | --- | --- | --- |
 | `apps/web` | `@pushstack/web` | Product UI, REST API and Git smart HTTP |
 | `apps/docs` | `@pushstack/docs` | Product, API, architecture and library documentation |
-| `apps/cli` | `@pstk/cli` | `pushstack` / `pst`: auth, repositories and API requests |
 | `packages/git-fs-s3` | `git-fs-s3` | Git filesystem, operations and smart HTTP over object storage |
 | `packages/git-edge` | `git-edge` | Object-level three-way merging and repository caches |
 | `packages/tsconfig` | `@pushstack/tsconfig` | Shared TypeScript configuration |
@@ -66,18 +65,12 @@ Target a workspace for development or a specific test:
 pnpm --filter @pushstack/web test src/server/__tests__/repo-access.test.ts
 pnpm --filter git-fs-s3 test
 pnpm --filter @pushstack/web test:e2e
-pnpm --filter @pstk/cli build
-node apps/cli/dist/bin.js --help
 ```
-
-The CLI is usable from this checkout. Its npm publication and trusted-publisher
-setup are separate release steps; see [the CLI README](apps/cli/README.md).
 
 ## Validation and dependency policy
 
 Behavior tests run real server functions and API handlers against PGlite with
-the real schema and in-memory object storage. CLI contract tests use the same
-REST dispatcher with real personal access tokens. Native Git smoke tests use a
+the real schema and in-memory object storage. Native Git smoke tests use a
 scratch HOME and never modify the developer's global Git configuration.
 
 CI runs typecheck, tests, production builds, Biome, the full dependency audit,

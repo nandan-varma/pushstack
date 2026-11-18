@@ -110,7 +110,6 @@ test("repository entrypoint documentation links resolve", async () => {
 	for (const relative of [
 		"README.md",
 		"AGENTS.md",
-		"apps/cli/README.md",
 		"packages/git-fs-s3/README.md",
 		"packages/git-edge/README.md",
 	]) {
