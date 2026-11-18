@@ -1,8 +1,0 @@
-{
-	"compilerOptions": {
-		"lib": ["ES2023"],
-		"resolveJsonModule": true
-	},
-	"include": ["src", "test", "tsdown.config.ts"],
-	"extends": "@pushstack/tsconfig/node.json"
-}
