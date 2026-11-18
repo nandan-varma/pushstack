@@ -502,12 +502,12 @@ const loadRefNode: NodeLoader = async (key, ctx) => {
 	return refNode(node, name);
 };
 
-const loadCommitNode: NodeLoader = async (key, ctx) => {
-	const match = /^(\d{1,10}):([0-9a-f]{40})$/.exec(key);
-	if (!match) return null;
-	const repo = await loadRepositoryNode(match[1] as string, ctx);
+const loadCommitNode: NodeLoader = async (key, ctx, id) => {
+	if (!/^[0-9a-f]{40}$/.test(key) || id?.repositoryId === undefined)
+		return null;
+	const repo = await loadRepositoryNode(String(id.repositoryId), ctx);
 	if (!repo) return null;
-	return readCommitNode(repo as RepositoryNode, match[2] as string);
+	return readCommitNode(repo as RepositoryNode, key);
 };
 
 async function createRepository(

@@ -26,7 +26,7 @@ import { findThread } from "../../thread-store";
 import { type ConnectionArgs, offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import { unprocessable } from "../errors";
-import { encodeNodeId } from "../node-id";
+import { encodeGlobalNodeId, encodeNodeId } from "../node-id";
 import { type CommitNode, commitNode, readCommitNode } from "./commit";
 import { loadUser, userNode } from "./core";
 import type { PullRequestNode } from "./pulls";
@@ -214,7 +214,7 @@ export async function commentNodes(
 	assertTextBytes(rows);
 	return Promise.all(
 		rows.map(async (row) => ({
-			id: encodeNodeId("IssueComment", row.id),
+			id: encodeGlobalNodeId("IssueComment", node.repo.row.id, row.id),
 			author: await userFor(ctx, row.authorId),
 			authorAssociation: await association(node.repo, row.authorId),
 			body: row.body,

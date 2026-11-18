@@ -21,6 +21,7 @@ const { asToken, call, mintToken, post } = await import(
 	"../../test/api-client"
 );
 const { graphql } = await import("../../test/graphql-client");
+const { decodeGlobalNodeId } = await import("../graphql/node-id");
 
 const users = await createUsers("alice", "bob");
 let alice: string;
@@ -164,6 +165,9 @@ describe("Repository.release and latestRelease", () => {
 		const view = await graphql(bob, VIEW, { tag: "v2.0.0-rc" });
 		const release = view.body.data.repository.release;
 		const asset = release.releaseAssets.nodes[0];
+		// GitHub's new-form ids, which name the repository and the row.
+		expect(release.id).toMatch(/^RE_/);
+		expect(asset.id).toMatch(/^RA_/);
 		const { body } = await graphql(
 			bob,
 			`query($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Release { tagName } ... on ReleaseAsset { name } } }`,
@@ -174,8 +178,19 @@ describe("Repository.release and latestRelease", () => {
 			{ __typename: "Release", tagName: "v2.0.0-rc" },
 			{ __typename: "ReleaseAsset", name: "a.txt" },
 		]);
-		// The REST node_id is the same id.
+		// The REST node_id is the same id, and names the repository and the row.
 		const rest = await call("/repos/alice/proj/releases/tags/v2.0.0-rc");
 		expect(rest.body.node_id).toBe(release.id);
+		const repo = await call("/repos/alice/proj");
+		expect(decodeGlobalNodeId(rest.body.node_id)).toEqual({
+			type: "Release",
+			key: String(rest.body.id),
+			repositoryId: repo.body.id,
+		});
+		expect(decodeGlobalNodeId(rest.body.assets[0].node_id)).toEqual({
+			type: "ReleaseAsset",
+			key: String(rest.body.assets[0].id),
+			repositoryId: repo.body.id,
+		});
 	});
 });

@@ -30,6 +30,7 @@ import { replaceThreadAssignees } from "../../assignees-store";
 import {
 	countCommentsForThread,
 	createCommentForUser,
+	findComment,
 	listCommentsForThread,
 } from "../../comment-store";
 import { createIssueForUser, updateIssueThreadFields } from "../../issue-store";
@@ -65,7 +66,12 @@ import {
 	notFound,
 	unprocessable,
 } from "../errors";
-import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
+import {
+	decodeNodeId,
+	encodeGlobalNodeId,
+	encodeNodeId,
+	rowIdOfNodeKey,
+} from "../node-id";
 import { loadUser, userNode } from "./core";
 import type {
 	AddAssigneesToAssignableInput,
@@ -164,6 +170,43 @@ const loadIssue: NodeLoader = async (key, ctx) => {
 		repoRow.name,
 	);
 	return repo ? issueNode(repo, thread) : null;
+};
+
+/** `node(id:)` for an issue or pull request comment, when its repository is readable. */
+const loadIssueComment: NodeLoader = async (key, ctx) => {
+	const id = rowIdOfNodeKey(key);
+	if (id === null) return null;
+	const row = await findComment(id);
+	if (!row) return null;
+	const thread = await findThreadById(row.issueId);
+	const repo = thread ? await readableRepoOf(row.repoId, ctx) : null;
+	if (!thread || !repo) return null;
+	const author = await loadUser(ctx, row.authorId);
+	if (!author) throw new Error("Comment author missing");
+	const summary = (await listThreadReactions(thread.id, ctx.caller.userId))
+		.comments[row.id];
+	const access = await getAccessForRepository(repo.row, row.authorId);
+	return {
+		__typename: "IssueComment" as const,
+		id: encodeGlobalNodeId("IssueComment", repo.row.id, row.id),
+		author: userNode(author),
+		authorAssociation:
+			access.role === "owner"
+				? ("OWNER" as const)
+				: access.role === "anonymous"
+					? ("NONE" as const)
+					: ("COLLABORATOR" as const),
+		body: row.body,
+		createdAt: isoTimestamp(row.createdAt),
+		includesCreatedEdit: row.editedAt !== null,
+		isMinimized: false,
+		minimizedReason: null,
+		reactionGroups: groups(summary?.reactions ?? noReactions()),
+		url: htmlUrl(
+			`/${repo.nameWithOwner}/issues/${thread.number}#issuecomment-${row.id}`,
+		),
+		viewerDidAuthor: row.authorId === ctx.caller.userId,
+	};
 };
 
 /** GitHub's IssueOrder mapped onto the thread store's sorts. */
@@ -271,7 +314,7 @@ async function commentNodes(
 			if (!author) throw new Error("Comment author missing");
 			const association = await associationOf(row.authorId);
 			return {
-				id: encodeNodeId("IssueComment", row.id),
+				id: encodeGlobalNodeId("IssueComment", node.repo.row.id, row.id),
 				author: userNode(author),
 				authorAssociation: association,
 				body: row.body,
@@ -513,7 +556,7 @@ export const issuesResolvers: DomainResolvers = {
 			subIssuesSummary: () => ({ total: 0, completed: 0, percentCompleted: 0 }),
 		},
 	},
-	nodes: { Issue: loadIssue },
+	nodes: { Issue: loadIssue, IssueComment: loadIssueComment },
 };
 
 const canWrite = (repo: RepositoryNode) =>

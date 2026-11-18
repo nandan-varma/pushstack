@@ -55,7 +55,7 @@ import { fullNameOf } from "./threads";
 type ReleaseRow = NonNullable<Awaited<ReturnType<typeof findRelease>>>;
 
 const serialize = (repo: RepositoryRowWithOwner, row: ReleaseRow) =>
-	release({ fullName: fullNameOf(repo) }, row);
+	release({ id: repo.id, fullName: fullNameOf(repo) }, row);
 
 function inputError(
 	error: ReleaseInputError | AssetInputError,
@@ -257,7 +257,9 @@ export async function listReleaseAssetsHandler(ctx: ApiContext) {
 	]);
 	const fullName = fullNameOf(repo);
 	return json(
-		assets.map((asset) => releaseAsset({ fullName }, row.tagName, asset)),
+		assets.map((asset) =>
+			releaseAsset({ id: repo.id, fullName }, row.tagName, asset),
+		),
 		200,
 		linkHeader(ctx.url, params, total),
 	);
@@ -301,7 +303,11 @@ export async function getReleaseAssetHandler(ctx: ApiContext) {
 		});
 	}
 	return json(
-		releaseAsset({ fullName: fullNameOf(repo) }, asset.release.tagName, asset),
+		releaseAsset(
+			{ id: repo.id, fullName: fullNameOf(repo) },
+			asset.release.tagName,
+			asset,
+		),
 	);
 }
 
@@ -332,7 +338,7 @@ export async function updateReleaseAssetHandler(ctx: ApiContext) {
 	if (!updated) throw notFoundError();
 	return json(
 		releaseAsset(
-			{ fullName: fullNameOf(repo) },
+			{ id: repo.id, fullName: fullNameOf(repo) },
 			asset.release.tagName,
 			updated,
 		),
@@ -404,7 +410,11 @@ export async function uploadReleaseAssetHandler(ctx: ApiContext) {
 	const asset = await findAsset(repo.id, id);
 	if (!asset) throw new Error("Asset missing after upload");
 	return json(
-		releaseAsset({ fullName: fullNameOf(repo) }, row.tagName, asset),
+		releaseAsset(
+			{ id: repo.id, fullName: fullNameOf(repo) },
+			row.tagName,
+			asset,
+		),
 		201,
 	);
 }
@@ -441,7 +451,11 @@ export async function createReleaseAssetUploadHandler(ctx: ApiContext) {
 	if (!asset) throw new Error("Asset missing after insert");
 	return json(
 		{
-			...releaseAsset({ fullName: fullNameOf(repo) }, row.tagName, asset),
+			...releaseAsset(
+				{ id: repo.id, fullName: fullNameOf(repo) },
+				row.tagName,
+				asset,
+			),
 			upload_url: started.uploadUrl,
 		},
 		201,
@@ -461,7 +475,7 @@ export async function finishReleaseAssetUploadHandler(ctx: ApiContext) {
 	if (!updated) throw notFoundError();
 	return json(
 		releaseAsset(
-			{ fullName: fullNameOf(repo) },
+			{ id: repo.id, fullName: fullNameOf(repo) },
 			asset.release.tagName,
 			updated,
 		),

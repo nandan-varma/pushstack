@@ -88,6 +88,7 @@ function commentedItem(
 	return {
 		...issueComment({
 			fullName,
+			repoId: thread.repoId,
 			kind: thread.kind,
 			number: thread.number,
 			comment,

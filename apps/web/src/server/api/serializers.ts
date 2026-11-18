@@ -20,9 +20,13 @@ import type {
 	CheckSuiteRow,
 	CommitStatusRow,
 } from "../check-store";
-import { encodeNodeId } from "../graphql/node-id";
+import {
+	encodeGlobalNodeId,
+	encodeNodeId,
+	encodeReactionNodeId,
+} from "../graphql/node-id";
 import type { MilestoneView } from "../milestone-store";
-import type { ReactionWithUser } from "../reaction-store";
+import type { ReactionSubject, ReactionWithUser } from "../reaction-store";
 import type { PublicUser } from "../repository-lookup";
 import type { PullRequest, ThreadKind } from "../thread-store";
 import { apiUrl, encodePath, htmlUrl, isoTimestamp } from "./http";
@@ -189,7 +193,7 @@ export interface ReleaseAssetShapeInput {
 }
 
 export function releaseAsset(
-	repo: { fullName: string },
+	repo: { id: number; fullName: string },
 	tagName: string,
 	asset: ReleaseAssetShapeInput,
 ): Shape<"releaseAsset"> {
@@ -199,7 +203,7 @@ export function releaseAsset(
 			`/${repo.fullName}/releases/download/${encodePath(tagName)}/${encodeURIComponent(asset.name)}`,
 		),
 		id: asset.id,
-		node_id: encodeNodeId("ReleaseAsset", asset.id),
+		node_id: encodeGlobalNodeId("ReleaseAsset", repo.id, asset.id),
 		name: asset.name,
 		label: asset.label,
 		state: asset.state,
@@ -227,7 +231,7 @@ export interface ReleaseShapeInput {
 }
 
 export function release(
-	repo: { fullName: string },
+	repo: { id: number; fullName: string },
 	value: ReleaseShapeInput,
 ): Shape<"release"> {
 	const api = `/repos/${repo.fullName}/releases/${value.id}`;
@@ -245,7 +249,7 @@ export function release(
 			`/repos/${repo.fullName}/zipball/${encodePath(value.tagName)}`,
 		),
 		id: value.id,
-		node_id: encodeNodeId("Release", value.id),
+		node_id: encodeGlobalNodeId("Release", repo.id, value.id),
 		tag_name: value.tagName,
 		target_commitish: value.targetCommitish,
 		name: value.name,
@@ -304,11 +308,15 @@ export function reactionRollup(
 	};
 }
 
-/** GitHub's legacy global id for a reaction: base64 of `08:Reaction<id>`. */
-export function reaction(value: ReactionWithUser): Shape<"reaction"> {
+/** GitHub's reaction `node_id`: the new form's `REA_` tuple, with its subject. */
+export function reaction(
+	repositoryId: number,
+	subject: ReactionSubject,
+	value: ReactionWithUser,
+): Shape<"reaction"> {
 	return {
 		id: value.id,
-		node_id: encodeNodeId("Reaction", value.id),
+		node_id: encodeReactionNodeId(repositoryId, subject, value.id),
 		user: simpleUser(value.user),
 		content: value.content,
 		created_at: isoTimestamp(value.createdAt),
@@ -370,6 +378,8 @@ export function issue(input: IssueShapeInput): Shape<"issue"> {
 
 export interface CommentShapeInput {
 	fullName: string;
+	/** The repository's row id: a comment's `node_id` names it. */
+	repoId: number;
 	kind: ThreadKind;
 	number: number;
 	comment: { id: number; body: string; createdAt: Date; updatedAt: Date };
@@ -382,6 +392,7 @@ export function issueComment(input: CommentShapeInput): Shape<"issueComment"> {
 	const webPath = kind === "issue" ? "issues" : "pull";
 	return {
 		id: input.comment.id,
+		node_id: encodeGlobalNodeId("IssueComment", input.repoId, input.comment.id),
 		url: apiUrl(`/repos/${fullName}/issues/comments/${input.comment.id}`),
 		html_url: htmlUrl(
 			`/${fullName}/${webPath}/${number}#issuecomment-${input.comment.id}`,
@@ -685,14 +696,16 @@ export const gitIdentity = ({
  * `commitCommentCounts`.
  */
 export function commitObject(
-	fullName: string,
+	repo: { id: number; fullName: string },
 	info: CommitInfo,
 	commentCount = 0,
 ): Shape<"commit"> {
 	const { commit, oid } = info;
+	const { fullName } = repo;
 	const url = apiUrl(`/repos/${fullName}/commits/${oid}`);
 	return {
 		sha: oid,
+		node_id: encodeGlobalNodeId("Commit", repo.id, oid),
 		commit: {
 			url,
 			author: gitIdentity(commit.author),

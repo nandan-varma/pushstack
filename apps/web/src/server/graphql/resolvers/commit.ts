@@ -11,7 +11,7 @@ import { getBlame, getCommit } from "../../git-read";
 import { safeCommitRevSchema, safeRepoPathSchema } from "../../git-ref-name";
 import { ownerKeyOf } from "../../git-storage-naming";
 import { notFound, unprocessable } from "../errors";
-import { encodeNodeId } from "../node-id";
+import { encodeGlobalNodeId } from "../node-id";
 import type { CommitBlameArgs, RepositoryObjectArgs } from "./generated";
 import type { RepositoryNode } from "./repository";
 
@@ -39,7 +39,7 @@ export function commitNode(
 	const path = `/${repo.nameWithOwner}/commit/${commit.oid}`;
 	return {
 		__typename: "Commit",
-		id: encodeNodeId("Commit", `${repo.row.id}:${commit.oid}`),
+		id: encodeGlobalNodeId("Commit", repo.row.id, commit.oid),
 		oid: commit.oid,
 		abbreviatedOid: commit.oid.slice(0, 7),
 		message,

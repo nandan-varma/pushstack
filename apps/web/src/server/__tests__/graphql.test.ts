@@ -16,7 +16,7 @@ vi.mock(
 );
 
 const { createUsers, signIn } = await import("../../test/app-harness");
-const { asToken, call, mintToken, patch } = await import(
+const { asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
 const { graphql } = await import("../../test/graphql-client");
@@ -288,6 +288,31 @@ describe("node ids", () => {
 			null,
 			{ __typename: "User", id: owner.id },
 			null,
+		]);
+	});
+
+	it("round-trips commit and issue comment ids through node(id:)", async () => {
+		const commits = await call("/repos/alice/public-one/commits");
+		const commit = commits.body[0];
+		expect(commit.node_id).toMatch(/^C_/);
+		const issue = await call(
+			"/repos/alice/public-one/issues",
+			post(alice, { title: "A subject" }),
+		);
+		const comment = await call(
+			`/repos/alice/public-one/issues/${issue.body.number}/comments`,
+			post(alice, { body: "Hi" }),
+		);
+		expect(comment.body.node_id).toMatch(/^IC_/);
+		const { body } = await graphql(
+			alice,
+			`query($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Commit { oid } ... on IssueComment { body } } }`,
+			{ ids: [commit.node_id, comment.body.node_id] },
+		);
+		expect(body.errors).toBeUndefined();
+		expect(body.data.nodes).toEqual([
+			{ __typename: "Commit", id: commit.node_id, oid: commit.sha },
+			{ __typename: "IssueComment", id: comment.body.node_id, body: "Hi" },
 		]);
 	});
 

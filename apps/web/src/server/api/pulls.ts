@@ -710,7 +710,11 @@ export async function listPullCommits(ctx: ApiContext) {
 	);
 	return json(
 		infos.map((info) =>
-			commitObject(fullNameOf(repo), info, counts.get(info.oid)),
+			commitObject(
+				{ id: repo.id, fullName: fullNameOf(repo) },
+				info,
+				counts.get(info.oid),
+			),
 		),
 		200,
 		linkHeader(ctx.url, params, commits.length),

@@ -9,7 +9,12 @@ import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import type { GraphQLContext } from "../context";
 import { notFound } from "../errors";
-import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
+import {
+	decodeGlobalNodeId,
+	decodeNodeId,
+	encodeNodeId,
+	rowIdOfNodeKey,
+} from "../node-id";
 import type { DomainResolvers, NodeLoader } from "./types";
 
 const userColumns = {
@@ -114,9 +119,9 @@ const loadUserNode: NodeLoader = async (key, ctx) => {
 export const nodeLoaders = new Map<string, NodeLoader>();
 
 async function resolveNode(id: string, ctx: GraphQLContext) {
-	const decoded = decodeNodeId(id);
+	const decoded = decodeGlobalNodeId(id) ?? decodeNodeId(id);
 	const load = decoded && nodeLoaders.get(decoded.type);
-	const node = decoded && load ? await load(decoded.key, ctx) : null;
+	const node = decoded && load ? await load(decoded.key, ctx, decoded) : null;
 	if (!node) {
 		throw notFound(`Could not resolve to a node with the global id of '${id}'`);
 	}
