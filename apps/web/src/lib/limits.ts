@@ -1,3 +1,71 @@
+import {
+	MAX_ASSIGNEES,
+	MAX_BODY_CHARS,
+	MAX_CHECK_RUNS_PER_COMMIT,
+	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_GIST_COMMENT_BODY_CHARS,
+	MAX_GIST_DESCRIPTION_CHARS,
+	MAX_GIST_FILE_NAME_CHARS,
+	MAX_GIST_FILES,
+	MAX_GPG_KEY_CHARS,
+	MAX_HOOKS_PER_EVENT,
+	MAX_LABEL_DESCRIPTION_CHARS,
+	MAX_LABEL_NAME_CHARS,
+	MAX_LABELS_PER_THREAD,
+	MAX_MILESTONE_DESCRIPTION_CHARS,
+	MAX_MILESTONE_TITLE_CHARS,
+	MAX_RELEASE_ASSET_BYTES,
+	MAX_RELEASE_ASSET_NAME_CHARS,
+	MAX_RELEASE_NAME_CHARS,
+	MAX_RELEASE_TAG_CHARS,
+	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+	MAX_REPO_TOPIC_CHARS,
+	MAX_REPO_TOPICS,
+	MAX_REVIEWERS_PER_REQUEST,
+	MAX_SIGNING_KEY_TITLE_CHARS,
+	MAX_SSH_SIGNING_KEY_CHARS,
+	MAX_STATUSES_PER_CONTEXT,
+	MAX_THREAD_TITLE_CHARS,
+	MAX_WEBHOOK_EVENTS,
+	MAX_WEBHOOK_SECRET_CHARS,
+	MAX_WEBHOOK_URL_CHARS,
+} from "@pushstack/api-contract/limits";
+
+export {
+	MAX_ASSIGNEES,
+	MAX_BODY_CHARS,
+	MAX_CHECK_RUNS_PER_COMMIT,
+	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_GIST_COMMENT_BODY_CHARS,
+	MAX_GIST_DESCRIPTION_CHARS,
+	MAX_GIST_FILE_NAME_CHARS,
+	MAX_GIST_FILES,
+	MAX_GPG_KEY_CHARS,
+	MAX_HOOKS_PER_EVENT,
+	MAX_LABEL_DESCRIPTION_CHARS,
+	MAX_LABEL_NAME_CHARS,
+	MAX_LABELS_PER_THREAD,
+	MAX_MILESTONE_DESCRIPTION_CHARS,
+	MAX_MILESTONE_TITLE_CHARS,
+	MAX_RELEASE_ASSET_BYTES,
+	MAX_RELEASE_ASSET_NAME_CHARS,
+	MAX_RELEASE_NAME_CHARS,
+	MAX_RELEASE_TAG_CHARS,
+	MAX_REPO_DESCRIPTION_CHARS,
+	MAX_REPO_HOMEPAGE_CHARS,
+	MAX_REPO_TOPIC_CHARS,
+	MAX_REPO_TOPICS,
+	MAX_REVIEWERS_PER_REQUEST,
+	MAX_SIGNING_KEY_TITLE_CHARS,
+	MAX_SSH_SIGNING_KEY_CHARS,
+	MAX_STATUSES_PER_CONTEXT,
+	MAX_THREAD_TITLE_CHARS,
+	MAX_WEBHOOK_EVENTS,
+	MAX_WEBHOOK_SECRET_CHARS,
+	MAX_WEBHOOK_URL_CHARS,
+};
+
 /**
  * The maxima the write paths enforce.
  *
@@ -11,14 +79,6 @@
  * The upload bound is shared with the browser (`upload.tsx`), so what the UI
  * warns about and what the server accepts can't drift apart.
  */
-
-export const MAX_COMMIT_MESSAGE_CHARS = 10_000;
-
-export const MAX_BODY_CHARS = 65_536;
-
-/** Bounds on what external CI reports (commit statuses, check runs); mirrors the API contract. */
-export const MAX_STATUSES_PER_CONTEXT = 1000;
-export const MAX_CHECK_RUNS_PER_COMMIT = 1000;
 
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -55,7 +115,6 @@ export const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
  * `MAX_RELEASE_ASSET_BYTES`. GitHub's own limit is 2 GiB per asset.
  */
 export const MAX_RELEASE_ASSET_DIRECT_BYTES = 4_000_000;
-export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;
 /**
  * The web form uploads files up to this size through a server function (as
  * base64: 4/3 larger, under Vercel's 4.5 MB body cap); bigger ones are PUT
@@ -65,9 +124,6 @@ export const MAX_RELEASE_ASSET_INLINE_BYTES = 3_000_000;
 export const MAX_RELEASE_ASSETS = 1000;
 /** Seconds a presigned upload URL stays valid. */
 export const RELEASE_UPLOAD_URL_TTL_SECONDS = 900;
-export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
-export const MAX_RELEASE_NAME_CHARS = 256;
-export const MAX_RELEASE_TAG_CHARS = 255;
 /** Longest path (UTF-8 bytes) an archive entry may have. */
 export const MAX_ARCHIVE_PATH_BYTES = 4096;
 
@@ -108,10 +164,6 @@ export const MAX_API_BODY_BYTES = 1024 * 1024;
  */
 export const MAX_API_DIFF_BYTES = 4_000_000;
 
-export const MAX_LABEL_NAME_CHARS = 50;
-export const MAX_LABEL_DESCRIPTION_CHARS = 100;
-
-export const MAX_LABELS_PER_THREAD = 100;
 /** The `query` of `Repository.labels`: a name or description search term. */
 export const MAX_LABEL_SEARCH_CHARS = 100;
 /**
@@ -123,17 +175,8 @@ export const MAX_MILESTONES_PER_REPOSITORY = 1000;
 export const MAX_RELEASES_PER_REPOSITORY = 1000;
 export const MAX_COLLABORATORS_PER_REPOSITORY = 1000;
 
-export const MAX_MILESTONE_TITLE_CHARS = 256;
-export const MAX_MILESTONE_DESCRIPTION_CHARS = 65_536;
-
 /** GitHub's search query cap, defined once in the API contract. */
 export { MAX_SEARCH_QUERY_CHARS } from "@pushstack/api-contract/limits";
-
-/** GitHub's cap on assignees per issue. */
-export const MAX_ASSIGNEES = 10;
-
-/** GitHub's cap on reviewers named in one request-reviewers call. */
-export const MAX_REVIEWERS_PER_REQUEST = 15;
 
 /** GitHub ignores a CODEOWNERS file over 3 MB; so do we. */
 export const MAX_CODEOWNERS_BYTES = 3 * 1024 * 1024;
@@ -148,25 +191,12 @@ export const MAX_REVIEW_PATH_CHARS = 4096;
 /** Review comments (line comments and replies) one pull request holds. */
 export const MAX_REVIEW_COMMENTS_PER_PULL_REQUEST = 2000;
 
-export const MAX_THREAD_TITLE_CHARS = 256;
-
 /** A template query parameter names one file in ISSUE_TEMPLATE. */
 export const MAX_TEMPLATE_FILENAME_CHARS = 255;
 /** Bounds on default-branch issue and pull request template discovery. */
 export const MAX_TEMPLATE_FILES = 50;
 export const MAX_TEMPLATE_FILE_BYTES = 65_536;
 export const MAX_TEMPLATE_TOTAL_BYTES = 256_000;
-
-export const MAX_REPO_DESCRIPTION_CHARS = 500;
-export const MAX_REPO_HOMEPAGE_CHARS = 255;
-export const MAX_REPO_TOPICS = 20;
-export const MAX_REPO_TOPIC_CHARS = 50;
-
-/** GitHub's webhook caps: hooks one event type may have, events one hook may subscribe to, and URL and secret length. */
-export const MAX_HOOKS_PER_EVENT = 20;
-export const MAX_WEBHOOK_EVENTS = 30;
-export const MAX_WEBHOOK_URL_CHARS = 2048;
-export const MAX_WEBHOOK_SECRET_CHARS = 256;
 
 /**
  * Bytes a fork may copy. A fork copies its parent's git prefix server-side in
@@ -209,15 +239,6 @@ export const MAX_OAUTH_CLIENT_SECRET_CHARS = 100;
 /** OAuth token exchange: the authorization code a client presents. */
 export const MAX_OAUTH_CODE_CHARS = 100;
 
-/**
- * Gists. GitHub truncates a gist's files map past 300, so creation past this
- * cap is refused (422) instead: every gist's view is then complete.
- */
-export const MAX_GIST_FILES = 300;
-/** A gist file name is a git tree path, so it gets a path segment's bound. */
-export const MAX_GIST_FILE_NAME_CHARS = 255;
-/** GitHub documents no bound on a description; this bounds the persisted string. */
-export const MAX_GIST_DESCRIPTION_CHARS = 1000;
 /** GitHub documents no bound on a user's gists; matches the other per-owner caps. */
 export const MAX_GISTS_PER_USER = 1000;
 /** GitHub's per-file API truncation threshold: a larger blob is sent partially. */
@@ -228,9 +249,6 @@ export const MAX_GIST_INLINE_CONTENT_BYTES = 1024 * 1024;
  * remain downloadable from their raw URLs.
  */
 export const MAX_GIST_INLINE_RESPONSE_BYTES = 4_000_000;
-/** GitHub's `Gist Comment.body` maxLength. */
-export const MAX_GIST_COMMENT_BODY_CHARS = 65_535;
-
 /**
  * What one function response may carry: Vercel's buffered-response cap is
  * 4.5 MB; this leaves headroom for the rest of the payload and the framing.
@@ -259,14 +277,6 @@ export const MAX_THREAD_PAGE_SIZE = Math.floor(
 /** Items one thread read returns when it doesn't say; also the UI's page. */
 export const THREAD_PAGE_SIZE = MAX_THREAD_PAGE_SIZE;
 
-/**
- * Signing keys (`/settings/keys`): one armored OpenPGP key or one OpenSSH
- * public-key line is a small text blob. The per-user count caps the work a
- * commit read does when it matches the signature issuer across those keys.
- */
-export const MAX_GPG_KEY_CHARS = 65_536;
-export const MAX_SSH_SIGNING_KEY_CHARS = 2048;
-export const MAX_SIGNING_KEY_TITLE_CHARS = 100;
 export const MAX_SIGNING_KEYS_PER_USER = 50;
 
 /** Commits whose verification one process remembers; key changes clear it. */

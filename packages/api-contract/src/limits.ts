@@ -1,6 +1,6 @@
 /**
- * The input bounds the API enforces. They mirror `apps/web/src/lib/limits.ts`
- * (which will import them from here once the web side adopts the contract).
+ * The input bounds the API enforces: the single source. `apps/web/src/lib/limits.ts`
+ * re-exports them, so a new API-facing cap is added here and nowhere else.
  */
 export const DEFAULT_PER_PAGE = 30;
 export const MAX_PER_PAGE = 100;
