@@ -10,6 +10,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { MAX_RANGE_COMMITS } from "git-edge";
 import { db } from "#/db";
 import { issues, pullRequests, type Repository } from "#/db/app-schema";
+import { user as userTable } from "#/db/schema";
 import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { MAX_COMMIT_MESSAGE_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
@@ -287,6 +288,19 @@ export function disallowedMergeMethodMessage(
 		: `${MERGE_METHOD_LABEL[method]} are not allowed on this repository.`;
 }
 
+/** The pull request author's commit identity; the merging user when the account is gone. */
+async function authorIdentityOf(
+	pr: PullRequest,
+	fallback: { name: string; email: string },
+): Promise<{ name: string; email: string }> {
+	const [author] = await db
+		.select({ name: userTable.name, email: userTable.email })
+		.from(userTable)
+		.where(eq(userTable.id, pr.authorId))
+		.limit(1);
+	return author ?? fallback;
+}
+
 export interface PullRequestMergeOptions {
 	method: MergeMethod;
 	/** The request's commit title and body (trimmed; absent when not given). */
@@ -343,6 +357,7 @@ function mergeOptionsFor(
 	pr: PullRequest,
 	user: { name: string; email: string },
 	options: PullRequestMergeOptions,
+	prAuthor: { name: string; email: string },
 ): MergeOptions {
 	const author = {
 		authorName: user.name,
@@ -362,6 +377,11 @@ function mergeOptionsFor(
 		case "squash":
 			return {
 				...author,
+				// GitHub credits the squash commit to the pull request's author.
+				authorName: prAuthor.name,
+				authorEmail: prAuthor.email,
+				committerName: user.name,
+				committerEmail: user.email,
 				method: "squash",
 				message: (commitMessages, truncated) =>
 					composeMergeMessage(options, {
@@ -399,7 +419,7 @@ export async function mergePullRequestBranches(
 		repo.name,
 		pr.headRef,
 		pr.targetBranch,
-		mergeOptionsFor(repo, pr, user, options),
+		mergeOptionsFor(repo, pr, user, options, await authorIdentityOf(pr, user)),
 	);
 	if (!result.success) return result;
 
