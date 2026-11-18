@@ -1,9 +1,16 @@
 import { commitCommentCounts } from "../commit-comment-store";
-import { getBranches, getCommit } from "../git-read";
+import { getBranches, getBranchPage, getCommit } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
 import type { ApiContext } from "./auth";
-import { apiUrl, encodePath, json, notFoundError, pagedList } from "./http";
+import {
+	apiUrl,
+	encodePath,
+	json,
+	linkHeader,
+	notFoundError,
+	pageParams,
+} from "./http";
 import { pathParams } from "./input";
 import { readableRepository } from "./repo-lookup";
 import { branchHtmlUrl, commitObject, commitRef } from "./serializers";
@@ -11,13 +18,21 @@ import { branchHtmlUrl, commitObject, commitRef } from "./serializers";
 export async function listBranches(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
 	const fullName = `${repo.owner.username}/${repo.name}`;
-	const branches = await getBranches(ownerKeyOf(repo), repo.name);
-	branches.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-	return pagedList(ctx.url, branches, (branch) => ({
-		name: branch.name,
-		commit: commitRef({ fullName }, branch.commit),
-		protected: false,
-	}));
+	const params = pageParams(ctx.url.searchParams);
+	// Only the requested page's tips are read, not every branch of the repository.
+	const { total, branches } = await getBranchPage(ownerKeyOf(repo), repo.name, {
+		offset: params.offset,
+		limit: params.reachable ? params.perPage : 0,
+	});
+	return json(
+		branches.map((branch) => ({
+			name: branch.name,
+			commit: commitRef({ fullName }, branch.commit),
+			protected: false,
+		})),
+		200,
+		linkHeader(ctx.url, params, total),
+	);
 }
 
 /** `GET /repos/{owner}/{repo}/branches/{branch}` (the name may contain slashes). */

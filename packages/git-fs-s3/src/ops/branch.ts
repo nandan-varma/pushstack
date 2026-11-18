@@ -181,31 +181,38 @@ export async function resolveLooseRefFast(
 	return git.resolveRef({ ...repo, ref });
 }
 
-/** All branches with their tip commits; [] for an empty repository. */
-export async function listBranches(repo: Repo): Promise<Branch[]> {
-	try {
-		const [looseBranches, looseCurrentBranch, packedBranches] =
-			await Promise.all([
-				listLooseBranches(repo),
-				getCurrentLooseBranch(repo),
-				readPackedBranches(repo),
-			]);
-		const branches =
-			looseBranches === null
-				? await git.listBranches(repo)
-				: [...new Set([...looseBranches, ...packedBranches.keys()])].sort();
-		const currentBranch =
-			looseBranches === null
-				? await git
-						.currentBranch({ ...repo, fullname: false })
-						.catch((error: unknown) => {
-							if (isAbsentError(error)) return null;
-							throw error;
-						})
-				: looseCurrentBranch;
-
-		return Promise.all(
-			branches.map(async (branch) => {
+/**
+ * The branch names, sorted, and a resolver that reads the tips of just the
+ * names it is given: a page of the list costs the names (one listing) plus
+ * one ref read per listed branch, not one per branch of the repository.
+ */
+async function branchIndex(repo: Repo): Promise<{
+	names: string[];
+	resolve: (names: readonly string[]) => Promise<Branch[]>;
+}> {
+	const [looseBranches, looseCurrentBranch, packedBranches] = await Promise.all(
+		[
+			listLooseBranches(repo),
+			getCurrentLooseBranch(repo),
+			readPackedBranches(repo),
+		],
+	);
+	const names =
+		looseBranches === null
+			? await git.listBranches(repo)
+			: [...new Set([...looseBranches, ...packedBranches.keys()])].sort();
+	const currentBranch =
+		looseBranches === null
+			? await git
+					.currentBranch({ ...repo, fullname: false })
+					.catch((error: unknown) => {
+						if (isAbsentError(error)) return null;
+						throw error;
+					})
+			: looseCurrentBranch;
+	const resolve = (wanted: readonly string[]) =>
+		Promise.all(
+			wanted.map(async (branch) => {
 				const packedCommit = packedBranches.get(branch);
 				return {
 					name: branch,
@@ -217,8 +224,40 @@ export async function listBranches(repo: Repo): Promise<Branch[]> {
 				};
 			}),
 		);
+	return { names, resolve };
+}
+
+/** All branches with their tip commits; [] for an empty repository. */
+export async function listBranches(repo: Repo): Promise<Branch[]> {
+	try {
+		const { names, resolve } = await branchIndex(repo);
+		return await resolve(names);
 	} catch (err: unknown) {
 		if ((err as { code?: string }).code === "NotFoundError") return [];
+		throw err;
+	}
+}
+
+/**
+ * One page of the branches, by name: how many there are, and the tips of only
+ * the `limit` from `offset` on (the REST list's paging, bounded at the source).
+ */
+export async function listBranchPage(
+	repo: Repo,
+	page: { offset: number; limit: number },
+): Promise<{ total: number; branches: Branch[] }> {
+	try {
+		const { names, resolve } = await branchIndex(repo);
+		return {
+			total: names.length,
+			branches: await resolve(
+				names.slice(page.offset, page.offset + page.limit),
+			),
+		};
+	} catch (err: unknown) {
+		if ((err as { code?: string }).code === "NotFoundError") {
+			return { total: 0, branches: [] };
+		}
 		throw err;
 	}
 }
@@ -284,7 +323,7 @@ export async function assertBranchExists(
 }
 
 /** All tags with the commits they name, sorted by name; [] when there are none. */
-export async function listTags(repo: Repo): Promise<Tag[]> {
+async function tagNames(repo: Repo): Promise<string[]> {
 	const names = (await listLooseRefNames(repo, "refs/tags")) ?? [];
 	const all = new Set([
 		...names,
@@ -293,8 +332,17 @@ export async function listTags(repo: Repo): Promise<Tag[]> {
 			throw error;
 		})),
 	]);
+	return [...all]
+		.filter(isSafeBranchName)
+		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+async function resolveTags(
+	repo: Repo,
+	names: readonly string[],
+): Promise<Tag[]> {
 	const tags = await Promise.all(
-		[...all].filter(isSafeBranchName).map(async (name): Promise<Tag | null> => {
+		names.map(async (name): Promise<Tag | null> => {
 			try {
 				const oid = await resolveLooseRefFast(repo, `refs/tags/${name}`);
 				const commit = await peelToCommit(repo, oid);
@@ -310,9 +358,26 @@ export async function listTags(repo: Repo): Promise<Tag[]> {
 			}
 		}),
 	);
-	return tags
-		.filter((tag): tag is Tag => tag !== null)
-		.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+	return tags.filter((tag): tag is Tag => tag !== null);
+}
+
+export async function listTags(repo: Repo): Promise<Tag[]> {
+	return resolveTags(repo, await tagNames(repo));
+}
+
+/** One page of the tags, by name: how many there are, and only the page's tips read. */
+export async function listTagPage(
+	repo: Repo,
+	page: { offset: number; limit: number },
+): Promise<{ total: number; tags: Tag[] }> {
+	const names = await tagNames(repo);
+	return {
+		total: names.length,
+		tags: await resolveTags(
+			repo,
+			names.slice(page.offset, page.offset + page.limit),
+		),
+	};
 }
 
 /**
