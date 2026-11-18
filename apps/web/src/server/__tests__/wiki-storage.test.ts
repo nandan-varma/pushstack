@@ -25,7 +25,7 @@ const { asToken, call, mintToken, patch, post } = await import(
 const { gitFs } = await import("../git-fs");
 const { getRepoWikiGitStorageRoot } = await import("../git-storage-naming");
 const { findRepositoryByName } = await import("../repository-lookup");
-const { forkRepositoryForUser } = await import("../repository-fork");
+const { forkRepositoryForOwner } = await import("../repository-fork");
 const { ensureWikiRepository } = await import("../wiki-git");
 
 const del = (token: string) => ({ ...asToken(token), method: "DELETE" });
@@ -101,7 +101,7 @@ describe("wiki lifecycle", () => {
 		await ensureWikiRepository("alice", "src");
 		const parent = await findRepositoryByName("alice", "src");
 		if (!parent) throw new Error("parent missing");
-		await forkRepositoryForUser(parent, users.bob, "src");
+		await forkRepositoryForOwner(parent, users.bob, "src");
 		expect(await wikiHead("alice", "src")).toBe("ref: refs/heads/master\n");
 		expect(await wikiHead("bob", "src")).toBeNull();
 	});
