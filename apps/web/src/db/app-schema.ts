@@ -72,9 +72,9 @@ export const repositories = pgTable(
 		),
 		/** GitHub's `fork`: stays true after the parent is deleted. */
 		isFork: boolean("is_fork").notNull().default(false),
-		/** No wiki or projects exist yet, so these default off (GitHub: on). */
 		hasIssues: boolean("has_issues").notNull().default(true),
-		hasWiki: boolean("has_wiki").notNull().default(false),
+		hasWiki: boolean("has_wiki").notNull().default(true),
+		/** No projects exist yet, so they default off (GitHub: on). */
 		hasProjects: boolean("has_projects").notNull().default(false),
 		/** GitHub enables discussions on a new repository. */
 		hasDiscussions: boolean("has_discussions").notNull().default(true),

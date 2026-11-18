@@ -337,7 +337,8 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   allow_merge_commit, allow_squash_merge, allow_rebase_merge,
   stargazers_count, watchers_count, forks_count` and (when
   authenticated, on repo and `/user/repos`) `permissions`. `fork` is true for a
-  fork. A fork's `parent` and `source` appear on the single-repository read and
+  fork. `has_wiki` defaults to `true`, as on GitHub: a repository created
+  without it has a wiki (empty until its first page). A fork's `parent` and `source` appear on the single-repository read and
   on the create response, each only when the viewer can read it. `forks_count`
   counts only the forks the viewer can read; in listings it is counted for the
   listing's viewer. Everything else (`language`, `size`, `license`, `ssh_url`,

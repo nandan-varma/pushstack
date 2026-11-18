@@ -6,6 +6,8 @@ import {
 	getGistGitStorageRoot,
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
+	getRepoWikiGitStorageRoot,
+	getRepoWikiStoragePrefix,
 	ownerKeyOf,
 	parseGistGitStorageKey,
 	parseRepoGitStorageKey,
@@ -29,11 +31,22 @@ describe("storage keys", () => {
 		},
 	);
 
+	it("lays a wiki out beside the git data", () => {
+		expect(getRepoWikiGitStorageRoot("alice", "r")).toBe(
+			"repos/alice/r/wiki/git",
+		);
+		expect(getRepoWikiStoragePrefix("alice", "r")).toBe("repos/alice/r/wiki/");
+		expect(getRepoGitStorageRoot("alice", "r", "wiki")).toBe(
+			"repos/alice/r/wiki/git",
+		);
+	});
+
 	it("parses a key back into its parts", () => {
 		expect(parseRepoGitStorageKey("repos/alice/r/git/refs/heads/main")).toEqual(
 			{
 				ownerKey: "alice",
 				repoName: "r",
+				wiki: false,
 				gitdirPath: "refs/heads/main",
 			},
 		);
@@ -42,8 +55,18 @@ describe("storage keys", () => {
 		).toMatchObject({
 			gitdirPath: "objects/pack/",
 		});
+		expect(
+			parseRepoGitStorageKey("repos/alice/r/wiki/git/refs/heads/master"),
+		).toEqual({
+			ownerKey: "alice",
+			repoName: "r",
+			wiki: true,
+			gitdirPath: "refs/heads/master",
+		});
 		expect(parseRepoGitStorageKey("other/alice/r/git/HEAD")).toBeNull();
 		expect(parseRepoGitStorageKey("repos/alice/r/git")).toBeNull();
+		expect(parseRepoGitStorageKey("repos/alice/r/wiki/git")).toBeNull();
+		expect(parseRepoGitStorageKey("repos/alice/r/wiki/HEAD")).toBeNull();
 	});
 });
 

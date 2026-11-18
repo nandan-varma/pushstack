@@ -224,6 +224,10 @@ export const MAX_DISCUSSION_CATEGORY_DESCRIPTION_CHARS = 200;
 export const MAX_DISCUSSION_CATEGORY_SLUG_CHARS = 50;
 export const MAX_DISCUSSION_CATEGORY_EMOJI_CHARS = 32;
 
+/** Wiki pages are a git tree: one page name is a path segment. */
+export const MAX_WIKI_PAGES = 1000;
+export const MAX_WIKI_PAGE_NAME_CHARS = 255;
+
 /** GitHub's search query cap, defined once in the API contract. */
 export { MAX_SEARCH_QUERY_CHARS } from "@pushstack/api-contract/limits";
 

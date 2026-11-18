@@ -36,8 +36,10 @@ import {
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	getRepoReleaseStoragePrefix,
+	getRepoWikiStoragePrefix,
 	parseGistGitStorageKey,
 	parseRepoGitStorageKey,
+	type RepoKind,
 } from "./git-storage-naming";
 import {
 	logError,
@@ -185,8 +187,12 @@ export const gitFs = createGitFs(cachedStore, {
  * This app never writes `packed-refs` (refs are always loose) or `shallow`
  * (shallow clones aren't advertised).
  */
-export function registerRepoGitdir(ownerKey: string, repoName: string): string {
-	const gitdir = getRepoGitStorageRoot(ownerKey, repoName);
+export function registerRepoGitdir(
+	ownerKey: string,
+	repoName: string,
+	kind: RepoKind = "repo",
+): string {
+	const gitdir = getRepoGitStorageRoot(ownerKey, repoName, kind);
 	gitFs.registerGitdir(gitdir, { absentFiles: ["packed-refs", "shallow"] });
 	return gitdir;
 }
@@ -194,15 +200,19 @@ export function registerRepoGitdir(ownerKey: string, repoName: string): string {
 export function detectLooseObjectsHint(
 	ownerKey: string,
 	repoName: string,
+	kind: RepoKind = "repo",
 ): Promise<void> {
-	return gitFs.detectLooseObjects(getRepoGitStorageRoot(ownerKey, repoName));
+	return gitFs.detectLooseObjects(
+		getRepoGitStorageRoot(ownerKey, repoName, kind),
+	);
 }
 
 export function prefetchAllPacks(
 	ownerKey: string,
 	repoName: string,
+	kind: RepoKind = "repo",
 ): Promise<void> {
-	return gitFs.prefetchPacks(getRepoGitStorageRoot(ownerKey, repoName));
+	return gitFs.prefetchPacks(getRepoGitStorageRoot(ownerKey, repoName, kind));
 }
 
 /** A gist's gitdir; see {@link registerRepoGitdir} for why it is registered. */
@@ -238,6 +248,7 @@ function invalidateGitStorage(prefix: string): void {
 
 function invalidateRepoGitStorage(ownerKey: string, repoName: string): void {
 	invalidateGitStorage(getRepoGitStoragePrefix(ownerKey, repoName));
+	invalidateGitStorage(getRepoWikiStoragePrefix(ownerKey, repoName));
 }
 
 export async function listRepoStorage(
@@ -254,12 +265,16 @@ export function putStorageObject(key: string, data: Uint8Array): Promise<void> {
 	return networkStore.put(key, data);
 }
 
-/** Delete all of a repo's storage (git data and release assets). Callers hold the repo lock. */
+/** Delete all of a repo's storage (git data, wiki and release assets). Callers hold the repo lock. */
 export async function deleteRepoStorage(
 	ownerKey: string,
 	repoName: string,
 ): Promise<void> {
 	await deletePrefix(networkStore, getRepoGitStoragePrefix(ownerKey, repoName));
+	await deletePrefix(
+		networkStore,
+		getRepoWikiStoragePrefix(ownerKey, repoName),
+	);
 	await deletePrefix(
 		networkStore,
 		getRepoReleaseStoragePrefix(ownerKey, repoName),
@@ -345,8 +360,9 @@ export async function moveRepoStorage(
 
 /**
  * {@link moveRepoStorage} across owners (a transfer): same copy-then-delete,
- * for the git data and the release assets, whose keys also derive from the
- * owner and name.
+ * for the git data, the wiki and the release assets, whose keys also derive
+ * from the owner and name. Every move is undone in reverse if a later one
+ * fails, so the row never names a half-moved repository.
  */
 export async function transferRepoStorage(
 	oldOwnerKey: string,
@@ -355,27 +371,37 @@ export async function transferRepoStorage(
 	newRepoName: string,
 ): Promise<void> {
 	const copy = serverSideCopy();
-	const gitFrom = getRepoGitStoragePrefix(oldOwnerKey, oldRepoName);
-	const gitTo = getRepoGitStoragePrefix(newOwnerKey, newRepoName);
-	await movePrefix(networkStore, gitFrom, gitTo, { copy });
-	try {
-		await movePrefix(
-			networkStore,
+	const moves: Array<[string, string]> = [
+		[
+			getRepoGitStoragePrefix(oldOwnerKey, oldRepoName),
+			getRepoGitStoragePrefix(newOwnerKey, newRepoName),
+		],
+		[
+			getRepoWikiStoragePrefix(oldOwnerKey, oldRepoName),
+			getRepoWikiStoragePrefix(newOwnerKey, newRepoName),
+		],
+		[
 			getRepoReleaseStoragePrefix(oldOwnerKey, oldRepoName),
 			getRepoReleaseStoragePrefix(newOwnerKey, newRepoName),
-			{ copy },
-		);
+		],
+	];
+	const moved: Array<[string, string]> = [];
+	try {
+		for (const [from, to] of moves) {
+			await movePrefix(networkStore, from, to, { copy });
+			moved.push([from, to]);
+		}
 	} catch (error) {
-		// Never leave the git data at the new name with the releases behind:
-		// the caller's row still names the old location.
-		try {
-			await movePrefix(networkStore, gitTo, gitFrom, { copy });
-		} catch (rollbackError) {
-			logError(
-				"git-fs",
-				`moving ${gitTo} back after a failed release move failed`,
-				rollbackError,
-			);
+		for (const [from, to] of moved.reverse()) {
+			try {
+				await movePrefix(networkStore, to, from, { copy });
+			} catch (rollbackError) {
+				logError(
+					"git-fs",
+					`moving ${to} back after a failed transfer failed`,
+					rollbackError,
+				);
+			}
 		}
 		invalidateRepoGitStorage(oldOwnerKey, oldRepoName);
 		invalidateRepoGitStorage(newOwnerKey, newRepoName);

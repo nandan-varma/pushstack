@@ -21,7 +21,7 @@ import {
 	transferRepoStorage,
 } from "./git-fs";
 import { withRepositoryLock } from "./git-repo-lock";
-import { getRepoGitStorageRoot } from "./git-storage-naming";
+import { getRepoGitStorageRoot, type RepoKind } from "./git-storage-naming";
 import { logWarn, perfStep } from "./perf-log";
 
 export const httpHooks: HttpHooks = {
@@ -29,17 +29,32 @@ export const httpHooks: HttpHooks = {
 	onWarn: (message, err) => logWarn("git-http", message, err),
 };
 
+/** A wiki is a second bare repository; its isomorphic-git cache has its own key. */
+function repoCacheKey(repoName: string, kind: RepoKind) {
+	return kind === "wiki" ? `${repoName}.wiki` : repoName;
+}
+
+/** Both of a repository's caches: its own and its wiki's. */
+function invalidateRepoCaches(ownerKey: string, repoName: string): void {
+	invalidateRepoCache(ownerKey, repoName);
+	invalidateRepoCache(ownerKey, repoCacheKey(repoName, "wiki"));
+}
+
 /**
  * The `Repo` every git call for a repository uses: `gitFs`, the registered
  * gitdir, and the per-repo isomorphic-git cache (its parsed pack indexes —
  * without it every object read re-parses every `.idx`). Only call once the
  * repository's row is known to exist.
  */
-export function repoFor(ownerKey: string, repoName: string): Repo {
+export function repoFor(
+	ownerKey: string,
+	repoName: string,
+	kind: RepoKind = "repo",
+): Repo {
 	return {
 		fs: gitFs,
-		gitdir: registerRepoGitdir(ownerKey, repoName),
-		cache: getRepoCache(ownerKey, repoName),
+		gitdir: registerRepoGitdir(ownerKey, repoName, kind),
+		cache: getRepoCache(ownerKey, repoCacheKey(repoName, kind)),
 	};
 }
 
@@ -47,10 +62,11 @@ export async function initBareRepo(
 	ownerKey: string,
 	repoName: string,
 	defaultBranch: string,
+	kind: RepoKind = "repo",
 ): Promise<void> {
 	await git.init({
 		fs: gitFs,
-		dir: getRepoGitStorageRoot(ownerKey, repoName),
+		dir: getRepoGitStorageRoot(ownerKey, repoName, kind),
 		defaultBranch,
 		bare: true,
 	});
@@ -61,13 +77,17 @@ export async function initBareRepo(
  * result-cache entries (keyed per head sha, so this frees superseded ones)
  * and its isomorphic-git cache (a repack replaces pack files).
  */
-export function afterRepositoryPush(ownerKey: string, repoName: string): void {
+export function afterRepositoryPush(
+	ownerKey: string,
+	repoName: string,
+	kind: RepoKind = "repo",
+): void {
 	for (const prefix of resultKeyPrefixes(
-		getRepoGitStorageRoot(ownerKey, repoName),
+		getRepoGitStorageRoot(ownerKey, repoName, kind),
 	)) {
 		invalidateResultCache(prefix);
 	}
-	invalidateRepoCache(ownerKey, repoName);
+	invalidateRepoCache(ownerKey, repoCacheKey(repoName, kind));
 }
 
 /** Delete all of a repository's storage. Callers hold the repo lock. */
@@ -76,7 +96,7 @@ export async function deleteRepositoryStorage(
 	repoName: string,
 ): Promise<void> {
 	await deleteRepoStorage(ownerKey, repoName);
-	invalidateRepoCache(ownerKey, repoName);
+	invalidateRepoCaches(ownerKey, repoName);
 }
 
 /**
@@ -113,7 +133,7 @@ export async function forkRepositoryStorage(
 		symbolic: true,
 		force: true,
 	});
-	invalidateRepoCache(fork.ownerKey, fork.repoName);
+	invalidateRepoCaches(fork.ownerKey, fork.repoName);
 }
 
 /**
@@ -127,8 +147,8 @@ export async function renameRepositoryStorage(
 	newRepoName: string,
 ): Promise<void> {
 	await moveRepoStorage(ownerKey, oldRepoName, newRepoName);
-	invalidateRepoCache(ownerKey, oldRepoName);
-	invalidateRepoCache(ownerKey, newRepoName);
+	invalidateRepoCaches(ownerKey, oldRepoName);
+	invalidateRepoCaches(ownerKey, newRepoName);
 }
 
 /** Move storage to another owner (a transfer). Callers hold both repo locks. */
@@ -139,8 +159,8 @@ export async function transferRepositoryStorage(
 	newRepoName: string,
 ): Promise<void> {
 	await transferRepoStorage(oldOwnerKey, oldRepoName, newOwnerKey, newRepoName);
-	invalidateRepoCache(oldOwnerKey, oldRepoName);
-	invalidateRepoCache(newOwnerKey, newRepoName);
+	invalidateRepoCaches(oldOwnerKey, oldRepoName);
+	invalidateRepoCaches(newOwnerKey, newRepoName);
 }
 
 /**
@@ -155,13 +175,14 @@ export async function transferRepositoryStorage(
 export async function repackIfNeededUnlocked(
 	ownerKey: string,
 	repoName: string,
+	kind: RepoKind = "repo",
 ): Promise<number> {
 	const stalePaths = await repackRepository(
-		repoFor(ownerKey, repoName),
+		repoFor(ownerKey, repoName, kind),
 		{ threshold: REPACK_PACK_COUNT_THRESHOLD },
 		httpHooks,
 	);
-	if (stalePaths.length > 0) afterRepositoryPush(ownerKey, repoName);
+	if (stalePaths.length > 0) afterRepositoryPush(ownerKey, repoName, kind);
 	return stalePaths.length;
 }
 
