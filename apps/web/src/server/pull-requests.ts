@@ -19,6 +19,7 @@ import {
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
+import { isCrossRepository } from "./pull-head";
 import {
 	deleteHeadBranch,
 	disallowedMergeMethodMessage,
@@ -287,6 +288,9 @@ export const deletePullRequestBranch = createServerFn({ method: "POST" })
 			);
 		}
 		return writeWithAccess(pr.repoId, async (repo, currentUser) => {
+			if (isCrossRepository(pr)) {
+				throw new Error("The head branch of this pull request is in a fork");
+			}
 			if (pr.sourceBranch === repo.defaultBranch) {
 				throw new Error("Cannot delete the default branch");
 			}
@@ -319,7 +323,7 @@ export const getPullRequestCommits = createServerFn({ method: "GET" })
 					ownerKeyOf(repo),
 					repo.name,
 					(merged ? pr.baseSha : pr.targetBranch) as string,
-					(merged ? pr.headSha : pr.sourceBranch) as string,
+					(merged ? pr.headSha : pr.headRef) as string,
 					PR_COMMITS_LIMIT,
 				);
 			},

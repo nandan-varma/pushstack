@@ -1,4 +1,5 @@
 /** GitHub pull requests over the shared thread and pull request stores. */
+import { qualifyBranchRef } from "git-fs-s3";
 import { db } from "#/db";
 import {
 	MAX_BODY_CHARS,
@@ -14,18 +15,17 @@ import {
 	requestCodeownerReviews,
 	requestCodeownerReviewsFor,
 } from "../../codeowners";
-import {
-	analyzeMerge,
-	getBranches,
-	getCommitsBetween,
-	getTags,
-} from "../../git-read";
-import { safeBranchNameSchema } from "../../git-ref-name";
-import { withRepositoryLock } from "../../git-repo-lock";
+import { getTags } from "../../git-read";
+import { repoFor } from "../../git-repo";
 import { ownerKeyOf } from "../../git-storage-naming";
 import {
+	createPullRequest,
+	PullCreateError,
+	PullForbiddenError,
+} from "../../pull-create";
+import { headRepositoryOf, refreshPullHead, tipOf } from "../../pull-head";
+import {
 	disallowedMergeMethodMessage,
-	insertPullRequest,
 	mergePullRequestBranches,
 	setPullRequestDraft,
 	updatePullRequestFields,
@@ -59,7 +59,7 @@ import {
 } from "../errors";
 import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
 import { readCommitNode } from "./commit";
-import { loadUser, userNode } from "./core";
+import { loadUser, loadUserByLogin, userNode } from "./core";
 import type {
 	AddPullRequestReviewInput,
 	CreatePullRequestInput,
@@ -99,7 +99,7 @@ export interface PullRequestNode {
 	merged: boolean;
 	headRefName: string;
 	baseRefName: string;
-	isCrossRepository: false;
+	isCrossRepository: boolean;
 	row: PullRequest;
 	repo: RepositoryNode;
 }
@@ -132,7 +132,7 @@ export function pullNode(
 		merged: row.status === "merged",
 		headRefName: row.sourceBranch,
 		baseRefName: row.targetBranch,
-		isCrossRepository: false,
+		isCrossRepository: row.headOwner !== null,
 		row,
 		repo,
 	};
@@ -183,31 +183,13 @@ async function loadPull(key: string, ctx: GraphQLContext) {
 async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 	requireScope(ctx);
 	const repo = await repoById(input.repositoryId, ctx);
-	if (!canWrite(repo))
-		throw forbidden("You do not have permission to create pull requests");
 	if (repo.row.archived) throw forbidden("Repository is archived");
-	if (
-		input.headRepositoryId != null &&
-		(await repoById(input.headRepositoryId, ctx)).id !== repo.id
-	)
-		throw unprocessable("Cross-repository pull requests are not supported.");
 	if (input.maintainerCanModify === false)
 		throw unprocessable(
-			"Disabling maintainer modifications is not supported for same-repository pull requests.",
+			"Disabling maintainer modifications is not supported for pull requests.",
 		);
-	const parts = input.headRefName.split(":");
-	const head =
-		parts.length === 2 &&
-		parts[0]?.toLowerCase() === repo.row.owner.username.toLowerCase()
-			? parts[1]
-			: input.headRefName;
-	const base = input.baseRefName;
-	if (
-		!safeBranchNameSchema.safeParse(head).success ||
-		!safeBranchNameSchema.safeParse(base).success
-	)
-		throw unprocessable("Invalid branch name");
-	if (!head) throw unprocessable("Invalid head branch");
+	// gh sends the fork's node id and `owner:branch`; a bare branch is this repository's.
+	const colon = input.headRefName.indexOf(":");
 	const title = input.title.trim();
 	if (
 		!title ||
@@ -215,61 +197,49 @@ async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 		(input.body?.length ?? 0) > MAX_BODY_CHARS
 	)
 		throw unprocessable("Invalid pull request title or body");
-	if (head === base)
-		throw unprocessable(`No commits between ${base} and ${head}`);
-	const analysis = await analyzeMerge(
-		ownerKeyOf(repo.row),
-		repo.name,
-		head,
-		base,
-	);
-	if (!analysis.canMerge) throw unprocessable("Both branches must exist");
-	const range = await getCommitsBetween(
-		ownerKeyOf(repo.row),
-		repo.name,
-		base,
-		head,
-		1,
-	);
-	if (range.incomplete)
-		throw unprocessable("Pull request history exceeds the supported limit");
-	if (!range.commits.length)
-		throw unprocessable(`No commits between ${base} and ${head}`);
-	// Check-then-insert must be atomic per repository, or two concurrent
-	// creates for the same head both pass the duplicate check.
-	const row = await withRepositoryLock(
-		ownerKeyOf(repo.row),
-		repo.name,
-		async () => {
-			const duplicate = await listThreads(
-				{
-					repoId: repo.row.id,
-					kind: "pull_request",
-					state: "open",
-					head,
-					base,
-				},
-				{ limit: 1 },
+	const headRepo =
+		input.headRepositoryId == null
+			? undefined
+			: (await repoById(input.headRepositoryId, ctx)).row;
+	let row: PullRequest;
+	try {
+		row = await createPullRequest({
+			repo: repo.row,
+			userId: ctx.caller.userId,
+			canWrite: canWrite(repo),
+			title,
+			body: input.body ?? undefined,
+			draft: input.draft ?? false,
+			base: input.baseRefName,
+			head: {
+				owner: colon === -1 ? null : input.headRefName.slice(0, colon),
+				branch:
+					colon === -1 ? input.headRefName : input.headRefName.slice(colon + 1),
+				repo: headRepo,
+			},
+		});
+	} catch (error) {
+		if (error instanceof PullForbiddenError) throw forbidden(error.message);
+		if (error instanceof PullCreateError)
+			throw unprocessable(
+				error.field ? `Invalid ${error.field} branch` : error.message,
 			);
-			if (duplicate.total)
-				throw unprocessable(
-					`A pull request already exists for ${repo.row.owner.username}:${head}.`,
-				);
-			return insertPullRequest(repo.row.id, ctx.caller.userId, {
-				title,
-				body: input.body ?? undefined,
-				sourceBranch: head,
-				targetBranch: base,
-				draft: input.draft ?? false,
-			});
-		},
-	);
+		throw error;
+	}
 	await requestCodeownerReviews(repo.row, row);
 	return {
 		clientMutationId: input.clientMutationId ?? null,
 		pullRequest: pullNode(repo, row),
 	};
 }
+/** The current head commit: the branch tip, or the pinned copy of a fork's. */
+export async function headTip(node: PullRequestNode): Promise<string | null> {
+	return tipOf(
+		repoFor(ownerKeyOf(node.repo.row), node.repo.row.name),
+		qualifyBranchRef(node.row.headRef),
+	);
+}
+
 /** The pull request a mutation names, with the repo:write scope checked. */
 async function mutationPull(
 	input: { pullRequestId: string },
@@ -388,17 +358,11 @@ async function mergePull(input: MergePullRequestInput, ctx: GraphQLContext) {
 	const headModified = () =>
 		unprocessable("Head branch was modified. Review and try the merge again.");
 	const expectedHeadOid = input.expectedHeadOid ?? undefined;
+	// A merge always starts from the fork branch's current tip.
+	await refreshPullHead(node.repo.row, node.row);
 	// A fast path; the merge re-checks under the repository lock.
-	if (expectedHeadOid) {
-		const branches = await getBranches(
-			ownerKeyOf(node.repo.row),
-			node.repo.row.name,
-		);
-		const head = branches.find(
-			(branch) => branch.name === node.row.sourceBranch,
-		);
-		if (head?.commit !== expectedHeadOid) throw headModified();
-	}
+	if (expectedHeadOid && (await headTip(node)) !== expectedHeadOid)
+		throw headModified();
 	// GitHub blocks the merge while changes are requested; an owner/admin may override.
 	if (
 		(await reviewSummaryFor(node.row.id)).blocksMerge &&
@@ -558,10 +522,20 @@ export const pullsResolvers: DomainResolvers = {
 			repository: (node) => node.repo,
 			baseRef: (node, _args, ctx) =>
 				branchRef(ctx, node.repo, node.row.targetBranch),
-			headRepository: (node) => node.repo,
+			// A fork the viewer cannot read, or a deleted one, is null.
+			headRepository: async (node, _args, ctx) => {
+				if (node.row.headOwner === null) return node.repo;
+				const head = await headRepositoryOf(node.row);
+				return head
+					? readableRepositoryNode(ctx, head.owner.username, head.name)
+					: null;
+			},
 			headRepositoryOwner: async (node, _args, ctx) => {
-				const row = await loadUser(ctx, node.repo.row.ownerId);
-				if (!row) throw new Error("Repository owner missing");
+				const row =
+					node.row.headOwner === null
+						? await loadUser(ctx, node.repo.row.ownerId)
+						: await loadUserByLogin(ctx, node.row.headOwner);
+				if (!row) return null;
 				return userNode(row);
 			},
 		},

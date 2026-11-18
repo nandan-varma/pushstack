@@ -26,6 +26,7 @@ import {
 	type SQL,
 	sql,
 } from "drizzle-orm";
+import { pullHeadRefName } from "git-fs-s3";
 import { db } from "#/db";
 import {
 	comments,
@@ -67,7 +68,14 @@ export type PullRequestFields = Omit<
  * `status` `merged` once merged (the issue itself is then `closed`).
  */
 export type PullRequest = Omit<Issue, "status"> &
-	PullRequestFields & { status: "open" | "closed" | "merged" };
+	PullRequestFields & {
+		status: "open" | "closed" | "merged";
+		/**
+		 * The revision that names the head inside this repository: the head
+		 * branch, or `refs/pull/<n>/head` for a head copied from a fork.
+		 */
+		headRef: string;
+	};
 
 export interface Thread extends Issue {
 	kind: ThreadKind;
@@ -123,6 +131,12 @@ export interface ThreadFilter {
 	pullRequestStates?: ("OPEN" | "CLOSED" | "MERGED")[];
 	/** Head branch; `null` matches nothing (a head from another owner). */
 	head?: string | null;
+	/**
+	 * With `head`: the owner of the fork the head branch lives in (the `owner`
+	 * of `owner:branch`, matched ignoring case). Without it, `head` names a
+	 * branch of the pull request's own repository.
+	 */
+	headOwner?: string;
 	base?: string;
 }
 
@@ -374,7 +388,17 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 		);
 	}
 	if (filter.head === null) add(sql`false`);
-	else if (filter.head) add(eq(pullRequests.sourceBranch, filter.head));
+	else if (filter.head) {
+		add(eq(pullRequests.sourceBranch, filter.head));
+		add(
+			filter.headOwner === undefined
+				? isNull(pullRequests.headOwner)
+				: eq(
+						sql`lower(${pullRequests.headOwner})`,
+						filter.headOwner.toLowerCase(),
+					),
+		);
+	}
 	if (filter.base) add(eq(pullRequests.targetBranch, filter.base));
 	if (filter.pullRequestStates) {
 		add(
@@ -503,6 +527,10 @@ export function pullRequestOf(
 		...issue,
 		...fields,
 		status: fields.mergedAt ? "merged" : issue.status,
+		headRef:
+			fields.headOwner === null
+				? fields.sourceBranch
+				: pullHeadRefName(issue.number),
 	};
 }
 

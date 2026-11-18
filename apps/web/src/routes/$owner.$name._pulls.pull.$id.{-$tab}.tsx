@@ -173,7 +173,7 @@ export const Route = createFileRoute("/$owner/$name/_pulls/pull/$id/{-$tab}")({
 				queryClient,
 				pullRequestDiffQueryOptions({
 					repoId: pr.repoId,
-					sourceBranch: pr.sourceBranch,
+					sourceBranch: pr.headRef,
 					targetBranch: pr.targetBranch,
 					autoRefresh: !!repo?.autoRefreshPrDiffs,
 				}),
@@ -209,7 +209,7 @@ function PullRequestDetailPage() {
 	const { data: diff, isLoading: diffLoading } = useQuery({
 		...pullRequestDiffQueryOptions({
 			repoId: pr?.repoId ?? 0,
-			sourceBranch: pr?.sourceBranch ?? "",
+			sourceBranch: pr?.headRef ?? "",
 			targetBranch: pr?.targetBranch ?? "",
 			autoRefresh: !!repo?.autoRefreshPrDiffs,
 		}),
@@ -479,7 +479,12 @@ function PullRequestDetailPage() {
 													canMerge={canMerge}
 													draft={pr.isDraft}
 													canMarkReady={canChangeStatus}
-													sourceBranch={pr.sourceBranch}
+													sourceBranch={pr.headRef}
+													sourceLabel={
+														pr.headOwner
+															? `${pr.headOwner}:${pr.sourceBranch}`
+															: pr.sourceBranch
+													}
 													targetBranch={pr.targetBranch}
 													action={
 														pr.isDraft ? (
@@ -509,14 +514,17 @@ function PullRequestDetailPage() {
 													}
 												/>
 											)}
-											{pr.status !== "open" && pr.viewer.canWrite && repo && (
-												<DeleteMergedBranchCard
-													repoId={repo.id}
-													prId={pr.id}
-													branch={pr.sourceBranch}
-													defaultBranch={repo.defaultBranch}
-												/>
-											)}
+											{pr.status !== "open" &&
+												pr.headOwner === null &&
+												pr.viewer.canWrite &&
+												repo && (
+													<DeleteMergedBranchCard
+														repoId={repo.id}
+														prId={pr.id}
+														branch={pr.sourceBranch}
+														defaultBranch={repo.defaultBranch}
+													/>
+												)}
 										</>
 									}
 									composerAction={

@@ -15,7 +15,9 @@ import {
 	GitInvalidRequestError,
 	GitPathNotFoundError,
 	isNotFoundError,
+	isPullHeadRef,
 	isSafeBranchName,
+	pullHeadRefName,
 	qualifyBranchRef,
 } from "git-fs-s3";
 import {
@@ -399,7 +401,7 @@ export async function mergeBranches(
 	targetBranch: string,
 	options: MergeOptions,
 ): Promise<MergeOutcome> {
-	assertSafeBranchName(sourceBranch);
+	if (!isPullHeadRef(sourceBranch)) assertSafeBranchName(sourceBranch);
 	assertSafeBranchName(targetBranch);
 	try {
 		return await writeUnderLock(ownerKey, repoName, async (repo) => {
@@ -437,6 +439,41 @@ export async function mergeBranches(
 		logError("git-write", "mergeBranches failed unexpectedly", error);
 		throw error;
 	}
+}
+
+/**
+ * Copy `tip` (a commit of `fork`) into the repository and pin it as
+ * `refs/pull/<number>/head`, so a pull request from a fork can be diffed and
+ * merged without the fork. For callers already holding the repository's lock.
+ */
+export async function pinPullHeadUnlocked(
+	repo: Repo,
+	fork: Repo,
+	number: number,
+	tip: string,
+	haves: readonly string[],
+): Promise<void> {
+	await importCommit(fork, repo, tip, haves);
+	await git.writeRef({
+		...repo,
+		ref: pullHeadRefName(number),
+		value: tip,
+		force: true,
+	});
+}
+
+/** {@link pinPullHeadUnlocked} under the repository lock. */
+export function pinPullHead(
+	ownerKey: string,
+	repoName: string,
+	fork: Repo,
+	number: number,
+	tip: string,
+	haves: readonly string[],
+): Promise<void> {
+	return writeUnderLock(ownerKey, repoName, (repo) =>
+		pinPullHeadUnlocked(repo, fork, number, tip, haves),
+	);
 }
 
 export type UpstreamSyncOutcome =

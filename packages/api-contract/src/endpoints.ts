@@ -1096,7 +1096,7 @@ export const endpoints = defineEndpoints({
 			head: z.string().min(1).max(300),
 			base: z.string().min(1).max(300),
 			draft: z.boolean().optional(),
-			head_repo: unsupported,
+			head_repo: repoName.optional(),
 			issue: unsupported,
 			maintainer_can_modify: unsupported,
 		}),

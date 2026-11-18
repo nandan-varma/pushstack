@@ -1,7 +1,15 @@
 import git from "isomorphic-git";
-import { qualifyBranchRef } from "../refs.js";
+import { isPullHeadRef, qualifyBranchRef } from "../refs.js";
 import { assertSafeBranchName } from "./branch.js";
 import type { Repo } from "./types.js";
+
+/**
+ * A merge source: a branch, or the `refs/pull/<n>/head` that pins a pull
+ * request head copied from a fork. A target is always a branch.
+ */
+function assertMergeSource(source: string): void {
+	if (!isPullHeadRef(source)) assertSafeBranchName(source);
+}
 
 export interface MergeAnalysis {
 	canMerge: boolean;
@@ -24,7 +32,7 @@ export async function analyzeMerge(
 	sourceBranch: string,
 	targetBranch: string,
 ): Promise<MergeAnalysis> {
-	assertSafeBranchName(sourceBranch);
+	assertMergeSource(sourceBranch);
 	assertSafeBranchName(targetBranch);
 
 	try {
@@ -76,10 +84,10 @@ export async function fastForwardMerge(
 	sourceBranch: string,
 	targetBranch: string,
 ): Promise<{ success: true; commitSha: string } | null> {
-	assertSafeBranchName(sourceBranch);
+	assertMergeSource(sourceBranch);
 	assertSafeBranchName(targetBranch);
 	const [sourceOid, targetOid] = await Promise.all([
-		git.resolveRef({ ...repo, ref: `refs/heads/${sourceBranch}` }),
+		git.resolveRef({ ...repo, ref: qualifyBranchRef(sourceBranch) }),
 		git.resolveRef({ ...repo, ref: `refs/heads/${targetBranch}` }),
 	]);
 	// Nothing to merge when the target already contains the source (same
