@@ -5,7 +5,10 @@ import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
 import { MAX_LABELS_PER_REPOSITORY, MAX_LABELS_PER_THREAD } from "#/lib/limits";
 import { bestEffort } from "./best-effort";
 import { isUniqueViolation } from "./db-errors";
-import { assertRepositoryCapacity } from "./repository-capacity";
+import {
+	assertRepositoryCapacity,
+	withRepositoryCapacityLock,
+} from "./repository-capacity";
 import { recordTimelineEvent } from "./timeline-store";
 
 export class DuplicateLabelError extends Error {
@@ -30,35 +33,34 @@ const labelColumns = {
 /**
  * Create a label; a duplicate name (ignoring case) is a `DuplicateLabelError`,
  * and a repository at `MAX_LABELS_PER_REPOSITORY` refuses with a
- * `RepositoryCapacityError`.
+ * `RepositoryCapacityError` (checked under the capacity lock, so concurrent
+ * creates cannot overshoot the cap).
  */
 export async function createRepoLabel(
 	repoId: number,
 	data: { name: string; color: string; description?: string },
 ): Promise<LabelView> {
-	const [held] = await db
-		.select({ total: count() })
-		.from(labels)
-		.where(eq(labels.repoId, repoId));
-	assertRepositoryCapacity(
-		Number(held?.total ?? 0),
-		MAX_LABELS_PER_REPOSITORY,
-		`A repository holds at most ${MAX_LABELS_PER_REPOSITORY} labels`,
-	);
-	const [label] = await db
-		.insert(labels)
-		.values({
-			repoId,
-			name: data.name,
-			color: data.color,
-			description: data.description || null,
-		})
-		.returning()
-		.catch((error: unknown) => {
-			throw isUniqueViolation(error) ? new DuplicateLabelError() : error;
-		});
-	if (!label) throw new Error("Label insert returned no row");
-	return label;
+	return withRepositoryCapacityLock(repoId, async () => {
+		assertRepositoryCapacity(
+			await countLabels(repoId),
+			MAX_LABELS_PER_REPOSITORY,
+			`A repository holds at most ${MAX_LABELS_PER_REPOSITORY} labels`,
+		);
+		const [label] = await db
+			.insert(labels)
+			.values({
+				repoId,
+				name: data.name,
+				color: data.color,
+				description: data.description || null,
+			})
+			.returning()
+			.catch((error: unknown) => {
+				throw isUniqueViolation(error) ? new DuplicateLabelError() : error;
+			});
+		if (!label) throw new Error("Label insert returned no row");
+		return label;
+	});
 }
 
 /** A repository's label by name, ignoring case. */

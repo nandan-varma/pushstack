@@ -22,7 +22,10 @@ import {
 	type ReleaseRow,
 	updateReleaseRow,
 } from "./release-store";
-import { assertRepositoryCapacity } from "./repository-capacity";
+import {
+	assertRepositoryCapacity,
+	withRepositoryCapacityLock,
+} from "./repository-capacity";
 
 /** The parts of a repository these functions read. */
 export interface ReleaseRepo {
@@ -88,25 +91,30 @@ export async function createRelease(
 	input: ReleaseInput,
 ): Promise<number> {
 	assertTagName(input.tagName);
-	assertRepositoryCapacity(
-		await countReleases(repo.id, true),
-		MAX_RELEASES_PER_REPOSITORY,
-		`A repository holds at most ${MAX_RELEASES_PER_REPOSITORY} releases`,
-	);
-	if (!input.draft) {
-		if (await findReleaseByTag(repo.id, input.tagName)) {
-			throw new ReleaseInputError("tag_name", "already_exists");
+	// The cap is count-then-insert, so it holds the repository's capacity lock;
+	// `ensureTag` takes the separate git write lease for the tag, and this key
+	// is not that one, so the two cannot deadlock.
+	return withRepositoryCapacityLock(repo.id, async () => {
+		assertRepositoryCapacity(
+			await countReleases(repo.id, true),
+			MAX_RELEASES_PER_REPOSITORY,
+			`A repository holds at most ${MAX_RELEASES_PER_REPOSITORY} releases`,
+		);
+		if (!input.draft) {
+			if (await findReleaseByTag(repo.id, input.tagName)) {
+				throw new ReleaseInputError("tag_name", "already_exists");
+			}
+			await ensureTag(repo, input.tagName, input.targetCommitish);
 		}
-		await ensureTag(repo, input.tagName, input.targetCommitish);
-	}
-	try {
-		return await createReleaseRow(repo.id, authorId, input);
-	} catch (error) {
-		if (error instanceof DuplicateReleaseError) {
-			throw new ReleaseInputError("tag_name", "already_exists");
+		try {
+			return await createReleaseRow(repo.id, authorId, input);
+		} catch (error) {
+			if (error instanceof DuplicateReleaseError) {
+				throw new ReleaseInputError("tag_name", "already_exists");
+			}
+			throw error;
 		}
-		throw error;
-	}
+	});
 }
 
 export async function updateRelease(

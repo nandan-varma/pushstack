@@ -26,7 +26,10 @@ import {
 	invalidateRepositoryAccess,
 	requireOwner,
 } from "./repo-access";
-import { assertRepositoryCapacity } from "./repository-capacity";
+import {
+	assertRepositoryCapacity,
+	withRepositoryCapacityLock,
+} from "./repository-capacity";
 import {
 	createRepositoryForUser,
 	createRepositoryInputSchema,
@@ -356,40 +359,48 @@ export const addCollaboratorByUsername = createServerFn({ method: "POST" })
 		if (!target) throw new Error(`User "${data.username}" not found`);
 		if (target.id === currentUser.id)
 			throw new Error("You already own this repository");
-		// Changing an existing collaborator's role is not growth; a new one is.
-		const [existing] = await db
-			.select({ userId: repositoryCollaborators.userId })
-			.from(repositoryCollaborators)
-			.where(
-				and(
-					eq(repositoryCollaborators.repoId, data.repoId),
-					eq(repositoryCollaborators.userId, target.id),
-				),
-			)
-			.limit(1);
-		if (!existing) {
-			const [held] = await db
-				.select({ total: count() })
-				.from(repositoryCollaborators)
-				.where(eq(repositoryCollaborators.repoId, data.repoId));
-			assertRepositoryCapacity(
-				Number(held?.total ?? 0),
-				MAX_COLLABORATORS_PER_REPOSITORY,
-				`A repository holds at most ${MAX_COLLABORATORS_PER_REPOSITORY} collaborators`,
-			);
-		}
+		// Changing an existing collaborator's role is not growth; a new one is, and
+		// the count-then-insert is under the repository's capacity lock so two
+		// concurrent adds cannot overshoot the cap.
+		const collaborator = await withRepositoryCapacityLock(
+			data.repoId,
+			async () => {
+				const [existing] = await db
+					.select({ userId: repositoryCollaborators.userId })
+					.from(repositoryCollaborators)
+					.where(
+						and(
+							eq(repositoryCollaborators.repoId, data.repoId),
+							eq(repositoryCollaborators.userId, target.id),
+						),
+					)
+					.limit(1);
+				if (!existing) {
+					const [held] = await db
+						.select({ total: count() })
+						.from(repositoryCollaborators)
+						.where(eq(repositoryCollaborators.repoId, data.repoId));
+					assertRepositoryCapacity(
+						Number(held?.total ?? 0),
+						MAX_COLLABORATORS_PER_REPOSITORY,
+						`A repository holds at most ${MAX_COLLABORATORS_PER_REPOSITORY} collaborators`,
+					);
+				}
 
-		const [collaborator] = await db
-			.insert(repositoryCollaborators)
-			.values({ repoId: data.repoId, userId: target.id, role: data.role })
-			.onConflictDoUpdate({
-				target: [
-					repositoryCollaborators.repoId,
-					repositoryCollaborators.userId,
-				],
-				set: { role: data.role },
-			})
-			.returning();
+				const [row] = await db
+					.insert(repositoryCollaborators)
+					.values({ repoId: data.repoId, userId: target.id, role: data.role })
+					.onConflictDoUpdate({
+						target: [
+							repositoryCollaborators.repoId,
+							repositoryCollaborators.userId,
+						],
+						set: { role: data.role },
+					})
+					.returning();
+				return row;
+			},
+		);
 		invalidateRepositoryAccess(data.repoId);
 		return collaborator;
 	});

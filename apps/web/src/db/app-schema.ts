@@ -1005,8 +1005,13 @@ export const deviceCodes = pgTable(
 	}),
 );
 
+/**
+ * Named leases (`git-repo-lock.ts`), since serverless instances share no memory.
+ * `repo_key` is `${ownerKey}/${repoName}` for a git write and
+ * `caps/<repoId>/lock` for a per-repository capacity check; the two-slash shape
+ * keeps the namespaces apart (a git key has exactly one slash).
+ */
 export const repoLocks = pgTable("repo_locks", {
-	/** `${ownerKey}/${repoName}` */
 	repoKey: text("repo_key").primaryKey(),
 	holder: text("holder").notNull(),
 	expiresAt: timestamptz("expires_at").notNull(),

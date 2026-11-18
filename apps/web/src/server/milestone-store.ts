@@ -5,13 +5,16 @@
  * carries its open and closed counts (issues and pull requests together, as on
  * GitHub); a merged pull request counts as closed.
  */
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, milestones, repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { MAX_MILESTONES_PER_REPOSITORY } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
-import { assertRepositoryCapacity } from "./repository-capacity";
+import {
+	assertRepositoryCapacity,
+	withRepositoryCapacityLock,
+} from "./repository-capacity";
 import type { PublicUser } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
 
@@ -201,56 +204,57 @@ export async function createMilestone(
 		state?: "open" | "closed";
 	},
 ): Promise<MilestoneView> {
-	const [held] = await db
-		.select({ total: count() })
-		.from(milestones)
-		.where(eq(milestones.repoId, repoId));
-	assertRepositoryCapacity(
-		Number(held?.total ?? 0),
-		MAX_MILESTONES_PER_REPOSITORY,
-		`A repository holds at most ${MAX_MILESTONES_PER_REPOSITORY} milestones`,
-	);
-	// Checked before claiming a number so a rejected duplicate leaves no gap
-	// (the unique index still decides a race).
-	const [taken] = await db
-		.select({ id: milestones.id })
-		.from(milestones)
-		.where(
-			and(
-				eq(milestones.repoId, repoId),
-				eq(sql`lower(${milestones.title})`, data.title.toLowerCase()),
-			),
-		)
-		.limit(1);
-	if (taken) throw new DuplicateMilestoneError();
-	const [counter] = await db
-		.update(repositories)
-		.set({
-			nextMilestoneNumber: sql`${repositories.nextMilestoneNumber} + 1`,
-		})
-		.where(eq(repositories.id, repoId))
-		.returning({ next: repositories.nextMilestoneNumber });
-	if (!counter) throw new Error("Repository not found");
-	const state = data.state ?? "open";
-	const [row] = await db
-		.insert(milestones)
-		.values({
-			repoId,
-			number: counter.next - 1,
-			title: data.title,
-			description: data.description || null,
-			dueOn: data.dueOn ?? null,
-			state,
-			creatorId,
-			closedAt: state === "closed" ? new Date() : null,
-		})
-		.returning({ number: milestones.number })
-		.catch((error: unknown) => {
-			throw isUniqueViolation(error) ? new DuplicateMilestoneError() : error;
-		});
-	const view = row && (await findMilestoneByNumber(repoId, row.number));
-	if (!view) throw new Error("Milestone insert returned no row");
-	return view;
+	// The cap is count-then-insert, so it holds the repository's capacity lock
+	// (concurrent creates would otherwise all read the same count).
+	return withRepositoryCapacityLock(repoId, async () => {
+		const held = await countMilestones(repoId);
+		assertRepositoryCapacity(
+			held.open + held.closed,
+			MAX_MILESTONES_PER_REPOSITORY,
+			`A repository holds at most ${MAX_MILESTONES_PER_REPOSITORY} milestones`,
+		);
+		// Checked before claiming a number so a rejected duplicate leaves no gap
+		// (the unique index still decides a race).
+		const [taken] = await db
+			.select({ id: milestones.id })
+			.from(milestones)
+			.where(
+				and(
+					eq(milestones.repoId, repoId),
+					eq(sql`lower(${milestones.title})`, data.title.toLowerCase()),
+				),
+			)
+			.limit(1);
+		if (taken) throw new DuplicateMilestoneError();
+		const [counter] = await db
+			.update(repositories)
+			.set({
+				nextMilestoneNumber: sql`${repositories.nextMilestoneNumber} + 1`,
+			})
+			.where(eq(repositories.id, repoId))
+			.returning({ next: repositories.nextMilestoneNumber });
+		if (!counter) throw new Error("Repository not found");
+		const state = data.state ?? "open";
+		const [row] = await db
+			.insert(milestones)
+			.values({
+				repoId,
+				number: counter.next - 1,
+				title: data.title,
+				description: data.description || null,
+				dueOn: data.dueOn ?? null,
+				state,
+				creatorId,
+				closedAt: state === "closed" ? new Date() : null,
+			})
+			.returning({ number: milestones.number })
+			.catch((error: unknown) => {
+				throw isUniqueViolation(error) ? new DuplicateMilestoneError() : error;
+			});
+		const view = row && (await findMilestoneByNumber(repoId, row.number));
+		if (!view) throw new Error("Milestone insert returned no row");
+		return view;
+	});
 }
 
 /** Edit a milestone; `null` when `number` names none. */

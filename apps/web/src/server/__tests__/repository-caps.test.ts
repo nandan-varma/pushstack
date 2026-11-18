@@ -152,6 +152,53 @@ describe("collaborators", () => {
 	});
 });
 
+describe("concurrent creates", () => {
+	it("keeps labels within the cap", async () => {
+		const other = await repositories.createRepository({
+			data: { name: "racy" },
+		});
+		const { labels } = await labelFns.getLabels({ data: { repoId: other.id } });
+		const room = 13 - labels.length;
+		expect(room).toBeGreaterThan(0);
+		const results = await Promise.allSettled(
+			Array.from({ length: room + 4 }, (_, i) =>
+				labelFns.createLabel({
+					data: { repoId: other.id, name: `race-${i}`, color: "000000" },
+				}),
+			),
+		);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(room);
+		for (const rejected of results.filter((r) => r.status === "rejected")) {
+			expect(String((rejected as PromiseRejectedResult).reason)).toContain(
+				"at most 13 labels",
+			);
+		}
+		const after = await labelFns.getLabels({ data: { repoId: other.id } });
+		expect(after.labels).toHaveLength(13);
+	});
+
+	it("keeps milestones within the cap", async () => {
+		const other = await repositories.createRepository({
+			data: { name: "racy-ms" },
+		});
+		const results = await Promise.allSettled(
+			["a", "b", "c", "d"].map((title) =>
+				milestoneFns.createMilestone({ data: { repoId: other.id, title } }),
+			),
+		);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+		for (const rejected of results.filter((r) => r.status === "rejected")) {
+			expect(String((rejected as PromiseRejectedResult).reason)).toContain(
+				"at most 2 milestones",
+			);
+		}
+		const list = await milestoneFns.getMilestones({
+			data: { repoId: other.id },
+		});
+		expect(list.milestones).toHaveLength(2);
+	});
+});
+
 describe("comment deletion", () => {
 	it("reads only the comments that mention the deleted comment's references", async () => {
 		signIn(users.owner);

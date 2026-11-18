@@ -9,7 +9,10 @@
  * Bodies are bounded while they're built: sections are encoded and counted
  * one at a time (per file, per commit), commits are diffed one after another,
  * and the response becomes a 406 as soon as the count passes the cap — so a
- * huge comparison never sits in memory whole.
+ * huge comparison is refused without rendering all of it. The bounded body
+ * (at most `webPatchCaps.maxBytes`, 10 MiB) is then held in memory and streamed
+ * out in chunks, so the response itself never reaches Vercel's buffered-response
+ * cap.
  */
 import { isNotFoundError } from "git-fs-s3";
 import {
