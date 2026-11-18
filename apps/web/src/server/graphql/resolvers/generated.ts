@@ -625,6 +625,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   issueOrPullRequest?: Maybe<IssueOrPullRequest>;
   /** A list of issues that have been opened in the repository. */
   issues: IssueConnection;
+  /** A list of milestones associated with the repository. */
+  milestones?: Maybe<MilestoneConnection>;
   /** Returns a single pull request from the current repository by number. */
   pullRequest?: Maybe<PullRequest>;
   /** A list of pull requests that have been opened in the repository. */
@@ -707,6 +709,18 @@ export type RepositoryIssuesArgs = {
   orderBy?: InputMaybe<IssueOrder>;
   states?: InputMaybe<Array<IssueState>>;
   filterBy?: InputMaybe<IssueFilters>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryMilestonesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<MilestoneOrder>;
+  query?: InputMaybe<Scalars['String']['input']>;
+  states?: InputMaybe<Array<MilestoneState>>;
 };
 
 
@@ -858,6 +872,142 @@ export type CommitAuthorsArgs = {
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** Information about a signature (GPG or S/MIME) on a Commit or Tag. */
+export type GitSignature = {
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by GitHub. */
+  isValid: Scalars['Boolean']['output'];
+  /** Payload for GPG signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** GitHub user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * GitHub, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with GitHub's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
+};
+
+/** The state of a Git signature. */
+export type GitSignatureState =
+  /** The signing certificate or its chain could not be verified */
+  | 'BAD_CERT'
+  /** Invalid email used for signing */
+  | 'BAD_EMAIL'
+  /** Signing key expired */
+  | 'EXPIRED_KEY'
+  /** Internal error - the GPG verification service misbehaved */
+  | 'GPGVERIFY_ERROR'
+  /** Internal error - the GPG verification service is unavailable at the moment */
+  | 'GPGVERIFY_UNAVAILABLE'
+  /** Invalid signature */
+  | 'INVALID'
+  /** Malformed signature */
+  | 'MALFORMED_SIG'
+  /** The usage flags for the key that signed this don't allow signing */
+  | 'NOT_SIGNING_KEY'
+  /** Email used for signing not known to GitHub */
+  | 'NO_USER'
+  /** Valid signature, though certificate revocation check failed */
+  | 'OCSP_ERROR'
+  /** Valid signature, pending certificate revocation checking */
+  | 'OCSP_PENDING'
+  /** One or more certificates in chain has been revoked */
+  | 'OCSP_REVOKED'
+  /** Key used for signing not known to GitHub */
+  | 'UNKNOWN_KEY'
+  /** Unknown signature type */
+  | 'UNKNOWN_SIG_TYPE'
+  /** Unsigned */
+  | 'UNSIGNED'
+  /** Email used for signing unverified on GitHub */
+  | 'UNVERIFIED_EMAIL'
+  /** Valid signature and verified by GitHub */
+  | 'VALID';
+
+/** Represents a GPG signature on a Commit or Tag. */
+export type GpgSignature = GitSignature & {
+  __typename?: 'GpgSignature';
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by GitHub. */
+  isValid: Scalars['Boolean']['output'];
+  /** Hex-encoded ID of the key that signed this object. */
+  keyId?: Maybe<Scalars['String']['output']>;
+  /** Payload for GPG signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** GitHub user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * GitHub, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with GitHub's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
+};
+
+/** Represents an SSH signature on a Commit or Tag. */
+export type SshSignature = GitSignature & {
+  __typename?: 'SshSignature';
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by GitHub. */
+  isValid: Scalars['Boolean']['output'];
+  /** Hex-encoded fingerprint of the key that signed this object. */
+  keyFingerprint?: Maybe<Scalars['String']['output']>;
+  /** Payload for GPG signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** GitHub user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * GitHub, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with GitHub's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
+};
+
+/** Represents an unknown signature on a Commit or Tag. */
+export type UnknownSignature = GitSignature & {
+  __typename?: 'UnknownSignature';
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by GitHub. */
+  isValid: Scalars['Boolean']['output'];
+  /** Payload for GPG signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** GitHub user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * GitHub, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with GitHub's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
 };
 
 /** Represents a Git blame. */
@@ -1297,118 +1447,6 @@ export type PullRequestTemplate = {
   repository: Repository;
 };
 
-/** Information about a signature (GPG or S/MIME) on a Commit or Tag. */
-export type GitSignature = {
-  /** Email used to sign this object. */
-  email: Scalars['String']['output'];
-  /** True if the signature is valid and verified by GitHub. */
-  isValid: Scalars['Boolean']['output'];
-  /** Payload for GPG signing object. Raw ODB object without the signature header. */
-  payload: Scalars['String']['output'];
-  /** ASCII-armored signature header from object. */
-  signature: Scalars['String']['output'];
-  /** GitHub user corresponding to the email signing this commit. */
-  signer?: Maybe<User>;
-  /**
-   * The state of this signature. `VALID` if signature is valid and verified by
-   * GitHub, otherwise represents reason why signature is considered invalid.
-   */
-  state: GitSignatureState;
-  /** The date the signature was verified, if valid */
-  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
-  /** True if the signature was made with GitHub's signing key. */
-  wasSignedByGitHub: Scalars['Boolean']['output'];
-};
-
-/** The state of a Git signature. */
-export type GitSignatureState =
-  /** The signing certificate or its chain could not be verified */
-  | 'BAD_CERT'
-  /** Invalid email used for signing */
-  | 'BAD_EMAIL'
-  /** Signing key expired */
-  | 'EXPIRED_KEY'
-  /** Internal error - the GPG verification service misbehaved */
-  | 'GPGVERIFY_ERROR'
-  /** Internal error - the GPG verification service is unavailable at the moment */
-  | 'GPGVERIFY_UNAVAILABLE'
-  /** Invalid signature */
-  | 'INVALID'
-  /** Malformed signature */
-  | 'MALFORMED_SIG'
-  /** The usage flags for the key that signed this don't allow signing */
-  | 'NOT_SIGNING_KEY'
-  /** Email used for signing not known to GitHub */
-  | 'NO_USER'
-  /** Valid signature, though certificate revocation check failed */
-  | 'OCSP_ERROR'
-  /** Valid signature, pending certificate revocation checking */
-  | 'OCSP_PENDING'
-  /** One or more certificates in chain has been revoked */
-  | 'OCSP_REVOKED'
-  /** Key used for signing not known to GitHub */
-  | 'UNKNOWN_KEY'
-  /** Unknown signature type */
-  | 'UNKNOWN_SIG_TYPE'
-  /** Unsigned */
-  | 'UNSIGNED'
-  /** Email used for signing unverified on GitHub */
-  | 'UNVERIFIED_EMAIL'
-  /** Valid signature and verified by GitHub */
-  | 'VALID';
-
-/** Represents a GPG signature on a Commit or Tag. */
-export type GpgSignature = GitSignature & {
-  __typename?: 'GpgSignature';
-  /** Email used to sign this object. */
-  email: Scalars['String']['output'];
-  /** True if the signature is valid and verified by GitHub. */
-  isValid: Scalars['Boolean']['output'];
-  /** Hex-encoded ID of the key that signed this object. */
-  keyId?: Maybe<Scalars['String']['output']>;
-  /** Payload for GPG signing object. Raw ODB object without the signature header. */
-  payload: Scalars['String']['output'];
-  /** ASCII-armored signature header from object. */
-  signature: Scalars['String']['output'];
-  /** GitHub user corresponding to the email signing this commit. */
-  signer?: Maybe<User>;
-  /**
-   * The state of this signature. `VALID` if signature is valid and verified by
-   * GitHub, otherwise represents reason why signature is considered invalid.
-   */
-  state: GitSignatureState;
-  /** The date the signature was verified, if valid */
-  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
-  /** True if the signature was made with GitHub's signing key. */
-  wasSignedByGitHub: Scalars['Boolean']['output'];
-};
-
-/** Represents an SSH signature on a Commit or Tag. */
-export type SshSignature = GitSignature & {
-  __typename?: 'SshSignature';
-  /** Email used to sign this object. */
-  email: Scalars['String']['output'];
-  /** True if the signature is valid and verified by GitHub. */
-  isValid: Scalars['Boolean']['output'];
-  /** Hex-encoded fingerprint of the key that signed this object. */
-  keyFingerprint?: Maybe<Scalars['String']['output']>;
-  /** Payload for GPG signing object. Raw ODB object without the signature header. */
-  payload: Scalars['String']['output'];
-  /** ASCII-armored signature header from object. */
-  signature: Scalars['String']['output'];
-  /** GitHub user corresponding to the email signing this commit. */
-  signer?: Maybe<User>;
-  /**
-   * The state of this signature. `VALID` if signature is valid and verified by
-   * GitHub, otherwise represents reason why signature is considered invalid.
-   */
-  state: GitSignatureState;
-  /** The date the signature was verified, if valid */
-  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
-  /** True if the signature was made with GitHub's signing key. */
-  wasSignedByGitHub: Scalars['Boolean']['output'];
-};
-
 /** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
 export type Issue = Assignable & Labelable & Node & UniformResourceLocatable & {
   __typename?: 'Issue';
@@ -1450,6 +1488,13 @@ export type Issue = Assignable & Labelable & Node & UniformResourceLocatable & {
   labels?: Maybe<LabelConnection>;
   /** A list of comments associated with the Issue. */
   comments: IssueCommentConnection;
+  /**
+   * List of project cards associated with this issue.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  projectCards: ProjectCardConnection;
+  /** List of project items associated with this issue. */
+  projectItems?: Maybe<ProjectV2ItemConnection>;
   /** A list of reactions grouped by content left on the subject. */
   reactionGroups?: Maybe<Array<ReactionGroup>>;
   /** The issue type for this Issue */
@@ -1460,8 +1505,6 @@ export type Issue = Assignable & Labelable & Node & UniformResourceLocatable & {
   subIssues: IssueConnection;
   /** Summary of the state of an issue's sub-issues */
   subIssuesSummary: SubIssuesSummary;
-  /** List of project items associated with this issue. */
-  projectItems?: Maybe<ProjectV2ItemConnection>;
 };
 
 
@@ -1499,7 +1542,7 @@ export type IssueCommentsArgs = {
 
 
 /** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
-export type IssueSubIssuesArgs = {
+export type IssueProjectCardsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -1512,12 +1555,275 @@ export type IssueProjectItemsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
   includeArchived?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueSubIssuesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 /** Used for return value of Repository.issueOrPullRequest. */
 export type IssueOrPullRequest = Issue | PullRequest;
+
+/** Represents a Milestone object on a given repository. */
+export type Milestone = Node & {
+  __typename?: 'Milestone';
+  /** The Node ID of the Milestone object */
+  id: Scalars['ID']['output'];
+  /** Identifies the number of the milestone. */
+  number: Scalars['Int']['output'];
+  /** Identifies the title of the milestone. */
+  title: Scalars['String']['output'];
+  /** Identifies the description of the milestone. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** Identifies the due date of the milestone. */
+  dueOn?: Maybe<Scalars['DateTime']['output']>;
+  /** Identifies the state of the milestone. */
+  state: MilestoneState;
+};
+
+/** The connection type for Milestone. */
+export type MilestoneConnection = {
+  __typename?: 'MilestoneConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<MilestoneEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Milestone>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type MilestoneEdge = {
+  __typename?: 'MilestoneEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Milestone>;
+};
+
+/** The possible states of a milestone. */
+export type MilestoneState =
+  /** A milestone that has been closed. */
+  | 'CLOSED'
+  /** A milestone that is still open. */
+  | 'OPEN';
+
+/** Ordering options for milestone connections. */
+export type MilestoneOrder = {
+  /** The ordering direction. */
+  direction: OrderDirection;
+  /** The field to order milestones by. */
+  field: MilestoneOrderField;
+};
+
+/** Properties by which milestone connections can be ordered. */
+export type MilestoneOrderField =
+  /** Order milestones by when they were created. */
+  | 'CREATED_AT'
+  /** Order milestones by when they are due. */
+  | 'DUE_DATE'
+  /** Order milestones by their number. */
+  | 'NUMBER'
+  /** Order milestones by when they were last updated. */
+  | 'UPDATED_AT';
+
+/** The connection type for ProjectCard. */
+export type ProjectCardConnection = {
+  __typename?: 'ProjectCardConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ProjectCardEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ProjectCard>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type ProjectCardEdge = {
+  __typename?: 'ProjectCardEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<ProjectCard>;
+};
+
+/** A card in a project. */
+export type ProjectCard = {
+  __typename?: 'ProjectCard';
+  /**
+   * The project that contains this card.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  project: Project;
+  /**
+   * The project column this card is associated under. A card may only belong to one
+   * project column at a time. The column field will be null if the card is created
+   * in a pending state and has yet to be associated with a column. Once cards are
+   * associated with a column, they will not become pending in the future.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  column?: Maybe<ProjectColumn>;
+};
+
+/** Projects manage issues, pull requests and notes within a project owner. */
+export type Project = {
+  __typename?: 'Project';
+  /**
+   * The project's name.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  name: Scalars['String']['output'];
+};
+
+/** A column inside a project. */
+export type ProjectColumn = {
+  __typename?: 'ProjectColumn';
+  /**
+   * The project column's name.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  name: Scalars['String']['output'];
+};
+
+/** The connection type for ProjectV2Item. */
+export type ProjectV2ItemConnection = {
+  __typename?: 'ProjectV2ItemConnection';
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ProjectV2Item>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ProjectV2ItemEdge>>>;
+};
+
+/** An item within a Project. */
+export type ProjectV2Item = Node & {
+  __typename?: 'ProjectV2Item';
+  /** The Node ID of the ProjectV2Item object */
+  id: Scalars['ID']['output'];
+  /** The project that contains this item. */
+  project: ProjectV2;
+  /** The field value of the first project field which matches the 'name' argument that is set on the item. */
+  fieldValueByName?: Maybe<ProjectV2ItemFieldValue>;
+  /** The content of the referenced draft issue, issue, pull request */
+  content?: Maybe<ProjectV2ItemContent>;
+  /** The type of the item. */
+  type: ProjectV2ItemType;
+  /** Whether the item is archived. */
+  isArchived: Scalars['Boolean']['output'];
+  /** The field values that are set on the item. */
+  fieldValues: ProjectV2ItemFieldValueConnection;
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+
+/** An item within a Project. */
+export type ProjectV2ItemFieldValueByNameArgs = {
+  name: Scalars['String']['input'];
+};
+
+
+/** An item within a Project. */
+export type ProjectV2ItemFieldValuesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<ProjectV2ItemFieldValueOrder>;
+};
+
+/** New projects that manage issues, pull requests and drafts using tables and boards. */
+export type ProjectV2 = Node & {
+  __typename?: 'ProjectV2';
+  /** The Node ID of the ProjectV2 object */
+  id: Scalars['ID']['output'];
+  /** The project's name. */
+  title: Scalars['String']['output'];
+  /** The project's number. */
+  number: Scalars['Int']['output'];
+  /** The project's short description. */
+  shortDescription?: Maybe<Scalars['String']['output']>;
+  /** The project's readme. */
+  readme?: Maybe<Scalars['String']['output']>;
+  /** Returns true if the project is public. */
+  public: Scalars['Boolean']['output'];
+  /** Returns true if the project is closed. */
+  closed: Scalars['Boolean']['output'];
+  /** The HTTP URL for this project */
+  url: Scalars['URI']['output'];
+  /** The HTTP path for this project */
+  resourcePath: Scalars['URI']['output'];
+  /** The project's owner. Currently limited to organizations and users. */
+  owner: ProjectV2Owner;
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** Identifies the date and time when the object was closed. */
+  closedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** List of items in the project */
+  items: ProjectV2ItemConnection;
+  /** List of fields and their constraints in the project */
+  fields: ProjectV2FieldConfigurationConnection;
+};
+
+
+/** New projects that manage issues, pull requests and drafts using tables and boards. */
+export type ProjectV2ItemsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  archivedStates?: InputMaybe<Array<ProjectV2ItemArchivedState>>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<ProjectV2ItemOrder>;
+  query?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+/** New projects that manage issues, pull requests and drafts using tables and boards. */
+export type ProjectV2FieldsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<ProjectV2FieldOrder>;
+};
+
+/** Project field values */
+export type ProjectV2ItemFieldValue = ProjectV2ItemFieldSingleSelectValue | ProjectV2ItemFieldDateValue | ProjectV2ItemFieldNumberValue | ProjectV2ItemFieldTextValue;
+
+/** The value of a single select field in a Project item. */
+export type ProjectV2ItemFieldSingleSelectValue = {
+  __typename?: 'ProjectV2ItemFieldSingleSelectValue';
+  /** The id of the selected single select option. */
+  optionId?: Maybe<Scalars['String']['output']>;
+  /** The name of the selected single select option. */
+  name?: Maybe<Scalars['String']['output']>;
+  /** The Node ID of the ProjectV2ItemFieldSingleSelectValue object */
+  id: Scalars['ID']['output'];
+  /** The project field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** The color applied to the selected single-select option. */
+  color: ProjectV2SingleSelectFieldOptionColor;
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+};
 
 /** The connection type for Issue. */
 export type IssueConnection = {
@@ -2534,66 +2840,6 @@ export type PullRequestReviewDecision =
   /** A review is required before the pull request can be merged. */
   | 'REVIEW_REQUIRED';
 
-/** The connection type for ProjectCard. */
-export type ProjectCardConnection = {
-  __typename?: 'ProjectCardConnection';
-  /** A list of edges. */
-  edges?: Maybe<Array<Maybe<ProjectCardEdge>>>;
-  /** A list of nodes. */
-  nodes?: Maybe<Array<Maybe<ProjectCard>>>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-  /** Identifies the total count of items in the connection. */
-  totalCount: Scalars['Int']['output'];
-};
-
-/** An edge in a connection. */
-export type ProjectCardEdge = {
-  __typename?: 'ProjectCardEdge';
-  /** A cursor for use in pagination. */
-  cursor: Scalars['String']['output'];
-  /** The item at the end of the edge. */
-  node?: Maybe<ProjectCard>;
-};
-
-/** A card in a project. */
-export type ProjectCard = {
-  __typename?: 'ProjectCard';
-  /**
-   * The project that contains this card.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  project: Project;
-  /**
-   * The project column this card is associated under. A card may only belong to one
-   * project column at a time. The column field will be null if the card is created
-   * in a pending state and has yet to be associated with a column. Once cards are
-   * associated with a column, they will not become pending in the future.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  column?: Maybe<ProjectColumn>;
-};
-
-/** Projects manage issues, pull requests and notes within a project owner. */
-export type Project = {
-  __typename?: 'Project';
-  /**
-   * The project's name.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  name: Scalars['String']['output'];
-};
-
-/** A column inside a project. */
-export type ProjectColumn = {
-  __typename?: 'ProjectColumn';
-  /**
-   * The project column's name.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  name: Scalars['String']['output'];
-};
-
 /** Represents a Git commit part of a pull request. */
 export type PullRequestCommit = {
   __typename?: 'PullRequestCommit';
@@ -2810,19 +3056,6 @@ export type LabelEdge = {
   cursor: Scalars['String']['output'];
   /** The item at the end of the edge. */
   node?: Maybe<Label>;
-};
-
-/** Represents a Milestone object on a given repository. */
-export type Milestone = {
-  __typename?: 'Milestone';
-  /** Identifies the number of the milestone. */
-  number: Scalars['Int']['output'];
-  /** Identifies the title of the milestone. */
-  title: Scalars['String']['output'];
-  /** Identifies the description of the milestone. */
-  description?: Maybe<Scalars['String']['output']>;
-  /** Identifies the due date of the milestone. */
-  dueOn?: Maybe<Scalars['DateTime']['output']>;
 };
 
 /** Represents a comment on an Issue. */
@@ -3060,63 +3293,6 @@ export type ReactingUserConnection = {
   __typename?: 'ReactingUserConnection';
   /** Identifies the total count of items in the connection. */
   totalCount: Scalars['Int']['output'];
-};
-
-/** New projects that manage issues, pull requests and drafts using tables and boards. */
-export type ProjectV2 = Node & {
-  __typename?: 'ProjectV2';
-  /** The Node ID of the ProjectV2 object */
-  id: Scalars['ID']['output'];
-  /** The project's number. */
-  number: Scalars['Int']['output'];
-  /** The project's name. */
-  title: Scalars['String']['output'];
-  /** The project's short description. */
-  shortDescription?: Maybe<Scalars['String']['output']>;
-  /** The project's readme. */
-  readme?: Maybe<Scalars['String']['output']>;
-  /** Returns true if the project is public. */
-  public: Scalars['Boolean']['output'];
-  /** Returns true if the project is closed. */
-  closed: Scalars['Boolean']['output'];
-  /** The HTTP URL for this project */
-  url: Scalars['URI']['output'];
-  /** The HTTP path for this project */
-  resourcePath: Scalars['URI']['output'];
-  /** The project's owner. Currently limited to organizations and users. */
-  owner: ProjectV2Owner;
-  /** Identifies the date and time when the object was created. */
-  createdAt: Scalars['DateTime']['output'];
-  /** Identifies the date and time when the object was last updated. */
-  updatedAt: Scalars['DateTime']['output'];
-  /** Identifies the date and time when the object was closed. */
-  closedAt?: Maybe<Scalars['DateTime']['output']>;
-  /** List of items in the project */
-  items: ProjectV2ItemConnection;
-  /** List of fields and their constraints in the project */
-  fields: ProjectV2FieldConfigurationConnection;
-};
-
-
-/** New projects that manage issues, pull requests and drafts using tables and boards. */
-export type ProjectV2ItemsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  archivedStates?: InputMaybe<Array<ProjectV2ItemArchivedState>>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-  orderBy?: InputMaybe<ProjectV2ItemOrder>;
-  query?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-/** New projects that manage issues, pull requests and drafts using tables and boards. */
-export type ProjectV2FieldsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-  orderBy?: InputMaybe<ProjectV2FieldOrder>;
 };
 
 /** Represents an owner of a project. */
@@ -3423,58 +3599,6 @@ export type ProjectV2FieldType =
   /** Updated */
   | 'UPDATED';
 
-/** An item within a Project. */
-export type ProjectV2Item = Node & {
-  __typename?: 'ProjectV2Item';
-  /** The Node ID of the ProjectV2Item object */
-  id: Scalars['ID']['output'];
-  /** The project that contains this item. */
-  project: ProjectV2;
-  /** The content of the referenced draft issue, issue, pull request */
-  content?: Maybe<ProjectV2ItemContent>;
-  /** The type of the item. */
-  type: ProjectV2ItemType;
-  /** Whether the item is archived. */
-  isArchived: Scalars['Boolean']['output'];
-  /** The field values that are set on the item. */
-  fieldValues: ProjectV2ItemFieldValueConnection;
-  /** The field value of the first project field which matches the 'name' argument that is set on the item. */
-  fieldValueByName?: Maybe<ProjectV2ItemFieldValue>;
-  /** Identifies the date and time when the object was created. */
-  createdAt: Scalars['DateTime']['output'];
-  /** Identifies the date and time when the object was last updated. */
-  updatedAt: Scalars['DateTime']['output'];
-};
-
-
-/** An item within a Project. */
-export type ProjectV2ItemFieldValuesArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-  orderBy?: InputMaybe<ProjectV2ItemFieldValueOrder>;
-};
-
-
-/** An item within a Project. */
-export type ProjectV2ItemFieldValueByNameArgs = {
-  name: Scalars['String']['input'];
-};
-
-/** The connection type for ProjectV2Item. */
-export type ProjectV2ItemConnection = {
-  __typename?: 'ProjectV2ItemConnection';
-  /** A list of edges. */
-  edges?: Maybe<Array<Maybe<ProjectV2ItemEdge>>>;
-  /** A list of nodes. */
-  nodes?: Maybe<Array<Maybe<ProjectV2Item>>>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-  /** Identifies the total count of items in the connection. */
-  totalCount: Scalars['Int']['output'];
-};
-
 /** An edge in a connection. */
 export type ProjectV2ItemEdge = {
   __typename?: 'ProjectV2ItemEdge';
@@ -3512,9 +3636,6 @@ export type DraftIssue = Node & {
   /** Identifies the date and time when the object was last updated. */
   updatedAt: Scalars['DateTime']['output'];
 };
-
-/** Project field values */
-export type ProjectV2ItemFieldValue = ProjectV2ItemFieldDateValue | ProjectV2ItemFieldNumberValue | ProjectV2ItemFieldSingleSelectValue | ProjectV2ItemFieldTextValue;
 
 /** The connection type for ProjectV2ItemFieldValue. */
 export type ProjectV2ItemFieldValueConnection = {
@@ -3573,23 +3694,6 @@ export type ProjectV2ItemFieldDateValue = Node & {
   field: ProjectV2FieldConfiguration;
   /** Date value for the field */
   date?: Maybe<Scalars['Date']['output']>;
-  /** Identifies the date and time when the object was last updated. */
-  updatedAt: Scalars['DateTime']['output'];
-};
-
-/** The value of a single select field in a Project item. */
-export type ProjectV2ItemFieldSingleSelectValue = Node & {
-  __typename?: 'ProjectV2ItemFieldSingleSelectValue';
-  /** The Node ID of the ProjectV2ItemFieldSingleSelectValue object */
-  id: Scalars['ID']['output'];
-  /** The project field that contains this value. */
-  field: ProjectV2FieldConfiguration;
-  /** The name of the selected single select option. */
-  name?: Maybe<Scalars['String']['output']>;
-  /** The id of the selected single select option. */
-  optionId?: Maybe<Scalars['String']['output']>;
-  /** The color applied to the selected single-select option. */
-  color: ProjectV2SingleSelectFieldOptionColor;
   /** Identifies the date and time when the object was last updated. */
   updatedAt: Scalars['DateTime']['output'];
 };
@@ -3669,6 +3773,12 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
     | ( IssueNode )
     | ( PullRequestNode )
   ;
+  ProjectV2ItemFieldValue:
+    | ( ProjectFieldValueNode )
+    | ( ProjectFieldValueNode )
+    | ( ProjectFieldValueNode )
+    | ( ProjectFieldValueNode )
+  ;
   SearchResultItem:
     | ( IssueNode )
     | ( PullRequestNode )
@@ -3692,12 +3802,6 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
     | ( IssueNode )
     | ( PullRequestNode )
   ;
-  ProjectV2ItemFieldValue:
-    | ( ProjectFieldValueNode )
-    | ( ProjectFieldValueNode )
-    | ( ProjectFieldValueNode )
-    | ( ProjectFieldValueNode )
-  ;
 };
 
 /** Mapping of interface types */
@@ -3710,17 +3814,17 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( ReleaseNode )
     | ( ReleaseAssetNode )
     | ( IssueNode )
+    | ( Milestone )
+    | ( ProjectItemNode )
+    | ( ProjectNode )
     | ( IssueType )
     | ( PullRequestNode )
     | ( ReviewNode )
     | ( Label )
     | ( CommentNode )
-    | ( ProjectNode )
     | ( ProjectFieldNode )
     | ( ProjectFieldNode )
-    | ( ProjectItemNode )
     | ( DraftIssueNode )
-    | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
@@ -3740,6 +3844,7 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
   GitSignature:
     | ( GitSignatureNode )
     | ( GitSignatureNode )
+    | ( Omit<UnknownSignature, 'signer'> & { signer?: Maybe<_RefType['User']> } )
   ;
   Labelable: ( IssueNode );
   Assignable: ( IssueNode );
@@ -3776,6 +3881,11 @@ export type ResolversTypes = {
   BranchProtectionRule: ResolverTypeWrapper<BranchProtectionRule>;
   GitObject: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitObject']>;
   Commit: ResolverTypeWrapper<CommitNode>;
+  GitSignature: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitSignature']>;
+  GitSignatureState: GitSignatureState;
+  GpgSignature: ResolverTypeWrapper<GitSignatureNode>;
+  SshSignature: ResolverTypeWrapper<GitSignatureNode>;
+  UnknownSignature: ResolverTypeWrapper<Omit<UnknownSignature, 'signer'> & { signer?: Maybe<ResolversTypes['User']> }>;
   Blame: ResolverTypeWrapper<Omit<Blame, 'ranges'> & { ranges: Array<ResolversTypes['BlameRange']> }>;
   BlameRange: ResolverTypeWrapper<Omit<BlameRange, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   GitObjectID: ResolverTypeWrapper<Scalars['GitObjectID']['output']>;
@@ -3809,12 +3919,24 @@ export type ResolversTypes = {
   ReleaseOrderField: ReleaseOrderField;
   IssueTemplate: ResolverTypeWrapper<IssueTemplateNode>;
   PullRequestTemplate: ResolverTypeWrapper<Omit<PullRequestTemplate, 'repository'> & { repository: ResolversTypes['Repository'] }>;
-  GitSignature: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitSignature']>;
-  GitSignatureState: GitSignatureState;
-  GpgSignature: ResolverTypeWrapper<GitSignatureNode>;
-  SshSignature: ResolverTypeWrapper<GitSignatureNode>;
   Issue: ResolverTypeWrapper<IssueNode>;
   IssueOrPullRequest: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['IssueOrPullRequest']>;
+  Milestone: ResolverTypeWrapper<Milestone>;
+  MilestoneConnection: ResolverTypeWrapper<MilestoneConnection>;
+  MilestoneEdge: ResolverTypeWrapper<MilestoneEdge>;
+  MilestoneState: MilestoneState;
+  MilestoneOrder: MilestoneOrder;
+  MilestoneOrderField: MilestoneOrderField;
+  ProjectCardConnection: ResolverTypeWrapper<ProjectCardConnection>;
+  ProjectCardEdge: ResolverTypeWrapper<ProjectCardEdge>;
+  ProjectCard: ResolverTypeWrapper<ProjectCard>;
+  Project: ResolverTypeWrapper<Project>;
+  ProjectColumn: ResolverTypeWrapper<ProjectColumn>;
+  ProjectV2ItemConnection: ResolverTypeWrapper<Omit<ProjectV2ItemConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['ProjectV2ItemEdge']>>> }>;
+  ProjectV2Item: ResolverTypeWrapper<ProjectItemNode>;
+  ProjectV2: ResolverTypeWrapper<ProjectNode>;
+  ProjectV2ItemFieldValue: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['ProjectV2ItemFieldValue']>;
+  ProjectV2ItemFieldSingleSelectValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   IssueConnection: ResolverTypeWrapper<Omit<IssueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['IssueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Issue']>>> }>;
   IssueEdge: ResolverTypeWrapper<Omit<IssueEdge, 'node'> & { node?: Maybe<ResolversTypes['Issue']> }>;
   IssueState: IssueState;
@@ -3886,11 +4008,6 @@ export type ResolversTypes = {
   MergeableState: MergeableState;
   MergeStateStatus: MergeStateStatus;
   PullRequestReviewDecision: PullRequestReviewDecision;
-  ProjectCardConnection: ResolverTypeWrapper<ProjectCardConnection>;
-  ProjectCardEdge: ResolverTypeWrapper<ProjectCardEdge>;
-  ProjectCard: ResolverTypeWrapper<ProjectCard>;
-  Project: ResolverTypeWrapper<Project>;
-  ProjectColumn: ResolverTypeWrapper<ProjectColumn>;
   PullRequestCommit: ResolverTypeWrapper<Omit<PullRequestCommit, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   PullRequestCommitConnection: ResolverTypeWrapper<Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>> }>;
   PullRequestCommitEdge: ResolverTypeWrapper<Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestCommit']> }>;
@@ -3911,7 +4028,6 @@ export type ResolversTypes = {
   Label: ResolverTypeWrapper<Label>;
   LabelConnection: ResolverTypeWrapper<LabelConnection>;
   LabelEdge: ResolverTypeWrapper<LabelEdge>;
-  Milestone: ResolverTypeWrapper<Milestone>;
   IssueComment: ResolverTypeWrapper<CommentNode>;
   IssueCommentConnection: ResolverTypeWrapper<Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['IssueCommentEdge']>>> }>;
   IssueCommentEdge: ResolverTypeWrapper<Omit<IssueCommentEdge, 'node'> & { node?: Maybe<ResolversTypes['IssueComment']> }>;
@@ -3930,7 +4046,6 @@ export type ResolversTypes = {
   WorkflowRun: ResolverTypeWrapper<WorkflowRun>;
   Workflow: ResolverTypeWrapper<Workflow>;
   ReactingUserConnection: ResolverTypeWrapper<ReactingUserConnection>;
-  ProjectV2: ResolverTypeWrapper<ProjectNode>;
   ProjectV2Owner: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['ProjectV2Owner']>;
   ProjectV2Connection: ResolverTypeWrapper<Omit<ProjectV2Connection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['ProjectV2Edge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2']>>> }>;
   ProjectV2Edge: ResolverTypeWrapper<Omit<ProjectV2Edge, 'node'> & { node?: Maybe<ResolversTypes['ProjectV2']> }>;
@@ -3953,20 +4068,16 @@ export type ResolversTypes = {
   ProjectV2SingleSelectFieldOption: ResolverTypeWrapper<ProjectV2SingleSelectFieldOption>;
   ProjectV2SingleSelectFieldOptionColor: ProjectV2SingleSelectFieldOptionColor;
   ProjectV2FieldType: ProjectV2FieldType;
-  ProjectV2Item: ResolverTypeWrapper<ProjectItemNode>;
-  ProjectV2ItemConnection: ResolverTypeWrapper<Omit<ProjectV2ItemConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['ProjectV2ItemEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>> }>;
   ProjectV2ItemEdge: ResolverTypeWrapper<Omit<ProjectV2ItemEdge, 'node'> & { node?: Maybe<ResolversTypes['ProjectV2Item']> }>;
   ProjectV2ItemContent: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['ProjectV2ItemContent']>;
   ProjectV2ItemType: ProjectV2ItemType;
   DraftIssue: ResolverTypeWrapper<DraftIssueNode>;
-  ProjectV2ItemFieldValue: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['ProjectV2ItemFieldValue']>;
   ProjectV2ItemFieldValueConnection: ResolverTypeWrapper<Omit<ProjectV2ItemFieldValueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['ProjectV2ItemFieldValueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2ItemFieldValue']>>> }>;
   ProjectV2ItemFieldValueEdge: ResolverTypeWrapper<Omit<ProjectV2ItemFieldValueEdge, 'node'> & { node?: Maybe<ResolversTypes['ProjectV2ItemFieldValue']> }>;
   ProjectV2ItemFieldTextValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   ProjectV2ItemFieldNumberValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   ProjectV2ItemFieldDateValue: ResolverTypeWrapper<ProjectFieldValueNode>;
-  ProjectV2ItemFieldSingleSelectValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   Date: ResolverTypeWrapper<Scalars['Date']['output']>;
 };
 
@@ -3996,6 +4107,10 @@ export type ResolversParentTypes = {
   BranchProtectionRule: BranchProtectionRule;
   GitObject: ResolversInterfaceTypes<ResolversParentTypes>['GitObject'];
   Commit: CommitNode;
+  GitSignature: ResolversInterfaceTypes<ResolversParentTypes>['GitSignature'];
+  GpgSignature: GitSignatureNode;
+  SshSignature: GitSignatureNode;
+  UnknownSignature: Omit<UnknownSignature, 'signer'> & { signer?: Maybe<ResolversParentTypes['User']> };
   Blame: Omit<Blame, 'ranges'> & { ranges: Array<ResolversParentTypes['BlameRange']> };
   BlameRange: Omit<BlameRange, 'commit'> & { commit: ResolversParentTypes['Commit'] };
   GitObjectID: Scalars['GitObjectID']['output'];
@@ -4021,11 +4136,22 @@ export type ResolversParentTypes = {
   ReleaseOrder: ReleaseOrder;
   IssueTemplate: IssueTemplateNode;
   PullRequestTemplate: Omit<PullRequestTemplate, 'repository'> & { repository: ResolversParentTypes['Repository'] };
-  GitSignature: ResolversInterfaceTypes<ResolversParentTypes>['GitSignature'];
-  GpgSignature: GitSignatureNode;
-  SshSignature: GitSignatureNode;
   Issue: IssueNode;
   IssueOrPullRequest: ResolversUnionTypes<ResolversParentTypes>['IssueOrPullRequest'];
+  Milestone: Milestone;
+  MilestoneConnection: MilestoneConnection;
+  MilestoneEdge: MilestoneEdge;
+  MilestoneOrder: MilestoneOrder;
+  ProjectCardConnection: ProjectCardConnection;
+  ProjectCardEdge: ProjectCardEdge;
+  ProjectCard: ProjectCard;
+  Project: Project;
+  ProjectColumn: ProjectColumn;
+  ProjectV2ItemConnection: Omit<ProjectV2ItemConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2Item']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2ItemEdge']>>> };
+  ProjectV2Item: ProjectItemNode;
+  ProjectV2: ProjectNode;
+  ProjectV2ItemFieldValue: ResolversUnionTypes<ResolversParentTypes>['ProjectV2ItemFieldValue'];
+  ProjectV2ItemFieldSingleSelectValue: ProjectFieldValueNode;
   IssueConnection: Omit<IssueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Issue']>>> };
   IssueEdge: Omit<IssueEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Issue']> };
   IssueFilters: IssueFilters;
@@ -4082,11 +4208,6 @@ export type ResolversParentTypes = {
   PullRequestChangedFileConnection: PullRequestChangedFileConnection;
   PullRequestChangedFileEdge: PullRequestChangedFileEdge;
   AutoMergeRequest: Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversParentTypes['Actor']> };
-  ProjectCardConnection: ProjectCardConnection;
-  ProjectCardEdge: ProjectCardEdge;
-  ProjectCard: ProjectCard;
-  Project: Project;
-  ProjectColumn: ProjectColumn;
   PullRequestCommit: Omit<PullRequestCommit, 'commit'> & { commit: ResolversParentTypes['Commit'] };
   PullRequestCommitConnection: Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommitEdge']>>> };
   PullRequestCommitEdge: Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestCommit']> };
@@ -4105,7 +4226,6 @@ export type ResolversParentTypes = {
   Label: Label;
   LabelConnection: LabelConnection;
   LabelEdge: LabelEdge;
-  Milestone: Milestone;
   IssueComment: CommentNode;
   IssueCommentConnection: Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueCommentEdge']>>> };
   IssueCommentEdge: Omit<IssueCommentEdge, 'node'> & { node?: Maybe<ResolversParentTypes['IssueComment']> };
@@ -4120,7 +4240,6 @@ export type ResolversParentTypes = {
   WorkflowRun: WorkflowRun;
   Workflow: Workflow;
   ReactingUserConnection: ReactingUserConnection;
-  ProjectV2: ProjectNode;
   ProjectV2Owner: ResolversInterfaceTypes<ResolversParentTypes>['ProjectV2Owner'];
   ProjectV2Connection: Omit<ProjectV2Connection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2Edge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2']>>> };
   ProjectV2Edge: Omit<ProjectV2Edge, 'node'> & { node?: Maybe<ResolversParentTypes['ProjectV2']> };
@@ -4135,19 +4254,15 @@ export type ResolversParentTypes = {
   ProjectV2FieldConfigurationConnection: Omit<ProjectV2FieldConfigurationConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2FieldConfigurationEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2FieldConfiguration']>>> };
   ProjectV2FieldConfigurationEdge: Omit<ProjectV2FieldConfigurationEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ProjectV2FieldConfiguration']> };
   ProjectV2SingleSelectFieldOption: ProjectV2SingleSelectFieldOption;
-  ProjectV2Item: ProjectItemNode;
-  ProjectV2ItemConnection: Omit<ProjectV2ItemConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2ItemEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2Item']>>> };
   ProjectV2ItemEdge: Omit<ProjectV2ItemEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ProjectV2Item']> };
   ProjectV2ItemContent: ResolversUnionTypes<ResolversParentTypes>['ProjectV2ItemContent'];
   DraftIssue: DraftIssueNode;
-  ProjectV2ItemFieldValue: ResolversUnionTypes<ResolversParentTypes>['ProjectV2ItemFieldValue'];
   ProjectV2ItemFieldValueConnection: Omit<ProjectV2ItemFieldValueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2ItemFieldValueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2ItemFieldValue']>>> };
   ProjectV2ItemFieldValueEdge: Omit<ProjectV2ItemFieldValueEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ProjectV2ItemFieldValue']> };
   ProjectV2ItemFieldTextValue: ProjectFieldValueNode;
   ProjectV2ItemFieldNumberValue: ProjectFieldValueNode;
   Float: Scalars['Float']['output'];
   ProjectV2ItemFieldDateValue: ProjectFieldValueNode;
-  ProjectV2ItemFieldSingleSelectValue: ProjectFieldValueNode;
   Date: Scalars['Date']['output'];
 };
 
@@ -4164,7 +4279,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'ProjectV2Item' | 'ProjectV2' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -4305,6 +4420,7 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   issue?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<RepositoryIssueArgs, 'number'>>;
   issueOrPullRequest?: Resolver<Maybe<ResolversTypes['IssueOrPullRequest']>, ParentType, ContextType, RequireFields<RepositoryIssueOrPullRequestArgs, 'number'>>;
   issues?: Resolver<ResolversTypes['IssueConnection'], ParentType, ContextType, Partial<RepositoryIssuesArgs>>;
+  milestones?: Resolver<Maybe<ResolversTypes['MilestoneConnection']>, ParentType, ContextType, Partial<RepositoryMilestonesArgs>>;
   pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType, RequireFields<RepositoryPullRequestArgs, 'number'>>;
   pullRequests?: Resolver<ResolversTypes['PullRequestConnection'], ParentType, ContextType, Partial<RepositoryPullRequestsArgs>>;
   projectsV2?: Resolver<ResolversTypes['ProjectV2Connection'], ParentType, ContextType, RequireFields<RepositoryProjectsV2Args, 'minPermissionLevel' | 'orderBy'>>;
@@ -4358,6 +4474,48 @@ export type CommitResolvers<ContextType = GraphQLContext, ParentType extends Res
   statusCheckRollup?: Resolver<Maybe<ResolversTypes['StatusCheckRollup']>, ParentType, ContextType>;
   messageBody?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   authors?: Resolver<ResolversTypes['GitActorConnection'], ParentType, ContextType, Partial<CommitAuthorsArgs>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type GitSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitSignature'] = ResolversParentTypes['GitSignature']> = {
+  __resolveType: TypeResolveFn<'GpgSignature' | 'SshSignature' | 'UnknownSignature', ParentType, ContextType>;
+};
+
+export type GpgSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GpgSignature'] = ResolversParentTypes['GpgSignature']> = {
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  keyId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
+  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type SshSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SshSignature'] = ResolversParentTypes['SshSignature']> = {
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  keyFingerprint?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
+  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type UnknownSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UnknownSignature'] = ResolversParentTypes['UnknownSignature']> = {
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
+  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -4481,36 +4639,6 @@ export type PullRequestTemplateResolvers<ContextType = GraphQLContext, ParentTyp
   repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
 };
 
-export type GitSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitSignature'] = ResolversParentTypes['GitSignature']> = {
-  __resolveType: TypeResolveFn<'GpgSignature' | 'SshSignature', ParentType, ContextType>;
-};
-
-export type GpgSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GpgSignature'] = ResolversParentTypes['GpgSignature']> = {
-  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  keyId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
-  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
-  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
-export type SshSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SshSignature'] = ResolversParentTypes['SshSignature']> = {
-  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  keyFingerprint?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
-  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
-  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
 export type IssueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Issue'] = ResolversParentTypes['Issue']> = {
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
@@ -4531,17 +4659,118 @@ export type IssueResolvers<ContextType = GraphQLContext, ParentType extends Reso
   assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<IssueAssigneesArgs>>;
   labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<IssueLabelsArgs>>;
   comments?: Resolver<ResolversTypes['IssueCommentConnection'], ParentType, ContextType, Partial<IssueCommentsArgs>>;
+  projectCards?: Resolver<ResolversTypes['ProjectCardConnection'], ParentType, ContextType, Partial<IssueProjectCardsArgs>>;
+  projectItems?: Resolver<Maybe<ResolversTypes['ProjectV2ItemConnection']>, ParentType, ContextType, RequireFields<IssueProjectItemsArgs, 'includeArchived'>>;
   reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
   issueType?: Resolver<Maybe<ResolversTypes['IssueType']>, ParentType, ContextType>;
   parent?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType>;
   subIssues?: Resolver<ResolversTypes['IssueConnection'], ParentType, ContextType, Partial<IssueSubIssuesArgs>>;
   subIssuesSummary?: Resolver<ResolversTypes['SubIssuesSummary'], ParentType, ContextType>;
-  projectItems?: Resolver<Maybe<ResolversTypes['ProjectV2ItemConnection']>, ParentType, ContextType, RequireFields<IssueProjectItemsArgs, 'includeArchived'>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type IssueOrPullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueOrPullRequest'] = ResolversParentTypes['IssueOrPullRequest']> = {
   __resolveType: TypeResolveFn<'Issue' | 'PullRequest', ParentType, ContextType>;
+};
+
+export type MilestoneResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Milestone'] = ResolversParentTypes['Milestone']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  dueOn?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['MilestoneState'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type MilestoneConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MilestoneConnection'] = ResolversParentTypes['MilestoneConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['MilestoneEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Milestone']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type MilestoneEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MilestoneEdge'] = ResolversParentTypes['MilestoneEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
+};
+
+export type ProjectCardConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardConnection'] = ResolversParentTypes['ProjectCardConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCardEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCard']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ProjectCardEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardEdge'] = ResolversParentTypes['ProjectCardEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['ProjectCard']>, ParentType, ContextType>;
+};
+
+export type ProjectCardResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCard'] = ResolversParentTypes['ProjectCard']> = {
+  project?: Resolver<ResolversTypes['Project'], ParentType, ContextType>;
+  column?: Resolver<Maybe<ResolversTypes['ProjectColumn']>, ParentType, ContextType>;
+};
+
+export type ProjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProjectColumnResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectColumn'] = ResolversParentTypes['ProjectColumn']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProjectV2ItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemConnection'] = ResolversParentTypes['ProjectV2ItemConnection']> = {
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectV2ItemEdge']>>>, ParentType, ContextType>;
+};
+
+export type ProjectV2ItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Item'] = ResolversParentTypes['ProjectV2Item']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  project?: Resolver<ResolversTypes['ProjectV2'], ParentType, ContextType>;
+  fieldValueByName?: Resolver<Maybe<ResolversTypes['ProjectV2ItemFieldValue']>, ParentType, ContextType, RequireFields<ProjectV2ItemFieldValueByNameArgs, 'name'>>;
+  content?: Resolver<Maybe<ResolversTypes['ProjectV2ItemContent']>, ParentType, ContextType>;
+  type?: Resolver<ResolversTypes['ProjectV2ItemType'], ParentType, ContextType>;
+  isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  fieldValues?: Resolver<ResolversTypes['ProjectV2ItemFieldValueConnection'], ParentType, ContextType, RequireFields<ProjectV2ItemFieldValuesArgs, 'orderBy'>>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2Resolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2'] = ResolversParentTypes['ProjectV2']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  shortDescription?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  readme?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  public?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  closed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  owner?: Resolver<ResolversTypes['ProjectV2Owner'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  closedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  items?: Resolver<ResolversTypes['ProjectV2ItemConnection'], ParentType, ContextType, RequireFields<ProjectV2ItemsArgs, 'archivedStates' | 'orderBy' | 'query'>>;
+  fields?: Resolver<ResolversTypes['ProjectV2FieldConfigurationConnection'], ParentType, ContextType, RequireFields<ProjectV2FieldsArgs, 'orderBy'>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValue'] = ResolversParentTypes['ProjectV2ItemFieldValue']> = {
+  __resolveType: TypeResolveFn<'ProjectV2ItemFieldSingleSelectValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldTextValue', ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldSingleSelectValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue'] = ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue']> = {
+  optionId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  color?: Resolver<ResolversTypes['ProjectV2SingleSelectFieldOptionColor'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
 export type IssueConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueConnection'] = ResolversParentTypes['IssueConnection']> = {
@@ -4797,31 +5026,6 @@ export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType e
   enabledBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
 };
 
-export type ProjectCardConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardConnection'] = ResolversParentTypes['ProjectCardConnection']> = {
-  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCardEdge']>>>, ParentType, ContextType>;
-  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCard']>>>, ParentType, ContextType>;
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
-  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-};
-
-export type ProjectCardEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardEdge'] = ResolversParentTypes['ProjectCardEdge']> = {
-  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  node?: Resolver<Maybe<ResolversTypes['ProjectCard']>, ParentType, ContextType>;
-};
-
-export type ProjectCardResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCard'] = ResolversParentTypes['ProjectCard']> = {
-  project?: Resolver<ResolversTypes['Project'], ParentType, ContextType>;
-  column?: Resolver<Maybe<ResolversTypes['ProjectColumn']>, ParentType, ContextType>;
-};
-
-export type ProjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = {
-  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-};
-
-export type ProjectColumnResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectColumn'] = ResolversParentTypes['ProjectColumn']> = {
-  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-};
-
 export type PullRequestCommitResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommit'] = ResolversParentTypes['PullRequestCommit']> = {
   commit?: Resolver<ResolversTypes['Commit'], ParentType, ContextType>;
 };
@@ -4930,13 +5134,6 @@ export type LabelEdgeResolvers<ContextType = GraphQLContext, ParentType extends 
   node?: Resolver<Maybe<ResolversTypes['Label']>, ParentType, ContextType>;
 };
 
-export type MilestoneResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Milestone'] = ResolversParentTypes['Milestone']> = {
-  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  dueOn?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-};
-
 export type IssueCommentResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueComment'] = ResolversParentTypes['IssueComment']> = {
   id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
   author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
@@ -5025,25 +5222,6 @@ export type ReactingUserConnectionResolvers<ContextType = GraphQLContext, Parent
   totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
 };
 
-export type ProjectV2Resolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2'] = ResolversParentTypes['ProjectV2']> = {
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  shortDescription?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  readme?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  public?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  closed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
-  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
-  owner?: Resolver<ResolversTypes['ProjectV2Owner'], ParentType, ContextType>;
-  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  closedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
-  items?: Resolver<ResolversTypes['ProjectV2ItemConnection'], ParentType, ContextType, RequireFields<ProjectV2ItemsArgs, 'archivedStates' | 'orderBy' | 'query'>>;
-  fields?: Resolver<ResolversTypes['ProjectV2FieldConfigurationConnection'], ParentType, ContextType, RequireFields<ProjectV2FieldsArgs, 'orderBy'>>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
 export type ProjectV2OwnerResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Owner'] = ResolversParentTypes['ProjectV2Owner']> = {
   __resolveType: TypeResolveFn<'User', ParentType, ContextType>;
 };
@@ -5114,26 +5292,6 @@ export type ProjectV2SingleSelectFieldOptionResolvers<ContextType = GraphQLConte
   nameHTML?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 };
 
-export type ProjectV2ItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Item'] = ResolversParentTypes['ProjectV2Item']> = {
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  project?: Resolver<ResolversTypes['ProjectV2'], ParentType, ContextType>;
-  content?: Resolver<Maybe<ResolversTypes['ProjectV2ItemContent']>, ParentType, ContextType>;
-  type?: Resolver<ResolversTypes['ProjectV2ItemType'], ParentType, ContextType>;
-  isArchived?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  fieldValues?: Resolver<ResolversTypes['ProjectV2ItemFieldValueConnection'], ParentType, ContextType, RequireFields<ProjectV2ItemFieldValuesArgs, 'orderBy'>>;
-  fieldValueByName?: Resolver<Maybe<ResolversTypes['ProjectV2ItemFieldValue']>, ParentType, ContextType, RequireFields<ProjectV2ItemFieldValueByNameArgs, 'name'>>;
-  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
-export type ProjectV2ItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemConnection'] = ResolversParentTypes['ProjectV2ItemConnection']> = {
-  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectV2ItemEdge']>>>, ParentType, ContextType>;
-  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>>, ParentType, ContextType>;
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
-  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-};
-
 export type ProjectV2ItemEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemEdge'] = ResolversParentTypes['ProjectV2ItemEdge']> = {
   cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   node?: Resolver<Maybe<ResolversTypes['ProjectV2Item']>, ParentType, ContextType>;
@@ -5150,10 +5308,6 @@ export type DraftIssueResolvers<ContextType = GraphQLContext, ParentType extends
   createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
-export type ProjectV2ItemFieldValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValue'] = ResolversParentTypes['ProjectV2ItemFieldValue']> = {
-  __resolveType: TypeResolveFn<'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'ProjectV2ItemFieldTextValue', ParentType, ContextType>;
 };
 
 export type ProjectV2ItemFieldValueConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValueConnection'] = ResolversParentTypes['ProjectV2ItemFieldValueConnection']> = {
@@ -5192,16 +5346,6 @@ export type ProjectV2ItemFieldDateValueResolvers<ContextType = GraphQLContext, P
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
-export type ProjectV2ItemFieldSingleSelectValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue'] = ResolversParentTypes['ProjectV2ItemFieldSingleSelectValue']> = {
-  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
-  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
-  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  optionId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  color?: Resolver<ResolversTypes['ProjectV2SingleSelectFieldOptionColor'], ParentType, ContextType>;
-  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
 export interface DateScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Date'], any> {
   name: 'Date';
 }
@@ -5227,6 +5371,10 @@ export type Resolvers<ContextType = GraphQLContext> = {
   BranchProtectionRule?: BranchProtectionRuleResolvers<ContextType>;
   GitObject?: GitObjectResolvers<ContextType>;
   Commit?: CommitResolvers<ContextType>;
+  GitSignature?: GitSignatureResolvers<ContextType>;
+  GpgSignature?: GpgSignatureResolvers<ContextType>;
+  SshSignature?: SshSignatureResolvers<ContextType>;
+  UnknownSignature?: UnknownSignatureResolvers<ContextType>;
   Blame?: BlameResolvers<ContextType>;
   BlameRange?: BlameRangeResolvers<ContextType>;
   GitObjectID?: GraphQLScalarType;
@@ -5244,11 +5392,21 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ReleaseAssetEdge?: ReleaseAssetEdgeResolvers<ContextType>;
   IssueTemplate?: IssueTemplateResolvers<ContextType>;
   PullRequestTemplate?: PullRequestTemplateResolvers<ContextType>;
-  GitSignature?: GitSignatureResolvers<ContextType>;
-  GpgSignature?: GpgSignatureResolvers<ContextType>;
-  SshSignature?: SshSignatureResolvers<ContextType>;
   Issue?: IssueResolvers<ContextType>;
   IssueOrPullRequest?: IssueOrPullRequestResolvers<ContextType>;
+  Milestone?: MilestoneResolvers<ContextType>;
+  MilestoneConnection?: MilestoneConnectionResolvers<ContextType>;
+  MilestoneEdge?: MilestoneEdgeResolvers<ContextType>;
+  ProjectCardConnection?: ProjectCardConnectionResolvers<ContextType>;
+  ProjectCardEdge?: ProjectCardEdgeResolvers<ContextType>;
+  ProjectCard?: ProjectCardResolvers<ContextType>;
+  Project?: ProjectResolvers<ContextType>;
+  ProjectColumn?: ProjectColumnResolvers<ContextType>;
+  ProjectV2ItemConnection?: ProjectV2ItemConnectionResolvers<ContextType>;
+  ProjectV2Item?: ProjectV2ItemResolvers<ContextType>;
+  ProjectV2?: ProjectV2Resolvers<ContextType>;
+  ProjectV2ItemFieldValue?: ProjectV2ItemFieldValueResolvers<ContextType>;
+  ProjectV2ItemFieldSingleSelectValue?: ProjectV2ItemFieldSingleSelectValueResolvers<ContextType>;
   IssueConnection?: IssueConnectionResolvers<ContextType>;
   IssueEdge?: IssueEdgeResolvers<ContextType>;
   IssueType?: IssueTypeResolvers<ContextType>;
@@ -5286,11 +5444,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   PullRequestChangedFileConnection?: PullRequestChangedFileConnectionResolvers<ContextType>;
   PullRequestChangedFileEdge?: PullRequestChangedFileEdgeResolvers<ContextType>;
   AutoMergeRequest?: AutoMergeRequestResolvers<ContextType>;
-  ProjectCardConnection?: ProjectCardConnectionResolvers<ContextType>;
-  ProjectCardEdge?: ProjectCardEdgeResolvers<ContextType>;
-  ProjectCard?: ProjectCardResolvers<ContextType>;
-  Project?: ProjectResolvers<ContextType>;
-  ProjectColumn?: ProjectColumnResolvers<ContextType>;
   PullRequestCommit?: PullRequestCommitResolvers<ContextType>;
   PullRequestCommitConnection?: PullRequestCommitConnectionResolvers<ContextType>;
   PullRequestCommitEdge?: PullRequestCommitEdgeResolvers<ContextType>;
@@ -5309,7 +5462,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   Label?: LabelResolvers<ContextType>;
   LabelConnection?: LabelConnectionResolvers<ContextType>;
   LabelEdge?: LabelEdgeResolvers<ContextType>;
-  Milestone?: MilestoneResolvers<ContextType>;
   IssueComment?: IssueCommentResolvers<ContextType>;
   IssueCommentConnection?: IssueCommentConnectionResolvers<ContextType>;
   IssueCommentEdge?: IssueCommentEdgeResolvers<ContextType>;
@@ -5324,7 +5476,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   WorkflowRun?: WorkflowRunResolvers<ContextType>;
   Workflow?: WorkflowResolvers<ContextType>;
   ReactingUserConnection?: ReactingUserConnectionResolvers<ContextType>;
-  ProjectV2?: ProjectV2Resolvers<ContextType>;
   ProjectV2Owner?: ProjectV2OwnerResolvers<ContextType>;
   ProjectV2Connection?: ProjectV2ConnectionResolvers<ContextType>;
   ProjectV2Edge?: ProjectV2EdgeResolvers<ContextType>;
@@ -5335,18 +5486,14 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ProjectV2FieldConfigurationConnection?: ProjectV2FieldConfigurationConnectionResolvers<ContextType>;
   ProjectV2FieldConfigurationEdge?: ProjectV2FieldConfigurationEdgeResolvers<ContextType>;
   ProjectV2SingleSelectFieldOption?: ProjectV2SingleSelectFieldOptionResolvers<ContextType>;
-  ProjectV2Item?: ProjectV2ItemResolvers<ContextType>;
-  ProjectV2ItemConnection?: ProjectV2ItemConnectionResolvers<ContextType>;
   ProjectV2ItemEdge?: ProjectV2ItemEdgeResolvers<ContextType>;
   ProjectV2ItemContent?: ProjectV2ItemContentResolvers<ContextType>;
   DraftIssue?: DraftIssueResolvers<ContextType>;
-  ProjectV2ItemFieldValue?: ProjectV2ItemFieldValueResolvers<ContextType>;
   ProjectV2ItemFieldValueConnection?: ProjectV2ItemFieldValueConnectionResolvers<ContextType>;
   ProjectV2ItemFieldValueEdge?: ProjectV2ItemFieldValueEdgeResolvers<ContextType>;
   ProjectV2ItemFieldTextValue?: ProjectV2ItemFieldTextValueResolvers<ContextType>;
   ProjectV2ItemFieldNumberValue?: ProjectV2ItemFieldNumberValueResolvers<ContextType>;
   ProjectV2ItemFieldDateValue?: ProjectV2ItemFieldDateValueResolvers<ContextType>;
-  ProjectV2ItemFieldSingleSelectValue?: ProjectV2ItemFieldSingleSelectValueResolvers<ContextType>;
   Date?: GraphQLScalarType;
 };
 

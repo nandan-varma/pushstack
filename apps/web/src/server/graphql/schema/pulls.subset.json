@@ -191,20 +191,6 @@
 	"MergeableState": "*",
 	"MergeStateStatus": "*",
 	"PullRequestReviewDecision": "*",
-	"ProjectCardConnection": ["edges", "nodes", "pageInfo", "totalCount"],
-	"ProjectCardEdge": "*",
-	"ProjectCard": {
-		"$implements": [],
-		"fields": ["project", "column"]
-	},
-	"Project": {
-		"$implements": [],
-		"fields": ["name"]
-	},
-	"ProjectColumn": {
-		"$implements": [],
-		"fields": ["name"]
-	},
 	"PullRequestCommit": {
 		"$implements": [],
 		"fields": ["commit"]
@@ -255,10 +241,6 @@
 	},
 	"LabelConnection": ["nodes", "edges", "pageInfo", "totalCount"],
 	"LabelEdge": "*",
-	"Milestone": {
-		"$implements": [],
-		"fields": ["number", "title", "description", "dueOn"]
-	},
 	"IssueComment": {
 		"$implements": ["Node"],
 		"fields": [

@@ -801,6 +801,10 @@ type Commit implements GitObject & Node {
 	"""
 	resourcePath: URI!
 	"""
+	Commit signing information, if present.
+	"""
+	signature: GitSignature
+	"""
 	The HTTP URL for this commit
 	"""
 	url: URI!
@@ -813,6 +817,244 @@ type Commit implements GitObject & Node {
 		"""
 		path: String!
 	): Blame!
+}
+
+"""
+Information about a signature (GPG or S/MIME) on a Commit or Tag.
+"""
+interface GitSignature {
+	"""
+	Email used to sign this object.
+	"""
+	email: String!
+	"""
+	True if the signature is valid and verified by GitHub.
+	"""
+	isValid: Boolean!
+	"""
+	Payload for GPG signing object. Raw ODB object without the signature header.
+	"""
+	payload: String!
+	"""
+	ASCII-armored signature header from object.
+	"""
+	signature: String!
+	"""
+	GitHub user corresponding to the email signing this commit.
+	"""
+	signer: User
+	"""
+	The state of this signature. `VALID` if signature is valid and verified by
+	GitHub, otherwise represents reason why signature is considered invalid.
+	"""
+	state: GitSignatureState!
+	"""
+	The date the signature was verified, if valid
+	"""
+	verifiedAt: DateTime
+	"""
+	True if the signature was made with GitHub's signing key.
+	"""
+	wasSignedByGitHub: Boolean!
+}
+
+"""
+The state of a Git signature.
+"""
+enum GitSignatureState {
+	"""
+	The signing certificate or its chain could not be verified
+	"""
+	BAD_CERT
+	"""
+	Invalid email used for signing
+	"""
+	BAD_EMAIL
+	"""
+	Signing key expired
+	"""
+	EXPIRED_KEY
+	"""
+	Internal error - the GPG verification service misbehaved
+	"""
+	GPGVERIFY_ERROR
+	"""
+	Internal error - the GPG verification service is unavailable at the moment
+	"""
+	GPGVERIFY_UNAVAILABLE
+	"""
+	Invalid signature
+	"""
+	INVALID
+	"""
+	Malformed signature
+	"""
+	MALFORMED_SIG
+	"""
+	The usage flags for the key that signed this don't allow signing
+	"""
+	NOT_SIGNING_KEY
+	"""
+	Email used for signing not known to GitHub
+	"""
+	NO_USER
+	"""
+	Valid signature, though certificate revocation check failed
+	"""
+	OCSP_ERROR
+	"""
+	Valid signature, pending certificate revocation checking
+	"""
+	OCSP_PENDING
+	"""
+	One or more certificates in chain has been revoked
+	"""
+	OCSP_REVOKED
+	"""
+	Key used for signing not known to GitHub
+	"""
+	UNKNOWN_KEY
+	"""
+	Unknown signature type
+	"""
+	UNKNOWN_SIG_TYPE
+	"""
+	Unsigned
+	"""
+	UNSIGNED
+	"""
+	Email used for signing unverified on GitHub
+	"""
+	UNVERIFIED_EMAIL
+	"""
+	Valid signature and verified by GitHub
+	"""
+	VALID
+}
+
+"""
+Represents a GPG signature on a Commit or Tag.
+"""
+type GpgSignature implements GitSignature {
+	"""
+	Email used to sign this object.
+	"""
+	email: String!
+	"""
+	True if the signature is valid and verified by GitHub.
+	"""
+	isValid: Boolean!
+	"""
+	Hex-encoded ID of the key that signed this object.
+	"""
+	keyId: String
+	"""
+	Payload for GPG signing object. Raw ODB object without the signature header.
+	"""
+	payload: String!
+	"""
+	ASCII-armored signature header from object.
+	"""
+	signature: String!
+	"""
+	GitHub user corresponding to the email signing this commit.
+	"""
+	signer: User
+	"""
+	The state of this signature. `VALID` if signature is valid and verified by
+	GitHub, otherwise represents reason why signature is considered invalid.
+	"""
+	state: GitSignatureState!
+	"""
+	The date the signature was verified, if valid
+	"""
+	verifiedAt: DateTime
+	"""
+	True if the signature was made with GitHub's signing key.
+	"""
+	wasSignedByGitHub: Boolean!
+}
+
+"""
+Represents an SSH signature on a Commit or Tag.
+"""
+type SshSignature implements GitSignature {
+	"""
+	Email used to sign this object.
+	"""
+	email: String!
+	"""
+	True if the signature is valid and verified by GitHub.
+	"""
+	isValid: Boolean!
+	"""
+	Hex-encoded fingerprint of the key that signed this object.
+	"""
+	keyFingerprint: String
+	"""
+	Payload for GPG signing object. Raw ODB object without the signature header.
+	"""
+	payload: String!
+	"""
+	ASCII-armored signature header from object.
+	"""
+	signature: String!
+	"""
+	GitHub user corresponding to the email signing this commit.
+	"""
+	signer: User
+	"""
+	The state of this signature. `VALID` if signature is valid and verified by
+	GitHub, otherwise represents reason why signature is considered invalid.
+	"""
+	state: GitSignatureState!
+	"""
+	The date the signature was verified, if valid
+	"""
+	verifiedAt: DateTime
+	"""
+	True if the signature was made with GitHub's signing key.
+	"""
+	wasSignedByGitHub: Boolean!
+}
+
+"""
+Represents an unknown signature on a Commit or Tag.
+"""
+type UnknownSignature implements GitSignature {
+	"""
+	Email used to sign this object.
+	"""
+	email: String!
+	"""
+	True if the signature is valid and verified by GitHub.
+	"""
+	isValid: Boolean!
+	"""
+	Payload for GPG signing object. Raw ODB object without the signature header.
+	"""
+	payload: String!
+	"""
+	ASCII-armored signature header from object.
+	"""
+	signature: String!
+	"""
+	GitHub user corresponding to the email signing this commit.
+	"""
+	signer: User
+	"""
+	The state of this signature. `VALID` if signature is valid and verified by
+	GitHub, otherwise represents reason why signature is considered invalid.
+	"""
+	state: GitSignatureState!
+	"""
+	The date the signature was verified, if valid
+	"""
+	verifiedAt: DateTime
+	"""
+	True if the signature was made with GitHub's signing key.
+	"""
+	wasSignedByGitHub: Boolean!
 }
 
 """
@@ -1587,203 +1829,4 @@ type PullRequestTemplate {
 	The repository the template belongs to
 	"""
 	repository: Repository!
-}
-
-"""
-Information about a signature (GPG or S/MIME) on a Commit or Tag.
-"""
-interface GitSignature {
-	"""
-	Email used to sign this object.
-	"""
-	email: String!
-	"""
-	True if the signature is valid and verified by GitHub.
-	"""
-	isValid: Boolean!
-	"""
-	Payload for GPG signing object. Raw ODB object without the signature header.
-	"""
-	payload: String!
-	"""
-	ASCII-armored signature header from object.
-	"""
-	signature: String!
-	"""
-	GitHub user corresponding to the email signing this commit.
-	"""
-	signer: User
-	"""
-	The state of this signature. `VALID` if signature is valid and verified by
-	GitHub, otherwise represents reason why signature is considered invalid.
-	"""
-	state: GitSignatureState!
-	"""
-	The date the signature was verified, if valid
-	"""
-	verifiedAt: DateTime
-	"""
-	True if the signature was made with GitHub's signing key.
-	"""
-	wasSignedByGitHub: Boolean!
-}
-
-"""
-The state of a Git signature.
-"""
-enum GitSignatureState {
-	"""
-	The signing certificate or its chain could not be verified
-	"""
-	BAD_CERT
-	"""
-	Invalid email used for signing
-	"""
-	BAD_EMAIL
-	"""
-	Signing key expired
-	"""
-	EXPIRED_KEY
-	"""
-	Internal error - the GPG verification service misbehaved
-	"""
-	GPGVERIFY_ERROR
-	"""
-	Internal error - the GPG verification service is unavailable at the moment
-	"""
-	GPGVERIFY_UNAVAILABLE
-	"""
-	Invalid signature
-	"""
-	INVALID
-	"""
-	Malformed signature
-	"""
-	MALFORMED_SIG
-	"""
-	The usage flags for the key that signed this don't allow signing
-	"""
-	NOT_SIGNING_KEY
-	"""
-	Email used for signing not known to GitHub
-	"""
-	NO_USER
-	"""
-	Valid signature, though certificate revocation check failed
-	"""
-	OCSP_ERROR
-	"""
-	Valid signature, pending certificate revocation checking
-	"""
-	OCSP_PENDING
-	"""
-	One or more certificates in chain has been revoked
-	"""
-	OCSP_REVOKED
-	"""
-	Key used for signing not known to GitHub
-	"""
-	UNKNOWN_KEY
-	"""
-	Unknown signature type
-	"""
-	UNKNOWN_SIG_TYPE
-	"""
-	Unsigned
-	"""
-	UNSIGNED
-	"""
-	Email used for signing unverified on GitHub
-	"""
-	UNVERIFIED_EMAIL
-	"""
-	Valid signature and verified by GitHub
-	"""
-	VALID
-}
-
-"""
-Represents a GPG signature on a Commit or Tag.
-"""
-type GpgSignature implements GitSignature {
-	"""
-	Email used to sign this object.
-	"""
-	email: String!
-	"""
-	True if the signature is valid and verified by GitHub.
-	"""
-	isValid: Boolean!
-	"""
-	Hex-encoded ID of the key that signed this object.
-	"""
-	keyId: String
-	"""
-	Payload for GPG signing object. Raw ODB object without the signature header.
-	"""
-	payload: String!
-	"""
-	ASCII-armored signature header from object.
-	"""
-	signature: String!
-	"""
-	GitHub user corresponding to the email signing this commit.
-	"""
-	signer: User
-	"""
-	The state of this signature. `VALID` if signature is valid and verified by
-	GitHub, otherwise represents reason why signature is considered invalid.
-	"""
-	state: GitSignatureState!
-	"""
-	The date the signature was verified, if valid
-	"""
-	verifiedAt: DateTime
-	"""
-	True if the signature was made with GitHub's signing key.
-	"""
-	wasSignedByGitHub: Boolean!
-}
-
-"""
-Represents an SSH signature on a Commit or Tag.
-"""
-type SshSignature implements GitSignature {
-	"""
-	Email used to sign this object.
-	"""
-	email: String!
-	"""
-	True if the signature is valid and verified by GitHub.
-	"""
-	isValid: Boolean!
-	"""
-	Hex-encoded fingerprint of the key that signed this object.
-	"""
-	keyFingerprint: String
-	"""
-	Payload for GPG signing object. Raw ODB object without the signature header.
-	"""
-	payload: String!
-	"""
-	ASCII-armored signature header from object.
-	"""
-	signature: String!
-	"""
-	GitHub user corresponding to the email signing this commit.
-	"""
-	signer: User
-	"""
-	The state of this signature. `VALID` if signature is valid and verified by
-	GitHub, otherwise represents reason why signature is considered invalid.
-	"""
-	state: GitSignatureState!
-	"""
-	The date the signature was verified, if valid
-	"""
-	verifiedAt: DateTime
-	"""
-	True if the signature was made with GitHub's signing key.
-	"""
-	wasSignedByGitHub: Boolean!
 }

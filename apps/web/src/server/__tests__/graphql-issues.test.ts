@@ -56,6 +56,11 @@ beforeAll(async () => {
 			labels: [],
 		});
 	}
+	await call("/repos/alice/proj/milestones", post(alice, { title: "v1" }));
+	await call(
+		"/repos/alice/proj/milestones",
+		post(alice, { title: "v2", state: "closed" }),
+	);
 });
 
 describe("Repository.issues", () => {
@@ -110,6 +115,87 @@ describe("Repository.issues", () => {
 		expect(body.errors?.map((e: { type?: string }) => e.type)).toEqual([
 			"NOT_FOUND",
 		]);
+	});
+});
+
+const MILESTONES = `query($states: [MilestoneState!], $first: Int, $query: String) {
+  repository(owner: "alice", name: "proj") {
+    milestones(states: $states, first: $first, query: $query) {
+      totalCount
+      nodes { id number title state }
+      pageInfo { hasNextPage }
+    }
+  }
+}`;
+
+describe("Repository.milestones", () => {
+	it("lists both states by default, and one state when asked", async () => {
+		const all = await graphql(bob, MILESTONES, { first: 10 });
+		expect(all.body.errors).toBeUndefined();
+		expect(
+			all.body.data.repository.milestones.nodes.map(
+				(n: { title: string }) => n.title,
+			),
+		).toEqual(["v1", "v2"]);
+		const open = await graphql(bob, MILESTONES, {
+			first: 10,
+			states: ["OPEN"],
+		});
+		expect(open.body.data.repository.milestones).toMatchObject({
+			totalCount: 1,
+			nodes: [{ title: "v1", state: "OPEN" }],
+		});
+	});
+
+	it("an empty states list matches nothing", async () => {
+		const { body } = await graphql(bob, MILESTONES, { first: 10, states: [] });
+		expect(body.data.repository.milestones).toMatchObject({
+			totalCount: 0,
+			nodes: [],
+		});
+	});
+
+	it("filters on the title and bounds the page", async () => {
+		const searched = await graphql(bob, MILESTONES, { first: 10, query: "v2" });
+		expect(
+			searched.body.data.repository.milestones.nodes.map(
+				(n: { number: number }) => n.number,
+			),
+		).toEqual([2]);
+		const page = await graphql(bob, MILESTONES, { first: 1 });
+		expect(page.body.data.repository.milestones).toMatchObject({
+			totalCount: 2,
+			pageInfo: { hasNextPage: true },
+		});
+	});
+
+	it("answers each milestone's id, which issue mutations accept", async () => {
+		const { body } = await graphql(
+			bob,
+			`{ repository(owner: "alice", name: "proj") { id milestones(first: 10) { nodes { id } } } }`,
+		);
+		const { id: repositoryId, milestones } = body.data.repository;
+		const id = milestones.nodes[0].id as string;
+		const made = await graphql(
+			alice,
+			`mutation($repo: ID!, $id: ID!) { createIssue(input: {repositoryId: $repo, title: "Milestoned", milestoneId: $id}) { issue { milestone { number title } } } }`,
+			{ repo: repositoryId, id },
+		);
+		expect(made.body.errors).toBeUndefined();
+		expect(made.body.data.createIssue.issue.milestone).toEqual({
+			number: 1,
+			title: "v1",
+		});
+		const node = await graphql(
+			bob,
+			`query($id: ID!) { node(id: $id) { ... on Milestone { number title state } } }`,
+			{ id },
+		);
+		expect(node.body.data.node).toEqual({
+			number: 1,
+			title: "v1",
+			state: "OPEN",
+		});
 	});
 });
 

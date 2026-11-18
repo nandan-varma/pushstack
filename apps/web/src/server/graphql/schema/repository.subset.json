@@ -180,6 +180,7 @@
 			"signature",
 			"repository",
 			"resourcePath",
+			"signature",
 			"url",
 			{
 				"name": "blame",
@@ -187,6 +188,11 @@
 			}
 		]
 	},
+	"GitSignature": "*",
+	"GitSignatureState": "*",
+	"GpgSignature": "*",
+	"SshSignature": "*",
+	"UnknownSignature": "*",
 	"Blame": "*",
 	"BlameRange": "*",
 	"GitObjectID": "*",

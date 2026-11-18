@@ -22,6 +22,7 @@ const { call, mintToken, patch, post } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { db } = await import("#/db");
 const { encodeNodeId } = await import("../graphql/node-id");
+const { createMilestone } = await import("../milestone-store");
 
 const users = await createUsers("alice", "bob");
 let alice: string;
@@ -30,9 +31,10 @@ let readOnly: string;
 let repoNodeId: string;
 let bugLabelNodeId: string;
 let issueNodeId: string;
+let milestoneNodeId: string;
 
 const CREATE = `mutation($input: CreateIssueInput!) {
-  createIssue(input: $input) { clientMutationId issue { id number title body state labels(first: 10) { nodes { name } } assignees(first: 10) { nodes { login } } } }
+  createIssue(input: $input) { clientMutationId issue { id number title body state milestone { number title state } labels(first: 10) { nodes { name } } assignees(first: 10) { nodes { login } } } }
 }`;
 
 beforeAll(async () => {
@@ -50,6 +52,10 @@ beforeAll(async () => {
 	});
 	if (!bugRow) throw new Error("bug label missing");
 	bugLabelNodeId = encodeNodeId("Label", bugRow.id);
+	const milestone = await createMilestone(repo.id, users.alice.id, {
+		title: "v1",
+	});
+	milestoneNodeId = encodeNodeId("Milestone", milestone.id);
 });
 
 describe("createIssue", () => {
@@ -76,6 +82,37 @@ describe("createIssue", () => {
 			assignees: { nodes: [{ login: "alice" }] },
 		});
 		issueNodeId = issue.id;
+	});
+
+	it("sets the milestone when given its node id", async () => {
+		const { body } = await graphql(alice, CREATE, {
+			input: {
+				repositoryId: repoNodeId,
+				title: "Milestoned",
+				milestoneId: milestoneNodeId,
+			},
+		});
+		expect(body.errors).toBeUndefined();
+		expect(body.data.createIssue.issue.milestone).toEqual({
+			number: 1,
+			title: "v1",
+			state: "OPEN",
+		});
+	});
+
+	it("refuses a milestone node id that is not this repository's", async () => {
+		const { body } = await graphql(alice, CREATE, {
+			input: {
+				repositoryId: repoNodeId,
+				title: "Ghost milestone",
+				milestoneId: encodeNodeId("Milestone", 2_000_000_000),
+			},
+		});
+		expect(body.errors?.[0]?.type).toBe("NOT_FOUND");
+		const rows = await db.query.issues.findMany({
+			where: { title: "Ghost milestone" },
+		});
+		expect(rows).toEqual([]);
 	});
 
 	it("refuses labels from a reader, which opens nothing", async () => {
@@ -149,6 +186,22 @@ describe("updateIssue, closeIssue and reopenIssue", () => {
 			state: "CLOSED",
 			stateReason: "COMPLETED",
 		});
+	});
+
+	it("adds and clears the milestone", async () => {
+		const set = await graphql(
+			alice,
+			`mutation($id: ID!, $milestone: ID) { updateIssue(input: {id: $id, milestoneId: $milestone}) { issue { milestone { title } } } }`,
+			{ id: issueNodeId, milestone: milestoneNodeId },
+		);
+		expect(set.body.errors).toBeUndefined();
+		expect(set.body.data.updateIssue.issue.milestone).toEqual({ title: "v1" });
+		const cleared = await graphql(
+			alice,
+			`mutation($id: ID!) { updateIssue(input: {id: $id, milestoneId: null}) { issue { milestone { title } } } }`,
+			{ id: issueNodeId },
+		);
+		expect(cleared.body.data.updateIssue.issue.milestone).toBeNull();
 	});
 
 	it("refuses an edit from a stranger", async () => {
