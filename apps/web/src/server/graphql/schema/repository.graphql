@@ -3,1787 +3,1086 @@
 # change repository.subset.json and re-run the script.
 
 extend type Query {
-	"""
-	Lookup a given repository by the owner and repository name.
-	"""
-	repository(
-		"""
-		The name of the repository
-		"""
-		name: String!
-		"""
-		The login field of a user or organization
-		"""
-		owner: String!
-	): Repository
-	"""
-	Lookup a repository owner (ie. either a User or an Organization) by login.
-	"""
-	repositoryOwner(
-		"""
-		The username to lookup the owner by.
-		"""
-		login: String!
-	): RepositoryOwner
-	"""
-	Lookup a user by login.
-	"""
-	user(
-		"""
-		The user's login.
-		"""
-		login: String!
-	): User
+  """Lookup a given repository by the owner and repository name."""
+  repository(
+    """The name of the repository"""
+    name: String!
+    """The login field of a user or organization"""
+    owner: String!
+  ): Repository
+  """
+  Lookup a repository owner (ie. either a User or an Organization) by login.
+  """
+  repositoryOwner(
+    """The username to lookup the owner by."""
+    login: String!
+  ): RepositoryOwner
+  """Lookup a user by login."""
+  user(
+    """The user's login."""
+    login: String!
+  ): User
 }
 
-"""
-The root query for implementing GraphQL mutations.
-"""
+"""The root query for implementing GraphQL mutations."""
 type Mutation {
-	"""
-	Create a new repository.
-	"""
-	createRepository(
-		"""
-		Parameters for CreateRepository
-		"""
-		input: CreateRepositoryInput!
-	): CreateRepositoryPayload
-	"""
-	Update information about a repository.
-	"""
-	updateRepository(
-		"""
-		Parameters for UpdateRepository
-		"""
-		input: UpdateRepositoryInput!
-	): UpdateRepositoryPayload
-	"""
-	Creates a new label.
-	"""
-	createLabel(
-		"""
-		Parameters for CreateLabel
-		"""
-		input: CreateLabelInput!
-	): CreateLabelPayload
-	"""
-	Updates an existing label.
-	"""
-	updateLabel(
-		"""
-		Parameters for UpdateLabel
-		"""
-		input: UpdateLabelInput!
-	): UpdateLabelPayload
-	"""
-	Deletes a label.
-	"""
-	deleteLabel(
-		"""
-		Parameters for DeleteLabel
-		"""
-		input: DeleteLabelInput!
-	): DeleteLabelPayload
+  """Create a new repository."""
+  createRepository(
+    """Parameters for CreateRepository"""
+    input: CreateRepositoryInput!
+  ): CreateRepositoryPayload
+  """Update information about a repository."""
+  updateRepository(
+    """Parameters for UpdateRepository"""
+    input: UpdateRepositoryInput!
+  ): UpdateRepositoryPayload
+  """Creates a new label."""
+  createLabel(
+    """Parameters for CreateLabel"""
+    input: CreateLabelInput!
+  ): CreateLabelPayload
+  """Updates an existing label."""
+  updateLabel(
+    """Parameters for UpdateLabel"""
+    input: UpdateLabelInput!
+  ): UpdateLabelPayload
+  """Deletes a label."""
+  deleteLabel(
+    """Parameters for DeleteLabel"""
+    input: DeleteLabelInput!
+  ): DeleteLabelPayload
 }
 
-"""
-Represents an owner of a Repository.
-"""
+"""Represents an owner of a Repository."""
 interface RepositoryOwner {
-	"""
-	The Node ID of the RepositoryOwner object
-	"""
-	id: ID!
-	"""
-	The username used to login.
-	"""
-	login: String!
-	"""
-	A list of repositories that the user owns.
-	"""
-	repositories(
-		"""
-		Array of viewer's affiliation options for repositories returned from the
-		connection. For example, OWNER will include only repositories that the
-		current viewer owns.
-		"""
-		affiliations: [RepositoryAffiliation]
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		If non-null, filters repositories according to whether they are archived and not maintained
-		"""
-		isArchived: Boolean
-		"""
-		If non-null, filters repositories according to whether they are forks of another repository
-		"""
-		isFork: Boolean
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Ordering options for repositories returned from the connection
-		"""
-		orderBy: RepositoryOrder
-		"""
-		Array of owner's affiliation options for repositories returned from the
-		connection. For example, OWNER will include only repositories that the
-		organization or user being viewed owns.
-		"""
-		ownerAffiliations: [RepositoryAffiliation] = [OWNER, COLLABORATOR]
-		"""
-		If non-null, filters repositories according to privacy. Internal
-		repositories are considered private; consider using the visibility argument
-		if only internal repositories are needed. Cannot be combined with the
-		visibility argument.
-		"""
-		privacy: RepositoryPrivacy
-		"""
-		If non-null, filters repositories according to visibility. Cannot be combined with the privacy argument.
-		"""
-		visibility: RepositoryVisibility
-	): RepositoryConnection!
-	"""
-	Find Repository.
-	"""
-	repository(
-		"""
-		Name of Repository to find.
-		"""
-		name: String!
-	): Repository
-	"""
-	The HTTP URL for the owner.
-	"""
-	resourcePath: URI!
-	"""
-	The HTTP URL for the owner.
-	"""
-	url: URI!
+  """The Node ID of the RepositoryOwner object"""
+  id: ID!
+  """The username used to login."""
+  login: String!
+  """A list of repositories that the user owns."""
+  repositories(
+    """
+    Array of viewer's affiliation options for repositories returned from the
+    connection. For example, OWNER will include only repositories that the
+    current viewer owns.
+    """
+    affiliations: [RepositoryAffiliation]
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """
+    If non-null, filters repositories according to whether they are archived and not maintained
+    """
+    isArchived: Boolean
+    """
+    If non-null, filters repositories according to whether they are forks of another repository
+    """
+    isFork: Boolean
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Ordering options for repositories returned from the connection"""
+    orderBy: RepositoryOrder
+    """
+    Array of owner's affiliation options for repositories returned from the
+    connection. For example, OWNER will include only repositories that the
+    organization or user being viewed owns.
+    """
+    ownerAffiliations: [RepositoryAffiliation] = [OWNER, COLLABORATOR]
+    """
+    If non-null, filters repositories according to privacy. Internal
+    repositories are considered private; consider using the visibility argument
+    if only internal repositories are needed. Cannot be combined with the
+    visibility argument.
+    """
+    privacy: RepositoryPrivacy
+    """
+    If non-null, filters repositories according to visibility. Cannot be combined with the privacy argument.
+    """
+    visibility: RepositoryVisibility
+  ): RepositoryConnection!
+  """Find Repository."""
+  repository(
+    """Name of Repository to find."""
+    name: String!
+  ): Repository
+  """The HTTP URL for the owner."""
+  resourcePath: URI!
+  """The HTTP URL for the owner."""
+  url: URI!
 }
 
 extend type User {
-	"""
-	A list of repositories that the user owns.
-	"""
-	repositories(
-		"""
-		Array of viewer's affiliation options for repositories returned from the
-		connection. For example, OWNER will include only repositories that the
-		current viewer owns.
-		"""
-		affiliations: [RepositoryAffiliation]
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		If non-null, filters repositories according to whether they are archived and not maintained
-		"""
-		isArchived: Boolean
-		"""
-		If non-null, filters repositories according to whether they are forks of another repository
-		"""
-		isFork: Boolean
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Ordering options for repositories returned from the connection
-		"""
-		orderBy: RepositoryOrder
-		"""
-		Array of owner's affiliation options for repositories returned from the
-		connection. For example, OWNER will include only repositories that the
-		organization or user being viewed owns.
-		"""
-		ownerAffiliations: [RepositoryAffiliation] = [OWNER, COLLABORATOR]
-		"""
-		If non-null, filters repositories according to privacy. Internal
-		repositories are considered private; consider using the visibility argument
-		if only internal repositories are needed. Cannot be combined with the
-		visibility argument.
-		"""
-		privacy: RepositoryPrivacy
-		"""
-		If non-null, filters repositories according to visibility. Cannot be combined with the privacy argument.
-		"""
-		visibility: RepositoryVisibility
-	): RepositoryConnection!
-	"""
-	Find Repository.
-	"""
-	repository(
-		"""
-		Name of Repository to find.
-		"""
-		name: String!
-	): Repository
+  """A list of repositories that the user owns."""
+  repositories(
+    """
+    Array of viewer's affiliation options for repositories returned from the
+    connection. For example, OWNER will include only repositories that the
+    current viewer owns.
+    """
+    affiliations: [RepositoryAffiliation]
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """
+    If non-null, filters repositories according to whether they are archived and not maintained
+    """
+    isArchived: Boolean
+    """
+    If non-null, filters repositories according to whether they are forks of another repository
+    """
+    isFork: Boolean
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Ordering options for repositories returned from the connection"""
+    orderBy: RepositoryOrder
+    """
+    Array of owner's affiliation options for repositories returned from the
+    connection. For example, OWNER will include only repositories that the
+    organization or user being viewed owns.
+    """
+    ownerAffiliations: [RepositoryAffiliation] = [OWNER, COLLABORATOR]
+    """
+    If non-null, filters repositories according to privacy. Internal
+    repositories are considered private; consider using the visibility argument
+    if only internal repositories are needed. Cannot be combined with the
+    visibility argument.
+    """
+    privacy: RepositoryPrivacy
+    """
+    If non-null, filters repositories according to visibility. Cannot be combined with the privacy argument.
+    """
+    visibility: RepositoryVisibility
+  ): RepositoryConnection!
+  """Find Repository."""
+  repository(
+    """Name of Repository to find."""
+    name: String!
+  ): Repository
 }
 
-"""
-A subset of repository info.
-"""
+"""A subset of repository info."""
 interface RepositoryInfo {
-	"""
-	Identifies the date and time when the repository was archived.
-	"""
-	archivedAt: DateTime
-	"""
-	Identifies the date and time when the object was created.
-	"""
-	createdAt: DateTime!
-	"""
-	The description of the repository.
-	"""
-	description: String
-	"""
-	Returns how many forks there are of this repository in the whole network.
-	"""
-	forkCount: Int!
-	"""
-	Indicates if the repository has the Discussions feature enabled.
-	"""
-	hasDiscussionsEnabled: Boolean!
-	"""
-	Indicates if the repository has issues feature enabled.
-	"""
-	hasIssuesEnabled: Boolean!
-	"""
-	Indicates if the repository has the Projects feature enabled.
-	"""
-	hasProjectsEnabled: Boolean!
-	"""
-	Indicates if the repository has wiki feature enabled.
-	"""
-	hasWikiEnabled: Boolean!
-	"""
-	The repository's URL.
-	"""
-	homepageUrl: URI
-	"""
-	Indicates if the repository is unmaintained.
-	"""
-	isArchived: Boolean!
-	"""
-	Identifies if the repository is a fork.
-	"""
-	isFork: Boolean!
-	"""
-	Indicates if a repository is either owned by an organization, or is a private fork of an organization repository.
-	"""
-	isInOrganization: Boolean!
-	"""
-	Indicates if the repository has been locked or not.
-	"""
-	isLocked: Boolean!
-	"""
-	Identifies if the repository is a mirror.
-	"""
-	isMirror: Boolean!
-	"""
-	Identifies if the repository is private or internal.
-	"""
-	isPrivate: Boolean!
-	"""
-	Identifies if the repository is a template that can be used to generate new repositories.
-	"""
-	isTemplate: Boolean!
-	"""
-	The repository's original mirror URL.
-	"""
-	mirrorUrl: URI
-	"""
-	The name of the repository.
-	"""
-	name: String!
-	"""
-	The repository's name with owner.
-	"""
-	nameWithOwner: String!
-	"""
-	The User owner of the repository.
-	"""
-	owner: RepositoryOwner!
-	"""
-	Identifies the date and time when the repository was last pushed to.
-	"""
-	pushedAt: DateTime
-	"""
-	The HTTP path for this repository
-	"""
-	resourcePath: URI!
-	"""
-	Identifies the date and time when the object was last updated.
-	"""
-	updatedAt: DateTime!
-	"""
-	The HTTP URL for this repository
-	"""
-	url: URI!
-	"""
-	Indicates the repository's visibility level.
-	"""
-	visibility: RepositoryVisibility!
+  """Identifies the date and time when the repository was archived."""
+  archivedAt: DateTime
+  """Identifies the date and time when the object was created."""
+  createdAt: DateTime!
+  """The description of the repository."""
+  description: String
+  """
+  Returns how many forks there are of this repository in the whole network.
+  """
+  forkCount: Int!
+  """Indicates if the repository has the Discussions feature enabled."""
+  hasDiscussionsEnabled: Boolean!
+  """Indicates if the repository has issues feature enabled."""
+  hasIssuesEnabled: Boolean!
+  """Indicates if the repository has the Projects feature enabled."""
+  hasProjectsEnabled: Boolean!
+  """Indicates if the repository has wiki feature enabled."""
+  hasWikiEnabled: Boolean!
+  """The repository's URL."""
+  homepageUrl: URI
+  """Indicates if the repository is unmaintained."""
+  isArchived: Boolean!
+  """Identifies if the repository is a fork."""
+  isFork: Boolean!
+  """
+  Indicates if a repository is either owned by an organization, or is a private fork of an organization repository.
+  """
+  isInOrganization: Boolean!
+  """Indicates if the repository has been locked or not."""
+  isLocked: Boolean!
+  """Identifies if the repository is a mirror."""
+  isMirror: Boolean!
+  """Identifies if the repository is private or internal."""
+  isPrivate: Boolean!
+  """
+  Identifies if the repository is a template that can be used to generate new repositories.
+  """
+  isTemplate: Boolean!
+  """The repository's original mirror URL."""
+  mirrorUrl: URI
+  """The name of the repository."""
+  name: String!
+  """The repository's name with owner."""
+  nameWithOwner: String!
+  """The User owner of the repository."""
+  owner: RepositoryOwner!
+  """Identifies the date and time when the repository was last pushed to."""
+  pushedAt: DateTime
+  """The HTTP path for this repository"""
+  resourcePath: URI!
+  """Identifies the date and time when the object was last updated."""
+  updatedAt: DateTime!
+  """The HTTP URL for this repository"""
+  url: URI!
+  """Indicates the repository's visibility level."""
+  visibility: RepositoryVisibility!
 }
 
-"""
-Things that can be starred.
-"""
+"""Things that can be starred."""
 interface Starrable {
-	"""
-	The Node ID of the Starrable object
-	"""
-	id: ID!
-	"""
-	Returns a count of how many stargazers there are on this object
-	"""
-	stargazerCount: Int!
-	"""
-	Returns a boolean indicating whether the viewing user has starred this starrable.
-	"""
-	viewerHasStarred: Boolean!
+  """The Node ID of the Starrable object"""
+  id: ID!
+  """Returns a count of how many stargazers there are on this object"""
+  stargazerCount: Int!
+  """
+  Returns a boolean indicating whether the viewing user has starred this starrable.
+  """
+  viewerHasStarred: Boolean!
 }
 
-"""
-A repository contains the content for a project.
-"""
+"""A repository contains the content for a project."""
 type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLocatable {
-	"""
-	Identifies the date and time when the repository was archived.
-	"""
-	archivedAt: DateTime
-	"""
-	Identifies the date and time when the object was created.
-	"""
-	createdAt: DateTime!
-	"""
-	Identifies the primary key from the database.
-	"""
-	databaseId: Int
-	"""
-	The Ref associated with the repository's default branch.
-	"""
-	defaultBranchRef: Ref
-	"""
-	Whether or not branches are automatically deleted when merged in this repository.
-	"""
-	deleteBranchOnMerge: Boolean!
-	"""
-	The description of the repository.
-	"""
-	description: String
-	"""
-	Returns how many forks there are of this repository in the whole network.
-	"""
-	forkCount: Int!
-	"""
-	Indicates if the repository has the Discussions feature enabled.
-	"""
-	hasDiscussionsEnabled: Boolean!
-	"""
-	Indicates if the repository has issues feature enabled.
-	"""
-	hasIssuesEnabled: Boolean!
-	"""
-	Indicates if the repository has the Projects feature enabled.
-	"""
-	hasProjectsEnabled: Boolean!
-	"""
-	Indicates if the repository has wiki feature enabled.
-	"""
-	hasWikiEnabled: Boolean!
-	"""
-	The repository's URL.
-	"""
-	homepageUrl: URI
-	"""
-	The Node ID of the Repository object
-	"""
-	id: ID!
-	"""
-	Indicates if the repository is unmaintained.
-	"""
-	isArchived: Boolean!
-	"""
-	Returns whether or not this repository is empty.
-	"""
-	isEmpty: Boolean!
-	"""
-	Identifies if the repository is a fork.
-	"""
-	isFork: Boolean!
-	"""
-	Indicates if a repository is either owned by an organization, or is a private fork of an organization repository.
-	"""
-	isInOrganization: Boolean!
-	"""
-	Indicates if the repository has been locked or not.
-	"""
-	isLocked: Boolean!
-	"""
-	Identifies if the repository is a mirror.
-	"""
-	isMirror: Boolean!
-	"""
-	Identifies if the repository is private or internal.
-	"""
-	isPrivate: Boolean!
-	"""
-	Identifies if the repository is a template that can be used to generate new repositories.
-	"""
-	isTemplate: Boolean!
-	"""
-	Returns a list of issue templates associated to the repository
-	"""
-	issueTemplates: [IssueTemplate!]
-	"""
-	Get the latest release for the repository if one exists.
-	"""
-	latestRelease: Release
-	"""
-	Whether or not PRs are merged with a merge commit on this repository.
-	"""
-	mergeCommitAllowed: Boolean!
-	"""
-	The repository's original mirror URL.
-	"""
-	mirrorUrl: URI
-	"""
-	The name of the repository.
-	"""
-	name: String!
-	"""
-	The repository's name with owner.
-	"""
-	nameWithOwner: String!
-	"""
-	A list of direct forked repositories.
-	"""
-	forks(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Ordering options for repositories returned from the connection
-		"""
-		orderBy: RepositoryOrder
-		"""
-		If non-null, filters repositories according to privacy. Internal
-		repositories are considered private; consider using the visibility argument
-		if only internal repositories are needed. Cannot be combined with the
-		visibility argument.
-		"""
-		privacy: RepositoryPrivacy
-	): RepositoryConnection!
-	"""
-	A Git object in the repository
-	"""
-	object(
-		"""
-		A Git revision expression suitable for rev-parse
-		"""
-		expression: String
-		"""
-		The Git object ID
-		"""
-		oid: GitObjectID
-	): GitObject
-	"""
-	The User owner of the repository.
-	"""
-	owner: RepositoryOwner!
-	"""
-	The repository parent, if this is a fork.
-	"""
-	parent: Repository
-	"""
-	Returns a list of pull request templates associated to the repository
-	"""
-	pullRequestTemplates: [PullRequestTemplate!]
-	"""
-	Identifies the date and time when the repository was last pushed to.
-	"""
-	pushedAt: DateTime
-	"""
-	Whether or not rebase-merging is enabled on this repository.
-	"""
-	rebaseMergeAllowed: Boolean!
-	"""
-	Fetch a given ref from the repository
-	"""
-	ref(
-		"""
-		The ref to retrieve. Fully qualified matches are checked in order
-		(`refs/heads/master`) before falling back onto checks for short name matches (`master`).
-		"""
-		qualifiedName: String!
-	): Ref
-	"""
-	Lookup a single release given various criteria.
-	"""
-	release(
-		"""
-		The name of the Tag the Release was created from
-		"""
-		tagName: String!
-	): Release
-	"""
-	List of releases which are dependent on this repository.
-	"""
-	releases(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Order for connection
-		"""
-		orderBy: ReleaseOrder
-	): ReleaseConnection!
-	"""
-	The HTTP path for this repository
-	"""
-	resourcePath: URI!
-	"""
-	Whether or not squash-merging is enabled on this repository.
-	"""
-	squashMergeAllowed: Boolean!
-	"""
-	The SSH URL to clone this repository
-	"""
-	sshUrl: GitSSHRemote!
-	"""
-	Returns a count of how many stargazers there are on this object
-	"""
-	stargazerCount: Int!
-	"""
-	The repository from which this repository was generated, if any.
-	"""
-	templateRepository: Repository
-	"""
-	Identifies the date and time when the object was last updated.
-	"""
-	updatedAt: DateTime!
-	"""
-	The HTTP URL for this repository
-	"""
-	url: URI!
-	"""
-	Indicates whether the viewer has admin permissions on this repository.
-	"""
-	viewerCanAdminister: Boolean!
-	"""
-	Returns a boolean indicating whether the viewing user has starred this starrable.
-	"""
-	viewerHasStarred: Boolean!
-	"""
-	The users permission level on the repository. Will return null if authenticated as an GitHub App.
-	"""
-	viewerPermission: RepositoryPermission
-	"""
-	Indicates the repository's visibility level.
-	"""
-	visibility: RepositoryVisibility!
-	"""
-	A list of labels associated with the repository.
-	"""
-	labels(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Ordering options for labels returned from the connection.
-		"""
-		orderBy: LabelOrder = { field: CREATED_AT, direction: ASC }
-		"""
-		If provided, searches labels by name and description.
-		"""
-		query: String
-	): LabelConnection
+  """Identifies the date and time when the repository was archived."""
+  archivedAt: DateTime
+  """Identifies the date and time when the object was created."""
+  createdAt: DateTime!
+  """Identifies the primary key from the database."""
+  databaseId: Int
+  """The Ref associated with the repository's default branch."""
+  defaultBranchRef: Ref
+  """
+  Whether or not branches are automatically deleted when merged in this repository.
+  """
+  deleteBranchOnMerge: Boolean!
+  """The description of the repository."""
+  description: String
+  """
+  Returns how many forks there are of this repository in the whole network.
+  """
+  forkCount: Int!
+  """Indicates if the repository has the Discussions feature enabled."""
+  hasDiscussionsEnabled: Boolean!
+  """Indicates if the repository has issues feature enabled."""
+  hasIssuesEnabled: Boolean!
+  """Indicates if the repository has the Projects feature enabled."""
+  hasProjectsEnabled: Boolean!
+  """Indicates if the repository has wiki feature enabled."""
+  hasWikiEnabled: Boolean!
+  """The repository's URL."""
+  homepageUrl: URI
+  """The Node ID of the Repository object"""
+  id: ID!
+  """Indicates if the repository is unmaintained."""
+  isArchived: Boolean!
+  """Returns whether or not this repository is empty."""
+  isEmpty: Boolean!
+  """Identifies if the repository is a fork."""
+  isFork: Boolean!
+  """
+  Indicates if a repository is either owned by an organization, or is a private fork of an organization repository.
+  """
+  isInOrganization: Boolean!
+  """Indicates if the repository has been locked or not."""
+  isLocked: Boolean!
+  """Identifies if the repository is a mirror."""
+  isMirror: Boolean!
+  """Identifies if the repository is private or internal."""
+  isPrivate: Boolean!
+  """
+  Identifies if the repository is a template that can be used to generate new repositories.
+  """
+  isTemplate: Boolean!
+  """Returns a list of issue templates associated to the repository"""
+  issueTemplates: [IssueTemplate!]
+  """Get the latest release for the repository if one exists."""
+  latestRelease: Release
+  """Whether or not PRs are merged with a merge commit on this repository."""
+  mergeCommitAllowed: Boolean!
+  """The repository's original mirror URL."""
+  mirrorUrl: URI
+  """The name of the repository."""
+  name: String!
+  """The repository's name with owner."""
+  nameWithOwner: String!
+  """A list of direct forked repositories."""
+  forks(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Ordering options for repositories returned from the connection"""
+    orderBy: RepositoryOrder
+    """
+    If non-null, filters repositories according to privacy. Internal
+    repositories are considered private; consider using the visibility argument
+    if only internal repositories are needed. Cannot be combined with the
+    visibility argument.
+    """
+    privacy: RepositoryPrivacy
+  ): RepositoryConnection!
+  """A Git object in the repository"""
+  object(
+    """A Git revision expression suitable for rev-parse"""
+    expression: String
+    """The Git object ID"""
+    oid: GitObjectID
+  ): GitObject
+  """The User owner of the repository."""
+  owner: RepositoryOwner!
+  """The repository parent, if this is a fork."""
+  parent: Repository
+  """Returns a list of pull request templates associated to the repository"""
+  pullRequestTemplates: [PullRequestTemplate!]
+  """Identifies the date and time when the repository was last pushed to."""
+  pushedAt: DateTime
+  """Whether or not rebase-merging is enabled on this repository."""
+  rebaseMergeAllowed: Boolean!
+  """Fetch a given ref from the repository"""
+  ref(
+    """
+    The ref to retrieve. Fully qualified matches are checked in order
+    (`refs/heads/master`) before falling back onto checks for short name matches (`master`).
+    """
+    qualifiedName: String!
+  ): Ref
+  """Lookup a single release given various criteria."""
+  release(
+    """The name of the Tag the Release was created from"""
+    tagName: String!
+  ): Release
+  """List of releases which are dependent on this repository."""
+  releases(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Order for connection"""
+    orderBy: ReleaseOrder
+  ): ReleaseConnection!
+  """The HTTP path for this repository"""
+  resourcePath: URI!
+  """Whether or not squash-merging is enabled on this repository."""
+  squashMergeAllowed: Boolean!
+  """The SSH URL to clone this repository"""
+  sshUrl: GitSSHRemote!
+  """Returns a count of how many stargazers there are on this object"""
+  stargazerCount: Int!
+  """The repository from which this repository was generated, if any."""
+  templateRepository: Repository
+  """Identifies the date and time when the object was last updated."""
+  updatedAt: DateTime!
+  """The HTTP URL for this repository"""
+  url: URI!
+  """Indicates whether the viewer has admin permissions on this repository."""
+  viewerCanAdminister: Boolean!
+  """
+  Returns a boolean indicating whether the viewing user has starred this starrable.
+  """
+  viewerHasStarred: Boolean!
+  """
+  The users permission level on the repository. Will return null if authenticated as an GitHub App.
+  """
+  viewerPermission: RepositoryPermission
+  """Indicates the repository's visibility level."""
+  visibility: RepositoryVisibility!
+  """A list of labels associated with the repository."""
+  labels(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Ordering options for labels returned from the connection."""
+    orderBy: LabelOrder = { field: CREATED_AT, direction: ASC }
+    """If provided, searches labels by name and description."""
+    query: String
+  ): LabelConnection
 }
 
-"""
-A list of repositories owned by the subject.
-"""
+"""A list of repositories owned by the subject."""
 type RepositoryConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [RepositoryEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [Repository]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [RepositoryEdge]
+  """A list of nodes."""
+  nodes: [Repository]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-An edge in a connection.
-"""
+"""An edge in a connection."""
 type RepositoryEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The item at the end of the edge.
-	"""
-	node: Repository
+  """A cursor for use in pagination."""
+  cursor: String!
+  """The item at the end of the edge."""
+  node: Repository
 }
 
-"""
-Represents a Git reference.
-"""
+"""Represents a Git reference."""
 type Ref implements Node {
-	"""
-	The Node ID of the Ref object
-	"""
-	id: ID!
-	"""
-	The ref name.
-	"""
-	name: String!
-	"""
-	The ref's prefix, such as `refs/heads/` or `refs/tags/`.
-	"""
-	prefix: String!
-	"""
-	The object the ref points to. Returns null when object does not exist.
-	"""
-	target: GitObject
-	"""
-	Branch protection rules for this ref
-	"""
-	branchProtectionRule: BranchProtectionRule
+  """The Node ID of the Ref object"""
+  id: ID!
+  """The ref name."""
+  name: String!
+  """The ref's prefix, such as `refs/heads/` or `refs/tags/`."""
+  prefix: String!
+  """The object the ref points to. Returns null when object does not exist."""
+  target: GitObject
+  """Branch protection rules for this ref"""
+  branchProtectionRule: BranchProtectionRule
 }
 
-"""
-A branch protection rule.
-"""
+"""A branch protection rule."""
 type BranchProtectionRule {
-	"""
-	Are branches required to be up to date before merging.
-	"""
-	requiresStrictStatusChecks: Boolean!
+  """Are branches required to be up to date before merging."""
+  requiresStrictStatusChecks: Boolean!
 }
 
-"""
-Represents a Git object.
-"""
+"""Represents a Git object."""
 interface GitObject {
-	"""
-	An abbreviated version of the Git object ID
-	"""
-	abbreviatedOid: String!
-	"""
-	The Node ID of the GitObject object
-	"""
-	id: ID!
-	"""
-	The Git object ID
-	"""
-	oid: GitObjectID!
-	"""
-	The Repository the Git object belongs to
-	"""
-	repository: Repository!
+  """An abbreviated version of the Git object ID"""
+  abbreviatedOid: String!
+  """The Node ID of the GitObject object"""
+  id: ID!
+  """The Git object ID"""
+  oid: GitObjectID!
+  """The Repository the Git object belongs to"""
+  repository: Repository!
 }
 
-"""
-Represents a Git commit.
-"""
+"""Represents a Git commit."""
 type Commit implements GitObject & Node {
-	"""
-	An abbreviated version of the Git object ID
-	"""
-	abbreviatedOid: String!
-	"""
-	The datetime when this commit was authored.
-	"""
-	authoredDate: DateTime!
-	"""
-	The datetime when this commit was committed.
-	"""
-	committedDate: DateTime!
-	"""
-	The Node ID of the Commit object
-	"""
-	id: ID!
-	"""
-	The Git commit message
-	"""
-	message: String!
-	"""
-	The Git commit message headline
-	"""
-	messageHeadline: String!
-	"""
-	The Git object ID
-	"""
-	oid: GitObjectID!
-	"""
-	Commit signing information, if present.
-	"""
-	signature: GitSignature
-	"""
-	The Repository this commit belongs to
-	"""
-	repository: Repository!
-	"""
-	The HTTP path for this commit
-	"""
-	resourcePath: URI!
-	"""
-	The HTTP URL for this commit
-	"""
-	url: URI!
-	"""
-	Fetches `git blame` information.
-	"""
-	blame(
-		"""
-		The file whose Git blame information you want.
-		"""
-		path: String!
-	): Blame!
+  """An abbreviated version of the Git object ID"""
+  abbreviatedOid: String!
+  """The datetime when this commit was authored."""
+  authoredDate: DateTime!
+  """The datetime when this commit was committed."""
+  committedDate: DateTime!
+  """The Node ID of the Commit object"""
+  id: ID!
+  """The Git commit message"""
+  message: String!
+  """The Git commit message headline"""
+  messageHeadline: String!
+  """The Git object ID"""
+  oid: GitObjectID!
+  """Commit signing information, if present."""
+  signature: GitSignature
+  """The Repository this commit belongs to"""
+  repository: Repository!
+  """The HTTP path for this commit"""
+  resourcePath: URI!
+  """The HTTP URL for this commit"""
+  url: URI!
+  """Fetches `git blame` information."""
+  blame(
+    """The file whose Git blame information you want."""
+    path: String!
+  ): Blame!
 }
 
-"""
-Represents a Git blame.
-"""
+"""Represents a Git blame."""
 type Blame {
-	"""
-	The list of ranges from a Git blame.
-	"""
-	ranges: [BlameRange!]!
+  """The list of ranges from a Git blame."""
+  ranges: [BlameRange!]!
 }
 
-"""
-Represents a range of information from a Git blame.
-"""
+"""Represents a range of information from a Git blame."""
 type BlameRange {
-	"""
-	Identifies the recency of the change, from 1 (new) to 10 (old). This is
-	calculated as a 2-quantile and determines the length of distance between the
-	median age of all the changes in the file and the recency of the current
-	range's change.
-	"""
-	age: Int!
-	"""
-	Identifies the line author
-	"""
-	commit: Commit!
-	"""
-	The ending line for the range
-	"""
-	endingLine: Int!
-	"""
-	The starting line for the range
-	"""
-	startingLine: Int!
+  """
+  Identifies the recency of the change, from 1 (new) to 10 (old). This is
+  calculated as a 2-quantile and determines the length of distance between the
+  median age of all the changes in the file and the recency of the current
+  range's change.
+  """
+  age: Int!
+  """Identifies the line author"""
+  commit: Commit!
+  """The ending line for the range"""
+  endingLine: Int!
+  """The starting line for the range"""
+  startingLine: Int!
 }
 
-"""
-A Git object ID.
-"""
+"""A Git object ID."""
 scalar GitObjectID
 
-"""
-Ordering options for repository connections
-"""
+"""Ordering options for repository connections"""
 input RepositoryOrder {
-	"""
-	The ordering direction.
-	"""
-	direction: OrderDirection!
-	"""
-	The field to order repositories by.
-	"""
-	field: RepositoryOrderField!
+  """The ordering direction."""
+  direction: OrderDirection!
+  """The field to order repositories by."""
+  field: RepositoryOrderField!
 }
 
-"""
-Properties by which repository connections can be ordered.
-"""
+"""Properties by which repository connections can be ordered."""
 enum RepositoryOrderField {
-	"""
-	Order repositories by creation time
-	"""
-	CREATED_AT
-	"""
-	Order repositories by name
-	"""
-	NAME
-	"""
-	Order repositories by push time
-	"""
-	PUSHED_AT
-	"""
-	Order repositories by number of stargazers
-	"""
-	STARGAZERS
-	"""
-	Order repositories by update time
-	"""
-	UPDATED_AT
+  """Order repositories by creation time"""
+  CREATED_AT
+  """Order repositories by name"""
+  NAME
+  """Order repositories by push time"""
+  PUSHED_AT
+  """Order repositories by number of stargazers"""
+  STARGAZERS
+  """Order repositories by update time"""
+  UPDATED_AT
 }
 
 """
 Possible directions in which to order a list of items when provided an `orderBy` argument.
 """
 enum OrderDirection {
-	"""
-	Specifies an ascending order for a given `orderBy` argument.
-	"""
-	ASC
-	"""
-	Specifies a descending order for a given `orderBy` argument.
-	"""
-	DESC
+  """Specifies an ascending order for a given `orderBy` argument."""
+  ASC
+  """Specifies a descending order for a given `orderBy` argument."""
+  DESC
 }
 
-"""
-The privacy of a repository
-"""
+"""The privacy of a repository"""
 enum RepositoryPrivacy {
-	"""
-	Private
-	"""
-	PRIVATE
-	"""
-	Public
-	"""
-	PUBLIC
+  """Private"""
+  PRIVATE
+  """Public"""
+  PUBLIC
 }
 
-"""
-The affiliation of a user to a repository
-"""
+"""The affiliation of a user to a repository"""
 enum RepositoryAffiliation {
-	"""
-	Repositories that the user has been added to as a collaborator.
-	"""
-	COLLABORATOR
-	"""
-	Repositories that the user has access to through being a member of an
-	organization. This includes every repository on every team that the user is on.
-	"""
-	ORGANIZATION_MEMBER
-	"""
-	Repositories that are owned by the authenticated user.
-	"""
-	OWNER
+  """Repositories that the user has been added to as a collaborator."""
+  COLLABORATOR
+  """
+  Repositories that the user has access to through being a member of an
+  organization. This includes every repository on every team that the user is on.
+  """
+  ORGANIZATION_MEMBER
+  """Repositories that are owned by the authenticated user."""
+  OWNER
 }
 
-"""
-The access level to a repository
-"""
+"""The access level to a repository"""
 enum RepositoryPermission {
-	"""
-	Can read, clone, and push to this repository. Can also manage issues, pull
-	requests, and repository settings, including adding collaborators
-	"""
-	ADMIN
-	"""
-	Can read, clone, and push to this repository. They can also manage issues, pull requests, and some repository settings
-	"""
-	MAINTAIN
-	"""
-	Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access
-	"""
-	MODERATE
-	"""
-	Can read and clone this repository. Can also open and comment on issues and pull requests
-	"""
-	READ
-	"""
-	Can read and clone this repository. Can also manage issues and pull requests
-	"""
-	TRIAGE
-	"""
-	Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access
-	"""
-	TRIAGE_PLUS
-		@deprecated(
-			reason: "TRIAGE_PLUS has been renamed to MODERATE. Use MODERATE instead. Removal on 2027-04-01 UTC."
-		)
-	"""
-	Can read, clone, and push to this repository. Can also manage issues and pull requests
-	"""
-	WRITE
+  """
+  Can read, clone, and push to this repository. Can also manage issues, pull
+  requests, and repository settings, including adding collaborators
+  """
+  ADMIN
+  """
+  Can read, clone, and push to this repository. They can also manage issues, pull requests, and some repository settings
+  """
+  MAINTAIN
+  """
+  Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access
+  """
+  MODERATE
+  """
+  Can read and clone this repository. Can also open and comment on issues and pull requests
+  """
+  READ
+  """
+  Can read and clone this repository. Can also manage issues and pull requests
+  """
+  TRIAGE
+  """
+  Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access
+  """
+  TRIAGE_PLUS @deprecated(reason: "TRIAGE_PLUS has been renamed to MODERATE. Use MODERATE instead. Removal on 2027-04-01 UTC.")
+  """
+  Can read, clone, and push to this repository. Can also manage issues and pull requests
+  """
+  WRITE
 }
 
-"""
-The repository's visibility level.
-"""
+"""The repository's visibility level."""
 enum RepositoryVisibility {
-	"""
-	The repository is visible only to users in the same enterprise.
-	"""
-	INTERNAL
-	"""
-	The repository is visible only to those with explicit access.
-	"""
-	PRIVATE
-	"""
-	The repository is visible to everyone.
-	"""
-	PUBLIC
+  """The repository is visible only to users in the same enterprise."""
+  INTERNAL
+  """The repository is visible only to those with explicit access."""
+  PRIVATE
+  """The repository is visible to everyone."""
+  PUBLIC
 }
 
-"""
-Autogenerated input type of CreateRepository
-"""
+"""Autogenerated input type of CreateRepository"""
 input CreateRepositoryInput {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	A short description of the new repository.
-	"""
-	description: String
-	"""
-	Indicates if the repository should have the issues feature enabled.
-	"""
-	hasIssuesEnabled: Boolean = true
-	"""
-	Indicates if the repository should have the wiki feature enabled.
-	"""
-	hasWikiEnabled: Boolean = false
-	"""
-	The URL for a web page about this repository.
-	"""
-	homepageUrl: URI
-	"""
-	The name of the new repository.
-	"""
-	name: String!
-	"""
-	The ID of the owner for the new repository.
-	"""
-	ownerId: ID
-	"""
-	When an organization is specified as the owner, this ID identifies the team
-	that should be granted access to the new repository.
-	"""
-	teamId: ID
-	"""
-	Whether this repository should be marked as a template such that anyone who
-	can access it can create new repositories with the same files and directory structure.
-	"""
-	template: Boolean = false
-	"""
-	Indicates the repository's visibility level.
-	"""
-	visibility: RepositoryVisibility!
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """A short description of the new repository."""
+  description: String
+  """Indicates if the repository should have the issues feature enabled."""
+  hasIssuesEnabled: Boolean = true
+  """Indicates if the repository should have the wiki feature enabled."""
+  hasWikiEnabled: Boolean = false
+  """The URL for a web page about this repository."""
+  homepageUrl: URI
+  """The name of the new repository."""
+  name: String!
+  """The ID of the owner for the new repository."""
+  ownerId: ID
+  """
+  When an organization is specified as the owner, this ID identifies the team
+  that should be granted access to the new repository.
+  """
+  teamId: ID
+  """
+  Whether this repository should be marked as a template such that anyone who
+  can access it can create new repositories with the same files and directory structure.
+  """
+  template: Boolean = false
+  """Indicates the repository's visibility level."""
+  visibility: RepositoryVisibility!
 }
 
-"""
-Autogenerated return type of CreateRepository.
-"""
+"""Autogenerated return type of CreateRepository."""
 type CreateRepositoryPayload {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	The new repository.
-	"""
-	repository: Repository
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """The new repository."""
+  repository: Repository
 }
 
-"""
-Autogenerated input type of UpdateRepository
-"""
+"""Autogenerated input type of UpdateRepository"""
 input UpdateRepositoryInput {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	The ID of the repository to update.
-	"""
-	repositoryId: ID!
-	"""
-	The new name of the repository.
-	"""
-	name: String
-	"""
-	A new description for the repository. Pass an empty string to erase the existing description.
-	"""
-	description: String
-	"""
-	The URL for a web page about this repository. Pass an empty string to erase the existing URL.
-	"""
-	homepageUrl: URI
-	"""
-	Indicates if the repository should have the issues feature enabled.
-	"""
-	hasIssuesEnabled: Boolean
-	"""
-	Indicates if the repository should have the wiki feature enabled.
-	"""
-	hasWikiEnabled: Boolean
-	"""
-	Indicates if the repository should have the project boards feature enabled.
-	"""
-	hasProjectsEnabled: Boolean
-	"""
-	Whether this repository should be marked as a template such that anyone who
-	can access it can create new repositories with the same files and directory structure.
-	"""
-	template: Boolean
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """The ID of the repository to update."""
+  repositoryId: ID!
+  """The new name of the repository."""
+  name: String
+  """
+  A new description for the repository. Pass an empty string to erase the existing description.
+  """
+  description: String
+  """
+  The URL for a web page about this repository. Pass an empty string to erase the existing URL.
+  """
+  homepageUrl: URI
+  """Indicates if the repository should have the issues feature enabled."""
+  hasIssuesEnabled: Boolean
+  """Indicates if the repository should have the wiki feature enabled."""
+  hasWikiEnabled: Boolean
+  """
+  Indicates if the repository should have the project boards feature enabled.
+  """
+  hasProjectsEnabled: Boolean
+  """
+  Whether this repository should be marked as a template such that anyone who
+  can access it can create new repositories with the same files and directory structure.
+  """
+  template: Boolean
 }
 
-"""
-Autogenerated return type of UpdateRepository.
-"""
+"""Autogenerated return type of UpdateRepository."""
 type UpdateRepositoryPayload {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	The updated repository.
-	"""
-	repository: Repository
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """The updated repository."""
+  repository: Repository
 }
 
-"""
-Autogenerated input type of CreateLabel
-"""
+"""Autogenerated input type of CreateLabel"""
 input CreateLabelInput {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	A 6 character hex code, without the leading #, identifying the color of the label.
-	"""
-	color: String!
-	"""
-	A brief description of the label, such as its purpose.
-	"""
-	description: String
-	"""
-	The name of the label.
-	"""
-	name: String!
-	"""
-	The Node ID of the repository.
-	"""
-	repositoryId: ID!
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """
+  A 6 character hex code, without the leading #, identifying the color of the label.
+  """
+  color: String!
+  """A brief description of the label, such as its purpose."""
+  description: String
+  """The name of the label."""
+  name: String!
+  """The Node ID of the repository."""
+  repositoryId: ID!
 }
 
-"""
-Autogenerated return type of CreateLabel.
-"""
+"""Autogenerated return type of CreateLabel."""
 type CreateLabelPayload {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	The new label.
-	"""
-	label: Label
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """The new label."""
+  label: Label
 }
 
-"""
-Autogenerated input type of UpdateLabel
-"""
+"""Autogenerated input type of UpdateLabel"""
 input UpdateLabelInput {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	A 6 character hex code, without the leading #, identifying the updated color of the label.
-	"""
-	color: String
-	"""
-	A brief description of the label, such as its purpose.
-	"""
-	description: String
-	"""
-	The Node ID of the label to be updated.
-	"""
-	id: ID!
-	"""
-	The updated name of the label.
-	"""
-	name: String
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """
+  A 6 character hex code, without the leading #, identifying the updated color of the label.
+  """
+  color: String
+  """A brief description of the label, such as its purpose."""
+  description: String
+  """The Node ID of the label to be updated."""
+  id: ID!
+  """The updated name of the label."""
+  name: String
 }
 
-"""
-Autogenerated return type of UpdateLabel.
-"""
+"""Autogenerated return type of UpdateLabel."""
 type UpdateLabelPayload {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	The updated label.
-	"""
-	label: Label
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """The updated label."""
+  label: Label
 }
 
-"""
-Autogenerated input type of DeleteLabel
-"""
+"""Autogenerated input type of DeleteLabel"""
 input DeleteLabelInput {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
-	"""
-	The Node ID of the label to be deleted.
-	"""
-	id: ID!
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
+  """The Node ID of the label to be deleted."""
+  id: ID!
 }
 
-"""
-Autogenerated return type of DeleteLabel.
-"""
+"""Autogenerated return type of DeleteLabel."""
 type DeleteLabelPayload {
-	"""
-	A unique identifier for the client performing the mutation.
-	"""
-	clientMutationId: String
+  """A unique identifier for the client performing the mutation."""
+  clientMutationId: String
 }
 
-"""
-Ways in which lists of labels can be ordered upon return.
-"""
+"""Ways in which lists of labels can be ordered upon return."""
 input LabelOrder {
-	"""
-	The direction in which to order labels by the specified field.
-	"""
-	direction: OrderDirection!
-	"""
-	The field in which to order labels by.
-	"""
-	field: LabelOrderField!
+  """The direction in which to order labels by the specified field."""
+  direction: OrderDirection!
+  """The field in which to order labels by."""
+  field: LabelOrderField!
 }
 
-"""
-Properties by which label connections can be ordered.
-"""
+"""Properties by which label connections can be ordered."""
 enum LabelOrderField {
-	"""
-	Order labels by creation time
-	"""
-	CREATED_AT
-	"""
-	Order labels by issue count
-	"""
-	ISSUE_COUNT
-	"""
-	Order labels by name
-	"""
-	NAME
+  """Order labels by creation time"""
+  CREATED_AT
+  """Order labels by issue count"""
+  ISSUE_COUNT
+  """Order labels by name"""
+  NAME
 }
 
-"""
-Git SSH string
-"""
+"""Git SSH string"""
 scalar GitSSHRemote
 
-"""
-A release contains the content for a release.
-"""
+"""A release contains the content for a release."""
 type Release implements Node & UniformResourceLocatable {
-	"""
-	The author of the release
-	"""
-	author: User
-	"""
-	Identifies the date and time when the object was created.
-	"""
-	createdAt: DateTime!
-	"""
-	Identifies the primary key from the database.
-	"""
-	databaseId: Int
-	"""
-	The description of the release.
-	"""
-	description: String
-	"""
-	The Node ID of the Release object
-	"""
-	id: ID!
-	"""
-	Whether or not the release is immutable
-	"""
-	immutable: Boolean!
-	"""
-	Whether or not the release is a draft
-	"""
-	isDraft: Boolean!
-	"""
-	Whether or not the release is the latest releast
-	"""
-	isLatest: Boolean!
-	"""
-	Whether or not the release is a prerelease
-	"""
-	isPrerelease: Boolean!
-	"""
-	The title of the release.
-	"""
-	name: String
-	"""
-	Identifies the date and time when the release was created.
-	"""
-	publishedAt: DateTime
-	"""
-	List of releases assets which are dependent on this release.
-	"""
-	releaseAssets(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		A name to filter the assets by.
-		"""
-		name: String
-	): ReleaseAssetConnection!
-	"""
-	The repository that the release belongs to.
-	"""
-	repository: Repository!
-	"""
-	The HTTP path for this issue
-	"""
-	resourcePath: URI!
-	"""
-	The name of the release's Git tag
-	"""
-	tagName: String!
-	"""
-	Identifies the date and time when the object was last updated.
-	"""
-	updatedAt: DateTime!
-	"""
-	The HTTP URL for this issue
-	"""
-	url: URI!
+  """The author of the release"""
+  author: User
+  """Identifies the date and time when the object was created."""
+  createdAt: DateTime!
+  """Identifies the primary key from the database."""
+  databaseId: Int
+  """The description of the release."""
+  description: String
+  """The Node ID of the Release object"""
+  id: ID!
+  """Whether or not the release is immutable"""
+  immutable: Boolean!
+  """Whether or not the release is a draft"""
+  isDraft: Boolean!
+  """Whether or not the release is the latest releast"""
+  isLatest: Boolean!
+  """Whether or not the release is a prerelease"""
+  isPrerelease: Boolean!
+  """The title of the release."""
+  name: String
+  """Identifies the date and time when the release was created."""
+  publishedAt: DateTime
+  """List of releases assets which are dependent on this release."""
+  releaseAssets(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """A name to filter the assets by."""
+    name: String
+  ): ReleaseAssetConnection!
+  """The repository that the release belongs to."""
+  repository: Repository!
+  """The HTTP path for this issue"""
+  resourcePath: URI!
+  """The name of the release's Git tag"""
+  tagName: String!
+  """Identifies the date and time when the object was last updated."""
+  updatedAt: DateTime!
+  """The HTTP URL for this issue"""
+  url: URI!
 }
 
-"""
-A release asset contains the content for a release asset.
-"""
+"""A release asset contains the content for a release asset."""
 type ReleaseAsset implements Node {
-	"""
-	The asset's content-type
-	"""
-	contentType: String!
-	"""
-	Identifies the date and time when the object was created.
-	"""
-	createdAt: DateTime!
-	"""
-	The number of times this asset was downloaded
-	"""
-	downloadCount: Int!
-	"""
-	Identifies the URL where you can download the release asset via the browser.
-	"""
-	downloadUrl: URI!
-	"""
-	The Node ID of the ReleaseAsset object
-	"""
-	id: ID!
-	"""
-	Identifies the title of the release asset.
-	"""
-	name: String!
-	"""
-	Release that the asset is associated with
-	"""
-	release: Release
-	"""
-	The size (in bytes) of the asset
-	"""
-	size: Int!
-	"""
-	Identifies the date and time when the object was last updated.
-	"""
-	updatedAt: DateTime!
-	"""
-	The user that performed the upload
-	"""
-	uploadedBy: User!
-	"""
-	Identifies the URL of the release asset.
-	"""
-	url: URI!
+  """The asset's content-type"""
+  contentType: String!
+  """Identifies the date and time when the object was created."""
+  createdAt: DateTime!
+  """The number of times this asset was downloaded"""
+  downloadCount: Int!
+  """
+  Identifies the URL where you can download the release asset via the browser.
+  """
+  downloadUrl: URI!
+  """The Node ID of the ReleaseAsset object"""
+  id: ID!
+  """Identifies the title of the release asset."""
+  name: String!
+  """Release that the asset is associated with"""
+  release: Release
+  """The size (in bytes) of the asset"""
+  size: Int!
+  """Identifies the date and time when the object was last updated."""
+  updatedAt: DateTime!
+  """The user that performed the upload"""
+  uploadedBy: User!
+  """Identifies the URL of the release asset."""
+  url: URI!
 }
 
-"""
-The connection type for Release.
-"""
+"""The connection type for Release."""
 type ReleaseConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [ReleaseEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [Release]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [ReleaseEdge]
+  """A list of nodes."""
+  nodes: [Release]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-An edge in a connection.
-"""
+"""An edge in a connection."""
 type ReleaseEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The item at the end of the edge.
-	"""
-	node: Release
+  """A cursor for use in pagination."""
+  cursor: String!
+  """The item at the end of the edge."""
+  node: Release
 }
 
-"""
-The connection type for ReleaseAsset.
-"""
+"""The connection type for ReleaseAsset."""
 type ReleaseAssetConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [ReleaseAssetEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [ReleaseAsset]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [ReleaseAssetEdge]
+  """A list of nodes."""
+  nodes: [ReleaseAsset]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-An edge in a connection.
-"""
+"""An edge in a connection."""
 type ReleaseAssetEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The item at the end of the edge.
-	"""
-	node: ReleaseAsset
+  """A cursor for use in pagination."""
+  cursor: String!
+  """The item at the end of the edge."""
+  node: ReleaseAsset
 }
 
-"""
-Ways in which lists of releases can be ordered upon return.
-"""
+"""Ways in which lists of releases can be ordered upon return."""
 input ReleaseOrder {
-	"""
-	The direction in which to order releases by the specified field.
-	"""
-	direction: OrderDirection!
-	"""
-	The field in which to order releases by.
-	"""
-	field: ReleaseOrderField!
+  """The direction in which to order releases by the specified field."""
+  direction: OrderDirection!
+  """The field in which to order releases by."""
+  field: ReleaseOrderField!
 }
 
-"""
-Properties by which release connections can be ordered.
-"""
+"""Properties by which release connections can be ordered."""
 enum ReleaseOrderField {
-	"""
-	Order releases by creation time
-	"""
-	CREATED_AT
-	"""
-	Order releases alphabetically by name
-	"""
-	NAME
+  """Order releases by creation time"""
+  CREATED_AT
+  """Order releases alphabetically by name"""
+  NAME
 }
 
-"""
-A repository issue template.
-"""
+"""A repository issue template."""
 type IssueTemplate {
-	"""
-	The template purpose.
-	"""
-	about: String
-	"""
-	The suggested assignees.
-	"""
-	assignees(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-	): UserConnection!
-	"""
-	The suggested issue body.
-	"""
-	body: String
-	"""
-	The template filename.
-	"""
-	filename: String!
-	"""
-	The suggested issue labels
-	"""
-	labels(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-	): LabelConnection
-	"""
-	The template name.
-	"""
-	name: String!
-	"""
-	The suggested issue title.
-	"""
-	title: String
+  """The template purpose."""
+  about: String
+  """The suggested assignees."""
+  assignees(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+  ): UserConnection!
+  """The suggested issue body."""
+  body: String
+  """The template filename."""
+  filename: String!
+  """The suggested issue labels"""
+  labels(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+  ): LabelConnection
+  """The template name."""
+  name: String!
+  """The suggested issue title."""
+  title: String
 }
 
-"""
-A repository pull request template.
-"""
+"""A repository pull request template."""
 type PullRequestTemplate {
-	"""
-	The body of the template
-	"""
-	body: String
-	"""
-	The filename of the template
-	"""
-	filename: String
-	"""
-	The repository the template belongs to
-	"""
-	repository: Repository!
+  """The body of the template"""
+  body: String
+  """The filename of the template"""
+  filename: String
+  """The repository the template belongs to"""
+  repository: Repository!
 }
 
-"""
-Information about a signature (GPG or S/MIME) on a Commit or Tag.
-"""
+"""Information about a signature (GPG or S/MIME) on a Commit or Tag."""
 interface GitSignature {
-	"""
-	Email used to sign this object.
-	"""
-	email: String!
-	"""
-	True if the signature is valid and verified by GitHub.
-	"""
-	isValid: Boolean!
-	"""
-	Payload for GPG signing object. Raw ODB object without the signature header.
-	"""
-	payload: String!
-	"""
-	ASCII-armored signature header from object.
-	"""
-	signature: String!
-	"""
-	GitHub user corresponding to the email signing this commit.
-	"""
-	signer: User
-	"""
-	The state of this signature. `VALID` if signature is valid and verified by
-	GitHub, otherwise represents reason why signature is considered invalid.
-	"""
-	state: GitSignatureState!
-	"""
-	The date the signature was verified, if valid
-	"""
-	verifiedAt: DateTime
-	"""
-	True if the signature was made with GitHub's signing key.
-	"""
-	wasSignedByGitHub: Boolean!
+  """Email used to sign this object."""
+  email: String!
+  """True if the signature is valid and verified by GitHub."""
+  isValid: Boolean!
+  """
+  Payload for GPG signing object. Raw ODB object without the signature header.
+  """
+  payload: String!
+  """ASCII-armored signature header from object."""
+  signature: String!
+  """GitHub user corresponding to the email signing this commit."""
+  signer: User
+  """
+  The state of this signature. `VALID` if signature is valid and verified by
+  GitHub, otherwise represents reason why signature is considered invalid.
+  """
+  state: GitSignatureState!
+  """The date the signature was verified, if valid"""
+  verifiedAt: DateTime
+  """True if the signature was made with GitHub's signing key."""
+  wasSignedByGitHub: Boolean!
 }
 
-"""
-The state of a Git signature.
-"""
+"""The state of a Git signature."""
 enum GitSignatureState {
-	"""
-	The signing certificate or its chain could not be verified
-	"""
-	BAD_CERT
-	"""
-	Invalid email used for signing
-	"""
-	BAD_EMAIL
-	"""
-	Signing key expired
-	"""
-	EXPIRED_KEY
-	"""
-	Internal error - the GPG verification service misbehaved
-	"""
-	GPGVERIFY_ERROR
-	"""
-	Internal error - the GPG verification service is unavailable at the moment
-	"""
-	GPGVERIFY_UNAVAILABLE
-	"""
-	Invalid signature
-	"""
-	INVALID
-	"""
-	Malformed signature
-	"""
-	MALFORMED_SIG
-	"""
-	The usage flags for the key that signed this don't allow signing
-	"""
-	NOT_SIGNING_KEY
-	"""
-	Email used for signing not known to GitHub
-	"""
-	NO_USER
-	"""
-	Valid signature, though certificate revocation check failed
-	"""
-	OCSP_ERROR
-	"""
-	Valid signature, pending certificate revocation checking
-	"""
-	OCSP_PENDING
-	"""
-	One or more certificates in chain has been revoked
-	"""
-	OCSP_REVOKED
-	"""
-	Key used for signing not known to GitHub
-	"""
-	UNKNOWN_KEY
-	"""
-	Unknown signature type
-	"""
-	UNKNOWN_SIG_TYPE
-	"""
-	Unsigned
-	"""
-	UNSIGNED
-	"""
-	Email used for signing unverified on GitHub
-	"""
-	UNVERIFIED_EMAIL
-	"""
-	Valid signature and verified by GitHub
-	"""
-	VALID
+  """The signing certificate or its chain could not be verified"""
+  BAD_CERT
+  """Invalid email used for signing"""
+  BAD_EMAIL
+  """Signing key expired"""
+  EXPIRED_KEY
+  """Internal error - the GPG verification service misbehaved"""
+  GPGVERIFY_ERROR
+  """
+  Internal error - the GPG verification service is unavailable at the moment
+  """
+  GPGVERIFY_UNAVAILABLE
+  """Invalid signature"""
+  INVALID
+  """Malformed signature"""
+  MALFORMED_SIG
+  """The usage flags for the key that signed this don't allow signing"""
+  NOT_SIGNING_KEY
+  """Email used for signing not known to GitHub"""
+  NO_USER
+  """Valid signature, though certificate revocation check failed"""
+  OCSP_ERROR
+  """Valid signature, pending certificate revocation checking"""
+  OCSP_PENDING
+  """One or more certificates in chain has been revoked"""
+  OCSP_REVOKED
+  """Key used for signing not known to GitHub"""
+  UNKNOWN_KEY
+  """Unknown signature type"""
+  UNKNOWN_SIG_TYPE
+  """Unsigned"""
+  UNSIGNED
+  """Email used for signing unverified on GitHub"""
+  UNVERIFIED_EMAIL
+  """Valid signature and verified by GitHub"""
+  VALID
 }
 
-"""
-Represents a GPG signature on a Commit or Tag.
-"""
+"""Represents a GPG signature on a Commit or Tag."""
 type GpgSignature implements GitSignature {
-	"""
-	Email used to sign this object.
-	"""
-	email: String!
-	"""
-	True if the signature is valid and verified by GitHub.
-	"""
-	isValid: Boolean!
-	"""
-	Hex-encoded ID of the key that signed this object.
-	"""
-	keyId: String
-	"""
-	Payload for GPG signing object. Raw ODB object without the signature header.
-	"""
-	payload: String!
-	"""
-	ASCII-armored signature header from object.
-	"""
-	signature: String!
-	"""
-	GitHub user corresponding to the email signing this commit.
-	"""
-	signer: User
-	"""
-	The state of this signature. `VALID` if signature is valid and verified by
-	GitHub, otherwise represents reason why signature is considered invalid.
-	"""
-	state: GitSignatureState!
-	"""
-	The date the signature was verified, if valid
-	"""
-	verifiedAt: DateTime
-	"""
-	True if the signature was made with GitHub's signing key.
-	"""
-	wasSignedByGitHub: Boolean!
+  """Email used to sign this object."""
+  email: String!
+  """True if the signature is valid and verified by GitHub."""
+  isValid: Boolean!
+  """Hex-encoded ID of the key that signed this object."""
+  keyId: String
+  """
+  Payload for GPG signing object. Raw ODB object without the signature header.
+  """
+  payload: String!
+  """ASCII-armored signature header from object."""
+  signature: String!
+  """GitHub user corresponding to the email signing this commit."""
+  signer: User
+  """
+  The state of this signature. `VALID` if signature is valid and verified by
+  GitHub, otherwise represents reason why signature is considered invalid.
+  """
+  state: GitSignatureState!
+  """The date the signature was verified, if valid"""
+  verifiedAt: DateTime
+  """True if the signature was made with GitHub's signing key."""
+  wasSignedByGitHub: Boolean!
 }
 
-"""
-Represents an SSH signature on a Commit or Tag.
-"""
+"""Represents an SSH signature on a Commit or Tag."""
 type SshSignature implements GitSignature {
-	"""
-	Email used to sign this object.
-	"""
-	email: String!
-	"""
-	True if the signature is valid and verified by GitHub.
-	"""
-	isValid: Boolean!
-	"""
-	Hex-encoded fingerprint of the key that signed this object.
-	"""
-	keyFingerprint: String
-	"""
-	Payload for GPG signing object. Raw ODB object without the signature header.
-	"""
-	payload: String!
-	"""
-	ASCII-armored signature header from object.
-	"""
-	signature: String!
-	"""
-	GitHub user corresponding to the email signing this commit.
-	"""
-	signer: User
-	"""
-	The state of this signature. `VALID` if signature is valid and verified by
-	GitHub, otherwise represents reason why signature is considered invalid.
-	"""
-	state: GitSignatureState!
-	"""
-	The date the signature was verified, if valid
-	"""
-	verifiedAt: DateTime
-	"""
-	True if the signature was made with GitHub's signing key.
-	"""
-	wasSignedByGitHub: Boolean!
+  """Email used to sign this object."""
+  email: String!
+  """True if the signature is valid and verified by GitHub."""
+  isValid: Boolean!
+  """Hex-encoded fingerprint of the key that signed this object."""
+  keyFingerprint: String
+  """
+  Payload for GPG signing object. Raw ODB object without the signature header.
+  """
+  payload: String!
+  """ASCII-armored signature header from object."""
+  signature: String!
+  """GitHub user corresponding to the email signing this commit."""
+  signer: User
+  """
+  The state of this signature. `VALID` if signature is valid and verified by
+  GitHub, otherwise represents reason why signature is considered invalid.
+  """
+  state: GitSignatureState!
+  """The date the signature was verified, if valid"""
+  verifiedAt: DateTime
+  """True if the signature was made with GitHub's signing key."""
+  wasSignedByGitHub: Boolean!
 }

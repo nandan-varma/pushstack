@@ -3,491 +3,295 @@
 # change organizations.subset.json and re-run the script.
 
 extend type Query {
-	"""
-	Lookup a organization by login.
-	"""
-	organization(
-		"""
-		The organization's login.
-		"""
-		login: String!
-	): Organization
+  """Lookup a organization by login."""
+  organization(
+    """The organization's login."""
+    login: String!
+  ): Organization
 }
 
 """
 An account on GitHub, with one or more owners, that has repositories, members and teams.
 """
 type Organization implements Actor & Node & RepositoryOwner & UniformResourceLocatable {
-	"""
-	A URL pointing to the organization's public avatar.
-	"""
-	avatarUrl(
-		"""
-		The size of the resulting square image.
-		"""
-		size: Int
-	): URI!
-	"""
-	Identifies the date and time when the object was created.
-	"""
-	createdAt: DateTime!
-	"""
-	Identifies the primary key from the database.
-	"""
-	databaseId: Int
-	"""
-	The organization's public profile description.
-	"""
-	description: String
-	"""
-	The organization's public email.
-	"""
-	email: String
-	"""
-	The Node ID of the Organization object
-	"""
-	id: ID!
-	"""
-	Whether the organization has verified its profile email and website.
-	"""
-	isVerified: Boolean!
-	"""
-	The organization's public profile location.
-	"""
-	location: String
-	"""
-	The organization's login name.
-	"""
-	login: String!
-	"""
-	The organization's public profile name.
-	"""
-	name: String
-	"""
-	A list of repositories that the user owns.
-	"""
-	repositories(
-		"""
-		Array of viewer's affiliation options for repositories returned from the
-		connection. For example, OWNER will include only repositories that the
-		current viewer owns.
-		"""
-		affiliations: [RepositoryAffiliation]
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		If non-null, filters repositories according to whether they are archived and not maintained
-		"""
-		isArchived: Boolean
-		"""
-		If non-null, filters repositories according to whether they are forks of another repository
-		"""
-		isFork: Boolean
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Ordering options for repositories returned from the connection
-		"""
-		orderBy: RepositoryOrder
-		"""
-		Array of owner's affiliation options for repositories returned from the
-		connection. For example, OWNER will include only repositories that the
-		organization or user being viewed owns.
-		"""
-		ownerAffiliations: [RepositoryAffiliation] = [OWNER, COLLABORATOR]
-		"""
-		If non-null, filters repositories according to privacy. Internal
-		repositories are considered private; consider using the visibility argument
-		if only internal repositories are needed. Cannot be combined with the
-		visibility argument.
-		"""
-		privacy: RepositoryPrivacy
-		"""
-		If non-null, filters repositories according to visibility. Cannot be combined with the privacy argument.
-		"""
-		visibility: RepositoryVisibility
-	): RepositoryConnection!
-	"""
-	Find Repository.
-	"""
-	repository(
-		"""
-		Name of Repository to find.
-		"""
-		name: String!
-	): Repository
-	"""
-	The HTTP path for this organization.
-	"""
-	resourcePath: URI!
-	"""
-	Identifies the date and time when the object was last updated.
-	"""
-	updatedAt: DateTime!
-	"""
-	The HTTP URL for this organization.
-	"""
-	url: URI!
-	"""
-	The organization's public profile URL.
-	"""
-	websiteUrl: URI
-	"""
-	A list of teams in this organization.
-	"""
-	teams(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		User logins to filter by
-		"""
-		userLogins: [String!]
-	): TeamConnection!
+  """A URL pointing to the organization's public avatar."""
+  avatarUrl(
+    """The size of the resulting square image."""
+    size: Int
+  ): URI!
+  """Identifies the date and time when the object was created."""
+  createdAt: DateTime!
+  """Identifies the primary key from the database."""
+  databaseId: Int
+  """The organization's public profile description."""
+  description: String
+  """The organization's public email."""
+  email: String
+  """The Node ID of the Organization object"""
+  id: ID!
+  """Whether the organization has verified its profile email and website."""
+  isVerified: Boolean!
+  """The organization's public profile location."""
+  location: String
+  """The organization's login name."""
+  login: String!
+  """The organization's public profile name."""
+  name: String
+  """A list of repositories that the user owns."""
+  repositories(
+    """
+    Array of viewer's affiliation options for repositories returned from the
+    connection. For example, OWNER will include only repositories that the
+    current viewer owns.
+    """
+    affiliations: [RepositoryAffiliation]
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """
+    If non-null, filters repositories according to whether they are archived and not maintained
+    """
+    isArchived: Boolean
+    """
+    If non-null, filters repositories according to whether they are forks of another repository
+    """
+    isFork: Boolean
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Ordering options for repositories returned from the connection"""
+    orderBy: RepositoryOrder
+    """
+    Array of owner's affiliation options for repositories returned from the
+    connection. For example, OWNER will include only repositories that the
+    organization or user being viewed owns.
+    """
+    ownerAffiliations: [RepositoryAffiliation] = [OWNER, COLLABORATOR]
+    """
+    If non-null, filters repositories according to privacy. Internal
+    repositories are considered private; consider using the visibility argument
+    if only internal repositories are needed. Cannot be combined with the
+    visibility argument.
+    """
+    privacy: RepositoryPrivacy
+    """
+    If non-null, filters repositories according to visibility. Cannot be combined with the privacy argument.
+    """
+    visibility: RepositoryVisibility
+  ): RepositoryConnection!
+  """Find Repository."""
+  repository(
+    """Name of Repository to find."""
+    name: String!
+  ): Repository
+  """The HTTP path for this organization."""
+  resourcePath: URI!
+  """Identifies the date and time when the object was last updated."""
+  updatedAt: DateTime!
+  """The HTTP URL for this organization."""
+  url: URI!
+  """The organization's public profile URL."""
+  websiteUrl: URI
+  """A list of teams in this organization."""
+  teams(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """User logins to filter by"""
+    userLogins: [String!]
+  ): TeamConnection!
 }
 
-"""
-A list of organizations managed by an enterprise.
-"""
+"""A list of organizations managed by an enterprise."""
 type OrganizationConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [OrganizationEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [Organization]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [OrganizationEdge]
+  """A list of nodes."""
+  nodes: [Organization]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-An edge in a connection.
-"""
+"""An edge in a connection."""
 type OrganizationEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The item at the end of the edge.
-	"""
-	node: Organization
+  """A cursor for use in pagination."""
+  cursor: String!
+  """The item at the end of the edge."""
+  node: Organization
 }
 
-"""
-A team of users in an organization.
-"""
+"""A team of users in an organization."""
 type Team implements Node {
-	"""
-	Identifies the date and time when the object was created.
-	"""
-	createdAt: DateTime!
-	"""
-	Identifies the primary key from the database.
-	"""
-	databaseId: Int
-	"""
-	The description of the team.
-	"""
-	description: String
-	"""
-	The Node ID of the Team object
-	"""
-	id: ID!
-	"""
-	The name of the team.
-	"""
-	name: String!
-	"""
-	A list of users who are members of this team.
-	"""
-	members(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-	): TeamMemberConnection!
-	"""
-	The notification setting that the team has set.
-	"""
-	notificationSetting: TeamNotificationSetting!
-	"""
-	The organization that owns this team.
-	"""
-	organization: Organization!
-	"""
-	The parent team of the team.
-	"""
-	parentTeam: Team
-	"""
-	The level of privacy the team has.
-	"""
-	privacy: TeamPrivacy!
-	"""
-	A list of repositories this team has access to.
-	"""
-	repositories(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-	): TeamRepositoryConnection!
-	"""
-	List of child teams belonging to this team
-	"""
-	childTeams(
-		"""
-		Returns the elements in the list that come after the specified cursor.
-		"""
-		after: String
-		"""
-		Returns the elements in the list that come before the specified cursor.
-		"""
-		before: String
-		"""
-		Returns the first _n_ elements from the list.
-		"""
-		first: Int
-		"""
-		Returns the last _n_ elements from the list.
-		"""
-		last: Int
-		"""
-		Whether to list immediate child teams or all descendant child teams.
-		"""
-		immediateOnly: Boolean = true
-		"""
-		User logins to filter by
-		"""
-		userLogins: [String!]
-	): TeamConnection!
-	"""
-	The slug corresponding to the team.
-	"""
-	slug: String!
-	"""
-	Identifies the date and time when the object was last updated.
-	"""
-	updatedAt: DateTime!
-	"""
-	The HTTP URL for this team
-	"""
-	url: URI!
+  """Identifies the date and time when the object was created."""
+  createdAt: DateTime!
+  """Identifies the primary key from the database."""
+  databaseId: Int
+  """The description of the team."""
+  description: String
+  """The Node ID of the Team object"""
+  id: ID!
+  """The name of the team."""
+  name: String!
+  """A list of users who are members of this team."""
+  members(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+  ): TeamMemberConnection!
+  """The notification setting that the team has set."""
+  notificationSetting: TeamNotificationSetting!
+  """The organization that owns this team."""
+  organization: Organization!
+  """The parent team of the team."""
+  parentTeam: Team
+  """The level of privacy the team has."""
+  privacy: TeamPrivacy!
+  """A list of repositories this team has access to."""
+  repositories(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+  ): TeamRepositoryConnection!
+  """List of child teams belonging to this team"""
+  childTeams(
+    """Returns the elements in the list that come after the specified cursor."""
+    after: String
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+    """Returns the first _n_ elements from the list."""
+    first: Int
+    """Returns the last _n_ elements from the list."""
+    last: Int
+    """Whether to list immediate child teams or all descendant child teams."""
+    immediateOnly: Boolean = true
+    """User logins to filter by"""
+    userLogins: [String!]
+  ): TeamConnection!
+  """The slug corresponding to the team."""
+  slug: String!
+  """Identifies the date and time when the object was last updated."""
+  updatedAt: DateTime!
+  """The HTTP URL for this team"""
+  url: URI!
 }
 
-"""
-The connection type for Team.
-"""
+"""The connection type for Team."""
 type TeamConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [TeamEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [Team]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [TeamEdge]
+  """A list of nodes."""
+  nodes: [Team]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-An edge in a connection.
-"""
+"""An edge in a connection."""
 type TeamEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The item at the end of the edge.
-	"""
-	node: Team
+  """A cursor for use in pagination."""
+  cursor: String!
+  """The item at the end of the edge."""
+  node: Team
 }
 
-"""
-The connection type for User.
-"""
+"""The connection type for User."""
 type TeamMemberConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [TeamMemberEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [User]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [TeamMemberEdge]
+  """A list of nodes."""
+  nodes: [User]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-Represents a user who is a member of a team.
-"""
+"""Represents a user who is a member of a team."""
 type TeamMemberEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The HTTP path to the organization's member access page.
-	"""
-	memberAccessResourcePath: URI!
-	"""
-	The HTTP URL to the organization's member access page.
-	"""
-	memberAccessUrl: URI!
-	node: User!
-	"""
-	The role the member has on the team.
-	"""
-	role: TeamMemberRole!
+  """A cursor for use in pagination."""
+  cursor: String!
+  """The HTTP path to the organization's member access page."""
+  memberAccessResourcePath: URI!
+  """The HTTP URL to the organization's member access page."""
+  memberAccessUrl: URI!
+  node: User!
+  """The role the member has on the team."""
+  role: TeamMemberRole!
 }
 
-"""
-The possible team member roles; either 'maintainer' or 'member'.
-"""
+"""The possible team member roles; either 'maintainer' or 'member'."""
 enum TeamMemberRole {
-	"""
-	A team maintainer has permission to add and remove team members.
-	"""
-	MAINTAINER
-	"""
-	A team member has no administrative permissions on the team.
-	"""
-	MEMBER
+  """A team maintainer has permission to add and remove team members."""
+  MAINTAINER
+  """A team member has no administrative permissions on the team."""
+  MEMBER
 }
 
-"""
-The connection type for Repository.
-"""
+"""The connection type for Repository."""
 type TeamRepositoryConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [TeamRepositoryEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [Repository]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
+  """A list of edges."""
+  edges: [TeamRepositoryEdge]
+  """A list of nodes."""
+  nodes: [Repository]
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+  """Identifies the total count of items in the connection."""
+  totalCount: Int!
 }
 
-"""
-Represents a team repository.
-"""
+"""Represents a team repository."""
 type TeamRepositoryEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	node: Repository!
-	"""
-	The permission level the team has on the repository
-	"""
-	permission: RepositoryPermission!
+  """A cursor for use in pagination."""
+  cursor: String!
+  node: Repository!
+  """The permission level the team has on the repository"""
+  permission: RepositoryPermission!
 }
 
-"""
-The possible team privacy values.
-"""
+"""The possible team privacy values."""
 enum TeamPrivacy {
-	"""
-	A secret team can only be seen by its members.
-	"""
-	SECRET
-	"""
-	A visible team can be seen and @mentioned by every member of the organization.
-	"""
-	VISIBLE
+  """A secret team can only be seen by its members."""
+  SECRET
+  """
+  A visible team can be seen and @mentioned by every member of the organization.
+  """
+  VISIBLE
 }
 
-"""
-The possible team notification values.
-"""
+"""The possible team notification values."""
 enum TeamNotificationSetting {
-	"""
-	No one will receive notifications.
-	"""
-	NOTIFICATIONS_DISABLED
-	"""
-	Everyone will receive notifications when the team is @mentioned.
-	"""
-	NOTIFICATIONS_ENABLED
+  """No one will receive notifications."""
+  NOTIFICATIONS_DISABLED
+  """Everyone will receive notifications when the team is @mentioned."""
+  NOTIFICATIONS_ENABLED
 }

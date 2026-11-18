@@ -92,8 +92,8 @@ Checked before any resolver runs:
   (count-only `totalCount` selections need neither)
   (`MISSING_PAGINATION_BOUNDARIES`, `EXCESSIVE_PAGINATION`).
 - The node count (each connection's page size times its parents') is at most
-  50,000 (`MAX_NODE_LIMIT_EXCEEDED`), deliberately tighter than GitHub's
-  500,000.
+  500,000 (`MAX_NODE_LIMIT_EXCEEDED`), GitHub's own bound; `gh project`'s own
+  queries ask for about 400,000.
 - Selection depth is at most 25 (`MAX_DEPTH_EXCEEDED`).
 
 Each query costs GitHub's points (connection requests / 100, at least 1)

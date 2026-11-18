@@ -1001,7 +1001,7 @@ export async function updateProjectDraftIssue(
 		MAX_THREAD_TITLE_CHARS,
 		`A draft title is at most ${MAX_THREAD_TITLE_CHARS} characters`,
 	);
-	const body = input.body ?? item.draftBody;
+	const body = input.body === undefined ? item.draftBody : input.body;
 	if (body !== null)
 		assertLength(
 			body,
