@@ -84,6 +84,16 @@ to show a "conflicts likely" hint in a UI? That's `git-fs-s3/ops`'s
 `analyzeMerge`, not this package's — it composes with `threeWayMerge` (same
 `{ fs, gitdir, cache? }` shape) without either package importing the other.
 
+### `rebaseable(repo, sourceRef, targetRef)`
+
+Whether a rebase merge of `sourceRef` onto `targetRef` would succeed — GitHub's
+`rebaseable`, for a caller that reports it rather than guesses. Each commit is
+replayed against a merge kept in memory (nothing is written, no ref moves), so
+a conflicting replay, a branch past `MAX_RANGE_COMMITS` commits, or one with a
+merge commit is `false`. A source the target already contains, or one already
+based on the target, is `true`: there is nothing to replay. Unrelated histories
+throw `GitEdgeError`.
+
 ### `createParsedObjectCache(options?)`
 
 A generic in-memory LRU for any JS value, keyed by caller-chosen strings (convention: `` `${oid}:${format}` ``).

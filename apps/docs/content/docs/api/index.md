@@ -341,7 +341,11 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
   same repository and a `head` of another owner is `422`. `mergeable` is `null`
   for an open pull request (`false` once merged) and `mergeable_state` is
   `draft` for a draft and otherwise `unknown`: conflicts are only detected by the merge itself, which then answers
-  `405`. `rebaseable` is `false`, `draft` reflects the draft state (merging a draft is `405` "Pull Request is still a draft"; REST cannot change it after creation, as on GitHub), `requested_teams`
+  `405`. `rebaseable` is computed for an open pull request by a dry-run rebase
+  that writes nothing: `true` when its commits replay onto the base without a
+  conflict, `false` when they cannot (a conflict, more than 250 commits, or a
+  merge commit in the branch), and `null` for a closed or merged one.
+  `draft` reflects the draft state (merging a draft is `405` "Pull Request is still a draft"; REST cannot change it after creation, as on GitHub), `requested_teams`
   empty (there are no teams yet; `team_reviewers` is `422`), and `author_association` and `auto_merge`
   details are omitted or `null`. Creating a pull request doesn't require commits
   between the branches (the web UI doesn't either). A closed pull request whose

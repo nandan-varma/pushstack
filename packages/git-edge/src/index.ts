@@ -12,6 +12,7 @@ export {
 	type MergeOpts,
 	type MergeResult,
 	type Repo,
+	rebaseable,
 	rebaseMerge,
 	type SquashOpts,
 	squashMerge,

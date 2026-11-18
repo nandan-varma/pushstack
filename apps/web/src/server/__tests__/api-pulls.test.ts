@@ -235,6 +235,8 @@ describe("reading pull requests", () => {
 		const found = await call("/repos/alice/proj/pulls/1");
 		expect(found.status).toBe(200);
 		expect(found.body.number).toBe(1);
+		// A dry-run rebase of the open branch applies cleanly.
+		expect(found.body.rebaseable).toBe(true);
 		expect((await call("/repos/alice/proj/pulls/99")).status).toBe(404);
 		expect((await call("/repos/alice/proj/pulls/abc")).status).toBe(404);
 	});
@@ -404,6 +406,8 @@ describe("merging pull requests", () => {
 		expect(isMerged.status).toBe(204);
 
 		const pull = await call("/repos/alice/proj/pulls/1");
+		// A merged pull request is not rebased, so its rebaseability is unknown.
+		expect(pull.body.rebaseable).toBeNull();
 		expect(pull.body).toMatchObject({
 			state: "closed",
 			merged: true,
@@ -469,6 +473,8 @@ describe("merging pull requests", () => {
 			`/repos/alice/proj/pulls/${rightPull.body.number}`,
 		);
 		expect(still.body.state).toBe("open");
+		// Its one commit edits the same line "left" merged: a replay conflicts.
+		expect(still.body.rebaseable).toBe(false);
 	});
 });
 

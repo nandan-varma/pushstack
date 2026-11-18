@@ -8,7 +8,7 @@
  * Edge-compatible: no node: imports, uses only isomorphic-git object APIs.
  */
 
-import { createSemaphore, type Semaphore } from "git-fs-s3";
+import { createSemaphore } from "git-fs-s3";
 import { type Repo, withPackedWrites } from "git-fs-s3/ops";
 import git, { type CommitObject } from "isomorphic-git";
 import { merge as diff3Merge } from "node-diff3";
@@ -67,25 +67,65 @@ function same(a: Entry | undefined, b: Entry | undefined): boolean {
 	return a.oid === b.oid && a.mode === b.mode;
 }
 
-async function readEntries(
-	repo: Repo,
-	reads: Semaphore,
-	treeOid: string | undefined,
-): Promise<Map<string, Entry>> {
-	if (treeOid === undefined) return new Map();
-	const { tree } = await reads.run(() =>
-		git.readTree({ ...repo, oid: treeOid }),
-	);
-	return new Map(tree.map((entry) => [entry.path, entry]));
+/**
+ * Where a tree merge reads its trees and blobs from and stores the ones it
+ * builds. The repository is the real one; a merge check swaps in a store that
+ * keeps its results in memory, so it writes nothing.
+ */
+interface MergeIO {
+	/** The entries of `treeOid` (an empty map for a missing base tree). */
+	readTree(treeOid: string | undefined): Promise<Map<string, Entry>>;
+	readBlob(oid: string): Promise<Uint8Array>;
+	writeTree(entries: Array<Entry & { path: string }>): Promise<string>;
+	writeBlob(content: Uint8Array): Promise<string>;
 }
 
-async function readBlob(
-	repo: Repo,
-	reads: Semaphore,
-	oid: string,
-): Promise<Uint8Array> {
-	const { blob } = await reads.run(() => git.readBlob({ ...repo, oid }));
-	return blob;
+/** The repository itself, with every object call bounded by one shared pool. */
+function repoIO(repo: Repo): MergeIO {
+	const reads = createSemaphore(MAX_CONCURRENT_READS);
+	return {
+		async readTree(treeOid) {
+			if (treeOid === undefined) return new Map();
+			const { tree } = await reads.run(() =>
+				git.readTree({ ...repo, oid: treeOid }),
+			);
+			return new Map(tree.map((entry) => [entry.path, entry]));
+		},
+		async readBlob(oid) {
+			const { blob } = await reads.run(() => git.readBlob({ ...repo, oid }));
+			return blob;
+		},
+		writeTree: (tree) => reads.run(() => git.writeTree({ ...repo, tree })),
+		writeBlob: (blob) => reads.run(() => git.writeBlob({ ...repo, blob })),
+	};
+}
+
+/**
+ * A store that keeps what it writes to itself: an object built by a merge
+ * check gets a local label, never a real oid, because the only reader is the
+ * next step of the same check.
+ */
+function dryRunIO(reads: MergeIO): MergeIO {
+	const trees = new Map<string, Map<string, Entry>>();
+	const blobs = new Map<string, Uint8Array>();
+	let written = 0;
+	return {
+		readTree: async (treeOid) =>
+			treeOid === undefined
+				? new Map()
+				: (trees.get(treeOid) ?? reads.readTree(treeOid)),
+		readBlob: async (oid) => blobs.get(oid) ?? reads.readBlob(oid),
+		writeTree: async (tree) => {
+			const oid = `dry-run-tree-${written++}`;
+			trees.set(oid, new Map(tree.map(({ path, ...entry }) => [path, entry])));
+			return oid;
+		},
+		writeBlob: async (content) => {
+			const oid = `dry-run-blob-${written++}`;
+			blobs.set(oid, content);
+			return oid;
+		},
+	};
 }
 
 /**
@@ -135,8 +175,7 @@ function mergeMode(
  * merged entry, or null for a conflict (pushed onto `conflicts`).
  */
 async function mergeChangedEntry(
-	repo: Repo,
-	reads: Semaphore,
+	io: MergeIO,
 	path: string,
 	base: Entry | undefined,
 	ours: Entry | undefined,
@@ -145,8 +184,7 @@ async function mergeChangedEntry(
 ): Promise<Entry | null> {
 	if (isTree(ours) && isTree(theirs)) {
 		const oid = await mergeTrees(
-			repo,
-			reads,
+			io,
 			path,
 			isTree(base) ? base.oid : undefined,
 			ours.oid,
@@ -168,9 +206,9 @@ async function mergeChangedEntry(
 	}
 	if (ours.oid === theirs.oid) return { mode, oid: ours.oid, type: "blob" };
 	const [baseContent, oursContent, theirsContent] = await Promise.all([
-		isFile(base) ? readBlob(repo, reads, base.oid) : new Uint8Array(),
-		readBlob(repo, reads, ours.oid),
-		readBlob(repo, reads, theirs.oid),
+		isFile(base) ? io.readBlob(base.oid) : new Uint8Array(),
+		io.readBlob(ours.oid),
+		io.readBlob(theirs.oid),
 	]);
 	if (
 		isBinary(baseContent) ||
@@ -189,7 +227,7 @@ async function mergeChangedEntry(
 		conflicts.push(path);
 		return null;
 	}
-	const oid = await reads.run(() => git.writeBlob({ ...repo, blob: content }));
+	const oid = await io.writeBlob(content);
 	return { mode, oid, type: "blob" };
 }
 
@@ -199,8 +237,7 @@ async function mergeChangedEntry(
  * Returns the merged tree's oid, or null when any path conflicted.
  */
 async function mergeTrees(
-	repo: Repo,
-	reads: Semaphore,
+	io: MergeIO,
 	prefix: string,
 	baseOid: string | undefined,
 	oursOid: string,
@@ -208,9 +245,9 @@ async function mergeTrees(
 	conflicts: string[],
 ): Promise<string | null> {
 	const [base, ours, theirs] = await Promise.all([
-		readEntries(repo, reads, baseOid),
-		readEntries(repo, reads, oursOid),
-		readEntries(repo, reads, theirsOid),
+		io.readTree(baseOid),
+		io.readTree(oursOid),
+		io.readTree(theirsOid),
 	]);
 	const names = new Set([...base.keys(), ...ours.keys(), ...theirs.keys()]);
 	const merged: Array<Entry & { path: string }> = [];
@@ -226,14 +263,13 @@ async function mergeTrees(
 			if (same(o, t)) result = o;
 			else if (same(b, o)) result = t;
 			else if (same(b, t)) result = o;
-			else
-				result = await mergeChangedEntry(repo, reads, path, b, o, t, conflicts);
+			else result = await mergeChangedEntry(io, path, b, o, t, conflicts);
 			if (result) merged.push({ ...result, path: name });
 		}),
 	);
 
 	if (conflicts.length > before) return null;
-	return reads.run(() => git.writeTree({ ...repo, tree: merged }));
+	return io.writeTree(merged);
 }
 
 /** A commit a squash or rebase replays, with what it needs to be rewritten. */
@@ -272,16 +308,14 @@ function committerOf(
 
 /** Three-way merge of trees; a conflict throws `GitMergeConflictError`. */
 async function mergeTreesOrThrow(
-	repo: Repo,
-	reads: Semaphore,
+	io: MergeIO,
 	baseTree: string,
 	oursTree: string,
 	theirsTree: string,
 ): Promise<string> {
 	const conflicts: string[] = [];
 	const treeOid = await mergeTrees(
-		repo,
-		reads,
+		io,
 		"",
 		baseTree,
 		oursTree,
@@ -465,13 +499,11 @@ export async function threeWayMerge(
 		git.readCommit({ ...repo, oid: targetOid }),
 	]);
 
-	// One pool per merge: concurrent merges in the same process must not share
-	// (or leak) each other's limit.
-	const reads = createSemaphore(MAX_CONCURRENT_READS);
 	return withPackedWrites(repo, async (packed) => {
+		// One pool per merge: concurrent merges in the same process must not
+		// share (or leak) each other's limit.
 		const treeOid = await mergeTreesOrThrow(
-			packed,
-			reads,
+			repoIO(packed),
 			baseCommit.commit.tree,
 			targetCommit.commit.tree,
 			sourceCommit.commit.tree,
@@ -539,11 +571,9 @@ export async function squashMerge(
 		git.readCommit({ ...repo, oid: sourceOid }),
 		git.readCommit({ ...repo, oid: targetOid }),
 	]);
-	const reads = createSemaphore(MAX_CONCURRENT_READS);
 	return withPackedWrites(repo, async (packed) => {
 		const treeOid = await mergeTreesOrThrow(
-			packed,
-			reads,
+			repoIO(packed),
 			baseCommit.commit.tree,
 			targetCommit.commit.tree,
 			sourceCommit.commit.tree,
@@ -633,8 +663,8 @@ export async function rebaseMerge(
 	const commits = linearOrder(sourceOid, range.commits);
 	const targetCommit = await git.readCommit({ ...repo, oid: targetOid });
 	const author = identityOf(opts);
-	const reads = createSemaphore(MAX_CONCURRENT_READS);
 	return withPackedWrites(repo, async (packed) => {
+		const io = repoIO(packed);
 		let parent = targetOid;
 		let tree = targetCommit.commit.tree;
 		for (const commit of commits) {
@@ -642,13 +672,7 @@ export async function rebaseMerge(
 				...packed,
 				oid: commit.parents[0] as string,
 			});
-			tree = await mergeTreesOrThrow(
-				packed,
-				reads,
-				base.tree,
-				tree,
-				commit.tree,
-			);
+			tree = await mergeTreesOrThrow(io, base.tree, tree, commit.tree);
 			parent = await git.writeCommit({
 				...packed,
 				commit: {
@@ -668,4 +692,45 @@ export async function rebaseMerge(
 		});
 		return { commitOid: parent };
 	});
+}
+
+/**
+ * Whether a rebase merge of `sourceRef` onto `targetRef` would succeed, which
+ * is what GitHub's `rebaseable` reports. The same preconditions as
+ * `rebaseMerge` — nothing to replay when the target already contains the
+ * source or the source is based on it, no rebase past `MAX_RANGE_COMMITS`
+ * commits or of a branch with a merge commit — and then every commit is
+ * replayed against a merge kept in memory, so the check writes nothing and a
+ * conflict (or a refusal) is `false`.
+ */
+export async function rebaseable(
+	repo: Repo,
+	sourceRef: string,
+	targetRef: string,
+): Promise<boolean> {
+	const tips = await resolveTips(repo, sourceRef, targetRef);
+	const { sourceOid, targetOid } = tips;
+	if (await targetContainsSource(repo, tips)) return true;
+	if (await sourceContainsTarget(repo, tips)) return true;
+	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
+	const range = await commitsAboveBase(repo, baseOid, sourceOid);
+	if (range.truncated) return false;
+	if (range.commits.some((commit) => commit.parents.length !== 1)) return false;
+	const commits = linearOrder(sourceOid, range.commits);
+	const targetCommit = await git.readCommit({ ...repo, oid: targetOid });
+	const io = dryRunIO(repoIO(repo));
+	let tree = targetCommit.commit.tree;
+	for (const commit of commits) {
+		const { commit: base } = await git.readCommit({
+			...repo,
+			oid: commit.parents[0] as string,
+		});
+		try {
+			tree = await mergeTreesOrThrow(io, base.tree, tree, commit.tree);
+		} catch (error) {
+			if (error instanceof GitMergeConflictError) return false;
+			throw error;
+		}
+	}
+	return true;
 }

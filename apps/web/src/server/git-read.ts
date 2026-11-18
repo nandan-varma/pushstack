@@ -1,3 +1,4 @@
+import { GitEdgeError, rebaseable } from "git-edge";
 import {
 	GitObjectNotFoundError,
 	GitPathNotFoundError,
@@ -594,6 +595,26 @@ export async function getCommitInfosBetween(
 			headLog.length >= HISTORY_WALK_DEPTH &&
 			oldestFirst.length === headLog.length,
 	};
+}
+
+/**
+ * GitHub's `rebaseable`: whether `head` would rebase onto `base` without a
+ * conflict. A dry run that writes nothing; `null` when the histories can't be
+ * rebased at all (unrelated histories). A missing ref throws, as a rebase
+ * would: the caller decides what a gone branch means.
+ */
+export async function getRebaseable(
+	ownerKey: string,
+	repoName: string,
+	head: string,
+	base: string,
+): Promise<boolean | null> {
+	try {
+		return await rebaseable(repoFor(ownerKey, repoName), head, base);
+	} catch (error) {
+		if (error instanceof GitEdgeError) return null;
+		throw error;
+	}
 }
 
 export function analyzeMerge(

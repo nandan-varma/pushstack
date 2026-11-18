@@ -1,9 +1,11 @@
+import type { MemoryObjectStore } from "git-fs-s3";
 import git, { type ReadCommitResult } from "isomorphic-git";
 import { describe, expect, it } from "vitest";
 import { GitEdgeError, GitMergeConflictError } from "../src/errors.js";
 import {
 	MAX_RANGE_COMMITS,
 	type Repo,
+	rebaseable,
 	rebaseMerge,
 	squashMerge,
 } from "../src/merge.js";
@@ -47,6 +49,27 @@ async function replay(
 		force: true,
 	});
 	return oid;
+}
+
+/** A linear branch of `count` commits on `branch`, from `parent`. */
+async function chain(
+	repo: Repo,
+	branch: string,
+	parent: string,
+	count: number,
+) {
+	let head = parent;
+	for (let i = 0; i < count; i++) {
+		head = await replay(
+			repo,
+			branch,
+			{ "a.txt": "a\n", [`f${i}.txt`]: `${i}\n` },
+			head,
+			`c${i}\n`,
+			author,
+		);
+	}
+	return head;
 }
 
 const squash = (
@@ -195,27 +218,6 @@ describe("squashMerge", () => {
 });
 
 describe("range bounds", () => {
-	/** A linear branch of `count` commits on `branch`, from `parent`. */
-	async function chain(
-		repo: Repo,
-		branch: string,
-		parent: string,
-		count: number,
-	) {
-		let head = parent;
-		for (let i = 0; i < count; i++) {
-			head = await replay(
-				repo,
-				branch,
-				{ "a.txt": "a\n", [`f${i}.txt`]: `${i}\n` },
-				head,
-				`c${i}\n`,
-				author,
-			);
-		}
-		return head;
-	}
-
 	it("squash lists commits merged in through a second parent, leaving out merge commits", async () => {
 		const { repo } = await makeRepo();
 		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
@@ -475,5 +477,101 @@ describe("rebaseMerge", () => {
 		await expect(
 			rebaseMerge(repo, "refs/heads/feature", "refs/heads/main"),
 		).rejects.toBeInstanceOf(GitEdgeError);
+	});
+});
+
+describe("rebaseable", () => {
+	const check = (repo: Repo) =>
+		rebaseable(repo, "refs/heads/feature", "refs/heads/main");
+
+	it("is true for a branch that replays cleanly, and writes nothing", async () => {
+		const { repo, store } = await diverge(
+			{ "a.txt": "a\n" },
+			{ "a.txt": "a\n", "ours.txt": "o\n" },
+			{ "a.txt": "a\n", "theirs.txt": "t\n" },
+		);
+		const objects = (store as MemoryObjectStore).size;
+		const mainBefore = await git.resolveRef({
+			...repo,
+			ref: "refs/heads/main",
+		});
+
+		expect(await check(repo)).toBe(true);
+
+		// A check is a dry run: no object, ref or commit is written.
+		expect((store as MemoryObjectStore).size).toBe(objects);
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(
+			mainBefore,
+		);
+	});
+
+	it("is false when a replay conflicts", async () => {
+		const { repo } = await diverge(
+			{ "a.txt": "a\n" },
+			{ "a.txt": "ours\n" },
+			{ "a.txt": "theirs\n" },
+		);
+		expect(await check(repo)).toBe(false);
+	});
+
+	it("is false past MAX_RANGE_COMMITS commits", async () => {
+		const { repo } = await makeRepo();
+		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
+		await chain(repo, "feature", base, MAX_RANGE_COMMITS + 1);
+		await commit(repo, "main", { "a.txt": "a\n", "m.txt": "m\n" }, [base]);
+		expect(await check(repo)).toBe(false);
+	});
+
+	it("is false for a branch with a merge commit", async () => {
+		const { repo } = await makeRepo();
+		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
+		const side = await commit(repo, "side", { "s.txt": "s\n" }, [base]);
+		const first = await replay(
+			repo,
+			"feature",
+			{ "a.txt": "a\n", "f.txt": "f\n" },
+			base,
+			"first\n",
+			author,
+		);
+		await git
+			.writeCommit({
+				...repo,
+				commit: {
+					message: "merge side\n",
+					tree: await writeSpec(repo, {
+						"a.txt": "a\n",
+						"f.txt": "f\n",
+						"s.txt": "s\n",
+					}),
+					parent: [first, side],
+					author,
+					committer: author,
+				},
+			})
+			.then((oid) =>
+				git.writeRef({
+					...repo,
+					ref: "refs/heads/feature",
+					value: oid,
+					force: true,
+				}),
+			);
+		await commit(repo, "main", { "a.txt": "a\n", "m.txt": "m\n" }, [base]);
+		expect(await check(repo)).toBe(false);
+	});
+
+	it("is true when the branch is already based on the target", async () => {
+		const { repo } = await makeRepo();
+		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
+		await replay(
+			repo,
+			"feature",
+			{ "a.txt": "a\n", "f.txt": "f\n" },
+			base,
+			"first\n",
+			author,
+		);
+		expect(await check(repo)).toBe(true);
 	});
 });
