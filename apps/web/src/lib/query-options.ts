@@ -50,6 +50,7 @@ import { getReleaseByTagName, getReleases } from "@/server/releases";
 import {
 	getCollaborators,
 	getRepositoryByName,
+	getRepositoryForks,
 	getUserRepositories,
 } from "@/server/repositories";
 import { getRepositoryTemplates } from "@/server/repository-templates";
@@ -215,6 +216,7 @@ export const queryKeys = {
 		["repos", repoId, "pull-request-diff", sourceBranch, targetBranch] as const,
 	repoCollaborators: (repoId: number) =>
 		["repos", repoId, "collaborators"] as const,
+	repoForks: (repoId: number) => ["repos", repoId, "forks"] as const,
 	pullRequestReviewThreads: (prId: number) =>
 		["pull-requests", prId, "review-threads"] as const,
 	pullRequestPendingReview: (prId: number) =>
@@ -957,6 +959,14 @@ export function repoCollaboratorsQueryOptions(repoId: number) {
 	return queryOptions({
 		queryKey: queryKeys.repoCollaborators(repoId),
 		queryFn: () => getCollaborators({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repoForksQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoForks(repoId),
+		queryFn: () => getRepositoryForks({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

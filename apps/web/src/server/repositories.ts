@@ -1,9 +1,18 @@
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { and, count, desc, eq } from "drizzle-orm";
+import { getRequest } from "@tanstack/react-start/server";
+import { and, asc, count, desc, eq } from "drizzle-orm";
+import { GitInvalidRequestError } from "git-fs-s3";
 import { z } from "zod";
 import { db } from "#/db";
-import { issues, repositoryCollaborators, stars } from "#/db/app-schema";
+import {
+	issues,
+	type Repository,
+	repositories,
+	repositoryCollaborators,
+	stars,
+} from "#/db/app-schema";
+import { user } from "#/db/schema";
 import {
 	MAX_COLLABORATORS_PER_REPOSITORY,
 	MAX_LIST_SKIP,
@@ -16,15 +25,23 @@ import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { parseTopics } from "#/lib/topics";
 import { recordActivity } from "./activity";
 import { safeBranchNameSchema } from "./git-ref-name";
-import { repackRepositoryNow } from "./git-repo";
+import { repackRepositoryNow, repoFor } from "./git-repo";
 import { ownerKeyOf } from "./git-storage-naming";
+import { mergeUpstream } from "./git-write";
 import { perfContext, perfStep } from "./perf-log";
+import {
+	hitRateLimit,
+	identityFor,
+	rateLimitExceededMessage,
+} from "./rate-limit";
 import {
 	canReadRepo,
 	getAccessForRepository,
 	getRepositoryAccess,
 	invalidateRepositoryAccess,
+	readableForViewer,
 	requireOwner,
+	writeWithAccess,
 } from "./repo-access";
 import {
 	assertRepositoryCapacity,
@@ -34,9 +51,20 @@ import {
 	createRepositoryForUser,
 	createRepositoryInputSchema,
 	generateRepositoryFromTemplate,
+	RepositoryExistsError,
 	repoNameSchema,
 } from "./repository-create";
-import { findRepositoryByName, publicUserFields } from "./repository-lookup";
+import {
+	forkRepositoryForUser,
+	readableForkCounts,
+	readableForkLinks,
+	readableUpstream,
+} from "./repository-fork";
+import {
+	findRepositoryByName,
+	publicUserColumns,
+	publicUserFields,
+} from "./repository-lookup";
 import {
 	deleteRepositoryAndStorage,
 	transferRepository,
@@ -140,7 +168,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 				]),
 			);
 			if (!repo) throw notFound();
-			const [access, stars, counts, watching] = await perfStep(
+			const [access, stars, counts, watching, forks] = await perfStep(
 				"access + stars + counts",
 				() =>
 					Promise.all([
@@ -148,6 +176,7 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 						starState(repo.id, currentUser?.id),
 						openThreadCounts(repo.id),
 						watchState(repo.id, currentUser?.id),
+						forkState(repo, currentUser ?? undefined),
 					]),
 			);
 			if (!access.canRead) throw notFound();
@@ -156,8 +185,140 @@ export const getRepositoryByName = createServerFn({ method: "GET" })
 				...stars,
 				...watching,
 				...counts,
+				...forks,
 				viewer: { canWrite: access.canWrite },
 			};
+		}),
+	);
+
+/** A repository's parent link, its readable fork count, and the viewer's own fork. */
+async function forkState(
+	repo: Repository & { owner: { username: string } },
+	viewer: { id: string; username: string } | undefined,
+) {
+	const [links, counts, mine] = await Promise.all([
+		readableForkLinks(repo, viewer?.id),
+		readableForkCounts([repo.id], viewer?.id),
+		viewer
+			? db.query.repositories.findFirst({
+					columns: { id: true, name: true, isFork: true, forkOfId: true },
+					where: { ownerId: viewer.id, name: repo.name },
+				})
+			: undefined,
+	]);
+	const sameName = mine && !(mine.isFork && mine.forkOfId === repo.id);
+	return {
+		...(links.parent && {
+			parent: {
+				name: links.parent.name,
+				defaultBranch: links.parent.defaultBranch,
+				owner: { username: links.parent.owner.username },
+			},
+		}),
+		forksCount: counts.get(repo.id) ?? 0,
+		viewerFork:
+			mine && !sameName && viewer
+				? { name: mine.name, owner: { username: viewer.username } }
+				: null,
+		viewerNameTaken: Boolean(sameName),
+	};
+}
+
+export const forkRepository = createServerFn({ method: "POST" })
+	.validator(z.object({ repoId: z.number() }))
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUser();
+		const access = await getRepositoryAccess(data.repoId, currentUser.id);
+		if (!access?.canRead) throw notFound();
+		const rate = await hitRateLimit(
+			"fork",
+			identityFor(getRequest(), currentUser.id),
+		);
+		if (rate?.exceeded) throw new Error(rateLimitExceededMessage(rate));
+		// A fork only reads its parent, so an archived parent may still be forked.
+		const repo = await db.query.repositories.findFirst({
+			where: { id: data.repoId },
+			with: { owner: { columns: { id: true, username: true } } },
+		});
+		if (!repo) throw notFound();
+		let fork: { name: string };
+		try {
+			fork = await forkRepositoryForUser(repo, currentUser, repo.name);
+		} catch (error) {
+			if (error instanceof RepositoryExistsError) {
+				throw new Error(
+					`You already have a repository called ${repo.name} that is not a fork of this one`,
+				);
+			}
+			throw error;
+		}
+		return { name: fork.name, owner: { username: currentUser.username } };
+	});
+
+/** A repository's forks the viewer can read, newest first. */
+export const getRepositoryForks = createServerFn({ method: "GET" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			limit: z.number().int().min(1).max(100).default(100),
+			skip: z.number().int().min(0).max(MAX_LIST_SKIP).default(0),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const currentUser = await getCurrentUserOptional();
+		if (!(await canReadRepo(data.repoId, currentUser?.id))) throw notFound();
+		// The relational `where` takes column operators only, and read access is
+		// a SQL condition, so this is a join with the same condition as the list.
+		const rows = await db
+			.select({ repo: repositories, owner: publicUserColumns })
+			.from(repositories)
+			.innerJoin(user, eq(repositories.ownerId, user.id))
+			.where(
+				and(
+					eq(repositories.forkOfId, data.repoId),
+					readableForViewer(currentUser?.id),
+				),
+			)
+			.orderBy(desc(repositories.createdAt), asc(repositories.id))
+			.limit(data.limit)
+			.offset(data.skip);
+		return rows.map((row) => ({ ...row.repo, owner: row.owner }));
+	});
+
+/** `POST /repos/{owner}/{repo}/merge-upstream` from the repository page. */
+export const syncFork = createServerFn({ method: "POST" })
+	.validator(z.object({ repoId: z.number(), branch: safeBranchNameSchema }))
+	.handler(({ data }) =>
+		writeWithAccess(data.repoId, async (repo, user) => {
+			const parent = await readableUpstream(repo, user.id);
+			if (!parent) {
+				throw new Error(
+					"This repository is not a fork of a readable repository",
+				);
+			}
+			let outcome: Awaited<ReturnType<typeof mergeUpstream>>;
+			try {
+				outcome = await mergeUpstream(
+					ownerKeyOf(repo),
+					repo.name,
+					repoFor(ownerKeyOf(parent), parent.name),
+					data.branch,
+					{
+						authorName: user.name,
+						authorEmail: user.email,
+						message: `Merge branch '${data.branch}' of ${parent.owner.username}/${parent.name} into ${data.branch}`,
+					},
+				);
+			} catch (error) {
+				if (error instanceof GitInvalidRequestError) {
+					throw new Error(error.message);
+				}
+				throw error;
+			}
+			if (!outcome.success) {
+				throw new Error(outcome.refusal ?? "There are merge conflicts");
+			}
+			return { mergeType: outcome.mergeType, parent };
 		}),
 	);
 
