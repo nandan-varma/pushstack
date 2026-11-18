@@ -75,6 +75,7 @@ import type {
 	UpdateRepositoryInput,
 	UserRepositoriesArgs,
 } from "./generated";
+import { repositoryMilestoneFields } from "./milestones";
 import { arrayConnection } from "./pulls-detail";
 import {
 	releaseNodeLoaders,
@@ -722,6 +723,7 @@ export const repositoryResolvers: DomainResolvers = {
 			...repositoryReleaseFields,
 			...repositoryTemplateFields,
 			...repositoryLabelFields,
+			...repositoryMilestoneFields,
 			owner: async (source: RepositoryNode, _args, ctx) => {
 				const row = await loadUser(ctx, source.row.ownerId);
 				if (!row) throw new Error("Repository owner missing");

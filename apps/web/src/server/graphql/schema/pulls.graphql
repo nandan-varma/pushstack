@@ -1256,91 +1256,6 @@ enum PullRequestReviewDecision {
 }
 
 """
-The connection type for ProjectCard.
-"""
-type ProjectCardConnection {
-	"""
-	A list of edges.
-	"""
-	edges: [ProjectCardEdge]
-	"""
-	A list of nodes.
-	"""
-	nodes: [ProjectCard]
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	Identifies the total count of items in the connection.
-	"""
-	totalCount: Int!
-}
-
-"""
-An edge in a connection.
-"""
-type ProjectCardEdge {
-	"""
-	A cursor for use in pagination.
-	"""
-	cursor: String!
-	"""
-	The item at the end of the edge.
-	"""
-	node: ProjectCard
-}
-
-"""
-A card in a project.
-"""
-type ProjectCard {
-	"""
-	The project that contains this card.
-	"""
-	project: Project!
-		@deprecated(
-			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
-		)
-	"""
-	The project column this card is associated under. A card may only belong to one
-	project column at a time. The column field will be null if the card is created
-	in a pending state and has yet to be associated with a column. Once cards are
-	associated with a column, they will not become pending in the future.
-	"""
-	column: ProjectColumn
-		@deprecated(
-			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
-		)
-}
-
-"""
-Projects manage issues, pull requests and notes within a project owner.
-"""
-type Project {
-	"""
-	The project's name.
-	"""
-	name: String!
-		@deprecated(
-			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
-		)
-}
-
-"""
-A column inside a project.
-"""
-type ProjectColumn {
-	"""
-	The project column's name.
-	"""
-	name: String!
-		@deprecated(
-			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
-		)
-}
-
-"""
 Represents a Git commit part of a pull request.
 """
 type PullRequestCommit {
@@ -1705,28 +1620,6 @@ type LabelEdge {
 	The item at the end of the edge.
 	"""
 	node: Label
-}
-
-"""
-Represents a Milestone object on a given repository.
-"""
-type Milestone {
-	"""
-	Identifies the number of the milestone.
-	"""
-	number: Int!
-	"""
-	Identifies the title of the milestone.
-	"""
-	title: String!
-	"""
-	Identifies the description of the milestone.
-	"""
-	description: String
-	"""
-	Identifies the due date of the milestone.
-	"""
-	dueOn: DateTime
 }
 
 """

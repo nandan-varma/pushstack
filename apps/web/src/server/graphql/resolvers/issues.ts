@@ -35,6 +35,7 @@ import {
 } from "../../comment-store";
 import { createIssueForUser, updateIssueThreadFields } from "../../issue-store";
 import { setThreadLabels, UnknownLabelError } from "../../label-store";
+import { findMilestoneById, setThreadMilestone } from "../../milestone-store";
 import { listThreadReactions } from "../../reaction-store";
 import { getAccessForRepository } from "../../repo-access";
 import {
@@ -82,6 +83,7 @@ import type {
 	IssueAssigneesArgs,
 	IssueCommentsArgs,
 	IssueLabelsArgs,
+	IssueProjectCardsArgs,
 	IssueSubIssuesArgs,
 	QuerySearchArgs,
 	RemoveAssigneesFromAssignableInput,
@@ -91,6 +93,7 @@ import type {
 	RepositoryIssuesArgs,
 	UpdateIssueInput,
 } from "./generated";
+import { milestoneNode, milestoneNumberOf } from "./milestones";
 import { pullNode } from "./pulls";
 import {
 	arrayConnection,
@@ -170,6 +173,15 @@ const loadIssue: NodeLoader = async (key, ctx) => {
 		repoRow.name,
 	);
 	return repo ? issueNode(repo, thread) : null;
+};
+
+/** `node(id:)` for a milestone, when its repository is readable. */
+const loadMilestoneNode: NodeLoader = async (key, ctx) => {
+	const id = rowIdOfNodeKey(key);
+	const row = id === null ? null : await findMilestoneById(id);
+	if (!row) return null;
+	const repo = await repositoryNodeById(ctx, row.repoId);
+	return repo ? milestoneNode(row) : null;
 };
 
 /** `node(id:)` for an issue or pull request comment, when its repository is readable. */
@@ -500,17 +512,12 @@ export const issuesResolvers: DomainResolvers = {
 				return userNode(row);
 			},
 			repository: (node: IssueNode) => node.repo,
-			milestone: (node: IssueNode) => {
-				const row = node.row.milestone;
-				return row
-					? {
-							number: row.number,
-							title: row.title,
-							description: row.description,
-							dueOn: row.dueOn ? isoTimestamp(row.dueOn) : null,
-						}
-					: null;
-			},
+			milestone: (node: IssueNode) =>
+				node.row.milestone ? milestoneNode(node.row.milestone) : null,
+			// Classic projects are retired, so an issue is in none: an empty
+			// connection, which is what GitHub answers (`projectItems` is in projects.ts).
+			projectCards: (_node: IssueNode, args: IssueProjectCardsArgs) =>
+				offsetConnection(args, 0, async () => []),
 			labels: (node: IssueNode, args: IssueLabelsArgs) =>
 				arrayConnection(
 					args,
@@ -556,7 +563,11 @@ export const issuesResolvers: DomainResolvers = {
 			subIssuesSummary: () => ({ total: 0, completed: 0, percentCompleted: 0 }),
 		},
 	},
-	nodes: { Issue: loadIssue, IssueComment: loadIssueComment },
+	nodes: {
+		Issue: loadIssue,
+		IssueComment: loadIssueComment,
+		Milestone: loadMilestoneNode,
+	},
 };
 
 const canWrite = (repo: RepositoryNode) =>
@@ -698,16 +709,22 @@ async function createIssueMutation(
 		: null;
 	if (!repo) throw unknownNode(input.repositoryId);
 	if (repo.row.archived) throw forbidden("Repository is archived");
-	if (input.milestoneId != null)
-		throw unprocessable("Milestones on issues are not supported yet");
 	// gh sends `projectIds: null` on every create; classic projects are gone.
 	if (input.projectIds?.length)
 		throw unprocessable("Projects on issues are not supported yet");
 	const title = checkTitleAndBody(input.title, input.body);
-	// Labels and assignees are triage: a reader opens the issue bare, as on REST.
+	// Labels, assignees and the milestone are triage: a reader opens the issue
+	// bare, as on REST.
 	const triage = canWrite(repo);
 	if (!triage && (input.labelIds?.length || input.assigneeIds?.length))
 		throw forbidden("You do not have permission to label or assign this issue");
+	if (!triage && input.milestoneId != null)
+		throw forbidden(
+			"You do not have permission to set the milestone of this issue",
+		);
+	const milestone = input.milestoneId
+		? await milestoneNumberOf(repo, input.milestoneId)
+		: null;
 	const labelNames =
 		triage && input.labelIds
 			? await labelNamesOf(input.labelIds, repo.row.id)
@@ -726,6 +743,9 @@ async function createIssueMutation(
 			assignees,
 		}),
 	);
+	if (milestone !== null) {
+		await setThreadMilestone(created, milestone, ctx.caller.userId);
+	}
 	return {
 		clientMutationId: input.clientMutationId ?? null,
 		issue: await reloadIssue(repo, created.number),
@@ -744,8 +764,17 @@ async function updateIssueMutation(
 		throw forbidden("You do not have permission to update this issue");
 	if (!triage && (input.labelIds != null || input.assigneeIds != null))
 		throw forbidden("You do not have permission to label or assign this issue");
-	if (input.milestoneId != null)
-		throw unprocessable("Milestones on issues are not supported yet");
+	if (!triage && input.milestoneId != null)
+		throw forbidden(
+			"You do not have permission to set the milestone of this issue",
+		);
+	// null clears the milestone; absent leaves it alone.
+	const milestone =
+		input.milestoneId === undefined
+			? undefined
+			: input.milestoneId === null
+				? null
+				: await milestoneNumberOf(repo, input.milestoneId);
 	if (input.title != null || input.body != null)
 		checkTitleAndBody(input.title ?? thread.title, input.body ?? thread.body);
 	const labelNames =
@@ -769,6 +798,8 @@ async function updateIssueMutation(
 		);
 	if (assignees !== undefined)
 		await replaceThreadAssignees(thread, assignees, ctx.caller.userId);
+	if (milestone !== undefined)
+		await setThreadMilestone(thread, milestone, ctx.caller.userId);
 	return {
 		clientMutationId: input.clientMutationId ?? null,
 		issue: await reloadIssue(repo, thread.number),

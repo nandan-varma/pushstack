@@ -46,6 +46,7 @@ const { getSchema } = await import("../graphql/schema");
 const { githubValidationRules } = await import("../graphql/validation");
 const repositories = await import("../repositories");
 const { createIssueForUser } = await import("../issue-store");
+const { createMilestone } = await import("../milestone-store");
 const { db } = await import("#/db");
 
 interface Fixture {
@@ -81,6 +82,8 @@ const VALIDATE_ONLY = new Set([
 	"issue-comment-2",
 	"issue-create-2",
 	"issue-edit",
+	"issue-edit-milestone",
+	"issue-view-comments",
 	"issue-reopen",
 	"label-create",
 	"label-delete",
@@ -134,6 +137,9 @@ beforeAll(async () => {
 		body: "Body of the hello issue.",
 		labels: [],
 	});
+	// `gh issue create --milestone` resolves a title against these (ids 1 and 2).
+	await createMilestone(hello.id, users.octo.id, { title: "v1" });
+	await createMilestone(hello.id, users.octo.id, { title: "v2" });
 });
 
 /**

@@ -29,6 +29,7 @@ import { unprocessable } from "../errors";
 import { encodeGlobalNodeId, encodeNodeId } from "../node-id";
 import { type CommitNode, commitNode, readCommitNode } from "./commit";
 import { loadUser, userNode } from "./core";
+import { milestoneNode } from "./milestones";
 import type { PullRequestNode } from "./pulls";
 import type { RepositoryNode } from "./repository";
 
@@ -454,14 +455,7 @@ export const pullDetailResolvers = {
 		ctx: GraphQLContext,
 	) => {
 		const row = (await thread(node, ctx)).milestone;
-		return row
-			? {
-					number: row.number,
-					title: row.title,
-					description: row.description,
-					dueOn: row.dueOn ? isoTimestamp(row.dueOn) : null,
-				}
-			: null;
+		return row ? milestoneNode(row) : null;
 	},
 	comments: async (
 		node: PullRequestNode,

@@ -58,6 +58,39 @@ extend type Repository {
 		"""
 		filterBy: IssueFilters
 	): IssueConnection!
+	"""
+	A list of milestones associated with the repository.
+	"""
+	milestones(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		Ordering options for milestones.
+		"""
+		orderBy: MilestoneOrder
+		"""
+		Filters milestones with a query on the title
+		"""
+		query: String
+		"""
+		Filter by the state of the milestones.
+		"""
+		states: [MilestoneState!]
+	): MilestoneConnection
 }
 
 """
@@ -201,6 +234,30 @@ type Issue implements Assignable & Labelable & Node & UniformResourceLocatable {
 		last: Int
 	): IssueCommentConnection!
 	"""
+	List of project cards associated with this issue.
+	"""
+	projectCards(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): ProjectCardConnection!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+	"""
 	A list of reactions grouped by content left on the subject.
 	"""
 	reactionGroups: [ReactionGroup!]
@@ -243,6 +300,207 @@ type Issue implements Assignable & Labelable & Node & UniformResourceLocatable {
 Used for return value of Repository.issueOrPullRequest.
 """
 union IssueOrPullRequest = Issue | PullRequest
+
+"""
+Represents a Milestone object on a given repository.
+"""
+type Milestone implements Node {
+	"""
+	The Node ID of the Milestone object
+	"""
+	id: ID!
+	"""
+	Identifies the number of the milestone.
+	"""
+	number: Int!
+	"""
+	Identifies the title of the milestone.
+	"""
+	title: String!
+	"""
+	Identifies the description of the milestone.
+	"""
+	description: String
+	"""
+	Identifies the due date of the milestone.
+	"""
+	dueOn: DateTime
+	"""
+	Identifies the state of the milestone.
+	"""
+	state: MilestoneState!
+}
+
+"""
+The connection type for Milestone.
+"""
+type MilestoneConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [MilestoneEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [Milestone]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type MilestoneEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: Milestone
+}
+
+"""
+The possible states of a milestone.
+"""
+enum MilestoneState {
+	"""
+	A milestone that has been closed.
+	"""
+	CLOSED
+	"""
+	A milestone that is still open.
+	"""
+	OPEN
+}
+
+"""
+Ordering options for milestone connections.
+"""
+input MilestoneOrder {
+	"""
+	The ordering direction.
+	"""
+	direction: OrderDirection!
+	"""
+	The field to order milestones by.
+	"""
+	field: MilestoneOrderField!
+}
+
+"""
+Properties by which milestone connections can be ordered.
+"""
+enum MilestoneOrderField {
+	"""
+	Order milestones by when they were created.
+	"""
+	CREATED_AT
+	"""
+	Order milestones by when they are due.
+	"""
+	DUE_DATE
+	"""
+	Order milestones by their number.
+	"""
+	NUMBER
+	"""
+	Order milestones by when they were last updated.
+	"""
+	UPDATED_AT
+}
+
+"""
+The connection type for ProjectCard.
+"""
+type ProjectCardConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [ProjectCardEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [ProjectCard]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type ProjectCardEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: ProjectCard
+}
+
+"""
+A card in a project.
+"""
+type ProjectCard {
+	"""
+	The project that contains this card.
+	"""
+	project: Project!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+	"""
+	The project column this card is associated under. A card may only belong to one
+	project column at a time. The column field will be null if the card is created
+	in a pending state and has yet to be associated with a column. Once cards are
+	associated with a column, they will not become pending in the future.
+	"""
+	column: ProjectColumn
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+}
+
+"""
+Projects manage issues, pull requests and notes within a project owner.
+"""
+type Project {
+	"""
+	The project's name.
+	"""
+	name: String!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+}
+
+"""
+A column inside a project.
+"""
+type ProjectColumn {
+	"""
+	The project column's name.
+	"""
+	name: String!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+}
 
 """
 The connection type for Issue.

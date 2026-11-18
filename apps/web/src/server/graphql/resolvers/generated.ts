@@ -625,6 +625,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   issueOrPullRequest?: Maybe<IssueOrPullRequest>;
   /** A list of issues that have been opened in the repository. */
   issues: IssueConnection;
+  /** A list of milestones associated with the repository. */
+  milestones?: Maybe<MilestoneConnection>;
   /** Returns a single pull request from the current repository by number. */
   pullRequest?: Maybe<PullRequest>;
   /** A list of pull requests that have been opened in the repository. */
@@ -707,6 +709,18 @@ export type RepositoryIssuesArgs = {
   orderBy?: InputMaybe<IssueOrder>;
   states?: InputMaybe<Array<IssueState>>;
   filterBy?: InputMaybe<IssueFilters>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryMilestonesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<MilestoneOrder>;
+  query?: InputMaybe<Scalars['String']['input']>;
+  states?: InputMaybe<Array<MilestoneState>>;
 };
 
 
@@ -1450,6 +1464,11 @@ export type Issue = Assignable & Labelable & Node & UniformResourceLocatable & {
   labels?: Maybe<LabelConnection>;
   /** A list of comments associated with the Issue. */
   comments: IssueCommentConnection;
+  /**
+   * List of project cards associated with this issue.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  projectCards: ProjectCardConnection;
   /** A list of reactions grouped by content left on the subject. */
   reactionGroups?: Maybe<Array<ReactionGroup>>;
   /** The issue type for this Issue */
@@ -1499,6 +1518,15 @@ export type IssueCommentsArgs = {
 
 
 /** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
+export type IssueProjectCardsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
 export type IssueSubIssuesArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
@@ -1518,6 +1546,131 @@ export type IssueProjectItemsArgs = {
 
 /** Used for return value of Repository.issueOrPullRequest. */
 export type IssueOrPullRequest = Issue | PullRequest;
+
+/** Represents a Milestone object on a given repository. */
+export type Milestone = Node & {
+  __typename?: 'Milestone';
+  /** The Node ID of the Milestone object */
+  id: Scalars['ID']['output'];
+  /** Identifies the number of the milestone. */
+  number: Scalars['Int']['output'];
+  /** Identifies the title of the milestone. */
+  title: Scalars['String']['output'];
+  /** Identifies the description of the milestone. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** Identifies the due date of the milestone. */
+  dueOn?: Maybe<Scalars['DateTime']['output']>;
+  /** Identifies the state of the milestone. */
+  state: MilestoneState;
+};
+
+/** The connection type for Milestone. */
+export type MilestoneConnection = {
+  __typename?: 'MilestoneConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<MilestoneEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Milestone>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type MilestoneEdge = {
+  __typename?: 'MilestoneEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Milestone>;
+};
+
+/** The possible states of a milestone. */
+export type MilestoneState =
+  /** A milestone that has been closed. */
+  | 'CLOSED'
+  /** A milestone that is still open. */
+  | 'OPEN';
+
+/** Ordering options for milestone connections. */
+export type MilestoneOrder = {
+  /** The ordering direction. */
+  direction: OrderDirection;
+  /** The field to order milestones by. */
+  field: MilestoneOrderField;
+};
+
+/** Properties by which milestone connections can be ordered. */
+export type MilestoneOrderField =
+  /** Order milestones by when they were created. */
+  | 'CREATED_AT'
+  /** Order milestones by when they are due. */
+  | 'DUE_DATE'
+  /** Order milestones by their number. */
+  | 'NUMBER'
+  /** Order milestones by when they were last updated. */
+  | 'UPDATED_AT';
+
+/** The connection type for ProjectCard. */
+export type ProjectCardConnection = {
+  __typename?: 'ProjectCardConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ProjectCardEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ProjectCard>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type ProjectCardEdge = {
+  __typename?: 'ProjectCardEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<ProjectCard>;
+};
+
+/** A card in a project. */
+export type ProjectCard = {
+  __typename?: 'ProjectCard';
+  /**
+   * The project that contains this card.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  project: Project;
+  /**
+   * The project column this card is associated under. A card may only belong to one
+   * project column at a time. The column field will be null if the card is created
+   * in a pending state and has yet to be associated with a column. Once cards are
+   * associated with a column, they will not become pending in the future.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  column?: Maybe<ProjectColumn>;
+};
+
+/** Projects manage issues, pull requests and notes within a project owner. */
+export type Project = {
+  __typename?: 'Project';
+  /**
+   * The project's name.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  name: Scalars['String']['output'];
+};
+
+/** A column inside a project. */
+export type ProjectColumn = {
+  __typename?: 'ProjectColumn';
+  /**
+   * The project column's name.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  name: Scalars['String']['output'];
+};
 
 /** The connection type for Issue. */
 export type IssueConnection = {
@@ -2534,66 +2687,6 @@ export type PullRequestReviewDecision =
   /** A review is required before the pull request can be merged. */
   | 'REVIEW_REQUIRED';
 
-/** The connection type for ProjectCard. */
-export type ProjectCardConnection = {
-  __typename?: 'ProjectCardConnection';
-  /** A list of edges. */
-  edges?: Maybe<Array<Maybe<ProjectCardEdge>>>;
-  /** A list of nodes. */
-  nodes?: Maybe<Array<Maybe<ProjectCard>>>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-  /** Identifies the total count of items in the connection. */
-  totalCount: Scalars['Int']['output'];
-};
-
-/** An edge in a connection. */
-export type ProjectCardEdge = {
-  __typename?: 'ProjectCardEdge';
-  /** A cursor for use in pagination. */
-  cursor: Scalars['String']['output'];
-  /** The item at the end of the edge. */
-  node?: Maybe<ProjectCard>;
-};
-
-/** A card in a project. */
-export type ProjectCard = {
-  __typename?: 'ProjectCard';
-  /**
-   * The project that contains this card.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  project: Project;
-  /**
-   * The project column this card is associated under. A card may only belong to one
-   * project column at a time. The column field will be null if the card is created
-   * in a pending state and has yet to be associated with a column. Once cards are
-   * associated with a column, they will not become pending in the future.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  column?: Maybe<ProjectColumn>;
-};
-
-/** Projects manage issues, pull requests and notes within a project owner. */
-export type Project = {
-  __typename?: 'Project';
-  /**
-   * The project's name.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  name: Scalars['String']['output'];
-};
-
-/** A column inside a project. */
-export type ProjectColumn = {
-  __typename?: 'ProjectColumn';
-  /**
-   * The project column's name.
-   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
-   */
-  name: Scalars['String']['output'];
-};
-
 /** Represents a Git commit part of a pull request. */
 export type PullRequestCommit = {
   __typename?: 'PullRequestCommit';
@@ -2810,19 +2903,6 @@ export type LabelEdge = {
   cursor: Scalars['String']['output'];
   /** The item at the end of the edge. */
   node?: Maybe<Label>;
-};
-
-/** Represents a Milestone object on a given repository. */
-export type Milestone = {
-  __typename?: 'Milestone';
-  /** Identifies the number of the milestone. */
-  number: Scalars['Int']['output'];
-  /** Identifies the title of the milestone. */
-  title: Scalars['String']['output'];
-  /** Identifies the description of the milestone. */
-  description?: Maybe<Scalars['String']['output']>;
-  /** Identifies the due date of the milestone. */
-  dueOn?: Maybe<Scalars['DateTime']['output']>;
 };
 
 /** Represents a comment on an Issue. */
@@ -3710,6 +3790,7 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( ReleaseNode )
     | ( ReleaseAssetNode )
     | ( IssueNode )
+    | ( Milestone )
     | ( IssueType )
     | ( PullRequestNode )
     | ( ReviewNode )
@@ -3815,6 +3896,17 @@ export type ResolversTypes = {
   SshSignature: ResolverTypeWrapper<GitSignatureNode>;
   Issue: ResolverTypeWrapper<IssueNode>;
   IssueOrPullRequest: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['IssueOrPullRequest']>;
+  Milestone: ResolverTypeWrapper<Milestone>;
+  MilestoneConnection: ResolverTypeWrapper<MilestoneConnection>;
+  MilestoneEdge: ResolverTypeWrapper<MilestoneEdge>;
+  MilestoneState: MilestoneState;
+  MilestoneOrder: MilestoneOrder;
+  MilestoneOrderField: MilestoneOrderField;
+  ProjectCardConnection: ResolverTypeWrapper<ProjectCardConnection>;
+  ProjectCardEdge: ResolverTypeWrapper<ProjectCardEdge>;
+  ProjectCard: ResolverTypeWrapper<ProjectCard>;
+  Project: ResolverTypeWrapper<Project>;
+  ProjectColumn: ResolverTypeWrapper<ProjectColumn>;
   IssueConnection: ResolverTypeWrapper<Omit<IssueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['IssueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Issue']>>> }>;
   IssueEdge: ResolverTypeWrapper<Omit<IssueEdge, 'node'> & { node?: Maybe<ResolversTypes['Issue']> }>;
   IssueState: IssueState;
@@ -3886,11 +3978,6 @@ export type ResolversTypes = {
   MergeableState: MergeableState;
   MergeStateStatus: MergeStateStatus;
   PullRequestReviewDecision: PullRequestReviewDecision;
-  ProjectCardConnection: ResolverTypeWrapper<ProjectCardConnection>;
-  ProjectCardEdge: ResolverTypeWrapper<ProjectCardEdge>;
-  ProjectCard: ResolverTypeWrapper<ProjectCard>;
-  Project: ResolverTypeWrapper<Project>;
-  ProjectColumn: ResolverTypeWrapper<ProjectColumn>;
   PullRequestCommit: ResolverTypeWrapper<Omit<PullRequestCommit, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   PullRequestCommitConnection: ResolverTypeWrapper<Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['PullRequestCommitEdge']>>> }>;
   PullRequestCommitEdge: ResolverTypeWrapper<Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversTypes['PullRequestCommit']> }>;
@@ -3911,7 +3998,6 @@ export type ResolversTypes = {
   Label: ResolverTypeWrapper<Label>;
   LabelConnection: ResolverTypeWrapper<LabelConnection>;
   LabelEdge: ResolverTypeWrapper<LabelEdge>;
-  Milestone: ResolverTypeWrapper<Milestone>;
   IssueComment: ResolverTypeWrapper<CommentNode>;
   IssueCommentConnection: ResolverTypeWrapper<Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['IssueCommentEdge']>>> }>;
   IssueCommentEdge: ResolverTypeWrapper<Omit<IssueCommentEdge, 'node'> & { node?: Maybe<ResolversTypes['IssueComment']> }>;
@@ -4026,6 +4112,15 @@ export type ResolversParentTypes = {
   SshSignature: GitSignatureNode;
   Issue: IssueNode;
   IssueOrPullRequest: ResolversUnionTypes<ResolversParentTypes>['IssueOrPullRequest'];
+  Milestone: Milestone;
+  MilestoneConnection: MilestoneConnection;
+  MilestoneEdge: MilestoneEdge;
+  MilestoneOrder: MilestoneOrder;
+  ProjectCardConnection: ProjectCardConnection;
+  ProjectCardEdge: ProjectCardEdge;
+  ProjectCard: ProjectCard;
+  Project: Project;
+  ProjectColumn: ProjectColumn;
   IssueConnection: Omit<IssueConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Issue']>>> };
   IssueEdge: Omit<IssueEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Issue']> };
   IssueFilters: IssueFilters;
@@ -4082,11 +4177,6 @@ export type ResolversParentTypes = {
   PullRequestChangedFileConnection: PullRequestChangedFileConnection;
   PullRequestChangedFileEdge: PullRequestChangedFileEdge;
   AutoMergeRequest: Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversParentTypes['Actor']> };
-  ProjectCardConnection: ProjectCardConnection;
-  ProjectCardEdge: ProjectCardEdge;
-  ProjectCard: ProjectCard;
-  Project: Project;
-  ProjectColumn: ProjectColumn;
   PullRequestCommit: Omit<PullRequestCommit, 'commit'> & { commit: ResolversParentTypes['Commit'] };
   PullRequestCommitConnection: Omit<PullRequestCommitConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommit']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestCommitEdge']>>> };
   PullRequestCommitEdge: Omit<PullRequestCommitEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestCommit']> };
@@ -4105,7 +4195,6 @@ export type ResolversParentTypes = {
   Label: Label;
   LabelConnection: LabelConnection;
   LabelEdge: LabelEdge;
-  Milestone: Milestone;
   IssueComment: CommentNode;
   IssueCommentConnection: Omit<IssueCommentConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['IssueComment']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['IssueCommentEdge']>>> };
   IssueCommentEdge: Omit<IssueCommentEdge, 'node'> & { node?: Maybe<ResolversParentTypes['IssueComment']> };
@@ -4164,7 +4253,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -4305,6 +4394,7 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   issue?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType, RequireFields<RepositoryIssueArgs, 'number'>>;
   issueOrPullRequest?: Resolver<Maybe<ResolversTypes['IssueOrPullRequest']>, ParentType, ContextType, RequireFields<RepositoryIssueOrPullRequestArgs, 'number'>>;
   issues?: Resolver<ResolversTypes['IssueConnection'], ParentType, ContextType, Partial<RepositoryIssuesArgs>>;
+  milestones?: Resolver<Maybe<ResolversTypes['MilestoneConnection']>, ParentType, ContextType, Partial<RepositoryMilestonesArgs>>;
   pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType, RequireFields<RepositoryPullRequestArgs, 'number'>>;
   pullRequests?: Resolver<ResolversTypes['PullRequestConnection'], ParentType, ContextType, Partial<RepositoryPullRequestsArgs>>;
   projectsV2?: Resolver<ResolversTypes['ProjectV2Connection'], ParentType, ContextType, RequireFields<RepositoryProjectsV2Args, 'minPermissionLevel' | 'orderBy'>>;
@@ -4531,6 +4621,7 @@ export type IssueResolvers<ContextType = GraphQLContext, ParentType extends Reso
   assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<IssueAssigneesArgs>>;
   labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<IssueLabelsArgs>>;
   comments?: Resolver<ResolversTypes['IssueCommentConnection'], ParentType, ContextType, Partial<IssueCommentsArgs>>;
+  projectCards?: Resolver<ResolversTypes['ProjectCardConnection'], ParentType, ContextType, Partial<IssueProjectCardsArgs>>;
   reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
   issueType?: Resolver<Maybe<ResolversTypes['IssueType']>, ParentType, ContextType>;
   parent?: Resolver<Maybe<ResolversTypes['Issue']>, ParentType, ContextType>;
@@ -4542,6 +4633,53 @@ export type IssueResolvers<ContextType = GraphQLContext, ParentType extends Reso
 
 export type IssueOrPullRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueOrPullRequest'] = ResolversParentTypes['IssueOrPullRequest']> = {
   __resolveType: TypeResolveFn<'Issue' | 'PullRequest', ParentType, ContextType>;
+};
+
+export type MilestoneResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Milestone'] = ResolversParentTypes['Milestone']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  dueOn?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['MilestoneState'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type MilestoneConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MilestoneConnection'] = ResolversParentTypes['MilestoneConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['MilestoneEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Milestone']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type MilestoneEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MilestoneEdge'] = ResolversParentTypes['MilestoneEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
+};
+
+export type ProjectCardConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardConnection'] = ResolversParentTypes['ProjectCardConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCardEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCard']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ProjectCardEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardEdge'] = ResolversParentTypes['ProjectCardEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['ProjectCard']>, ParentType, ContextType>;
+};
+
+export type ProjectCardResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCard'] = ResolversParentTypes['ProjectCard']> = {
+  project?: Resolver<ResolversTypes['Project'], ParentType, ContextType>;
+  column?: Resolver<Maybe<ResolversTypes['ProjectColumn']>, ParentType, ContextType>;
+};
+
+export type ProjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProjectColumnResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectColumn'] = ResolversParentTypes['ProjectColumn']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 };
 
 export type IssueConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueConnection'] = ResolversParentTypes['IssueConnection']> = {
@@ -4797,31 +4935,6 @@ export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType e
   enabledBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
 };
 
-export type ProjectCardConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardConnection'] = ResolversParentTypes['ProjectCardConnection']> = {
-  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCardEdge']>>>, ParentType, ContextType>;
-  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCard']>>>, ParentType, ContextType>;
-  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
-  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-};
-
-export type ProjectCardEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardEdge'] = ResolversParentTypes['ProjectCardEdge']> = {
-  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  node?: Resolver<Maybe<ResolversTypes['ProjectCard']>, ParentType, ContextType>;
-};
-
-export type ProjectCardResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCard'] = ResolversParentTypes['ProjectCard']> = {
-  project?: Resolver<ResolversTypes['Project'], ParentType, ContextType>;
-  column?: Resolver<Maybe<ResolversTypes['ProjectColumn']>, ParentType, ContextType>;
-};
-
-export type ProjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = {
-  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-};
-
-export type ProjectColumnResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectColumn'] = ResolversParentTypes['ProjectColumn']> = {
-  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-};
-
 export type PullRequestCommitResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestCommit'] = ResolversParentTypes['PullRequestCommit']> = {
   commit?: Resolver<ResolversTypes['Commit'], ParentType, ContextType>;
 };
@@ -4928,13 +5041,6 @@ export type LabelConnectionResolvers<ContextType = GraphQLContext, ParentType ex
 export type LabelEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['LabelEdge'] = ResolversParentTypes['LabelEdge']> = {
   cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   node?: Resolver<Maybe<ResolversTypes['Label']>, ParentType, ContextType>;
-};
-
-export type MilestoneResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Milestone'] = ResolversParentTypes['Milestone']> = {
-  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
-  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
-  dueOn?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
 };
 
 export type IssueCommentResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['IssueComment'] = ResolversParentTypes['IssueComment']> = {
@@ -5249,6 +5355,14 @@ export type Resolvers<ContextType = GraphQLContext> = {
   SshSignature?: SshSignatureResolvers<ContextType>;
   Issue?: IssueResolvers<ContextType>;
   IssueOrPullRequest?: IssueOrPullRequestResolvers<ContextType>;
+  Milestone?: MilestoneResolvers<ContextType>;
+  MilestoneConnection?: MilestoneConnectionResolvers<ContextType>;
+  MilestoneEdge?: MilestoneEdgeResolvers<ContextType>;
+  ProjectCardConnection?: ProjectCardConnectionResolvers<ContextType>;
+  ProjectCardEdge?: ProjectCardEdgeResolvers<ContextType>;
+  ProjectCard?: ProjectCardResolvers<ContextType>;
+  Project?: ProjectResolvers<ContextType>;
+  ProjectColumn?: ProjectColumnResolvers<ContextType>;
   IssueConnection?: IssueConnectionResolvers<ContextType>;
   IssueEdge?: IssueEdgeResolvers<ContextType>;
   IssueType?: IssueTypeResolvers<ContextType>;
@@ -5286,11 +5400,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   PullRequestChangedFileConnection?: PullRequestChangedFileConnectionResolvers<ContextType>;
   PullRequestChangedFileEdge?: PullRequestChangedFileEdgeResolvers<ContextType>;
   AutoMergeRequest?: AutoMergeRequestResolvers<ContextType>;
-  ProjectCardConnection?: ProjectCardConnectionResolvers<ContextType>;
-  ProjectCardEdge?: ProjectCardEdgeResolvers<ContextType>;
-  ProjectCard?: ProjectCardResolvers<ContextType>;
-  Project?: ProjectResolvers<ContextType>;
-  ProjectColumn?: ProjectColumnResolvers<ContextType>;
   PullRequestCommit?: PullRequestCommitResolvers<ContextType>;
   PullRequestCommitConnection?: PullRequestCommitConnectionResolvers<ContextType>;
   PullRequestCommitEdge?: PullRequestCommitEdgeResolvers<ContextType>;
@@ -5309,7 +5418,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   Label?: LabelResolvers<ContextType>;
   LabelConnection?: LabelConnectionResolvers<ContextType>;
   LabelEdge?: LabelEdgeResolvers<ContextType>;
-  Milestone?: MilestoneResolvers<ContextType>;
   IssueComment?: IssueCommentResolvers<ContextType>;
   IssueCommentConnection?: IssueCommentConnectionResolvers<ContextType>;
   IssueCommentEdge?: IssueCommentEdgeResolvers<ContextType>;

@@ -20,6 +20,10 @@
 				"states",
 				"filterBy"
 			]
+		},
+		{
+			"name": "milestones",
+			"args": ["after", "before", "first", "last", "orderBy", "query", "states"]
 		}
 	],
 	"Issue": {
@@ -58,6 +62,10 @@
 				"name": "comments",
 				"args": ["after", "before", "first", "last"]
 			},
+			{
+				"name": "projectCards",
+				"args": ["after", "before", "first", "last"]
+			},
 			"reactionGroups",
 			"issueType",
 			"parent",
@@ -69,6 +77,29 @@
 		]
 	},
 	"IssueOrPullRequest": "*",
+	"Milestone": {
+		"$implements": ["Node"],
+		"fields": ["id", "number", "title", "description", "dueOn", "state"]
+	},
+	"MilestoneConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"MilestoneEdge": "*",
+	"MilestoneState": "*",
+	"MilestoneOrder": "*",
+	"MilestoneOrderField": "*",
+	"ProjectCardConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"ProjectCardEdge": "*",
+	"ProjectCard": {
+		"$implements": [],
+		"fields": ["project", "column"]
+	},
+	"Project": {
+		"$implements": [],
+		"fields": ["name"]
+	},
+	"ProjectColumn": {
+		"$implements": [],
+		"fields": ["name"]
+	},
 	"IssueConnection": "*",
 	"IssueEdge": "*",
 	"IssueState": "*",

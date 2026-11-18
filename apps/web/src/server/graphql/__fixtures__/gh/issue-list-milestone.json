@@ -1,0 +1,16 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh issue list -R HOST/octo/hello --milestone v2 --json number,title,milestone",
+	"requests": [
+		{
+			"query": "fragment issue on Issue {number,title,milestone{number,title,description,dueOn}}query IssueSearch($repo: String!, $owner: String!, $type: SearchType!, $limit: Int, $after: String, $query: String!) {\n\t\t\trepository(name: $repo, owner: $owner) {\n\t\t\t\thasIssuesEnabled\n\t\t\t}\n\t\t\tsearch(type: $type, last: $limit, after: $after, query: $query) {\n\t\t\t\tissueCount\n\t\t\t\tnodes { ...issue }\n\t\t\t\tpageInfo {\n\t\t\t\t\thasNextPage\n\t\t\t\t\tendCursor\n\t\t\t\t}\n\t\t\t}\n\t\t}",
+			"variables": {
+				"limit": 30,
+				"owner": "octo",
+				"query": "milestone:v2 repo:octo/hello state:open type:issue",
+				"repo": "hello",
+				"type": "ISSUE"
+			}
+		}
+	]
+}

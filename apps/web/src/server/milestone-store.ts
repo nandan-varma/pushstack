@@ -5,12 +5,13 @@
  * carries its open and closed counts (issues and pull requests together, as on
  * GitHub); a merged pull request counts as closed.
  */
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import { db } from "#/db";
 import { issues, milestones, repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { MAX_MILESTONES_PER_REPOSITORY } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
+import { containing } from "./db-filters";
 import {
 	assertRepositoryCapacity,
 	withRepositoryCapacityLock,
@@ -20,6 +21,7 @@ import { recordTimelineEvent } from "./timeline-store";
 
 export interface MilestoneView {
 	id: number;
+	repoId: number;
 	/** The repo-scoped milestone number (its own sequence, not the issue `#N`). */
 	number: number;
 	title: string;
@@ -66,6 +68,7 @@ const creatorJson = sql`(select ${userObject} from ${user}
 
 const milestoneColumns = {
 	id: milestones.id,
+	repoId: milestones.repoId,
 	number: milestones.number,
 	title: milestones.title,
 	description: milestones.description,
@@ -97,7 +100,8 @@ const date = (value: string | null) => (value ? new Date(value) : null);
  * queries (one round trip per page); `null` when the thread has none.
  */
 export const threadMilestoneJson = sql`(select json_build_object(
-	'id', ${milestones.id}, 'number', ${milestones.number},
+	'id', ${milestones.id}, 'repoId', ${milestones.repoId},
+	'number', ${milestones.number},
 	'title', ${milestones.title}, 'description', ${milestones.description},
 	'state', ${milestones.state}, 'dueOn', ${milestones.dueOn},
 	'createdAt', ${milestones.createdAt}, 'updatedAt', ${milestones.updatedAt},
@@ -119,8 +123,10 @@ export const threadMilestoneJson = sql`(select json_build_object(
 
 export interface MilestoneListOptions {
 	state: "open" | "closed" | "all";
-	sort: "due_on" | "completeness";
+	sort: "due_on" | "created_at" | "updated_at" | "number" | "completeness";
 	direction: "asc" | "desc";
+	/** Title search, literal (no wildcards). */
+	query?: string;
 	limit: number;
 	offset?: number;
 }
@@ -135,10 +141,21 @@ export async function listMilestones(
 	const key =
 		options.sort === "completeness"
 			? order(share)
-			: sql`${milestones.dueOn} ${sql.raw(options.direction)} nulls last`;
+			: options.sort === "due_on"
+				? sql`${milestones.dueOn} ${sql.raw(options.direction)} nulls last`
+				: order(
+						options.sort === "created_at"
+							? milestones.createdAt
+							: options.sort === "updated_at"
+								? milestones.updatedAt
+								: milestones.number,
+					);
 	const where = and(
 		eq(milestones.repoId, repoId),
 		options.state === "all" ? undefined : eq(milestones.state, options.state),
+		options.query
+			? ilike(milestones.title, containing(options.query))
+			: undefined,
 	);
 	const rows = await db
 		.select({
@@ -163,6 +180,17 @@ export async function listMilestones(
 		.from(milestones)
 		.where(where);
 	return { milestones: [], total: row?.total ?? 0 };
+}
+
+export async function findMilestoneById(
+	id: number,
+): Promise<MilestoneView | null> {
+	const [row] = await db
+		.select(milestoneColumns)
+		.from(milestones)
+		.where(eq(milestones.id, id))
+		.limit(1);
+	return row ?? null;
 }
 
 export async function findMilestoneByNumber(
