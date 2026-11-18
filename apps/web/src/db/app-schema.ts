@@ -1036,6 +1036,40 @@ export const webhooks = pgTable(
 	}),
 );
 
+/** One outbound delivery attempt; only the newest per hook are kept. */
+export const webhookDeliveries = pgTable(
+	"webhook_deliveries",
+	{
+		id: serial("id").primaryKey(),
+		webhookId: integer("webhook_id")
+			.notNull()
+			.references(() => webhooks.id, { onDelete: "cascade" }),
+		guid: text("guid").notNull(),
+		event: text("event").notNull(),
+		action: text("action"),
+		requestHeaders: jsonb("request_headers")
+			.$type<Record<string, string>>()
+			.notNull(),
+		requestPayload: text("request_payload"),
+		status: text("status").$type<"success" | "failure">().notNull(),
+		statusCode: integer("status_code"),
+		responseHeaders: jsonb("response_headers").$type<Record<
+			string,
+			string
+		> | null>(),
+		responsePayload: text("response_payload"),
+		durationMs: integer("duration_ms").notNull(),
+		redelivery: boolean("redelivery").notNull().default(false),
+		deliveredAt: timestamptz("delivered_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		webhookIdx: index("webhook_delivery_webhook_idx").on(
+			table.webhookId,
+			table.id,
+		),
+	}),
+);
+
 /** `follower_id` follows `followee_id` (never themselves). */
 export const follows = pgTable(
 	"follows",

@@ -3,10 +3,14 @@
  * hooks per event type in a repository. A secret is sealed here before it can
  * reach the database, so no caller of this module stores one in the clear.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, lt } from "drizzle-orm";
 import { db } from "#/db";
-import { webhooks } from "#/db/app-schema";
-import { MAX_HOOKS_PER_EVENT, MAX_WEBHOOK_EVENTS } from "#/lib/limits";
+import { webhookDeliveries, webhooks } from "#/db/app-schema";
+import {
+	MAX_HOOKS_PER_EVENT,
+	MAX_WEBHOOK_DELIVERIES_PER_HOOK,
+	MAX_WEBHOOK_EVENTS,
+} from "#/lib/limits";
 import { withRepositoryCapacityLock } from "./repository-capacity";
 import { sealWebhookSecret } from "./webhook-secret";
 
@@ -130,6 +134,48 @@ async function updateWebhookRow(
 
 export async function deleteWebhook(hookId: number): Promise<void> {
 	await db.delete(webhooks).where(eq(webhooks.id, hookId));
+}
+
+export type WebhookDeliveryRecord = Omit<
+	typeof webhookDeliveries.$inferInsert,
+	"id" | "deliveredAt"
+>;
+
+/** Record one attempt, then keep only the newest rows for the hook. */
+export async function recordWebhookDelivery(
+	record: WebhookDeliveryRecord,
+): Promise<void> {
+	await db.insert(webhookDeliveries).values(record);
+	const kept = await db
+		.select({ id: webhookDeliveries.id })
+		.from(webhookDeliveries)
+		.where(eq(webhookDeliveries.webhookId, record.webhookId))
+		.orderBy(desc(webhookDeliveries.id))
+		.limit(MAX_WEBHOOK_DELIVERIES_PER_HOOK);
+	const oldestKept = kept.at(-1)?.id;
+	if (oldestKept === undefined) return;
+	await db
+		.delete(webhookDeliveries)
+		.where(
+			and(
+				eq(webhookDeliveries.webhookId, record.webhookId),
+				lt(webhookDeliveries.id, oldestKept),
+			),
+		);
+}
+
+export async function setWebhookLastResponse(
+	hookId: number,
+	response: { code: number | null; status: string; message: string | null },
+): Promise<void> {
+	await db
+		.update(webhooks)
+		.set({
+			lastStatusCode: response.code,
+			lastStatus: response.status,
+			lastMessage: response.message,
+		})
+		.where(eq(webhooks.id, hookId));
 }
 
 function assertEventCount(events: string[]): void {
