@@ -1,8 +1,17 @@
 name: Workspace setup
 description: >
-  Install pnpm, the pinned Node version, and the workspace dependencies from the
-  frozen lockfile. Every workflow uses this action so the pnpm version, the Node
-  pin (.node-version) and the install flags exist in exactly one place.
+  Install pnpm, the pinned Node version, and (unless asked not to) the workspace
+  dependencies from the frozen lockfile. Every workflow uses this action so the
+  pnpm version, the Node pin (.node-version) and the install flags exist in
+  exactly one place.
+
+inputs:
+  install:
+    description: >
+      Install the workspace dependencies. Set "false" for a task that only reads
+      the lockfile through the registry (pnpm audit), so it does not pay for a
+      full install it never uses.
+    default: "true"
 
 runs:
   using: composite
@@ -23,5 +32,9 @@ runs:
       with:
         node-version-file: .node-version
         cache: pnpm
-    - run: pnpm install --frozen-lockfile
+    # `--prefer-offline` uses the restored pnpm store first: a lockfile that
+    # has not changed costs no registry round trips, and a changed one fetches
+    # only what is missing.
+    - run: pnpm install --frozen-lockfile --prefer-offline
+      if: inputs.install == 'true'
       shell: bash

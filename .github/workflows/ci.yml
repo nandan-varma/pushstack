@@ -5,10 +5,15 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Re-run the gates by hand (for example after a runner outage) without an
+  # empty commit.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer commit makes a PR's run obsolete. A push to main is left to finish:
+  # its turbo cache is what every later PR restores (see the cache steps below).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Nothing here writes to the repository; the release workflow is the only one
 # that needs more than read access. Every checkout below also turns off
@@ -16,12 +21,20 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Anonymous telemetry is one more network round trip per task.
+  TURBO_TELEMETRY_DISABLED: "1"
+
 jobs:
   # Every workspace task through turbo's graph, one job per task so they run in
   # parallel and each failure is reported. Turbo's cache is restored from the
-  # last run, so a PR only rebuilds and retests the workspaces it changed.
+  # last push to main, so a PR only rebuilds the workspaces it changed.
   ci:
-    runs-on: ubuntu-latest
+    # Pinned rather than `-latest`: a runner image change should not silently
+    # change what CI tested. `ubuntu-24.04-arm` is the same 4 vCPU / 16 GB shape
+    # and is free for public repositories; switch it here and in codeql.yml
+    # together, once there is a measured reason to.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -36,11 +49,23 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # `pnpm audit` reads the lockfile through the registry; it does not
+          # need the workspace installed.
+          install: ${{ matrix.task != 'audit' }}
+      # Turborepo's local cache lives on the runner and dies with it, so a
+      # fresh runner would rebuild every package. A pull_request run may read
+      # the default branch's caches, but anything it saves is scoped to its
+      # merge ref and can only be restored by that PR's own re-runs: writing
+      # there would churn the 10 GB budget without helping the next PR. So
+      # every job restores, and only the build job on a push to main saves.
+      - name: Restore turbo cache
+        if: matrix.task != 'check' && matrix.task != 'audit'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo/cache
-          key: turbo-${{ matrix.task }}-${{ github.sha }}
-          restore-keys: turbo-${{ matrix.task }}-
+          key: turbo-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.arch }}-
       # The gh version the GraphQL fixtures were captured from
       # (apps/web/src/server/graphql/__fixtures__/gh), not the runner's.
       - name: Install gh 2.102.1
@@ -53,9 +78,21 @@ jobs:
           tar -xzf gh.tgz
           echo "$PWD/gh_2.102.1_linux_amd64/bin" >> "$GITHUB_PATH"
       - run: pnpm ${{ matrix.task }}
+      # One writer keeps the cache bounded and predictable: this archive holds
+      # every package's build output, which is exactly what the other jobs'
+      # `^build` tasks and smoke:git's app rebuild need.
+      - name: Save turbo cache
+        if: github.event_name == 'push' && matrix.task == 'build'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.arch }}-${{ github.sha }}
+        # A re-run of an already-cached commit finds the key present; that is
+        # not a CI failure.
+        continue-on-error: true
 
   secrets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,7 +114,7 @@ jobs:
           ./gitleaks git . --no-banner --redact
 
   workflows:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

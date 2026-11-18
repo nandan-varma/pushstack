@@ -100,6 +100,18 @@ pnpm format     # Biome format, writes changes
 pnpm typecheck  # tsc --noEmit
 ```
 
+## CI
+
+`.github/workflows/ci.yml` runs one job per turbo task, so a failure names the
+task and the jobs proceed in parallel. Only the `build` job on a push to `main`
+writes the turbo cache; every other job restores it. That asymmetry is
+deliberate: GitHub scopes a cache written by a `pull_request` run to that PR's
+merge ref, so it can only serve its own re-runs, while a cache written on
+`main` is readable by every PR. The pnpm store is cached by `setup-node` and
+installed with `--prefer-offline`, so an unchanged lockfile needs no registry
+traffic. `pnpm audit` is the one task that skips the workspace install (the
+setup action takes `install: false`), because it only reads the lockfile.
+
 ## Every turbo task fails with "Exec format error"
 
 `package.json` pins pnpm through `packageManager`, so pnpm downloads that
