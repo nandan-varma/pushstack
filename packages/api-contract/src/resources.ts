@@ -1012,3 +1012,44 @@ export const sshSigningKey = z.strictObject({
 	title: z.string(),
 	created_at: timestamp,
 });
+
+/** One file in a gist's files map. */
+export const gistFile = z.strictObject({
+	filename: z.string(),
+	type: z.string(),
+	language: z.string().nullable(),
+	raw_url: url,
+	size: count,
+	truncated: z.boolean().optional(),
+	content: z.string().optional(),
+});
+
+const gistFiles = z.record(z.string(), gistFile);
+
+/** A gist as lists return it (`GET /gists`, `GET /users/{username}/gists`). */
+export const gistSimple = z.strictObject({
+	url,
+	forks_url: url,
+	commits_url: url,
+	id: z.string().regex(/^[0-9a-f]{32}$/),
+	node_id: z.string(),
+	git_pull_url: url,
+	git_push_url: url,
+	html_url: url,
+	files: gistFiles,
+	public: z.boolean(),
+	created_at: timestamp,
+	updated_at: timestamp,
+	description: z.string().nullable(),
+	comments: count,
+	comments_url: url,
+	owner: simpleUser,
+	user: simpleUser,
+	truncated: z.boolean(),
+});
+
+/** A single gist: the list shape plus the gist it was forked from. */
+export const gist = z.strictObject({
+	...gistSimple.shape,
+	fork_of: gistSimple.nullable(),
+});

@@ -49,13 +49,17 @@ export async function authenticateRequest(
 /**
  * The `X-OAuth-Scopes` value GitHub sends for a classic token, from a PAT's
  * scopes: `repo:write` is GitHub's `repo` (with `read:org`, vacuously true
- * here: there are no organizations to hide). A read-only token has no classic
- * equivalent, so like a GitHub fine-grained token it gets no header (null).
+ * here: there are no organizations to hide); `gist` is GitHub's `gist`. A
+ * token with neither has no classic equivalent, so like a GitHub fine-grained
+ * token it gets no header (null).
  */
 export function oauthScopesHeader(
 	scopes: readonly TokenScope[],
 ): string | null {
-	return tokenAllows([...scopes], "repo:write") ? "read:org, repo" : null;
+	const classic: string[] = [];
+	if (tokenAllows(scopes, "gist")) classic.push("gist");
+	if (tokenAllows(scopes, "repo:write")) classic.push("read:org", "repo");
+	return classic.length > 0 ? classic.join(", ") : null;
 }
 
 /** The caller, or 401 "Requires authentication". */

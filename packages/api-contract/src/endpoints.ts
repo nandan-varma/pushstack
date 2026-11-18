@@ -41,6 +41,9 @@ import {
 	MAX_CHECK_TITLE_CHARS,
 	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_GIST_DESCRIPTION_CHARS,
+	MAX_GIST_FILE_NAME_CHARS,
+	MAX_GIST_FILES,
 	MAX_GPG_KEY_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_RELEASE_ASSET_BYTES,
@@ -78,6 +81,8 @@ import {
 	createdBlob,
 	diffEntry,
 	fileCommit,
+	gist,
+	gistSimple,
 	gitCommit,
 	gitRef,
 	gitTag,
@@ -258,6 +263,34 @@ const releaseFields = {
 };
 const assetName = z.string().trim().min(1).max(MAX_RELEASE_ASSET_NAME_CHARS);
 const assetLabel = z.string().max(MAX_RELEASE_ASSET_LABEL_CHARS);
+const gistParams = z.object({
+	gist_id: z.string().regex(/^[0-9a-f]{32}$/),
+});
+const gistFileName = z.string().min(1).max(MAX_GIST_FILE_NAME_CHARS);
+const gistFileContent = z.object({ content: z.string() });
+const gistFiles = z
+	.record(gistFileName, gistFileContent)
+	.refine((files) => Object.keys(files).length > 0, "A gist needs a file")
+	.refine(
+		(files) => Object.keys(files).length <= MAX_GIST_FILES,
+		`A gist has at most ${MAX_GIST_FILES} files`,
+	);
+/** GitHub's PATCH rules: a null entry or an object with neither field deletes. */
+const gistFilePatch = z
+	.object({
+		content: z.string().nullish(),
+		filename: gistFileName.optional(),
+	})
+	.nullable();
+const gistUpdateFiles = z
+	.record(gistFileName, gistFilePatch)
+	.refine(
+		(files) => Object.keys(files).length <= MAX_GIST_FILES,
+		`A gist has at most ${MAX_GIST_FILES} files`,
+	);
+const gistDescription = z.string().max(MAX_GIST_DESCRIPTION_CHARS).nullish();
+const gistListQuery = pagination.extend({ since: isoDate.optional() });
+
 /** GitHub's search envelope: `total_count` is exact, `items` is one page. */
 const searchResult = <T extends z.ZodType>(item: T) =>
 	z.strictObject({
@@ -584,6 +617,53 @@ export const endpoints = defineEndpoints({
 		body: z.object({ branch: z.string().min(1).max(255) }),
 		response: mergeUpstreamResult,
 	},
+	"gists/list": {
+		query: gistListQuery,
+		response: z.array(gistSimple),
+	},
+	"gists/list-public": {
+		query: gistListQuery,
+		response: z.array(gistSimple),
+	},
+	"gists/list-starred": {
+		query: gistListQuery,
+		response: z.array(gistSimple),
+	},
+	"gists/list-for-user": {
+		params: usernameParams,
+		query: gistListQuery,
+		response: z.array(gistSimple),
+	},
+	"gists/create": {
+		body: z.object({
+			description: gistDescription,
+			files: gistFiles,
+			/** GitHub and gh default a new gist to secret. */
+			public: z.boolean().default(false),
+		}),
+		response: gist,
+	},
+	"gists/get": {
+		params: gistParams,
+		response: gist,
+	},
+	"gists/get-revision": {
+		params: gistParams.extend({ sha: z.string().min(1).max(100) }),
+		response: gist,
+	},
+	"gists/update": {
+		params: gistParams,
+		body: z.object({
+			description: gistDescription,
+			files: gistUpdateFiles.optional(),
+		}),
+		response: gist,
+	},
+	"gists/delete": {
+		params: gistParams,
+		response: noContent,
+	},
+
 	"activity/list-watchers-for-repo": {
 		params: repoParams,
 		query: pagination,

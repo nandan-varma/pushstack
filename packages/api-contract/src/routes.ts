@@ -272,6 +272,55 @@ export const routes = {
 		docs: `${DOCS}/repos/branches#sync-a-fork-branch-with-the-upstream-repository`,
 		status: 200,
 	},
+
+	"gists/list": {
+		method: "GET",
+		path: "/gists",
+		docs: `${DOCS}/gists/gists#list-gists-for-the-authenticated-user`,
+	},
+	"gists/list-public": {
+		method: "GET",
+		path: "/gists/public",
+		docs: `${DOCS}/gists/gists#list-public-gists`,
+	},
+	"gists/list-starred": {
+		method: "GET",
+		path: "/gists/starred",
+		docs: `${DOCS}/gists/gists#list-starred-gists`,
+	},
+	"gists/list-for-user": {
+		method: "GET",
+		path: "/users/{username}/gists",
+		docs: `${DOCS}/gists/gists#list-gists-for-a-user`,
+	},
+	"gists/create": {
+		method: "POST",
+		path: "/gists",
+		docs: `${DOCS}/gists/gists#create-a-gist`,
+		status: 201,
+	},
+	"gists/get": {
+		method: "GET",
+		path: "/gists/{gist_id}",
+		docs: `${DOCS}/gists/gists#get-a-gist`,
+	},
+	"gists/get-revision": {
+		method: "GET",
+		path: "/gists/{gist_id}/{sha}",
+		docs: `${DOCS}/gists/gists#get-a-gist-revision`,
+	},
+	"gists/update": {
+		method: "PATCH",
+		path: "/gists/{gist_id}",
+		docs: `${DOCS}/gists/gists#update-a-gist`,
+	},
+	"gists/delete": {
+		method: "DELETE",
+		path: "/gists/{gist_id}",
+		docs: `${DOCS}/gists/gists#delete-a-gist`,
+		status: 204,
+	},
+
 	"activity/list-watchers-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/subscribers",
