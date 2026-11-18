@@ -635,6 +635,12 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/hooks/{hook_id}/config",
 		docs: `${DOCS}/repos/webhooks#update-a-webhook-configuration-for-a-repository`,
 	},
+	"repos/ping-webhook": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}/pings",
+		docs: `${DOCS}/repos/webhooks#ping-a-repository-webhook`,
+		status: 204,
+	},
 
 	"repos/list-releases": {
 		method: "GET",

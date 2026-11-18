@@ -4,7 +4,19 @@
  * collaborator without admin is a 403 ("Must have admin rights to
  * Repository."), as on GitHub. Nothing here returns or logs a stored secret.
  */
+import { eq } from "drizzle-orm";
+import { db } from "#/db";
+import { user } from "#/db/schema";
 import { MAX_HOOKS_PER_EVENT, MAX_WEBHOOK_EVENTS } from "#/lib/limits";
+import { afterResponse } from "../after-response";
+import { bestEffort } from "../best-effort";
+import { publicUserColumns } from "../repository-lookup";
+import { deliverWebhook } from "../webhook-deliver";
+import {
+	pingPayload,
+	webhookConfigPayload,
+	webhookPayload,
+} from "../webhook-payloads";
 import {
 	createWebhook,
 	deleteWebhook,
@@ -19,7 +31,6 @@ import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
 	forbiddenError,
-	isoTimestamp,
 	json,
 	noContent,
 	notFoundError,
@@ -28,7 +39,6 @@ import {
 } from "./http";
 import { pathParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
-import type { Shape } from "./serializers";
 
 type Repo = Awaited<ReturnType<typeof readableRepository>>["repo"];
 
@@ -54,7 +64,8 @@ type HookOperation =
 	| "repos/update-webhook"
 	| "repos/delete-webhook"
 	| "repos/get-webhook-config-for-repo"
-	| "repos/update-webhook-config-for-repo";
+	| "repos/update-webhook-config-for-repo"
+	| "repos/ping-webhook";
 
 /** The repository and the hook named by the path; 404 when either is absent. */
 async function hookFor(
@@ -66,38 +77,6 @@ async function hookFor(
 	const hook = await findWebhook(repo.id, hook_id);
 	if (!hook) throw notFoundError();
 	return { repo, hook };
-}
-
-function webhookConfigPayload(hook: Webhook): Shape<"webhookConfig"> {
-	return {
-		content_type: hook.contentType,
-		insecure_ssl: "0",
-		secret: hook.secretSealed ? "********" : "",
-		url: hook.url,
-	};
-}
-
-function webhookPayload(repo: Repo, hook: Webhook): Shape<"webhook"> {
-	const base = `/repos/${fullNameOf(repo)}/hooks/${hook.id}`;
-	return {
-		type: "Repository",
-		id: hook.id,
-		name: "web",
-		active: hook.active,
-		events: hook.events,
-		config: webhookConfigPayload(hook),
-		created_at: isoTimestamp(hook.createdAt),
-		updated_at: isoTimestamp(hook.updatedAt),
-		url: apiUrl(base),
-		test_url: apiUrl(`${base}/test`),
-		ping_url: apiUrl(`${base}/pings`),
-		deliveries_url: apiUrl(`${base}/deliveries`),
-		last_response: {
-			code: hook.lastStatusCode,
-			status: hook.lastStatus,
-			message: hook.lastMessage,
-		},
-	};
 }
 
 /** One 422 error per event type that already has its 20 hooks. */
@@ -235,4 +214,21 @@ export async function updateRepoWebhookConfig(ctx: ApiContext) {
 		secret: body.secret || null,
 	});
 	return json(webhookConfigPayload(updated));
+}
+
+export async function pingRepoWebhook(ctx: ApiContext) {
+	const { repo, hook } = await hookFor(ctx, "repos/ping-webhook");
+	const { userId } = requireScope(ctx, "repo:write");
+	await afterResponse(() =>
+		bestEffort("webhooks", "ping delivery", async () => {
+			const [sender] = await db
+				.select(publicUserColumns)
+				.from(user)
+				.where(eq(user.id, userId));
+			if (!sender) throw notFoundError();
+			const payload = await pingPayload(repo, hook, sender);
+			await deliverWebhook({ hook, event: "ping", action: null, payload });
+		}),
+	);
+	return noContent();
 }

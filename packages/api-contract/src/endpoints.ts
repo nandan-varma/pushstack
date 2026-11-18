@@ -1013,6 +1013,10 @@ export const endpoints = defineEndpoints({
 		body: webhookConfigPatchBody,
 		response: webhookConfig,
 	},
+	"repos/ping-webhook": {
+		params: hookParams,
+		response: noContent,
+	},
 
 	"repos/list-releases": {
 		params: repoParams,

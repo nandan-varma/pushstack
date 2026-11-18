@@ -535,6 +535,18 @@ beforeAll(async () => {
 		patch(alice, { content_type: "form" }),
 	);
 	await check(`/repos/alice/proj/hooks/${hook.id}`, del(alice));
+	const pingHook = await check(
+		"/repos/alice/proj/hooks",
+		post(alice, {
+			name: "web",
+			events: ["ping"],
+			// A reserved address is refused before a socket, so the test makes
+			// no outbound request while still exercising the delivery log.
+			config: { url: "https://192.0.2.1/hook" },
+		}),
+	);
+	await check(`/repos/alice/proj/hooks/${pingHook.id}/pings`, post(alice, {}));
+	await check(`/repos/alice/proj/hooks/${pingHook.id}`, del(alice));
 
 	// Releases and their assets.
 	const rel = await check(

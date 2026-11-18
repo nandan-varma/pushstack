@@ -23,9 +23,8 @@ const { BASE, asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
 const { db } = await import("#/db");
-const { repositories, repositoryCollaborators } = await import(
-	"#/db/app-schema"
-);
+const { repositories, repositoryCollaborators, webhookDeliveries } =
+	await import("#/db/app-schema");
 const { eq } = await import("drizzle-orm");
 const { MAX_HOOKS_PER_EVENT } = await import("#/lib/limits");
 
@@ -275,6 +274,51 @@ describe("updating and deleting a repository webhook", () => {
 			(await call(`/repos/alice/other/hooks/${created.id}`, asToken(alice)))
 				.status,
 		).toBe(404);
+	});
+});
+
+describe("pinging a repository webhook", () => {
+	it("answers 204 and records the ping delivery", async () => {
+		const { body: created } = await createHook("alice", "other", alice, {
+			config: { url: "https://192.0.2.1/hook", content_type: "json" },
+		});
+		const ping = await call(
+			`/repos/alice/other/hooks/${created.id}/pings`,
+			post(alice, {}),
+		);
+		expect(ping.status).toBe(204);
+		const rows = await db
+			.select()
+			.from(webhookDeliveries)
+			.where(eq(webhookDeliveries.webhookId, created.id));
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			event: "ping",
+			status: "failure",
+			statusCode: null,
+		});
+		expect(rows[0]?.requestPayload).toContain('"zen"');
+		expect(rows[0]?.requestPayload).toContain(`"hook_id":${created.id}`);
+		const read = await call(
+			`/repos/alice/other/hooks/${created.id}`,
+			asToken(alice),
+		);
+		expect(read.body.last_response).toMatchObject({
+			code: null,
+			status: "failed",
+		});
+	});
+
+	it("is admin only", async () => {
+		const { body: created } = await createHook("alice", "project", alice);
+		expect(
+			(
+				await call(
+					`/repos/alice/project/hooks/${created.id}/pings`,
+					post(bob, {}),
+				)
+			).status,
+		).toBe(403);
 	});
 });
 

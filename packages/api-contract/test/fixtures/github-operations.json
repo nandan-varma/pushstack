@@ -1084,6 +1084,10 @@
 				"branch"
 			]
 		},
+		"repos/ping-webhook": {
+			"query": [],
+			"body": []
+		},
 		"repos/replace-all-topics": {
 			"query": [],
 			"body": [
