@@ -66,10 +66,6 @@
 				"name": "projectCards",
 				"args": ["after", "before", "first", "last"]
 			},
-			{
-				"name": "projectItems",
-				"args": ["after", "before", "first", "last"]
-			},
 			"reactionGroups",
 			"issueType",
 			"parent",
@@ -92,22 +88,17 @@
 	"MilestoneOrderField": "*",
 	"ProjectCardConnection": ["edges", "nodes", "pageInfo", "totalCount"],
 	"ProjectCardEdge": "*",
-	"ProjectCard": { "$implements": [], "fields": ["project", "column"] },
-	"Project": { "$implements": [], "fields": ["name"] },
-	"ProjectColumn": { "$implements": [], "fields": ["name"] },
-	"ProjectV2ItemConnection": ["nodes", "pageInfo", "totalCount"],
-	"ProjectV2Item": {
+	"ProjectCard": {
 		"$implements": [],
-		"fields": ["id", "project", "fieldValueByName"]
+		"fields": ["project", "column"]
 	},
-	"ProjectV2": {
+	"Project": {
 		"$implements": [],
-		"fields": ["id", "title"]
+		"fields": ["name"]
 	},
-	"ProjectV2ItemFieldValue": ["ProjectV2ItemFieldSingleSelectValue"],
-	"ProjectV2ItemFieldSingleSelectValue": {
+	"ProjectColumn": {
 		"$implements": [],
-		"fields": ["optionId", "name"]
+		"fields": ["name"]
 	},
 	"IssueConnection": "*",
 	"IssueEdge": "*",
