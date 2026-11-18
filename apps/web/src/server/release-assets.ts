@@ -53,7 +53,7 @@ export class PresignUnavailableError extends Error {
 	}
 }
 
-type RepoKey = { name: string; owner: { username: string } };
+type RepoKey = { name: string; owner: { login: string } };
 
 const keyOf = (repo: RepoKey, assetId: number) =>
 	getReleaseAssetKey(ownerKeyOf(repo), repo.name, assetId);

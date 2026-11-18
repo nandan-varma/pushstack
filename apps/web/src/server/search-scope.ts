@@ -10,8 +10,8 @@ import { issues, repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { canReadRepositoryCondition } from "./repo-access";
-import type { PublicUser, RepositoryRowWithOwner } from "./repository-lookup";
-import { publicUserColumns } from "./repository-lookup";
+import type { RepositoryRowWithOwner } from "./repository-lookup";
+import { repoOwnerColumns } from "./repository-lookup";
 
 /** The repository ids a `user:` login owns (a subquery). */
 const ownedBy = (login: string) =>
@@ -77,14 +77,14 @@ export async function repositoriesWithOwner(
 ): Promise<Map<number, RepositoryRowWithOwner>> {
 	if (ids.length === 0) return new Map();
 	const rows = await db
-		.select({ repo: repositories, owner: publicUserColumns })
+		.select({ repo: repositories, owner: repoOwnerColumns })
 		.from(repositories)
 		.innerJoin(user, eq(user.id, repositories.ownerId))
 		.where(inArray(repositories.id, ids));
 	return new Map(
 		rows.map((row) => [
 			row.repo.id,
-			{ ...row.repo, owner: row.owner as PublicUser },
+			{ ...row.repo, owner: row.owner as RepositoryRowWithOwner["owner"] },
 		]),
 	);
 }

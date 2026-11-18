@@ -21,6 +21,24 @@ export const simpleUser = z.strictObject({
 	site_admin: z.boolean(),
 });
 
+export const simpleOrganization = z.strictObject({
+	login: z.string(),
+	id: z.number().int(),
+	url,
+	html_url: url,
+	description: z.string().nullable(),
+});
+
+/** GitHub's organization membership: the caller's relation to one organization. */
+export const organizationMembership = z.strictObject({
+	url,
+	state: z.enum(["active", "pending"]),
+	role: z.enum(["admin", "member"]),
+	organization_url: url,
+	organization: simpleOrganization,
+	user: simpleUser,
+});
+
 export const publicUser = z.strictObject({
 	...simpleUser.shape,
 	name: z.string().nullable(),

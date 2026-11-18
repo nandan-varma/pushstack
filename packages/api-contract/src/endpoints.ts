@@ -99,6 +99,7 @@ import {
 	mergeUpstreamResult,
 	milestone,
 	notificationThread,
+	organizationMembership,
 	privateUser,
 	publicUser,
 	pullRequest,
@@ -138,6 +139,11 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 }
 
 const noContent = z.null();
+const orgParams = z.object({ org: z.string() });
+const orgMemberParams = orgParams.extend({ username: z.string() });
+const membershipBody = z.object({
+	role: z.enum(["admin", "member"]).optional(),
+});
 const topicList = z.strictObject({ names: z.array(z.string()) });
 
 /** Entries one `POST …/git/trees` may carry (the request body cap binds first). */
@@ -436,6 +442,50 @@ export const endpoints = defineEndpoints({
 	"activity/list-watched-repos-for-authenticated-user": {
 		query: pagination,
 		response: z.array(repository),
+	},
+	"orgs/list-memberships-for-authenticated-user": {
+		query: pagination.extend({
+			state: z.enum(["active", "pending"]).optional(),
+		}),
+		response: z.array(organizationMembership),
+	},
+	"orgs/get-membership-for-authenticated-user": {
+		params: orgParams,
+		response: organizationMembership,
+	},
+	"orgs/list-members": {
+		params: orgParams,
+		query: pagination.extend({
+			filter: unsupported,
+			role: unsupported,
+		}),
+		response: z.array(simpleUser),
+	},
+	"orgs/check-membership-for-user": {
+		params: orgMemberParams,
+		response: noContent,
+	},
+	"orgs/remove-member": {
+		params: orgMemberParams,
+		response: noContent,
+	},
+	"orgs/get-membership-for-user": {
+		params: orgMemberParams,
+		response: organizationMembership,
+	},
+	"orgs/set-membership-for-user": {
+		params: orgMemberParams,
+		body: membershipBody,
+		response: organizationMembership,
+	},
+	"orgs/remove-membership-for-user": {
+		params: orgMemberParams,
+		response: noContent,
+	},
+	"orgs/list-outside-collaborators": {
+		params: orgParams,
+		query: pagination.extend({ filter: unsupported }),
+		response: z.array(simpleUser),
 	},
 	"users/get-by-id": {
 		params: z.object({ account_id: positiveInt }),

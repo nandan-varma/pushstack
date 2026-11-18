@@ -65,7 +65,11 @@ export async function listReviewerCandidates(
 	const users = await db.query.user.findMany({
 		...publicUserFields,
 		where: {
-			id: { in: [repo.ownerId, ...collaborators.map((c) => c.userId)] },
+			id: {
+				in: [repo.ownerId, ...collaborators.map((c) => c.userId)].filter(
+					(id): id is string => id !== null,
+				),
+			},
 		},
 	});
 	return users.sort((a, b) => a.username.localeCompare(b.username));

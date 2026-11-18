@@ -64,7 +64,7 @@ function labelFor(kind: "heads" | "tags" | "sha", name: string): string {
  * a full commit sha. Null when nothing matches.
  */
 export async function resolveArchiveTarget(
-	repo: { name: string; owner: { username: string } },
+	repo: { name: string; owner: { login: string } },
 	spec: string,
 ): Promise<ArchiveTarget | null> {
 	const ownerKey = ownerKeyOf(repo);

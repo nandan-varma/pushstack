@@ -63,7 +63,9 @@ beforeEach(async () => {
 	});
 	signIn({
 		id: "alice-id",
+		kind: "user",
 		username: "alice",
+		login: "alice",
 		name: "alice",
 		email: "alice@example.com",
 	});

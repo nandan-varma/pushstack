@@ -11,6 +11,10 @@ export const relations = defineRelations(
 				to: r.user.id,
 				optional: false,
 			}),
+			organization: r.one.organizations({
+				from: r.repositories.organizationId,
+				to: r.organizations.id,
+			}),
 			issues: r.many.issues({
 				from: r.repositories.id,
 				to: r.issues.repoId,
@@ -26,6 +30,28 @@ export const relations = defineRelations(
 			activities: r.many.activities({
 				from: r.repositories.id,
 				to: r.activities.repoId,
+			}),
+		},
+		organizations: {
+			repositories: r.many.repositories({
+				from: r.organizations.id,
+				to: r.repositories.organizationId,
+			}),
+			memberships: r.many.orgMemberships({
+				from: r.organizations.id,
+				to: r.orgMemberships.orgId,
+			}),
+		},
+		orgMemberships: {
+			organization: r.one.organizations({
+				from: r.orgMemberships.orgId,
+				to: r.organizations.id,
+				optional: false,
+			}),
+			user: r.one.user({
+				from: r.orgMemberships.userId,
+				to: r.user.id,
+				optional: false,
 			}),
 		},
 		issues: {

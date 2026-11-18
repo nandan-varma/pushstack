@@ -189,7 +189,7 @@ const empty = (): RepositoryTemplates => ({
 export async function loadRepositoryTemplates(repo: {
 	name: string;
 	defaultBranch: string;
-	owner: { username: string };
+	owner: { login: string };
 }): Promise<RepositoryTemplates> {
 	const owner = ownerKeyOf(repo);
 	const branches = await getBranches(owner, repo.name);

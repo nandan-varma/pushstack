@@ -67,15 +67,19 @@ const users = await createUsers("forker", "parentowner");
 const { db } = await import("#/db");
 const { createCommit } = await import("../git-write");
 const { listRepoStorage } = await import("../git-fs");
-const { createRepositoryForUser } = await import("../repository-create");
-const { ForkTooLargeError, forkRepositoryForUser } = await import(
+const { createRepositoryForOwner } = await import("../repository-create");
+const { ForkTooLargeError, forkRepositoryForOwner } = await import(
 	"../repository-fork"
 );
 
-const parentOwner = { id: "parentowner-id", username: "parentowner" };
+const parentOwner = {
+	id: "parentowner-id",
+	username: "parentowner",
+	login: "parentowner",
+};
 
 async function parentNamed(name: string) {
-	const row = await createRepositoryForUser(users.parentowner, {
+	const row = await createRepositoryForOwner(users.parentowner, {
 		name,
 		visibility: "public",
 		autoInit: false,
@@ -106,7 +110,7 @@ describe("a fork that cannot be made", () => {
 		limit.bytes = 1;
 		try {
 			await expect(
-				forkRepositoryForUser(parent, users.forker, "capped-fork"),
+				forkRepositoryForOwner(parent, users.forker, "capped-fork"),
 			).rejects.toBeInstanceOf(ForkTooLargeError);
 		} finally {
 			limit.bytes = 1024 ** 3;
@@ -123,7 +127,7 @@ describe("a fork that cannot be made", () => {
 		failing.afterCopies = 1;
 		try {
 			await expect(
-				forkRepositoryForUser(parent, users.forker, "flaky-fork"),
+				forkRepositoryForOwner(parent, users.forker, "flaky-fork"),
 			).rejects.toThrow("injected copy failure");
 		} finally {
 			failing.afterCopies = 0;
@@ -138,12 +142,12 @@ describe("a fork that cannot be made", () => {
 		failing.afterCopies = 1;
 		try {
 			await expect(
-				forkRepositoryForUser(parent, users.forker, "retry-fork"),
+				forkRepositoryForOwner(parent, users.forker, "retry-fork"),
 			).rejects.toThrow();
 		} finally {
 			failing.afterCopies = 0;
 		}
-		const fork = await forkRepositoryForUser(
+		const fork = await forkRepositoryForOwner(
 			parent,
 			users.forker,
 			"retry-fork",

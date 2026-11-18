@@ -32,7 +32,7 @@ export interface ReleaseRepo {
 	id: number;
 	name: string;
 	defaultBranch: string;
-	owner: { username: string };
+	owner: { login: string };
 }
 
 /** A field GitHub would report as `invalid` or `already_exists` (HTTP 422). */
@@ -213,7 +213,7 @@ export async function generateReleaseNotes(
 	if (previous) {
 		sections.push(
 			"",
-			`**Full Changelog**: ${getGitBaseUrl()}/${repo.owner.username}/${repo.name}/compare/${previous}...${input.tagName}`,
+			`**Full Changelog**: ${getGitBaseUrl()}/${repo.owner.login}/${repo.name}/compare/${previous}...${input.tagName}`,
 		);
 	}
 	return { name: input.tagName, body: sections.join("\n") };

@@ -29,6 +29,22 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent",
 	"activity/list-watched-repos-for-authenticated-user":
 		"repositories you watch (not ignore) and can still read; pagination",
+	"orgs/list-memberships-for-authenticated-user":
+		"every organization the caller belongs to, `pending` included; `state` (`active`, `pending`); pagination",
+	"orgs/get-membership-for-authenticated-user":
+		"`404` when the caller is not a member",
+	"orgs/list-members":
+		"active members only; `filter` and `role` are `422`; pagination",
+	"orgs/check-membership-for-user": "`204` or `404`",
+	"orgs/remove-member":
+		"needs an organization owner; removes the membership, not a direct repository grant (that user becomes an outside collaborator); `204`",
+	"orgs/get-membership-for-user": "needs an organization owner",
+	"orgs/set-membership-for-user":
+		"needs an organization owner; `role` is `admin` or `member` (default `member`); invites are not sent, the membership is active at once",
+	"orgs/remove-membership-for-user":
+		"needs an organization owner; `204`, also when there was no membership",
+	"orgs/list-outside-collaborators":
+		"needs an organization owner: users with a direct grant on an organization repository who are not active members; `filter` is `422`; pagination",
 	"users/get-by-id":
 		"public profile by integer id; `404` for an unknown or malformed id",
 	"users/list-gpg-keys-for-authenticated-user":

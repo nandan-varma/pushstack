@@ -531,9 +531,10 @@ export const pullsResolvers: DomainResolvers = {
 					: null;
 			},
 			headRepositoryOwner: async (node, _args, ctx) => {
+				const ownerId = node.repo.row.ownerId;
 				const row =
 					node.row.headOwner === null
-						? await loadUser(ctx, node.repo.row.ownerId)
+						? ownerId && (await loadUser(ctx, ownerId))
 						: await loadUserByLogin(ctx, node.row.headOwner);
 				if (!row) return null;
 				return userNode(row);

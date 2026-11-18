@@ -4,7 +4,6 @@
  * Plain server-only helpers.
  */
 import { isNotFoundError } from "git-fs-s3";
-import { db } from "#/db";
 import {
 	CODEOWNERS_PATHS,
 	type CodeownersRule,
@@ -21,10 +20,11 @@ import {
 } from "./git-read";
 import { ownerKeyOf } from "./git-storage-naming";
 import { logWarn } from "./perf-log";
+import { findRepositoryById } from "./repository-lookup";
 import { ReviewRequestError, requestReviewers } from "./review-request-store";
 import type { PullRequest } from "./thread-store";
 
-type RepoRef = { name: string; owner: { username: string } };
+type RepoRef = { name: string; owner: { login: string } };
 
 export interface LoadedCodeowners {
 	path: string;
@@ -120,10 +120,6 @@ export async function requestCodeownerReviews(
 export async function requestCodeownerReviewsFor(
 	pr: Parameters<typeof requestCodeownerReviews>[1],
 ): Promise<void> {
-	const repo = await db.query.repositories.findFirst({
-		columns: { id: true, name: true },
-		where: { id: pr.repoId },
-		with: { owner: { columns: { username: true } } },
-	});
+	const repo = await findRepositoryById(pr.repoId);
 	if (repo) await requestCodeownerReviews(repo, pr);
 }

@@ -13,11 +13,15 @@
  */
 import { isNotFound } from "@tanstack/react-router";
 import { db } from "#/db";
+import { logins } from "#/db/app-schema";
 import { user } from "#/db/schema";
 
 export interface TestUser {
 	id: string;
+	kind: "user";
 	username: string;
+	/** The username, as a repository owner's storage key (users have no separate login). */
+	login: string;
 	name: string;
 	email: string;
 }
@@ -44,18 +48,32 @@ export async function createUsers<N extends string>(
 	...names: N[]
 ): Promise<Record<N, TestUser>> {
 	const users = names.map((name) => ({
+		kind: "user" as const,
 		id: `${name}-id`,
 		username: name,
+		login: name,
 		name: name[0]?.toUpperCase() + name.slice(1),
 		email: `${name}@example.com`,
 	}));
 	const now = new Date();
 	await db.insert(user).values(
 		users.map((u) => ({
-			...u,
+			id: u.id,
+			username: u.username,
+			name: u.name,
+			email: u.email,
 			emailVerified: true,
 			createdAt: now,
 			updatedAt: now,
+		})),
+	);
+	// Signup claims the login in the same transaction (src/lib/auth.ts); tests
+	// that create users directly get the same registry state.
+	await db.insert(logins).values(
+		users.map((u) => ({
+			login: u.username,
+			kind: "user" as const,
+			refId: u.id,
 		})),
 	);
 	return Object.fromEntries(users.map((u) => [u.username, u])) as Record<

@@ -28,6 +28,11 @@ export const publicUserColumns = {
 export const publicUserFields = {
 	columns: { id: true, apiId: true, username: true, name: true, image: true },
 } as const;
+/**
+ * A repository's owner as storage names it: a user's `login` is their
+ * username, an organization's is its own. `ownerKeyOf` reads only this.
+ */
+export const repoOwnerColumns = { ...publicUserColumns, login: user.username };
 export type PublicUser = {
 	id: string;
 	apiId: number;
@@ -36,7 +41,9 @@ export type PublicUser = {
 	image: string | null;
 };
 
-export type RepositoryRowWithOwner = Repository & { owner: PublicUser };
+export type RepositoryRowWithOwner = Repository & {
+	owner: PublicUser & { login: string };
+};
 
 /**
  * Repository + owner by URL coordinates. Every repo page and both requests of
@@ -53,7 +60,7 @@ export function findRepositoryByName(
 ): Promise<RepositoryRowWithOwner | null> {
 	return repoByNameCache.get(`${ownerUsername}/${repoName}`, async () => {
 		const [row] = await db
-			.select({ repo: repositories, owner: publicUserColumns })
+			.select({ repo: repositories, owner: repoOwnerColumns })
 			.from(repositories)
 			.innerJoin(user, eq(repositories.ownerId, user.id))
 			.where(
@@ -62,6 +69,18 @@ export function findRepositoryByName(
 			.limit(1);
 		return row ? { ...row.repo, owner: row.owner } : null;
 	});
+}
+
+export function findRepositoryById(
+	repoId: number,
+): Promise<RepositoryRowWithOwner | null> {
+	return db
+		.select({ repo: repositories, owner: repoOwnerColumns })
+		.from(repositories)
+		.innerJoin(user, eq(repositories.ownerId, user.id))
+		.where(eq(repositories.id, repoId))
+		.limit(1)
+		.then(([row]) => (row ? { ...row.repo, owner: row.owner } : null));
 }
 
 /**

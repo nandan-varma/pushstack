@@ -71,7 +71,10 @@ export interface RepositorySettingsPatch {
 	topics?: string[];
 }
 
-function evictAll(repo: RepositoryWithOwner, newName?: string) {
+function evictAll(
+	repo: Repository & { owner: { username: string; login: string } },
+	newName?: string,
+) {
 	const ownerKey = ownerKeyOf(repo);
 	evictRepoByName(ownerKey, repo.name, repo.id);
 	if (newName) evictRepoByName(ownerKey, newName, repo.id);
@@ -157,7 +160,7 @@ export async function updateRepositorySettings(
 
 /** Delete the row (cascading), then the storage under the lock. */
 export async function deleteRepositoryAndStorage(
-	repo: RepositoryWithOwner,
+	repo: Repository & { owner: { username: string; login: string } },
 ): Promise<void> {
 	const ownerKey = ownerKeyOf(repo);
 	// The lock spans the row and the storage: a same-name create in between
