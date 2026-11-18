@@ -2,11 +2,12 @@
  * Gist rows: lookup, pages and mutations shared by the REST handlers and later
  * the web pages and GraphQL. Permission checks live in `gist-access.ts`.
  */
-import { and, count, desc, eq, gte, inArray, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, type SQL } from "drizzle-orm";
 import { db } from "#/db";
 import { gistComments, gistStars, gists } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { randomBytes } from "#/lib/bytes";
+import { GIST_ID_RE } from "./git-storage-naming";
 import { type PublicUser, publicUserColumns } from "./repository-lookup";
 
 export type GistRow = typeof gists.$inferSelect;
@@ -20,6 +21,12 @@ export interface GistPageOptions {
 	since?: Date;
 	limit: number;
 	offset: number;
+	/** A listing's privacy filter; omitted lists both public and secret gists. */
+	visibility?: "public" | "secret";
+	order?: {
+		field: "createdAt" | "updatedAt" | "pushedAt";
+		direction: "asc" | "desc";
+	};
 }
 
 export interface GistPage {
@@ -61,15 +68,29 @@ const pageConditions = (conditions: SQL[], since?: Date) => [
 	...(since ? [gte(gists.updatedAt, since)] : []),
 ];
 
+function pageWhere(conditions: SQL[], options: GistPageOptions) {
+	return and(
+		...pageConditions(conditions, options.since),
+		...(options.visibility ? [eq(gists.visibility, options.visibility)] : []),
+	);
+}
+
+function pageOrder(options: GistPageOptions) {
+	const field = options.order?.field ?? "updatedAt";
+	return options.order?.direction === "asc"
+		? asc(gists[field])
+		: desc(gists[field]);
+}
+
 async function page(
 	conditions: SQL[],
 	options: GistPageOptions,
 ): Promise<GistPage> {
-	const where = and(...pageConditions(conditions, options.since));
+	const where = pageWhere(conditions, options);
 	const [rows, [total]] = await Promise.all([
 		gistWithOwner()
 			.where(where)
-			.orderBy(desc(gists.updatedAt))
+			.orderBy(pageOrder(options))
 			.limit(options.limit)
 			.offset(options.offset),
 		db.select({ total: count() }).from(gists).where(where),
@@ -82,6 +103,19 @@ export async function findGistById(
 ): Promise<GistRowWithOwner | null> {
 	const [row] = await gistWithOwner().where(eq(gists.id, id)).limit(1);
 	return row ? rowOf(row) : null;
+}
+
+/**
+ * The gist `/{owner}/{id}` names, or null. GitHub serves a gist at that path
+ * too, so a repository lookup that misses falls back to this before 404ing.
+ */
+export async function findGistAtOwnerPath(
+	owner: string,
+	id: string,
+): Promise<GistRowWithOwner | null> {
+	if (!GIST_ID_RE.test(id)) return null;
+	const row = await findGistById(id);
+	return row?.owner.username === owner ? row : null;
 }
 
 export async function findGistOwnerByUsername(
@@ -207,6 +241,29 @@ export async function addGistStar(
 	userId: string,
 ): Promise<void> {
 	await db.insert(gistStars).values({ gistId, userId }).onConflictDoNothing();
+}
+
+export async function countGistStars(gistId: string): Promise<number> {
+	const [row] = await db
+		.select({ total: count() })
+		.from(gistStars)
+		.where(eq(gistStars.gistId, gistId));
+	return row?.total ?? 0;
+}
+
+/** A gist's stargazers, most recent star first, with the time it was given. */
+export function listGistStargazers(
+	gistId: string,
+	options: { limit: number; offset: number },
+): Promise<{ user: PublicUser; starredAt: Date }[]> {
+	return db
+		.select({ user: publicUserColumns, starredAt: gistStars.createdAt })
+		.from(gistStars)
+		.innerJoin(user, eq(gistStars.userId, user.id))
+		.where(eq(gistStars.gistId, gistId))
+		.orderBy(desc(gistStars.createdAt))
+		.limit(options.limit)
+		.offset(options.offset);
 }
 
 /** Idempotent: unstarring a gist that is not starred changes nothing. */

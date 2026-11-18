@@ -199,6 +199,19 @@ export async function readGistFiles(
 	return files;
 }
 
+/**
+ * Every file path a gist holds at a revision, without reading any content:
+ * the index only needs the names.
+ */
+export async function listGistFilePaths(
+	id: string,
+	revision = "HEAD",
+): Promise<string[]> {
+	const repo = gistRepoFor(id);
+	const { commit } = await resolveCommit(repo, revision);
+	return (await listBlobs(repo, commit.tree)).map((entry) => entry.path);
+}
+
 /** One file's bytes at a revision, for a rename that keeps its content. */
 export async function readGistFileContent(
 	id: string,
