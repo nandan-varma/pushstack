@@ -8,14 +8,18 @@
  * validated at input and checked again when a key is built
  * (`src/server/git-storage-naming.ts`); see `apps/docs/content/docs/internals/security.md`.
  *
- * Client-safe on purpose (no imports, nothing server-only): the sign-up and
+ * Client-safe on purpose (the contract's `limits` has no server imports): the sign-up and
  * create-repository forms have to enforce the same rule the server does. A form
  * that accepts what the server rejects makes the user discover the rule from an
  * error, and one that rejects what the server accepts blocks valid names.
  */
 
-/** Letters, digits, `.`, `-`, `_`; alphanumeric at both ends; never `.` or `..`. */
-export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
+import {
+	MAX_STORAGE_NAME_LENGTH,
+	STORAGE_NAME_RE,
+} from "@pushstack/api-contract/limits";
+
+export { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE };
 
 /**
  * The same rule as an HTML `pattern` attribute — **derived from the regex** so
@@ -25,8 +29,6 @@ export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 export const STORAGE_NAME_PATTERN = STORAGE_NAME_RE.source
 	.replace(/^\^/, "")
 	.replace(/\$$/, "");
-
-export const MAX_STORAGE_NAME_LENGTH = 100;
 
 export const MAX_USERNAME_LENGTH = 30;
 

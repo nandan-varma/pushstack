@@ -18,7 +18,7 @@ pnpm + Turborepo monorepo.
 
 - Access only via `repo-access.ts` helpers; git reads via `git-read.ts` + `opsHooksFor`, writes via `git-write.ts` under `withRepositoryLock` (not reentrant). R2 keys only from `git-storage-naming.ts`.
 - Names: `STORAGE_NAME_RE` for repos and usernames (never loosen); `safeBranchNameSchema` / `safeRefNameSchema` / `safeRepoPathSchema` on every ref and path, never a bare `z.string()`. Usernames and emails are immutable.
-- Every persisted caller-controlled string has a cap in `src/lib/limits.ts`; bound `skip`; stay under Vercel's 4.5 MB buffered response (stream big bodies).
+- Every persisted caller-controlled string has a cap: API-facing ones in `packages/api-contract/src/limits.ts` (the single source, re-exported by `src/lib/limits.ts`), the rest in `src/lib/limits.ts`; bound `skip`; stay under Vercel's 4.5 MB buffered response (stream big bodies).
 - Attacker content: `isSafeHref`/`isSafeImageSrc` for links and images, never `dangerouslySetInnerHTML` with user data, never fetch URLs from repo config.
 - Failure must differ from empty: never return `[]`/`null`/`0` on error. A Drizzle relational `where` must never hold an empty `AND`/`OR`.
 - Client: query keys/options only in `src/lib/query-options.ts`; loader queries a page doesn't await use `contentQuery`/`backgroundQuery` (`src/lib/prefetch.ts`); heavy deps `React.lazy`; a reload must log no hydration errors. Use `logError`/`logWarn`, not `console.error`.
