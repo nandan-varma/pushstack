@@ -70,6 +70,7 @@ import { Route as OwnerNameReleasesLatestRouteImport } from './routes/$owner.$na
 import { Route as OwnerNameReleasesNewRouteImport } from './routes/$owner.$name.releases.new'
 import { Route as OwnerNameSettingsIndexRouteImport } from './routes/$owner.$name.settings.index'
 import { Route as OwnerNameSettingsBranchesRouteImport } from './routes/$owner.$name.settings.branches'
+import { Route as OwnerNameSettingsHooksRouteImport } from './routes/$owner.$name.settings.hooks'
 import { Route as OwnerNameWikiIndexRouteImport } from './routes/$owner.$name.wiki.index'
 import { Route as OwnerNameWikiPageRouteImport } from './routes/$owner.$name.wiki.$page'
 import { Route as GistOwnerIdRevisionRouteImport } from './routes/gist.$owner.$id.$revision'
@@ -395,6 +396,11 @@ const OwnerNameSettingsBranchesRoute =
     path: '/branches',
     getParentRoute: () => OwnerNameSettingsRoute,
   } as any)
+const OwnerNameSettingsHooksRoute = OwnerNameSettingsHooksRouteImport.update({
+  id: '/hooks',
+  path: '/hooks',
+  getParentRoute: () => OwnerNameSettingsRoute,
+} as any)
 const OwnerNameWikiIndexRoute = OwnerNameWikiIndexRouteImport.update({
   id: '/wiki/',
   path: '/wiki/',
@@ -543,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/settings/hooks': typeof OwnerNameSettingsHooksRoute
   '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
@@ -615,6 +622,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/settings/hooks': typeof OwnerNameSettingsHooksRoute
   '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsIndexRoute
@@ -695,6 +703,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/settings/hooks': typeof OwnerNameSettingsHooksRoute
   '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
@@ -774,6 +783,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/settings/hooks'
     | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions/'
@@ -846,6 +856,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/settings/hooks'
     | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions'
@@ -925,6 +936,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/settings/hooks'
     | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions/'
@@ -1401,6 +1413,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameSettingsBranchesRouteImport
       parentRoute: typeof OwnerNameSettingsRoute
     }
+    '/$owner/$name/settings/hooks': {
+      id: '/$owner/$name/settings/hooks'
+      path: '/hooks'
+      fullPath: '/$owner/$name/settings/hooks'
+      preLoaderRoute: typeof OwnerNameSettingsHooksRouteImport
+      parentRoute: typeof OwnerNameSettingsRoute
+    }
     '/$owner/$name/wiki/': {
       id: '/$owner/$name/wiki/'
       path: '/wiki'
@@ -1610,11 +1629,13 @@ const OwnerNameIssuesRouteWithChildren = OwnerNameIssuesRoute._addFileChildren(
 
 interface OwnerNameSettingsRouteChildren {
   OwnerNameSettingsBranchesRoute: typeof OwnerNameSettingsBranchesRoute
+  OwnerNameSettingsHooksRoute: typeof OwnerNameSettingsHooksRoute
   OwnerNameSettingsIndexRoute: typeof OwnerNameSettingsIndexRoute
 }
 
 const OwnerNameSettingsRouteChildren: OwnerNameSettingsRouteChildren = {
   OwnerNameSettingsBranchesRoute: OwnerNameSettingsBranchesRoute,
+  OwnerNameSettingsHooksRoute: OwnerNameSettingsHooksRoute,
   OwnerNameSettingsIndexRoute: OwnerNameSettingsIndexRoute,
 }
 

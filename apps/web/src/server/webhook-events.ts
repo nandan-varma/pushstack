@@ -2,8 +2,10 @@
  * Webhook fan-out: the payloads of one event to every active hook of a
  * repository that subscribes to it, after the response. Hooks are looked up
  * once per event, so an event nobody subscribes to costs one query and no
- * delivery. A delivery failure is logged and never fails the write that
- * triggered it; GitHub also never retries a failed delivery.
+ * delivery. The payload builders load lazily because they pull the REST
+ * serializers, which such an event never needs. A delivery failure is logged
+ * and never fails the write that triggered it; GitHub also never retries a
+ * failed delivery.
  */
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
@@ -26,11 +28,6 @@ import {
 } from "./repository-lookup";
 import { findThread, findThreadById } from "./thread-store";
 import { deliverWebhook } from "./webhook-deliver";
-import {
-	issuePayload,
-	pullRequestPayload,
-	pushPayload,
-} from "./webhook-payloads";
 import type { Webhook } from "./webhook-store";
 
 export type WebhookEventName = "push" | "issues" | "pull_request";
@@ -128,6 +125,7 @@ export async function emitPushEvents(batch: PushEventBatch): Promise<void> {
 		event: "push",
 		action: null,
 		payloads: async () => {
+			const { pushPayload } = await import("./webhook-payloads");
 			const payloads = [];
 			for (const update of updates) {
 				payloads.push(
@@ -187,6 +185,7 @@ export async function emitPullRequestEvent(
 		event: "pull_request",
 		action: input.action,
 		payloads: async () => {
+			const { pullRequestPayload } = await import("./webhook-payloads");
 			const [repo, thread, sender] = await Promise.all([
 				findRepositoryById(input.repoId),
 				findThread(input.repoId, input.number, "pull_request"),
@@ -242,6 +241,7 @@ export async function emitPullRequestSynchronizations(
 		event: "pull_request",
 		action: "synchronize",
 		payloads: async () => {
+			const { pullRequestPayload } = await import("./webhook-payloads");
 			const repo = await findRepositoryById(batch.repoId);
 			if (!repo) return [];
 			const payloads = [];
@@ -276,6 +276,7 @@ export async function emitIssueEvent(input: IssueEvent): Promise<void> {
 		event: "issues",
 		action: input.action,
 		payloads: async () => {
+			const { issuePayload } = await import("./webhook-payloads");
 			const [repo, thread, sender] = await Promise.all([
 				findRepositoryById(input.repoId),
 				findThread(input.repoId, input.number, "issue"),
@@ -321,6 +322,7 @@ async function emitThreadUpdateEvent(
 		event: "issues",
 		action: input.action,
 		payloads: async () => {
+			const { issuePayload } = await import("./webhook-payloads");
 			const [repo, thread, sender] = await Promise.all([
 				findRepositoryById(ref.repoId),
 				findThread(ref.repoId, ref.number, "issue"),

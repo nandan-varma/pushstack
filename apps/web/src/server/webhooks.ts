@@ -16,7 +16,6 @@ import { getRepositoryAccess } from "./repo-access";
 import { findRepositoryById, publicUserColumns } from "./repository-lookup";
 import { getCurrentUser } from "./session";
 import { deliverWebhook } from "./webhook-deliver";
-import { pingPayload } from "./webhook-payloads";
 import {
 	createWebhook,
 	deleteWebhook,
@@ -139,6 +138,7 @@ export const pingRepoWebhook = createServerFn({ method: "POST" })
 		const hook = await hookFor(data.repoId, data.hookId);
 		await afterResponse(() =>
 			bestEffort("webhooks", "ping delivery", async () => {
+				const { pingPayload } = await import("./webhook-payloads");
 				const [repo, [sender]] = await Promise.all([
 					findRepositoryById(data.repoId),
 					db.select(publicUserColumns).from(user).where(eq(user.id, caller.id)),
