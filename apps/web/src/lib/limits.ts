@@ -251,17 +251,6 @@ export const MAX_TEMPLATE_FILES = 50;
 export const MAX_TEMPLATE_FILE_BYTES = 65_536;
 export const MAX_TEMPLATE_TOTAL_BYTES = 256_000;
 
-export const MAX_REPO_DESCRIPTION_CHARS = 500;
-export const MAX_REPO_HOMEPAGE_CHARS = 255;
-export const MAX_REPO_TOPICS = 20;
-export const MAX_REPO_TOPIC_CHARS = 50;
-
-/** GitHub's webhook caps: hooks one event type may have, events one hook may subscribe to, and URL and secret length. */
-export const MAX_HOOKS_PER_EVENT = 20;
-export const MAX_WEBHOOK_EVENTS = 30;
-export const MAX_WEBHOOK_URL_CHARS = 2048;
-export const MAX_WEBHOOK_SECRET_CHARS = 256;
-
 /** Delivery history and one outbound attempt: GitHub's own receiver timeout is 10 s. */
 export const MAX_WEBHOOK_DELIVERIES_PER_HOOK = 200;
 export const MAX_WEBHOOK_STORED_PAYLOAD_BYTES = 512 * 1024;
