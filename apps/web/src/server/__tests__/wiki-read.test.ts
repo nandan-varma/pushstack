@@ -32,6 +32,7 @@ const { MAX_WIKI_RENDER_BYTES } = await import("#/lib/limits");
 let token: string;
 let repoId: number;
 let offRepoId: number;
+let emptyRepoId: number;
 
 async function seedWiki(files: Record<string, string>): Promise<void> {
 	await ensureWikiRepository("alice", "pub");
@@ -54,6 +55,9 @@ beforeAll(async () => {
 	);
 	expect(off.status).toBe(201);
 	offRepoId = off.body.id;
+	const empty = await call("/user/repos", post(token, { name: "empty" }));
+	expect(empty.status).toBe(201);
+	emptyRepoId = empty.body.id;
 	await seedWiki({
 		"Home.md": "# Home\n\nStart with [[Second Page]].\n",
 		"_Sidebar.md": "**Sidebar**\n",
@@ -85,6 +89,15 @@ describe("wiki reads", () => {
 			content: "The second page.\n",
 			tooLarge: false,
 		});
+	});
+
+	it("reads an empty wiki as no pages, not a failure", async () => {
+		signIn(users.alice);
+		const wiki = await getWiki({ data: { repoId: emptyRepoId } });
+		expect(wiki.page).toBeNull();
+		expect(wiki.pages).toEqual([]);
+		expect(wiki.sidebar).toBeNull();
+		expect(wiki.footer).toBeNull();
 	});
 
 	it("shows the create state for an unknown page, not a 404", async () => {
