@@ -10,6 +10,7 @@ import {
 	withRepositoryCapacityLock,
 } from "./repository-capacity";
 import { recordTimelineEvent } from "./timeline-store";
+import { emitThreadLabelEvent } from "./webhook-events";
 
 export class DuplicateLabelError extends Error {
 	constructor() {
@@ -245,6 +246,12 @@ export async function setThreadLabels(
 					label: { name: label.name, color: label.color },
 				}),
 		);
+		await emitThreadLabelEvent({
+			issueId,
+			action: event,
+			label,
+			senderId: actorId,
+		});
 	}
 	return chosen.sort((a, b) => a.name.localeCompare(b.name));
 }

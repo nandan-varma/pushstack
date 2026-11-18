@@ -5,10 +5,12 @@
  */
 import { type CommitInfo, DiffLimitError } from "git-fs-s3/ops";
 import git from "isomorphic-git";
+import type { LabelView } from "#/lib/labels";
 import { MAX_WEBHOOK_COMMIT_FILES, MAX_WEBHOOK_COMMITS } from "#/lib/limits";
 import { apiUrl, htmlUrl, isoTimestamp } from "./api/http";
 import { repositoryPayload } from "./api/repos";
-import { type Shape, simpleUser } from "./api/serializers";
+import { label, type Shape, simpleUser } from "./api/serializers";
+import { serializeThread } from "./api/threads";
 import { getCommitDiff } from "./git-read";
 import { repoFor } from "./git-repo";
 import { ownerKeyOf } from "./git-storage-naming";
@@ -253,7 +255,7 @@ export interface PullRequestEventInput {
 	sender: PublicUser;
 	/** `edited` and the label/assignee actions carry what changed. */
 	changes?: Record<string, unknown>;
-	label?: unknown;
+	label?: LabelView;
 }
 
 /** The `pull_request` event, embedding the REST pull object. */
@@ -268,7 +270,42 @@ export async function pullRequestPayload(
 		number: input.thread.number,
 		pull_request: await pullRequestRestPayload(repo, input.thread),
 		...(input.changes && { changes: input.changes }),
-		...(input.label !== undefined && { label: input.label }),
+		...(input.label && { label: labelPayload(repo, input.label) }),
+		repository: await repositoryPayload(repo, input.sender.id, {
+			role: "admin",
+		}),
+		sender: simpleUser(input.sender),
+	};
+}
+
+/** A repository's label in GitHub's REST shape, as an event embeds it. */
+export function labelPayload(
+	repo: RepositoryRowWithOwner,
+	view: LabelView,
+): Shape<"label"> {
+	return label({ fullName: fullNameOf(repo) }, view);
+}
+
+export interface IssueEventInput {
+	action: string;
+	thread: Thread;
+	sender: PublicUser;
+	changes?: Record<string, unknown>;
+	label?: LabelView;
+	assignee?: PublicUser;
+}
+
+/** The `issues` event, embedding the same issue object the REST API serves. */
+export async function issuePayload(
+	repo: RepositoryRowWithOwner,
+	input: IssueEventInput,
+) {
+	return {
+		action: input.action,
+		issue: await serializeThread(repo, input.thread, true),
+		...(input.changes && { changes: input.changes }),
+		...(input.label && { label: labelPayload(repo, input.label) }),
+		...(input.assignee && { assignee: simpleUser(input.assignee) }),
 		repository: await repositoryPayload(repo, input.sender.id, {
 			role: "admin",
 		}),

@@ -10,6 +10,7 @@ import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
 import { db } from "#/db";
 import { issues, pullRequests, webhooks } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import type { LabelView } from "#/lib/labels";
 import {
 	MAX_WEBHOOK_COMMITS,
 	MAX_WEBHOOK_PR_SYNCHRONIZATIONS,
@@ -23,9 +24,13 @@ import {
 	type PublicUser,
 	publicUserColumns,
 } from "./repository-lookup";
-import { findThread } from "./thread-store";
+import { findThread, findThreadById } from "./thread-store";
 import { deliverWebhook } from "./webhook-deliver";
-import { pullRequestPayload, pushPayload } from "./webhook-payloads";
+import {
+	issuePayload,
+	pullRequestPayload,
+	pushPayload,
+} from "./webhook-payloads";
 import type { Webhook } from "./webhook-store";
 
 export type WebhookEventName = "push" | "issues" | "pull_request";
@@ -165,10 +170,12 @@ export interface PullRequestEvent {
 		| "synchronize"
 		| "edited"
 		| "ready_for_review"
-		| "converted_to_draft";
+		| "converted_to_draft"
+		| "labeled"
+		| "unlabeled";
 	senderId: string;
 	changes?: Record<string, unknown>;
-	label?: unknown;
+	label?: LabelView;
 }
 
 /** One `pull_request` event for the thread `number`, after the response. */
@@ -251,5 +258,110 @@ export async function emitPullRequestSynchronizations(
 			}
 			return payloads;
 		},
+	});
+}
+
+export interface IssueEvent {
+	repoId: number;
+	number: number;
+	action: "opened" | "edited" | "closed" | "reopened";
+	senderId: string;
+	changes?: Record<string, unknown>;
+}
+
+/** One `issues` event for `number`, after the response. */
+export async function emitIssueEvent(input: IssueEvent): Promise<void> {
+	await emitWebhookEvent({
+		repoId: input.repoId,
+		event: "issues",
+		action: input.action,
+		payloads: async () => {
+			const [repo, thread, sender] = await Promise.all([
+				findRepositoryById(input.repoId),
+				findThread(input.repoId, input.number, "issue"),
+				userById(input.senderId),
+			]);
+			if (!repo || !thread || !sender) return [];
+			return [
+				await issuePayload(repo, {
+					action: input.action,
+					thread,
+					sender,
+					...(input.changes && { changes: input.changes }),
+				}),
+			];
+		},
+	});
+}
+
+/** A thread's `labeled`/`unlabeled` (or assigned/unassigned) event, by kind. */
+async function emitThreadUpdateEvent(
+	issueId: number,
+	input: {
+		action: string;
+		senderId: string;
+		label?: LabelView;
+		assignee?: PublicUser;
+	},
+): Promise<void> {
+	const ref = await findThreadById(issueId);
+	if (!ref) return;
+	if (ref.kind === "pull_request") {
+		await emitPullRequestEvent({
+			repoId: ref.repoId,
+			number: ref.number,
+			action: input.action as PullRequestEvent["action"],
+			senderId: input.senderId,
+			...(input.label && { label: input.label }),
+		});
+		return;
+	}
+	await emitWebhookEvent({
+		repoId: ref.repoId,
+		event: "issues",
+		action: input.action,
+		payloads: async () => {
+			const [repo, thread, sender] = await Promise.all([
+				findRepositoryById(ref.repoId),
+				findThread(ref.repoId, ref.number, "issue"),
+				userById(input.senderId),
+			]);
+			if (!repo || !thread || !sender) return [];
+			return [
+				await issuePayload(repo, {
+					action: input.action,
+					thread,
+					sender,
+					...(input.label && { label: input.label }),
+					...(input.assignee && { assignee: input.assignee }),
+				}),
+			];
+		},
+	});
+}
+
+export function emitThreadLabelEvent(input: {
+	issueId: number;
+	action: "labeled" | "unlabeled";
+	label: LabelView;
+	senderId: string;
+}): Promise<void> {
+	return emitThreadUpdateEvent(input.issueId, {
+		action: input.action,
+		senderId: input.senderId,
+		label: input.label,
+	});
+}
+
+export function emitThreadAssigneeEvent(input: {
+	issueId: number;
+	action: "assigned" | "unassigned";
+	assignee: PublicUser;
+	senderId: string;
+}): Promise<void> {
+	return emitThreadUpdateEvent(input.issueId, {
+		action: input.action,
+		senderId: input.senderId,
+		assignee: input.assignee,
 	});
 }

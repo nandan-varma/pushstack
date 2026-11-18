@@ -12,6 +12,7 @@ import { withRepositoryLock } from "./git-repo-lock";
 import { recordThreadActivity } from "./notification-store";
 import { type PublicUser, publicUserFields } from "./repository-lookup";
 import { recordTimelineEvent } from "./timeline-store";
+import { emitThreadAssigneeEvent } from "./webhook-events";
 
 export async function listAssignableUsers(
 	repoId: number,
@@ -93,11 +94,23 @@ export async function replaceThreadAssignees(
 					event: "assigned",
 					assignee: { username: u.username, name: u.name },
 				});
+				await emitThreadAssigneeEvent({
+					issueId: issue.id,
+					action: "assigned",
+					assignee: u,
+					senderId: actorId,
+				});
 			}
 			for (const a of removed) {
 				await recordTimelineEvent(issue.id, actorId, {
 					event: "unassigned",
 					assignee: { username: a.user.username, name: a.user.name },
+				});
+				await emitThreadAssigneeEvent({
+					issueId: issue.id,
+					action: "unassigned",
+					assignee: a.user,
+					senderId: actorId,
 				});
 			}
 			if (added.length > 0) {
