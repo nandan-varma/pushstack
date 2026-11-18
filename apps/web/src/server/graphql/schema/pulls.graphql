@@ -1381,16 +1381,6 @@ type Team {
 }
 
 """
-An account on GitHub, with one or more owners, that has repositories, members and teams.
-"""
-type Organization {
-	"""
-	The organization's login name.
-	"""
-	login: String!
-}
-
-"""
 A review object for a given pull request.
 """
 type PullRequestReview implements Node {

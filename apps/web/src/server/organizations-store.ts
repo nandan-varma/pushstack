@@ -3,10 +3,15 @@
  * `logins` registry in one transaction, so a case variant of a username (or of
  * another org) cannot become a second owner whose storage prefix collides.
  */
-import { sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { logins, type Organization, organizations } from "#/db/app-schema";
+import {
+	logins,
+	type Organization,
+	organizations,
+	repositories,
+} from "#/db/app-schema";
 import {
 	MAX_ORG_BLOG_CHARS,
 	MAX_ORG_DESCRIPTION_CHARS,
@@ -82,4 +87,18 @@ export async function createOrganization(
 		if (isUniqueViolation(error)) throw new OrganizationLoginTakenError();
 		throw error;
 	}
+}
+
+/** The organization's public repositories: the `public_repos` count and list filter. */
+export function countPublicRepositories(orgId: number): Promise<number> {
+	return db
+		.select({ total: count() })
+		.from(repositories)
+		.where(
+			and(
+				eq(repositories.organizationId, orgId),
+				eq(repositories.visibility, "public"),
+			),
+		)
+		.then(([row]) => row?.total ?? 0);
 }

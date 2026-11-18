@@ -29,6 +29,16 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent",
 	"activity/list-watched-repos-for-authenticated-user":
 		"repositories you watch (not ignore) and can still read; pagination",
+	"orgs/get":
+		"GitHub's organization keys, with values PushStack does not track fixed (no company, gists or projects); no avatar image",
+	"orgs/list-for-authenticated-user":
+		"the organizations the caller is an active member of; pagination",
+	"orgs/list-for-user":
+		"the organizations the user is an active member of; pagination",
+	"repos/list-for-org":
+		"`type`, `sort` (`created`, `updated`, `pushed`, `full_name`) and `direction`; a non-member sees the public repositories; pagination",
+	"repos/create-in-org":
+		"needs an active member (a non-member gets `404`); `403` when members may not create repositories; `team_id` names a team the caller belongs to; the same body and `422`s as `repos/create-for-authenticated-user`",
 	"orgs/list-memberships-for-authenticated-user":
 		"every organization the caller belongs to, `pending` included; `state` (`active`, `pending`); pagination",
 	"orgs/get-membership-for-authenticated-user":

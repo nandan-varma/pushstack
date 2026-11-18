@@ -212,10 +212,6 @@
 		"$implements": [],
 		"fields": ["organization", "name", "slug"]
 	},
-	"Organization": {
-		"$implements": [],
-		"fields": ["login"]
-	},
 	"PullRequestReview": {
 		"$implements": ["Node"],
 		"fields": [

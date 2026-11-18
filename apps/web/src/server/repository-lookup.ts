@@ -8,41 +8,42 @@
  * else they share lives in a module like this one.
  */
 import { notFound } from "@tanstack/react-router";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "#/db";
-import { type Repository, repositories } from "#/db/app-schema";
+import { organizations, type Repository, repositories } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { perfContext } from "./perf-log";
 import { evictRepositoryById, getAccessForRepository } from "./repo-access";
+import {
+	publicUserColumns,
+	type RepositoryOwner,
+	repositoryOwnerOf,
+} from "./repository-owner";
 import { getCurrentUserOptional } from "./session";
 import { createTtlCoalescedCache } from "./ttl-cache";
 
-/** The user columns safe to show anyone (never the email). */
-export const publicUserColumns = {
-	id: user.id,
-	apiId: user.apiId,
-	username: user.username,
-	name: user.name,
-	image: user.image,
-};
-export const publicUserFields = {
-	columns: { id: true, apiId: true, username: true, name: true, image: true },
-} as const;
-/**
- * A repository's owner as storage names it: a user's `login` is their
- * username, an organization's is its own. `ownerKeyOf` reads only this.
- */
-export const repoOwnerColumns = { ...publicUserColumns, login: user.username };
-export type PublicUser = {
-	id: string;
-	apiId: number;
-	username: string;
-	name: string;
-	image: string | null;
+export type {
+	PublicUser,
+	RepositoryOwner,
+} from "./repository-owner";
+export {
+	publicUserColumns,
+	publicUserFields,
+	repoOwnerColumns,
+	repositoryOwnerOf,
+} from "./repository-owner";
+
+const ownerJoin = {
+	owner: publicUserColumns,
+	organization: {
+		id: organizations.id,
+		login: organizations.login,
+		name: organizations.name,
+	},
 };
 
 export type RepositoryRowWithOwner = Repository & {
-	owner: PublicUser & { login: string };
+	owner: RepositoryOwner;
 };
 
 /**
@@ -60,14 +61,24 @@ export function findRepositoryByName(
 ): Promise<RepositoryRowWithOwner | null> {
 	return repoByNameCache.get(`${ownerUsername}/${repoName}`, async () => {
 		const [row] = await db
-			.select({ repo: repositories, owner: repoOwnerColumns })
+			.select({ repo: repositories, ...ownerJoin })
 			.from(repositories)
-			.innerJoin(user, eq(repositories.ownerId, user.id))
+			.leftJoin(user, eq(repositories.ownerId, user.id))
+			.leftJoin(
+				organizations,
+				eq(repositories.organizationId, organizations.id),
+			)
 			.where(
-				and(eq(user.username, ownerUsername), eq(repositories.name, repoName)),
+				and(
+					or(
+						eq(user.username, ownerUsername),
+						eq(organizations.login, ownerUsername),
+					),
+					eq(repositories.name, repoName),
+				),
 			)
 			.limit(1);
-		return row ? { ...row.repo, owner: row.owner } : null;
+		return row ? { ...row.repo, owner: repositoryOwnerOf(row) } : null;
 	});
 }
 
@@ -75,12 +86,15 @@ export function findRepositoryById(
 	repoId: number,
 ): Promise<RepositoryRowWithOwner | null> {
 	return db
-		.select({ repo: repositories, owner: repoOwnerColumns })
+		.select({ repo: repositories, ...ownerJoin })
 		.from(repositories)
-		.innerJoin(user, eq(repositories.ownerId, user.id))
+		.leftJoin(user, eq(repositories.ownerId, user.id))
+		.leftJoin(organizations, eq(repositories.organizationId, organizations.id))
 		.where(eq(repositories.id, repoId))
 		.limit(1)
-		.then(([row]) => (row ? { ...row.repo, owner: row.owner } : null));
+		.then(([row]) =>
+			row ? { ...row.repo, owner: repositoryOwnerOf(row) } : null,
+		);
 }
 
 /**

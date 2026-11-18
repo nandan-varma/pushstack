@@ -1,44 +1,24 @@
 {
 	"operations": {
 		"gists/list": {
-			"query": [
-				"page",
-				"per_page",
-				"since"
-			],
+			"query": ["page", "per_page", "since"],
 			"body": []
 		},
 		"gists/list-public": {
-			"query": [
-				"page",
-				"per_page",
-				"since"
-			],
+			"query": ["page", "per_page", "since"],
 			"body": []
 		},
 		"gists/list-starred": {
-			"query": [
-				"page",
-				"per_page",
-				"since"
-			],
+			"query": ["page", "per_page", "since"],
 			"body": []
 		},
 		"gists/list-for-user": {
-			"query": [
-				"page",
-				"per_page",
-				"since"
-			],
+			"query": ["page", "per_page", "since"],
 			"body": []
 		},
 		"gists/create": {
 			"query": [],
-			"body": [
-				"description",
-				"files",
-				"public"
-			]
+			"body": ["description", "files", "public"]
 		},
 		"gists/get": {
 			"query": [],
@@ -74,9 +54,7 @@
 		},
 		"gists/create-comment": {
 			"query": [],
-			"body": [
-				"body"
-			]
+			"body": ["body"]
 		},
 		"gists/get-comment": {
 			"query": [],
@@ -84,9 +62,7 @@
 		},
 		"gists/update-comment": {
 			"query": [],
-			"body": [
-				"body"
-			]
+			"body": ["body"]
 		},
 		"gists/delete-comment": {
 			"query": [],
@@ -98,10 +74,7 @@
 		},
 		"gists/update": {
 			"query": [],
-			"body": [
-				"description",
-				"files"
-			]
+			"body": ["description", "files"]
 		},
 		"gists/delete": {
 			"query": [],
@@ -128,60 +101,32 @@
 			"body": []
 		},
 		"activity/list-notifications-for-authenticated-user": {
-			"query": [
-				"all",
-				"before",
-				"page",
-				"participating",
-				"per_page",
-				"since"
-			],
+			"query": ["all", "before", "page", "participating", "per_page", "since"],
 			"body": []
 		},
 		"activity/list-repo-notifications-for-authenticated-user": {
-			"query": [
-				"all",
-				"before",
-				"page",
-				"participating",
-				"per_page",
-				"since"
-			],
+			"query": ["all", "before", "page", "participating", "per_page", "since"],
 			"body": []
 		},
 		"activity/list-repos-watched-by-user": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"activity/list-watched-repos-for-authenticated-user": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"activity/list-watchers-for-repo": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"activity/mark-notifications-as-read": {
 			"query": [],
-			"body": [
-				"last_read_at",
-				"read"
-			]
+			"body": ["last_read_at", "read"]
 		},
 		"activity/mark-repo-notifications-as-read": {
 			"query": [],
-			"body": [
-				"last_read_at"
-			]
+			"body": ["last_read_at"]
 		},
 		"activity/mark-thread-as-done": {
 			"query": [],
@@ -193,16 +138,11 @@
 		},
 		"activity/set-repo-subscription": {
 			"query": [],
-			"body": [
-				"ignored",
-				"subscribed"
-			]
+			"body": ["ignored", "subscribed"]
 		},
 		"activity/set-thread-subscription": {
 			"query": [],
-			"body": [
-				"ignored"
-			]
+			"body": ["ignored"]
 		},
 		"checks/create": {
 			"query": [],
@@ -221,9 +161,7 @@
 		},
 		"checks/create-suite": {
 			"query": [],
-			"body": [
-				"head_sha"
-			]
+			"body": ["head_sha"]
 		},
 		"checks/get": {
 			"query": [],
@@ -234,33 +172,15 @@
 			"body": []
 		},
 		"checks/list-for-ref": {
-			"query": [
-				"app_id",
-				"check_name",
-				"filter",
-				"page",
-				"per_page",
-				"status"
-			],
+			"query": ["app_id", "check_name", "filter", "page", "per_page", "status"],
 			"body": []
 		},
 		"checks/list-for-suite": {
-			"query": [
-				"check_name",
-				"filter",
-				"page",
-				"per_page",
-				"status"
-			],
+			"query": ["check_name", "filter", "page", "per_page", "status"],
 			"body": []
 		},
 		"checks/list-suites-for-ref": {
-			"query": [
-				"app_id",
-				"check_name",
-				"page",
-				"per_page"
-			],
+			"query": ["app_id", "check_name", "page", "per_page"],
 			"body": []
 		},
 		"checks/update": {
@@ -279,45 +199,23 @@
 		},
 		"git/create-blob": {
 			"query": [],
-			"body": [
-				"content",
-				"encoding"
-			]
+			"body": ["content", "encoding"]
 		},
 		"git/create-commit": {
 			"query": [],
-			"body": [
-				"author",
-				"committer",
-				"message",
-				"parents",
-				"signature",
-				"tree"
-			]
+			"body": ["author", "committer", "message", "parents", "signature", "tree"]
 		},
 		"git/create-ref": {
 			"query": [],
-			"body": [
-				"ref",
-				"sha"
-			]
+			"body": ["ref", "sha"]
 		},
 		"git/create-tag": {
 			"query": [],
-			"body": [
-				"message",
-				"object",
-				"tag",
-				"tagger",
-				"type"
-			]
+			"body": ["message", "object", "tag", "tagger", "type"]
 		},
 		"git/create-tree": {
 			"query": [],
-			"body": [
-				"base_tree",
-				"tree"
-			]
+			"body": ["base_tree", "tree"]
 		},
 		"git/delete-ref": {
 			"query": [],
@@ -340,9 +238,7 @@
 			"body": []
 		},
 		"git/get-tree": {
-			"query": [
-				"recursive"
-			],
+			"query": ["recursive"],
 			"body": []
 		},
 		"git/list-matching-refs": {
@@ -351,16 +247,11 @@
 		},
 		"git/update-ref": {
 			"query": [],
-			"body": [
-				"force",
-				"sha"
-			]
+			"body": ["force", "sha"]
 		},
 		"issues/add-labels": {
 			"query": [],
-			"body": [
-				"labels"
-			]
+			"body": ["labels"]
 		},
 		"issues/create": {
 			"query": [],
@@ -378,26 +269,15 @@
 		},
 		"issues/create-comment": {
 			"query": [],
-			"body": [
-				"body"
-			]
+			"body": ["body"]
 		},
 		"issues/create-label": {
 			"query": [],
-			"body": [
-				"color",
-				"description",
-				"name"
-			]
+			"body": ["color", "description", "name"]
 		},
 		"issues/create-milestone": {
 			"query": [],
-			"body": [
-				"description",
-				"due_on",
-				"state",
-				"title"
-			]
+			"body": ["description", "due_on", "state", "title"]
 		},
 		"issues/delete-comment": {
 			"query": [],
@@ -428,26 +308,15 @@
 			"body": []
 		},
 		"issues/list-comments": {
-			"query": [
-				"page",
-				"per_page",
-				"since"
-			],
+			"query": ["page", "per_page", "since"],
 			"body": []
 		},
 		"issues/list-events": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"issues/list-events-for-timeline": {
-			"query": [
-				"exclude",
-				"page",
-				"per_page"
-			],
+			"query": ["exclude", "page", "per_page"],
 			"body": []
 		},
 		"issues/list-for-repo": {
@@ -469,27 +338,15 @@
 			"body": []
 		},
 		"issues/list-labels-for-repo": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"issues/list-labels-on-issue": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"issues/list-milestones": {
-			"query": [
-				"direction",
-				"page",
-				"per_page",
-				"sort",
-				"state"
-			],
+			"query": ["direction", "page", "per_page", "sort", "state"],
 			"body": []
 		},
 		"issues/remove-all-labels": {
@@ -502,9 +359,7 @@
 		},
 		"issues/set-labels": {
 			"query": [],
-			"body": [
-				"labels"
-			]
+			"body": ["labels"]
 		},
 		"issues/update": {
 			"query": [],
@@ -524,27 +379,15 @@
 		},
 		"issues/update-comment": {
 			"query": [],
-			"body": [
-				"body"
-			]
+			"body": ["body"]
 		},
 		"issues/update-label": {
 			"query": [],
-			"body": [
-				"archived",
-				"color",
-				"description",
-				"new_name"
-			]
+			"body": ["archived", "color", "description", "new_name"]
 		},
 		"issues/update-milestone": {
 			"query": [],
-			"body": [
-				"description",
-				"due_on",
-				"state",
-				"title"
-			]
+			"body": ["description", "due_on", "state", "title"]
 		},
 		"meta/get": {
 			"query": [],
@@ -588,17 +431,11 @@
 			"body": []
 		},
 		"pulls/list-commits": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"pulls/list-files": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"pulls/list-requested-reviewers": {
@@ -607,36 +444,19 @@
 		},
 		"pulls/merge": {
 			"query": [],
-			"body": [
-				"commit_message",
-				"commit_title",
-				"merge_method",
-				"sha"
-			]
+			"body": ["commit_message", "commit_title", "merge_method", "sha"]
 		},
 		"pulls/remove-requested-reviewers": {
 			"query": [],
-			"body": [
-				"reviewers",
-				"team_reviewers"
-			]
+			"body": ["reviewers", "team_reviewers"]
 		},
 		"pulls/request-reviewers": {
 			"query": [],
-			"body": [
-				"reviewers",
-				"team_reviewers"
-			]
+			"body": ["reviewers", "team_reviewers"]
 		},
 		"pulls/update": {
 			"query": [],
-			"body": [
-				"base",
-				"body",
-				"maintainer_can_modify",
-				"state",
-				"title"
-			]
+			"body": ["base", "body", "maintainer_can_modify", "state", "title"]
 		},
 		"rate-limit/get": {
 			"query": [],
@@ -644,15 +464,11 @@
 		},
 		"reactions/create-for-issue": {
 			"query": [],
-			"body": [
-				"content"
-			]
+			"body": ["content"]
 		},
 		"reactions/create-for-issue-comment": {
 			"query": [],
-			"body": [
-				"content"
-			]
+			"body": ["content"]
 		},
 		"reactions/delete-for-issue": {
 			"query": [],
@@ -663,45 +479,24 @@
 			"body": []
 		},
 		"reactions/list-for-issue": {
-			"query": [
-				"content",
-				"page",
-				"per_page"
-			],
+			"query": ["content", "page", "per_page"],
 			"body": []
 		},
 		"reactions/list-for-issue-comment": {
-			"query": [
-				"content",
-				"page",
-				"per_page"
-			],
+			"query": ["content", "page", "per_page"],
 			"body": []
 		},
 		"repos/compare-commits": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/create-commit-comment": {
 			"query": [],
-			"body": [
-				"body",
-				"line",
-				"path",
-				"position"
-			]
+			"body": ["body", "line", "path", "position"]
 		},
 		"repos/create-commit-status": {
 			"query": [],
-			"body": [
-				"context",
-				"description",
-				"state",
-				"target_url"
-			]
+			"body": ["context", "description", "state", "target_url"]
 		},
 		"repos/create-for-authenticated-user": {
 			"query": [],
@@ -733,22 +528,11 @@
 		},
 		"repos/create-fork": {
 			"query": [],
-			"body": [
-				"default_branch_only",
-				"name",
-				"organization"
-			]
+			"body": ["default_branch_only", "name", "organization"]
 		},
 		"repos/create-or-update-file-contents": {
 			"query": [],
-			"body": [
-				"author",
-				"branch",
-				"committer",
-				"content",
-				"message",
-				"sha"
-			]
+			"body": ["author", "branch", "committer", "content", "message", "sha"]
 		},
 		"repos/create-release": {
 			"query": [],
@@ -776,12 +560,7 @@
 		},
 		"repos/create-webhook": {
 			"query": [],
-			"body": [
-				"active",
-				"config",
-				"events",
-				"name"
-			]
+			"body": ["active", "config", "events", "name"]
 		},
 		"repos/delete": {
 			"query": [],
@@ -793,13 +572,7 @@
 		},
 		"repos/delete-file": {
 			"query": [],
-			"body": [
-				"author",
-				"branch",
-				"committer",
-				"message",
-				"sha"
-			]
+			"body": ["author", "branch", "committer", "message", "sha"]
 		},
 		"repos/delete-release": {
 			"query": [],
@@ -863,10 +636,7 @@
 			"body": ["contexts"]
 		},
 		"repos/get-all-topics": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/get-branch": {
@@ -898,17 +668,11 @@
 			"body": []
 		},
 		"repos/get-combined-status-for-ref": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/get-commit": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/get-commit-comment": {
@@ -916,9 +680,7 @@
 			"body": []
 		},
 		"repos/get-content": {
-			"query": [
-				"ref"
-			],
+			"query": ["ref"],
 			"body": []
 		},
 		"repos/get-latest-release": {
@@ -977,32 +739,19 @@
 			"body": []
 		},
 		"repos/list-branches": {
-			"query": [
-				"page",
-				"per_page",
-				"protected"
-			],
+			"query": ["page", "per_page", "protected"],
 			"body": []
 		},
 		"repos/list-comments-for-commit": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/list-commit-comments-for-repo": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/list-commit-statuses-for-ref": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/list-commits": {
@@ -1033,56 +782,66 @@
 			"body": []
 		},
 		"repos/list-for-user": {
-			"query": [
-				"direction",
-				"page",
-				"per_page",
-				"sort",
-				"type"
-			],
+			"query": ["direction", "page", "per_page", "sort", "type"],
 			"body": []
 		},
+		"repos/list-for-org": {
+			"query": ["direction", "page", "per_page", "sort", "type"],
+			"body": []
+		},
+		"repos/create-in-org": {
+			"query": [],
+			"body": [
+				"allow_auto_merge",
+				"allow_merge_commit",
+				"allow_rebase_merge",
+				"allow_squash_merge",
+				"auto_init",
+				"custom_properties",
+				"delete_branch_on_merge",
+				"description",
+				"gitignore_template",
+				"has_downloads",
+				"has_issues",
+				"has_projects",
+				"has_wiki",
+				"homepage",
+				"is_template",
+				"license_template",
+				"merge_commit_message",
+				"merge_commit_title",
+				"name",
+				"private",
+				"squash_merge_commit_message",
+				"squash_merge_commit_title",
+				"team_id",
+				"use_squash_pr_title_as_default",
+				"visibility"
+			]
+		},
 		"repos/list-forks": {
-			"query": [
-				"page",
-				"per_page",
-				"sort"
-			],
+			"query": ["page", "per_page", "sort"],
 			"body": []
 		},
 		"repos/list-release-assets": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/list-releases": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/list-tags": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/list-webhooks": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/merge-upstream": {
 			"query": [],
-			"body": [
-				"branch"
-			]
+			"body": ["branch"]
 		},
 		"repos/ping-webhook": {
 			"query": [],
@@ -1106,17 +865,11 @@
 		},
 		"repos/replace-all-topics": {
 			"query": [],
-			"body": [
-				"names"
-			]
+			"body": ["names"]
 		},
 		"repos/transfer": {
 			"query": [],
-			"body": [
-				"new_name",
-				"new_owner",
-				"team_ids"
-			]
+			"body": ["new_name", "new_owner", "team_ids"]
 		},
 		"repos/update": {
 			"query": [],
@@ -1153,9 +906,7 @@
 		},
 		"repos/update-commit-comment": {
 			"query": [],
-			"body": [
-				"body"
-			]
+			"body": ["body"]
 		},
 		"repos/update-release": {
 			"query": [],
@@ -1172,36 +923,18 @@
 		},
 		"repos/update-release-asset": {
 			"query": [],
-			"body": [
-				"label",
-				"name",
-				"state"
-			]
+			"body": ["label", "name", "state"]
 		},
 		"repos/update-webhook": {
 			"query": [],
-			"body": [
-				"active",
-				"add_events",
-				"config",
-				"events",
-				"remove_events"
-			]
+			"body": ["active", "add_events", "config", "events", "remove_events"]
 		},
 		"repos/update-webhook-config-for-repo": {
 			"query": [],
-			"body": [
-				"content_type",
-				"insecure_ssl",
-				"secret",
-				"url"
-			]
+			"body": ["content_type", "insecure_ssl", "secret", "url"]
 		},
 		"repos/upload-release-asset": {
-			"query": [
-				"label",
-				"name"
-			],
+			"query": ["label", "name"],
 			"body": []
 		},
 		"search/issues-and-pull-requests": {
@@ -1217,13 +950,7 @@
 			"body": []
 		},
 		"search/repos": {
-			"query": [
-				"order",
-				"page",
-				"per_page",
-				"q",
-				"sort"
-			],
+			"query": ["order", "page", "per_page", "q", "sort"],
 			"body": []
 		},
 		"users/check-following-for-user": {
@@ -1236,16 +963,11 @@
 		},
 		"users/create-gpg-key-for-authenticated-user": {
 			"query": [],
-			"body": [
-				"armored_public_key"
-			]
+			"body": ["armored_public_key"]
 		},
 		"users/create-ssh-signing-key-for-authenticated-user": {
 			"query": [],
-			"body": [
-				"key",
-				"title"
-			]
+			"body": ["key", "title"]
 		},
 		"users/delete-gpg-key-for-authenticated-user": {
 			"query": [],
@@ -1280,31 +1002,19 @@
 			"body": []
 		},
 		"users/list-followed-by-authenticated-user": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"users/list-followers-for-authenticated-user": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"users/list-followers-for-user": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"users/list-following-for-user": {
-			"query": [
-				"page",
-				"per_page"
-			],
+			"query": ["page", "per_page"],
 			"body": []
 		},
 		"users/list-gpg-keys-for-authenticated-user": {
@@ -1320,12 +1030,7 @@
 			"body": []
 		},
 		"orgs/list-members": {
-			"query": [
-				"filter",
-				"page",
-				"per_page",
-				"role"
-			],
+			"query": ["filter", "page", "per_page", "role"],
 			"body": []
 		},
 		"orgs/check-membership-for-user": {
@@ -1342,20 +1047,14 @@
 		},
 		"orgs/set-membership-for-user": {
 			"query": [],
-			"body": [
-				"role"
-			]
+			"body": ["role"]
 		},
 		"orgs/remove-membership-for-user": {
 			"query": [],
 			"body": []
 		},
 		"orgs/list-memberships-for-authenticated-user": {
-			"query": [
-				"page",
-				"per_page",
-				"state"
-			],
+			"query": ["page", "per_page", "state"],
 			"body": []
 		},
 		"orgs/get-membership-for-authenticated-user": {
@@ -1363,11 +1062,19 @@
 			"body": []
 		},
 		"orgs/list-outside-collaborators": {
-			"query": [
-				"filter",
-				"page",
-				"per_page"
-			],
+			"query": ["filter", "page", "per_page"],
+			"body": []
+		},
+		"orgs/get": {
+			"query": [],
+			"body": []
+		},
+		"orgs/list-for-authenticated-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"orgs/list-for-user": {
+			"query": ["page", "per_page"],
 			"body": []
 		}
 	},

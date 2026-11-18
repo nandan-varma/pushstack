@@ -77,6 +77,21 @@ export const routes = {
 		status: 204,
 	},
 
+	"orgs/get": {
+		method: "GET",
+		path: "/orgs/{org}",
+		docs: `${DOCS}/orgs/orgs#get-an-organization`,
+	},
+	"orgs/list-for-authenticated-user": {
+		method: "GET",
+		path: "/user/orgs",
+		docs: `${DOCS}/orgs/orgs#list-organizations-for-the-authenticated-user`,
+	},
+	"orgs/list-for-user": {
+		method: "GET",
+		path: "/users/{username}/orgs",
+		docs: `${DOCS}/orgs/orgs#list-organizations-for-a-user`,
+	},
 	"orgs/list-memberships-for-authenticated-user": {
 		method: "GET",
 		path: "/user/memberships/orgs",
@@ -188,6 +203,17 @@ export const routes = {
 		method: "GET",
 		path: "/users/{username}/repos",
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
+	},
+	"repos/list-for-org": {
+		method: "GET",
+		path: "/orgs/{org}/repos",
+		docs: `${DOCS}/repos/repos#list-organization-repositories`,
+	},
+	"repos/create-in-org": {
+		method: "POST",
+		path: "/orgs/{org}/repos",
+		docs: `${DOCS}/repos/repos#create-an-organization-repository`,
+		status: 201,
 	},
 	"search/repos": {
 		method: "GET",

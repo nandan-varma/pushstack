@@ -26,6 +26,7 @@ import { buildSchema, Kind, parse, print } from "graphql";
 export const DOMAINS = [
 	"core",
 	"repository",
+	"organizations",
 	"issues",
 	"pulls",
 	"projects",

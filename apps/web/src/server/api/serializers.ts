@@ -75,6 +75,46 @@ export function simpleOrganization(
 	};
 }
 
+/** `GET /orgs/{org}`: the pinned key set, with untracked values fixed. */
+export function organization(
+	org: Organization,
+	options: { publicRepos: number },
+): Shape<"organization"> {
+	const url = apiUrl(`/orgs/${org.login}`);
+	return {
+		login: org.login,
+		id: org.id,
+		node_id: encodeNodeId("Organization", org.id),
+		url,
+		repos_url: `${url}/repos`,
+		events_url: `${url}/events`,
+		hooks_url: `${url}/hooks`,
+		issues_url: `${url}/issues`,
+		members_url: `${url}/members{/member}`,
+		public_members_url: `${url}/public_members{/member}`,
+		avatar_url: null,
+		description: org.description,
+		name: org.name,
+		company: null,
+		blog: org.blog,
+		location: org.location,
+		email: org.email,
+		twitter_username: org.twitterUsername,
+		is_verified: false,
+		has_organization_projects: true,
+		has_repository_projects: true,
+		public_repos: options.publicRepos,
+		public_gists: 0,
+		followers: 0,
+		following: 0,
+		html_url: htmlUrl(`/${org.login}`),
+		created_at: isoTimestamp(org.createdAt),
+		updated_at: isoTimestamp(org.updatedAt),
+		archived_at: null,
+		type: "Organization",
+	};
+}
+
 export function organizationMembership(
 	membership: OrgMembership,
 	organization: Organization,
@@ -133,7 +173,10 @@ export function repository(
 		name: repo.name,
 		full_name: fullName,
 		private: repo.visibility === "private",
-		owner: simpleUser(repo.owner),
+		owner: {
+			...simpleUser(repo.owner),
+			type: repo.owner.kind === "organization" ? "Organization" : "User",
+		},
 		html_url: htmlUrl(`/${repo.owner.username}/${repo.name}`),
 		description: repo.description,
 		fork: repo.isFork,

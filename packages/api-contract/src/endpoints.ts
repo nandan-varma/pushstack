@@ -104,6 +104,7 @@ import {
 	mergeUpstreamResult,
 	milestone,
 	notificationThread,
+	organization,
 	organizationMembership,
 	privateUser,
 	publicUser,
@@ -507,6 +508,19 @@ export const endpoints = defineEndpoints({
 		query: pagination,
 		response: z.array(repository),
 	},
+	"orgs/get": {
+		params: orgParams,
+		response: organization,
+	},
+	"orgs/list-for-authenticated-user": {
+		query: pagination,
+		response: z.array(organization),
+	},
+	"orgs/list-for-user": {
+		params: usernameParams,
+		query: pagination,
+		response: z.array(organization),
+	},
 	"orgs/list-memberships-for-authenticated-user": {
 		query: pagination.extend({
 			state: z.enum(["active", "pending"]).optional(),
@@ -570,6 +584,49 @@ export const endpoints = defineEndpoints({
 		response: z.array(repository),
 	},
 
+	"repos/list-for-org": {
+		params: orgParams,
+		query: pagination.extend({
+			type: z
+				.enum(["all", "public", "private", "forks", "sources", "member"])
+				.optional(),
+			sort: z.enum(["created", "updated", "pushed", "full_name"]).optional(),
+			direction,
+		}),
+		response: z.array(repository),
+	},
+	"repos/create-in-org": {
+		params: orgParams,
+		body: z.object({
+			name: repoName,
+			description: z.string().trim().max(MAX_REPO_DESCRIPTION_CHARS).nullish(),
+			homepage: z.string().trim().max(MAX_REPO_HOMEPAGE_CHARS).nullish(),
+			private: z.boolean().default(false),
+			visibility: z.enum(["public", "private"]).optional(),
+			auto_init: z.boolean().default(false),
+			gitignore_template: z.string().optional(),
+			license_template: z.string().optional(),
+			has_issues: z.boolean().optional(),
+			has_projects: z.boolean().optional(),
+			has_wiki: z.boolean().optional(),
+			is_template: z.boolean().optional(),
+			/** Only a team the caller belongs to (GitHub's rule). */
+			team_id: positiveInt.optional(),
+			allow_auto_merge: unsupported,
+			allow_merge_commit: unsupported,
+			allow_rebase_merge: unsupported,
+			allow_squash_merge: unsupported,
+			custom_properties: unsupported,
+			delete_branch_on_merge: unsupported,
+			has_downloads: unsupported,
+			merge_commit_message: unsupported,
+			merge_commit_title: unsupported,
+			squash_merge_commit_message: unsupported,
+			squash_merge_commit_title: unsupported,
+			use_squash_pr_title_as_default: unsupported,
+		}),
+		response: repository,
+	},
 	"search/repos": {
 		query: pagination.extend({
 			/** The query: words (name and description), user:/org:, is:public|private, topic:. */

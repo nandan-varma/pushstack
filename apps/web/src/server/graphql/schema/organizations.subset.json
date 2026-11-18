@@ -1,0 +1,54 @@
+{
+	"Query": [
+		{
+			"name": "organization",
+			"args": ["login"]
+		}
+	],
+	"Organization": {
+		"$implements": [
+			"Actor",
+			"Node",
+			"RepositoryOwner",
+			"UniformResourceLocatable"
+		],
+		"fields": [
+			"avatarUrl",
+			"createdAt",
+			"databaseId",
+			"description",
+			"email",
+			"id",
+			"isVerified",
+			"location",
+			"login",
+			"name",
+			{
+				"name": "repositories",
+				"args": [
+					"affiliations",
+					"after",
+					"before",
+					"first",
+					"isArchived",
+					"isFork",
+					"last",
+					"orderBy",
+					"ownerAffiliations",
+					"privacy",
+					"visibility"
+				]
+			},
+			{
+				"name": "repository",
+				"args": ["name"]
+			},
+			"resourcePath",
+			"updatedAt",
+			"url",
+			"websiteUrl"
+		]
+	},
+	"OrganizationConnection": "*",
+	"OrganizationEdge": "*"
+}

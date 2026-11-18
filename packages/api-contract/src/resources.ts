@@ -29,6 +29,50 @@ export const simpleOrganization = z.strictObject({
 	description: z.string().nullable(),
 });
 
+/**
+ * An organization's profile, pinned to the keys `gh api orgs/cli --jq keys`
+ * returns. Values PushStack does not track (company, gists, projects) are
+ * fixed rather than omitted, so the shape never drifts.
+ */
+export const organization = z.strictObject({
+	login: z.string(),
+	id: z.number().int(),
+	node_id: z.string(),
+	url,
+	repos_url: url,
+	events_url: url,
+	hooks_url: url,
+	issues_url: url,
+	members_url: url,
+	public_members_url: url,
+	avatar_url: z.string().nullable(),
+	description: z.string().nullable(),
+	name: z.string().nullable(),
+	company: z.string().nullable(),
+	blog: z.string().nullable(),
+	location: z.string().nullable(),
+	email: z.string().nullable(),
+	twitter_username: z.string().nullable(),
+	is_verified: z.boolean(),
+	has_organization_projects: z.boolean(),
+	has_repository_projects: z.boolean(),
+	public_repos: count,
+	public_gists: count,
+	followers: count,
+	following: count,
+	html_url: url,
+	created_at: timestamp,
+	updated_at: timestamp,
+	archived_at: timestamp.nullable(),
+	type: z.literal("Organization"),
+});
+
+/** A repository's `owner`: a user, or an organization with GitHub's same keys. */
+export const repositoryOwner = z.strictObject({
+	...simpleUser.shape,
+	type: z.enum(["User", "Organization"]),
+});
+
 /** GitHub's organization membership: the caller's relation to one organization. */
 export const organizationMembership = z.strictObject({
 	url,
@@ -63,7 +107,7 @@ const repositoryFields = {
 	name: z.string(),
 	full_name: z.string(),
 	private: z.boolean(),
-	owner: simpleUser,
+	owner: repositoryOwner,
 	html_url: url,
 	description: z.string().nullable(),
 	fork: z.boolean(),

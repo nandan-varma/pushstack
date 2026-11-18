@@ -628,6 +628,14 @@ beforeAll(async () => {
 	await check("/user/memberships/orgs", auth);
 	await check("/user/memberships/orgs/acme", auth);
 	await check("/orgs/acme/outside_collaborators", auth);
+	await check("/orgs/acme", auth);
+	await check("/user/orgs", auth);
+	await check("/users/alice/orgs", auth);
+	await check(
+		"/orgs/acme/repos",
+		post(alice, { name: "org-repo", auto_init: true }),
+	);
+	await check("/orgs/acme/repos", auth);
 	await check("/orgs/acme/members/bob", del(alice));
 	await check("/orgs/acme/memberships/bob", del(alice));
 });
