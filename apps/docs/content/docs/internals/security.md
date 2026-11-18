@@ -332,12 +332,24 @@ import. No credential (password, PAT, session cookie) is ever passed to
 
 ## Dependencies
 
-Both `pnpm audit` and `pnpm audit --prod` report zero known vulnerabilities.
-There are no ignored advisories. Upgrade or remove the package responsible for
-a vulnerable transitive dependency instead of forcing an unsupported version
-into its graph. The one exception is listed below.
+Both `pnpm audit` and `pnpm audit --prod` report zero unreviewed vulnerabilities.
+Upgrade or remove the package responsible for a vulnerable transitive
+dependency instead of forcing an unsupported version into its graph. An
+exception needs a released fix that does not exist yet, a path that never sees
+request input, and an entry below with its removal condition; the workspace
+test fails on anything not listed here.
 
-### Temporary overrides
+### Temporary exceptions
+
+- `GHSA-fc5q-39xc-vjpf` (picomatch ReDoS through repeated extglobs such as
+  `+(*)`) is ignored through `auditConfig.ignoreGhsas` in
+  `pnpm-workspace.yaml`.
+  - Reason: every released picomatch (latest 4.0.7) is affected and upstream has
+    only open fix PRs, so there is nothing to upgrade to. picomatch is reached
+    only through build and dev tooling (vite, tinyglobby, fumadocs, TanStack)
+    that matches globs from our own config, never request input.
+  - Removal: delete the entry once picomatch releases a fix and the lockfile
+    resolves to it. Then run `pnpm audit` and the workspace test.
 
 - `@sentry/bundler-plugins>glob` is pinned to `>=14.0.2` in
   `pnpm-workspace.yaml`. It is scoped to Sentry's bundler plugin only.
@@ -365,8 +377,9 @@ or build dependencies. Add components with `pnpm dlx shadcn@latest add`.
 When a new finding appears, inspect its dependency path with `pnpm why` and
 `pnpm audit --json`, upgrade its owner, then run the full validation suite.
 [Earlier incidents](/docs/internals/security-history#dependency-vulnerabilities) explain
-why broad overrides and advisory exclusions were avoided. The temporary Sentry
-override above is the only exception.
+why broad overrides and advisory exclusions were avoided. The temporary
+exceptions above (the picomatch advisory and the Sentry glob override) are the
+only ones.
 
 ## Aggregate diff work
 

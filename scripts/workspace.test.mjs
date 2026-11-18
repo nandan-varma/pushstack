@@ -107,7 +107,7 @@ test("shared direct dependencies use consistent version ranges", () => {
 	}
 });
 
-test("dependency policy allows only the documented temporary override", () => {
+test("dependency policy allows only the documented temporary exceptions", () => {
 	for (const workspace of [readJson("package.json"), ...workspaces]) {
 		assert.equal(workspace.pnpm?.overrides, undefined, workspace.name);
 		assert.equal(workspace.pnpm?.auditConfig, undefined, workspace.name);
@@ -115,7 +115,14 @@ test("dependency policy allows only the documented temporary override", () => {
 		assert.equal(workspace.resolutions, undefined, workspace.name);
 	}
 	const settings = readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8");
-	assert.doesNotMatch(settings, /^\s*(auditConfig|ignoreGhsas|ignoreCves):/m);
+	// Advisory ignores are exceptions too: only the unpatched, build-time-only
+	// picomatch ReDoS, documented in security.md with its removal condition.
+	assert.doesNotMatch(settings, /^\s*ignoreCves:/m);
+	const ignored = settings.match(/^\s*ignoreGhsas:\n((?:\s+-\s+.*\n?)*)/m);
+	assert.deepEqual(
+		ignored ? [...ignored[1].matchAll(/-\s+(\S+)/g)].map((m) => m[1]) : [],
+		["GHSA-fc5q-39xc-vjpf"],
+	);
 	// The only override allowed is the temporary Sentry glob pin, documented in
 	// apps/docs/content/docs/internals/security.md. Any other entry fails here.
 	const block = settings.match(/^overrides:\n((?:[ \t]+.*\n?)*)/m);
