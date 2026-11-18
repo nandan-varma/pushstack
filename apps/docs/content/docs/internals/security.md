@@ -287,6 +287,24 @@ a validation error. Usernames that are looked up by name use the same shape the
 username plugin enforces at sign-up, so a value that cannot name a user fails
 validation instead of becoming a query that can only miss.
 
+## Caps are checked under a lease
+
+Per-repository caps (labels, milestones, releases, collaborators) are a count
+followed by an insert. Neon's HTTP driver has no transactions and no advisory
+locks — one stateless round trip per query — so a plain count-then-insert can be
+raced: several creates read the same count and every one of them inserts,
+overshooting the cap. Each create therefore takes a short lease in `repo_locks`
+under the key `caps/<repoId>/lock` (see `repository-capacity.ts`) and checks and
+inserts inside it. That is the same lease row git writes use, in a separate key
+namespace — a git key is `owner/repo` with exactly one slash — so creating a
+label never waits for a push, and the git lock is never taken under it in the
+same key. A create that cannot take the lease within 65 seconds fails rather
+than overshooting; a killed process's lease lapses after 60 seconds. The cost is
+two extra queries per create, and the guarantees are mutual exclusion per
+repository, not per cap: label, milestone, release and collaborator creates for
+one repository serialize with each other. Tests:
+`repository-caps.test.ts` (concurrent creates stay within the cap).
+
 ## Revoking access takes effect immediately
 
 The access cache (`repo-access.ts`) and the repository-by-name cache
@@ -358,7 +376,13 @@ blob sizes count before inflation and patch formatting; unknown sizes count
 before decoding. File work and object reads are bounded to 16 concurrent
 operations, and queued work stops after a budget failure. The typed
 `DiffLimitError` propagates to Files views; REST and plain-text diff/patch
-endpoints return 406 instead of silently returning an empty diff. The REST diff
-and patch media types also refuse a rendered diff over 4 MB (`MAX_API_DIFF_BYTES`,
-below Vercel's 4.5 MB buffered-response cap), with 406. Per-file
-oversize blobs retain their existing metadata-only representation.
+endpoints return 406 instead of silently returning an empty diff.
+
+The app adds a second, smaller bound where a whole response is buffered: the
+REST `diff`/`patch` media types refuse a rendered body over 4 MB
+(`MAX_API_DIFF_BYTES`, below Vercel's 4.5 MB buffered-response cap) with 406.
+The web origin's own `.diff`/`.patch` URLs keep the library's 10 MiB
+(`webPatchCaps.maxBytes`): they are assembled section by section and streamed,
+so they can afford the larger budget, though the finished body is still held in
+memory before it is sent. Per-file oversize blobs retain their existing
+metadata-only representation.

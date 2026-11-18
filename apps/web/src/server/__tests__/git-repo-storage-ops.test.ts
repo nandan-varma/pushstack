@@ -196,7 +196,7 @@ describe("withRepositoryLock", () => {
 
 		const attempt = withRepositoryLock("owner", "repo", async () => "ok");
 		const assertion = expect(attempt).rejects.toThrow(
-			"Timed out waiting for repository lock",
+			"Timed out waiting for the lock",
 		);
 		await vi.advanceTimersByTimeAsync(70_000);
 		await assertion;

@@ -1,9 +1,11 @@
 /**
- * Per-repository write lock: a Postgres lease row (`repo_locks`), since
- * serverless instances share no memory. Every write — push, repack, commit,
- * branch/HEAD change, merge, create, rename, delete — runs under it. Not
- * reentrant: a locked function must never take the lock for the same repo
- * again (it would wait out the acquire timeout and throw).
+ * Named leases in Postgres (`repo_locks`), since serverless instances share no
+ * memory. Every git write — push, repack, commit, branch/HEAD change, merge,
+ * create, rename, delete — runs under the `ownerKey/repoName` lease; a
+ * per-repository capacity check takes its own `caps/<repoId>/lock` lease (see
+ * `repository-capacity.ts`), which no git operation holds. Not reentrant: a
+ * locked function must never take the same lease again (it would wait out the
+ * acquire timeout and throw).
  */
 import { and, eq, lt } from "drizzle-orm";
 import { db } from "#/db";
@@ -24,7 +26,7 @@ const LOCK_ACQUIRE_TIMEOUT_MS = 65_000;
  * row while someone else holds it). Works over Neon's stateless HTTP driver,
  * which can't hold advisory locks or open transactions.
  */
-async function acquireRepoLock(repoKey: string): Promise<string> {
+async function acquireLock(lockKey: string): Promise<string> {
 	const holder = crypto.randomUUID();
 	const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
 	for (;;) {
@@ -32,7 +34,7 @@ async function acquireRepoLock(repoKey: string): Promise<string> {
 		const expiresAt = new Date(now.getTime() + LOCK_LEASE_MS);
 		const rows = await db
 			.insert(repoLocks)
-			.values({ repoKey, holder, expiresAt })
+			.values({ repoKey: lockKey, holder, expiresAt })
 			.onConflictDoUpdate({
 				target: repoLocks.repoKey,
 				set: { holder, expiresAt },
@@ -42,7 +44,7 @@ async function acquireRepoLock(repoKey: string): Promise<string> {
 		if (rows.length > 0) return holder;
 		if (Date.now() >= deadline) {
 			throw new Error(
-				`Timed out waiting for repository lock on ${repoKey} (held by another writer)`,
+				`Timed out waiting for the lock ${lockKey} (held by another writer)`,
 			);
 		}
 		await new Promise((resolve) =>
@@ -51,46 +53,42 @@ async function acquireRepoLock(repoKey: string): Promise<string> {
 	}
 }
 
-const heldBy = (repoKey: string, holder: string) =>
-	and(eq(repoLocks.repoKey, repoKey), eq(repoLocks.holder, holder));
+const heldBy = (lockKey: string, holder: string) =>
+	and(eq(repoLocks.repoKey, lockKey), eq(repoLocks.holder, holder));
 
 /** Extend our lease; false when it lapsed and another writer took over. */
-async function renewRepoLock(
-	repoKey: string,
-	holder: string,
-): Promise<boolean> {
+async function renewLock(lockKey: string, holder: string): Promise<boolean> {
 	const rows = await db
 		.update(repoLocks)
 		.set({ expiresAt: new Date(Date.now() + LOCK_LEASE_MS) })
-		.where(heldBy(repoKey, holder))
+		.where(heldBy(lockKey, holder))
 		.returning({ holder: repoLocks.holder });
 	return rows.length > 0;
 }
 
-export async function withRepositoryLock<T>(
-	ownerKey: string,
-	repoName: string,
+/**
+ * Run `fn` holding the lease named `lockKey`; waiters poll until the holder's
+ * lease lapses. Callers use `withRepositoryLock` (git writes) or the capacity
+ * lock in `repository-capacity.ts`, each with its own key namespace.
+ */
+export async function withLockKey<T>(
+	lockKey: string,
 	fn: () => Promise<T>,
 ): Promise<T> {
-	const repoKey = `${ownerKey}/${repoName}`;
-	const holder = await acquireRepoLock(repoKey);
+	const holder = await acquireLock(lockKey);
 	const heartbeat = setInterval(() => {
-		renewRepoLock(repoKey, holder).then(
+		renewLock(lockKey, holder).then(
 			(held) => {
 				if (!held) {
 					logError(
 						"git-repo-lock",
-						`Lost the repo lock for ${repoKey} mid-operation`,
+						`Lost the lock ${lockKey} mid-operation`,
 						new Error("repo lock lease lost"),
 					);
 				}
 			},
 			(err: unknown) =>
-				logError(
-					"git-repo-lock",
-					`Failed to renew repo lock for ${repoKey}`,
-					err,
-				),
+				logError("git-repo-lock", `Failed to renew lock ${lockKey}`, err),
 		);
 	}, LOCK_RENEW_MS);
 	try {
@@ -100,15 +98,24 @@ export async function withRepositoryLock<T>(
 		// Holder-scoped: never deletes a lease someone else took over.
 		await db
 			.delete(repoLocks)
-			.where(heldBy(repoKey, holder))
+			.where(heldBy(lockKey, holder))
 			.catch((err: unknown) =>
 				logError(
 					"git-repo-lock",
-					`Failed to release repo lock for ${repoKey} (its lease will lapse)`,
+					`Failed to release lock ${lockKey} (its lease will lapse)`,
 					err,
 				),
 			);
 	}
+}
+
+/** The git write lock for one repository. */
+export function withRepositoryLock<T>(
+	ownerKey: string,
+	repoName: string,
+	fn: () => Promise<T>,
+): Promise<T> {
+	return withLockKey(`${ownerKey}/${repoName}`, fn);
 }
 
 /**
