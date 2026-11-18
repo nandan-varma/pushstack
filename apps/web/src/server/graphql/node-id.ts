@@ -192,18 +192,19 @@ const PROJECT_TYPES = (
 export interface DecodedProjectNodeId {
 	type: ProjectNodeType;
 	key: string;
-	ownerApiId: number;
+	/** The project row the object belongs to (the project itself for `PVT_`). */
+	scopeId: number;
 }
 
 export function encodeProjectNodeId(
 	type: ProjectNodeType,
-	ownerApiId: number,
+	scopeId: number,
 	key: number,
 ): string {
 	const tuple = [
 		0x93, // fixarray of three
 		0x00,
-		...msgpackUint(ownerApiId),
+		...msgpackUint(scopeId),
 		...msgpackUint(key),
 	];
 	return `${PROJECT_PREFIX[type]}_${Buffer.from(tuple).toString("base64url")}`;
@@ -215,10 +216,10 @@ export function decodeProjectNodeId(id: string): DecodedProjectNodeId | null {
 	if (!found) return null;
 	const [type, prefix] = found;
 	const tuple = readTuple(id, prefix);
-	if (!tuple || tuple.length !== 3 || tuple[0] !== 0) return null;
-	const [, ownerApiId, key] = tuple;
-	return typeof ownerApiId === "number" && typeof key === "number"
-		? { type, key: String(key), ownerApiId }
+	if (tuple?.length !== 3 || tuple[0] !== 0) return null;
+	const [, scopeId, key] = tuple;
+	return typeof scopeId === "number" && typeof key === "number"
+		? { type, key: String(key), scopeId }
 		: null;
 }
 

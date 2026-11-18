@@ -177,6 +177,7 @@
 			"message",
 			"messageHeadline",
 			"oid",
+			"signature",
 			"repository",
 			"resourcePath",
 			"url",
@@ -278,5 +279,9 @@
 		"name",
 		"title"
 	],
-	"PullRequestTemplate": "*"
+	"PullRequestTemplate": "*",
+	"GitSignature": "*",
+	"GitSignatureState": "*",
+	"GpgSignature": "*",
+	"SshSignature": "*"
 }

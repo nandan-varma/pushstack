@@ -1,0 +1,145 @@
+{
+	"Query": ["resource"],
+	"User": {
+		"$implements": ["ProjectV2Owner"],
+		"fields": ["projectsV2", "projectV2"]
+	},
+	"Repository": {
+		"$implements": [],
+		"fields": ["projectsV2"]
+	},
+	"Issue": {
+		"$implements": [],
+		"fields": ["projectItems"]
+	},
+	"PullRequest": {
+		"$implements": [],
+		"fields": ["projectItems"]
+	},
+	"ProjectV2": {
+		"$implements": ["Node"],
+		"fields": [
+			"id",
+			"number",
+			"title",
+			"shortDescription",
+			"readme",
+			"public",
+			"closed",
+			"url",
+			"resourcePath",
+			"owner",
+			"createdAt",
+			"updatedAt",
+			"closedAt",
+			"items",
+			"fields"
+		]
+	},
+	"ProjectV2Owner": {
+		"fields": ["id", "projectV2", "projectsV2"]
+	},
+	"ProjectV2Connection": "*",
+	"ProjectV2Edge": "*",
+	"ProjectV2Order": "*",
+	"ProjectV2OrderField": "*",
+	"ProjectV2PermissionLevel": "*",
+	"ProjectV2FieldOrder": "*",
+	"ProjectV2FieldOrderField": "*",
+	"ProjectV2ItemOrder": "*",
+	"ProjectV2ItemOrderField": "*",
+	"ProjectV2ItemFieldValueOrder": "*",
+	"ProjectV2ItemFieldValueOrderField": "*",
+	"ProjectV2ItemArchivedState": "*",
+	"ProjectV2FieldCommon": {
+		"fields": [
+			"createdAt",
+			"dataType",
+			"databaseId",
+			"id",
+			"isIssueField",
+			"name",
+			"project",
+			"updatedAt"
+		]
+	},
+	"ProjectV2Field": {
+		"$implements": ["Node", "ProjectV2FieldCommon"],
+		"fields": [
+			"id",
+			"name",
+			"dataType",
+			"databaseId",
+			"isIssueField",
+			"project",
+			"createdAt",
+			"updatedAt"
+		]
+	},
+	"ProjectV2SingleSelectField": {
+		"$implements": ["Node", "ProjectV2FieldCommon"],
+		"fields": [
+			"id",
+			"name",
+			"dataType",
+			"databaseId",
+			"isIssueField",
+			"options",
+			"project",
+			"createdAt",
+			"updatedAt"
+		]
+	},
+	"ProjectV2FieldConfiguration": [
+		"ProjectV2Field",
+		"ProjectV2SingleSelectField"
+	],
+	"ProjectV2FieldConfigurationConnection": "*",
+	"ProjectV2FieldConfigurationEdge": "*",
+	"ProjectV2SingleSelectFieldOption": "*",
+	"ProjectV2SingleSelectFieldOptionColor": "*",
+	"ProjectV2FieldType": "*",
+	"ProjectV2Item": {
+		"$implements": ["Node"],
+		"fields": [
+			"id",
+			"project",
+			"content",
+			"type",
+			"isArchived",
+			"fieldValues",
+			"fieldValueByName",
+			"createdAt",
+			"updatedAt"
+		]
+	},
+	"ProjectV2ItemConnection": "*",
+	"ProjectV2ItemEdge": "*",
+	"ProjectV2ItemContent": ["DraftIssue", "Issue", "PullRequest"],
+	"ProjectV2ItemType": "*",
+	"DraftIssue": {
+		"$implements": ["Node"],
+		"fields": ["id", "title", "body", "createdAt", "updatedAt"]
+	},
+	"ProjectV2ItemFieldValue": [
+		"ProjectV2ItemFieldTextValue",
+		"ProjectV2ItemFieldNumberValue",
+		"ProjectV2ItemFieldDateValue",
+		"ProjectV2ItemFieldSingleSelectValue"
+	],
+	"ProjectV2ItemFieldValueConnection": "*",
+	"ProjectV2ItemFieldValueEdge": "*",
+	"ProjectV2ItemFieldTextValue": {
+		"fields": ["id", "field", "text", "updatedAt"]
+	},
+	"ProjectV2ItemFieldNumberValue": {
+		"fields": ["id", "field", "number", "updatedAt"]
+	},
+	"ProjectV2ItemFieldDateValue": {
+		"fields": ["id", "field", "date", "updatedAt"]
+	},
+	"ProjectV2ItemFieldSingleSelectValue": {
+		"fields": ["id", "field", "name", "optionId", "color", "updatedAt"]
+	},
+	"Date": "*"
+}

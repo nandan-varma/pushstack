@@ -131,7 +131,7 @@ const STATE_REASONS = {
 	reopened: "REOPENED",
 } as const;
 
-function issueNode(repo: RepositoryNode, row: Thread): IssueNode {
+export function issueNode(repo: RepositoryNode, row: Thread): IssueNode {
 	const path = `/${repo.nameWithOwner}/issues/${row.number}`;
 	return {
 		__typename: "Issue",
