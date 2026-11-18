@@ -38,9 +38,14 @@ export function ForkPullRequestButton({
 
 	const mutation = useMutation({
 		mutationFn: createForkPullRequest,
-		onSuccess: async (pr) => {
+		onSuccess: (pr) => {
+			// The pull request lives in the parent, so the parent's row (its open
+			// count) is what changed; nothing in the fork's own lists did.
 			queryClient.invalidateQueries({
-				queryKey: queryKeys.pullRequestsRoot(repoId),
+				queryKey: queryKeys.repositoryByName(
+					parent.owner.username,
+					parent.name,
+				),
 			});
 			setOpen(false);
 			toast("Pull request created", "success");
