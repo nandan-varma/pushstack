@@ -1,13 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
-import { SettingsLayout } from "@/components/layout/SettingsLayout";
 import { NotFoundCard } from "@/components/NotFoundCard";
-import { CollaboratorsSection } from "@/components/settings/CollaboratorsSection";
-import { DangerSection } from "@/components/settings/DangerSection";
-import { GeneralSection } from "@/components/settings/GeneralSection";
-import { PerformanceSection } from "@/components/settings/PerformanceSection";
 import { Skeleton } from "@/components/ui/skeleton";
 import { backgroundQuery } from "@/lib/prefetch";
 import {
@@ -16,6 +11,7 @@ import {
 	repositoryByNameQueryOptions,
 } from "@/lib/query-options";
 
+/** Settings is owner-only: the guard runs once for every `/settings` page. */
 export const Route = createFileRoute("/$owner/$name/settings")({
 	loader: async ({ params, context: { queryClient } }) => {
 		const [repo, session] = await Promise.all([
@@ -32,10 +28,10 @@ export const Route = createFileRoute("/$owner/$name/settings")({
 			backgroundQuery(queryClient, repoCollaboratorsQueryOptions(repo.id));
 		}
 	},
-	component: RepoSettingsPage,
+	component: RepoSettingsLayout,
 });
 
-function RepoSettingsPage() {
+function RepoSettingsLayout() {
 	const { owner, name } = Route.useParams();
 	const { data: session, isLoading: sessionLoading } = useQuery(
 		authSessionQueryOptions(),
@@ -72,8 +68,7 @@ function RepoSettingsPage() {
 		);
 	}
 
-	const isOwner = repo.ownerId === session?.user?.id;
-	if (!isOwner) {
+	if (repo.ownerId !== session?.user?.id) {
 		return (
 			<EmptyState
 				icon={<Lock />}
@@ -83,41 +78,5 @@ function RepoSettingsPage() {
 		);
 	}
 
-	return (
-		<SettingsLayout
-			title="Repository settings"
-			actions={
-				<Link
-					to="/$owner/$name/setup"
-					params={{ owner, name }}
-					className="text-sm text-bjork-text-muted hover:text-bjork-accent"
-				>
-					Setup guide →
-				</Link>
-			}
-			sections={[
-				{
-					id: "general",
-					label: "General",
-					content: <GeneralSection repo={repo} owner={owner} name={name} />,
-				},
-				{
-					id: "performance",
-					label: "Performance",
-					content: <PerformanceSection repo={repo} owner={owner} name={name} />,
-				},
-				{
-					id: "collaborators",
-					label: "Collaborators",
-					content: <CollaboratorsSection repoId={repo.id} />,
-				},
-				{
-					id: "danger",
-					label: "Danger zone",
-					danger: true,
-					content: <DangerSection repo={repo} owner={owner} name={name} />,
-				},
-			]}
-		/>
-	);
+	return <Outlet />;
 }

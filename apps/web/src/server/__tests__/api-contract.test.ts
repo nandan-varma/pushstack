@@ -208,36 +208,57 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/branches/main");
 	await check("/repos/alice/proj/tags");
 
-	// A rule that enables every part the protection sub-resources read.
-	const [{ db }, { branchProtectionRules, branchProtectionStatusChecks }] =
-		await Promise.all([import("../../db"), import("../../db/app-schema")]);
-	const [rule] = await db
-		.insert(branchProtectionRules)
-		.values({
-			repoId: repo.id,
-			pattern: "main",
-			requiresPullRequest: true,
-			requiredStatusChecksStrict: true,
-			enforceAdmins: true,
-		})
-		.returning({ id: branchProtectionRules.id });
-	if (!rule) throw new Error("rule insert returned no row");
-	await db
-		.insert(branchProtectionStatusChecks)
-		.values({ ruleId: rule.id, context: "ci/test" });
-	await check("/repos/alice/proj/branches/main/protection");
+	// A rule that enables every part the protection sub-resources read, then
+	// each write sub-resource over it.
+	const protection = "/repos/alice/proj/branches/main/protection";
 	await check(
-		"/repos/alice/proj/branches/main/protection/required_status_checks",
+		protection,
+		put(alice, {
+			required_status_checks: { strict: true, contexts: ["ci/test"] },
+			enforce_admins: true,
+			required_pull_request_reviews: {},
+		}),
+	);
+	await check(protection);
+	await check(`${protection}/required_status_checks`);
+	await check(
+		`${protection}/required_status_checks`,
+		patch(alice, { strict: true, contexts: ["ci/test"] }),
+	);
+	await check(`${protection}/required_status_checks/contexts`);
+	await check(
+		`${protection}/required_status_checks/contexts`,
+		post(alice, { contexts: ["build"] }),
 	);
 	await check(
-		"/repos/alice/proj/branches/main/protection/required_status_checks/contexts",
+		`${protection}/required_status_checks/contexts`,
+		put(alice, { contexts: ["build", "ci/test"] }),
 	);
+	await check(`${protection}/required_status_checks/contexts`, {
+		...asToken(alice),
+		method: "DELETE",
+		body: JSON.stringify({ contexts: ["build"] }),
+	});
+	await check(`${protection}/required_pull_request_reviews`);
 	await check(
-		"/repos/alice/proj/branches/main/protection/required_pull_request_reviews",
+		`${protection}/required_pull_request_reviews`,
+		patch(alice, { required_approving_review_count: 1 }),
 	);
-	await check("/repos/alice/proj/branches/main/protection/enforce_admins");
-	await check("/repos/alice/proj/branches/main/protection/allow_force_pushes");
-	await check("/repos/alice/proj/branches/main/protection/allow_deletions");
+	await check(`${protection}/enforce_admins`);
+	await check(`${protection}/enforce_admins`, post(alice, {}));
+	await check(`${protection}/enforce_admins`, del(alice));
+	await check(`${protection}/allow_force_pushes`);
+	await check(`${protection}/allow_force_pushes`, post(alice, {}));
+	await check(`${protection}/allow_force_pushes`, del(alice));
+	await check(`${protection}/allow_deletions`);
+	await check(`${protection}/allow_deletions`, post(alice, {}));
+	await check(`${protection}/allow_deletions`, del(alice));
+	await check(`${protection}/required_pull_request_reviews`, del(alice));
+	await check(`${protection}/required_status_checks`, del(alice));
+	await check(protection, del(alice));
+	const unprotected = await call(protection);
+	expect(unprotected.status).toBe(404);
+	expect(unprotected.body.message).toBe("Branch not protected");
 
 	await check("/repos/alice/proj/labels");
 	await check(

@@ -1,6 +1,8 @@
 import {
 	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
+	MAX_BRANCH_PROTECTION_PATTERN_CHARS,
+	MAX_BRANCH_PROTECTION_RULES_PER_REPO,
 	MAX_CHECK_RUNS_PER_COMMIT,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_GIST_COMMENT_BODY_CHARS,
@@ -38,6 +40,8 @@ import {
 	MAX_REPO_HOMEPAGE_CHARS,
 	MAX_REPO_TOPIC_CHARS,
 	MAX_REPO_TOPICS,
+	MAX_REQUIRED_APPROVING_REVIEWS,
+	MAX_REQUIRED_STATUS_CONTEXTS,
 	MAX_REVIEWERS_PER_REQUEST,
 	MAX_SIGNING_KEY_TITLE_CHARS,
 	MAX_SSH_SIGNING_KEY_CHARS,
@@ -52,6 +56,8 @@ import {
 export {
 	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
+	MAX_BRANCH_PROTECTION_PATTERN_CHARS,
+	MAX_BRANCH_PROTECTION_RULES_PER_REPO,
 	MAX_CHECK_RUNS_PER_COMMIT,
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_GIST_COMMENT_BODY_CHARS,
@@ -89,6 +95,8 @@ export {
 	MAX_REPO_HOMEPAGE_CHARS,
 	MAX_REPO_TOPIC_CHARS,
 	MAX_REPO_TOPICS,
+	MAX_REQUIRED_APPROVING_REVIEWS,
+	MAX_REQUIRED_STATUS_CONTEXTS,
 	MAX_REVIEWERS_PER_REQUEST,
 	MAX_SIGNING_KEY_TITLE_CHARS,
 	MAX_SSH_SIGNING_KEY_CHARS,
@@ -113,15 +121,6 @@ export {
  * The upload bound is shared with the browser (`upload.tsx`), so what the UI
  * warns about and what the server accepts can't drift apart.
  */
-
-/**
- * Branch protection rules one repository may hold, and the length of a branch
- * pattern. A rule is matched on every push and merge, so the pattern that is
- * compiled is bounded by what the write path accepts, not by what a row
- * happens to contain.
- */
-export const MAX_BRANCH_PROTECTION_RULES_PER_REPO = 100;
-export const MAX_BRANCH_PROTECTION_PATTERN_CHARS = 255;
 
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 

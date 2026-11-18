@@ -11,11 +11,26 @@ import {
 	isSafeRepoPath,
 } from "git-fs-s3";
 import { z } from "zod";
+import { MAX_BRANCH_PROTECTION_PATTERN_CHARS } from "#/lib/limits";
 
 export const safeBranchNameSchema = z
 	.string()
 	.min(1)
 	.refine(isSafeBranchName, "Invalid branch name");
+
+/**
+ * A branch protection pattern: a branch name where `*` and `?` are wildcards.
+ * The wildcards stand in as ordinary characters for the ref-name rules, so a
+ * pattern can never carry `..`, a control character or a `refs/` prefix.
+ */
+export const safeBranchPatternSchema = z
+	.string()
+	.min(1)
+	.max(MAX_BRANCH_PROTECTION_PATTERN_CHARS)
+	.refine(
+		(pattern) => isSafeBranchName(pattern.replace(/[*?]/g, "x")),
+		"Invalid branch pattern",
+	);
 
 export const safeCommitShaSchema = z
 	.string()

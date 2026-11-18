@@ -475,35 +475,117 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection",
 		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
 	},
+	"repos/update-branch-protection": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection",
+		docs: `${DOCS}/branches/branch-protection#update-branch-protection`,
+	},
+	"repos/delete-branch-protection": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection",
+		docs: `${DOCS}/branches/branch-protection#delete-branch-protection`,
+		status: 204,
+	},
 	"repos/get-status-checks-protection": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks",
 		docs: `${DOCS}/branches/branch-protection#get-status-checks-protection`,
+	},
+	"repos/update-status-check-protection": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks",
+		docs: `${DOCS}/branches/branch-protection#update-status-check-protection`,
+	},
+	"repos/remove-status-check-protection": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks",
+		docs: `${DOCS}/branches/branch-protection#remove-status-check-protection`,
+		status: 204,
 	},
 	"repos/get-all-status-check-contexts": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks/contexts",
 		docs: `${DOCS}/branches/branch-protection#get-all-status-check-contexts`,
 	},
+	"repos/add-status-check-contexts": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks/contexts",
+		docs: `${DOCS}/branches/branch-protection#add-status-check-contexts`,
+	},
+	"repos/set-status-check-contexts": {
+		method: "PUT",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks/contexts",
+		docs: `${DOCS}/branches/branch-protection#set-status-check-contexts`,
+	},
+	"repos/remove-status-check-contexts": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks/contexts",
+		docs: `${DOCS}/branches/branch-protection#remove-status-check-contexts`,
+		deleteBody: true,
+	},
 	"repos/get-pull-request-review-protection": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_pull_request_reviews",
 		docs: `${DOCS}/branches/branch-protection#get-pull-request-review-protection`,
+	},
+	"repos/update-pull-request-review-protection": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_pull_request_reviews",
+		docs: `${DOCS}/branches/branch-protection#update-pull-request-review-protection`,
+	},
+	"repos/delete-pull-request-review-protection": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_pull_request_reviews",
+		docs: `${DOCS}/branches/branch-protection#delete-pull-request-review-protection`,
+		status: 204,
 	},
 	"repos/get-admin-branch-protection": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/enforce_admins",
 		docs: `${DOCS}/branches/branch-protection#get-admin-branch-protection`,
 	},
+	"repos/set-admin-branch-protection": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/enforce_admins",
+		docs: `${DOCS}/branches/branch-protection#set-admin-branch-protection`,
+	},
+	"repos/delete-admin-branch-protection": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/enforce_admins",
+		docs: `${DOCS}/branches/branch-protection#delete-admin-branch-protection`,
+		status: 204,
+	},
 	"repos/get-force-push-protection": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_force_pushes",
 		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
 	},
+	"repos/set-force-push-protection": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_force_pushes",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+	},
+	"repos/delete-force-push-protection": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_force_pushes",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+		status: 204,
+	},
 	"repos/get-deletion-protection": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_deletions",
 		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+	},
+	"repos/set-deletion-protection": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_deletions",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+	},
+	"repos/delete-deletion-protection": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_deletions",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+		status: 204,
 	},
 	"repos/get-branch": {
 		method: "GET",

@@ -7,6 +7,12 @@ import { RepositoryCapacityError } from "../repository-capacity";
 import { downloadTarball, downloadZipball } from "./archive";
 import { type ApiContext, oauthScopesHeader } from "./auth";
 import {
+	addStatusCheckContexts,
+	deleteAdminBranchProtection,
+	deleteBranchProtection,
+	deleteDeletionProtection,
+	deleteForcePushProtection,
+	deletePullRequestReviewProtection,
 	getAdminBranchProtection,
 	getAllStatusCheckContexts,
 	getBranchProtection,
@@ -14,6 +20,15 @@ import {
 	getForcePushProtection,
 	getPullRequestReviewProtection,
 	getStatusChecksProtection,
+	removeStatusCheckContexts,
+	removeStatusCheckProtection,
+	setAdminBranchProtection,
+	setDeletionProtection,
+	setForcePushProtection,
+	setStatusCheckContexts,
+	updateBranchProtection,
+	updatePullRequestReviewProtection,
+	updateStatusCheckProtection,
 } from "./branch-protection";
 import { getBranch, listBranches } from "./branches";
 import {
@@ -331,12 +346,29 @@ const HANDLERS = {
 	"activity/mark-repo-notifications-as-read": markRepoNotificationsRead,
 	"repos/list-branches": listBranches,
 	"repos/get-branch-protection": getBranchProtection,
+	"repos/update-branch-protection": updateBranchProtection,
+	"repos/delete-branch-protection": deleteBranchProtection,
 	"repos/get-status-checks-protection": getStatusChecksProtection,
+	"repos/update-status-check-protection": updateStatusCheckProtection,
+	"repos/remove-status-check-protection": removeStatusCheckProtection,
 	"repos/get-all-status-check-contexts": getAllStatusCheckContexts,
+	"repos/add-status-check-contexts": addStatusCheckContexts,
+	"repos/set-status-check-contexts": setStatusCheckContexts,
+	"repos/remove-status-check-contexts": removeStatusCheckContexts,
 	"repos/get-pull-request-review-protection": getPullRequestReviewProtection,
+	"repos/update-pull-request-review-protection":
+		updatePullRequestReviewProtection,
+	"repos/delete-pull-request-review-protection":
+		deletePullRequestReviewProtection,
 	"repos/get-admin-branch-protection": getAdminBranchProtection,
+	"repos/set-admin-branch-protection": setAdminBranchProtection,
+	"repos/delete-admin-branch-protection": deleteAdminBranchProtection,
 	"repos/get-force-push-protection": getForcePushProtection,
+	"repos/set-force-push-protection": setForcePushProtection,
+	"repos/delete-force-push-protection": deleteForcePushProtection,
 	"repos/get-deletion-protection": getDeletionProtection,
+	"repos/set-deletion-protection": setDeletionProtection,
+	"repos/delete-deletion-protection": deleteDeletionProtection,
 	"repos/get-branch": getBranch,
 	"repos/list-tags": listTags,
 	"repos/list-webhooks": listRepoWebhooks,

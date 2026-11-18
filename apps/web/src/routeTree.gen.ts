@@ -61,6 +61,8 @@ import { Route as OwnerNameRawSplatRouteImport } from './routes/$owner.$name.raw
 import { Route as OwnerNameReleasesIndexRouteImport } from './routes/$owner.$name.releases.index'
 import { Route as OwnerNameReleasesLatestRouteImport } from './routes/$owner.$name.releases.latest'
 import { Route as OwnerNameReleasesNewRouteImport } from './routes/$owner.$name.releases.new'
+import { Route as OwnerNameSettingsIndexRouteImport } from './routes/$owner.$name.settings.index'
+import { Route as OwnerNameSettingsBranchesRouteImport } from './routes/$owner.$name.settings.branches'
 import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
 import { Route as OwnerNameIssuesNewChooseRouteImport } from './routes/$owner.$name.issues_.new_.choose'
@@ -334,6 +336,17 @@ const OwnerNameReleasesNewRoute = OwnerNameReleasesNewRouteImport.update({
   path: '/releases/new',
   getParentRoute: () => OwnerNameRoute,
 } as any)
+const OwnerNameSettingsIndexRoute = OwnerNameSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OwnerNameSettingsRoute,
+} as any)
+const OwnerNameSettingsBranchesRoute =
+  OwnerNameSettingsBranchesRouteImport.update({
+    id: '/branches',
+    path: '/branches',
+    getParentRoute: () => OwnerNameSettingsRoute,
+  } as any)
 const OwnerNameBlameBranchSplatRoute =
   OwnerNameBlameBranchSplatRouteImport.update({
     id: '/blame/$branch/$',
@@ -427,7 +440,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
-  '/$owner/$name/settings': typeof OwnerNameSettingsRoute
+  '/$owner/$name/settings': typeof OwnerNameSettingsRouteWithChildren
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
@@ -450,8 +463,10 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
+  '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
+  '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -489,7 +504,6 @@ export interface FileRoutesByTo {
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
-  '/$owner/$name/settings': typeof OwnerNameSettingsRoute
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
@@ -511,8 +525,10 @@ export interface FileRoutesByTo {
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
+  '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
   '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases': typeof OwnerNameReleasesIndexRoute
+  '/$owner/$name/settings': typeof OwnerNameSettingsIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -554,7 +570,7 @@ export interface FileRoutesById {
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
-  '/$owner/$name/settings': typeof OwnerNameSettingsRoute
+  '/$owner/$name/settings': typeof OwnerNameSettingsRouteWithChildren
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
@@ -577,8 +593,10 @@ export interface FileRoutesById {
   '/$owner/$name/raw/$': typeof OwnerNameRawSplatRoute
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
+  '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
+  '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues_/new_/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -642,8 +660,10 @@ export interface FileRouteTypes {
     | '/$owner/$name/raw/$'
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
+    | '/$owner/$name/settings/branches'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
+    | '/$owner/$name/settings/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues/new/choose'
@@ -681,7 +701,6 @@ export interface FileRouteTypes {
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
-    | '/$owner/$name/settings'
     | '/$owner/$name/setup'
     | '/api/auth/$'
     | '/api/debug/perf'
@@ -703,8 +722,10 @@ export interface FileRouteTypes {
     | '/$owner/$name/raw/$'
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
+    | '/$owner/$name/settings/branches'
     | '/$owner/$name/milestones'
     | '/$owner/$name/releases'
+    | '/$owner/$name/settings'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues/new/choose'
@@ -768,8 +789,10 @@ export interface FileRouteTypes {
     | '/$owner/$name/raw/$'
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
+    | '/$owner/$name/settings/branches'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
+    | '/$owner/$name/settings/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues_/new_/choose'
@@ -1173,6 +1196,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameReleasesNewRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/settings/': {
+      id: '/$owner/$name/settings/'
+      path: '/'
+      fullPath: '/$owner/$name/settings/'
+      preLoaderRoute: typeof OwnerNameSettingsIndexRouteImport
+      parentRoute: typeof OwnerNameSettingsRoute
+    }
+    '/$owner/$name/settings/branches': {
+      id: '/$owner/$name/settings/branches'
+      path: '/branches'
+      fullPath: '/$owner/$name/settings/branches'
+      preLoaderRoute: typeof OwnerNameSettingsBranchesRouteImport
+      parentRoute: typeof OwnerNameSettingsRoute
+    }
     '/$owner/$name/blame/$branch/$': {
       id: '/$owner/$name/blame/$branch/$'
       path: '/blame/$branch/$'
@@ -1306,6 +1343,19 @@ const OwnerNameIssuesRouteWithChildren = OwnerNameIssuesRoute._addFileChildren(
   OwnerNameIssuesRouteChildren,
 )
 
+interface OwnerNameSettingsRouteChildren {
+  OwnerNameSettingsBranchesRoute: typeof OwnerNameSettingsBranchesRoute
+  OwnerNameSettingsIndexRoute: typeof OwnerNameSettingsIndexRoute
+}
+
+const OwnerNameSettingsRouteChildren: OwnerNameSettingsRouteChildren = {
+  OwnerNameSettingsBranchesRoute: OwnerNameSettingsBranchesRoute,
+  OwnerNameSettingsIndexRoute: OwnerNameSettingsIndexRoute,
+}
+
+const OwnerNameSettingsRouteWithChildren =
+  OwnerNameSettingsRoute._addFileChildren(OwnerNameSettingsRouteChildren)
+
 interface OwnerNameRouteChildren {
   OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
   OwnerNameForksRoute: typeof OwnerNameForksRoute
@@ -1314,7 +1364,7 @@ interface OwnerNameRouteChildren {
   OwnerNameGitUploadPackRoute: typeof OwnerNameGitUploadPackRoute
   OwnerNameIssuesRoute: typeof OwnerNameIssuesRouteWithChildren
   OwnerNameLabelsRoute: typeof OwnerNameLabelsRoute
-  OwnerNameSettingsRoute: typeof OwnerNameSettingsRoute
+  OwnerNameSettingsRoute: typeof OwnerNameSettingsRouteWithChildren
   OwnerNameSetupRoute: typeof OwnerNameSetupRoute
   OwnerNameIndexRoute: typeof OwnerNameIndexRoute
   OwnerNameArchiveSplatRoute: typeof OwnerNameArchiveSplatRoute
@@ -1351,7 +1401,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameGitUploadPackRoute: OwnerNameGitUploadPackRoute,
   OwnerNameIssuesRoute: OwnerNameIssuesRouteWithChildren,
   OwnerNameLabelsRoute: OwnerNameLabelsRoute,
-  OwnerNameSettingsRoute: OwnerNameSettingsRoute,
+  OwnerNameSettingsRoute: OwnerNameSettingsRouteWithChildren,
   OwnerNameSetupRoute: OwnerNameSetupRoute,
   OwnerNameIndexRoute: OwnerNameIndexRoute,
   OwnerNameArchiveSplatRoute: OwnerNameArchiveSplatRoute,

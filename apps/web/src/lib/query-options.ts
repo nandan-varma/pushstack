@@ -7,6 +7,7 @@ import { MAX_LIST_SKIP, THREAD_PAGE_SIZE } from "#/lib/limits";
 import { getSession } from "@/lib/auth-session";
 import { perfTime } from "@/lib/perf-log";
 import { getAssignableUsers, getAssignedThreads } from "@/server/assignees";
+import { getBranchProtectionRules } from "@/server/branch-protection-settings";
 import { getComments } from "@/server/comments";
 import { getCommitChecks, getCommitRollups } from "@/server/commit-checks";
 import { getCommitComments } from "@/server/commit-comments";
@@ -216,6 +217,8 @@ export const queryKeys = {
 		["repos", repoId, "pull-request-diff", sourceBranch, targetBranch] as const,
 	repoCollaborators: (repoId: number) =>
 		["repos", repoId, "collaborators"] as const,
+	repoBranchProtection: (repoId: number) =>
+		["repos", repoId, "branch-protection"] as const,
 	repoForks: (repoId: number) => ["repos", repoId, "forks"] as const,
 	pullRequestReviewThreads: (prId: number) =>
 		["pull-requests", prId, "review-threads"] as const,
@@ -951,6 +954,15 @@ export function repositoryComparisonQueryOptions({
 	return queryOptions({
 		queryKey: queryKeys.comparison(repoId, base, head, separator),
 		queryFn: () => getComparison({ data: { repoId, base, head, separator } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+/** Settings → Branches: the repository's branch protection rules. */
+export function repoBranchProtectionQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoBranchProtection(repoId),
+		queryFn: () => getBranchProtectionRules({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

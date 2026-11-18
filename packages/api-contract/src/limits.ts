@@ -25,6 +25,16 @@ export const MAX_CHECK_OUTPUT_CHARS = 65_535;
 export const MAX_STATUSES_PER_CONTEXT = 1000;
 /** Check runs for one commit. */
 export const MAX_CHECK_RUNS_PER_COMMIT = 1000;
+
+/**
+ * Branch protection. A rule is matched on every push and merge, so the pattern
+ * that is compiled is bounded by what the write path accepts; the context cap
+ * bounds one match and the review cap is GitHub's own (higher is a 422).
+ */
+export const MAX_BRANCH_PROTECTION_RULES_PER_REPO = 100;
+export const MAX_BRANCH_PROTECTION_PATTERN_CHARS = 255;
+export const MAX_REQUIRED_STATUS_CONTEXTS = 100;
+export const MAX_REQUIRED_APPROVING_REVIEWS = 6;
 export const MAX_LABEL_NAME_CHARS = 50;
 export const MAX_LABEL_DESCRIPTION_CHARS = 100;
 export const MAX_LABELS_PER_THREAD = 100;

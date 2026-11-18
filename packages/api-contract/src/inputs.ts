@@ -8,13 +8,17 @@ import {
 	DEFAULT_PER_PAGE,
 	MAX_ASSIGNEES,
 	MAX_BODY_CHARS,
+	MAX_BRANCH_PROTECTION_PATTERN_CHARS,
 	MAX_LABEL_DESCRIPTION_CHARS,
 	MAX_LABEL_NAME_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_MILESTONE_DESCRIPTION_CHARS,
 	MAX_MILESTONE_TITLE_CHARS,
 	MAX_PER_PAGE,
+	MAX_REQUIRED_APPROVING_REVIEWS,
+	MAX_REQUIRED_STATUS_CONTEXTS,
 	MAX_REVIEWERS_PER_REQUEST,
+	MAX_STATUS_CONTEXT_CHARS,
 	MAX_STORAGE_NAME_LENGTH,
 	MAX_THREAD_TITLE_CHARS,
 	MAX_WEBHOOK_EVENTS,
@@ -266,3 +270,32 @@ export const webhookConfigBody = z.object({
 
 /** `PATCH …/config`: every setting optional. */
 export const webhookConfigPatchBody = webhookConfigBody.partial();
+
+/**
+ * A body boolean as GitHub accepts it: `true`/`false`, or the strings a
+ * form-encoded client (`gh api -f`) sends for them.
+ */
+export const booleanBody = z
+	.union([z.boolean(), z.enum(["true", "false"])])
+	.transform((value) => value === true || value === "true");
+
+/**
+ * A branch protection rule's pattern: the branch path of its endpoints, where
+ * `*` and `?` are wildcards. `git-ref-name.ts` accepts the ref-shaped rest.
+ */
+export const branchProtectionPattern = z
+	.string()
+	.min(1)
+	.max(MAX_BRANCH_PROTECTION_PATTERN_CHARS);
+
+/** The status check contexts a rule requires. */
+export const branchProtectionContexts = z
+	.array(z.string().trim().min(1).max(MAX_STATUS_CONTEXT_CHARS))
+	.max(MAX_REQUIRED_STATUS_CONTEXTS);
+
+/** GitHub's `required_approving_review_count`: 0 to 6, above is a 422. */
+export const branchProtectionApprovingReviews = z
+	.number()
+	.int()
+	.min(0)
+	.max(MAX_REQUIRED_APPROVING_REVIEWS);
