@@ -638,6 +638,210 @@ describe.skipIf(!enabled)(
 			await ghAs("pr-close-2", "pr", "close", "2", "-R", repo);
 		}, 120_000);
 
+		it("enforces branch protection on a merge and a force push", async () => {
+			const repo = `${host}/octo/hello`;
+			const repoDir = path.join(work, "protected-work");
+			const git = (...args: string[]) =>
+				run("git", ["-C", repoDir, ...args], { env: ghEnv });
+			const gitFails = async (...args: string[]) => {
+				try {
+					await git(...args);
+				} catch (error) {
+					const failed = error as { stdout?: string; stderr?: string };
+					return `${failed.stdout ?? ""}\n${failed.stderr ?? ""}`;
+				}
+				throw new Error(`git ${args.join(" ")} unexpectedly succeeded`);
+			};
+			await gh("auth", "setup-git", "--hostname", host);
+			await gh("repo", "clone", repo, repoDir);
+			await git("config", "user.name", "Octo");
+			await git("config", "user.email", "octo@example.com");
+			await git("checkout", "-B", "main", "origin/main");
+			await git("checkout", "-b", "guarded");
+			await writeFile(path.join(repoDir, "guarded.txt"), "guarded\n");
+			await git("add", "guarded.txt");
+			await git("commit", "-m", "add guarded");
+			await git("push", "origin", "guarded");
+
+			const created = await gh(
+				"pr",
+				"create",
+				"-R",
+				repo,
+				"--head",
+				"guarded",
+				"--base",
+				"main",
+				"--title",
+				"Guarded",
+				"--body",
+				"",
+			);
+			const number = /\/pull\/(\d+)/.exec(created.stdout)?.[1] as string;
+
+			const rule = path.join(work, "protection.json");
+			await writeFile(
+				rule,
+				JSON.stringify({
+					required_pull_request_reviews: { required_approving_review_count: 1 },
+					required_status_checks: { strict: false, contexts: ["ci"] },
+					enforce_admins: true,
+				}),
+			);
+			const saved = await gh(
+				"api",
+				"--hostname",
+				host,
+				"-X",
+				"PUT",
+				"repos/octo/hello/branches/main/protection",
+				"--input",
+				rule,
+			);
+			expect(JSON.parse(saved.stdout)).toMatchObject({
+				required_status_checks: { contexts: ["ci"] },
+				required_pull_request_reviews: {
+					required_approving_review_count: 1,
+				},
+				enforce_admins: { enabled: true },
+			});
+			const read = await gh(
+				"api",
+				"--hostname",
+				host,
+				"repos/octo/hello/branches/main/protection",
+			);
+			expect(JSON.parse(read.stdout).required_status_checks.contexts).toEqual([
+				"ci",
+			]);
+
+			const fields = ["mergeStateStatus", "reviewDecision"];
+			const blocked = await gh(
+				"pr",
+				"view",
+				number,
+				"-R",
+				repo,
+				"--json",
+				fields.join(","),
+			);
+			expect(JSON.parse(blocked.stdout)).toEqual({
+				mergeStateStatus: "BLOCKED",
+				reviewDecision: "REVIEW_REQUIRED",
+			});
+			const refused = await ghFails(
+				"pr-merge-blocked",
+				"pr",
+				"merge",
+				number,
+				"-R",
+				repo,
+				"--squash",
+			);
+			expect(refused).toMatch(/not mergeable/);
+			const status = await gh("pr", "status", "-R", repo);
+			expect(status.stdout).toContain(`#${number}`);
+
+			// A second reviewer's approval, as their own gh session would record it.
+			const headSha = (await git("rev-parse", "HEAD")).stdout.trim();
+			const { db } = await import("#/db");
+			const { user } = await import("../../src/db/schema");
+			const { pullRequestReviews } = await import("../../src/db/app-schema");
+			const { findRepositoryByName } = await import(
+				"../../src/server/repository-lookup"
+			);
+			const { findPullRequestByNumber } = await import(
+				"../../src/server/thread-store"
+			);
+			const reviewer = {
+				id: "gh_smoke_reviewer",
+				username: "reviewer",
+				email: "reviewer@example.com",
+				name: "Reviewer",
+				emailVerified: true,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			};
+			await db.insert(user).values(reviewer).onConflictDoNothing();
+			const repository = await findRepositoryByName("octo", "hello");
+			if (!repository) throw new Error("smoke repository missing");
+			const pull = await findPullRequestByNumber(repository.id, Number(number));
+			if (!pull) throw new Error("smoke pull request missing");
+			await db.insert(pullRequestReviews).values({
+				repoId: repository.id,
+				pullRequestId: pull.id,
+				authorId: reviewer.id,
+				state: "approved",
+				commitSha: headSha,
+				submittedAt: new Date(),
+			});
+
+			const approved = await gh(
+				"pr",
+				"view",
+				number,
+				"-R",
+				repo,
+				"--json",
+				fields.join(","),
+			);
+			expect(JSON.parse(approved.stdout)).toEqual({
+				mergeStateStatus: "UNSTABLE",
+				reviewDecision: "APPROVED",
+			});
+			await gh(
+				"api",
+				"--hostname",
+				host,
+				`repos/octo/hello/statuses/${headSha}`,
+				"-f",
+				"state=success",
+				"-f",
+				"context=ci",
+			);
+			const clean = await gh(
+				"pr",
+				"view",
+				number,
+				"-R",
+				repo,
+				"--json",
+				fields.join(","),
+			);
+			expect(JSON.parse(clean.stdout)).toEqual({
+				mergeStateStatus: "CLEAN",
+				reviewDecision: "APPROVED",
+			});
+			await gh("pr", "merge", number, "-R", repo, "--squash");
+			const merged = await gh(
+				"pr",
+				"view",
+				number,
+				"-R",
+				repo,
+				"--json",
+				"state",
+			);
+			expect(JSON.parse(merged.stdout).state).toBe("MERGED");
+
+			await git("fetch", "origin", "main");
+			await git("checkout", "-B", "main", "origin/main");
+			await git("reset", "--hard", "HEAD~1");
+			const forced = await gitFails("push", "--force", "origin", "main");
+			expect(forced).toContain(
+				"remote: error: GH006: Protected branch update failed for refs/heads/main.",
+			);
+
+			await gh(
+				"api",
+				"--hostname",
+				host,
+				"-X",
+				"DELETE",
+				"repos/octo/hello/branches/main/protection",
+			);
+		}, 120_000);
+
 		it("creates, comments on, closes and reopens issues, and manages labels", async () => {
 			const repo = `${host}/octo/hello`;
 			for (const title of ["v1", "v2"]) {
