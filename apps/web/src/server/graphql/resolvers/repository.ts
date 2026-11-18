@@ -108,8 +108,8 @@ export interface RepositoryNode {
 	archivedAt: null;
 	isPrivate: boolean;
 	visibility: "PUBLIC" | "PRIVATE";
-	// Facts of PushStack, not defaults: there are no mirrors, locks,
-	// organizations or discussions.
+	// Facts of PushStack, not defaults: there are no mirrors, locks or
+	// organizations.
 	isFork: boolean;
 	isTemplate: boolean;
 	isMirror: false;
@@ -120,7 +120,7 @@ export interface RepositoryNode {
 	hasIssuesEnabled: boolean;
 	hasWikiEnabled: boolean;
 	hasProjectsEnabled: boolean;
-	hasDiscussionsEnabled: false;
+	hasDiscussionsEnabled: boolean;
 	homepageUrl: string | null;
 	templateRepository: null;
 	mergeCommitAllowed: boolean;
@@ -161,7 +161,7 @@ function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 		hasIssuesEnabled: row.hasIssues,
 		hasWikiEnabled: row.hasWiki,
 		hasProjectsEnabled: row.hasProjects,
-		hasDiscussionsEnabled: false,
+		hasDiscussionsEnabled: row.hasDiscussions,
 		homepageUrl: row.homepage,
 		templateRepository: null,
 		mergeCommitAllowed: row.allowMergeCommit,

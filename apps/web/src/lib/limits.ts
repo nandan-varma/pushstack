@@ -184,6 +184,13 @@ export const MAX_MILESTONES_PER_REPOSITORY = 1000;
 export const MAX_RELEASES_PER_REPOSITORY = 1000;
 export const MAX_COLLABORATORS_PER_REPOSITORY = 1000;
 
+/** GitHub's per-repository discussion category limit, and its field lengths. */
+export const MAX_DISCUSSION_CATEGORIES_PER_REPOSITORY = 25;
+export const MAX_DISCUSSION_CATEGORY_NAME_CHARS = 50;
+export const MAX_DISCUSSION_CATEGORY_DESCRIPTION_CHARS = 200;
+export const MAX_DISCUSSION_CATEGORY_SLUG_CHARS = 50;
+export const MAX_DISCUSSION_CATEGORY_EMOJI_CHARS = 32;
+
 /** GitHub's search query cap, defined once in the API contract. */
 export { MAX_SEARCH_QUERY_CHARS } from "@pushstack/api-contract/limits";
 

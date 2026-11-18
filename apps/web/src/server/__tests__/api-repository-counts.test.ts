@@ -45,14 +45,16 @@ beforeAll(async () => {
 		const rows = await db
 			.insert(issues)
 			.values(
-				[false, false, true, true].map((isPullRequest, index) => ({
-					repoId: id,
-					number: index + 1,
-					isPullRequest,
-					authorId: users.alice.id,
-					title: "thread",
-					status: index % 2 === 0 ? ("open" as const) : ("closed" as const),
-				})),
+				(["issue", "issue", "pull_request", "pull_request"] as const).map(
+					(kind, index) => ({
+						repoId: id,
+						number: index + 1,
+						kind,
+						authorId: users.alice.id,
+						title: "thread",
+						status: index % 2 === 0 ? ("open" as const) : ("closed" as const),
+					}),
+				),
 			)
 			.returning();
 		if (name === "populated") {

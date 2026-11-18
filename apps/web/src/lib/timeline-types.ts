@@ -9,6 +9,7 @@
  */
 
 import type { ReviewedState } from "./review-types";
+import type { ThreadKind } from "./thread-kind";
 
 /** A label as it was when an event happened (the label may be edited later). */
 export interface LabelSnapshot {
@@ -19,7 +20,7 @@ export interface LabelSnapshot {
 export type IssueStateReason = "completed" | "not_planned" | "reopened";
 
 export interface ThreadRef {
-	kind: "issue" | "pull_request";
+	kind: ThreadKind;
 	number: number;
 	title: string;
 }

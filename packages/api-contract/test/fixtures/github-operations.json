@@ -723,6 +723,7 @@
 				"default_branch",
 				"delete_branch_on_merge",
 				"description",
+				"has_discussions",
 				"has_issues",
 				"has_projects",
 				"has_pull_requests",

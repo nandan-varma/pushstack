@@ -130,9 +130,7 @@ export const getIssueNumbers = createServerFn({ method: "GET" })
 			const rows = await db
 				.select({ number: issues.number })
 				.from(issues)
-				.where(
-					and(eq(issues.repoId, data.repoId), eq(issues.isPullRequest, false)),
-				);
+				.where(and(eq(issues.repoId, data.repoId), eq(issues.kind, "issue")));
 			return rows.map((row) => row.number);
 		}),
 	);

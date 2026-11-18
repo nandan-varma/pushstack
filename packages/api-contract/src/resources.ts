@@ -55,6 +55,7 @@ const repositoryFields = {
 	has_issues: z.boolean(),
 	has_wiki: z.boolean(),
 	has_projects: z.boolean(),
+	has_discussions: z.boolean(),
 	/** The merge methods pull requests may use (`merge`, `squash`, `rebase`). */
 	allow_merge_commit: z.boolean(),
 	allow_squash_merge: z.boolean(),

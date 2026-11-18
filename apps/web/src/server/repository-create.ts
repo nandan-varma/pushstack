@@ -17,12 +17,14 @@ import {
 } from "#/lib/templates";
 import { recordActivity } from "./activity";
 import { isUniqueViolation } from "./db-errors";
+import { createDefaultDiscussionCategories } from "./discussion-store";
 import { ArchiveLimitError, planArchive, readArchiveBlob } from "./git-read";
 import { deleteRepositoryStorage, initBareRepo } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { createInitialCommitUnlocked } from "./git-write";
 import { createDefaultLabels } from "./label-store";
 import { evictRepoByName } from "./repository-lookup";
+import { deleteRepositoryAndStorage } from "./repository-settings";
 import { setRepoSubscription } from "./watch-store";
 
 /** Also a storage-path segment, so this is a security boundary, not cosmetics. */
@@ -130,7 +132,16 @@ export async function createRepositoryForUser(
 		throw error;
 	}
 
-	await createDefaultLabels(repo.id);
+	try {
+		await createDefaultLabels(repo.id);
+		await createDefaultDiscussionCategories(repo.id);
+	} catch (error) {
+		await deleteRepositoryAndStorage({
+			...repo,
+			owner: { id: owner.id, username: owner.username },
+		});
+		throw error;
+	}
 	// GitHub subscribes the creator to their new repository.
 	await setRepoSubscription(repo.id, owner.id, false);
 	// A lookup that missed before the insert is cached as "not found".

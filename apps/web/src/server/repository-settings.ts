@@ -64,6 +64,7 @@ export interface RepositorySettingsPatch {
 	hasIssues?: boolean;
 	hasWiki?: boolean;
 	hasProjects?: boolean;
+	hasDiscussions?: boolean;
 	allowMergeCommit?: boolean;
 	allowSquashMerge?: boolean;
 	allowRebaseMerge?: boolean;

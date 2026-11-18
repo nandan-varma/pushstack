@@ -26,13 +26,14 @@ It holds metadata only: commits, trees, blobs and refs live in R2 (see
   the query it serves. `(owner, name)` on repositories is unique because
   storage keys derive from the name.
 
-**A pull request is an issue**, as in GitHub: one `issues` row per thread with
-`is_pull_request`, plus a `pull_requests` row keyed by the issue id. Comments,
-labels, assignees and timeline events point at `issues.id`, so one set of
-helpers serves both kinds and deleting a thread cleans up everything under it.
-A merged pull request is a closed issue whose `merged_at` is set. Both kinds
-share one per-repository number sequence, claimed atomically with `UPDATE …
-RETURNING` rather than app-level locking; `(repo_id, number)` is unique.
+**A pull request and a discussion are issues**, as in GitHub: one `issues` row
+per thread with `kind`, plus a `pull_requests` or `discussions` row keyed by the
+issue id. Comments, labels, assignees and timeline events point at `issues.id`,
+so one set of helpers serves every kind and deleting a thread cleans up
+everything under it. A merged pull request is a closed issue whose `merged_at`
+is set. All kinds share one per-repository number sequence, claimed atomically
+with `UPDATE … RETURNING` rather than app-level locking; `(repo_id, number)` is
+unique.
 
 Thread reads go through `thread-store.ts`: one list query serves the web and
 REST lists — a single indexed `SELECT` per page, with the total from

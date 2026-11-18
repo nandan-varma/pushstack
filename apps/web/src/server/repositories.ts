@@ -120,13 +120,14 @@ export const getUserRepositories = createServerFn({ method: "GET" })
 /** Open issues and open pull requests, for the repository navigation. */
 async function openThreadCounts(repoId: number) {
 	const rows = await db
-		.select({ isPullRequest: issues.isPullRequest, n: count() })
+		.select({ kind: issues.kind, n: count() })
 		.from(issues)
 		.where(and(eq(issues.repoId, repoId), eq(issues.status, "open")))
-		.groupBy(issues.isPullRequest);
+		.groupBy(issues.kind);
 	return {
-		openIssueCount: rows.find((row) => !row.isPullRequest)?.n ?? 0,
-		openPullRequestCount: rows.find((row) => row.isPullRequest)?.n ?? 0,
+		openIssueCount: rows.find((row) => row.kind === "issue")?.n ?? 0,
+		openPullRequestCount:
+			rows.find((row) => row.kind === "pull_request")?.n ?? 0,
 	};
 }
 
@@ -338,6 +339,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 			hasIssues: z.boolean().optional(),
 			hasWiki: z.boolean().optional(),
 			hasProjects: z.boolean().optional(),
+			hasDiscussions: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ data }) => {

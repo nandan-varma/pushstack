@@ -24,7 +24,7 @@ export type ActivityEvent =
 	  }
 	| {
 			type: "comment";
-			metadata: { on: "issue" | "pr"; number: number };
+			metadata: { on: "issue" | "pr" | "discussion"; number: number };
 	  };
 
 export type ActivityType = ActivityEvent["type"];

@@ -1,7 +1,7 @@
 /**
  * Pull request writes shared by the server functions and the REST API (a plain
  * server-only module — see repository-lookup.ts for why this is not a
- * server-function file). A pull request is an issue (`is_pull_request`) plus
+ * server-function file). A pull request is an issue (`kind`) plus
  * its `pull_requests` row; reads go through thread-store.ts. Permission and
  * input checks stay with the caller: the server functions throw their own
  * errors, the API answers 401/403/404/422.
@@ -81,7 +81,7 @@ export async function insertPullRequest(
 		.values({
 			repoId,
 			number: await claimNextIssueOrPrNumber(repoId),
-			isPullRequest: true,
+			kind: "pull_request",
 			authorId: userId,
 			title: data.title,
 			body: data.body || null,
@@ -546,7 +546,7 @@ async function closeLinkedIssues(
 			and(
 				eq(issues.repoId, pr.repoId),
 				inArray(issues.number, numbers),
-				eq(issues.isPullRequest, false),
+				eq(issues.kind, "issue"),
 				eq(issues.status, "open"),
 			),
 		)

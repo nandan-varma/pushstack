@@ -621,6 +621,7 @@ export async function updateRepositoryHandler(ctx: ApiContext) {
 			allowSquashMerge: data.allow_squash_merge,
 			allowRebaseMerge: data.allow_rebase_merge,
 			hasProjects: data.has_projects,
+			hasDiscussions: data.has_discussions,
 		});
 		return respondWithRepository(
 			ctx,
