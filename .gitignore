@@ -23,8 +23,7 @@ coverage/
 
 .vitest/
 
-.claude/
-.pi/
+.worktrees/
 
 plans/
 .vercel

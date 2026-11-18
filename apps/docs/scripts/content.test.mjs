@@ -109,7 +109,7 @@ test("repository entrypoint documentation links resolve", async () => {
 	const root = path.resolve(app, "../..");
 	for (const relative of [
 		"README.md",
-		"CLAUDE.md",
+		"AGENTS.md",
 		"apps/cli/README.md",
 		"packages/git-fs-s3/README.md",
 		"packages/git-edge/README.md",

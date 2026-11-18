@@ -91,7 +91,7 @@ Documentation is authored in `apps/docs/content/docs` and served by Fumadocs.
 Start with the [user guide](https://docs.git.nandan.fyi/docs/guide),
 [REST compatibility matrix](https://docs.git.nandan.fyi/docs/api), or
 [architecture](https://docs.git.nandan.fyi/docs/internals).
-`CLAUDE.md` contains repository-specific engineering instructions.
+`AGENTS.md` contains repository-specific engineering instructions.
 
 Production deploys from `main`. Database changes use `pnpm db:push`; there are
 no migration files. Library releases use annotated tags such as
