@@ -1,4 +1,5 @@
 import {
+	BookOpenIcon,
 	CircleDotIcon,
 	CodeIcon,
 	GitCompareArrowsIcon,
@@ -163,6 +164,17 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					label="Commits"
 					active={commitsActive}
 				/>
+				{repo.hasWiki && (
+					<SidebarLink
+						to="/$owner/$name/wiki"
+						params={{ owner, name }}
+						icon={BookOpenIcon}
+						label="Wiki"
+						active={Boolean(
+							matchRoute({ to: "/$owner/$name/wiki", fuzzy: true }),
+						)}
+					/>
+				)}
 				<SidebarLink
 					to="/$owner/$name/releases"
 					params={{ owner, name }}

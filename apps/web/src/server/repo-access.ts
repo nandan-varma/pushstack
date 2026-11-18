@@ -346,6 +346,7 @@ export interface ViewerRepositoryAccess {
 	canMerge: boolean;
 	canWrite: boolean;
 	canParticipate: boolean;
+	canEditWiki: boolean;
 }
 
 export async function getViewerRepositoryAccess(
@@ -357,6 +358,7 @@ export async function getViewerRepositoryAccess(
 		canMerge: access?.canMergePullRequest ?? false,
 		canWrite: access?.canWrite ?? false,
 		canParticipate: access?.canParticipate ?? false,
+		canEditWiki: access?.wikiEdit ?? false,
 	};
 }
 
@@ -452,6 +454,25 @@ export function readWithAccess<T>(
 			throw error;
 		}
 	});
+}
+
+/**
+ * A wiki write's body: signed in, the repository readable and wikied, and the
+ * viewer's `wikiEdit` — a collaborator, or any signed-in user on a public wiki
+ * unless it is restricted. Archived repositories refuse every write.
+ */
+export async function writeWithWikiAccess<T>(
+	repoId: number,
+	fn: (repo: RepositoryWithOwner, user: SessionUser) => Promise<T>,
+): Promise<T> {
+	const user = await getCurrentUser();
+	const access = await getRepositoryAccess(repoId, user.id);
+	if (!access?.repository.hasWiki) throw notFound();
+	if (access.repository.archived) throw new Error(ARCHIVED_MESSAGE);
+	if (!access.wikiEdit) {
+		throw new Error("You don't have permission to edit this wiki");
+	}
+	return fn(await freshWithOwner(repoId), user);
 }
 
 /** A write-side server function's body: signed-in user with write access, then `fn`. */
