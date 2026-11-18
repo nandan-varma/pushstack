@@ -98,8 +98,8 @@ every object's oid from its bytes before consolidating.
 ## Bounded fan-out
 
 Trees are arbitrarily wide. `collectReachableOids` and `mergeTrees` bound
-in-flight reads with a semaphore, releasing the permit before recursing so the
-limit cannot deadlock, and `diffTrees` checks each object's size from its pack
+in-flight reads with a `p-limit` pool, releasing the permit before recursing so
+the limit cannot deadlock, and `diffTrees` checks each object's size from its pack
 entry header before reading, so a commit touching many large files never loads
 them.
 

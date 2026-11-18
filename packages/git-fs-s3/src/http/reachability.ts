@@ -1,7 +1,7 @@
 import git from "isomorphic-git";
+import pLimit from "p-limit";
 import { getObjectTypes } from "../object-size.js";
 import type { Repo } from "../ops/types.js";
-import { createSemaphore } from "../semaphore.js";
 import { treeEntryNameProblem } from "./fsck.js";
 import type { HttpHooks } from "./types.js";
 
@@ -71,7 +71,7 @@ export const MAX_CONCURRENT_READS = 16;
  * (receive-pack, repack).
  *
  * Object reads are bounded by one shared {@link MAX_CONCURRENT_READS}
- * semaphore for the whole walk, held only for the read itself — not per
+ * `p-limit` pool for the whole walk, held only for the read itself — not per
  * level, since the walk recurses and a per-level limit would still multiply
  * with depth, and not across the child recursion, which would deadlock a wide
  * tree once every permit belonged to a parent awaiting its children.
@@ -97,12 +97,12 @@ export async function collectReachableOids(
 	const seen = new Set<string>();
 	let complete = true;
 	const promises = new Map<string, Promise<void>>();
-	const reads = createSemaphore(MAX_CONCURRENT_READS);
+	const reads = pLimit(MAX_CONCURRENT_READS);
 	const blobs: string[] = [];
 	let invalidTreeEntry: ReachabilityResult["invalidTreeEntry"];
 
 	async function readAndVisitChildren(oid: string): Promise<void> {
-		const obj = await reads.run(() => git.readObject({ ...repo, oid }));
+		const obj = await reads(() => git.readObject({ ...repo, oid }));
 		seen.add(oid);
 		const children: [string, string | undefined][] = [];
 		if (obj.type === "commit") {

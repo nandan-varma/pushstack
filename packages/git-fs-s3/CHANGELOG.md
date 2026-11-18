@@ -7,6 +7,11 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `parseListObjectsV2` parses ListObjectsV2 responses with `fast-xml-parser`
+  instead of regular expressions: a top-level `<Prefix>` is no longer mistaken
+  for a common prefix, and XML character references in keys decode.
+- In-flight I/O is bounded with `p-limit`; the `createSemaphore` and
+  `Semaphore` exports are gone.
 - `repackRepository` keeps every `refs/pull/<n>/head` as a root, so a pull
   request's head commit survives consolidation when no branch names it.
   Because the consolidated pack can now hold pull request objects, upload-pack

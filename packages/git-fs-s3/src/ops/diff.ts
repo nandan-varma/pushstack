@@ -1,9 +1,9 @@
 import { createTwoFilesPatch } from "diff";
 import git, { type WalkerEntry } from "isomorphic-git";
+import pLimit from "p-limit";
 import { readBlobContent } from "../edge-utils.js";
 import { GitError } from "../git-errors.js";
 import { getObjectSize } from "../object-size.js";
-import { createSemaphore } from "../semaphore.js";
 import { getCommit, resolveCommit } from "./history.js";
 import type { Repo } from "./types.js";
 
@@ -238,8 +238,8 @@ async function diffTrees(
 	newTreeOid: string,
 	limits: DiffLimits,
 ): Promise<Omit<DiffResult, "oldRef" | "newRef">> {
-	const reads = createSemaphore(MAX_CONCURRENT_READS);
-	const filesInFlight = createSemaphore(MAX_CONCURRENT_READS);
+	const reads = pLimit(MAX_CONCURRENT_READS);
+	const filesInFlight = pLimit(MAX_CONCURRENT_READS);
 	const budget = new DiffBudget(limits);
 
 	/**
@@ -256,7 +256,7 @@ async function diffTrees(
 		const oid = await entry.oid();
 		return {
 			oid,
-			size: await reads.run(() => {
+			size: await reads(() => {
 				budget.check();
 				return getObjectSize(repo, oid);
 			}),
@@ -266,7 +266,7 @@ async function diffTrees(
 	/** The side's content, or `null` when it isn't there. */
 	const readContent = async (side: SideMeta | null) => {
 		if (!side) return null;
-		const { blob } = await reads.run(() => {
+		const { blob } = await reads(() => {
 			budget.check();
 			return git.readBlob({ ...repo, oid: side.oid });
 		});
@@ -283,7 +283,7 @@ async function diffTrees(
 		...repo,
 		trees,
 		map: (filepath, entries) =>
-			filesInFlight.run(async () => {
+			filesInFlight(async () => {
 				budget.check();
 				const [oldEntry, newEntry] = oldTreeOid
 					? [entries[0] ?? null, entries[1] ?? null]

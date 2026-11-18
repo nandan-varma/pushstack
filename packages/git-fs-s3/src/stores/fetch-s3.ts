@@ -1,4 +1,5 @@
 import { AwsClient } from "aws4fetch";
+import { XMLParser } from "fast-xml-parser";
 import type {
 	ListOptions,
 	ListResult,
@@ -49,24 +50,22 @@ function encodeKey(key: string): string {
 	return key.split("/").map(encodeURIComponent).join("/");
 }
 
-function decodeXml(text: string): string {
-	return text
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&apos;/g, "'")
-		.replace(/&#(\d+);/g, (_, code: string) =>
-			String.fromCodePoint(Number(code)),
-		)
-		.replace(/&#x([0-9a-f]+);/gi, (_, code: string) =>
-			String.fromCodePoint(Number.parseInt(code, 16)),
-		)
-		.replace(/&amp;/g, "&");
-}
+/** Keys and continuation tokens are opaque: keep tag text as strings, untrimmed. */
+const parser = new XMLParser({
+	ignoreAttributes: true,
+	parseTagValue: false,
+	parseAttributeValue: false,
+	htmlEntities: true,
+	trimValues: false,
+	isArray: (name) => name === "Contents" || name === "CommonPrefixes",
+});
 
-function xmlValues(xml: string, tag: string): string[] {
-	const pattern = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "g");
-	return [...xml.matchAll(pattern)].map((match) => decodeXml(match[1] ?? ""));
+interface ListBucketResult {
+	Prefix?: string;
+	Contents?: { Key?: string; Size?: string }[];
+	CommonPrefixes?: { Prefix?: string }[];
+	IsTruncated?: string;
+	NextContinuationToken?: string;
 }
 
 export function parseListObjectsV2(xml: string): {
@@ -74,17 +73,18 @@ export function parseListObjectsV2(xml: string): {
 	prefixes: string[];
 	nextToken: string | undefined;
 } {
-	const objects = xmlValues(xml, "Contents").map((entry) => ({
-		key: xmlValues(entry, "Key")[0] ?? "",
-		size: Number(xmlValues(entry, "Size")[0] ?? 0),
+	const { ListBucketResult: page = {} } = parser.parse(xml) as {
+		ListBucketResult?: ListBucketResult;
+	};
+	const objects = (page.Contents ?? []).map((entry) => ({
+		key: entry.Key ?? "",
+		size: Number(entry.Size ?? 0),
 	}));
-	const prefixes = xmlValues(xml, "CommonPrefixes").flatMap((entry) =>
-		xmlValues(entry, "Prefix"),
+	const prefixes = (page.CommonPrefixes ?? []).flatMap((entry) =>
+		entry.Prefix === undefined ? [] : [entry.Prefix],
 	);
-	const truncated = xmlValues(xml, "IsTruncated")[0] === "true";
-	const nextToken = truncated
-		? xmlValues(xml, "NextContinuationToken")[0]
-		: undefined;
+	const truncated = page.IsTruncated === "true";
+	const nextToken = truncated ? page.NextContinuationToken : undefined;
 	return { objects, prefixes, nextToken };
 }
 
