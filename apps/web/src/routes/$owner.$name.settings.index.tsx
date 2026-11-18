@@ -29,13 +29,22 @@ function RepoSettingsPage() {
 		<SettingsLayout
 			title="Repository settings"
 			actions={
-				<Link
-					to="/$owner/$name/settings/branches"
-					params={{ owner, name }}
-					className="text-sm text-bjork-text-muted hover:text-bjork-accent"
-				>
-					Branch protection →
-				</Link>
+				<span className="flex items-center gap-4 text-sm">
+					<Link
+						to="/$owner/$name/settings/branches"
+						params={{ owner, name }}
+						className="text-bjork-text-muted hover:text-bjork-accent"
+					>
+						Branch protection →
+					</Link>
+					<Link
+						to="/$owner/$name/settings/hooks"
+						params={{ owner, name }}
+						className="text-bjork-text-muted hover:text-bjork-accent"
+					>
+						Webhooks →
+					</Link>
+				</span>
 			}
 			sections={[
 				{

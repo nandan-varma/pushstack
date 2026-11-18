@@ -163,7 +163,7 @@ export const unsupported = unsupportedUnless(() => false);
  * GitHub's repository webhook events (plus `*`). A name PushStack never emits
  * is still accepted, as on GitHub: a hook subscribed to it simply never fires.
  */
-const WEBHOOK_EVENT_NAMES = [
+export const WEBHOOK_EVENT_NAMES = [
 	"*",
 	"branch_protection_configuration",
 	"branch_protection_rule",
