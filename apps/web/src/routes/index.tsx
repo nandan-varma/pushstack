@@ -1,13 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-	ArrowRight,
-	Braces,
-	FolderTree,
-	Inbox,
-	type LucideIcon,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
+import { BuiltWithItself } from "@/components/home/BuiltWithItself";
 import { LiveRepoPreview } from "@/components/home/LiveRepoPreview";
+import { ShippingFeatures } from "@/components/home/ShippingFeatures";
 import { buttonVariants } from "@/components/ui/button";
 import { DEMO_REPO, SITE_URL } from "@/lib/site";
 import { getSiteStats } from "@/server/site-stats";
@@ -23,35 +19,9 @@ function LandingPage() {
 	return (
 		<div className="overflow-hidden">
 			<Hero />
-			<section
-				aria-labelledby="why-heading"
-				className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6 sm:py-24"
-			>
-				<h2
-					id="why-heading"
-					className="max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-bjork-text sm:text-4xl"
-				>
-					Built around the work, not around a page layout.
-				</h2>
-				<div className="mt-10 grid gap-4 md:grid-cols-3">
-					<Feature
-						icon={FolderTree}
-						title="A workbench for code"
-						body="The file tree stays open beside the file you're reading. Move through a repository without bouncing between lists."
-					/>
-					<Feature
-						icon={Inbox}
-						title="Triage like an inbox"
-						body="Issues and pull requests open beside their list. Read, label, assign and merge without losing your place."
-					/>
-					<Feature
-						icon={Braces}
-						title="GitHub's API, as is"
-						body={`${restOperations} REST operations with GitHub's paths, JSON and status codes. Point your scripts at a new base URL and keep going.`}
-					/>
-				</div>
-			</section>
+			<ShippingFeatures />
 			<ApiSection restOperations={restOperations} />
+			<BuiltWithItself />
 			<FinalCta />
 		</div>
 	);
@@ -96,28 +66,6 @@ function Hero() {
 	);
 }
 
-function Feature({
-	icon: Icon,
-	title,
-	body,
-}: {
-	icon: LucideIcon;
-	title: string;
-	body: ReactNode;
-}) {
-	return (
-		<article className="rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-6 shadow-(--bjork-shadow-surface)">
-			<span className="flex size-10 items-center justify-center rounded-[12px] bg-bjork-accent-soft text-bjork-accent">
-				<Icon aria-hidden="true" className="size-5" />
-			</span>
-			<h3 className="mt-5 text-[15px] font-semibold text-bjork-text">
-				{title}
-			</h3>
-			<p className="mt-2 text-sm leading-6 text-bjork-text-muted">{body}</p>
-		</article>
-	);
-}
-
 function ApiSection({ restOperations }: { restOperations: number }) {
 	return (
 		<section
@@ -134,9 +82,10 @@ function ApiSection({ restOperations }: { restOperations: number }) {
 					</h2>
 					<p className="mt-4 leading-7 text-bjork-text-muted">
 						The same request, the same JSON back. Personal access tokens work in
-						the <code>Authorization</code> header exactly as on GitHub, and
-						every one of the {restOperations} operations is checked against a
-						shared contract in CI.
+						the <code>Authorization</code> header exactly as on GitHub; all{" "}
+						{restOperations} REST operations are checked against a shared
+						contract in CI, and <code>/api/graphql</code> answers the subset{" "}
+						<code>gh</code> needs.
 					</p>
 					<Link
 						to="/about"

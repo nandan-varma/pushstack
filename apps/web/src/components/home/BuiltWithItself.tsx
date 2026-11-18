@@ -1,0 +1,53 @@
+import { Link } from "@tanstack/react-router";
+import { ArrowRight, CircleDot, GitPullRequest } from "lucide-react";
+import { DEMO_REPO } from "@/lib/site";
+
+/** PushStack develops on itself: its backlog and reviews are this instance. */
+export function BuiltWithItself() {
+	return (
+		<section
+			aria-labelledby="dogfood-heading"
+			className="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6 sm:pb-24"
+		>
+			<div className="rounded-[24px] border border-bjork-border-muted bg-bjork-surface p-8 shadow-(--bjork-shadow-surface) sm:p-10">
+				<h2
+					id="dogfood-heading"
+					className="text-2xl font-semibold tracking-[-0.03em] text-bjork-text sm:text-3xl"
+				>
+					Built with itself
+				</h2>
+				<p className="mt-3 max-w-2xl leading-7 text-bjork-text-muted">
+					PushStack's own issues and pull requests live on this instance, in{" "}
+					<Link
+						to="/$owner/$name"
+						params={DEMO_REPO}
+						className="font-medium text-bjork-text hover:underline"
+					>
+						{DEMO_REPO.owner}/{DEMO_REPO.name}
+					</Link>
+					.
+				</p>
+				<div className="mt-6 flex flex-wrap gap-3">
+					<Link
+						to="/$owner/$name/issues"
+						params={DEMO_REPO}
+						className="inline-flex items-center gap-2 rounded-[12px] border border-bjork-border bg-bjork-field-inset px-4 py-2 text-sm font-medium text-bjork-text hover:bg-bjork-surface-hover"
+					>
+						<CircleDot aria-hidden="true" className="size-4" />
+						Issues
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+					<Link
+						to="/$owner/$name/pulls"
+						params={DEMO_REPO}
+						className="inline-flex items-center gap-2 rounded-[12px] border border-bjork-border bg-bjork-field-inset px-4 py-2 text-sm font-medium text-bjork-text hover:bg-bjork-surface-hover"
+					>
+						<GitPullRequest aria-hidden="true" className="size-4" />
+						Pull requests
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</div>
+			</div>
+		</section>
+	);
+}
