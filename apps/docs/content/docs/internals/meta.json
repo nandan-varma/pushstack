@@ -11,6 +11,7 @@
 		"performance",
 		"submodules",
 		"security",
+		"signature-verification",
 		"security-history",
 		"testing",
 		"deployment",

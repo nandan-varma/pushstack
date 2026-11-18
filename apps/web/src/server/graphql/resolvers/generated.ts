@@ -773,6 +773,8 @@ export type Commit = GitObject & Node & {
   resourcePath: Scalars['URI']['output'];
   /** The HTTP URL for this commit */
   url: Scalars['URI']['output'];
+  /** The signature for this commit, if any. */
+  signature?: Maybe<GitSignature>;
   /** Fetches `git blame` information. */
   blame: Blame;
   /**
@@ -809,6 +811,134 @@ export type CommitAuthorsArgs = {
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** Information about a signature (GPG or SSH) on a Commit or Tag. */
+export type GitSignature = {
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by PushStack. */
+  isValid: Scalars['Boolean']['output'];
+  /** Payload for signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** PushStack user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * PushStack, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid. */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with PushStack's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
+};
+
+/** The state of a Git signature. */
+export type GitSignatureState =
+  /** Invalid email used for signing. */
+  | 'BAD_EMAIL'
+  /** Signing key expired. */
+  | 'EXPIRED_KEY'
+  /** Internal error - the GPG verification service misbehaved. */
+  | 'GPGVERIFY_ERROR'
+  /** Internal error - the GPG verification service is unavailable at the moment. */
+  | 'GPGVERIFY_UNAVAILABLE'
+  /** Invalid signature. */
+  | 'INVALID'
+  /** Malformed signature. */
+  | 'MALFORMED_SIG'
+  /** The usage flags for the key that signed this don't allow signing. */
+  | 'NOT_SIGNING_KEY'
+  /** Email used for signing not known to PushStack. */
+  | 'NO_USER'
+  /** Key used for signing not known to PushStack. */
+  | 'UNKNOWN_KEY'
+  /** Unknown signature type. */
+  | 'UNKNOWN_SIG_TYPE'
+  /** Unsigned. */
+  | 'UNSIGNED'
+  /** Email used for signing unverified on PushStack. */
+  | 'UNVERIFIED_EMAIL'
+  /** Valid signature and verified by PushStack. */
+  | 'VALID';
+
+/** Represents a GPG signature on a Commit or Tag. */
+export type GpgSignature = GitSignature & {
+  __typename?: 'GpgSignature';
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by PushStack. */
+  isValid: Scalars['Boolean']['output'];
+  /** Hex-encoded ID of the key that signed this object. */
+  keyId?: Maybe<Scalars['String']['output']>;
+  /** Payload for signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** PushStack user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * PushStack, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid. */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with PushStack's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
+};
+
+/** Represents an SSH signature on a Commit or Tag. */
+export type SshSignature = GitSignature & {
+  __typename?: 'SshSignature';
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by PushStack. */
+  isValid: Scalars['Boolean']['output'];
+  /** Fingerprint of the key that signed this object. */
+  keyFingerprint?: Maybe<Scalars['String']['output']>;
+  /** Payload for signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** PushStack user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * PushStack, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid. */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with PushStack's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
+};
+
+/** Represents an unknown signature on a Commit or Tag. */
+export type UnknownSignature = GitSignature & {
+  __typename?: 'UnknownSignature';
+  /** Email used to sign this object. */
+  email: Scalars['String']['output'];
+  /** True if the signature is valid and verified by PushStack. */
+  isValid: Scalars['Boolean']['output'];
+  /** Payload for signing object. Raw ODB object without the signature header. */
+  payload: Scalars['String']['output'];
+  /** ASCII-armored signature header from object. */
+  signature: Scalars['String']['output'];
+  /** PushStack user corresponding to the email signing this commit. */
+  signer?: Maybe<User>;
+  /**
+   * The state of this signature. `VALID` if signature is valid and verified by
+   * PushStack, otherwise represents reason why signature is considered invalid.
+   */
+  state: GitSignatureState;
+  /** The date the signature was verified, if valid. */
+  verifiedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** True if the signature was made with PushStack's signing key. */
+  wasSignedByGitHub: Scalars['Boolean']['output'];
 };
 
 /** Represents a Git blame. */
@@ -3057,6 +3187,11 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
   RepositoryInfo: ( RepositoryNode );
   Starrable: ( RepositoryNode );
   GitObject: ( CommitNode );
+  GitSignature:
+    | ( Omit<GpgSignature, 'signer'> & { signer?: Maybe<_RefType['User']> } )
+    | ( Omit<SshSignature, 'signer'> & { signer?: Maybe<_RefType['User']> } )
+    | ( Omit<UnknownSignature, 'signer'> & { signer?: Maybe<_RefType['User']> } )
+  ;
   Labelable: ( IssueNode );
   Assignable: ( IssueNode );
 };
@@ -3087,6 +3222,11 @@ export type ResolversTypes = {
   BranchProtectionRule: ResolverTypeWrapper<BranchProtectionRule>;
   GitObject: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitObject']>;
   Commit: ResolverTypeWrapper<CommitNode>;
+  GitSignature: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['GitSignature']>;
+  GitSignatureState: GitSignatureState;
+  GpgSignature: ResolverTypeWrapper<Omit<GpgSignature, 'signer'> & { signer?: Maybe<ResolversTypes['User']> }>;
+  SshSignature: ResolverTypeWrapper<Omit<SshSignature, 'signer'> & { signer?: Maybe<ResolversTypes['User']> }>;
+  UnknownSignature: ResolverTypeWrapper<Omit<UnknownSignature, 'signer'> & { signer?: Maybe<ResolversTypes['User']> }>;
   Blame: ResolverTypeWrapper<Omit<Blame, 'ranges'> & { ranges: Array<ResolversTypes['BlameRange']> }>;
   BlameRange: ResolverTypeWrapper<Omit<BlameRange, 'commit'> & { commit: ResolversTypes['Commit'] }>;
   GitObjectID: ResolverTypeWrapper<Scalars['GitObjectID']['output']>;
@@ -3270,6 +3410,10 @@ export type ResolversParentTypes = {
   BranchProtectionRule: BranchProtectionRule;
   GitObject: ResolversInterfaceTypes<ResolversParentTypes>['GitObject'];
   Commit: CommitNode;
+  GitSignature: ResolversInterfaceTypes<ResolversParentTypes>['GitSignature'];
+  GpgSignature: Omit<GpgSignature, 'signer'> & { signer?: Maybe<ResolversParentTypes['User']> };
+  SshSignature: Omit<SshSignature, 'signer'> & { signer?: Maybe<ResolversParentTypes['User']> };
+  UnknownSignature: Omit<UnknownSignature, 'signer'> & { signer?: Maybe<ResolversParentTypes['User']> };
   Blame: Omit<Blame, 'ranges'> & { ranges: Array<ResolversParentTypes['BlameRange']> };
   BlameRange: Omit<BlameRange, 'commit'> & { commit: ResolversParentTypes['Commit'] };
   GitObjectID: Scalars['GitObjectID']['output'];
@@ -3594,12 +3738,55 @@ export type CommitResolvers<ContextType = GraphQLContext, ParentType extends Res
   repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
   resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  signature?: Resolver<Maybe<ResolversTypes['GitSignature']>, ParentType, ContextType>;
   blame?: Resolver<ResolversTypes['Blame'], ParentType, ContextType, RequireFields<CommitBlameArgs, 'path'>>;
   zipballUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   tarballUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   statusCheckRollup?: Resolver<Maybe<ResolversTypes['StatusCheckRollup']>, ParentType, ContextType>;
   messageBody?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   authors?: Resolver<ResolversTypes['GitActorConnection'], ParentType, ContextType, Partial<CommitAuthorsArgs>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type GitSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitSignature'] = ResolversParentTypes['GitSignature']> = {
+  __resolveType: TypeResolveFn<'GpgSignature' | 'SshSignature' | 'UnknownSignature', ParentType, ContextType>;
+};
+
+export type GpgSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GpgSignature'] = ResolversParentTypes['GpgSignature']> = {
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  keyId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
+  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type SshSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SshSignature'] = ResolversParentTypes['SshSignature']> = {
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  keyFingerprint?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
+  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type UnknownSignatureResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UnknownSignature'] = ResolversParentTypes['UnknownSignature']> = {
+  email?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  isValid?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  payload?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signature?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  signer?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+  state?: Resolver<ResolversTypes['GitSignatureState'], ParentType, ContextType>;
+  verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -4284,6 +4471,10 @@ export type Resolvers<ContextType = GraphQLContext> = {
   BranchProtectionRule?: BranchProtectionRuleResolvers<ContextType>;
   GitObject?: GitObjectResolvers<ContextType>;
   Commit?: CommitResolvers<ContextType>;
+  GitSignature?: GitSignatureResolvers<ContextType>;
+  GpgSignature?: GpgSignatureResolvers<ContextType>;
+  SshSignature?: SshSignatureResolvers<ContextType>;
+  UnknownSignature?: UnknownSignatureResolvers<ContextType>;
   Blame?: BlameResolvers<ContextType>;
   BlameRange?: BlameRangeResolvers<ContextType>;
   GitObjectID?: GraphQLScalarType;

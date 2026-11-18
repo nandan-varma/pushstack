@@ -7,6 +7,11 @@
  */
 import { isNotFoundError } from "git-fs-s3";
 import { htmlUrl } from "../../api/http";
+import {
+	type Verification,
+	type VerificationReason,
+	verifyCommit,
+} from "../../commit-verification";
 import { getBlame, getCommit } from "../../git-read";
 import { safeCommitRevSchema, safeRepoPathSchema } from "../../git-ref-name";
 import { ownerKeyOf } from "../../git-storage-naming";
@@ -57,6 +62,75 @@ export function commitNode(
 			date: new Date(commit.commit.author.timestamp * 1000).toISOString(),
 		},
 	};
+}
+
+/** GitHub's `GitSignatureState` value for a REST verification reason. */
+const SIGNATURE_STATE = {
+	valid: "VALID",
+	unsigned: "UNSIGNED",
+	unknown_key: "UNKNOWN_KEY",
+	bad_email: "BAD_EMAIL",
+	unverified_email: "UNVERIFIED_EMAIL",
+	no_user: "NO_USER",
+	invalid: "INVALID",
+	malformed_signature: "MALFORMED_SIG",
+	unknown_signature_type: "UNKNOWN_SIG_TYPE",
+	expired_key: "EXPIRED_KEY",
+	not_signing_key: "NOT_SIGNING_KEY",
+} as const satisfies Record<VerificationReason, string>;
+
+export interface GitSignatureNode {
+	__typename: "GpgSignature" | "SshSignature" | "UnknownSignature";
+	email: string;
+	isValid: boolean;
+	payload: string;
+	signature: string;
+	signer: null;
+	state: (typeof SIGNATURE_STATE)[VerificationReason];
+	verifiedAt: string | null;
+	wasSignedByGitHub: boolean;
+	keyId?: string | null;
+	keyFingerprint?: string | null;
+}
+
+function signatureNode(
+	email: string,
+	verification: Verification,
+): GitSignatureNode {
+	const typename =
+		verification.signatureType === "gpg"
+			? "GpgSignature"
+			: verification.signatureType === "ssh"
+				? "SshSignature"
+				: "UnknownSignature";
+	return {
+		__typename: typename,
+		email,
+		isValid: verification.verified,
+		payload: verification.payload ?? "",
+		signature: verification.signature ?? "",
+		// Commits aren't linked to accounts by email yet.
+		signer: null,
+		state: SIGNATURE_STATE[verification.reason],
+		verifiedAt: verification.verified_at,
+		wasSignedByGitHub: false,
+		...(typename === "GpgSignature" && { keyId: verification.keyId ?? null }),
+		...(typename === "SshSignature" && {
+			keyFingerprint: verification.keyFingerprint ?? null,
+		}),
+	};
+}
+
+/** `Commit.signature`: null when the commit is unsigned, as on GitHub. */
+export async function signatureOf(
+	commit: CommitNode,
+): Promise<GitSignatureNode | null> {
+	const ownerKey = ownerKeyOf(commit.repository.row);
+	const repoName = commit.repository.row.name;
+	const info = await getCommit(ownerKey, repoName, commit.oid);
+	const verification = await verifyCommit(ownerKey, repoName, info);
+	if (verification.reason === "unsigned") return null;
+	return signatureNode(info.commit.committer.email, verification);
 }
 
 /** The commit a branch, `HEAD` or sha names, or null (also for an invalid name). */

@@ -61,6 +61,7 @@ schema before deploying code that selects it.
 | `repositoryCollaborators` | Role `read`/`write`/`admin`, unique per (repo, user) — see [authentication.md](/docs/internals/authentication) |
 | `activities` | Feed events: `type` + `metadata` together form one `ActivityEvent` (`apps/web/src/lib/activity-types.ts`) |
 | `tokens` | Personal access tokens: SHA-256 hash, scopes, expiry |
+| `gpgKeys`, `sshSigningKeys` | A user's public signing keys; see [signature-verification.md](/docs/internals/signature-verification) |
 | `repoLocks` | The per-repo write lease (`git-repo-lock.ts`); see [git-storage.md](/docs/internals/git-storage#locking) |
 
 **A pull request is an issue**, as in GitHub's data model: one `issues` row

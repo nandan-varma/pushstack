@@ -6,6 +6,11 @@ import {
 } from "git-fs-s3";
 import type { CommitInfo } from "git-fs-s3/ops";
 import {
+	restVerification,
+	verifyCommit,
+	verifyTag,
+} from "../commit-verification";
+import {
 	createBlobObject,
 	createCommitObject,
 	createRef,
@@ -147,8 +152,12 @@ export async function deleteRef(ctx: ApiContext) {
 	return noContent();
 }
 
-export function gitCommitObject(fullName: string, info: CommitInfo) {
+export async function gitCommitObject(
+	repo: RepositoryRowWithOwner,
+	info: CommitInfo,
+) {
 	const { commit, oid } = info;
+	const fullName = fullNameOf(repo);
 	return {
 		sha: oid,
 		url: apiUrl(`/repos/${fullName}/git/commits/${oid}`),
@@ -165,13 +174,9 @@ export function gitCommitObject(fullName: string, info: CommitInfo) {
 			url: apiUrl(`/repos/${fullName}/git/commits/${sha}`),
 			html_url: htmlUrl(`/${fullName}/commit/${sha}`),
 		})),
-		verification: {
-			verified: false,
-			reason: "unsigned",
-			signature: null,
-			payload: null,
-			verified_at: null,
-		},
+		verification: restVerification(
+			await verifyCommit(ownerKeyOf(repo), repo.name, info),
+		),
 	};
 }
 
@@ -181,7 +186,7 @@ export async function getGitCommit(ctx: ApiContext) {
 	const { commit_sha: sha } = pathParams(ctx, "git/get-commit");
 	if (!isFullSha(sha)) throw notFoundError();
 	const info = await getCommit(ownerKeyOf(repo), repo.name, sha);
-	return json(gitCommitObject(fullNameOf(repo), info));
+	return json(await gitCommitObject(repo, info));
 }
 
 /**
@@ -345,7 +350,7 @@ export async function createGitCommit(ctx: ApiContext) {
 		}),
 	);
 	const info = await getCommit(ownerKeyOf(repo), repo.name, sha);
-	return json(gitCommitObject(fullNameOf(repo), info), 201);
+	return json(await gitCommitObject(repo, info), 201);
 }
 
 /** `GET /repos/{owner}/{repo}/git/tags/{tag_sha}`: an annotated tag object. */
@@ -355,7 +360,7 @@ export async function getGitTag(ctx: ApiContext) {
 	if (!isFullSha(sha)) throw notFoundError();
 	const tag = await getTagObject(ownerKeyOf(repo), repo.name, sha);
 	if (!tag) throw notFoundError();
-	return json(gitTagObject(fullNameOf(repo), sha, tag));
+	return json(await gitTagObject(repo, sha, tag));
 }
 
 /** `POST /repos/{owner}/{repo}/git/tags`: the object only; create `refs/tags/…` separately. */
@@ -374,14 +379,15 @@ export async function createGitTag(ctx: ApiContext) {
 	);
 	const tag = await getTagObject(ownerKeyOf(repo), repo.name, sha);
 	if (!tag) throw new Error(`Tag ${sha} missing after write`);
-	return json(gitTagObject(fullNameOf(repo), sha, tag), 201);
+	return json(await gitTagObject(repo, sha, tag), 201);
 }
 
-function gitTagObject(
-	fullName: string,
+async function gitTagObject(
+	repo: RepositoryRowWithOwner,
 	sha: string,
 	tag: Awaited<ReturnType<typeof getTagObject>> & object,
 ) {
+	const fullName = fullNameOf(repo);
 	const kind = { commit: "commits", tree: "trees", blob: "blobs", tag: "tags" }[
 		tag.type
 	];
@@ -389,20 +395,21 @@ function gitTagObject(
 		sha,
 		url: apiUrl(`/repos/${fullName}/git/tags/${sha}`),
 		tag: tag.tag,
-		message: commitMessage(tag.message),
+		message: commitMessage(
+			tag.message.replace(
+				/\n?-----BEGIN (?:PGP|SSH) SIGNATURE-----[\s\S]*$/,
+				"",
+			),
+		),
 		tagger: gitIdentity(tag.tagger),
 		object: {
 			sha: tag.object,
 			type: tag.type,
 			url: apiUrl(`/repos/${fullName}/git/${kind}/${tag.object}`),
 		},
-		verification: {
-			verified: false,
-			reason: "unsigned",
-			signature: null,
-			payload: null,
-			verified_at: null,
-		},
+		verification: restVerification(
+			await verifyTag(ownerKeyOf(repo), repo.name, sha, tag.tagger.email),
+		),
 	};
 }
 

@@ -230,3 +230,16 @@ export const MAX_THREAD_PAGE_SIZE = Math.floor(
 
 /** Items one thread read returns when it doesn't say; also the UI's page. */
 export const THREAD_PAGE_SIZE = MAX_THREAD_PAGE_SIZE;
+
+/**
+ * Signing keys (`/settings/keys`): one armored OpenPGP key or one OpenSSH
+ * public-key line is a small text blob. The per-user count caps the work a
+ * commit read does when it matches the signature issuer across those keys.
+ */
+export const MAX_GPG_KEY_CHARS = 65_536;
+export const MAX_SSH_SIGNING_KEY_CHARS = 2048;
+export const MAX_SIGNING_KEY_TITLE_CHARS = 100;
+export const MAX_SIGNING_KEYS_PER_USER = 50;
+
+/** Commits whose verification one process remembers; key changes clear it. */
+export const MAX_VERIFICATION_CACHE_ENTRIES = 5_000;

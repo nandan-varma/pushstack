@@ -9,6 +9,7 @@ import { db } from "#/db";
 import { user } from "#/db/schema";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import { commitCommentCounts } from "../commit-comment-store";
+import { UNSIGNED, verifyCommits } from "../commit-verification";
 import { importObjectsForRead } from "../git-objects";
 import {
 	getBranchDiff,
@@ -181,9 +182,15 @@ export async function listCommits(ctx: ApiContext) {
 		repo.id,
 		page.map((info) => info.oid),
 	);
+	const verifications = await verifyCommits(ownerKey, repo.name, page);
 	return json(
 		page.map((info) =>
-			commitObject({ id: repo.id, fullName }, info, counts.get(info.oid)),
+			commitObject(
+				{ id: repo.id, fullName },
+				info,
+				counts.get(info.oid) ?? 0,
+				verifications.get(info.oid) ?? UNSIGNED,
+			),
 		),
 		200,
 		linkHeader(
@@ -249,6 +256,9 @@ export async function getCommitDetail(ctx: ApiContext) {
 			TEXT,
 		);
 	}
+	const verification =
+		(await verifyCommits(ownerKey, repo.name, [info])).get(info.oid) ??
+		UNSIGNED;
 	const query = ctx.url.searchParams;
 	if (!(query.has("page") || query.has("per_page"))) {
 		const { stats, files } = await diffSummary(repo, diff);
@@ -256,7 +266,8 @@ export async function getCommitDetail(ctx: ApiContext) {
 			...commitObject(
 				{ id: repo.id, fullName: fullNameOf(repo) },
 				info,
-				commentCount,
+				commentCount ?? 0,
+				verification,
 			),
 			stats,
 			files,
@@ -276,7 +287,8 @@ export async function getCommitDetail(ctx: ApiContext) {
 			...commitObject(
 				{ id: repo.id, fullName: fullNameOf(repo) },
 				info,
-				commentCount,
+				commentCount ?? 0,
+				verification,
 			),
 			stats,
 			files,
@@ -439,11 +451,13 @@ export async function compareCommits(ctx: ApiContext) {
 		pageItems.map((commit) => getCommit(ownerKey, repo.name, commit.sha)),
 	);
 	const { files } = await diffSummary(repo, diff);
-	const counts = await commitCommentCounts(repo.id, [
-		baseInfo.oid,
-		mergeBase.oid,
-		...commits.map((info) => info.oid),
-	]);
+	const compared = [baseInfo, mergeBase, ...commits];
+	const counts = await commitCommentCounts(
+		repo.id,
+		compared.map((info) => info.oid),
+	);
+	const verifications = await verifyCommits(ownerKey, repo.name, compared);
+	const verdict = (info: CommitInfo) => verifications.get(info.oid) ?? UNSIGNED;
 	const spec = `${encodePath(base)}${separator}${encodePath(head)}`;
 	return json(
 		{
@@ -457,19 +471,26 @@ export async function compareCommits(ctx: ApiContext) {
 			base_commit: commitObject(
 				{ id: repo.id, fullName },
 				baseInfo,
-				counts.get(baseInfo.oid),
+				counts.get(baseInfo.oid) ?? 0,
+				verdict(baseInfo),
 			),
 			merge_base_commit: commitObject(
 				{ id: repo.id, fullName },
 				mergeBase,
-				counts.get(mergeBase.oid),
+				counts.get(mergeBase.oid) ?? 0,
+				verdict(mergeBase),
 			),
 			status,
 			ahead_by: aheadBy,
 			behind_by: behindBy,
 			total_commits: aheadBy,
 			commits: commits.map((info) =>
-				commitObject({ id: repo.id, fullName }, info, counts.get(info.oid)),
+				commitObject(
+					{ id: repo.id, fullName },
+					info,
+					counts.get(info.oid) ?? 0,
+					verdict(info),
+				),
 			),
 			files,
 		},

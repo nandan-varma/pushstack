@@ -1035,6 +1035,54 @@ export const rateLimits = pgTable(
 	}),
 );
 
+/**
+ * A user's OpenPGP public key, added through `POST /user/gpg_keys`. Only
+ * public keys are stored; `key_ids` holds the primary and subkey ids
+ * (uppercase hex) so a signature's issuer is matched without re-parsing every
+ * key on every commit read.
+ */
+export const gpgKeys = pgTable(
+	"gpg_keys",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		primaryKeyId: text("primary_key_id").notNull(),
+		keyIds: jsonb("key_ids").$type<string[]>().notNull(),
+		publicKey: text("public_key").notNull(),
+		emails: jsonb("emails").$type<string[]>().notNull().default([]),
+		canSign: boolean("can_sign").notNull().default(true),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		expiresAt: timestamptz("expires_at"),
+	},
+	(table) => ({
+		userIdx: index("gpg_key_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * A user's SSH signing key (`ssh-ed25519 AAAA… comment`), added through
+ * `POST /user/ssh_signing_keys`. The fingerprint is OpenSSH's SHA256 form:
+ * it is shown to the user and matched against an SSHSIG signature's key.
+ */
+export const sshSigningKeys = pgTable(
+	"ssh_signing_keys",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		title: text("title").notNull(),
+		key: text("key").notNull(),
+		fingerprint: text("fingerprint").notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		userIdx: index("ssh_signing_key_user_idx").on(table.userId),
+	}),
+);
+
 export type Repository = typeof repositories.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
 export type PullRequestReview = typeof pullRequestReviews.$inferSelect;
