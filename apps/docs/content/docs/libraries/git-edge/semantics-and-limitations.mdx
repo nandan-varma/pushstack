@@ -13,6 +13,17 @@ merge of criss-cross histories (the first merge base `git.findMergeBase`
 returns is used). See [Three-way merge](/docs/libraries/git-edge/guides/three-way-merge)
 for the full decision tree.
 
+## Squash and rebase walk only the range
+
+`squashMerge` and `rebaseMerge` list the commits reachable from the source but
+not from the merge base, and stop at it: the base's own history is not read.
+The one exception is a source that merged a side branch forked before the
+base, whose old commits have to be told apart from the range — that ancestry is
+read lazily, bounded by `MAX_BASE_HISTORY_COMMITS` (1,000) commits, and a range
+that needs more is refused with `GitEdgeError` rather than read in full under
+whatever lock the caller holds. `MAX_RANGE_COMMITS` (250) bounds the range
+itself: a squash lists at most that many commits, a rebase of more is refused.
+
 ## Binary files conflict instead of merging
 
 A file with a NUL byte in any of the three versions is never line-merged —

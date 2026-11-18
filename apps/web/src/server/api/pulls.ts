@@ -18,6 +18,7 @@ import {
 	getCommit,
 	getCommitDiff,
 	getCommitsBetween,
+	getRebaseable,
 } from "../git-read";
 import { repoFor } from "../git-repo";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -309,6 +310,7 @@ async function serializeDetail(
 		commits,
 		diff,
 		heads,
+		rebaseable,
 	] = await perfStep("pull detail", () =>
 		Promise.all([
 			branchTips(repo, [row]),
@@ -345,6 +347,14 @@ async function serializeDetail(
 				empty.diff,
 			),
 			headSides([row], viewerId),
+			// Only an open pull request can be rebase-merged; a closed or
+			// merged one is not computed, as GitHub leaves it unknown.
+			row.status === "open"
+				? orWhenGone(
+						() => getRebaseable(ownerKey, repo.name, range.head, range.base),
+						null,
+					)
+				: null,
 		]),
 	);
 	const repoShape = repository(repo, {
@@ -366,6 +376,7 @@ async function serializeDetail(
 			additions: diff.totalAdditions,
 			deletions: diff.totalDeletions,
 			changedFiles: diff.totalFiles,
+			rebaseable,
 		},
 	});
 }

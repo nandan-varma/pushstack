@@ -12,14 +12,41 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 let failOn: RegExp | undefined;
+/** How many matching statements fail before `failOn` stops applying. */
+let failTimes = Number.POSITIVE_INFINITY;
+/** Matching statements seen so far, to prove a retry ran. */
+let failedQueries = 0;
 
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb({
 		onQuery: (query) => {
-			if (failOn?.test(query)) throw new Error("injected failure");
+			if (!failOn?.test(query) || failTimes === 0) return;
+			failTimes -= 1;
+			failedQueries += 1;
+			throw new Error("injected failure");
 		},
 	}),
 }));
+/**
+ * Fails the close notice of one thread only. The merge notice also inserts a
+ * notification, so a SQL-text failure would hit that one first; this injects
+ * the failure at the store that sends a single thread's notice.
+ */
+let failNoticeFor: number | undefined;
+vi.mock("../notification-store", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../notification-store")>();
+	return {
+		...actual,
+		recordThreadActivity: async (
+			activity: Parameters<typeof actual.recordThreadActivity>[0],
+		) => {
+			if (activity.thread.id === failNoticeFor) {
+				throw new Error("injected failure");
+			}
+			return actual.recordThreadActivity(activity);
+		},
+	};
+});
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
 	"#/server/session",
@@ -34,6 +61,7 @@ const issues = await import("../issues");
 const labels = await import("../labels");
 const releases = await import("../releases");
 const reviews = await import("../reviews");
+const reviewRequests = await import("../review-request-store");
 const perfLog = await import("../perf-log");
 const { db } = await import("#/db");
 const schema = await import("#/db/app-schema");
@@ -42,6 +70,9 @@ const users = await createUsers("follow-owner", "follow-reader");
 
 afterEach(() => {
 	failOn = undefined;
+	failTimes = Number.POSITIVE_INFINITY;
+	failedQueries = 0;
+	failNoticeFor = undefined;
 	vi.restoreAllMocks();
 	signIn(users["follow-owner"]);
 });
@@ -129,6 +160,171 @@ describe("a committed write survives a failed follow-up", () => {
 		expect(logged).toHaveBeenCalledWith(
 			"pull-request-store",
 			expect.stringMatching(/The merged event of #\d+ failed/),
+			expect.anything(),
+		);
+	});
+
+	it("retries closing the issues a merged pull request names", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Retried close" },
+		});
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Closes one",
+				body: `Closes #${issue.number}`,
+				sourceBranchName: await branchWithChange(),
+				targetBranchName: "main",
+			},
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		// The issue update is the second `state_reason` write; the first fails.
+		failOn = /update "issues" set .*"state_reason"/i;
+		failTimes = 1;
+		const merged = await pulls.mergePullRequest({ data: { prId: pr.id } });
+		failOn = undefined;
+		expect(merged.commitSha).toMatch(/^[0-9a-f]{40}$/);
+		expect(failedQueries).toBe(1);
+		const closed = await db.query.issues.findFirst({
+			where: { id: issue.id },
+		});
+		expect(closed?.status).toBe("closed");
+		expect(logged).not.toHaveBeenCalledWith(
+			"pull-request-store",
+			expect.stringMatching(/failed twice/),
+			expect.anything(),
+		);
+	});
+
+	it("tells the merger when the issues it closes stay open after a retry", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Never closed" },
+		});
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Closes one",
+				body: `Closes #${issue.number}`,
+				sourceBranchName: await branchWithChange(),
+				targetBranchName: "main",
+			},
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		failOn = /update "issues" set .*"state_reason"/i;
+		const merged = await pulls.mergePullRequest({ data: { prId: pr.id } });
+		failOn = undefined;
+		// The merge stands; the failed close is logged with the merger.
+		expect(merged.commitSha).toMatch(/^[0-9a-f]{40}$/);
+		expect(failedQueries).toBe(2);
+		const still = await db.query.issues.findFirst({ where: { id: issue.id } });
+		expect(still?.status).toBe("open");
+		expect(logged).toHaveBeenCalledWith(
+			"pull-request-store",
+			expect.stringMatching(
+				new RegExp(
+					`Closing #${issue.number} after the merge of #${pr.number} failed twice \\(merged by Follow-owner`,
+				),
+			),
+			expect.anything(),
+		);
+	});
+
+	it("an issue rename is kept when its rename event fails", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Before" },
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		failOn = /insert into "timeline_events"/i;
+		await issues.updateIssue({
+			data: { issueId: issue.id, title: "After" },
+		});
+		failOn = undefined;
+		const after = await db.query.issues.findFirst({ where: { id: issue.id } });
+		expect(after?.title).toBe("After");
+		expect(logged).toHaveBeenCalledWith(
+			"issue-store",
+			expect.stringMatching(
+				/The rename event of #\d+ failed after the write committed/,
+			),
+			expect.anything(),
+		);
+	});
+
+	it("an issue body edit is kept when recording its cross references fails", async () => {
+		const referenced = await issues.createIssue({
+			data: { repoId, title: "Referenced" },
+		});
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Referrer" },
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		const body = `Follows #${referenced.number}`;
+		failOn = /insert into "timeline_events"/i;
+		await issues.updateIssue({ data: { issueId: issue.id, body } });
+		failOn = undefined;
+		const after = await db.query.issues.findFirst({ where: { id: issue.id } });
+		expect(after?.body).toBe(body);
+		expect(logged).toHaveBeenCalledWith(
+			"issue-store",
+			expect.stringMatching(
+				/The cross references of #\d+ failed after the write committed/,
+			),
+			expect.anything(),
+		);
+	});
+
+	it("a submitted review is kept when clearing its review request fails", async () => {
+		const pr = await openPull(await branchWithChange());
+		await repositories.addCollaboratorByUsername({
+			data: { repoId, username: "follow-reader", role: "read" },
+		});
+		await reviewRequests.requestReviewers(
+			{ id: pr.id, repoId, authorId: pr.authorId },
+			["follow-reader"],
+			pr.authorId,
+		);
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		signIn(users["follow-reader"]);
+		failOn = /delete from "pull_request_review_requests"/i;
+		const submitted = await reviews.submitReview({
+			data: { prId: pr.id, event: "comment", body: "Looks fine" },
+		});
+		failOn = undefined;
+		expect(submitted.state).toBe("commented");
+		expect(logged).toHaveBeenCalledWith(
+			"review-store",
+			expect.stringMatching(
+				/Clearing the review request of #\d+ failed after the write committed/,
+			),
+			expect.anything(),
+		);
+	});
+
+	it("a merge is recorded when the close notice of an issue it closes fails", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Quietly closed" },
+		});
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Closes one",
+				body: `Closes #${issue.number}`,
+				sourceBranchName: await branchWithChange(),
+				targetBranchName: "main",
+			},
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		failNoticeFor = issue.id;
+		const merged = await pulls.mergePullRequest({ data: { prId: pr.id } });
+		failNoticeFor = undefined;
+		expect(merged.commitSha).toMatch(/^[0-9a-f]{40}$/);
+		const closed = await db.query.issues.findFirst({
+			where: { id: issue.id },
+		});
+		expect(closed?.status).toBe("closed");
+		expect(logged).toHaveBeenCalledWith(
+			"pull-request-store",
+			`The close notice of issue ${issue.id} failed after the write committed`,
 			expect.anything(),
 		);
 	});

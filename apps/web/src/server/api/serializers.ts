@@ -759,6 +759,8 @@ export interface PullShapeInput {
 		additions: number;
 		deletions: number;
 		changedFiles: number;
+		/** GitHub's `rebaseable`: whether a rebase merge would apply, or null. */
+		rebaseable: boolean | null;
 	};
 }
 
@@ -852,7 +854,7 @@ export function pullRequest(
 		// Conflicts aren't pre-computed: an open pull request's mergeability
 		// is "not yet known", which GitHub also reports while it computes.
 		mergeable: merged ? false : null,
-		rebaseable: false,
+		rebaseable: detail.rebaseable,
 		mergeable_state: row.isDraft ? "draft" : "unknown",
 		merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
 		comments: input.commentsCount,
