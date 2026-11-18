@@ -267,6 +267,10 @@ export const MAX_WEBHOOK_DELIVERY_MS = 10_000;
 export const MAX_WEBHOOK_RETRY_DELAY_MS = 2_000;
 /** GitHub's documented payload cap: a larger event is not delivered or logged. */
 export const MAX_WEBHOOK_PAYLOAD_BYTES = 25 * 1024 * 1024;
+/** Commits one push payload lists (GitHub's cap), newest last. */
+export const MAX_WEBHOOK_COMMITS = 20;
+/** File paths one commit in a push payload lists; a larger diff lists none. */
+export const MAX_WEBHOOK_COMMIT_FILES = 300;
 
 /**
  * Bytes a fork may copy. A fork copies its parent's git prefix server-side in
