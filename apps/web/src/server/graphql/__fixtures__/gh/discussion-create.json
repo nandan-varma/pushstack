@@ -1,0 +1,9 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh api graphql -f query=mutation {\n\t\t\t\t\t\t\tcreateDiscussion(input: {\n\t\t\t\t\t\t\t\trepositoryId: \"MDEwOlJlcG9zaXRvcnkx\",\n\t\t\t\t\t\t\t\tcategoryId: \"DIC_kwABAw\",\n\t\t\t\t\t\t\t\ttitle: \"A smoke question\",\n\t\t\t\t\t\t\t\tbody: \"Does this work?\"\n\t\t\t\t\t\t\t}) { discussion { id number title isAnswered } }\n\t\t\t\t\t\t}",
+	"requests": [
+		{
+			"query": "mutation {\n\t\t\t\t\t\t\tcreateDiscussion(input: {\n\t\t\t\t\t\t\t\trepositoryId: \"MDEwOlJlcG9zaXRvcnkx\",\n\t\t\t\t\t\t\t\tcategoryId: \"DIC_kwABAw\",\n\t\t\t\t\t\t\t\ttitle: \"A smoke question\",\n\t\t\t\t\t\t\t\tbody: \"Does this work?\"\n\t\t\t\t\t\t\t}) { discussion { id number title isAnswered } }\n\t\t\t\t\t\t}"
+		}
+	]
+}

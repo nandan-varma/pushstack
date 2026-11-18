@@ -1,0 +1,180 @@
+{
+	"Repository": [
+		{
+			"name": "discussion",
+			"args": ["number"]
+		},
+		{
+			"name": "discussions",
+			"args": [
+				"after",
+				"answered",
+				"before",
+				"categoryId",
+				"first",
+				"last",
+				"orderBy"
+			]
+		},
+		{
+			"name": "discussionCategories",
+			"args": ["after", "before", "first", "last"]
+		},
+		{
+			"name": "discussionCategory",
+			"args": ["slug"]
+		}
+	],
+	"Discussion": {
+		"$implements": ["Node", "UniformResourceLocatable", "Labelable", "Votable"],
+		"fields": [
+			"answer",
+			"answerChosenAt",
+			"answerChosenBy",
+			"author",
+			"authorAssociation",
+			"body",
+			"category",
+			"closed",
+			"closedAt",
+			{
+				"name": "comments",
+				"args": ["after", "before", "first", "last"]
+			},
+			"createdAt",
+			"createdViaEmail",
+			"databaseId",
+			"id",
+			"includesCreatedEdit",
+			"isAnswered",
+			{
+				"name": "labels",
+				"args": ["after", "before", "first", "last"]
+			},
+			"lastEditedAt",
+			"locked",
+			"number",
+			"publishedAt",
+			"reactionGroups",
+			"repository",
+			"resourcePath",
+			"stateReason",
+			"title",
+			"updatedAt",
+			"upvoteCount",
+			"url",
+			"viewerCanClose",
+			"viewerCanDelete",
+			"viewerCanLabel",
+			"viewerCanReact",
+			"viewerCanReopen",
+			"viewerCanSubscribe",
+			"viewerCanUpdate",
+			"viewerCanUpvote",
+			"viewerDidAuthor",
+			"viewerHasUpvoted"
+		]
+	},
+	"DiscussionCategory": {
+		"$implements": ["Node"],
+		"fields": [
+			"createdAt",
+			"description",
+			"emoji",
+			"id",
+			"isAnswerable",
+			"name",
+			"repository",
+			"slug",
+			"updatedAt"
+		]
+	},
+	"DiscussionComment": {
+		"$implements": ["Node", "Votable"],
+		"fields": [
+			"author",
+			"authorAssociation",
+			"body",
+			"createdAt",
+			"createdViaEmail",
+			"databaseId",
+			"discussion",
+			"id",
+			"includesCreatedEdit",
+			"isAnswer",
+			"isMinimized",
+			"lastEditedAt",
+			"minimizedReason",
+			"publishedAt",
+			"reactionGroups",
+			{
+				"name": "replies",
+				"args": ["after", "before", "first", "last"]
+			},
+			"replyTo",
+			"resourcePath",
+			"updatedAt",
+			"upvoteCount",
+			"url",
+			"viewerCanDelete",
+			"viewerCanMarkAsAnswer",
+			"viewerCanMinimize",
+			"viewerCanReact",
+			"viewerCanUnmarkAsAnswer",
+			"viewerCanUpdate",
+			"viewerCanUpvote",
+			"viewerDidAuthor",
+			"viewerHasUpvoted"
+		]
+	},
+	"DiscussionConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"DiscussionEdge": "*",
+	"DiscussionCategoryConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"DiscussionCategoryEdge": "*",
+	"DiscussionCommentConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"DiscussionCommentEdge": "*",
+	"DiscussionOrder": "*",
+	"DiscussionOrderField": "*",
+	"DiscussionState": "*",
+	"DiscussionStateReason": "*",
+	"DiscussionCloseReason": "*",
+	"Votable": ["upvoteCount", "viewerCanUpvote", "viewerHasUpvoted"],
+	"Mutation": [
+		"createDiscussion",
+		"addDiscussionComment",
+		"markDiscussionCommentAsAnswer",
+		"unmarkDiscussionCommentAsAnswer",
+		"addUpvote",
+		"removeUpvote",
+		"closeDiscussion",
+		"reopenDiscussion",
+		"updateDiscussion",
+		"deleteDiscussion",
+		"updateDiscussionComment",
+		"deleteDiscussionComment"
+	],
+	"CreateDiscussionInput": "*",
+	"CreateDiscussionPayload": "*",
+	"AddDiscussionCommentInput": "*",
+	"AddDiscussionCommentPayload": "*",
+	"MarkDiscussionCommentAsAnswerInput": "*",
+	"MarkDiscussionCommentAsAnswerPayload": "*",
+	"UnmarkDiscussionCommentAsAnswerInput": "*",
+	"UnmarkDiscussionCommentAsAnswerPayload": "*",
+	"AddUpvoteInput": "*",
+	"AddUpvotePayload": "*",
+	"RemoveUpvoteInput": "*",
+	"RemoveUpvotePayload": "*",
+	"CloseDiscussionInput": "*",
+	"CloseDiscussionPayload": "*",
+	"ReopenDiscussionInput": "*",
+	"ReopenDiscussionPayload": "*",
+	"UpdateDiscussionInput": "*",
+	"UpdateDiscussionPayload": "*",
+	"DeleteDiscussionInput": "*",
+	"DeleteDiscussionPayload": "*",
+	"UpdateDiscussionCommentInput": "*",
+	"UpdateDiscussionCommentPayload": "*",
+	"DeleteDiscussionCommentInput": "*",
+	"DeleteDiscussionCommentPayload": "*"
+}

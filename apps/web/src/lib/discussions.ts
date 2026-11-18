@@ -2,6 +2,13 @@ import { MAX_DISCUSSION_CATEGORY_SLUG_CHARS } from "./limits";
 
 export type DiscussionCategoryFormat = "open" | "announcement" | "q_and_a";
 
+/** GitHub's `DiscussionStateReason`; a discussion closes with one of these. */
+export type DiscussionStateReason =
+	| "duplicate"
+	| "outdated"
+	| "reopened"
+	| "resolved";
+
 export interface DefaultDiscussionCategory {
 	name: string;
 	emoji: string;

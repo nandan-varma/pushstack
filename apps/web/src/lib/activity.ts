@@ -19,7 +19,10 @@ type ActivityLink =
 			params: { owner: string; name: string; sha: string };
 	  }
 	| {
-			to: "/$owner/$name/issues/$id" | "/$owner/$name/pull/$id/{-$tab}";
+			to:
+				| "/$owner/$name/issues/$id"
+				| "/$owner/$name/pull/$id/{-$tab}"
+				| "/$owner/$name/discussions/$id";
 			params: { owner: string; name: string; id: string };
 	  };
 
@@ -76,6 +79,16 @@ export function describeActivity(row: ActivityRow): {
 			return {
 				text: `${verb[event.metadata.action]} pull request "${event.metadata.title}"`,
 				link: thread("pr", event.metadata.number),
+			};
+		}
+		case "discussion": {
+			const verb = { opened: "Opened", closed: "Closed", reopened: "Reopened" };
+			return {
+				text: `${verb[event.metadata.action]} discussion "${event.metadata.title}"`,
+				link: repo && {
+					to: "/$owner/$name/discussions/$id",
+					params: { ...repo, id: String(event.metadata.number) },
+				},
 			};
 		}
 		case "comment":

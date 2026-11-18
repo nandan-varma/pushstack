@@ -25,6 +25,15 @@ export type ActivityEvent =
 	| {
 			type: "comment";
 			metadata: { on: "issue" | "pr" | "discussion"; number: number };
+	  }
+	| {
+			type: "discussion";
+			metadata: {
+				/** The repo-scoped `#N`, shared with issues and pull requests. */
+				number: number;
+				title: string;
+				action: "opened" | "closed" | "reopened";
+			};
 	  };
 
 export type ActivityType = ActivityEvent["type"];

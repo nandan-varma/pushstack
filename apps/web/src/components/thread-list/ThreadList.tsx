@@ -7,6 +7,7 @@ import {
 	GitPullRequest,
 	GitPullRequestClosed,
 	GitPullRequestDraft,
+	MessagesSquare,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/EmptyState";
@@ -102,10 +103,13 @@ function StatusIcon({
 	kind,
 	status,
 }: {
-	kind: "issue" | "pull";
+	kind: "issue" | "pull" | "discussion";
 	status: string;
 }) {
 	const iconClass = "mt-0.5 size-4 shrink-0";
+	if (kind === "discussion") {
+		return <MessagesSquare className={iconClass} aria-hidden="true" />;
+	}
 	if (kind === "issue") {
 		return status === "open" ? (
 			<CircleDot className={`${iconClass} text-success`} aria-hidden="true" />
@@ -157,7 +161,7 @@ export function ThreadRow({
 	thread,
 	children,
 }: {
-	kind: "issue" | "pull";
+	kind: "issue" | "pull" | "discussion";
 	owner: string;
 	name: string;
 	thread: ThreadSummary;
@@ -198,6 +202,17 @@ export function ThreadRow({
 		</>
 	);
 	const id = thread.number.toString();
+	if (kind === "discussion") {
+		return (
+			<Link
+				to="/$owner/$name/discussions/$id"
+				params={{ owner, name, id }}
+				className={rowClass}
+			>
+				{content}
+			</Link>
+		);
+	}
 	return kind === "issue" ? (
 		<Link
 			to="/$owner/$name/issues/$id"

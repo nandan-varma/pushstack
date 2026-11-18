@@ -70,6 +70,7 @@ export async function createCommentForUser(
 	thread: ThreadRef,
 	userId: string,
 	body: string,
+	replyToId?: number,
 ): Promise<Comment> {
 	const [comment] = await db
 		.insert(comments)
@@ -78,6 +79,7 @@ export async function createCommentForUser(
 			issueId: thread.id,
 			authorId: userId,
 			body,
+			...(replyToId !== undefined && { replyToId }),
 		})
 		.returning();
 	if (!comment) throw new Error("Comment insert returned no row");

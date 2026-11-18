@@ -1,0 +1,13 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh api graphql -f query=query Setup($owner: String!, $name: String!) {\n\t\t\t\t\t\t\trepository(owner: $owner, name: $name) {\n\t\t\t\t\t\t\t\tid\n\t\t\t\t\t\t\t\tdiscussionCategories(first: 10) {\n\t\t\t\t\t\t\t\t\tnodes { id slug isAnswerable }\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t} -f owner=octo -f name=hello",
+	"requests": [
+		{
+			"query": "query Setup($owner: String!, $name: String!) {\n\t\t\t\t\t\t\trepository(owner: $owner, name: $name) {\n\t\t\t\t\t\t\t\tid\n\t\t\t\t\t\t\t\tdiscussionCategories(first: 10) {\n\t\t\t\t\t\t\t\t\tnodes { id slug isAnswerable }\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}",
+			"variables": {
+				"name": "hello",
+				"owner": "octo"
+			}
+		}
+	]
+}

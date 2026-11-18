@@ -820,6 +820,96 @@ describe.skipIf(!enabled)(
 			},
 		);
 
+		it("creates a discussion and marks an answer with gh api graphql", async () => {
+			const setup = JSON.parse(
+				(
+					await ghAs(
+						"discussion-setup",
+						"api",
+						"graphql",
+						"-f",
+						`query=query Setup($owner: String!, $name: String!) {
+							repository(owner: $owner, name: $name) {
+								id
+								discussionCategories(first: 10) {
+									nodes { id slug isAnswerable }
+								}
+							}
+						}`,
+						"-f",
+						"owner=octo",
+						"-f",
+						"name=hello",
+					)
+				).stdout,
+			).data.repository;
+			const qa = setup.discussionCategories.nodes.find(
+				(node: { isAnswerable: boolean }) => node.isAnswerable,
+			) as { id: string } | undefined;
+			if (!qa) throw new Error("octo/hello has no Q&A category");
+			const created = JSON.parse(
+				(
+					await ghAs(
+						"discussion-create",
+						"api",
+						"graphql",
+						"-f",
+						`query=mutation {
+							createDiscussion(input: {
+								repositoryId: "${setup.id}",
+								categoryId: "${qa.id}",
+								title: "A smoke question",
+								body: "Does this work?"
+							}) { discussion { id number title isAnswered } }
+						}`,
+					)
+				).stdout,
+			);
+			expect(created.errors).toBeUndefined();
+			const discussion = created.data.createDiscussion.discussion;
+			expect(discussion.isAnswered).toBe(false);
+			expect(discussion.number).toBeGreaterThan(0);
+
+			const commented = JSON.parse(
+				(
+					await ghAs(
+						"discussion-comment",
+						"api",
+						"graphql",
+						"-f",
+						`query=mutation {
+							addDiscussionComment(input: {
+								discussionId: "${discussion.id}",
+								body: "It does."
+							}) { comment { id body } }
+						}`,
+					)
+				).stdout,
+			);
+			expect(commented.errors).toBeUndefined();
+			const comment = commented.data.addDiscussionComment.comment;
+
+			const answered = JSON.parse(
+				(
+					await ghAs(
+						"discussion-answer",
+						"api",
+						"graphql",
+						"-f",
+						`query=mutation {
+							markDiscussionCommentAsAnswer(input: { id: "${comment.id}" }) {
+								discussion { isAnswered }
+							}
+						}`,
+					)
+				).stdout,
+			);
+			expect(answered.errors).toBeUndefined();
+			expect(answered.data.markDiscussionCommentAsAnswer.discussion).toEqual({
+				isAnswered: true,
+			});
+		});
+
 		it("calls the GraphQL API, with --paginate", async () => {
 			const { stdout } = await ghAs(
 				"api-graphql-paginate",

@@ -31,6 +31,7 @@ import { Route as SettingsApplicationsRouteImport } from './routes/settings_.app
 import { Route as SettingsDevelopersRouteImport } from './routes/settings_.developers'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
 import { Route as OwnerNamePullsRouteImport } from './routes/$owner.$name._pulls'
+import { Route as OwnerNameDiscussionsRouteImport } from './routes/$owner.$name.discussions'
 import { Route as OwnerNameForksRouteImport } from './routes/$owner.$name.forks'
 import { Route as OwnerNameGenerateRouteImport } from './routes/$owner.$name.generate'
 import { Route as OwnerNameGitReceivePackRouteImport } from './routes/$owner.$name.git-receive-pack'
@@ -50,6 +51,9 @@ import { Route as OwnerNameArchiveSplatRouteImport } from './routes/$owner.$name
 import { Route as OwnerNameCommitShaRouteImport } from './routes/$owner.$name.commit.$sha'
 import { Route as OwnerNameCommitsBranchRouteImport } from './routes/$owner.$name.commits.$branch'
 import { Route as OwnerNameCompareSplatRouteImport } from './routes/$owner.$name.compare.$'
+import { Route as OwnerNameDiscussionsIndexRouteImport } from './routes/$owner.$name.discussions.index'
+import { Route as OwnerNameDiscussionsIdRouteImport } from './routes/$owner.$name.discussions.$id'
+import { Route as OwnerNameDiscussionsNewRouteImport } from './routes/$owner.$name.discussions_.new'
 import { Route as OwnerNameInfoRefsRouteImport } from './routes/$owner.$name.info.refs'
 import { Route as OwnerNameIssuesIdRouteImport } from './routes/$owner.$name.issues.$id'
 import { Route as OwnerNameIssuesNewRouteImport } from './routes/$owner.$name.issues_.new'
@@ -183,6 +187,11 @@ const OwnerNamePullsRoute = OwnerNamePullsRouteImport.update({
   id: '/_pulls',
   getParentRoute: () => OwnerNameRoute,
 } as any)
+const OwnerNameDiscussionsRoute = OwnerNameDiscussionsRouteImport.update({
+  id: '/discussions',
+  path: '/discussions',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const OwnerNameForksRoute = OwnerNameForksRouteImport.update({
   id: '/forks',
   path: '/forks',
@@ -276,6 +285,22 @@ const OwnerNameCommitsBranchRoute = OwnerNameCommitsBranchRouteImport.update({
 const OwnerNameCompareSplatRoute = OwnerNameCompareSplatRouteImport.update({
   id: '/compare/$',
   path: '/compare/$',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNameDiscussionsIndexRoute =
+  OwnerNameDiscussionsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => OwnerNameDiscussionsRoute,
+  } as any)
+const OwnerNameDiscussionsIdRoute = OwnerNameDiscussionsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => OwnerNameDiscussionsRoute,
+} as any)
+const OwnerNameDiscussionsNewRoute = OwnerNameDiscussionsNewRouteImport.update({
+  id: '/discussions_/new',
+  path: '/discussions/new',
   getParentRoute: () => OwnerNameRoute,
 } as any)
 const OwnerNameInfoRefsRoute = OwnerNameInfoRefsRouteImport.update({
@@ -434,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/settings/developers': typeof SettingsDevelopersRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
+  '/$owner/$name/discussions': typeof OwnerNameDiscussionsRouteWithChildren
   '/$owner/$name/forks': typeof OwnerNameForksRoute
   '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
@@ -454,6 +480,8 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
+  '/$owner/$name/discussions/$id': typeof OwnerNameDiscussionsIdRoute
+  '/$owner/$name/discussions/new': typeof OwnerNameDiscussionsNewRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
   '/$owner/$name/issues/new': typeof OwnerNameIssuesNewRoute
@@ -464,6 +492,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
@@ -516,6 +545,8 @@ export interface FileRoutesByTo {
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
+  '/$owner/$name/discussions/$id': typeof OwnerNameDiscussionsIdRoute
+  '/$owner/$name/discussions/new': typeof OwnerNameDiscussionsNewRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
   '/$owner/$name/issues/new': typeof OwnerNameIssuesNewRoute
@@ -526,6 +557,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/discussions': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings': typeof OwnerNameSettingsIndexRoute
@@ -564,6 +596,7 @@ export interface FileRoutesById {
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/_pulls': typeof OwnerNamePullsRouteWithChildren
+  '/$owner/$name/discussions': typeof OwnerNameDiscussionsRouteWithChildren
   '/$owner/$name/forks': typeof OwnerNameForksRoute
   '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
@@ -584,6 +617,8 @@ export interface FileRoutesById {
   '/$owner/$name/commit/$sha': typeof OwnerNameCommitShaRoute
   '/$owner/$name/commits/$branch': typeof OwnerNameCommitsBranchRoute
   '/$owner/$name/compare/$': typeof OwnerNameCompareSplatRoute
+  '/$owner/$name/discussions/$id': typeof OwnerNameDiscussionsIdRoute
+  '/$owner/$name/discussions_/new': typeof OwnerNameDiscussionsNewRoute
   '/$owner/$name/info/refs': typeof OwnerNameInfoRefsRoute
   '/$owner/$name/issues/$id': typeof OwnerNameIssuesIdRoute
   '/$owner/$name/issues_/new': typeof OwnerNameIssuesNewRoute
@@ -594,6 +629,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
@@ -631,6 +667,7 @@ export interface FileRouteTypes {
     | '/settings/developers'
     | '/$owner/'
     | '/repositories/'
+    | '/$owner/$name/discussions'
     | '/$owner/$name/forks'
     | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
@@ -651,6 +688,8 @@ export interface FileRouteTypes {
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
+    | '/$owner/$name/discussions/$id'
+    | '/$owner/$name/discussions/new'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
     | '/$owner/$name/issues/new'
@@ -661,6 +700,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
     | '/$owner/$name/settings/'
@@ -713,6 +753,8 @@ export interface FileRouteTypes {
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
+    | '/$owner/$name/discussions/$id'
+    | '/$owner/$name/discussions/new'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
     | '/$owner/$name/issues/new'
@@ -723,6 +765,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/discussions'
     | '/$owner/$name/milestones'
     | '/$owner/$name/releases'
     | '/$owner/$name/settings'
@@ -760,6 +803,7 @@ export interface FileRouteTypes {
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/_pulls'
+    | '/$owner/$name/discussions'
     | '/$owner/$name/forks'
     | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
@@ -780,6 +824,8 @@ export interface FileRouteTypes {
     | '/$owner/$name/commit/$sha'
     | '/$owner/$name/commits/$branch'
     | '/$owner/$name/compare/$'
+    | '/$owner/$name/discussions/$id'
+    | '/$owner/$name/discussions_/new'
     | '/$owner/$name/info/refs'
     | '/$owner/$name/issues/$id'
     | '/$owner/$name/issues_/new'
@@ -790,6 +836,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
     | '/$owner/$name/settings/'
@@ -986,6 +1033,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNamePullsRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/discussions': {
+      id: '/$owner/$name/discussions'
+      path: '/discussions'
+      fullPath: '/$owner/$name/discussions'
+      preLoaderRoute: typeof OwnerNameDiscussionsRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/$owner/$name/forks': {
       id: '/$owner/$name/forks'
       path: '/forks'
@@ -1117,6 +1171,27 @@ declare module '@tanstack/react-router' {
       path: '/compare/$'
       fullPath: '/$owner/$name/compare/$'
       preLoaderRoute: typeof OwnerNameCompareSplatRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/discussions/': {
+      id: '/$owner/$name/discussions/'
+      path: '/'
+      fullPath: '/$owner/$name/discussions/'
+      preLoaderRoute: typeof OwnerNameDiscussionsIndexRouteImport
+      parentRoute: typeof OwnerNameDiscussionsRoute
+    }
+    '/$owner/$name/discussions/$id': {
+      id: '/$owner/$name/discussions/$id'
+      path: '/$id'
+      fullPath: '/$owner/$name/discussions/$id'
+      preLoaderRoute: typeof OwnerNameDiscussionsIdRouteImport
+      parentRoute: typeof OwnerNameDiscussionsRoute
+    }
+    '/$owner/$name/discussions_/new': {
+      id: '/$owner/$name/discussions_/new'
+      path: '/discussions/new'
+      fullPath: '/$owner/$name/discussions/new'
+      preLoaderRoute: typeof OwnerNameDiscussionsNewRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/$owner/$name/info/refs': {
@@ -1331,6 +1406,19 @@ const OwnerNamePullsRouteWithChildren = OwnerNamePullsRoute._addFileChildren(
   OwnerNamePullsRouteChildren,
 )
 
+interface OwnerNameDiscussionsRouteChildren {
+  OwnerNameDiscussionsIdRoute: typeof OwnerNameDiscussionsIdRoute
+  OwnerNameDiscussionsIndexRoute: typeof OwnerNameDiscussionsIndexRoute
+}
+
+const OwnerNameDiscussionsRouteChildren: OwnerNameDiscussionsRouteChildren = {
+  OwnerNameDiscussionsIdRoute: OwnerNameDiscussionsIdRoute,
+  OwnerNameDiscussionsIndexRoute: OwnerNameDiscussionsIndexRoute,
+}
+
+const OwnerNameDiscussionsRouteWithChildren =
+  OwnerNameDiscussionsRoute._addFileChildren(OwnerNameDiscussionsRouteChildren)
+
 interface OwnerNameIssuesRouteChildren {
   OwnerNameIssuesIdRoute: typeof OwnerNameIssuesIdRoute
 }
@@ -1358,6 +1446,7 @@ const OwnerNameSettingsRouteWithChildren =
 
 interface OwnerNameRouteChildren {
   OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
+  OwnerNameDiscussionsRoute: typeof OwnerNameDiscussionsRouteWithChildren
   OwnerNameForksRoute: typeof OwnerNameForksRoute
   OwnerNameGenerateRoute: typeof OwnerNameGenerateRoute
   OwnerNameGitReceivePackRoute: typeof OwnerNameGitReceivePackRoute
@@ -1371,6 +1460,7 @@ interface OwnerNameRouteChildren {
   OwnerNameCommitShaRoute: typeof OwnerNameCommitShaRoute
   OwnerNameCommitsBranchRoute: typeof OwnerNameCommitsBranchRoute
   OwnerNameCompareSplatRoute: typeof OwnerNameCompareSplatRoute
+  OwnerNameDiscussionsNewRoute: typeof OwnerNameDiscussionsNewRoute
   OwnerNameInfoRefsRoute: typeof OwnerNameInfoRefsRoute
   OwnerNameIssuesNewRoute: typeof OwnerNameIssuesNewRoute
   OwnerNameLegacyDottarDotgzSplatRoute: typeof OwnerNameLegacyDottarDotgzSplatRoute
@@ -1395,6 +1485,7 @@ interface OwnerNameRouteChildren {
 
 const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNamePullsRoute: OwnerNamePullsRouteWithChildren,
+  OwnerNameDiscussionsRoute: OwnerNameDiscussionsRouteWithChildren,
   OwnerNameForksRoute: OwnerNameForksRoute,
   OwnerNameGenerateRoute: OwnerNameGenerateRoute,
   OwnerNameGitReceivePackRoute: OwnerNameGitReceivePackRoute,
@@ -1408,6 +1499,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameCommitShaRoute: OwnerNameCommitShaRoute,
   OwnerNameCommitsBranchRoute: OwnerNameCommitsBranchRoute,
   OwnerNameCompareSplatRoute: OwnerNameCompareSplatRoute,
+  OwnerNameDiscussionsNewRoute: OwnerNameDiscussionsNewRoute,
   OwnerNameInfoRefsRoute: OwnerNameInfoRefsRoute,
   OwnerNameIssuesNewRoute: OwnerNameIssuesNewRoute,
   OwnerNameLegacyDottarDotgzSplatRoute: OwnerNameLegacyDottarDotgzSplatRoute,

@@ -1,0 +1,14 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh api graphql -f query=\u2026 (DiscussionList, captured against cli/cli with the fixture repository)",
+	"requests": [
+		{
+			"query": "query DiscussionList($owner: String!, $name: String!, $first: Int!) {\n  repository(owner: $owner, name: $name) {\n    hasDiscussionsEnabled\n    discussionCategories(first: 10) {\n      totalCount\n      nodes { id name slug emoji isAnswerable }\n    }\n    discussions(first: $first, orderBy: {field: UPDATED_AT, direction: DESC}) {\n      totalCount\n      pageInfo { hasNextPage endCursor }\n      nodes {\n        id number title body locked upvoteCount isAnswered\n        category { id slug name isAnswerable }\n        answer { id body }\n        author { login }\n        comments(first: 5) {\n          totalCount\n          nodes {\n            id body upvoteCount isAnswer\n            author { login }\n            replies(first: 5) { totalCount nodes { id body } }\n          }\n        }\n      }\n    }\n  }\n}\n",
+			"variables": {
+				"owner": "octo",
+				"name": "hello",
+				"first": 3
+			}
+		}
+	]
+}

@@ -99,6 +99,10 @@ const VALIDATE_ONLY = new Set([
 	"pr-review",
 	"pr-view-json",
 	"repo-clone-empty",
+	// A discussion created against the smoke server: its ids exist only there.
+	"discussion-create",
+	"discussion-comment",
+	"discussion-answer",
 ]);
 
 /** Errors a served fixture is expected to answer with (by fixture name). */
