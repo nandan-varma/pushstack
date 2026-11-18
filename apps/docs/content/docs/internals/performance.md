@@ -29,9 +29,14 @@ description: "Caching tiers, parallelism and the perf-log convention."
    [git-storage.md](/docs/internals/git-storage).
 6. **`getCommitLog`** caches the deepest walk per head SHA and slices it, so
    history pages, file history and last-commit lookups share one walk.
-7. **Repo rows** (`findRepositoryByName`) — short TTL and coalescing; every git
+7. **Diffs** (`getCommitDiff`, `getDiffBetweenRefs`,
+   `getDirectDiffBetweenRefs`) are memoized by the two immutable commit ids and
+   the work limits, in the same parsed-object cache. A ref that moves to a new
+   commit produces a new key, so this cache can never serve a stale diff; a
+   compare page re-opened on the same pair costs microseconds.
+8. **Repo rows** (`findRepositoryByName`) — short TTL and coalescing; every git
    operation makes two HTTP requests, so the second one hits it.
-8. **Writes go straight to R2** — a push costs the pack upload and a few ref
+9. **Writes go straight to R2** — a push costs the pack upload and a few ref
    writes, independent of repository size apart from the repack threshold.
 
 ## Unblock the route, then parallelise
@@ -103,12 +108,26 @@ the limit cannot deadlock, and `diffTrees` checks each object's size from its pa
 entry header before reading, so a commit touching many large files never loads
 them.
 
+## Measure before changing
+
+`pnpm perf:git` (in `apps/web`) prints cold and warm p50 for every git read
+path against the local data dir. Use it before and after a storage change:
+an optimization that only moves numbers on the second call is a cache, and one
+that does not move them is noise.
+
 ## Client bundle
+
+Server-function files keep their top-level imports in the client bundle (only
+handler bodies are stripped), so a module that a route imports as a value must
+not drag zod or a server dependency in: `site-stats.ts` imports the contract
+inside its handler, and `wiki-slug.ts` holds the page-name rules apart from
+`wiki-page.ts`'s schema because the markdown renderer runs in the browser.
+Validate the graph by grepping the built chunks, not by reading imports.
 
 Heavy, conditionally rendered dependencies are `React.lazy` with `Suspense` at
 every call site: `MarkdownRenderer` on the repo home and in `CommentCard`,
 `CodeViewer` on the blob page. `apps/web/vite.config.ts` marks `src/db/` and
 `src/server/` side-effect free so unused exports drop out of the client bundle,
-and server-only imports (Sentry's middlewares) are dynamic so the SDK stays out
-of the main chunk. Check the build's chunk output rather than trusting an
-import list.
+and server-only imports (Sentry's middlewares, openpgp) are dynamic so the SDK
+stays out of the main chunk and out of module init. Check the build's chunk
+output rather than trusting an import list.

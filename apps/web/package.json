@@ -20,6 +20,7 @@
 		"test:e2e:ui": "playwright test --ui",
 		"test:e2e:headed": "playwright test --headed",
 		"smoke:git": "vitest run --config vitest.smoke.config.ts",
+		"perf:git": "vitest run --config vitest.perf.config.ts scripts/perf/git.perf.ts",
 		"typecheck": "tsc --noEmit",
 		"graphql:codegen": "tsx scripts/graphql-codegen.ts",
 		"db:push": "tsx scripts/db-push.ts",

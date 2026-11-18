@@ -15,7 +15,9 @@ export const PERF_LOG_STORAGE_KEY = "pushstack:perf-log";
 const side = typeof window === "undefined" ? "ssr" : "client";
 
 export function isPerfLogEnabled(): boolean {
-	if (import.meta.env.DEV) return true;
+	// `import.meta.env` is Vite's; it is absent when a script (scripts/perf-*)
+	// imports app modules through plain tsx, which must not throw.
+	if (import.meta.env?.DEV) return true;
 	if (side === "ssr") return process.env.PUSHSTACK_PERF_LOG === "1";
 	try {
 		return window.localStorage.getItem(PERF_LOG_STORAGE_KEY) === "1";

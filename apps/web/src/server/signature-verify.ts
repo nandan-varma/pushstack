@@ -14,7 +14,7 @@ import {
 	createPublicKey,
 	verify as verifyBytes,
 } from "node:crypto";
-import * as openpgp from "openpgp";
+import { openpgp } from "./openpgp";
 
 /** The signature types Git can attach to a commit or tag. */
 export type SignatureType = "gpg" | "ssh" | "unknown";
@@ -118,7 +118,8 @@ export interface GpgVerification {
  * fails, so callers treat a throw as `malformed_signature`.
  */
 export async function gpgSignatureKeyIds(signature: string): Promise<string[]> {
-	const parsed = await openpgp.readSignature({ armoredSignature: signature });
+	const pgp = await openpgp();
+	const parsed = await pgp.readSignature({ armoredSignature: signature });
 	return parsed.getSigningKeyIDs().map((keyId) => keyId.toHex().toUpperCase());
 }
 
@@ -127,12 +128,13 @@ export async function verifyGpgSignature(
 	signature: string,
 	key: GpgKeyMaterial,
 ): Promise<GpgVerification> {
-	const parsedSignature = await openpgp.readSignature({
+	const pgp = await openpgp();
+	const parsedSignature = await pgp.readSignature({
 		armoredSignature: signature,
 	});
-	const verificationKey = await openpgp.readKey({ armoredKey: key.armored });
-	const message = await openpgp.createMessage({ text: payload });
-	const result = await openpgp.verify({
+	const verificationKey = await pgp.readKey({ armoredKey: key.armored });
+	const message = await pgp.createMessage({ text: payload });
+	const result = await pgp.verify({
 		message,
 		signature: parsedSignature,
 		verificationKeys: verificationKey,

@@ -26,6 +26,10 @@ import {
 	MAX_WEBHOOK_URL_CHARS,
 	STORAGE_NAME_RE,
 } from "./limits";
+import { WEBHOOK_EVENT_NAMES } from "./vocabulary";
+
+// Re-exported so `inputs.WEBHOOK_EVENT_NAMES` keeps its one source.
+export { WEBHOOK_EVENT_NAMES };
 
 /** The largest id the database's `integer` columns hold. */
 const MAX_INT32 = 2_147_483_647;
@@ -158,92 +162,6 @@ export const unsupportedUnless = (accept: (value: unknown) => boolean) =>
 
 /** Refused whenever sent. */
 export const unsupported = unsupportedUnless(() => false);
-
-/**
- * GitHub's repository webhook events (plus `*`). A name PushStack never emits
- * is still accepted, as on GitHub: a hook subscribed to it simply never fires.
- */
-export const WEBHOOK_EVENT_NAMES = [
-	"*",
-	"branch_protection_configuration",
-	"branch_protection_rule",
-	"check_run",
-	"check_suite",
-	"code_scanning_alert",
-	"commit_comment",
-	"create",
-	"custom_property",
-	"custom_property_values",
-	"delete",
-	"dependabot_alert",
-	"deploy_key",
-	"deployment",
-	"deployment_protection_rule",
-	"deployment_review",
-	"deployment_status",
-	"discussion",
-	"discussion_comment",
-	"fork",
-	"github_app_authorization",
-	"gollum",
-	"installation",
-	"installation_repositories",
-	"installation_target",
-	"issue_comment",
-	"issues",
-	"label",
-	"marketplace_purchase",
-	"member",
-	"membership",
-	"merge_group",
-	"merge_queue_entry",
-	"milestone",
-	"org_block",
-	"organization",
-	"package",
-	"page_build",
-	"personal_access_token_request",
-	"ping",
-	"project",
-	"project_card",
-	"project_column",
-	"projects_v2",
-	"projects_v2_item",
-	"projects_v2_status_update",
-	"public",
-	"pull_request",
-	"pull_request_review",
-	"pull_request_review_comment",
-	"pull_request_review_thread",
-	"push",
-	"registry_package",
-	"release",
-	"repository",
-	"repository_archived",
-	"repository_dispatch",
-	"repository_edited",
-	"repository_import",
-	"repository_renamed",
-	"repository_ruleset",
-	"repository_transferred",
-	"repository_unarchived",
-	"repository_vulnerability_alert",
-	"secret_scanning_alert",
-	"secret_scanning_alert_location",
-	"secret_scanning_scan",
-	"security_advisory",
-	"security_and_analysis",
-	"sponsorship",
-	"star",
-	"status",
-	"sub_issues",
-	"team",
-	"team_add",
-	"watch",
-	"workflow_dispatch",
-	"workflow_job",
-	"workflow_run",
-] as const;
 
 export const webhookEventName = z.enum(WEBHOOK_EVENT_NAMES);
 export const webhookEvents = z.array(webhookEventName).max(MAX_WEBHOOK_EVENTS);

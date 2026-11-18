@@ -17,6 +17,10 @@
 		"./limits": {
 			"types": "./dist/types/limits.d.ts",
 			"import": "./dist/limits.js"
+		},
+		"./vocabulary": {
+			"types": "./dist/types/vocabulary.d.ts",
+			"import": "./dist/vocabulary.js"
 		}
 	},
 	"files": [

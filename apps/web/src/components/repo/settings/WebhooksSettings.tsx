@@ -1,4 +1,4 @@
-import { inputs } from "@pushstack/api-contract";
+import { WEBHOOK_EVENT_NAMES } from "@pushstack/api-contract/vocabulary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Section } from "@/components/Section";
@@ -20,7 +20,7 @@ import {
 	type WebhookDeliverySettings,
 } from "@/server/webhooks";
 
-type WebhookEventName = (typeof inputs.WEBHOOK_EVENT_NAMES)[number];
+type WebhookEventName = (typeof WEBHOOK_EVENT_NAMES)[number];
 
 interface Draft {
 	hookId: number | null;
@@ -370,7 +370,7 @@ export function WebhooksSettings({ repoId }: { repoId: number }) {
 						<div className="space-y-1">
 							<p className="text-sm font-medium">Events</p>
 							<div className="grid max-h-64 grid-cols-2 gap-1 overflow-auto rounded-lg border border-border p-3 text-sm sm:grid-cols-3">
-								{inputs.WEBHOOK_EVENT_NAMES.map((event) => (
+								{WEBHOOK_EVENT_NAMES.map((event) => (
 									<label key={event} className="flex items-center gap-2">
 										<input
 											type="checkbox"
