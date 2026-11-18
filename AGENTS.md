@@ -31,6 +31,7 @@ pnpm + Turborepo monorepo.
 - **Review.** Read the diff and run the tests yourself, on the branch, before merging anyone's PR (a worker's or your own). Findings carry file:line or a measured number and are marked blocking/non-blocking. Prefer a fresh reader for anything touching storage, access or the schema.
 - **Merge.** Squash (`gh pr merge N --squash`), never `--delete-branch`. CI should be green; the owner may authorize merging past a failing check, and an unrelated external failure (an advisory with no fix) must not block the queue. Rebase conflicts by regenerating generated files, never hand-merging. Afterward record follow-ups and deploy status on the issue/PR.
 - **Parallelism.** Pick issues whose files no open PR touches (script over `gh pr list --json number,files`); hotspots (contract, `api/index.ts`, `limits.ts`, `query-options.ts`, schema, API docs, GraphQL codegen) take one PR at a time; add entries beside their domain, not at end of file.
+- **Test load.** A full web run is heavy and takes a machine-wide slot (`VITEST_SLOTS`, default 2): while iterating run only the affected files (`pnpm exec vitest run <paths>`), run the full suite once before the PR, and keep at most a handful of agents running at once.
 - **Hygiene.** `git fetch` before judging a base. When a step was slow or failed, fix the process (doc, test, script) now.
 
 ## Backlog conventions

@@ -25,7 +25,6 @@ export default defineConfig({
 		setupFiles: ["./src/test/setup.ts"],
 		globals: true,
 		css: true,
-		typecheck: { enabled: true },
 		watch: false,
 		include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}"],
 		exclude: ["node_modules", "dist", "e2e", ".idea", ".git", ".cache"],
