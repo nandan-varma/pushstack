@@ -18,6 +18,7 @@ import { consolidateKeptPacks } from "git-fs-s3/http";
 import { findRefCollision, type Repo, withPackedWrites } from "git-fs-s3/ops";
 import git from "isomorphic-git";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
+import { importCommit } from "./fork-objects";
 import { afterRepositoryPush, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { logWarn } from "./perf-log";
@@ -384,7 +385,9 @@ export function createRef(
 
 /**
  * `PATCH …/git/refs/{ref}`: move an existing ref. A branch only fast-forwards
- * unless `force` (GitHub's "Update is not a fast forward").
+ * unless `force` (GitHub's "Update is not a fast forward"). A fork passes its
+ * readable `upstream` so a commit only the parent has (`gh repo sync --force`)
+ * is copied in first, as forks share objects on GitHub.
  */
 export function updateRef(
 	ownerKey: string,
@@ -392,6 +395,7 @@ export function updateRef(
 	ref: string,
 	sha: string,
 	force: boolean,
+	upstream?: Repo,
 ): Promise<void> {
 	if (!writableRefName(ref)) throw invalid("Reference does not exist");
 	return withRepositoryLock(ownerKey, repoName, async () => {
@@ -402,6 +406,13 @@ export function updateRef(
 				if (isNotFoundError(error)) throw invalid("Reference does not exist");
 				throw error;
 			});
+		if (
+			upstream &&
+			ref.startsWith("refs/heads/") &&
+			!(await objectType(repo, sha))
+		) {
+			await importCommit(upstream, repo, sha, [current]);
+		}
 		await assertRefTarget(repo, ref, sha);
 		if (
 			!force &&

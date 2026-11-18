@@ -71,6 +71,8 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"only the forks the caller can read (a private fork is not listed to someone who cannot read it; a private parent is `404` to them); `sort` `newest` (default), `oldest`, `stargazers` or `watchers` (stars); pagination",
 	"repos/create-fork":
 		"`202` with the fork (`fork`, `parent` and `source`); the fork is a copy of the parent's git data, so it carries every branch and tag (`default_branch_only` is ignored) and the parent's visibility, description and default branch, but not its issues, labels, topics, settings, releases or stars; `organization` must be the caller (no organizations); forking a repository you already forked under that name answers that fork; another repository of that name is `422`; a parent over 1 GiB of git data is `422`; forks per user per hour are limited (`RATE_LIMIT_FORKS_USER`, `403` when exceeded); an archived parent can be forked",
+	"repos/merge-upstream":
+		"`repo:write` token and write access to the fork; `branch` is a branch of the fork, synced with the parent's branch of the same name: `fast-forward` when only the parent moved, `merge` (a merge commit by the caller) when both did, `none` when already up to date; a conflict is `409`, a repository that is not a fork or a parent without the branch is `422`, a missing fork branch `404`; the parent must be readable by the caller; a sync over the per-request copy caps is `422`",
 	"activity/list-watchers-for-repo":
 		"people watching (not ignoring) who can still read the repository; pagination",
 	"activity/get-repo-subscription":

@@ -25,10 +25,12 @@ import {
 	type RefTarget,
 } from "../git-read";
 import { safeCommitRevSchema } from "../git-ref-name";
+import { repoFor } from "../git-repo";
 import { ownerKeyOf } from "../git-storage-naming";
 import { deleteTag } from "../git-write";
 import { deleteHeadBranch } from "../pull-request-store";
 import { draftReleasesForDeletedTag } from "../release-store";
+import { readableUpstream } from "../repository-fork";
 import type { RepositoryRowWithOwner } from "../repository-lookup";
 import { type ApiContext, callerIdentity } from "./auth";
 import { apiCaps } from "./caps";
@@ -428,12 +430,20 @@ export async function createGitRef(ctx: ApiContext) {
 
 /** `PATCH /repos/{owner}/{repo}/git/refs/{ref}`: fast-forward, or any move with `force`. */
 export async function updateGitRef(ctx: ApiContext) {
-	const { repo } = await writableRepository(ctx);
+	const { repo, caller } = await writableRepository(ctx);
 	const name = qualified(pathParams(ctx, "git/update-ref").ref);
 	const body = await requestBody(ctx, "git/update-ref", "Reference");
 	if (!name) throw new ApiError(422, "Reference does not exist");
+	const parent = await readableUpstream(repo, caller.userId);
 	await gitWrite(() =>
-		updateRef(ownerKeyOf(repo), repo.name, name, body.sha, body.force),
+		updateRef(
+			ownerKeyOf(repo),
+			repo.name,
+			name,
+			body.sha,
+			body.force,
+			parent ? repoFor(ownerKeyOf(parent), parent.name) : undefined,
+		),
 	);
 	return refResponse(repo, name, 200);
 }

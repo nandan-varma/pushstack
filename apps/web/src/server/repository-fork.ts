@@ -252,3 +252,11 @@ export async function readableForkLinks(
 		...(source && { source }),
 	};
 }
+
+/** A fork's parent when `viewerId` can read it, else null (never named). */
+export async function readableUpstream(
+	repo: Repository,
+	viewerId: string | null | undefined,
+): Promise<RepositoryRowWithOwner | null> {
+	return (await readableForkLinks(repo, viewerId)).parent ?? null;
+}

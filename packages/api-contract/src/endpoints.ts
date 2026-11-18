@@ -76,6 +76,7 @@ import {
 	issueEvent,
 	label,
 	mergeResult,
+	mergeUpstreamResult,
 	milestone,
 	notificationThread,
 	privateUser,
@@ -524,6 +525,11 @@ export const endpoints = defineEndpoints({
 			default_branch_only: z.boolean().default(false),
 		}),
 		response: repository,
+	},
+	"repos/merge-upstream": {
+		params: repoParams,
+		body: z.object({ branch: z.string().min(1).max(255) }),
+		response: mergeUpstreamResult,
 	},
 	"activity/list-watchers-for-repo": {
 		params: repoParams,
