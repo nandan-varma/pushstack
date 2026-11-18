@@ -3,269 +3,469 @@
 # change gists.subset.json and re-run the script.
 
 extend type User {
-  """A list of the Gists the user has created."""
-  gists(
-    """Returns the elements in the list that come after the specified cursor."""
-    after: String
-    """
-    Returns the elements in the list that come before the specified cursor.
-    """
-    before: String
-    """Returns the first _n_ elements from the list."""
-    first: Int
-    """Returns the last _n_ elements from the list."""
-    last: Int
-    """Ordering options for gists returned from the connection"""
-    orderBy: GistOrder
-    """Filters Gists according to privacy."""
-    privacy: GistPrivacy
-  ): GistConnection!
+	"""
+	A list of the Gists the user has created.
+	"""
+	gists(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		Ordering options for gists returned from the connection
+		"""
+		orderBy: GistOrder
+		"""
+		Filters Gists according to privacy.
+		"""
+		privacy: GistPrivacy
+	): GistConnection!
 }
 
-"""A Gist."""
+"""
+A Gist.
+"""
 type Gist implements Node & Starrable & UniformResourceLocatable {
-  """A list of comments associated with the gist"""
-  comments(
-    """Returns the elements in the list that come after the specified cursor."""
-    after: String
-    """
-    Returns the elements in the list that come before the specified cursor.
-    """
-    before: String
-    """Returns the first _n_ elements from the list."""
-    first: Int
-    """Returns the last _n_ elements from the list."""
-    last: Int
-  ): GistCommentConnection!
-  """Identifies the date and time when the object was created."""
-  createdAt: DateTime!
-  """The gist description."""
-  description: String
-  """The files in this gist."""
-  files(
-    """The maximum number of files to return."""
-    limit: Int = 10
-    """The oid of the files to return"""
-    oid: GitObjectID
-  ): [GistFile]
-  """A list of forks associated with the gist"""
-  forks(
-    """Returns the elements in the list that come after the specified cursor."""
-    after: String
-    """
-    Returns the elements in the list that come before the specified cursor.
-    """
-    before: String
-    """Returns the first _n_ elements from the list."""
-    first: Int
-    """Returns the last _n_ elements from the list."""
-    last: Int
-    """Ordering options for gists returned from the connection"""
-    orderBy: GistOrder
-  ): GistConnection!
-  """The Node ID of the Gist object"""
-  id: ID!
-  """Identifies if the gist is a fork."""
-  isFork: Boolean!
-  """Whether the gist is public or not."""
-  isPublic: Boolean!
-  """The gist name."""
-  name: String!
-  """The gist owner."""
-  owner: RepositoryOwner
-  """Identifies when the gist was last pushed to."""
-  pushedAt: DateTime
-  """The HTML path to this resource."""
-  resourcePath: URI!
-  """Returns a count of how many stargazers there are on this object"""
-  stargazerCount: Int!
-  """A list of users who have starred this starrable."""
-  stargazers(
-    """Returns the elements in the list that come after the specified cursor."""
-    after: String
-    """
-    Returns the elements in the list that come before the specified cursor.
-    """
-    before: String
-    """Returns the first _n_ elements from the list."""
-    first: Int
-    """Returns the last _n_ elements from the list."""
-    last: Int
-    """Order for connection"""
-    orderBy: StarOrder
-  ): StargazerConnection!
-  """Identifies the date and time when the object was last updated."""
-  updatedAt: DateTime!
-  """The HTTP URL for this Gist."""
-  url: URI!
-  """
-  Returns a boolean indicating whether the viewing user has starred this starrable.
-  """
-  viewerHasStarred: Boolean!
+	"""
+	A list of comments associated with the gist
+	"""
+	comments(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): GistCommentConnection!
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	The gist description.
+	"""
+	description: String
+	"""
+	The files in this gist.
+	"""
+	files(
+		"""
+		The maximum number of files to return.
+		"""
+		limit: Int = 10
+		"""
+		The oid of the files to return
+		"""
+		oid: GitObjectID
+	): [GistFile]
+	"""
+	A list of forks associated with the gist
+	"""
+	forks(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		Ordering options for gists returned from the connection
+		"""
+		orderBy: GistOrder
+	): GistConnection!
+	"""
+	The Node ID of the Gist object
+	"""
+	id: ID!
+	"""
+	Identifies if the gist is a fork.
+	"""
+	isFork: Boolean!
+	"""
+	Whether the gist is public or not.
+	"""
+	isPublic: Boolean!
+	"""
+	The gist name.
+	"""
+	name: String!
+	"""
+	The gist owner.
+	"""
+	owner: RepositoryOwner
+	"""
+	Identifies when the gist was last pushed to.
+	"""
+	pushedAt: DateTime
+	"""
+	The HTML path to this resource.
+	"""
+	resourcePath: URI!
+	"""
+	Returns a count of how many stargazers there are on this object
+	"""
+	stargazerCount: Int!
+	"""
+	A list of users who have starred this starrable.
+	"""
+	stargazers(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		Order for connection
+		"""
+		orderBy: StarOrder
+	): StargazerConnection!
+	"""
+	Identifies the date and time when the object was last updated.
+	"""
+	updatedAt: DateTime!
+	"""
+	The HTTP URL for this Gist.
+	"""
+	url: URI!
+	"""
+	Returns a boolean indicating whether the viewing user has starred this starrable.
+	"""
+	viewerHasStarred: Boolean!
 }
 
-"""A file in a gist."""
+"""
+A file in a gist.
+"""
 type GistFile {
-  """
-  The file name encoded to remove characters that are invalid in URL paths.
-  """
-  encodedName: String
-  """The file extension from the file name."""
-  extension: String
-  """Indicates if this file is an image."""
-  isImage: Boolean!
-  """Whether the file's contents were truncated."""
-  isTruncated: Boolean!
-  """The programming language this file is written in."""
-  language: Language
-  """The gist file name."""
-  name: String
-  """The gist file size in bytes."""
-  size: Int
-  """UTF8 text data or null if the file is binary"""
-  text(
-    """Optionally truncate the returned file to this length."""
-    truncate: Int
-  ): String
+	"""
+	The file name encoded to remove characters that are invalid in URL paths.
+	"""
+	encodedName: String
+	"""
+	The file extension from the file name.
+	"""
+	extension: String
+	"""
+	Indicates if this file is an image.
+	"""
+	isImage: Boolean!
+	"""
+	Whether the file's contents were truncated.
+	"""
+	isTruncated: Boolean!
+	"""
+	The programming language this file is written in.
+	"""
+	language: Language
+	"""
+	The gist file name.
+	"""
+	name: String
+	"""
+	The gist file size in bytes.
+	"""
+	size: Int
+	"""
+	UTF8 text data or null if the file is binary
+	"""
+	text(
+		"""
+		Optionally truncate the returned file to this length.
+		"""
+		truncate: Int
+	): String
 }
 
-"""Represents a comment on an Gist."""
+"""
+Represents a comment on an Gist.
+"""
 type GistComment implements Node {
-  """The actor who authored the comment."""
-  author: Actor
-  """Identifies the comment body."""
-  body: String!
-  """The body rendered to text."""
-  bodyText: String!
-  """Identifies the date and time when the object was created."""
-  createdAt: DateTime!
-  """Identifies the primary key from the database."""
-  databaseId: Int
-  """The associated gist."""
-  gist: Gist!
-  """The Node ID of the GistComment object"""
-  id: ID!
-  """
-  Check if this comment was edited and includes an edit with the creation data
-  """
-  includesCreatedEdit: Boolean!
-  """Identifies the date and time when the object was last updated."""
-  updatedAt: DateTime!
-  """Check if the current viewer can delete this object."""
-  viewerCanDelete: Boolean!
-  """Check if the current viewer can update this object."""
-  viewerCanUpdate: Boolean!
-  """Did the viewer author this comment."""
-  viewerDidAuthor: Boolean!
+	"""
+	The actor who authored the comment.
+	"""
+	author: Actor
+	"""
+	Identifies the comment body.
+	"""
+	body: String!
+	"""
+	The body rendered to text.
+	"""
+	bodyText: String!
+	"""
+	Identifies the date and time when the object was created.
+	"""
+	createdAt: DateTime!
+	"""
+	Identifies the primary key from the database.
+	"""
+	databaseId: Int
+	"""
+	The associated gist.
+	"""
+	gist: Gist!
+	"""
+	The Node ID of the GistComment object
+	"""
+	id: ID!
+	"""
+	Check if this comment was edited and includes an edit with the creation data
+	"""
+	includesCreatedEdit: Boolean!
+	"""
+	Identifies the date and time when the object was last updated.
+	"""
+	updatedAt: DateTime!
+	"""
+	Check if the current viewer can delete this object.
+	"""
+	viewerCanDelete: Boolean!
+	"""
+	Check if the current viewer can update this object.
+	"""
+	viewerCanUpdate: Boolean!
+	"""
+	Did the viewer author this comment.
+	"""
+	viewerDidAuthor: Boolean!
 }
 
-"""The connection type for Gist."""
+"""
+The connection type for Gist.
+"""
 type GistConnection {
-  """A list of edges."""
-  edges: [GistEdge]
-  """A list of nodes."""
-  nodes: [Gist]
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-  """Identifies the total count of items in the connection."""
-  totalCount: Int!
+	"""
+	A list of edges.
+	"""
+	edges: [GistEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [Gist]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
 }
 
-"""An edge in a connection."""
+"""
+An edge in a connection.
+"""
 type GistEdge {
-  """A cursor for use in pagination."""
-  cursor: String!
-  """The item at the end of the edge."""
-  node: Gist
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: Gist
 }
 
-"""The connection type for GistComment."""
+"""
+The connection type for GistComment.
+"""
 type GistCommentConnection {
-  """A list of edges."""
-  edges: [GistCommentEdge]
-  """A list of nodes."""
-  nodes: [GistComment]
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-  """Identifies the total count of items in the connection."""
-  totalCount: Int!
+	"""
+	A list of edges.
+	"""
+	edges: [GistCommentEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [GistComment]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
 }
 
-"""An edge in a connection."""
+"""
+An edge in a connection.
+"""
 type GistCommentEdge {
-  """A cursor for use in pagination."""
-  cursor: String!
-  """The item at the end of the edge."""
-  node: GistComment
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: GistComment
 }
 
-"""Ordering options for gist connections"""
+"""
+Ordering options for gist connections
+"""
 input GistOrder {
-  """The ordering direction."""
-  direction: OrderDirection!
-  """The field to order repositories by."""
-  field: GistOrderField!
+	"""
+	The ordering direction.
+	"""
+	direction: OrderDirection!
+	"""
+	The field to order repositories by.
+	"""
+	field: GistOrderField!
 }
 
-"""Properties by which gist connections can be ordered."""
+"""
+Properties by which gist connections can be ordered.
+"""
 enum GistOrderField {
-  """Order gists by creation time"""
-  CREATED_AT
-  """Order gists by push time"""
-  PUSHED_AT
-  """Order gists by update time"""
-  UPDATED_AT
+	"""
+	Order gists by creation time
+	"""
+	CREATED_AT
+	"""
+	Order gists by push time
+	"""
+	PUSHED_AT
+	"""
+	Order gists by update time
+	"""
+	UPDATED_AT
 }
 
-"""The privacy of a Gist"""
+"""
+The privacy of a Gist
+"""
 enum GistPrivacy {
-  """Gists that are public and secret"""
-  ALL
-  """Public"""
-  PUBLIC
-  """Secret"""
-  SECRET
+	"""
+	Gists that are public and secret
+	"""
+	ALL
+	"""
+	Public
+	"""
+	PUBLIC
+	"""
+	Secret
+	"""
+	SECRET
 }
 
-"""Represents a given language found in repositories."""
+"""
+Represents a given language found in repositories.
+"""
 type Language implements Node {
-  """The Node ID of the Language object"""
-  id: ID!
-  """The name of the current language."""
-  name: String!
+	"""
+	The Node ID of the Language object
+	"""
+	id: ID!
+	"""
+	The name of the current language.
+	"""
+	name: String!
 }
 
-"""The connection type for User."""
+"""
+The connection type for User.
+"""
 type StargazerConnection {
-  """A list of edges."""
-  edges: [StargazerEdge]
-  """A list of nodes."""
-  nodes: [User]
-  """Information to aid in pagination."""
-  pageInfo: PageInfo!
-  """Identifies the total count of items in the connection."""
-  totalCount: Int!
+	"""
+	A list of edges.
+	"""
+	edges: [StargazerEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [User]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
 }
 
-"""Represents a user that's starred a repository."""
+"""
+Represents a user that's starred a repository.
+"""
 type StargazerEdge {
-  """A cursor for use in pagination."""
-  cursor: String!
-  node: User!
-  """Identifies when the item was starred."""
-  starredAt: DateTime!
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	node: User!
+	"""
+	Identifies when the item was starred.
+	"""
+	starredAt: DateTime!
 }
 
-"""Ways in which star connections can be ordered."""
+"""
+Ways in which star connections can be ordered.
+"""
 input StarOrder {
-  """The direction in which to order nodes."""
-  direction: OrderDirection!
-  """The field in which to order nodes by."""
-  field: StarOrderField!
+	"""
+	The direction in which to order nodes.
+	"""
+	direction: OrderDirection!
+	"""
+	The field in which to order nodes by.
+	"""
+	field: StarOrderField!
 }
 
-"""Properties by which star connections can be ordered."""
+"""
+Properties by which star connections can be ordered.
+"""
 enum StarOrderField {
-  """Allows ordering a list of stars by when they were created."""
-  STARRED_AT
+	"""
+	Allows ordering a list of stars by when they were created.
+	"""
+	STARRED_AT
 }

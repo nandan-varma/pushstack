@@ -3691,8 +3691,6 @@ export type ProjectV2FieldsArgs = {
 
 /** Represents an owner of a project. */
 export type ProjectV2Owner = {
-  /** The Node ID of the ProjectV2Owner object */
-  id: Scalars['ID']['output'];
   /** Find a project by number. */
   projectV2?: Maybe<ProjectV2>;
   /** A list of projects under the owner. */

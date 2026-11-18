@@ -1,12 +1,6 @@
 {
 	"Query": {
-		"fields": [
-			"resource",
-			{
-				"name": "organization",
-				"args": ["login"]
-			}
-		]
+		"fields": ["resource"]
 	},
 	"User": {
 		"$implements": ["ProjectV2Owner"],
@@ -45,7 +39,7 @@
 		]
 	},
 	"ProjectV2Owner": {
-		"fields": ["id", "projectV2", "projectsV2"]
+		"fields": ["projectV2", "projectsV2"]
 	},
 	"ProjectV2Connection": "*",
 	"ProjectV2Edge": "*",
@@ -218,7 +212,7 @@
 	"Date": "*",
 	"Organization": {
 		"$implements": ["ProjectV2Owner"],
-		"fields": ["id", "projectV2", "projectsV2"]
+		"fields": ["projectV2", "projectsV2"]
 	},
 	"ProjectV2IterationField": {
 		"$implements": [],

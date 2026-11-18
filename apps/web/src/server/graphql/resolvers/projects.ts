@@ -752,17 +752,7 @@ export const projectsResolvers: DomainResolvers = {
 			createProjectV2Field: (_source, args, ctx) =>
 				createFieldMutation(args.input, ctx),
 		},
-		Query: {
-			resource,
-			// gh resolves a project owner by asking for both a user and an
-			// organization, and treats the NOT_FOUND half as "the other type";
-			// organizations are not served yet, so that half always misses.
-			organization: (_source, args: { login: string }) => {
-				throw notFound(
-					`Could not resolve to an Organization with the login of '${args.login}'.`,
-				);
-			},
-		},
+		Query: { resource },
 		User: {
 			projectsV2: (source: UserNode, args, ctx) =>
 				projectsForOwner(source.userId, args, ctx),
