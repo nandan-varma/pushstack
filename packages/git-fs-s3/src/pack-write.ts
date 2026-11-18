@@ -61,6 +61,14 @@ export interface PackObject {
 	content: Uint8Array<ArrayBuffer>;
 }
 
+/** One whole (never deltified) pack entry: header plus deflated content. */
+export async function encodePackEntry(object: PackObject): Promise<Uint8Array> {
+	return concat(
+		encodePackObjectHeader(object.type, object.content.length),
+		await deflate(object.content),
+	);
+}
+
 /** A version-2 pack holding `objects` as full entries, in order. */
 export async function encodePack(
 	objects: readonly PackObject[],
@@ -75,14 +83,7 @@ export async function encodePack(
 	const BATCH_SIZE = 100;
 	for (let i = 0; i < objects.length; i += BATCH_SIZE) {
 		const encoded = await Promise.all(
-			objects
-				.slice(i, i + BATCH_SIZE)
-				.map(async (object) =>
-					concat(
-						encodePackObjectHeader(object.type, object.content.length),
-						await deflate(object.content),
-					),
-				),
+			objects.slice(i, i + BATCH_SIZE).map(encodePackEntry),
 		);
 		chunks.push(...encoded);
 	}

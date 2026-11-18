@@ -30,6 +30,7 @@ export {
 } from "./receive-pack.js";
 export {
 	consolidateKeptPacks,
+	deletePullHead,
 	REPACK_PACK_COUNT_THRESHOLD,
 	type RepackOptions,
 	repackRepository,

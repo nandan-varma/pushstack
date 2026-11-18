@@ -25,6 +25,7 @@ import {
 	type PackObjectType,
 	packBaseName,
 } from "../pack-write.js";
+import { pullHeadRefName } from "../refs.js";
 import { buildPackFromExistingPacks } from "./pack-reuse.js";
 import { collectReachableOids } from "./reachability.js";
 import { type HttpHooks, rawFs } from "./types.js";
@@ -303,7 +304,12 @@ export async function repackRepository(
 	// the consolidated pack is as compact as its sources. Loose objects
 	// fall back to a verified, non-deltified rebuild.
 	const packBuffer =
-		(await buildPackFromExistingPacks(repo, reachable)) ??
+		(await buildPackFromExistingPacks(
+			repo,
+			reachable,
+			undefined,
+			new Set(reachable),
+		)) ??
 		(await (async () => {
 			const objects = await readAndVerifyObjects(repo, reachable);
 			return encodePack(
@@ -359,4 +365,20 @@ export async function repackRepository(
 	// listing mid-cleanup sees either a complete old pack or none of it.
 	await unlinkPackFiles(repo, stale);
 	return stale.map((file) => `objects/pack/${file.name}`);
+}
+
+/**
+ * Delete `refs/pull/<n>/head` and consolidate straight away, so no pack keeps
+ * objects only that head named: the single-pack clone fast path serves a lone
+ * pack verbatim and trusts it to hold nothing outside the advertised refs.
+ * Callers hold the repository lock. Returns the removed pack paths, as
+ * {@link repackRepository} does.
+ */
+export async function deletePullHead(
+	repo: Repo,
+	number: number,
+	hooks?: HttpHooks,
+): Promise<string[]> {
+	await git.deleteRef({ ...repo, ref: pullHeadRefName(number) });
+	return repackRepository(repo, { threshold: 0 }, hooks);
 }
