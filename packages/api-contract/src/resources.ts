@@ -92,6 +92,38 @@ export const repository = z.strictObject({
 	source: z.strictObject(repositoryFields).optional(),
 });
 
+/**
+ * A repository webhook's `config`. A stored secret is never returned: it reads
+ * as `********`, and as `""` when there is none.
+ */
+export const webhookConfig = z.strictObject({
+	content_type: z.enum(["json", "form"]),
+	insecure_ssl: z.literal("0"),
+	secret: z.string(),
+	url,
+});
+
+/** A repository webhook (GitHub's `Repository` hook). */
+export const webhook = z.strictObject({
+	type: z.literal("Repository"),
+	id: z.number().int(),
+	name: z.literal("web"),
+	active: z.boolean(),
+	events: z.array(z.string()),
+	config: webhookConfig,
+	created_at: timestamp,
+	updated_at: timestamp,
+	url,
+	test_url: url,
+	ping_url: url,
+	deliveries_url: url,
+	last_response: z.strictObject({
+		code: z.number().int().nullable(),
+		status: z.string().nullable(),
+		message: z.string().nullable(),
+	}),
+});
+
 export const label = z.strictObject({
 	id: z.number().int(),
 	url,

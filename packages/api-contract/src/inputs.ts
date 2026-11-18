@@ -17,6 +17,9 @@ import {
 	MAX_REVIEWERS_PER_REQUEST,
 	MAX_STORAGE_NAME_LENGTH,
 	MAX_THREAD_TITLE_CHARS,
+	MAX_WEBHOOK_EVENTS,
+	MAX_WEBHOOK_SECRET_CHARS,
+	MAX_WEBHOOK_URL_CHARS,
 	STORAGE_NAME_RE,
 } from "./limits";
 
@@ -144,3 +147,120 @@ export const unsupportedUnless = (accept: (value: unknown) => boolean) =>
 
 /** Refused whenever sent. */
 export const unsupported = unsupportedUnless(() => false);
+
+/**
+ * GitHub's repository webhook events (plus `*`). A name PushStack never emits
+ * is still accepted, as on GitHub: a hook subscribed to it simply never fires.
+ */
+const WEBHOOK_EVENT_NAMES = [
+	"*",
+	"branch_protection_configuration",
+	"branch_protection_rule",
+	"check_run",
+	"check_suite",
+	"code_scanning_alert",
+	"commit_comment",
+	"create",
+	"custom_property",
+	"custom_property_values",
+	"delete",
+	"dependabot_alert",
+	"deploy_key",
+	"deployment",
+	"deployment_protection_rule",
+	"deployment_review",
+	"deployment_status",
+	"discussion",
+	"discussion_comment",
+	"fork",
+	"github_app_authorization",
+	"gollum",
+	"installation",
+	"installation_repositories",
+	"installation_target",
+	"issue_comment",
+	"issues",
+	"label",
+	"marketplace_purchase",
+	"member",
+	"membership",
+	"merge_group",
+	"merge_queue_entry",
+	"milestone",
+	"org_block",
+	"organization",
+	"package",
+	"page_build",
+	"personal_access_token_request",
+	"ping",
+	"project",
+	"project_card",
+	"project_column",
+	"projects_v2",
+	"projects_v2_item",
+	"projects_v2_status_update",
+	"public",
+	"pull_request",
+	"pull_request_review",
+	"pull_request_review_comment",
+	"pull_request_review_thread",
+	"push",
+	"registry_package",
+	"release",
+	"repository",
+	"repository_archived",
+	"repository_dispatch",
+	"repository_edited",
+	"repository_import",
+	"repository_renamed",
+	"repository_ruleset",
+	"repository_transferred",
+	"repository_unarchived",
+	"repository_vulnerability_alert",
+	"secret_scanning_alert",
+	"secret_scanning_alert_location",
+	"secret_scanning_scan",
+	"security_advisory",
+	"security_and_analysis",
+	"sponsorship",
+	"star",
+	"status",
+	"sub_issues",
+	"team",
+	"team_add",
+	"watch",
+	"workflow_dispatch",
+	"workflow_job",
+	"workflow_run",
+] as const;
+
+export const webhookEventName = z.enum(WEBHOOK_EVENT_NAMES);
+export const webhookEvents = z.array(webhookEventName).max(MAX_WEBHOOK_EVENTS);
+
+/** The URL a hook delivers to; PushStack never delivers in clear text. */
+export const webhookUrl = z
+	.string()
+	.max(MAX_WEBHOOK_URL_CHARS)
+	.refine((value) => {
+		try {
+			return new URL(value).protocol === "https:";
+		} catch {
+			return false;
+		}
+	}, "must be an HTTPS URL");
+
+export const webhookSecret = z.string().max(MAX_WEBHOOK_SECRET_CHARS);
+
+/**
+ * A hook's `config`. `insecure_ssl: 1` (delivering without certificate
+ * verification) is refused, so only `0` is accepted.
+ */
+export const webhookConfigBody = z.object({
+	url: webhookUrl,
+	content_type: z.enum(["json", "form"]).optional(),
+	secret: webhookSecret.optional(),
+	insecure_ssl: unsupportedUnless((value) => value === "0" || value === 0),
+});
+
+/** `PATCH …/config`: every setting optional. */
+export const webhookConfigPatchBody = webhookConfigBody.partial();

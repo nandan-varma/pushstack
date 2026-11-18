@@ -29,6 +29,9 @@ import {
 	threadTitle,
 	unsupported,
 	unsupportedUnless,
+	webhookConfigBody,
+	webhookConfigPatchBody,
+	webhookEvents,
 } from "./inputs";
 import {
 	MAX_BODY_CHARS,
@@ -103,6 +106,8 @@ import {
 	tag,
 	threadSubscription,
 	timelineItem,
+	webhook,
+	webhookConfig,
 } from "./resources";
 import type { EndpointInput, EndpointResponse, Schemas } from "./route";
 import { type OperationId, routes } from "./routes";
@@ -165,6 +170,7 @@ const commitShaParams = repoParams.extend({
 	commit_sha: z.string().min(1).max(100),
 });
 const refParams = repoParams.extend({ ref: z.string().min(1).max(255) });
+const hookParams = repoParams.extend({ hook_id: positiveInt });
 const checkRunParams = repoParams.extend({ check_run_id: positiveInt });
 const checkSuiteParams = repoParams.extend({ check_suite_id: positiveInt });
 /** An absolute http(s) URL a CI links its report to. */
@@ -617,6 +623,50 @@ export const endpoints = defineEndpoints({
 		params: repoParams,
 		query: pagination,
 		response: z.array(tag),
+	},
+
+	"repos/list-webhooks": {
+		params: repoParams,
+		query: pagination,
+		response: z.array(webhook),
+	},
+	"repos/create-webhook": {
+		params: repoParams,
+		body: z.object({
+			name: z.literal("web").optional(),
+			active: z.boolean().optional(),
+			events: webhookEvents.optional(),
+			config: webhookConfigBody,
+		}),
+		response: webhook,
+	},
+	"repos/get-webhook": {
+		params: hookParams,
+		response: webhook,
+	},
+	"repos/update-webhook": {
+		params: hookParams,
+		body: z.object({
+			active: z.boolean().optional(),
+			events: webhookEvents.optional(),
+			add_events: webhookEvents.optional(),
+			remove_events: webhookEvents.optional(),
+			config: webhookConfigPatchBody.optional(),
+		}),
+		response: webhook,
+	},
+	"repos/delete-webhook": {
+		params: hookParams,
+		response: noContent,
+	},
+	"repos/get-webhook-config-for-repo": {
+		params: hookParams,
+		response: webhookConfig,
+	},
+	"repos/update-webhook-config-for-repo": {
+		params: hookParams,
+		body: webhookConfigPatchBody,
+		response: webhookConfig,
 	},
 
 	"repos/list-releases": {

@@ -826,6 +826,37 @@ export const repositorySubscriptions = pgTable(
 	}),
 );
 
+/**
+ * A repository webhook (GitHub's `Repository` hook). The secret is sealed
+ * with AES-256-GCM (webhook-secret.ts) and never read back by the API; the
+ * delivery state is denormalized onto the row so listing hooks is one read.
+ */
+export const webhooks = pgTable(
+	"webhooks",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		url: text("url").notNull(),
+		contentType: text("content_type")
+			.$type<"json" | "form">()
+			.notNull()
+			.default("form"),
+		secretSealed: text("secret_sealed"),
+		events: jsonb("events").$type<string[]>().notNull().default(["push"]),
+		active: boolean("active").notNull().default(true),
+		lastStatusCode: integer("last_status_code"),
+		lastStatus: text("last_status"),
+		lastMessage: text("last_message"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoIdx: index("webhook_repo_idx").on(table.repoId),
+	}),
+);
+
 /** `follower_id` follows `followee_id` (never themselves). */
 export const follows = pgTable(
 	"follows",

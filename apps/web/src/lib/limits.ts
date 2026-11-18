@@ -162,6 +162,12 @@ export const MAX_REPO_HOMEPAGE_CHARS = 255;
 export const MAX_REPO_TOPICS = 20;
 export const MAX_REPO_TOPIC_CHARS = 50;
 
+/** GitHub's webhook caps: hooks one event type may have, events one hook may subscribe to, and URL and secret length. */
+export const MAX_HOOKS_PER_EVENT = 20;
+export const MAX_WEBHOOK_EVENTS = 30;
+export const MAX_WEBHOOK_URL_CHARS = 2048;
+export const MAX_WEBHOOK_SECRET_CHARS = 256;
+
 /**
  * Bytes a fork may copy. A fork copies its parent's git prefix server-side in
  * one synchronous request (no background workers), so the copy's time and R2

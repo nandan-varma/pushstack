@@ -34,6 +34,16 @@ export const MAX_ASSIGNEES = 10;
 export const MAX_RELEASE_NAME_CHARS = 256;
 export const MAX_RELEASE_TAG_CHARS = 255;
 
+/**
+ * Repository webhooks: hooks one event type may have in a repository
+ * (GitHub's own cap), events one hook may subscribe to, and the length of a
+ * hook's URL and secret.
+ */
+export const MAX_HOOKS_PER_EVENT = 20;
+export const MAX_WEBHOOK_EVENTS = 30;
+export const MAX_WEBHOOK_URL_CHARS = 2048;
+export const MAX_WEBHOOK_SECRET_CHARS = 256;
+
 export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
 export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
 export const MAX_RELEASE_ASSET_BYTES = 2 * 1024 * 1024 * 1024;

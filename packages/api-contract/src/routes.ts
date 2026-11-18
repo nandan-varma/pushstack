@@ -320,6 +320,44 @@ export const routes = {
 		docs: `${DOCS}/repos/repos#list-repository-tags`,
 	},
 
+	"repos/list-webhooks": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/hooks",
+		docs: `${DOCS}/repos/webhooks#list-repository-webhooks`,
+	},
+	"repos/create-webhook": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/hooks",
+		docs: `${DOCS}/repos/webhooks#create-a-repository-webhook`,
+		status: 201,
+	},
+	"repos/get-webhook": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}",
+		docs: `${DOCS}/repos/webhooks#get-a-repository-webhook`,
+	},
+	"repos/update-webhook": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}",
+		docs: `${DOCS}/repos/webhooks#update-a-repository-webhook`,
+	},
+	"repos/delete-webhook": {
+		method: "DELETE",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}",
+		docs: `${DOCS}/repos/webhooks#delete-a-repository-webhook`,
+		status: 204,
+	},
+	"repos/get-webhook-config-for-repo": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}/config",
+		docs: `${DOCS}/repos/webhooks#get-a-webhook-configuration-for-a-repository`,
+	},
+	"repos/update-webhook-config-for-repo": {
+		method: "PATCH",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}/config",
+		docs: `${DOCS}/repos/webhooks#update-a-webhook-configuration-for-a-repository`,
+	},
+
 	"repos/list-releases": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/releases",
