@@ -304,6 +304,69 @@ export const routes = {
 		path: "/gists/{gist_id}",
 		docs: `${DOCS}/gists/gists#get-a-gist`,
 	},
+	// Every literal segment after the id comes before `get-revision`, which
+	// matches any single segment.
+	"gists/check-is-starred": {
+		method: "GET",
+		path: "/gists/{gist_id}/star",
+		docs: `${DOCS}/gists/gists#check-if-a-gist-is-starred`,
+		status: 204,
+	},
+	"gists/star": {
+		method: "PUT",
+		path: "/gists/{gist_id}/star",
+		docs: `${DOCS}/gists/gists#star-a-gist`,
+		status: 204,
+	},
+	"gists/unstar": {
+		method: "DELETE",
+		path: "/gists/{gist_id}/star",
+		docs: `${DOCS}/gists/gists#unstar-a-gist`,
+		status: 204,
+	},
+	"gists/list-forks": {
+		method: "GET",
+		path: "/gists/{gist_id}/forks",
+		docs: `${DOCS}/gists/gists#list-gist-forks`,
+	},
+	"gists/fork": {
+		method: "POST",
+		path: "/gists/{gist_id}/forks",
+		docs: `${DOCS}/gists/gists#fork-a-gist`,
+		status: 201,
+	},
+	"gists/list-commits": {
+		method: "GET",
+		path: "/gists/{gist_id}/commits",
+		docs: `${DOCS}/gists/gists#list-gist-commits`,
+	},
+	"gists/list-comments": {
+		method: "GET",
+		path: "/gists/{gist_id}/comments",
+		docs: `${DOCS}/gists/comments#list-gist-comments`,
+	},
+	"gists/create-comment": {
+		method: "POST",
+		path: "/gists/{gist_id}/comments",
+		docs: `${DOCS}/gists/comments#create-a-gist-comment`,
+		status: 201,
+	},
+	"gists/get-comment": {
+		method: "GET",
+		path: "/gists/{gist_id}/comments/{comment_id}",
+		docs: `${DOCS}/gists/comments#get-a-gist-comment`,
+	},
+	"gists/update-comment": {
+		method: "PATCH",
+		path: "/gists/{gist_id}/comments/{comment_id}",
+		docs: `${DOCS}/gists/comments#update-a-gist-comment`,
+	},
+	"gists/delete-comment": {
+		method: "DELETE",
+		path: "/gists/{gist_id}/comments/{comment_id}",
+		docs: `${DOCS}/gists/comments#delete-a-gist-comment`,
+		status: 204,
+	},
 	"gists/get-revision": {
 		method: "GET",
 		path: "/gists/{gist_id}/{sha}",

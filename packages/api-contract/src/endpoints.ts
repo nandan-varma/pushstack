@@ -41,6 +41,7 @@ import {
 	MAX_CHECK_TITLE_CHARS,
 	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_GIST_COMMENT_BODY_CHARS,
 	MAX_GIST_DESCRIPTION_CHARS,
 	MAX_GIST_FILE_NAME_CHARS,
 	MAX_GIST_FILES,
@@ -82,6 +83,8 @@ import {
 	diffEntry,
 	fileCommit,
 	gist,
+	gistComment,
+	gistCommit,
 	gistSimple,
 	gitCommit,
 	gitRef,
@@ -290,6 +293,12 @@ const gistUpdateFiles = z
 	);
 const gistDescription = z.string().max(MAX_GIST_DESCRIPTION_CHARS).nullish();
 const gistListQuery = pagination.extend({ since: isoDate.optional() });
+const gistCommentParams = gistParams.extend({ comment_id: positiveInt });
+const gistCommentBody = z
+	.string()
+	.trim()
+	.min(1)
+	.max(MAX_GIST_COMMENT_BODY_CHARS);
 
 /** GitHub's search envelope: `total_count` is exact, `items` is one page. */
 const searchResult = <T extends z.ZodType>(item: T) =>
@@ -647,6 +656,52 @@ export const endpoints = defineEndpoints({
 	"gists/get": {
 		params: gistParams,
 		response: gist,
+	},
+	"gists/check-is-starred": {
+		params: gistParams,
+		response: noContent,
+	},
+	"gists/star": {
+		params: gistParams,
+		response: noContent,
+	},
+	"gists/unstar": {
+		params: gistParams,
+		response: noContent,
+	},
+	"gists/list-forks": {
+		params: gistParams,
+		response: z.array(gistSimple),
+	},
+	"gists/fork": {
+		params: gistParams,
+		response: gist,
+	},
+	"gists/list-commits": {
+		params: gistParams,
+		response: z.array(gistCommit),
+	},
+	"gists/list-comments": {
+		params: gistParams,
+		response: z.array(gistComment),
+	},
+	"gists/create-comment": {
+		params: gistParams,
+		body: z.object({ body: gistCommentBody }),
+		response: gistComment,
+	},
+	"gists/get-comment": {
+		params: gistCommentParams,
+		response: gistComment,
+	},
+	"gists/update-comment": {
+		params: gistCommentParams,
+		body: z.object({ body: gistCommentBody }),
+		response: gistComment,
+	},
+	"gists/delete-comment": {
+		params: gistCommentParams,
+		response: noContent,
 	},
 	"gists/get-revision": {
 		params: gistParams.extend({ sha: z.string().min(1).max(100) }),

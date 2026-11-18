@@ -127,6 +127,22 @@ export function withGistLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Several gists' locks at once, taken in one global order as
+ * {@link withRepositoryLocks} does; a gist named twice is locked once.
+ */
+export function withGistLocks<T>(
+	ids: readonly string[],
+	fn: () => Promise<T>,
+): Promise<T> {
+	const ordered = [...new Set(ids.map((id) => `gists/${id}`))].sort();
+	const run = (index: number): Promise<T> =>
+		index === ordered.length
+			? fn()
+			: withLockKey(ordered[index] as string, () => run(index + 1));
+	return run(0);
+}
+
+/**
  * Several repositories' locks at once, taken in one global order (by
  * `ownerKey/repoName`), each distinct repository once. Two callers that need
  * the same pair in opposite roles would otherwise hold one lock each and wait
@@ -138,20 +154,12 @@ export function withRepositoryLocks<T>(
 	repos: ReadonlyArray<{ ownerKey: string; repoName: string }>,
 	fn: () => Promise<T>,
 ): Promise<T> {
-	const byKey = new Map<string, { ownerKey: string; repoName: string }>();
-	for (const repo of repos) {
-		byKey.set(`${repo.ownerKey}/${repo.repoName}`, repo);
-	}
-	const ordered = [...byKey.entries()]
-		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-		.map(([, repo]) => repo);
+	const ordered = [
+		...new Set(repos.map((repo) => `${repo.ownerKey}/${repo.repoName}`)),
+	].sort();
 	const run = (index: number): Promise<T> =>
 		index === ordered.length
 			? fn()
-			: withRepositoryLock(
-					ordered[index].ownerKey,
-					ordered[index].repoName,
-					() => run(index + 1),
-				);
+			: withLockKey(ordered[index] as string, () => run(index + 1));
 	return run(0);
 }

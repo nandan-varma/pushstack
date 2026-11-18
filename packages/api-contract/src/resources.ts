@@ -1054,3 +1054,28 @@ export const gist = z.strictObject({
 	...gistSimple.shape,
 	fork_of: gistSimple.nullable(),
 });
+
+/** One revision in a gist's history (`GET /gists/{gist_id}/commits`). */
+export const gistCommit = z.strictObject({
+	url,
+	version: z.string(),
+	user: simpleUser.nullable(),
+	change_status: z.strictObject({
+		total: count,
+		additions: count,
+		deletions: count,
+	}),
+	committed_at: timestamp,
+});
+
+/** A comment on a gist (`GET /gists/{gist_id}/comments`). */
+export const gistComment = z.strictObject({
+	id: z.number().int(),
+	node_id: z.string(),
+	url,
+	body: z.string(),
+	user: simpleUser,
+	created_at: timestamp,
+	updated_at: timestamp,
+	author_association: z.enum(["OWNER", "COLLABORATOR", "NONE"]),
+});

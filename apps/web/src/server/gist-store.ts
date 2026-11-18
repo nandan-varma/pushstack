@@ -2,15 +2,19 @@
  * Gist rows: lookup, pages and mutations shared by the REST handlers and later
  * the web pages and GraphQL. Permission checks live in `gist-access.ts`.
  */
-import { and, count, desc, eq, gte, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, type SQL } from "drizzle-orm";
 import { db } from "#/db";
-import { gistStars, gists } from "#/db/app-schema";
+import { gistComments, gistStars, gists } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { randomBytes } from "#/lib/bytes";
 import { type PublicUser, publicUserColumns } from "./repository-lookup";
 
 export type GistRow = typeof gists.$inferSelect;
 export type GistRowWithOwner = GistRow & { owner: PublicUser };
+export type GistCommentRow = typeof gistComments.$inferSelect;
+export type GistCommentWithAuthor = GistCommentRow & {
+	author: PublicUser;
+};
 
 export interface GistPageOptions {
 	since?: Date;
@@ -40,6 +44,17 @@ const rowOf = (row: {
 	gist: GistRow;
 	owner: PublicUser;
 }): GistRowWithOwner => ({ ...row.gist, owner: row.owner });
+
+const commentWithAuthor = () =>
+	db
+		.select({ comment: gistComments, author: publicUserColumns })
+		.from(gistComments)
+		.innerJoin(user, eq(gistComments.userId, user.id));
+
+const commentOf = (row: {
+	comment: GistCommentRow;
+	author: PublicUser;
+}): GistCommentWithAuthor => ({ ...row.comment, author: row.author });
 
 const pageConditions = (conditions: SQL[], since?: Date) => [
 	...conditions,
@@ -140,8 +155,12 @@ export async function insertGist(input: {
 	ownerId: string;
 	description: string | null;
 	visibility: "public" | "secret";
+	forkOfId?: string;
 }): Promise<GistRow> {
-	const [row] = await db.insert(gists).values(input).returning();
+	const [row] = await db
+		.insert(gists)
+		.values({ ...input, isFork: input.forkOfId !== undefined })
+		.returning();
 	if (!row) throw new Error("Gist insert returned no row");
 	return row;
 }
@@ -160,4 +179,121 @@ export async function updateGistRow(
 
 export async function deleteGistRow(id: string): Promise<void> {
 	await db.delete(gists).where(eq(gists.id, id));
+}
+
+/** Forks of one gist, newest update first. */
+export function listGistForks(
+	parentId: string,
+	options: GistPageOptions,
+): Promise<GistPage> {
+	return page([eq(gists.forkOfId, parentId)], options);
+}
+
+export async function isGistStarred(
+	gistId: string,
+	userId: string,
+): Promise<boolean> {
+	const [row] = await db
+		.select({ userId: gistStars.userId })
+		.from(gistStars)
+		.where(and(eq(gistStars.gistId, gistId), eq(gistStars.userId, userId)))
+		.limit(1);
+	return row !== undefined;
+}
+
+/** Idempotent: starring an already-starred gist changes nothing. */
+export async function addGistStar(
+	gistId: string,
+	userId: string,
+): Promise<void> {
+	await db.insert(gistStars).values({ gistId, userId }).onConflictDoNothing();
+}
+
+/** Idempotent: unstarring a gist that is not starred changes nothing. */
+export async function removeGistStar(
+	gistId: string,
+	userId: string,
+): Promise<void> {
+	await db
+		.delete(gistStars)
+		.where(and(eq(gistStars.gistId, gistId), eq(gistStars.userId, userId)));
+}
+
+/** A gist's commits' users, by the email the commit carries. */
+export async function findUsersByEmail(
+	emails: string[],
+): Promise<Map<string, PublicUser>> {
+	if (emails.length === 0) return new Map();
+	const rows = await db
+		.select({ ...publicUserColumns, email: user.email })
+		.from(user)
+		.where(inArray(user.email, emails));
+	return new Map(rows.map(({ email, ...author }) => [email, author]));
+}
+
+export async function listGistComments(
+	gistId: string,
+	options: { limit: number; offset: number },
+): Promise<GistCommentWithAuthor[]> {
+	const rows = await commentWithAuthor()
+		.where(eq(gistComments.gistId, gistId))
+		.orderBy(gistComments.createdAt, gistComments.id)
+		.limit(options.limit)
+		.offset(options.offset);
+	return rows.map(commentOf);
+}
+
+export async function countGistComments(gistId: string): Promise<number> {
+	const [row] = await db
+		.select({ total: count() })
+		.from(gistComments)
+		.where(eq(gistComments.gistId, gistId));
+	return row?.total ?? 0;
+}
+
+/** Comment counts for several gists at once, for a list's `comments` field. */
+export async function gistCommentCounts(
+	gistIds: string[],
+): Promise<Map<string, number>> {
+	if (gistIds.length === 0) return new Map();
+	const rows = await db
+		.select({ gistId: gistComments.gistId, total: count() })
+		.from(gistComments)
+		.where(inArray(gistComments.gistId, gistIds))
+		.groupBy(gistComments.gistId);
+	return new Map(rows.map((row) => [row.gistId, row.total]));
+}
+
+export async function findGistComment(
+	gistId: string,
+	commentId: number,
+): Promise<GistCommentWithAuthor | null> {
+	const [row] = await commentWithAuthor()
+		.where(and(eq(gistComments.gistId, gistId), eq(gistComments.id, commentId)))
+		.limit(1);
+	return row ? commentOf(row) : null;
+}
+
+export async function insertGistComment(input: {
+	gistId: string;
+	userId: string;
+	body: string;
+}): Promise<GistCommentRow> {
+	const [row] = await db.insert(gistComments).values(input).returning();
+	if (!row) throw new Error("Gist comment insert returned no row");
+	return row;
+}
+
+export async function updateGistCommentRow(
+	id: number,
+	body: string,
+): Promise<void> {
+	await db
+		.update(gistComments)
+		.set({ body, updatedAt: new Date() })
+		.where(eq(gistComments.id, id));
+}
+
+export async function deleteGistCommentRow(id: number): Promise<void> {
+	await db.delete(gistComments).where(eq(gistComments.id, id));
 }
