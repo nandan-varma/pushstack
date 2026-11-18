@@ -233,6 +233,8 @@ export const MAX_WIKI_PAGE_NAME_CHARS = 255;
  * editor's limit held.
  */
 export const MAX_WIKI_RENDER_BYTES = 512 * 1024;
+/** What the web editor accepts for one page; a git push may exceed it. */
+export const MAX_WIKI_PAGE_CHARS = 65_536;
 
 /** GitHub's search query cap, defined once in the API contract. */
 export { MAX_SEARCH_QUERY_CHARS } from "@pushstack/api-contract/limits";

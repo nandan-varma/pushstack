@@ -14,18 +14,28 @@ import {
 	getObjectSizes,
 	isNotFoundError,
 } from "git-fs-s3";
-import { getBlob, getTreeFromRef, type TreeEntry } from "git-fs-s3/ops";
+import {
+	authorNow,
+	commitFilesToBare,
+	deleteFileFromBare,
+	getBlob,
+	getTreeFromRef,
+	type TreeEntry,
+} from "git-fs-s3/ops";
 import { MAX_WIKI_PAGES, MAX_WIKI_RENDER_BYTES } from "#/lib/limits";
 import {
 	pageFileName,
+	pageSlugFromTitle,
 	safeWikiPageSchema,
 	WIKI_CHROME_FILES,
 } from "#/lib/wiki-page";
 import { opsHooksFor } from "./git-cache";
 import { gitFs } from "./git-fs";
-import { initBareRepo, repoFor } from "./git-repo";
+import { afterRepositoryPush, initBareRepo, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
 import { getRepoWikiGitStorageRoot } from "./git-storage-naming";
+import type { CommitAuthorInput } from "./git-write";
+import { ARCHIVED_MESSAGE } from "./repo-access";
 import { findRepositoryByName } from "./repository-lookup";
 
 export const WIKI_BRANCH = "master";
@@ -186,4 +196,72 @@ export async function readWikiChrome(
 		chrome[key] = (await readBlob(ownerKey, repoName, entry)).content;
 	}
 	return chrome;
+}
+
+/** Refuse a write to a repository with no wiki, or an archived one. */
+async function assertWikiWritable(
+	ownerKey: string,
+	repoName: string,
+): Promise<void> {
+	const repository = await findRepositoryByName(ownerKey, repoName);
+	if (!repository?.hasWiki) {
+		throw new GitRepositoryNotFoundError("Repository not found");
+	}
+	if (repository.archived) throw new Error(ARCHIVED_MESSAGE);
+}
+
+/**
+ * One page save is one commit on `master`; the first save in an empty wiki
+ * creates the branch. The message defaults to GitHub's "Updated <Page>".
+ */
+export async function saveWikiPage(
+	ownerKey: string,
+	repoName: string,
+	options: {
+		page: string;
+		content: string;
+		author: CommitAuthorInput;
+		message?: string;
+	},
+): Promise<{ commitSha: string; page: string }> {
+	const page = safeWikiPageSchema.parse(pageSlugFromTitle(options.page));
+	await assertWikiWritable(ownerKey, repoName);
+	const commitSha = await withRepositoryLock(ownerKey, repoName, async () => {
+		await ensureWikiRepositoryUnlocked(ownerKey, repoName);
+		const oid = await commitFilesToBare(wikiRepoFor(ownerKey, repoName), {
+			branch: WIKI_BRANCH,
+			message: options.message ?? `Updated ${page}`,
+			author: authorNow(options.author.name, options.author.email),
+			files: [{ path: pageFileName(page), content: options.content }],
+		});
+		afterRepositoryPush(ownerKey, repoName, "wiki");
+		return oid;
+	});
+	return { commitSha, page };
+}
+
+/** Delete one page in one commit; the wiki's other pages and chrome stay. */
+export async function deleteWikiPage(
+	ownerKey: string,
+	repoName: string,
+	options: {
+		page: string;
+		author: CommitAuthorInput;
+		message?: string;
+	},
+): Promise<{ commitSha: string; page: string }> {
+	const page = safeWikiPageSchema.parse(pageSlugFromTitle(options.page));
+	await assertWikiWritable(ownerKey, repoName);
+	const commitSha = await withRepositoryLock(ownerKey, repoName, async () => {
+		await ensureWikiRepositoryUnlocked(ownerKey, repoName);
+		const oid = await deleteFileFromBare(wikiRepoFor(ownerKey, repoName), {
+			branch: WIKI_BRANCH,
+			filePath: pageFileName(page),
+			message: options.message ?? `Deleted ${page}`,
+			author: authorNow(options.author.name, options.author.email),
+		});
+		afterRepositoryPush(ownerKey, repoName, "wiki");
+		return oid;
+	});
+	return { commitSha, page };
 }

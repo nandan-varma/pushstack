@@ -83,6 +83,7 @@ import { Route as OwnerNameReleasesEditSplatRouteImport } from './routes/$owner.
 import { Route as OwnerNameReleasesTagSplatRouteImport } from './routes/$owner.$name.releases.tag.$'
 import { Route as OwnerNameTreeBranchSplatRouteImport } from './routes/$owner.$name.tree.$branch.$'
 import { Route as OwnerNameUploadBranchSplatRouteImport } from './routes/$owner.$name.upload.$branch.$'
+import { Route as OwnerNameWikiPageActionRouteImport } from './routes/$owner.$name.wiki.$page.$action'
 import { Route as GistOwnerIdRawSplatRouteImport } from './routes/gist.$owner.$id.raw.$'
 import { Route as OwnerNamePullsPullIdChar123TabChar125RouteImport } from './routes/$owner.$name._pulls.pull.$id.{-$tab}'
 
@@ -469,6 +470,11 @@ const OwnerNameUploadBranchSplatRoute =
     path: '/upload/$branch/$',
     getParentRoute: () => OwnerNameRoute,
   } as any)
+const OwnerNameWikiPageActionRoute = OwnerNameWikiPageActionRouteImport.update({
+  id: '/$action',
+  path: '/$action',
+  getParentRoute: () => OwnerNameWikiPageRoute,
+} as any)
 const GistOwnerIdRawSplatRoute = GistOwnerIdRawSplatRouteImport.update({
   id: '/raw/$',
   path: '/raw/$',
@@ -537,7 +543,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
-  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRoute
+  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
@@ -553,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/tag/$': typeof OwnerNameReleasesTagSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/wiki/$page/$action': typeof OwnerNameWikiPageActionRoute
   '/gist/$owner/$id/raw/$': typeof GistOwnerIdRawSplatRoute
   '/$owner/$name/milestone/$number/': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
@@ -608,7 +615,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
-  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRoute
+  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
@@ -624,6 +631,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/tag/$': typeof OwnerNameReleasesTagSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/wiki/$page/$action': typeof OwnerNameWikiPageActionRoute
   '/gist/$owner/$id/raw/$': typeof GistOwnerIdRawSplatRoute
   '/$owner/$name/milestone/$number': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
@@ -687,7 +695,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
-  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRoute
+  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
@@ -703,6 +711,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/tag/$': typeof OwnerNameReleasesTagSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/$owner/$name/wiki/$page/$action': typeof OwnerNameWikiPageActionRoute
   '/gist/$owner/$id/raw/$': typeof GistOwnerIdRawSplatRoute
   '/$owner/$name/milestone/$number/': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/_pulls/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
@@ -781,6 +790,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/tag/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/wiki/$page/$action'
     | '/gist/$owner/$id/raw/$'
     | '/$owner/$name/milestone/$number/'
     | '/$owner/$name/pull/$id/{-$tab}'
@@ -852,6 +862,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/tag/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/wiki/$page/$action'
     | '/gist/$owner/$id/raw/$'
     | '/$owner/$name/milestone/$number'
     | '/$owner/$name/pull/$id/{-$tab}'
@@ -930,6 +941,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/tag/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/$owner/$name/wiki/$page/$action'
     | '/gist/$owner/$id/raw/$'
     | '/$owner/$name/milestone/$number/'
     | '/$owner/$name/_pulls/pull/$id/{-$tab}'
@@ -1480,6 +1492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameUploadBranchSplatRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/$owner/$name/wiki/$page/$action': {
+      id: '/$owner/$name/wiki/$page/$action'
+      path: '/$action'
+      fullPath: '/$owner/$name/wiki/$page/$action'
+      preLoaderRoute: typeof OwnerNameWikiPageActionRouteImport
+      parentRoute: typeof OwnerNameWikiPageRoute
+    }
     '/gist/$owner/$id/raw/$': {
       id: '/gist/$owner/$id/raw/$'
       path: '/raw/$'
@@ -1602,6 +1621,17 @@ const OwnerNameSettingsRouteChildren: OwnerNameSettingsRouteChildren = {
 const OwnerNameSettingsRouteWithChildren =
   OwnerNameSettingsRoute._addFileChildren(OwnerNameSettingsRouteChildren)
 
+interface OwnerNameWikiPageRouteChildren {
+  OwnerNameWikiPageActionRoute: typeof OwnerNameWikiPageActionRoute
+}
+
+const OwnerNameWikiPageRouteChildren: OwnerNameWikiPageRouteChildren = {
+  OwnerNameWikiPageActionRoute: OwnerNameWikiPageActionRoute,
+}
+
+const OwnerNameWikiPageRouteWithChildren =
+  OwnerNameWikiPageRoute._addFileChildren(OwnerNameWikiPageRouteChildren)
+
 interface OwnerNameRouteChildren {
   OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
   OwnerNameDiscussionsRoute: typeof OwnerNameDiscussionsRouteWithChildren
@@ -1627,7 +1657,7 @@ interface OwnerNameRouteChildren {
   OwnerNameRawSplatRoute: typeof OwnerNameRawSplatRoute
   OwnerNameReleasesLatestRoute: typeof OwnerNameReleasesLatestRoute
   OwnerNameReleasesNewRoute: typeof OwnerNameReleasesNewRoute
-  OwnerNameWikiPageRoute: typeof OwnerNameWikiPageRoute
+  OwnerNameWikiPageRoute: typeof OwnerNameWikiPageRouteWithChildren
   OwnerNameMilestonesIndexRoute: typeof OwnerNameMilestonesIndexRoute
   OwnerNameReleasesIndexRoute: typeof OwnerNameReleasesIndexRoute
   OwnerNameWikiIndexRoute: typeof OwnerNameWikiIndexRoute
@@ -1668,7 +1698,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameRawSplatRoute: OwnerNameRawSplatRoute,
   OwnerNameReleasesLatestRoute: OwnerNameReleasesLatestRoute,
   OwnerNameReleasesNewRoute: OwnerNameReleasesNewRoute,
-  OwnerNameWikiPageRoute: OwnerNameWikiPageRoute,
+  OwnerNameWikiPageRoute: OwnerNameWikiPageRouteWithChildren,
   OwnerNameMilestonesIndexRoute: OwnerNameMilestonesIndexRoute,
   OwnerNameReleasesIndexRoute: OwnerNameReleasesIndexRoute,
   OwnerNameWikiIndexRoute: OwnerNameWikiIndexRoute,
