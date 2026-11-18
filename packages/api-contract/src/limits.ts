@@ -77,3 +77,20 @@ export const MAX_GIST_COMMENT_BODY_CHARS = 65_535;
 
 /** GitHub's search query cap (`q`); the web app imports it from here. */
 export const MAX_SEARCH_QUERY_CHARS = 256;
+
+/**
+ * Projects v2: per-owner projects, per-project items and fields, and the
+ * strings a caller controls. GitHub's own caps where it publishes one; the
+ * rest bound a persisted string or a per-project collection.
+ */
+export const MAX_PROJECTS_PER_USER = 100;
+export const MAX_PROJECT_ITEMS = 10_000;
+export const MAX_PROJECT_FIELDS = 50;
+export const MAX_PROJECT_SINGLE_SELECT_OPTIONS = 50;
+export const MAX_PROJECT_TITLE_CHARS = 256;
+export const MAX_PROJECT_DESCRIPTION_CHARS = 500;
+export const MAX_PROJECT_FIELD_NAME_CHARS = 50;
+export const MAX_PROJECT_OPTION_NAME_CHARS = 50;
+export const MAX_PROJECT_TEXT_VALUE_CHARS = 1024;
+/** A project or item search query, and the web view's filter string. */
+export const MAX_PROJECT_FILTER_CHARS = 500;

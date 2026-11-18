@@ -15,6 +15,7 @@ export interface DecodedNodeId {
 	key: string;
 	repositoryId?: number;
 	subjectId?: number;
+	ownerApiId?: number;
 }
 
 /**

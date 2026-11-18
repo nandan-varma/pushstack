@@ -270,5 +270,65 @@ export const relations = defineRelations(
 				optional: false,
 			}),
 		},
+		projectV2: {
+			owner: r.one.user({
+				from: r.projectV2.ownerId,
+				to: r.user.id,
+				optional: false,
+			}),
+			fields: r.many.projectV2Fields({
+				from: r.projectV2.id,
+				to: r.projectV2Fields.projectId,
+			}),
+			items: r.many.projectV2Items({
+				from: r.projectV2.id,
+				to: r.projectV2Items.projectId,
+			}),
+		},
+		projectV2Fields: {
+			project: r.one.projectV2({
+				from: r.projectV2Fields.projectId,
+				to: r.projectV2.id,
+				optional: false,
+			}),
+			options: r.many.projectV2SingleSelectOptions({
+				from: r.projectV2Fields.id,
+				to: r.projectV2SingleSelectOptions.fieldId,
+			}),
+		},
+		projectV2SingleSelectOptions: {
+			field: r.one.projectV2Fields({
+				from: r.projectV2SingleSelectOptions.fieldId,
+				to: r.projectV2Fields.id,
+				optional: false,
+			}),
+		},
+		projectV2Items: {
+			project: r.one.projectV2({
+				from: r.projectV2Items.projectId,
+				to: r.projectV2.id,
+				optional: false,
+			}),
+			issue: r.one.issues({
+				from: r.projectV2Items.issueId,
+				to: r.issues.id,
+			}),
+			fieldValues: r.many.projectV2ItemFieldValues({
+				from: r.projectV2Items.id,
+				to: r.projectV2ItemFieldValues.itemId,
+			}),
+		},
+		projectV2ItemFieldValues: {
+			item: r.one.projectV2Items({
+				from: r.projectV2ItemFieldValues.itemId,
+				to: r.projectV2Items.id,
+				optional: false,
+			}),
+			field: r.one.projectV2Fields({
+				from: r.projectV2ItemFieldValues.fieldId,
+				to: r.projectV2Fields.id,
+				optional: false,
+			}),
+		},
 	}),
 );

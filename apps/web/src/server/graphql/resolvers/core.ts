@@ -12,6 +12,7 @@ import { notFound } from "../errors";
 import {
 	decodeGlobalNodeId,
 	decodeNodeId,
+	decodeProjectNodeId,
 	encodeNodeId,
 	rowIdOfNodeKey,
 } from "../node-id";
@@ -119,7 +120,8 @@ const loadUserNode: NodeLoader = async (key, ctx) => {
 export const nodeLoaders = new Map<string, NodeLoader>();
 
 async function resolveNode(id: string, ctx: GraphQLContext) {
-	const decoded = decodeGlobalNodeId(id) ?? decodeNodeId(id);
+	const decoded =
+		decodeProjectNodeId(id) ?? decodeGlobalNodeId(id) ?? decodeNodeId(id);
 	const load = decoded && nodeLoaders.get(decoded.type);
 	const node = decoded && load ? await load(decoded.key, ctx, decoded) : null;
 	if (!node) {

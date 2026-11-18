@@ -157,9 +157,7 @@ export interface DecodedGlobalNodeId {
 	/** A `REA_` reaction's subject: an issue, pull request or issue comment. */
 	subjectId?: number;
 }
-
-/**
- * The type, key and repository a new-form node id names, or null. Only the
+/** The type, key and repository a new-form node id names, or null. Only the
  * canonical spelling is accepted: a padded or re-encoded body is not an id
  * GitHub (or we) ever issued.
  */
@@ -168,12 +166,69 @@ export function decodeGlobalNodeId(id: string): DecodedGlobalNodeId | null {
 	const found = GLOBAL_TYPES.find(([, prefix]) => id.startsWith(`${prefix}_`));
 	if (!found) return null;
 	const [type, prefix] = found;
+	const tuple = readTuple(id, prefix);
+	return tuple ? nodeOfTuple(type, tuple) : null;
+}
+
+/**
+ * Projects v2 are owned by a user, not a repository, so their new-form ids
+ * carry the owner's numeric id in the middle slot. Single-select fields share
+ * `project_v2_fields` with the others; the prefix names the GraphQL type.
+ */
+const PROJECT_PREFIX = {
+	ProjectV2: "PVT",
+	ProjectV2Item: "PVTI",
+	ProjectV2Field: "PVTF",
+	ProjectV2SingleSelectField: "PVTSSF",
+} as const;
+
+export type ProjectNodeType = keyof typeof PROJECT_PREFIX;
+
+/** Longest first, so `PVTSSF_` is not read as `PVT_`. */
+const PROJECT_TYPES = (
+	Object.entries(PROJECT_PREFIX) as Array<[ProjectNodeType, string]>
+).sort(([, a], [, b]) => b.length - a.length);
+
+export interface DecodedProjectNodeId {
+	type: ProjectNodeType;
+	key: string;
+	ownerApiId: number;
+}
+
+export function encodeProjectNodeId(
+	type: ProjectNodeType,
+	ownerApiId: number,
+	key: number,
+): string {
+	const tuple = [
+		0x93, // fixarray of three
+		0x00,
+		...msgpackUint(ownerApiId),
+		...msgpackUint(key),
+	];
+	return `${PROJECT_PREFIX[type]}_${Buffer.from(tuple).toString("base64url")}`;
+}
+
+export function decodeProjectNodeId(id: string): DecodedProjectNodeId | null {
+	if (id.length > 300) return null;
+	const found = PROJECT_TYPES.find(([, prefix]) => id.startsWith(`${prefix}_`));
+	if (!found) return null;
+	const [type, prefix] = found;
+	const tuple = readTuple(id, prefix);
+	if (!tuple || tuple.length !== 3 || tuple[0] !== 0) return null;
+	const [, ownerApiId, key] = tuple;
+	return typeof ownerApiId === "number" && typeof key === "number"
+		? { type, key: String(key), ownerApiId }
+		: null;
+}
+
+/** A node id's body as a msgpack tuple, or null for anything else. */
+function readTuple(id: string, prefix: string): MsgpackValue[] | null {
 	const body = id.slice(prefix.length + 1);
 	if (!/^[A-Za-z0-9_-]+$/.test(body) || body.length > 200) return null;
 	const bytes = Buffer.from(body, "base64url");
 	if (bytes.toString("base64url") !== body) return null;
-	const tuple = readMsgpackTuple(bytes);
-	return tuple ? nodeOfTuple(type, tuple) : null;
+	return readMsgpackTuple(bytes);
 }
 
 /** The node a tuple names, or null when the tuple isn't that type's shape. */

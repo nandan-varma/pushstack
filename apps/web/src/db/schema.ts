@@ -22,6 +22,9 @@ export const user = pgTable("user", {
 	// GitHub-style integer id for /api/v3 clients. Not a Better Auth field:
 	// the identity default fills it on insert and backfills existing rows.
 	apiId: integer("apiId").notNull().unique().generatedAlwaysAsIdentity(),
+	// Not a Better Auth field: the next per-owner Projects v2 number, claimed
+	// with one atomic UPDATE … RETURNING.
+	nextProjectNumber: integer("next_project_number").notNull().default(1),
 });
 
 export const session = pgTable(
