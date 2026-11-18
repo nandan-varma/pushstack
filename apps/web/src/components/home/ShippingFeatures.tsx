@@ -2,14 +2,20 @@ import { Link } from "@tanstack/react-router";
 import {
 	ArrowRight,
 	Bell,
+	BookOpen,
+	Code2,
 	GitCompare,
 	GitFork,
 	GitMerge,
+	KanbanSquare,
+	Lock,
 	type LucideIcon,
+	MessagesSquare,
 	Search,
 	ShieldCheck,
 	Tag,
 	Terminal,
+	Webhook,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { DEMO_REPO } from "@/lib/site";
@@ -139,6 +145,86 @@ export function ShippingFeatures() {
 				>
 					<Link to="/notifications" className={LINK_CLASS}>
 						Your inbox
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</Feature>
+				<Feature
+					icon={MessagesSquare}
+					title="Discussions"
+					body="Threads with categories, answers, pinning and locking, on the same numbering as issues, readable through GraphQL and the web."
+				>
+					<Link
+						to="/$owner/$name/discussions"
+						params={DEMO_REPO}
+						className={LINK_CLASS}
+					>
+						Open the discussions
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</Feature>
+				<Feature
+					icon={BookOpen}
+					title="Wikis"
+					body="Each repository's wiki is a git repository you can clone and push, and pages you can read and edit on the web."
+				>
+					<Link
+						to="/$owner/$name/wiki"
+						params={DEMO_REPO}
+						className={LINK_CLASS}
+					>
+						Read the wiki
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</Feature>
+				<Feature
+					icon={Code2}
+					title="Gists"
+					body="Small multi-file snippets that are real git repositories: create them with the API or gh, clone them, and star and fork them."
+				>
+					<Link to="/gist" className={LINK_CLASS}>
+						Browse gists
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</Feature>
+				<Feature
+					icon={KanbanSquare}
+					title="Projects"
+					body="Projects v2 with fields and items, available through GraphQL, with a list and a table view on the web."
+				>
+					<Link
+						to="/users/$login/projects"
+						params={{ login: DEMO_REPO.owner }}
+						className={LINK_CLASS}
+					>
+						Projects of the owner
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</Feature>
+				<Feature
+					icon={Lock}
+					title="Branch protection"
+					body="Rules per branch pattern require reviews, code owner approval and status checks, and block force pushes and deletions at push and merge."
+				>
+					<Link
+						to="/$owner/$name/settings/branches"
+						params={DEMO_REPO}
+						className={LINK_CLASS}
+					>
+						Branch settings
+						<ArrowRight aria-hidden="true" className="size-4" />
+					</Link>
+				</Feature>
+				<Feature
+					icon={Webhook}
+					title="Webhooks"
+					body="Signed deliveries for push, issue and pull request events, with a delivery log and redelivery."
+				>
+					<Link
+						to="/$owner/$name/settings/hooks"
+						params={DEMO_REPO}
+						className={LINK_CLASS}
+					>
+						Webhook settings
 						<ArrowRight aria-hidden="true" className="size-4" />
 					</Link>
 				</Feature>
