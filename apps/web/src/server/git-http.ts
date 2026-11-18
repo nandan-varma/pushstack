@@ -23,10 +23,16 @@ import {
 	REPACK_PACK_COUNT_THRESHOLD,
 	receivePackResponse,
 } from "git-fs-s3/http";
+import type { Repository } from "#/db/app-schema";
+import { vetPush } from "./branch-protection";
 import { recordPushReferences } from "./commit-references";
 import { GIT_HTTP_MAX_BODY_BYTES } from "./config";
 import { GIST_BRANCH, gistOpsHooks, gistRepoFor } from "./gist-git";
-import { authorizeGitRequest, authorizeWikiGitRequest } from "./git-auth";
+import {
+	authorizeGitRequest,
+	authorizeWikiGitRequest,
+	type GitAccess,
+} from "./git-auth";
 import {
 	detectLooseObjectsHint,
 	gistStorageExists,
@@ -162,25 +168,40 @@ export async function readGitRequestBody(
 
 async function receivePack(
 	ownerKey: string,
-	repoName: string,
-	repoId: number,
+	repository: Repository,
+	auth: GitAccess,
 	defaultBranch: string,
-	pusherId: string | null,
 	body: Uint8Array,
 	kind: RepoKind = "repo",
 ) {
+	const repoName = repository.name;
+	const repoId = repository.id;
+	const pusherId = auth.userId;
 	const parsed = parseReceivePackBody(body);
 	const outcome = await withRepositoryLock(ownerKey, repoName, async () => {
 		const result = await applyReceivePack(
 			repoFor(ownerKey, repoName, kind),
 			parsed,
-			{ defaultBranch, repack: { threshold: REPACK_PACK_COUNT_THRESHOLD } },
+			{
+				defaultBranch,
+				repack: { threshold: REPACK_PACK_COUNT_THRESHOLD },
+				// A wiki has no branch protection rules, as on GitHub.
+				vetRefUpdates:
+					kind === "repo"
+						? (updates, repo) => vetPush(repository, pusherId, updates, repo)
+						: undefined,
+			},
 			hooks,
 		);
 		afterRepositoryPush(ownerKey, repoName, kind);
 		// A wiki has no issues, pull requests or releases, so a wiki push runs
 		// none of the repository's post-push bookkeeping.
-		if (kind === "repo" && pusherId && !result.unpackError) {
+		if (
+			kind === "repo" &&
+			pusherId &&
+			!result.unpackError &&
+			result.results.some((r) => r.ok)
+		) {
 			try {
 				await recordPushReferences({
 					ownerKey,
@@ -219,6 +240,7 @@ async function receivePack(
 	return receivePackResponse(outcome.results, {
 		capabilities: parsed.capabilities,
 		unpackError: outcome.unpackError,
+		messages: outcome.messages,
 	});
 }
 
@@ -336,15 +358,7 @@ async function serve(
 	}
 	const body = await readGitRequestBody(request);
 	if (needsWrite) {
-		return receivePack(
-			ownerKey,
-			repoName,
-			repository.id,
-			defaultBranch,
-			auth.userId,
-			body,
-			kind,
-		);
+		return receivePack(ownerKey, repository, auth, defaultBranch, body, kind);
 	}
 	return handleUploadPack(
 		repoFor(ownerKey, repoName, kind),

@@ -83,18 +83,22 @@ export function parsePktLines(buf: Uint8Array): Array<string | null> {
  */
 const SIDE_BAND_MAX_CHUNK = 65515;
 
+function sideBand(band: 1 | 2, data: Uint8Array): Uint8Array[] {
+	const parts: Uint8Array[] = [];
+	for (let offset = 0; offset < data.length; offset += SIDE_BAND_MAX_CHUNK) {
+		const chunk = data.subarray(offset, offset + SIDE_BAND_MAX_CHUNK);
+		parts.push(pktLineBuffer(concat(new Uint8Array([band]), chunk)));
+	}
+	return parts;
+}
+
 export function sideBandPackfile(
 	packData: Uint8Array,
 ): Uint8Array<ArrayBuffer> {
-	const parts: Uint8Array[] = [];
-	for (
-		let offset = 0;
-		offset < packData.length;
-		offset += SIDE_BAND_MAX_CHUNK
-	) {
-		const chunk = packData.subarray(offset, offset + SIDE_BAND_MAX_CHUNK);
-		parts.push(pktLineBuffer(concat(new Uint8Array([1]), chunk)));
-	}
-	parts.push(FLUSH);
-	return concat(...parts);
+	return concat(...sideBand(1, packData), FLUSH);
+}
+
+/** Band-2 progress or error text: what git prints as `remote: …` lines. */
+export function sideBandProgress(text: string): Uint8Array<ArrayBuffer> {
+	return concat(...sideBand(2, new TextEncoder().encode(text)));
 }

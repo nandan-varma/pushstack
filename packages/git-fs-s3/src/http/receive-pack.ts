@@ -12,7 +12,12 @@ import type { Repo } from "../ops/types.js";
 import { storePack } from "../pack-write.js";
 import { isSafeFullRefName } from "../refs.js";
 import { findInvalidTree } from "./fsck.js";
-import { FLUSH, pktLine, sideBandPackfile } from "./pkt-line.js";
+import {
+	FLUSH,
+	pktLine,
+	sideBandPackfile,
+	sideBandProgress,
+} from "./pkt-line.js";
 import { collectReachableOids } from "./reachability.js";
 import { type RepackOptions, repackRepository } from "./repack.js";
 import { type GitHttpResult, type HttpHooks, rawFs, runStep } from "./types.js";
@@ -30,6 +35,15 @@ export interface RefUpdateResult {
 	refName: string;
 	ok: boolean;
 	reason?: string;
+}
+
+/** A caller's refusal of one ref update, before anything is written. */
+export interface RefUpdateVeto {
+	refName: string;
+	/** The `ng` reason the client reports, e.g. "protected branch hook declined". */
+	reason: string;
+	/** Lines the client prints on the sideband before the report. */
+	messages: string[];
 }
 
 export interface ParsedReceivePack {
@@ -379,7 +393,12 @@ export async function applyRefUpdates(
  */
 export function receivePackResponse(
 	results: RefUpdateResult[],
-	options?: { capabilities?: readonly string[]; unpackError?: string },
+	options?: {
+		capabilities?: readonly string[];
+		unpackError?: string;
+		/** Printed on the sideband before the report, as git's `remote:` lines. */
+		messages?: readonly string[];
+	},
 ): GitHttpResult {
 	const capabilities = options?.capabilities ?? ["report-status"];
 	const report = capabilities.includes("report-status")
@@ -395,9 +414,16 @@ export function receivePackResponse(
 				FLUSH,
 			)
 		: new Uint8Array();
+	// Band 2, before the report: git prints each line as `remote: …`. Only a
+	// sideband client can read them; it is the only client that gets a report
+	// either.
+	const notice =
+		capabilities.includes("side-band-64k") && options?.messages?.length
+			? sideBandProgress(options.messages.map((line) => `${line}\n`).join(""))
+			: new Uint8Array();
 	const responseBody =
 		capabilities.includes("side-band-64k") && report.length > 0
-			? sideBandPackfile(report)
+			? concat(notice, sideBandPackfile(report))
 			: report;
 
 	return {
@@ -420,6 +446,15 @@ export interface ApplyReceivePackOptions {
 	 * too.
 	 */
 	repack?: RepackOptions | false;
+	/**
+	 * Refuse updates before they are applied — the one place a protection rule
+	 * can judge a push. Runs after the incoming pack is stored, so a new tip's
+	 * ancestry is readable, and before any ref moves.
+	 */
+	vetRefUpdates?: (
+		updates: RefUpdateCommand[],
+		repo: Repo,
+	) => Promise<RefUpdateVeto[]>;
 }
 
 /** The outcome of {@link applyReceivePack}. */
@@ -428,6 +463,8 @@ export interface ApplyReceivePackResult {
 	stalePackPaths: string[];
 	/** Set when the incoming pack couldn't be stored or indexed. */
 	unpackError?: string;
+	/** Sideband lines for refusals, for {@link receivePackResponse}. */
+	messages?: string[];
 }
 
 /**
@@ -450,10 +487,6 @@ export async function applyReceivePack(
 	hooks?: HttpHooks,
 ): Promise<ApplyReceivePackResult> {
 	await ensureRepoInitialized(repo, options.defaultBranch);
-	const preflight = await validateRefUpdates(repo, parsed.refUpdates);
-	const acceptedUpdates = parsed.refUpdates.filter(
-		(_, index) => preflight[index]?.ok,
-	);
 	const fsp = rawFs(repo);
 	const packDir = `${repo.gitdir}/objects/pack`;
 	// Null when the listing failed for a reason other than the directory being
@@ -468,22 +501,18 @@ export async function applyReceivePack(
 	let incomingPacked: Awaited<ReturnType<typeof storeIncomingPack>>["packed"];
 	let incomingOids: ReadonlySet<string> = new Set();
 	try {
-		const stored = await storeIncomingPack(
-			repo,
-			acceptedUpdates.some((update) => update.newOid !== ZERO_OID)
-				? parsed.packData
-				: new Uint8Array(),
-			hooks,
-		);
+		const stored = await storeIncomingPack(repo, parsed.packData, hooks);
 		incomingPackPaths = stored.paths;
 		incomingPacked = stored.packed;
 		incomingOids = new Set(stored.oids);
 	} catch (err) {
 		hooks?.onWarn?.("receive-pack: incoming pack rejected", err);
 		return {
-			results: preflight.map((result) =>
-				result.ok ? { ...result, ok: false, reason: "unpacker error" } : result,
-			),
+			results: parsed.refUpdates.map(({ refName }) => ({
+				refName,
+				ok: false,
+				reason: "unpacker error",
+			})),
 			stalePackPaths: [],
 			unpackError: "index-pack failed",
 		};
@@ -493,6 +522,33 @@ export async function applyReceivePack(
 	const removableIncoming = incomingPackPaths
 		.filter((path) => !existingPacks.has(path.slice(packDir.length + 1)))
 		.sort((a, b) => Number(b.endsWith(".idx")) - Number(a.endsWith(".idx")));
+
+	// Runs after the pack is stored so a new tip's ancestry is readable, and
+	// before any ref moves. It judges every command, so a deletion the rule
+	// forbids reports its own reason rather than the default branch's. A push
+	// whose every update is vetoed keeps git's all-rejected path below: the
+	// pack is unlinked, no ref moves and nothing repacks.
+	const vetoes = options.vetRefUpdates
+		? await options.vetRefUpdates(parsed.refUpdates, repo)
+		: [];
+	const vetoed = new Map(vetoes.map((veto) => [veto.refName, veto]));
+	const messages = vetoes.flatMap((veto) => veto.messages);
+	const updates = parsed.refUpdates.filter(
+		(update) => !vetoed.has(update.refName),
+	);
+	const preflight = await validateRefUpdates(repo, updates);
+	const preflightByRef = new Map(
+		preflight.map((result, index) => [updates[index]?.refName ?? "", result]),
+	);
+	const acceptedUpdates = updates.filter((_, index) => preflight[index]?.ok);
+	/** Every command's failure reason, keeping the vetoes already reported. */
+	const failed = (reason: string): RefUpdateResult[] =>
+		parsed.refUpdates.map(({ refName }) => {
+			const veto = vetoed.get(refName);
+			if (veto) return { refName, ok: false, reason: veto.reason };
+			const pre = preflightByRef.get(refName);
+			return pre && !pre.ok ? pre : { refName, ok: false, reason };
+		});
 
 	// Listed at most once, only when the tips or the collision check need it.
 	let refNames: string[] | undefined;
@@ -505,19 +561,11 @@ export async function applyReceivePack(
 			await fsp.unlink(filepath).catch(() => {});
 		}
 		return {
-			results: preflight.map((result) =>
-				result.ok
-					? {
-							...result,
-							ok: false,
-							reason: `fsck error in packed object: ${badTree}`,
-						}
-					: result,
-			),
+			results: failed(`fsck error in packed object: ${badTree}`),
 			stalePackPaths: [],
 		};
 	}
-	const newTips = acceptedUpdates
+	const newTips = updates
 		.filter((update) => update.newOid !== ZERO_OID)
 		.map((update) => update.newOid);
 	if (newTips.length > 0) {
@@ -529,7 +577,7 @@ export async function applyReceivePack(
 		// and shouldn't cost a walk of the entire repo history to validate.
 		refNames = await snapshotRefNames(repo);
 		const haveOids = await collectExistingRefTips(repo, refNames);
-		for (const update of acceptedUpdates) {
+		for (const update of updates) {
 			if (update.oldOid !== ZERO_OID) haveOids.add(update.oldOid);
 		}
 		const { complete, invalidTreeEntry } = await collectReachableOids(
@@ -548,14 +596,8 @@ export async function applyReceivePack(
 				await fsp.unlink(filepath).catch(() => {});
 			}
 			return {
-				results: preflight.map((result) =>
-					result.ok
-						? {
-								...result,
-								ok: false,
-								reason: `fsck error in packed object: ${invalidTreeEntry.message}`,
-							}
-						: result,
+				results: failed(
+					`fsck error in packed object: ${invalidTreeEntry.message}`,
 				),
 				stalePackPaths: [],
 			};
@@ -565,29 +607,27 @@ export async function applyReceivePack(
 				await fsp.unlink(filepath).catch(() => {});
 			}
 			return {
-				results: preflight.map((result) =>
-					result.ok
-						? { ...result, ok: false, reason: "incomplete object graph" }
-						: result,
-				),
+				results: failed("incomplete object graph"),
 				stalePackPaths: [],
 			};
 		}
 	}
 
 	const applied = await applyRefUpdates(repo, acceptedUpdates, hooks, refNames);
-	const results = preflight.map((result, index) =>
-		result.ok
-			? (applied.find(
-					(entry) => entry.refName === parsed.refUpdates[index]?.refName,
-				) ?? result)
-			: result,
-	);
+	const appliedByRef = new Map(applied.map((entry) => [entry.refName, entry]));
+	const results = parsed.refUpdates.map(({ refName }) => {
+		const veto = vetoed.get(refName);
+		if (veto) return { refName, ok: false, reason: veto.reason };
+		const pre = preflightByRef.get(refName);
+		if (!pre) return { refName, ok: false, reason: "not applied" };
+		if (!pre.ok) return pre;
+		return appliedByRef.get(refName) ?? pre;
+	});
 	if (!results.some((result) => result.ok)) {
 		for (const filepath of removableIncoming) {
 			await fsp.unlink(filepath).catch(() => {});
 		}
-		return { results, stalePackPaths: [] };
+		return { results, stalePackPaths: [], messages };
 	}
 	const repackOptions = options.repack;
 	// Reached only when at least one ref update was applied above. Best-effort:
@@ -618,5 +658,5 @@ export async function applyReceivePack(
 			hooks?.onWarn?.("repack after push failed (non-fatal)", error);
 		}
 	}
-	return { results, stalePackPaths };
+	return { results, stalePackPaths, messages };
 }

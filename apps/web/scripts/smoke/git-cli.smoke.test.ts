@@ -550,6 +550,84 @@ describe("native git against the pushstack git endpoint", () => {
 		).toBe("updated leaf\n");
 	}, 120_000);
 
+	it("refuses a force push and a deletion on a protected branch (GH006)", async () => {
+		const { findRepositoryByName } = await import("#/server/repository-lookup");
+		const { writeBranchProtection } = await import(
+			"#/server/branch-protection-store"
+		);
+		const repository = await findRepositoryByName(USER.username, REPO);
+		if (!repository) throw new Error("fixture missing");
+		const protect = (pattern: string) =>
+			writeBranchProtection(repository.id, pattern, {
+				requiresPullRequest: true,
+				requiredApprovingReviewCount: 0,
+				dismissStaleReviews: false,
+				requireCodeOwnerReviews: false,
+				requiredStatusChecksStrict: null,
+				enforceAdmins: true,
+				allowForcePushes: false,
+				allowDeletions: false,
+				statusChecks: [],
+			});
+		await protect("main");
+
+		const a = path.join(work, "a");
+		await git(a, "fetch", "-q", "origin");
+		const before = (await git(work, "ls-remote", remote, "refs/heads/main"))
+			.stdout;
+		// A sibling of the remote tip: not a fast-forward, so a force push.
+		const base = (await git(a, "rev-parse", "origin/main~1")).stdout.trim();
+		await git(a, "checkout", "-q", "-B", "main", base);
+		await commitFile(a, "rewritten.txt", "rewritten\n");
+		const rewritten = (await git(a, "rev-parse", "HEAD")).stdout.trim();
+		const forced = await gitFails(a, "push", "--force", "origin", "main");
+		expect(forced).toContain(
+			"remote: error: GH006: Protected branch update failed for refs/heads/main.",
+		);
+		expect(forced).toContain(
+			"remote: error: Cannot force-push to a protected branch.",
+		);
+		expect(forced).toContain(
+			"! [remote rejected] main -> main (protected branch hook declined)",
+		);
+		expect(
+			(await git(work, "ls-remote", remote, "refs/heads/main")).stdout,
+		).toBe(before);
+
+		// The same push also creates an unprotected branch, which still applies.
+		const mixed = await gitFails(
+			a,
+			"push",
+			"--force",
+			"origin",
+			"main",
+			`${rewritten}:refs/heads/survivor`,
+		);
+		expect(mixed).toContain("! [remote rejected] main -> main");
+		expect((await git(work, "ls-remote", remote)).stdout).toMatch(
+			/refs\/heads\/survivor/,
+		);
+
+		// An unprotected branch takes the same forced update.
+		await git(a, "checkout", "-q", "-B", "loose", base);
+		await commitFile(a, "loose.txt", "loose\n");
+		const loose = (await git(a, "rev-parse", "HEAD")).stdout.trim();
+		await git(a, "push", "-q", "--force", "origin", "loose");
+
+		await git(a, "push", "-q", "origin", `${loose}:refs/heads/guarded`);
+		await protect("guarded");
+		const deleted = await gitFails(a, "push", "origin", "--delete", "guarded");
+		expect(deleted).toContain(
+			"remote: error: GH006: Protected branch update failed for refs/heads/guarded.",
+		);
+		expect(deleted).toContain(
+			"remote: error: Cannot delete a protected branch.",
+		);
+		expect((await git(work, "ls-remote", remote)).stdout).toMatch(
+			/refs\/heads\/guarded/,
+		);
+	}, 120_000);
+
 	it("never wrote a loose object to storage", () => {
 		const loose = [...fakeS3.objects.keys()].filter((key) =>
 			/\/objects\/[0-9a-f]{2}\/[0-9a-f]{38}$/.test(key),

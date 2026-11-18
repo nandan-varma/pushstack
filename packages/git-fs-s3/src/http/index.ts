@@ -10,6 +10,7 @@ export {
 	pktLine,
 	pktLineBuffer,
 	sideBandPackfile,
+	sideBandProgress,
 } from "./pkt-line.js";
 export {
 	collectReachableOids,
@@ -26,6 +27,7 @@ export {
 	parseReceivePackBody,
 	type RefUpdateCommand,
 	type RefUpdateResult,
+	type RefUpdateVeto,
 	receivePackResponse,
 } from "./receive-pack.js";
 export {
