@@ -12,6 +12,7 @@ import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { requestCodeownerReviews } from "../codeowners";
 import { commitCommentCounts } from "../commit-comment-store";
+import { UNSIGNED, verifyCommits } from "../commit-verification";
 import {
 	getBranchDiff,
 	getBranches,
@@ -719,12 +720,14 @@ export async function listPullCommits(ctx: ApiContext) {
 		repo.id,
 		infos.map((info) => info.oid),
 	);
+	const verifications = await verifyCommits(ownerKey, repo.name, infos);
 	return json(
 		infos.map((info) =>
 			commitObject(
 				{ id: repo.id, fullName: fullNameOf(repo) },
 				info,
-				counts.get(info.oid),
+				counts.get(info.oid) ?? 0,
+				verifications.get(info.oid) ?? UNSIGNED,
 			),
 		),
 		200,

@@ -66,7 +66,7 @@ import {
 	unprocessable,
 } from "../errors";
 import { decodeNodeId, encodeNodeId, rowIdOfNodeKey } from "../node-id";
-import { blameOf, readCommitNode, resolveObject } from "./commit";
+import { blameOf, readCommitNode, resolveObject, signatureOf } from "./commit";
 import { loadUser, loadUserByLogin, type UserNode, userNode } from "./core";
 import type {
 	CreateRepositoryInput,
@@ -708,6 +708,7 @@ export const repositoryResolvers: DomainResolvers = {
 		},
 		Commit: {
 			blame: (source, args) => blameOf(source, args),
+			signature: (source) => signatureOf(source),
 			// The message after its headline, as GitHub's `messageBody`.
 			messageBody: (source) =>
 				source.message.split("\n").slice(1).join("\n").trim(),

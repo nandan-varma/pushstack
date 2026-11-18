@@ -45,6 +45,11 @@ export const MAX_REPO_TOPICS = 20;
 export const MAX_REPO_TOPIC_CHARS = 50;
 export const MAX_STORAGE_NAME_LENGTH = 100;
 
+/** A user's signing keys: one armored OpenPGP key, one SSH public-key line. */
+export const MAX_GPG_KEY_CHARS = 65_536;
+export const MAX_SSH_SIGNING_KEY_CHARS = 2048;
+export const MAX_SIGNING_KEY_TITLE_CHARS = 100;
+
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */
 export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 

@@ -715,6 +715,22 @@
 			"query": [],
 			"body": []
 		},
+		"users/create-gpg-key-for-authenticated-user": {
+			"query": [],
+			"body": ["armored_public_key"]
+		},
+		"users/create-ssh-signing-key-for-authenticated-user": {
+			"query": [],
+			"body": ["key", "title"]
+		},
+		"users/delete-gpg-key-for-authenticated-user": {
+			"query": [],
+			"body": []
+		},
+		"users/delete-ssh-signing-key-for-authenticated-user": {
+			"query": [],
+			"body": []
+		},
 		"users/follow": {
 			"query": [],
 			"body": []
@@ -731,6 +747,14 @@
 			"query": [],
 			"body": []
 		},
+		"users/get-gpg-key-for-authenticated-user": {
+			"query": [],
+			"body": []
+		},
+		"users/get-ssh-signing-key-for-authenticated-user": {
+			"query": [],
+			"body": []
+		},
 		"users/list-followed-by-authenticated-user": {
 			"query": ["page", "per_page"],
 			"body": []
@@ -741,6 +765,14 @@
 		},
 		"users/list-followers-for-user": {
 			"query": ["page", "per_page"],
+			"body": []
+		},
+		"users/list-gpg-keys-for-authenticated-user": {
+			"query": [],
+			"body": []
+		},
+		"users/list-ssh-signing-keys-for-authenticated-user": {
+			"query": [],
 			"body": []
 		},
 		"users/list-following-for-user": {

@@ -452,6 +452,30 @@ export const gitIdentity = z.strictObject({
 
 const parentRef = z.strictObject({ sha, url, html_url: url });
 
+/** GitHub's REST `verification.reason` values for commits and annotated tags. */
+export const verificationReason = z.enum([
+	"valid",
+	"unsigned",
+	"unknown_key",
+	"bad_email",
+	"unverified_email",
+	"no_user",
+	"invalid",
+	"malformed_signature",
+	"unknown_signature_type",
+	"expired_key",
+	"not_signing_key",
+]);
+
+/** The `verification` object on a commit or annotated tag. */
+export const commitVerification = z.strictObject({
+	verified: z.boolean(),
+	reason: verificationReason,
+	signature: z.string().nullable(),
+	payload: z.string().nullable(),
+	verified_at: timestamp.nullable(),
+});
+
 /** GitHub's `Commit` (`GET …/commits`, `…/pulls/{n}/commits`). */
 export const commit = z.strictObject({
 	sha,
@@ -471,6 +495,7 @@ export const commit = z.strictObject({
 	author: simpleUser.nullable(),
 	committer: simpleUser.nullable(),
 	parents: z.array(parentRef),
+	verification: commitVerification,
 });
 
 /** A changed file of a diff (pull request files, a commit, a comparison). */
@@ -700,13 +725,7 @@ export const gitCommit = z.strictObject({
 	tree: z.strictObject({ sha, url }),
 	message: z.string(),
 	parents: z.array(parentRef),
-	verification: z.strictObject({
-		verified: z.boolean(),
-		reason: z.string(),
-		signature: z.string().nullable(),
-		payload: z.string().nullable(),
-		verified_at: timestamp.nullable(),
-	}),
+	verification: commitVerification,
 });
 
 export const gitTree = z.strictObject({
@@ -858,11 +877,48 @@ export const gitTag = z.strictObject({
 		type: z.enum(["commit", "tree", "blob", "tag"]),
 		url,
 	}),
-	verification: z.strictObject({
-		verified: z.boolean(),
-		reason: z.string(),
-		signature: z.string().nullable(),
-		payload: z.string().nullable(),
-		verified_at: timestamp.nullable(),
-	}),
+	verification: commitVerification,
+});
+
+/** A GPG key (`POST /user/gpg_keys` and its reads), GitHub's shape. */
+export const gpgKey = z.strictObject({
+	id: z.number().int(),
+	primary_key_id: z.number().int().nullable(),
+	key_id: z.string(),
+	raw_key: z.string().nullable(),
+	public_key: z.string(),
+	emails: z.array(z.strictObject({ email: z.string(), verified: z.boolean() })),
+	subkeys: z.array(
+		z.strictObject({
+			id: z.number().int(),
+			primary_key_id: z.number().int().nullable(),
+			key_id: z.string(),
+			public_key: z.string(),
+			emails: z.array(
+				z.strictObject({ email: z.string(), verified: z.boolean() }),
+			),
+			subkeys: z.array(z.unknown()),
+			can_sign: z.boolean(),
+			can_encrypt: z.boolean(),
+			can_certify: z.boolean(),
+			can_authenticate: z.boolean(),
+			created_at: timestamp,
+			expires_at: timestamp.nullable(),
+		}),
+	),
+	can_sign: z.boolean(),
+	can_encrypt: z.boolean(),
+	can_certify: z.boolean(),
+	can_authenticate: z.boolean(),
+	created_at: timestamp,
+	expires_at: timestamp.nullable(),
+	revoked: z.boolean(),
+});
+
+/** An SSH signing key (`POST /user/ssh_signing_keys` and its reads). */
+export const sshSigningKey = z.strictObject({
+	id: z.number().int(),
+	key: z.string(),
+	title: z.string(),
+	created_at: timestamp,
 });

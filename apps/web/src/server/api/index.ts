@@ -162,6 +162,16 @@ import {
 } from "./repos";
 import { matchApiRoute } from "./routing";
 import { searchIssuesHandler, searchRepositoriesHandler } from "./search";
+import {
+	createGpgKeyForCaller,
+	createSshSigningKeyForCaller,
+	deleteGpgKeyForCaller,
+	deleteSshSigningKeyForCaller,
+	getGpgKeyForCaller,
+	getSshSigningKeyForCaller,
+	listGpgKeysForCaller,
+	listSshSigningKeysForCaller,
+} from "./signing-keys";
 import { listTags } from "./tags";
 import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser, getUserById } from "./users";
@@ -181,6 +191,17 @@ const HANDLERS = {
 	"meta/get": getMeta,
 	"rate-limit/get": getRateLimit,
 	"users/get-authenticated": getAuthenticatedUser,
+	"users/list-gpg-keys-for-authenticated-user": listGpgKeysForCaller,
+	"users/create-gpg-key-for-authenticated-user": createGpgKeyForCaller,
+	"users/get-gpg-key-for-authenticated-user": getGpgKeyForCaller,
+	"users/delete-gpg-key-for-authenticated-user": deleteGpgKeyForCaller,
+	"users/list-ssh-signing-keys-for-authenticated-user":
+		listSshSigningKeysForCaller,
+	"users/create-ssh-signing-key-for-authenticated-user":
+		createSshSigningKeyForCaller,
+	"users/get-ssh-signing-key-for-authenticated-user": getSshSigningKeyForCaller,
+	"users/delete-ssh-signing-key-for-authenticated-user":
+		deleteSshSigningKeyForCaller,
 	"repos/list-for-authenticated-user": listAuthenticatedUserRepositories,
 	"repos/create-for-authenticated-user": createAuthenticatedUserRepository,
 	"users/list-followers-for-authenticated-user": listFollowersOfCaller,

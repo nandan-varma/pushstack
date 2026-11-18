@@ -819,3 +819,21 @@ export async function getTagObject(
 		message: string;
 	};
 }
+
+/**
+ * The raw content and type of one Git object. Signature verification needs
+ * the object's exact bytes: the signed payload is the content with the
+ * signature header removed, which the parsed commit/tag does not preserve.
+ */
+export async function getRawObject(
+	ownerKey: string,
+	repoName: string,
+	oid: string,
+): Promise<{ type: string; content: string }> {
+	const { type, object } = await git.readObject({
+		...repoFor(ownerKey, repoName),
+		oid,
+		format: "content",
+	});
+	return { type, content: Buffer.from(object as Uint8Array).toString("utf8") };
+}

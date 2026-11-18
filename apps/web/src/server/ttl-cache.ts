@@ -5,6 +5,8 @@
  */
 export interface TtlCoalescedCache<V> {
 	get(key: string, fetch: () => Promise<V>): Promise<V>;
+	/** The cached value, or undefined when absent or expired; never fetches. */
+	peek(key: string): V | undefined;
 	set(key: string, value: V): void;
 	/** Forget `key`, including a fetch still in flight (it won't be cached). */
 	delete(key: string): void;
@@ -39,6 +41,10 @@ export function createTtlCoalescedCache<V>(options: {
 	}
 
 	return {
+		peek(key) {
+			const cached = cache.get(key);
+			return cached && cached.expiresAt > Date.now() ? cached.value : undefined;
+		},
 		get(key, fetch) {
 			const cached = cache.get(key);
 			if (cached && cached.expiresAt > Date.now()) {

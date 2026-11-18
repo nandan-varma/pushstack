@@ -81,6 +81,50 @@ export const routes = {
 		path: "/user/subscriptions",
 		docs: `${DOCS}/activity/watching#list-repositories-watched-by-the-authenticated-user`,
 	},
+	"users/list-gpg-keys-for-authenticated-user": {
+		method: "GET",
+		path: "/user/gpg_keys",
+		docs: `${DOCS}/users/gpg-keys#list-gpg-keys-for-the-authenticated-user`,
+	},
+	"users/create-gpg-key-for-authenticated-user": {
+		method: "POST",
+		path: "/user/gpg_keys",
+		docs: `${DOCS}/users/gpg-keys#create-a-gpg-key-for-the-authenticated-user`,
+		status: 201,
+	},
+	"users/get-gpg-key-for-authenticated-user": {
+		method: "GET",
+		path: "/user/gpg_keys/{gpg_key_id}",
+		docs: `${DOCS}/users/gpg-keys#get-a-gpg-key-for-the-authenticated-user`,
+	},
+	"users/delete-gpg-key-for-authenticated-user": {
+		method: "DELETE",
+		path: "/user/gpg_keys/{gpg_key_id}",
+		docs: `${DOCS}/users/gpg-keys#delete-a-gpg-key-for-the-authenticated-user`,
+		status: 204,
+	},
+	"users/list-ssh-signing-keys-for-authenticated-user": {
+		method: "GET",
+		path: "/user/ssh_signing_keys",
+		docs: `${DOCS}/users/ssh-signing-keys#list-ssh-signing-keys-for-the-authenticated-user`,
+	},
+	"users/create-ssh-signing-key-for-authenticated-user": {
+		method: "POST",
+		path: "/user/ssh_signing_keys",
+		docs: `${DOCS}/users/ssh-signing-keys#create-a-ssh-signing-key-for-the-authenticated-user`,
+		status: 201,
+	},
+	"users/get-ssh-signing-key-for-authenticated-user": {
+		method: "GET",
+		path: "/user/ssh_signing_keys/{ssh_signing_key_id}",
+		docs: `${DOCS}/users/ssh-signing-keys#get-a-ssh-signing-key-for-the-authenticated-user`,
+	},
+	"users/delete-ssh-signing-key-for-authenticated-user": {
+		method: "DELETE",
+		path: "/user/ssh_signing_keys/{ssh_signing_key_id}",
+		docs: `${DOCS}/users/ssh-signing-keys#delete-a-ssh-signing-key-for-the-authenticated-user`,
+		status: 204,
+	},
 	"users/get-by-id": {
 		method: "GET",
 		path: "/user/{account_id}",

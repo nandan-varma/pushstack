@@ -24,6 +24,7 @@ const repositories = await import("../repositories");
 const { asToken, call, mintToken, patch, post } = await import(
 	"../../test/api-client"
 );
+const fixtures = await import("../../test/signing-fixtures");
 
 const users = await createUsers("alice", "bob");
 
@@ -79,6 +80,20 @@ beforeAll(async () => {
 	const me = await check("/user", auth);
 	await check(`/user/${me.id}`);
 	await check("/users/alice");
+	const gpgKey = await check(
+		"/user/gpg_keys",
+		post(alice, { armored_public_key: fixtures.GPG_PUBLIC_KEY }),
+	);
+	await check("/user/gpg_keys", auth);
+	await check(`/user/gpg_keys/${gpgKey.id}`, auth);
+	await check(`/user/gpg_keys/${gpgKey.id}`, del(alice));
+	const sshKey = await check(
+		"/user/ssh_signing_keys",
+		post(alice, { title: "Laptop", key: fixtures.SSH_PUBLIC_KEY }),
+	);
+	await check("/user/ssh_signing_keys", auth);
+	await check(`/user/ssh_signing_keys/${sshKey.id}`, auth);
+	await check(`/user/ssh_signing_keys/${sshKey.id}`, del(alice));
 	const repo = await check(
 		"/user/repos",
 		post(alice, { name: "proj", auto_init: true }),

@@ -252,7 +252,7 @@ async function fileCommitResponse(
 			type: "file" as const,
 		};
 	}
-	return { content, commit: gitCommitObject(fullName, info) };
+	return { content, commit: await gitCommitObject(repo, info) };
 }
 
 /** Map git-write's refusals to GitHub's statuses. */

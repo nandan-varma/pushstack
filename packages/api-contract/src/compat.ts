@@ -31,6 +31,21 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"repositories you watch (not ignore) and can still read; pagination",
 	"users/get-by-id":
 		"public profile by integer id; `404` for an unknown or malformed id",
+	"users/list-gpg-keys-for-authenticated-user":
+		"only the caller's public keys; `public_key` is the base64 key packet and `raw_key` the armor",
+	"users/create-gpg-key-for-authenticated-user":
+		"needs a `repo:write` token (there is no `write:gpg_key` scope); `armored_public_key` only; private keys and keys that cannot sign are `422`",
+	"users/get-gpg-key-for-authenticated-user": "`404` for another user's key",
+	"users/delete-gpg-key-for-authenticated-user":
+		"needs a `repo:write` token; `204`; `404` for another user's key",
+	"users/list-ssh-signing-keys-for-authenticated-user":
+		"only the caller's keys; `ssh-ed25519`, `ssh-rsa` and ECDSA keys",
+	"users/create-ssh-signing-key-for-authenticated-user":
+		"needs a `repo:write` token (there is no `write:ssh_signing_key` scope); `key` and `title` (default `Signing key`); anything but a public key line is `422`",
+	"users/get-ssh-signing-key-for-authenticated-user":
+		"`404` for another user's key",
+	"users/delete-ssh-signing-key-for-authenticated-user":
+		"needs a `repo:write` token; `204`; `404` for another user's key",
 	"users/get-by-username": "",
 	"search/repos":
 		"words match the name or description; `user:` (one), `is:public`/`is:private`, `topic:` (repeats AND); `org:` and other qualifiers are `422`; `sort` is only `updated` (no best-match ranking: newest first); only repositories the caller can read; the first 100 per page, pages past 10,000 items are empty",

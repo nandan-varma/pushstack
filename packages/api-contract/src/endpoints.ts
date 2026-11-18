@@ -37,6 +37,7 @@ import {
 	MAX_CHECK_TITLE_CHARS,
 	MAX_COMMENT_PATH_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_GPG_KEY_CHARS,
 	MAX_LABELS_PER_THREAD,
 	MAX_RELEASE_ASSET_BYTES,
 	MAX_RELEASE_ASSET_LABEL_CHARS,
@@ -49,6 +50,8 @@ import {
 	MAX_REPO_TOPICS,
 	MAX_REPORT_URL_CHARS,
 	MAX_SEARCH_QUERY_CHARS,
+	MAX_SIGNING_KEY_TITLE_CHARS,
+	MAX_SSH_SIGNING_KEY_CHARS,
 	MAX_STATUS_CONTEXT_CHARS,
 	MAX_STATUS_DESCRIPTION_CHARS,
 } from "./limits";
@@ -71,6 +74,7 @@ import {
 	gitRef,
 	gitTag,
 	gitTree,
+	gpgKey,
 	issue,
 	issueComment,
 	issueEvent,
@@ -94,6 +98,7 @@ import {
 	requestedReviewers,
 	shortBranch,
 	simpleUser,
+	sshSigningKey,
 	stateReason,
 	tag,
 	threadSubscription,
@@ -269,6 +274,43 @@ export const endpoints = defineEndpoints({
 
 	"users/get-authenticated": {
 		response: privateUser,
+	},
+	"users/list-gpg-keys-for-authenticated-user": {
+		response: z.array(gpgKey),
+	},
+	"users/create-gpg-key-for-authenticated-user": {
+		body: z.object({
+			armored_public_key: z.string().min(1).max(MAX_GPG_KEY_CHARS),
+		}),
+		response: gpgKey,
+		status: 201,
+	},
+	"users/get-gpg-key-for-authenticated-user": {
+		params: z.object({ gpg_key_id: positiveInt }),
+		response: gpgKey,
+	},
+	"users/delete-gpg-key-for-authenticated-user": {
+		params: z.object({ gpg_key_id: positiveInt }),
+		response: noContent,
+	},
+	"users/list-ssh-signing-keys-for-authenticated-user": {
+		response: z.array(sshSigningKey),
+	},
+	"users/create-ssh-signing-key-for-authenticated-user": {
+		body: z.object({
+			title: z.string().max(MAX_SIGNING_KEY_TITLE_CHARS).optional(),
+			key: z.string().min(1).max(MAX_SSH_SIGNING_KEY_CHARS),
+		}),
+		response: sshSigningKey,
+		status: 201,
+	},
+	"users/get-ssh-signing-key-for-authenticated-user": {
+		params: z.object({ ssh_signing_key_id: positiveInt }),
+		response: sshSigningKey,
+	},
+	"users/delete-ssh-signing-key-for-authenticated-user": {
+		params: z.object({ ssh_signing_key_id: positiveInt }),
+		response: noContent,
 	},
 	"repos/list-for-authenticated-user": {
 		query: pagination.extend({

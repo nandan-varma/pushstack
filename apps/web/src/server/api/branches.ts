@@ -1,4 +1,5 @@
 import { commitCommentCounts } from "../commit-comment-store";
+import { UNSIGNED, verifyCommits } from "../commit-verification";
 import { getBranches, getBranchPage, getCommit } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
 import { ownerKeyOf } from "../git-storage-naming";
@@ -50,10 +51,16 @@ export async function getBranch(ctx: ApiContext) {
 		getCommit(ownerKey, repo.name, branch.commit),
 		commitCommentCounts(repo.id, [branch.commit]),
 	]);
+	const verification = await verifyCommits(ownerKey, repo.name, [info]);
 
 	return json({
 		name: branch.name,
-		commit: commitObject({ id: repo.id, fullName }, info, counts.get(info.oid)),
+		commit: commitObject(
+			{ id: repo.id, fullName },
+			info,
+			counts.get(info.oid) ?? 0,
+			verification.get(info.oid) ?? UNSIGNED,
+		),
 		_links: {
 			self: apiUrl(`/repos/${fullName}/branches/${encodePath(branch.name)}`),
 			html: branchHtmlUrl(fullName, branch.name),

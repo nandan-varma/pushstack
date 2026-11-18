@@ -20,6 +20,7 @@ import type {
 	CheckSuiteRow,
 	CommitStatusRow,
 } from "../check-store";
+import { restVerification, type Verification } from "../commit-verification";
 import {
 	encodeGlobalNodeId,
 	encodeNodeId,
@@ -693,12 +694,14 @@ export const gitIdentity = ({
 /**
  * `commentCount` is the commit's commit-comment count (`comment_count`);
  * callers look counts up with `commit-comment-store.ts`'s
- * `commitCommentCounts`.
+ * `commitCommentCounts`. `verification` is the signature verdict from
+ * `commit-verification.ts`'s `verifyCommits` batch.
  */
 export function commitObject(
 	repo: { id: number; fullName: string },
 	info: CommitInfo,
-	commentCount = 0,
+	commentCount: number,
+	verification: Verification,
 ): Shape<"commit"> {
 	const { commit, oid } = info;
 	const { fullName } = repo;
@@ -728,6 +731,7 @@ export function commitObject(
 			url: apiUrl(`/repos/${fullName}/commits/${sha}`),
 			html_url: htmlUrl(`/${fullName}/commit/${sha}`),
 		})),
+		verification: restVerification(verification),
 	};
 }
 
