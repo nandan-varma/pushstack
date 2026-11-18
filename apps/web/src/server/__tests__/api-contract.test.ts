@@ -141,6 +141,27 @@ beforeAll(async () => {
 	const { gistCommitPage } = await import("../gist-git");
 	const [revision] = await gistCommitPage(gist.id, 1);
 	await check(`/gists/${gist.id}/${revision?.commit.oid}`);
+	await check(`/gists/${gist.id}/star`, put(gistToken));
+	await check(`/gists/${gist.id}/star`, asToken(gistToken));
+	await check(`/gists/${gist.id}/star`, del(gistToken));
+	await check(`/gists/${gist.id}/commits`);
+	const gistComment = await check(
+		`/gists/${gist.id}/comments`,
+		post(gistToken, { body: "a comment" }),
+	);
+	await check(`/gists/${gist.id}/comments`);
+	await check(`/gists/${gist.id}/comments/${gistComment.id}`);
+	await check(
+		`/gists/${gist.id}/comments/${gistComment.id}`,
+		patch(gistToken, { body: "edited" }),
+	);
+	await check(`/gists/${gist.id}/comments/${gistComment.id}`, del(gistToken));
+	const gistFork = await check(`/gists/${gist.id}/forks`, {
+		...asToken(gistToken),
+		method: "POST",
+	});
+	await check(`/gists/${gist.id}/forks`);
+	await check(`/gists/${gistFork.id}`, del(gistToken));
 	await check(`/gists/${gist.id}`, del(gistToken));
 	await check(
 		"/repos/bob/proj-fork/merge-upstream",

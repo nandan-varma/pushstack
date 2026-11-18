@@ -16,6 +16,7 @@ import {
 	readGistFiles,
 } from "../gist-git";
 import {
+	countGistComments,
 	countGistsForOwner,
 	deleteGistRow,
 	findGistById,
@@ -23,6 +24,7 @@ import {
 	type GistPageOptions,
 	type GistRowWithOwner,
 	generateGistId,
+	gistCommentCounts,
 	insertGist,
 	listGistsForOwner,
 	listPublicGists,
@@ -46,6 +48,7 @@ import {
 	linkHeader,
 	noContent,
 	notFoundError,
+	type PageParams,
 	pageParams,
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
@@ -67,7 +70,10 @@ function pageOptions(ctx: ApiContext, id: GistListId): GistPageOptions {
 	};
 }
 
-async function filesAt(id: string, revision = "HEAD"): Promise<GistFile[]> {
+export async function filesAt(
+	id: string,
+	revision = "HEAD",
+): Promise<GistFile[]> {
 	try {
 		return await readGistFiles(id, revision);
 	} catch (error) {
@@ -76,21 +82,28 @@ async function filesAt(id: string, revision = "HEAD"): Promise<GistFile[]> {
 	}
 }
 
-async function forkOf(
-	row: GistRowWithOwner,
-): Promise<{ gist: GistRowWithOwner; files: GistFile[] } | null> {
+async function forkOf(row: GistRowWithOwner): Promise<{
+	gist: GistRowWithOwner;
+	files: GistFile[];
+	comments: number;
+} | null> {
 	if (!row.forkOfId) return null;
 	const parent = await findGistById(row.forkOfId);
 	if (!parent) return null;
-	return { gist: parent, files: await filesAt(parent.id) };
+	const [files, comments] = await Promise.all([
+		filesAt(parent.id),
+		countGistComments(parent.id),
+	]);
+	return { gist: parent, files, comments };
 }
 
-async function fullGist(row: GistRowWithOwner, revision = "HEAD") {
-	const [files, parent] = await Promise.all([
+export async function fullGist(row: GistRowWithOwner, revision = "HEAD") {
+	const [files, comments, parent] = await Promise.all([
 		filesAt(row.id, revision),
+		countGistComments(row.id),
 		forkOf(row),
 	]);
-	return gist(row, files, revision, parent);
+	return gist(row, files, comments, revision, parent);
 }
 
 async function listResponse(
@@ -101,9 +114,21 @@ async function listResponse(
 	const params = pageParams(ctx.url.searchParams);
 	const data = await load(pageOptions(ctx, id));
 	if (!data) throw notFoundError();
+	return gistListResponse(ctx, data, params);
+}
+
+/** One page of gists, each with its comment count and files at `HEAD`. */
+export async function gistListResponse(
+	ctx: ApiContext,
+	data: GistPage,
+	params: PageParams,
+) {
 	const rows = params.reachable ? data.gists : [];
+	const counts = await gistCommentCounts(rows.map((row) => row.id));
 	const items = await Promise.all(
-		rows.map(async (row) => gistSimple(row, await filesAt(row.id))),
+		rows.map(async (row) =>
+			gistSimple(row, await filesAt(row.id), counts.get(row.id) ?? 0),
+		),
 	);
 	return json(items, 200, linkHeader(ctx.url, params, data.total));
 }

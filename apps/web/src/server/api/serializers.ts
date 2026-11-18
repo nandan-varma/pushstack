@@ -23,8 +23,8 @@ import type {
 	CommitStatusRow,
 } from "../check-store";
 import { restVerification, type Verification } from "../commit-verification";
-import type { GistFile } from "../gist-git";
-import type { GistRowWithOwner } from "../gist-store";
+import type { GistCommit, GistFile } from "../gist-git";
+import type { GistCommentWithAuthor, GistRowWithOwner } from "../gist-store";
 import {
 	encodeGlobalNodeId,
 	encodeNodeId,
@@ -948,10 +948,11 @@ export function gistFile(
 	};
 }
 
-/** A gist as lists return it: metadata plus the files at one revision. */
+/** A gist as lists return it: metadata, comment count and the files at one revision. */
 export function gistSimple(
 	gist: GistRowWithOwner,
 	files: readonly GistFile[],
+	comments: number,
 	revision = "HEAD",
 ): Shape<"gistSimple"> {
 	const api = `/gists/${gist.id}`;
@@ -971,7 +972,7 @@ export function gistSimple(
 		created_at: isoTimestamp(gist.createdAt),
 		updated_at: isoTimestamp(gist.updatedAt),
 		description: gist.description,
-		comments: 0,
+		comments,
 		comments_url: apiUrl(`${api}/comments`),
 		owner: simpleUser(gist.owner),
 		user: simpleUser(gist.owner),
@@ -983,11 +984,57 @@ export function gistSimple(
 export function gist(
 	gist: GistRowWithOwner,
 	files: readonly GistFile[],
+	comments: number,
 	revision = "HEAD",
-	forkOf: { gist: GistRowWithOwner; files: readonly GistFile[] } | null = null,
+	forkOf: {
+		gist: GistRowWithOwner;
+		files: readonly GistFile[];
+		comments: number;
+	} | null = null,
 ): Shape<"gist"> {
 	return {
-		...gistSimple(gist, files, revision),
-		fork_of: forkOf ? gistSimple(forkOf.gist, forkOf.files, "HEAD") : null,
+		...gistSimple(gist, files, comments, revision),
+		fork_of: forkOf
+			? gistSimple(forkOf.gist, forkOf.files, forkOf.comments)
+			: null,
+	};
+}
+
+/** One revision in a gist's history. */
+export function gistCommit(
+	gist: { id: string },
+	entry: GistCommit,
+	author: PublicUser | null,
+): Shape<"gistCommit"> {
+	const sha = entry.commit.oid;
+	return {
+		url: apiUrl(`/gists/${gist.id}/${sha}`),
+		version: sha,
+		user: author ? simpleUser(author) : null,
+		change_status: {
+			total: entry.changeStatus.total,
+			additions: entry.changeStatus.additions,
+			deletions: entry.changeStatus.deletions,
+		},
+		committed_at: isoTimestamp(
+			new Date(entry.commit.commit.committer.timestamp * 1000),
+		),
+	};
+}
+
+/** A comment on a gist; only its author is ever the gist's owner here. */
+export function gistComment(
+	gist: { id: string; ownerId: string },
+	comment: GistCommentWithAuthor,
+): Shape<"gistComment"> {
+	return {
+		id: comment.id,
+		node_id: Buffer.from(`GistComment:${comment.id}`).toString("base64"),
+		url: apiUrl(`/gists/${gist.id}/comments/${comment.id}`),
+		body: comment.body,
+		user: simpleUser(comment.author),
+		created_at: isoTimestamp(comment.createdAt),
+		updated_at: isoTimestamp(comment.updatedAt),
+		author_association: comment.userId === gist.ownerId ? "OWNER" : "NONE",
 	};
 }
