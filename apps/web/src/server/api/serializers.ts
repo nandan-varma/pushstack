@@ -11,8 +11,10 @@ import {
 	suiteConclusion,
 	suiteStatus,
 } from "#/lib/check-rollup";
+import { isMarkdownFile } from "#/lib/file-preview";
 import { getCloneUrl, getGitBaseUrl } from "#/lib/git-utils";
 import { DEFAULT_LABELS, type LabelView } from "#/lib/labels";
+import { detectLanguage, getMimeType } from "#/lib/language-detection";
 import { emptyReactionRollup, type ReactionRollup } from "#/lib/reactions";
 import type { TimelineEntry } from "#/lib/timeline-types";
 import type {
@@ -21,6 +23,8 @@ import type {
 	CommitStatusRow,
 } from "../check-store";
 import { restVerification, type Verification } from "../commit-verification";
+import type { GistFile } from "../gist-git";
+import type { GistRowWithOwner } from "../gist-store";
 import {
 	encodeGlobalNodeId,
 	encodeNodeId,
@@ -911,4 +915,76 @@ export function reviewedItem(input: {
 /** A commit message as GitHub serves it: without git's trailing newline. */
 export function commitMessage(raw: string): string {
 	return raw.endsWith("\n") ? raw.slice(0, -1) : raw;
+}
+
+/** GitHub's gist file shape: content inline unless a budget left it out. */
+export function gistFile(
+	gist: { id: string; owner: { username: string } },
+	revision: string,
+	file: GistFile,
+): Shape<"gistFile"> {
+	const language = detectLanguage(file.path);
+	const mime = getMimeType(file.path);
+	const type = isMarkdownFile(file.path)
+		? "text/markdown"
+		: mime === "application/octet-stream"
+			? "text/plain"
+			: mime;
+	return {
+		filename: file.path,
+		type,
+		language: language === "plaintext" ? null : language,
+		raw_url: htmlUrl(
+			`/${gist.owner.username}/${gist.id}/raw/${encodePath(revision)}/${encodePath(file.path)}`,
+		),
+		size: file.size,
+		truncated: file.truncated,
+		...(file.content !== null && {
+			content: new TextDecoder().decode(file.content),
+		}),
+	};
+}
+
+/** A gist as lists return it: metadata plus the files at one revision. */
+export function gistSimple(
+	gist: GistRowWithOwner,
+	files: readonly GistFile[],
+	revision = "HEAD",
+): Shape<"gistSimple"> {
+	const api = `/gists/${gist.id}`;
+	return {
+		url: apiUrl(api),
+		forks_url: apiUrl(`${api}/forks`),
+		commits_url: apiUrl(`${api}/commits`),
+		id: gist.id,
+		node_id: Buffer.from(`Gist:${gist.id}`).toString("base64"),
+		git_pull_url: htmlUrl(`/${gist.id}.git`),
+		git_push_url: htmlUrl(`/${gist.id}.git`),
+		html_url: htmlUrl(`/${gist.owner.username}/${gist.id}`),
+		files: Object.fromEntries(
+			files.map((file) => [file.path, gistFile(gist, revision, file)]),
+		),
+		public: gist.visibility === "public",
+		created_at: isoTimestamp(gist.createdAt),
+		updated_at: isoTimestamp(gist.updatedAt),
+		description: gist.description,
+		comments: 0,
+		comments_url: apiUrl(`${api}/comments`),
+		owner: simpleUser(gist.owner),
+		user: simpleUser(gist.owner),
+		truncated: false,
+	};
+}
+
+/** A single gist: {@link gistSimple} plus the gist it was forked from. */
+export function gist(
+	gist: GistRowWithOwner,
+	files: readonly GistFile[],
+	revision = "HEAD",
+	forkOf: { gist: GistRowWithOwner; files: readonly GistFile[] } | null = null,
+): Shape<"gist"> {
+	return {
+		...gistSimple(gist, files, revision),
+		fork_of: forkOf ? gistSimple(forkOf.gist, forkOf.files, "HEAD") : null,
+	};
 }

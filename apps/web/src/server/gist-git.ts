@@ -199,6 +199,23 @@ export async function readGistFiles(
 	return files;
 }
 
+/** One file's bytes at a revision, for a rename that keeps its content. */
+export async function readGistFileContent(
+	id: string,
+	path: string,
+	revision = "HEAD",
+): Promise<Uint8Array> {
+	const repo = gistRepoFor(id);
+	const { commit } = await resolveCommit(repo, revision);
+	const entry = (await listBlobs(repo, commit.tree)).find(
+		(candidate) => candidate.path === path,
+	);
+	if (!entry) {
+		throw new GitInvalidRequestError(`No such gist file: ${path}`);
+	}
+	return getBlob(repo, entry.oid);
+}
+
 export interface GistCommit {
 	commit: CommitInfo;
 	/** Lines against the first parent, as GitHub's `Gist Commit` reports them. */
