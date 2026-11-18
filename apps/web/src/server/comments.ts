@@ -1,7 +1,7 @@
+import { inputs } from "@pushstack/api-contract";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { MAX_BODY_CHARS } from "#/lib/limits";
 import { threadPageSchema } from "#/lib/thread-page";
 import {
 	type Comment,
@@ -59,11 +59,7 @@ async function requireCommentEditor(
 }
 
 export const createComment = createServerFn({ method: "POST" })
-	.validator(
-		z
-			.object({ body: z.string().trim().min(1).max(MAX_BODY_CHARS) })
-			.and(threadSchema()),
-	)
+	.validator(z.object({ body: inputs.commentBody }).and(threadSchema()))
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
 		const thread = await requireThread(data);
@@ -89,7 +85,7 @@ export const updateComment = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			commentId: z.number(),
-			body: z.string().trim().min(1).max(MAX_BODY_CHARS),
+			body: inputs.commentBody,
 		}),
 	)
 	.handler(async ({ data }) => {

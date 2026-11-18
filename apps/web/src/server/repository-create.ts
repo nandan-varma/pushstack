@@ -1,3 +1,4 @@
+import { inputs } from "@pushstack/api-contract";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
@@ -7,7 +8,6 @@ import {
 	MAX_REPO_DESCRIPTION_CHARS,
 	MAX_REPO_HOMEPAGE_CHARS,
 } from "#/lib/limits";
-import { MAX_STORAGE_NAME_LENGTH, STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
 	GITIGNORE_TEMPLATE_NAMES,
 	GITIGNORE_TEMPLATES,
@@ -26,13 +26,7 @@ import { evictRepoByName } from "./repository-lookup";
 import { setRepoSubscription } from "./watch-store";
 
 /** Also a storage-path segment, so this is a security boundary, not cosmetics. */
-export const repoNameSchema = z
-	.string()
-	.max(MAX_STORAGE_NAME_LENGTH)
-	.regex(
-		STORAGE_NAME_RE,
-		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",
-	);
+export const repoNameSchema = inputs.repoName;
 
 export const createRepositoryInputSchema = z.object({
 	name: repoNameSchema,

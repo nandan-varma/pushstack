@@ -1,3 +1,4 @@
+import { inputs } from "@pushstack/api-contract";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
@@ -9,7 +10,6 @@ import {
 	MAX_COMMIT_MESSAGE_CHARS,
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
-	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import {
@@ -59,7 +59,7 @@ export const createPullRequest = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
+			title: inputs.threadTitle,
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			sourceBranchName: safeBranchNameSchema,
 			targetBranchName: safeBranchNameSchema,
@@ -100,7 +100,7 @@ export const createForkPullRequest = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
+			title: inputs.threadTitle,
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			sourceBranchName: safeBranchNameSchema,
 			targetBranchName: safeBranchNameSchema,
@@ -244,7 +244,7 @@ export const updatePullRequest = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			prId: z.number(),
-			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
+			title: inputs.threadTitle.optional(),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
 		}),
