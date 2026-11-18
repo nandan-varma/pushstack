@@ -5,7 +5,12 @@
 import type { resources } from "@pushstack/api-contract";
 import type { CommitInfo } from "git-fs-s3/ops";
 import type { z } from "zod";
-import type { Organization, OrgMembership, Repository } from "#/db/app-schema";
+import type {
+	Organization,
+	OrgMembership,
+	Repository,
+	Team,
+} from "#/db/app-schema";
 import {
 	type CheckRunState,
 	suiteConclusion,
@@ -72,6 +77,62 @@ export function simpleOrganization(
 		url: apiUrl(`/orgs/${organization.login}`),
 		html_url: htmlUrl(`/orgs/${organization.login}`),
 		description: organization.description,
+	};
+}
+
+/** GitHub's team object: its parent one level, counts and organization. */
+export interface TeamShapeInput {
+	team: Team;
+	organization: Organization;
+	counts: { members: number; repos: number };
+	parent: { team: Team; counts: { members: number; repos: number } } | null;
+}
+
+export function team(value: TeamShapeInput): Shape<"team"> {
+	const fields = (row: Team, counts: { members: number; repos: number }) => {
+		const { organization } = value;
+		const url = apiUrl(`/orgs/${organization.login}/teams/${row.slug}`);
+		return {
+			id: row.id,
+			node_id: encodeNodeId("Team", row.id),
+			url,
+			html_url: htmlUrl(`/orgs/${organization.login}/teams/${row.slug}`),
+			name: row.name,
+			slug: row.slug,
+			description: row.description,
+			privacy: row.privacy,
+			notification_setting: "notifications_enabled" as const,
+			// The team's default repository permission: PushStack grants per repository.
+			permission: "pull" as const,
+			members_url: `${url}/members{/member}`,
+			repositories_url: `${url}/repos`,
+			members_count: counts.members,
+			repos_count: counts.repos,
+			created_at: isoTimestamp(row.createdAt),
+			updated_at: isoTimestamp(row.updatedAt),
+			organization: simpleOrganization(organization),
+		};
+	};
+	return {
+		...fields(value.team, value.counts),
+		parent: value.parent
+			? fields(value.parent.team, value.parent.counts)
+			: null,
+	};
+}
+
+export function teamMembership(
+	organization: Organization,
+	team: Team,
+	username: string,
+	role: "member" | "maintainer",
+): Shape<"teamMembership"> {
+	return {
+		url: apiUrl(
+			`/orgs/${organization.login}/teams/${team.slug}/memberships/${username}`,
+		),
+		role,
+		state: "active",
 	};
 }
 

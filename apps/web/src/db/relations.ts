@@ -32,6 +32,49 @@ export const relations = defineRelations(
 				to: r.activities.repoId,
 			}),
 		},
+		teams: {
+			organization: r.one.organizations({
+				from: r.teams.orgId,
+				to: r.organizations.id,
+				optional: false,
+			}),
+			parent: r.one.teams({
+				from: r.teams.parentTeamId,
+				to: r.teams.id,
+			}),
+			memberships: r.many.teamMemberships({
+				from: r.teams.id,
+				to: r.teamMemberships.teamId,
+			}),
+			repositories: r.many.teamRepositories({
+				from: r.teams.id,
+				to: r.teamRepositories.teamId,
+			}),
+		},
+		teamMemberships: {
+			team: r.one.teams({
+				from: r.teamMemberships.teamId,
+				to: r.teams.id,
+				optional: false,
+			}),
+			user: r.one.user({
+				from: r.teamMemberships.userId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
+		teamRepositories: {
+			team: r.one.teams({
+				from: r.teamRepositories.teamId,
+				to: r.teams.id,
+				optional: false,
+			}),
+			repository: r.one.repositories({
+				from: r.teamRepositories.repoId,
+				to: r.repositories.id,
+				optional: false,
+			}),
+		},
 		organizations: {
 			repositories: r.many.repositories({
 				from: r.organizations.id,
@@ -40,6 +83,10 @@ export const relations = defineRelations(
 			memberships: r.many.orgMemberships({
 				from: r.organizations.id,
 				to: r.orgMemberships.orgId,
+			}),
+			teams: r.many.teams({
+				from: r.organizations.id,
+				to: r.teams.orgId,
 			}),
 		},
 		orgMemberships: {

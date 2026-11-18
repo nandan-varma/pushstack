@@ -237,6 +237,22 @@ import {
 	listSshSigningKeysForCaller,
 } from "./signing-keys";
 import { listTags } from "./tags";
+import {
+	checkTeamRepoPermission,
+	createTeamHandler,
+	deleteTeamHandler,
+	getTeam,
+	getTeamMembership,
+	listChildTeamsHandler,
+	listTeamMembersHandler,
+	listTeamReposHandler,
+	listTeamsHandler,
+	removeTeamMembershipHandler,
+	removeTeamRepoHandler,
+	setTeamMembershipHandler,
+	setTeamRepoPermissionHandler,
+	updateTeamHandler,
+} from "./teams";
 import { listEvents, listTimelineItems } from "./timeline";
 import { getAuthenticatedUser, getUser, getUserById } from "./users";
 import {
@@ -280,6 +296,20 @@ const HANDLERS = {
 	"orgs/remove-member": removeMember,
 	"orgs/remove-membership-for-user": removeMembership,
 	"orgs/set-membership-for-user": setMembership,
+	"teams/add-or-update-membership-for-user-in-org": setTeamMembershipHandler,
+	"teams/add-or-update-repo-permissions-in-org": setTeamRepoPermissionHandler,
+	"teams/check-permissions-for-repo-in-org": checkTeamRepoPermission,
+	"teams/create": createTeamHandler,
+	"teams/delete-in-org": deleteTeamHandler,
+	"teams/get-by-name": getTeam,
+	"teams/get-membership-for-user-in-org": getTeamMembership,
+	"teams/list": listTeamsHandler,
+	"teams/list-child-in-org": listChildTeamsHandler,
+	"teams/list-members-in-org": listTeamMembersHandler,
+	"teams/list-repos-in-org": listTeamReposHandler,
+	"teams/remove-membership-for-user-in-org": removeTeamMembershipHandler,
+	"teams/remove-repo-in-org": removeTeamRepoHandler,
+	"teams/update-in-org": updateTeamHandler,
 
 	"users/list-gpg-keys-for-authenticated-user": listGpgKeysForCaller,
 	"users/create-gpg-key-for-authenticated-user": createGpgKeyForCaller,

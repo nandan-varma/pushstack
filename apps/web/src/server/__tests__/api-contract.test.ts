@@ -636,6 +636,33 @@ beforeAll(async () => {
 		post(alice, { name: "org-repo", auto_init: true }),
 	);
 	await check("/orgs/acme/repos", auth);
+	await check("/orgs/acme/teams", post(alice, { name: "Contract Team" }));
+	await check("/orgs/acme/teams", auth);
+	await check("/orgs/acme/teams/contract-team", auth);
+	await check(
+		"/orgs/acme/teams/contract-team",
+		patch(alice, { description: "Updated" }),
+	);
+	await check(
+		"/orgs/acme/teams/contract-team/memberships/bob",
+		put(alice, { role: "maintainer" }),
+	);
+	await check("/orgs/acme/teams/contract-team/memberships/bob", auth);
+	await check("/orgs/acme/teams/contract-team/members", auth);
+	await check(
+		"/orgs/acme/teams/contract-team/repos/acme/org-repo",
+		put(alice, { permission: "push" }),
+	);
+	await check("/orgs/acme/teams/contract-team/repos/acme/org-repo", auth);
+	await check("/orgs/acme/teams/contract-team/repos", auth);
+	await check("/orgs/acme/teams/contract-team/repos/acme/org-repo", del(alice));
+	await check(
+		"/orgs/acme/teams",
+		post(alice, { name: "Contract Child", parent_team_slug: "contract-team" }),
+	);
+	await check("/orgs/acme/teams/contract-team/teams", auth);
+	await check("/orgs/acme/teams/contract-team/memberships/bob", del(alice));
+	await check("/orgs/acme/teams/contract-team", del(alice));
 	await check("/orgs/acme/members/bob", del(alice));
 	await check("/orgs/acme/memberships/bob", del(alice));
 });

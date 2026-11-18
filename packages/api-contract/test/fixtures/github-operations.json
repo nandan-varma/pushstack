@@ -1076,6 +1076,80 @@
 		"orgs/list-for-user": {
 			"query": ["page", "per_page"],
 			"body": []
+		},
+		"teams/list": {
+			"query": ["page", "per_page", "team_type"],
+			"body": []
+		},
+		"teams/get-by-name": {
+			"query": [],
+			"body": []
+		},
+		"teams/create": {
+			"query": [],
+			"body": [
+				"description",
+				"maintainers",
+				"name",
+				"notification_setting",
+				"parent_team_id",
+				"parent_team_slug",
+				"permission",
+				"privacy",
+				"repo_names"
+			]
+		},
+		"teams/update-in-org": {
+			"query": [],
+			"body": [
+				"description",
+				"name",
+				"notification_setting",
+				"parent_team_id",
+				"parent_team_slug",
+				"permission",
+				"privacy"
+			]
+		},
+		"teams/delete-in-org": {
+			"query": [],
+			"body": []
+		},
+		"teams/list-members-in-org": {
+			"query": ["page", "per_page", "role"],
+			"body": []
+		},
+		"teams/list-child-in-org": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"teams/list-repos-in-org": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"teams/check-permissions-for-repo-in-org": {
+			"query": [],
+			"body": []
+		},
+		"teams/add-or-update-repo-permissions-in-org": {
+			"query": [],
+			"body": ["permission"]
+		},
+		"teams/remove-repo-in-org": {
+			"query": [],
+			"body": []
+		},
+		"teams/get-membership-for-user-in-org": {
+			"query": [],
+			"body": []
+		},
+		"teams/add-or-update-membership-for-user-in-org": {
+			"query": [],
+			"body": ["role"]
+		},
+		"teams/remove-membership-for-user-in-org": {
+			"query": [],
+			"body": []
 		}
 	},
 	"absentFromGitHub": [

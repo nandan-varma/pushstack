@@ -67,6 +67,8 @@ import {
 	MAX_SSH_SIGNING_KEY_CHARS,
 	MAX_STATUS_CONTEXT_CHARS,
 	MAX_STATUS_DESCRIPTION_CHARS,
+	MAX_TEAM_DESCRIPTION_CHARS,
+	MAX_TEAM_NAME_CHARS,
 } from "./limits";
 import {
 	blob,
@@ -124,6 +126,10 @@ import {
 	sshSigningKey,
 	stateReason,
 	tag,
+	team,
+	teamMembership,
+	teamPermission,
+	teamRepository,
 	threadSubscription,
 	timelineItem,
 	webhook,
@@ -149,6 +155,12 @@ function defineEndpoints<const T extends { [Id in OperationId]: Schemas }>(
 const noContent = z.null();
 const orgParams = z.object({ org: z.string() });
 const orgMemberParams = orgParams.extend({ username: z.string() });
+const teamParams = orgParams.extend({ team_slug: z.string() });
+const teamMemberParams = teamParams.extend({ username: z.string() });
+const teamRepoParams = teamParams.extend({
+	owner: z.string(),
+	repo: z.string(),
+});
 const membershipBody = z.object({
 	role: z.enum(["admin", "member"]).optional(),
 });
@@ -564,6 +576,95 @@ export const endpoints = defineEndpoints({
 		params: orgParams,
 		query: pagination.extend({ filter: unsupported }),
 		response: z.array(simpleUser),
+	},
+	"teams/list": {
+		params: orgParams,
+		query: pagination.extend({
+			team_type: z.enum(["all", "organization"]).optional(),
+		}),
+		response: z.array(team),
+	},
+	"teams/get-by-name": {
+		params: teamParams,
+		response: team,
+	},
+	"teams/create": {
+		params: orgParams,
+		body: z.object({
+			name: z.string().trim().min(1).max(MAX_TEAM_NAME_CHARS),
+			description: z.string().trim().max(MAX_TEAM_DESCRIPTION_CHARS).nullish(),
+			privacy: z.enum(["closed", "secret"]).optional(),
+			/** At most one of the two; the parent must be in this organization. */
+			parent_team_id: positiveInt.optional(),
+			parent_team_slug: z.string().optional(),
+			maintainers: unsupported,
+			notification_setting: unsupported,
+			permission: unsupported,
+			repo_names: unsupported,
+		}),
+		response: team,
+	},
+	"teams/update-in-org": {
+		params: teamParams,
+		body: z.object({
+			name: z.string().trim().min(1).max(MAX_TEAM_NAME_CHARS).optional(),
+			description: z.string().trim().max(MAX_TEAM_DESCRIPTION_CHARS).nullish(),
+			privacy: z.enum(["closed", "secret"]).optional(),
+			parent_team_id: positiveInt.nullish(),
+			parent_team_slug: z.string().nullish(),
+			notification_setting: unsupported,
+			permission: unsupported,
+		}),
+		response: team,
+	},
+	"teams/delete-in-org": {
+		params: teamParams,
+		response: noContent,
+	},
+	"teams/list-members-in-org": {
+		params: teamParams,
+		query: pagination.extend({
+			role: z.enum(["all", "member", "maintainer"]).optional(),
+		}),
+		response: z.array(simpleUser),
+	},
+	"teams/list-child-in-org": {
+		params: teamParams,
+		query: pagination,
+		response: z.array(team),
+	},
+	"teams/list-repos-in-org": {
+		params: teamParams,
+		query: pagination,
+		response: z.array(repository),
+	},
+	"teams/check-permissions-for-repo-in-org": {
+		params: teamRepoParams,
+		response: teamRepository,
+	},
+	"teams/add-or-update-repo-permissions-in-org": {
+		params: teamRepoParams,
+		body: z.object({ permission: teamPermission.default("push") }),
+		response: noContent,
+	},
+	"teams/remove-repo-in-org": {
+		params: teamRepoParams,
+		response: noContent,
+	},
+	"teams/get-membership-for-user-in-org": {
+		params: teamMemberParams,
+		response: teamMembership,
+	},
+	"teams/add-or-update-membership-for-user-in-org": {
+		params: teamMemberParams,
+		body: z.object({
+			role: z.enum(["member", "maintainer"]).default("member"),
+		}),
+		response: teamMembership,
+	},
+	"teams/remove-membership-for-user-in-org": {
+		params: teamMemberParams,
+		response: noContent,
 	},
 	"users/get-by-id": {
 		params: z.object({ account_id: positiveInt }),

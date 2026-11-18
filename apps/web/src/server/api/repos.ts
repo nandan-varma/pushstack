@@ -75,6 +75,11 @@ import {
 	transferRepository,
 	updateRepositorySettings,
 } from "../repository-settings";
+import {
+	findTeamById,
+	setTeamRepoPermission,
+	teamMembershipOf,
+} from "../team-store";
 import { watcherCounts } from "../watch-store";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
@@ -612,14 +617,20 @@ export async function createOrganizationRepository(ctx: ApiContext) {
 	});
 	const fields = repositoryCreationFields(data);
 	if (data.team_id !== undefined) {
-		throw validationFailedError("Repository creation failed.", [
-			{
-				resource: "Repository",
-				field: "team_id",
-				code: "custom",
-				message: "team_id must name a team the caller belongs to",
-			},
-		]);
+		const team = await findTeamById(data.team_id);
+		const membership = team
+			? await teamMembershipOf(team.id, caller.userId)
+			: null;
+		if (!team || team.orgId !== organization.id || !membership) {
+			throw validationFailedError("Repository creation failed.", [
+				{
+					resource: "Repository",
+					field: "team_id",
+					code: "custom",
+					message: "team_id must name a team the caller belongs to",
+				},
+			]);
+		}
 	}
 	const [member] = await db
 		.select({ name: user.name, email: user.email })
@@ -649,6 +660,9 @@ export async function createOrganizationRepository(ctx: ApiContext) {
 		);
 	} catch (error) {
 		throw mapRepositoryExists(error);
+	}
+	if (data.team_id !== undefined) {
+		await setTeamRepoPermission(data.team_id, repo.id, "read");
 	}
 	return json(
 		repository({ ...repo, owner }, { stars: 0, openIssues: 0, forksCount: 0 }),

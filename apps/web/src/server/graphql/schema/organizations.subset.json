@@ -46,9 +46,58 @@
 			"resourcePath",
 			"updatedAt",
 			"url",
-			"websiteUrl"
+			"websiteUrl",
+			{
+				"name": "teams",
+				"args": ["after", "before", "first", "last", "userLogins"]
+			}
 		]
 	},
 	"OrganizationConnection": "*",
-	"OrganizationEdge": "*"
+	"OrganizationEdge": "*",
+	"Team": {
+		"$implements": ["Node"],
+		"fields": [
+			"createdAt",
+			"databaseId",
+			"description",
+			"id",
+			"name",
+			{
+				"name": "members",
+				"args": ["after", "before", "first", "last"]
+			},
+			"notificationSetting",
+			"organization",
+			"parentTeam",
+			"privacy",
+			{
+				"name": "repositories",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "childTeams",
+				"args": [
+					"after",
+					"before",
+					"first",
+					"last",
+					"immediateOnly",
+					"userLogins"
+				]
+			},
+			"slug",
+			"updatedAt",
+			"url"
+		]
+	},
+	"TeamConnection": "*",
+	"TeamEdge": "*",
+	"TeamMemberConnection": "*",
+	"TeamMemberEdge": "*",
+	"TeamMemberRole": "*",
+	"TeamRepositoryConnection": "*",
+	"TeamRepositoryEdge": "*",
+	"TeamPrivacy": "*",
+	"TeamNotificationSetting": "*"
 }

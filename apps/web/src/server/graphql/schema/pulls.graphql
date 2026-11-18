@@ -1363,24 +1363,6 @@ type Bot {
 }
 
 """
-A team of users in an organization.
-"""
-type Team {
-	"""
-	The organization that owns this team.
-	"""
-	organization: Organization!
-	"""
-	The name of the team.
-	"""
-	name: String!
-	"""
-	The slug corresponding to the team.
-	"""
-	slug: String!
-}
-
-"""
 A review object for a given pull request.
 """
 type PullRequestReview implements Node {

@@ -9,7 +9,11 @@ import { db } from "#/db";
 import {
 	type Organization,
 	organizations,
+	orgMemberships,
 	repositories,
+	type Team,
+	teamRepositories,
+	teams,
 } from "#/db/app-schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { htmlUrl, isoTimestamp } from "../../api/http";
@@ -18,14 +22,23 @@ import {
 	readableRepositoriesCondition,
 } from "../../repo-access";
 import { repositoryOwnerOf } from "../../repository-lookup";
+import {
+	findTeamById,
+	listChildTeams,
+	listTeamMembers,
+	listTeams,
+	teamMembershipOf,
+} from "../../team-store";
 import { offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import { notFound, unprocessable } from "../errors";
 import { encodeNodeId, rowIdOfNodeKey } from "../node-id";
-import type { RepositoryOrder } from "./generated";
+import { loadUser, type UserNode, userNode } from "./core";
+import type { RepositoryOrder, TeamMembersArgs } from "./generated";
 import {
 	ordering,
 	type RepoRole,
+	type RepositoryNode,
 	readableRepositoryNode,
 	repositoryNode,
 } from "./repository";
@@ -99,7 +112,7 @@ export function organizationNode(
 }
 
 /** Organizations by row id, batched per request. */
-function loadOrganization(
+export function loadOrganization(
 	ctx: GraphQLContext,
 	orgId: number,
 ): Promise<OrganizationRow | undefined> {
@@ -225,6 +238,257 @@ async function organizationRepositories(
 	});
 }
 
+/** The connection edges carry the node; the extra GitHub fields read as null-ish. */
+export interface TeamMemberEdgeNode {
+	cursor: string;
+	node: UserNode;
+}
+
+export interface TeamRepositoryEdgeNode {
+	cursor: string;
+	node: RepositoryNode;
+}
+
+export interface TeamNode {
+	__typename: "Team";
+	id: string;
+	databaseId: number;
+	name: string;
+	slug: string;
+	description: string | null;
+	privacy: "SECRET" | "VISIBLE";
+	notificationSetting: "NOTIFICATIONS_ENABLED";
+	url: string;
+	createdAt: string;
+	updatedAt: string;
+	/** Internal: the row and its organization, for the fields around it. */
+	team: Team;
+	organization: OrganizationNode;
+}
+
+export function teamNode(team: Team, organization: OrganizationNode): TeamNode {
+	return {
+		__typename: "Team",
+		id: encodeNodeId("Team", team.id),
+		databaseId: team.id,
+		name: team.name,
+		slug: team.slug,
+		description: team.description,
+		privacy: team.privacy === "secret" ? "SECRET" : "VISIBLE",
+		notificationSetting: "NOTIFICATIONS_ENABLED",
+		url: htmlUrl(`/orgs/${organization.login}/teams/${team.slug}`),
+		createdAt: isoTimestamp(team.createdAt),
+		updatedAt: isoTimestamp(team.updatedAt),
+		team,
+		organization,
+	};
+}
+
+/** The viewer's read rule: an active member, with `secret` teams for members only. */
+async function canReadTeam(
+	ctx: GraphQLContext,
+	team: Team,
+	orgRole: string | null,
+): Promise<boolean> {
+	const viewer = ctx.caller.userId;
+	if (orgRole === "admin") return true;
+	if (orgRole !== "member") return false;
+	if (team.privacy !== "secret") return true;
+	return (await teamMembershipOf(team.id, viewer)) !== null;
+}
+
+async function organizationTeams(
+	source: OrganizationNode,
+	args: {
+		after?: string | null;
+		before?: string | null;
+		first?: number | null;
+		last?: number | null;
+		userLogins?: readonly (string | null)[] | null;
+	},
+	ctx: GraphQLContext,
+) {
+	const viewer = ctx.caller.userId;
+	const orgRole = await organizationRoleOfSource(source, viewer);
+	const userLogins = args.userLogins?.filter(
+		(login): login is string => !!login,
+	);
+	const page = (offset: number, limit: number) =>
+		listTeams(
+			source.orgId,
+			{ limit, offset },
+			{ userId: viewer, isOrgAdmin: orgRole === "admin" },
+			userLogins,
+		);
+	const [{ total }] = await Promise.all([page(0, 1)]);
+	return offsetConnection(args, total, async (offset, limit) => {
+		const teamsPage = await page(offset, limit);
+		return teamsPage.rows.map((row) => teamNode(row, source));
+	});
+}
+
+/** The viewer's organization role, as team visibility reads it. */
+async function organizationRoleOfSource(
+	source: OrganizationNode,
+	viewer: string,
+): Promise<string | null> {
+	const [row] = await db
+		.select({ role: orgMemberships.role })
+		.from(orgMemberships)
+		.where(
+			and(
+				eq(orgMemberships.orgId, source.orgId),
+				eq(orgMemberships.userId, viewer),
+				eq(orgMemberships.state, "active"),
+			),
+		);
+	return row?.role ?? null;
+}
+
+async function teamMembersConnection(
+	source: TeamNode,
+	args: TeamMembersArgs,
+	ctx: GraphQLContext,
+) {
+	const page = (offset: number, limit: number) =>
+		listTeamMembers(source.team.id, { limit, offset });
+	const [{ total }] = await Promise.all([page(0, 1)]);
+	return offsetConnection(args, total, async (offset, limit) => {
+		const members = await page(offset, limit);
+		const nodes = await Promise.all(
+			members.rows.map(async ({ user: member }) => {
+				const row = await loadUser(ctx, member.id);
+				return row ? userNode(row) : null;
+			}),
+		);
+		return nodes.filter((node): node is NonNullable<typeof node> => !!node);
+	});
+}
+
+async function teamRepositoriesConnection(
+	source: TeamNode,
+	args: {
+		after?: string | null;
+		before?: string | null;
+		first?: number | null;
+		last?: number | null;
+	},
+	ctx: GraphQLContext,
+) {
+	const viewer = ctx.caller.userId;
+	const where = and(
+		eq(teamRepositories.teamId, source.team.id),
+		readableRepositoriesCondition(viewer),
+	);
+	const [totalRow] = await db
+		.select({ total: count() })
+		.from(teamRepositories)
+		.innerJoin(repositories, eq(repositories.id, teamRepositories.repoId))
+		.where(where);
+	return offsetConnection(args, totalRow?.total ?? 0, async (offset, limit) => {
+		const rows = await db
+			.select({
+				repo: repositories,
+				organization: {
+					id: organizations.id,
+					login: organizations.login,
+					name: organizations.name,
+				},
+			})
+			.from(teamRepositories)
+			.innerJoin(repositories, eq(repositories.id, teamRepositories.repoId))
+			.innerJoin(
+				organizations,
+				eq(organizations.id, repositories.organizationId),
+			)
+			.where(where)
+			.orderBy(repositories.name)
+			.limit(limit)
+			.offset(offset);
+		return Promise.all(
+			rows.map(async ({ repo, organization }) => {
+				const access = await getAccessForRepository(repo, viewer);
+				return repositoryNode(
+					{
+						...repo,
+						owner: repositoryOwnerOf({ owner: null, organization }),
+					},
+					repo.ownerId === viewer ? "owner" : access.role,
+				);
+			}),
+		);
+	});
+}
+
+async function teamChildTeams(
+	source: TeamNode,
+	args: {
+		after?: string | null;
+		before?: string | null;
+		first?: number | null;
+		immediateOnly?: boolean | null;
+		last?: number | null;
+	},
+) {
+	const page = (offset: number, limit: number) =>
+		args.immediateOnly === false
+			? descendants(source.team.id, { limit, offset })
+			: listChildTeams(source.team.id, { limit, offset });
+	const [{ total }] = await Promise.all([page(0, 1)]);
+	return offsetConnection(args, total, async (offset, limit) => {
+		const children = await page(offset, limit);
+		return children.rows.map((row) => teamNode(row, source.organization));
+	});
+}
+
+/** Every descendant of a team, depth-first (bounded by the organization's cap). */
+async function descendants(
+	teamId: number,
+	page: { limit: number; offset: number },
+): Promise<{ rows: Team[]; total: number }> {
+	const all = await db
+		.select()
+		.from(teams)
+		.where(eq(teams.orgId, (await findTeamById(teamId))?.orgId ?? -1));
+	const byParent = new Map<number, Team[]>();
+	for (const row of all) {
+		if (row.parentTeamId === null) continue;
+		byParent.set(row.parentTeamId, [
+			...(byParent.get(row.parentTeamId) ?? []),
+			row,
+		]);
+	}
+	const rows: Team[] = [];
+	const walk = (id: number) => {
+		for (const child of byParent.get(id) ?? []) {
+			rows.push(child);
+			walk(child.id);
+		}
+	};
+	walk(teamId);
+	return {
+		rows: rows.slice(page.offset, page.offset + page.limit),
+		total: rows.length,
+	};
+}
+
+/** `node(id:)` for a team. */
+const loadTeamNode: NodeLoader = async (key, ctx) => {
+	const id = rowIdOfNodeKey(key);
+	if (id === null) return null;
+	const team = await findTeamById(id);
+	if (!team) return null;
+	const org = await loadOrganization(ctx, team.orgId);
+	if (!org) return null;
+	const organization = organizationNode(org);
+	const orgRole = await organizationRoleOfSource(
+		organization,
+		ctx.caller.userId,
+	);
+	if (!(await canReadTeam(ctx, team, orgRole))) return null;
+	return teamNode(team, organization);
+};
+
 /** `node(id:)` for an organization. */
 const loadOrganizationNode: NodeLoader = async (key, ctx) => {
 	const id = rowIdOfNodeKey(key);
@@ -251,7 +515,22 @@ export const organizationsResolvers: DomainResolvers = {
 				organizationRepositories(source, args, ctx),
 			repository: (source: OrganizationNode, args: { name: string }, ctx) =>
 				readableRepositoryNode(ctx, source.login, args.name),
+			teams: (source: OrganizationNode, args, ctx) =>
+				organizationTeams(source, args, ctx),
+		},
+		Team: {
+			organization: (source: TeamNode) => source.organization,
+			parentTeam: async (source: TeamNode) => {
+				if (source.team.parentTeamId === null) return null;
+				const parent = await findTeamById(source.team.parentTeamId);
+				return parent ? teamNode(parent, source.organization) : null;
+			},
+			members: (source: TeamNode, args: TeamMembersArgs, ctx) =>
+				teamMembersConnection(source, args, ctx),
+			repositories: (source: TeamNode, args, ctx) =>
+				teamRepositoriesConnection(source, args, ctx),
+			childTeams: (source: TeamNode, args) => teamChildTeams(source, args),
 		},
 	},
-	nodes: { Organization: loadOrganizationNode },
+	nodes: { Organization: loadOrganizationNode, Team: loadTeamNode },
 };

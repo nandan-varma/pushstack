@@ -78,6 +78,13 @@ export const MAX_ORG_LOCATION_CHARS = 255;
 export const MAX_ORG_EMAIL_CHARS = 254;
 export const MAX_ORG_TWITTER_CHARS = 15;
 
+/** Teams: per organization, name and description bounds, nesting and repos. */
+export const MAX_TEAMS_PER_ORG = 1000;
+export const MAX_TEAM_NAME_CHARS = 100;
+export const MAX_TEAM_DESCRIPTION_CHARS = 500;
+export const MAX_TEAM_NESTING_DEPTH = 5;
+export const MAX_TEAM_REPOS = 1000;
+
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */
 export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 
