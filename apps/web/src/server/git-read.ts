@@ -503,7 +503,12 @@ export function getCommitDiff(
 	repoName: string,
 	commitSha: string,
 ): Promise<DiffResult> {
-	return opsGetCommitDiff(repoFor(ownerKey, repoName), commitSha);
+	return opsGetCommitDiff(
+		repoFor(ownerKey, repoName),
+		commitSha,
+		{},
+		opsHooksFor(ownerKey, repoName),
+	);
 }
 
 export function getBranchDiff(
@@ -512,7 +517,13 @@ export function getBranchDiff(
 	baseRef: string,
 	compareRef: string,
 ): Promise<DiffResult> {
-	return getDiffBetweenRefs(repoFor(ownerKey, repoName), baseRef, compareRef);
+	return getDiffBetweenRefs(
+		repoFor(ownerKey, repoName),
+		baseRef,
+		compareRef,
+		{},
+		opsHooksFor(ownerKey, repoName),
+	);
 }
 
 /** Two-dot `base..head`: the two commits' trees compared directly. */
@@ -526,6 +537,8 @@ export function getDirectDiff(
 		repoFor(ownerKey, repoName),
 		baseRef,
 		compareRef,
+		{},
+		opsHooksFor(ownerKey, repoName),
 	);
 }
 

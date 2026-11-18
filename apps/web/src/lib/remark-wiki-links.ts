@@ -5,7 +5,7 @@
  * path under `linkBase` — never a URL the page text chose.
  */
 import { findAndReplace } from "mdast-util-find-and-replace";
-import { pageSlugFromTitle, safeWikiPageSchema } from "@/lib/wiki-page";
+import { isSafeWikiPageName, pageSlugFromTitle } from "@/lib/wiki-slug";
 
 const WIKI_LINK_PATTERN = /\[\[([^[\]|]+)(?:\|([^[\]]+))?\]\]/g;
 
@@ -16,11 +16,11 @@ export function createWikiLinksPlugin(linkBase: string) {
 			[
 				WIKI_LINK_PATTERN,
 				(_full: string, target: string, label?: string) => {
-					const page = safeWikiPageSchema.safeParse(pageSlugFromTitle(target));
-					if (!page.success) return false;
+					const page = pageSlugFromTitle(target);
+					if (!isSafeWikiPageName(page)) return false;
 					return {
 						type: "link" as const,
-						url: `${linkBase}/${encodeURIComponent(page.data)}`,
+						url: `${linkBase}/${encodeURIComponent(page)}`,
 						children: [
 							{ type: "text" as const, value: (label ?? target).trim() },
 						],

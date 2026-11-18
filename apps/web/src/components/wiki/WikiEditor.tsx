@@ -9,7 +9,7 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_WIKI_PAGE_CHARS } from "@/lib/limits";
 import { queryKeys } from "@/lib/query-options";
-import { pageSlugFromTitle } from "@/lib/wiki-page";
+import { pageSlugFromTitle } from "@/lib/wiki-slug";
 import { deleteWikiPage, saveWikiPage } from "@/server/wiki";
 
 const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));

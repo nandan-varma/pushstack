@@ -4,7 +4,7 @@
  * public keys are persisted; a private key is rejected at the door.
  */
 import { and, count, eq, inArray } from "drizzle-orm";
-import * as openpgp from "openpgp";
+import type * as OpenPgp from "openpgp";
 import { db } from "#/db";
 import { gpgKeys, sshSigningKeys } from "#/db/app-schema";
 import {
@@ -14,6 +14,7 @@ import {
 	MAX_SSH_SIGNING_KEY_CHARS,
 } from "#/lib/limits";
 import { ApiError } from "./api/http";
+import { openpgp } from "./openpgp";
 import { isSshSigningKey, sshFingerprint } from "./signature-verify";
 
 type GpgKeyRow = typeof gpgKeys.$inferSelect;
@@ -59,9 +60,10 @@ const iso = (date: Date) => date.toISOString();
  * from it. Throws ApiError(422) for a private key or anything unparseable.
  */
 async function parseGpgKey(armored: string) {
-	let key: openpgp.PublicKey;
+	const pgp = await openpgp();
+	let key: OpenPgp.PublicKey;
 	try {
-		key = await openpgp.readKey({ armoredKey: armored.trim() });
+		key = await pgp.readKey({ armoredKey: armored.trim() });
 	} catch {
 		throw new ApiError(422, "Invalid GPG key");
 	}
@@ -102,7 +104,8 @@ async function hasCapability(check: () => Promise<unknown>): Promise<boolean> {
 
 /** The binary packet base64 GitHub serves as `public_key`. */
 async function armoredToBinary(armored: string): Promise<string> {
-	const key = await openpgp.readKey({ armoredKey: armored });
+	const pgp = await openpgp();
+	const key = await pgp.readKey({ armoredKey: armored });
 	return Buffer.from(key.write()).toString("base64");
 }
 

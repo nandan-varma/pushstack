@@ -5,7 +5,7 @@ import { readBlobContent } from "../edge-utils.js";
 import { GitError } from "../git-errors.js";
 import { getObjectSize } from "../object-size.js";
 import { getCommit, resolveCommit } from "./history.js";
-import type { Repo } from "./types.js";
+import { type OpsHooks, type Repo, runStep } from "./types.js";
 
 /** Text files larger than this get no patch (kind "too-large"). */
 export const MAX_DIFF_TEXT_BYTES = 1024 * 1024;
@@ -362,17 +362,27 @@ export async function getCommitDiff(
 	repo: Repo,
 	commitSha: string,
 	limits: DiffLimits = {},
+	hooks?: OpsHooks,
 ): Promise<DiffResult> {
+	const cacheKey = diffCacheKey(repo, "commit", commitSha, commitSha, limits);
+	const cached = hooks?.resultCache?.get<DiffResult>(cacheKey);
+	if (cached) {
+		hooks?.onNote?.(`getCommitDiff: cache hit ${cacheKey}`);
+		return cached;
+	}
+	hooks?.onNote?.(`getCommitDiff: cache miss ${cacheKey}`);
 	const { commit } = await getCommit(repo, commitSha);
 	const parent = commit.parent[0];
 	const parentTree = parent
 		? (await getCommit(repo, parent)).commit.tree
 		: null;
-	return {
+	const result = {
 		...(await diffTrees(repo, parentTree, commit.tree, limits)),
 		oldRef: parent,
 		newRef: commitSha,
 	};
+	hooks?.resultCache?.set(cacheKey, result);
+	return result;
 }
 
 /**
@@ -386,11 +396,22 @@ export async function getDiffBetweenRefs(
 	baseRef: string,
 	compareRef: string,
 	limits: DiffLimits = {},
+	hooks?: OpsHooks,
 ): Promise<DiffResult> {
 	const [base, compare] = await Promise.all([
 		resolveCommit(repo, baseRef),
 		resolveCommit(repo, compareRef),
 	]);
+	// Both commits are immutable, so this result can never go stale: refs
+	// moving to a new commit means a new key. Limits are part of the key
+	// because a smaller budget produces a different diff.
+	const cacheKey = diffCacheKey(repo, "three", base.oid, compare.oid, limits);
+	const cached = hooks?.resultCache?.get<DiffResult>(cacheKey);
+	if (cached) {
+		hooks?.onNote?.(`getDiffBetweenRefs: cache hit ${cacheKey}`);
+		return cached;
+	}
+	hooks?.onNote?.(`getDiffBetweenRefs: cache miss ${cacheKey}`);
 	const [mergeBase] = await git.findMergeBase({
 		...repo,
 		oids: [base.oid, compare.oid],
@@ -401,11 +422,13 @@ export async function getDiffBetweenRefs(
 			: mergeBase === base.oid
 				? base.commit.tree
 				: (await getCommit(repo, mergeBase)).commit.tree;
-	return {
+	const result = {
 		...(await diffTrees(repo, baseTree, compare.commit.tree, limits)),
 		oldRef: mergeBase,
 		newRef: compare.oid,
 	};
+	hooks?.resultCache?.set(cacheKey, result);
+	return result;
 }
 
 /**
@@ -419,16 +442,44 @@ export async function getDirectDiffBetweenRefs(
 	baseRef: string,
 	compareRef: string,
 	limits: DiffLimits = {},
+	hooks?: OpsHooks,
 ): Promise<DiffResult> {
 	const [base, compare] = await Promise.all([
 		resolveCommit(repo, baseRef),
 		resolveCommit(repo, compareRef),
 	]);
-	return {
-		...(await diffTrees(repo, base.commit.tree, compare.commit.tree, limits)),
+	const cacheKey = diffCacheKey(repo, "two", base.oid, compare.oid, limits);
+	const cached = hooks?.resultCache?.get<DiffResult>(cacheKey);
+	if (cached) {
+		hooks?.onNote?.(`getDirectDiffBetweenRefs: cache hit ${cacheKey}`);
+		return cached;
+	}
+	hooks?.onNote?.(`getDirectDiffBetweenRefs: cache miss ${cacheKey}`);
+	const result = {
+		...(await runStep(hooks, `diff ${base.oid}..${compare.oid}`, () =>
+			diffTrees(repo, base.commit.tree, compare.commit.tree, limits),
+		)),
 		oldRef: base.oid,
 		newRef: compare.oid,
 	};
+	hooks?.resultCache?.set(cacheKey, result);
+	return result;
+}
+
+/**
+ * A diff result is keyed by the two immutable commits it was computed from,
+ * the dot form, and the limits: two callers asking with different budgets get
+ * different answers.
+ */
+function diffCacheKey(
+	repo: Repo,
+	dots: "commit" | "two" | "three",
+	baseOid: string,
+	compareOid: string,
+	limits: DiffLimits,
+): string {
+	const { maxFiles = "", maxBytes = "" } = limits;
+	return `diff:${dots}:${repo.gitdir}:${baseOid}:${compareOid}:${maxFiles}:${maxBytes}`;
 }
 
 /** The best common ancestor of two refs, or undefined when unrelated. */

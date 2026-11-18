@@ -23,12 +23,12 @@ import {
 	type TreeEntry,
 } from "git-fs-s3/ops";
 import { MAX_WIKI_PAGES, MAX_WIKI_RENDER_BYTES } from "#/lib/limits";
+import { safeWikiPageSchema } from "#/lib/wiki-page";
 import {
 	pageFileName,
 	pageSlugFromTitle,
-	safeWikiPageSchema,
 	WIKI_CHROME_FILES,
-} from "#/lib/wiki-page";
+} from "#/lib/wiki-slug";
 import { opsHooksFor } from "./git-cache";
 import { gitFs } from "./git-fs";
 import { afterRepositoryPush, initBareRepo, repoFor } from "./git-repo";

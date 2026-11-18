@@ -28,6 +28,11 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   repository drops from 32 to 23 storage calls.
 - `applyRefUpdates` takes an optional fourth argument, the ref names the
   caller already listed under the repository lock.
+- `getCommitDiff`, `getDiffBetweenRefs` and `getDirectDiffBetweenRefs` take the
+  usual optional `OpsHooks` and memoize their result under the `diff:` prefix,
+  keyed by the immutable commit ids and the work limits. A compare page's
+  second view of the same pair costs microseconds instead of re-walking trees;
+  a ref that moves produces a new key, so nothing can be stale.
 - `RepackOptions.packDirectory` lets a lock-holding caller pass the
   `objects/pack` entries it already listed; `applyReceivePack` uses it so the
   post-push repack check no longer lists the pack directory again. When the

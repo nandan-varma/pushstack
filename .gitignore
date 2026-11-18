@@ -33,6 +33,8 @@ plans/
 !*.local.template
 
 .pushstack-local/
+# Local benchmark scratch (seeded data copies, TLS certs, captured runs).
+.perf/
 
 CONTEXT.md
 .turbo

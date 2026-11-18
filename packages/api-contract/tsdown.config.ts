@@ -1,7 +1,12 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-	entry: ["src/index.ts", "src/client.ts", "src/limits.ts"],
+	entry: [
+		"src/index.ts",
+		"src/client.ts",
+		"src/limits.ts",
+		"src/vocabulary.ts",
+	],
 	format: ["esm"],
 	// Declarations come from `tsc -p tsconfig.build.json` (see the build script).
 	dts: false,
