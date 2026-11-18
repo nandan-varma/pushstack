@@ -24,6 +24,50 @@
 			"query": [],
 			"body": []
 		},
+		"gists/check-is-starred": {
+			"query": [],
+			"body": []
+		},
+		"gists/star": {
+			"query": [],
+			"body": []
+		},
+		"gists/unstar": {
+			"query": [],
+			"body": []
+		},
+		"gists/list-forks": {
+			"query": [],
+			"body": []
+		},
+		"gists/fork": {
+			"query": [],
+			"body": []
+		},
+		"gists/list-commits": {
+			"query": [],
+			"body": []
+		},
+		"gists/list-comments": {
+			"query": [],
+			"body": []
+		},
+		"gists/create-comment": {
+			"query": [],
+			"body": ["body"]
+		},
+		"gists/get-comment": {
+			"query": [],
+			"body": []
+		},
+		"gists/update-comment": {
+			"query": [],
+			"body": ["body"]
+		},
+		"gists/delete-comment": {
+			"query": [],
+			"body": []
+		},
 		"gists/get-revision": {
 			"query": [],
 			"body": []

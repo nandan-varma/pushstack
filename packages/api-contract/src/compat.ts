@@ -106,6 +106,23 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"the owner and a `gist` token only (`404` otherwise); file keys are current names: `content` replaces, `filename` renames (keeping content when omitted), a null entry or an object with neither deletes; one commit per change",
 	"gists/delete":
 		"the owner and a `gist` token only (`404` otherwise); `204`; the git storage is removed",
+	"gists/check-is-starred":
+		"needs authentication; `204` when starred, `404` when not",
+	"gists/star": "needs a `gist` token; `204`, idempotent",
+	"gists/unstar": "needs a `gist` token; `204`, idempotent",
+	"gists/list-forks":
+		"the gists forked from this one, newest update first; pagination",
+	"gists/fork":
+		"needs a `gist` token; `201` with the fork, whose files and visibility are the parent's; `422` at 1,000 gists or when the parent is over the fork copy cap",
+	"gists/list-commits":
+		"newest first; `version` is the commit sha and `change_status` its lines against the first parent; pagination",
+	"gists/list-comments": "oldest first; pagination",
+	"gists/create-comment":
+		"needs a `gist` token; `body` (at most 65,535 characters, else `422`); `201` with `Location`",
+	"gists/get-comment": "`404` for another gist's comment",
+	"gists/update-comment":
+		"the comment's author only (`404` otherwise); `body` (at most 65,535 characters)",
+	"gists/delete-comment": "the comment's author only (`404` otherwise); `204`",
 	"activity/list-watchers-for-repo":
 		"people watching (not ignoring) who can still read the repository; pagination",
 	"activity/get-repo-subscription":
