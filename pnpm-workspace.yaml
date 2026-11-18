@@ -21,3 +21,10 @@ ignoredOptionalDependencies:
 # @sentry/tanstackstart-react -> @sentry/node -> @sentry/bundler-plugins.
 overrides:
   "@sentry/bundler-plugins>glob": ">=14.0.2"
+# TEMPORARY. GHSA-fc5q-39xc-vjpf (picomatch ReDoS through repeated extglobs) has no patched
+# release (4.0.7 is the latest). picomatch is reached only through build and dev tooling (vite,
+# tinyglobby, fumadocs, TanStack), which matches globs from our own config, never request input.
+# Remove this once picomatch publishes a fix.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
