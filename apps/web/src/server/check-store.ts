@@ -345,6 +345,38 @@ async function latestRunsForShas(repoId: number, shas: string[]) {
 		);
 }
 
+/** The current run of each of `names` on `sha`; a name with none is absent. */
+export function latestCheckRunsNamed(
+	repoId: number,
+	sha: string,
+	names: string[],
+): Promise<CheckRunRow[]> {
+	if (names.length === 0) return Promise.resolve([]);
+	return db
+		.select()
+		.from(checkRuns)
+		.where(
+			and(
+				eq(checkRuns.repoId, repoId),
+				eq(checkRuns.headSha, sha),
+				inArray(
+					checkRuns.id,
+					db
+						.select({ id: max(checkRuns.id) })
+						.from(checkRuns)
+						.where(
+							and(
+								eq(checkRuns.repoId, repoId),
+								eq(checkRuns.headSha, sha),
+								inArray(checkRuns.name, names),
+							),
+						)
+						.groupBy(checkRuns.name),
+				),
+			),
+		);
+}
+
 /** `rollupState` of each of `shas` that has any report (absent = none). */
 export async function commitRollups(
 	repoId: number,

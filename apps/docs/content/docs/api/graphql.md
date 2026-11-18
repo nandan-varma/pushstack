@@ -159,14 +159,20 @@ baseRefName:, headRefName:, labels:, orderBy:)` serve GitHub's `PullRequest`
 shape, including `isDraft`, identity, branches, author, state, comments, labels,
 assignees, milestone, reviews, review requests, reactions, diff totals, and
 commits with status/check rollups. Status fields: `baseRef` (null once the base
-branch is gone) with `branchProtectionRule` always null, since branch protection
-is not served; `mergeStateStatus` is `DRAFT` for a draft and `UNKNOWN` otherwise;
+branch is gone) with `branchProtectionRule` for the rule matching the base
+branch (null when unprotected; only `requiresStrictStatusChecks` is served);
+`mergeStateStatus` is `DRAFT` for a draft, else `BEHIND` (a strict rule and a
+base ahead of the head), `BLOCKED` (a required review or a required check
+failing), `UNSTABLE` (a required check still pending) or `CLEAN`; a closed or
+merged pull request is `UNKNOWN`.
 `latestReviews` is each author's latest submitted review, of any state.
 `reviewDecision` looks only at each author's latest `APPROVED` or
 `CHANGES_REQUESTED` review, so a later comment does not change it: it is
-`CHANGES_REQUESTED` if any such review requests changes, else `APPROVED` if one
-approves, else null. Dismissed reviews are not stored. Without branch protection
-nothing requires a review, so `REVIEW_REQUIRED` is never returned.
+`CHANGES_REQUESTED` if any such review requests changes, else `APPROVED` once
+the rule's approval count and code owner review are met, else `REVIEW_REQUIRED`
+while a rule requires more, else null. A rule that dismisses stale reviews does
+not count an approval given on an earlier head. Admin bypass is per rule
+(`enforce_admins`) and refuses the merge only for those it applies to.
 `closingIssuesReferences` is not served yet (deferred).
 `projectItems` is always empty: Projects (v2) are not served, so a pull request
 is in no project. `gh pr view` requests the field and fails without it.

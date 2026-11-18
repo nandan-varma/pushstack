@@ -9,7 +9,6 @@ import type {
 	ReviewCommentView,
 	ReviewedState,
 	ReviewSide,
-	ReviewState,
 	ReviewThread,
 } from "#/lib/review-types";
 import { bestEffort } from "./best-effort";
@@ -128,6 +127,51 @@ export function pendingReviewFor(pullRequestId: number, authorId: string) {
 }
 
 /**
+ * Each author's latest submitted opinionated review (a later comment does not
+ * undo an approval): the verdict that counts, and the head it was given on.
+ */
+export interface ReviewVerdict {
+	authorId: string;
+	state: ReviewedState;
+	commitSha: string | null;
+}
+
+export async function reviewVerdicts(
+	pullRequestId: number,
+): Promise<ReviewVerdict[]> {
+	const rows = await db.query.pullRequestReviews.findMany({
+		columns: { authorId: true, state: true, commitSha: true },
+		where: { pullRequestId, state: { in: ["approved", "changes_requested"] } },
+		orderBy: { createdAt: "asc", id: "asc" },
+	});
+	const latest = new Map<string, ReviewVerdict>();
+	for (const row of rows) {
+		if (row.state === "pending") continue;
+		latest.set(row.authorId, {
+			authorId: row.authorId,
+			state: row.state,
+			commitSha: row.commitSha,
+		});
+	}
+	return [...latest.values()];
+}
+
+/**
+ * An approval counts only for the head it was given on when the rule dismisses
+ * stale reviews, so moving the head drops it until the reviewer approves again.
+ */
+export function currentVerdicts(
+	verdicts: ReviewVerdict[],
+	dismissStaleReviews: boolean,
+	headSha: string | null,
+): ReviewVerdict[] {
+	if (!dismissStaleReviews || !headSha) return verdicts;
+	return verdicts.filter(
+		(verdict) => verdict.state !== "approved" || verdict.commitSha === headSha,
+	);
+}
+
+/**
  * What the PR header shows: each reviewer's latest submitted review decides
  * their contribution; a `changes_requested` blocks the merge.
  */
@@ -139,12 +183,11 @@ export async function reviewSummaryFor(
 		where: { pullRequestId },
 		orderBy: { createdAt: "asc", id: "asc" },
 	});
-	const latest = new Map<string, ReviewState>();
+	const latest = new Map<string, ReviewedState>();
 	for (const row of rows) {
 		if (row.state === "pending") continue;
 		latest.set(row.authorId, row.state);
 	}
-
 	let approved = 0;
 	let changesRequested = 0;
 	let commented = 0;

@@ -9,6 +9,10 @@ The invariants that must hold, each with the reason it is shaped that way. Read 
 
 `repo-access.ts` is the **only** place that decides whether a user can read, write or moderate a repository. A new handler calls through it (`requireReadAccess`, `requireWriteAccess`, `getRepoWithReadAccess`, …) instead of re-deriving the answer: a hand-rolled check is where a later edit silently drops the "public + anonymous = readable" case or the owner-only distinction.
 
+## Branch protection is enforced in the request path
+
+A rule's reviews, code owners, status checks and ref ancestry are rows and git reads that already exist, so branch protection is evaluated synchronously at push (`vetPush`) and at merge (`mergeBlockedReason`), never by a worker: a refused push or merge leaves no ref moved. Readers and enforcers share `branch-protection-store.ts`, so the rule a `gh pr view` reports is the rule that refused the merge.
+
 ## Fork visibility
 
 A fork is an independent repository — own storage, own visibility, own access list — so nothing about its parent may leak through it.

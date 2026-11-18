@@ -102,7 +102,7 @@ beforeAll(async () => {
 });
 
 describe("pull request status fields", () => {
-	it("reports the base ref, a draft's merge state and no branch protection", async () => {
+	it("reports the base ref, the merge state and no branch protection", async () => {
 		const { body } = await graphql(
 			alice,
 			`query { repository(owner:"alice",name:"proj") {
@@ -112,7 +112,7 @@ describe("pull request status fields", () => {
 		);
 		expect(body.errors).toBeUndefined();
 		expect(body.data.repository.a).toEqual({
-			mergeStateStatus: "UNKNOWN",
+			mergeStateStatus: "CLEAN",
 			baseRef: { name: "main", branchProtectionRule: null },
 		});
 		expect(body.data.repository.b).toEqual({

@@ -10,6 +10,7 @@ import { DiffLimitError } from "git-fs-s3/ops";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { user } from "#/db/schema";
+import { pullRequestProtection } from "../branch-protection";
 import { requestCodeownerReviews } from "../codeowners";
 import { commitCommentCounts } from "../commit-comment-store";
 import { UNSIGNED, verifyCommits } from "../commit-verification";
@@ -363,6 +364,14 @@ async function serializeDetail(
 		forksCount: forks.get(repo.id) ?? 0,
 		role,
 	});
+	const protection = await pullRequestProtection({
+		repository: repo,
+		pullRequest: row,
+		actorId: viewerId,
+		headSha:
+			tips.get(range.head) ??
+			(row.status === "merged" ? (row.headSha ?? null) : null),
+	});
 	return pullRequestShape({
 		repo,
 		repoShape,
@@ -377,6 +386,7 @@ async function serializeDetail(
 			deletions: diff.totalDeletions,
 			changedFiles: diff.totalFiles,
 			rebaseable,
+			mergeableState: protection.mergeStateStatus.toLowerCase(),
 		},
 	});
 }

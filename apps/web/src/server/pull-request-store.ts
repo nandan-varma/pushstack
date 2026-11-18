@@ -431,9 +431,8 @@ export async function mergePullRequestBranches(
 	  }
 > {
 	const blocked = await mergeBlockedReason({
-		pullRequestId: pr.id,
 		repository: repo,
-		branch: pr.targetBranch,
+		pullRequest: pr,
 		actorId: user.id,
 	});
 	if (blocked) {

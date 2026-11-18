@@ -32,6 +32,7 @@ import {
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import { starCounts } from "../../api/repos";
+import { findBranchProtection } from "../../branch-protection-store";
 import { getBranches } from "../../git-read";
 import { ownerKeyOf } from "../../git-storage-naming";
 import {
@@ -718,8 +719,18 @@ export const repositoryResolvers: DomainResolvers = {
 		},
 		Ref: {
 			target: (source) => readCommitNode(source.repo, source.name),
-			// Branch protection is not served yet (it is backlogged), so no branch has a rule.
-			branchProtectionRule: () => null,
+			branchProtectionRule: async (source: RefNode) => {
+				const protection = await findBranchProtection(
+					source.repo.row.id,
+					source.name,
+				);
+				return (
+					protection && {
+						requiresStrictStatusChecks:
+							protection.rule.requiredStatusChecksStrict ?? false,
+					}
+				);
+			},
 		},
 		Commit: {
 			blame: (source, args) => blameOf(source, args),

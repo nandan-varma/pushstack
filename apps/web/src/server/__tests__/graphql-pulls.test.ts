@@ -531,7 +531,7 @@ it("squashes and rebases through mergeMethod once the repository allows them", a
 	expect(open.body.errors).toBeUndefined();
 	expect(open.body.data.node).toEqual({
 		headRefOid: squashHead.body.object.sha,
-		mergeStateStatus: "UNKNOWN",
+		mergeStateStatus: "CLEAN",
 	});
 	const squashed = await graphql(
 		token,
