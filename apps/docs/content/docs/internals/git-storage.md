@@ -339,14 +339,12 @@ pushes:
   (`buildPackFromExistingPacks`' `allowedBases`); otherwise the object is sent
   whole. A repository with open pull requests therefore clones through the
   general walk, not the fast path.
-- **The window after a pull head is deleted.** Repack copies stored deltas as
-  they are, so a consolidated pack can hold a delta base that only the deleted
-  pull head named. The fast path is enabled again once no pull head remains,
-  and it serves the stored pack verbatim, so a clone of the base can receive
-  that base. The base persists for as long as a reachable object is stored as
-  a delta against it, and no repack removes it. Closing this needs either a
-  fast-path check that the pack holds only reachable objects, or a repack that
-  re-encodes just the affected objects; neither is in place yet.
+- **After a pull head is deleted.** `deletePullHead` removes the ref and
+  repacks at once, and a repack re-encodes (whole, one object at a time) any
+  delta whose base is not reachable from a branch, tag or remaining pull head
+  (`buildPackFromExistingPacks`' `allowedBases`). No pack outlives the delete
+  holding an object only that head named, so the single-pack fast path is safe
+  again. Delete a pull head only through `deletePullHead`.
 - **Pushes can't write it.** `isSafeFullRefName` accepts only `refs/heads/` and
   `refs/tags/`, so receive-pack rejects a pull ref as an invalid ref name.
   Server code creates one with `pullHeadRefName(n)`, which only accepts a

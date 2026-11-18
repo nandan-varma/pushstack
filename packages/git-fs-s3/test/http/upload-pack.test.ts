@@ -1,7 +1,7 @@
 import git from "isomorphic-git";
 import { describe, expect, it } from "vitest";
 import { pktLine } from "../../src/http/pkt-line.js";
-import { repackRepository } from "../../src/http/repack.js";
+import { deletePullHead, repackRepository } from "../../src/http/repack.js";
 import { rawFs } from "../../src/http/types.js";
 import { handleUploadPack } from "../../src/http/upload-pack.js";
 import { copyPrefix, createGitFs, MemoryObjectStore } from "../../src/index.js";
@@ -510,6 +510,33 @@ describe("handleUploadPack and pull request heads", () => {
 
 		expect(oids).toContain(mainHead);
 		for (const oid of prOnly) expect(oids).not.toContain(oid);
+	});
+});
+
+describe("handleUploadPack after a pull request head is deleted", () => {
+	it("a fresh clone receives no pull-request-only object, delta base included", async () => {
+		const repo = makeRepo();
+		const { mainHead, prHead, baseBlob } = await writeDeltaAgainstPrOnlyBlob(
+			repo,
+			7,
+		);
+
+		await deletePullHead(repo, 7);
+
+		const result = await handleUploadPack(repo, cloneRequest(mainHead));
+		const oids = await servedOids(packOfResponse(result.body));
+		expect(oids).toContain(mainHead);
+		expect(oids).not.toContain(prHead);
+		expect(oids).not.toContain(baseBlob);
+
+		// The stored pack itself no longer holds them: the fast path is safe.
+		const names = await rawFs(repo).readdir(`${repo.gitdir}/objects/pack`);
+		const packs = parsePackDirectory(names).filter((f) => f.kind === "pack");
+		expect(packs).toHaveLength(1);
+		const stored = await rawFs(repo).readFile(
+			`${repo.gitdir}/objects/pack/${packs[0]?.name}`,
+		);
+		expect(await servedOids(stored as Uint8Array)).not.toContain(baseBlob);
 	});
 });
 

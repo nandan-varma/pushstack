@@ -11,6 +11,7 @@
  * Edge-compatible: Web Crypto SHA-1 and Uint8Array only.
  */
 
+import git from "isomorphic-git";
 import { concat, encodeUtf8, fromHex, sha1, toHex } from "../edge-utils.js";
 import type { Repo } from "../ops/types.js";
 import {
@@ -23,6 +24,11 @@ import {
 } from "../pack-entry.js";
 import { packFileName, parsePackDirectory } from "../pack-files.js";
 import { type PackIndexEntry, readPackIndex } from "../pack-index.js";
+import {
+	encodePackEntry,
+	hashGitObject,
+	type PackObjectType,
+} from "../pack-write.js";
 import { rawFs } from "./types.js";
 
 const PACK_TRAILER_BYTES = 20;
@@ -147,7 +153,19 @@ export async function buildPackFromExistingPacks(
 	const ordered: Uint8Array[] = [];
 	const done = new Set<string>();
 	const pending = new Set<string>();
-	const visit = (oid: string): boolean => {
+	const wholeEntry = async (oid: string): Promise<Uint8Array> => {
+		const { type, object } = await git.readObject({
+			...repo,
+			oid,
+			format: "content",
+		});
+		const content = new Uint8Array(object as Uint8Array);
+		if ((await hashGitObject(type, content)) !== oid) {
+			throw new Error(`pack reuse: object ${oid} failed SHA-1 verification`);
+		}
+		return encodePackEntry({ type: type as PackObjectType, content });
+	};
+	const visit = async (oid: string): Promise<boolean> => {
 		if (done.has(oid)) return true;
 		if (pending.has(oid)) return false; // a delta cycle means corruption
 		const entry = locate(oid);
@@ -157,17 +175,19 @@ export async function buildPackFromExistingPacks(
 			allowedBases !== undefined &&
 			!allowedBases.has(entry.baseOid)
 		) {
-			return false;
+			done.add(oid);
+			ordered.push(await wholeEntry(oid));
+			return true;
 		}
 		pending.add(oid);
-		if (entry.baseOid !== null && !visit(entry.baseOid)) return false;
+		if (entry.baseOid !== null && !(await visit(entry.baseOid))) return false;
 		pending.delete(oid);
 		done.add(oid);
 		ordered.push(entry.bytes);
 		return true;
 	};
 	for (const oid of oids) {
-		if (!visit(oid)) return null;
+		if (!(await visit(oid))) return null;
 	}
 
 	const header = new Uint8Array(12);

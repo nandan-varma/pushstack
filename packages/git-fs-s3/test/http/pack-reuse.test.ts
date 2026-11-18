@@ -106,14 +106,15 @@ describe("buildPackFromExistingPacks", () => {
 
 		// Without the guard the base is copied in, even though only `oid` was asked for.
 		expect(await buildPackFromExistingPacks(repo, [delta.oid])).not.toBeNull();
-		expect(
-			await buildPackFromExistingPacks(
-				repo,
-				[delta.oid],
-				undefined,
-				new Set([delta.oid]),
-			),
-		).toBeNull();
+		// With it the object is sent whole and its base stays out.
+		const whole = await buildPackFromExistingPacks(
+			repo,
+			[delta.oid],
+			undefined,
+			new Set([delta.oid]),
+		);
+		expect(whole).not.toBeNull();
+		expect(await indexedOids(whole as Uint8Array)).toEqual([delta.oid]);
 		expect(
 			await buildPackFromExistingPacks(
 				repo,
