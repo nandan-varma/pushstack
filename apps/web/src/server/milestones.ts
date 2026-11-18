@@ -1,11 +1,8 @@
+import { inputs } from "@pushstack/api-contract";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import {
-	MAX_LIST_SKIP,
-	MAX_MILESTONE_DESCRIPTION_CHARS,
-	MAX_MILESTONE_TITLE_CHARS,
-} from "#/lib/limits";
+import { MAX_LIST_SKIP, MAX_MILESTONE_DESCRIPTION_CHARS } from "#/lib/limits";
 import {
 	countMilestones,
 	createMilestone as createRepoMilestone,
@@ -25,7 +22,7 @@ import {
 } from "./repo-access";
 import { findThreadByNumber, listThreads } from "./thread-store";
 
-const titleSchema = z.string().trim().min(1).max(MAX_MILESTONE_TITLE_CHARS);
+const titleSchema = inputs.milestoneTitle;
 const descriptionSchema = z.string().max(MAX_MILESTONE_DESCRIPTION_CHARS);
 const dueOnSchema = z.coerce.date().nullable();
 

@@ -1,3 +1,4 @@
+import { inputs } from "@pushstack/api-contract";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
@@ -87,7 +88,7 @@ export const createReviewComment = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			prId: z.number().int().positive(),
-			body: z.string().trim().min(1).max(MAX_BODY_CHARS),
+			body: inputs.commentBody,
 			path: safeRepoPathSchema.min(1).max(MAX_REVIEW_PATH_CHARS).optional(),
 			line: z.number().int().min(1).optional(),
 			side: reviewSideSchema.default("RIGHT"),

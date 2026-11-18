@@ -1,7 +1,7 @@
+import { inputs } from "@pushstack/api-contract";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { MAX_BODY_CHARS } from "#/lib/limits";
 import { threadPageSchema } from "#/lib/thread-page";
 import {
 	type CommitComment,
@@ -22,7 +22,7 @@ import {
 } from "./repo-access";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
-const commentBody = () => z.string().trim().min(1).max(MAX_BODY_CHARS);
+const commentBody = () => inputs.commentBody;
 
 export const getCommitComments = createServerFn({ method: "GET" })
 	.validator(

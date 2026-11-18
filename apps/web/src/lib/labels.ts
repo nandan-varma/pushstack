@@ -1,5 +1,6 @@
+import { inputs } from "@pushstack/api-contract";
 import { z } from "zod";
-import { MAX_LABEL_DESCRIPTION_CHARS, MAX_LABEL_NAME_CHARS } from "./limits";
+import { MAX_LABEL_DESCRIPTION_CHARS } from "./limits";
 
 export interface LabelView {
 	id: number;
@@ -52,18 +53,9 @@ export const DEFAULT_LABELS: ReadonlyArray<{
 	},
 ];
 
-/** A 6-digit hex color, with or without `#`; normalized to lowercase without it. */
-export const labelColorSchema = z
-	.string()
-	.trim()
-	.regex(/^#?[0-9a-fA-F]{6}$/, "Color must be a 6-digit hex value")
-	.transform((value) => value.replace(/^#/, "").toLowerCase());
+export const labelColorSchema = inputs.labelColor;
 
-export const labelNameSchema = z
-	.string()
-	.trim()
-	.min(1)
-	.max(MAX_LABEL_NAME_CHARS);
+export const labelNameSchema = inputs.labelName;
 
 export const labelDescriptionSchema = z
 	.string()

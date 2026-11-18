@@ -1,3 +1,4 @@
+import { inputs } from "@pushstack/api-contract";
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
@@ -10,7 +11,6 @@ import {
 	MAX_LIST_SKIP,
 	MAX_SEARCH_QUERY_CHARS,
 	MAX_TEMPLATE_FILENAME_CHARS,
-	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import {
@@ -42,7 +42,7 @@ export const createIssue = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			repoId: z.number(),
-			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
+			title: inputs.threadTitle,
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			labels: issueLabelsSchema.optional(),
 			assignees: z.array(z.string().max(100)).max(MAX_ASSIGNEES).optional(),
@@ -167,7 +167,7 @@ export const updateIssue = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			issueId: z.number(),
-			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS).optional(),
+			title: inputs.threadTitle.optional(),
 			body: z.string().max(MAX_BODY_CHARS).optional(),
 			status: z.enum(["open", "closed"]).optional(),
 		}),
