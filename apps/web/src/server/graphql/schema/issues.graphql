@@ -1263,15 +1263,15 @@ potentially split across many pages.
 """
 type SearchResultItemConnection {
 	"""
-	A list of edges.
-	"""
-	edges: [SearchResultItemEdge]
-	"""
 	The total number of discussions that matched the search query. Regardless of
 	the total number of matches, a maximum of 1,000 results will be available
 	across all types.
 	"""
 	discussionCount: Int!
+	"""
+	A list of edges.
+	"""
+	edges: [SearchResultItemEdge]
 	"""
 	The total number of issues that matched the search query. Regardless of the
 	total number of matches, a maximum of 1,000 results will be available across all types.

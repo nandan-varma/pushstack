@@ -22,11 +22,14 @@ import {
 	type FragmentDefinitionNode,
 	type GraphQLCompositeType,
 	type GraphQLField,
+	type GraphQLOutputType,
 	type GraphQLSchema,
 	getArgumentValues,
 	getNamedType,
 	isCompositeType,
 	isInterfaceType,
+	isListType,
+	isNonNullType,
 	isObjectType,
 	Kind,
 	type OperationDefinitionNode,
@@ -37,11 +40,8 @@ import {
 import { MAX_PAGE_SIZE } from "./connection";
 import { GitHubGraphQLError } from "./errors";
 
-/**
- * GitHub allows 500,000 nodes; PushStack serves every node from its own
- * database and storage, so it is deliberately tighter.
- */
-const MAX_NODES = 50_000;
+/** GitHub's own bound; its `gh project` queries count about 400,000 here. */
+const MAX_NODES = 500_000;
 const MAX_DEPTH = 25;
 /**
  * Field selections per operation, fragments expanded and introspection
@@ -71,6 +71,9 @@ interface QueryCost {
 
 const isConnection = (type: GraphQLCompositeType) =>
 	type.name.endsWith("Connection");
+
+const nullableType = (type: GraphQLOutputType): GraphQLOutputType =>
+	isNonNullType(type) ? type.ofType : type;
 
 export function analyzeQuery(
 	schema: GraphQLSchema,
@@ -252,9 +255,10 @@ export function analyzeQuery(
 				);
 			}
 			requests += BLAME_REQUEST_WEIGHT * multiplier;
-		} else if (field.args.length > 0) {
+		} else if (field.args.length > 0 && !isListType(nullableType(field.type))) {
 			// A lookup (`repository(...)`, `user(login:)`, `node(id:)`): one
-			// fetched node per parent.
+			// fetched node per parent. A list (`options(names:)`) is bounded by
+			// its own rows, not by the number of parents asking for it.
 			requests += multiplier;
 			addNodes(multiplier);
 		}

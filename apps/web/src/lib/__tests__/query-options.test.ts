@@ -36,6 +36,23 @@ describe("queryKeys", () => {
 		});
 	});
 
+	describe("project keys", () => {
+		it("scopes a project list by login and page", () => {
+			expect(queryKeys.userProjects("alice", 2)).toEqual([
+				"projects",
+				"user",
+				"alice",
+				"list",
+				2,
+			]);
+		});
+		it("scopes a project page by its filter and page", () => {
+			expect(
+				queryKeys.userProject("alice", 4, { q: "is:draft", page: 1 }),
+			).toEqual(["projects", "user", "alice", "detail", 4, "is:draft", 1]);
+		});
+	});
+
 	describe("repoBranches", () => {
 		it("scopes by repoId", () => {
 			expect(queryKeys.repoBranches(42)).toEqual(["repos", 42, "branches"]);

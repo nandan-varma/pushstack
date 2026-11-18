@@ -306,6 +306,27 @@ export type Mutation = {
   mergePullRequest?: Maybe<MergePullRequestPayload>;
   /** Adds a review to a Pull Request. */
   addPullRequestReview?: Maybe<AddPullRequestReviewPayload>;
+  /** Creates a new project. */
+  createProjectV2?: Maybe<CreateProjectV2Payload>;
+  /** Links an existing content instance to a Project. */
+  addProjectV2ItemById?: Maybe<AddProjectV2ItemByIdPayload>;
+  /** Creates a new draft issue and add it to a Project. */
+  addProjectV2DraftIssue?: Maybe<AddProjectV2DraftIssuePayload>;
+  /** Updates a draft issue within a Project. */
+  updateProjectV2DraftIssue?: Maybe<UpdateProjectV2DraftIssuePayload>;
+  /**
+   * This mutation updates the value of a field for an item in a Project. Currently
+   * only single-select, multi-select, text, number, date, and iteration fields are supported.
+   */
+  updateProjectV2ItemFieldValue?: Maybe<UpdateProjectV2ItemFieldValuePayload>;
+  /**
+   * This mutation clears the value of a field for an item in a Project. Currently
+   * only text, number, date, assignees, labels, single-select, multi-select,
+   * iteration and milestone fields are supported.
+   */
+  clearProjectV2ItemFieldValue?: Maybe<ClearProjectV2ItemFieldValuePayload>;
+  /** Create a new project field. */
+  createProjectV2Field?: Maybe<CreateProjectV2FieldPayload>;
   /** Create a discussion. */
   createDiscussion?: Maybe<CreateDiscussionPayload>;
   /** Adds a comment to a Discussion, possibly as a reply to another comment. */
@@ -462,6 +483,48 @@ export type MutationMergePullRequestArgs = {
 /** The root query for implementing GraphQL mutations. */
 export type MutationAddPullRequestReviewArgs = {
   input: AddPullRequestReviewInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationCreateProjectV2Args = {
+  input: CreateProjectV2Input;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationAddProjectV2ItemByIdArgs = {
+  input: AddProjectV2ItemByIdInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationAddProjectV2DraftIssueArgs = {
+  input: AddProjectV2DraftIssueInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationUpdateProjectV2DraftIssueArgs = {
+  input: UpdateProjectV2DraftIssueInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationUpdateProjectV2ItemFieldValueArgs = {
+  input: UpdateProjectV2ItemFieldValueInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationClearProjectV2ItemFieldValueArgs = {
+  input: ClearProjectV2ItemFieldValueInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationCreateProjectV2FieldArgs = {
+  input: CreateProjectV2FieldInput;
 };
 
 
@@ -1585,7 +1648,7 @@ export type SshSignature = GitSignature & {
 };
 
 /** An account on GitHub, with one or more owners, that has repositories, members and teams. */
-export type Organization = Actor & Node & RepositoryOwner & UniformResourceLocatable & {
+export type Organization = Actor & Node & RepositoryOwner & UniformResourceLocatable & ProjectV2Owner & {
   __typename?: 'Organization';
   /** A URL pointing to the organization's public avatar. */
   avatarUrl: Scalars['URI']['output'];
@@ -1621,6 +1684,10 @@ export type Organization = Actor & Node & RepositoryOwner & UniformResourceLocat
   websiteUrl?: Maybe<Scalars['URI']['output']>;
   /** A list of teams in this organization. */
   teams: TeamConnection;
+  /** Find a project by number. */
+  projectV2?: Maybe<ProjectV2>;
+  /** A list of projects under the owner. */
+  projectsV2: ProjectV2Connection;
 };
 
 
@@ -1659,6 +1726,24 @@ export type OrganizationTeamsArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   userLogins?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type OrganizationProjectV2Args = {
+  number: Scalars['Int']['input'];
+};
+
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type OrganizationProjectsV2Args = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  minPermissionLevel?: InputMaybe<ProjectV2PermissionLevel>;
+  orderBy?: InputMaybe<ProjectV2Order>;
+  query?: InputMaybe<Scalars['String']['input']>;
 };
 
 /** A list of organizations managed by an enterprise. */
@@ -2458,14 +2543,14 @@ export type SearchResultItem = Discussion | Issue | PullRequest | Repository;
  */
 export type SearchResultItemConnection = {
   __typename?: 'SearchResultItemConnection';
-  /** A list of edges. */
-  edges?: Maybe<Array<Maybe<SearchResultItemEdge>>>;
   /**
    * The total number of discussions that matched the search query. Regardless of
    * the total number of matches, a maximum of 1,000 results will be available
    * across all types.
    */
   discussionCount: Scalars['Int']['output'];
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<SearchResultItemEdge>>>;
   /**
    * The total number of issues that matched the search query. Regardless of the
    * total number of matches, a maximum of 1,000 results will be available across all types.
@@ -3606,8 +3691,6 @@ export type ProjectV2FieldsArgs = {
 
 /** Represents an owner of a project. */
 export type ProjectV2Owner = {
-  /** The Node ID of the ProjectV2Owner object */
-  id: Scalars['ID']['output'];
   /** Find a project by number. */
   projectV2?: Maybe<ProjectV2>;
   /** A list of projects under the owner. */
@@ -3803,7 +3886,7 @@ export type ProjectV2SingleSelectFieldOptionsArgs = {
 };
 
 /** Configurations for project fields. */
-export type ProjectV2FieldConfiguration = ProjectV2Field | ProjectV2SingleSelectField;
+export type ProjectV2FieldConfiguration = ProjectV2Field | ProjectV2IterationField | ProjectV2SingleSelectField;
 
 /** The connection type for ProjectV2FieldConfiguration. */
 export type ProjectV2FieldConfigurationConnection = {
@@ -3999,7 +4082,7 @@ export type DraftIssue = Node & {
 };
 
 /** Project field values */
-export type ProjectV2ItemFieldValue = ProjectV2ItemFieldDateValue | ProjectV2ItemFieldNumberValue | ProjectV2ItemFieldSingleSelectValue | ProjectV2ItemFieldTextValue;
+export type ProjectV2ItemFieldValue = ProjectV2ItemFieldDateValue | ProjectV2ItemFieldIterationValue | ProjectV2ItemFieldLabelValue | ProjectV2ItemFieldMilestoneValue | ProjectV2ItemFieldNumberValue | ProjectV2ItemFieldPullRequestValue | ProjectV2ItemFieldRepositoryValue | ProjectV2ItemFieldReviewerValue | ProjectV2ItemFieldSingleSelectValue | ProjectV2ItemFieldTextValue | ProjectV2ItemFieldUserValue;
 
 /** The connection type for ProjectV2ItemFieldValue. */
 export type ProjectV2ItemFieldValueConnection = {
@@ -4078,6 +4161,356 @@ export type ProjectV2ItemFieldSingleSelectValue = Node & {
   /** Identifies the date and time when the object was last updated. */
   updatedAt: Scalars['DateTime']['output'];
 };
+
+/** Autogenerated input type of CreateProjectV2 */
+export type CreateProjectV2Input = {
+  /** The owner ID to create the project under. */
+  ownerId: Scalars['ID']['input'];
+  /** The repository to link the project to. */
+  repositoryId?: InputMaybe<Scalars['ID']['input']>;
+  /** The title of the project. */
+  title: Scalars['String']['input'];
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of CreateProjectV2. */
+export type CreateProjectV2Payload = {
+  __typename?: 'CreateProjectV2Payload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The new project. */
+  projectV2?: Maybe<ProjectV2>;
+};
+
+/** Autogenerated input type of AddProjectV2ItemById */
+export type AddProjectV2ItemByIdInput = {
+  /** The id of the Issue or Pull Request to add. */
+  contentId: Scalars['ID']['input'];
+  /** The ID of the Project to add the item to. */
+  projectId: Scalars['ID']['input'];
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of AddProjectV2ItemById. */
+export type AddProjectV2ItemByIdPayload = {
+  __typename?: 'AddProjectV2ItemByIdPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The item added to the project. */
+  item?: Maybe<ProjectV2Item>;
+};
+
+/** Autogenerated input type of AddProjectV2DraftIssue */
+export type AddProjectV2DraftIssueInput = {
+  /** The ID of the Project to add the draft issue to. */
+  projectId: Scalars['ID']['input'];
+  /**
+   * The title of the draft issue. A project item can also be created by providing
+   * the URL of an Issue or Pull Request if you have access.
+   */
+  title: Scalars['String']['input'];
+  /** The body of the draft issue. */
+  body?: InputMaybe<Scalars['String']['input']>;
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of AddProjectV2DraftIssue. */
+export type AddProjectV2DraftIssuePayload = {
+  __typename?: 'AddProjectV2DraftIssuePayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The draft issue added to the project. */
+  projectItem?: Maybe<ProjectV2Item>;
+};
+
+/** Autogenerated input type of UpdateProjectV2DraftIssue */
+export type UpdateProjectV2DraftIssueInput = {
+  /** The ID of the draft issue to update. */
+  draftIssueId: Scalars['ID']['input'];
+  /** The title of the draft issue. */
+  title?: InputMaybe<Scalars['String']['input']>;
+  /** The body of the draft issue. */
+  body?: InputMaybe<Scalars['String']['input']>;
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of UpdateProjectV2DraftIssue. */
+export type UpdateProjectV2DraftIssuePayload = {
+  __typename?: 'UpdateProjectV2DraftIssuePayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The draft issue updated in the project. */
+  draftIssue?: Maybe<DraftIssue>;
+};
+
+/** Autogenerated input type of UpdateProjectV2ItemFieldValue */
+export type UpdateProjectV2ItemFieldValueInput = {
+  /** The ID of the Project. */
+  projectId: Scalars['ID']['input'];
+  /** The ID of the item to be updated. */
+  itemId: Scalars['ID']['input'];
+  /** The ID of the field to be updated. */
+  fieldId: Scalars['ID']['input'];
+  /** The value which will be set on the field. */
+  value: ProjectV2FieldValue;
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of UpdateProjectV2ItemFieldValue. */
+export type UpdateProjectV2ItemFieldValuePayload = {
+  __typename?: 'UpdateProjectV2ItemFieldValuePayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The updated item. */
+  projectV2Item?: Maybe<ProjectV2Item>;
+};
+
+/** Autogenerated input type of ClearProjectV2ItemFieldValue */
+export type ClearProjectV2ItemFieldValueInput = {
+  /** The ID of the Project. */
+  projectId: Scalars['ID']['input'];
+  /** The ID of the item to be cleared. */
+  itemId: Scalars['ID']['input'];
+  /** The ID of the field to be cleared. */
+  fieldId: Scalars['ID']['input'];
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of ClearProjectV2ItemFieldValue. */
+export type ClearProjectV2ItemFieldValuePayload = {
+  __typename?: 'ClearProjectV2ItemFieldValuePayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The updated item. */
+  projectV2Item?: Maybe<ProjectV2Item>;
+};
+
+/** Autogenerated input type of CreateProjectV2Field */
+export type CreateProjectV2FieldInput = {
+  /** The ID of the Project to create the field in. */
+  projectId: Scalars['ID']['input'];
+  /** The name of the field. */
+  name: Scalars['String']['input'];
+  /** The data type of the field. */
+  dataType: ProjectV2CustomFieldType;
+  /** Options for a single select field. At least one value is required if data_type is SINGLE_SELECT */
+  singleSelectOptions?: InputMaybe<Array<ProjectV2SingleSelectFieldOptionInput>>;
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of CreateProjectV2Field. */
+export type CreateProjectV2FieldPayload = {
+  __typename?: 'CreateProjectV2FieldPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The new field. */
+  projectV2Field?: Maybe<ProjectV2FieldConfiguration>;
+};
+
+/** The type of a project field. */
+export type ProjectV2CustomFieldType =
+  /** Date */
+  | 'DATE'
+  /** Iteration */
+  | 'ITERATION'
+  /** Multi Select */
+  | 'MULTI_SELECT'
+  /** Number */
+  | 'NUMBER'
+  /** Single Select */
+  | 'SINGLE_SELECT'
+  /** Text */
+  | 'TEXT';
+
+/** The values that can be used to update a field of an item inside a Project. Only 1 value can be updated at a time. */
+export type ProjectV2FieldValue = {
+  /** The ISO 8601 date to set on the field. */
+  date?: InputMaybe<Scalars['Date']['input']>;
+  /** The number to set on the field. */
+  number?: InputMaybe<Scalars['Float']['input']>;
+  /** The id of the single select option to set on the field. */
+  singleSelectOptionId?: InputMaybe<Scalars['String']['input']>;
+  /** The text to set on the field. */
+  text?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Represents a single select field option */
+export type ProjectV2SingleSelectFieldOptionInput = {
+  /** The display color of the option */
+  color: ProjectV2SingleSelectFieldOptionColor;
+  /** The description text of the option */
+  description: Scalars['String']['input'];
+  /**
+   * The ID of an existing single select option. Include this to preserve the
+   * option's identity during updates, preventing item field values from being cleared.
+   */
+  id?: InputMaybe<Scalars['String']['input']>;
+  /** The name of the option */
+  name: Scalars['String']['input'];
+};
+
+/** An iteration field inside a project. */
+export type ProjectV2IterationField = {
+  __typename?: 'ProjectV2IterationField';
+  /** The Node ID of the ProjectV2IterationField object */
+  id: Scalars['ID']['output'];
+  /** The project field's name. */
+  name: Scalars['String']['output'];
+  /** The field's type. */
+  dataType: ProjectV2FieldType;
+};
+
+/** The value of an iteration field in a Project item. */
+export type ProjectV2ItemFieldIterationValue = Node & {
+  __typename?: 'ProjectV2ItemFieldIterationValue';
+  /** The Node ID of the ProjectV2ItemFieldIterationValue object */
+  id: Scalars['ID']['output'];
+  /** The project field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** The ID of the iteration. */
+  iterationId: Scalars['String']['output'];
+  /** The title of the iteration. */
+  title: Scalars['String']['output'];
+  /** The start date of the iteration. */
+  startDate: Scalars['Date']['output'];
+  /** The duration of the iteration in days. */
+  duration: Scalars['Int']['output'];
+};
+
+/** The value of the labels field in a Project item. */
+export type ProjectV2ItemFieldLabelValue = {
+  __typename?: 'ProjectV2ItemFieldLabelValue';
+  /** The field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** Labels value of a field */
+  labels?: Maybe<LabelConnection>;
+};
+
+
+/** The value of the labels field in a Project item. */
+export type ProjectV2ItemFieldLabelValueLabelsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** The value of a milestone field in a Project item. */
+export type ProjectV2ItemFieldMilestoneValue = {
+  __typename?: 'ProjectV2ItemFieldMilestoneValue';
+  /** The field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** Milestone value of a field */
+  milestone?: Maybe<Milestone>;
+};
+
+/** The value of a pull request field in a Project item. */
+export type ProjectV2ItemFieldPullRequestValue = {
+  __typename?: 'ProjectV2ItemFieldPullRequestValue';
+  /** The field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** The pull requests for this field */
+  pullRequests?: Maybe<PullRequestConnection>;
+};
+
+
+/** The value of a pull request field in a Project item. */
+export type ProjectV2ItemFieldPullRequestValuePullRequestsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<PullRequestOrder>;
+};
+
+/** The value of a repository field in a Project item. */
+export type ProjectV2ItemFieldRepositoryValue = {
+  __typename?: 'ProjectV2ItemFieldRepositoryValue';
+  /** The field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** The repository for this field. */
+  repository?: Maybe<Repository>;
+};
+
+/** The value of a reviewers field in a Project item. */
+export type ProjectV2ItemFieldReviewerValue = {
+  __typename?: 'ProjectV2ItemFieldReviewerValue';
+  /** The field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** The reviewers for this field. */
+  reviewers?: Maybe<RequestedReviewerConnection>;
+};
+
+
+/** The value of a reviewers field in a Project item. */
+export type ProjectV2ItemFieldReviewerValueReviewersArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** The value of a user field in a Project item. */
+export type ProjectV2ItemFieldUserValue = {
+  __typename?: 'ProjectV2ItemFieldUserValue';
+  /** The field that contains this value. */
+  field: ProjectV2FieldConfiguration;
+  /** The users for this field */
+  users?: Maybe<UserConnection>;
+};
+
+
+/** The value of a user field in a Project item. */
+export type ProjectV2ItemFieldUserValueUsersArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** The connection type for RequestedReviewer. */
+export type RequestedReviewerConnection = {
+  __typename?: 'RequestedReviewerConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<RequestedReviewerEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<RequestedReviewer>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** Ways in which lists of issues can be ordered upon return. */
+export type PullRequestOrder = {
+  /** The direction in which to order pull requests by the specified field. */
+  direction: OrderDirection;
+  /** The field in which to order pull requests by. */
+  field: PullRequestOrderField;
+};
+
+/** An edge in a connection. */
+export type RequestedReviewerEdge = {
+  __typename?: 'RequestedReviewerEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<RequestedReviewer>;
+};
+
+/** Properties by which pull_requests connections can be ordered. */
+export type PullRequestOrderField =
+  /** Order pull_requests by creation time */
+  | 'CREATED_AT'
+  /** Order pull_requests by update time */
+  | 'UPDATED_AT';
 
 /** A discussion in a repository. */
 export type Discussion = Labelable & Node & Votable & {
@@ -4962,6 +5395,7 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
   ;
   ProjectV2FieldConfiguration:
     | ( ProjectFieldNode )
+    | ( ProjectV2IterationField )
     | ( ProjectFieldNode )
   ;
   ProjectV2ItemContent:
@@ -4971,9 +5405,16 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
   ;
   ProjectV2ItemFieldValue:
     | ( ProjectFieldValueNode )
+    | ( Omit<ProjectV2ItemFieldIterationValue, 'field'> & { field: _RefType['ProjectV2FieldConfiguration'] } )
+    | ( Omit<ProjectV2ItemFieldLabelValue, 'field'> & { field: _RefType['ProjectV2FieldConfiguration'] } )
+    | ( Omit<ProjectV2ItemFieldMilestoneValue, 'field'> & { field: _RefType['ProjectV2FieldConfiguration'] } )
+    | ( ProjectFieldValueNode )
+    | ( Omit<ProjectV2ItemFieldPullRequestValue, 'field' | 'pullRequests'> & { field: _RefType['ProjectV2FieldConfiguration'], pullRequests?: Maybe<_RefType['PullRequestConnection']> } )
+    | ( Omit<ProjectV2ItemFieldRepositoryValue, 'field' | 'repository'> & { field: _RefType['ProjectV2FieldConfiguration'], repository?: Maybe<_RefType['Repository']> } )
+    | ( Omit<ProjectV2ItemFieldReviewerValue, 'field' | 'reviewers'> & { field: _RefType['ProjectV2FieldConfiguration'], reviewers?: Maybe<_RefType['RequestedReviewerConnection']> } )
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
-    | ( ProjectFieldValueNode )
+    | ( Omit<ProjectV2ItemFieldUserValue, 'field' | 'users'> & { field: _RefType['ProjectV2FieldConfiguration'], users?: Maybe<_RefType['UserConnection']> } )
   ;
 };
 
@@ -5004,6 +5445,7 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
+    | ( Omit<ProjectV2ItemFieldIterationValue, 'field'> & { field: _RefType['ProjectV2FieldConfiguration'] } )
     | ( DiscussionNode )
     | ( DiscussionCategoryNode )
     | ( DiscussionCommentNode )
@@ -5043,7 +5485,10 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( DiscussionNode )
   ;
   Assignable: ( IssueNode );
-  ProjectV2Owner: ( UserNode );
+  ProjectV2Owner:
+    | ( UserNode )
+    | ( OrganizationNode )
+  ;
   ProjectV2FieldCommon:
     | ( ProjectFieldNode )
     | ( ProjectFieldNode )
@@ -5287,7 +5732,36 @@ export type ResolversTypes = {
   Float: ResolverTypeWrapper<Scalars['Float']['output']>;
   ProjectV2ItemFieldDateValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   ProjectV2ItemFieldSingleSelectValue: ResolverTypeWrapper<ProjectFieldValueNode>;
+  CreateProjectV2Input: CreateProjectV2Input;
+  CreateProjectV2Payload: ResolverTypeWrapper<Omit<CreateProjectV2Payload, 'projectV2'> & { projectV2?: Maybe<ResolversTypes['ProjectV2']> }>;
+  AddProjectV2ItemByIdInput: AddProjectV2ItemByIdInput;
+  AddProjectV2ItemByIdPayload: ResolverTypeWrapper<Omit<AddProjectV2ItemByIdPayload, 'item'> & { item?: Maybe<ResolversTypes['ProjectV2Item']> }>;
+  AddProjectV2DraftIssueInput: AddProjectV2DraftIssueInput;
+  AddProjectV2DraftIssuePayload: ResolverTypeWrapper<Omit<AddProjectV2DraftIssuePayload, 'projectItem'> & { projectItem?: Maybe<ResolversTypes['ProjectV2Item']> }>;
+  UpdateProjectV2DraftIssueInput: UpdateProjectV2DraftIssueInput;
+  UpdateProjectV2DraftIssuePayload: ResolverTypeWrapper<Omit<UpdateProjectV2DraftIssuePayload, 'draftIssue'> & { draftIssue?: Maybe<ResolversTypes['DraftIssue']> }>;
+  UpdateProjectV2ItemFieldValueInput: UpdateProjectV2ItemFieldValueInput;
+  UpdateProjectV2ItemFieldValuePayload: ResolverTypeWrapper<Omit<UpdateProjectV2ItemFieldValuePayload, 'projectV2Item'> & { projectV2Item?: Maybe<ResolversTypes['ProjectV2Item']> }>;
+  ClearProjectV2ItemFieldValueInput: ClearProjectV2ItemFieldValueInput;
+  ClearProjectV2ItemFieldValuePayload: ResolverTypeWrapper<Omit<ClearProjectV2ItemFieldValuePayload, 'projectV2Item'> & { projectV2Item?: Maybe<ResolversTypes['ProjectV2Item']> }>;
+  CreateProjectV2FieldInput: CreateProjectV2FieldInput;
+  CreateProjectV2FieldPayload: ResolverTypeWrapper<Omit<CreateProjectV2FieldPayload, 'projectV2Field'> & { projectV2Field?: Maybe<ResolversTypes['ProjectV2FieldConfiguration']> }>;
+  ProjectV2CustomFieldType: ProjectV2CustomFieldType;
+  ProjectV2FieldValue: ProjectV2FieldValue;
+  ProjectV2SingleSelectFieldOptionInput: ProjectV2SingleSelectFieldOptionInput;
   Date: ResolverTypeWrapper<Scalars['Date']['output']>;
+  ProjectV2IterationField: ResolverTypeWrapper<ProjectV2IterationField>;
+  ProjectV2ItemFieldIterationValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldIterationValue, 'field'> & { field: ResolversTypes['ProjectV2FieldConfiguration'] }>;
+  ProjectV2ItemFieldLabelValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldLabelValue, 'field'> & { field: ResolversTypes['ProjectV2FieldConfiguration'] }>;
+  ProjectV2ItemFieldMilestoneValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldMilestoneValue, 'field'> & { field: ResolversTypes['ProjectV2FieldConfiguration'] }>;
+  ProjectV2ItemFieldPullRequestValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldPullRequestValue, 'field' | 'pullRequests'> & { field: ResolversTypes['ProjectV2FieldConfiguration'], pullRequests?: Maybe<ResolversTypes['PullRequestConnection']> }>;
+  ProjectV2ItemFieldRepositoryValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldRepositoryValue, 'field' | 'repository'> & { field: ResolversTypes['ProjectV2FieldConfiguration'], repository?: Maybe<ResolversTypes['Repository']> }>;
+  ProjectV2ItemFieldReviewerValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldReviewerValue, 'field' | 'reviewers'> & { field: ResolversTypes['ProjectV2FieldConfiguration'], reviewers?: Maybe<ResolversTypes['RequestedReviewerConnection']> }>;
+  ProjectV2ItemFieldUserValue: ResolverTypeWrapper<Omit<ProjectV2ItemFieldUserValue, 'field' | 'users'> & { field: ResolversTypes['ProjectV2FieldConfiguration'], users?: Maybe<ResolversTypes['UserConnection']> }>;
+  RequestedReviewerConnection: ResolverTypeWrapper<Omit<RequestedReviewerConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['RequestedReviewerEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['RequestedReviewer']>>> }>;
+  PullRequestOrder: PullRequestOrder;
+  RequestedReviewerEdge: ResolverTypeWrapper<Omit<RequestedReviewerEdge, 'node'> & { node?: Maybe<ResolversTypes['RequestedReviewer']> }>;
+  PullRequestOrderField: PullRequestOrderField;
   Discussion: ResolverTypeWrapper<DiscussionNode>;
   DiscussionCategory: ResolverTypeWrapper<DiscussionCategoryNode>;
   DiscussionComment: ResolverTypeWrapper<DiscussionCommentNode>;
@@ -5533,7 +6007,34 @@ export type ResolversParentTypes = {
   Float: Scalars['Float']['output'];
   ProjectV2ItemFieldDateValue: ProjectFieldValueNode;
   ProjectV2ItemFieldSingleSelectValue: ProjectFieldValueNode;
+  CreateProjectV2Input: CreateProjectV2Input;
+  CreateProjectV2Payload: Omit<CreateProjectV2Payload, 'projectV2'> & { projectV2?: Maybe<ResolversParentTypes['ProjectV2']> };
+  AddProjectV2ItemByIdInput: AddProjectV2ItemByIdInput;
+  AddProjectV2ItemByIdPayload: Omit<AddProjectV2ItemByIdPayload, 'item'> & { item?: Maybe<ResolversParentTypes['ProjectV2Item']> };
+  AddProjectV2DraftIssueInput: AddProjectV2DraftIssueInput;
+  AddProjectV2DraftIssuePayload: Omit<AddProjectV2DraftIssuePayload, 'projectItem'> & { projectItem?: Maybe<ResolversParentTypes['ProjectV2Item']> };
+  UpdateProjectV2DraftIssueInput: UpdateProjectV2DraftIssueInput;
+  UpdateProjectV2DraftIssuePayload: Omit<UpdateProjectV2DraftIssuePayload, 'draftIssue'> & { draftIssue?: Maybe<ResolversParentTypes['DraftIssue']> };
+  UpdateProjectV2ItemFieldValueInput: UpdateProjectV2ItemFieldValueInput;
+  UpdateProjectV2ItemFieldValuePayload: Omit<UpdateProjectV2ItemFieldValuePayload, 'projectV2Item'> & { projectV2Item?: Maybe<ResolversParentTypes['ProjectV2Item']> };
+  ClearProjectV2ItemFieldValueInput: ClearProjectV2ItemFieldValueInput;
+  ClearProjectV2ItemFieldValuePayload: Omit<ClearProjectV2ItemFieldValuePayload, 'projectV2Item'> & { projectV2Item?: Maybe<ResolversParentTypes['ProjectV2Item']> };
+  CreateProjectV2FieldInput: CreateProjectV2FieldInput;
+  CreateProjectV2FieldPayload: Omit<CreateProjectV2FieldPayload, 'projectV2Field'> & { projectV2Field?: Maybe<ResolversParentTypes['ProjectV2FieldConfiguration']> };
+  ProjectV2FieldValue: ProjectV2FieldValue;
+  ProjectV2SingleSelectFieldOptionInput: ProjectV2SingleSelectFieldOptionInput;
   Date: Scalars['Date']['output'];
+  ProjectV2IterationField: ProjectV2IterationField;
+  ProjectV2ItemFieldIterationValue: Omit<ProjectV2ItemFieldIterationValue, 'field'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'] };
+  ProjectV2ItemFieldLabelValue: Omit<ProjectV2ItemFieldLabelValue, 'field'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'] };
+  ProjectV2ItemFieldMilestoneValue: Omit<ProjectV2ItemFieldMilestoneValue, 'field'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'] };
+  ProjectV2ItemFieldPullRequestValue: Omit<ProjectV2ItemFieldPullRequestValue, 'field' | 'pullRequests'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'], pullRequests?: Maybe<ResolversParentTypes['PullRequestConnection']> };
+  ProjectV2ItemFieldRepositoryValue: Omit<ProjectV2ItemFieldRepositoryValue, 'field' | 'repository'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'], repository?: Maybe<ResolversParentTypes['Repository']> };
+  ProjectV2ItemFieldReviewerValue: Omit<ProjectV2ItemFieldReviewerValue, 'field' | 'reviewers'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'], reviewers?: Maybe<ResolversParentTypes['RequestedReviewerConnection']> };
+  ProjectV2ItemFieldUserValue: Omit<ProjectV2ItemFieldUserValue, 'field' | 'users'> & { field: ResolversParentTypes['ProjectV2FieldConfiguration'], users?: Maybe<ResolversParentTypes['UserConnection']> };
+  RequestedReviewerConnection: Omit<RequestedReviewerConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['RequestedReviewerEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['RequestedReviewer']>>> };
+  PullRequestOrder: PullRequestOrder;
+  RequestedReviewerEdge: Omit<RequestedReviewerEdge, 'node'> & { node?: Maybe<ResolversParentTypes['RequestedReviewer']> };
   Discussion: DiscussionNode;
   DiscussionCategory: DiscussionCategoryNode;
   DiscussionComment: DiscussionCommentNode;
@@ -5597,7 +6098,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Organization' | 'Team' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment' | 'Gist' | 'GistComment' | 'Language', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Organization' | 'Team' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'ProjectV2ItemFieldIterationValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment' | 'Gist' | 'GistComment' | 'Language', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -5672,6 +6173,13 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   updatePullRequest?: Resolver<Maybe<ResolversTypes['UpdatePullRequestPayload']>, ParentType, ContextType, RequireFields<MutationUpdatePullRequestArgs, 'input'>>;
   mergePullRequest?: Resolver<Maybe<ResolversTypes['MergePullRequestPayload']>, ParentType, ContextType, RequireFields<MutationMergePullRequestArgs, 'input'>>;
   addPullRequestReview?: Resolver<Maybe<ResolversTypes['AddPullRequestReviewPayload']>, ParentType, ContextType, RequireFields<MutationAddPullRequestReviewArgs, 'input'>>;
+  createProjectV2?: Resolver<Maybe<ResolversTypes['CreateProjectV2Payload']>, ParentType, ContextType, RequireFields<MutationCreateProjectV2Args, 'input'>>;
+  addProjectV2ItemById?: Resolver<Maybe<ResolversTypes['AddProjectV2ItemByIdPayload']>, ParentType, ContextType, RequireFields<MutationAddProjectV2ItemByIdArgs, 'input'>>;
+  addProjectV2DraftIssue?: Resolver<Maybe<ResolversTypes['AddProjectV2DraftIssuePayload']>, ParentType, ContextType, RequireFields<MutationAddProjectV2DraftIssueArgs, 'input'>>;
+  updateProjectV2DraftIssue?: Resolver<Maybe<ResolversTypes['UpdateProjectV2DraftIssuePayload']>, ParentType, ContextType, RequireFields<MutationUpdateProjectV2DraftIssueArgs, 'input'>>;
+  updateProjectV2ItemFieldValue?: Resolver<Maybe<ResolversTypes['UpdateProjectV2ItemFieldValuePayload']>, ParentType, ContextType, RequireFields<MutationUpdateProjectV2ItemFieldValueArgs, 'input'>>;
+  clearProjectV2ItemFieldValue?: Resolver<Maybe<ResolversTypes['ClearProjectV2ItemFieldValuePayload']>, ParentType, ContextType, RequireFields<MutationClearProjectV2ItemFieldValueArgs, 'input'>>;
+  createProjectV2Field?: Resolver<Maybe<ResolversTypes['CreateProjectV2FieldPayload']>, ParentType, ContextType, RequireFields<MutationCreateProjectV2FieldArgs, 'input'>>;
   createDiscussion?: Resolver<Maybe<ResolversTypes['CreateDiscussionPayload']>, ParentType, ContextType, RequireFields<MutationCreateDiscussionArgs, 'input'>>;
   addDiscussionComment?: Resolver<Maybe<ResolversTypes['AddDiscussionCommentPayload']>, ParentType, ContextType, RequireFields<MutationAddDiscussionCommentArgs, 'input'>>;
   markDiscussionCommentAsAnswer?: Resolver<Maybe<ResolversTypes['MarkDiscussionCommentAsAnswerPayload']>, ParentType, ContextType, RequireFields<MutationMarkDiscussionCommentAsAnswerArgs, 'input'>>;
@@ -5980,6 +6488,8 @@ export type OrganizationResolvers<ContextType = GraphQLContext, ParentType exten
   url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   websiteUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
   teams?: Resolver<ResolversTypes['TeamConnection'], ParentType, ContextType, Partial<OrganizationTeamsArgs>>;
+  projectV2?: Resolver<Maybe<ResolversTypes['ProjectV2']>, ParentType, ContextType, RequireFields<OrganizationProjectV2Args, 'number'>>;
+  projectsV2?: Resolver<ResolversTypes['ProjectV2Connection'], ParentType, ContextType, RequireFields<OrganizationProjectsV2Args, 'minPermissionLevel' | 'orderBy'>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -6220,8 +6730,8 @@ export type SearchResultItemResolvers<ContextType = GraphQLContext, ParentType e
 };
 
 export type SearchResultItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItemConnection'] = ResolversParentTypes['SearchResultItemConnection']> = {
-  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItemEdge']>>>, ParentType, ContextType>;
   discussionCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItemEdge']>>>, ParentType, ContextType>;
   issueCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItem']>>>, ParentType, ContextType>;
   pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
@@ -6594,7 +7104,7 @@ export type ProjectV2Resolvers<ContextType = GraphQLContext, ParentType extends 
 };
 
 export type ProjectV2OwnerResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Owner'] = ResolversParentTypes['ProjectV2Owner']> = {
-  __resolveType: TypeResolveFn<'User', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Organization', ParentType, ContextType>;
 };
 
 export type ProjectV2ConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2Connection'] = ResolversParentTypes['ProjectV2Connection']> = {
@@ -6639,7 +7149,7 @@ export type ProjectV2SingleSelectFieldResolvers<ContextType = GraphQLContext, Pa
 };
 
 export type ProjectV2FieldConfigurationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2FieldConfiguration'] = ResolversParentTypes['ProjectV2FieldConfiguration']> = {
-  __resolveType: TypeResolveFn<'ProjectV2Field' | 'ProjectV2SingleSelectField', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'ProjectV2Field' | 'ProjectV2IterationField' | 'ProjectV2SingleSelectField', ParentType, ContextType>;
 };
 
 export type ProjectV2FieldConfigurationConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2FieldConfigurationConnection'] = ResolversParentTypes['ProjectV2FieldConfigurationConnection']> = {
@@ -6702,7 +7212,7 @@ export type DraftIssueResolvers<ContextType = GraphQLContext, ParentType extends
 };
 
 export type ProjectV2ItemFieldValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValue'] = ResolversParentTypes['ProjectV2ItemFieldValue']> = {
-  __resolveType: TypeResolveFn<'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'ProjectV2ItemFieldTextValue', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldIterationValue' | 'ProjectV2ItemFieldLabelValue' | 'ProjectV2ItemFieldMilestoneValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldPullRequestValue' | 'ProjectV2ItemFieldRepositoryValue' | 'ProjectV2ItemFieldReviewerValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldUserValue', ParentType, ContextType>;
 };
 
 export type ProjectV2ItemFieldValueConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldValueConnection'] = ResolversParentTypes['ProjectV2ItemFieldValueConnection']> = {
@@ -6751,9 +7261,109 @@ export type ProjectV2ItemFieldSingleSelectValueResolvers<ContextType = GraphQLCo
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
+export type CreateProjectV2PayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CreateProjectV2Payload'] = ResolversParentTypes['CreateProjectV2Payload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  projectV2?: Resolver<Maybe<ResolversTypes['ProjectV2']>, ParentType, ContextType>;
+};
+
+export type AddProjectV2ItemByIdPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AddProjectV2ItemByIdPayload'] = ResolversParentTypes['AddProjectV2ItemByIdPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  item?: Resolver<Maybe<ResolversTypes['ProjectV2Item']>, ParentType, ContextType>;
+};
+
+export type AddProjectV2DraftIssuePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AddProjectV2DraftIssuePayload'] = ResolversParentTypes['AddProjectV2DraftIssuePayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  projectItem?: Resolver<Maybe<ResolversTypes['ProjectV2Item']>, ParentType, ContextType>;
+};
+
+export type UpdateProjectV2DraftIssuePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateProjectV2DraftIssuePayload'] = ResolversParentTypes['UpdateProjectV2DraftIssuePayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  draftIssue?: Resolver<Maybe<ResolversTypes['DraftIssue']>, ParentType, ContextType>;
+};
+
+export type UpdateProjectV2ItemFieldValuePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateProjectV2ItemFieldValuePayload'] = ResolversParentTypes['UpdateProjectV2ItemFieldValuePayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  projectV2Item?: Resolver<Maybe<ResolversTypes['ProjectV2Item']>, ParentType, ContextType>;
+};
+
+export type ClearProjectV2ItemFieldValuePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ClearProjectV2ItemFieldValuePayload'] = ResolversParentTypes['ClearProjectV2ItemFieldValuePayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  projectV2Item?: Resolver<Maybe<ResolversTypes['ProjectV2Item']>, ParentType, ContextType>;
+};
+
+export type CreateProjectV2FieldPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CreateProjectV2FieldPayload'] = ResolversParentTypes['CreateProjectV2FieldPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  projectV2Field?: Resolver<Maybe<ResolversTypes['ProjectV2FieldConfiguration']>, ParentType, ContextType>;
+};
+
 export interface DateScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['Date'], any> {
   name: 'Date';
 }
+
+export type ProjectV2IterationFieldResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2IterationField'] = ResolversParentTypes['ProjectV2IterationField']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  dataType?: Resolver<ResolversTypes['ProjectV2FieldType'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldIterationValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldIterationValue'] = ResolversParentTypes['ProjectV2ItemFieldIterationValue']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  iterationId?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  startDate?: Resolver<ResolversTypes['Date'], ParentType, ContextType>;
+  duration?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldLabelValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldLabelValue'] = ResolversParentTypes['ProjectV2ItemFieldLabelValue']> = {
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<ProjectV2ItemFieldLabelValueLabelsArgs>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldMilestoneValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldMilestoneValue'] = ResolversParentTypes['ProjectV2ItemFieldMilestoneValue']> = {
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  milestone?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldPullRequestValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldPullRequestValue'] = ResolversParentTypes['ProjectV2ItemFieldPullRequestValue']> = {
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  pullRequests?: Resolver<Maybe<ResolversTypes['PullRequestConnection']>, ParentType, ContextType, RequireFields<ProjectV2ItemFieldPullRequestValuePullRequestsArgs, 'orderBy'>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldRepositoryValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldRepositoryValue'] = ResolversParentTypes['ProjectV2ItemFieldRepositoryValue']> = {
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  repository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldReviewerValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldReviewerValue'] = ResolversParentTypes['ProjectV2ItemFieldReviewerValue']> = {
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  reviewers?: Resolver<Maybe<ResolversTypes['RequestedReviewerConnection']>, ParentType, ContextType, Partial<ProjectV2ItemFieldReviewerValueReviewersArgs>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type ProjectV2ItemFieldUserValueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemFieldUserValue'] = ResolversParentTypes['ProjectV2ItemFieldUserValue']> = {
+  field?: Resolver<ResolversTypes['ProjectV2FieldConfiguration'], ParentType, ContextType>;
+  users?: Resolver<Maybe<ResolversTypes['UserConnection']>, ParentType, ContextType, Partial<ProjectV2ItemFieldUserValueUsersArgs>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type RequestedReviewerConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RequestedReviewerConnection'] = ResolversParentTypes['RequestedReviewerConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['RequestedReviewerEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['RequestedReviewer']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type RequestedReviewerEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RequestedReviewerEdge'] = ResolversParentTypes['RequestedReviewerEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['RequestedReviewer']>, ParentType, ContextType>;
+};
 
 export type DiscussionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Discussion'] = ResolversParentTypes['Discussion']> = {
   answer?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
@@ -7187,7 +7797,24 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ProjectV2ItemFieldNumberValue?: ProjectV2ItemFieldNumberValueResolvers<ContextType>;
   ProjectV2ItemFieldDateValue?: ProjectV2ItemFieldDateValueResolvers<ContextType>;
   ProjectV2ItemFieldSingleSelectValue?: ProjectV2ItemFieldSingleSelectValueResolvers<ContextType>;
+  CreateProjectV2Payload?: CreateProjectV2PayloadResolvers<ContextType>;
+  AddProjectV2ItemByIdPayload?: AddProjectV2ItemByIdPayloadResolvers<ContextType>;
+  AddProjectV2DraftIssuePayload?: AddProjectV2DraftIssuePayloadResolvers<ContextType>;
+  UpdateProjectV2DraftIssuePayload?: UpdateProjectV2DraftIssuePayloadResolvers<ContextType>;
+  UpdateProjectV2ItemFieldValuePayload?: UpdateProjectV2ItemFieldValuePayloadResolvers<ContextType>;
+  ClearProjectV2ItemFieldValuePayload?: ClearProjectV2ItemFieldValuePayloadResolvers<ContextType>;
+  CreateProjectV2FieldPayload?: CreateProjectV2FieldPayloadResolvers<ContextType>;
   Date?: GraphQLScalarType;
+  ProjectV2IterationField?: ProjectV2IterationFieldResolvers<ContextType>;
+  ProjectV2ItemFieldIterationValue?: ProjectV2ItemFieldIterationValueResolvers<ContextType>;
+  ProjectV2ItemFieldLabelValue?: ProjectV2ItemFieldLabelValueResolvers<ContextType>;
+  ProjectV2ItemFieldMilestoneValue?: ProjectV2ItemFieldMilestoneValueResolvers<ContextType>;
+  ProjectV2ItemFieldPullRequestValue?: ProjectV2ItemFieldPullRequestValueResolvers<ContextType>;
+  ProjectV2ItemFieldRepositoryValue?: ProjectV2ItemFieldRepositoryValueResolvers<ContextType>;
+  ProjectV2ItemFieldReviewerValue?: ProjectV2ItemFieldReviewerValueResolvers<ContextType>;
+  ProjectV2ItemFieldUserValue?: ProjectV2ItemFieldUserValueResolvers<ContextType>;
+  RequestedReviewerConnection?: RequestedReviewerConnectionResolvers<ContextType>;
+  RequestedReviewerEdge?: RequestedReviewerEdgeResolvers<ContextType>;
   Discussion?: DiscussionResolvers<ContextType>;
   DiscussionCategory?: DiscussionCategoryResolvers<ContextType>;
   DiscussionComment?: DiscussionCommentResolvers<ContextType>;

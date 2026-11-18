@@ -47,6 +47,7 @@ import {
 	getUnreadNotificationCount,
 } from "@/server/notifications";
 import { getAuthorizedApps, getOAuthApps } from "@/server/oauth-apps";
+import { getUserProject, getUserProjects } from "@/server/projects";
 import {
 	getPullRequestByNumber,
 	getPullRequestCommits,
@@ -196,6 +197,22 @@ export const queryKeys = {
 		["repos", repoId, "milestones", number] as const,
 	repoMilestoneThreads: (repoId: number, number: number, state: string) =>
 		["repos", repoId, "milestones", number, "threads", state] as const,
+	userProjects: (login: string, page: number) =>
+		["projects", "user", login, "list", page] as const,
+	userProject: (
+		login: string,
+		number: number,
+		filter: { q: string; page: number },
+	) =>
+		[
+			"projects",
+			"user",
+			login,
+			"detail",
+			number,
+			filter.q,
+			filter.page,
+		] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
 	repoDiscussionsRoot: (repoId: number) =>
 		["repos", repoId, "discussions"] as const,
@@ -854,6 +871,27 @@ export function milestoneThreadsQueryOptions(
 	return queryOptions({
 		queryKey: queryKeys.repoMilestoneThreads(repoId, number, state),
 		queryFn: () => getMilestoneThreads({ data: { repoId, number, state } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function userProjectsQueryOptions(page: number, login: string) {
+	return queryOptions({
+		queryKey: queryKeys.userProjects(login, page),
+		queryFn: () => getUserProjects({ data: { login, page } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function userProjectQueryOptions(
+	login: string,
+	number: number,
+	q: string,
+	page: number,
+) {
+	return queryOptions({
+		queryKey: queryKeys.userProject(login, number, { q, page }),
+		queryFn: () => getUserProject({ data: { login, number, q, page } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

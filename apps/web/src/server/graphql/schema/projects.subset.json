@@ -1,5 +1,7 @@
 {
-	"Query": ["resource"],
+	"Query": {
+		"fields": ["resource"]
+	},
 	"User": {
 		"$implements": ["ProjectV2Owner"],
 		"fields": ["projectsV2", "projectV2"]
@@ -37,7 +39,7 @@
 		]
 	},
 	"ProjectV2Owner": {
-		"fields": ["id", "projectV2", "projectsV2"]
+		"fields": ["projectV2", "projectsV2"]
 	},
 	"ProjectV2Connection": "*",
 	"ProjectV2Edge": "*",
@@ -92,6 +94,7 @@
 	},
 	"ProjectV2FieldConfiguration": [
 		"ProjectV2Field",
+		"ProjectV2IterationField",
 		"ProjectV2SingleSelectField"
 	],
 	"ProjectV2FieldConfigurationConnection": "*",
@@ -122,10 +125,17 @@
 		"fields": ["id", "title", "body", "createdAt", "updatedAt"]
 	},
 	"ProjectV2ItemFieldValue": [
-		"ProjectV2ItemFieldTextValue",
-		"ProjectV2ItemFieldNumberValue",
 		"ProjectV2ItemFieldDateValue",
-		"ProjectV2ItemFieldSingleSelectValue"
+		"ProjectV2ItemFieldIterationValue",
+		"ProjectV2ItemFieldLabelValue",
+		"ProjectV2ItemFieldMilestoneValue",
+		"ProjectV2ItemFieldNumberValue",
+		"ProjectV2ItemFieldPullRequestValue",
+		"ProjectV2ItemFieldRepositoryValue",
+		"ProjectV2ItemFieldReviewerValue",
+		"ProjectV2ItemFieldSingleSelectValue",
+		"ProjectV2ItemFieldTextValue",
+		"ProjectV2ItemFieldUserValue"
 	],
 	"ProjectV2ItemFieldValueConnection": "*",
 	"ProjectV2ItemFieldValueEdge": "*",
@@ -141,5 +151,96 @@
 	"ProjectV2ItemFieldSingleSelectValue": {
 		"fields": ["id", "field", "name", "optionId", "color", "updatedAt"]
 	},
-	"Date": "*"
+	"Mutation": [
+		"createProjectV2",
+		"addProjectV2ItemById",
+		"addProjectV2DraftIssue",
+		"updateProjectV2DraftIssue",
+		"updateProjectV2ItemFieldValue",
+		"clearProjectV2ItemFieldValue",
+		"createProjectV2Field"
+	],
+	"CreateProjectV2Input": [
+		"ownerId",
+		"repositoryId",
+		"title",
+		"clientMutationId"
+	],
+	"CreateProjectV2Payload": "*",
+	"AddProjectV2ItemByIdInput": ["contentId", "projectId", "clientMutationId"],
+	"AddProjectV2ItemByIdPayload": "*",
+	"AddProjectV2DraftIssueInput": [
+		"projectId",
+		"title",
+		"body",
+		"clientMutationId"
+	],
+	"AddProjectV2DraftIssuePayload": "*",
+	"UpdateProjectV2DraftIssueInput": [
+		"draftIssueId",
+		"title",
+		"body",
+		"clientMutationId"
+	],
+	"UpdateProjectV2DraftIssuePayload": "*",
+	"UpdateProjectV2ItemFieldValueInput": [
+		"projectId",
+		"itemId",
+		"fieldId",
+		"value",
+		"clientMutationId"
+	],
+	"UpdateProjectV2ItemFieldValuePayload": "*",
+	"ClearProjectV2ItemFieldValueInput": [
+		"projectId",
+		"itemId",
+		"fieldId",
+		"clientMutationId"
+	],
+	"ClearProjectV2ItemFieldValuePayload": "*",
+	"CreateProjectV2FieldInput": [
+		"projectId",
+		"name",
+		"dataType",
+		"singleSelectOptions",
+		"clientMutationId"
+	],
+	"CreateProjectV2FieldPayload": "*",
+	"ProjectV2CustomFieldType": "*",
+	"ProjectV2FieldValue": ["date", "number", "singleSelectOptionId", "text"],
+	"ProjectV2SingleSelectFieldOptionInput": "*",
+	"Date": "*",
+	"Organization": {
+		"$implements": ["ProjectV2Owner"],
+		"fields": ["projectV2", "projectsV2"]
+	},
+	"ProjectV2IterationField": {
+		"$implements": [],
+		"fields": ["id", "name", "dataType"]
+	},
+	"ProjectV2ItemFieldIterationValue": {
+		"fields": ["id", "field", "iterationId", "title", "startDate", "duration"]
+	},
+	"ProjectV2ItemFieldLabelValue": {
+		"fields": ["field", "labels"]
+	},
+	"ProjectV2ItemFieldMilestoneValue": {
+		"fields": ["field", "milestone"]
+	},
+	"ProjectV2ItemFieldPullRequestValue": {
+		"fields": ["field", "pullRequests"]
+	},
+	"ProjectV2ItemFieldRepositoryValue": {
+		"fields": ["field", "repository"]
+	},
+	"ProjectV2ItemFieldReviewerValue": {
+		"fields": ["field", "reviewers"]
+	},
+	"ProjectV2ItemFieldUserValue": {
+		"fields": ["field", "users"]
+	},
+	"RequestedReviewerConnection": "*",
+	"PullRequestOrder": "*",
+	"RequestedReviewerEdge": "*",
+	"PullRequestOrderField": "*"
 }

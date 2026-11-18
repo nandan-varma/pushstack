@@ -1049,6 +1049,100 @@ describe.skipIf(!enabled)(
 			expect(gone).toMatch(/not found|404/i);
 		});
 
+		it("creates a project, a field and an item, and sets a field value", async () => {
+			const repo = `${host}/octo/hello`;
+			const issue = await ghAs(
+				"project-issue",
+				"issue",
+				"create",
+				"-R",
+				repo,
+				"--title",
+				"Planned",
+				"--body",
+				"On the board",
+			);
+			const issueUrl = issue.stdout.trim();
+			const created = await ghAs(
+				"project-create",
+				"project",
+				"create",
+				"--owner",
+				"octo",
+				"--title",
+				"Roadmap",
+				"--format",
+				"json",
+			);
+			const project = JSON.parse(created.stdout);
+			expect(project).toMatchObject({ title: "Roadmap", public: false });
+			const number = String(project.number);
+
+			const field = await ghAs(
+				"project-field-create",
+				"project",
+				"field-create",
+				number,
+				"--owner",
+				"octo",
+				"--name",
+				"Notes",
+				"--data-type",
+				"TEXT",
+				"--format",
+				"json",
+			);
+			expect(JSON.parse(field.stdout)).toMatchObject({ name: "Notes" });
+
+			const added = await ghAs(
+				"project-item-add",
+				"project",
+				"item-add",
+				number,
+				"--owner",
+				"octo",
+				"--url",
+				issueUrl,
+				"--format",
+				"json",
+			);
+			expect(JSON.parse(added.stdout)).toMatchObject({
+				title: "Planned",
+				type: "Issue",
+			});
+
+			await ghAs(
+				"project-item-edit",
+				"project",
+				"item-edit",
+				number,
+				"--owner",
+				"octo",
+				"--url",
+				issueUrl,
+				"--field",
+				"Notes",
+				"--text",
+				"Ready",
+			);
+			const listed = await ghAs(
+				"project-item-list",
+				"project",
+				"item-list",
+				number,
+				"--owner",
+				"octo",
+				"--format",
+				"json",
+				"--limit",
+				"10",
+			);
+			expect(JSON.parse(listed.stdout).items[0]).toMatchObject({
+				content: { title: "Planned" },
+				notes: "Ready",
+			});
+		}, 120_000);
+
 		it("calls the REST API, which reports the token's classic scopes", async () => {
 			const { stdout } = await gh("api", "--hostname", host, "user");
 			expect(JSON.parse(stdout).login).toBe("octo");

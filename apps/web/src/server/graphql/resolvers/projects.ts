@@ -1,8 +1,10 @@
 /**
  * Projects v2 over `project-store.ts`: `User.projectsV2`,
  * `Repository.projectsV2`, `ProjectV2`, `ProjectV2Item`, the field
- * configuration types, `Issue`/`PullRequest.projectItems`, `Query.resource`
- * and the `node(id:)` loaders for `PVT_`, `PVTI_`, `PVTF_` and `PVTSSF_`.
+ * configuration types, `Issue`/`PullRequest.projectItems`, `Query.resource`,
+ * the writes behind `gh project create`, `field-create`, `item-add` and
+ * `item-edit`, and the `node(id:)` loaders for `PVT_`, `PVTI_`, `PVTF_` and
+ * `PVTSSF_`.
  *
  * An unreadable project or item is `null` (or `NOT_FOUND` through
  * `node(id:)`), never an empty success; a project's public visibility exposes
@@ -13,6 +15,10 @@ import { db } from "#/db";
 import { issues } from "#/db/app-schema";
 import { htmlUrl, isoTimestamp } from "../../api/http";
 import {
+	addProjectItem,
+	clearProjectItemFieldValue,
+	createProjectField,
+	createProjectForUser,
 	findProjectByNumber,
 	findProjectField,
 	findProjectItemFieldValueByName,
@@ -26,11 +32,17 @@ import {
 	listProjectsForOwner,
 	listProjectsForRepository,
 	optionIdOf,
+	type ProjectFieldDataType,
+	type ProjectFieldValueInput,
 	type ProjectFieldValueView,
 	type ProjectFieldView,
 	type ProjectItemFieldValue,
 	type ProjectItemWithRepo,
+	ProjectValidationError,
 	type ProjectView,
+	projectAccess,
+	setProjectItemFieldValue,
+	updateProjectDraftIssue,
 } from "../../project-store";
 import { findRepositoryByName } from "../../repository-lookup";
 import {
@@ -41,11 +53,26 @@ import {
 } from "../../thread-store";
 import { type ConnectionArgs, countedConnection } from "../connection";
 import type { GraphQLContext } from "../context";
-import { encodeProjectNodeId, rowIdOfNodeKey } from "../node-id";
+import { forbidden, notFound, unprocessable } from "../errors";
+import {
+	decodeNodeId,
+	decodeProjectNodeId,
+	encodeProjectNodeId,
+	rowIdOfNodeKey,
+} from "../node-id";
 import { loadUser, type UserNode, userNode } from "./core";
 import type {
+	AddProjectV2DraftIssueInput,
+	AddProjectV2ItemByIdInput,
+	ClearProjectV2ItemFieldValueInput,
+	CreateProjectV2FieldInput,
+	CreateProjectV2Input,
+	ProjectV2CustomFieldType,
+	ProjectV2FieldValue,
 	ProjectV2ItemType,
 	ProjectV2SingleSelectFieldOptionColor,
+	UpdateProjectV2DraftIssueInput,
+	UpdateProjectV2ItemFieldValueInput,
 } from "./generated";
 import { type IssueNode, issueNode } from "./issues";
 import { type PullRequestNode, pullNode } from "./pulls";
@@ -468,8 +495,263 @@ async function findReadableProjectField(
 	return project ? field : null;
 }
 
+const nodeNotFound = (id: string) =>
+	notFound(`Could not resolve to a node with the global id of '${id}'`);
+
+/** The store refuses a bad write with a message GitHub answers as UNPROCESSABLE. */
+async function withProjectErrors<T>(run: () => Promise<T>): Promise<T> {
+	try {
+		return await run();
+	} catch (error) {
+		if (error instanceof ProjectValidationError)
+			throw unprocessable(error.message);
+		throw error;
+	}
+}
+
+function projectRowIdOf(id: string): number | null {
+	const decoded = decodeProjectNodeId(id);
+	return decoded?.type === "ProjectV2" ? rowIdOfNodeKey(decoded.key) : null;
+}
+
+/** A `DraftIssue` shares the `PVTI_` id of the item that holds it. */
+function itemRowIdOf(id: string): number | null {
+	const decoded = decodeProjectNodeId(id);
+	return decoded?.type === "ProjectV2Item" ? rowIdOfNodeKey(decoded.key) : null;
+}
+
+function fieldRowIdOf(id: string): number | null {
+	const decoded = decodeProjectNodeId(id);
+	return decoded?.type === "ProjectV2Field" ||
+		decoded?.type === "ProjectV2SingleSelectField"
+		? rowIdOfNodeKey(decoded.key)
+		: null;
+}
+
+/** The project a write names: unreadable is NOT_FOUND, someone else's is FORBIDDEN. */
+async function writableProject(
+	ctx: GraphQLContext,
+	projectId: string,
+): Promise<ProjectNode> {
+	const id = projectRowIdOf(projectId);
+	const project =
+		id === null ? null : await findReadableProjectById(id, ctx.caller.userId);
+	if (!project) throw nodeNotFound(projectId);
+	if (!projectAccess(project, ctx.caller.userId).canWrite)
+		throw forbidden("You do not have permission to write to this project");
+	const owner = await loadUser(ctx, project.ownerId);
+	if (!owner) throw new Error("Project owner missing");
+	return projectNode(project, owner.username);
+}
+
+async function readableProjectItem(
+	ctx: GraphQLContext,
+	itemId: string,
+): Promise<ProjectItemWithRepo> {
+	const id = itemRowIdOf(itemId);
+	const item =
+		id === null ? null : await findReadableProjectItem(id, ctx.caller.userId);
+	if (!item) throw nodeNotFound(itemId);
+	return item;
+}
+
+async function reloadItemNode(ctx: GraphQLContext, itemId: number) {
+	const item = await findReadableProjectItem(itemId, ctx.caller.userId);
+	if (!item) throw new Error("Project item missing after a mutation");
+	return itemNode(item);
+}
+
+async function createProjectMutation(
+	input: CreateProjectV2Input,
+	ctx: GraphQLContext,
+) {
+	const owner = await loadUser(ctx, ctx.caller.userId);
+	if (!owner) throw new Error("Authenticated user missing");
+	const decoded = decodeNodeId(input.ownerId);
+	if (decoded?.type !== "User" || decoded.key !== String(owner.apiId))
+		throw nodeNotFound(input.ownerId);
+	if (input.repositoryId != null)
+		throw unprocessable("A project cannot be linked to a repository yet");
+	const project = await withProjectErrors(() =>
+		createProjectForUser(owner.id, { title: input.title }),
+	);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		projectV2: projectNode(project, owner.username),
+	};
+}
+
+async function addProjectItemMutation(
+	input: AddProjectV2ItemByIdInput,
+	ctx: GraphQLContext,
+) {
+	const project = await writableProject(ctx, input.projectId);
+	const decoded = decodeNodeId(input.contentId);
+	const issueId =
+		decoded && (decoded.type === "Issue" || decoded.type === "PullRequest")
+			? rowIdOfNodeKey(decoded.key)
+			: null;
+	if (issueId === null) throw nodeNotFound(input.contentId);
+	const item = await withProjectErrors(() =>
+		addProjectItem(project.row.id, ctx.caller.userId, { issueId }),
+	);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		item: await reloadItemNode(ctx, item.id),
+	};
+}
+
+async function addDraftIssueMutation(
+	input: AddProjectV2DraftIssueInput,
+	ctx: GraphQLContext,
+) {
+	const project = await writableProject(ctx, input.projectId);
+	const item = await withProjectErrors(() =>
+		addProjectItem(project.row.id, ctx.caller.userId, {
+			draftTitle: input.title,
+			draftBody: input.body ?? null,
+		}),
+	);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		projectItem: await reloadItemNode(ctx, item.id),
+	};
+}
+
+async function updateDraftIssueMutation(
+	input: UpdateProjectV2DraftIssueInput,
+	ctx: GraphQLContext,
+) {
+	const item = await readableProjectItem(ctx, input.draftIssueId);
+	if (item.issueId !== null) throw nodeNotFound(input.draftIssueId);
+	const updated = await withProjectErrors(() =>
+		updateProjectDraftIssue(item.id, ctx.caller.userId, {
+			title: input.title ?? item.draftTitle ?? "",
+			...(input.body !== undefined && { body: input.body }),
+		}),
+	);
+	if (!updated) throw nodeNotFound(input.draftIssueId);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		draftIssue: draftIssueNode({ ...updated, repoId: null }),
+	};
+}
+
+/** Exactly one of GitHub's value fields, and never one the field's type rejects. */
+function fieldValueInput(value: ProjectV2FieldValue): ProjectFieldValueInput {
+	const { text, number, date, singleSelectOptionId } = value;
+	if (
+		[text, number, date, singleSelectOptionId].filter((entry) => entry != null)
+			.length !== 1
+	)
+		throw unprocessable("A field value sets exactly one value");
+	if (text != null) return { type: "TEXT", text };
+	if (number != null) return { type: "NUMBER", number };
+	if (date != null) {
+		if (typeof date !== "string")
+			throw unprocessable("A date value must be an ISO 8601 date");
+		return { type: "DATE", date };
+	}
+	if (singleSelectOptionId != null)
+		return { type: "SINGLE_SELECT", optionId: singleSelectOptionId };
+	throw unprocessable("A field value sets exactly one value");
+}
+
+function customFieldDataType(
+	dataType: ProjectV2CustomFieldType,
+): ProjectFieldDataType {
+	if (dataType === "ITERATION" || dataType === "MULTI_SELECT")
+		throw unprocessable(`${dataType} fields are not supported`);
+	return dataType;
+}
+
+async function createFieldMutation(
+	input: CreateProjectV2FieldInput,
+	ctx: GraphQLContext,
+) {
+	const project = await writableProject(ctx, input.projectId);
+	const field = await withProjectErrors(() =>
+		createProjectField(project.row.id, ctx.caller.userId, {
+			name: input.name,
+			dataType: customFieldDataType(input.dataType),
+			options:
+				input.singleSelectOptions?.map(({ name, color }) => ({
+					name,
+					color,
+				})) ?? [],
+		}),
+	);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		projectV2Field: fieldNode(field),
+	};
+}
+
+/** The item a value write names, refusing one that lives in another project. */
+async function itemOfProject(
+	ctx: GraphQLContext,
+	project: ProjectView,
+	itemId: string,
+): Promise<ProjectItemWithRepo> {
+	const item = await readableProjectItem(ctx, itemId);
+	if (item.projectId !== project.id) throw nodeNotFound(itemId);
+	return item;
+}
+
+async function updateItemFieldValueMutation(
+	input: UpdateProjectV2ItemFieldValueInput,
+	ctx: GraphQLContext,
+) {
+	const project = await writableProject(ctx, input.projectId);
+	const item = await itemOfProject(ctx, project.row, input.itemId);
+	const fieldId = fieldRowIdOf(input.fieldId);
+	if (fieldId === null) throw nodeNotFound(input.fieldId);
+	const value = fieldValueInput(input.value);
+	const written = await withProjectErrors(() =>
+		setProjectItemFieldValue(item.id, ctx.caller.userId, fieldId, value),
+	);
+	if (!written) throw nodeNotFound(input.fieldId);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		projectV2Item: await reloadItemNode(ctx, item.id),
+	};
+}
+
+async function clearItemFieldValueMutation(
+	input: ClearProjectV2ItemFieldValueInput,
+	ctx: GraphQLContext,
+) {
+	const project = await writableProject(ctx, input.projectId);
+	const item = await itemOfProject(ctx, project.row, input.itemId);
+	const fieldId = fieldRowIdOf(input.fieldId);
+	if (fieldId === null) throw nodeNotFound(input.fieldId);
+	await withProjectErrors(() =>
+		clearProjectItemFieldValue(item.id, ctx.caller.userId, fieldId),
+	);
+	return {
+		clientMutationId: input.clientMutationId ?? null,
+		projectV2Item: await reloadItemNode(ctx, item.id),
+	};
+}
+
 export const projectsResolvers: DomainResolvers = {
 	types: {
+		Mutation: {
+			createProjectV2: (_source, args, ctx) =>
+				createProjectMutation(args.input, ctx),
+			addProjectV2ItemById: (_source, args, ctx) =>
+				addProjectItemMutation(args.input, ctx),
+			addProjectV2DraftIssue: (_source, args, ctx) =>
+				addDraftIssueMutation(args.input, ctx),
+			updateProjectV2DraftIssue: (_source, args, ctx) =>
+				updateDraftIssueMutation(args.input, ctx),
+			updateProjectV2ItemFieldValue: (_source, args, ctx) =>
+				updateItemFieldValueMutation(args.input, ctx),
+			clearProjectV2ItemFieldValue: (_source, args, ctx) =>
+				clearItemFieldValueMutation(args.input, ctx),
+			createProjectV2Field: (_source, args, ctx) =>
+				createFieldMutation(args.input, ctx),
+		},
 		Query: { resource },
 		User: {
 			projectsV2: (source: UserNode, args, ctx) =>

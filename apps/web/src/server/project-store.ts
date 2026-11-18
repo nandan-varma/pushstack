@@ -285,6 +285,17 @@ export async function findProjectByOwnerAndNumber(
 	return row ?? null;
 }
 
+/** The user a login names, for the web project routes. */
+export async function findProjectOwner(
+	login: string,
+): Promise<{ id: string; username: string } | null> {
+	const [row] = await db
+		.select({ id: user.id, username: user.username })
+		.from(user)
+		.where(eq(user.username, login));
+	return row ?? null;
+}
+
 /** A project by row id, only when the viewer may read it. */
 export async function findReadableProjectById(
 	projectId: number,
@@ -487,6 +498,25 @@ export function listFieldOptions(
 		.from(projectV2SingleSelectOptions)
 		.where(eq(projectV2SingleSelectOptions.fieldId, fieldId))
 		.orderBy(
+			asc(projectV2SingleSelectOptions.position),
+			asc(projectV2SingleSelectOptions.id),
+		);
+}
+
+/** Every single-select option of a project's fields, in field then option order. */
+export function listProjectFieldOptions(
+	projectId: number,
+): Promise<ProjectOptionView[]> {
+	return db
+		.select(optionColumns)
+		.from(projectV2SingleSelectOptions)
+		.innerJoin(
+			projectV2Fields,
+			eq(projectV2Fields.id, projectV2SingleSelectOptions.fieldId),
+		)
+		.where(eq(projectV2Fields.projectId, projectId))
+		.orderBy(
+			asc(projectV2Fields.position),
 			asc(projectV2SingleSelectOptions.position),
 			asc(projectV2SingleSelectOptions.id),
 		);
@@ -1001,7 +1031,7 @@ export async function updateProjectDraftIssue(
 		MAX_THREAD_TITLE_CHARS,
 		`A draft title is at most ${MAX_THREAD_TITLE_CHARS} characters`,
 	);
-	const body = input.body ?? item.draftBody;
+	const body = input.body === undefined ? item.draftBody : input.body;
 	if (body !== null)
 		assertLength(
 			body,
@@ -1148,6 +1178,73 @@ export async function clearProjectItemFieldValue(
 		.returning({ id: projectV2ItemFieldValues.id });
 	if (deleted.length > 0) await touchProject(item.projectId);
 	return deleted.length > 0;
+}
+
+export interface ProjectBoardItem extends ProjectItemWithRepo {
+	contentTitle: string | null;
+	contentNumber: number | null;
+	contentKind: "issue" | "pull_request" | "discussion" | null;
+	repoOwner: string | null;
+	repoName: string | null;
+}
+
+/**
+ * A page of a project's readable items with their content and repository, for
+ * the web table. The same visibility rule as `listProjectItems`, one query.
+ */
+export async function listProjectBoardItems(
+	projectId: number,
+	viewerId: string | null | undefined,
+	page: { offset: number; limit: number },
+): Promise<{ items: ProjectBoardItem[]; total: number }> {
+	const where = itemsWhere(projectId, viewerId, {
+		offset: page.offset,
+		limit: page.limit,
+	});
+	const selection = {
+		...itemSelection(),
+		contentTitle: issues.title,
+		contentNumber: issues.number,
+		contentKind: issues.kind,
+		repoOwner: user.username,
+		repoName: repositories.name,
+	};
+	const [items, [held]] = await Promise.all([
+		db
+			.select(selection)
+			.from(projectV2Items)
+			.leftJoin(issues, eq(issues.id, projectV2Items.issueId))
+			.leftJoin(repositories, eq(repositories.id, issues.repoId))
+			.leftJoin(user, eq(user.id, repositories.ownerId))
+			.where(where)
+			.orderBy(asc(projectV2Items.createdAt), asc(projectV2Items.id))
+			.limit(page.limit)
+			.offset(page.offset),
+		db
+			.select({ total: count() })
+			.from(projectV2Items)
+			.leftJoin(issues, eq(issues.id, projectV2Items.issueId))
+			.leftJoin(repositories, eq(repositories.id, issues.repoId))
+			.leftJoin(user, eq(user.id, repositories.ownerId))
+			.where(where),
+	]);
+	return { items, total: Number(held?.total ?? 0) };
+}
+
+/** Values of many items at once, for a table page (never one query per row). */
+export async function listProjectItemFieldValuesForItems(
+	itemIds: readonly number[],
+): Promise<ProjectItemFieldValue[]> {
+	if (itemIds.length === 0) return [];
+	return db
+		.select(valueSelection())
+		.from(projectV2ItemFieldValues)
+		.innerJoin(
+			projectV2Fields,
+			eq(projectV2Fields.id, projectV2ItemFieldValues.fieldId),
+		)
+		.where(inArray(projectV2ItemFieldValues.itemId, itemIds))
+		.orderBy(asc(projectV2Fields.position), asc(projectV2ItemFieldValues.id));
 }
 
 const valueColumns = {
