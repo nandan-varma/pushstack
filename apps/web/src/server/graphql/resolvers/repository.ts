@@ -45,6 +45,7 @@ import {
 	RepositoryExistsError,
 	repoNameSchema,
 } from "../../repository-create";
+import { readableForkCounts } from "../../repository-fork";
 import {
 	findRepositoryByName,
 	type PublicUser,
@@ -70,6 +71,7 @@ import { loadUser, loadUserByLogin, type UserNode, userNode } from "./core";
 import type {
 	CreateRepositoryInput,
 	Ref,
+	RepositoryForksArgs,
 	UpdateRepositoryInput,
 	UserRepositoriesArgs,
 } from "./generated";
@@ -105,9 +107,9 @@ export interface RepositoryNode {
 	archivedAt: null;
 	isPrivate: boolean;
 	visibility: "PUBLIC" | "PRIVATE";
-	// Facts of PushStack, not defaults: there are no forks, mirrors, locks,
+	// Facts of PushStack, not defaults: there are no mirrors, locks,
 	// organizations or discussions.
-	isFork: false;
+	isFork: boolean;
 	isTemplate: boolean;
 	isMirror: false;
 	mirrorUrl: null;
@@ -119,9 +121,7 @@ export interface RepositoryNode {
 	hasProjectsEnabled: boolean;
 	hasDiscussionsEnabled: false;
 	homepageUrl: string | null;
-	parent: null;
 	templateRepository: null;
-	forkCount: 0;
 	mergeCommitAllowed: boolean;
 	squashMergeAllowed: boolean;
 	rebaseMergeAllowed: boolean;
@@ -150,7 +150,7 @@ export function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 		archivedAt: null,
 		isPrivate: row.visibility === "private",
 		visibility: row.visibility === "private" ? "PRIVATE" : "PUBLIC",
-		isFork: false,
+		isFork: row.isFork,
 		isTemplate: row.isTemplate,
 		isMirror: false,
 		mirrorUrl: null,
@@ -162,9 +162,7 @@ export function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 		hasProjectsEnabled: row.hasProjects,
 		hasDiscussionsEnabled: false,
 		homepageUrl: row.homepage,
-		parent: null,
 		templateRepository: null,
-		forkCount: 0,
 		mergeCommitAllowed: row.allowMergeCommit,
 		squashMergeAllowed: row.allowSquashMerge,
 		rebaseMergeAllowed: row.allowRebaseMerge,
@@ -353,10 +351,9 @@ async function userRepositories(
 					privacy === "PRIVATE" ? "private" : "public",
 				)
 			: undefined,
-		// Nothing is a fork or archived (or internal) here.
-		args.isFork === true || args.isArchived === true || privacy === "INTERNAL"
-			? sql`false`
-			: undefined,
+		args.isFork == null ? undefined : eq(repositories.isFork, args.isFork),
+		// Nothing is archived-by-filter or internal here.
+		args.isArchived === true || privacy === "INTERNAL" ? sql`false` : undefined,
 	);
 	const [totalRow] = await db
 		.select({ total: count() })
@@ -387,6 +384,60 @@ async function userRepositories(
 			),
 		);
 	});
+}
+
+/** `Repository.forks`: the direct forks the viewer can read, never a private one by count or name. */
+async function repositoryForks(
+	parent: RepositoryNode,
+	args: RepositoryForksArgs,
+	ctx: GraphQLContext,
+) {
+	const viewer = ctx.caller.userId;
+	const where = and(
+		eq(repositories.forkOfId, parent.row.id),
+		readableRepositoriesCondition(viewer),
+		args.privacy
+			? eq(
+					repositories.visibility,
+					args.privacy === "PRIVATE" ? "private" : "public",
+				)
+			: undefined,
+	);
+	const [totalRow] = await db
+		.select({ total: count() })
+		.from(repositories)
+		.where(where);
+	return offsetConnection(args, totalRow?.total ?? 0, async (offset, limit) => {
+		const rows = await db
+			.select({
+				repo: repositories,
+				owner: publicUserColumns,
+				collaboratorRole: sql<
+					"read" | "write" | "admin" | null
+				>`(select ${repositoryCollaborators.role} from ${repositoryCollaborators} where ${repositoryCollaborators.repoId} = ${repositories.id} and ${repositoryCollaborators.userId} = ${viewer})`,
+			})
+			.from(repositories)
+			.innerJoin(user, eq(repositories.ownerId, user.id))
+			.where(where)
+			.orderBy(...ordering(args.orderBy))
+			.limit(limit)
+			.offset(offset);
+		return rows.map(({ repo, owner, collaboratorRole }) =>
+			repositoryNode(
+				{ ...repo, owner },
+				repo.ownerId === viewer ? "owner" : (collaboratorRole ?? "anonymous"),
+			),
+		);
+	});
+}
+
+function loadForkCount(ctx: GraphQLContext, repoId: number) {
+	return ctx
+		.loader<number, number>("fork-count", (ids) =>
+			readableForkCounts(ids, ctx.caller.userId),
+		)
+		.load(repoId)
+		.then((total) => total ?? 0);
 }
 
 /**
@@ -670,6 +721,18 @@ export const repositoryResolvers: DomainResolvers = {
 				loadStarCount(ctx, source.row.id),
 			viewerHasStarred: (source: RepositoryNode, _args, ctx) =>
 				loadViewerHasStarred(ctx, source.row.id),
+			// A parent the viewer cannot read is null, never named.
+			parent: (source: RepositoryNode, _args, ctx) =>
+				source.row.forkOfId === null
+					? null
+					: (loadRepositoryNode(
+							String(source.row.forkOfId),
+							ctx,
+						) as Promise<RepositoryNode | null>),
+			forkCount: (source: RepositoryNode, _args, ctx) =>
+				loadForkCount(ctx, source.row.id),
+			forks: (source: RepositoryNode, args: RepositoryForksArgs, ctx) =>
+				repositoryForks(source, args, ctx),
 			viewerPermission: (source: RepositoryNode) => PERMISSION[source.role],
 			viewerCanAdminister: (source: RepositoryNode) =>
 				source.role === "owner" || source.role === "admin",

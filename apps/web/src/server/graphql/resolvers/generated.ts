@@ -540,6 +540,8 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   name: Scalars['String']['output'];
   /** The repository's name with owner. */
   nameWithOwner: Scalars['String']['output'];
+  /** A list of direct forked repositories. */
+  forks: RepositoryConnection;
   /** A Git object in the repository */
   object?: Maybe<GitObject>;
   /** The User owner of the repository. */
@@ -592,6 +594,17 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   pullRequest?: Maybe<PullRequest>;
   /** A list of pull requests that have been opened in the repository. */
   pullRequests: PullRequestConnection;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryForksArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<RepositoryOrder>;
+  privacy?: InputMaybe<RepositoryPrivacy>;
 };
 
 
@@ -861,11 +874,13 @@ export type RepositoryPermission =
   | 'ADMIN'
   /** Can read, clone, and push to this repository. They can also manage issues, pull requests, and some repository settings */
   | 'MAINTAIN'
+  /** Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access */
+  | 'MODERATE'
   /** Can read and clone this repository. Can also open and comment on issues and pull requests */
   | 'READ'
   /** Can read and clone this repository. Can also manage issues and pull requests */
   | 'TRIAGE'
-  /** Can read and clone this repository. Can also manage issues and pull requests, plus additional triage abilities */
+  /** Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access */
   | 'TRIAGE_PLUS'
   /** Can read, clone, and push to this repository. Can also manage issues and pull requests */
   | 'WRITE';
@@ -3270,6 +3285,7 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   mirrorUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
   name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   nameWithOwner?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  forks?: Resolver<ResolversTypes['RepositoryConnection'], ParentType, ContextType, Partial<RepositoryForksArgs>>;
   object?: Resolver<Maybe<ResolversTypes['GitObject']>, ParentType, ContextType, Partial<RepositoryObjectArgs>>;
   owner?: Resolver<ResolversTypes['RepositoryOwner'], ParentType, ContextType>;
   parent?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;

@@ -119,6 +119,10 @@
 		"name",
 		"nameWithOwner",
 		{
+			"name": "forks",
+			"args": ["after", "before", "first", "last", "orderBy", "privacy"]
+		},
+		{
 			"name": "object",
 			"args": ["expression", "oid"]
 		},

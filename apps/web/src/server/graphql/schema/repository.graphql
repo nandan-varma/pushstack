@@ -479,6 +479,38 @@ type Repository implements Node & RepositoryInfo & Starrable & UniformResourceLo
 	"""
 	nameWithOwner: String!
 	"""
+	A list of direct forked repositories.
+	"""
+	forks(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+		"""
+		Ordering options for repositories returned from the connection
+		"""
+		orderBy: RepositoryOrder
+		"""
+		If non-null, filters repositories according to privacy. Internal
+		repositories are considered private; consider using the visibility argument
+		if only internal repositories are needed. Cannot be combined with the
+		visibility argument.
+		"""
+		privacy: RepositoryPrivacy
+	): RepositoryConnection!
+	"""
 	A Git object in the repository
 	"""
 	object(
@@ -920,6 +952,10 @@ enum RepositoryPermission {
 	"""
 	MAINTAIN
 	"""
+	Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access
+	"""
+	MODERATE
+	"""
 	Can read and clone this repository. Can also open and comment on issues and pull requests
 	"""
 	READ
@@ -928,9 +964,12 @@ enum RepositoryPermission {
 	"""
 	TRIAGE
 	"""
-	Can read and clone this repository. Can also manage issues and pull requests, plus additional triage abilities
+	Can read and clone this repository. Can also moderate and edit issues and manage pull requests without write access
 	"""
 	TRIAGE_PLUS
+		@deprecated(
+			reason: "TRIAGE_PLUS has been renamed to MODERATE. Use MODERATE instead. Removal on 2027-04-01 UTC."
+		)
 	"""
 	Can read, clone, and push to this repository. Can also manage issues and pull requests
 	"""
