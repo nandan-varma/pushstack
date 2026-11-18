@@ -70,6 +70,7 @@ export interface RepositorySettingsPatch {
 	isTemplate?: boolean;
 	hasIssues?: boolean;
 	hasWiki?: boolean;
+	wikiEditRestricted?: boolean;
 	hasProjects?: boolean;
 	hasDiscussions?: boolean;
 	allowMergeCommit?: boolean;

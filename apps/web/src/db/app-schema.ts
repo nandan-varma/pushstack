@@ -74,6 +74,10 @@ export const repositories = pgTable(
 		isFork: boolean("is_fork").notNull().default(false),
 		hasIssues: boolean("has_issues").notNull().default(true),
 		hasWiki: boolean("has_wiki").notNull().default(true),
+		/** GitHub's "restrict editing to collaborators only". */
+		wikiEditRestricted: boolean("wiki_edit_restricted")
+			.notNull()
+			.default(false),
 		/** No projects exist yet, so they default off (GitHub: on). */
 		hasProjects: boolean("has_projects").notNull().default(false),
 		/** GitHub enables discussions on a new repository. */

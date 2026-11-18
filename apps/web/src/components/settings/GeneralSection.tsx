@@ -37,6 +37,7 @@ export function GeneralSection({
 		isTemplate: boolean;
 		hasIssues: boolean;
 		hasWiki: boolean;
+		wikiEditRestricted: boolean;
 		hasProjects: boolean;
 		hasDiscussions: boolean;
 		archived: boolean;
@@ -57,6 +58,7 @@ export function GeneralSection({
 		isTemplate: repo.isTemplate,
 		hasIssues: repo.hasIssues,
 		hasWiki: repo.hasWiki,
+		wikiEditRestricted: repo.wikiEditRestricted,
 		hasProjects: repo.hasProjects,
 		hasDiscussions: repo.hasDiscussions,
 	});
@@ -116,6 +118,7 @@ export function GeneralSection({
 		flags.isTemplate !== repo.isTemplate ||
 		flags.hasIssues !== repo.hasIssues ||
 		flags.hasWiki !== repo.hasWiki ||
+		flags.wikiEditRestricted !== repo.wikiEditRestricted ||
 		flags.hasProjects !== repo.hasProjects ||
 		flags.hasDiscussions !== repo.hasDiscussions;
 
@@ -222,6 +225,7 @@ export function GeneralSection({
 						[
 							["hasIssues", "Issues"],
 							["hasWiki", "Wiki"],
+							["wikiEditRestricted", "Restrict wiki editing to collaborators"],
 							["hasProjects", "Projects"],
 							["hasDiscussions", "Discussions"],
 							["isTemplate", "Template repository"],

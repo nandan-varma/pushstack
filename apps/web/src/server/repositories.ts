@@ -343,6 +343,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 			isTemplate: z.boolean().optional(),
 			hasIssues: z.boolean().optional(),
 			hasWiki: z.boolean().optional(),
+			wikiEditRestricted: z.boolean().optional(),
 			hasProjects: z.boolean().optional(),
 			hasDiscussions: z.boolean().optional(),
 		}),

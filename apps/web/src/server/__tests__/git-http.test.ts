@@ -35,13 +35,40 @@ describe("parseGitUrl", () => {
 			repo: "repo",
 			service: "git-upload-pack",
 			isInfoRefs: true,
+			wiki: false,
 		});
 		expect(parseGitUrl(`${BASE}/alice/repo/git-receive-pack`)).toEqual({
 			owner: "alice",
 			repo: "repo",
 			service: "git-receive-pack",
 			isInfoRefs: false,
+			wiki: false,
 		});
+	});
+
+	it("routes both wiki clone URLs to the repository's wiki", () => {
+		for (const suffix of [".wiki", ".wiki.git"]) {
+			expect(
+				parseGitUrl(
+					`${BASE}/alice/repo${suffix}/info/refs?service=git-upload-pack`,
+				),
+			).toEqual({
+				owner: "alice",
+				repo: "repo",
+				service: "git-upload-pack",
+				isInfoRefs: true,
+				wiki: true,
+			});
+		}
+		expect(parseGitUrl(`${BASE}/alice/repo.wiki.git/git-receive-pack`)).toEqual(
+			{
+				owner: "alice",
+				repo: "repo",
+				service: "git-receive-pack",
+				isInfoRefs: false,
+				wiki: true,
+			},
+		);
 	});
 
 	it("accepts dotted owner and repository names", () => {
