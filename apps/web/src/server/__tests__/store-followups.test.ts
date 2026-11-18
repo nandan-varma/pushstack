@@ -12,11 +12,18 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 let failOn: RegExp | undefined;
+/** How many matching statements fail before `failOn` stops applying. */
+let failTimes = Number.POSITIVE_INFINITY;
+/** Matching statements seen so far, to prove a retry ran. */
+let failedQueries = 0;
 
 vi.mock("#/db", async () => ({
 	db: await (await import("../../test/pglite-db")).createTestDb({
 		onQuery: (query) => {
-			if (failOn?.test(query)) throw new Error("injected failure");
+			if (!failOn?.test(query) || failTimes === 0) return;
+			failTimes -= 1;
+			failedQueries += 1;
+			throw new Error("injected failure");
 		},
 	}),
 }));
@@ -42,6 +49,8 @@ const users = await createUsers("follow-owner", "follow-reader");
 
 afterEach(() => {
 	failOn = undefined;
+	failTimes = Number.POSITIVE_INFINITY;
+	failedQueries = 0;
 	vi.restoreAllMocks();
 	signIn(users["follow-owner"]);
 });
@@ -129,6 +138,71 @@ describe("a committed write survives a failed follow-up", () => {
 		expect(logged).toHaveBeenCalledWith(
 			"pull-request-store",
 			expect.stringMatching(/The merged event of #\d+ failed/),
+			expect.anything(),
+		);
+	});
+
+	it("retries closing the issues a merged pull request names", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Retried close" },
+		});
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Closes one",
+				body: `Closes #${issue.number}`,
+				sourceBranchName: await branchWithChange(),
+				targetBranchName: "main",
+			},
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		// The issue update is the second `state_reason` write; the first fails.
+		failOn = /update "issues" set .*"state_reason"/i;
+		failTimes = 1;
+		const merged = await pulls.mergePullRequest({ data: { prId: pr.id } });
+		failOn = undefined;
+		expect(merged.commitSha).toMatch(/^[0-9a-f]{40}$/);
+		expect(failedQueries).toBe(1);
+		const closed = await db.query.issues.findFirst({
+			where: { id: issue.id },
+		});
+		expect(closed?.status).toBe("closed");
+		expect(logged).not.toHaveBeenCalledWith(
+			"pull-request-store",
+			expect.stringMatching(/failed twice/),
+			expect.anything(),
+		);
+	});
+
+	it("tells the merger when the issues it closes stay open after a retry", async () => {
+		const issue = await issues.createIssue({
+			data: { repoId, title: "Never closed" },
+		});
+		const pr = await pulls.createPullRequest({
+			data: {
+				repoId,
+				title: "Closes one",
+				body: `Closes #${issue.number}`,
+				sourceBranchName: await branchWithChange(),
+				targetBranchName: "main",
+			},
+		});
+		const logged = vi.spyOn(perfLog, "logError").mockImplementation(() => {});
+		failOn = /update "issues" set .*"state_reason"/i;
+		const merged = await pulls.mergePullRequest({ data: { prId: pr.id } });
+		failOn = undefined;
+		// The merge stands; the failed close is logged with the merger.
+		expect(merged.commitSha).toMatch(/^[0-9a-f]{40}$/);
+		expect(failedQueries).toBe(2);
+		const still = await db.query.issues.findFirst({ where: { id: issue.id } });
+		expect(still?.status).toBe("open");
+		expect(logged).toHaveBeenCalledWith(
+			"pull-request-store",
+			expect.stringMatching(
+				new RegExp(
+					`Closing #${issue.number} after the merge of #${pr.number} failed twice \\(merged by Follow-owner`,
+				),
+			),
 			expect.anything(),
 		);
 	});

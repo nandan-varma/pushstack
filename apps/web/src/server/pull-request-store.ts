@@ -301,6 +301,19 @@ async function authorIdentityOf(
 	return author ?? fallback;
 }
 
+/**
+ * Run `effect` twice at most, rethrowing its last failure. A follow-up that
+ * must happen (the linked issues a merge closes) gets one more attempt for a
+ * transient failure, and the caller logs what a second one leaves undone.
+ */
+async function retryOnce(effect: () => Promise<unknown>): Promise<void> {
+	try {
+		await effect();
+	} catch {
+		await effect();
+	}
+}
+
 export interface PullRequestMergeOptions {
 	method: MergeMethod;
 	/** The request's commit title and body (trimmed; absent when not given). */
@@ -489,8 +502,16 @@ export async function mergePullRequestBranches(
 	);
 	const closing = getClosingIssueNumbers(pr.body);
 	if (closing.length > 0) {
-		await followUp("Closing the linked issues", () =>
-			closeLinkedIssues(pr, closing, user.id, now),
+		// `Closes #N` is the merge's own promise, so it is retried once rather
+		// than only logged; a second failure names the merger and the issues
+		// that stay open, because a merge response has no field to carry it.
+		await retryOnce(() => closeLinkedIssues(pr, closing, user.id, now)).catch(
+			(error: unknown) =>
+				logError(
+					"pull-request-store",
+					`Closing ${closing.map((number) => `#${number}`).join(", ")} after the merge of #${pr.number} failed twice (merged by ${user.name} <${user.email}>, user ${user.id})`,
+					error,
+				),
 		);
 	}
 	await followUp("The merge activity", () =>
