@@ -1,8 +1,9 @@
-import type { MemoryObjectStore } from "git-fs-s3";
+import { MemoryObjectStore, parseLooseObjectPath } from "git-fs-s3";
 import git, { type ReadCommitResult } from "isomorphic-git";
 import { describe, expect, it } from "vitest";
 import { GitEdgeError, GitMergeConflictError } from "../src/errors.js";
 import {
+	MAX_BASE_HISTORY_COMMITS,
 	MAX_RANGE_COMMITS,
 	type Repo,
 	rebaseable,
@@ -217,71 +218,236 @@ describe("squashMerge", () => {
 	});
 });
 
-describe("range bounds", () => {
-	it("squash lists commits merged in through a second parent, leaving out merge commits", async () => {
-		const { repo } = await makeRepo();
-		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
-		const first = await replay(
-			repo,
-			"feature",
-			{ "a.txt": "a\n", "f.txt": "f\n" },
-			base,
-			"own work\n",
-			{ ...author, timestamp: 1_000_000_001 },
-		);
-		const side = await replay(
-			repo,
-			"side",
-			{ "a.txt": "a\n", "s.txt": "s\n" },
-			base,
-			"side work\n",
-			{ ...author, timestamp: 1_000_000_002 },
-		);
-		const merged = await git.writeCommit({
+/** Fails a read of any object in `forbidden`, so a walk that reaches one fails. */
+class GuardedStore extends MemoryObjectStore {
+	forbidden = new Set<string>();
+
+	override async get(key: string): Promise<Uint8Array | null> {
+		const parsed = parseLooseObjectPath(key);
+		if (parsed && this.forbidden.has(parsed.oid)) {
+			throw new Error(`read an object below the merge base: ${parsed.oid}`);
+		}
+		return super.get(key);
+	}
+}
+
+/** `count` commits on `branch` from `parent`, every one with `parent`'s tree. */
+async function stack(
+	repo: Repo,
+	branch: string,
+	parent: string,
+	count: number,
+): Promise<string> {
+	const { commit } = await git.readCommit({ ...repo, oid: parent });
+	let head = parent;
+	for (let i = 0; i < count; i++) {
+		head = await git.writeCommit({
 			...repo,
 			commit: {
-				message: "merge side\n",
-				tree: await writeSpec(repo, {
-					"a.txt": "a\n",
-					"f.txt": "f\n",
-					"s.txt": "s\n",
-				}),
-				parent: [first, side],
+				message: `c${i}\n`,
+				tree: commit.tree,
+				parent: [head],
 				author,
 				committer: author,
 			},
 		});
-		await git.writeRef({
-			...repo,
-			ref: "refs/heads/feature",
-			value: merged,
-			force: true,
+	}
+	await git.writeRef({
+		...repo,
+		ref: `refs/heads/${branch}`,
+		value: head,
+		force: true,
+	});
+	return head;
+}
+
+/** A commit at `timestamp` (the range walk reads committer times). */
+async function commitAt(
+	repo: Repo,
+	branch: string,
+	spec: Spec,
+	parents: string[],
+	timestamp: number,
+	message: string,
+): Promise<string> {
+	const oid = await git.writeCommit({
+		...repo,
+		commit: {
+			message,
+			tree: await writeSpec(repo, spec),
+			parent: parents,
+			author: { ...author, timestamp },
+			committer: { ...author, timestamp },
+		},
+	});
+	await git.writeRef({
+		...repo,
+		ref: `refs/heads/${branch}`,
+		value: oid,
+		force: true,
+	});
+	return oid;
+}
+
+describe("range bounds", () => {
+	it("reads no history behind the merge base", async () => {
+		const store = new GuardedStore();
+		const { repo } = await makeRepo(store);
+		const root = await commit(repo, "main", { "a.txt": "a\n" }, []);
+		// The merge base is `base`; everything behind it is what a range walk
+		// that read the base's history would pay for.
+		const base = await stack(repo, "main", root, 300);
+		await replay(
+			repo,
+			"feature",
+			{ "a.txt": "a\n", "f.txt": "f\n" },
+			base,
+			"feature work\n",
+			author,
+		);
+		await replay(
+			repo,
+			"main",
+			{ "a.txt": "a\n", "m.txt": "m\n" },
+			base,
+			"main work\n",
+			author,
+		);
+		const behind = await git.log({ ...repo, ref: base });
+		for (const { oid } of behind.slice(1)) store.forbidden.add(oid);
+
+		await expect(squash(repo, "squashed")).resolves.toMatchObject({
+			commitOid: expect.stringMatching(/^[0-9a-f]{40}$/),
 		});
-		await commit(repo, "main", { "a.txt": "a\n", "m.txt": "m\n" }, [base]);
+	});
+
+	it("leaves out a history below the merge base a side branch brought in", async () => {
+		const { repo } = await makeRepo();
+		// `root` is below the merge base: only a side branch that forked before
+		// the base can reach it, and its commit is not part of the range.
+		const root = await commitAt(
+			repo,
+			"main",
+			{ "a.txt": "a\n" },
+			[],
+			author.timestamp - 1_000,
+			"root\n",
+		);
+		const base = await commitAt(
+			repo,
+			"main",
+			{ "a.txt": "a\n", "b.txt": "b\n" },
+			[root],
+			author.timestamp,
+			"base\n",
+		);
+		const side = await commitAt(
+			repo,
+			"side",
+			{ "a.txt": "a\n", "s.txt": "s\n" },
+			[root],
+			author.timestamp - 800,
+			"side work\n",
+		);
+		const own = await commitAt(
+			repo,
+			"feature",
+			{ "a.txt": "a\n", "s.txt": "s\n", "f.txt": "f\n" },
+			[side],
+			author.timestamp - 700,
+			"own work\n",
+		);
+		await commitAt(
+			repo,
+			"feature",
+			{
+				"a.txt": "a\n",
+				"b.txt": "b\n",
+				"f.txt": "f\n",
+				"s.txt": "s\n",
+			},
+			[own, base],
+			author.timestamp + 10,
+			"merge main\n",
+		);
+		await commitAt(
+			repo,
+			"main",
+			{ "a.txt": "a\n", "b.txt": "b\n", "m.txt": "m\n" },
+			[base],
+			author.timestamp + 20,
+			"main work\n",
+		);
 
 		const seen: string[][] = [];
 		await squash(repo, (messages) => {
-			seen.push(messages);
+			seen.push(messages.map((message) => message.trim()));
 			return "squashed";
 		});
-		expect(seen[0]?.map((m) => m.trim())).toEqual(["own work", "side work"]);
+		// The side branch's commits are in the range; the history it forked
+		// from, below the merge base, is not.
+		expect(seen[0]).toEqual(["side work", "own work"]);
 	});
 
-	it("squash lists at most MAX_RANGE_COMMITS, and a rebase of more is refused", async () => {
+	it("refuses a base history longer than MAX_BASE_HISTORY_COMMITS", async () => {
 		const { repo } = await makeRepo();
-		const base = await commit(repo, "main", { "a.txt": "a\n" }, []);
-		await chain(repo, "feature", base, MAX_RANGE_COMMITS + 1);
-		await commit(repo, "main", { "a.txt": "a\n", "m.txt": "m\n" }, [base]);
+		const root = await commitAt(
+			repo,
+			"main",
+			{ "a.txt": "a\n" },
+			[],
+			author.timestamp - 1_000,
+			"root\n",
+		);
+		const base = await stack(repo, "main", root, MAX_BASE_HISTORY_COMMITS + 1);
+		const side = await commitAt(
+			repo,
+			"side",
+			{ "a.txt": "a\n", "s.txt": "s\n" },
+			[root],
+			author.timestamp - 800,
+			"side work\n",
+		);
+		const own = await commitAt(
+			repo,
+			"feature",
+			{ "a.txt": "a\n", "s.txt": "s\n", "f.txt": "f\n" },
+			[side],
+			author.timestamp - 700,
+			"own work\n",
+		);
+		await commitAt(
+			repo,
+			"feature",
+			{
+				"a.txt": "a\n",
+				"b.txt": "b\n",
+				"f.txt": "f\n",
+				"s.txt": "s\n",
+			},
+			[own, base],
+			author.timestamp + 10,
+			"merge main\n",
+		);
+		await commitAt(
+			repo,
+			"main",
+			{ "b.txt": "b\n", "m.txt": "m\n" },
+			[base],
+			author.timestamp + 20,
+			"main work\n",
+		);
 
-		let listed = -1;
-		await squash(repo, (messages) => {
-			listed = messages.length;
-			return "squashed";
+		const mainBefore = await git.resolveRef({
+			...repo,
+			ref: "refs/heads/main",
 		});
-		expect(listed).toBe(MAX_RANGE_COMMITS);
 		await expect(
 			rebaseMerge(repo, "refs/heads/feature", "refs/heads/main"),
-		).rejects.toBeInstanceOf(GitEdgeError);
+		).rejects.toThrow(/the base's history is longer than/);
+		expect(await git.resolveRef({ ...repo, ref: "refs/heads/main" })).toBe(
+			mainBefore,
+		);
 	});
 });
 

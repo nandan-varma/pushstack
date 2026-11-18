@@ -388,24 +388,63 @@ async function mergeBaseOf(
 export const MAX_RANGE_COMMITS = 250;
 
 /**
+ * The most commits of the base's own history a squash or rebase reads. The
+ * range walk stops at the merge base without reading it; it needs the base's
+ * ancestry only when the head reaches below the base (a branch that merged a
+ * side branch forked before it), and then this bounds that read — past it the
+ * range is refused, rather than read in full under the repository lock.
+ */
+export const MAX_BASE_HISTORY_COMMITS = MAX_RANGE_COMMITS * 4;
+
+/** `baseOid` and every ancestor of it, or a refusal past its bound. */
+async function ancestryOfBase(
+	repo: Repo,
+	baseOid: string,
+): Promise<Set<string>> {
+	const below = new Set<string>();
+	const queue = [baseOid];
+	while (queue.length > 0) {
+		if (below.size === MAX_BASE_HISTORY_COMMITS) {
+			throw new GitEdgeError(
+				`Refusing to walk the range: the base's history is longer than ${MAX_BASE_HISTORY_COMMITS} commits`,
+			);
+		}
+		const oid = queue.pop() as string;
+		if (below.has(oid)) continue;
+		below.add(oid);
+		const { commit } = await git.readCommit({ ...repo, oid });
+		queue.push(...commit.parent);
+	}
+	return below;
+}
+
+/**
  * The commits reachable from `headOid` but not from `baseOid`, walking every
  * parent (so commits merged in through a second parent are included), in
- * breadth-first order from the head. Stops once `MAX_RANGE_COMMITS` commits
- * are found, reporting `truncated`. The base's own history is read once, so
- * this costs as much as the base history, like `findMergeBase`.
+ * breadth-first order from the head, which stops at the base. Stops once
+ * `MAX_RANGE_COMMITS` commits are found, reporting `truncated`.
+ *
+ * The base's own history is not read: a commit of `headOid` that is older than
+ * the base's commit may be an ancestor of the base (only a head that merged a
+ * side branch forked before the base reaches one), so those are the only ones
+ * checked against the base's ancestry — a set built on first need and bounded
+ * by `MAX_BASE_HISTORY_COMMITS`. Without that bound, every squash and rebase
+ * would read a large repository's whole history.
  */
 async function commitsAboveBase(
 	repo: Repo,
 	baseOid: string,
 	headOid: string,
 ): Promise<{ commits: RangeCommit[]; truncated: boolean }> {
-	const belowBase = new Set(
-		(await git.log({ ...repo, ref: baseOid })).map((entry) => entry.oid),
-	);
+	const { commit: baseCommit } = await git.readCommit({
+		...repo,
+		oid: baseOid,
+	});
+	let belowBase: Set<string> | undefined;
 	const queued = new Set<string>();
 	const queue: string[] = [];
 	const enqueue = (oid: string) => {
-		if (belowBase.has(oid) || queued.has(oid)) return;
+		if (belowBase?.has(oid) || queued.has(oid)) return;
 		queued.add(oid);
 		queue.push(oid);
 	};
@@ -416,7 +455,12 @@ async function commitsAboveBase(
 			return { commits, truncated: true };
 		}
 		const oid = queue[next] as string;
+		if (oid === baseOid) continue;
 		const { commit } = await git.readCommit({ ...repo, oid });
+		if (commit.committer.timestamp < baseCommit.committer.timestamp) {
+			belowBase ??= await ancestryOfBase(repo, baseOid);
+			if (belowBase.has(oid)) continue;
+		}
 		commits.push({
 			oid,
 			parents: commit.parent,
@@ -561,11 +605,13 @@ export async function squashMerge(
 ): Promise<MergeResult> {
 	const tips = await resolveTips(repo, sourceRef, targetRef);
 	const { sourceOid, targetOid } = tips;
-	if (await targetContainsSource(repo, tips)) {
+	// The merge base answers "already merged" too, and walks only as far as the
+	// two histories diverge; an ancestry check from the target would read the
+	// base's whole history to say no.
+	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
+	if (baseOid === sourceOid) {
 		return { commitOid: targetOid };
 	}
-
-	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
 	const [baseCommit, sourceCommit, targetCommit] = await Promise.all([
 		git.readCommit({ ...repo, oid: baseOid }),
 		git.readCommit({ ...repo, oid: sourceOid }),
@@ -634,11 +680,12 @@ export async function rebaseMerge(
 ): Promise<MergeResult> {
 	const tips = await resolveTips(repo, sourceRef, targetRef);
 	const { sourceOid, targetOid } = tips;
-	if (await targetContainsSource(repo, tips)) {
+	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
+	if (baseOid === sourceOid) {
 		return { commitOid: targetOid };
 	}
-	if (await sourceContainsTarget(repo, tips)) {
-		// Already based on the target (its merge base is the target): nothing to replay.
+	if (baseOid === targetOid) {
+		// Already based on the target: nothing to replay.
 		await git.writeRef({
 			...repo,
 			ref: targetRef,
@@ -648,7 +695,6 @@ export async function rebaseMerge(
 		return { commitOid: sourceOid };
 	}
 
-	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
 	const range = await commitsAboveBase(repo, baseOid, sourceOid);
 	if (range.truncated) {
 		throw new GitEdgeError(
@@ -710,9 +756,9 @@ export async function rebaseable(
 ): Promise<boolean> {
 	const tips = await resolveTips(repo, sourceRef, targetRef);
 	const { sourceOid, targetOid } = tips;
-	if (await targetContainsSource(repo, tips)) return true;
-	if (await sourceContainsTarget(repo, tips)) return true;
 	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
+	// Nothing to replay: already merged, or already based on the target.
+	if (baseOid === sourceOid || baseOid === targetOid) return true;
 	const range = await commitsAboveBase(repo, baseOid, sourceOid);
 	if (range.truncated) return false;
 	if (range.commits.some((commit) => commit.parents.length !== 1)) return false;
