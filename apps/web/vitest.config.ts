@@ -5,8 +5,10 @@ export default defineConfig({
 	plugins: [react()],
 	resolve: { tsconfigPaths: true },
 	test: {
-		// Each behavior-test worker boots Postgres WASM; bound memory and startup contention.
-		maxWorkers: 2,
+		// Each behavior-test worker boots Postgres WASM; bound memory and startup
+		// contention. CI sets VITEST_MAX_WORKERS=4 to use its four vCPUs; a
+		// developer machine keeps two so parallel agents do not starve it.
+		maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 2),
 		globalSetup: ["./src/test/global-setup.ts"],
 		environment: "jsdom",
 		// src/db requires a URL at import; nothing connects until a query runs.

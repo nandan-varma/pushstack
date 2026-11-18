@@ -112,6 +112,13 @@ installed with `--prefer-offline`, so an unchanged lockfile needs no registry
 traffic. `pnpm audit` is the one task that skips the workspace install (the
 setup action takes `install: false`), because it only reads the lockfile.
 
+The web suite is sharded in two (`vitest run --shard=n/2`) and each shard runs
+with `VITEST_MAX_WORKERS=4` on its own four-vCPU runner; the package and docs
+suites run once, in shard 1. `ci (test)` is a fan-in job that only waits on the
+shards: a required check name cannot be two racing jobs, so the name stays on
+one job that fails if either shard did. Locally the config still defaults to
+two workers, so parallel agents do not starve the machine.
+
 ## Every turbo task fails with "Exec format error"
 
 `package.json` pins pnpm through `packageManager`, so pnpm downloads that

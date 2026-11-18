@@ -24,6 +24,9 @@ permissions:
 env:
   # Anonymous telemetry is one more network round trip per task.
   TURBO_TELEMETRY_DISABLED: "1"
+  # Four vCPUs on the runner, four Vitest workers: the web suite is otherwise
+  # capped at half the machine. Local runs keep the config's default of two.
+  VITEST_MAX_WORKERS: "4"
 
 jobs:
   # Every workspace task through turbo's graph, one job per task so they run in
@@ -43,7 +46,10 @@ jobs:
         # route and the real `gh` against its REST and GraphQL routes over
         # loopback HTTPS (pglite + in-memory S3, scratch HOME): the only suites
         # that exercise the wire protocols. audit fails on any known advisory.
-        task: [check, typecheck, test, build, "smoke:git", audit]
+        # `test` is not here: it is sharded across two jobs and reports through
+        # the `ci (test)` fan-in at the bottom, which keeps the required check's
+        # name while halving the suite's wall clock.
+        task: [check, typecheck, build, "smoke:git", audit]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,6 +96,48 @@ jobs:
         # A re-run of an already-cached commit finds the key present; that is
         # not a CI failure.
         continue-on-error: true
+
+  # The web suite is ~90% of the whole `test` task, so it is what gets sharded;
+  # Vitest's --shard splits by file and is deterministic, so both shards always
+  # run the same files for a given tree. The small package/docs suites run once,
+  # in the first shard, rather than twice.
+  test-shard:
+    name: test shard ${{ matrix.shard }}/2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Restore turbo cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.arch }}-
+      - name: Test shard ${{ matrix.shard }}/2
+        run: |
+          pnpm test:workspace
+          pnpm --filter @pushstack/web exec vitest run --shard=${{ matrix.shard }}/2
+          if [ "${{ matrix.shard }}" = "1" ]; then
+            pnpm exec turbo run test --filter='!@pushstack/web'
+          fi
+
+  # The branch ruleset requires a check named `ci (test)`. Two shard jobs cannot
+  # share one status context without racing, so this job carries the name and
+  # passes only when both shards did. It runs no tests.
+  test:
+    name: ci (test)
+    needs: [test-shard]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - run: echo "Both test shards passed."
 
   secrets:
     runs-on: ubuntu-24.04
