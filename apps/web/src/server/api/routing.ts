@@ -1,7 +1,8 @@
 import { type OperationId, routes } from "@pushstack/api-contract/client";
 
-// Reserved expansions are optional: `/contents` and `/contents/{+path}` name
-// the same operation. Compile the contract once; do not parse templates per request.
+// Reserved expansions are optional when they end the path: `/contents` and
+// `/contents/{+path}` name the same operation. Compile the contract once; do
+// not parse templates per request.
 const ROUTES = Object.entries(routes).flatMap(([id, route]) => {
 	const pattern = route.path.replace(
 		/\{(\+?)([a-z_]+)\}/g,
@@ -13,7 +14,8 @@ const ROUTES = Object.entries(routes).flatMap(([id, route]) => {
 		pattern,
 		parts: pattern.split("/").filter(Boolean),
 	});
-	return pattern.includes("*")
+	const expansion = pattern.split("/").pop() ?? "";
+	return expansion.startsWith("*")
 		? [compiled(pattern.slice(0, pattern.lastIndexOf("/"))), compiled(pattern)]
 		: [compiled(pattern)];
 });
@@ -23,19 +25,28 @@ function matchPattern(
 	segments: string[],
 ): Record<string, string> | null {
 	const params: Record<string, string> = {};
-	for (const [index, part] of parts.entries()) {
-		if (part.startsWith("*")) {
-			const rest = segments.slice(index);
-			if (rest.length === 0) return null;
-			params[part.slice(1)] = rest.join("/");
-			return params;
-		}
+	const expansion = parts.findIndex((part) => part.startsWith("*"));
+	const fixed = expansion === -1 ? parts : parts.slice(0, expansion);
+	const rest = expansion === -1 ? [] : parts.slice(expansion + 1);
+	// An empty expansion is only unambiguous when nothing follows it.
+	const shortest = fixed.length + rest.length + (rest.length > 0 ? 1 : 0);
+	if (segments.length < shortest) return null;
+	for (const [index, part] of fixed.entries()) {
 		const segment = segments[index];
 		if (segment === undefined) return null;
 		if (part.startsWith(":")) params[part.slice(1)] = segment;
 		else if (part !== segment) return null;
 	}
-	return segments.length === parts.length ? params : null;
+	if (expansion === -1) {
+		return segments.length === fixed.length ? params : null;
+	}
+	params[(parts[expansion] as string).slice(1)] = segments
+		.slice(fixed.length, segments.length - rest.length)
+		.join("/");
+	for (const [offset, part] of rest.entries()) {
+		if (part !== segments[segments.length - rest.length + offset]) return null;
+	}
+	return params;
 }
 
 export function matchApiRoute(method: string, pathname: string) {

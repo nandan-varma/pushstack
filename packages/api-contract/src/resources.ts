@@ -593,6 +593,64 @@ export const branch = z.strictObject({
 
 export const tag = z.strictObject({ name: z.string(), commit: commitRef });
 
+/** A `{url, enabled}` toggle of a protected branch (`enforce_admins`, …). */
+export const branchProtectionToggle = z.strictObject({
+	url,
+	enabled: z.boolean(),
+});
+
+/**
+ * `required_status_checks` of a protection rule, alone on its sub-resource and
+ * nested in {@link branchProtection}. `contexts` is GitHub's deprecated list;
+ * `checks` is the same contexts with their app.
+ */
+export const branchProtectionRequiredStatusChecks = z.strictObject({
+	url,
+	strict: z.boolean(),
+	contexts: z.array(z.string()),
+	contexts_url: url,
+	checks: z.array(
+		z.strictObject({
+			context: z.string(),
+			app_id: z.number().int().nullable(),
+		}),
+	),
+});
+
+export const branchProtectionRequiredPullRequestReviews = z.strictObject({
+	url,
+	dismissal_restrictions: z.strictObject({
+		users: z.array(simpleUser),
+		teams: z.array(z.never()),
+		apps: z.array(z.never()),
+	}),
+	dismiss_stale_reviews: z.boolean(),
+	require_code_owner_reviews: z.boolean(),
+	required_approving_review_count: z.number().int(),
+	bypass_pull_request_allowances: z.strictObject({
+		users: z.array(simpleUser),
+		teams: z.array(z.never()),
+		apps: z.array(z.never()),
+	}),
+});
+
+/** `GET …/branches/{branch}/protection`: GitHub's classic protection object. */
+export const branchProtection = z.strictObject({
+	url,
+	required_status_checks: branchProtectionRequiredStatusChecks.nullable(),
+	required_pull_request_reviews:
+		branchProtectionRequiredPullRequestReviews.nullable(),
+	required_signatures: z.strictObject({ enabled: z.boolean() }),
+	enforce_admins: branchProtectionToggle,
+	required_linear_history: z.strictObject({ enabled: z.boolean() }),
+	allow_force_pushes: branchProtectionToggle,
+	allow_deletions: branchProtectionToggle,
+	block_creations: z.strictObject({ enabled: z.boolean() }),
+	required_conversation_resolution: z.strictObject({ enabled: z.boolean() }),
+	lock_branch: z.strictObject({ enabled: z.boolean() }),
+	allow_fork_syncing: z.strictObject({ enabled: z.boolean() }),
+});
+
 /** A file attached to a release. */
 export const releaseAsset = z.strictObject({
 	url,

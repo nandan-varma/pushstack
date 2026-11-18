@@ -74,6 +74,8 @@ export const commaList = <T extends z.ZodType<string, string>>(
 export const repoParams = z.object({ owner: z.string(), repo: z.string() });
 export const issueParams = repoParams.extend({ issue_number: positiveInt });
 export const pullParams = repoParams.extend({ pull_number: positiveInt });
+/** A branch name may contain `/`, so it is the rest of the path (`{+branch}`). */
+export const branchParams = repoParams.extend({ branch: z.string().min(1) });
 
 export const repoName = z
 	.string()

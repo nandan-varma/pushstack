@@ -101,8 +101,22 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"activity/mark-repo-notifications-as-read":
 		"as `PUT /notifications`, for one repository",
 	"repos/list-branches":
-		"sorted by name; `protected` is `422` (there is no branch protection)",
+		"sorted by name; the `protected` filter is `422`; each branch's `protected` is the rule that matches its name",
 	"repos/get-branch": "branch names may contain `/`",
+	"repos/get-branch-protection":
+		"read access; classic rules only, and `404 Branch not protected` when no rule matches; `required_signatures`, `required_linear_history`, `block_creations`, `required_conversation_resolution`, `lock_branch` and `allow_fork_syncing` are always disabled, and `dismissal_restrictions`/`bypass_pull_request_allowances` are always empty",
+	"repos/get-status-checks-protection":
+		"`404 Required status checks not enabled` unless the rule requires status checks; `contexts` and `checks` are the same contexts in name order",
+	"repos/get-all-status-check-contexts":
+		"the rule's contexts in name order; `404` unless the rule requires status checks",
+	"repos/get-pull-request-review-protection":
+		"`404 Required pull request reviews not enabled` unless the rule requires reviews",
+	"repos/get-admin-branch-protection":
+		"the `enforce_admins` toggle of the matching rule; `404` when unprotected",
+	"repos/get-force-push-protection":
+		"no GitHub REST operation today (GitHub carries it only in the protection object); the same `{url, enabled}` toggle; `404` when unprotected",
+	"repos/get-deletion-protection":
+		"no GitHub REST operation today (GitHub carries it only in the protection object); the same `{url, enabled}` toggle; `404` when unprotected",
 	"repos/list-tags": "version order",
 	"repos/list-webhooks":
 		"needs a `repo:write` token (there is no `admin:repo_hook` scope) and ownership or admin; pagination; `config.secret` reads as `********`, never the secret",

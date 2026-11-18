@@ -31,6 +31,10 @@ const NOT_ON_GITHUB: Record<string, string> = {
 	"repos/finish-release-asset-upload": "the second step of the upload above",
 	"git/list-refs":
 		"GET /git/refs/{ref} is a PushStack extension; GitHub reads one ref at /git/ref/{ref} (git/get-ref) and lists by prefix at /git/matching-refs/{ref} (git/list-matching-refs)",
+	"repos/get-force-push-protection":
+		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that read it on its own",
+	"repos/get-deletion-protection":
+		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that read it on its own",
 };
 
 describe("GitHub parameters", () => {

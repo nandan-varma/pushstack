@@ -161,6 +161,37 @@ beforeAll(async () => {
 	await check("/repos/alice/proj/branches/main");
 	await check("/repos/alice/proj/tags");
 
+	// A rule that enables every part the protection sub-resources read.
+	const [{ db }, { branchProtectionRules, branchProtectionStatusChecks }] =
+		await Promise.all([import("../../db"), import("../../db/app-schema")]);
+	const [rule] = await db
+		.insert(branchProtectionRules)
+		.values({
+			repoId: repo.id,
+			pattern: "main",
+			requiresPullRequest: true,
+			requiredStatusChecksStrict: true,
+			enforceAdmins: true,
+		})
+		.returning({ id: branchProtectionRules.id });
+	if (!rule) throw new Error("rule insert returned no row");
+	await db
+		.insert(branchProtectionStatusChecks)
+		.values({ ruleId: rule.id, context: "ci/test" });
+	await check("/repos/alice/proj/branches/main/protection");
+	await check(
+		"/repos/alice/proj/branches/main/protection/required_status_checks",
+	);
+	await check(
+		"/repos/alice/proj/branches/main/protection/required_status_checks/contexts",
+	);
+	await check(
+		"/repos/alice/proj/branches/main/protection/required_pull_request_reviews",
+	);
+	await check("/repos/alice/proj/branches/main/protection/enforce_admins");
+	await check("/repos/alice/proj/branches/main/protection/allow_force_pushes");
+	await check("/repos/alice/proj/branches/main/protection/allow_deletions");
+
 	await check("/repos/alice/proj/labels");
 	await check(
 		"/repos/alice/proj/labels",

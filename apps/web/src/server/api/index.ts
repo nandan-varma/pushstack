@@ -6,6 +6,15 @@ import type { RateStatus } from "../rate-limit";
 import { RepositoryCapacityError } from "../repository-capacity";
 import { downloadTarball, downloadZipball } from "./archive";
 import { type ApiContext, oauthScopesHeader } from "./auth";
+import {
+	getAdminBranchProtection,
+	getAllStatusCheckContexts,
+	getBranchProtection,
+	getDeletionProtection,
+	getForcePushProtection,
+	getPullRequestReviewProtection,
+	getStatusChecksProtection,
+} from "./branch-protection";
 import { getBranch, listBranches } from "./branches";
 import {
 	createCheckRunHandler,
@@ -256,6 +265,13 @@ const HANDLERS = {
 		listRepoNotificationsForCaller,
 	"activity/mark-repo-notifications-as-read": markRepoNotificationsRead,
 	"repos/list-branches": listBranches,
+	"repos/get-branch-protection": getBranchProtection,
+	"repos/get-status-checks-protection": getStatusChecksProtection,
+	"repos/get-all-status-check-contexts": getAllStatusCheckContexts,
+	"repos/get-pull-request-review-protection": getPullRequestReviewProtection,
+	"repos/get-admin-branch-protection": getAdminBranchProtection,
+	"repos/get-force-push-protection": getForcePushProtection,
+	"repos/get-deletion-protection": getDeletionProtection,
 	"repos/get-branch": getBranch,
 	"repos/list-tags": listTags,
 	"repos/list-webhooks": listRepoWebhooks,
