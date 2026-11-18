@@ -63,11 +63,9 @@ const TYPE_CODES: Record<string, string> = {
 	...UNVERIFIED_CODES,
 };
 
-export type NodeType =
-	| keyof typeof VERIFIED_CODES
-	| keyof typeof UNVERIFIED_CODES;
+type NodeType = keyof typeof VERIFIED_CODES | keyof typeof UNVERIFIED_CODES;
 
-export type GlobalNodeType = keyof typeof GLOBAL_PREFIX;
+type GlobalNodeType = keyof typeof GLOBAL_PREFIX;
 
 const LEGACY_ID_RE = /^(\d{2,3}):(.+)$/;
 

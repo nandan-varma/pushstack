@@ -41,28 +41,28 @@ import { GitHubGraphQLError } from "./errors";
  * GitHub allows 500,000 nodes; PushStack serves every node from its own
  * database and storage, so it is deliberately tighter.
  */
-export const MAX_NODES = 50_000;
-export const MAX_DEPTH = 25;
+const MAX_NODES = 50_000;
+const MAX_DEPTH = 25;
 /**
  * Field selections per operation, fragments expanded and introspection
  * included: bounds aliasing (a thousand `repository(...)` lookups or
  * `__schema` copies) before anything runs. gh's largest captured query
  * selects well under 200.
  */
-export const MAX_FIELDS = 500;
+const MAX_FIELDS = 500;
 /** GitHub's bound on `nodes(ids:)`. */
-export const MAX_NODE_IDS = 100;
+const MAX_NODE_IDS = 100;
 /** Mutations weigh more than queries, as in GitHub's secondary limits. */
-export const MUTATION_COST = 5;
+const MUTATION_COST = 5;
 /**
  * `Commit.blame` walks history and diffs file revisions: each one costs as
  * much as this many requests (5 rate-limit points), and a query may ask for
  * at most MAX_BLAMES of them, so aliasing cannot multiply the work.
  */
-export const BLAME_REQUEST_WEIGHT = 500;
-export const MAX_BLAMES = 1;
+const BLAME_REQUEST_WEIGHT = 500;
+const MAX_BLAMES = 1;
 
-export interface QueryCost {
+interface QueryCost {
 	nodeCount: number;
 	cost: number;
 	/** Top-level mutation fields (aliases and fragments included). */

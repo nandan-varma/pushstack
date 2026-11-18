@@ -21,7 +21,7 @@ const DOMAINS: [string, DomainResolvers][] = [
 	[pullsSdl, pullsResolvers],
 ];
 
-export const schemaSdl = DOMAINS.map(([sdl]) => sdl).join("\n");
+const schemaSdl = DOMAINS.map(([sdl]) => sdl).join("\n");
 
 function attach(schema: GraphQLSchema, domain: DomainResolvers) {
 	for (const [typeName, fields] of Object.entries(domain.types)) {

@@ -20,7 +20,7 @@ const userColumns = {
 	createdAt: user.createdAt,
 	updatedAt: user.updatedAt,
 };
-export type UserRow = {
+type UserRow = {
 	id: string;
 	apiId: number;
 	username: string;

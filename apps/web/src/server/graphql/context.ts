@@ -33,7 +33,7 @@ export interface GraphQLContext {
 	memo<T>(key: string, fn: () => Promise<T>): Promise<T>;
 }
 
-export interface Loader<K, V> {
+interface Loader<K, V> {
 	load(key: K): Promise<V | undefined>;
 }
 

@@ -66,7 +66,6 @@ export const MAX_RELEASE_ASSETS = 1000;
 /** Seconds a presigned upload URL stays valid. */
 export const RELEASE_UPLOAD_URL_TTL_SECONDS = 900;
 export const MAX_RELEASE_ASSET_NAME_CHARS = 255;
-export const MAX_RELEASE_ASSET_LABEL_CHARS = 255;
 export const MAX_RELEASE_NAME_CHARS = 256;
 export const MAX_RELEASE_TAG_CHARS = 255;
 /** Longest path (UTF-8 bytes) an archive entry may have. */
