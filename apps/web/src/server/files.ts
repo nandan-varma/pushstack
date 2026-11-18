@@ -295,6 +295,8 @@ export const uploadFile = createServerFn({ method: "POST" })
 				message: data.commitMessage,
 				files: [{ path: data.path, content: base64ToBytes(data.content) }],
 				author: { name: user.name, email: user.email },
+				repository: repo,
+				actorId: user.id,
 			});
 			await recordActivity(user.id, repo.id, {
 				type: "commit",
@@ -320,6 +322,8 @@ export const deleteFile = createServerFn({ method: "POST" })
 				filePath: data.path,
 				message: data.commitMessage,
 				author: { name: user.name, email: user.email },
+				repository: repo,
+				actorId: user.id,
 			});
 			await recordActivity(user.id, repo.id, {
 				type: "commit",

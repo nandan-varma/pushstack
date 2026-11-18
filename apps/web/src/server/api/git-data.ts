@@ -147,6 +147,9 @@ export async function deleteRef(ctx: ApiContext) {
 		if (isNotFoundError(error)) {
 			throw new ApiError(422, "Reference does not exist");
 		}
+		if (error instanceof GitInvalidRequestError) {
+			throw new ApiError(422, error.message);
+		}
 		throw error;
 	}
 	return noContent();

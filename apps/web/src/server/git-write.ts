@@ -33,6 +33,8 @@ import {
 	resolveCommit,
 } from "git-fs-s3/ops";
 import git from "isomorphic-git";
+import type { Repository } from "#/db/app-schema";
+import { deleteBlockedReason, writeBlockedReason } from "./branch-protection";
 import { importCommit } from "./fork-objects";
 import { getPathEntry } from "./git-read";
 import { repackIfNeededUnlocked, repoFor } from "./git-repo";
@@ -54,6 +56,26 @@ async function assertCommitTarget(repo: Repo, branch: string): Promise<void> {
 	if (branches.length > 0 && !branches.some((b) => b.name === branch)) {
 		throw new GitInvalidRequestError(`Branch ${branch} does not exist`);
 	}
+}
+
+/**
+ * Refuse a direct write to a branch its protection rule keeps for pull
+ * requests, or a deletion it forbids. Callers that hold the repository row
+ * pass it, so the write path reads no repository and fills no read cache;
+ * `actorId` is the pusher whose admin bypass `enforce_admins` may allow.
+ */
+async function assertBranchWritable(
+	repository: Repository | undefined,
+	branch: string,
+	actorId: string | undefined,
+	operation: "write" | "delete",
+): Promise<void> {
+	if (!repository) return;
+	const reason =
+		operation === "delete"
+			? await deleteBlockedReason(repository, branch, actorId ?? null)
+			: await writeBlockedReason(repository, branch, actorId ?? null);
+	if (reason) throw new GitInvalidRequestError(reason);
 }
 
 /** Run a write under the repo lock, then consolidate packs if due. */
@@ -89,11 +111,20 @@ export function createCommit(
 		message: string;
 		files: Array<{ path: string; content: string | Uint8Array }>;
 		author: CommitAuthorInput;
+		repository?: Repository;
+		/** The pusher, for the `enforce_admins` bypass; omitted means nobody. */
+		actorId?: string;
 	},
 ): Promise<string> {
 	assertSafeBranchName(commit.branch);
 	return writeUnderLock(ownerKey, repoName, async (repo) => {
 		await assertCommitTarget(repo, commit.branch);
+		await assertBranchWritable(
+			commit.repository,
+			commit.branch,
+			commit.actorId,
+			"write",
+		);
 		return commitFilesToBare(repo, {
 			branch: commit.branch,
 			message: commit.message,
@@ -177,12 +208,20 @@ export function putFile(
 		message: string;
 		author: CommitAuthorInput;
 		expectedSha?: string;
+		repository?: Repository;
+		actorId?: string;
 	},
 ): Promise<{ commitSha: string; created: boolean; firstBranch: boolean }> {
 	assertSafeBranchName(options.branch);
 	return writeUnderLock(ownerKey, repoName, async (repo) => {
 		const branches = await listBranches(repo);
 		await assertCommitTarget(repo, options.branch);
+		await assertBranchWritable(
+			options.repository,
+			options.branch,
+			options.actorId,
+			"write",
+		);
 		const firstBranch = branches.length === 0;
 		const existing = firstBranch
 			? null
@@ -224,10 +263,18 @@ export function deleteFile(
 		author: CommitAuthorInput;
 		/** When set, refuse unless the file is still this blob. */
 		expectedSha?: string;
+		repository?: Repository;
+		actorId?: string;
 	},
 ): Promise<string> {
 	assertSafeBranchName(options.branch);
 	return writeUnderLock(ownerKey, repoName, async (repo) => {
+		await assertBranchWritable(
+			options.repository,
+			options.branch,
+			options.actorId,
+			"write",
+		);
 		if (options.expectedSha !== undefined) {
 			const existing = await currentBlob(
 				ownerKey,
@@ -266,10 +313,17 @@ export function deleteBranch(
 	ownerKey: string,
 	repoName: string,
 	branchName: string,
+	options?: { repository?: Repository; actorId?: string },
 ): Promise<void> {
-	return withRepositoryLock(ownerKey, repoName, () =>
-		deleteBranchByName(repoFor(ownerKey, repoName), branchName),
-	);
+	return withRepositoryLock(ownerKey, repoName, async () => {
+		await assertBranchWritable(
+			options?.repository,
+			branchName,
+			options?.actorId,
+			"delete",
+		);
+		await deleteBranchByName(repoFor(ownerKey, repoName), branchName);
+	});
 }
 
 /** Delete `refs/tags/{name}`; a missing tag is the library's NotFoundError. */

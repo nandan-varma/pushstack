@@ -228,6 +228,7 @@ async function fileWriteTarget<Id extends FileWriteOperation>(
 		branch,
 		body: body as RequestBody<Id>,
 		author: { name: identity.name, email: identity.email },
+		actorId: caller.userId,
 	};
 }
 
@@ -293,6 +294,8 @@ export async function putContents(ctx: ApiContext) {
 		message: body.message,
 		author: target.author,
 		expectedSha: body.sha,
+		repository: repo,
+		actorId: target.actorId,
 	}).catch((error: unknown) => fileWriteError(error, path, body.sha));
 	if (result.firstBranch && branch !== repo.defaultBranch) {
 		await db
@@ -323,6 +326,8 @@ export async function deleteContents(ctx: ApiContext) {
 		message: body.message,
 		author: target.author,
 		expectedSha: body.sha,
+		repository: repo,
+		actorId: target.actorId,
 	}).catch((error: unknown) => {
 		if (isNotFoundError(error)) throw notFoundError();
 		return fileWriteError(error, path, body.sha);

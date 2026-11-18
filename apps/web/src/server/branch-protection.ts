@@ -18,6 +18,7 @@ import {
 	findBranchProtection,
 } from "./branch-protection-store";
 import { getAccessForRepository, type RepositoryAccess } from "./repo-access";
+import { reviewSummaryFor } from "./review-store";
 
 /** `GET …/branches/{branch}/protection`: GitHub's protection object. */
 export function branchProtectionView(
@@ -155,4 +156,70 @@ export async function vetPush(
 		}
 	}
 	return vetoes;
+}
+
+/** GitHub's 422 reason a direct write to `branch` is refused, or null. */
+export async function writeBlockedReason(
+	repository: Repository,
+	branch: string,
+	actorId: string | null,
+): Promise<string | null> {
+	const protection = await findBranchProtection(repository.id, branch);
+	if (!protection?.rule.requiresPullRequest) return null;
+	if (
+		bypassesRule(
+			protection.rule,
+			await getAccessForRepository(repository, actorId),
+		)
+	) {
+		return null;
+	}
+	return "Changes must be made through a pull request.";
+}
+
+/** GitHub's 422 reason `branch` cannot be deleted, or null. */
+export async function deleteBlockedReason(
+	repository: Repository,
+	branch: string,
+	actorId: string | null,
+): Promise<string | null> {
+	const protection = await findBranchProtection(repository.id, branch);
+	if (!protection || protection.rule.allowDeletions) return null;
+	if (
+		bypassesRule(
+			protection.rule,
+			await getAccessForRepository(repository, actorId),
+		)
+	) {
+		return null;
+	}
+	return "Cannot delete a protected branch";
+}
+
+/**
+ * Why the merge of a pull request is refused, or null. A rule's required
+ * approvals block it; a changes-requested review blocks it with or without a
+ * rule. An owner/admin overrides unless the rule enforces admins.
+ */
+export async function mergeBlockedReason(input: {
+	pullRequestId: number;
+	repository: Repository;
+	branch: string;
+	actorId: string;
+}): Promise<string | null> {
+	const [review, protection, access] = await Promise.all([
+		reviewSummaryFor(input.pullRequestId),
+		findBranchProtection(input.repository.id, input.branch),
+		getAccessForRepository(input.repository, input.actorId),
+	]);
+	const enforced = protection
+		? !bypassesRule(protection.rule, access)
+		: !access.canModerate;
+	if (!enforced) return null;
+	if (review.changesRequested > 0) {
+		return "Changes were requested on this pull request";
+	}
+	const required = protection?.rule.requiredApprovingReviewCount ?? 0;
+	if (review.approved >= required) return null;
+	return `At least ${required} approving review${required === 1 ? "" : "s"} ${required === 1 ? "is" : "are"} required by reviewers with write access.`;
 }
