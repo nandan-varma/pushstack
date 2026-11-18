@@ -1,0 +1,9 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh api graphql -f query=mutation {\n\t\t\t\t\t\t\taddDiscussionComment(input: {\n\t\t\t\t\t\t\t\tdiscussionId: \"D_kwABBg\",\n\t\t\t\t\t\t\t\tbody: \"It does.\"\n\t\t\t\t\t\t\t}) { comment { id body } }\n\t\t\t\t\t\t}",
+	"requests": [
+		{
+			"query": "mutation {\n\t\t\t\t\t\t\taddDiscussionComment(input: {\n\t\t\t\t\t\t\t\tdiscussionId: \"D_kwABBg\",\n\t\t\t\t\t\t\t\tbody: \"It does.\"\n\t\t\t\t\t\t\t}) { comment { id body } }\n\t\t\t\t\t\t}"
+		}
+	]
+}

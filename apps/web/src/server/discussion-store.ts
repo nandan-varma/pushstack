@@ -588,15 +588,16 @@ export async function findDiscussionComment(
 	return row ?? null;
 }
 
+/** The comment's own parent: `null` for a top-level comment, undefined when absent. */
 export async function findDiscussionCommentParent(
 	commentId: number,
-): Promise<number | null> {
+): Promise<number | null | undefined> {
 	const [row] = await db
 		.select({ replyToId: comments.replyToId })
 		.from(comments)
 		.where(eq(comments.id, commentId))
 		.limit(1);
-	return row?.replyToId ?? null;
+	return row ? row.replyToId : undefined;
 }
 
 /**
@@ -686,7 +687,7 @@ export async function createDiscussionCommentForUser(
 ): Promise<Comment> {
 	if (replyToId !== undefined) {
 		const parent = await findDiscussionCommentParent(replyToId);
-		if (parent === null) {
+		if (parent === undefined || parent !== null) {
 			// The row is missing, or it is itself a reply: one level only.
 			throw new DiscussionReplyError("A reply targets a top-level comment");
 		}

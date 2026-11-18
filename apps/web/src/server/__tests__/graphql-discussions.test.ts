@@ -31,6 +31,13 @@ let repoId: number;
 let qaCategoryId: number;
 let generalCategoryId: number;
 
+const CATEGORIES = `query Categories($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    id
+    discussionCategories(first: 10) { nodes { id slug isAnswerable } }
+  }
+}`;
+
 const LIST = `query Discussions($owner: String!, $name: String!, $first: Int, $after: String) {
   repository(owner: $owner, name: $name) {
     hasDiscussionsEnabled
@@ -228,5 +235,414 @@ describe("Repository.discussions", () => {
 			totalCount: 0,
 			nodes: [],
 		});
+	});
+});
+
+const CREATE = `mutation Create($input: CreateDiscussionInput!) {
+  createDiscussion(input: $input) {
+    clientMutationId
+    discussion { id number isAnswered title category { slug } author { login } }
+  }
+}`;
+
+const COMMENT = `mutation Comment($input: AddDiscussionCommentInput!) {
+  addDiscussionComment(input: $input) {
+    comment {
+      id body isAnswer
+      replyTo { id }
+      replies(first: 10) { totalCount nodes { id body } }
+    }
+  }
+}`;
+
+async function created(input: {
+	repositoryId: string;
+	categoryId: string;
+	title: string;
+	body: string;
+}) {
+	const { body } = await graphql(alice, CREATE, { input });
+	expect(body.errors).toBeUndefined();
+	return body.data.createDiscussion.discussion;
+}
+
+describe("discussion mutations", () => {
+	it("creates a discussion with the next #N and isAnswered false", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const qa = nodes.find((node: { slug: string }) => node.slug === "q-a");
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: qa.id,
+			title: "question",
+			body: "how?",
+		});
+		expect(discussion).toMatchObject({
+			isAnswered: false,
+			title: "question",
+			category: { slug: "q-a" },
+			author: { login: "alice" },
+		});
+		expect(discussion.number).toBe(3);
+	});
+
+	it("adds a top-level comment and one reply level", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const qa = nodes.find((node: { slug: string }) => node.slug === "q-a");
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: qa.id,
+			title: "answered question",
+			body: "how?",
+		});
+		const top = await graphql(alice, COMMENT, {
+			input: { discussionId: discussion.id, body: "an answer" },
+		});
+		expect(top.body.errors).toBeUndefined();
+		const comment = top.body.data.addDiscussionComment.comment;
+		const reply = await graphql(alice, COMMENT, {
+			input: {
+				discussionId: discussion.id,
+				body: "a reply",
+				replyToId: comment.id,
+			},
+		});
+		expect(reply.body.errors).toBeUndefined();
+		const node = reply.body.data.addDiscussionComment.comment;
+		expect(node).toMatchObject({
+			body: "a reply",
+			isAnswer: false,
+			replyTo: { id: comment.id },
+		});
+		const repliesToTop = await graphql(
+			alice,
+			`query Replies($id: ID!) {
+				node(id: $id) { ... on DiscussionComment { replies(first: 10) { totalCount } } }
+			}`,
+			{ id: comment.id },
+		);
+		expect(repliesToTop.body.data.node.replies.totalCount).toBe(1);
+		const nested = await graphql(alice, COMMENT, {
+			input: {
+				discussionId: discussion.id,
+				body: "too deep",
+				replyToId: node.id,
+			},
+		});
+		expect(nested.body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+	});
+
+	it("marks a reply as the answer in Q&A, and refuses elsewhere", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const qa = nodes.find((node: { slug: string }) => node.slug === "q-a");
+		const general = nodes.find(
+			(node: { slug: string }) => node.slug === "general",
+		);
+		const repositoryId = categories.body.data.repository.id;
+		const discussion = await created({
+			repositoryId,
+			categoryId: qa.id,
+			title: "mark me",
+			body: "how?",
+		});
+		const comment = (
+			await graphql(alice, COMMENT, {
+				input: { discussionId: discussion.id, body: "the answer" },
+			})
+		).body.data.addDiscussionComment.comment;
+		const answer = await graphql(
+			alice,
+			`mutation Mark($input: MarkDiscussionCommentAsAnswerInput!) {
+				markDiscussionCommentAsAnswer(input: $input) {
+					discussion { isAnswered answer { id } }
+				}
+			}`,
+			{ input: { id: comment.id } },
+		);
+		expect(answer.body.errors).toBeUndefined();
+		expect(
+			answer.body.data.markDiscussionCommentAsAnswer.discussion,
+		).toMatchObject({ isAnswered: true, answer: { id: comment.id } });
+		// Someone who can read the public repository but is neither its author
+		// nor a writer cannot choose the answer.
+		const denied = await graphql(
+			bob,
+			`mutation Mark($input: MarkDiscussionCommentAsAnswerInput!) {
+				markDiscussionCommentAsAnswer(input: $input) { discussion { isAnswered } }
+			}`,
+			{ input: { id: comment.id } },
+		);
+		expect(denied.body.errors?.[0]?.type).toBe("FORBIDDEN");
+
+		const open = await created({
+			repositoryId,
+			categoryId: general.id,
+			title: "not a question",
+			body: "chat",
+		});
+		const openComment = (
+			await graphql(alice, COMMENT, {
+				input: { discussionId: open.id, body: "hi" },
+			})
+		).body.data.addDiscussionComment.comment;
+		const refused = await graphql(
+			alice,
+			`mutation Mark($input: MarkDiscussionCommentAsAnswerInput!) {
+				markDiscussionCommentAsAnswer(input: $input) { discussion { isAnswered } }
+			}`,
+			{ input: { id: openComment.id } },
+		);
+		expect(refused.body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+	});
+
+	it("counts a repeated upvote once and removes it", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const general = nodes.find(
+			(node: { slug: string }) => node.slug === "general",
+		);
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: general.id,
+			title: "upvote me",
+			body: "please",
+		});
+		const upvote = `mutation Up($input: AddUpvoteInput!) {
+			addUpvote(input: $input) {
+				subject { ... on Discussion { upvoteCount viewerHasUpvoted } }
+			}
+		}`;
+		await graphql(alice, upvote, { input: { subjectId: discussion.id } });
+		const twice = await graphql(alice, upvote, {
+			input: { subjectId: discussion.id },
+		});
+		expect(twice.body.data.addUpvote.subject).toMatchObject({
+			upvoteCount: 1,
+			viewerHasUpvoted: true,
+		});
+		const removed = await graphql(
+			alice,
+			`mutation Down($input: RemoveUpvoteInput!) {
+				removeUpvote(input: $input) {
+					subject { ... on Discussion { upvoteCount viewerHasUpvoted } }
+				}
+			}`,
+			{ input: { subjectId: discussion.id } },
+		);
+		expect(removed.body.data.removeUpvote.subject).toMatchObject({
+			upvoteCount: 0,
+			viewerHasUpvoted: false,
+		});
+	});
+
+	it("closes with GitHub's reason and reopens", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const general = nodes.find(
+			(node: { slug: string }) => node.slug === "general",
+		);
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: general.id,
+			title: "close me",
+			body: "",
+		});
+		const closed = await graphql(
+			alice,
+			`mutation Close($input: CloseDiscussionInput!) {
+				closeDiscussion(input: $input) {
+					discussion { closed stateReason }
+				}
+			}`,
+			{ input: { discussionId: discussion.id, reason: "OUTDATED" } },
+		);
+		expect(closed.body.data.closeDiscussion.discussion).toEqual({
+			closed: true,
+			stateReason: "OUTDATED",
+		});
+		const reopened = await graphql(
+			alice,
+			`mutation Reopen($input: ReopenDiscussionInput!) {
+				reopenDiscussion(input: $input) {
+					discussion { closed stateReason }
+				}
+			}`,
+			{ input: { discussionId: discussion.id } },
+		);
+		expect(reopened.body.data.reopenDiscussion.discussion).toEqual({
+			closed: false,
+			stateReason: "REOPENED",
+		});
+	});
+
+	it("updates and deletes a discussion", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const general = nodes.find(
+			(node: { slug: string }) => node.slug === "general",
+		);
+		const ideas = nodes.find((node: { slug: string }) => node.slug === "ideas");
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: general.id,
+			title: "edit me",
+			body: "old",
+		});
+		const updated = await graphql(
+			alice,
+			`mutation Update($input: UpdateDiscussionInput!) {
+				updateDiscussion(input: $input) {
+					discussion { title body category { slug } }
+				}
+			}`,
+			{
+				input: {
+					discussionId: discussion.id,
+					title: "edited",
+					body: "new",
+					categoryId: ideas.id,
+				},
+			},
+		);
+		expect(updated.body.data.updateDiscussion.discussion).toMatchObject({
+			title: "edited",
+			body: "new",
+			category: { slug: "ideas" },
+		});
+		const deleted = await graphql(
+			alice,
+			`mutation Delete($input: DeleteDiscussionInput!) {
+				deleteDiscussion(input: $input) { discussion { number } }
+			}`,
+			{ input: { id: discussion.id } },
+		);
+		expect(deleted.body.errors).toBeUndefined();
+		const missing = await graphql(alice, LIST, {
+			owner: "alice",
+			name: "proj",
+			first: 100,
+		});
+		expect(
+			missing.body.data.repository.discussions.nodes.map(
+				(node: { number: number }) => node.number,
+			),
+		).not.toContain(discussion.number);
+	});
+
+	it("refuses a comment in a locked discussion", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const general = nodes.find(
+			(node: { slug: string }) => node.slug === "general",
+		);
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: general.id,
+			title: "locked",
+			body: "",
+		});
+		await db.execute("update discussions set locked = true");
+		const refused = await graphql(alice, COMMENT, {
+			input: { discussionId: discussion.id, body: "hello" },
+		});
+		expect(refused.body.errors?.[0]?.type).toBe("UNPROCESSABLE");
+		await db.execute("update discussions set locked = false");
+	});
+
+	it("edits and deletes a comment", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const nodes = categories.body.data.repository.discussionCategories.nodes;
+		const general = nodes.find(
+			(node: { slug: string }) => node.slug === "general",
+		);
+		const discussion = await created({
+			repositoryId: categories.body.data.repository.id,
+			categoryId: general.id,
+			title: "comments",
+			body: "",
+		});
+		const comment = (
+			await graphql(alice, COMMENT, {
+				input: { discussionId: discussion.id, body: "before" },
+			})
+		).body.data.addDiscussionComment.comment;
+		const updated = await graphql(
+			alice,
+			`mutation Edit($input: UpdateDiscussionCommentInput!) {
+				updateDiscussionComment(input: $input) { comment { id body } }
+			}`,
+			{ input: { commentId: comment.id, body: "after" } },
+		);
+		expect(updated.body.data.updateDiscussionComment.comment.body).toBe(
+			"after",
+		);
+		const deleted = await graphql(
+			alice,
+			`mutation Remove($input: DeleteDiscussionCommentInput!) {
+				deleteDiscussionComment(input: $input) { comment { id } }
+			}`,
+			{ input: { id: comment.id } },
+		);
+		expect(deleted.body.errors).toBeUndefined();
+		const gone = await graphql(
+			alice,
+			`query One($id: ID!) { node(id: $id) { id } }`,
+			{ id: comment.id },
+		);
+		expect(gone.body.errors?.[0]?.type).toBe("NOT_FOUND");
+	});
+
+	it("needs a token", async () => {
+		const categories = await graphql(alice, CATEGORIES, {
+			owner: "alice",
+			name: "proj",
+		});
+		const general =
+			categories.body.data.repository.discussionCategories.nodes[0];
+		const { status } = await graphql(null, CREATE, {
+			input: {
+				repositoryId: categories.body.data.repository.id,
+				categoryId: general.id,
+				title: "anonymous",
+				body: "",
+			},
+		});
+		expect(status).toBe(401);
+	});
+
+	it("needs a readable repository", async () => {
+		// bob cannot read alice's private repository: the repository is null.
+		const categories = await graphql(bob, CATEGORIES, {
+			owner: "alice",
+			name: "hidden",
+		});
+		expect(categories.body.data.repository).toBeNull();
+		expect(categories.body.errors?.[0]?.type).toBe("NOT_FOUND");
 	});
 });
