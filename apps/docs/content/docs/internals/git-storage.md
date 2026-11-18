@@ -18,6 +18,12 @@ instead of building a key: a segment becomes a gitFs path, which normalizes
 `..` before mapping onto a key, so an unchecked one would reach another
 repository's prefix (see [security.md](/docs/internals/security)).
 
+A wiki is a second bare repository, `repos/{ownerKey}/{repoName}/wiki/git`,
+beside `git/` and `releases/`, on branch `master`. Rename, transfer and delete
+carry the whole `wiki/` directory with the repository; a **fork does not** copy
+it (GitHub's rule), so a fork starts with no wiki bytes at all. A repository
+name may not end in `.wiki`, so `/{repo}.wiki.git` can never be ambiguous.
+
 Release assets sit beside the git data, keyed by the immutable asset id only,
 so renaming a repository moves them with it. Uploads above 4 MB go straight to
 R2 on a presigned `PUT` (a function body is capped at 4.5 MB) under an

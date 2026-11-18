@@ -22,18 +22,44 @@ export function ownerKeyOf(repo: { owner: { login: string } }): string {
 	return repo.owner.login;
 }
 
+/** A repository's git data, or the wiki's, which is a sibling bare repository. */
+export type RepoKind = "repo" | "wiki";
+
+function repoStorageBase(ownerKey: string, repoName: string): string {
+	return `repos/${segment(ownerKey, "owner")}/${segment(repoName, "repository name")}`;
+}
+
 export function getRepoGitStorageRoot(
 	ownerKey: string,
 	repoName: string,
+	kind: RepoKind = "repo",
 ): string {
-	return `repos/${segment(ownerKey, "owner")}/${segment(repoName, "repository name")}/git`;
+	return kind === "wiki"
+		? getRepoWikiGitStorageRoot(ownerKey, repoName)
+		: `${repoStorageBase(ownerKey, repoName)}/git`;
 }
 
 export function getRepoGitStoragePrefix(
 	ownerKey: string,
 	repoName: string,
+	kind: RepoKind = "repo",
 ): string {
-	return `${getRepoGitStorageRoot(ownerKey, repoName)}/`;
+	return `${getRepoGitStorageRoot(ownerKey, repoName, kind)}/`;
+}
+
+export function getRepoWikiGitStorageRoot(
+	ownerKey: string,
+	repoName: string,
+): string {
+	return `${repoStorageBase(ownerKey, repoName)}/wiki/git`;
+}
+
+/** The wiki's whole directory, so a rename or delete carries it with the repo. */
+export function getRepoWikiStoragePrefix(
+	ownerKey: string,
+	repoName: string,
+): string {
+	return `${repoStorageBase(ownerKey, repoName)}/wiki/`;
 }
 
 /**
@@ -75,23 +101,21 @@ export function getReleaseAssetKey(
 export interface RepoGitStorageKey {
 	ownerKey: string;
 	repoName: string;
+	wiki: boolean;
 	/** Path relative to the gitdir; listing prefixes keep their trailing `/`. */
 	gitdirPath: string;
 }
 
 /** Inverse of {@link getRepoGitStoragePrefix}; null for keys outside the layout. */
 export function parseRepoGitStorageKey(key: string): RepoGitStorageKey | null {
-	const [root, ownerKey, repoName, git, ...rest] = key.split("/");
-	if (
-		root !== "repos" ||
-		!ownerKey ||
-		!repoName ||
-		git !== "git" ||
-		rest.length === 0
-	) {
+	const [root, ownerKey, repoName, ...rest] = key.split("/");
+	if (root !== "repos" || !ownerKey || !repoName || rest.length === 0) {
 		return null;
 	}
-	return { ownerKey, repoName, gitdirPath: rest.join("/") };
+	const wiki = rest[0] === "wiki";
+	const [git, ...gitdir] = wiki ? rest.slice(1) : rest;
+	if (git !== "git" || gitdir.length === 0) return null;
+	return { ownerKey, repoName, wiki, gitdirPath: gitdir.join("/") };
 }
 
 /**

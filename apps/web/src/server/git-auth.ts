@@ -17,6 +17,7 @@ import {
 	type TokenScope,
 	tokenAllows,
 } from "#/lib/token-scopes";
+import type { RepoKind } from "./git-storage-naming";
 import { ARCHIVED_MESSAGE, getAccessForRepository } from "./repo-access";
 
 export interface GitAccess {
@@ -71,10 +72,32 @@ export async function authenticateToken(
  * invalid and would matter, GitAuthorizationError (403) when they're valid
  * but insufficient.
  */
-export async function authorizeGitRequest(
+export function authorizeGitRequest(
 	request: Request,
 	repo: Repository,
 	needsWrite: boolean,
+): Promise<GitAccess> {
+	return authorizeGit(request, repo, needsWrite, "repo");
+}
+
+/**
+ * A wiki's write rule differs from its repository's: `canWrite` (a push
+ * scope) or {@link RepositoryAccess.wikiEdit}, which every collaborator has
+ * and any signed-in user has on a public wiki that is not restricted.
+ */
+export function authorizeWikiGitRequest(
+	request: Request,
+	repo: Repository,
+	needsWrite: boolean,
+): Promise<GitAccess> {
+	return authorizeGit(request, repo, needsWrite, "wiki");
+}
+
+async function authorizeGit(
+	request: Request,
+	repo: Repository,
+	needsWrite: boolean,
+	kind: RepoKind,
 ): Promise<GitAccess> {
 	const token = tokenFromRequest(request);
 	const hasCredentials = request.headers.has("authorization");
@@ -89,8 +112,8 @@ export async function authorizeGitRequest(
 	const scopes = user?.scopes;
 	const canRead =
 		access.canRead && (!scopes || tokenAllows(scopes, "repo:read"));
-	const canWrite =
-		access.canWrite && !!scopes && tokenAllows(scopes, "repo:write");
+	const mayWrite = kind === "wiki" ? access.wikiEdit : access.canWrite;
+	const canWrite = mayWrite && !!scopes && tokenAllows(scopes, "repo:write");
 
 	if (needsWrite && canRead && access.repository.archived && user) {
 		throw new GitAuthorizationError(ARCHIVED_MESSAGE);

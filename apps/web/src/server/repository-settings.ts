@@ -51,6 +51,13 @@ export class RepositoryNameTakenError extends Error {
 	}
 }
 
+/** A repository named `x.wiki` would make the wiki's `/{repo}.wiki.git` ambiguous. */
+function assertNameHasNoWikiSuffix(name: string | undefined): void {
+	if (name?.endsWith(".wiki")) {
+		throw new Error("Repository names cannot end with .wiki");
+	}
+}
+
 export interface RepositorySettingsPatch {
 	name?: string;
 	description?: string | null;
@@ -63,6 +70,7 @@ export interface RepositorySettingsPatch {
 	isTemplate?: boolean;
 	hasIssues?: boolean;
 	hasWiki?: boolean;
+	wikiEditRestricted?: boolean;
 	hasProjects?: boolean;
 	hasDiscussions?: boolean;
 	allowMergeCommit?: boolean;
@@ -88,6 +96,7 @@ export async function updateRepositorySettings(
 	patch: RepositorySettingsPatch,
 ): Promise<Repository> {
 	const { name, ...settings } = patch;
+	assertNameHasNoWikiSuffix(name);
 	const changes = Object.entries({ ...settings, name }).filter(
 		([, value]) => value !== undefined,
 	);
@@ -194,6 +203,7 @@ export async function transferRepository(
 ): Promise<Repository> {
 	if (repo.archived) throw new ArchivedRepositoryError();
 	const targetName = newName ?? repo.name;
+	assertNameHasNoWikiSuffix(targetName);
 	const from = ownerKeyOf(repo);
 	const to = newOwner.username;
 	if (newOwner.id === repo.ownerId && targetName === repo.name) return repo;

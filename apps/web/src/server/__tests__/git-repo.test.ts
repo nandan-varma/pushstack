@@ -34,10 +34,25 @@ describe("git-repo", () => {
 			const options = GitManager.repoFor("alice", "blog");
 			expect(options.fs).toBe(mockGitFs);
 			expect(options.gitdir).toBe("repos/alice/blog/git");
-			expect(mockRegisterRepoGitdir).toHaveBeenCalledWith("alice", "blog");
+			expect(mockRegisterRepoGitdir).toHaveBeenCalledWith(
+				"alice",
+				"blog",
+				"repo",
+			);
 			// Same cache object across calls: isomorphic-git's parsed pack
 			// indexes survive between operations on one repo.
 			expect(GitManager.repoFor("alice", "blog").cache).toBe(options.cache);
+		});
+
+		it("gives the wiki its own gitdir and cache", () => {
+			const options = GitManager.repoFor("alice", "blog", "wiki");
+			expect(options.gitdir).toBe("repos/alice/blog/git");
+			expect(mockRegisterRepoGitdir).toHaveBeenCalledWith(
+				"alice",
+				"blog",
+				"wiki",
+			);
+			expect(options.cache).not.toBe(GitManager.repoFor("alice", "blog").cache);
 		});
 
 		it("gives different repos different caches", () => {

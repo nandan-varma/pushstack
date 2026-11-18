@@ -14,6 +14,10 @@ export function getCloneUrl(owner: string, repoName: string): string {
 	return `${getGitBaseUrl()}/${owner}/${repoName}.git`;
 }
 
+export function getWikiCloneUrl(owner: string, repoName: string): string {
+	return `${getGitBaseUrl()}/${owner}/${repoName}.wiki.git`;
+}
+
 export function getSetupInstructions(repoName: string, cloneUrl: string) {
 	return {
 		newRepo: `echo "# ${repoName}" >> README.md

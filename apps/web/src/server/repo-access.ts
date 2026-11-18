@@ -44,6 +44,11 @@ interface Permissions {
 	 */
 	canParticipate: boolean;
 	canWrite: boolean;
+	/**
+	 * May edit the wiki: every collaborator role, plus any signed-in user on a
+	 * public repository unless its wiki is restricted to collaborators.
+	 */
+	wikiEdit: boolean;
 	canModerate: boolean;
 	canMergePullRequest: boolean;
 }
@@ -58,6 +63,7 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canRead: true,
 		canParticipate: true,
 		canWrite: true,
+		wikiEdit: true,
 		canModerate: true,
 		canMergePullRequest: true,
 	},
@@ -65,6 +71,7 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canRead: true,
 		canParticipate: true,
 		canWrite: true,
+		wikiEdit: true,
 		canModerate: true,
 		canMergePullRequest: true,
 	},
@@ -72,6 +79,7 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canRead: true,
 		canParticipate: true,
 		canWrite: true,
+		wikiEdit: true,
 		canModerate: true,
 		canMergePullRequest: true,
 	},
@@ -79,6 +87,7 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canRead: true,
 		canParticipate: true,
 		canWrite: true,
+		wikiEdit: true,
 		canModerate: false,
 		canMergePullRequest: true,
 	},
@@ -86,6 +95,7 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canRead: true,
 		canParticipate: true,
 		canWrite: false,
+		wikiEdit: true,
 		canModerate: true,
 		canMergePullRequest: false,
 	},
@@ -93,6 +103,7 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canRead: true,
 		canParticipate: true,
 		canWrite: false,
+		wikiEdit: true,
 		canModerate: false,
 		canMergePullRequest: false,
 	},
@@ -128,6 +139,7 @@ function highestRole(
 const ARCHIVED_PERMISSIONS: Omit<Permissions, "canRead"> = {
 	canParticipate: false,
 	canWrite: false,
+	wikiEdit: false,
 	canModerate: false,
 	canMergePullRequest: false,
 };
@@ -157,6 +169,10 @@ function buildAccess(
 					canRead: repository.visibility === "public",
 					canParticipate: !!userId && repository.visibility === "public",
 					canWrite: false,
+					wikiEdit:
+						!!userId &&
+						repository.visibility === "public" &&
+						!repository.wikiEditRestricted,
 					canModerate: false,
 					canMergePullRequest: false,
 				}

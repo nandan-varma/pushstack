@@ -122,7 +122,7 @@ export async function createRepositoryForOwner(
 			visibility: data.visibility,
 			defaultBranch: NEW_REPOSITORY_DEFAULT_BRANCH,
 			hasIssues: data.hasIssues ?? true,
-			hasWiki: data.hasWiki ?? false,
+			hasWiki: data.hasWiki ?? true,
 			hasProjects: data.hasProjects ?? false,
 			isTemplate: data.isTemplate ?? false,
 		})

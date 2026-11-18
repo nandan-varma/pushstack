@@ -306,7 +306,7 @@ describe("answers gh reads", () => {
 			owner: { login: "octo" },
 			viewerPermission: "ADMIN",
 			hasIssuesEnabled: true,
-			hasWikiEnabled: false,
+			hasWikiEnabled: true,
 			parent: null,
 			mergeCommitAllowed: true,
 			squashMergeAllowed: true,

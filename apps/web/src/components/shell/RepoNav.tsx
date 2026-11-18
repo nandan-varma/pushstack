@@ -15,7 +15,7 @@ import { RepoStar } from "@/components/repo/RepoStar";
 import { RepoWatch } from "@/components/repo/RepoWatch";
 import { SyncFork } from "@/components/repo/SyncFork";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCloneUrl } from "@/lib/git-utils";
+import { getCloneUrl, getWikiCloneUrl } from "@/lib/git-utils";
 import { safeHomepageUrl } from "@/lib/homepage";
 import {
 	authSessionQueryOptions,
@@ -189,6 +189,12 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					</Link>
 				)}
 				<CopyField value={getCloneUrl(owner, name)} label="Copy clone URL" />
+				{repo.hasWiki && (
+					<CopyField
+						value={getWikiCloneUrl(owner, name)}
+						label="Copy wiki clone URL"
+					/>
+				)}
 				<a
 					href={`/${owner}/${name}/archive/${ref.split("/").map(encodeURIComponent).join("/")}.zip`}
 					download

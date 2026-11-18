@@ -87,6 +87,11 @@ export const repoName = z
 	.regex(
 		STORAGE_NAME_RE,
 		"Use letters, numbers, dots, hyphens and underscores, starting and ending with a letter or number",
+	)
+	// `x.wiki` would be ambiguous with the wiki's `/{repo}.wiki.git` clone URL.
+	.refine(
+		(name) => !name.endsWith(".wiki"),
+		"Repository names cannot end with .wiki",
 	);
 
 export const threadTitle = z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS);

@@ -26,7 +26,7 @@ import {
 import { recordPushReferences } from "./commit-references";
 import { GIT_HTTP_MAX_BODY_BYTES } from "./config";
 import { GIST_BRANCH, gistOpsHooks, gistRepoFor } from "./gist-git";
-import { authorizeGitRequest } from "./git-auth";
+import { authorizeGitRequest, authorizeWikiGitRequest } from "./git-auth";
 import {
 	detectLooseObjectsHint,
 	gistStorageExists,
@@ -35,7 +35,7 @@ import {
 } from "./git-fs";
 import { afterRepositoryPush, httpHooks as hooks, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
-import { GIST_ID_RE, ownerKeyOf } from "./git-storage-naming";
+import { GIST_ID_RE, ownerKeyOf, type RepoKind } from "./git-storage-naming";
 import { logError, logWarn, perfContext } from "./perf-log";
 import { recordHeadBranchDeleted } from "./pull-request-store";
 import {
@@ -49,6 +49,7 @@ import {
 } from "./rate-limit";
 import { draftReleasesForDeletedTag } from "./release-store";
 import { findRepositoryByName } from "./repository-lookup";
+import { ensureWikiRepository, WIKI_BRANCH } from "./wiki-git";
 
 type GitService = "git-upload-pack" | "git-receive-pack";
 
@@ -58,6 +59,8 @@ export interface GitRoute {
 	service: GitService;
 	/** `GET …/info/refs?service=…` (the ref advertisement) vs `POST …/<service>`. */
 	isInfoRefs: boolean;
+	/** `/{owner}/{repo}.wiki[.git]`: the wiki's own repository. */
+	wiki: boolean;
 }
 
 const NAME_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -65,11 +68,17 @@ const SERVICES = new Set<string>(["git-upload-pack", "git-receive-pack"]);
 const isService = (value: string | null): value is GitService =>
 	value !== null && SERVICES.has(value);
 
-/** Parse `/{owner}/{repo}[.git]/(info/refs?service=…|<service>)`, or null. */
+/**
+ * Parse `/{owner}/{repo}[.wiki][.git]/(info/refs?service=…|<service>)`, or
+ * null. `{repo}.wiki.git` and `{repo}.wiki` are the wiki's clone URLs; a
+ * repository name never ends in `.wiki`, so the two are never ambiguous.
+ */
 export function parseGitUrl(url: string): GitRoute | null {
 	const { pathname, searchParams } = new URL(url);
 	const [owner, repoSegment, ...rest] = pathname.split("/").filter(Boolean);
-	const repo = repoSegment?.replace(/\.git$/, "");
+	const withoutGit = repoSegment?.replace(/\.git$/, "");
+	const wiki = !!withoutGit?.endsWith(".wiki");
+	const repo = wiki ? withoutGit.slice(0, -".wiki".length) : withoutGit;
 	if (
 		!owner ||
 		!repo ||
@@ -82,11 +91,11 @@ export function parseGitUrl(url: string): GitRoute | null {
 	if (path === "info/refs") {
 		const service = searchParams.get("service");
 		return isService(service)
-			? { owner, repo, service, isInfoRefs: true }
+			? { owner, repo, service, isInfoRefs: true, wiki }
 			: null;
 	}
 	return isService(path)
-		? { owner, repo, service: path, isInfoRefs: false }
+		? { owner, repo, service: path, isInfoRefs: false, wiki }
 		: null;
 }
 
@@ -158,18 +167,20 @@ async function receivePack(
 	defaultBranch: string,
 	pusherId: string | null,
 	body: Uint8Array,
+	kind: RepoKind = "repo",
 ) {
 	const parsed = parseReceivePackBody(body);
 	const outcome = await withRepositoryLock(ownerKey, repoName, async () => {
 		const result = await applyReceivePack(
-			repoFor(ownerKey, repoName),
+			repoFor(ownerKey, repoName, kind),
 			parsed,
 			{ defaultBranch, repack: { threshold: REPACK_PACK_COUNT_THRESHOLD } },
 			hooks,
 		);
-		afterRepositoryPush(ownerKey, repoName);
-		// Best effort: a failure here must not fail an already-applied push.
-		if (pusherId && !result.unpackError) {
+		afterRepositoryPush(ownerKey, repoName, kind);
+		// A wiki has no issues, pull requests or releases, so a wiki push runs
+		// none of the repository's post-push bookkeeping.
+		if (kind === "repo" && pusherId && !result.unpackError) {
 			try {
 				await recordPushReferences({
 					ownerKey,
@@ -276,6 +287,11 @@ async function serve(
 	}
 	const repository = await findRepositoryByName(route.owner, route.repo);
 	if (!repository) throw new GitRepositoryNotFoundError("Repository not found");
+	// A disabled wiki is indistinguishable from a missing repository, byte for
+	// byte: its bytes stay, they are simply not served.
+	if (route.wiki && !repository.hasWiki) {
+		throw new GitRepositoryNotFoundError("Repository not found");
+	}
 	const needsWrite = route.service === "git-receive-pack";
 	const hasCredentials = request.headers.has("authorization");
 	if (hasCredentials) {
@@ -284,7 +300,9 @@ async function serve(
 	}
 	let auth: Awaited<ReturnType<typeof authorizeGitRequest>>;
 	try {
-		auth = await authorizeGitRequest(request, repository, needsWrite);
+		auth = await (route.wiki
+			? authorizeWikiGitRequest(request, repository, needsWrite)
+			: authorizeGitRequest(request, repository, needsWrite));
 	} catch (error) {
 		// Bad credentials count against the IP (token guessing).
 		if (hasCredentials && error instanceof GitAuthenticationError) {
@@ -304,14 +322,15 @@ async function serve(
 
 	const ownerKey = ownerKeyOf(repository);
 	const repoName = repository.name;
+	const kind: RepoKind = route.wiki ? "wiki" : "repo";
+	const defaultBranch = route.wiki ? WIKI_BRANCH : repository.defaultBranch;
 	if (route.isInfoRefs) {
+		// Cloning a wiki that has never been written is an empty repository,
+		// so its HEAD exists before the first page.
+		if (route.wiki) await ensureWikiRepository(ownerKey, repoName);
 		return handleInfoRefs(
-			repoFor(ownerKey, repoName),
-			{
-				service: route.service,
-				defaultBranch: repository.defaultBranch,
-				agent: "pushstack/1.0",
-			},
+			repoFor(ownerKey, repoName, kind),
+			{ service: route.service, defaultBranch, agent: "pushstack/1.0" },
 			hooks,
 		);
 	}
@@ -321,21 +340,22 @@ async function serve(
 			ownerKey,
 			repoName,
 			repository.id,
-			repository.defaultBranch,
+			defaultBranch,
 			auth.userId,
 			body,
+			kind,
 		);
 	}
 	return handleUploadPack(
-		repoFor(ownerKey, repoName),
+		repoFor(ownerKey, repoName, kind),
 		body,
 		{
 			// Skip doomed loose-object probes on packed repos, and warm every
 			// pack in parallel before the (sequential) reachability walk.
 			beforeWalk: async () => {
 				await Promise.all([
-					detectLooseObjectsHint(ownerKey, repoName),
-					prefetchAllPacks(ownerKey, repoName),
+					detectLooseObjectsHint(ownerKey, repoName, kind),
+					prefetchAllPacks(ownerKey, repoName, kind),
 				]);
 			},
 		},
