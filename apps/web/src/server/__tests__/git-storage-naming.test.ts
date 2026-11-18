@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
+	GIST_ID_RE,
+	getGistGitStoragePrefix,
+	getGistGitStorageRoot,
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	ownerKeyOf,
+	parseGistGitStorageKey,
 	parseRepoGitStorageKey,
 } from "../git-storage-naming";
 
@@ -40,5 +44,39 @@ describe("storage keys", () => {
 		});
 		expect(parseRepoGitStorageKey("other/alice/r/git/HEAD")).toBeNull();
 		expect(parseRepoGitStorageKey("repos/alice/r/git")).toBeNull();
+	});
+});
+
+describe("gist storage keys", () => {
+	const GIST_ID = "0123456789abcdef0123456789abcdef";
+
+	it("lays a gist out under gists/{id}/git", () => {
+		expect(getGistGitStorageRoot(GIST_ID)).toBe(`gists/${GIST_ID}/git`);
+		expect(getGistGitStoragePrefix(GIST_ID)).toBe(`gists/${GIST_ID}/git/`);
+	});
+
+	it.each([
+		[".."],
+		["."],
+		["a/b"],
+		["0123456789ABCDEF0123456789ABCDEF"],
+		["0123456789abcdef"],
+		["0123456789abcdef0123456789abcdeg"],
+		[""],
+	])("refuses the invalid id %j", (id) => {
+		expect(GIST_ID_RE.test(id)).toBe(false);
+		expect(() => getGistGitStorageRoot(id)).toThrow(/Invalid/);
+	});
+
+	it("parses a key back into its parts", () => {
+		expect(
+			parseGistGitStorageKey(`gists/${GIST_ID}/git/refs/heads/master`),
+		).toEqual({ gistId: GIST_ID, gitdirPath: "refs/heads/master" });
+		expect(
+			parseGistGitStorageKey(`gists/${GIST_ID}/git/objects/pack/`),
+		).toMatchObject({ gitdirPath: "objects/pack/" });
+		expect(parseGistGitStorageKey(`other/${GIST_ID}/git/HEAD`)).toBeNull();
+		expect(parseGistGitStorageKey(`gists/${GIST_ID}/git`)).toBeNull();
+		expect(parseGistGitStorageKey("gists/nothex/git/HEAD")).toBeNull();
 	});
 });

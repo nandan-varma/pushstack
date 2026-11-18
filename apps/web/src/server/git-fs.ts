@@ -1,10 +1,11 @@
 /**
- * The isomorphic-git filesystem every repository lives behind, composed from
- * git-fs-s3, network-outward: R2 store (src/lib/r2.ts; in-memory without R2
- * env) → retry + circuit breaker → perf instrumentation → LRU cache
- * (coalescing, miss/list caching) → git-aware fs (loose-object hints,
- * registered gitdirs). Gitdirs are full storage roots
- * (`repos/{ownerKey}/{repoName}/git`), so fs paths map 1:1 onto R2 keys.
+ * The isomorphic-git filesystem every repository and gist lives behind,
+ * composed from git-fs-s3, network-outward: R2 store (src/lib/r2.ts;
+ * in-memory without R2 env) → retry + circuit breaker → perf instrumentation
+ * → LRU cache (coalescing, miss/list caching) → git-aware fs (loose-object
+ * hints, registered gitdirs). Gitdirs are full storage roots
+ * (`repos/{ownerKey}/{repoName}/git`, `gists/{id}/git`), so fs paths map 1:1
+ * onto R2 keys.
  */
 
 import path from "node:path";
@@ -30,9 +31,12 @@ import {
 } from "#/lib/r2";
 import { GIT_CACHE_MAX_BYTES, GIT_CACHE_TTL_MS } from "./config";
 import {
+	getGistGitStoragePrefix,
+	getGistGitStorageRoot,
 	getRepoGitStoragePrefix,
 	getRepoGitStorageRoot,
 	getRepoReleaseStoragePrefix,
+	parseGistGitStorageKey,
 	parseRepoGitStorageKey,
 } from "./git-storage-naming";
 import {
@@ -52,7 +56,7 @@ import {
 const STRUCTURE_TTL_MS = 5_000;
 
 function gitdirEntryOf(key: string): GitdirEntry | null {
-	const parsed = parseRepoGitStorageKey(key);
+	const parsed = parseRepoGitStorageKey(key) ?? parseGistGitStorageKey(key);
 	return parsed ? classifyGitdirPath(parsed.gitdirPath) : null;
 }
 
@@ -201,13 +205,39 @@ export function prefetchAllPacks(
 	return gitFs.prefetchPacks(getRepoGitStorageRoot(ownerKey, repoName));
 }
 
+/** A gist's gitdir; see {@link registerRepoGitdir} for why it is registered. */
+export function registerGistGitdir(id: string): string {
+	const gitdir = getGistGitStorageRoot(id);
+	gitFs.registerGitdir(gitdir, { absentFiles: ["packed-refs", "shallow"] });
+	return gitdir;
+}
+
+/**
+ * Whether a gist's gitdir exists. Once gist rows can be looked up, the row is
+ * the existence check; until then this is what answers a clone of an unknown
+ * id with 404 rather than an empty repository.
+ */
+export async function gistStorageExists(id: string): Promise<boolean> {
+	return (
+		(await networkStore.head(`${getGistGitStorageRoot(id)}/HEAD`)) !== null
+	);
+}
+
+export function prefetchGistPacks(id: string): Promise<void> {
+	return gitFs.prefetchPacks(getGistGitStorageRoot(id));
+}
+
 /**
  * Drop every cached read for a repo. Writes through `gitFs` keep the cache
  * current on their own; this is for the storage-level operations below,
  * which bypass it.
  */
+function invalidateGitStorage(prefix: string): void {
+	gitFs.invalidate(prefix);
+}
+
 function invalidateRepoGitStorage(ownerKey: string, repoName: string): void {
-	gitFs.invalidate(getRepoGitStoragePrefix(ownerKey, repoName));
+	invalidateGitStorage(getRepoGitStoragePrefix(ownerKey, repoName));
 }
 
 export async function listRepoStorage(
@@ -271,6 +301,32 @@ export async function forkRepoGitStorage(
 		{ copy: serverSideCopy(), maxBytes },
 	);
 	invalidateRepoGitStorage(forkOwnerKey, forkRepoName);
+	return copied;
+}
+
+/** Delete all of a gist's storage. Callers hold the gist lock. */
+export async function deleteGistStorage(id: string): Promise<void> {
+	const prefix = getGistGitStoragePrefix(id);
+	await deletePrefix(networkStore, prefix);
+	invalidateGitStorage(prefix);
+}
+
+/**
+ * Copy a gist's git data to a fork, exactly as {@link forkRepoGitStorage}
+ * copies a repository's. Callers hold both gists' locks.
+ */
+export async function forkGistGitStorage(
+	parentId: string,
+	forkId: string,
+	maxBytes: number,
+): Promise<number> {
+	const copied = await copyPrefix(
+		networkStore,
+		getGistGitStoragePrefix(parentId),
+		getGistGitStoragePrefix(forkId),
+		{ copy: serverSideCopy(), maxBytes },
+	);
+	invalidateGitStorage(getGistGitStoragePrefix(forkId));
 	return copied;
 }
 

@@ -53,5 +53,17 @@ export const MAX_SIGNING_KEY_TITLE_CHARS = 100;
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */
 export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 
+/**
+ * Gists. GitHub truncates a gist's files map past 300, so creation past this
+ * cap is refused (422) instead: every gist's view is then complete.
+ */
+export const MAX_GIST_FILES = 300;
+/** A gist file name is a git tree path, so it gets a path segment's bound. */
+export const MAX_GIST_FILE_NAME_CHARS = 255;
+/** GitHub documents no bound on a description; this bounds the persisted string. */
+export const MAX_GIST_DESCRIPTION_CHARS = 1000;
+/** GitHub's `Gist Comment.body` maxLength. */
+export const MAX_GIST_COMMENT_BODY_CHARS = 65_535;
+
 /** GitHub's search query cap (`q`); the web app imports it from here. */
 export const MAX_SEARCH_QUERY_CHARS = 256;

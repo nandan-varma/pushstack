@@ -25,11 +25,17 @@ import {
 } from "git-fs-s3/http";
 import { recordPushReferences } from "./commit-references";
 import { GIT_HTTP_MAX_BODY_BYTES } from "./config";
+import { GIST_BRANCH, gistOpsHooks, gistRepoFor } from "./gist-git";
 import { authorizeGitRequest } from "./git-auth";
-import { detectLooseObjectsHint, prefetchAllPacks } from "./git-fs";
+import {
+	detectLooseObjectsHint,
+	gistStorageExists,
+	prefetchAllPacks,
+	prefetchGistPacks,
+} from "./git-fs";
 import { afterRepositoryPush, httpHooks as hooks, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
-import { ownerKeyOf } from "./git-storage-naming";
+import { GIST_ID_RE, ownerKeyOf } from "./git-storage-naming";
 import { logError, logWarn, perfContext } from "./perf-log";
 import { recordHeadBranchDeleted } from "./pull-request-store";
 import {
@@ -337,15 +343,55 @@ async function serve(
 	);
 }
 
-export async function serveGitRequest(request: Request): Promise<Response> {
-	const route = parseGitUrl(request.url);
-	if (!route) return new Response("Invalid git request", { status: 400 });
+export interface GistGitRoute {
+	gistId: string;
+	service: GitService;
+	/** `GET …/info/refs?service=…` (the ref advertisement) vs `POST …/<service>`. */
+	isInfoRefs: boolean;
+}
+
+/**
+ * Parse `/{id}.git/(info/refs?service=…|<service>)`, or null. A gist's clone
+ * URL is one path segment, which no TanStack route can express (a param cannot
+ * share a segment with a literal suffix), so the entry point matches it before
+ * the router.
+ */
+export function parseGistGitUrl(url: string): GistGitRoute | null {
+	let pathname: string;
+	let searchParams: URLSearchParams;
+	try {
+		({ pathname, searchParams } = new URL(url));
+	} catch {
+		return null;
+	}
+	const [segment, ...rest] = pathname.split("/").filter(Boolean);
+	const gistId = segment?.endsWith(".git")
+		? segment.slice(0, -".git".length)
+		: "";
+	if (!GIST_ID_RE.test(gistId)) return null;
+	const path = rest.join("/");
+	if (path === "info/refs") {
+		const service = searchParams.get("service");
+		return isService(service) ? { gistId, service, isInfoRefs: true } : null;
+	}
+	return isService(path) ? { gistId, service: path, isInfoRefs: false } : null;
+}
+
+interface GitServeResult {
+	status: number;
+	body: string | Uint8Array<ArrayBuffer>;
+	headers: Record<string, string>;
+}
+
+/** Run one git request, adding the rate-limit headers and the error response shape. */
+async function gitResponse(
+	request: Request,
+	label: string,
+	run: (meter: { rate: RateStatus | null }) => Promise<GitServeResult>,
+): Promise<Response> {
 	const meter: { rate: RateStatus | null } = { rate: null };
 	try {
-		const result = await perfContext(
-			`git ${route.service}${route.isInfoRefs ? " info/refs" : ""} ${route.owner}/${route.repo}`,
-			() => serve(request, route, meter),
-		);
+		const result = await perfContext(label, () => run(meter));
 		return new Response(result.body, {
 			status: result.status,
 			headers: {
@@ -361,4 +407,74 @@ export async function serveGitRequest(request: Request): Promise<Response> {
 			headers: { "Content-Type": "application/json", ...headers },
 		});
 	}
+}
+
+async function serveGist(
+	request: Request,
+	route: GistGitRoute,
+	meter: { rate: RateStatus | null },
+): Promise<GitServeResult> {
+	if ((request.method === "GET") !== route.isInfoRefs) {
+		throw new GitInvalidRequestError("Invalid git request");
+	}
+	if (route.service === "git-receive-pack") {
+		// Every supported write path is REST (`gh gist edit`) or the web UI.
+		// GitHub accepts pushes to a gist; this difference is documented.
+		return {
+			status: 403,
+			body: "Gists are read-only over git. Edit the gist through the API.\n",
+			headers: { "Content-Type": "text/plain; charset=utf-8" },
+		};
+	}
+	if (!(await gistStorageExists(route.gistId))) {
+		throw new GitRepositoryNotFoundError("Gist not found");
+	}
+	const rate = await hitRateLimit("git", identityFor(request, null));
+	meter.rate = rate;
+	if (rate?.exceeded) return rateLimited(rate);
+	if (route.isInfoRefs) {
+		return handleInfoRefs(
+			gistRepoFor(route.gistId),
+			{
+				service: route.service,
+				defaultBranch: GIST_BRANCH,
+				agent: "pushstack/1.0",
+			},
+			hooks,
+		);
+	}
+	return handleUploadPack(
+		gistRepoFor(route.gistId),
+		await readGitRequestBody(request),
+		{ beforeWalk: () => prefetchGistPacks(route.gistId) },
+		gistOpsHooks(route.gistId),
+	);
+}
+
+export function serveGitRequest(request: Request): Promise<Response> {
+	const route = parseGitUrl(request.url);
+	if (!route) {
+		return Promise.resolve(
+			new Response("Invalid git request", { status: 400 }),
+		);
+	}
+	return gitResponse(
+		request,
+		`git ${route.service}${route.isInfoRefs ? " info/refs" : ""} ${route.owner}/${route.repo}`,
+		(meter) => serve(request, route, meter),
+	);
+}
+
+export function serveGistGitRequest(request: Request): Promise<Response> {
+	const route = parseGistGitUrl(request.url);
+	if (!route) {
+		return Promise.resolve(
+			new Response("Invalid git request", { status: 400 }),
+		);
+	}
+	return gitResponse(
+		request,
+		`git ${route.service}${route.isInfoRefs ? " info/refs" : ""} gist ${route.gistId}`,
+		(meter) => serveGist(request, route, meter),
+	);
 }

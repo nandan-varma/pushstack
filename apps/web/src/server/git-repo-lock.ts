@@ -119,6 +119,14 @@ export function withRepositoryLock<T>(
 }
 
 /**
+ * The git write lock for one gist: its key is the gist's storage prefix, and
+ * `gists` is a reserved username so no repository can share it.
+ */
+export function withGistLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+	return withLockKey(`gists/${id}`, fn);
+}
+
+/**
  * Several repositories' locks at once, taken in one global order (by
  * `ownerKey/repoName`), each distinct repository once. Two callers that need
  * the same pair in opposite roles would otherwise hold one lock each and wait

@@ -93,3 +93,46 @@ export function parseRepoGitStorageKey(key: string): RepoGitStorageKey | null {
 	}
 	return { ownerKey, repoName, gitdirPath: rest.join("/") };
 }
+
+/**
+ * A gist is a repository too, with its own top-level prefix: an id is GitHub's
+ * 32 lowercase hex, and it names the storage segment, so it is validated with
+ * the same backstop as a repository's.
+ */
+export const GIST_ID_RE = /^[0-9a-f]{32}$/;
+
+function gistSegment(id: string): string {
+	if (!GIST_ID_RE.test(id)) {
+		throw new Error(`Invalid gist id for storage: ${JSON.stringify(id)}`);
+	}
+	return id;
+}
+
+export function getGistGitStorageRoot(id: string): string {
+	return `gists/${gistSegment(id)}/git`;
+}
+
+export function getGistGitStoragePrefix(id: string): string {
+	return `${getGistGitStorageRoot(id)}/`;
+}
+
+export interface GistGitStorageKey {
+	gistId: string;
+	/** Path relative to the gitdir; listing prefixes keep their trailing `/`. */
+	gitdirPath: string;
+}
+
+/** Inverse of {@link getGistGitStoragePrefix}; null for keys outside the layout. */
+export function parseGistGitStorageKey(key: string): GistGitStorageKey | null {
+	const [root, gistId, git, ...rest] = key.split("/");
+	if (
+		root !== "gists" ||
+		!gistId ||
+		!GIST_ID_RE.test(gistId) ||
+		git !== "git" ||
+		rest.length === 0
+	) {
+		return null;
+	}
+	return { gistId, gitdirPath: rest.join("/") };
+}

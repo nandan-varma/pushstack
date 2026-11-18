@@ -13,11 +13,14 @@ export function invalidateResultCache(prefix: string): void {
 	resultCache.invalidatePrefix(prefix);
 }
 
+/**
+ * Ops hooks over the process-wide parsed-object cache. `prefetch` warms the
+ * packs of whichever repository or gist the hooks are built for.
+ */
+export function opsHooksWith(prefetch: () => Promise<void>): OpsHooks {
+	return { resultCache, step: perfStep, onNote: perfNote, prefetch };
+}
+
 export function opsHooksFor(ownerKey: string, repoName: string): OpsHooks {
-	return {
-		resultCache,
-		step: perfStep,
-		onNote: perfNote,
-		prefetch: () => prefetchAllPacks(ownerKey, repoName),
-	};
+	return opsHooksWith(() => prefetchAllPacks(ownerKey, repoName));
 }

@@ -227,5 +227,48 @@ export const relations = defineRelations(
 				optional: false,
 			}),
 		},
+		gists: {
+			owner: r.one.user({
+				from: r.gists.ownerId,
+				to: r.user.id,
+				optional: false,
+			}),
+			forkOf: r.one.gists({
+				from: r.gists.forkOfId,
+				to: r.gists.id,
+			}),
+			stars: r.many.gistStars({
+				from: r.gists.id,
+				to: r.gistStars.gistId,
+			}),
+			comments: r.many.gistComments({
+				from: r.gists.id,
+				to: r.gistComments.gistId,
+			}),
+		},
+		gistStars: {
+			gist: r.one.gists({
+				from: r.gistStars.gistId,
+				to: r.gists.id,
+				optional: false,
+			}),
+			user: r.one.user({
+				from: r.gistStars.userId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
+		gistComments: {
+			gist: r.one.gists({
+				from: r.gistComments.gistId,
+				to: r.gists.id,
+				optional: false,
+			}),
+			author: r.one.user({
+				from: r.gistComments.userId,
+				to: r.user.id,
+				optional: false,
+			}),
+		},
 	}),
 );

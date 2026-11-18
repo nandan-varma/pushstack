@@ -13,6 +13,8 @@ const RESERVED = new Set([
 	"assets",
 	"auth",
 	"dashboard",
+	"gist",
+	"gists",
 	"repo",
 	"repositories",
 	"search",
