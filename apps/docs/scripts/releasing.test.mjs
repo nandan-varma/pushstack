@@ -15,11 +15,7 @@ test("release guide names and tag patterns match the publishable workspaces", as
 	const rows = [
 		...guide.matchAll(/^\| `([^`]+)` \| `([^`]+)` \| `([^`]+)` \|$/gm),
 	];
-	assert.equal(
-		rows.length,
-		3,
-		"expected all three published packages in the guide",
-	);
+	assert.equal(rows.length, 2, "expected both published packages in the guide");
 	for (const [, directory, name, tag] of rows) {
 		const manifest = JSON.parse(
 			await readFile(new URL(`${directory}/package.json`, root), "utf8"),

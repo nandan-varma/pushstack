@@ -159,7 +159,7 @@ name has to be a valid git ref (no spaces, no `..`, no leading or trailing `.`).
 
 ## Work in the browser
 
-The web UI can do most of what the CLI can, without a clone:
+The web UI covers most workflows without a clone:
 
 - **Upload a file** — `/{owner}/{name}/upload`, up to 25 MB per file. Larger
   files should go through `git push`.

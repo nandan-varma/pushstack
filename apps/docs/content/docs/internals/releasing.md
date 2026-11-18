@@ -3,13 +3,12 @@ title: "Releasing packages"
 description: "Tags, trusted publishing and what a new publishable workspace needs."
 ---
 
-Three workspaces are published to npm:
+Two workspaces are published to npm:
 
 | Workspace | Package | Tags |
 | --- | --- | --- |
 | `packages/git-fs-s3` | `git-fs-s3` | `git-fs-s3@v*` |
 | `packages/git-edge` | `git-edge` | `git-edge@v*` |
-| `apps/cli` | `@pstk/cli` | `@pstk/cli@v*` |
 
 Everything else is private: it deploys from the repository.
 

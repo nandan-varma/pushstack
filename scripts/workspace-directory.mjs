@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Prints the repository-relative directory of the workspace that owns a package
 // name, for the release workflow: `<pkg>@vX.Y.Z` tags name the package, not its
-// directory, and `apps/cli` is not a `packages/*` directory.
+// directory, and not every workspace is a `packages/*` directory.
 //
-//   node scripts/workspace-directory.mjs git-fs-s3   -> packages/git-fs-s3
-//   node scripts/workspace-directory.mjs @pstk/cli -> apps/cli
+//   node scripts/workspace-directory.mjs git-fs-s3 -> packages/git-fs-s3
+//   node scripts/workspace-directory.mjs git-edge   -> packages/git-edge
 //
 // Exits 1 with a message on stderr when no workspace has that name, which is
 // what a typo in a tag should do: fail the release before anything is packed.

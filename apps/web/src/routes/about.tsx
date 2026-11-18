@@ -23,11 +23,6 @@ const stack = [
 		detail:
 			"A GitHub-compatible REST API at /api/v3: GitHub's paths, JSON shapes, status codes and pagination, with personal access tokens in the Authorization header.",
 	},
-	{
-		term: "CLI",
-		detail:
-			"pst (npm: @pstk/cli) signs in, works with repositories, issues and pull requests, and calls the API from your terminal, much like gh.",
-	},
 ];
 
 function About() {

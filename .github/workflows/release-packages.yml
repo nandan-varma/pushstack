@@ -1,7 +1,7 @@
 name: Release packages
 
-# Tag `<package>@v<version>` (e.g. `git-fs-s3@v0.16.0`, `@pstk/cli@v0.1.0`;
-# annotated: `git tag -m`) to publish that workspace to npm with trusted
+# Tag `<package>@v<version>` (e.g. `git-fs-s3@v0.16.0`; annotated:
+# `git tag -m`) to publish that workspace to npm with trusted
 # publishing (OIDC): no stored token and no NODE_AUTH_TOKEN — each package's npm
 # settings list this repository and this workflow file as its trusted publisher.
 on:
@@ -9,7 +9,6 @@ on:
     tags:
       - "git-fs-s3@v*"
       - "git-edge@v*"
-      - "@pstk/cli@v*"
 
 permissions:
   contents: write
@@ -26,7 +25,7 @@ jobs:
       # Trusted publishing needs npm >= 11.5.1.
       - run: npm install -g npm@latest
       # The tag names the package; the workspace directory comes from the
-      # manifest, so `apps/cli` and `packages/*` publish the same way.
+      # manifest, so every workspace publishes the same way.
       - name: Resolve the package and check the tag against its version
         id: pkg
         run: |
