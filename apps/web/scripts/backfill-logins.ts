@@ -1,17 +1,21 @@
 /**
- * `pnpm db:push`'s follow-up: drizzle-kit only changes the schema, and every
- * owner name must be in the `logins` registry before an organization can claim
- * one. Runs after the push, so a fresh database and an existing one both end
- * with one registry row per username.
+ * `pnpm db:push`'s follow-up. Standalone on purpose: it must run under tsx
+ * without the app's server modules (src/server/perf-log.ts reads
+ * `import.meta.env`, which tsx does not provide).
  */
-import { sql } from "drizzle-orm";
-import { db } from "#/db";
+import { config } from "dotenv";
+import { Client } from "pg";
+import { BACKFILL_LOGINS_SQL } from "./backfill-logins-sql";
 
-await db.execute(sql`
-	insert into logins (login, kind, ref_id)
-	select u.username, 'user', u.id
-	from "user" u
-	where not exists (
-		select 1 from logins l where lower(l.login) = lower(u.username)
-	)
-`);
+config({ path: [".env.local", ".env"] });
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is not set");
+
+const client = new Client({ connectionString: databaseUrl });
+await client.connect();
+try {
+	await client.query(BACKFILL_LOGINS_SQL);
+} finally {
+	await client.end();
+}
