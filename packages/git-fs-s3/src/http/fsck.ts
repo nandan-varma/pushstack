@@ -5,10 +5,10 @@
  */
 
 import git from "isomorphic-git";
+import pLimit from "p-limit";
 import { createGitFs } from "../git-fs.js";
 import { getObjectTypes } from "../object-size.js";
 import type { Repo } from "../ops/types.js";
-import { createSemaphore } from "../semaphore.js";
 import { MemoryObjectStore } from "../stores/memory.js";
 import { rawFs } from "./types.js";
 
@@ -94,11 +94,11 @@ export async function findInvalidTree(
 	const candidates = [...types].filter(
 		([, type]) => type === "tree" || type === null,
 	);
-	const reads = createSemaphore(16);
+	const reads = pLimit(16);
 	let found: string | null = null;
 	await Promise.all(
 		candidates.map(([oid, type]) =>
-			reads.run(async () => {
+			reads(async () => {
 				if (found) return;
 				try {
 					const obj = await git.readObject({

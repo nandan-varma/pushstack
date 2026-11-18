@@ -156,18 +156,36 @@ describe("createFetchS3Store", () => {
 });
 
 describe("parseListObjectsV2", () => {
-	it("decodes XML entities in keys", () => {
+	it("decodes XML entities in keys and keeps numeric-looking keys as strings", () => {
 		const page = parseListObjectsV2(
-			"<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>a&amp;b&lt;c&#39;</Key><Size>3</Size></Contents></ListBucketResult>",
+			"<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>a&amp;b&lt;c&gt;d&quot;e&#x1F600;</Key><Size>3</Size></Contents><Contents><Key>123</Key><Size>0</Size></Contents></ListBucketResult>",
 		);
-		expect(page.objects).toEqual([{ key: "a&b<c'", size: 3 }]);
+		expect(page.objects).toEqual([
+			{ key: 'a&b<c>d"e😀', size: 3 },
+			{ key: "123", size: 0 },
+		]);
 		expect(page.nextToken).toBeUndefined();
+	});
+
+	it("returns an empty page for a listing with no contents", () => {
+		const page = parseListObjectsV2(
+			"<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>",
+		);
+		expect(page).toEqual({ objects: [], prefixes: [], nextToken: undefined });
 	});
 
 	it("only returns a token when the listing is truncated", () => {
 		const page = parseListObjectsV2(
-			"<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>t1</NextContinuationToken></ListBucketResult>",
+			"<ListBucketResult><Prefix>a/</Prefix><IsTruncated>true</IsTruncated><NextContinuationToken>t1+2/3=</NextContinuationToken></ListBucketResult>",
 		);
-		expect(page.nextToken).toBe("t1");
+		expect(page.nextToken).toBe("t1+2/3=");
+	});
+
+	it("reads CommonPrefixes beside a top-level Prefix", () => {
+		const page = parseListObjectsV2(
+			"<ListBucketResult><Prefix>g/</Prefix><CommonPrefixes><Prefix>g/a/</Prefix></CommonPrefixes><CommonPrefixes><Prefix>g/b&amp;c/</Prefix></CommonPrefixes><Contents><Key>g/HEAD</Key><Size>21</Size></Contents></ListBucketResult>",
+		);
+		expect(page.prefixes).toEqual(["g/a/", "g/b&c/"]);
+		expect(page.objects).toEqual([{ key: "g/HEAD", size: 21 }]);
 	});
 });
