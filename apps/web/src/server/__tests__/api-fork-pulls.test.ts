@@ -192,6 +192,34 @@ describe("pull requests from a fork", () => {
 		});
 	});
 
+	it("compares across the fork, as the pull request shows it", async () => {
+		const compare = await call(
+			"/repos/alice/lib/compare/main...bob:feature",
+			as(alice),
+		);
+		expect(compare.status).toBe(200);
+		expect(compare.body).toMatchObject({ status: "ahead", ahead_by: 2 });
+		expect(
+			compare.body.files.map((f: { filename: string }) => f.filename).sort(),
+		).toEqual(["feature.txt", "two.txt"]);
+		expect(compare.body.commits.at(-1).sha).toBe(
+			await tip(bob, "bob/lib", "feature"),
+		);
+		// A repository outside the network, an unknown branch and a signed-out
+		// caller are all just not found.
+		for (const [spec, token] of [
+			["main...carol:feature", alice],
+			["main...bob:nope", alice],
+			["main...bob:feature", undefined],
+		] as const) {
+			const response = await call(
+				`/repos/alice/lib/compare/${spec}`,
+				token ? as(token) : {},
+			);
+			expect(response.status, spec).toBe(404);
+		}
+	});
+
 	it("merges into the base and keeps rendering after the fork is deleted", async () => {
 		const merged = await call("/repos/alice/lib/pulls/1/merge", {
 			...patch(alice, {}),
