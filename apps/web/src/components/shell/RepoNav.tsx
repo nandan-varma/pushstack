@@ -3,6 +3,7 @@ import {
 	CodeIcon,
 	GitCompareArrowsIcon,
 	HistoryIcon,
+	MessagesSquareIcon,
 	SettingsIcon,
 	TagIcon,
 } from "@animateicons/react/lucide";
@@ -140,6 +141,14 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					label="Issues"
 					count={repo.openIssueCount}
 				/>
+				{repo.hasDiscussions && (
+					<SidebarLink
+						to="/$owner/$name/discussions"
+						params={{ owner, name }}
+						icon={MessagesSquareIcon}
+						label="Discussions"
+					/>
+				)}
 				<SidebarLink
 					to="/$owner/$name/pulls"
 					params={{ owner, name }}

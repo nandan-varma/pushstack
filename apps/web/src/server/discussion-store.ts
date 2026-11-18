@@ -11,6 +11,7 @@ import {
 	count,
 	desc,
 	eq,
+	inArray,
 	isNotNull,
 	isNull,
 	ne,
@@ -575,6 +576,32 @@ export async function listDiscussionReplies(
 	return { replies: [], total: Number(row?.total ?? 0) };
 }
 
+/** The replies of a page of top-level comments, in one query. */
+export async function listRepliesForComments(
+	parentIds: number[],
+	viewerId: string,
+): Promise<Map<number, DiscussionCommentRow[]>> {
+	const replies = new Map<number, DiscussionCommentRow[]>();
+	if (parentIds.length === 0) return replies;
+	const rows = (await db
+		.select(discussionCommentColumns(viewerId))
+		.from(comments)
+		.innerJoin(user, eq(user.id, comments.authorId))
+		.where(inArray(comments.replyToId, parentIds))
+		.orderBy(
+			asc(comments.createdAt),
+			asc(comments.id),
+		)) as DiscussionCommentRow[];
+	for (const row of rows) {
+		const parentId = row.comment.replyToId;
+		if (parentId === null) continue;
+		const list = replies.get(parentId) ?? [];
+		list.push(row);
+		replies.set(parentId, list);
+	}
+	return replies;
+}
+
 export async function findDiscussionComment(
 	commentId: number,
 	viewerId: string,
@@ -589,7 +616,7 @@ export async function findDiscussionComment(
 }
 
 /** The comment's own parent: `null` for a top-level comment, undefined when absent. */
-export async function findDiscussionCommentParent(
+async function findDiscussionCommentParent(
 	commentId: number,
 ): Promise<number | null | undefined> {
 	const [row] = await db
@@ -843,36 +870,7 @@ export async function findCommentOfDiscussion(
 	return row;
 }
 
-/** Fails when a category does not belong to `repoId`. */
-export function assertCategoryInRepository(
-	category: DiscussionCategoryView | undefined,
-	repoId: number,
-): DiscussionCategoryView {
-	if (!category || category.repoId !== repoId)
-		throw new Error("Discussion category does not belong to this repository");
-	return category;
-}
-
-/** The repository's answerable categories only exist for Q&A. */
+/** GitHub's answerable categories are Q&A; only they take an answer. */
 export function isAnswerable(category: DiscussionCategoryView): boolean {
 	return category.format === "q_and_a";
-}
-
-/** Records the discussion's own numbering, used by the web server functions. */
-export async function countDiscussions(repoId: number): Promise<number> {
-	const [row] = await db
-		.select({ total: count() })
-		.from(issues)
-		.where(and(eq(issues.repoId, repoId), eq(issues.kind, "discussion")));
-	return Number(row?.total ?? 0);
-}
-
-/** The `#N`s of a repository's discussions (the web list links to them). */
-export async function listDiscussionNumbers(repoId: number): Promise<number[]> {
-	const rows = await db
-		.select({ number: issues.number })
-		.from(issues)
-		.where(and(eq(issues.repoId, repoId), eq(issues.kind, "discussion")))
-		.orderBy(asc(issues.number));
-	return rows.map((row) => row.number);
 }

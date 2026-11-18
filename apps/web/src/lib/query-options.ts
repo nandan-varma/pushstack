@@ -12,6 +12,11 @@ import { getComments } from "@/server/comments";
 import { getCommitChecks, getCommitRollups } from "@/server/commit-checks";
 import { getCommitComments } from "@/server/commit-comments";
 import {
+	getDiscussionByNumber,
+	getDiscussionComments,
+	getDiscussions,
+} from "@/server/discussions";
+import {
 	getBlame,
 	getBranchDiff,
 	getBranches,
@@ -180,6 +185,8 @@ export const queryKeys = {
 	repoMilestoneThreads: (repoId: number, number: number, state: string) =>
 		["repos", repoId, "milestones", number, "threads", state] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
+	repoDiscussions: (repoId: number, category: string) =>
+		["repos", repoId, "discussions", category] as const,
 	repoIssueNumbers: (repoId: number) =>
 		["repos", repoId, "issue-numbers"] as const,
 	repoPullRequestNumbers: (repoId: number) =>
@@ -195,6 +202,10 @@ export const queryKeys = {
 	issueByNumber: (owner: string, name: string, number: number) =>
 		["repos", owner, name, "issues", number] as const,
 	issueComments: (issueId: number) => ["issues", issueId, "comments"] as const,
+	discussionByNumber: (owner: string, name: string, number: number) =>
+		["repos", owner, name, "discussions", number] as const,
+	discussionComments: (discussionId: number) =>
+		["discussions", discussionId, "comments"] as const,
 	pullRequestsRoot: (repoId: number) =>
 		["repos", repoId, "pull-requests"] as const,
 	pullRequestByNumber: (owner: string, name: string, number: number) =>
@@ -849,6 +860,46 @@ export function unreadNotificationCountQueryOptions() {
 		staleTime: 30_000,
 		refetchInterval: 60_000,
 	});
+}
+
+export function repositoryDiscussionsQueryOptions({
+	repoId,
+	category = "",
+}: {
+	repoId: number;
+	category?: string;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.repoDiscussions(repoId, category),
+		queryFn: () =>
+			getDiscussions({
+				data: { repoId, ...(category ? { category } : {}) },
+			}),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function discussionByNumberQueryOptions({
+	owner,
+	name,
+	number,
+}: {
+	owner: string;
+	name: string;
+	number: number;
+}) {
+	return queryOptions({
+		queryKey: queryKeys.discussionByNumber(owner, name, number),
+		queryFn: () => getDiscussionByNumber({ data: { owner, name, number } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function discussionCommentsQueryOptions(discussionId: number) {
+	return threadPagesQueryOptions(
+		queryKeys.discussionComments(discussionId),
+		(skip) => getDiscussionComments({ data: { discussionId, skip } }),
+	);
 }
 
 export function issueByNumberQueryOptions({

@@ -21,14 +21,14 @@ const { createUsers } = await import("../../test/app-harness");
 const { call, mintToken, patch, post } = await import("../../test/api-client");
 const { graphql } = await import("../../test/graphql-client");
 const { db } = await import("#/db");
-const { createDiscussionForUser, findDiscussion, listDiscussionCategories } =
-	await import("../discussion-store");
+const { createDiscussionForUser, listDiscussionCategories } = await import(
+	"../discussion-store"
+);
 
 const users = await createUsers("alice", "bob");
 let alice: string;
 let bob: string;
 let repoId: number;
-let qaCategoryId: number;
 let generalCategoryId: number;
 
 const CATEGORIES = `query Categories($owner: String!, $name: String!) {
@@ -68,7 +68,6 @@ beforeAll(async () => {
 	expect(created.status).toBe(201);
 	repoId = created.body.id;
 	const categories = await listDiscussionCategories(repoId);
-	qaCategoryId = categories.find((row) => row.format === "q_and_a")?.id ?? 0;
 	generalCategoryId = categories.find((row) => row.format === "open")?.id ?? 0;
 	for (const title of ["first", "second"]) {
 		await createDiscussionForUser(repoId, users.alice.id, {
