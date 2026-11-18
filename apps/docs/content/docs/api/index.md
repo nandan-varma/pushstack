@@ -102,7 +102,7 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 | Endpoint | GitHub operation | Notes |
 | --- | --- | --- |
 | `GET /` | [`meta/root`](https://docs.github.com/rest/meta/meta#github-api-root) | URL templates for the served endpoints only; gh reads `X-OAuth-Scopes` here |
-| `GET /meta` | [`meta/get`](https://docs.github.com/rest/meta/meta#get-github-meta-information) | `installed_version` is the placeholder `0.0.0` (PushStack is not a GitHub Enterprise release; gh needs a semver for a non-github.com host to choose its search syntax) |
+| `GET /meta` | [`meta/get`](https://docs.github.com/rest/meta/meta#get-github-meta-information) | `installed_version` is the app's own version from `apps/web/package.json` (PushStack is not a GitHub Enterprise release; gh needs a semver for a non-github.com host to choose its search syntax) |
 | `GET /rate_limit` | [`rate-limit/get`](https://docs.github.com/rest/rate-limit/rate-limit#get-rate-limit-status-for-the-authenticated-user) | `resources.core`, `git` and (authenticated) `core_write` and `graphql`; not counted; no `search` |
 | `GET /user` | [`users/get-authenticated`](https://docs.github.com/rest/users/users#get-the-authenticated-user) | |
 | `GET /user/repos` | [`repos/list-for-authenticated-user`](https://docs.github.com/rest/repos/repos#list-repositories-for-the-authenticated-user) | `visibility`, `affiliation` (`owner`, `collaborator`), `type`, `sort`, `direction`, `since` and `before` (bound the last update) |

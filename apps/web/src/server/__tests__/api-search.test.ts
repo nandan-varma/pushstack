@@ -7,9 +7,13 @@
  * and the sort, order and page bounds.
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import pkg from "../../../package.json" with { type: "json" };
 
+const { queries } = vi.hoisted(() => ({ queries: [] as string[] }));
 vi.mock("#/db", async () => ({
-	db: await (await import("../../test/pglite-db")).createTestDb(),
+	db: await (await import("../../test/pglite-db")).createTestDb({
+		onQuery: (query) => queries.push(query),
+	}),
 }));
 vi.mock("@tanstack/react-start", () => import("../../test/server-test-utils"));
 vi.mock(
@@ -314,10 +318,27 @@ describe("GET /search/issues", () => {
 			items: [],
 		});
 	});
+
+	it("counts the page once, in the page query, not with a separate count query", async () => {
+		queries.length = 0;
+		const { status, body } = await call("/search/issues?q=state:open", {
+			authorization: `token ${alice}`,
+		});
+		expect(status).toBe(200);
+		expect(body.total_count).toBe(3);
+		expect(
+			queries.filter(
+				(query) =>
+					query.includes("count(*) over ()") && query.includes('"issues"'),
+			),
+		).toHaveLength(1);
+	});
 });
 
 describe("GET /meta", () => {
-	it("answers the placeholder installed_version gh reads for a non-github.com host", async () => {
-		expect((await call("/meta")).body).toEqual({ installed_version: "0.0.0" });
+	it("reports the app's own version, which gh reads for a non-github.com host", async () => {
+		expect((await call("/meta")).body).toEqual({
+			installed_version: pkg.version,
+		});
 	});
 });
