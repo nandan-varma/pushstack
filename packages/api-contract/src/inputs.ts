@@ -163,7 +163,7 @@ export const unsupported = unsupportedUnless(() => false);
  * GitHub's repository webhook events (plus `*`). A name PushStack never emits
  * is still accepted, as on GitHub: a hook subscribed to it simply never fires.
  */
-const WEBHOOK_EVENT_NAMES = [
+export const WEBHOOK_EVENT_NAMES = [
 	"*",
 	"branch_protection_configuration",
 	"branch_protection_rule",
@@ -275,6 +275,19 @@ export const webhookConfigBody = z.object({
 
 /** `PATCH …/config`: every setting optional. */
 export const webhookConfigPatchBody = webhookConfigBody.partial();
+
+/**
+ * The delivery log pages by `cursor` (a delivery id), not by `page`; GitHub
+ * returns 422 for a non-numeric cursor or an unknown `status`.
+ */
+export const webhookDeliveryQuery = z.object({
+	per_page: positiveInt
+		.optional()
+		.catch(undefined)
+		.transform((value) => Math.min(value ?? DEFAULT_PER_PAGE, MAX_PER_PAGE)),
+	cursor: positiveInt.optional(),
+	status: z.enum(["success", "failure"]).optional(),
+});
 
 /**
  * A body boolean as GitHub accepts it: `true`/`false`, or the strings a

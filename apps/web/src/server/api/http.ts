@@ -194,6 +194,22 @@ export function linkHeader(
 	return { Link: links.join(", ") };
 }
 
+/**
+ * GitHub's cursor `Link` header for the webhook delivery log: the next page
+ * carries the id of the last row returned, and nothing else is linked.
+ */
+export function cursorLinkHeader(
+	url: URL,
+	nextCursor: number | null,
+): Record<string, string> {
+	if (nextCursor === null) return {};
+	const query = new URLSearchParams(url.search);
+	query.set("cursor", String(nextCursor));
+	return {
+		Link: `<${getGitBaseUrl()}${url.pathname}?${query}>; rel="next"`,
+	};
+}
+
 export function pagedList<T, R>(
 	url: URL,
 	items: T[],

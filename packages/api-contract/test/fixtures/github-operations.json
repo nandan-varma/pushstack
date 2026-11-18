@@ -1088,6 +1088,22 @@
 			"query": [],
 			"body": []
 		},
+		"repos/list-webhook-deliveries": {
+			"query": [
+				"cursor",
+				"per_page",
+				"status"
+			],
+			"body": []
+		},
+		"repos/get-webhook-delivery": {
+			"query": [],
+			"body": []
+		},
+		"repos/redeliver-webhook-delivery": {
+			"query": [],
+			"body": []
+		},
 		"repos/replace-all-topics": {
 			"query": [],
 			"body": [

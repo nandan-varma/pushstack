@@ -86,6 +86,7 @@ import {
 	commitObject,
 	pullRequest as pullRequestShape,
 	repository,
+	type Shape,
 	simpleUser,
 } from "./serializers";
 import { fullNameOf } from "./threads";
@@ -389,6 +390,17 @@ async function serializeDetail(
 			mergeableState: protection.mergeStateStatus.toLowerCase(),
 		},
 	});
+}
+
+/**
+ * The REST pull object of `thread`, as a webhook payload embeds it (the same
+ * shape `GET /repos/{owner}/{repo}/pulls/{number}` returns).
+ */
+export function pullRequestRestPayload(
+	repo: RepositoryRowWithOwner,
+	thread: Thread,
+): Promise<Shape<"pullRequest"> | Shape<"pullRequestSimple">> {
+	return serializeDetail(repo, thread, "admin", null);
 }
 
 /**

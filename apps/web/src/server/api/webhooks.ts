@@ -15,12 +15,16 @@ import { deliverWebhook } from "../webhook-deliver";
 import {
 	pingPayload,
 	webhookConfigPayload,
+	webhookDeliveryDetailPayload,
+	webhookDeliveryPayload,
 	webhookPayload,
 } from "../webhook-payloads";
 import {
 	createWebhook,
 	deleteWebhook,
 	findWebhook,
+	findWebhookDelivery,
+	listWebhookDeliveries,
 	listWebhooks,
 	TooManyWebhookEventsError,
 	updateWebhook,
@@ -30,6 +34,7 @@ import {
 import { type ApiContext, requireScope } from "./auth";
 import {
 	apiUrl,
+	cursorLinkHeader,
 	forbiddenError,
 	json,
 	noContent,
@@ -37,7 +42,7 @@ import {
 	pagedList,
 	validationFailedError,
 } from "./http";
-import { pathParams, requestBody } from "./input";
+import { pathParams, queryParams, requestBody } from "./input";
 import { readableRepository } from "./repo-lookup";
 
 type Repo = Awaited<ReturnType<typeof readableRepository>>["repo"];
@@ -65,7 +70,10 @@ type HookOperation =
 	| "repos/delete-webhook"
 	| "repos/get-webhook-config-for-repo"
 	| "repos/update-webhook-config-for-repo"
-	| "repos/ping-webhook";
+	| "repos/ping-webhook"
+	| "repos/list-webhook-deliveries"
+	| "repos/get-webhook-delivery"
+	| "repos/redeliver-webhook-delivery";
 
 /** The repository and the hook named by the path; 404 when either is absent. */
 async function hookFor(
@@ -231,4 +239,58 @@ export async function pingRepoWebhook(ctx: ApiContext) {
 		}),
 	);
 	return noContent();
+}
+
+export async function listRepoWebhookDeliveries(ctx: ApiContext) {
+	const { repo, hook } = await hookFor(ctx, "repos/list-webhook-deliveries");
+	const query = queryParams(ctx, "repos/list-webhook-deliveries", "Hook");
+	const page = await listWebhookDeliveries(hook.id, {
+		...(query.cursor !== undefined && { cursor: query.cursor }),
+		...(query.status !== undefined && { status: query.status }),
+		perPage: query.per_page,
+	});
+	return json(
+		page.rows.map((row) => webhookDeliveryPayload(repo, row)),
+		200,
+		cursorLinkHeader(ctx.url, page.nextCursor),
+	);
+}
+
+export async function getRepoWebhookDelivery(ctx: ApiContext) {
+	const { repo, hook } = await hookFor(ctx, "repos/get-webhook-delivery");
+	const { delivery_id } = pathParams(ctx, "repos/get-webhook-delivery");
+	const delivery = await findWebhookDelivery(hook.id, delivery_id);
+	if (!delivery) throw notFoundError();
+	return json(webhookDeliveryDetailPayload(repo, hook, delivery));
+}
+
+export async function redeliverRepoWebhookDelivery(ctx: ApiContext) {
+	const { hook } = await hookFor(ctx, "repos/redeliver-webhook-delivery");
+	const { delivery_id } = pathParams(ctx, "repos/redeliver-webhook-delivery");
+	const delivery = await findWebhookDelivery(hook.id, delivery_id);
+	if (!delivery) throw notFoundError();
+	if (delivery.requestPayload === null) {
+		throw validationFailedError("Validation Failed", [
+			{
+				resource: "Hook",
+				code: "custom",
+				message:
+					"The delivery's payload was not retained and cannot be redelivered.",
+			},
+		]);
+	}
+	const body = delivery.requestPayload;
+	await afterResponse(() =>
+		bestEffort("webhooks", "redelivery", () =>
+			deliverWebhook({
+				hook,
+				event: delivery.event,
+				action: delivery.action,
+				payload: null,
+				body,
+				redelivery: true,
+			}),
+		),
+	);
+	return json({}, 202);
 }

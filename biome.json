@@ -12,6 +12,7 @@
 			"!**/routeTree.gen.ts",
 			"!.worktrees",
 			"!apps/web/src/server/graphql/resolvers/generated.ts",
+			"!packages/api-contract/test/fixtures/github-operations.json",
 			"!apps/web/src/styles.css",
 			"!**/*.md"
 		]

@@ -546,6 +546,18 @@ beforeAll(async () => {
 		}),
 	);
 	await check(`/repos/alice/proj/hooks/${pingHook.id}/pings`, post(alice, {}));
+	const deliveries = await check(
+		`/repos/alice/proj/hooks/${pingHook.id}/deliveries`,
+		auth,
+	);
+	await check(
+		`/repos/alice/proj/hooks/${pingHook.id}/deliveries/${deliveries[0].id}`,
+		auth,
+	);
+	await check(
+		`/repos/alice/proj/hooks/${pingHook.id}/deliveries/${deliveries[0].id}/attempts`,
+		post(alice, {}),
+	);
 	await check(`/repos/alice/proj/hooks/${pingHook.id}`, del(alice));
 
 	// Releases and their assets.

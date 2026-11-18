@@ -19,6 +19,7 @@ import { recordThreadActivity } from "./notification-store";
 import { logError } from "./perf-log";
 import { claimNextIssueOrPrNumber } from "./repository-lookup";
 import { recordCrossReferences, recordTimelineEvent } from "./timeline-store";
+import { emitIssueEvent } from "./webhook-events";
 
 export type { Issue };
 
@@ -75,6 +76,12 @@ export async function createIssueForUser(
 			actorId: userId,
 			actorReason: "author",
 			text: issue.body,
+		});
+		await emitIssueEvent({
+			repoId,
+			number: issue.number,
+			action: "opened",
+			senderId: userId,
 		});
 		return { ...issue, labels };
 	} catch (error) {
@@ -208,6 +215,30 @@ export async function updateIssueThreadFields(
 					title: issue.title,
 					action: fields.status === "closed" ? "closed" : "reopened",
 				},
+			}),
+		);
+	}
+	if (titleChanged || bodyChanged) {
+		await followUp("The edited webhook", () =>
+			emitIssueEvent({
+				repoId: issue.repoId,
+				number: issue.number,
+				action: "edited",
+				senderId: userId,
+				changes: {
+					...(titleChanged && { title: { from: issue.title } }),
+					...(bodyChanged && { body: { from: issue.body } }),
+				},
+			}),
+		);
+	}
+	if (statusChanged && fields.status) {
+		await followUp("The state webhook", () =>
+			emitIssueEvent({
+				repoId: issue.repoId,
+				number: issue.number,
+				action: fields.status === "closed" ? "closed" : "reopened",
+				senderId: userId,
 			}),
 		);
 	}

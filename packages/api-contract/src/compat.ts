@@ -215,6 +215,12 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		'any subset of `url`, `content_type`, `secret` and `insecure_ssl: "0"`; a body without `secret` clears the stored secret',
 	"repos/ping-webhook":
 		"needs a `repo:write` token and ownership or admin; `204` immediately, the `ping` delivery happens after the response and appears in the hook's delivery log",
+	"repos/list-webhook-deliveries":
+		'ownership or admin; newest first; pages by `cursor` (a delivery id) with a `Link` `rel="next"`, default 30 and at most 100 per page; `status=success` is 2xx–3xx and `status=failure` 4xx–5xx, anything else or a non-numeric cursor is `422`',
+	"repos/get-webhook-delivery":
+		"ownership or admin; `request.payload` and `response.payload` are the exact bytes sent and received as text, `null` when not retained; a delivery of another hook or repository is `404`",
+	"repos/redeliver-webhook-delivery":
+		"ownership or admin; `202` immediately, a new delivery row (with a fresh `X-GitHub-Delivery`) is sent after the response from the stored bytes; `422` when the payload was not retained",
 	"repos/list-releases":
 		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
 	"repos/create-release":

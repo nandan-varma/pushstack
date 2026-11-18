@@ -12,6 +12,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
+import type { CommitInfo } from "git-fs-s3/ops";
 import { db } from "#/db";
 import { issues, timelineEvents } from "#/db/app-schema";
 import {
@@ -26,35 +27,45 @@ const MAX_PUSH_COMMITS = 100;
 const ZERO_OID = "0".repeat(40);
 const MESSAGE_PREVIEW_CHARS = 200;
 
-interface PushedCommit {
-	sha: string;
-	message: string;
-}
-
-async function newCommits(
+/**
+ * The commits one accepted ref update adds, newest first: what `newOid`
+ * reaches that the previous tip (or, for a new branch, the default branch)
+ * does not. A deleted ref adds none.
+ */
+export async function commitsInUpdate(
 	ownerKey: string,
 	repoName: string,
-	newOid: string,
-	exclude: string | null,
-): Promise<PushedCommit[]> {
+	update: { newOid: string; oldOid: string; refName: string },
+	defaultBranch: string,
+	depth: number,
+): Promise<CommitInfo[]> {
+	if (update.newOid === ZERO_OID) return [];
+	// A new branch's new commits are those the default branch lacks.
+	const exclude =
+		update.oldOid !== ZERO_OID
+			? update.oldOid
+			: update.refName === `refs/heads/${defaultBranch}`
+				? null
+				: `refs/heads/${defaultBranch}`;
 	const [head, known] = await Promise.all([
-		getCommitLog(ownerKey, repoName, newOid, MAX_PUSH_COMMITS),
+		getCommitLog(ownerKey, repoName, update.newOid, depth),
 		exclude
-			? getCommitLog(ownerKey, repoName, exclude, MAX_PUSH_COMMITS).catch(
-					(error) => {
-						// A previous tip that is gone (history rewritten) has no known
-						// commits; any other failure must reach the caller's logging
-						// rather than re-recording every commit as new.
-						if (isNotFoundError(error)) return [];
-						throw error;
-					},
-				)
+			? getCommitLog(ownerKey, repoName, exclude, depth).catch((error) => {
+					// A previous tip that is gone (history rewritten) has no known
+					// commits; any other failure must reach the caller's logging
+					// rather than re-recording every commit as new.
+					if (isNotFoundError(error)) return [];
+					throw error;
+				})
 			: Promise.resolve([]),
 	]);
 	const knownShas = new Set(known.map((commit) => commit.oid));
-	return head
-		.filter((commit) => !knownShas.has(commit.oid))
-		.map((commit) => ({ sha: commit.oid, message: commit.commit.message }));
+	return head.filter((commit) => !knownShas.has(commit.oid));
+}
+
+interface PushedCommit {
+	sha: string;
+	message: string;
 }
 
 /**
@@ -85,22 +96,17 @@ export async function recordPushReferences(input: {
 			continue;
 		}
 		const onDefault = update.refName === defaultRef;
-		// A new branch's new commits are those the default branch lacks.
-		const exclude =
-			update.oldOid !== ZERO_OID
-				? update.oldOid
-				: onDefault
-					? null
-					: defaultRef;
-		for (const commit of await newCommits(
+		for (const commit of await commitsInUpdate(
 			input.ownerKey,
 			input.repoName,
-			update.newOid,
-			exclude,
+			update,
+			input.defaultBranch,
+			MAX_PUSH_COMMITS,
 		)) {
-			const prev = bySha.get(commit.sha);
-			bySha.set(commit.sha, {
-				...commit,
+			const prev = bySha.get(commit.oid);
+			bySha.set(commit.oid, {
+				sha: commit.oid,
+				message: commit.commit.message,
 				onDefault: onDefault || !!prev?.onDefault,
 			});
 		}

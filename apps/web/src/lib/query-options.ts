@@ -75,6 +75,7 @@ import {
 import { getTimeline } from "@/server/timeline";
 import { listTokens } from "@/server/tokens";
 import { getUserProfile } from "@/server/users";
+import { listRepoWebhookDeliveries, listRepoWebhooks } from "@/server/webhooks";
 import { getWiki, getWikiPage } from "@/server/wiki";
 
 export const queryKeys = {
@@ -245,6 +246,9 @@ export const queryKeys = {
 		["repos", repoId, "collaborators"] as const,
 	repoBranchProtection: (repoId: number) =>
 		["repos", repoId, "branch-protection"] as const,
+	repoWebhooks: (repoId: number) => ["repos", repoId, "webhooks"] as const,
+	repoWebhookDeliveries: (repoId: number, hookId: number) =>
+		["repos", repoId, "webhooks", hookId, "deliveries"] as const,
 	repoForks: (repoId: number) => ["repos", repoId, "forks"] as const,
 	pullRequestReviewThreads: (prId: number) =>
 		["pull-requests", prId, "review-threads"] as const,
@@ -1054,6 +1058,26 @@ export function repoBranchProtectionQueryOptions(repoId: number) {
 		queryKey: queryKeys.repoBranchProtection(repoId),
 		queryFn: () => getBranchProtectionRules({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repoWebhooksQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoWebhooks(repoId),
+		queryFn: () => listRepoWebhooks({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repoWebhookDeliveriesQueryOptions(
+	repoId: number,
+	hookId: number,
+) {
+	return queryOptions({
+		queryKey: queryKeys.repoWebhookDeliveries(repoId, hookId),
+		queryFn: () =>
+			listRepoWebhookDeliveries({ data: { repoId, hookId, perPage: 30 } }),
+		staleTime: 0,
 	});
 }
 

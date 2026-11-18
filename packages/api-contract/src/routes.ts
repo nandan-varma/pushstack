@@ -642,6 +642,22 @@ export const routes = {
 		docs: `${DOCS}/repos/webhooks#ping-a-repository-webhook`,
 		status: 204,
 	},
+	"repos/list-webhook-deliveries": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}/deliveries",
+		docs: `${DOCS}/repos/webhooks#list-deliveries-for-a-repository-webhook`,
+	},
+	"repos/get-webhook-delivery": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}/deliveries/{delivery_id}",
+		docs: `${DOCS}/repos/webhooks#get-a-delivery-for-a-repository-webhook`,
+	},
+	"repos/redeliver-webhook-delivery": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/hooks/{hook_id}/deliveries/{delivery_id}/attempts",
+		docs: `${DOCS}/repos/webhooks#redeliver-a-delivery-for-a-repository-webhook`,
+		status: 202,
+	},
 
 	"repos/list-releases": {
 		method: "GET",

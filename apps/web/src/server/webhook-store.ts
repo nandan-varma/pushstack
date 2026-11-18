@@ -3,7 +3,7 @@
  * hooks per event type in a repository. A secret is sealed here before it can
  * reach the database, so no caller of this module stores one in the clear.
  */
-import { and, asc, desc, eq, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { db } from "#/db";
 import { webhookDeliveries, webhooks } from "#/db/app-schema";
 import {
@@ -140,6 +140,76 @@ export type WebhookDeliveryRecord = Omit<
 	typeof webhookDeliveries.$inferInsert,
 	"id" | "deliveredAt"
 >;
+
+export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
+
+/** One `cursor`-paged page of a hook's deliveries, newest first. */
+export interface WebhookDeliveryPage {
+	rows: WebhookDeliveryRow[];
+	/** The `cursor` of the page after this one, or null at the end. */
+	nextCursor: number | null;
+}
+
+/** `status=success` is GitHub's 2xx–3xx, `failure` its 4xx–5xx. */
+const STATUS_RANGES = {
+	success: { from: 200, to: 399 },
+	failure: { from: 400, to: 599 },
+} as const;
+
+/**
+ * A hook's deliveries newest first. The page is keyed by id, not offset, so an
+ * insert between two reads never repeats or skips a row.
+ */
+export async function listWebhookDeliveries(
+	hookId: number,
+	page: {
+		cursor?: number;
+		status?: keyof typeof STATUS_RANGES;
+		perPage: number;
+	},
+): Promise<WebhookDeliveryPage> {
+	const range = page.status && STATUS_RANGES[page.status];
+	const rows = await db
+		.select()
+		.from(webhookDeliveries)
+		.where(
+			and(
+				eq(webhookDeliveries.webhookId, hookId),
+				...(page.cursor !== undefined
+					? [lt(webhookDeliveries.id, page.cursor)]
+					: []),
+				...(range
+					? [
+							gte(webhookDeliveries.statusCode, range.from),
+							lte(webhookDeliveries.statusCode, range.to),
+						]
+					: []),
+			),
+		)
+		.orderBy(desc(webhookDeliveries.id))
+		.limit(page.perPage + 1);
+	const hasMore = rows.length > page.perPage;
+	return {
+		rows: hasMore ? rows.slice(0, page.perPage) : rows,
+		nextCursor: hasMore ? (rows[page.perPage - 1]?.id ?? null) : null,
+	};
+}
+
+export async function findWebhookDelivery(
+	hookId: number,
+	deliveryId: number,
+): Promise<WebhookDeliveryRow | null> {
+	const [row] = await db
+		.select()
+		.from(webhookDeliveries)
+		.where(
+			and(
+				eq(webhookDeliveries.webhookId, hookId),
+				eq(webhookDeliveries.id, deliveryId),
+			),
+		);
+	return row ?? null;
+}
 
 /** Record one attempt, then keep only the newest rows for the hook. */
 export async function recordWebhookDelivery(
