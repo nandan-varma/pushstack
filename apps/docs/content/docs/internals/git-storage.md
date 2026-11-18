@@ -304,6 +304,14 @@ repack. Only the explicit `repackRepositoryNow` maintenance action (the owner's
 repository settings button) reports a failure to its caller; `repackRepository`
 itself rejects so each caller makes that choice.
 
+### Paged ref lists
+
+`GET …/branches` and `…/tags` list the ref names (one listing of the ref
+directory, sorted), then read the tips of only the requested page
+(`listBranchPage`, `listTagPage`): a repository with thousands of refs costs
+the listing plus `per_page` ref reads, not one read per ref. Other callers that
+need every tip (`getBranches`, the GraphQL refs) still read them all.
+
 ### Objects no ref names yet
 
 A repack keeps only objects reachable from a branch, a tag or a pull request head

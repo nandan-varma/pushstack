@@ -21,6 +21,8 @@ import {
 	getTreeFromRef,
 	HISTORY_WALK_DEPTH,
 	listBranches,
+	listBranchPage,
+	listTagPage,
 	listTags,
 	listTreeEntries,
 	type OpsHooks,
@@ -397,6 +399,22 @@ export async function getRepositoryTreeData(
 
 export function getBranches(ownerKey: string, repoName: string) {
 	return listBranches(repoFor(ownerKey, repoName));
+}
+
+export function getBranchPage(
+	ownerKey: string,
+	repoName: string,
+	page: { offset: number; limit: number },
+) {
+	return listBranchPage(repoFor(ownerKey, repoName), page);
+}
+
+export function getTagPage(
+	ownerKey: string,
+	repoName: string,
+	page: { offset: number; limit: number },
+) {
+	return listTagPage(repoFor(ownerKey, repoName), page);
 }
 
 export function getTags(ownerKey: string, repoName: string) {
