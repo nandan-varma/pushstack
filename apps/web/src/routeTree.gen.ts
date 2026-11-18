@@ -74,6 +74,8 @@ import { Route as OwnerNameSettingsHooksRouteImport } from './routes/$owner.$nam
 import { Route as OwnerNameWikiIndexRouteImport } from './routes/$owner.$name.wiki.index'
 import { Route as OwnerNameWikiPageRouteImport } from './routes/$owner.$name.wiki.$page'
 import { Route as GistOwnerIdRevisionRouteImport } from './routes/gist.$owner.$id.$revision'
+import { Route as UsersLoginProjectsIndexRouteImport } from './routes/users.$login.projects.index'
+import { Route as UsersLoginProjectsNumberRouteImport } from './routes/users.$login.projects.$number'
 import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
 import { Route as OwnerNameIssuesNewChooseRouteImport } from './routes/$owner.$name.issues_.new_.choose'
@@ -416,6 +418,17 @@ const GistOwnerIdRevisionRoute = GistOwnerIdRevisionRouteImport.update({
   path: '/$revision',
   getParentRoute: () => GistOwnerIdRoute,
 } as any)
+const UsersLoginProjectsIndexRoute = UsersLoginProjectsIndexRouteImport.update({
+  id: '/users/$login/projects/',
+  path: '/users/$login/projects/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersLoginProjectsNumberRoute =
+  UsersLoginProjectsNumberRouteImport.update({
+    id: '/users/$login/projects/$number',
+    path: '/users/$login/projects/$number',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const OwnerNameBlameBranchSplatRoute =
   OwnerNameBlameBranchSplatRouteImport.update({
     id: '/blame/$branch/$',
@@ -552,11 +565,13 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/settings/hooks': typeof OwnerNameSettingsHooksRoute
   '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
+  '/users/$login/projects/$number': typeof UsersLoginProjectsNumberRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
   '/$owner/$name/wiki/': typeof OwnerNameWikiIndexRoute
+  '/users/$login/projects/': typeof UsersLoginProjectsIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -625,11 +640,13 @@ export interface FileRoutesByTo {
   '/$owner/$name/settings/hooks': typeof OwnerNameSettingsHooksRoute
   '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
+  '/users/$login/projects/$number': typeof UsersLoginProjectsNumberRoute
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings': typeof OwnerNameSettingsIndexRoute
   '/$owner/$name/wiki': typeof OwnerNameWikiIndexRoute
+  '/users/$login/projects': typeof UsersLoginProjectsIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -706,11 +723,13 @@ export interface FileRoutesById {
   '/$owner/$name/settings/hooks': typeof OwnerNameSettingsHooksRoute
   '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRouteWithChildren
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
+  '/users/$login/projects/$number': typeof UsersLoginProjectsNumberRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
   '/$owner/$name/wiki/': typeof OwnerNameWikiIndexRoute
+  '/users/$login/projects/': typeof UsersLoginProjectsIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues_/new_/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -786,11 +805,13 @@ export interface FileRouteTypes {
     | '/$owner/$name/settings/hooks'
     | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
+    | '/users/$login/projects/$number'
     | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
     | '/$owner/$name/settings/'
     | '/$owner/$name/wiki/'
+    | '/users/$login/projects/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues/new/choose'
@@ -859,11 +880,13 @@ export interface FileRouteTypes {
     | '/$owner/$name/settings/hooks'
     | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
+    | '/users/$login/projects/$number'
     | '/$owner/$name/discussions'
     | '/$owner/$name/milestones'
     | '/$owner/$name/releases'
     | '/$owner/$name/settings'
     | '/$owner/$name/wiki'
+    | '/users/$login/projects'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues/new/choose'
@@ -939,11 +962,13 @@ export interface FileRouteTypes {
     | '/$owner/$name/settings/hooks'
     | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
+    | '/users/$login/projects/$number'
     | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
     | '/$owner/$name/settings/'
     | '/$owner/$name/wiki/'
+    | '/users/$login/projects/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues_/new_/choose'
@@ -982,6 +1007,8 @@ export interface RootRouteChildren {
   ApiV3SplatRoute: typeof ApiV3SplatRoute
   LoginOauthAccess_tokenRoute: typeof LoginOauthAccess_tokenRoute
   LoginOauthAuthorizeRoute: typeof LoginOauthAuthorizeRoute
+  UsersLoginProjectsNumberRoute: typeof UsersLoginProjectsNumberRoute
+  UsersLoginProjectsIndexRoute: typeof UsersLoginProjectsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1441,6 +1468,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GistOwnerIdRevisionRouteImport
       parentRoute: typeof GistOwnerIdRoute
     }
+    '/users/$login/projects/': {
+      id: '/users/$login/projects/'
+      path: '/users/$login/projects'
+      fullPath: '/users/$login/projects/'
+      preLoaderRoute: typeof UsersLoginProjectsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users/$login/projects/$number': {
+      id: '/users/$login/projects/$number'
+      path: '/users/$login/projects/$number'
+      fullPath: '/users/$login/projects/$number'
+      preLoaderRoute: typeof UsersLoginProjectsNumberRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$owner/$name/blame/$branch/$': {
       id: '/$owner/$name/blame/$branch/$'
       path: '/blame/$branch/$'
@@ -1774,6 +1815,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV3SplatRoute: ApiV3SplatRoute,
   LoginOauthAccess_tokenRoute: LoginOauthAccess_tokenRoute,
   LoginOauthAuthorizeRoute: LoginOauthAuthorizeRoute,
+  UsersLoginProjectsNumberRoute: UsersLoginProjectsNumberRoute,
+  UsersLoginProjectsIndexRoute: UsersLoginProjectsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
