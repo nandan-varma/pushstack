@@ -7,6 +7,7 @@ import { FileDiffViewer } from "@/components/FileDiffViewer";
 import { Toolbar } from "@/components/layout/page";
 import { PageHeader } from "@/components/PageHeader";
 import { CommitList } from "@/components/repo/CommitList";
+import { ForkPullRequestButton } from "@/components/repo/ForkPullRequestButton";
 import { RepoResourceNotFound } from "@/components/repo/RepoResourceNotFound";
 import { NewThreadDialog } from "@/components/thread-list/NewThreadDialog";
 import { useToast } from "@/components/toast-provider";
@@ -189,7 +190,15 @@ function ComparePage() {
 					/>
 				</div>
 				<div className="flex items-center gap-2">
-					{canOpenPull && templates && (
+					{canOpenPull && templates && repo.isFork && repo.parent && (
+						<ForkPullRequestButton
+							repoId={repo.id}
+							forkOwner={owner}
+							headBranch={head}
+							parent={repo.parent}
+						/>
+					)}
+					{canOpenPull && templates && !(repo.isFork && repo.parent) && (
 						<NewThreadDialog
 							open={open}
 							onOpenChange={(next) => {

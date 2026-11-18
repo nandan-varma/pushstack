@@ -19,6 +19,11 @@ import {
 import { analyzeMerge, getCommitsBetween } from "./git-read";
 import { safeBranchNameSchema } from "./git-ref-name";
 import { ownerKeyOf } from "./git-storage-naming";
+import {
+	createPullRequest as openPullRequest,
+	PullCreateError,
+	PullForbiddenError,
+} from "./pull-create";
 import { isCrossRepository } from "./pull-head";
 import {
 	deleteHeadBranch,
@@ -38,6 +43,7 @@ import {
 	requireNotArchived,
 	writeWithAccess,
 } from "./repo-access";
+import { readableUpstream } from "./repository-fork";
 import { readRepoByName } from "./repository-lookup";
 import { reviewSummaryFor } from "./review-store";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -82,6 +88,60 @@ export const createPullRequest = createServerFn({ method: "POST" })
 			});
 			await requestCodeownerReviews(repo, created);
 			return created;
+		}),
+	);
+
+/**
+ * "Open PR from fork": a pull request in the fork's readable parent whose
+ * head is the fork's branch. Only read access to the fork is required, like
+ * the REST `POST /repos/{owner}/{repo}/pulls` with an `owner:branch` head.
+ */
+export const createForkPullRequest = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			repoId: z.number(),
+			title: z.string().trim().min(1).max(MAX_THREAD_TITLE_CHARS),
+			body: z.string().max(MAX_BODY_CHARS).optional(),
+			sourceBranchName: safeBranchNameSchema,
+			targetBranchName: safeBranchNameSchema,
+			draft: z.boolean().optional(),
+		}),
+	)
+	.handler(({ data }) =>
+		readWithAccess("createForkPullRequest", data.repoId, async (fork) => {
+			const currentUser = await getCurrentUser();
+			const parent = await readableUpstream(fork, currentUser.id);
+			if (!parent) {
+				throw new Error(
+					"This repository is not a fork of a readable repository",
+				);
+			}
+			let created: Awaited<ReturnType<typeof openPullRequest>>;
+			try {
+				created = await openPullRequest({
+					repo: parent,
+					userId: currentUser.id,
+					canWrite: false,
+					title: data.title,
+					body: data.body,
+					draft: data.draft ?? false,
+					base: data.targetBranchName,
+					head: {
+						branch: data.sourceBranchName,
+						owner: fork.owner.username,
+					},
+				});
+			} catch (error) {
+				if (error instanceof PullCreateError) throw new Error(error.message);
+				if (error instanceof PullForbiddenError) throw new Error(error.message);
+				throw error;
+			}
+			await requestCodeownerReviews(parent, created);
+			return {
+				number: created.number,
+				owner: parent.owner.username,
+				name: parent.name,
+			};
 		}),
 	);
 

@@ -31,6 +31,7 @@ import { Route as SettingsApplicationsRouteImport } from './routes/settings_.app
 import { Route as SettingsDevelopersRouteImport } from './routes/settings_.developers'
 import { Route as OwnerNameIndexRouteImport } from './routes/$owner.$name.index'
 import { Route as OwnerNamePullsRouteImport } from './routes/$owner.$name._pulls'
+import { Route as OwnerNameForksRouteImport } from './routes/$owner.$name.forks'
 import { Route as OwnerNameGenerateRouteImport } from './routes/$owner.$name.generate'
 import { Route as OwnerNameGitReceivePackRouteImport } from './routes/$owner.$name.git-receive-pack'
 import { Route as OwnerNameGitUploadPackRouteImport } from './routes/$owner.$name.git-upload-pack'
@@ -178,6 +179,11 @@ const OwnerNameIndexRoute = OwnerNameIndexRouteImport.update({
 } as any)
 const OwnerNamePullsRoute = OwnerNamePullsRouteImport.update({
   id: '/_pulls',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNameForksRoute = OwnerNameForksRouteImport.update({
+  id: '/forks',
+  path: '/forks',
   getParentRoute: () => OwnerNameRoute,
 } as any)
 const OwnerNameGenerateRoute = OwnerNameGenerateRouteImport.update({
@@ -415,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/settings/developers': typeof SettingsDevelopersRoute
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
+  '/$owner/$name/forks': typeof OwnerNameForksRoute
   '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
@@ -476,6 +483,7 @@ export interface FileRoutesByTo {
   '/$owner': typeof OwnerIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/$owner/$name': typeof OwnerNameIndexRoute
+  '/$owner/$name/forks': typeof OwnerNameForksRoute
   '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
@@ -540,6 +548,7 @@ export interface FileRoutesById {
   '/$owner/': typeof OwnerIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/_pulls': typeof OwnerNamePullsRouteWithChildren
+  '/$owner/$name/forks': typeof OwnerNameForksRoute
   '/$owner/$name/generate': typeof OwnerNameGenerateRoute
   '/$owner/$name/git-receive-pack': typeof OwnerNameGitReceivePackRoute
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
@@ -604,6 +613,7 @@ export interface FileRouteTypes {
     | '/settings/developers'
     | '/$owner/'
     | '/repositories/'
+    | '/$owner/$name/forks'
     | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
     | '/$owner/$name/git-upload-pack'
@@ -665,6 +675,7 @@ export interface FileRouteTypes {
     | '/$owner'
     | '/repositories'
     | '/$owner/$name'
+    | '/$owner/$name/forks'
     | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
     | '/$owner/$name/git-upload-pack'
@@ -728,6 +739,7 @@ export interface FileRouteTypes {
     | '/$owner/'
     | '/repositories/'
     | '/$owner/$name/_pulls'
+    | '/$owner/$name/forks'
     | '/$owner/$name/generate'
     | '/$owner/$name/git-receive-pack'
     | '/$owner/$name/git-upload-pack'
@@ -949,6 +961,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/$owner/$name'
       preLoaderRoute: typeof OwnerNamePullsRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/forks': {
+      id: '/$owner/$name/forks'
+      path: '/forks'
+      fullPath: '/$owner/$name/forks'
+      preLoaderRoute: typeof OwnerNameForksRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/$owner/$name/generate': {
@@ -1289,6 +1308,7 @@ const OwnerNameIssuesRouteWithChildren = OwnerNameIssuesRoute._addFileChildren(
 
 interface OwnerNameRouteChildren {
   OwnerNamePullsRoute: typeof OwnerNamePullsRouteWithChildren
+  OwnerNameForksRoute: typeof OwnerNameForksRoute
   OwnerNameGenerateRoute: typeof OwnerNameGenerateRoute
   OwnerNameGitReceivePackRoute: typeof OwnerNameGitReceivePackRoute
   OwnerNameGitUploadPackRoute: typeof OwnerNameGitUploadPackRoute
@@ -1325,6 +1345,7 @@ interface OwnerNameRouteChildren {
 
 const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNamePullsRoute: OwnerNamePullsRouteWithChildren,
+  OwnerNameForksRoute: OwnerNameForksRoute,
   OwnerNameGenerateRoute: OwnerNameGenerateRoute,
   OwnerNameGitReceivePackRoute: OwnerNameGitReceivePackRoute,
   OwnerNameGitUploadPackRoute: OwnerNameGitUploadPackRoute,

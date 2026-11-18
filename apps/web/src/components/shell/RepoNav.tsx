@@ -9,8 +9,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
 import { CopyField } from "@/components/CopyField";
+import { ForkedFrom } from "@/components/repo/ForkedFrom";
+import { RepoFork } from "@/components/repo/RepoFork";
 import { RepoStar } from "@/components/repo/RepoStar";
 import { RepoWatch } from "@/components/repo/RepoWatch";
+import { SyncFork } from "@/components/repo/SyncFork";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl } from "@/lib/git-utils";
 import { safeHomepageUrl } from "@/lib/homepage";
@@ -91,6 +94,14 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 						{repo.description}
 					</p>
 				)}
+				{(repo.parent || repo.forksCount > 0) && (
+					<ForkedFrom
+						owner={owner}
+						name={name}
+						parent={repo.parent}
+						forksCount={repo.forksCount}
+					/>
+				)}
 				{homepage && (
 					<a
 						href={homepage}
@@ -164,6 +175,10 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 			<div className="space-y-2 px-1">
 				<RepoWatch owner={owner} name={name} repo={repo} />
 				<RepoStar owner={owner} name={name} repo={repo} />
+				<RepoFork owner={owner} name={name} repo={repo} />
+				{repo.isFork && repo.parent && repo.viewer.canWrite && (
+					<SyncFork repoId={repo.id} owner={owner} name={name} branch={ref} />
+				)}
 				{repo.isTemplate && session?.user && (
 					<Link
 						to="/$owner/$name/generate"
