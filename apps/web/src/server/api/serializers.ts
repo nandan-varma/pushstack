@@ -5,7 +5,12 @@
 import type { resources } from "@pushstack/api-contract";
 import type { CommitInfo } from "git-fs-s3/ops";
 import type { z } from "zod";
-import type { Organization, OrgMembership, Repository } from "#/db/app-schema";
+import type {
+	Organization,
+	OrgMembership,
+	Repository,
+	Team,
+} from "#/db/app-schema";
 import {
 	type CheckRunState,
 	suiteConclusion,
@@ -75,6 +80,102 @@ export function simpleOrganization(
 	};
 }
 
+/** GitHub's team object: its parent one level, counts and organization. */
+export interface TeamShapeInput {
+	team: Team;
+	organization: Organization;
+	counts: { members: number; repos: number };
+	parent: { team: Team; counts: { members: number; repos: number } } | null;
+}
+
+export function team(value: TeamShapeInput): Shape<"team"> {
+	const fields = (row: Team, counts: { members: number; repos: number }) => {
+		const { organization } = value;
+		const url = apiUrl(`/orgs/${organization.login}/teams/${row.slug}`);
+		return {
+			id: row.id,
+			node_id: encodeNodeId("Team", row.id),
+			url,
+			html_url: htmlUrl(`/orgs/${organization.login}/teams/${row.slug}`),
+			name: row.name,
+			slug: row.slug,
+			description: row.description,
+			privacy: row.privacy,
+			notification_setting: "notifications_enabled" as const,
+			// The team's default repository permission: PushStack grants per repository.
+			permission: "pull" as const,
+			members_url: `${url}/members{/member}`,
+			repositories_url: `${url}/repos`,
+			members_count: counts.members,
+			repos_count: counts.repos,
+			created_at: isoTimestamp(row.createdAt),
+			updated_at: isoTimestamp(row.updatedAt),
+			organization: simpleOrganization(organization),
+		};
+	};
+	return {
+		...fields(value.team, value.counts),
+		parent: value.parent
+			? fields(value.parent.team, value.parent.counts)
+			: null,
+	};
+}
+
+export function teamMembership(
+	organization: Organization,
+	team: Team,
+	username: string,
+	role: "member" | "maintainer",
+): Shape<"teamMembership"> {
+	return {
+		url: apiUrl(
+			`/orgs/${organization.login}/teams/${team.slug}/memberships/${username}`,
+		),
+		role,
+		state: "active",
+	};
+}
+
+/** `GET /orgs/{org}`: the pinned key set, with untracked values fixed. */
+export function organization(
+	org: Organization,
+	options: { publicRepos: number },
+): Shape<"organization"> {
+	const url = apiUrl(`/orgs/${org.login}`);
+	return {
+		login: org.login,
+		id: org.id,
+		node_id: encodeNodeId("Organization", org.id),
+		url,
+		repos_url: `${url}/repos`,
+		events_url: `${url}/events`,
+		hooks_url: `${url}/hooks`,
+		issues_url: `${url}/issues`,
+		members_url: `${url}/members{/member}`,
+		public_members_url: `${url}/public_members{/member}`,
+		avatar_url: null,
+		description: org.description,
+		name: org.name,
+		company: null,
+		blog: org.blog,
+		location: org.location,
+		email: org.email,
+		twitter_username: org.twitterUsername,
+		is_verified: false,
+		has_organization_projects: true,
+		has_repository_projects: true,
+		public_repos: options.publicRepos,
+		public_gists: 0,
+		followers: 0,
+		following: 0,
+		html_url: htmlUrl(`/${org.login}`),
+		created_at: isoTimestamp(org.createdAt),
+		updated_at: isoTimestamp(org.updatedAt),
+		archived_at: null,
+		type: "Organization",
+	};
+}
+
 export function organizationMembership(
 	membership: OrgMembership,
 	organization: Organization,
@@ -133,7 +234,10 @@ export function repository(
 		name: repo.name,
 		full_name: fullName,
 		private: repo.visibility === "private",
-		owner: simpleUser(repo.owner),
+		owner: {
+			...simpleUser(repo.owner),
+			type: repo.owner.kind === "organization" ? "Organization" : "User",
+		},
 		html_url: htmlUrl(`/${repo.owner.username}/${repo.name}`),
 		description: repo.description,
 		fork: repo.isFork,

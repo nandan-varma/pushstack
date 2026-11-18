@@ -11,6 +11,7 @@ import type { RateLimitInfo, GraphQLContext } from '../context';
 import type { ProjectNode, ProjectItemNode, ProjectFieldNode, DraftIssueNode, ProjectFieldValueNode } from './projects';
 import type { GistNode, GistFileNode, GistCommentNode, LanguageNode } from './gists';
 import type { DiscussionNode, DiscussionCommentNode, DiscussionCategoryNode } from './discussions';
+import type { OrganizationNode, TeamNode, TeamMemberEdgeNode, TeamRepositoryEdgeNode } from './organizations';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
@@ -53,6 +54,8 @@ export type Query = {
   repositoryOwner?: Maybe<RepositoryOwner>;
   /** Lookup a user by login. */
   user?: Maybe<User>;
+  /** Lookup a organization by login. */
+  organization?: Maybe<Organization>;
   /** Perform a search across resources, returning a maximum of 1,000 results. */
   search: SearchResultItemConnection;
   /** Lookup resource by a URL. */
@@ -87,6 +90,12 @@ export type QueryRepositoryOwnerArgs = {
 
 /** The query root of GitHub's GraphQL interface. */
 export type QueryUserArgs = {
+  login: Scalars['String']['input'];
+};
+
+
+/** The query root of GitHub's GraphQL interface. */
+export type QueryOrganizationArgs = {
   login: Scalars['String']['input'];
 };
 
@@ -1575,6 +1584,262 @@ export type SshSignature = GitSignature & {
   wasSignedByGitHub: Scalars['Boolean']['output'];
 };
 
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type Organization = Actor & Node & RepositoryOwner & UniformResourceLocatable & {
+  __typename?: 'Organization';
+  /** A URL pointing to the organization's public avatar. */
+  avatarUrl: Scalars['URI']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** The organization's public profile description. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** The organization's public email. */
+  email?: Maybe<Scalars['String']['output']>;
+  /** The Node ID of the Organization object */
+  id: Scalars['ID']['output'];
+  /** Whether the organization has verified its profile email and website. */
+  isVerified: Scalars['Boolean']['output'];
+  /** The organization's public profile location. */
+  location?: Maybe<Scalars['String']['output']>;
+  /** The organization's login name. */
+  login: Scalars['String']['output'];
+  /** The organization's public profile name. */
+  name?: Maybe<Scalars['String']['output']>;
+  /** A list of repositories that the user owns. */
+  repositories: RepositoryConnection;
+  /** Find Repository. */
+  repository?: Maybe<Repository>;
+  /** The HTTP path for this organization. */
+  resourcePath: Scalars['URI']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The HTTP URL for this organization. */
+  url: Scalars['URI']['output'];
+  /** The organization's public profile URL. */
+  websiteUrl?: Maybe<Scalars['URI']['output']>;
+  /** A list of teams in this organization. */
+  teams: TeamConnection;
+};
+
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type OrganizationAvatarUrlArgs = {
+  size?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type OrganizationRepositoriesArgs = {
+  affiliations?: InputMaybe<Array<InputMaybe<RepositoryAffiliation>>>;
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  isArchived?: InputMaybe<Scalars['Boolean']['input']>;
+  isFork?: InputMaybe<Scalars['Boolean']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<RepositoryOrder>;
+  ownerAffiliations?: InputMaybe<Array<InputMaybe<RepositoryAffiliation>>>;
+  privacy?: InputMaybe<RepositoryPrivacy>;
+  visibility?: InputMaybe<RepositoryVisibility>;
+};
+
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type OrganizationRepositoryArgs = {
+  name: Scalars['String']['input'];
+};
+
+
+/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
+export type OrganizationTeamsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  userLogins?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+/** A list of organizations managed by an enterprise. */
+export type OrganizationConnection = {
+  __typename?: 'OrganizationConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<OrganizationEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Organization>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type OrganizationEdge = {
+  __typename?: 'OrganizationEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Organization>;
+};
+
+/** A team of users in an organization. */
+export type Team = Node & {
+  __typename?: 'Team';
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** The description of the team. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** The Node ID of the Team object */
+  id: Scalars['ID']['output'];
+  /** The name of the team. */
+  name: Scalars['String']['output'];
+  /** A list of users who are members of this team. */
+  members: TeamMemberConnection;
+  /** The notification setting that the team has set. */
+  notificationSetting: TeamNotificationSetting;
+  /** The organization that owns this team. */
+  organization: Organization;
+  /** The parent team of the team. */
+  parentTeam?: Maybe<Team>;
+  /** The level of privacy the team has. */
+  privacy: TeamPrivacy;
+  /** A list of repositories this team has access to. */
+  repositories: TeamRepositoryConnection;
+  /** List of child teams belonging to this team */
+  childTeams: TeamConnection;
+  /** The slug corresponding to the team. */
+  slug: Scalars['String']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The HTTP URL for this team */
+  url: Scalars['URI']['output'];
+};
+
+
+/** A team of users in an organization. */
+export type TeamMembersArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A team of users in an organization. */
+export type TeamRepositoriesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A team of users in an organization. */
+export type TeamChildTeamsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  immediateOnly?: InputMaybe<Scalars['Boolean']['input']>;
+  userLogins?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+/** The connection type for Team. */
+export type TeamConnection = {
+  __typename?: 'TeamConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<TeamEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Team>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type TeamEdge = {
+  __typename?: 'TeamEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Team>;
+};
+
+/** The connection type for User. */
+export type TeamMemberConnection = {
+  __typename?: 'TeamMemberConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<TeamMemberEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<User>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** Represents a user who is a member of a team. */
+export type TeamMemberEdge = {
+  __typename?: 'TeamMemberEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The HTTP path to the organization's member access page. */
+  memberAccessResourcePath: Scalars['URI']['output'];
+  /** The HTTP URL to the organization's member access page. */
+  memberAccessUrl: Scalars['URI']['output'];
+  node: User;
+  /** The role the member has on the team. */
+  role: TeamMemberRole;
+};
+
+/** The possible team member roles; either 'maintainer' or 'member'. */
+export type TeamMemberRole =
+  /** A team maintainer has permission to add and remove team members. */
+  | 'MAINTAINER'
+  /** A team member has no administrative permissions on the team. */
+  | 'MEMBER';
+
+/** The connection type for Repository. */
+export type TeamRepositoryConnection = {
+  __typename?: 'TeamRepositoryConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<TeamRepositoryEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Repository>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** Represents a team repository. */
+export type TeamRepositoryEdge = {
+  __typename?: 'TeamRepositoryEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  node: Repository;
+  /** The permission level the team has on the repository */
+  permission: RepositoryPermission;
+};
+
+/** The possible team privacy values. */
+export type TeamPrivacy =
+  /** A secret team can only be seen by its members. */
+  | 'SECRET'
+  /** A visible team can be seen and @mentioned by every member of the organization. */
+  | 'VISIBLE';
+
+/** The possible team notification values. */
+export type TeamNotificationSetting =
+  /** No one will receive notifications. */
+  | 'NOTIFICATIONS_DISABLED'
+  /** Everyone will receive notifications when the team is @mentioned. */
+  | 'NOTIFICATIONS_ENABLED';
+
 /** An Issue is a place to discuss ideas, enhancements, tasks, and bugs for a project. */
 export type Issue = Assignable & Labelable & Node & UniformResourceLocatable & {
   __typename?: 'Issue';
@@ -2910,24 +3175,6 @@ export type ReviewRequestEdge = {
 export type Bot = {
   __typename?: 'Bot';
   /** The username of the actor. */
-  login: Scalars['String']['output'];
-};
-
-/** A team of users in an organization. */
-export type Team = {
-  __typename?: 'Team';
-  /** The organization that owns this team. */
-  organization: Organization;
-  /** The name of the team. */
-  name: Scalars['String']['output'];
-  /** The slug corresponding to the team. */
-  slug: Scalars['String']['output'];
-};
-
-/** An account on GitHub, with one or more owners, that has repositories, members and teams. */
-export type Organization = {
-  __typename?: 'Organization';
-  /** The organization's login name. */
   login: Scalars['String']['output'];
 };
 
@@ -4706,7 +4953,7 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
   ;
   RequestedReviewer:
     | ( Bot )
-    | ( Team )
+    | ( TeamNode )
     | ( UserNode )
   ;
   StatusCheckRollupContext:
@@ -4739,6 +4986,8 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( CommitNode )
     | ( ReleaseNode )
     | ( ReleaseAssetNode )
+    | ( OrganizationNode )
+    | ( TeamNode )
     | ( IssueNode )
     | ( Milestone )
     | ( IssueType )
@@ -4766,12 +5015,19 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( UserNode )
     | ( RepositoryNode )
     | ( ReleaseNode )
+    | ( OrganizationNode )
     | ( IssueNode )
     | ( PullRequestNode )
     | ( GistNode )
   ;
-  Actor: ( UserNode );
-  RepositoryOwner: ( UserNode );
+  Actor:
+    | ( UserNode )
+    | ( OrganizationNode )
+  ;
+  RepositoryOwner:
+    | ( UserNode )
+    | ( OrganizationNode )
+  ;
   RepositoryInfo: ( RepositoryNode );
   Starrable:
     | ( RepositoryNode )
@@ -4861,6 +5117,19 @@ export type ResolversTypes = {
   GitSignatureState: GitSignatureState;
   GpgSignature: ResolverTypeWrapper<GitSignatureNode>;
   SshSignature: ResolverTypeWrapper<GitSignatureNode>;
+  Organization: ResolverTypeWrapper<OrganizationNode>;
+  OrganizationConnection: ResolverTypeWrapper<Omit<OrganizationConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['OrganizationEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Organization']>>> }>;
+  OrganizationEdge: ResolverTypeWrapper<Omit<OrganizationEdge, 'node'> & { node?: Maybe<ResolversTypes['Organization']> }>;
+  Team: ResolverTypeWrapper<TeamNode>;
+  TeamConnection: ResolverTypeWrapper<Omit<TeamConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['TeamEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Team']>>> }>;
+  TeamEdge: ResolverTypeWrapper<Omit<TeamEdge, 'node'> & { node?: Maybe<ResolversTypes['Team']> }>;
+  TeamMemberConnection: ResolverTypeWrapper<Omit<TeamMemberConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['TeamMemberEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['User']>>> }>;
+  TeamMemberEdge: ResolverTypeWrapper<TeamMemberEdgeNode>;
+  TeamMemberRole: TeamMemberRole;
+  TeamRepositoryConnection: ResolverTypeWrapper<Omit<TeamRepositoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['TeamRepositoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Repository']>>> }>;
+  TeamRepositoryEdge: ResolverTypeWrapper<TeamRepositoryEdgeNode>;
+  TeamPrivacy: TeamPrivacy;
+  TeamNotificationSetting: TeamNotificationSetting;
   Issue: ResolverTypeWrapper<IssueNode>;
   IssueOrPullRequest: ResolverTypeWrapper<ResolversUnionTypes<ResolversTypes>['IssueOrPullRequest']>;
   Milestone: ResolverTypeWrapper<Milestone>;
@@ -4953,8 +5222,6 @@ export type ResolversTypes = {
   ReviewRequestConnection: ResolverTypeWrapper<Omit<ReviewRequestConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['ReviewRequest']>>>, edges?: Maybe<Array<Maybe<ResolversTypes['ReviewRequestEdge']>>> }>;
   ReviewRequestEdge: ResolverTypeWrapper<Omit<ReviewRequestEdge, 'node'> & { node?: Maybe<ResolversTypes['ReviewRequest']> }>;
   Bot: ResolverTypeWrapper<Bot>;
-  Team: ResolverTypeWrapper<Team>;
-  Organization: ResolverTypeWrapper<Organization>;
   PullRequestReview: ResolverTypeWrapper<ReviewNode>;
   PullRequestReviewState: PullRequestReviewState;
   CommentAuthorAssociation: CommentAuthorAssociation;
@@ -5131,6 +5398,16 @@ export type ResolversParentTypes = {
   GitSignature: ResolversInterfaceTypes<ResolversParentTypes>['GitSignature'];
   GpgSignature: GitSignatureNode;
   SshSignature: GitSignatureNode;
+  Organization: OrganizationNode;
+  OrganizationConnection: Omit<OrganizationConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['OrganizationEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Organization']>>> };
+  OrganizationEdge: Omit<OrganizationEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Organization']> };
+  Team: TeamNode;
+  TeamConnection: Omit<TeamConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['TeamEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Team']>>> };
+  TeamEdge: Omit<TeamEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Team']> };
+  TeamMemberConnection: Omit<TeamMemberConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['TeamMemberEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['User']>>> };
+  TeamMemberEdge: TeamMemberEdgeNode;
+  TeamRepositoryConnection: Omit<TeamRepositoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['TeamRepositoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Repository']>>> };
+  TeamRepositoryEdge: TeamRepositoryEdgeNode;
   Issue: IssueNode;
   IssueOrPullRequest: ResolversUnionTypes<ResolversParentTypes>['IssueOrPullRequest'];
   Milestone: Milestone;
@@ -5206,8 +5483,6 @@ export type ResolversParentTypes = {
   ReviewRequestConnection: Omit<ReviewRequestConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['ReviewRequest']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['ReviewRequestEdge']>>> };
   ReviewRequestEdge: Omit<ReviewRequestEdge, 'node'> & { node?: Maybe<ResolversParentTypes['ReviewRequest']> };
   Bot: Bot;
-  Team: Team;
-  Organization: Organization;
   PullRequestReview: ReviewNode;
   PullRequestReviewConnection: Omit<PullRequestReviewConnection, 'nodes' | 'edges'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestReview']>>>, edges?: Maybe<Array<Maybe<ResolversParentTypes['PullRequestReviewEdge']>>> };
   PullRequestReviewEdge: Omit<PullRequestReviewEdge, 'node'> & { node?: Maybe<ResolversParentTypes['PullRequestReview']> };
@@ -5316,12 +5591,13 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
   repository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType, RequireFields<QueryRepositoryArgs, 'name' | 'owner'>>;
   repositoryOwner?: Resolver<Maybe<ResolversTypes['RepositoryOwner']>, ParentType, ContextType, RequireFields<QueryRepositoryOwnerArgs, 'login'>>;
   user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType, RequireFields<QueryUserArgs, 'login'>>;
+  organization?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType, RequireFields<QueryOrganizationArgs, 'login'>>;
   search?: Resolver<ResolversTypes['SearchResultItemConnection'], ParentType, ContextType, RequireFields<QuerySearchArgs, 'query' | 'type'>>;
   resource?: Resolver<Maybe<ResolversTypes['UniformResourceLocatable']>, ParentType, ContextType, RequireFields<QueryResourceArgs, 'url'>>;
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment' | 'Gist' | 'GistComment' | 'Language', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Organization' | 'Team' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment' | 'Gist' | 'GistComment' | 'Language', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -5341,11 +5617,11 @@ export type RateLimitResolvers<ContextType = GraphQLContext, ParentType extends 
 };
 
 export type UniformResourceLocatableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UniformResourceLocatable'] = ResolversParentTypes['UniformResourceLocatable']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'Issue' | 'PullRequest' | 'Gist', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'Organization' | 'Issue' | 'PullRequest' | 'Gist', ParentType, ContextType>;
 };
 
 export type ActorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Actor'] = ResolversParentTypes['Actor']> = {
-  __resolveType: TypeResolveFn<'User', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Organization', ParentType, ContextType>;
 };
 
 export type UserResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['User'] = ResolversParentTypes['User']> = {
@@ -5411,7 +5687,7 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
 };
 
 export type RepositoryOwnerResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RepositoryOwner'] = ResolversParentTypes['RepositoryOwner']> = {
-  __resolveType: TypeResolveFn<'User', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Organization', ParentType, ContextType>;
 };
 
 export type RepositoryInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RepositoryInfo'] = ResolversParentTypes['RepositoryInfo']> = {
@@ -5684,6 +5960,98 @@ export type SshSignatureResolvers<ContextType = GraphQLContext, ParentType exten
   verifiedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   wasSignedByGitHub?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type OrganizationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Organization'] = ResolversParentTypes['Organization']> = {
+  avatarUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType, Partial<OrganizationAvatarUrlArgs>>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  email?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isVerified?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  location?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  login?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  repositories?: Resolver<ResolversTypes['RepositoryConnection'], ParentType, ContextType, RequireFields<OrganizationRepositoriesArgs, 'ownerAffiliations'>>;
+  repository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType, RequireFields<OrganizationRepositoryArgs, 'name'>>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  websiteUrl?: Resolver<Maybe<ResolversTypes['URI']>, ParentType, ContextType>;
+  teams?: Resolver<ResolversTypes['TeamConnection'], ParentType, ContextType, Partial<OrganizationTeamsArgs>>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type OrganizationConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['OrganizationConnection'] = ResolversParentTypes['OrganizationConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['OrganizationEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Organization']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type OrganizationEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['OrganizationEdge'] = ResolversParentTypes['OrganizationEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Organization']>, ParentType, ContextType>;
+};
+
+export type TeamResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Team'] = ResolversParentTypes['Team']> = {
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  members?: Resolver<ResolversTypes['TeamMemberConnection'], ParentType, ContextType, Partial<TeamMembersArgs>>;
+  notificationSetting?: Resolver<ResolversTypes['TeamNotificationSetting'], ParentType, ContextType>;
+  organization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType>;
+  parentTeam?: Resolver<Maybe<ResolversTypes['Team']>, ParentType, ContextType>;
+  privacy?: Resolver<ResolversTypes['TeamPrivacy'], ParentType, ContextType>;
+  repositories?: Resolver<ResolversTypes['TeamRepositoryConnection'], ParentType, ContextType, Partial<TeamRepositoriesArgs>>;
+  childTeams?: Resolver<ResolversTypes['TeamConnection'], ParentType, ContextType, RequireFields<TeamChildTeamsArgs, 'immediateOnly'>>;
+  slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type TeamConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TeamConnection'] = ResolversParentTypes['TeamConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['TeamEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Team']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type TeamEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TeamEdge'] = ResolversParentTypes['TeamEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Team']>, ParentType, ContextType>;
+};
+
+export type TeamMemberConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TeamMemberConnection'] = ResolversParentTypes['TeamMemberConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['TeamMemberEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['User']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type TeamMemberEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TeamMemberEdge'] = ResolversParentTypes['TeamMemberEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  memberAccessResourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  memberAccessUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  role?: Resolver<ResolversTypes['TeamMemberRole'], ParentType, ContextType>;
+};
+
+export type TeamRepositoryConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TeamRepositoryConnection'] = ResolversParentTypes['TeamRepositoryConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['TeamRepositoryEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Repository']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type TeamRepositoryEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['TeamRepositoryEdge'] = ResolversParentTypes['TeamRepositoryEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  permission?: Resolver<ResolversTypes['RepositoryPermission'], ParentType, ContextType>;
 };
 
 export type IssueResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Issue'] = ResolversParentTypes['Issue']> = {
@@ -6060,17 +6428,6 @@ export type ReviewRequestEdgeResolvers<ContextType = GraphQLContext, ParentType 
 export type BotResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Bot'] = ResolversParentTypes['Bot']> = {
   login?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
-export type TeamResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Team'] = ResolversParentTypes['Team']> = {
-  organization?: Resolver<ResolversTypes['Organization'], ParentType, ContextType>;
-  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
-  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
-};
-
-export type OrganizationResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Organization'] = ResolversParentTypes['Organization']> = {
-  login?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 };
 
 export type PullRequestReviewResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestReview'] = ResolversParentTypes['PullRequestReview']> = {
@@ -6720,6 +7077,16 @@ export type Resolvers<ContextType = GraphQLContext> = {
   GitSignature?: GitSignatureResolvers<ContextType>;
   GpgSignature?: GpgSignatureResolvers<ContextType>;
   SshSignature?: SshSignatureResolvers<ContextType>;
+  Organization?: OrganizationResolvers<ContextType>;
+  OrganizationConnection?: OrganizationConnectionResolvers<ContextType>;
+  OrganizationEdge?: OrganizationEdgeResolvers<ContextType>;
+  Team?: TeamResolvers<ContextType>;
+  TeamConnection?: TeamConnectionResolvers<ContextType>;
+  TeamEdge?: TeamEdgeResolvers<ContextType>;
+  TeamMemberConnection?: TeamMemberConnectionResolvers<ContextType>;
+  TeamMemberEdge?: TeamMemberEdgeResolvers<ContextType>;
+  TeamRepositoryConnection?: TeamRepositoryConnectionResolvers<ContextType>;
+  TeamRepositoryEdge?: TeamRepositoryEdgeResolvers<ContextType>;
   Issue?: IssueResolvers<ContextType>;
   IssueOrPullRequest?: IssueOrPullRequestResolvers<ContextType>;
   Milestone?: MilestoneResolvers<ContextType>;
@@ -6775,8 +7142,6 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ReviewRequestConnection?: ReviewRequestConnectionResolvers<ContextType>;
   ReviewRequestEdge?: ReviewRequestEdgeResolvers<ContextType>;
   Bot?: BotResolvers<ContextType>;
-  Team?: TeamResolvers<ContextType>;
-  Organization?: OrganizationResolvers<ContextType>;
   PullRequestReview?: PullRequestReviewResolvers<ContextType>;
   PullRequestReviewConnection?: PullRequestReviewConnectionResolvers<ContextType>;
   PullRequestReviewEdge?: PullRequestReviewEdgeResolvers<ContextType>;

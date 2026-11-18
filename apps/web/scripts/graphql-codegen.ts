@@ -27,6 +27,7 @@ export const GENERATED = path.join(
 const DOMAINS = [
 	"core",
 	"repository",
+	"organizations",
 	"issues",
 	"pulls",
 	"projects",
@@ -95,6 +96,10 @@ export async function generateResolverTypes(): Promise<string> {
 				Discussion: "./discussions#DiscussionNode",
 				DiscussionComment: "./discussions#DiscussionCommentNode",
 				DiscussionCategory: "./discussions#DiscussionCategoryNode",
+				Organization: "./organizations#OrganizationNode",
+				Team: "./organizations#TeamNode",
+				TeamMemberEdge: "./organizations#TeamMemberEdgeNode",
+				TeamRepositoryEdge: "./organizations#TeamRepositoryEdgeNode",
 				ProjectV2ItemFieldTextValue: "./projects#ProjectFieldValueNode",
 				ProjectV2ItemFieldNumberValue: "./projects#ProjectFieldValueNode",
 				ProjectV2ItemFieldDateValue: "./projects#ProjectFieldValueNode",

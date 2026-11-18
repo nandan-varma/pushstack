@@ -17,6 +17,9 @@ const LIVE_LEGACY_IDS: Array<[type: string, key: string | number, id: string]> =
 		["IssueComment", 575836114, "MDEyOklzc3VlQ29tbWVudDU3NTgzNjExNA=="],
 		["Label", 1698076173, "MDU6TGFiZWwxNjk4MDc2MTcz"],
 		["Milestone", 1354258, "MDk6TWlsZXN0b25lMTM1NDI1OA=="],
+		// gh api orgs/cli, and GitHub's published team node id (04:Team67890).
+		["Organization", 59704711, "MDEyOk9yZ2FuaXphdGlvbjU5NzA0NzEx"],
+		["Team", 67890, "MDQ6VGVhbTY3ODkw"],
 		["PullRequest", 324495027, "MDExOlB1bGxSZXF1ZXN0MzI0NDk1MDI3"],
 		[
 			"PullRequestReview",

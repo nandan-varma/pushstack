@@ -19,6 +19,7 @@ import { db } from "#/db";
 import {
 	type CollaboratorRole,
 	issues,
+	organizations,
 	type Repository,
 	repositories,
 	repositoryCollaborators,
@@ -35,6 +36,8 @@ import {
 import { parseTopics } from "#/lib/topics";
 import { ArchiveLimitError } from "../git-read";
 import { safeBranchNameSchema } from "../git-ref-name";
+import { membershipOf } from "../organization-members";
+import { getOrganizationByLogin } from "../organizations-store";
 import { perfStep } from "../perf-log";
 import { hitRateLimit, identityFor } from "../rate-limit";
 import {
@@ -58,7 +61,10 @@ import {
 	findRepositoryById,
 	findRepositoryByName,
 	type PublicUser,
+	publicUserColumns,
+	type RepositoryOwner,
 	repoOwnerColumns,
+	repositoryOwnerOf,
 } from "../repository-lookup";
 import {
 	ArchivedRepositoryError,
@@ -69,6 +75,11 @@ import {
 	transferRepository,
 	updateRepositorySettings,
 } from "../repository-settings";
+import {
+	findTeamById,
+	setTeamRepoPermission,
+	teamMembershipOf,
+} from "../team-store";
 import { watcherCounts } from "../watch-store";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
@@ -206,7 +217,7 @@ function ordering(order: Order): SQL[] {
 		sort === "created"
 			? repositories.createdAt
 			: sort === "full_name"
-				? sql`lower(${user.username} || '/' || ${repositories.name})`
+				? sql`lower(coalesce(${user.username}, ${organizations.login}) || '/' || ${repositories.name})`
 				: // No separate push timestamp yet: updated_at is the closest.
 					repositories.updatedAt;
 	return [
@@ -248,11 +259,20 @@ export async function listRepositories(
 			db
 				.select({
 					repo: repositories,
-					owner: repoOwnerColumns,
+					owner: publicUserColumns,
+					organization: {
+						id: organizations.id,
+						login: organizations.login,
+						name: organizations.name,
+					},
 					collaboratorRole: repositoryCollaborators.role,
 				})
 				.from(repositories)
-				.innerJoin(user, eq(repositories.ownerId, user.id))
+				.leftJoin(user, eq(repositories.ownerId, user.id))
+				.leftJoin(
+					organizations,
+					eq(repositories.organizationId, organizations.id),
+				)
 				.leftJoin(repositoryCollaborators, collaboratorJoin)
 				.where(where)
 				.orderBy(...(orderBy ?? ordering(order)))
@@ -265,12 +285,20 @@ export async function listRepositories(
 				.where(where),
 		]),
 	);
-	return { rows, params, total: totalRow?.total ?? 0 };
+	return {
+		rows: rows.map((row) => ({
+			repo: row.repo,
+			owner: repositoryOwnerOf(row),
+			collaboratorRole: row.collaboratorRole,
+		})),
+		params,
+		total: totalRow?.total ?? 0,
+	};
 }
 
 export type Row = {
 	repo: typeof repositories.$inferSelect;
-	owner: PublicUser;
+	owner: RepositoryOwner;
 	collaboratorRole: CollaboratorRole | null;
 };
 
@@ -427,14 +455,23 @@ const TEMPLATES = {
 const isTemplate = (known: readonly string[], value: string) =>
 	known.includes(value);
 
-export async function createAuthenticatedUserRepository(ctx: ApiContext) {
-	const { userId } = requireScope(ctx, "repo:write");
-	const data = await requestBody(
-		ctx,
-		"repos/create-for-authenticated-user",
-		"Repository",
-		{ message: "Repository creation failed." },
-	);
+/**
+ * A repository-creation body as the store takes it: an unknown template name
+ * is GitHub's per-field `422`, and the templates apply only with `auto_init`.
+ */
+function repositoryCreationFields(data: {
+	name: string;
+	description?: string | null;
+	homepage?: string | null;
+	private?: boolean;
+	auto_init?: boolean;
+	gitignore_template?: string;
+	license_template?: string;
+	has_issues?: boolean;
+	has_projects?: boolean;
+	has_wiki?: boolean;
+	is_template?: boolean;
+}) {
 	// The contract takes any template name; only ours exist.
 	const unknown = (["gitignore_template", "license_template"] as const).filter(
 		(field) =>
@@ -450,54 +487,56 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 			})),
 		);
 	}
-	const gitignoreTemplate = data.gitignore_template as
-		| (typeof GITIGNORE_TEMPLATE_NAMES)[number]
-		| undefined;
-	const licenseTemplate = data.license_template as
-		| (typeof LICENSE_TEMPLATE_KEYS)[number]
-		| undefined;
-	const [owner] = await db
-		.select({ ...repoOwnerColumns, email: user.email })
-		.from(user)
-		.where(eq(user.id, userId));
-	if (!owner) throw notFoundError();
-
 	if (data.homepage && !isHttpUrl(data.homepage)) {
 		throw validationFailedError("Repository creation failed.", [
 			{ resource: "Repository", field: "homepage", code: "invalid" },
 		]);
 	}
+	return {
+		name: data.name,
+		description: data.description ?? undefined,
+		homepage: data.homepage || undefined,
+		visibility: data.private ? ("private" as const) : ("public" as const),
+		autoInit: data.auto_init ?? false,
+		hasIssues: data.has_issues,
+		hasWiki: data.has_wiki,
+		hasProjects: data.has_projects,
+		isTemplate: data.is_template,
+		gitignoreTemplate: data.auto_init
+			? (data.gitignore_template as
+					| (typeof GITIGNORE_TEMPLATE_NAMES)[number]
+					| undefined)
+			: undefined,
+		licenseTemplate: data.auto_init
+			? (data.license_template as
+					| (typeof LICENSE_TEMPLATE_KEYS)[number]
+					| undefined)
+			: undefined,
+	};
+}
+
+export async function createAuthenticatedUserRepository(ctx: ApiContext) {
+	const { userId } = requireScope(ctx, "repo:write");
+	const data = await requestBody(
+		ctx,
+		"repos/create-for-authenticated-user",
+		"Repository",
+		{ message: "Repository creation failed." },
+	);
+	const fields = repositoryCreationFields(data);
+	const [owner] = await db
+		.select({ ...repoOwnerColumns, email: user.email })
+		.from(user)
+		.where(eq(user.id, userId));
+	if (!owner) throw notFoundError();
 	let repo: Awaited<ReturnType<typeof createRepositoryForOwner>>;
 	try {
 		repo = await createRepositoryForOwner(
 			{ ...owner, kind: "user", login: owner.username },
-			{
-				name: data.name,
-				description: data.description ?? undefined,
-				homepage: data.homepage || undefined,
-				visibility: data.private ? "private" : "public",
-				autoInit: data.auto_init,
-				hasIssues: data.has_issues,
-				hasWiki: data.has_wiki,
-				hasProjects: data.has_projects,
-				isTemplate: data.is_template,
-				// GitHub applies the templates only together with auto_init.
-				gitignoreTemplate: data.auto_init ? gitignoreTemplate : undefined,
-				licenseTemplate: data.auto_init ? licenseTemplate : undefined,
-			},
+			fields,
 		);
 	} catch (error) {
-		if (error instanceof RepositoryExistsError) {
-			throw validationFailedError("Repository creation failed.", [
-				{
-					resource: "Repository",
-					code: "custom",
-					field: "name",
-					message: "name already exists on this account",
-				},
-			]);
-		}
-		throw error;
+		throw mapRepositoryExists(error);
 	}
 	return json(
 		// A new repository has no forks yet.
@@ -507,6 +546,128 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 		),
 		201,
 		{ Location: apiUrl(`/repos/${owner.username}/${repo.name}`) },
+	);
+}
+
+/** A duplicate name under the same owner is GitHub's per-field `422`. */
+function mapRepositoryExists(error: unknown): never {
+	if (error instanceof RepositoryExistsError) {
+		throw validationFailedError("Repository creation failed.", [
+			{
+				resource: "Repository",
+				code: "custom",
+				field: "name",
+				message: "name already exists on this account",
+			},
+		]);
+	}
+	throw error;
+}
+
+/** `GET /orgs/{org}/repos`: the organization's repositories the caller can read. */
+export async function listOrganizationRepositories(ctx: ApiContext) {
+	const { org } = pathParams(ctx, "repos/list-for-org");
+	if (!STORAGE_NAME_RE.test(org)) throw notFoundError();
+	const organization = await getOrganizationByLogin(org);
+	if (!organization) throw notFoundError();
+	const order = queryParams(ctx, "repos/list-for-org", "Repository");
+	const type = order.type ?? "all";
+	const owned = eq(repositories.organizationId, organization.id);
+	return respondWithRepositories(
+		ctx.url,
+		{
+			order,
+			callerId: ctx.caller?.userId,
+			where: and(
+				owned,
+				readableForViewer(ctx.caller?.userId),
+				type === "public"
+					? eq(repositories.visibility, "public")
+					: type === "private"
+						? eq(repositories.visibility, "private")
+						: type === "forks"
+							? eq(repositories.isFork, true)
+							: type === "sources"
+								? eq(repositories.isFork, false)
+								: undefined,
+			),
+		},
+		undefined,
+		ctx.caller?.userId ?? null,
+	);
+}
+
+/** `POST /orgs/{org}/repos`: a member creates a repository the org owns. */
+export async function createOrganizationRepository(ctx: ApiContext) {
+	const { org } = pathParams(ctx, "repos/create-in-org");
+	const caller = requireScope(ctx, "repo:write");
+	if (!STORAGE_NAME_RE.test(org)) throw notFoundError();
+	const organization = await getOrganizationByLogin(org);
+	if (!organization) throw notFoundError();
+	const membership = await membershipOf(organization.id, caller.userId);
+	// A non-member cannot tell the organization exists (GitHub's 404).
+	if (membership?.state !== "active") throw notFoundError();
+	if (!organization.membersCanCreateRepositories) {
+		throw forbiddenError(
+			"Organization members are not allowed to create repositories",
+		);
+	}
+	const data = await requestBody(ctx, "repos/create-in-org", "Repository", {
+		message: "Repository creation failed.",
+	});
+	const fields = repositoryCreationFields(data);
+	if (data.team_id !== undefined) {
+		const team = await findTeamById(data.team_id);
+		const membership = team
+			? await teamMembershipOf(team.id, caller.userId)
+			: null;
+		if (!team || team.orgId !== organization.id || !membership) {
+			throw validationFailedError("Repository creation failed.", [
+				{
+					resource: "Repository",
+					field: "team_id",
+					code: "custom",
+					message: "team_id must name a team the caller belongs to",
+				},
+			]);
+		}
+	}
+	const [member] = await db
+		.select({ name: user.name, email: user.email })
+		.from(user)
+		.where(eq(user.id, caller.userId));
+	if (!member) throw notFoundError();
+	const owner: RepositoryOwner = {
+		id: "",
+		apiId: organization.id,
+		username: organization.login,
+		name: organization.name ?? organization.login,
+		image: null,
+		login: organization.login,
+		kind: "organization",
+	};
+	let repo: Awaited<ReturnType<typeof createRepositoryForOwner>>;
+	try {
+		repo = await createRepositoryForOwner(
+			{
+				kind: "organization",
+				id: organization.id,
+				login: organization.login,
+				name: organization.name ?? organization.login,
+				email: organization.email ?? member.email,
+			},
+			fields,
+		);
+	} catch (error) {
+		throw mapRepositoryExists(error);
+	}
+	if (data.team_id !== undefined) {
+		await setTeamRepoPermission(data.team_id, repo.id, "read");
+	}
+	return json(
+		repository({ ...repo, owner }, { stars: 0, openIssues: 0, forksCount: 0 }),
+		201,
+		{ Location: apiUrl(`/repos/${organization.login}/${repo.name}`) },
 	);
 }
 

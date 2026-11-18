@@ -4,9 +4,13 @@
  * decisions read through org-access.ts and organization-members.ts; every
  * mutation there evicts the affected repositories' cached access.
  */
-import { eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db } from "#/db";
-import type { Organization } from "#/db/app-schema";
+import {
+	type Organization,
+	organizations,
+	orgMemberships,
+} from "#/db/app-schema";
 import { user } from "#/db/schema";
 import { STORAGE_NAME_RE } from "#/lib/storage-name";
 import {
@@ -21,7 +25,10 @@ import {
 	removeOrganizationMembership,
 	setOrganizationMembership,
 } from "../organization-members";
-import { getOrganizationByLogin } from "../organizations-store";
+import {
+	countPublicRepositories,
+	getOrganizationByLogin,
+} from "../organizations-store";
 import { type ApiContext, requireCaller, requireScope } from "./auth";
 import {
 	forbiddenError,
@@ -32,7 +39,11 @@ import {
 	pageParams,
 } from "./http";
 import { pathParams, queryParams, requestBody } from "./input";
-import { organizationMembership, simpleUser } from "./serializers";
+import {
+	organization,
+	organizationMembership,
+	simpleUser,
+} from "./serializers";
 
 async function organizationNamed(login: string): Promise<Organization> {
 	if (!STORAGE_NAME_RE.test(login)) throw notFoundError();
@@ -217,5 +228,88 @@ export async function listOutsideCollaboratorsHandler(ctx: ApiContext) {
 		page.rows.map(simpleUser),
 		200,
 		linkHeader(ctx.url, params, page.total),
+	);
+}
+
+/** `GET /orgs/{org}`: the organization's public profile. */
+export async function getOrganization(ctx: ApiContext) {
+	const { org } = pathParams(ctx, "orgs/get");
+	const organizationRow = await organizationNamed(org);
+	return json(
+		organization(organizationRow, {
+			publicRepos: await countPublicRepositories(organizationRow.id),
+		}),
+	);
+}
+
+/** The organizations in `where`, a page at a time, with the caller's own. */
+async function respondWithOrganizations(
+	ctx: ApiContext,
+	where: ReturnType<typeof and>,
+) {
+	const params = pageParams(ctx.url.searchParams);
+	if (!params.reachable) return json([], 200, linkHeader(ctx.url, params, 0));
+	const [rows, [total]] = await Promise.all([
+		db
+			.select({ organization: organizations })
+			.from(organizations)
+			.innerJoin(
+				orgMemberships,
+				and(
+					eq(orgMemberships.orgId, organizations.id),
+					eq(orgMemberships.state, "active"),
+				),
+			)
+			.where(where)
+			.groupBy(organizations.id)
+			.orderBy(organizations.login)
+			.limit(params.perPage)
+			.offset(params.offset),
+		db
+			.select({ total: count() })
+			.from(organizations)
+			.innerJoin(
+				orgMemberships,
+				and(
+					eq(orgMemberships.orgId, organizations.id),
+					eq(orgMemberships.state, "active"),
+				),
+			)
+			.where(where),
+	]);
+	const shapes = await Promise.all(
+		rows.map(async (row) =>
+			organization(row.organization, {
+				publicRepos: await countPublicRepositories(row.organization.id),
+			}),
+		),
+	);
+	return json(shapes, 200, linkHeader(ctx.url, params, total?.total ?? 0));
+}
+
+/** `GET /user/orgs`: the organizations the caller is an active member of. */
+export async function listCallerOrganizations(ctx: ApiContext) {
+	const caller = requireCaller(ctx);
+	queryParams(ctx, "orgs/list-for-authenticated-user", "Organization");
+	return respondWithOrganizations(
+		ctx,
+		and(
+			eq(orgMemberships.userId, caller.userId),
+			eq(orgMemberships.state, "active"),
+		),
+	);
+}
+
+/** `GET /users/{username}/orgs`: the same list for another user. */
+export async function listUserOrganizations(ctx: ApiContext) {
+	const { username } = pathParams(ctx, "orgs/list-for-user");
+	queryParams(ctx, "orgs/list-for-user", "Organization");
+	const member = await userByLogin(username);
+	return respondWithOrganizations(
+		ctx,
+		and(
+			eq(orgMemberships.userId, member.id),
+			eq(orgMemberships.state, "active"),
+		),
 	);
 }

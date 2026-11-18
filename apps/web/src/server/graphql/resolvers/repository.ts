@@ -19,6 +19,7 @@ import {
 } from "drizzle-orm";
 import { db } from "#/db";
 import {
+	organizations,
 	type Repository,
 	repositories,
 	repositoryCollaborators,
@@ -50,7 +51,9 @@ import { readableForkCounts } from "../../repository-fork";
 import {
 	findRepositoryByName,
 	type PublicUser,
+	publicUserColumns,
 	repoOwnerColumns,
+	repositoryOwnerOf,
 } from "../../repository-lookup";
 import {
 	ArchivedRepositoryError,
@@ -77,6 +80,11 @@ import type {
 	UserRepositoriesArgs,
 } from "./generated";
 import { repositoryMilestoneFields } from "./milestones";
+import {
+	loadOrganizationByLogin,
+	organizationNode,
+	organizationOwnerNode,
+} from "./organizations";
 import { arrayConnection } from "./pulls-detail";
 import {
 	releaseNodeLoaders,
@@ -91,7 +99,7 @@ import { loadRepositoryById, requireRepoScope } from "./repository-write";
 import { repositoryTemplateFields, templateTypeResolvers } from "./templates";
 import type { DomainResolvers, NodeLoader } from "./types";
 
-type Role =
+export type RepoRole =
 	| "owner"
 	| "admin"
 	| "maintain"
@@ -99,7 +107,7 @@ type Role =
 	| "triage"
 	| "read"
 	| "anonymous";
-type RepoRow = Repository & { owner: PublicUser & { login: string } };
+export type RepoRow = Repository & { owner: PublicUser & { login: string } };
 
 export interface RepositoryNode {
 	__typename: "Repository";
@@ -117,15 +125,14 @@ export interface RepositoryNode {
 	archivedAt: null;
 	isPrivate: boolean;
 	visibility: "PUBLIC" | "PRIVATE";
-	// Facts of PushStack, not defaults: there are no mirrors, locks or
-	// organizations.
+	// Facts of PushStack, not defaults: there are no mirrors or locks.
 	isFork: boolean;
 	isTemplate: boolean;
 	isMirror: false;
 	mirrorUrl: null;
 	isArchived: boolean;
 	isLocked: false;
-	isInOrganization: false;
+	isInOrganization: boolean;
 	hasIssuesEnabled: boolean;
 	hasWikiEnabled: boolean;
 	hasProjectsEnabled: boolean;
@@ -139,10 +146,10 @@ export interface RepositoryNode {
 	sshUrl: string;
 	/** Internal: the row and the caller's role, for the computed fields. */
 	row: RepoRow;
-	role: Role;
+	role: RepoRole;
 }
 
-function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
+export function repositoryNode(row: RepoRow, role: RepoRole): RepositoryNode {
 	const fullName = `${row.owner.username}/${row.name}`;
 	const host = new URL(htmlUrl("/")).host;
 	return {
@@ -166,7 +173,7 @@ function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 		mirrorUrl: null,
 		isArchived: row.archived,
 		isLocked: false,
-		isInOrganization: false,
+		isInOrganization: row.organizationId !== null,
 		hasIssuesEnabled: row.hasIssues,
 		hasWikiEnabled: row.hasWiki,
 		hasProjectsEnabled: row.hasProjects,
@@ -184,7 +191,7 @@ function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 }
 
 const PERMISSION: Record<
-	Role,
+	RepoRole,
 	"ADMIN" | "MAINTAIN" | "WRITE" | "TRIAGE" | "READ"
 > = {
 	owner: "ADMIN",
@@ -324,7 +331,7 @@ function affiliated(
 	);
 }
 
-function ordering(orderBy: RepositoriesArgs["orderBy"]): SQL[] {
+export function ordering(orderBy: RepositoriesArgs["orderBy"]): SQL[] {
 	if (!orderBy) return [asc(repositories.id)];
 	const column =
 		orderBy.field === "NAME"
@@ -470,13 +477,22 @@ export function repositoryNodeById(
 			const rows = await db
 				.select({
 					repo: repositories,
-					owner: repoOwnerColumns,
+					owner: publicUserColumns,
+					organization: {
+						id: organizations.id,
+						login: organizations.login,
+						name: organizations.name,
+					},
 					collaboratorRole: sql<
 						"read" | "write" | "admin" | null
 					>`(select ${repositoryCollaborators.role} from ${repositoryCollaborators} where ${repositoryCollaborators.repoId} = ${repositories.id} and ${repositoryCollaborators.userId} = ${viewer})`,
 				})
 				.from(repositories)
-				.innerJoin(user, eq(repositories.ownerId, user.id))
+				.leftJoin(user, eq(repositories.ownerId, user.id))
+				.leftJoin(
+					organizations,
+					eq(repositories.organizationId, organizations.id),
+				)
 				.where(
 					and(
 						inArray(repositories.id, ids),
@@ -484,13 +500,13 @@ export function repositoryNodeById(
 					),
 				);
 			return new Map(
-				rows.map(({ repo, owner, collaboratorRole }) => [
-					repo.id,
+				rows.map((row) => [
+					row.repo.id,
 					repositoryNode(
-						{ ...repo, owner },
-						repo.ownerId === viewer
+						{ ...row.repo, owner: repositoryOwnerOf(row) },
+						row.repo.ownerId === viewer
 							? "owner"
-							: (collaboratorRole ?? "anonymous"),
+							: (row.collaboratorRole ?? "anonymous"),
 					),
 				]),
 			);
@@ -685,7 +701,9 @@ export const repositoryResolvers: DomainResolvers = {
 			// GitHub answers an unknown owner with null and no error here...
 			repositoryOwner: async (_source, args: { login: string }, ctx) => {
 				const row = await loadUserByLogin(ctx, args.login);
-				return row ? userNode(row) : null;
+				if (row) return userNode(row);
+				const organization = await loadOrganizationByLogin(ctx, args.login);
+				return organization ? organizationNode(organization) : null;
 			},
 			// ...but with NOT_FOUND for `user`.
 			user: async (_source, args: { login: string }, ctx) => {
@@ -750,9 +768,10 @@ export const repositoryResolvers: DomainResolvers = {
 			...repositoryLabelFields,
 			...repositoryMilestoneFields,
 			owner: async (source: RepositoryNode, _args, ctx) => {
-				if (!source.row.ownerId) {
-					throw new Error("Organization owners are not repository users");
+				if (source.row.organizationId) {
+					return organizationOwnerNode(ctx, source.row.organizationId);
 				}
+				if (!source.row.ownerId) throw new Error("Repository owner missing");
 				const row = await loadUser(ctx, source.row.ownerId);
 				if (!row) throw new Error("Repository owner missing");
 				return userNode(row);

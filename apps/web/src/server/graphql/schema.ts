@@ -11,6 +11,7 @@ import {
 	userGistFields,
 } from "./resolvers/gists";
 import { issuesResolvers } from "./resolvers/issues";
+import { organizationsResolvers } from "./resolvers/organizations";
 import { projectsResolvers } from "./resolvers/projects";
 import { pullsResolvers } from "./resolvers/pulls";
 import { repositoryResolvers } from "./resolvers/repository";
@@ -19,6 +20,7 @@ import coreSdl from "./schema/core.graphql?raw";
 import discussionsSdl from "./schema/discussions.graphql?raw";
 import gistsSdl from "./schema/gists.graphql?raw";
 import issuesSdl from "./schema/issues.graphql?raw";
+import organizationsSdl from "./schema/organizations.graphql?raw";
 import projectsSdl from "./schema/projects.graphql?raw";
 import pullsSdl from "./schema/pulls.graphql?raw";
 import repositorySdl from "./schema/repository.graphql?raw";
@@ -32,6 +34,7 @@ const gistsResolvers: DomainResolvers = {
 const DOMAINS: [string, DomainResolvers][] = [
 	[coreSdl, coreResolvers],
 	[repositorySdl, repositoryResolvers],
+	[organizationsSdl, organizationsResolvers],
 	[issuesSdl, issuesResolvers],
 	[pullsSdl, pullsResolvers],
 	[projectsSdl, projectsResolvers],

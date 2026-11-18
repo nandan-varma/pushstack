@@ -29,6 +29,16 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"needs a `repo:write` token (there is no `user:follow` scope); `204`, idempotent",
 	"activity/list-watched-repos-for-authenticated-user":
 		"repositories you watch (not ignore) and can still read; pagination",
+	"orgs/get":
+		"GitHub's organization keys, with values PushStack does not track fixed (no company, gists or projects); no avatar image",
+	"orgs/list-for-authenticated-user":
+		"the organizations the caller is an active member of; pagination",
+	"orgs/list-for-user":
+		"the organizations the user is an active member of; pagination",
+	"repos/list-for-org":
+		"`type`, `sort` (`created`, `updated`, `pushed`, `full_name`) and `direction`; a non-member sees the public repositories; pagination",
+	"repos/create-in-org":
+		"needs an active member (a non-member gets `404`); `403` when members may not create repositories; `team_id` names a team the caller belongs to; the same body and `422`s as `repos/create-for-authenticated-user`",
 	"orgs/list-memberships-for-authenticated-user":
 		"every organization the caller belongs to, `pending` included; `state` (`active`, `pending`); pagination",
 	"orgs/get-membership-for-authenticated-user":
@@ -45,6 +55,32 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"needs an organization owner; `204`, also when there was no membership",
 	"orgs/list-outside-collaborators":
 		"needs an organization owner: users with a direct grant on an organization repository who are not active members; `filter` is `422`; pagination",
+	"teams/list":
+		"the organization's teams visible to the caller (`secret` teams only to their members); `team_type` is `all` or `organization`; pagination",
+	"teams/get-by-name":
+		"`404` for a team the caller cannot see; a `secret` team is visible to its members and organization owners",
+	"teams/create":
+		"needs an organization owner; the slug is derived from the name and unique per organization; nesting is bounded by depth and cycles; `maintainers`, `notification_setting`, `permission` and `repo_names` are `422`",
+	"teams/update-in-org":
+		"needs an organization owner; renaming moves the slug; a parent in another organization or a descendant is `422`",
+	"teams/delete-in-org":
+		"needs an organization owner; child teams are re-parented to this team's parent; `204`",
+	"teams/list-members-in-org":
+		"`role` (`all`, `member`, `maintainer`); pagination",
+	"teams/list-child-in-org": "immediate children; pagination",
+	"teams/list-repos-in-org": "repositories the caller can read; pagination",
+	"teams/check-permissions-for-repo-in-org":
+		"the repository with the team's `role_name` and `permissions`",
+	"teams/add-or-update-repo-permissions-in-org":
+		"needs an organization owner or a team maintainer; `permission` is `pull`, `triage`, `push`, `maintain` or `admin` (default `push`); `204`",
+	"teams/remove-repo-in-org":
+		"needs an organization owner or a team maintainer; `204`, also when the team had no grant",
+	"teams/get-membership-for-user-in-org":
+		"`404` when the user is not a member; a user who is not a member never sees it",
+	"teams/add-or-update-membership-for-user-in-org":
+		"needs an organization owner or a team maintainer; `role` is `member` or `maintainer` (default `member`); the user must be an active organization member",
+	"teams/remove-membership-for-user-in-org":
+		"needs an organization owner or a team maintainer; `204`, also when there was no membership",
 	"users/get-by-id":
 		"public profile by integer id; `404` for an unknown or malformed id",
 	"users/list-gpg-keys-for-authenticated-user":

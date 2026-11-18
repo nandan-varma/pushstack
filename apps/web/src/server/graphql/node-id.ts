@@ -17,9 +17,9 @@
 
 /**
  * Legacy codes checked against live GitHub on cli/cli (#269, samples decoded
- * from `gh api` and GraphQL). `05` is shared by Issue and Label, and `04` by
- * User, Gist and GistComment; the name tells them apart, longest name first.
- * `08` for Language is a documented GitHub id shape, not a live capture.
+ * from `gh api` and GraphQL). `05`, `04` and `012` are shared across types;
+ * the name tells them apart, longest name first. `08` for Language is a
+ * documented GitHub id shape, not a live capture.
  */
 const TYPE_CODES = {
 	DiscussionCategory: "018",
@@ -30,10 +30,12 @@ const TYPE_CODES = {
 	IssueComment: "012",
 	Label: "05",
 	Milestone: "09",
+	Organization: "012",
 	PullRequest: "011",
 	PullRequestReview: "017",
 	Ref: "03",
 	Repository: "010",
+	Team: "04",
 	User: "04",
 } as const;
 

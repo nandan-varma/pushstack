@@ -77,6 +77,21 @@ export const routes = {
 		status: 204,
 	},
 
+	"orgs/get": {
+		method: "GET",
+		path: "/orgs/{org}",
+		docs: `${DOCS}/orgs/orgs#get-an-organization`,
+	},
+	"orgs/list-for-authenticated-user": {
+		method: "GET",
+		path: "/user/orgs",
+		docs: `${DOCS}/orgs/orgs#list-organizations-for-the-authenticated-user`,
+	},
+	"orgs/list-for-user": {
+		method: "GET",
+		path: "/users/{username}/orgs",
+		docs: `${DOCS}/orgs/orgs#list-organizations-for-a-user`,
+	},
 	"orgs/list-memberships-for-authenticated-user": {
 		method: "GET",
 		path: "/user/memberships/orgs",
@@ -124,6 +139,81 @@ export const routes = {
 		method: "GET",
 		path: "/orgs/{org}/outside_collaborators",
 		docs: `${DOCS}/orgs/outside-collaborators#list-outside-collaborators-for-an-organization`,
+	},
+	"teams/list": {
+		method: "GET",
+		path: "/orgs/{org}/teams",
+		docs: `${DOCS}/teams/teams#list-teams`,
+	},
+	"teams/create": {
+		method: "POST",
+		path: "/orgs/{org}/teams",
+		docs: `${DOCS}/teams/teams#create-a-team`,
+		status: 201,
+	},
+	"teams/get-by-name": {
+		method: "GET",
+		path: "/orgs/{org}/teams/{team_slug}",
+		docs: `${DOCS}/teams/teams#get-a-team-by-name`,
+	},
+	"teams/update-in-org": {
+		method: "PATCH",
+		path: "/orgs/{org}/teams/{team_slug}",
+		docs: `${DOCS}/teams/teams#update-a-team`,
+	},
+	"teams/delete-in-org": {
+		method: "DELETE",
+		path: "/orgs/{org}/teams/{team_slug}",
+		docs: `${DOCS}/teams/teams#delete-a-team`,
+		status: 204,
+	},
+	"teams/list-child-in-org": {
+		method: "GET",
+		path: "/orgs/{org}/teams/{team_slug}/teams",
+		docs: `${DOCS}/teams/teams#list-child-teams`,
+	},
+	"teams/list-members-in-org": {
+		method: "GET",
+		path: "/orgs/{org}/teams/{team_slug}/members",
+		docs: `${DOCS}/teams/members#list-team-members`,
+	},
+	"teams/get-membership-for-user-in-org": {
+		method: "GET",
+		path: "/orgs/{org}/teams/{team_slug}/memberships/{username}",
+		docs: `${DOCS}/teams/members#get-team-membership-for-a-user`,
+	},
+	"teams/add-or-update-membership-for-user-in-org": {
+		method: "PUT",
+		path: "/orgs/{org}/teams/{team_slug}/memberships/{username}",
+		docs: `${DOCS}/teams/members#add-or-update-team-membership-for-a-user`,
+	},
+	"teams/remove-membership-for-user-in-org": {
+		method: "DELETE",
+		path: "/orgs/{org}/teams/{team_slug}/memberships/{username}",
+		docs: `${DOCS}/teams/members#remove-team-membership-for-a-user`,
+		status: 204,
+	},
+	"teams/list-repos-in-org": {
+		method: "GET",
+		path: "/orgs/{org}/teams/{team_slug}/repos",
+		docs: `${DOCS}/teams/teams#list-team-repositories`,
+	},
+	"teams/check-permissions-for-repo-in-org": {
+		method: "GET",
+		path: "/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}",
+		docs: `${DOCS}/teams/teams#check-team-permissions-for-a-repository`,
+	},
+	"teams/add-or-update-repo-permissions-in-org": {
+		method: "PUT",
+		path: "/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}",
+		docs: `${DOCS}/teams/teams#add-or-update-team-repository-permissions`,
+		status: 204,
+	},
+	"teams/remove-repo-in-org": {
+		method: "DELETE",
+		path: "/orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}",
+		docs: `${DOCS}/teams/teams#remove-a-repository-from-a-team`,
+		status: 204,
 	},
 	"activity/list-watched-repos-for-authenticated-user": {
 		method: "GET",
@@ -188,6 +278,17 @@ export const routes = {
 		method: "GET",
 		path: "/users/{username}/repos",
 		docs: `${DOCS}/repos/repos#list-repositories-for-a-user`,
+	},
+	"repos/list-for-org": {
+		method: "GET",
+		path: "/orgs/{org}/repos",
+		docs: `${DOCS}/repos/repos#list-organization-repositories`,
+	},
+	"repos/create-in-org": {
+		method: "POST",
+		path: "/orgs/{org}/repos",
+		docs: `${DOCS}/repos/repos#create-an-organization-repository`,
+		status: 201,
 	},
 	"search/repos": {
 		method: "GET",

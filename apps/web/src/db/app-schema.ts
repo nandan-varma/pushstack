@@ -210,6 +210,88 @@ export const orgMemberships = pgTable(
 );
 
 /**
+ * A team: a named group inside one organization, nestable under a parent team.
+ * `slug` is derived from the name and unique per organization; a child team
+ * inherits its ancestors' repository grants. `privacy` is `secret` (invisible
+ * to non-members) or `closed` (visible to every member).
+ */
+export const teams = pgTable(
+	"teams",
+	{
+		id: serial("id").primaryKey(),
+		orgId: integer("org_id")
+			.notNull()
+			.references(() => organizations.id, { onDelete: "cascade" }),
+		slug: text("slug").notNull(),
+		name: text("name").notNull(),
+		description: text("description"),
+		privacy: text("privacy")
+			.$type<"closed" | "secret">()
+			.notNull()
+			.default("closed"),
+		parentTeamId: integer("parent_team_id").references(
+			(): AnyPgColumn => teams.id,
+			{ onDelete: "set null" },
+		),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		/** Case-insensitive, so `Core` and `core` cannot be two teams. */
+		slugIdx: uniqueIndex("team_org_slug_idx").on(
+			table.orgId,
+			sql`lower(${table.slug})`,
+		),
+		orgIdx: index("team_org_idx").on(table.orgId),
+		parentIdx: index("team_parent_idx").on(table.parentTeamId),
+	}),
+);
+
+/** A member of a team: `maintainer` may change the team's repositories. */
+export const teamMemberships = pgTable(
+	"team_memberships",
+	{
+		teamId: integer("team_id")
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		role: text("role")
+			.$type<"member" | "maintainer">()
+			.notNull()
+			.default("member"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.teamId, table.userId] }),
+		userIdx: index("team_membership_user_idx").on(table.userId),
+	}),
+);
+
+/** A team's grant on one repository, on the same ladder as a collaborator. */
+export const teamRepositories = pgTable(
+	"team_repositories",
+	{
+		teamId: integer("team_id")
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		permission: text("permission")
+			.$type<"read" | "triage" | "write" | "maintain" | "admin">()
+			.notNull()
+			.default("read"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.teamId, table.repoId] }),
+		repoIdx: index("team_repository_repo_idx").on(table.repoId),
+	}),
+);
+
+/**
  * Every issue, pull request and discussion: GitHub's model, where a pull
  * request and a discussion *are* issues (one `#N` sequence, one set of
  * comments, labels, assignees and timeline events) and `pull_requests` /
@@ -1427,6 +1509,9 @@ export const sshSigningKeys = pgTable(
 
 export type Repository = typeof repositories.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
+export type Team = typeof teams.$inferSelect;
+export type TeamMembership = typeof teamMemberships.$inferSelect;
+export type TeamRepository = typeof teamRepositories.$inferSelect;
 export type Login = typeof logins.$inferSelect;
 export type OrgMembership = typeof orgMemberships.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
