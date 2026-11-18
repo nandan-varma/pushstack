@@ -602,6 +602,10 @@ input CreateIssueInput {
 	"""
 	milestoneId: ID
 	"""
+	An array of Node IDs for projects associated with this issue.
+	"""
+	projectIds: [ID!]
+	"""
 	A unique identifier for the client performing the mutation.
 	"""
 	clientMutationId: String

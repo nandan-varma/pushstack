@@ -70,6 +70,34 @@ const fixtures = readdirSync(FIXTURES_DIR)
 /** Captured, not served yet: the domain that will serve each. */
 const PENDING: Record<string, "issues" | "pulls"> = {};
 
+/**
+ * Captured from a stateful `gh` workflow in the real-gh smoke (a pull request
+ * made, reviewed, merged...): their ids and numbers only exist there. They are
+ * validated against the schema here, and executed by the smoke itself.
+ */
+const VALIDATE_ONLY = new Set([
+	"issue-close",
+	"issue-comment",
+	"issue-comment-2",
+	"issue-create-2",
+	"issue-edit",
+	"issue-reopen",
+	"label-create",
+	"label-delete",
+	"pr-close",
+	"pr-close-2",
+	"pr-comment",
+	"pr-create",
+	"pr-create-2",
+	"pr-diff",
+	"pr-edit",
+	"pr-merge",
+	"pr-reopen",
+	"pr-review",
+	"pr-view-json",
+	"repo-clone-empty",
+]);
+
 /** Errors a served fixture is expected to answer with (by fixture name). */
 const EXPECTED_ERRORS: Record<string, string[]> = {
 	"repo-view-missing": ["NOT_FOUND"],
@@ -211,6 +239,7 @@ describe("captured gh documents", () => {
 						(e) => e.message,
 					),
 				).toEqual([]);
+				if (VALIDATE_ONLY.has(fixture.name)) continue;
 
 				const { status, body } = await graphql(
 					token,

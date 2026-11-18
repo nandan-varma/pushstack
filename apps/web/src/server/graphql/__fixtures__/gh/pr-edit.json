@@ -1,0 +1,32 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh pr edit 1 -R HOST/octo/hello --title One (edited)",
+	"requests": [
+		{
+			"query": "\n\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\tpullRequest(number: $pr_number) {id,author{login,...on User{id,name}},url,title,body,baseRefName,reviewRequests(first: 100) {nodes {requestedReviewer {__typename,...on User{login,name},...on Bot{login},...on Team{organization{login}name,slug}}}},labels(first:100){nodes{id,name,description,color},totalCount},projectCards(first:100){nodes{project{name}column{name}},totalCount},milestone{number,title,description,dueOn},assignees(first:100){nodes{id,login,name,databaseId},totalCount},number}\n\t\t}\n\t}",
+			"variables": {
+				"owner": "octo",
+				"pr_number": 1,
+				"repo": "hello"
+			}
+		},
+		{
+			"query": "query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \"Status\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}",
+			"variables": {
+				"endCursor": null,
+				"name": "hello",
+				"number": 1,
+				"owner": "octo"
+			}
+		},
+		{
+			"query": "mutation PullRequestUpdate($input:UpdatePullRequestInput!){updatePullRequest(input: $input){__typename}}",
+			"variables": {
+				"input": {
+					"pullRequestId": "MDExOlB1bGxSZXF1ZXN0MQ==",
+					"title": "One (edited)"
+				}
+			}
+		}
+	]
+}

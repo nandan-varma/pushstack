@@ -237,7 +237,12 @@ type PullRequest implements Node & UniformResourceLocatable {
 	"""
 	Returns the auto-merge request object if one exists for this pull request.
 	"""
-	autoMergeRequest: AutoMergeRequest
+	autoMergeRequest(
+		"""
+		Return the stack auto-merge request covering this pull request.
+		"""
+		includeStack: Boolean = false
+	): AutoMergeRequest
 	"""
 	Indicates whether maintainers can modify the pull request.
 	"""
@@ -266,6 +271,39 @@ type PullRequest implements Node & UniformResourceLocatable {
 	The number of deletions in this pull request.
 	"""
 	deletions: Int!
+	"""
+	The number of changed files in this pull request.
+	"""
+	changedFiles: Int!
+	"""
+	The commit that was created when this pull request was merged.
+	"""
+	mergeCommit: Commit
+	"""
+	The actor who merged the pull request.
+	"""
+	mergedBy: Actor
+	"""
+	Lists the files changed within this pull request.
+	"""
+	files(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): PullRequestChangedFileConnection
 	"""
 	A list of commits present in this pull request's head branch not present in the base branch.
 	"""
@@ -371,6 +409,30 @@ type PullRequest implements Node & UniformResourceLocatable {
 		"""
 		last: Int
 	): ProjectV2ItemConnection
+	"""
+	List of project cards associated with this pull request.
+	"""
+	projectCards(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): ProjectCardConnection!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
 	"""
 	A list of Users assigned to this object.
 	"""
@@ -885,6 +947,205 @@ extend type Commit {
 	Check and Status rollup information for this commit.
 	"""
 	statusCheckRollup: StatusCheckRollup
+	"""
+	The Git commit message body
+	"""
+	messageBody: String!
+	"""
+	The list of authors for this commit based on the git author and the Co-authored-by
+	message trailer. The git author will always be first.
+	"""
+	authors(
+		"""
+		Returns the elements in the list that come after the specified cursor.
+		"""
+		after: String
+		"""
+		Returns the elements in the list that come before the specified cursor.
+		"""
+		before: String
+		"""
+		Returns the first _n_ elements from the list.
+		"""
+		first: Int
+		"""
+		Returns the last _n_ elements from the list.
+		"""
+		last: Int
+	): GitActorConnection!
+}
+
+"""
+An ISO-8601 encoded date string. Unlike the DateTime type, GitTimestamp is not converted in UTC.
+"""
+scalar GitTimestamp
+
+"""
+Represents an actor in a Git commit (ie. an author or committer).
+"""
+type GitActor {
+	"""
+	The timestamp of the Git action (authoring or committing).
+	"""
+	date: GitTimestamp
+	"""
+	The email in the Git commit.
+	"""
+	email: String
+	"""
+	The name in the Git commit.
+	"""
+	name: String
+	"""
+	The GitHub user corresponding to the email field. Null if no such user exists.
+	"""
+	user: User
+}
+
+"""
+The connection type for GitActor.
+"""
+type GitActorConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [GitActorEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [GitActor]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type GitActorEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: GitActor
+}
+
+"""
+A file changed in a pull request.
+"""
+type PullRequestChangedFile {
+	"""
+	The number of additions to the file.
+	"""
+	additions: Int!
+	"""
+	How the file was changed in this PullRequest
+	"""
+	changeType: PatchStatus!
+	"""
+	The number of deletions to the file.
+	"""
+	deletions: Int!
+	"""
+	The path of the file.
+	"""
+	path: String!
+	"""
+	The state of the file for the viewer.
+	"""
+	viewerViewedState: FileViewedState!
+}
+
+"""
+The connection type for PullRequestChangedFile.
+"""
+type PullRequestChangedFileConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [PullRequestChangedFileEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [PullRequestChangedFile]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type PullRequestChangedFileEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: PullRequestChangedFile
+}
+
+"""
+The possible types of patch statuses.
+"""
+enum PatchStatus {
+	"""
+	The file was added. Git status 'A'.
+	"""
+	ADDED
+	"""
+	The file's type was changed. Git status 'T'.
+	"""
+	CHANGED
+	"""
+	The file was copied. Git status 'C'.
+	"""
+	COPIED
+	"""
+	The file was deleted. Git status 'D'.
+	"""
+	DELETED
+	"""
+	The file's contents were changed. Git status 'M'.
+	"""
+	MODIFIED
+	"""
+	The file was renamed. Git status 'R'.
+	"""
+	RENAMED
+}
+
+"""
+The possible viewed states of a file .
+"""
+enum FileViewedState {
+	"""
+	The file has new changes since last viewed.
+	"""
+	DISMISSED
+	"""
+	The file has not been marked as viewed.
+	"""
+	UNVIEWED
+	"""
+	The file has been marked as viewed.
+	"""
+	VIEWED
 }
 
 """
@@ -1013,6 +1274,91 @@ enum PullRequestReviewDecision {
 	A review is required before the pull request can be merged.
 	"""
 	REVIEW_REQUIRED
+}
+
+"""
+The connection type for ProjectCard.
+"""
+type ProjectCardConnection {
+	"""
+	A list of edges.
+	"""
+	edges: [ProjectCardEdge]
+	"""
+	A list of nodes.
+	"""
+	nodes: [ProjectCard]
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	Identifies the total count of items in the connection.
+	"""
+	totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type ProjectCardEdge {
+	"""
+	A cursor for use in pagination.
+	"""
+	cursor: String!
+	"""
+	The item at the end of the edge.
+	"""
+	node: ProjectCard
+}
+
+"""
+A card in a project.
+"""
+type ProjectCard {
+	"""
+	The project that contains this card.
+	"""
+	project: Project!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+	"""
+	The project column this card is associated under. A card may only belong to one
+	project column at a time. The column field will be null if the card is created
+	in a pending state and has yet to be associated with a column. Once cards are
+	associated with a column, they will not become pending in the future.
+	"""
+	column: ProjectColumn
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+}
+
+"""
+Projects manage issues, pull requests and notes within a project owner.
+"""
+type Project {
+	"""
+	The project's name.
+	"""
+	name: String!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
+}
+
+"""
+A column inside a project.
+"""
+type ProjectColumn {
+	"""
+	The project column's name.
+	"""
+	name: String!
+		@deprecated(
+			reason: "Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC."
+		)
 }
 
 """

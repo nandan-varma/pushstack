@@ -27,6 +27,8 @@ export type Scalars = {
   GitObjectID: { input: string; output: string; }
   /** Git SSH string */
   GitSSHRemote: { input: string; output: string; }
+  /** An ISO-8601 encoded date string. Unlike the DateTime type, GitTimestamp is not converted in UTC. */
+  GitTimestamp: { input: unknown; output: unknown; }
 };
 
 /** The query root of GitHub's GraphQL interface. */
@@ -785,12 +787,28 @@ export type Commit = GitObject & Node & {
   tarballUrl: Scalars['URI']['output'];
   /** Check and Status rollup information for this commit. */
   statusCheckRollup?: Maybe<StatusCheckRollup>;
+  /** The Git commit message body */
+  messageBody: Scalars['String']['output'];
+  /**
+   * The list of authors for this commit based on the git author and the Co-authored-by
+   * message trailer. The git author will always be first.
+   */
+  authors: GitActorConnection;
 };
 
 
 /** Represents a Git commit. */
 export type CommitBlameArgs = {
   path: Scalars['String']['input'];
+};
+
+
+/** Represents a Git commit. */
+export type CommitAuthorsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 /** Represents a Git blame. */
@@ -1482,6 +1500,8 @@ export type CreateIssueInput = {
   labelIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   /** The Node ID of the milestone for this issue. */
   milestoneId?: InputMaybe<Scalars['ID']['input']>;
+  /** An array of Node IDs for projects associated with this issue. */
+  projectIds?: InputMaybe<Array<Scalars['ID']['input']>>;
   /** A unique identifier for the client performing the mutation. */
   clientMutationId?: InputMaybe<Scalars['String']['input']>;
 };
@@ -1791,6 +1811,14 @@ export type PullRequest = Node & UniformResourceLocatable & {
   additions: Scalars['Int']['output'];
   /** The number of deletions in this pull request. */
   deletions: Scalars['Int']['output'];
+  /** The number of changed files in this pull request. */
+  changedFiles: Scalars['Int']['output'];
+  /** The commit that was created when this pull request was merged. */
+  mergeCommit?: Maybe<Commit>;
+  /** The actor who merged the pull request. */
+  mergedBy?: Maybe<Actor>;
+  /** Lists the files changed within this pull request. */
+  files?: Maybe<PullRequestChangedFileConnection>;
   /** A list of commits present in this pull request's head branch not present in the base branch. */
   commits: PullRequestCommitConnection;
   /** A list of review requests associated with the pull request. */
@@ -1801,6 +1829,11 @@ export type PullRequest = Node & UniformResourceLocatable & {
   latestReviews?: Maybe<PullRequestReviewConnection>;
   /** List of project items associated with this pull request. */
   projectItems?: Maybe<ProjectV2ItemConnection>;
+  /**
+   * List of project cards associated with this pull request.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  projectCards: ProjectCardConnection;
   /** A list of Users assigned to this object. */
   assignees: UserConnection;
   /** A list of labels associated with the object. */
@@ -1811,6 +1844,21 @@ export type PullRequest = Node & UniformResourceLocatable & {
   comments: IssueCommentConnection;
   /** A list of reactions grouped by content left on the subject. */
   reactionGroups?: Maybe<Array<ReactionGroup>>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestAutoMergeRequestArgs = {
+  includeStack?: InputMaybe<Scalars['Boolean']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestFilesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
@@ -1852,6 +1900,15 @@ export type PullRequestLatestReviewsArgs = {
 
 /** A repository pull request. */
 export type PullRequestProjectItemsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository pull request. */
+export type PullRequestProjectCardsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   before?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -2135,6 +2192,102 @@ export type PullRequestReviewEvent =
   /** Submit feedback that must be addressed before merging. */
   | 'REQUEST_CHANGES';
 
+/** Represents an actor in a Git commit (ie. an author or committer). */
+export type GitActor = {
+  __typename?: 'GitActor';
+  /** The timestamp of the Git action (authoring or committing). */
+  date?: Maybe<Scalars['GitTimestamp']['output']>;
+  /** The email in the Git commit. */
+  email?: Maybe<Scalars['String']['output']>;
+  /** The name in the Git commit. */
+  name?: Maybe<Scalars['String']['output']>;
+  /** The GitHub user corresponding to the email field. Null if no such user exists. */
+  user?: Maybe<User>;
+};
+
+/** The connection type for GitActor. */
+export type GitActorConnection = {
+  __typename?: 'GitActorConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<GitActorEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<GitActor>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type GitActorEdge = {
+  __typename?: 'GitActorEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<GitActor>;
+};
+
+/** A file changed in a pull request. */
+export type PullRequestChangedFile = {
+  __typename?: 'PullRequestChangedFile';
+  /** The number of additions to the file. */
+  additions: Scalars['Int']['output'];
+  /** How the file was changed in this PullRequest */
+  changeType: PatchStatus;
+  /** The number of deletions to the file. */
+  deletions: Scalars['Int']['output'];
+  /** The path of the file. */
+  path: Scalars['String']['output'];
+  /** The state of the file for the viewer. */
+  viewerViewedState: FileViewedState;
+};
+
+/** The connection type for PullRequestChangedFile. */
+export type PullRequestChangedFileConnection = {
+  __typename?: 'PullRequestChangedFileConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<PullRequestChangedFileEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<PullRequestChangedFile>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type PullRequestChangedFileEdge = {
+  __typename?: 'PullRequestChangedFileEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<PullRequestChangedFile>;
+};
+
+/** The possible types of patch statuses. */
+export type PatchStatus =
+  /** The file was added. Git status 'A'. */
+  | 'ADDED'
+  /** The file's type was changed. Git status 'T'. */
+  | 'CHANGED'
+  /** The file was copied. Git status 'C'. */
+  | 'COPIED'
+  /** The file was deleted. Git status 'D'. */
+  | 'DELETED'
+  /** The file's contents were changed. Git status 'M'. */
+  | 'MODIFIED'
+  /** The file was renamed. Git status 'R'. */
+  | 'RENAMED';
+
+/** The possible viewed states of a file . */
+export type FileViewedState =
+  /** The file has new changes since last viewed. */
+  | 'DISMISSED'
+  /** The file has not been marked as viewed. */
+  | 'UNVIEWED'
+  /** The file has been marked as viewed. */
+  | 'VIEWED';
+
 /** Represents an auto-merge request for a pull request */
 export type AutoMergeRequest = {
   __typename?: 'AutoMergeRequest';
@@ -2206,6 +2359,66 @@ export type PullRequestReviewDecision =
   | 'CHANGES_REQUESTED'
   /** A review is required before the pull request can be merged. */
   | 'REVIEW_REQUIRED';
+
+/** The connection type for ProjectCard. */
+export type ProjectCardConnection = {
+  __typename?: 'ProjectCardConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<ProjectCardEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<ProjectCard>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type ProjectCardEdge = {
+  __typename?: 'ProjectCardEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<ProjectCard>;
+};
+
+/** A card in a project. */
+export type ProjectCard = {
+  __typename?: 'ProjectCard';
+  /**
+   * The project that contains this card.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  project: Project;
+  /**
+   * The project column this card is associated under. A card may only belong to one
+   * project column at a time. The column field will be null if the card is created
+   * in a pending state and has yet to be associated with a column. Once cards are
+   * associated with a column, they will not become pending in the future.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  column?: Maybe<ProjectColumn>;
+};
+
+/** Projects manage issues, pull requests and notes within a project owner. */
+export type Project = {
+  __typename?: 'Project';
+  /**
+   * The project's name.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  name: Scalars['String']['output'];
+};
+
+/** A column inside a project. */
+export type ProjectColumn = {
+  __typename?: 'ProjectColumn';
+  /**
+   * The project column's name.
+   * @deprecated Projects (classic) is being deprecated in favor of the new Projects experience, see: https://github.blog/changelog/2024-05-23-sunset-notice-projects-classic/. Removal on 2025-04-01 UTC.
+   */
+  name: Scalars['String']['output'];
+};
 
 /** The connection type for ProjectV2Item. */
 export type ProjectV2ItemConnection = {
@@ -2966,11 +3179,25 @@ export type ResolversTypes = {
   AddPullRequestReviewInput: AddPullRequestReviewInput;
   AddPullRequestReviewPayload: ResolverTypeWrapper<Omit<AddPullRequestReviewPayload, 'pullRequestReview'> & { pullRequestReview?: Maybe<ResolversTypes['PullRequestReview']> }>;
   PullRequestReviewEvent: PullRequestReviewEvent;
+  GitTimestamp: ResolverTypeWrapper<Scalars['GitTimestamp']['output']>;
+  GitActor: ResolverTypeWrapper<Omit<GitActor, 'user'> & { user?: Maybe<ResolversTypes['User']> }>;
+  GitActorConnection: ResolverTypeWrapper<Omit<GitActorConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['GitActorEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['GitActor']>>> }>;
+  GitActorEdge: ResolverTypeWrapper<Omit<GitActorEdge, 'node'> & { node?: Maybe<ResolversTypes['GitActor']> }>;
+  PullRequestChangedFile: ResolverTypeWrapper<PullRequestChangedFile>;
+  PullRequestChangedFileConnection: ResolverTypeWrapper<PullRequestChangedFileConnection>;
+  PullRequestChangedFileEdge: ResolverTypeWrapper<PullRequestChangedFileEdge>;
+  PatchStatus: PatchStatus;
+  FileViewedState: FileViewedState;
   AutoMergeRequest: ResolverTypeWrapper<Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversTypes['Actor']> }>;
   PullRequestMergeMethod: PullRequestMergeMethod;
   MergeableState: MergeableState;
   MergeStateStatus: MergeStateStatus;
   PullRequestReviewDecision: PullRequestReviewDecision;
+  ProjectCardConnection: ResolverTypeWrapper<ProjectCardConnection>;
+  ProjectCardEdge: ResolverTypeWrapper<ProjectCardEdge>;
+  ProjectCard: ResolverTypeWrapper<ProjectCard>;
+  Project: ResolverTypeWrapper<Project>;
+  ProjectColumn: ResolverTypeWrapper<ProjectColumn>;
   ProjectV2ItemConnection: ResolverTypeWrapper<Omit<ProjectV2ItemConnection, 'nodes'> & { nodes?: Maybe<Array<Maybe<ResolversTypes['ProjectV2Item']>>> }>;
   ProjectV2Item: ResolverTypeWrapper<Omit<ProjectV2Item, 'project' | 'fieldValueByName'> & { project: ResolversTypes['ProjectV2'], fieldValueByName?: Maybe<ResolversTypes['ProjectV2ItemFieldValue']> }>;
   ProjectV2: ResolverTypeWrapper<ProjectV2>;
@@ -3118,7 +3345,19 @@ export type ResolversParentTypes = {
   MergePullRequestPayload: Omit<MergePullRequestPayload, 'actor' | 'pullRequest'> & { actor?: Maybe<ResolversParentTypes['Actor']>, pullRequest?: Maybe<ResolversParentTypes['PullRequest']> };
   AddPullRequestReviewInput: AddPullRequestReviewInput;
   AddPullRequestReviewPayload: Omit<AddPullRequestReviewPayload, 'pullRequestReview'> & { pullRequestReview?: Maybe<ResolversParentTypes['PullRequestReview']> };
+  GitTimestamp: Scalars['GitTimestamp']['output'];
+  GitActor: Omit<GitActor, 'user'> & { user?: Maybe<ResolversParentTypes['User']> };
+  GitActorConnection: Omit<GitActorConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['GitActorEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['GitActor']>>> };
+  GitActorEdge: Omit<GitActorEdge, 'node'> & { node?: Maybe<ResolversParentTypes['GitActor']> };
+  PullRequestChangedFile: PullRequestChangedFile;
+  PullRequestChangedFileConnection: PullRequestChangedFileConnection;
+  PullRequestChangedFileEdge: PullRequestChangedFileEdge;
   AutoMergeRequest: Omit<AutoMergeRequest, 'enabledBy'> & { enabledBy?: Maybe<ResolversParentTypes['Actor']> };
+  ProjectCardConnection: ProjectCardConnection;
+  ProjectCardEdge: ProjectCardEdge;
+  ProjectCard: ProjectCard;
+  Project: Project;
+  ProjectColumn: ProjectColumn;
   ProjectV2ItemConnection: Omit<ProjectV2ItemConnection, 'nodes'> & { nodes?: Maybe<Array<Maybe<ResolversParentTypes['ProjectV2Item']>>> };
   ProjectV2Item: Omit<ProjectV2Item, 'project' | 'fieldValueByName'> & { project: ResolversParentTypes['ProjectV2'], fieldValueByName?: Maybe<ResolversParentTypes['ProjectV2ItemFieldValue']> };
   ProjectV2: ProjectV2;
@@ -3359,6 +3598,8 @@ export type CommitResolvers<ContextType = GraphQLContext, ParentType extends Res
   zipballUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   tarballUrl?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
   statusCheckRollup?: Resolver<Maybe<ResolversTypes['StatusCheckRollup']>, ParentType, ContextType>;
+  messageBody?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  authors?: Resolver<ResolversTypes['GitActorConnection'], ParentType, ContextType, Partial<CommitAuthorsArgs>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -3635,7 +3876,7 @@ export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extend
   headRepository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType>;
   headRepositoryOwner?: Resolver<Maybe<ResolversTypes['RepositoryOwner']>, ParentType, ContextType>;
   isCrossRepository?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
-  autoMergeRequest?: Resolver<Maybe<ResolversTypes['AutoMergeRequest']>, ParentType, ContextType>;
+  autoMergeRequest?: Resolver<Maybe<ResolversTypes['AutoMergeRequest']>, ParentType, ContextType, RequireFields<PullRequestAutoMergeRequestArgs, 'includeStack'>>;
   maintainerCanModify?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
   mergeable?: Resolver<ResolversTypes['MergeableState'], ParentType, ContextType>;
   mergeStateStatus?: Resolver<ResolversTypes['MergeStateStatus'], ParentType, ContextType>;
@@ -3643,11 +3884,16 @@ export type PullRequestResolvers<ContextType = GraphQLContext, ParentType extend
   baseRef?: Resolver<Maybe<ResolversTypes['Ref']>, ParentType, ContextType>;
   additions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   deletions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  changedFiles?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  mergeCommit?: Resolver<Maybe<ResolversTypes['Commit']>, ParentType, ContextType>;
+  mergedBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  files?: Resolver<Maybe<ResolversTypes['PullRequestChangedFileConnection']>, ParentType, ContextType, Partial<PullRequestFilesArgs>>;
   commits?: Resolver<ResolversTypes['PullRequestCommitConnection'], ParentType, ContextType, Partial<PullRequestCommitsArgs>>;
   reviewRequests?: Resolver<Maybe<ResolversTypes['ReviewRequestConnection']>, ParentType, ContextType, Partial<PullRequestReviewRequestsArgs>>;
   reviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestReviewsArgs>>;
   latestReviews?: Resolver<Maybe<ResolversTypes['PullRequestReviewConnection']>, ParentType, ContextType, Partial<PullRequestLatestReviewsArgs>>;
   projectItems?: Resolver<Maybe<ResolversTypes['ProjectV2ItemConnection']>, ParentType, ContextType, Partial<PullRequestProjectItemsArgs>>;
+  projectCards?: Resolver<ResolversTypes['ProjectCardConnection'], ParentType, ContextType, Partial<PullRequestProjectCardsArgs>>;
   assignees?: Resolver<ResolversTypes['UserConnection'], ParentType, ContextType, Partial<PullRequestAssigneesArgs>>;
   labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<PullRequestLabelsArgs>>;
   milestone?: Resolver<Maybe<ResolversTypes['Milestone']>, ParentType, ContextType>;
@@ -3710,6 +3956,49 @@ export type AddPullRequestReviewPayloadResolvers<ContextType = GraphQLContext, P
   pullRequestReview?: Resolver<Maybe<ResolversTypes['PullRequestReview']>, ParentType, ContextType>;
 };
 
+export interface GitTimestampScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes['GitTimestamp'], any> {
+  name: 'GitTimestamp';
+}
+
+export type GitActorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitActor'] = ResolversParentTypes['GitActor']> = {
+  date?: Resolver<Maybe<ResolversTypes['GitTimestamp']>, ParentType, ContextType>;
+  email?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  user?: Resolver<Maybe<ResolversTypes['User']>, ParentType, ContextType>;
+};
+
+export type GitActorConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitActorConnection'] = ResolversParentTypes['GitActorConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['GitActorEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['GitActor']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type GitActorEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GitActorEdge'] = ResolversParentTypes['GitActorEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['GitActor']>, ParentType, ContextType>;
+};
+
+export type PullRequestChangedFileResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestChangedFile'] = ResolversParentTypes['PullRequestChangedFile']> = {
+  additions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  changeType?: Resolver<ResolversTypes['PatchStatus'], ParentType, ContextType>;
+  deletions?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  path?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  viewerViewedState?: Resolver<ResolversTypes['FileViewedState'], ParentType, ContextType>;
+};
+
+export type PullRequestChangedFileConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestChangedFileConnection'] = ResolversParentTypes['PullRequestChangedFileConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestChangedFileEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['PullRequestChangedFile']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type PullRequestChangedFileEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PullRequestChangedFileEdge'] = ResolversParentTypes['PullRequestChangedFileEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['PullRequestChangedFile']>, ParentType, ContextType>;
+};
+
 export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AutoMergeRequest'] = ResolversParentTypes['AutoMergeRequest']> = {
   authorEmail?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
   commitBody?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
@@ -3717,6 +4006,31 @@ export type AutoMergeRequestResolvers<ContextType = GraphQLContext, ParentType e
   mergeMethod?: Resolver<ResolversTypes['PullRequestMergeMethod'], ParentType, ContextType>;
   enabledAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
   enabledBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+};
+
+export type ProjectCardConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardConnection'] = ResolversParentTypes['ProjectCardConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCardEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['ProjectCard']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type ProjectCardEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCardEdge'] = ResolversParentTypes['ProjectCardEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['ProjectCard']>, ParentType, ContextType>;
+};
+
+export type ProjectCardResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectCard'] = ResolversParentTypes['ProjectCard']> = {
+  project?: Resolver<ResolversTypes['Project'], ParentType, ContextType>;
+  column?: Resolver<Maybe<ResolversTypes['ProjectColumn']>, ParentType, ContextType>;
+};
+
+export type ProjectResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Project'] = ResolversParentTypes['Project']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+};
+
+export type ProjectColumnResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectColumn'] = ResolversParentTypes['ProjectColumn']> = {
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
 };
 
 export type ProjectV2ItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ProjectV2ItemConnection'] = ResolversParentTypes['ProjectV2ItemConnection']> = {
@@ -4018,7 +4332,19 @@ export type Resolvers<ContextType = GraphQLContext> = {
   UpdatePullRequestPayload?: UpdatePullRequestPayloadResolvers<ContextType>;
   MergePullRequestPayload?: MergePullRequestPayloadResolvers<ContextType>;
   AddPullRequestReviewPayload?: AddPullRequestReviewPayloadResolvers<ContextType>;
+  GitTimestamp?: GraphQLScalarType;
+  GitActor?: GitActorResolvers<ContextType>;
+  GitActorConnection?: GitActorConnectionResolvers<ContextType>;
+  GitActorEdge?: GitActorEdgeResolvers<ContextType>;
+  PullRequestChangedFile?: PullRequestChangedFileResolvers<ContextType>;
+  PullRequestChangedFileConnection?: PullRequestChangedFileConnectionResolvers<ContextType>;
+  PullRequestChangedFileEdge?: PullRequestChangedFileEdgeResolvers<ContextType>;
   AutoMergeRequest?: AutoMergeRequestResolvers<ContextType>;
+  ProjectCardConnection?: ProjectCardConnectionResolvers<ContextType>;
+  ProjectCardEdge?: ProjectCardEdgeResolvers<ContextType>;
+  ProjectCard?: ProjectCardResolvers<ContextType>;
+  Project?: ProjectResolvers<ContextType>;
+  ProjectColumn?: ProjectColumnResolvers<ContextType>;
   ProjectV2ItemConnection?: ProjectV2ItemConnectionResolvers<ContextType>;
   ProjectV2Item?: ProjectV2ItemResolvers<ContextType>;
   ProjectV2?: ProjectV2Resolvers<ContextType>;

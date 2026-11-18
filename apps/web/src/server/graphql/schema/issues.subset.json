@@ -111,6 +111,7 @@
 		"assigneeIds",
 		"labelIds",
 		"milestoneId",
+		"projectIds",
 		"clientMutationId"
 	],
 	"CreateIssuePayload": ["clientMutationId", "issue"],

@@ -40,9 +40,9 @@ Measured with gh 2.102.1 by the real-gh smoke test
 | `gh release …` | Served, not yet measured with real gh: `list` reads `Repository.releases`; `view`, `create`, `edit`, `delete`, `upload`, `download` use the REST release routes |
 | `gh issue list`, `gh issue view`, `gh issue status` | GraphQL reads served (`Repository.issues`/`issue`/`issueOrPullRequest`); `gh issue status` checked by hand with gh 2.103.1 against `pnpm dev:local`; fixture-tested |
 | `gh label list` | GraphQL `Repository.labels` served; fixture-tested, not yet measured with real gh |
-| `gh issue create`, `gh issue close`, `gh issue reopen` | GraphQL mutations served; fixture-tested for `issue create`, not yet measured with real gh |
-| `gh issue edit`, `gh label create/edit/delete` | Mutations served, not yet measured with real gh |
-| `gh pr list`, `gh pr view`, `gh pr create`, `gh pr ready` | GraphQL reads and draft mutations served; fixture-tested; `gh pr view` checked by hand with gh 2.103.1 against `pnpm dev:local` (it reads `projectItems`, always empty) |
+| `gh issue create`, `gh issue comment`, `gh issue edit`, `gh issue close`, `gh issue reopen`, `gh label create/delete` | Measured with real gh 2.104.0 in the smoke (`pnpm smoke:git`); documents fixture-validated. `projectIds` is accepted when empty, as gh always sends it |
+| `gh pr create`, `gh pr view --json …` (every field), `gh pr diff`, `gh pr comment`, `gh pr review`, `gh pr edit`, `gh pr merge`, `gh pr close`, `gh pr reopen`, `gh pr ready` | Measured with real gh 2.104.0 in the smoke: a full pull request lifecycle. `gh pr create --head owner:branch` from a fork uses `headRepositoryId` (REST-tested; the smoke has one account). `files`, `changedFiles`, `mergeCommit`, `mergedBy`, `Commit.authors` and `messageBody` are served; `projectCards` (classic projects, which `pr edit` reads) is always empty |
+| `gh pr list` | GraphQL reads served; fixture-tested |
 | `gh pr status` | GraphQL `Query.search` (repository-scoped) and the PR status fields served; checked by hand with gh 2.103.1 against `pnpm dev:local`; fixture-tested |
 | `gh search repos`, `gh search issues`, `gh search prs` | REST `GET /search/repositories` and `GET /search/issues` (gh uses REST here, not GraphQL), plus `GET /meta`; checked by hand with gh 2.103.1 against `pnpm dev:local`; api-tested |
 

@@ -1,0 +1,24 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh pr review 1 -R HOST/octo/hello --comment --body Looks fine",
+	"requests": [
+		{
+			"query": "\n\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\tpullRequest(number: $pr_number) {id,number}\n\t\t}\n\t}",
+			"variables": {
+				"owner": "octo",
+				"pr_number": 1,
+				"repo": "hello"
+			}
+		},
+		{
+			"query": "mutation PullRequestReviewAdd($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){clientMutationId}}",
+			"variables": {
+				"input": {
+					"pullRequestId": "MDExOlB1bGxSZXF1ZXN0MQ==",
+					"body": "Looks fine",
+					"event": "COMMENT"
+				}
+			}
+		}
+	]
+}

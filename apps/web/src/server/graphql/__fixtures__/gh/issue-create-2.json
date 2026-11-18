@@ -1,0 +1,34 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh issue create -R HOST/octo/hello --title Broken --body It broke --label bug",
+	"requests": [
+		{
+			"query": "\n\tquery IssueRepositoryInfo($owner: String!, $name: String!) {\n\t\trepository(owner: $owner, name: $name) {\n\t\t\tid\n\t\t\tdatabaseId\n\t\t\tname\n\t\t\towner { login }\n\t\t\thasIssuesEnabled\n\t\t\tviewerPermission\n\t\t}\n\t}",
+			"variables": {
+				"name": "hello",
+				"owner": "octo"
+			}
+		},
+		{
+			"query": "query RepositoryLabelList($endCursor:String$name:String!$owner:String!){repository(owner: $owner, name: $name){labels(first: 100, orderBy: {field: NAME, direction: ASC}, after: $endCursor){nodes{id,name},pageInfo{hasNextPage,endCursor}}}}",
+			"variables": {
+				"endCursor": null,
+				"name": "hello",
+				"owner": "octo"
+			}
+		},
+		{
+			"query": "\n\tmutation IssueCreate($input: CreateIssueInput!) {\n\t\tcreateIssue(input: $input) {\n\t\t\tissue {\n\t\t\t\tid\n\t\t\t\turl\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"input": {
+					"assigneeIds": null,
+					"body": "It broke",
+					"labelIds": ["MDU6TGFiZWwx"],
+					"projectIds": null,
+					"repositoryId": "MDEwOlJlcG9zaXRvcnkx",
+					"title": "Broken"
+				}
+			}
+		}
+	]
+}

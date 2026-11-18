@@ -75,6 +75,7 @@ import type {
 	UpdateRepositoryInput,
 	UserRepositoriesArgs,
 } from "./generated";
+import { arrayConnection } from "./pulls-detail";
 import {
 	releaseNodeLoaders,
 	releaseTypeResolvers,
@@ -699,6 +700,12 @@ export const repositoryResolvers: DomainResolvers = {
 		},
 		Commit: {
 			blame: (source, args) => blameOf(source, args),
+			// The message after its headline, as GitHub's `messageBody`.
+			messageBody: (source) =>
+				source.message.split("\n").slice(1).join("\n").trim(),
+			// One author per commit; no co-author trailers are parsed.
+			authors: (source, args) =>
+				arrayConnection(args, [{ ...source.authorActor, user: null }]),
 		},
 		...releaseTypeResolvers,
 		...templateTypeResolvers,
