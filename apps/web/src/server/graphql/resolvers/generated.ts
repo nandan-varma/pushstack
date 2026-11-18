@@ -9,6 +9,7 @@ import type { ReleaseNode, ReleaseAssetNode } from './releases';
 import type { IssueTemplateNode } from './templates';
 import type { RateLimitInfo, GraphQLContext } from '../context';
 import type { ProjectNode, ProjectItemNode, ProjectFieldNode, DraftIssueNode, ProjectFieldValueNode } from './projects';
+import type { GistNode, GistFileNode, GistCommentNode, LanguageNode } from './gists';
 import type { DiscussionNode, DiscussionCommentNode, DiscussionCategoryNode } from './discussions';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
@@ -187,6 +188,8 @@ export type User = Actor & Node & RepositoryOwner & UniformResourceLocatable & P
   projectsV2: ProjectV2Connection;
   /** Find a project by number. */
   projectV2?: Maybe<ProjectV2>;
+  /** A list of the Gists the user has created. */
+  gists: GistConnection;
 };
 
 
@@ -227,6 +230,17 @@ export type UserProjectsV2Args = {
 /** A user is an individual's account on GitHub that owns repositories and can make new content. */
 export type UserProjectV2Args = {
   number: Scalars['Int']['input'];
+};
+
+
+/** A user is an individual's account on GitHub that owns repositories and can make new content. */
+export type UserGistsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<GistOrder>;
+  privacy?: InputMaybe<GistPrivacy>;
 };
 
 /** The root query for implementing GraphQL mutations. */
@@ -4357,6 +4371,252 @@ export type DeleteDiscussionCommentPayload = {
   comment?: Maybe<DiscussionComment>;
 };
 
+/** A Gist. */
+export type Gist = Node & Starrable & UniformResourceLocatable & {
+  __typename?: 'Gist';
+  /** A list of comments associated with the gist */
+  comments: GistCommentConnection;
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** The gist description. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** The files in this gist. */
+  files?: Maybe<Array<Maybe<GistFile>>>;
+  /** A list of forks associated with the gist */
+  forks: GistConnection;
+  /** The Node ID of the Gist object */
+  id: Scalars['ID']['output'];
+  /** Identifies if the gist is a fork. */
+  isFork: Scalars['Boolean']['output'];
+  /** Whether the gist is public or not. */
+  isPublic: Scalars['Boolean']['output'];
+  /** The gist name. */
+  name: Scalars['String']['output'];
+  /** The gist owner. */
+  owner?: Maybe<RepositoryOwner>;
+  /** Identifies when the gist was last pushed to. */
+  pushedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** The HTML path to this resource. */
+  resourcePath: Scalars['URI']['output'];
+  /** Returns a count of how many stargazers there are on this object */
+  stargazerCount: Scalars['Int']['output'];
+  /** A list of users who have starred this starrable. */
+  stargazers: StargazerConnection;
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** The HTTP URL for this Gist. */
+  url: Scalars['URI']['output'];
+  /** Returns a boolean indicating whether the viewing user has starred this starrable. */
+  viewerHasStarred: Scalars['Boolean']['output'];
+};
+
+
+/** A Gist. */
+export type GistCommentsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A Gist. */
+export type GistFilesArgs = {
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  oid?: InputMaybe<Scalars['GitObjectID']['input']>;
+};
+
+
+/** A Gist. */
+export type GistForksArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<GistOrder>;
+};
+
+
+/** A Gist. */
+export type GistStargazersArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<StarOrder>;
+};
+
+/** A file in a gist. */
+export type GistFile = {
+  __typename?: 'GistFile';
+  /** The file name encoded to remove characters that are invalid in URL paths. */
+  encodedName?: Maybe<Scalars['String']['output']>;
+  /** The file extension from the file name. */
+  extension?: Maybe<Scalars['String']['output']>;
+  /** Indicates if this file is an image. */
+  isImage: Scalars['Boolean']['output'];
+  /** Whether the file's contents were truncated. */
+  isTruncated: Scalars['Boolean']['output'];
+  /** The programming language this file is written in. */
+  language?: Maybe<Language>;
+  /** The gist file name. */
+  name?: Maybe<Scalars['String']['output']>;
+  /** The gist file size in bytes. */
+  size?: Maybe<Scalars['Int']['output']>;
+  /** UTF8 text data or null if the file is binary */
+  text?: Maybe<Scalars['String']['output']>;
+};
+
+
+/** A file in a gist. */
+export type GistFileTextArgs = {
+  truncate?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** Represents a comment on an Gist. */
+export type GistComment = Node & {
+  __typename?: 'GistComment';
+  /** The actor who authored the comment. */
+  author?: Maybe<Actor>;
+  /** Identifies the comment body. */
+  body: Scalars['String']['output'];
+  /** The body rendered to text. */
+  bodyText: Scalars['String']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** The associated gist. */
+  gist: Gist;
+  /** The Node ID of the GistComment object */
+  id: Scalars['ID']['output'];
+  /** Check if this comment was edited and includes an edit with the creation data */
+  includesCreatedEdit: Scalars['Boolean']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** Check if the current viewer can delete this object. */
+  viewerCanDelete: Scalars['Boolean']['output'];
+  /** Check if the current viewer can update this object. */
+  viewerCanUpdate: Scalars['Boolean']['output'];
+  /** Did the viewer author this comment. */
+  viewerDidAuthor: Scalars['Boolean']['output'];
+};
+
+/** The connection type for Gist. */
+export type GistConnection = {
+  __typename?: 'GistConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<GistEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Gist>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type GistEdge = {
+  __typename?: 'GistEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Gist>;
+};
+
+/** The connection type for GistComment. */
+export type GistCommentConnection = {
+  __typename?: 'GistCommentConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<GistCommentEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<GistComment>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type GistCommentEdge = {
+  __typename?: 'GistCommentEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<GistComment>;
+};
+
+/** Ordering options for gist connections */
+export type GistOrder = {
+  /** The ordering direction. */
+  direction: OrderDirection;
+  /** The field to order repositories by. */
+  field: GistOrderField;
+};
+
+/** Properties by which gist connections can be ordered. */
+export type GistOrderField =
+  /** Order gists by creation time */
+  | 'CREATED_AT'
+  /** Order gists by push time */
+  | 'PUSHED_AT'
+  /** Order gists by update time */
+  | 'UPDATED_AT';
+
+/** The privacy of a Gist */
+export type GistPrivacy =
+  /** Gists that are public and secret */
+  | 'ALL'
+  /** Public */
+  | 'PUBLIC'
+  /** Secret */
+  | 'SECRET';
+
+/** Represents a given language found in repositories. */
+export type Language = Node & {
+  __typename?: 'Language';
+  /** The Node ID of the Language object */
+  id: Scalars['ID']['output'];
+  /** The name of the current language. */
+  name: Scalars['String']['output'];
+};
+
+/** The connection type for User. */
+export type StargazerConnection = {
+  __typename?: 'StargazerConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<StargazerEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<User>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** Represents a user that's starred a repository. */
+export type StargazerEdge = {
+  __typename?: 'StargazerEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  node: User;
+  /** Identifies when the item was starred. */
+  starredAt: Scalars['DateTime']['output'];
+};
+
+/** Ways in which star connections can be ordered. */
+export type StarOrder = {
+  /** The direction in which to order nodes. */
+  direction: OrderDirection;
+  /** The field in which to order nodes by. */
+  field: StarOrderField;
+};
+
+/** Properties by which star connections can be ordered. */
+export type StarOrderField =
+  /** Allows ordering a list of stars by when they were created. */
+  | 'STARRED_AT';
+
 
 
 export type ResolverTypeWrapper<T> = Promise<T> | T;
@@ -4491,6 +4751,9 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( DiscussionNode )
     | ( DiscussionCategoryNode )
     | ( DiscussionCommentNode )
+    | ( GistNode )
+    | ( GistCommentNode )
+    | ( LanguageNode )
   ;
   UniformResourceLocatable:
     | ( UserNode )
@@ -4498,11 +4761,15 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( ReleaseNode )
     | ( IssueNode )
     | ( PullRequestNode )
+    | ( GistNode )
   ;
   Actor: ( UserNode );
   RepositoryOwner: ( UserNode );
   RepositoryInfo: ( RepositoryNode );
-  Starrable: ( RepositoryNode );
+  Starrable:
+    | ( RepositoryNode )
+    | ( GistNode )
+  ;
   GitObject: ( CommitNode );
   GitSignature:
     | ( GitSignatureNode )
@@ -4786,6 +5053,21 @@ export type ResolversTypes = {
   UpdateDiscussionCommentPayload: ResolverTypeWrapper<Omit<UpdateDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversTypes['DiscussionComment']> }>;
   DeleteDiscussionCommentInput: DeleteDiscussionCommentInput;
   DeleteDiscussionCommentPayload: ResolverTypeWrapper<Omit<DeleteDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversTypes['DiscussionComment']> }>;
+  Gist: ResolverTypeWrapper<GistNode>;
+  GistFile: ResolverTypeWrapper<GistFileNode>;
+  GistComment: ResolverTypeWrapper<GistCommentNode>;
+  GistConnection: ResolverTypeWrapper<Omit<GistConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['GistEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Gist']>>> }>;
+  GistEdge: ResolverTypeWrapper<Omit<GistEdge, 'node'> & { node?: Maybe<ResolversTypes['Gist']> }>;
+  GistCommentConnection: ResolverTypeWrapper<Omit<GistCommentConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['GistCommentEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['GistComment']>>> }>;
+  GistCommentEdge: ResolverTypeWrapper<Omit<GistCommentEdge, 'node'> & { node?: Maybe<ResolversTypes['GistComment']> }>;
+  GistOrder: GistOrder;
+  GistOrderField: GistOrderField;
+  GistPrivacy: GistPrivacy;
+  Language: ResolverTypeWrapper<LanguageNode>;
+  StargazerConnection: ResolverTypeWrapper<Omit<StargazerConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['StargazerEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['User']>>> }>;
+  StargazerEdge: ResolverTypeWrapper<Omit<StargazerEdge, 'node'> & { node: ResolversTypes['User'] }>;
+  StarOrder: StarOrder;
+  StarOrderField: StarOrderField;
 };
 
 /** Mapping between all available schema types and the resolvers parents */
@@ -5005,6 +5287,18 @@ export type ResolversParentTypes = {
   UpdateDiscussionCommentPayload: Omit<UpdateDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversParentTypes['DiscussionComment']> };
   DeleteDiscussionCommentInput: DeleteDiscussionCommentInput;
   DeleteDiscussionCommentPayload: Omit<DeleteDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversParentTypes['DiscussionComment']> };
+  Gist: GistNode;
+  GistFile: GistFileNode;
+  GistComment: GistCommentNode;
+  GistConnection: Omit<GistConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['GistEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Gist']>>> };
+  GistEdge: Omit<GistEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Gist']> };
+  GistCommentConnection: Omit<GistCommentConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['GistCommentEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['GistComment']>>> };
+  GistCommentEdge: Omit<GistCommentEdge, 'node'> & { node?: Maybe<ResolversParentTypes['GistComment']> };
+  GistOrder: GistOrder;
+  Language: LanguageNode;
+  StargazerConnection: Omit<StargazerConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['StargazerEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['User']>>> };
+  StargazerEdge: Omit<StargazerEdge, 'node'> & { node: ResolversParentTypes['User'] };
+  StarOrder: StarOrder;
 };
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = {
@@ -5020,7 +5314,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment' | 'Gist' | 'GistComment' | 'Language', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -5040,7 +5334,7 @@ export type RateLimitResolvers<ContextType = GraphQLContext, ParentType extends 
 };
 
 export type UniformResourceLocatableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UniformResourceLocatable'] = ResolversParentTypes['UniformResourceLocatable']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'Issue' | 'PullRequest', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Release' | 'Issue' | 'PullRequest' | 'Gist', ParentType, ContextType>;
 };
 
 export type ActorResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Actor'] = ResolversParentTypes['Actor']> = {
@@ -5060,6 +5354,7 @@ export type UserResolvers<ContextType = GraphQLContext, ParentType extends Resol
   repository?: Resolver<Maybe<ResolversTypes['Repository']>, ParentType, ContextType, RequireFields<UserRepositoryArgs, 'name'>>;
   projectsV2?: Resolver<ResolversTypes['ProjectV2Connection'], ParentType, ContextType, RequireFields<UserProjectsV2Args, 'minPermissionLevel' | 'orderBy'>>;
   projectV2?: Resolver<Maybe<ResolversTypes['ProjectV2']>, ParentType, ContextType, RequireFields<UserProjectV2Args, 'number'>>;
+  gists?: Resolver<ResolversTypes['GistConnection'], ParentType, ContextType, Partial<UserGistsArgs>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -5117,7 +5412,7 @@ export type RepositoryInfoResolvers<ContextType = GraphQLContext, ParentType ext
 };
 
 export type StarrableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Starrable'] = ResolversParentTypes['Starrable']> = {
-  __resolveType: TypeResolveFn<'Repository', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'Repository' | 'Gist', ParentType, ContextType>;
 };
 
 export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Repository'] = ResolversParentTypes['Repository']> = {
@@ -6285,6 +6580,97 @@ export type DeleteDiscussionCommentPayloadResolvers<ContextType = GraphQLContext
   comment?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
 };
 
+export type GistResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Gist'] = ResolversParentTypes['Gist']> = {
+  comments?: Resolver<ResolversTypes['GistCommentConnection'], ParentType, ContextType, Partial<GistCommentsArgs>>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  files?: Resolver<Maybe<Array<Maybe<ResolversTypes['GistFile']>>>, ParentType, ContextType, RequireFields<GistFilesArgs, 'limit'>>;
+  forks?: Resolver<ResolversTypes['GistConnection'], ParentType, ContextType, Partial<GistForksArgs>>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isFork?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isPublic?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  owner?: Resolver<Maybe<ResolversTypes['RepositoryOwner']>, ParentType, ContextType>;
+  pushedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  stargazerCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  stargazers?: Resolver<ResolversTypes['StargazerConnection'], ParentType, ContextType, Partial<GistStargazersArgs>>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  viewerHasStarred?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type GistFileResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GistFile'] = ResolversParentTypes['GistFile']> = {
+  encodedName?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  extension?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  isImage?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isTruncated?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  language?: Resolver<Maybe<ResolversTypes['Language']>, ParentType, ContextType>;
+  name?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  size?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  text?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType, Partial<GistFileTextArgs>>;
+};
+
+export type GistCommentResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GistComment'] = ResolversParentTypes['GistComment']> = {
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  bodyText?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  gist?: Resolver<ResolversTypes['Gist'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  includesCreatedEdit?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  viewerCanDelete?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanUpdate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerDidAuthor?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type GistConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GistConnection'] = ResolversParentTypes['GistConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['GistEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Gist']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type GistEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GistEdge'] = ResolversParentTypes['GistEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Gist']>, ParentType, ContextType>;
+};
+
+export type GistCommentConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GistCommentConnection'] = ResolversParentTypes['GistCommentConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['GistCommentEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['GistComment']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type GistCommentEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['GistCommentEdge'] = ResolversParentTypes['GistCommentEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['GistComment']>, ParentType, ContextType>;
+};
+
+export type LanguageResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Language'] = ResolversParentTypes['Language']> = {
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type StargazerConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StargazerConnection'] = ResolversParentTypes['StargazerConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['StargazerEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['User']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type StargazerEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['StargazerEdge'] = ResolversParentTypes['StargazerEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<ResolversTypes['User'], ParentType, ContextType>;
+  starredAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+};
+
 export type Resolvers<ContextType = GraphQLContext> = {
   Query?: QueryResolvers<ContextType>;
   Node?: NodeResolvers<ContextType>;
@@ -6451,5 +6837,15 @@ export type Resolvers<ContextType = GraphQLContext> = {
   DeleteDiscussionPayload?: DeleteDiscussionPayloadResolvers<ContextType>;
   UpdateDiscussionCommentPayload?: UpdateDiscussionCommentPayloadResolvers<ContextType>;
   DeleteDiscussionCommentPayload?: DeleteDiscussionCommentPayloadResolvers<ContextType>;
+  Gist?: GistResolvers<ContextType>;
+  GistFile?: GistFileResolvers<ContextType>;
+  GistComment?: GistCommentResolvers<ContextType>;
+  GistConnection?: GistConnectionResolvers<ContextType>;
+  GistEdge?: GistEdgeResolvers<ContextType>;
+  GistCommentConnection?: GistCommentConnectionResolvers<ContextType>;
+  GistCommentEdge?: GistCommentEdgeResolvers<ContextType>;
+  Language?: LanguageResolvers<ContextType>;
+  StargazerConnection?: StargazerConnectionResolvers<ContextType>;
+  StargazerEdge?: StargazerEdgeResolvers<ContextType>;
 };
 

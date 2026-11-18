@@ -1,24 +1,33 @@
-import { type OperationId, routes } from "@pushstack/api-contract/client";
+import {
+	type OperationId,
+	type Route,
+	routes,
+} from "@pushstack/api-contract/client";
 
 // Reserved expansions are optional when they end the path: `/contents` and
 // `/contents/{+path}` name the same operation. Compile the contract once; do
 // not parse templates per request.
-const ROUTES = Object.entries(routes).flatMap(([id, route]) => {
-	const pattern = route.path.replace(
-		/\{(\+?)([a-z_]+)\}/g,
-		(_, plus: string, name: string) => `${plus ? "*" : ":"}${name}`,
-	);
-	const base = { id: id as OperationId, method: route.method };
-	const compiled = (pattern: string) => ({
-		...base,
-		pattern,
-		parts: pattern.split("/").filter(Boolean),
-	});
-	const expansion = pattern.split("/").pop() ?? "";
-	return expansion.startsWith("*")
-		? [compiled(pattern.slice(0, pattern.lastIndexOf("/"))), compiled(pattern)]
-		: [compiled(pattern)];
-});
+const ROUTES = (Object.entries(routes) as [OperationId, Route][]).flatMap(
+	([id, route]) => {
+		const pattern = route.path.replace(
+			/\{(\+?)([a-z_]+)\}/g,
+			(_, plus: string, name: string) => `${plus ? "*" : ":"}${name}`,
+		);
+		const compiled = (method: string, pattern: string) => ({
+			id: id as OperationId,
+			method,
+			pattern,
+			parts: pattern.split("/").filter(Boolean),
+		});
+		const expansion = pattern.split("/").pop() ?? "";
+		const patterns = expansion.startsWith("*")
+			? [pattern.slice(0, pattern.lastIndexOf("/")), pattern]
+			: [pattern];
+		return [route.method, ...(route.also ?? [])].flatMap((method) =>
+			patterns.map((candidate) => compiled(method, candidate)),
+		);
+	},
+);
 
 function matchPattern(
 	parts: string[],

@@ -388,7 +388,7 @@ export interface GistGitRoute {
  * Parse `/{id}.git/(info/refs?service=…|<service>)`, or null. A gist's clone
  * URL is one path segment, which no TanStack route can express (a param cannot
  * share a segment with a literal suffix), so the entry point matches it before
- * the router.
+ * the router. `/gist/{id}.git` is gh's clone URL against GitHub Enterprise.
  */
 export function parseGistGitUrl(url: string): GistGitRoute | null {
 	let pathname: string;
@@ -398,7 +398,9 @@ export function parseGistGitUrl(url: string): GistGitRoute | null {
 	} catch {
 		return null;
 	}
-	const [segment, ...rest] = pathname.split("/").filter(Boolean);
+	const segments = pathname.split("/").filter(Boolean);
+	const [segment, ...rest] =
+		segments[0] === "gist" ? segments.slice(1) : segments;
 	const gistId = segment?.endsWith(".git")
 		? segment.slice(0, -".git".length)
 		: "";

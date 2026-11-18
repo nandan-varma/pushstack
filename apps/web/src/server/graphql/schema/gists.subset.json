@@ -1,0 +1,72 @@
+{
+	"User": [
+		{
+			"name": "gists",
+			"args": ["after", "before", "first", "last", "orderBy", "privacy"]
+		}
+	],
+	"Gist": {
+		"$implements": ["Node", "Starrable", "UniformResourceLocatable"],
+		"fields": [
+			"comments",
+			"createdAt",
+			"description",
+			{
+				"name": "files",
+				"args": ["limit", "oid"]
+			},
+			"forks",
+			"id",
+			"isFork",
+			"isPublic",
+			"name",
+			"owner",
+			"pushedAt",
+			"resourcePath",
+			"stargazerCount",
+			"stargazers",
+			"updatedAt",
+			"url",
+			"viewerHasStarred"
+		]
+	},
+	"GistFile": [
+		"encodedName",
+		"extension",
+		"isImage",
+		"isTruncated",
+		"language",
+		"name",
+		"size",
+		{
+			"name": "text",
+			"args": ["truncate"]
+		}
+	],
+	"GistComment": [
+		"author",
+		"body",
+		"bodyText",
+		"createdAt",
+		"databaseId",
+		"gist",
+		"id",
+		"includesCreatedEdit",
+		"updatedAt",
+		"viewerCanDelete",
+		"viewerCanUpdate",
+		"viewerDidAuthor"
+	],
+	"GistConnection": "*",
+	"GistEdge": "*",
+	"GistCommentConnection": "*",
+	"GistCommentEdge": "*",
+	"GistOrder": "*",
+	"GistOrderField": "*",
+	"GistPrivacy": "*",
+	"Language": ["id", "name"],
+	"StargazerConnection": "*",
+	"StargazerEdge": "*",
+	"StarOrder": "*",
+	"StarOrderField": "*"
+}

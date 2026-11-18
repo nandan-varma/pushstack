@@ -188,7 +188,15 @@ describe("clone at /{id}.git", () => {
 			new Request(`${BASE}/${id}.git/info/refs?service=git-upload-pack`),
 		);
 
-	it("advertises refs/heads/master", async () => {
+	it("advertises refs/heads/master at both clone URLs", async () => {
+		for (const url of [`${BASE}/${GIST_ID}.git`, `${BASE}/gist/${GIST_ID}.git`])
+			expect(
+				(
+					await serveGistGitRequest(
+						new Request(`${url}/info/refs?service=git-upload-pack`),
+					)
+				).status,
+			).toBe(200);
 		const response = await infoRefs(GIST_ID);
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toBe(

@@ -1,0 +1,15 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh gist list --limit 10",
+	"requests": [
+		{
+			"query": "query GistList($endCursor:String$includeContent:Boolean!$per_page:Int!$visibility:GistPrivacy!){viewer{gists(first: $per_page, after: $endCursor, privacy: $visibility, orderBy: {field: CREATED_AT, direction: DESC}){nodes{description,files{name,text @include(if: $includeContent)},isPublic,name,updatedAt},pageInfo{hasNextPage,endCursor}}}}",
+			"variables": {
+				"endCursor": null,
+				"includeContent": false,
+				"per_page": 10,
+				"visibility": "ALL"
+			}
+		}
+	]
+}

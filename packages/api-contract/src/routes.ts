@@ -423,6 +423,7 @@ export const routes = {
 	},
 	"gists/update": {
 		method: "PATCH",
+		also: ["POST"],
 		path: "/gists/{gist_id}",
 		docs: `${DOCS}/gists/gists#update-a-gist`,
 	},

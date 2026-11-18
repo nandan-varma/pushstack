@@ -181,7 +181,7 @@ beforeAll(async () => {
 		userId: USER.id,
 		name: "gh smoke",
 		tokenHash: await hashToken(PAT),
-		scopes: ["repo:write"],
+		scopes: ["repo:write", "gist"],
 	});
 
 	const routes = {
@@ -202,6 +202,10 @@ beforeAll(async () => {
 			(await import("../../src/routes/$owner.$name.git-receive-pack")).Route,
 		),
 	};
+
+	const { parseGistGitUrl, serveGistGitRequest } = await import(
+		"../../src/server/git-http"
+	);
 
 	const serve = async (req: IncomingMessage, res: ServerResponse) => {
 		const chunks: Buffer[] = [];
@@ -227,9 +231,11 @@ beforeAll(async () => {
 		const handler = prefix
 			? routes[prefix][req.method ?? "GET"]
 			: gitRoutes[pathname.split("/").pop() ?? ""]?.[req.method ?? "GET"];
-		const response = handler
-			? await handler({ request })
-			: new Response("Not Found", { status: 404 });
+		const response = parseGistGitUrl(request.url)
+			? await serveGistGitRequest(request)
+			: handler
+				? await handler({ request })
+				: new Response("Not Found", { status: 404 });
 		res.writeHead(response.status, Object.fromEntries(response.headers));
 		res.end(Buffer.from(await response.arrayBuffer()));
 	};
@@ -779,11 +785,73 @@ describe.skipIf(!enabled)(
 			]);
 		}, 120_000);
 
+		it("creates, lists, views, edits, clones and deletes a gist", async () => {
+			const file = path.join(work, "smoke-gist.txt");
+			await writeFile(file, "gist smoke contents\n");
+			const created = await ghAs(
+				"gist-create",
+				"gist",
+				"create",
+				file,
+				"--public",
+				"--desc",
+				"Smoke gist",
+			);
+			const url = created.stdout.split("\n").filter(Boolean).at(-1) ?? "";
+			const id = url.split("/").at(-1) ?? "";
+			expect(id).toMatch(/^[0-9a-f]{32}$/);
+
+			const listed = await ghAs("gist-list", "gist", "list", "--limit", "10");
+			expect(listed.stdout).toContain(id.slice(0, 8));
+			expect(listed.stdout).toContain("Smoke gist");
+
+			const view = await ghAs("gist-view", "gist", "view", id, "--raw");
+			expect(view.stdout).toContain("gist smoke contents");
+
+			const added = path.join(work, "added.txt");
+			await writeFile(added, "added later\n");
+			await ghAs(
+				"gist-edit",
+				"gist",
+				"edit",
+				id,
+				"--add",
+				added,
+				"--desc",
+				"Edited gist",
+			);
+			const files = await ghAs(
+				"gist-view-files",
+				"gist",
+				"view",
+				id,
+				"--files",
+			);
+			expect(files.stdout).toContain("added.txt");
+
+			await ghAs(
+				"gist-clone",
+				"gist",
+				"clone",
+				id,
+				path.join(work, "gist-clone"),
+			);
+			expect(
+				await readFile(path.join(work, "gist-clone", "smoke-gist.txt"), "utf8"),
+			).toBe("gist smoke contents\n");
+
+			await ghAs("gist-delete", "gist", "delete", id, "--yes");
+			const gone = await ghFails("gist-view-missing", "gist", "view", id);
+			expect(gone).toMatch(/not found|404/i);
+		});
+
 		it("calls the REST API, which reports the token's classic scopes", async () => {
 			const { stdout } = await gh("api", "--hostname", host, "user");
 			expect(JSON.parse(stdout).login).toBe("octo");
 			const included = await gh("api", "--hostname", host, "--include", "/");
-			expect(included.stdout).toMatch(/^X-Oauth-Scopes: read:org, repo$/im);
+			expect(included.stdout).toMatch(
+				/^X-Oauth-Scopes: gist, read:org, repo$/im,
+			);
 		});
 
 		// Not served yet (issues/pulls domains): with GH_CAPTURE_FIXTURES=1 this

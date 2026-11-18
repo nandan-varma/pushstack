@@ -331,6 +331,16 @@ export async function findGistComment(
 	return row ? commentOf(row) : null;
 }
 
+/** A gist comment by its own id, for `node(id:)`. */
+export async function findGistCommentById(
+	id: number,
+): Promise<GistCommentWithAuthor | null> {
+	const [row] = await commentWithAuthor()
+		.where(eq(gistComments.id, id))
+		.limit(1);
+	return row ? commentOf(row) : null;
+}
+
 export async function insertGistComment(input: {
 	gistId: string;
 	userId: string;

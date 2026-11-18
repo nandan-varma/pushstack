@@ -5,6 +5,11 @@
 import { buildSchema, type GraphQLSchema, isObjectType } from "graphql";
 import { coreResolvers, nodeLoaders } from "./resolvers/core";
 import { discussionsResolvers } from "./resolvers/discussions";
+import {
+	gistNodes,
+	gistTypeResolvers,
+	userGistFields,
+} from "./resolvers/gists";
 import { issuesResolvers } from "./resolvers/issues";
 import { projectsResolvers } from "./resolvers/projects";
 import { pullsResolvers } from "./resolvers/pulls";
@@ -12,10 +17,16 @@ import { repositoryResolvers } from "./resolvers/repository";
 import type { DomainResolvers } from "./resolvers/types";
 import coreSdl from "./schema/core.graphql?raw";
 import discussionsSdl from "./schema/discussions.graphql?raw";
+import gistsSdl from "./schema/gists.graphql?raw";
 import issuesSdl from "./schema/issues.graphql?raw";
 import projectsSdl from "./schema/projects.graphql?raw";
 import pullsSdl from "./schema/pulls.graphql?raw";
 import repositorySdl from "./schema/repository.graphql?raw";
+
+const gistsResolvers: DomainResolvers = {
+	types: { User: userGistFields, ...gistTypeResolvers },
+	nodes: gistNodes,
+};
 
 /** In scripts/graphql-vendor.mjs's DOMAINS order: definitions before extensions. */
 const DOMAINS: [string, DomainResolvers][] = [
@@ -25,6 +36,7 @@ const DOMAINS: [string, DomainResolvers][] = [
 	[pullsSdl, pullsResolvers],
 	[projectsSdl, projectsResolvers],
 	[discussionsSdl, discussionsResolvers],
+	[gistsSdl, gistsResolvers],
 ];
 
 const schemaSdl = DOMAINS.map(([sdl]) => sdl).join("\n");
