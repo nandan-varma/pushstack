@@ -46,6 +46,9 @@ export type TimelineEvent =
 	| { event: "reopened" }
 	| { event: "merged"; commitSha: string; base: string }
 	| { event: "cross-referenced"; source: ThreadRef }
+	/** An issue became a discussion, or a discussion an issue (`#N` is kept). */
+	| { event: "converted_to_discussion" }
+	| { event: "converted_to_issue" }
 	| { event: "head_ref_deleted"; branch: string }
 	| { event: "renamed"; from: string; to: string }
 	/** A draft pull request was marked ready, or a ready one converted to a draft. */

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { CircleDot, GitPullRequest } from "lucide-react";
+import { CircleDot, GitPullRequest, MessagesSquare } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { useToast } from "@/components/toast-provider";
@@ -210,7 +210,12 @@ function NotificationRow({
 	onRead: () => void;
 	pending: boolean;
 }) {
-	const Icon = item.subject.type === "PullRequest" ? GitPullRequest : CircleDot;
+	const Icon =
+		item.subject.type === "PullRequest"
+			? GitPullRequest
+			: item.subject.type === "Discussion"
+				? MessagesSquare
+				: CircleDot;
 	return (
 		<li
 			className={cn(
@@ -239,7 +244,9 @@ function NotificationRow({
 						to={
 							item.subject.type === "Issue"
 								? "/$owner/$name/issues/$id"
-								: "/$owner/$name/pull/$id/{-$tab}"
+								: item.subject.type === "Discussion"
+									? "/$owner/$name/discussions/$id"
+									: "/$owner/$name/pull/$id/{-$tab}"
 						}
 						params={{
 							owner: item.repository.owner,

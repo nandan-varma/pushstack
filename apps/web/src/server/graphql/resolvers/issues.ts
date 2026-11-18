@@ -33,6 +33,7 @@ import {
 	findComment,
 	listCommentsForThread,
 } from "../../comment-store";
+import { findDiscussionById } from "../../discussion-store";
 import { createIssueForUser, updateIssueThreadFields } from "../../issue-store";
 import { setThreadLabels, UnknownLabelError } from "../../label-store";
 import { findMilestoneById, setThreadMilestone } from "../../milestone-store";
@@ -74,6 +75,7 @@ import {
 	rowIdOfNodeKey,
 } from "../node-id";
 import { loadUser, userNode } from "./core";
+import { discussionNode } from "./discussions";
 import type {
 	AddAssigneesToAssignableInput,
 	AddCommentInput,
@@ -347,12 +349,13 @@ async function commentNodes(
 }
 
 /**
- * A search's connection with its count: `issueCount` for an ISSUE search and
- * `repositoryCount` for a REPOSITORY one. The other count is an error, not 0.
+ * A search's connection with its count: `issueCount` for an ISSUE search,
+ * `discussionCount` for a DISCUSSION one and `repositoryCount` for a
+ * REPOSITORY one. The other counts are errors, not 0.
  */
 function searchConnection<T>(
 	connection: Connection<T>,
-	searchType: "ISSUE" | "REPOSITORY",
+	searchType: "ISSUE" | "DISCUSSION" | "REPOSITORY",
 	total: number,
 ) {
 	return {
@@ -360,6 +363,13 @@ function searchConnection<T>(
 		get issueCount() {
 			if (searchType !== "ISSUE")
 				throw unprocessable("issueCount is served for ISSUE searches only");
+			return total;
+		},
+		get discussionCount() {
+			if (searchType !== "DISCUSSION")
+				throw unprocessable(
+					"discussionCount is served for DISCUSSION searches only",
+				);
 			return total;
 		},
 		get repositoryCount() {
@@ -373,11 +383,12 @@ function searchConnection<T>(
 }
 
 /**
- * `Query.search`: GitHub's issue and pull request search (`ISSUE`) and its
- * repository search (`REPOSITORY`) over the repositories the caller can read,
- * or the public ones anonymously; `repo:` and `user:` narrow the scope. A
- * qualifier or value the search does not serve is `UNPROCESSABLE`, never read as
- * text or dropped; `ISSUE_ADVANCED` and the other types are not served.
+ * `Query.search`: GitHub's issue and pull request search (`ISSUE`), its
+ * discussion search (`DISCUSSION`) and its repository search (`REPOSITORY`)
+ * over the repositories the caller can read, or the public ones anonymously;
+ * `repo:` and `user:` narrow the scope. A qualifier or value the search does not
+ * serve is `UNPROCESSABLE`, never read as text or dropped; `ISSUE_ADVANCED` and
+ * the other types are not served.
  */
 async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 	if (args.query.length > MAX_SEARCH_QUERY_CHARS)
@@ -385,9 +396,9 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 			`The search query exceeds ${MAX_SEARCH_QUERY_CHARS} characters`,
 		);
 	if (args.type === "REPOSITORY") return searchRepositories(args, ctx);
-	if (args.type !== "ISSUE")
+	if (args.type !== "ISSUE" && args.type !== "DISCUSSION")
 		throw unprocessable(
-			`${args.type} search is not served (ISSUE and REPOSITORY are)`,
+			`${args.type} search is not served (DISCUSSION, ISSUE and REPOSITORY are)`,
 		);
 	const scope = splitScopeQualifiers(args.query);
 	if (scope.repos.length > 1 || scope.owners.length > 1)
@@ -398,25 +409,33 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 	const query = parseSearchQuery(scope.rest);
 	const viewer = await loadUser(ctx, ctx.caller.userId);
 	if (!viewer) throw new Error("Authenticated user missing");
-	const filter: ThreadFilter = query.matchesNothing
-		? { repoScope: sql`false` }
-		: {
-				repoScope: threadScope(ctx.caller.userId, scope),
-				kind:
-					query.type === "pr"
-						? "pull_request"
-						: query.type === "issue"
-							? "issue"
-							: undefined,
-				state:
-					query.status === "open"
-						? "open"
-						: query.status === "closed" || query.status === "merged"
-							? "closed"
-							: undefined,
-				merged: query.status === "merged" ? true : undefined,
-				...searchFilter(query, viewer.username),
-			};
+	const kind =
+		args.type === "DISCUSSION"
+			? query.type === undefined || query.type === "discussion"
+				? ("discussion" as const)
+				: null
+			: query.type === "discussion"
+				? null
+				: query.type === "pr"
+					? ("pull_request" as const)
+					: query.type === "issue"
+						? ("issue" as const)
+						: undefined;
+	const filter: ThreadFilter =
+		query.matchesNothing || kind === null
+			? { repoScope: sql`false` }
+			: {
+					repoScope: threadScope(ctx.caller.userId, scope),
+					kind,
+					state:
+						query.status === "open"
+							? "open"
+							: query.status === "closed" || query.status === "merged"
+								? "closed"
+								: undefined,
+					merged: query.status === "merged" ? true : undefined,
+					...searchFilter(query, viewer.username),
+				};
 	const sort = searchSort(query.sort);
 	// The page query carries its own total (a window count), so a search costs no
 	// separate count query.
@@ -433,14 +452,23 @@ async function search(args: QuerySearchArgs, ctx: GraphQLContext) {
 			threads.map(async (row) => {
 				const repo = await repositoryNodeById(ctx, row.repoId);
 				if (!repo) throw new Error("Search result repository unreadable");
-				return row.kind === "pull_request"
-					? pullNode(repo, pullRequestView(row))
-					: issueNode(repo, row);
+				if (row.kind === "pull_request")
+					return pullNode(repo, pullRequestView(row));
+				if (row.kind === "discussion") {
+					const discussion = await findDiscussionById(
+						row.id,
+						ctx.caller.userId,
+					);
+					if (!discussion)
+						throw new Error("Search result discussion unreadable");
+					return discussionNode(repo, discussion);
+				}
+				return issueNode(repo, row);
 			}),
 		);
 		return { items, total };
 	});
-	return searchConnection(connection, "ISSUE", connection.totalCount);
+	return searchConnection(connection, args.type, connection.totalCount);
 }
 
 /** `Query.search(type: REPOSITORY)`: the repositories a query names, newest first. */

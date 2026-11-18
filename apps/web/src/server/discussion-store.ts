@@ -736,7 +736,7 @@ export async function createDiscussionCommentForUser(
 }
 
 export async function setDiscussionAnswer(
-	issueId: number,
+	issue: Issue,
 	userId: string,
 	commentId: number | null,
 ): Promise<void> {
@@ -747,7 +747,18 @@ export async function setDiscussionAnswer(
 			answerChosenAt: commentId === null ? null : new Date(),
 			answerChosenById: commentId === null ? null : userId,
 		})
-		.where(eq(discussions.issueId, issueId));
+		.where(eq(discussions.issueId, issue.id));
+	if (commentId === null) return;
+	await bestEffort(
+		"discussion-store",
+		`The answer notification of #${issue.number}`,
+		() =>
+			recordThreadActivity({
+				thread: issue,
+				actorId: userId,
+				actorReason: "state_change",
+			}),
+	);
 }
 
 /** One upvote per viewer and subject, enforced by the partial unique indexes. */
@@ -852,6 +863,103 @@ export async function updateDiscussionFields(
 
 export async function deleteDiscussion(issue: Issue): Promise<void> {
 	await db.delete(issues).where(eq(issues.id, issue.id));
+}
+
+export async function setDiscussionLocked(
+	issueId: number,
+	locked: boolean,
+): Promise<void> {
+	await db
+		.update(discussions)
+		.set({ locked })
+		.where(eq(discussions.issueId, issueId));
+}
+
+/** Pinning only orders the list; it carries no badge (GitHub's pinned card patterns are not served). */
+export async function setDiscussionPinned(
+	issueId: number,
+	pinned: boolean,
+): Promise<void> {
+	await db
+		.update(discussions)
+		.set({ pinnedAt: pinned ? new Date() : null })
+		.where(eq(discussions.issueId, issueId));
+}
+
+/**
+ * An issue becomes a discussion on the same `issues` row, so `#N`, its
+ * comments, labels and subscriptions stay. The discussion row is written
+ * first: a failed kind flip removes it again, leaving the issue as it was.
+ */
+export async function convertIssueToDiscussion(
+	issue: Pick<Issue, "id" | "kind" | "number">,
+	userId: string,
+	categoryId: number,
+): Promise<void> {
+	if (issue.kind !== "issue")
+		throw new Error("Only an issue converts to a discussion");
+	await db.insert(discussions).values({ issueId: issue.id, categoryId });
+	try {
+		await db
+			.update(issues)
+			.set({ kind: "discussion", updatedAt: new Date() })
+			.where(eq(issues.id, issue.id));
+	} catch (error) {
+		await db
+			.delete(discussions)
+			.where(eq(discussions.issueId, issue.id))
+			.catch((cleanup: unknown) =>
+				logError(
+					"discussion-store",
+					`Discussion ${issue.id} was not removed after a failed conversion`,
+					cleanup,
+				),
+			);
+		throw error;
+	}
+	await bestEffort(
+		"discussion-store",
+		`The conversion event of #${issue.number}`,
+		() =>
+			recordTimelineEvent(issue.id, userId, {
+				event: "converted_to_discussion",
+			}),
+	);
+}
+
+/** The reverse: the discussion row goes, the `issues` row becomes an issue. */
+export async function convertDiscussionToIssue(
+	issue: Pick<Issue, "id" | "kind" | "number">,
+	userId: string,
+): Promise<void> {
+	if (issue.kind !== "discussion")
+		throw new Error("Only a discussion converts to an issue");
+	await db
+		.update(issues)
+		.set({ kind: "issue", updatedAt: new Date() })
+		.where(eq(issues.id, issue.id));
+	try {
+		await db.delete(discussions).where(eq(discussions.issueId, issue.id));
+	} catch (error) {
+		await db
+			.update(issues)
+			.set({ kind: "discussion" })
+			.where(eq(issues.id, issue.id))
+			.catch((cleanup: unknown) =>
+				logError(
+					"discussion-store",
+					`Issue ${issue.id} was not restored after a failed conversion`,
+					cleanup,
+				),
+			);
+		throw error;
+	}
+	await bestEffort(
+		"discussion-store",
+		`The conversion event of #${issue.number}`,
+		() =>
+			recordTimelineEvent(issue.id, userId, { event: "converted_to_issue" }),
+	);
 }
 
 export { deleteCommentRow, updateCommentRow };

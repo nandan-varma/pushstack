@@ -100,39 +100,41 @@ export async function searchIssuesHandler(ctx: ApiContext) {
 				.from(user)
 				.where(eq(user.id, viewer))
 		: [];
-	const found = query.matchesNothing
-		? { threads: [], total: 0 }
-		: await (async () => {
-				const filter = {
-					repoScope: threadScope(viewer, scope),
-					kind:
-						query.type === "pr"
-							? ("pull_request" as const)
-							: query.type === "issue"
-								? ("issue" as const)
-								: undefined,
-					state:
-						query.status === "open"
-							? ("open" as const)
-							: query.status === "closed" || query.status === "merged"
-								? ("closed" as const)
-								: undefined,
-					merged: query.status === "merged" ? true : undefined,
-					...searchFilter(query, viewerRow?.username),
-				};
-				// `sort` and `order` as the REST API names them; the `sort:` qualifier otherwise.
-				const threadSort: ThreadSort = sort
-					? { by: sort, direction: order ?? "desc" }
-					: searchSort(query.sort);
-				// One query: the page carries its own total (a window count), and a
-				// page past the skip bound still reports the real total.
-				const { threads, total } = await listThreads(filter, {
-					limit: params.reachable ? params.perPage : 0,
-					offset: params.offset,
-					sort: threadSort,
-				});
-				return { threads, total };
-			})();
+	// GitHub's issue search serves neither discussions nor `is:discussion`.
+	const found =
+		query.matchesNothing || query.type === "discussion"
+			? { threads: [], total: 0 }
+			: await (async () => {
+					const filter = {
+						repoScope: threadScope(viewer, scope),
+						kind:
+							query.type === "pr"
+								? ("pull_request" as const)
+								: query.type === "issue"
+									? ("issue" as const)
+									: undefined,
+						state:
+							query.status === "open"
+								? ("open" as const)
+								: query.status === "closed" || query.status === "merged"
+									? ("closed" as const)
+									: undefined,
+						merged: query.status === "merged" ? true : undefined,
+						...searchFilter(query, viewerRow?.username),
+					};
+					// `sort` and `order` as the REST API names them; the `sort:` qualifier otherwise.
+					const threadSort: ThreadSort = sort
+						? { by: sort, direction: order ?? "desc" }
+						: searchSort(query.sort);
+					// One query: the page carries its own total (a window count), and a
+					// page past the skip bound still reports the real total.
+					const { threads, total } = await listThreads(filter, {
+						limit: params.reachable ? params.perPage : 0,
+						offset: params.offset,
+						sort: threadSort,
+					});
+					return { threads, total };
+				})();
 	const repos = await repositoriesWithOwner([
 		...new Set(found.threads.map((thread) => thread.repoId)),
 	]);

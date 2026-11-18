@@ -12,6 +12,7 @@ import { findComment } from "./comment-store";
 import {
 	addDiscussionUpvote,
 	setDiscussionAnswer as chooseDiscussionAnswer,
+	convertDiscussionToIssue as convertToIssue,
 	createDiscussionCommentForUser,
 	createDiscussionForUser,
 	type DiscussionCommentRow,
@@ -24,6 +25,8 @@ import {
 	listDiscussionReplies,
 	listDiscussions,
 	removeDiscussionUpvote,
+	setDiscussionLocked,
+	setDiscussionPinned,
 } from "./discussion-store";
 import { readInput, threadNumberSchema } from "./read-input";
 import {
@@ -32,6 +35,7 @@ import {
 	readWithAccess,
 	requireNotArchived,
 	requireParticipateAccess,
+	writeWithAccess,
 } from "./repo-access";
 import { readRepoByName } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
@@ -60,6 +64,7 @@ export interface DiscussionView {
 		format: "open" | "announcement" | "q_and_a";
 	};
 	locked: boolean;
+	pinnedAt: Date | null;
 	isAnswered: boolean;
 	answerCommentId: number | null;
 	upvoteCount: number;
@@ -89,6 +94,7 @@ function discussionView(
 			format: row.category.format,
 		},
 		locked: row.locked,
+		pinnedAt: row.pinnedAt,
 		isAnswered: row.answerCommentId != null,
 		answerCommentId: row.answerCommentId,
 		upvoteCount: row.upvoteCount,
@@ -168,6 +174,14 @@ export const getDiscussions = createServerFn({ method: "GET" })
 				viewer,
 			};
 		}),
+	);
+
+export const getDiscussionCategories = createServerFn({ method: "GET" })
+	.validator(z.object({ repoId: z.number().int().positive() }))
+	.handler(({ data }) =>
+		readWithAccess("getDiscussionCategories", data.repoId, () =>
+			listDiscussionCategories(data.repoId),
+		),
 	);
 
 export const getDiscussionByNumber = createServerFn({ method: "GET" })
@@ -341,9 +355,51 @@ export const markDiscussionAnswer = createServerFn({ method: "POST" })
 			throw new Error("Access denied");
 		}
 		await chooseDiscussionAnswer(
-			thread.id,
+			discussion.issue,
 			user.id,
 			data.answered ? comment.id : null,
 		);
 		return { answered: data.answered };
+	});
+
+/** Lock or unlock a discussion: a locked one refuses new comments and replies. */
+export const lockDiscussion = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			discussionId: z.number().int().positive(),
+			locked: z.boolean(),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const thread = await findDiscussionByIdForRead(data.discussionId);
+		await writeWithAccess(thread.repoId, () =>
+			setDiscussionLocked(thread.id, data.locked),
+		);
+		return { locked: data.locked };
+	});
+
+export const pinDiscussion = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			discussionId: z.number().int().positive(),
+			pinned: z.boolean(),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const thread = await findDiscussionByIdForRead(data.discussionId);
+		await writeWithAccess(thread.repoId, () =>
+			setDiscussionPinned(thread.id, data.pinned),
+		);
+		return { pinned: data.pinned };
+	});
+
+/** The discussion becomes an issue on the same `#N`. */
+export const convertDiscussionToIssue = createServerFn({ method: "POST" })
+	.validator(z.object({ discussionId: z.number().int().positive() }))
+	.handler(async ({ data }) => {
+		const thread = await findDiscussionByIdForRead(data.discussionId);
+		await writeWithAccess(thread.repoId, (_repo, user) =>
+			convertToIssue(thread, user.id),
+		);
+		return { number: thread.number };
 	});

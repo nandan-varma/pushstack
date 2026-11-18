@@ -932,7 +932,7 @@ export const notificationThread = z.strictObject({
 		title: z.string(),
 		url,
 		latest_comment_url: url,
-		type: z.enum(["Issue", "PullRequest"]),
+		type: z.enum(["Discussion", "Issue", "PullRequest"]),
 	}),
 	reason: z.enum([
 		"assign",

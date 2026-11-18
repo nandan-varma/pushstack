@@ -5,7 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { CircleCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CommentCard } from "@/components/CommentCard";
 import { CommentForm, SignInToComment } from "@/components/CommentForm";
 import { useToast } from "@/components/toast-provider";
@@ -24,6 +24,7 @@ import {
 	markDiscussionAnswer,
 	toggleDiscussionUpvote,
 } from "@/server/discussions";
+import { markThreadViewed } from "@/server/notifications";
 
 function UpvoteButton({
 	count,
@@ -81,6 +82,12 @@ export function DiscussionThread({
 	const [draft, setDraft] = useState("");
 	const [replyTo, setReplyTo] = useState<number | null>(null);
 	const [replyDraft, setReplyDraft] = useState("");
+
+	useEffect(() => {
+		void markThreadViewed({
+			data: { repoId: discussion.repoId, number: discussion.number },
+		});
+	}, [discussion.repoId, discussion.number]);
 
 	const discussionKey = discussionByNumberQueryOptions({
 		owner,
@@ -147,7 +154,7 @@ export function DiscussionThread({
 		) : null;
 
 	const replyForm = (item: DiscussionCommentView) =>
-		replyTo === item.id ? (
+		replyTo === item.id && !discussion.locked ? (
 			<CommentForm
 				value={replyDraft}
 				onChange={setReplyDraft}
@@ -195,6 +202,13 @@ export function DiscussionThread({
 				}
 			/>
 
+			{discussion.locked && (
+				<p className="rounded-2xl border border-bjork-border-muted bg-bjork-surface px-4 py-3 text-sm text-bjork-text-muted">
+					This conversation has been locked. New comments and replies are
+					closed.
+				</p>
+			)}
+
 			{comments.isLoading ? (
 				<p className="text-sm text-bjork-text-soft">Loading comments…</p>
 			) : (
@@ -209,7 +223,7 @@ export function DiscussionThread({
 								<div className="flex flex-wrap items-center gap-2">
 									{item.isAnswer && <AnswerBadge />}
 									{answerControl(item)}
-									{canParticipate && (
+									{canParticipate && !discussion.locked && (
 										<Button
 											variant="ghost"
 											size="sm"

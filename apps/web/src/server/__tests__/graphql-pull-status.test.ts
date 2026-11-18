@@ -303,7 +303,8 @@ describe("Query.search over issues and pull requests", () => {
 		const userSearch = await search(alice, "repo:alice/proj", "USER");
 		expect(userSearch.body.errors[0]).toMatchObject({
 			type: "UNPROCESSABLE",
-			message: "USER search is not served (ISSUE and REPOSITORY are)",
+			message:
+				"USER search is not served (DISCUSSION, ISSUE and REPOSITORY are)",
 		});
 		const long = await search(
 			alice,

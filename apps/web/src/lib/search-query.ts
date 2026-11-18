@@ -28,7 +28,7 @@ export type SearchSort = (typeof SEARCH_SORTS)[number];
 const DEFAULT_SEARCH_SORT: SearchSort = "created-desc";
 
 export type SearchStatus = "open" | "closed" | "merged" | "all";
-export type SearchType = "issue" | "pr";
+export type SearchType = "issue" | "pr" | "discussion";
 
 export interface SearchQuery {
 	terms: string[];
@@ -204,9 +204,13 @@ export function parseSearchQuery(input: string): SearchQuery {
 				if (value) terms.push(value);
 				break;
 			case "type": {
-				// GitHub's `type:issue` / `type:pr`, the same as `is:issue` / `is:pr`.
+				// GitHub's `type:issue` / `type:pr` / `type:discussion`, the same as `is:`.
 				const normalized = value.toLowerCase();
-				if (normalized === "issue" || normalized === "pr")
+				if (
+					normalized === "issue" ||
+					normalized === "pr" ||
+					normalized === "discussion"
+				)
 					types.add(normalized);
 				break;
 			}
@@ -214,7 +218,11 @@ export function parseSearchQuery(input: string): SearchQuery {
 			case "state": {
 				const normalized = value.toLowerCase();
 				if (isStateToken(normalized)) statuses.add(normalized);
-				else if (normalized === "issue" || normalized === "pr")
+				else if (
+					normalized === "issue" ||
+					normalized === "pr" ||
+					normalized === "discussion"
+				)
 					types.add(normalized);
 				break;
 			}
@@ -263,7 +271,7 @@ export function parseSearchQuery(input: string): SearchQuery {
 	let matchesNothing =
 		types.size > 1 ||
 		drafts.size > 1 ||
-		(drafts.size > 0 && types.has("issue"));
+		(drafts.size > 0 && (types.has("issue") || types.has("discussion")));
 	if (statuses.has("all")) status = "all";
 	else if (statuses.size === 1) status = [...statuses][0];
 	else if (
@@ -310,6 +318,7 @@ export function unservedQualifier(input: string): string | null {
 		"all",
 		"issue",
 		"pr",
+		"discussion",
 	];
 	for (const token of tokenize(input)) {
 		const named = /^(-?)([A-Za-z][\w-]*):/.exec(token.raw);
@@ -319,7 +328,7 @@ export function unservedQualifier(input: string): string | null {
 		if (value === "") return token.raw;
 		const served =
 			token.name === "type"
-				? value === "issue" || value === "pr"
+				? value === "issue" || value === "pr" || value === "discussion"
 				: token.name === "is" || token.name === "state"
 					? servedStates.includes(value)
 					: token.name === "no"

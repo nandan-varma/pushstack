@@ -54,7 +54,7 @@ export interface NotificationItem {
 	issueId: number;
 	repoId: number;
 	subject: {
-		type: "Issue" | "PullRequest";
+		type: "Discussion" | "Issue" | "PullRequest";
 		number: number;
 		title: string;
 		state: "open" | "closed";

@@ -10,6 +10,7 @@ import {
 } from "@/components/DetailHeader";
 import { useEditableTitle } from "@/components/EditableTitle";
 import { IssueAssignees } from "@/components/IssueAssignees";
+import { IssueConvertMenu } from "@/components/issues/IssueConvertMenu";
 import { SplitLayout } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { ReactionBar } from "@/components/ReactionBar";
@@ -27,6 +28,7 @@ import { useOptimisticUpdate } from "@/hooks/use-optimistic-update";
 import { contentQuery } from "@/lib/prefetch";
 import {
 	authSessionQueryOptions,
+	discussionByNumberQueryOptions,
 	issueByNumberQueryOptions,
 	issueCommentsQueryOptions,
 	pullRequestByNumberQueryOptions,
@@ -61,19 +63,30 @@ export const Route = createFileRoute("/$owner/$name/issues/$id")({
 					}),
 				)
 				.catch((error: unknown) =>
-					ensureThreadNumberRedirect(
-						error,
-						params,
-						() =>
-							queryClient.ensureQueryData(
-								pullRequestByNumberQueryOptions({
-									owner: params.owner,
-									name: params.name,
-									number: issueNumber,
-								}),
-							),
-						"/$owner/$name/pull/$id/{-$tab}",
-					),
+					ensureThreadNumberRedirect(error, params, [
+						{
+							route: "/$owner/$name/pull/$id/{-$tab}",
+							find: () =>
+								queryClient.ensureQueryData(
+									pullRequestByNumberQueryOptions({
+										owner: params.owner,
+										name: params.name,
+										number: issueNumber,
+									}),
+								),
+						},
+						{
+							route: "/$owner/$name/discussions/$id",
+							find: () =>
+								queryClient.ensureQueryData(
+									discussionByNumberQueryOptions({
+										owner: params.owner,
+										name: params.name,
+										number: issueNumber,
+									}),
+								),
+						},
+					]),
 				),
 		]);
 
@@ -117,6 +130,9 @@ function IssueDetailPage() {
 	const issueNumber = Number(id);
 	const { data: issue, isLoading } = useQuery(
 		issueByNumberQueryOptions({ owner, name, number: issueNumber }),
+	);
+	const { data: repo } = useQuery(
+		repositoryByNameQueryOptions({ owner, name }),
 	);
 
 	const comments = useThreadComments({
@@ -200,6 +216,7 @@ function IssueDetailPage() {
 		<IssueDetail
 			issue={issue}
 			canEdit={canEdit}
+			canConvert={Boolean(repo?.hasDiscussions)}
 			isSaving={updateMutation.isPending}
 			onSaveTitle={(title) =>
 				updateMutation.mutateAsync({ data: { issueId: issue.id, title } })
@@ -227,6 +244,7 @@ type LoadedIssue = NonNullable<Awaited<ReturnType<typeof getIssueByNumber>>>;
 function IssueDetail({
 	issue,
 	canEdit,
+	canConvert,
 	isSaving,
 	onSaveTitle,
 	onSaveBody,
@@ -236,6 +254,7 @@ function IssueDetail({
 }: {
 	issue: LoadedIssue;
 	canEdit: boolean;
+	canConvert: boolean;
 	isSaving: boolean;
 	onSaveTitle: (title: string) => Promise<unknown>;
 	onSaveBody: (body: string) => Promise<unknown>;
@@ -264,7 +283,20 @@ function IssueDetail({
 						opened this issue <RelativeTime date={issue.createdAt} />
 					</p>
 				}
-				actions={editButton}
+				actions={
+					<>
+						{editButton}
+						{canConvert && issue.viewer.canWrite && (
+							<IssueConvertMenu
+								owner={owner}
+								name={name}
+								repoId={issue.repoId}
+								issueId={issue.id}
+								issueNumber={issue.number}
+							/>
+						)}
+					</>
+				}
 			/>
 
 			<SplitLayout

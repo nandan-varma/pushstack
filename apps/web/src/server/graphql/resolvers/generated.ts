@@ -2184,7 +2184,7 @@ export type SearchType =
   | 'USER';
 
 /** The results of a search. */
-export type SearchResultItem = Issue | PullRequest | Repository;
+export type SearchResultItem = Discussion | Issue | PullRequest | Repository;
 
 /**
  * A list of results that matched against a search query. Regardless of the number
@@ -2195,6 +2195,12 @@ export type SearchResultItemConnection = {
   __typename?: 'SearchResultItemConnection';
   /** A list of edges. */
   edges?: Maybe<Array<Maybe<SearchResultItemEdge>>>;
+  /**
+   * The total number of discussions that matched the search query. Regardless of
+   * the total number of matches, a maximum of 1,000 results will be available
+   * across all types.
+   */
+  discussionCount: Scalars['Int']['output'];
   /**
    * The total number of issues that matched the search query. Regardless of the
    * total number of matches, a maximum of 1,000 results will be available across all types.
@@ -4693,6 +4699,7 @@ export type ResolversUnionTypes<_RefType extends Record<string, unknown>> = {
     | ( PullRequestNode )
   ;
   SearchResultItem:
+    | ( DiscussionNode )
     | ( IssueNode )
     | ( PullRequestNode )
     | ( RepositoryNode )
@@ -5841,11 +5848,12 @@ export type AddCommentPayloadResolvers<ContextType = GraphQLContext, ParentType 
 };
 
 export type SearchResultItemResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItem'] = ResolversParentTypes['SearchResultItem']> = {
-  __resolveType: TypeResolveFn<'Issue' | 'PullRequest' | 'Repository', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'Discussion' | 'Issue' | 'PullRequest' | 'Repository', ParentType, ContextType>;
 };
 
 export type SearchResultItemConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['SearchResultItemConnection'] = ResolversParentTypes['SearchResultItemConnection']> = {
   edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItemEdge']>>>, ParentType, ContextType>;
+  discussionCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   issueCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
   nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['SearchResultItem']>>>, ParentType, ContextType>;
   pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;

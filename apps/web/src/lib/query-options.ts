@@ -13,6 +13,7 @@ import { getCommitChecks, getCommitRollups } from "@/server/commit-checks";
 import { getCommitComments } from "@/server/commit-comments";
 import {
 	getDiscussionByNumber,
+	getDiscussionCategories,
 	getDiscussionComments,
 	getDiscussions,
 } from "@/server/discussions";
@@ -195,8 +196,12 @@ export const queryKeys = {
 	repoMilestoneThreads: (repoId: number, number: number, state: string) =>
 		["repos", repoId, "milestones", number, "threads", state] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
+	repoDiscussionsRoot: (repoId: number) =>
+		["repos", repoId, "discussions"] as const,
 	repoDiscussions: (repoId: number, category: string) =>
 		["repos", repoId, "discussions", category] as const,
+	repoDiscussionCategories: (repoId: number) =>
+		["repos", repoId, "discussion-categories"] as const,
 	repoIssueNumbers: (repoId: number) =>
 		["repos", repoId, "issue-numbers"] as const,
 	repoPullRequestNumbers: (repoId: number) =>
@@ -901,6 +906,14 @@ export function repositoryDiscussionsQueryOptions({
 			getDiscussions({
 				data: { repoId, ...(category ? { category } : {}) },
 			}),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function discussionCategoriesQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoDiscussionCategories(repoId),
+		queryFn: () => getDiscussionCategories({ data: { repoId } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
