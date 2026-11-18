@@ -105,9 +105,11 @@ export const getIssues = createServerFn({ method: "GET" })
 	.handler(({ data }) => {
 		const search = parseSearchQuery(data.query);
 		const requested = search.status ?? "open";
-		// An issue can't be merged, and `is:pr` can't match the issues list.
+		// An issue can't be merged, and only `is:issue` names this list.
 		const matchesNothing =
-			search.matchesNothing || search.type === "pr" || requested === "merged";
+			search.matchesNothing ||
+			(search.type !== undefined && search.type !== "issue") ||
+			requested === "merged";
 		const status = requested === "merged" ? "open" : requested;
 		return readWithAccess(`getIssues ${status}`, data.repoId, async () => {
 			if (matchesNothing) return [];

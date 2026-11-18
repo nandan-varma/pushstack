@@ -1,0 +1,12 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh api graphql -f query=\u2026 (DiscussionSearch, captured against vercel/next.js)",
+	"requests": [
+		{
+			"query": "fragment discussion on Discussion { number title url } query DiscussionSearch($q: String!) { search(type: DISCUSSION, query: $q, first: 10) { discussionCount pageInfo { hasNextPage endCursor } nodes { __typename ...discussion } } }",
+			"variables": {
+				"q": "repo:vercel/next.js is:open auth"
+			}
+		}
+	]
+}

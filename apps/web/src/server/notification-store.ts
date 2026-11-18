@@ -303,7 +303,12 @@ export async function listNotificationsForUser(
 		issueId: row.issueId,
 		repoId: row.repoId,
 		subject: {
-			type: row.kind === "pull_request" ? "PullRequest" : "Issue",
+			type:
+				row.kind === "pull_request"
+					? "PullRequest"
+					: row.kind === "discussion"
+						? "Discussion"
+						: "Issue",
 			number: row.number,
 			title: row.title,
 			state: row.state,

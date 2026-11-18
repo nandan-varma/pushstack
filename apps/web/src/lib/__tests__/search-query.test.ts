@@ -64,6 +64,18 @@ describe("parseSearchQuery", () => {
 			type: undefined,
 			matchesNothing: true,
 		});
+		expect(parseSearchQuery("is:discussion is:pr")).toMatchObject({
+			type: undefined,
+			matchesNothing: true,
+		});
+	});
+
+	it("parses is:discussion and type:discussion", () => {
+		expect(parseSearchQuery("is:discussion").type).toBe("discussion");
+		expect(parseSearchQuery("type:discussion").type).toBe("discussion");
+		expect(parseSearchQuery("is:discussion draft:true").matchesNothing).toBe(
+			true,
+		);
 	});
 
 	it("intersects is:closed is:merged to merged", () => {
@@ -232,6 +244,7 @@ describe("unservedQualifier", () => {
 		expect(unservedQualifier("is:open comments:>3")).toBe("comments:>3");
 		expect(unservedQualifier("-label:bug")).toBe("-label:bug");
 		expect(unservedQualifier("label:")).toBe("label:");
+		expect(unservedQualifier("is:discussion")).toBeNull();
 		expect(unservedQualifier("is:locked")).toBe("is:locked");
 		expect(unservedQualifier("no:project")).toBe("no:project");
 		expect(unservedQualifier("draft:maybe")).toBe("draft:maybe");

@@ -191,8 +191,9 @@
 	"IssueClosedStateReason": "*",
 	"Query": ["search"],
 	"SearchType": "*",
-	"SearchResultItem": ["Issue", "PullRequest", "Repository"],
+	"SearchResultItem": ["Discussion", "Issue", "PullRequest", "Repository"],
 	"SearchResultItemConnection": [
+		"discussionCount",
 		"edges",
 		"issueCount",
 		"nodes",

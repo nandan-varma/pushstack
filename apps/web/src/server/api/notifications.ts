@@ -69,7 +69,13 @@ async function serializeNotifications(
 		if (!repo) throw new Error(`Repository ${item.repoId} missing`);
 		const fullName = `${repo.owner.username}/${repo.name}`;
 		const subjectUrl = apiUrl(
-			`/repos/${fullName}/${item.subject.type === "PullRequest" ? "pulls" : "issues"}/${item.subject.number}`,
+			`/repos/${fullName}/${
+				item.subject.type === "PullRequest"
+					? "pulls"
+					: item.subject.type === "Discussion"
+						? "discussions"
+						: "issues"
+			}/${item.subject.number}`,
 		);
 		const commentId = latestComment.get(item.issueId);
 		return {
