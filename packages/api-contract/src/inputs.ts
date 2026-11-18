@@ -277,6 +277,19 @@ export const webhookConfigBody = z.object({
 export const webhookConfigPatchBody = webhookConfigBody.partial();
 
 /**
+ * The delivery log pages by `cursor` (a delivery id), not by `page`; GitHub
+ * returns 422 for a non-numeric cursor or an unknown `status`.
+ */
+export const webhookDeliveryQuery = z.object({
+	per_page: positiveInt
+		.optional()
+		.catch(undefined)
+		.transform((value) => Math.min(value ?? DEFAULT_PER_PAGE, MAX_PER_PAGE)),
+	cursor: positiveInt.optional(),
+	status: z.enum(["success", "failure"]).optional(),
+});
+
+/**
  * A body boolean as GitHub accepts it: `true`/`false`, or the strings a
  * form-encoded client (`gh api -f`) sends for them.
  */

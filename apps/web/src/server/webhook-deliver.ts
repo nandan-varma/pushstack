@@ -61,6 +61,8 @@ export interface WebhookDelivery {
 	event: string;
 	action: string | null;
 	payload: unknown;
+	/** Exact bytes to send instead of a serialization of `payload` (a redelivery). */
+	body?: string;
 	redelivery?: boolean;
 }
 
@@ -248,7 +250,10 @@ export async function deliverWebhook(
 	const { hook } = delivery;
 	const json = JSON.stringify(delivery.payload);
 	const body =
-		hook.contentType === "form" ? `payload=${encodeURIComponent(json)}` : json;
+		delivery.body ??
+		(hook.contentType === "form"
+			? `payload=${encodeURIComponent(json)}`
+			: json);
 	const bytes = Buffer.from(body, "utf8");
 	if (bytes.byteLength > MAX_WEBHOOK_PAYLOAD_BYTES) return;
 

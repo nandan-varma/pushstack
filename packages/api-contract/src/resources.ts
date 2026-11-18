@@ -143,6 +143,39 @@ export const webhook = z.strictObject({
 	}),
 });
 
+/**
+ * One recorded webhook delivery. Payloads are the exact bytes sent (text), and
+ * `null` when the payload was not retained or none was stored.
+ */
+export const webhookDelivery = z.strictObject({
+	id: z.number().int(),
+	guid: z.string(),
+	delivered_at: timestamp,
+	redelivery: z.boolean(),
+	duration: z.number().int(),
+	status: z.enum(["success", "failure"]),
+	status_code: z.number().int().nullable(),
+	event: z.string(),
+	action: z.string().nullable(),
+	repository_id: z.number().int(),
+	installation_id: z.null(),
+	throttled_at: z.null(),
+});
+
+/** The single-delivery read: its payloads as GitHub also returns them. */
+export const webhookDeliveryDetail = z.strictObject({
+	...webhookDelivery.shape,
+	url,
+	request: z.strictObject({
+		headers: z.record(z.string(), z.string()),
+		payload: z.string().nullable(),
+	}),
+	response: z.strictObject({
+		headers: z.record(z.string(), z.string()).nullable(),
+		payload: z.string().nullable(),
+	}),
+});
+
 export const label = z.strictObject({
 	id: z.number().int(),
 	url,

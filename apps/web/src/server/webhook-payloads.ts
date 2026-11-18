@@ -7,7 +7,7 @@ import { apiUrl, isoTimestamp } from "./api/http";
 import { repositoryPayload } from "./api/repos";
 import { type Shape, simpleUser } from "./api/serializers";
 import type { PublicUser, RepositoryRowWithOwner } from "./repository-lookup";
-import type { Webhook } from "./webhook-store";
+import type { Webhook, WebhookDeliveryRow } from "./webhook-store";
 
 const PING_ZEN = "Non-blocking is better than blocking.";
 
@@ -47,6 +47,43 @@ export function webhookPayload(
 			status: hook.lastStatus,
 			message: hook.lastMessage,
 		},
+	};
+}
+
+/** One recorded delivery, in the list's shape. */
+export function webhookDeliveryPayload(
+	repo: RepositoryRowWithOwner,
+	row: WebhookDeliveryRow,
+): Shape<"webhookDelivery"> {
+	return {
+		id: row.id,
+		guid: row.guid,
+		delivered_at: isoTimestamp(row.deliveredAt),
+		redelivery: row.redelivery,
+		duration: row.durationMs,
+		status: row.status,
+		status_code: row.statusCode,
+		event: row.event,
+		action: row.action,
+		repository_id: repo.id,
+		installation_id: null,
+		throttled_at: null,
+	};
+}
+
+/** The single-delivery read: the same object plus its URLs and payloads. */
+export function webhookDeliveryDetailPayload(
+	repo: RepositoryRowWithOwner,
+	hook: Webhook,
+	row: WebhookDeliveryRow,
+): Shape<"webhookDeliveryDetail"> {
+	return {
+		...webhookDeliveryPayload(repo, row),
+		url: apiUrl(
+			`/repos/${fullNameOf(repo)}/hooks/${hook.id}/deliveries/${row.id}`,
+		),
+		request: { headers: row.requestHeaders, payload: row.requestPayload },
+		response: { headers: row.responseHeaders, payload: row.responsePayload },
 	};
 }
 

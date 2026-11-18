@@ -35,6 +35,7 @@ import {
 	unsupportedUnless,
 	webhookConfigBody,
 	webhookConfigPatchBody,
+	webhookDeliveryQuery,
 	webhookEvents,
 } from "./inputs";
 import {
@@ -126,6 +127,8 @@ import {
 	timelineItem,
 	webhook,
 	webhookConfig,
+	webhookDelivery,
+	webhookDeliveryDetail,
 } from "./resources";
 import type { EndpointInput, EndpointResponse, Schemas } from "./route";
 import { type OperationId, routes } from "./routes";
@@ -194,6 +197,7 @@ const commitShaParams = repoParams.extend({
 });
 const refParams = repoParams.extend({ ref: z.string().min(1).max(255) });
 const hookParams = repoParams.extend({ hook_id: positiveInt });
+const webhookDeliveryParams = hookParams.extend({ delivery_id: positiveInt });
 const checkRunParams = repoParams.extend({ check_run_id: positiveInt });
 const checkSuiteParams = repoParams.extend({ check_suite_id: positiveInt });
 /** An absolute http(s) URL a CI links its report to. */
@@ -1016,6 +1020,19 @@ export const endpoints = defineEndpoints({
 	"repos/ping-webhook": {
 		params: hookParams,
 		response: noContent,
+	},
+	"repos/list-webhook-deliveries": {
+		params: hookParams,
+		query: webhookDeliveryQuery,
+		response: z.array(webhookDelivery),
+	},
+	"repos/get-webhook-delivery": {
+		params: webhookDeliveryParams,
+		response: webhookDeliveryDetail,
+	},
+	"repos/redeliver-webhook-delivery": {
+		params: webhookDeliveryParams,
+		response: z.object({}),
 	},
 
 	"repos/list-releases": {
