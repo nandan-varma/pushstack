@@ -42,11 +42,13 @@ import {
 } from "#/db/app-schema";
 import { user } from "#/db/schema";
 import type { LabelView } from "#/lib/labels";
+import type { ThreadKind } from "#/lib/thread-kind";
 import { containing } from "./db-filters";
 import { type MilestoneView, threadMilestoneJson } from "./milestone-store";
 import { type PublicUser, publicUserColumns } from "./repository-lookup";
 
-export type ThreadKind = "issue" | "pull_request";
+// A discussion is a thread too, so every list filters by kind.
+export type { ThreadKind } from "#/lib/thread-kind";
 
 export interface ThreadRef {
 	kind: ThreadKind;
@@ -96,7 +98,10 @@ export interface ThreadFilter {
 	repoId?: number;
 	/** A condition on the thread's repository, for cross-repository searches (ANDed). */
 	repoScope?: SQL;
-	/** One kind, or both (the REST issues list). */
+	/**
+	 * One kind; omitted means issue and pull request together (the REST issues
+	 * list), so a discussion is listed only when one is asked for.
+	 */
 	kind?: ThreadKind;
 	/** The issue state; omitted for all. */
 	state?: "open" | "closed";
@@ -253,9 +258,9 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 		filter.repoScope,
 	];
 	const add = (condition: SQL | undefined) => conditions.push(condition);
-	if (filter.kind) {
-		add(eq(issues.isPullRequest, filter.kind === "pull_request"));
-	}
+	add(
+		filter.kind ? eq(issues.kind, filter.kind) : ne(issues.kind, "discussion"),
+	);
 	if (filter.state) add(eq(issues.status, filter.state));
 	if (filter.merged !== undefined) {
 		add(
@@ -414,7 +419,7 @@ function whereOf(filter: ThreadFilter): SQL | undefined {
 		);
 	}
 	if (filter.draft !== undefined) {
-		add(eq(issues.isPullRequest, true));
+		add(eq(issues.kind, "pull_request"));
 		add(eq(pullRequests.isDraft, filter.draft));
 	}
 	return and(...conditions);
@@ -454,7 +459,7 @@ function toThread(record: ThreadRecord): Thread {
 	}
 	return {
 		...record.issue,
-		kind: record.issue.isPullRequest ? "pull_request" : "issue",
+		kind: record.issue.kind,
 		author: record.author,
 		closedBy: record.closedBy,
 		labels: record.labels,
@@ -538,7 +543,6 @@ export function pullRequestOfThread(thread: Thread): PullRequest {
 	if (!thread.pullRequest) throw new Error(`#${thread.number} is an issue`);
 	const { mergedByUser: _, ...fields } = thread.pullRequest;
 	const {
-		kind: _kind,
 		author: _author,
 		closedBy: _closedBy,
 		labels: _labels,
@@ -581,21 +585,11 @@ const refColumns = {
 	number: issues.number,
 	title: issues.title,
 	body: issues.body,
-	isPullRequest: issues.isPullRequest,
+	kind: issues.kind,
 };
 
-function toRef({
-	isPullRequest,
-	...row
-}: {
-	isPullRequest: boolean;
-	id: number;
-	repoId: number;
-	number: number;
-	title: string;
-	body: string | null;
-}): ThreadRef {
-	return { kind: isPullRequest ? "pull_request" : "issue", ...row };
+function toRef({ kind, ...row }: ThreadRef): ThreadRef {
+	return { kind, ...row };
 }
 
 export async function findThreadById(id: number): Promise<ThreadRef | null> {
@@ -637,7 +631,7 @@ export async function findIssueById(id: number): Promise<Issue | null> {
 	const [row] = await db
 		.select()
 		.from(issues)
-		.where(and(eq(issues.id, id), eq(issues.isPullRequest, false)))
+		.where(and(eq(issues.id, id), eq(issues.kind, "issue")))
 		.limit(1);
 	return row ?? null;
 }

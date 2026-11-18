@@ -196,7 +196,7 @@ export const getPullRequestNumbers = createServerFn({ method: "GET" })
 				.select({ number: issues.number })
 				.from(issues)
 				.where(
-					and(eq(issues.repoId, data.repoId), eq(issues.isPullRequest, true)),
+					and(eq(issues.repoId, data.repoId), eq(issues.kind, "pull_request")),
 				);
 			return rows.map((row) => row.number);
 		}),

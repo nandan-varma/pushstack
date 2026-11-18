@@ -19,6 +19,7 @@ import type { DeviceCodeStatus } from "#/lib/device-flow";
 import type { NotificationReason } from "#/lib/notifications";
 import type { ReactionContent } from "#/lib/reactions";
 import type { ReviewSide, ReviewState } from "#/lib/review-types";
+import type { ThreadKind } from "#/lib/thread-kind";
 import type {
 	IssueStateReason,
 	TimelineEvent,
@@ -108,11 +109,12 @@ export const repositories = pgTable(
 );
 
 /**
- * Every issue and pull request: GitHub's model, where a pull request *is* an
- * issue (one `#N` sequence, one set of comments, labels, assignees and
- * timeline events) and `pull_requests` holds only what a pull request adds,
- * 1:1 by issue id. `status` is the issue state; a merged pull request is
- * `closed` with `pull_requests.merged_at` set.
+ * Every issue, pull request and discussion: GitHub's model, where a pull
+ * request and a discussion *are* issues (one `#N` sequence, one set of
+ * comments, labels, assignees and timeline events) and `pull_requests` /
+ * `discussions` hold only what each kind adds, 1:1 by issue id. `status` is
+ * the issue state; a merged pull request is `closed` with
+ * `pull_requests.merged_at` set.
  */
 export const issues = pgTable(
 	"issues",
@@ -121,10 +123,10 @@ export const issues = pgTable(
 		repoId: integer("repo_id")
 			.notNull()
 			.references(() => repositories.id, { onDelete: "cascade" }),
-		/** The repo-scoped `#N`, shared by issues and pull requests. */
+		/** The repo-scoped `#N`, shared by every thread kind. */
 		number: integer("number").notNull(),
-		/** A pull request (its `pull_requests` row carries the branches). */
-		isPullRequest: boolean("is_pull_request").notNull().default(false),
+		/** The thread kind: a pull request adds a `pull_requests` row, a discussion a `discussions` row. */
+		kind: text("kind").$type<ThreadKind>().notNull().default("issue"),
 		authorId: text("author_id")
 			.notNull()
 			.references(() => user.id),
@@ -168,13 +170,13 @@ export const issues = pgTable(
 		),
 		repoKindStateCreatedIdx: index("issue_repo_kind_state_created_idx").on(
 			table.repoId,
-			table.isPullRequest,
+			table.kind,
 			table.status,
 			table.createdAt,
 		),
 		repoKindStateUpdatedIdx: index("issue_repo_kind_state_updated_idx").on(
 			table.repoId,
-			table.isPullRequest,
+			table.kind,
 			table.status,
 			table.updatedAt,
 		),

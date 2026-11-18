@@ -622,6 +622,8 @@ export function timelineEvent(
 				commit_url: commitUrl(entry.commitSha),
 			};
 		case "cross-referenced":
+			// GitHub's issue event can name only an issue or a pull request source.
+			if (entry.source.kind === "discussion") return null;
 			return {
 				...base,
 				event: entry.event,

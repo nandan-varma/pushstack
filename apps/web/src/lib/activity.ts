@@ -80,8 +80,17 @@ export function describeActivity(row: ActivityRow): {
 		}
 		case "comment":
 			return {
-				text: `Commented on ${event.metadata.on === "pr" ? "a pull request" : "an issue"}`,
-				link: thread(event.metadata.on, event.metadata.number),
+				text: `Commented on ${
+					event.metadata.on === "pr"
+						? "a pull request"
+						: event.metadata.on === "discussion"
+							? "a discussion"
+							: "an issue"
+				}`,
+				link:
+					event.metadata.on === "discussion"
+						? null
+						: thread(event.metadata.on, event.metadata.number),
 			};
 	}
 }

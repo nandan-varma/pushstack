@@ -118,7 +118,7 @@ export async function recordPushReferences(input: {
 		.select({
 			id: issues.id,
 			number: issues.number,
-			isPullRequest: issues.isPullRequest,
+			kind: issues.kind,
 			status: issues.status,
 		})
 		.from(issues)
@@ -128,7 +128,7 @@ export async function recordPushReferences(input: {
 	const existing = new Map(threads.map((row) => [row.number, row.id]));
 	const openIssues = new Set(
 		threads
-			.filter((row) => !row.isPullRequest && row.status === "open")
+			.filter((row) => row.kind === "issue" && row.status === "open")
 			.map((row) => row.number),
 	);
 	if (existing.size === 0) return;

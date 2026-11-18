@@ -282,7 +282,7 @@ export async function listNotificationsForUser(
 			number: issues.number,
 			title: issues.title,
 			state: issues.status,
-			isPullRequest: issues.isPullRequest,
+			kind: issues.kind,
 			repoName: repositories.name,
 			ownerName: owner.username,
 		})
@@ -303,7 +303,7 @@ export async function listNotificationsForUser(
 		issueId: row.issueId,
 		repoId: row.repoId,
 		subject: {
-			type: row.isPullRequest ? "PullRequest" : "Issue",
+			type: row.kind === "pull_request" ? "PullRequest" : "Issue",
 			number: row.number,
 			title: row.title,
 			state: row.state,

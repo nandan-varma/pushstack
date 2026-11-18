@@ -188,6 +188,13 @@ function ThreadLink({
 	owner: string;
 	name: string;
 }) {
+	if (thread.kind === "discussion") {
+		return (
+			<span className="font-medium text-foreground">
+				{thread.title} #{thread.number}
+			</span>
+		);
+	}
 	return (
 		<Link
 			to={
@@ -282,7 +289,11 @@ function describeEvent(
 				text: (
 					<>
 						mentioned this in{" "}
-						{event.source.kind === "issue" ? "issue" : "pull request"}{" "}
+						{event.source.kind === "issue"
+							? "issue"
+							: event.source.kind === "discussion"
+								? "discussion"
+								: "pull request"}{" "}
 						<ThreadLink thread={event.source} owner={owner} name={name} />
 					</>
 				),

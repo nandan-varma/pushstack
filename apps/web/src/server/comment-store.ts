@@ -96,7 +96,12 @@ export async function createCommentForUser(
 		activityId = await recordActivity(userId, thread.repoId, {
 			type: "comment",
 			metadata: {
-				on: thread.kind === "issue" ? "issue" : "pr",
+				on:
+					thread.kind === "issue"
+						? "issue"
+						: thread.kind === "discussion"
+							? "discussion"
+							: "pr",
 				number: thread.number,
 			},
 		});

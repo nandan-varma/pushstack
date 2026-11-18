@@ -66,7 +66,7 @@ export const getAssignedThreads = createServerFn({ method: "GET" }).handler(
 				.select({
 					kind: sql<
 						"issue" | "pull_request"
-					>`case when ${issues.isPullRequest} then 'pull_request' else 'issue' end`,
+					>`case when ${issues.kind} = 'pull_request' then 'pull_request' else 'issue' end`,
 					number: issues.number,
 					title: issues.title,
 					updatedAt: issues.updatedAt,
