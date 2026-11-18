@@ -1124,3 +1124,86 @@ export const timelineEvents = pgTable(
 			.where(sql`${table.event} = 'cross-referenced'`),
 	}),
 );
+
+/**
+ * A gist: a small git repository with an id, not a `repositories` row (it
+ * would surface in repository lists and collide with `(owner_id, name)`).
+ * Secret means unlisted, not private: anyone holding the id reads it. Its git
+ * bytes live at `gists/{id}/git` in R2.
+ */
+export const gists = pgTable(
+	"gists",
+	{
+		/** 32 lowercase hex (GitHub's shape); the id is also the storage segment. */
+		id: text("id").primaryKey(),
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		description: text("description"),
+		visibility: text("visibility")
+			.$type<"public" | "secret">()
+			.notNull()
+			.default("public"),
+		/** The gist this one was forked from; null once the parent is deleted. */
+		forkOfId: text("fork_of_id").references((): AnyPgColumn => gists.id, {
+			onDelete: "set null",
+		}),
+		/** GitHub's `fork`: stays true after the parent is deleted. */
+		isFork: boolean("is_fork").notNull().default(false),
+		/** Last REST update or push (GitHub's `pushed_at`). */
+		pushedAt: timestamptz("pushed_at").notNull().defaultNow(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		ownerCreatedIdx: index("gist_owner_created_idx").on(
+			table.ownerId,
+			table.createdAt,
+		),
+		visibilityUpdatedIdx: index("gist_visibility_updated_idx").on(
+			table.visibility,
+			table.updatedAt,
+		),
+		forkOfIdx: index("gist_fork_of_idx").on(table.forkOfId),
+	}),
+);
+
+export const gistStars = pgTable(
+	"gist_stars",
+	{
+		gistId: text("gist_id")
+			.notNull()
+			.references(() => gists.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.gistId, table.userId] }),
+		userIdx: index("gist_star_user_idx").on(table.userId),
+	}),
+);
+
+export const gistComments = pgTable(
+	"gist_comments",
+	{
+		id: serial("id").primaryKey(),
+		gistId: text("gist_id")
+			.notNull()
+			.references(() => gists.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		body: text("body").notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		gistCreatedIdx: index("gist_comment_gist_created_idx").on(
+			table.gistId,
+			table.createdAt,
+		),
+		userIdx: index("gist_comment_user_idx").on(table.userId),
+	}),
+);

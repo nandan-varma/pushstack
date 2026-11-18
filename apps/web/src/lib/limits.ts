@@ -204,6 +204,28 @@ export const MAX_OAUTH_CLIENT_SECRET_CHARS = 100;
 export const MAX_OAUTH_CODE_CHARS = 100;
 
 /**
+ * Gists. GitHub truncates a gist's files map past 300, so creation past this
+ * cap is refused (422) instead: every gist's view is then complete.
+ */
+export const MAX_GIST_FILES = 300;
+/** A gist file name is a git tree path, so it gets a path segment's bound. */
+export const MAX_GIST_FILE_NAME_CHARS = 255;
+/** GitHub documents no bound on a description; this bounds the persisted string. */
+export const MAX_GIST_DESCRIPTION_CHARS = 1000;
+/** GitHub documents no bound on a user's gists; matches the other per-owner caps. */
+export const MAX_GISTS_PER_USER = 1000;
+/** GitHub's per-file API truncation threshold: a larger blob is sent partially. */
+export const MAX_GIST_INLINE_CONTENT_BYTES = 1024 * 1024;
+/**
+ * Inline content one gist response may carry, below Vercel's 4.5 MB buffered
+ * cap with room for the framing: the files past it are marked `truncated` and
+ * remain downloadable from their raw URLs.
+ */
+export const MAX_GIST_INLINE_RESPONSE_BYTES = 4_000_000;
+/** GitHub's `Gist Comment.body` maxLength. */
+export const MAX_GIST_COMMENT_BODY_CHARS = 65_535;
+
+/**
  * What one function response may carry: Vercel's buffered-response cap is
  * 4.5 MB; this leaves headroom for the rest of the payload and the framing.
  */

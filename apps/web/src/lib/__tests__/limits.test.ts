@@ -3,6 +3,8 @@ import {
 	MAX_API_DIFF_BYTES,
 	MAX_BODY_CHARS,
 	MAX_COMMIT_MESSAGE_CHARS,
+	MAX_GIST_INLINE_CONTENT_BYTES,
+	MAX_GIST_INLINE_RESPONSE_BYTES,
 	MAX_HISTORY_WALK,
 	MAX_LIST_SKIP,
 	MAX_RAW_BYTES,
@@ -89,5 +91,23 @@ describe("API diff media cap", () => {
 	it("is what the REST API's diff media types enforce by default", async () => {
 		const { DEFAULT_API_CAPS } = await import("../../server/api/caps");
 		expect(DEFAULT_API_CAPS.diffMediaBytes).toBe(MAX_API_DIFF_BYTES);
+	});
+});
+
+describe("gist response budget", () => {
+	it("stays below Vercel's buffered-response cap", () => {
+		expect(MAX_GIST_INLINE_RESPONSE_BYTES).toBeLessThan(4_500_000);
+	});
+
+	it("holds several maximum-size files, so a normal gist is complete", () => {
+		// A gist's inline content is capped per file and per response; if the
+		// response cap were below a file cap, one legal file could never be
+		// served in a gist at all.
+		expect(MAX_GIST_INLINE_RESPONSE_BYTES).toBeGreaterThan(
+			MAX_GIST_INLINE_CONTENT_BYTES,
+		);
+		expect(
+			MAX_GIST_INLINE_RESPONSE_BYTES / MAX_GIST_INLINE_CONTENT_BYTES,
+		).toBeGreaterThanOrEqual(3);
 	});
 });
