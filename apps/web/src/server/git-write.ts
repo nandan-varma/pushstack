@@ -32,6 +32,7 @@ import {
 	resolveCommit,
 } from "git-fs-s3/ops";
 import git from "isomorphic-git";
+import { importCommit } from "./fork-objects";
 import { getPathEntry } from "./git-read";
 import { repackIfNeededUnlocked, repoFor } from "./git-repo";
 import { withRepositoryLock } from "./git-repo-lock";
@@ -434,6 +435,80 @@ export async function mergeBranches(
 			};
 		}
 		logError("git-write", "mergeBranches failed unexpectedly", error);
+		throw error;
+	}
+}
+
+export type UpstreamSyncOutcome =
+	| { success: true; mergeType: "none" | "fast-forward" | "merge" }
+	| { success: false; conflicts: string[]; refusal?: string };
+
+/**
+ * Bring `branch` of a fork up to date with the same branch of its parent
+ * (`POST …/merge-upstream`): the parent's missing commits are copied in, then
+ * the fork's branch fast-forwards, or takes a merge commit when both moved.
+ * One lock span on the fork, so the tip checked is the tip moved. Throws
+ * `GitInvalidRequestError` when the parent has no such branch and a not-found
+ * error when the fork has none.
+ */
+export async function mergeUpstream(
+	ownerKey: string,
+	repoName: string,
+	upstream: Repo,
+	branch: string,
+	options: { authorName: string; authorEmail: string; message: string },
+): Promise<UpstreamSyncOutcome> {
+	assertSafeBranchName(branch);
+	const ref = qualifyBranchRef(branch);
+	try {
+		return await writeUnderLock(ownerKey, repoName, async (repo) => {
+			const forkTip = (await resolveCommit(repo, branch)).oid;
+			const upstreamTip = await git
+				.resolveRef({ ...upstream, ref })
+				.catch((error: unknown) => {
+					if (isNotFoundError(error)) {
+						throw new GitInvalidRequestError(
+							"The upstream repository has no such branch",
+						);
+					}
+					throw error;
+				});
+			await importCommit(upstream, repo, upstreamTip, [forkTip]);
+			if (
+				upstreamTip === forkTip ||
+				(await git.isDescendent({
+					...repo,
+					oid: forkTip,
+					ancestor: upstreamTip,
+				}))
+			) {
+				return { success: true as const, mergeType: "none" as const };
+			}
+			if (
+				await git.isDescendent({ ...repo, oid: upstreamTip, ancestor: forkTip })
+			) {
+				await git.writeRef({ ...repo, ref, value: upstreamTip, force: true });
+				return { success: true as const, mergeType: "fast-forward" as const };
+			}
+			// An oid resolves as itself, so the parent's tip needs no ref of its own.
+			await threeWayMerge(repo, upstreamTip, ref, {
+				authorName: options.authorName,
+				authorEmail: options.authorEmail,
+				message: options.message,
+			});
+			return { success: true as const, mergeType: "merge" as const };
+		});
+	} catch (error) {
+		if (error instanceof GitMergeConflictError) {
+			return { success: false, conflicts: error.conflictingPaths };
+		}
+		if (error instanceof GitEdgeError) {
+			return {
+				success: false,
+				conflicts: [error.message],
+				refusal: error.message,
+			};
+		}
 		throw error;
 	}
 }

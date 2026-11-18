@@ -47,6 +47,7 @@ import {
 	listFollowingOfUser,
 	unfollowAsCaller,
 } from "./following";
+import { mergeUpstreamHandler } from "./forks";
 import {
 	createGitBlob,
 	createGitCommit,
@@ -216,6 +217,7 @@ const HANDLERS = {
 	"repos/create-using-template": generateFromTemplate,
 	"repos/create-fork": createForkHandler,
 	"repos/list-forks": listForks,
+	"repos/merge-upstream": mergeUpstreamHandler,
 	"activity/list-watchers-for-repo": listRepoWatchers,
 	"activity/get-repo-subscription": getRepoSubscriptionForCaller,
 	"activity/set-repo-subscription": putRepoSubscription,

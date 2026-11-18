@@ -102,6 +102,10 @@ beforeAll(async () => {
 	);
 	await check("/repos/alice/proj/forks?sort=oldest");
 	await check(
+		"/repos/bob/proj-fork/merge-upstream",
+		post(await mintToken(users.bob, ["repo:write"]), { branch: "main" }),
+	);
+	await check(
 		"/repos/alice/generated/transfer",
 		post(alice, { new_owner: "bob" }),
 	);

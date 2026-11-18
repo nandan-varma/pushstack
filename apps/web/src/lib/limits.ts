@@ -171,6 +171,15 @@ export const MAX_REPO_TOPIC_CHARS = 50;
  */
 export const MAX_FORK_COPY_BYTES = 1024 ** 3;
 
+/**
+ * What one request may copy between repositories of a fork network (sync a
+ * fork, a pull request from a fork). The copy holds the missing objects in
+ * memory before writing one pack, so the caps are sized for a serverless
+ * function, not for the 1 GiB a whole-repository fork may move.
+ */
+export const MAX_IMPORT_OBJECTS = 100_000;
+export const MAX_IMPORT_BYTES = 128 * 1024 ** 2;
+
 export const MAX_TOKEN_NAME_CHARS = 100;
 
 /** Device flow (`/login/device/code`): the client id a device code is bound to. */

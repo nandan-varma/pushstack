@@ -222,6 +222,12 @@ export const routes = {
 		docs: `${DOCS}/repos/forks#create-a-fork`,
 		status: 202,
 	},
+	"repos/merge-upstream": {
+		method: "POST",
+		path: "/repos/{owner}/{repo}/merge-upstream",
+		docs: `${DOCS}/repos/branches#sync-a-fork-branch-with-the-upstream-repository`,
+		status: 200,
+	},
 	"activity/list-watchers-for-repo": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/subscribers",

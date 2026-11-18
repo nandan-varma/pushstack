@@ -350,6 +350,13 @@ pushes:
   Server code creates one with `pullHeadRefName(n)`, which only accepts a
   positive pull number.
 
+A fork syncs with its parent through `importCommit` (`fork-objects.ts`), which
+wraps `copyMissingObjects` with the per-request caps `MAX_IMPORT_OBJECTS` and
+`MAX_IMPORT_BYTES` (over them is `422`). `POST …/merge-upstream` copies the
+parent's branch tip and fast-forwards or merges the fork's branch in one lock
+span on the fork; a forced `PATCH git/refs/heads/{b}` to a commit only the
+parent has imports it the same way.
+
 `copyMissingObjects(src, dst, headOid, { haves, maxObjects, maxBytes })` (in
 `git-fs-s3/ops`) copies what `dst` needs to reach `headOid`: the walk starts at
 the commit and stops at every object `dst` already has, so a fork that shares

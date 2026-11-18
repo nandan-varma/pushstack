@@ -622,6 +622,10 @@
 			"query": ["page", "per_page"],
 			"body": []
 		},
+		"repos/merge-upstream": {
+			"query": [],
+			"body": ["branch"]
+		},
 		"repos/replace-all-topics": {
 			"query": [],
 			"body": ["names"]

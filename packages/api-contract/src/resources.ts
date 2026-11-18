@@ -657,6 +657,13 @@ export const mergeResult = z.strictObject({
 	message: z.string(),
 });
 
+/** `POST …/merge-upstream`: how a fork's branch caught up with its parent. */
+export const mergeUpstreamResult = z.strictObject({
+	message: z.string(),
+	merge_type: z.enum(["merge", "fast-forward", "none"]),
+	base_branch: z.string(),
+});
+
 const rate = z.strictObject({
 	limit: count,
 	used: count,
