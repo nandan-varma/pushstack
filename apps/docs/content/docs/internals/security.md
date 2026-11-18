@@ -26,6 +26,10 @@ Any value containing a **C0 control or a space** is rejected before the scheme i
 
 Any new place that renders a user-controlled href/src as an attribute uses those two functions, and any new *source* of an href (JSON, a prop, an API field) has not been through a markdown parser. [The full story](/docs/internals/security-history#stored-xss-in-markdown-rendering).
 
+## Webhook delivery is the one outbound fetch of a repo-config URL
+
+A webhook URL is repository configuration, so `webhook-deliver.ts` is the only place that fetches one and the only place that needs SSRF defence. It is HTTPS only, resolves the host once, rejects every non-global address (loopback, private, link-local and the metadata IP included, IPv4-mapped IPv6 un-mapped first), and pins the socket to the address it checked with `https.request`'s `lookup` while `Host`/SNI stay the original host — a second DNS answer has no window to rebind. It follows no redirects, uses no proxy, holds each attempt to 10 s, reads at most 64 KiB of response, and signs the exact bytes it sends. The same function is the sole writer of delivery rows, so a blocked address is a recorded failure rather than an unlogged request.
+
 ## Relative links resolve against the containing file
 
 A relative target resolves against the containing document (`./diagram.png` in `docs/README.md` names `docs/diagram.png`) and is refused if it climbs above the repository root, so a traversal renders as nothing rather than as a request for a path no repository contains. `rawFileUrl` (`src/lib/file-view.ts`) is the only builder for repo byte URLs and encodes per segment.

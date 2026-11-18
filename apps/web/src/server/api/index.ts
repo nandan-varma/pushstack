@@ -248,6 +248,7 @@ import {
 	getRepoWebhook,
 	getRepoWebhookConfig,
 	listRepoWebhooks,
+	pingRepoWebhook,
 	updateRepoWebhook,
 	updateRepoWebhookConfig,
 } from "./webhooks";
@@ -378,6 +379,7 @@ const HANDLERS = {
 	"repos/delete-webhook": deleteRepoWebhook,
 	"repos/get-webhook-config-for-repo": getRepoWebhookConfig,
 	"repos/update-webhook-config-for-repo": updateRepoWebhookConfig,
+	"repos/ping-webhook": pingRepoWebhook,
 	"repos/list-releases": listRepoReleases,
 	"repos/create-release": createReleaseHandler,
 	"repos/generate-release-notes": generateNotesHandler,

@@ -213,6 +213,8 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		'`secret` reads as `********` or `""`; never the secret itself',
 	"repos/update-webhook-config-for-repo":
 		'any subset of `url`, `content_type`, `secret` and `insecure_ssl: "0"`; a body without `secret` clears the stored secret',
+	"repos/ping-webhook":
+		"needs a `repo:write` token and ownership or admin; `204` immediately, the `ping` delivery happens after the response and appears in the hook's delivery log",
 	"repos/list-releases":
 		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
 	"repos/create-release":

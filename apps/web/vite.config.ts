@@ -48,6 +48,10 @@ const config = defineConfig({
 					// unset, adding a cross-country hop to every single one. pdx1
 					// (Portland) is Vercel's closest region to us-west-2.
 					regions: ["pdx1"],
+					// A webhook delivery may hold the instance for two 10 s attempts
+					// plus the 2 s between them after the response has already been
+					// sent.
+					maxDuration: 30,
 				},
 			},
 			// Some CJS-only transitive deps (e.g. use-sync-external-store's

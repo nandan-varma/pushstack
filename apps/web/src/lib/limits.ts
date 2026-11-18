@@ -251,6 +251,15 @@ export const MAX_TEMPLATE_FILES = 50;
 export const MAX_TEMPLATE_FILE_BYTES = 65_536;
 export const MAX_TEMPLATE_TOTAL_BYTES = 256_000;
 
+/** Delivery history and one outbound attempt: GitHub's own receiver timeout is 10 s. */
+export const MAX_WEBHOOK_DELIVERIES_PER_HOOK = 200;
+export const MAX_WEBHOOK_STORED_PAYLOAD_BYTES = 512 * 1024;
+export const MAX_WEBHOOK_RESPONSE_BYTES = 64 * 1024;
+export const MAX_WEBHOOK_DELIVERY_MS = 10_000;
+export const MAX_WEBHOOK_RETRY_DELAY_MS = 2_000;
+/** GitHub's documented payload cap: a larger event is not delivered or logged. */
+export const MAX_WEBHOOK_PAYLOAD_BYTES = 25 * 1024 * 1024;
+
 /**
  * Bytes a fork may copy. A fork copies its parent's git prefix server-side in
  * one synchronous request (no background workers), so the copy's time and R2
