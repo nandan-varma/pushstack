@@ -116,6 +116,32 @@ beforeAll(async () => {
 		post(await mintToken(users.bob, ["repo:write"]), { name: "proj-fork" }),
 	);
 	await check("/repos/alice/proj/forks?sort=oldest");
+
+	const gistToken = await mintToken(users.alice, ["gist"]);
+	const gist = await check(
+		"/gists",
+		post(gistToken, {
+			description: "contract gist",
+			public: true,
+			files: { "a.txt": { content: "one\n" } },
+		}),
+	);
+	await check("/gists", asToken(gistToken));
+	await check("/gists/public");
+	await check("/gists/starred", asToken(gistToken));
+	await check("/users/alice/gists");
+	await check(`/gists/${gist.id}`);
+	await check(
+		`/gists/${gist.id}`,
+		patch(gistToken, {
+			description: "updated",
+			files: { "a.txt": { content: "two\n" } },
+		}),
+	);
+	const { gistCommitPage } = await import("../gist-git");
+	const [revision] = await gistCommitPage(gist.id, 1);
+	await check(`/gists/${gist.id}/${revision?.commit.oid}`);
+	await check(`/gists/${gist.id}`, del(gistToken));
 	await check(
 		"/repos/bob/proj-fork/merge-upstream",
 		post(await mintToken(users.bob, ["repo:write"]), { branch: "main" }),

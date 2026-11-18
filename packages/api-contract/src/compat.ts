@@ -88,6 +88,24 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"`202` with the fork (`fork`, `parent` and `source`); the fork is a copy of the parent's git data, so it carries every branch and tag (`default_branch_only` is ignored) and the parent's visibility, description and default branch, but not its issues, labels, topics, settings, releases or stars; `organization` must be the caller (no organizations); forking a repository you already forked under that name answers that fork; another repository of that name is `422`; a parent over 1 GiB of git data is `422`; forks per user per hour are limited (`RATE_LIMIT_FORKS_USER`, `403` when exceeded); an archived parent can be forked",
 	"repos/merge-upstream":
 		"`repo:write` token and write access to the fork; `branch` is a branch of the fork, synced with the parent's branch of the same name: `fast-forward` when only the parent moved, `merge` (a merge commit by the caller) when both did, `none` when already up to date; a conflict is `409`, a repository that is not a fork or a parent without the branch is `422`, a missing fork branch `404`; the parent must be readable by the caller; a sync over the per-request copy caps is `422`",
+	"gists/list":
+		"the caller's public and secret gists, newest update first; `since`; pagination",
+	"gists/list-public":
+		"public gists only, newest update first; `since`; pagination",
+	"gists/list-starred":
+		"gists the caller starred (secret ones included when starred); `since`; pagination",
+	"gists/list-for-user":
+		"a user's public gists only; `404` for an unknown user; `since`; pagination",
+	"gists/create":
+		"needs a `gist` token; `files` (1–300, content inline), `description`, `public` (default `false`, as gh); `201` with `Location`; `422` at 1,000 gists or an unsafe path",
+	"gists/get":
+		"anyone holding the id reads it: secret means unlisted, not private",
+	"gists/get-revision":
+		"the gist's files at a commit sha; an unknown or malformed revision is `404`",
+	"gists/update":
+		"the owner and a `gist` token only (`404` otherwise); file keys are current names: `content` replaces, `filename` renames (keeping content when omitted), a null entry or an object with neither deletes; one commit per change",
+	"gists/delete":
+		"the owner and a `gist` token only (`404` otherwise); `204`; the git storage is removed",
 	"activity/list-watchers-for-repo":
 		"people watching (not ignoring) who can still read the repository; pagination",
 	"activity/get-repo-subscription":

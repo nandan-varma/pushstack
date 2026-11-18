@@ -14,7 +14,7 @@ export const BASE = "http://localhost:3000/api/v3";
 
 export async function mintToken(
 	who: TestUser,
-	scopes: ("repo:read" | "repo:write")[],
+	scopes: ("repo:read" | "repo:write" | "gist")[],
 ): Promise<string> {
 	signIn(who);
 	return (

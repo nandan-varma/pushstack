@@ -1,5 +1,41 @@
 {
 	"operations": {
+		"gists/list": {
+			"query": ["page", "per_page", "since"],
+			"body": []
+		},
+		"gists/list-public": {
+			"query": ["page", "per_page", "since"],
+			"body": []
+		},
+		"gists/list-starred": {
+			"query": ["page", "per_page", "since"],
+			"body": []
+		},
+		"gists/list-for-user": {
+			"query": ["page", "per_page", "since"],
+			"body": []
+		},
+		"gists/create": {
+			"query": [],
+			"body": ["description", "files", "public"]
+		},
+		"gists/get": {
+			"query": [],
+			"body": []
+		},
+		"gists/get-revision": {
+			"query": [],
+			"body": []
+		},
+		"gists/update": {
+			"query": [],
+			"body": ["description", "files"]
+		},
+		"gists/delete": {
+			"query": [],
+			"body": []
+		},
 		"activity/delete-repo-subscription": {
 			"query": [],
 			"body": []

@@ -58,6 +58,17 @@ import {
 } from "./following";
 import { mergeUpstreamHandler } from "./forks";
 import {
+	createGistHandler,
+	deleteGistHandler,
+	getGist,
+	getGistRevision,
+	listForUser,
+	listGists,
+	listPublic,
+	listStarred,
+	updateGistHandler,
+} from "./gists";
+import {
 	createGitBlob,
 	createGitCommit,
 	createGitRef,
@@ -257,6 +268,15 @@ const HANDLERS = {
 	"repos/create-fork": createForkHandler,
 	"repos/list-forks": listForks,
 	"repos/merge-upstream": mergeUpstreamHandler,
+	"gists/list": listGists,
+	"gists/list-public": listPublic,
+	"gists/list-starred": listStarred,
+	"gists/list-for-user": listForUser,
+	"gists/create": createGistHandler,
+	"gists/get": getGist,
+	"gists/get-revision": getGistRevision,
+	"gists/update": updateGistHandler,
+	"gists/delete": deleteGistHandler,
 	"activity/list-watchers-for-repo": listRepoWatchers,
 	"activity/get-repo-subscription": getRepoSubscriptionForCaller,
 	"activity/set-repo-subscription": putRepoSubscription,

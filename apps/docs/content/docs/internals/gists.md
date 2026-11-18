@@ -3,7 +3,7 @@ title: "Gists"
 description: "Design note for issue #221: a summary, with the work split into follow-up issues."
 ---
 
-**Design only — not implemented.** Issue
+**Partly implemented: #355 and #356.** Issue
 [#221](https://github.com/nandan-varma/pushstack/issues/221), split into #355
 (schema, `gists/{id}/git` prefix, clone at `/{id}.git`), #356 (REST
 create/get/update/delete/list/revisions), #357 (REST stars, forks, commits,
