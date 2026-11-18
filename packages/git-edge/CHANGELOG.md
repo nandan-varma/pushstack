@@ -2,7 +2,7 @@
 
 This changelog is derived from this repository's release history; it is ordered newest first.
 
-## [Unreleased]
+## [0.8.0] - 2026-11-18
 
 ### Changed
 

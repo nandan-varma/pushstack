@@ -1,6 +1,6 @@
 {
 	"name": "@pushstack/api-contract",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"private": true,
 	"description": "The /api/v3 REST API contract: one declarative definition per endpoint (method, path, zod input and response schemas, GitHub docs link), shared by the web app and the CLI.",
 	"license": "AGPL-3.0-or-later",
