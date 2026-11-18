@@ -23,7 +23,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSchema, Kind, parse, print } from "graphql";
 
-export const DOMAINS = ["core", "repository", "issues", "pulls", "projects"];
+export const DOMAINS = [
+	"core",
+	"repository",
+	"issues",
+	"pulls",
+	"projects",
+	"discussions",
+];
 const BUILT_IN = new Set(["String", "Int", "Float", "Boolean", "ID"]);
 const KEPT_DIRECTIVES = new Set(["deprecated"]);
 

@@ -24,7 +24,14 @@ export const GENERATED = path.join(
 );
 
 /** Definitions before extensions, as schema.ts concatenates them. */
-const DOMAINS = ["core", "repository", "issues", "pulls", "projects"];
+const DOMAINS = [
+	"core",
+	"repository",
+	"issues",
+	"pulls",
+	"projects",
+	"discussions",
+];
 
 export async function generateResolverTypes(): Promise<string> {
 	// A domain not served yet is comments only, which is not a document.
@@ -80,6 +87,9 @@ export async function generateResolverTypes(): Promise<string> {
 				ProjectV2Field: "./projects#ProjectFieldNode",
 				ProjectV2SingleSelectField: "./projects#ProjectFieldNode",
 				DraftIssue: "./projects#DraftIssueNode",
+				Discussion: "./discussions#DiscussionNode",
+				DiscussionComment: "./discussions#DiscussionCommentNode",
+				DiscussionCategory: "./discussions#DiscussionCategoryNode",
 				ProjectV2ItemFieldTextValue: "./projects#ProjectFieldValueNode",
 				ProjectV2ItemFieldNumberValue: "./projects#ProjectFieldValueNode",
 				ProjectV2ItemFieldDateValue: "./projects#ProjectFieldValueNode",

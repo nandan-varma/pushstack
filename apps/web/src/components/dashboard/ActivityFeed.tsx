@@ -5,6 +5,7 @@ import {
 	GitCommitHorizontal,
 	GitPullRequest,
 	MessageSquare,
+	MessagesSquare,
 	Star,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -23,6 +24,7 @@ const icons: Record<ActivityType, typeof Star> = {
 	issue: CircleDot,
 	pr: GitPullRequest,
 	comment: MessageSquare,
+	discussion: MessagesSquare,
 };
 
 type FeedItem = { row: ActivityRow; repeats: number };

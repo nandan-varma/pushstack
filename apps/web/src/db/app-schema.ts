@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ActivityMetadata, ActivityType } from "#/lib/activity-types";
 import type { DeviceCodeStatus } from "#/lib/device-flow";
+import type { DiscussionStateReason } from "#/lib/discussions";
 import type { NotificationReason } from "#/lib/notifications";
 import type { ReactionContent } from "#/lib/reactions";
 import type { ReviewSide, ReviewState } from "#/lib/review-types";
@@ -539,6 +540,11 @@ export const discussions = pgTable(
 		}),
 		locked: boolean("locked").notNull().default(false),
 		pinnedAt: timestamptz("pinned_at"),
+		/**
+		 * GitHub's `DiscussionStateReason`, kept apart from an issue's: a
+		 * discussion closes as resolved, outdated or duplicate, not completed.
+		 */
+		stateReason: text("state_reason").$type<DiscussionStateReason>(),
 	},
 	(table) => ({
 		categoryPinnedIdx: index("discussion_category_pinned_idx").on(
@@ -546,6 +552,35 @@ export const discussions = pgTable(
 			table.pinnedAt,
 		),
 		answerIdx: index("discussion_answer_idx").on(table.answerCommentId),
+	}),
+);
+
+/**
+ * An upvote on a discussion or one of its comments. It is not a reaction:
+ * GitHub counts `upvoteCount` separately from `reactionGroups`.
+ */
+export const discussionUpvotes = pgTable(
+	"discussion_upvotes",
+	{
+		id: serial("id").primaryKey(),
+		issueId: integer("issue_id")
+			.notNull()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		commentId: integer("comment_id").references(() => comments.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		discussionUserIdx: uniqueIndex("discussion_upvote_discussion_idx")
+			.on(table.issueId, table.userId)
+			.where(sql`${table.commentId} is null`),
+		commentUserIdx: uniqueIndex("discussion_upvote_comment_idx")
+			.on(table.commentId, table.userId)
+			.where(sql`${table.commentId} is not null`),
 	}),
 );
 

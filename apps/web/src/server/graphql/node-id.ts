@@ -21,6 +21,7 @@
  * tells them apart.
  */
 const TYPE_CODES = {
+	DiscussionCategory: "018",
 	Issue: "05",
 	IssueComment: "012",
 	Label: "05",
@@ -39,10 +40,15 @@ const TYPE_CODES = {
  * `IC_kwDODKw3uc7tpgEC` is comment 3987079426,
  * `C_kwDODKw3udoAKDRmMmNmZTky…` is commit 4f2cfe92e3499f8581bf39db77e0a1431fa7b55c,
  * and `REA_lAHODKw3uc4d8iLozgxLM_A` is reaction 206255088 on pull request
- * 502407912.
+ * 502407912. A discussion is `D_kwDODKw3uc4Aj7Sr`, its comment
+ * `DC_kwDODKw3uc4A9XvP`, and a category is either the new form
+ * `DIC_kwDODKw3uc4CBkqR` or the legacy `018:DiscussionCategory32153207`.
  */
 const GLOBAL_PREFIX = {
 	Commit: "C",
+	Discussion: "D",
+	DiscussionCategory: "DIC",
+	DiscussionComment: "DC",
 	IssueComment: "IC",
 	Reaction: "REA",
 	Release: "RE",

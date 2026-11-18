@@ -9,6 +9,7 @@ import type { ReleaseNode, ReleaseAssetNode } from './releases';
 import type { IssueTemplateNode } from './templates';
 import type { RateLimitInfo, GraphQLContext } from '../context';
 import type { ProjectNode, ProjectItemNode, ProjectFieldNode, DraftIssueNode, ProjectFieldValueNode } from './projects';
+import type { DiscussionNode, DiscussionCommentNode, DiscussionCategoryNode } from './discussions';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
 export type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
@@ -282,6 +283,30 @@ export type Mutation = {
   mergePullRequest?: Maybe<MergePullRequestPayload>;
   /** Adds a review to a Pull Request. */
   addPullRequestReview?: Maybe<AddPullRequestReviewPayload>;
+  /** Create a discussion. */
+  createDiscussion?: Maybe<CreateDiscussionPayload>;
+  /** Adds a comment to a Discussion, possibly as a reply to another comment. */
+  addDiscussionComment?: Maybe<AddDiscussionCommentPayload>;
+  /** Mark a discussion comment as the chosen answer for discussions in an answerable category. */
+  markDiscussionCommentAsAnswer?: Maybe<MarkDiscussionCommentAsAnswerPayload>;
+  /** Unmark a discussion comment as the chosen answer for discussions in an answerable category. */
+  unmarkDiscussionCommentAsAnswer?: Maybe<UnmarkDiscussionCommentAsAnswerPayload>;
+  /** Add an upvote to a discussion or discussion comment. */
+  addUpvote?: Maybe<AddUpvotePayload>;
+  /** Remove an upvote to a discussion or discussion comment. */
+  removeUpvote?: Maybe<RemoveUpvotePayload>;
+  /** Close a discussion. */
+  closeDiscussion?: Maybe<CloseDiscussionPayload>;
+  /** Reopen a discussion. */
+  reopenDiscussion?: Maybe<ReopenDiscussionPayload>;
+  /** Update a discussion */
+  updateDiscussion?: Maybe<UpdateDiscussionPayload>;
+  /** Delete a discussion and all of its replies. */
+  deleteDiscussion?: Maybe<DeleteDiscussionPayload>;
+  /** Update the contents of a comment on a Discussion */
+  updateDiscussionComment?: Maybe<UpdateDiscussionCommentPayload>;
+  /** Delete a discussion comment. If it has replies, wipe it instead. */
+  deleteDiscussionComment?: Maybe<DeleteDiscussionCommentPayload>;
 };
 
 
@@ -414,6 +439,78 @@ export type MutationMergePullRequestArgs = {
 /** The root query for implementing GraphQL mutations. */
 export type MutationAddPullRequestReviewArgs = {
   input: AddPullRequestReviewInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationCreateDiscussionArgs = {
+  input: CreateDiscussionInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationAddDiscussionCommentArgs = {
+  input: AddDiscussionCommentInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationMarkDiscussionCommentAsAnswerArgs = {
+  input: MarkDiscussionCommentAsAnswerInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationUnmarkDiscussionCommentAsAnswerArgs = {
+  input: UnmarkDiscussionCommentAsAnswerInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationAddUpvoteArgs = {
+  input: AddUpvoteInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationRemoveUpvoteArgs = {
+  input: RemoveUpvoteInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationCloseDiscussionArgs = {
+  input: CloseDiscussionInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationReopenDiscussionArgs = {
+  input: ReopenDiscussionInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationUpdateDiscussionArgs = {
+  input: UpdateDiscussionInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationDeleteDiscussionArgs = {
+  input: DeleteDiscussionInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationUpdateDiscussionCommentArgs = {
+  input: UpdateDiscussionCommentInput;
+};
+
+
+/** The root query for implementing GraphQL mutations. */
+export type MutationDeleteDiscussionCommentArgs = {
+  input: DeleteDiscussionCommentInput;
 };
 
 /** Represents an owner of a Repository. */
@@ -633,6 +730,14 @@ export type Repository = Node & RepositoryInfo & Starrable & UniformResourceLoca
   pullRequests: PullRequestConnection;
   /** List of projects linked to this repository. */
   projectsV2: ProjectV2Connection;
+  /** Returns a single discussion from the current repository by number. */
+  discussion?: Maybe<Discussion>;
+  /** A list of discussions that have been opened in the repository. */
+  discussions: DiscussionConnection;
+  /** A list of discussion categories that are available in the repository. */
+  discussionCategories: DiscussionCategoryConnection;
+  /** A discussion category by slug. */
+  discussionCategory?: Maybe<DiscussionCategory>;
 };
 
 
@@ -753,6 +858,39 @@ export type RepositoryProjectsV2Args = {
   minPermissionLevel?: InputMaybe<ProjectV2PermissionLevel>;
   orderBy?: InputMaybe<ProjectV2Order>;
   query?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryDiscussionArgs = {
+  number: Scalars['Int']['input'];
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryDiscussionsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  answered?: InputMaybe<Scalars['Boolean']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  orderBy?: InputMaybe<DiscussionOrder>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryDiscussionCategoriesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A repository contains the content for a project. */
+export type RepositoryDiscussionCategoryArgs = {
+  slug: Scalars['String']['input'];
 };
 
 /** A list of repositories owned by the subject. */
@@ -3674,6 +3812,551 @@ export type ProjectV2ItemFieldSingleSelectValue = Node & {
   updatedAt: Scalars['DateTime']['output'];
 };
 
+/** A discussion in a repository. */
+export type Discussion = Labelable & Node & Votable & {
+  __typename?: 'Discussion';
+  /** The comment chosen as this discussion's answer, if any. */
+  answer?: Maybe<DiscussionComment>;
+  /** The time when a user chose this discussion's answer, if answered. */
+  answerChosenAt?: Maybe<Scalars['DateTime']['output']>;
+  /** The user who chose this discussion's answer, if answered. */
+  answerChosenBy?: Maybe<Actor>;
+  /** The actor who authored the discussion. */
+  author?: Maybe<Actor>;
+  /** Author's association with the subject of the comment. */
+  authorAssociation: CommentAuthorAssociation;
+  /** The main text of the discussion post. */
+  body: Scalars['String']['output'];
+  /** The category for this discussion. */
+  category: DiscussionCategory;
+  /** Indicates if the object is closed (definition of closed may depend on type) */
+  closed: Scalars['Boolean']['output'];
+  /** Identifies the date and time when the object was closed. */
+  closedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** The replies to the discussion. */
+  comments: DiscussionCommentConnection;
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Check if this comment was created via an email reply. */
+  createdViaEmail: Scalars['Boolean']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** The Node ID of the Discussion object */
+  id: Scalars['ID']['output'];
+  /** Check if this comment was edited and includes an edit with the creation data */
+  includesCreatedEdit: Scalars['Boolean']['output'];
+  /** Only return answered/unanswered discussions */
+  isAnswered?: Maybe<Scalars['Boolean']['output']>;
+  /** A list of labels associated with the object. */
+  labels?: Maybe<LabelConnection>;
+  /** The moment the editor made the last edit */
+  lastEditedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** `true` if the object is locked */
+  locked: Scalars['Boolean']['output'];
+  /** The number identifying this discussion within the repository. */
+  number: Scalars['Int']['output'];
+  /** Identifies when the comment was published at. */
+  publishedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** A list of reactions grouped by content left on the subject. */
+  reactionGroups?: Maybe<Array<ReactionGroup>>;
+  /** The repository associated with this node. */
+  repository: Repository;
+  /** The path for this discussion. */
+  resourcePath: Scalars['URI']['output'];
+  /** Identifies the reason for the discussion's state. */
+  stateReason?: Maybe<DiscussionStateReason>;
+  /** The title of this discussion. */
+  title: Scalars['String']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** Number of upvotes that this subject has received. */
+  upvoteCount: Scalars['Int']['output'];
+  /** The URL for this discussion. */
+  url: Scalars['URI']['output'];
+  /** Indicates if the object can be closed by the viewer. */
+  viewerCanClose: Scalars['Boolean']['output'];
+  /** Check if the current viewer can delete this object. */
+  viewerCanDelete: Scalars['Boolean']['output'];
+  /** Indicates if the viewer can edit labels for this object. */
+  viewerCanLabel: Scalars['Boolean']['output'];
+  /** Can user react to this subject */
+  viewerCanReact: Scalars['Boolean']['output'];
+  /** Indicates if the object can be reopened by the viewer. */
+  viewerCanReopen: Scalars['Boolean']['output'];
+  /** Check if the viewer is able to change their subscription status for the repository. */
+  viewerCanSubscribe: Scalars['Boolean']['output'];
+  /** Check if the current viewer can update this object. */
+  viewerCanUpdate: Scalars['Boolean']['output'];
+  /** Whether or not the current user can add or remove an upvote on this subject. */
+  viewerCanUpvote: Scalars['Boolean']['output'];
+  /** Did the viewer author this comment. */
+  viewerDidAuthor: Scalars['Boolean']['output'];
+  /** Whether or not the current user has already upvoted this subject. */
+  viewerHasUpvoted: Scalars['Boolean']['output'];
+};
+
+
+/** A discussion in a repository. */
+export type DiscussionCommentsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+/** A discussion in a repository. */
+export type DiscussionLabelsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** A category for discussions in a repository. */
+export type DiscussionCategory = Node & {
+  __typename?: 'DiscussionCategory';
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** A description of this category. */
+  description?: Maybe<Scalars['String']['output']>;
+  /** An emoji representing this category. */
+  emoji: Scalars['String']['output'];
+  /** The Node ID of the DiscussionCategory object */
+  id: Scalars['ID']['output'];
+  /** Whether or not discussions in this category support choosing an answer with the markDiscussionCommentAsAnswer mutation. */
+  isAnswerable: Scalars['Boolean']['output'];
+  /** The name of this category. */
+  name: Scalars['String']['output'];
+  /** The repository associated with this node. */
+  repository: Repository;
+  /** The slug of this category. */
+  slug: Scalars['String']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+/** A comment on a discussion. */
+export type DiscussionComment = Node & Votable & {
+  __typename?: 'DiscussionComment';
+  /** The actor who authored the comment. */
+  author?: Maybe<Actor>;
+  /** Author's association with the subject of the comment. */
+  authorAssociation: CommentAuthorAssociation;
+  /** The body as Markdown. */
+  body: Scalars['String']['output'];
+  /** Identifies the date and time when the object was created. */
+  createdAt: Scalars['DateTime']['output'];
+  /** Check if this comment was created via an email reply. */
+  createdViaEmail: Scalars['Boolean']['output'];
+  /** Identifies the primary key from the database. */
+  databaseId?: Maybe<Scalars['Int']['output']>;
+  /** The discussion this comment was created in */
+  discussion?: Maybe<Discussion>;
+  /** The Node ID of the DiscussionComment object */
+  id: Scalars['ID']['output'];
+  /** Check if this comment was edited and includes an edit with the creation data */
+  includesCreatedEdit: Scalars['Boolean']['output'];
+  /** Has this comment been chosen as the answer of its discussion? */
+  isAnswer: Scalars['Boolean']['output'];
+  /** Returns whether or not a comment has been minimized. */
+  isMinimized: Scalars['Boolean']['output'];
+  /** The moment the editor made the last edit */
+  lastEditedAt?: Maybe<Scalars['DateTime']['output']>;
+  /**
+   * Returns why the comment was minimized. One of `abuse`, `off-topic`,
+   * `outdated`, `resolved`, `duplicate`, `spam`, and `low-quality`. Note that the
+   * case and formatting of these values differs from the inputs to the
+   * `MinimizeComment` mutation.
+   */
+  minimizedReason?: Maybe<Scalars['String']['output']>;
+  /** Identifies when the comment was published at. */
+  publishedAt?: Maybe<Scalars['DateTime']['output']>;
+  /** A list of reactions grouped by content left on the subject. */
+  reactionGroups?: Maybe<Array<ReactionGroup>>;
+  /** The threaded replies to this comment. */
+  replies: DiscussionCommentConnection;
+  /** The discussion comment this comment is a reply to */
+  replyTo?: Maybe<DiscussionComment>;
+  /** The path for this discussion comment. */
+  resourcePath: Scalars['URI']['output'];
+  /** Identifies the date and time when the object was last updated. */
+  updatedAt: Scalars['DateTime']['output'];
+  /** Number of upvotes that this subject has received. */
+  upvoteCount: Scalars['Int']['output'];
+  /** The URL for this discussion comment. */
+  url: Scalars['URI']['output'];
+  /** Check if the current viewer can delete this object. */
+  viewerCanDelete: Scalars['Boolean']['output'];
+  /** Can the current user mark this comment as an answer? */
+  viewerCanMarkAsAnswer: Scalars['Boolean']['output'];
+  /** Check if the current viewer can minimize this object. */
+  viewerCanMinimize: Scalars['Boolean']['output'];
+  /** Can user react to this subject */
+  viewerCanReact: Scalars['Boolean']['output'];
+  /** Can the current user unmark this comment as an answer? */
+  viewerCanUnmarkAsAnswer: Scalars['Boolean']['output'];
+  /** Check if the current viewer can update this object. */
+  viewerCanUpdate: Scalars['Boolean']['output'];
+  /** Whether or not the current user can add or remove an upvote on this subject. */
+  viewerCanUpvote: Scalars['Boolean']['output'];
+  /** Did the viewer author this comment. */
+  viewerDidAuthor: Scalars['Boolean']['output'];
+  /** Whether or not the current user has already upvoted this subject. */
+  viewerHasUpvoted: Scalars['Boolean']['output'];
+};
+
+
+/** A comment on a discussion. */
+export type DiscussionCommentRepliesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+/** The connection type for Discussion. */
+export type DiscussionConnection = {
+  __typename?: 'DiscussionConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<DiscussionEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<Discussion>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type DiscussionEdge = {
+  __typename?: 'DiscussionEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<Discussion>;
+};
+
+/** The connection type for DiscussionCategory. */
+export type DiscussionCategoryConnection = {
+  __typename?: 'DiscussionCategoryConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<DiscussionCategoryEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<DiscussionCategory>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type DiscussionCategoryEdge = {
+  __typename?: 'DiscussionCategoryEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<DiscussionCategory>;
+};
+
+/** The connection type for DiscussionComment. */
+export type DiscussionCommentConnection = {
+  __typename?: 'DiscussionCommentConnection';
+  /** A list of edges. */
+  edges?: Maybe<Array<Maybe<DiscussionCommentEdge>>>;
+  /** A list of nodes. */
+  nodes?: Maybe<Array<Maybe<DiscussionComment>>>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+  /** Identifies the total count of items in the connection. */
+  totalCount: Scalars['Int']['output'];
+};
+
+/** An edge in a connection. */
+export type DiscussionCommentEdge = {
+  __typename?: 'DiscussionCommentEdge';
+  /** A cursor for use in pagination. */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge. */
+  node?: Maybe<DiscussionComment>;
+};
+
+/** Ways in which lists of discussions can be ordered upon return. */
+export type DiscussionOrder = {
+  /** The direction in which to order discussions by the specified field. */
+  direction: OrderDirection;
+  /** The field by which to order discussions. */
+  field: DiscussionOrderField;
+};
+
+/** Properties by which discussion connections can be ordered. */
+export type DiscussionOrderField =
+  /** Order discussions by creation time. */
+  | 'CREATED_AT'
+  /** Order discussions by most recent modification time. */
+  | 'UPDATED_AT';
+
+/** The possible states of a discussion. */
+export type DiscussionState =
+  /** A discussion that has been closed */
+  | 'CLOSED'
+  /** A discussion that is open */
+  | 'OPEN';
+
+/** The possible state reasons of a discussion. */
+export type DiscussionStateReason =
+  /** The discussion is a duplicate of another */
+  | 'DUPLICATE'
+  /** The discussion is no longer relevant */
+  | 'OUTDATED'
+  /** The discussion was reopened */
+  | 'REOPENED'
+  /** The discussion has been resolved */
+  | 'RESOLVED';
+
+/** The possible reasons for closing a discussion. */
+export type DiscussionCloseReason =
+  /** The discussion is a duplicate of another */
+  | 'DUPLICATE'
+  /** The discussion is no longer relevant */
+  | 'OUTDATED'
+  /** The discussion has been resolved */
+  | 'RESOLVED';
+
+/** A subject that may be upvoted. */
+export type Votable = {
+  /** Number of upvotes that this subject has received. */
+  upvoteCount: Scalars['Int']['output'];
+  /** Whether or not the current user can add or remove an upvote on this subject. */
+  viewerCanUpvote: Scalars['Boolean']['output'];
+  /** Whether or not the current user has already upvoted this subject. */
+  viewerHasUpvoted: Scalars['Boolean']['output'];
+};
+
+/** Autogenerated input type of CreateDiscussion */
+export type CreateDiscussionInput = {
+  /** The body of the discussion. */
+  body: Scalars['String']['input'];
+  /** The id of the discussion category to associate with this discussion. */
+  categoryId: Scalars['ID']['input'];
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The id of the repository on which to create the discussion. */
+  repositoryId: Scalars['ID']['input'];
+  /** The title of the discussion. */
+  title: Scalars['String']['input'];
+};
+
+/** Autogenerated return type of CreateDiscussion. */
+export type CreateDiscussionPayload = {
+  __typename?: 'CreateDiscussionPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion that was just created. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of AddDiscussionComment */
+export type AddDiscussionCommentInput = {
+  /** The contents of the comment. */
+  body: Scalars['String']['input'];
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion to comment on. */
+  discussionId: Scalars['ID']['input'];
+  /** The Node ID of the discussion comment within this discussion to reply to. */
+  replyToId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+/** Autogenerated return type of AddDiscussionComment. */
+export type AddDiscussionCommentPayload = {
+  __typename?: 'AddDiscussionCommentPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The newly created discussion comment. */
+  comment?: Maybe<DiscussionComment>;
+};
+
+/** Autogenerated input type of MarkDiscussionCommentAsAnswer */
+export type MarkDiscussionCommentAsAnswerInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion comment to mark as an answer. */
+  id: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of MarkDiscussionCommentAsAnswer. */
+export type MarkDiscussionCommentAsAnswerPayload = {
+  __typename?: 'MarkDiscussionCommentAsAnswerPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion that includes the chosen comment. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of UnmarkDiscussionCommentAsAnswer */
+export type UnmarkDiscussionCommentAsAnswerInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion comment to unmark as an answer. */
+  id: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of UnmarkDiscussionCommentAsAnswer. */
+export type UnmarkDiscussionCommentAsAnswerPayload = {
+  __typename?: 'UnmarkDiscussionCommentAsAnswerPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion that includes the comment. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of AddUpvote */
+export type AddUpvoteInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion or comment to upvote. */
+  subjectId: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of AddUpvote. */
+export type AddUpvotePayload = {
+  __typename?: 'AddUpvotePayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The votable subject. */
+  subject?: Maybe<Votable>;
+};
+
+/** Autogenerated input type of RemoveUpvote */
+export type RemoveUpvoteInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion or comment to remove upvote. */
+  subjectId: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of RemoveUpvote. */
+export type RemoveUpvotePayload = {
+  __typename?: 'RemoveUpvotePayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The votable subject. */
+  subject?: Maybe<Votable>;
+};
+
+/** Autogenerated input type of CloseDiscussion */
+export type CloseDiscussionInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** ID of the discussion to be closed. */
+  discussionId: Scalars['ID']['input'];
+  /** The reason why the discussion is being closed. */
+  reason?: InputMaybe<DiscussionCloseReason>;
+};
+
+/** Autogenerated return type of CloseDiscussion. */
+export type CloseDiscussionPayload = {
+  __typename?: 'CloseDiscussionPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion that was closed. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of ReopenDiscussion */
+export type ReopenDiscussionInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** ID of the discussion to be reopened. */
+  discussionId: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of ReopenDiscussion. */
+export type ReopenDiscussionPayload = {
+  __typename?: 'ReopenDiscussionPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion that was reopened. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of UpdateDiscussion */
+export type UpdateDiscussionInput = {
+  /** The new contents of the discussion body. */
+  body?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of a discussion category within the same repository to change this discussion to. */
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion to update. */
+  discussionId: Scalars['ID']['input'];
+  /** The new discussion title. */
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
+/** Autogenerated return type of UpdateDiscussion. */
+export type UpdateDiscussionPayload = {
+  __typename?: 'UpdateDiscussionPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The modified discussion. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of DeleteDiscussion */
+export type DeleteDiscussionInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The id of the discussion to delete. */
+  id: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of DeleteDiscussion. */
+export type DeleteDiscussionPayload = {
+  __typename?: 'DeleteDiscussionPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion that was just deleted. */
+  discussion?: Maybe<Discussion>;
+};
+
+/** Autogenerated input type of UpdateDiscussionComment */
+export type UpdateDiscussionCommentInput = {
+  /** The new contents of the comment body. */
+  body: Scalars['String']['input'];
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node ID of the discussion comment to update. */
+  commentId: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of UpdateDiscussionComment. */
+export type UpdateDiscussionCommentPayload = {
+  __typename?: 'UpdateDiscussionCommentPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The modified discussion comment. */
+  comment?: Maybe<DiscussionComment>;
+};
+
+/** Autogenerated input type of DeleteDiscussionComment */
+export type DeleteDiscussionCommentInput = {
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: InputMaybe<Scalars['String']['input']>;
+  /** The Node id of the discussion comment to delete. */
+  id: Scalars['ID']['input'];
+};
+
+/** Autogenerated return type of DeleteDiscussionComment. */
+export type DeleteDiscussionCommentPayload = {
+  __typename?: 'DeleteDiscussionCommentPayload';
+  /** A unique identifier for the client performing the mutation. */
+  clientMutationId?: Maybe<Scalars['String']['output']>;
+  /** The discussion comment that was just deleted. */
+  comment?: Maybe<DiscussionComment>;
+};
+
 
 
 export type ResolverTypeWrapper<T> = Promise<T> | T;
@@ -3805,6 +4488,9 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
     | ( ProjectFieldValueNode )
+    | ( DiscussionNode )
+    | ( DiscussionCategoryNode )
+    | ( DiscussionCommentNode )
   ;
   UniformResourceLocatable:
     | ( UserNode )
@@ -3822,12 +4508,19 @@ export type ResolversInterfaceTypes<_RefType extends Record<string, unknown>> = 
     | ( GitSignatureNode )
     | ( GitSignatureNode )
   ;
-  Labelable: ( IssueNode );
+  Labelable:
+    | ( IssueNode )
+    | ( DiscussionNode )
+  ;
   Assignable: ( IssueNode );
   ProjectV2Owner: ( UserNode );
   ProjectV2FieldCommon:
     | ( ProjectFieldNode )
     | ( ProjectFieldNode )
+  ;
+  Votable:
+    | ( DiscussionNode )
+    | ( DiscussionCommentNode )
   ;
 };
 
@@ -4054,6 +4747,45 @@ export type ResolversTypes = {
   ProjectV2ItemFieldDateValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   ProjectV2ItemFieldSingleSelectValue: ResolverTypeWrapper<ProjectFieldValueNode>;
   Date: ResolverTypeWrapper<Scalars['Date']['output']>;
+  Discussion: ResolverTypeWrapper<DiscussionNode>;
+  DiscussionCategory: ResolverTypeWrapper<DiscussionCategoryNode>;
+  DiscussionComment: ResolverTypeWrapper<DiscussionCommentNode>;
+  DiscussionConnection: ResolverTypeWrapper<Omit<DiscussionConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['DiscussionEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['Discussion']>>> }>;
+  DiscussionEdge: ResolverTypeWrapper<Omit<DiscussionEdge, 'node'> & { node?: Maybe<ResolversTypes['Discussion']> }>;
+  DiscussionCategoryConnection: ResolverTypeWrapper<Omit<DiscussionCategoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['DiscussionCategoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['DiscussionCategory']>>> }>;
+  DiscussionCategoryEdge: ResolverTypeWrapper<Omit<DiscussionCategoryEdge, 'node'> & { node?: Maybe<ResolversTypes['DiscussionCategory']> }>;
+  DiscussionCommentConnection: ResolverTypeWrapper<Omit<DiscussionCommentConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversTypes['DiscussionCommentEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversTypes['DiscussionComment']>>> }>;
+  DiscussionCommentEdge: ResolverTypeWrapper<Omit<DiscussionCommentEdge, 'node'> & { node?: Maybe<ResolversTypes['DiscussionComment']> }>;
+  DiscussionOrder: DiscussionOrder;
+  DiscussionOrderField: DiscussionOrderField;
+  DiscussionState: DiscussionState;
+  DiscussionStateReason: DiscussionStateReason;
+  DiscussionCloseReason: DiscussionCloseReason;
+  Votable: ResolverTypeWrapper<ResolversInterfaceTypes<ResolversTypes>['Votable']>;
+  CreateDiscussionInput: CreateDiscussionInput;
+  CreateDiscussionPayload: ResolverTypeWrapper<Omit<CreateDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  AddDiscussionCommentInput: AddDiscussionCommentInput;
+  AddDiscussionCommentPayload: ResolverTypeWrapper<Omit<AddDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversTypes['DiscussionComment']> }>;
+  MarkDiscussionCommentAsAnswerInput: MarkDiscussionCommentAsAnswerInput;
+  MarkDiscussionCommentAsAnswerPayload: ResolverTypeWrapper<Omit<MarkDiscussionCommentAsAnswerPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  UnmarkDiscussionCommentAsAnswerInput: UnmarkDiscussionCommentAsAnswerInput;
+  UnmarkDiscussionCommentAsAnswerPayload: ResolverTypeWrapper<Omit<UnmarkDiscussionCommentAsAnswerPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  AddUpvoteInput: AddUpvoteInput;
+  AddUpvotePayload: ResolverTypeWrapper<Omit<AddUpvotePayload, 'subject'> & { subject?: Maybe<ResolversTypes['Votable']> }>;
+  RemoveUpvoteInput: RemoveUpvoteInput;
+  RemoveUpvotePayload: ResolverTypeWrapper<Omit<RemoveUpvotePayload, 'subject'> & { subject?: Maybe<ResolversTypes['Votable']> }>;
+  CloseDiscussionInput: CloseDiscussionInput;
+  CloseDiscussionPayload: ResolverTypeWrapper<Omit<CloseDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  ReopenDiscussionInput: ReopenDiscussionInput;
+  ReopenDiscussionPayload: ResolverTypeWrapper<Omit<ReopenDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  UpdateDiscussionInput: UpdateDiscussionInput;
+  UpdateDiscussionPayload: ResolverTypeWrapper<Omit<UpdateDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  DeleteDiscussionInput: DeleteDiscussionInput;
+  DeleteDiscussionPayload: ResolverTypeWrapper<Omit<DeleteDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversTypes['Discussion']> }>;
+  UpdateDiscussionCommentInput: UpdateDiscussionCommentInput;
+  UpdateDiscussionCommentPayload: ResolverTypeWrapper<Omit<UpdateDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversTypes['DiscussionComment']> }>;
+  DeleteDiscussionCommentInput: DeleteDiscussionCommentInput;
+  DeleteDiscussionCommentPayload: ResolverTypeWrapper<Omit<DeleteDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversTypes['DiscussionComment']> }>;
 };
 
 /** Mapping between all available schema types and the resolvers parents */
@@ -4238,6 +4970,41 @@ export type ResolversParentTypes = {
   ProjectV2ItemFieldDateValue: ProjectFieldValueNode;
   ProjectV2ItemFieldSingleSelectValue: ProjectFieldValueNode;
   Date: Scalars['Date']['output'];
+  Discussion: DiscussionNode;
+  DiscussionCategory: DiscussionCategoryNode;
+  DiscussionComment: DiscussionCommentNode;
+  DiscussionConnection: Omit<DiscussionConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['DiscussionEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['Discussion']>>> };
+  DiscussionEdge: Omit<DiscussionEdge, 'node'> & { node?: Maybe<ResolversParentTypes['Discussion']> };
+  DiscussionCategoryConnection: Omit<DiscussionCategoryConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['DiscussionCategoryEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['DiscussionCategory']>>> };
+  DiscussionCategoryEdge: Omit<DiscussionCategoryEdge, 'node'> & { node?: Maybe<ResolversParentTypes['DiscussionCategory']> };
+  DiscussionCommentConnection: Omit<DiscussionCommentConnection, 'edges' | 'nodes'> & { edges?: Maybe<Array<Maybe<ResolversParentTypes['DiscussionCommentEdge']>>>, nodes?: Maybe<Array<Maybe<ResolversParentTypes['DiscussionComment']>>> };
+  DiscussionCommentEdge: Omit<DiscussionCommentEdge, 'node'> & { node?: Maybe<ResolversParentTypes['DiscussionComment']> };
+  DiscussionOrder: DiscussionOrder;
+  Votable: ResolversInterfaceTypes<ResolversParentTypes>['Votable'];
+  CreateDiscussionInput: CreateDiscussionInput;
+  CreateDiscussionPayload: Omit<CreateDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  AddDiscussionCommentInput: AddDiscussionCommentInput;
+  AddDiscussionCommentPayload: Omit<AddDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversParentTypes['DiscussionComment']> };
+  MarkDiscussionCommentAsAnswerInput: MarkDiscussionCommentAsAnswerInput;
+  MarkDiscussionCommentAsAnswerPayload: Omit<MarkDiscussionCommentAsAnswerPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  UnmarkDiscussionCommentAsAnswerInput: UnmarkDiscussionCommentAsAnswerInput;
+  UnmarkDiscussionCommentAsAnswerPayload: Omit<UnmarkDiscussionCommentAsAnswerPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  AddUpvoteInput: AddUpvoteInput;
+  AddUpvotePayload: Omit<AddUpvotePayload, 'subject'> & { subject?: Maybe<ResolversParentTypes['Votable']> };
+  RemoveUpvoteInput: RemoveUpvoteInput;
+  RemoveUpvotePayload: Omit<RemoveUpvotePayload, 'subject'> & { subject?: Maybe<ResolversParentTypes['Votable']> };
+  CloseDiscussionInput: CloseDiscussionInput;
+  CloseDiscussionPayload: Omit<CloseDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  ReopenDiscussionInput: ReopenDiscussionInput;
+  ReopenDiscussionPayload: Omit<ReopenDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  UpdateDiscussionInput: UpdateDiscussionInput;
+  UpdateDiscussionPayload: Omit<UpdateDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  DeleteDiscussionInput: DeleteDiscussionInput;
+  DeleteDiscussionPayload: Omit<DeleteDiscussionPayload, 'discussion'> & { discussion?: Maybe<ResolversParentTypes['Discussion']> };
+  UpdateDiscussionCommentInput: UpdateDiscussionCommentInput;
+  UpdateDiscussionCommentPayload: Omit<UpdateDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversParentTypes['DiscussionComment']> };
+  DeleteDiscussionCommentInput: DeleteDiscussionCommentInput;
+  DeleteDiscussionCommentPayload: Omit<DeleteDiscussionCommentPayload, 'comment'> & { comment?: Maybe<ResolversParentTypes['DiscussionComment']> };
 };
 
 export type QueryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Query'] = ResolversParentTypes['Query']> = {
@@ -4253,7 +5020,7 @@ export type QueryResolvers<ContextType = GraphQLContext, ParentType extends Reso
 };
 
 export type NodeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Node'] = ResolversParentTypes['Node']> = {
-  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'User' | 'Repository' | 'Ref' | 'Commit' | 'Release' | 'ReleaseAsset' | 'Issue' | 'Milestone' | 'IssueType' | 'PullRequest' | 'PullRequestReview' | 'Label' | 'IssueComment' | 'ProjectV2' | 'ProjectV2Field' | 'ProjectV2SingleSelectField' | 'ProjectV2Item' | 'DraftIssue' | 'ProjectV2ItemFieldTextValue' | 'ProjectV2ItemFieldNumberValue' | 'ProjectV2ItemFieldDateValue' | 'ProjectV2ItemFieldSingleSelectValue' | 'Discussion' | 'DiscussionCategory' | 'DiscussionComment', ParentType, ContextType>;
 };
 
 export type PageInfoResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['PageInfo'] = ResolversParentTypes['PageInfo']> = {
@@ -4327,6 +5094,18 @@ export type MutationResolvers<ContextType = GraphQLContext, ParentType extends R
   updatePullRequest?: Resolver<Maybe<ResolversTypes['UpdatePullRequestPayload']>, ParentType, ContextType, RequireFields<MutationUpdatePullRequestArgs, 'input'>>;
   mergePullRequest?: Resolver<Maybe<ResolversTypes['MergePullRequestPayload']>, ParentType, ContextType, RequireFields<MutationMergePullRequestArgs, 'input'>>;
   addPullRequestReview?: Resolver<Maybe<ResolversTypes['AddPullRequestReviewPayload']>, ParentType, ContextType, RequireFields<MutationAddPullRequestReviewArgs, 'input'>>;
+  createDiscussion?: Resolver<Maybe<ResolversTypes['CreateDiscussionPayload']>, ParentType, ContextType, RequireFields<MutationCreateDiscussionArgs, 'input'>>;
+  addDiscussionComment?: Resolver<Maybe<ResolversTypes['AddDiscussionCommentPayload']>, ParentType, ContextType, RequireFields<MutationAddDiscussionCommentArgs, 'input'>>;
+  markDiscussionCommentAsAnswer?: Resolver<Maybe<ResolversTypes['MarkDiscussionCommentAsAnswerPayload']>, ParentType, ContextType, RequireFields<MutationMarkDiscussionCommentAsAnswerArgs, 'input'>>;
+  unmarkDiscussionCommentAsAnswer?: Resolver<Maybe<ResolversTypes['UnmarkDiscussionCommentAsAnswerPayload']>, ParentType, ContextType, RequireFields<MutationUnmarkDiscussionCommentAsAnswerArgs, 'input'>>;
+  addUpvote?: Resolver<Maybe<ResolversTypes['AddUpvotePayload']>, ParentType, ContextType, RequireFields<MutationAddUpvoteArgs, 'input'>>;
+  removeUpvote?: Resolver<Maybe<ResolversTypes['RemoveUpvotePayload']>, ParentType, ContextType, RequireFields<MutationRemoveUpvoteArgs, 'input'>>;
+  closeDiscussion?: Resolver<Maybe<ResolversTypes['CloseDiscussionPayload']>, ParentType, ContextType, RequireFields<MutationCloseDiscussionArgs, 'input'>>;
+  reopenDiscussion?: Resolver<Maybe<ResolversTypes['ReopenDiscussionPayload']>, ParentType, ContextType, RequireFields<MutationReopenDiscussionArgs, 'input'>>;
+  updateDiscussion?: Resolver<Maybe<ResolversTypes['UpdateDiscussionPayload']>, ParentType, ContextType, RequireFields<MutationUpdateDiscussionArgs, 'input'>>;
+  deleteDiscussion?: Resolver<Maybe<ResolversTypes['DeleteDiscussionPayload']>, ParentType, ContextType, RequireFields<MutationDeleteDiscussionArgs, 'input'>>;
+  updateDiscussionComment?: Resolver<Maybe<ResolversTypes['UpdateDiscussionCommentPayload']>, ParentType, ContextType, RequireFields<MutationUpdateDiscussionCommentArgs, 'input'>>;
+  deleteDiscussionComment?: Resolver<Maybe<ResolversTypes['DeleteDiscussionCommentPayload']>, ParentType, ContextType, RequireFields<MutationDeleteDiscussionCommentArgs, 'input'>>;
 };
 
 export type RepositoryOwnerResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RepositoryOwner'] = ResolversParentTypes['RepositoryOwner']> = {
@@ -4398,6 +5177,10 @@ export type RepositoryResolvers<ContextType = GraphQLContext, ParentType extends
   pullRequest?: Resolver<Maybe<ResolversTypes['PullRequest']>, ParentType, ContextType, RequireFields<RepositoryPullRequestArgs, 'number'>>;
   pullRequests?: Resolver<ResolversTypes['PullRequestConnection'], ParentType, ContextType, Partial<RepositoryPullRequestsArgs>>;
   projectsV2?: Resolver<ResolversTypes['ProjectV2Connection'], ParentType, ContextType, RequireFields<RepositoryProjectsV2Args, 'minPermissionLevel' | 'orderBy'>>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType, RequireFields<RepositoryDiscussionArgs, 'number'>>;
+  discussions?: Resolver<ResolversTypes['DiscussionConnection'], ParentType, ContextType, RequireFields<RepositoryDiscussionsArgs, 'answered' | 'categoryId' | 'orderBy'>>;
+  discussionCategories?: Resolver<ResolversTypes['DiscussionCategoryConnection'], ParentType, ContextType, Partial<RepositoryDiscussionCategoriesArgs>>;
+  discussionCategory?: Resolver<Maybe<ResolversTypes['DiscussionCategory']>, ParentType, ContextType, RequireFields<RepositoryDiscussionCategoryArgs, 'slug'>>;
   __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
 };
 
@@ -4709,7 +5492,7 @@ export type SubIssuesSummaryResolvers<ContextType = GraphQLContext, ParentType e
 };
 
 export type LabelableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Labelable'] = ResolversParentTypes['Labelable']> = {
-  __resolveType: TypeResolveFn<'Issue', ParentType, ContextType>;
+  __resolveType: TypeResolveFn<'Issue' | 'Discussion', ParentType, ContextType>;
 };
 
 export type AssignableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Assignable'] = ResolversParentTypes['Assignable']> = {
@@ -5312,6 +6095,196 @@ export interface DateScalarConfig extends GraphQLScalarTypeConfig<ResolversTypes
   name: 'Date';
 }
 
+export type DiscussionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Discussion'] = ResolversParentTypes['Discussion']> = {
+  answer?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
+  answerChosenAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  answerChosenBy?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  authorAssociation?: Resolver<ResolversTypes['CommentAuthorAssociation'], ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  category?: Resolver<ResolversTypes['DiscussionCategory'], ParentType, ContextType>;
+  closed?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  closedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  comments?: Resolver<ResolversTypes['DiscussionCommentConnection'], ParentType, ContextType, Partial<DiscussionCommentsArgs>>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdViaEmail?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  includesCreatedEdit?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isAnswered?: Resolver<Maybe<ResolversTypes['Boolean']>, ParentType, ContextType>;
+  labels?: Resolver<Maybe<ResolversTypes['LabelConnection']>, ParentType, ContextType, Partial<DiscussionLabelsArgs>>;
+  lastEditedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  locked?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  number?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  publishedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  stateReason?: Resolver<Maybe<ResolversTypes['DiscussionStateReason']>, ParentType, ContextType>;
+  title?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  upvoteCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  viewerCanClose?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanDelete?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanLabel?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanReact?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanReopen?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanSubscribe?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanUpdate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanUpvote?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerDidAuthor?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerHasUpvoted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type DiscussionCategoryResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionCategory'] = ResolversParentTypes['DiscussionCategory']> = {
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  description?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  emoji?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  isAnswerable?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  name?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  repository?: Resolver<ResolversTypes['Repository'], ParentType, ContextType>;
+  slug?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type DiscussionCommentResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionComment'] = ResolversParentTypes['DiscussionComment']> = {
+  author?: Resolver<Maybe<ResolversTypes['Actor']>, ParentType, ContextType>;
+  authorAssociation?: Resolver<ResolversTypes['CommentAuthorAssociation'], ParentType, ContextType>;
+  body?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  createdAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  createdViaEmail?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  databaseId?: Resolver<Maybe<ResolversTypes['Int']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+  id?: Resolver<ResolversTypes['ID'], ParentType, ContextType>;
+  includesCreatedEdit?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isAnswer?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  isMinimized?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  lastEditedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  minimizedReason?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  publishedAt?: Resolver<Maybe<ResolversTypes['DateTime']>, ParentType, ContextType>;
+  reactionGroups?: Resolver<Maybe<Array<ResolversTypes['ReactionGroup']>>, ParentType, ContextType>;
+  replies?: Resolver<ResolversTypes['DiscussionCommentConnection'], ParentType, ContextType, Partial<DiscussionCommentRepliesArgs>>;
+  replyTo?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
+  resourcePath?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  updatedAt?: Resolver<ResolversTypes['DateTime'], ParentType, ContextType>;
+  upvoteCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+  url?: Resolver<ResolversTypes['URI'], ParentType, ContextType>;
+  viewerCanDelete?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanMarkAsAnswer?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanMinimize?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanReact?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanUnmarkAsAnswer?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanUpdate?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerCanUpvote?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerDidAuthor?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  viewerHasUpvoted?: Resolver<ResolversTypes['Boolean'], ParentType, ContextType>;
+  __isTypeOf?: IsTypeOfResolverFn<ParentType, ContextType>;
+};
+
+export type DiscussionConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionConnection'] = ResolversParentTypes['DiscussionConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['DiscussionEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['Discussion']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type DiscussionEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionEdge'] = ResolversParentTypes['DiscussionEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type DiscussionCategoryConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionCategoryConnection'] = ResolversParentTypes['DiscussionCategoryConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['DiscussionCategoryEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['DiscussionCategory']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type DiscussionCategoryEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionCategoryEdge'] = ResolversParentTypes['DiscussionCategoryEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['DiscussionCategory']>, ParentType, ContextType>;
+};
+
+export type DiscussionCommentConnectionResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionCommentConnection'] = ResolversParentTypes['DiscussionCommentConnection']> = {
+  edges?: Resolver<Maybe<Array<Maybe<ResolversTypes['DiscussionCommentEdge']>>>, ParentType, ContextType>;
+  nodes?: Resolver<Maybe<Array<Maybe<ResolversTypes['DiscussionComment']>>>, ParentType, ContextType>;
+  pageInfo?: Resolver<ResolversTypes['PageInfo'], ParentType, ContextType>;
+  totalCount?: Resolver<ResolversTypes['Int'], ParentType, ContextType>;
+};
+
+export type DiscussionCommentEdgeResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DiscussionCommentEdge'] = ResolversParentTypes['DiscussionCommentEdge']> = {
+  cursor?: Resolver<ResolversTypes['String'], ParentType, ContextType>;
+  node?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
+};
+
+export type VotableResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['Votable'] = ResolversParentTypes['Votable']> = {
+  __resolveType: TypeResolveFn<'Discussion' | 'DiscussionComment', ParentType, ContextType>;
+};
+
+export type CreateDiscussionPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CreateDiscussionPayload'] = ResolversParentTypes['CreateDiscussionPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type AddDiscussionCommentPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AddDiscussionCommentPayload'] = ResolversParentTypes['AddDiscussionCommentPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  comment?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
+};
+
+export type MarkDiscussionCommentAsAnswerPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['MarkDiscussionCommentAsAnswerPayload'] = ResolversParentTypes['MarkDiscussionCommentAsAnswerPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type UnmarkDiscussionCommentAsAnswerPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UnmarkDiscussionCommentAsAnswerPayload'] = ResolversParentTypes['UnmarkDiscussionCommentAsAnswerPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type AddUpvotePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['AddUpvotePayload'] = ResolversParentTypes['AddUpvotePayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  subject?: Resolver<Maybe<ResolversTypes['Votable']>, ParentType, ContextType>;
+};
+
+export type RemoveUpvotePayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['RemoveUpvotePayload'] = ResolversParentTypes['RemoveUpvotePayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  subject?: Resolver<Maybe<ResolversTypes['Votable']>, ParentType, ContextType>;
+};
+
+export type CloseDiscussionPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['CloseDiscussionPayload'] = ResolversParentTypes['CloseDiscussionPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type ReopenDiscussionPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['ReopenDiscussionPayload'] = ResolversParentTypes['ReopenDiscussionPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type UpdateDiscussionPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateDiscussionPayload'] = ResolversParentTypes['UpdateDiscussionPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type DeleteDiscussionPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DeleteDiscussionPayload'] = ResolversParentTypes['DeleteDiscussionPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  discussion?: Resolver<Maybe<ResolversTypes['Discussion']>, ParentType, ContextType>;
+};
+
+export type UpdateDiscussionCommentPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['UpdateDiscussionCommentPayload'] = ResolversParentTypes['UpdateDiscussionCommentPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  comment?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
+};
+
+export type DeleteDiscussionCommentPayloadResolvers<ContextType = GraphQLContext, ParentType extends ResolversParentTypes['DeleteDiscussionCommentPayload'] = ResolversParentTypes['DeleteDiscussionCommentPayload']> = {
+  clientMutationId?: Resolver<Maybe<ResolversTypes['String']>, ParentType, ContextType>;
+  comment?: Resolver<Maybe<ResolversTypes['DiscussionComment']>, ParentType, ContextType>;
+};
+
 export type Resolvers<ContextType = GraphQLContext> = {
   Query?: QueryResolvers<ContextType>;
   Node?: NodeResolvers<ContextType>;
@@ -5456,5 +6429,27 @@ export type Resolvers<ContextType = GraphQLContext> = {
   ProjectV2ItemFieldDateValue?: ProjectV2ItemFieldDateValueResolvers<ContextType>;
   ProjectV2ItemFieldSingleSelectValue?: ProjectV2ItemFieldSingleSelectValueResolvers<ContextType>;
   Date?: GraphQLScalarType;
+  Discussion?: DiscussionResolvers<ContextType>;
+  DiscussionCategory?: DiscussionCategoryResolvers<ContextType>;
+  DiscussionComment?: DiscussionCommentResolvers<ContextType>;
+  DiscussionConnection?: DiscussionConnectionResolvers<ContextType>;
+  DiscussionEdge?: DiscussionEdgeResolvers<ContextType>;
+  DiscussionCategoryConnection?: DiscussionCategoryConnectionResolvers<ContextType>;
+  DiscussionCategoryEdge?: DiscussionCategoryEdgeResolvers<ContextType>;
+  DiscussionCommentConnection?: DiscussionCommentConnectionResolvers<ContextType>;
+  DiscussionCommentEdge?: DiscussionCommentEdgeResolvers<ContextType>;
+  Votable?: VotableResolvers<ContextType>;
+  CreateDiscussionPayload?: CreateDiscussionPayloadResolvers<ContextType>;
+  AddDiscussionCommentPayload?: AddDiscussionCommentPayloadResolvers<ContextType>;
+  MarkDiscussionCommentAsAnswerPayload?: MarkDiscussionCommentAsAnswerPayloadResolvers<ContextType>;
+  UnmarkDiscussionCommentAsAnswerPayload?: UnmarkDiscussionCommentAsAnswerPayloadResolvers<ContextType>;
+  AddUpvotePayload?: AddUpvotePayloadResolvers<ContextType>;
+  RemoveUpvotePayload?: RemoveUpvotePayloadResolvers<ContextType>;
+  CloseDiscussionPayload?: CloseDiscussionPayloadResolvers<ContextType>;
+  ReopenDiscussionPayload?: ReopenDiscussionPayloadResolvers<ContextType>;
+  UpdateDiscussionPayload?: UpdateDiscussionPayloadResolvers<ContextType>;
+  DeleteDiscussionPayload?: DeleteDiscussionPayloadResolvers<ContextType>;
+  UpdateDiscussionCommentPayload?: UpdateDiscussionCommentPayloadResolvers<ContextType>;
+  DeleteDiscussionCommentPayload?: DeleteDiscussionCommentPayloadResolvers<ContextType>;
 };
 
