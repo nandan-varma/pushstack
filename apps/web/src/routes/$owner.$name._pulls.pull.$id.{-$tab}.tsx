@@ -124,19 +124,19 @@ export const Route = createFileRoute("/$owner/$name/_pulls/pull/$id/{-$tab}")({
 					}),
 				)
 				.catch((error: unknown) =>
-					ensureThreadNumberRedirect(
-						error,
-						params,
-						() =>
-							queryClient.ensureQueryData(
-								issueByNumberQueryOptions({
-									owner: params.owner,
-									name: params.name,
-									number: prNumber,
-								}),
-							),
-						"/$owner/$name/issues/$id",
-					),
+					ensureThreadNumberRedirect(error, params, [
+						{
+							route: "/$owner/$name/issues/$id",
+							find: () =>
+								queryClient.ensureQueryData(
+									issueByNumberQueryOptions({
+										owner: params.owner,
+										name: params.name,
+										number: prNumber,
+									}),
+								),
+						},
+					]),
 				),
 		]);
 

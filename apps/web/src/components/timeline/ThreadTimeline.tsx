@@ -310,6 +310,16 @@ function describeEvent(
 					</>
 				),
 			};
+		case "converted_to_discussion":
+			return {
+				icon: MessageSquare,
+				text: "converted this issue into a discussion",
+			};
+		case "converted_to_issue":
+			return {
+				icon: CircleDot,
+				text: "converted this discussion into an issue",
+			};
 		case "head_ref_deleted":
 			return {
 				icon: GitBranch,

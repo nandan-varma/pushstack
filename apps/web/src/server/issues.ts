@@ -14,6 +14,10 @@ import {
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
 import {
+	convertIssueToDiscussion as convertToDiscussion,
+	findDiscussionCategoryById,
+} from "./discussion-store";
+import {
 	createIssueForUser,
 	issueLabelsSchema,
 	updateIssueThreadFields,
@@ -26,6 +30,7 @@ import {
 	readWithAccess,
 	requireNotArchived,
 	requireParticipateAccess,
+	writeWithAccess,
 } from "./repo-access";
 import { readRepoByName } from "./repository-lookup";
 import { loadRepositoryTemplates } from "./repository-templates-store";
@@ -185,5 +190,26 @@ export const updateIssue = createServerFn({ method: "POST" })
 		return updateIssueThreadFields(issue, currentUser.id, {
 			...fields,
 			status,
+		});
+	});
+
+/** The issue becomes a discussion on the same `#N`, if the repository has them. */
+export const convertIssueToDiscussion = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			issueId: z.number().int().positive(),
+			categoryId: z.number().int().positive(),
+		}),
+	)
+	.handler(async ({ data }) => {
+		const issue = await findIssueById(data.issueId);
+		if (!issue) throw notFound();
+		return writeWithAccess(issue.repoId, async (repo, user) => {
+			if (!repo.hasDiscussions)
+				throw new Error("Discussions are disabled for this repository");
+			const category = await findDiscussionCategoryById(data.categoryId);
+			if (!category || category.repoId !== repo.id) throw notFound();
+			await convertToDiscussion(issue, user.id, category.id);
+			return { number: issue.number };
 		});
 	});

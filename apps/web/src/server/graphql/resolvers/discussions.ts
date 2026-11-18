@@ -565,11 +565,11 @@ async function markAnswerMutation(
 	authorOrWrite(ctx, repo, discussion.issue.authorId);
 	if (marked)
 		await setDiscussionAnswer(
-			discussion.issue.id,
+			discussion.issue,
 			ctx.caller.userId,
 			row.comment.id,
 		);
-	else await setDiscussionAnswer(discussion.issue.id, ctx.caller.userId, null);
+	else await setDiscussionAnswer(discussion.issue, ctx.caller.userId, null);
 	return {
 		clientMutationId: input.clientMutationId ?? null,
 		discussion: await reloadDiscussion(repo, discussion.issue.number, ctx),

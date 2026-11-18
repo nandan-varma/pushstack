@@ -712,6 +712,8 @@ export function timelineEvent(
 				requested_reviewer: simpleUser(reviewer),
 			};
 		}
+		case "converted_to_discussion":
+		case "converted_to_issue":
 		case "reviewed":
 			return null;
 	}

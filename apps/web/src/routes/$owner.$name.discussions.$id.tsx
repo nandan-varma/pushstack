@@ -1,16 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DetailHeader } from "@/components/DetailHeader";
+import { DiscussionMenu } from "@/components/discussions/DiscussionMenu";
 import { DiscussionThread } from "@/components/discussions/DiscussionThread";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { contentQuery } from "@/lib/prefetch";
 import {
 	discussionByNumberQueryOptions,
 	discussionCommentsQueryOptions,
+	issueByNumberQueryOptions,
 	repositoryByNameQueryOptions,
 	repositoryIssueNumbersQueryOptions,
 	repositoryPullRequestNumbersQueryOptions,
 } from "@/lib/query-options";
+import { ensureThreadNumberRedirect } from "@/lib/thread-number-redirect";
 
 export const Route = createFileRoute("/$owner/$name/discussions/$id")({
 	loader: async ({ params, context: { queryClient } }) => {
@@ -20,13 +23,29 @@ export const Route = createFileRoute("/$owner/$name/discussions/$id")({
 			repositoryByNameQueryOptions({ owner: params.owner, name: params.name }),
 		);
 		if (!repo?.hasDiscussions) throw notFound();
-		const discussion = await queryClient.ensureQueryData(
-			discussionByNumberQueryOptions({
-				owner: params.owner,
-				name: params.name,
-				number,
-			}),
-		);
+		const discussion = await queryClient
+			.ensureQueryData(
+				discussionByNumberQueryOptions({
+					owner: params.owner,
+					name: params.name,
+					number,
+				}),
+			)
+			.catch((error: unknown) =>
+				ensureThreadNumberRedirect(error, params, [
+					{
+						route: "/$owner/$name/issues/$id",
+						find: () =>
+							queryClient.ensureQueryData(
+								issueByNumberQueryOptions({
+									owner: params.owner,
+									name: params.name,
+									number,
+								}),
+							),
+					},
+				]),
+			);
 		await Promise.all([
 			queryClient
 				.ensureInfiniteQueryData(
@@ -77,6 +96,11 @@ function DiscussionPage() {
 						</span>{" "}
 						started this discussion
 					</p>
+				}
+				actions={
+					data.viewer.canWrite ? (
+						<DiscussionMenu owner={owner} name={name} discussion={discussion} />
+					) : undefined
 				}
 			/>
 			<DiscussionThread
