@@ -1,170 +1,61 @@
 ---
 title: "Deployment"
-description: "Vercel and Nitro specifics and the environment variable reference."
+description: "Vercel and Nitro constraints that are easy to break."
 ---
 
 ## Target: Vercel, not Cloudflare
 
-The deployment target is **Vercel**, via Nitro's `vercel` preset
-(`nitro({ preset: "vercel" })` in `apps/web/vite.config.ts`) — despite Cloudflare R2
-being used for object storage, this is **not** a Cloudflare Pages/Workers
-deployment. Cloudflare's role here is exclusively R2 object storage via its
-S3-compatible API, nothing else — there's no `@cloudflare/vite-plugin` in the
-dependency tree.
+Deployment is Vercel through Nitro's `vercel` preset, on the Node runtime
+(Fluid compute). Cloudflare's only role is R2 object storage via its
+S3-compatible API. The app never writes to the function filesystem — git reads
+and writes go to R2 ([git-storage.md](/docs/internals/git-storage)) — but some
+dependencies still need Node (Better Auth's scrypt, the Sentry Node SDK,
+isomorphic-git's global `Buffer`), so Edge/Workers runtimes are not available.
 
-Functions run on Vercel's **Node runtime** (Fluid compute). The app never
-writes to the function's filesystem — every git read and write goes straight
-to R2 (see [git-storage.md](/docs/internals/git-storage)) — and server code relies on Web
-APIs (`fetch`, WebCrypto, `TextEncoder`, `CompressionStream`) plus
-`node:async_hooks` only. Vercel's Edge runtime isn't available through this
-stack: Nitro v3 removed the `vercel-edge` preset ("use `vercel` with Fluid
-compute"), and its per-route `functionRules` re-link the same Node bundle.
-Dependencies still assume Node in places (Better Auth's scrypt password
-hashing via `node:crypto`, the Sentry Node SDK, isomorphic-git's use of the
-global `Buffer`).
+`nitro` is pinned to an exact version in `package.json`; do not loosen it.
 
-```bash
-pnpm build    # production build
-```
+`nitro({ traceDeps: ["react*"] })` is load-bearing, not decorative. Rolldown's
+SSR bundler wraps CJS-only transitive deps (e.g. `use-sync-external-store`'s
+shim via `@tanstack/react-store`) in a shim whose internal `require("react")`
+can't be statically rewritten and falls back to a runtime `createRequire`; the
+traced bundle then has no `node_modules/react` and every SSR request fails with
+`Cannot find module 'react'`. `traceDeps` copies the package into the bundle.
+If the same failure appears for another package (stack trace in
+`rolldown-runtime-*.mjs`, routes `/__server`), add that package the same way.
 
-## `apps/web/vite.config.ts` specifics worth knowing
+## Configuration
 
-- `ssr.target: "node"` — the functions run Node. The app's own server code
-  would build for `webworker` (it imports no `node:*` module except
-  `node:async_hooks`), but dependencies above still need Node.
-- `nitro` is pinned to an **exact** beta version (no `^`/`~` range) in
-  `package.json` — deliberate, not a typo. Don't loosen it.
-- `nitro({ traceDeps: ["react*"] })` — required, not decorative. Vite/Nitro's
-  Rolldown-based SSR bundler wraps CJS-only transitive deps (e.g.
-  `use-sync-external-store`'s shim, pulled in by `@tanstack/react-store`) in
-  a CJS-interop shim, and that shim's own internal `require("react")` call
-  can't always be statically rewritten to point at the already-bundled
-  `react` module — it falls back to a real runtime `require()` via
-  `createRequire`. Without `traceDeps`, the deployed Vercel function ships
-  only the explicitly-traced files, not a full `node_modules/react`, so that
-  runtime require 404s with `Cannot find module 'react'` on **every single
-  request** — this took the entire production site down (every route hits
-  SSR) until traced back to this one line. `traceDeps` forces Nitro to
-  physically copy `react`'s package files into the function
-  bundle so the fallback require actually resolves, without needing to fix
-  the bundler's interop decision itself. If a future dependency upgrade
-  removes the CJS shim that trips this (or you see a similar
-  `Cannot find module '<pkg>'` from a `rolldown-runtime-*.mjs` stack trace,
-  routes `/__server`), the fix is the same shape: add the package to
-  `traceDeps` (or narrow it once the actual offending package is identified;
-  check the deployed function's `_ssr/ssr.mjs` for `__require("<pkg>")` call
-  sites the way this one was found).
+Environment variables are documented in `apps/web/.env.example`; copy it to
+`apps/web/.env.local` for local work and run `pnpm db:push` before `pnpm dev`.
 
-## isomorphic-git, not a native binary
+With the four `R2_*` variables unset, git data goes to an in-memory store, so it
+disappears on restart. That fallback is for local runs only: under
+`NODE_ENV=production` a missing configuration throws "R2 is not configured"
+rather than silently losing pushes.
 
-There's no native `git` binary dependency anywhere — all git operations go
-through isomorphic-git, with a custom `fs` plugin (`git-fs.ts`, built on the
-published `git-fs-s3` package) that reads/writes objects
-directly to/from R2. See [git-storage.md](/docs/internals/git-storage)
-for the full read/write model. No operation needs a working directory —
-commits and merges are built on the object graph. The Vercel function
-environment does not need a `git` binary on `PATH`.
-
-## Environment variables
-
-```bash
-DATABASE_URL=postgresql://...                    # Neon connection string
-BETTER_AUTH_SECRET=...                           # generate via: pnpm dlx @better-auth/cli secret
-BETTER_AUTH_URL=http://localhost:3000            # your app's base URL
-
-# Cloudflare R2 (S3-compatible object storage for all git data)
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET_NAME=...
-R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-
-# Optional tuning knobs
-GIT_HTTP_MAX_BODY_BYTES=52428800   # default 50MB — request body cap for git push
-GIT_CACHE_MAX_SIZE=1073741824      # default 1GB — shared budget for both in-process LRU caches
-GIT_CACHE_TTL=3600                 # default 1 hour (seconds)
-
-# Transactional email (password reset, email verification) via Resend
-RESEND_API_KEY=...
-RESEND_EMAIL_FROM=you@yourdomain.com   # optional, falls back to a hardcoded address in apps/web/src/lib/email.ts
-
-# Sentry (error tracking) — optional, the SDK no-ops without a DSN
-VITE_SENTRY_DSN=...                # public DSN, safe to expose client-side (see instrument.server.mjs / apps/web/src/router.tsx)
-SENTRY_AUTH_TOKEN=...               # build-time only, uploads source maps — unset skips this in apps/web/vite.config.ts
-SENTRY_ORG=...
-SENTRY_PROJECT=...
-```
-
-If any of the four `R2_*` variables above are unset, `isR2Configured()`
-(`apps/web/src/lib/r2.ts`) returns `false` and `git-fs.ts` keeps git data in an
-in-memory object store instead — fine for a quick local run (repositories
-vanish when the dev server restarts; use a dev R2 bucket or any
-S3-compatible endpoint such as MinIO via `R2_ENDPOINT` to keep them). With
-`NODE_ENV=production` it refuses instead: every git operation throws "R2 is
-not configured" rather than silently losing pushes.
-
-Local setup:
-
-```bash
-pnpm install
-cp apps/web/.env.example apps/web/.env.local
-pnpm dlx @better-auth/cli secret   # generate BETTER_AUTH_SECRET
-# fill in apps/web/.env.local
-pnpm db:push                       # apply schema to your database
-pnpm dev
-```
-
-## Database
-
-Schema changes reach the database only through `pnpm db:push` (no migration
-files). See [database.md](/docs/internals/database). `rate_limits` — the shared auth
-rate-limiter counters ([security.md](/docs/internals/security)) — is part of that schema,
-so a deploy that introduces it must have `pnpm db:push` run against the target
-database *before* the code that writes to it is live; otherwise the first
-rate-limited request fails against a missing table.
+Schema changes reach the database only through `pnpm db:push`
+([database.md](/docs/internals/database)). A deploy that adds a table the code
+writes to must push the schema to the target database *first*; otherwise the
+first request fails against a missing relation.
 
 ## Crawler traffic
 
-Every repo view (`blob`, `blame`, `raw`, `tree`, `commit`, `archive`) renders in
-a serverless function, and the HTML is not CDN-cacheable: it carries a
-per-request CSP nonce and session-dependent content. A single crawler walking
-blame pages for every commit can burn a Hobby project's Fluid Active CPU
-allowance in a day, so crawlers are refused at three layers:
-
-- `apps/web/public/robots.txt` disallows everything for every agent, and
-  `apps/web/vercel.json` sends `X-Robots-Tag: noindex, nofollow, noarchive` on
-  every response. Well-behaved crawlers stop here.
-- The Vercel Firewall (project settings, not in git) denies the rest: the
-  managed **AI Bots** ruleset is set to deny, **Bot Protection** is log-only
-  (a challenge would break `git` and `gh`), a custom rule denies crawler and
-  scraper user agents, and a per-IP rate limit (120 requests per minute) covers
-  the repo views above. Git smart HTTP and `/api` are not rate limited. Generic
-  HTTP-client user agents (`python-requests`, `axios`) are deliberately not
-  blocked: scripts and migration tooling use them against the REST API.
-- `raw` and `archive` already set `Cache-Control` through `cacheControl()` in
-  `src/server/raw.ts`: commit-pinned URLs are immutable, branch URLs get a
-  60-second `s-maxage`.
-
-To see who is hitting a project, run `vercel logs requests -p <project> --since
-11h --json` and group by `clientUserAgent` (Hobby keeps 12 hours of request
-logs); the team usage page breaks Fluid Active CPU down by project.
+Repo views (`blob`, `blame`, `raw`, `tree`, `commit`, `archive`) render in a
+serverless function and their HTML is not CDN-cacheable (per-request CSP nonce,
+session-dependent content), so a crawler walking blame pages can exhaust a
+Hobby plan's Fluid Active CPU. `robots.txt` and an `X-Robots-Tag` header refuse
+well-behaved crawlers; the rest is blocked in the Vercel Firewall project
+settings (not in git): AI Bots denied, Bot Protection log-only — a challenge
+would break `git` and `gh` — a crawler user-agent rule, and a 120/min per-IP
+limit on those views. Generic HTTP-client agents are deliberately allowed:
+scripts use them against the REST API. `raw` and `archive` set their own
+`Cache-Control` (immutable for commit-pinned URLs, 60-second `s-maxage` for
+branches).
 
 ## Monorepo hosting
 
-Two Vercel projects deploy from this repository's `main` branch:
-
-| Project | Root directory | Host |
-| --- | --- | --- |
-| `pushstack` | `apps/web` | `git.nandan.fyi` |
-| `pushstack-docs` | `apps/docs` | `docs.git.nandan.fyi` |
-
-Both use Node 24, include source files outside the project root, and build
-through the filtered Turbo command in their own `vercel.json`. Affected-project
-skipping avoids rebuilding an app when its dependency graph is unchanged.
-The docs host has an unproxied Cloudflare CNAME to Vercel. Documentation needs
-no database, auth secret or object-storage credentials.
-
-When using the Vercel API, create the project with its Git repository and root
-directory, then update project settings for `nodeVersion` and
-`sourceFilesOutsideRootDirectory`; those settings are accepted by the update
-endpoint rather than the create endpoint. Read the current API schema before
-changing hosting settings.
+Two Vercel projects build from `main`: `pushstack` (root `apps/web`) and
+`pushstack-docs` (root `apps/docs`), both Node 24, both including source files
+outside the project root and building through the filtered Turbo command in
+their own `vercel.json`. The Vercel API accepts those two settings on the
+project *update* endpoint, not on create.
