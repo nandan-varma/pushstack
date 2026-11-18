@@ -4,6 +4,7 @@
 	"pages": [
 		"index",
 		"git-storage",
+		"gists",
 		"database",
 		"authentication",
 		"server-functions",
