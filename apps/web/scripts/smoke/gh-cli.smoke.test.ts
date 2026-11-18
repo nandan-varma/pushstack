@@ -634,6 +634,16 @@ describe.skipIf(!enabled)(
 
 		it("creates, comments on, closes and reopens issues, and manages labels", async () => {
 			const repo = `${host}/octo/hello`;
+			for (const title of ["v1", "v2"]) {
+				await gh(
+					"api",
+					"--hostname",
+					host,
+					"repos/octo/hello/milestones",
+					"-f",
+					`title=${title}`,
+				);
+			}
 			await ghAs(
 				"label-create",
 				"label",
@@ -710,7 +720,63 @@ describe.skipIf(!enabled)(
 					}),
 				]),
 			);
+			const viewed = await ghAs(
+				"issue-view-comments",
+				"issue",
+				"view",
+				number,
+				"-R",
+				repo,
+				"--comments",
+			);
+			expect(viewed.stdout).toMatch(/Noted/);
 			await ghAs("label-delete", "label", "delete", "bug", "-R", repo, "--yes");
+		}, 120_000);
+
+		it("sets milestones on issues by title", async () => {
+			const repo = `${host}/octo/hello`;
+			const made = await ghAs(
+				"issue-create-milestone",
+				"issue",
+				"create",
+				"-R",
+				repo,
+				"--title",
+				"Milestoned",
+				"--body",
+				"In a milestone",
+				"--milestone",
+				"v1",
+			);
+			const number = /\/issues\/(\d+)/.exec(made.stdout)?.[1] as string;
+			await ghAs(
+				"issue-edit-milestone",
+				"issue",
+				"edit",
+				number,
+				"-R",
+				repo,
+				"--milestone",
+				"v2",
+			);
+			const listed = await ghAs(
+				"issue-list-milestone",
+				"issue",
+				"list",
+				"-R",
+				repo,
+				"--milestone",
+				"v2",
+				"--json",
+				"number,title,milestone",
+			);
+			expect(JSON.parse(listed.stdout)).toEqual([
+				expect.objectContaining({
+					number: Number(number),
+					title: "Milestoned",
+					milestone: expect.objectContaining({ number: 2, title: "v2" }),
+				}),
+			]);
 		}, 120_000);
 
 		it("calls the REST API, which reports the token's classic scopes", async () => {

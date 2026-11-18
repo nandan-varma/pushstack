@@ -1,13 +1,7 @@
 {
-	"gh": "gh version 2.102.1 (2026-10-20)",
+	"gh": "gh version 2.104.0 (2026-11-12)",
 	"command": "gh pr status -R HOST/octo/hello",
 	"requests": [
-		{
-			"query": "query PullRequest_fields2{WorkflowRun: __type(name: \"WorkflowRun\"){fields(includeDeprecated: true){name}}}"
-		},
-		{
-			"query": "query PullRequest_fields{PullRequest: __type(name: \"PullRequest\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \"StatusCheckRollupContextConnection\"){fields(includeDeprecated: true){name}}}"
-		},
 		{
 			"query": "query UserCurrent{viewer{login}}"
 		},

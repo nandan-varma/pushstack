@@ -3,10 +3,10 @@
 	"command": "gh pr merge 1 -R HOST/octo/hello --squash",
 	"requests": [
 		{
-			"query": "query PullRequest_fields{PullRequest: __type(name: \"PullRequest\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \"StatusCheckRollupContextConnection\"){fields(includeDeprecated: true){name}}}"
+			"query": "query PullRequest_fields2{WorkflowRun: __type(name: \"WorkflowRun\"){fields(includeDeprecated: true){name}}}"
 		},
 		{
-			"query": "query PullRequest_fields2{WorkflowRun: __type(name: \"WorkflowRun\"){fields(includeDeprecated: true){name}}}"
+			"query": "query PullRequest_fields{PullRequest: __type(name: \"PullRequest\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \"StatusCheckRollupContextConnection\"){fields(includeDeprecated: true){name}}}"
 		},
 		{
 			"query": "\n\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\tpullRequest(number: $pr_number) {id,number,state,title,commits(last:1){nodes{commit{oid}}},mergeStateStatus,headRefName,baseRefName,headRefOid,isCrossRepository}\n\t\t}\n\t}",
