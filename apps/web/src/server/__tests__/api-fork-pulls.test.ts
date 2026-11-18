@@ -226,6 +226,13 @@ describe("pull requests from a fork", () => {
 			method: "PUT",
 		});
 		expect(merged.status).toBe(200);
+		// The base never moved, yet the merge is a commit with both parents, as
+		// GitHub's merge button makes it.
+		const mergeCommit = await call(
+			`/repos/alice/lib/commits/${merged.body.sha}`,
+			as(alice),
+		);
+		expect(mergeCommit.body.parents).toHaveLength(2);
 		const file = await call("/repos/alice/lib/contents/two.txt", as(alice));
 		expect(file.status).toBe(200);
 

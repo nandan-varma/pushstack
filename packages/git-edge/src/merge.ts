@@ -34,6 +34,16 @@ export interface MergeOpts {
 	authorName?: string;
 	/** Author email (default: "git-edge@local"). */
 	authorEmail?: string;
+	/** Committer name (default: the author's): the merging user, when the author is someone else. */
+	committerName?: string;
+	/** Committer email (default: the author's). */
+	committerEmail?: string;
+	/**
+	 * `threeWayMerge`: when the source contains the target, still record a merge
+	 * commit instead of moving the target ref to the source (git's `--no-ff`,
+	 * which is what GitHub's merge button does).
+	 */
+	noFastForward?: boolean;
 }
 
 /** Result of a successful merge (or of a no-op: target already up to date). */
@@ -246,6 +256,20 @@ function identityOf(opts?: Pick<MergeOpts, "authorName" | "authorEmail">) {
 	};
 }
 
+/** The committer of a merge commit: the merging user when given, else the author. */
+function committerOf(
+	author: ReturnType<typeof identityOf>,
+	opts?: Pick<MergeOpts, "committerName" | "committerEmail">,
+) {
+	return opts?.committerName
+		? {
+				...author,
+				name: opts.committerName,
+				email: opts.committerEmail || author.email,
+			}
+		: author;
+}
+
 /** Three-way merge of trees; a conflict throws `GitMergeConflictError`. */
 async function mergeTreesOrThrow(
 	repo: Repo,
@@ -420,7 +444,8 @@ export async function threeWayMerge(
 	if (await targetContainsSource(repo, tips)) {
 		return { commitOid: targetOid };
 	}
-	if (await sourceContainsTarget(repo, tips)) {
+	const fastForward = await sourceContainsTarget(repo, tips);
+	if (fastForward && !opts?.noFastForward) {
 		await git.writeRef({
 			...repo,
 			ref: targetRef,
@@ -430,7 +455,10 @@ export async function threeWayMerge(
 		return { commitOid: sourceOid };
 	}
 
-	const baseOid = await mergeBaseOf(repo, tips, sourceRef, targetRef);
+	// With no fast-forward the source holds the target, so it is its own merge base.
+	const baseOid = fastForward
+		? targetOid
+		: await mergeBaseOf(repo, tips, sourceRef, targetRef);
 	const [baseCommit, sourceCommit, targetCommit] = await Promise.all([
 		git.readCommit({ ...repo, oid: baseOid }),
 		git.readCommit({ ...repo, oid: sourceOid }),
@@ -458,7 +486,7 @@ export async function threeWayMerge(
 				tree: treeOid,
 				parent: [targetOid, sourceOid],
 				author,
-				committer: author,
+				committer: committerOf(author, opts),
 			},
 		});
 		await git.writeRef({
@@ -543,7 +571,7 @@ export async function squashMerge(
 				tree: treeOid,
 				parent: [targetOid],
 				author,
-				committer: author,
+				committer: committerOf(author, opts),
 			},
 		});
 		await git.writeRef({

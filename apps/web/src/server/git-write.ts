@@ -28,7 +28,6 @@ import {
 	createBranchFrom,
 	deleteBranchByName,
 	deleteFileFromBare,
-	fastForwardMerge,
 	listBranches,
 	type Repo,
 	resolveCommit,
@@ -324,6 +323,9 @@ export type MergeMethod = "merge" | "squash" | "rebase";
 export type MergeOptions = {
 	authorName?: string;
 	authorEmail?: string;
+	/** The merging user, when the commit is credited to someone else (a squash, to the pull request's author). */
+	committerName?: string;
+	committerEmail?: string;
 	/** Refuse (before writing) unless the source tip, read under the lock, is this. */
 	expectedHeadSha?: string;
 } & (
@@ -365,6 +367,8 @@ async function mergeInto(
 	const author = {
 		authorName: options.authorName,
 		authorEmail: options.authorEmail,
+		committerName: options.committerName,
+		committerEmail: options.committerEmail,
 	};
 	switch (options.method) {
 		case "squash": {
@@ -379,15 +383,12 @@ async function mergeInto(
 			return commitOid;
 		}
 		case "merge": {
-			const fastForward = await fastForwardMerge(
-				repo,
-				sourceBranch,
-				targetBranch,
-			);
-			if (fastForward) return fastForward.commitSha;
+			// Always a merge commit, as GitHub's merge button: a fast-forward would
+			// leave no trace of the pull request in the history.
 			const { commitOid } = await threeWayMerge(repo, source, target, {
 				...author,
 				message: options.message,
+				noFastForward: true,
 			});
 			return commitOid;
 		}
