@@ -80,6 +80,15 @@ export {
  * warns about and what the server accepts can't drift apart.
  */
 
+/**
+ * Branch protection rules one repository may hold, and the length of a branch
+ * pattern. A rule is matched on every push and merge, so the pattern that is
+ * compiled is bounded by what the write path accepts, not by what a row
+ * happens to contain.
+ */
+export const MAX_BRANCH_PROTECTION_RULES_PER_REPO = 100;
+export const MAX_BRANCH_PROTECTION_PATTERN_CHARS = 255;
+
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**

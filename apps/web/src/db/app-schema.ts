@@ -907,6 +907,69 @@ export const repositoryCollaborators = pgTable(
 	}),
 );
 
+/**
+ * Classic branch protection: one rule per `fnmatch` branch pattern per
+ * repository, and the oldest rule whose pattern matches a branch wins (a
+ * branch has at most one rule, as on GitHub). `required_status_checks_strict`
+ * null is GitHub's `required_status_checks: null`.
+ */
+export const branchProtectionRules = pgTable(
+	"branch_protection_rules",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		pattern: text("pattern").notNull(),
+		requiresPullRequest: boolean("requires_pull_request")
+			.notNull()
+			.default(false),
+		requiredApprovingReviewCount: integer("required_approving_review_count")
+			.notNull()
+			.default(0),
+		dismissStaleReviews: boolean("dismiss_stale_reviews")
+			.notNull()
+			.default(false),
+		requireCodeOwnerReviews: boolean("require_code_owner_reviews")
+			.notNull()
+			.default(false),
+		requiredStatusChecksStrict: boolean("required_status_checks_strict"),
+		enforceAdmins: boolean("enforce_admins").notNull().default(false),
+		allowForcePushes: boolean("allow_force_pushes").notNull().default(false),
+		allowDeletions: boolean("allow_deletions").notNull().default(false),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoPatternIdx: uniqueIndex("branch_protection_repo_pattern_idx").on(
+			table.repoId,
+			table.pattern,
+		),
+		repoCreatedIdx: index("branch_protection_repo_created_idx").on(
+			table.repoId,
+			table.createdAt,
+		),
+	}),
+);
+
+/**
+ * A context a rule requires; `app_id` null means any app, as on GitHub.
+ * `(rule_id, context)` is also the read order the REST object returns.
+ */
+export const branchProtectionStatusChecks = pgTable(
+	"branch_protection_status_checks",
+	{
+		ruleId: integer("rule_id")
+			.notNull()
+			.references(() => branchProtectionRules.id, { onDelete: "cascade" }),
+		context: text("context").notNull(),
+		appId: integer("app_id"),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.ruleId, table.context] }),
+	}),
+);
+
 export const activities = pgTable(
 	"activities",
 	{
