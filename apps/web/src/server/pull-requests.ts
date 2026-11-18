@@ -12,6 +12,7 @@ import {
 	MAX_SEARCH_QUERY_CHARS,
 } from "#/lib/limits";
 import { parseSearchQuery } from "#/lib/search-query";
+import { pullRequestProtection } from "./branch-protection";
 import {
 	requestCodeownerReviews,
 	requestCodeownerReviewsFor,
@@ -224,16 +225,25 @@ export const getPullRequestByNumber = createServerFn({ method: "GET" })
 				]);
 				if (!thread) throw notFound();
 				const pr = pullRequestView(thread);
+				const [summary, protection] = await Promise.all([
+					reviewSummaryFor(pr.id),
+					pullRequestProtection({
+						repository: repo,
+						pullRequest: pr,
+						actorId: viewer?.id ?? null,
+					}),
+				]);
 				return {
 					...pr,
 					viewer: viewerAccess,
 					review: {
-						summary: await reviewSummaryFor(pr.id),
+						summary,
 						// Approving and requesting changes need write access, and GitHub
 						// forbids either on one's own pull request.
 						canApprove: viewerAccess.canWrite && viewer?.id !== pr.authorId,
 						canResolve: viewerAccess.canWrite || viewer?.id === pr.authorId,
 					},
+					merge: protection,
 				};
 			},
 		),

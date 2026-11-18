@@ -806,6 +806,8 @@ export interface PullShapeInput {
 		changedFiles: number;
 		/** GitHub's `rebaseable`: whether a rebase merge would apply, or null. */
 		rebaseable: boolean | null;
+		/** GitHub's `mergeable_state`, lowercase. */
+		mergeableState: string;
 	};
 }
 
@@ -900,7 +902,7 @@ export function pullRequest(
 		// is "not yet known", which GitHub also reports while it computes.
 		mergeable: merged ? false : null,
 		rebaseable: detail.rebaseable,
-		mergeable_state: row.isDraft ? "draft" : "unknown",
+		mergeable_state: row.isDraft ? "draft" : detail.mergeableState,
 		merged_by: detail.mergedBy ? simpleUser(detail.mergedBy) : null,
 		comments: input.commentsCount,
 		review_comments: detail.reviewComments,

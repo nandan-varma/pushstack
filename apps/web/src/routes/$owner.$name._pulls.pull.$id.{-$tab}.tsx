@@ -348,7 +348,12 @@ function PullRequestDetailPage() {
 
 	if (!pr) return <PullRequestNotFound />;
 
-	const canMerge = pr.status === "open" && !pr.isDraft && pr.viewer.canMerge;
+	const mergeBlockedReason = pr.merge.reason;
+	const canMerge =
+		pr.status === "open" &&
+		!pr.isDraft &&
+		pr.viewer.canMerge &&
+		!mergeBlockedReason;
 	const canEdit = pr.viewer.canWrite || session?.user?.id === pr.authorId;
 	const canChangeStatus =
 		pr.status !== "merged" &&
@@ -477,6 +482,7 @@ function PullRequestDetailPage() {
 												<MergeBox
 													repoId={repo?.id}
 													canMerge={canMerge}
+													blockedReason={mergeBlockedReason}
 													draft={pr.isDraft}
 													canMarkReady={canChangeStatus}
 													sourceBranch={pr.headRef}

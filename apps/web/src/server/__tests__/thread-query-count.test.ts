@@ -125,16 +125,18 @@ describe("database queries per thread read", () => {
 		// API pull reads also count the repository's open issues and PRs once,
 		// for open_issues_count in the nested repository objects, and its
 		// readable forks once, for forks_count (a fork's count is per viewer).
+		// A single pull request also reads its base branch's rule and reviews,
+		// for the merge state and review decision.
 		expect(counts).toEqual({
 			"web issues list": 2,
 			"web pulls list": 1,
 			"web issue view": 2,
-			"web pull view": 2,
+			"web pull view": 4,
 			"api issues list": 6,
 			"api issues list page 2": 4,
 			"api pulls list": 6,
 			"api issue view": 4,
-			"api pull view": 7,
+			"api pull view": 9,
 		});
 	});
 });

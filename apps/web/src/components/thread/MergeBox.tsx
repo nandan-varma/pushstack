@@ -10,6 +10,7 @@ import { CommitChecks } from "@/components/repo/Checks";
  */
 export function MergeBox({
 	canMerge,
+	blockedReason = null,
 	draft = false,
 	canMarkReady = false,
 	sourceBranch,
@@ -19,6 +20,8 @@ export function MergeBox({
 	repoId,
 }: {
 	canMerge: boolean;
+	/** Why the base branch's rule refuses the merge for this viewer. */
+	blockedReason?: string | null;
 	draft?: boolean;
 	canMarkReady?: boolean;
 	/** The revision of the head (a branch, or the pinned ref of a fork's). */
@@ -52,24 +55,32 @@ export function MergeBox({
 		);
 	}
 	return (
-		<Panel className="border-success-border">
+		<Panel className={blockedReason ? undefined : "border-success-border"}>
 			<div className="flex items-start gap-4 p-5">
 				<div className="flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-success-soft text-success">
 					<GitMerge aria-hidden="true" className="size-5" />
 				</div>
 				<div className="min-w-0">
 					<h2 className="text-sm font-semibold text-bjork-text">
-						{canMerge
-							? "Ready to merge"
-							: "Merging is limited to people with write access"}
+						{blockedReason
+							? "Merging is blocked"
+							: canMerge
+								? "Ready to merge"
+								: "Merging is limited to people with write access"}
 					</h2>
 					<p className="mt-1 text-[13px] leading-5 text-bjork-text-muted">
-						Merges{" "}
-						<span className="font-mono text-xs">
-							{sourceLabel ?? sourceBranch}
-						</span>{" "}
-						into <span className="font-mono text-xs">{targetBranch}</span>.
-						Conflicts are checked when you merge.
+						{blockedReason ? (
+							blockedReason
+						) : (
+							<>
+								Merges{" "}
+								<span className="font-mono text-xs">
+									{sourceLabel ?? sourceBranch}
+								</span>{" "}
+								into <span className="font-mono text-xs">{targetBranch}</span>.
+								Conflicts are checked when you merge.
+							</>
+						)}
 					</p>
 				</div>
 			</div>

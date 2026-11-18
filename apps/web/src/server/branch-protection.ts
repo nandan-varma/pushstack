@@ -5,11 +5,17 @@
  * reads the rule through `branch-protection-store.ts`, so there is one copy.
  */
 
-import { isNotFoundError } from "git-fs-s3";
+import { inArray } from "drizzle-orm";
+import { isNotFoundError, qualifyBranchRef } from "git-fs-s3";
 import type { RefUpdateCommand, RefUpdateVeto } from "git-fs-s3/http";
 import type { Repo } from "git-fs-s3/ops";
 import git from "isomorphic-git";
+import { db } from "#/db";
 import type { Repository } from "#/db/app-schema";
+import { user } from "#/db/schema";
+import { checkRunState } from "#/lib/check-rollup";
+import { ownersOfPaths } from "#/lib/codeowners";
+import { MAX_REQUIRED_STATUS_CONTEXTS } from "#/lib/limits";
 import { apiUrl, encodePath } from "./api/http";
 import type { Shape } from "./api/serializers";
 import {
@@ -17,8 +23,19 @@ import {
 	type BranchProtectionRule,
 	findBranchProtection,
 } from "./branch-protection-store";
+import { latestCheckRunsNamed, latestCommitStatuses } from "./check-store";
+import { loadCodeowners } from "./codeowners";
+import { getBranchDiff } from "./git-read";
+import { repoFor } from "./git-repo";
+import { ownerKeyOf } from "./git-storage-naming";
+import { tipOf } from "./pull-head";
 import { getAccessForRepository, type RepositoryAccess } from "./repo-access";
-import { reviewSummaryFor } from "./review-store";
+import {
+	currentVerdicts,
+	type ReviewVerdict,
+	reviewVerdicts,
+} from "./review-store";
+import type { PullRequest } from "./thread-store";
 
 /** `GET …/branches/{branch}/protection`: GitHub's protection object. */
 export function branchProtectionView(
@@ -196,30 +213,233 @@ export async function deleteBlockedReason(
 	return "Cannot delete a protected branch";
 }
 
+/** GitHub's `MergeStateStatus` for a pull request. */
+export type MergeStateStatus =
+	| "UNKNOWN"
+	| "DRAFT"
+	| "BEHIND"
+	| "BLOCKED"
+	| "UNSTABLE"
+	| "CLEAN";
+
+export type ReviewDecision =
+	| "APPROVED"
+	| "CHANGES_REQUESTED"
+	| "REVIEW_REQUIRED"
+	| null;
+
+/** A repository as the write paths hold it: its row, its owner's login and name. */
+export type ProtectedRepository = Repository &
+	Parameters<typeof ownerKeyOf>[0] & { name: string };
+
+export interface PullRequestProtection {
+	mergeStateStatus: MergeStateStatus;
+	reviewDecision: ReviewDecision;
+	/** GitHub's reason the merge is refused for this actor, or null. */
+	reason: string | null;
+}
+
+/** `"ci"`, `"ci, build"`: the first, for one reason line. */
+function quoted(contexts: string[]): string {
+	return contexts.map((context) => `"${context}"`).join(", ");
+}
+
+type RequiredCheckState = "success" | "failure" | "pending";
+
+const CHECK_RANK: Record<RequiredCheckState, number> = {
+	success: 0,
+	pending: 1,
+	failure: 2,
+};
+
 /**
- * Why the merge of a pull request is refused, or null. A rule's required
- * approvals block it; a changes-requested review blocks it with or without a
- * rule. An owner/admin overrides unless the rule enforces admins.
+ * Each required context's state at `sha`: a status context and a check run of
+ * the same name both count, and the worse of the two wins.
+ */
+async function requiredCheckStates(
+	repoId: number,
+	sha: string,
+	contexts: string[],
+): Promise<{ context: string; state: RequiredCheckState }[]> {
+	const [statuses, runs] = await Promise.all([
+		latestCommitStatuses(repoId, sha, {
+			limit: MAX_REQUIRED_STATUS_CONTEXTS,
+		}),
+		latestCheckRunsNamed(repoId, sha, contexts),
+	]);
+	const worst = new Map<string, RequiredCheckState>();
+	const note = (context: string, state: RequiredCheckState) => {
+		const current = worst.get(context);
+		if (!current || CHECK_RANK[state] > CHECK_RANK[current]) {
+			worst.set(context, state);
+		}
+	};
+	for (const status of statuses) {
+		note(
+			status.context,
+			status.state === "failure" || status.state === "error"
+				? "failure"
+				: status.state,
+		);
+	}
+	for (const run of runs) note(run.name, checkRunState(run));
+	return contexts.map((context) => ({
+		context,
+		state: worst.get(context) ?? "pending",
+	}));
+}
+
+/** Whether the base branch has commits the head does not (a strict rule). */
+async function behindBase(
+	repo: Repo,
+	baseBranch: string,
+	headSha: string,
+): Promise<boolean> {
+	const base = await tipOf(repo, qualifyBranchRef(baseBranch));
+	if (!base || base === headSha) return false;
+	try {
+		return !(await git.isDescendent({
+			...repo,
+			oid: headSha,
+			ancestor: base,
+		}));
+	} catch (error) {
+		if (isNotFoundError(error)) return true;
+		throw error;
+	}
+}
+
+/** Whether an approving reviewer owns one of the changed paths (CODEOWNERS). */
+async function codeOwnerApproved(input: {
+	repository: ProtectedRepository;
+	pullRequest: PullRequest;
+	verdicts: ReviewVerdict[];
+}): Promise<boolean> {
+	const { repository, pullRequest } = input;
+	const codeowners = await loadCodeowners(repository, pullRequest.targetBranch);
+	if (!codeowners || codeowners.rules.length === 0) return true;
+	const approvers = input.verdicts
+		.filter((verdict) => verdict.state === "approved")
+		.map((verdict) => verdict.authorId);
+	if (approvers.length === 0) return false;
+	const [diff, reviewers] = await Promise.all([
+		getBranchDiff(
+			ownerKeyOf(repository),
+			repository.name,
+			pullRequest.targetBranch,
+			pullRequest.headRef,
+		),
+		db
+			.select({ username: user.username })
+			.from(user)
+			.where(inArray(user.id, approvers)),
+	]);
+	const owners = new Set(
+		ownersOfPaths(
+			codeowners.rules,
+			diff.files.map((file) => file.path),
+		),
+	);
+	return reviewers.some((reviewer) =>
+		owners.has(reviewer.username.toLowerCase()),
+	);
+}
+
+/**
+ * What the base branch's rule and the pull request's reviews, checks and
+ * ancestry say about merging it: GitHub's `mergeStateStatus`, `reviewDecision`
+ * and the reason a merge is refused for `actorId`.
+ */
+export async function pullRequestProtection(input: {
+	repository: ProtectedRepository;
+	pullRequest: PullRequest;
+	actorId: string | null;
+	/** The head commit; read from the head ref when absent. */
+	headSha?: string | null;
+}): Promise<PullRequestProtection> {
+	const { repository, pullRequest } = input;
+	const repo = repoFor(ownerKeyOf(repository), repository.name);
+	const headSha =
+		input.headSha ?? (await tipOf(repo, qualifyBranchRef(pullRequest.headRef)));
+	const [protection, access] = await Promise.all([
+		findBranchProtection(repository.id, pullRequest.targetBranch),
+		getAccessForRepository(repository, input.actorId),
+	]);
+	const rule = protection?.rule ?? null;
+	const verdicts = currentVerdicts(
+		await reviewVerdicts(pullRequest.id),
+		rule?.dismissStaleReviews ?? false,
+		headSha,
+	);
+	const approved = verdicts.filter(
+		(verdict) => verdict.state === "approved",
+	).length;
+	const changesRequested = verdicts.filter(
+		(verdict) => verdict.state === "changes_requested",
+	).length;
+	const required = rule?.requiredApprovingReviewCount ?? 0;
+	const ownersSatisfied = rule?.requireCodeOwnerReviews
+		? await codeOwnerApproved({ repository, pullRequest, verdicts })
+		: true;
+	const reviewsSatisfied = approved >= required && ownersSatisfied;
+	const contexts = protection?.statusChecks.map((check) => check.context) ?? [];
+	const checks =
+		contexts.length === 0
+			? []
+			: await requiredCheckStates(repository.id, headSha ?? "", contexts);
+	const failing = checks
+		.filter((check) => check.state === "failure")
+		.map((check) => check.context);
+	const pending = checks
+		.filter((check) => check.state === "pending")
+		.map((check) => check.context);
+	const strict = rule?.requiredStatusChecksStrict === true;
+	const behind =
+		strict &&
+		headSha !== null &&
+		(await behindBase(repo, pullRequest.targetBranch, headSha));
+
+	let reviewDecision: ReviewDecision = null;
+	if (changesRequested > 0) reviewDecision = "CHANGES_REQUESTED";
+	else if (!reviewsSatisfied) reviewDecision = "REVIEW_REQUIRED";
+	else if (approved > 0) reviewDecision = "APPROVED";
+
+	let mergeStateStatus: MergeStateStatus;
+	if (pullRequest.status !== "open") mergeStateStatus = "UNKNOWN";
+	else if (pullRequest.isDraft) mergeStateStatus = "DRAFT";
+	else if (behind) mergeStateStatus = "BEHIND";
+	else if (!reviewsSatisfied || failing.length > 0)
+		mergeStateStatus = "BLOCKED";
+	else if (pending.length > 0) mergeStateStatus = "UNSTABLE";
+	else mergeStateStatus = "CLEAN";
+
+	// An owner or admin bypasses review and check rules when the rule doesn't
+	// enforce admins; without a rule, only a moderator bypasses a request for
+	// changes, as the merge box has always allowed.
+	const bypassed = rule ? bypassesRule(rule, access) : access.canModerate;
+	const reason = bypassed
+		? null
+		: (changesRequested > 0 && "Changes were requested on this pull request") ||
+			(behind && "Head branch is not up to date with the base branch") ||
+			(approved < required &&
+				`At least ${required} approving review${required === 1 ? "" : "s"} ${required === 1 ? "is" : "are"} required by reviewers with write access.`) ||
+			(!ownersSatisfied && "Review from Code Owners is required") ||
+			(failing.length > 0 &&
+				`Required status check ${quoted(failing)} is failing`) ||
+			(pending.length > 0 &&
+				`Required status check ${quoted(pending)} is expected`) ||
+			null;
+	return { mergeStateStatus, reviewDecision, reason };
+}
+
+/**
+ * Why the merge of a pull request is refused for `actorId`, or null: the rule's
+ * reviews, code owners, status checks and strict up-to-date requirement.
  */
 export async function mergeBlockedReason(input: {
-	pullRequestId: number;
-	repository: Repository;
-	branch: string;
+	repository: ProtectedRepository;
+	pullRequest: PullRequest;
 	actorId: string;
 }): Promise<string | null> {
-	const [review, protection, access] = await Promise.all([
-		reviewSummaryFor(input.pullRequestId),
-		findBranchProtection(input.repository.id, input.branch),
-		getAccessForRepository(input.repository, input.actorId),
-	]);
-	const enforced = protection
-		? !bypassesRule(protection.rule, access)
-		: !access.canModerate;
-	if (!enforced) return null;
-	if (review.changesRequested > 0) {
-		return "Changes were requested on this pull request";
-	}
-	const required = protection?.rule.requiredApprovingReviewCount ?? 0;
-	if (review.approved >= required) return null;
-	return `At least ${required} approving review${required === 1 ? "" : "s"} ${required === 1 ? "is" : "are"} required by reviewers with write access.`;
+	return (await pullRequestProtection(input)).reason;
 }

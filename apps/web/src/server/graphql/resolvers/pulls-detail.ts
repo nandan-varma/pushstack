@@ -6,6 +6,7 @@ import { pullRequestReviews } from "#/db/app-schema";
 import { MAX_HISTORY_WALK, MAX_LIST_SKIP } from "#/lib/limits";
 import { REACTION_CONTENTS, type ReactionContent } from "#/lib/reactions";
 import { htmlUrl, isoTimestamp } from "../../api/http";
+import { pullRequestProtection } from "../../branch-protection";
 import {
 	countCommentsForThread,
 	listCommentsForThread,
@@ -264,19 +265,40 @@ function latestReviewRows(
 	);
 }
 
-/** The states GitHub's reviewDecision is computed from. */
-const OPINIONATED_STATES = ["approved", "changes_requested"] as const;
+/** The base rule's view of this pull request, memoised for one request. */
+function protection(node: PullRequestNode, ctx: GraphQLContext) {
+	return ctx.memo(`pull-protection:${node.row.id}`, async () => {
+		const headSha =
+			node.row.status === "merged"
+				? node.row.headSha
+				: await tipOf(
+						repoFor(ownerKeyOf(node.repo.row), node.repo.name),
+						qualifyBranchRef(node.row.headRef),
+					);
+		return pullRequestProtection({
+			repository: node.repo.row,
+			pullRequest: node.row,
+			actorId: ctx.caller.userId ?? null,
+			headSha,
+		});
+	});
+}
 
 export const pullDetailResolvers = {
 	autoMergeRequest: () => null,
 	maintainerCanModify: () => true,
 	// GitHub's UNKNOWN describes a mergeability result that has not been computed.
 	mergeable: () => "UNKNOWN" as const,
-	// As REST's mergeable_state: a draft, else not computed.
-	mergeStateStatus: (node: PullRequestNode) =>
-		node.row.status === "open" && node.row.isDraft
-			? ("DRAFT" as const)
-			: ("UNKNOWN" as const),
+	mergeStateStatus: async (
+		node: PullRequestNode,
+		_args: unknown,
+		ctx: GraphQLContext,
+	) => (await protection(node, ctx)).mergeStateStatus,
+	reviewDecision: async (
+		node: PullRequestNode,
+		_args: unknown,
+		ctx: GraphQLContext,
+	) => (await protection(node, ctx)).reviewDecision,
 	/** The merged head once merged (kept even if the branch is gone), else the branch tip. */
 	headRefOid: async (node: PullRequestNode) => {
 		if (node.row.status === "merged" && node.row.headSha)
@@ -291,21 +313,6 @@ export const pullDetailResolvers = {
 	// Classic projects were retired on GitHub; gh still asks (`pr edit`).
 	projectCards: (_node: PullRequestNode, args: ConnectionArgs) =>
 		offsetConnection(args, 0, async () => []),
-	// No branch protection exists, so no review is required and REVIEW_REQUIRED
-	// never applies: the latest opinionated review of each author decides.
-	reviewDecision: async (
-		node: PullRequestNode,
-		_args: unknown,
-		ctx: GraphQLContext,
-	) => {
-		const states = (await latestReviewRows(node, ctx, OPINIONATED_STATES)).map(
-			(row) => row.state,
-		);
-		if (states.includes("changes_requested"))
-			return "CHANGES_REQUESTED" as const;
-		if (states.includes("approved")) return "APPROVED" as const;
-		return null;
-	},
 	latestReviews: async (
 		node: PullRequestNode,
 		args: ConnectionArgs,
