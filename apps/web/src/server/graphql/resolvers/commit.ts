@@ -27,6 +27,8 @@ export interface CommitNode {
 	url: string;
 	resourcePath: string;
 	repository: RepositoryNode;
+	/** Internal: the commit's author, for `Commit.authors`. */
+	authorActor: { name: string; email: string; date: string };
 }
 
 export function commitNode(
@@ -49,6 +51,11 @@ export function commitNode(
 		url: htmlUrl(path),
 		resourcePath: path,
 		repository: repo,
+		authorActor: {
+			name: commit.commit.author.name,
+			email: commit.commit.author.email,
+			date: new Date(commit.commit.author.timestamp * 1000).toISOString(),
+		},
 	};
 }
 

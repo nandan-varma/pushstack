@@ -510,6 +510,209 @@ describe.skipIf(!enabled)(
 			});
 		});
 
+		it("opens, reviews, comments on, merges and closes pull requests", async () => {
+			const repoDir = path.join(work, "pr-work");
+			const git = (...args: string[]) =>
+				run("git", ["-C", repoDir, ...args], { env: ghEnv });
+			await gh("auth", "setup-git", "--hostname", host);
+			await ghAs(
+				"repo-clone-empty",
+				"repo",
+				"clone",
+				`${host}/octo/hello`,
+				repoDir,
+			);
+			await git("config", "user.name", "Octo");
+			await git("config", "user.email", "octo@example.com");
+			await git("checkout", "-b", "main");
+			await writeFile(path.join(repoDir, "a.txt"), "a\n");
+			await git("add", "a.txt");
+			await git("commit", "-m", "first");
+			await git("push", "origin", "main");
+			const feature = async (branch: string, file: string) => {
+				await git("checkout", "-b", branch, "main");
+				await writeFile(path.join(repoDir, file), `${file}\n`);
+				await git("add", file);
+				await git("commit", "-m", `add ${file}`);
+				await git("push", "origin", branch);
+			};
+			const repo = `${host}/octo/hello`;
+
+			await feature("one", "one.txt");
+			const created = await ghAs(
+				"pr-create",
+				"pr",
+				"create",
+				"-R",
+				repo,
+				"--head",
+				"one",
+				"--base",
+				"main",
+				"--title",
+				"One",
+				"--body",
+				"First change",
+			);
+			expect(created.stdout).toMatch(/\/pull\/1$/);
+			const view = await ghAs(
+				"pr-view-json",
+				"pr",
+				"view",
+				"1",
+				"-R",
+				repo,
+				"--json",
+				"additions,assignees,author,baseRefName,body,changedFiles,closed,closedAt,comments,commits,createdAt,deletions,files,headRefName,headRefOid,headRepository,headRepositoryOwner,id,isCrossRepository,isDraft,labels,latestReviews,maintainerCanModify,mergeCommit,mergeStateStatus,mergeable,mergedAt,mergedBy,milestone,number,projectItems,reactionGroups,reviewDecision,reviewRequests,reviews,state,statusCheckRollup,title,updatedAt,url",
+			);
+			expect(JSON.parse(view.stdout)).toMatchObject({
+				number: 1,
+				title: "One",
+				state: "OPEN",
+				headRefName: "one",
+				baseRefName: "main",
+				isCrossRepository: false,
+			});
+			expect(
+				(await ghAs("pr-diff", "pr", "diff", "1", "-R", repo)).stdout,
+			).toMatch(/one\.txt/);
+			await ghAs(
+				"pr-comment",
+				"pr",
+				"comment",
+				"1",
+				"-R",
+				repo,
+				"--body",
+				"Hi",
+			);
+			await ghAs(
+				"pr-review",
+				"pr",
+				"review",
+				"1",
+				"-R",
+				repo,
+				"--comment",
+				"--body",
+				"Looks fine",
+			);
+			await ghAs(
+				"pr-edit",
+				"pr",
+				"edit",
+				"1",
+				"-R",
+				repo,
+				"--title",
+				"One (edited)",
+			);
+			await ghAs("pr-merge", "pr", "merge", "1", "-R", repo, "--squash");
+			const merged = await gh("pr", "view", "1", "-R", repo, "--json", "state");
+			expect(JSON.parse(merged.stdout).state).toBe("MERGED");
+
+			await feature("two", "two.txt");
+			await ghAs(
+				"pr-create-2",
+				"pr",
+				"create",
+				"-R",
+				repo,
+				"--head",
+				"two",
+				"--base",
+				"main",
+				"--title",
+				"Two",
+				"--body",
+				"",
+			);
+			await ghAs("pr-close", "pr", "close", "2", "-R", repo);
+			await ghAs("pr-reopen", "pr", "reopen", "2", "-R", repo);
+			await ghAs("pr-close-2", "pr", "close", "2", "-R", repo);
+		}, 120_000);
+
+		it("creates, comments on, closes and reopens issues, and manages labels", async () => {
+			const repo = `${host}/octo/hello`;
+			await ghAs(
+				"label-create",
+				"label",
+				"create",
+				"-R",
+				repo,
+				"bug",
+				"--color",
+				"d73a4a",
+				"--force",
+			);
+			await ghAs(
+				"issue-comment",
+				"issue",
+				"comment",
+				"1",
+				"-R",
+				repo,
+				"--body",
+				"Noted",
+			).catch(() => undefined);
+			const made = await ghAs(
+				"issue-create-2",
+				"issue",
+				"create",
+				"-R",
+				repo,
+				"--title",
+				"Broken",
+				"--body",
+				"It broke",
+				"--label",
+				"bug",
+			);
+			const number = /\/issues\/(\d+)/.exec(made.stdout)?.[1] as string;
+			await ghAs(
+				"issue-comment-2",
+				"issue",
+				"comment",
+				number,
+				"-R",
+				repo,
+				"--body",
+				"Noted",
+			);
+			await ghAs(
+				"issue-edit",
+				"issue",
+				"edit",
+				number,
+				"-R",
+				repo,
+				"--title",
+				"Broken!",
+			);
+			await ghAs("issue-close", "issue", "close", number, "-R", repo);
+			await ghAs("issue-reopen", "issue", "reopen", number, "-R", repo);
+			const listed = await gh(
+				"issue",
+				"list",
+				"-R",
+				repo,
+				"--state",
+				"all",
+				"--json",
+				"number,title,state,labels",
+			);
+			expect(JSON.parse(listed.stdout)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						number: Number(number),
+						title: "Broken!",
+						state: "OPEN",
+					}),
+				]),
+			);
+			await ghAs("label-delete", "label", "delete", "bug", "-R", repo, "--yes");
+		}, 120_000);
+
 		it("calls the REST API, which reports the token's classic scopes", async () => {
 			const { stdout } = await gh("api", "--hostname", host, "user");
 			expect(JSON.parse(stdout).login).toBe("octo");

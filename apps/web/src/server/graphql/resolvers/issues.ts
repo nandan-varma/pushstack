@@ -85,6 +85,7 @@ import {
 	arrayConnection,
 	assertTextBytes,
 	groups,
+	commentNodes as pullCommentNodes,
 	userFor,
 } from "./pulls-detail";
 import { type RepositoryNode, readableRepositoryNode } from "./repository";
@@ -544,18 +545,23 @@ async function readableRepoOf(repoId: number, ctx: GraphQLContext) {
  * refused: their label, assignee, close and comment mutations are not served
  * yet. Anything unreadable is NOT_FOUND.
  */
-async function issueByNodeId(id: string, ctx: GraphQLContext) {
+async function threadByNodeId(id: string, ctx: GraphQLContext) {
 	const decoded = decodeNodeId(id);
 	const key = decoded ? rowIdOfNodeKey(decoded.key) : null;
 	const ref = key === null ? null : await findThreadById(key);
 	const repo = ref ? await readableRepoOf(ref.repoId, ctx) : null;
 	if (!ref || !repo) throw unknownNode(id);
-	if (ref.kind === "pull_request")
-		throw unprocessable(
-			"Labels, assignees, closing and comments on pull requests are not supported yet",
-		);
-	const thread = await findThread(ref.repoId, ref.number, "issue");
+	const thread = await findThread(ref.repoId, ref.number, ref.kind);
 	if (!thread) throw unknownNode(id);
+	return { repo, thread, kind: ref.kind };
+}
+
+async function issueByNodeId(id: string, ctx: GraphQLContext) {
+	const { repo, thread, kind } = await threadByNodeId(id, ctx);
+	if (kind === "pull_request")
+		throw unprocessable(
+			"Labels, assignees and closing on pull requests are not supported through this mutation yet",
+		);
 	return { repo, thread };
 }
 
@@ -652,6 +658,9 @@ async function createIssueMutation(
 	if (repo.row.archived) throw forbidden("Repository is archived");
 	if (input.milestoneId != null)
 		throw unprocessable("Milestones on issues are not supported yet");
+	// gh sends `projectIds: null` on every create; classic projects are gone.
+	if (input.projectIds?.length)
+		throw unprocessable("Projects on issues are not supported yet");
 	const title = checkTitleAndBody(input.title, input.body);
 	// Labels and assignees are triage: a reader opens the issue bare, as on REST.
 	const triage = canWrite(repo);
@@ -812,12 +821,24 @@ async function assigneesMutation(
 
 async function addCommentMutation(input: AddCommentInput, ctx: GraphQLContext) {
 	requireScope(ctx);
-	const { repo, thread } = await issueByNodeId(input.subjectId, ctx);
+	const { repo, thread, kind } = await threadByNodeId(input.subjectId, ctx);
 	if (repo.row.archived) throw forbidden("Repository is archived");
 	if (!input.body.trim() || input.body.length > MAX_BODY_CHARS)
 		throw unprocessable("Invalid comment body");
 	await createCommentForUser(thread, ctx.caller.userId, input.body);
 	const index = (await countCommentsForThread(thread)) - 1;
+	if (kind === "pull_request") {
+		const fresh = await findThread(repo.row.id, thread.number, "pull_request");
+		if (!fresh) throw new Error("Pull request missing after a comment");
+		const subject = pullNode(repo, pullRequestOfThread(fresh));
+		const [node] = await pullCommentNodes(subject, ctx, index, 1);
+		if (!node) throw new Error("Comment missing after insert");
+		return {
+			clientMutationId: input.clientMutationId ?? null,
+			commentEdge: { cursor: encodeCursor(index), node },
+			subject,
+		};
+	}
 	const [node] = await commentNodes(issueNode(repo, thread), ctx, index, 1);
 	if (!node) throw new Error("Comment missing after insert");
 	return {

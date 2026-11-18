@@ -1,0 +1,23 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh issue comment 1 -R HOST/octo/hello --body Noted",
+	"requests": [
+		{
+			"query": "\n\tquery IssueByNumber($owner: String!, $repo: String!, $number: Int!) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\thasIssuesEnabled\n\t\t\tissue: issueOrPullRequest(number: $number) {\n\t\t\t\t__typename\n\t\t\t\t...on Issue{id,url}\n\t\t\t\t...on PullRequest{id,url}\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"number": 1,
+				"owner": "octo",
+				"repo": "hello"
+			}
+		},
+		{
+			"query": "mutation CommentCreate($input:AddCommentInput!){addComment(input: $input){commentEdge{node{url}}}}",
+			"variables": {
+				"input": {
+					"subjectId": "MDExOlB1bGxSZXF1ZXN0MQ==",
+					"body": "Noted"
+				}
+			}
+		}
+	]
+}

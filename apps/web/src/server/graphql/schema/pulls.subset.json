@@ -60,6 +60,13 @@
 			"baseRef",
 			"additions",
 			"deletions",
+			"changedFiles",
+			"mergeCommit",
+			"mergedBy",
+			{
+				"name": "files",
+				"args": ["after", "before", "first", "last"]
+			},
 			{
 				"name": "commits",
 				"args": ["after", "before", "first", "last"]
@@ -78,6 +85,10 @@
 			},
 			{
 				"name": "projectItems",
+				"args": ["after", "before", "first", "last"]
+			},
+			{
+				"name": "projectCards",
 				"args": ["after", "before", "first", "last"]
 			},
 			{
@@ -145,7 +156,30 @@
 		"fields": ["clientMutationId", "pullRequestReview"]
 	},
 	"PullRequestReviewEvent": "*",
-	"Commit": ["zipballUrl", "tarballUrl", "statusCheckRollup"],
+	"Commit": [
+		"zipballUrl",
+		"tarballUrl",
+		"statusCheckRollup",
+		"messageBody",
+		{
+			"name": "authors",
+			"args": ["after", "before", "first", "last"]
+		}
+	],
+	"GitTimestamp": "*",
+	"GitActor": ["date", "email", "name", "user"],
+	"GitActorConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"GitActorEdge": "*",
+	"PullRequestChangedFile": "*",
+	"PullRequestChangedFileConnection": [
+		"edges",
+		"nodes",
+		"pageInfo",
+		"totalCount"
+	],
+	"PullRequestChangedFileEdge": "*",
+	"PatchStatus": "*",
+	"FileViewedState": "*",
 	"AutoMergeRequest": {
 		"$implements": [],
 		"fields": [
@@ -161,6 +195,11 @@
 	"MergeableState": "*",
 	"MergeStateStatus": "*",
 	"PullRequestReviewDecision": "*",
+	"ProjectCardConnection": ["edges", "nodes", "pageInfo", "totalCount"],
+	"ProjectCardEdge": "*",
+	"ProjectCard": { "$implements": [], "fields": ["project", "column"] },
+	"Project": { "$implements": [], "fields": ["name"] },
+	"ProjectColumn": { "$implements": [], "fields": ["name"] },
 	"ProjectV2ItemConnection": ["nodes", "pageInfo", "totalCount"],
 	"ProjectV2Item": {
 		"$implements": [],

@@ -27,7 +27,7 @@ import { type ConnectionArgs, offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
 import { unprocessable } from "../errors";
 import { encodeNodeId } from "../node-id";
-import { type CommitNode, commitNode } from "./commit";
+import { type CommitNode, commitNode, readCommitNode } from "./commit";
 import { loadUser, userNode } from "./core";
 import type { PullRequestNode } from "./pulls";
 import type { RepositoryNode } from "./repository";
@@ -204,7 +204,7 @@ async function reviewNodes(
 	);
 }
 export type CommentNode = Awaited<ReturnType<typeof commentNodes>>[number];
-async function commentNodes(
+export async function commentNodes(
 	node: PullRequestNode,
 	ctx: GraphQLContext,
 	offset: number,
@@ -291,6 +291,9 @@ export const pullDetailResolvers = {
 	// connection, which is what GitHub answers for one in none.
 	projectItems: (_node: PullRequestNode, args: ConnectionArgs) =>
 		offsetConnection(args, 0, async () => []),
+	// Classic projects were retired on GitHub; gh still asks (`pr edit`).
+	projectCards: (_node: PullRequestNode, args: ConnectionArgs) =>
+		offsetConnection(args, 0, async () => []),
 	// No branch protection exists, so no review is required and REVIEW_REQUIRED
 	// never applies: the latest opinionated review of each author decides.
 	reviewDecision: async (
@@ -320,6 +323,42 @@ export const pullDetailResolvers = {
 					.map((row) => reviewNodeFor(node.repo, row, ctx)),
 			);
 		});
+	},
+	changedFiles: async (
+		node: PullRequestNode,
+		_args: unknown,
+		ctx: GraphQLContext,
+	) => (await diff(node, ctx)).totalFiles,
+	files: async (
+		node: PullRequestNode,
+		args: ConnectionArgs,
+		ctx: GraphQLContext,
+	) =>
+		arrayConnection(
+			args,
+			(await diff(node, ctx)).files.map((file) => ({
+				path: file.path,
+				additions: file.additions,
+				deletions: file.deletions,
+				changeType: file.status.toUpperCase() as
+					| "ADDED"
+					| "MODIFIED"
+					| "DELETED",
+				viewerViewedState: "UNVIEWED" as const,
+			})),
+		),
+	mergeCommit: (node: PullRequestNode) =>
+		node.row.mergeCommitSha
+			? readCommitNode(node.repo, node.row.mergeCommitSha)
+			: null,
+	mergedBy: async (
+		node: PullRequestNode,
+		_args: unknown,
+		ctx: GraphQLContext,
+	) => {
+		if (!node.row.mergedBy) return null;
+		const row = await loadUser(ctx, node.row.mergedBy);
+		return row ? userNode(row) : null;
 	},
 	additions: async (
 		node: PullRequestNode,

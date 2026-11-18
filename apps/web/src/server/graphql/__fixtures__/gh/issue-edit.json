@@ -1,0 +1,23 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh issue edit 3 -R HOST/octo/hello --title Broken!",
+	"requests": [
+		{
+			"query": "\n\tquery IssueByNumber($owner: String!, $repo: String!, $number: Int!) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\thasIssuesEnabled\n\t\t\tissue: issueOrPullRequest(number: $number) {\n\t\t\t\t__typename\n\t\t\t\t...on Issue{id,number,title,body,url}\n\t\t\t\t...on PullRequest{id,number,title,body,url}\n\t\t\t}\n\t\t}\n\t}",
+			"variables": {
+				"number": 3,
+				"owner": "octo",
+				"repo": "hello"
+			}
+		},
+		{
+			"query": "mutation IssueUpdate($input:UpdateIssueInput!){updateIssue(input: $input){__typename}}",
+			"variables": {
+				"input": {
+					"id": "MDU6SXNzdWUz",
+					"title": "Broken!"
+				}
+			}
+		}
+	]
+}

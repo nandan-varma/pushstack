@@ -1,0 +1,23 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh pr view 1 -R HOST/octo/hello --json additions,assignees,author,baseRefName,body,changedFiles,closed,closedAt,comments,commits,createdAt,deletions,files,headRefName,headRefOid,headRepository,headRepositoryOwner,id,isCrossRepository,isDraft,labels,latestReviews,maintainerCanModify,mergeCommit,mergeStateStatus,mergeable,mergedAt,mergedBy,milestone,number,projectItems,reactionGroups,reviewDecision,reviewRequests,reviews,state,statusCheckRollup,title,updatedAt,url",
+	"requests": [
+		{
+			"query": "\n\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\n\t\trepository(owner: $owner, name: $repo) {\n\t\t\tpullRequest(number: $pr_number) {additions,assignees(first:100){nodes{id,login,name,databaseId},totalCount},author{login,...on User{id,name}},baseRefName,body,changedFiles,closed,closedAt,comments(first: 100) {nodes {id,author{login,...on User{id,name}},authorAssociation,body,createdAt,includesCreatedEdit,isMinimized,minimizedReason,reactionGroups{content,users{totalCount}},url,viewerDidAuthor},pageInfo{hasNextPage,endCursor},totalCount},commits(first: 100) {nodes {commit {authors(first:100) {nodes {name,email,user{id,login}}},messageHeadline,messageBody,oid,committedDate,authoredDate}}},createdAt,deletions,files(first: 100) {nodes {additions,deletions,path,changeType}},headRefName,headRefOid,headRepository{id,name,nameWithOwner},headRepositoryOwner{id,login,...on User{name}},id,isCrossRepository,isDraft,labels(first:100){nodes{id,name,description,color},totalCount},latestReviews(first: 100) {nodes {author{login},authorAssociation,submittedAt,body,state}},maintainerCanModify,mergeCommit{oid},mergeStateStatus,mergeable,mergedAt,mergedBy{login,...on User{id,name}},milestone{number,title,description,dueOn},number,reactionGroups{content,users{totalCount}},reviewDecision,reviewRequests(first: 100) {nodes {requestedReviewer {__typename,...on User{login,name},...on Bot{login},...on Team{organization{login}name,slug}}}},reviews(first: 100) {nodes {id,author{login},authorAssociation,submittedAt,body,state,commit{oid},reactionGroups{content,users{totalCount}}}pageInfo{hasNextPage,endCursor}totalCount},state,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},title,updatedAt,url}\n\t\t}\n\t}",
+			"variables": {
+				"owner": "octo",
+				"pr_number": 1,
+				"repo": "hello"
+			}
+		},
+		{
+			"query": "query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \"Status\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}",
+			"variables": {
+				"endCursor": null,
+				"name": "hello",
+				"number": 1,
+				"owner": "octo"
+			}
+		}
+	]
+}
