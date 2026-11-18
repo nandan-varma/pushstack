@@ -16,7 +16,7 @@ import {
 } from "../../release-store";
 import { offsetConnection } from "../connection";
 import type { GraphQLContext } from "../context";
-import { encodeNodeId, rowIdOfNodeKey } from "../node-id";
+import { encodeGlobalNodeId, rowIdOfNodeKey } from "../node-id";
 import { loadUser, userNode } from "./core";
 import type {
 	ReleaseOrder,
@@ -77,7 +77,7 @@ function releaseNode(
 	const path = `/${repo.nameWithOwner}/releases/tag/${encodePath(row.tagName)}`;
 	return {
 		__typename: "Release",
-		id: encodeNodeId("Release", row.id),
+		id: encodeGlobalNodeId("Release", repo.row.id, row.id),
 		databaseId: row.id,
 		name: row.name,
 		tagName: row.tagName,
@@ -100,7 +100,7 @@ function assetNode(release: ReleaseNode, row: AssetRow): ReleaseAssetNode {
 	const download = `/${release.repo.nameWithOwner}/releases/download/${encodePath(release.tagName)}/${encodeURIComponent(row.name)}`;
 	return {
 		__typename: "ReleaseAsset",
-		id: encodeNodeId("ReleaseAsset", row.id),
+		id: encodeGlobalNodeId("ReleaseAsset", release.repo.row.id, row.id),
 		name: row.name,
 		contentType: row.contentType,
 		size: row.size,

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	decodeGlobalNodeId,
 	decodeNodeId,
 	encodeGlobalNodeId,
 	encodeNodeId,
+	encodeReactionNodeId,
+	rowIdOfNodeKey,
 } from "../graphql/node-id";
 
 const b64 = (text: string) => Buffer.from(text).toString("base64");
@@ -12,7 +15,6 @@ const LIVE_LEGACY_IDS: Array<[type: string, key: string | number, id: string]> =
 	[
 		["Issue", 533077241, "MDU6SXNzdWU1MzMwNzcyNDE="],
 		["IssueComment", 575836114, "MDEyOklzc3VlQ29tbWVudDU3NTgzNjExNA=="],
-		["IssueReaction", 57244731, "MDEzOklzc3VlUmVhY3Rpb241NzI0NDczMQ=="],
 		["Label", 1698076173, "MDU6TGFiZWwxNjk4MDc2MTcz"],
 		["Milestone", 1354258, "MDk6TWlsZXN0b25lMTM1NDI1OA=="],
 		["PullRequest", 324495027, "MDExOlB1bGxSZXF1ZXN0MzI0NDk1MDI3"],
@@ -58,22 +60,125 @@ describe("node ids", () => {
 	);
 
 	it.each(LIVE_GLOBAL_IDS)(
-		"encodes GitHub's new-form %s id for key %s",
+		"encodes and decodes GitHub's new-form %s id for key %s",
 		(type, key, id) => {
 			expect(encodeGlobalNodeId(type, 212613049, key)).toBe(id);
+			expect(decodeGlobalNodeId(id)).toEqual({
+				type,
+				key: String(key),
+				repositoryId: 212613049,
+			});
 		},
 	);
+
+	it("decodes the live REA_ samples, whose base64url uses - and _", () => {
+		// rust-lang/rust (repository 724712): the samples' third and fourth
+		// elements are the subject's and the reaction's row ids.
+		for (const [id, subjectId, reactionId] of [
+			["REA_lALOAAsO6M6U7Uupzg_bNn0", 2498579369, 266024573],
+			["REA_lALOAAsO6M6-0Ru_zhMGi84", 3201375167, 319196110],
+		] as const) {
+			expect(id).toMatch(/[-_]/);
+			expect(decodeGlobalNodeId(id)).toEqual({
+				type: "Reaction",
+				key: String(reactionId),
+				repositoryId: 724712,
+				subjectId,
+			});
+		}
+	});
+
+	it("encodes a reaction on an issue or a comment as GitHub's REA_ tuple", () => {
+		// Tag 1: the reaction sits on pull request 502407912 itself.
+		expect(
+			encodeReactionNodeId(212613049, { issueId: 502407912 }, 206255088),
+		).toBe("REA_lAHODKw3uc4d8iLozgxLM_A");
+		// Tag 2: on issue comment 2498579369.
+		expect(
+			encodeReactionNodeId(
+				724712,
+				{ issueId: 1, commentId: 2498579369 },
+				266024573,
+			),
+		).toBe("REA_lALOAAsO6M6U7Uupzg_bNn0");
+	});
+
+	it("packs a fixint repository id below 0x80 as one byte", () => {
+		const id = encodeGlobalNodeId("Release", 0x7f, 1);
+		expect(Buffer.from(id.slice(3), "base64url")).toEqual(
+			Buffer.from([0x93, 0x00, 0x7f, 0x01]),
+		);
+		// 0x80 needs the uint8 form, so the id grows by one byte.
+		expect(
+			Buffer.from(encodeGlobalNodeId("Release", 0x80, 1).slice(3), "base64url"),
+		).toEqual(Buffer.from([0x93, 0x00, 0xcc, 0x80, 0x01]));
+		for (const [value, packed] of [
+			[0xff, [0xcc, 0xff]],
+			[0x100, [0xcd, 0x01, 0x00]],
+			[0xffff, [0xcd, 0xff, 0xff]],
+			[0x10000, [0xce, 0x00, 0x01, 0x00, 0x00]],
+			[0xffffffff, [0xce, 0xff, 0xff, 0xff, 0xff]],
+		] as const) {
+			const bytes = Buffer.from(
+				encodeGlobalNodeId("Release", 1, value).slice(3),
+				"base64url",
+			);
+			expect([...bytes], String(value)).toEqual([0x93, 0x00, 0x01, ...packed]);
+			expect(
+				decodeGlobalNodeId(encodeGlobalNodeId("Release", 1, value)),
+			).toEqual({ type: "Release", key: String(value), repositoryId: 1 });
+		}
+	});
 
 	it("refuses values msgpack cannot hold as a uint32", () => {
 		expect(() => encodeGlobalNodeId("Release", 2 ** 32, 1)).toThrow(RangeError);
 		expect(() => encodeGlobalNodeId("Release", 1, -1)).toThrow(RangeError);
 		expect(() => encodeGlobalNodeId("Release", 1, 1.5)).toThrow(RangeError);
+		expect(() => encodeReactionNodeId(1, { issueId: 1 }, 2 ** 32)).toThrow(
+			RangeError,
+		);
 	});
 
-	it("does not decode new-form ids as legacy", () => {
+	it("does not decode a new-form id as legacy, or the reverse", () => {
 		for (const [, , id] of LIVE_GLOBAL_IDS) {
 			expect(decodeNodeId(id), id).toBeNull();
 		}
+		for (const [, , id] of LIVE_LEGACY_IDS) {
+			expect(decodeGlobalNodeId(id), id).toBeNull();
+		}
+	});
+
+	it("decodes nothing from a malformed new-form id", () => {
+		for (const id of [
+			"",
+			"RE_",
+			"XX_kwDODKw3uc4ZK3LB", // unknown prefix
+			"RE_kwDODKw3uc4ZK3LB=", // padding
+			"RE_not base64!",
+			"RE_AAAA", // not a msgpack array
+			// [0, repo, key] with a trailing byte.
+			`RE_${Buffer.from([0x93, 0x00, 0x01, 0x01, 0x00]).toString("base64url")}`,
+			// A four-element array under a three-element prefix.
+			`RE_${Buffer.from([0x94, 0x00, 0x01, 0x01, 0x01]).toString("base64url")}`,
+			// A reaction tagged with a subject the format does not have.
+			`REA_${Buffer.from([0x94, 0x03, 0x01, 0x01, 0x01]).toString("base64url")}`,
+			// A commit key that is not a string.
+			`C_${Buffer.from([0x93, 0x00, 0x01, 0x01]).toString("base64url")}`,
+		]) {
+			expect(decodeGlobalNodeId(id), id).toBeNull();
+		}
+		expect(decodeGlobalNodeId(`RE_${"A".repeat(201)}`)).toBeNull();
+		expect(decodeGlobalNodeId(`RE_${"A".repeat(300)}`)).toBeNull();
+	});
+
+	it("rejects an out-of-range row id, and accepts the maximum", () => {
+		expect(rowIdOfNodeKey("2147483647")).toBe(2147483647);
+		expect(rowIdOfNodeKey("2147483648")).toBeNull();
+		expect(rowIdOfNodeKey("0")).toBeNull();
+		expect(rowIdOfNodeKey("-1")).toBeNull();
+		expect(rowIdOfNodeKey("1.5")).toBeNull();
+		expect(rowIdOfNodeKey("01")).toBe(1);
+		expect(rowIdOfNodeKey("12345678901")).toBeNull();
 	});
 
 	it("encodes GitHub's legacy codes and round-trips them", () => {
@@ -101,7 +206,7 @@ describe("node ids", () => {
 		});
 	});
 
-	it("decodes nothing from malformed input", () => {
+	it("decodes nothing from malformed legacy input", () => {
 		for (const id of [
 			"",
 			"not base64!",
@@ -119,7 +224,7 @@ describe("node ids", () => {
 		}
 	});
 
-	it("rejects oversized input before decoding it", () => {
+	it("rejects oversized legacy input before decoding it", () => {
 		const oversized = encodeNodeId("Ref", `1:${"a".repeat(300)}`);
 		expect(oversized.length).toBeGreaterThan(200);
 		expect(decodeNodeId(oversized)).toBeNull();

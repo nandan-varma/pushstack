@@ -53,7 +53,7 @@ export async function getBranch(ctx: ApiContext) {
 
 	return json({
 		name: branch.name,
-		commit: commitObject(fullName, info, counts.get(info.oid)),
+		commit: commitObject({ id: repo.id, fullName }, info, counts.get(info.oid)),
 		_links: {
 			self: apiUrl(`/repos/${fullName}/branches/${encodePath(branch.name)}`),
 			html: branchHtmlUrl(fullName, branch.name),

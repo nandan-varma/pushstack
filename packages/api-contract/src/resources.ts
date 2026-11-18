@@ -198,6 +198,7 @@ export const issue = z.strictObject({
 
 export const issueComment = z.strictObject({
 	id: z.number().int(),
+	node_id: z.string(),
 	url,
 	html_url: url,
 	issue_url: url,
@@ -454,6 +455,7 @@ const parentRef = z.strictObject({ sha, url, html_url: url });
 /** GitHub's `Commit` (`GET …/commits`, `…/pulls/{n}/commits`). */
 export const commit = z.strictObject({
 	sha,
+	node_id: z.string(),
 	commit: z.strictObject({
 		url,
 		author: gitIdentity,

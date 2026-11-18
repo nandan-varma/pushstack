@@ -61,6 +61,7 @@ async function commentSubject(
 async function list(
 	ctx: ApiContext,
 	id: "reactions/list-for-issue" | "reactions/list-for-issue-comment",
+	repoId: number,
 	subject: ReactionSubject,
 ) {
 	const { content } = queryParams(ctx, id, "Reaction");
@@ -72,7 +73,11 @@ async function list(
 				offset: params.offset,
 			})
 		: { reactions: [], total: 0 };
-	return json(reactions.map(reaction), 200, linkHeader(ctx.url, params, total));
+	return json(
+		reactions.map((value) => reaction(repoId, subject, value)),
+		200,
+		linkHeader(ctx.url, params, total),
+	);
 }
 
 async function create(
@@ -89,7 +94,10 @@ async function create(
 	const result = await addReaction(subject, caller.userId, content);
 	const saved = await findReactionWithUser(result.reaction.id);
 	if (!saved) throw new Error("Reaction missing after insert");
-	return json(reaction(saved), result.created ? 201 : 200);
+	return json(
+		reaction(access.repo.id, subject, saved),
+		result.created ? 201 : 200,
+	);
 }
 
 async function remove(
@@ -111,7 +119,7 @@ async function remove(
 export async function listIssueReactions(ctx: ApiContext) {
 	const access = await readableRepository(ctx);
 	const id = "reactions/list-for-issue";
-	return list(ctx, id, await issueSubject(ctx, id, access));
+	return list(ctx, id, access.repo.id, await issueSubject(ctx, id, access));
 }
 
 export async function createIssueReaction(ctx: ApiContext) {
@@ -129,7 +137,7 @@ export async function deleteIssueReaction(ctx: ApiContext) {
 export async function listCommentReactions(ctx: ApiContext) {
 	const access = await readableRepository(ctx);
 	const id = "reactions/list-for-issue-comment";
-	return list(ctx, id, await commentSubject(ctx, id, access));
+	return list(ctx, id, access.repo.id, await commentSubject(ctx, id, access));
 }
 
 export async function createCommentReaction(ctx: ApiContext) {

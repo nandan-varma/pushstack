@@ -20,6 +20,7 @@ const users = await createUsers("alice", "bob", "carol");
 const { asToken, call, mintToken, post } = await import(
 	"../../test/api-client"
 );
+const { decodeGlobalNodeId } = await import("../graphql/node-id");
 
 let alice: string;
 let aliceRead: string;
@@ -247,5 +248,35 @@ describe("issue comment reactions", () => {
 				)
 			).status,
 		).toBe(404);
+	});
+});
+
+describe("reaction node ids", () => {
+	it("gives reactions GitHub's REA_ tuple, naming their subject", async () => {
+		const repo = await call("/repos/alice/pub");
+		const issue = await call("/repos/alice/pub/issues/2");
+		const onIssue = await call(
+			"/repos/alice/pub/issues/2/reactions",
+			post(alice, { content: "eyes" }),
+		);
+		expect(onIssue.body.node_id).toMatch(/^REA_/);
+		// Tag 1: the reaction sits on the issue (or pull request) itself.
+		expect(decodeGlobalNodeId(onIssue.body.node_id)).toEqual({
+			type: "Reaction",
+			key: String(onIssue.body.id),
+			repositoryId: repo.body.id,
+			subjectId: issue.body.id,
+		});
+		const onComment = await call(
+			`/repos/alice/pub/issues/comments/${commentId}/reactions`,
+			post(alice, { content: "rocket" }),
+		);
+		// Tag 2: on an issue comment.
+		expect(decodeGlobalNodeId(onComment.body.node_id)).toEqual({
+			type: "Reaction",
+			key: String(onComment.body.id),
+			repositoryId: repo.body.id,
+			subjectId: commentId,
+		});
 	});
 });

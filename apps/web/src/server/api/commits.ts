@@ -182,7 +182,9 @@ export async function listCommits(ctx: ApiContext) {
 		page.map((info) => info.oid),
 	);
 	return json(
-		page.map((info) => commitObject(fullName, info, counts.get(info.oid))),
+		page.map((info) =>
+			commitObject({ id: repo.id, fullName }, info, counts.get(info.oid)),
+		),
 		200,
 		linkHeader(
 			ctx.url,
@@ -251,7 +253,11 @@ export async function getCommitDetail(ctx: ApiContext) {
 	if (!(query.has("page") || query.has("per_page"))) {
 		const { stats, files } = await diffSummary(repo, diff);
 		return json({
-			...commitObject(fullNameOf(repo), info, commentCount),
+			...commitObject(
+				{ id: repo.id, fullName: fullNameOf(repo) },
+				info,
+				commentCount,
+			),
 			stats,
 			files,
 		});
@@ -266,7 +272,15 @@ export async function getCommitDetail(ctx: ApiContext) {
 			: [],
 	);
 	return json(
-		{ ...commitObject(fullNameOf(repo), info, commentCount), stats, files },
+		{
+			...commitObject(
+				{ id: repo.id, fullName: fullNameOf(repo) },
+				info,
+				commentCount,
+			),
+			stats,
+			files,
+		},
 		200,
 		linkHeader(ctx.url, params, listed.length),
 	);
@@ -440,9 +454,13 @@ export async function compareCommits(ctx: ApiContext) {
 			),
 			diff_url: htmlUrl(`/${fullName}/compare/${spec}.diff`),
 			patch_url: htmlUrl(`/${fullName}/compare/${spec}.patch`),
-			base_commit: commitObject(fullName, baseInfo, counts.get(baseInfo.oid)),
+			base_commit: commitObject(
+				{ id: repo.id, fullName },
+				baseInfo,
+				counts.get(baseInfo.oid),
+			),
 			merge_base_commit: commitObject(
-				fullName,
+				{ id: repo.id, fullName },
 				mergeBase,
 				counts.get(mergeBase.oid),
 			),
@@ -451,7 +469,7 @@ export async function compareCommits(ctx: ApiContext) {
 			behind_by: behindBy,
 			total_commits: aheadBy,
 			commits: commits.map((info) =>
-				commitObject(fullName, info, counts.get(info.oid)),
+				commitObject({ id: repo.id, fullName }, info, counts.get(info.oid)),
 			),
 			files,
 		},

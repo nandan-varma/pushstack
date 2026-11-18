@@ -6,10 +6,25 @@
 import type { GraphQLContext } from "../context";
 import type { Resolvers, ResolversParentTypes } from "./generated";
 
-/** Loads the node named by a decoded global id's key; null when unreadable. */
+/**
+ * A node id as decoded: the type and key, plus (new form only) the repository
+ * that owns the object and, for a reaction, its subject.
+ */
+export interface DecodedNodeId {
+	type: string;
+	key: string;
+	repositoryId?: number;
+	subjectId?: number;
+}
+
+/**
+ * Loads the node named by a decoded global id; null when unreadable. `id` is
+ * the whole decoded id, so a new-form one also names its repository.
+ */
 export type NodeLoader = (
 	key: string,
 	context: GraphQLContext,
+	id?: DecodedNodeId,
 ) => Promise<ResolversParentTypes["Node"] | null>;
 
 export interface DomainResolvers {

@@ -107,11 +107,14 @@ Connections have GitHub's shape: `nodes`, `edges { cursor node }`,
 `totalCount`. Cursors are opaque.
 
 Global ids resolve through `node(id:)` / `nodes(ids:)`. Users, repositories,
-issues, labels, refs, pull requests, pull request reviews, milestones and issue
-comments use GitHub's legacy node id form (base64 of `04:User1`), the same as
-REST `node_id`, with codes checked against cli/cli. GitHub serves commits,
-releases and release assets in its newer form (`C_…`, `RE_…`, `RA_…`), which
-PushStack does not emit yet, and reaction codes are unverified (#269).
+issues, labels, refs, pull requests, pull request reviews and milestones use
+GitHub's legacy node id form (base64 of `04:User1`), the same as REST
+`node_id`, with codes checked against cli/cli. Commits, releases, release
+assets and issue comments use GitHub's newer form (`C_…`, `RE_…`, `RA_…`,
+`IC_…`: base64url of a msgpack tuple naming the repository), the same ids REST
+`node_id` carries, and resolve here too. A reaction's REST `node_id` is the
+four-element `REA_…` tuple; PushStack serves no GraphQL `Reaction` type, so it
+does not resolve through `node(id:)`.
 
 ## Served schema
 

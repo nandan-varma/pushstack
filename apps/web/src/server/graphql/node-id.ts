@@ -5,10 +5,14 @@
  * "MDEwOlJlcG9zaXRvcnkx"). The REST API's `node_id` fields use the same
  * encoding, so an id read from either API resolves through `node(id:)`.
  *
- * The new form is `PREFIX_` + base64url of a msgpack array `[0, repositoryId,
- * key]` (see `encodeGlobalNodeId`). GitHub serves it for release, release
- * asset, commit and (on REST) issue comment `node_id`s; users, repositories,
- * issues, pull requests and labels stay legacy.
+ * The new form is `PREFIX_` + base64url of a msgpack fixarray. GitHub serves it
+ * for releases (`RE_`), release assets (`RA_`), commits (`C_`), issue comments
+ * (`IC_`) and reactions (`REA_`); users, repositories, issues, pull requests,
+ * labels, milestones and refs stay legacy. The array is `[0, repositoryId,
+ * key]`, where `key` is the row id or, for a commit, the sha; a reaction's
+ * `REA_` id carries a fourth element, `[tag, repositoryId, subjectId,
+ * reactionId]`, tagged 1 for a reaction on the issue or pull request itself and
+ * 2 for one on an issue comment (samples decoded from `gh api`, #269).
  */
 
 /**
@@ -16,10 +20,9 @@
  * from `gh api` and GraphQL). `05` is shared by Issue and Label; the name
  * tells them apart.
  */
-const VERIFIED_CODES = {
+const TYPE_CODES = {
 	Issue: "05",
 	IssueComment: "012",
-	IssueReaction: "013",
 	Label: "05",
 	Milestone: "09",
 	PullRequest: "011",
@@ -30,42 +33,33 @@ const VERIFIED_CODES = {
 } as const;
 
 /**
- * Types with no confirmed legacy code. GitHub serves Release, ReleaseAsset
- * and Commit `node_id`s in the new form (see `GLOBAL_PREFIX`), and none of
- * the legacy codes below has been seen in a live id. Their values are the
- * pre-verification guesses (the type name's length) and are kept only so the
- * legacy encoder still has a value for them. `Reaction` has no sample for
- * comment or commit reactions; the issue reaction sample is `013:IssueReaction`.
- */
-const UNVERIFIED_CODES = {
-	Commit: "06",
-	Reaction: "08",
-	Release: "07",
-	ReleaseAsset: "12",
-} as const;
-
-/**
  * Prefixes of the new form, observed on cli/cli (repository 212613049, the
  * id GitHub encodes in the middle slot). Samples: `RE_kwDODKw3uc4ZK3LB` is
  * release 422277825, `RA_kwDODKw3uc4n9Ar6` is asset 670305018,
- * `IC_kwDODKw3uc7tpgEC` is comment 3987079426, and
- * `C_kwDODKw3udoAKDRmMmNm…` is commit 4f2cfe92e3499f8581bf39db77e0a1431fa7b55c.
+ * `IC_kwDODKw3uc7tpgEC` is comment 3987079426,
+ * `C_kwDODKw3udoAKDRmMmNmZTky…` is commit 4f2cfe92e3499f8581bf39db77e0a1431fa7b55c,
+ * and `REA_lAHODKw3uc4d8iLozgxLM_A` is reaction 206255088 on pull request
+ * 502407912.
  */
 const GLOBAL_PREFIX = {
 	Commit: "C",
 	IssueComment: "IC",
+	Reaction: "REA",
 	Release: "RE",
 	ReleaseAsset: "RA",
 } as const;
 
-const TYPE_CODES: Record<string, string> = {
-	...VERIFIED_CODES,
-	...UNVERIFIED_CODES,
-};
-
-type NodeType = keyof typeof VERIFIED_CODES | keyof typeof UNVERIFIED_CODES;
+type NodeType = keyof typeof TYPE_CODES;
 
 type GlobalNodeType = keyof typeof GLOBAL_PREFIX;
+
+/** The new form's three-element types: everything but a reaction. */
+type ScopedNodeType = Exclude<GlobalNodeType, "Reaction">;
+
+/** Longest first, so `REA_` is not read as `RE_`. */
+const GLOBAL_TYPES = (
+	Object.entries(GLOBAL_PREFIX) as Array<[GlobalNodeType, string]>
+).sort(([, a], [, b]) => b.length - a.length);
 
 const LEGACY_ID_RE = /^(\d{2,3}):(.+)$/;
 
@@ -80,17 +74,39 @@ export function encodeNodeId(type: NodeType, key: string | number): string {
  * samples' `uint32`s); strings use `str16`, as the one commit sample does.
  */
 export function encodeGlobalNodeId(
-	type: GlobalNodeType,
+	type: ScopedNodeType,
 	repositoryId: number,
 	key: number | string,
 ): string {
-	const bytes = [
+	const tuple = [
 		0x93, // fixarray of three
-		0x00, // leading zero, the format version seen in every sample
+		0x00, // leading zero, the tag seen in every sample of these types
 		...msgpackUint(repositoryId),
 		...(typeof key === "number" ? msgpackUint(key) : msgpackStr(key)),
 	];
-	return `${GLOBAL_PREFIX[type]}_${Buffer.from(bytes).toString("base64url")}`;
+	return `${GLOBAL_PREFIX[type]}_${Buffer.from(tuple).toString("base64url")}`;
+}
+
+/**
+ * A reaction's `node_id`: the new form's four-element tuple, tagging the
+ * subject a reaction sits on (1: the issue or pull request, 2: an issue
+ * comment) and naming it by row id before the reaction's own.
+ */
+export function encodeReactionNodeId(
+	repositoryId: number,
+	subject: { issueId: number; commentId?: number },
+	reactionId: number,
+): string {
+	const subjectId = subject.commentId ?? subject.issueId;
+	const tag = subject.commentId === undefined ? 1 : 2;
+	const tuple = [
+		0x94, // fixarray of four
+		tag,
+		...msgpackUint(repositoryId),
+		...msgpackUint(subjectId),
+		...msgpackUint(reactionId),
+	];
+	return `${GLOBAL_PREFIX.Reaction}_${Buffer.from(tuple).toString("base64url")}`;
 }
 
 function msgpackUint(n: number): number[] {
@@ -125,11 +141,111 @@ export function decodeNodeId(
 	const [, code = "", rest = ""] = match;
 	// Codes are shared (`05` names both Issue and Label), so the name decides.
 	const type = Object.keys(TYPE_CODES).find(
-		(name) => TYPE_CODES[name] === code && rest.startsWith(name),
+		(name) => TYPE_CODES[name as NodeType] === code && rest.startsWith(name),
 	) as NodeType | undefined;
 	if (!type) return null;
 	const key = rest.slice(type.length);
 	return key ? { type, key } : null;
+}
+
+/** A decoded new-form id: the type, the key, and the repository it names. */
+export interface DecodedGlobalNodeId {
+	type: GlobalNodeType;
+	/** The row id (the reaction's own for `REA_`), or a commit's sha. */
+	key: string;
+	repositoryId: number;
+	/** A `REA_` reaction's subject: an issue, pull request or issue comment. */
+	subjectId?: number;
+}
+
+/**
+ * The type, key and repository a new-form node id names, or null. Only the
+ * canonical spelling is accepted: a padded or re-encoded body is not an id
+ * GitHub (or we) ever issued.
+ */
+export function decodeGlobalNodeId(id: string): DecodedGlobalNodeId | null {
+	if (id.length > 300) return null;
+	const found = GLOBAL_TYPES.find(([, prefix]) => id.startsWith(`${prefix}_`));
+	if (!found) return null;
+	const [type, prefix] = found;
+	const body = id.slice(prefix.length + 1);
+	if (!/^[A-Za-z0-9_-]+$/.test(body) || body.length > 200) return null;
+	const bytes = Buffer.from(body, "base64url");
+	if (bytes.toString("base64url") !== body) return null;
+	const tuple = readMsgpackTuple(bytes);
+	return tuple ? nodeOfTuple(type, tuple) : null;
+}
+
+/** The node a tuple names, or null when the tuple isn't that type's shape. */
+function nodeOfTuple(
+	type: GlobalNodeType,
+	tuple: MsgpackValue[],
+): DecodedGlobalNodeId | null {
+	const [tag, repositoryId, third, fourth] = tuple;
+	if (typeof repositoryId !== "number") return null;
+	if (type === "Reaction") {
+		// 1: the issue or pull request, 2: an issue comment.
+		if (tuple.length !== 4 || (tag !== 1 && tag !== 2)) return null;
+		if (typeof third !== "number" || typeof fourth !== "number") return null;
+		return { type, key: String(fourth), repositoryId, subjectId: third };
+	}
+	if (tuple.length !== 3 || tag !== 0) return null;
+	if (type === "Commit") {
+		return typeof third === "string"
+			? { type, key: third, repositoryId }
+			: null;
+	}
+	return typeof third === "number"
+		? { type, key: String(third), repositoryId }
+		: null;
+}
+
+type MsgpackValue = number | string;
+
+/** A msgpack fixarray of three or four of them, or null for anything else. */
+function readMsgpackTuple(bytes: Buffer): MsgpackValue[] | null {
+	const length = bytes[0];
+	if (length !== 0x93 && length !== 0x94) return null;
+	const values: MsgpackValue[] = [];
+	let at = 1;
+	for (let n = 0; n < length - 0x90; n++) {
+		const read = readMsgpackValue(bytes, at);
+		if (!read) return null;
+		values.push(read.value);
+		at = read.next;
+	}
+	return at === bytes.length ? values : null;
+}
+
+function readMsgpackValue(
+	bytes: Buffer,
+	at: number,
+): { value: MsgpackValue; next: number } | null {
+	const head = bytes[at];
+	if (head === undefined) return null;
+	// fixint, and the three widths of uint the samples use.
+	if (head < 0x80) return { value: head, next: at + 1 };
+	if (head === 0xcc || head === 0xcd || head === 0xce) {
+		const size = 1 << (head - 0xcc);
+		if (at + 1 + size > bytes.length) return null;
+		const value =
+			head === 0xcc
+				? bytes.readUInt8(at + 1)
+				: head === 0xcd
+					? bytes.readUInt16BE(at + 1)
+					: bytes.readUInt32BE(at + 1);
+		return { value, next: at + 1 + size };
+	}
+	if (head === 0xda) {
+		if (at + 3 > bytes.length) return null;
+		const size = bytes.readUInt16BE(at + 1);
+		if (at + 3 + size > bytes.length) return null;
+		return {
+			value: bytes.toString("utf8", at + 3, at + 3 + size),
+			next: at + 3 + size,
+		};
+	}
+	return null;
 }
 
 /** Postgres `integer` ids top out here; a bigger key can't name a row. */

@@ -56,6 +56,7 @@ export async function listComments(ctx: ApiContext) {
 		comments.map((comment) =>
 			issueComment({
 				fullName,
+				repoId: repo.id,
 				kind: thread.kind,
 				number,
 				comment,
@@ -88,6 +89,7 @@ export async function createComment(ctx: ApiContext) {
 	return json(
 		issueComment({
 			fullName: fullNameOf(repo),
+			repoId: repo.id,
 			kind: thread.kind,
 			number,
 			comment,
@@ -131,6 +133,7 @@ export async function getComment(ctx: ApiContext) {
 	return json(
 		issueComment({
 			fullName: fullNameOf(repo),
+			repoId: repo.id,
 			kind: thread.kind,
 			number: thread.number,
 			comment,
@@ -160,6 +163,7 @@ export async function updateComment(ctx: ApiContext) {
 	return json(
 		issueComment({
 			fullName: fullNameOf(repo),
+			repoId: repo.id,
 			kind: thread.kind,
 			number: thread.number,
 			comment: updated,

@@ -250,13 +250,15 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 
 ## Differences from GitHub
 
-- User, repository and pull request `id`s are integers. Their `node_id`s
+- User, repository, issue, pull request, label, milestone and ref `node_id`s
   (`base64("04:User<id>")`, `"010:Repository<id>"`, `"011:PullRequest<id>"`) are
   GitHub's legacy form, verified against GitHub, and resolve through GraphQL
-  `node(id:)`. Milestone objects carry a verified legacy `node_id`. Release and
-  release asset objects carry a `node_id` in the legacy form, which GitHub no
-  longer issues for them (GitHub uses `RE_…` and `RA_…`); reaction codes are
-  not yet verified (#269). Other objects omit it.
+  `node(id:)`. Releases, release assets, commits and issue comments carry
+  GitHub's newer form (`RE_…`, `RA_…`, `C_…`, `IC_…`: base64url of a msgpack
+  tuple naming the repository and the row), and reactions carry `REA_…` with
+  their subject's id. All of them resolve through GraphQL `node(id:)` except a
+  reaction, which has no GraphQL type here. Issue objects and commit comments
+  omit `node_id`.
 - **`avatar_url` is `null`** when the user has no image (GitHub always has one).
 - `email` on a user is always `null`, and the `email` of a commit author or
   committer is always the placeholder `noreply@<host>`: web commits carry the
@@ -287,9 +289,10 @@ Generated from `packages/api-contract` (`src/routes.ts` and the notes in `src/co
 - A closed pull request's `closed_at` is its merge time when merged, otherwise
   its last update (there is no `closed_at` column); a merged pull request is
   `state: "closed"` in the issues surface, as on GitHub.
-- Issue, comment and timeline objects carry the `reactions` rollup (`url`,
+- Issue and timeline objects carry the `reactions` rollup (`url`,
   `total_count` and one count per content), as on GitHub; an issue's rollup
-  counts its own reactions, not its comments'. They omit `node_id`,
+  counts its own reactions, not its comments'. An issue and a timeline event
+  omit `node_id`; a comment carries its own (see above). They all omit
   `author_association` and `performed_via_github_app`; `active_lock_reason`
   is always `null`, `locked` always `false`. A
   `labeled`/`unlabeled` event carries `{ name, color }`; a
