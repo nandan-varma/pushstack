@@ -56,6 +56,7 @@
 		"git-fs-s3": "workspace:*",
 		"graphql": "^17.0.2",
 		"isomorphic-git": "^1.44.9",
+		"lru-cache": "^11.5.3",
 		"lucide-react": "^1.66.0",
 		"mdast-util-find-and-replace": "^3.0.4",
 		"nitro": "3.0.260903-beta",
