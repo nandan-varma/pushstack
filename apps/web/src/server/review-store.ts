@@ -1,4 +1,5 @@
 import { and, count, eq } from "drizzle-orm";
+import { qualifyBranchRef } from "git-fs-s3";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
 import { anchorKey, collectDiffAnchors } from "#/lib/diff";
@@ -12,9 +13,11 @@ import type {
 	ReviewThread,
 } from "#/lib/review-types";
 import { bestEffort } from "./best-effort";
-import { getBranchDiff, getBranches } from "./git-read";
+import { getBranchDiff } from "./git-read";
+import { repoFor } from "./git-repo";
 import { ownerKeyOf } from "./git-storage-naming";
 import { recordThreadActivity } from "./notification-store";
+import { tipOf } from "./pull-head";
 import type { RepositoryWithOwner } from "./repo-access";
 import { assertRepositoryCapacity } from "./repository-capacity";
 import { publicUserFields } from "./repository-lookup";
@@ -173,14 +176,14 @@ export async function reviewSummaryFor(
  */
 export async function assertReviewAnchor(
 	repo: RepositoryWithOwner,
-	pullRequest: Pick<PullRequest, "sourceBranch" | "targetBranch">,
+	pullRequest: Pick<PullRequest, "headRef" | "targetBranch">,
 	anchor: { path: string; side: ReviewSide; line: number },
 ): Promise<string> {
 	const diff = await getBranchDiff(
 		ownerKeyOf(repo),
 		repo.name,
 		pullRequest.targetBranch,
-		pullRequest.sourceBranch,
+		pullRequest.headRef,
 	);
 	if (!collectDiffAnchors(diff.files).has(anchorKey(anchor))) {
 		throw new Error("That line isn't part of this pull request's diff");
@@ -190,10 +193,9 @@ export async function assertReviewAnchor(
 
 export async function headShaFor(
 	repo: RepositoryWithOwner,
-	sourceBranch: string,
+	headRef: string,
 ): Promise<string | null> {
-	const tips = await getBranches(ownerKeyOf(repo), repo.name);
-	return tips.find((branch) => branch.name === sourceBranch)?.commit ?? null;
+	return tipOf(repoFor(ownerKeyOf(repo), repo.name), qualifyBranchRef(headRef));
 }
 
 /**
@@ -235,7 +237,7 @@ export async function submitPendingReview(
 		.set({
 			state,
 			body,
-			commitSha: review.commitSha ?? (await headShaFor(repo, pr.sourceBranch)),
+			commitSha: review.commitSha ?? (await headShaFor(repo, pr.headRef)),
 			submittedAt: new Date(),
 			updatedAt: new Date(),
 		})

@@ -345,6 +345,16 @@ pushes:
   (`buildPackFromExistingPacks`' `allowedBases`). No pack outlives the delete
   holding an object only that head named, so the single-pack fast path is safe
   again. Delete a pull head only through `deletePullHead`.
+- **A pull request from a fork pins it.** Opening one (`createPullRequest`,
+  shared by REST and GraphQL) copies the fork branch's missing objects into
+  the base (`importCommit`) and writes `refs/pull/<n>/head`; `pull_requests`
+  keeps `head_repo_id` (set null when the fork is deleted) and `head_owner`
+  (says the head is a fork's, for the `owner:` of `head.label`). Every read of
+  the PR uses `PullRequest.headRef` (the branch, or that ref). An open PR
+  follows the fork branch lazily: `refreshPullHead` runs on a read or a merge,
+  copies only what is new and moves the ref. A closed or merged PR, and one
+  whose fork or branch is gone, keeps the pin. A private fork cannot be the
+  head of a PR into a public base.
 - **Pushes can't write it.** `isSafeFullRefName` accepts only `refs/heads/` and
   `refs/tags/`, so receive-pack rejects a pull ref as an invalid ref name.
   Server code creates one with `pullHeadRefName(n)`, which only accepts a

@@ -1,5 +1,6 @@
 /** Fields selected by stock gh pr view; repository access is checked by the parent. */
 import { and, count, eq, ne } from "drizzle-orm";
+import { qualifyBranchRef } from "git-fs-s3";
 import { db } from "#/db";
 import { pullRequestReviews } from "#/db/app-schema";
 import { MAX_HISTORY_WALK, MAX_LIST_SKIP } from "#/lib/limits";
@@ -11,11 +12,12 @@ import {
 } from "../../comment-store";
 import {
 	getBranchDiff,
-	getBranches,
 	getCommit,
 	getCommitInfosBetween,
 } from "../../git-read";
+import { repoFor } from "../../git-repo";
 import { ownerKeyOf } from "../../git-storage-naming";
+import { refreshPullHead, tipOf } from "../../pull-head";
 import { listThreadReactions } from "../../reaction-store";
 import { getAccessForRepository } from "../../repo-access";
 import { publicUserFields } from "../../repository-lookup";
@@ -53,18 +55,19 @@ function bounds(offset: number) {
 function range(node: PullRequestNode) {
 	return node.row.status === "merged" && node.row.baseSha && node.row.headSha
 		? { base: node.row.baseSha, head: node.row.headSha }
-		: { base: node.row.targetBranch, head: node.row.sourceBranch };
+		: { base: node.row.targetBranch, head: node.row.headRef };
 }
 function diff(node: PullRequestNode, ctx: GraphQLContext) {
 	const refs = range(node);
-	return ctx.memo(`pull-diff:${node.row.id}`, () =>
-		getBranchDiff(
+	return ctx.memo(`pull-diff:${node.row.id}`, async () => {
+		await refreshPullHead(node.repo.row, node.row);
+		return getBranchDiff(
 			ownerKeyOf(node.repo.row),
 			node.repo.name,
 			refs.base,
 			refs.head,
-		),
-	);
+		);
+	});
 }
 async function thread(node: PullRequestNode, ctx: GraphQLContext) {
 	return ctx.memo(`pull-thread:${node.row.id}`, async () => {
@@ -275,12 +278,14 @@ export const pullDetailResolvers = {
 			: ("UNKNOWN" as const),
 	/** The merged head once merged (kept even if the branch is gone), else the branch tip. */
 	headRefOid: async (node: PullRequestNode) => {
-		if (node.row.headSha) return node.row.headSha;
-		const branch = (
-			await getBranches(ownerKeyOf(node.repo.row), node.repo.row.name)
-		).find((b) => b.name === node.row.sourceBranch);
-		if (!branch) throw new Error("Pull request head branch missing");
-		return branch.commit;
+		if (node.row.status === "merged" && node.row.headSha)
+			return node.row.headSha;
+		const tip = await tipOf(
+			repoFor(ownerKeyOf(node.repo.row), node.repo.row.name),
+			qualifyBranchRef(node.row.headRef),
+		);
+		if (!tip) throw new Error("Pull request head branch missing");
+		return tip;
 	},
 	// Projects (v2) are not served, so a pull request is in no project: an empty
 	// connection, which is what GitHub answers for one in none.

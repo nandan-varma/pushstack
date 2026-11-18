@@ -230,7 +230,7 @@ export function servePullPatch(
 		if (!pr) return false;
 		const merged = pr.status === "merged" && pr.baseSha && pr.headSha;
 		const base = merged ? (pr.baseSha as string) : pr.targetBranch;
-		const head = merged ? (pr.headSha as string) : pr.sourceBranch;
+		const head = merged ? (pr.headSha as string) : pr.headRef;
 		const ownerKey = ownerKeyOf(repo);
 		const comparison = await compareRevisions(ownerKey, repo.name, base, head);
 		if (format === "diff") addDiff(body, comparison.diff);

@@ -730,6 +730,14 @@ export interface PullShapeInput {
 	commentsCount: number;
 	headSha: string;
 	baseSha: string;
+	/**
+	 * A head from a fork: its owner, and its repository as the viewer may see
+	 * it (null when deleted or unreadable). Absent for a branch of `repo`.
+	 */
+	head?: {
+		user: PublicUser;
+		repoShape: Shape<"repository"> | null;
+	};
 	/** Present on a single pull request (GitHub omits these from lists). */
 	detail?: {
 		mergedBy: PublicUser | null;
@@ -795,7 +803,15 @@ export function pullRequest(
 		assignees: input.assignees.map(simpleUser),
 		requested_reviewers: input.requestedReviewers.map(simpleUser),
 		requested_teams: [],
-		head: side(row.sourceBranch, input.headSha),
+		head: input.head
+			? {
+					label: `${row.headOwner ?? input.head.user.username}:${row.sourceBranch}`,
+					ref: row.sourceBranch,
+					sha: input.headSha,
+					user: simpleUser(input.head.user),
+					repo: input.head.repoShape,
+				}
+			: side(row.sourceBranch, input.headSha),
 		base: side(row.targetBranch, input.baseSha),
 		_links: {
 			self: { href: url },

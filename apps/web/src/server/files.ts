@@ -227,7 +227,7 @@ export const getBranchDiff = createServerFn({ method: "GET" })
 		readInput(
 			z.object({
 				repoId: z.number(),
-				sourceBranch: safeBranchNameSchema,
+				sourceBranch: safeRefNameSchema,
 				targetBranch: safeBranchNameSchema,
 			}),
 		),

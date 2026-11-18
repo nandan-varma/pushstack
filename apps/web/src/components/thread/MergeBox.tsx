@@ -13,6 +13,7 @@ export function MergeBox({
 	draft = false,
 	canMarkReady = false,
 	sourceBranch,
+	sourceLabel,
 	targetBranch,
 	action,
 	repoId,
@@ -20,7 +21,10 @@ export function MergeBox({
 	canMerge: boolean;
 	draft?: boolean;
 	canMarkReady?: boolean;
+	/** The revision of the head (a branch, or the pinned ref of a fork's). */
 	sourceBranch: string;
+	/** How the head is shown (`owner:branch` for a fork); defaults to `sourceBranch`. */
+	sourceLabel?: string;
 	targetBranch: string;
 	action?: ReactNode;
 	/** With it, the CI results for the source branch's tip show above the button. */
@@ -60,7 +64,10 @@ export function MergeBox({
 							: "Merging is limited to people with write access"}
 					</h2>
 					<p className="mt-1 text-[13px] leading-5 text-bjork-text-muted">
-						Merges <span className="font-mono text-xs">{sourceBranch}</span>{" "}
+						Merges{" "}
+						<span className="font-mono text-xs">
+							{sourceLabel ?? sourceBranch}
+						</span>{" "}
 						into <span className="font-mono text-xs">{targetBranch}</span>.
 						Conflicts are checked when you merge.
 					</p>

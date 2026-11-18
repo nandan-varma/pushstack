@@ -4,33 +4,45 @@
  * labels and timeline) with issues, so those live on the issues endpoints.
  */
 
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { isNotFoundError } from "git-fs-s3";
 import { DiffLimitError } from "git-fs-s3/ops";
 import { db } from "#/db";
 import { pullRequestReviewComments, pullRequestReviews } from "#/db/app-schema";
+import { user } from "#/db/schema";
 import { requestCodeownerReviews } from "../codeowners";
 import { commitCommentCounts } from "../commit-comment-store";
 import {
-	analyzeMerge,
 	getBranchDiff,
 	getBranches,
 	getCommit,
 	getCommitDiff,
 	getCommitsBetween,
 } from "../git-read";
-import { safeBranchNameSchema } from "../git-ref-name";
-import { withRepositoryLock } from "../git-repo-lock";
+import { repoFor } from "../git-repo";
 import { ownerKeyOf } from "../git-storage-naming";
 import { perfStep } from "../perf-log";
 import {
+	createPullRequest,
+	PullCreateError,
+	PullForbiddenError,
+} from "../pull-create";
+import {
+	isCrossRepository,
+	readableHeadRepository,
+	refreshPullHead,
+	tipOf,
+} from "../pull-head";
+import {
 	disallowedMergeMethodMessage,
-	insertPullRequest,
 	mergePullRequestBranches,
 	updatePullRequestFields,
 } from "../pull-request-store";
 import { readableForkCounts } from "../repository-fork";
-import type { RepositoryRowWithOwner } from "../repository-lookup";
+import {
+	publicUserColumns,
+	type RepositoryRowWithOwner,
+} from "../repository-lookup";
 import {
 	listRequestedReviewers,
 	ReviewRequestError,
@@ -119,11 +131,82 @@ const customError = (message: string): FieldError => ({
 	message,
 });
 
+/**
+ * Every branch tip of the repository, plus the pinned head of each fork pull
+ * request in `pulls` (keyed by its `headRef`), so a range resolves through
+ * one map.
+ */
 async function branchTips(
 	repo: RepositoryRowWithOwner,
+	pulls: readonly PullRequest[] = [],
 ): Promise<Map<string, string>> {
 	const branches = await getBranches(ownerKeyOf(repo), repo.name);
-	return new Map(branches.map((branch) => [branch.name, branch.commit]));
+	const tips = new Map(branches.map((branch) => [branch.name, branch.commit]));
+	const base = repoFor(ownerKeyOf(repo), repo.name);
+	await Promise.all(
+		pulls.filter(isCrossRepository).map(async (pr) => {
+			const tip = await tipOf(base, pr.headRef);
+			if (tip) tips.set(pr.headRef, tip);
+		}),
+	);
+	return tips;
+}
+
+/**
+ * Where each fork pull request's head lives, as `viewerId` may see it: the
+ * owner (by login, so it outlives a deleted fork) and the repository, or null
+ * when it is deleted or the viewer cannot read it.
+ */
+async function headSides(
+	pulls: readonly PullRequest[],
+	viewerId: string | null,
+): Promise<
+	Map<number, NonNullable<Parameters<typeof pullRequestShape>[0]["head"]>>
+> {
+	const cross = pulls.filter(isCrossRepository);
+	const sides = new Map<
+		number,
+		NonNullable<Parameters<typeof pullRequestShape>[0]["head"]>
+	>();
+	if (cross.length === 0) return sides;
+	const logins = [...new Set(cross.map((pr) => pr.headOwner as string))];
+	const users = await db
+		.select(publicUserColumns)
+		.from(user)
+		.where(inArray(user.username, logins));
+	const byLogin = new Map(users.map((row) => [row.username, row]));
+	const repos = new Map<number, RepositoryRowWithOwner | null>();
+	for (const pr of cross) {
+		if (pr.headRepoId !== null && !repos.has(pr.headRepoId)) {
+			repos.set(pr.headRepoId, await readableHeadRepository(pr, viewerId));
+		}
+	}
+	const readable = [...repos.values()].filter(
+		(row): row is RepositoryRowWithOwner => row !== null,
+	);
+	const ids = readable.map((row) => row.id);
+	const [stargazers, openIssues, forks] = await Promise.all([
+		starCounts(ids),
+		openIssueCounts(ids),
+		readableForkCounts(ids, viewerId),
+	]);
+	for (const pr of cross) {
+		const owner = byLogin.get(pr.headOwner as string);
+		if (!owner) continue;
+		const row = pr.headRepoId === null ? null : repos.get(pr.headRepoId);
+		sides.set(pr.id, {
+			user: owner,
+			repoShape: row
+				? repository(row, {
+						stars: stargazers.get(row.id) ?? 0,
+						openIssues: openIssues.get(row.id) ?? 0,
+						forksCount: forks.get(row.id) ?? 0,
+						role: undefined,
+					})
+				: null,
+		});
+	}
+	return sides;
 }
 
 /**
@@ -134,7 +217,7 @@ function pullRange(pr: PullRequest): { base: string; head: string } {
 	if (pr.status === "merged" && pr.baseSha && pr.headSha) {
 		return { base: pr.baseSha, head: pr.headSha };
 	}
-	return { base: pr.targetBranch, head: pr.sourceBranch };
+	return { base: pr.targetBranch, head: pr.headRef };
 }
 
 function tipShas(pr: PullRequest, tips: Map<string, string>) {
@@ -177,11 +260,14 @@ async function serializeList(
 	role: Parameters<typeof repository>[1]["role"],
 	viewerId: string | null,
 ) {
-	const [tips, stargazers, openIssues, forks] = await Promise.all([
-		branchTips(repo),
+	const shapes = threads.map(pullShapeOf);
+	const rows = shapes.map((shape) => shape.row);
+	const [tips, stargazers, openIssues, forks, heads] = await Promise.all([
+		branchTips(repo, rows),
 		starCounts([repo.id]),
 		openIssueCounts([repo.id]),
 		readableForkCounts([repo.id], viewerId),
+		headSides(rows, viewerId),
 	]);
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
@@ -189,15 +275,15 @@ async function serializeList(
 		forksCount: forks.get(repo.id) ?? 0,
 		role,
 	});
-	return threads.map((thread) => {
-		const shape = pullShapeOf(thread);
-		return pullRequestShape({
+	return shapes.map((shape) =>
+		pullRequestShape({
 			repo,
 			repoShape,
 			...shape,
 			...tipShas(shape.row, tips),
-		});
-	});
+			head: heads.get(shape.row.id),
+		}),
+	);
 }
 
 async function serializeDetail(
@@ -214,44 +300,53 @@ async function serializeDetail(
 		commits: { commits: [], truncated: false, incomplete: false },
 		diff: { totalAdditions: 0, totalDeletions: 0, totalFiles: 0 },
 	};
-	const [tips, stargazers, openIssues, forks, reviewComments, commits, diff] =
-		await perfStep("pull detail", () =>
-			Promise.all([
-				branchTips(repo),
-				starCounts([repo.id]),
-				openIssueCounts([repo.id]),
-				readableForkCounts([repo.id], viewerId),
-				db
-					.select({ total: count() })
-					.from(pullRequestReviewComments)
-					.innerJoin(
-						pullRequestReviews,
-						eq(pullRequestReviews.id, pullRequestReviewComments.reviewId),
-					)
-					.where(
-						and(
-							eq(pullRequestReviewComments.pullRequestId, row.id),
-							sql`${pullRequestReviews.state} <> 'pending'`,
-						),
-					)
-					.then(([found]) => found?.total ?? 0),
-				orWhenGone(
-					() =>
-						getCommitsBetween(
-							ownerKey,
-							repo.name,
-							range.base,
-							range.head,
-							PULL_COMMITS_LIMIT,
-						),
-					empty.commits,
-				),
-				orWhenGone(
-					() => getBranchDiff(ownerKey, repo.name, range.base, range.head),
-					empty.diff,
-				),
-			]),
-		);
+	const [
+		tips,
+		stargazers,
+		openIssues,
+		forks,
+		reviewComments,
+		commits,
+		diff,
+		heads,
+	] = await perfStep("pull detail", () =>
+		Promise.all([
+			branchTips(repo, [row]),
+			starCounts([repo.id]),
+			openIssueCounts([repo.id]),
+			readableForkCounts([repo.id], viewerId),
+			db
+				.select({ total: count() })
+				.from(pullRequestReviewComments)
+				.innerJoin(
+					pullRequestReviews,
+					eq(pullRequestReviews.id, pullRequestReviewComments.reviewId),
+				)
+				.where(
+					and(
+						eq(pullRequestReviewComments.pullRequestId, row.id),
+						sql`${pullRequestReviews.state} <> 'pending'`,
+					),
+				)
+				.then(([found]) => found?.total ?? 0),
+			orWhenGone(
+				() =>
+					getCommitsBetween(
+						ownerKey,
+						repo.name,
+						range.base,
+						range.head,
+						PULL_COMMITS_LIMIT,
+					),
+				empty.commits,
+			),
+			orWhenGone(
+				() => getBranchDiff(ownerKey, repo.name, range.base, range.head),
+				empty.diff,
+			),
+			headSides([row], viewerId),
+		]),
+	);
 	const repoShape = repository(repo, {
 		stars: stargazers.get(repo.id) ?? 0,
 		openIssues: openIssues.get(repo.id) ?? 0,
@@ -263,6 +358,7 @@ async function serializeDetail(
 		repoShape,
 		...shape,
 		...tipShas(row, tips),
+		head: heads.get(row.id),
 		detail: {
 			mergedBy: thread.pullRequest?.mergedByUser ?? null,
 			reviewComments,
@@ -274,18 +370,22 @@ async function serializeDetail(
 	});
 }
 
-/** The `head` / `base` query filter: `branch` or `owner:branch`. */
+/**
+ * The `head` query filter: `branch` or `owner:branch`. An owner other than the
+ * repository's names a fork.
+ */
 function branchFilter(
 	raw: string | undefined,
 	ownerUsername: string,
-): string | null | undefined {
-	if (!raw) return undefined;
+): { head?: string; headOwner?: string } {
+	if (!raw) return {};
 	const colon = raw.indexOf(":");
-	if (colon === -1) return raw;
-	// There are no forks: a head from anyone else matches nothing.
-	return raw.slice(0, colon).toLowerCase() === ownerUsername.toLowerCase()
-		? raw.slice(colon + 1)
-		: null;
+	if (colon === -1) return { head: raw };
+	const owner = raw.slice(0, colon);
+	const head = raw.slice(colon + 1);
+	return owner.toLowerCase() === ownerUsername.toLowerCase()
+		? { head }
+		: { head, headOwner: owner };
 }
 
 export async function listPulls(ctx: ApiContext) {
@@ -305,7 +405,7 @@ export async function listPulls(ctx: ApiContext) {
 				repoId: repo.id,
 				kind: "pull_request",
 				...(state !== "all" && { state }),
-				head,
+				...head,
 				base,
 			},
 			{
@@ -345,7 +445,8 @@ async function pullMediaResponse(
 	format: "diff" | "patch",
 ): Promise<Response> {
 	const ownerKey = ownerKeyOf(repo);
-	const { baseSha, headSha } = tipShas(pr, await branchTips(repo));
+	await refreshPullHead(repo, pr);
+	const { baseSha, headSha } = tipShas(pr, await branchTips(repo, [pr]));
 	if (baseSha === UNKNOWN_SHA || headSha === UNKNOWN_SHA) throw notFoundError();
 	if (format === "diff") {
 		const diff = await cachedDiff(`${repo.id}:${baseSha}..${headSha}`, () =>
@@ -398,6 +499,7 @@ export async function getPull(ctx: ApiContext) {
 	}
 	const record = await findPull(repo.id, pull_number);
 	if (!record) throw notFoundError();
+	await refreshPullHead(repo, pullRequestOfThread(record));
 	return json(
 		await serializeDetail(
 			repo,
@@ -411,85 +513,38 @@ export async function getPull(ctx: ApiContext) {
 export async function createPull(ctx: ApiContext) {
 	const caller = requireScope(ctx, "repo:write");
 	const { repo, access } = await readableRepository(ctx);
-	if (!access.canWrite) {
+	if (!access.canParticipate) {
 		throw forbiddenError("You do not have permission to create pull requests");
 	}
 	const data = await requestBody(ctx, "pulls/create", "PullRequest");
-	// `head` is `branch` or `owner:branch`; there are no forks, so the owner
-	// can only be this repository's.
+	// `head` is `branch` or `owner:branch`; another owner names a fork.
 	const colon = data.head.indexOf(":");
-	const headOwner = colon === -1 ? null : data.head.slice(0, colon);
-	const sourceBranch = colon === -1 ? data.head : data.head.slice(colon + 1);
-	const targetBranch = data.base;
-	const errors: FieldError[] = [];
-	if (
-		(headOwner !== null &&
-			headOwner.toLowerCase() !== repo.owner.username.toLowerCase()) ||
-		!safeBranchNameSchema.safeParse(sourceBranch).success
-	) {
-		errors.push(pullError("head", "invalid"));
-	}
-	if (!safeBranchNameSchema.safeParse(targetBranch).success) {
-		errors.push(pullError("base", "invalid"));
-	}
-	if (errors.length > 0) {
-		throw validationFailedError("Validation Failed", errors);
-	}
-	const tips = await branchTips(repo);
-	if (!tips.has(sourceBranch)) errors.push(pullError("head", "invalid"));
-	if (!tips.has(targetBranch)) errors.push(pullError("base", "invalid"));
-	if (errors.length > 0) {
-		throw validationFailedError("Validation Failed", errors);
-	}
-	if (sourceBranch === targetBranch) {
+	let created: PullRequest;
+	try {
+		created = await createPullRequest({
+			repo,
+			userId: caller.userId,
+			canWrite: access.canWrite,
+			title: data.title,
+			body: data.body ?? undefined,
+			draft: data.draft ?? false,
+			base: data.base,
+			head: {
+				owner: colon === -1 ? null : data.head.slice(0, colon),
+				branch: colon === -1 ? data.head : data.head.slice(colon + 1),
+				repoName: data.head_repo,
+			},
+		});
+	} catch (error) {
+		if (error instanceof PullForbiddenError)
+			throw forbiddenError(error.message);
+		if (!(error instanceof PullCreateError)) throw error;
 		throw validationFailedError("Validation Failed", [
-			customError(`No commits between ${targetBranch} and ${sourceBranch}`),
+			error.field
+				? pullError(error.field, "invalid")
+				: customError(error.message),
 		]);
 	}
-	const { canMerge } = await analyzeMerge(
-		ownerKeyOf(repo),
-		repo.name,
-		sourceBranch,
-		targetBranch,
-	);
-	if (!canMerge) {
-		throw validationFailedError("Validation Failed", [
-			pullError("head", "invalid"),
-		]);
-	}
-
-	// Check-then-insert must be atomic per repository, or two concurrent
-	// creates for the same head both pass the duplicate check.
-	const created = await withRepositoryLock(
-		ownerKeyOf(repo),
-		repo.name,
-		async () => {
-			const duplicate = await listThreads(
-				{
-					repoId: repo.id,
-					kind: "pull_request",
-					state: "open",
-					head: sourceBranch,
-					base: targetBranch,
-				},
-				{ limit: 1 },
-			);
-			if (duplicate.total > 0) {
-				throw validationFailedError("Validation Failed", [
-					customError(
-						`A pull request already exists for ${repo.owner.username}:${sourceBranch}.`,
-					),
-				]);
-			}
-			return insertPullRequest(repo.id, caller.userId, {
-				title: data.title,
-				body: data.body ?? undefined,
-				sourceBranch,
-				targetBranch,
-				draft: data.draft ?? false,
-			});
-		},
-	);
 	await requestCodeownerReviews(repo, created);
 	const record = await findPull(repo.id, created.number);
 	if (!record) throw new Error("Pull request missing after insert");
@@ -592,8 +647,10 @@ export async function mergePull(ctx: ApiContext) {
 			409,
 			"Head branch was modified. Review and try the merge again.",
 		);
+	// A merge always starts from the fork branch's current tip.
+	await refreshPullHead(repo, pr);
 	// A fast path; the merge re-checks under the repository lock.
-	if (data.sha && (await branchTips(repo)).get(pr.sourceBranch) !== data.sha) {
+	if (data.sha && (await branchTips(repo, [pr])).get(pr.headRef) !== data.sha) {
 		throw headModified();
 	}
 	// GitHub blocks the merge while changes are requested; an owner/admin may override.
@@ -626,6 +683,7 @@ export async function listPullCommits(ctx: ApiContext) {
 		pathParams(ctx, "pulls/list-commits").pull_number,
 	);
 	if (!pr) throw notFoundError();
+	await refreshPullHead(repo, pr);
 	const params = pageParams(ctx.url.searchParams);
 	const range = pullRange(pr);
 	const ownerKey = ownerKeyOf(repo);
@@ -671,7 +729,8 @@ export async function listPullFiles(ctx: ApiContext) {
 	const fullName = fullNameOf(repo);
 	// Pin the diff to the tips so every page of one listing reads one result,
 	// kept briefly: the diff (patches included) is computed whole.
-	const { baseSha, headSha } = tipShas(pr, await branchTips(repo));
+	await refreshPullHead(repo, pr);
+	const { baseSha, headSha } = tipShas(pr, await branchTips(repo, [pr]));
 	const known = baseSha !== UNKNOWN_SHA && headSha !== UNKNOWN_SHA;
 	const diff = known
 		? await cachedDiff(`${repo.id}:${baseSha}..${headSha}`, () =>

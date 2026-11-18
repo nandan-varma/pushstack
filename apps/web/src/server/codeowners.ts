@@ -83,7 +83,7 @@ export async function requestCodeownerReviews(
 	repo: RepoRef & { id: number },
 	pr: Pick<
 		PullRequest,
-		"id" | "repoId" | "authorId" | "sourceBranch" | "targetBranch" | "isDraft"
+		"id" | "repoId" | "authorId" | "headRef" | "targetBranch" | "isDraft"
 	>,
 ): Promise<void> {
 	// As on GitHub, a draft requests no one until it is marked ready for review.
@@ -95,7 +95,7 @@ export async function requestCodeownerReviews(
 			ownerKeyOf(repo),
 			repo.name,
 			pr.targetBranch,
-			pr.sourceBranch,
+			pr.headRef,
 		);
 		const owners = ownersOfPaths(
 			loaded.rules,

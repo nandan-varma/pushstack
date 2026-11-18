@@ -6,7 +6,7 @@
  * input checks stay with the caller: the server functions throw their own
  * errors, the API answers 401/403/404/422.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { MAX_RANGE_COMMITS } from "git-edge";
 import { db } from "#/db";
 import { issues, pullRequests, type Repository } from "#/db/app-schema";
@@ -64,6 +64,15 @@ export async function insertPullRequest(
 		sourceBranch: string;
 		targetBranch: string;
 		draft?: boolean;
+		/**
+		 * A head from a fork: its repository and owner. `pin` copies the head into
+		 * this repository as `refs/pull/<number>/head`, once the number is known.
+		 */
+		head?: {
+			repoId: number;
+			owner: string;
+			pin: (number: number) => Promise<void>;
+		};
 	},
 ): Promise<PullRequest> {
 	const [issue] = await db
@@ -78,6 +87,12 @@ export async function insertPullRequest(
 		})
 		.returning();
 	if (!issue) throw new Error("Pull request insert returned no row");
+	if (data.head) {
+		await data.head.pin(issue.number).catch(async (error: unknown) => {
+			await discardIssueRow(issue.id, "failed head copy");
+			throw error;
+		});
+	}
 	const [fields] = await db
 		.insert(pullRequests)
 		.values({
@@ -85,6 +100,8 @@ export async function insertPullRequest(
 			sourceBranch: data.sourceBranch,
 			targetBranch: data.targetBranch,
 			isDraft: data.draft ?? false,
+			headRepoId: data.head?.repoId ?? null,
+			headOwner: data.head?.owner ?? null,
 		})
 		.returning()
 		.catch(async (error: unknown) => {
@@ -188,15 +205,18 @@ export async function updatePullRequestFields(
 			metadata: { number: pr.number, title: pr.title, action },
 		});
 	}
+	const { headRef: _headRef, status: _status, ...fieldsOfPr } = pr;
 	return pullRequestOf(updated, {
-		sourceBranch: pr.sourceBranch,
-		targetBranch: pr.targetBranch,
-		mergedAt: pr.mergedAt,
-		mergedBy: pr.mergedBy,
-		mergeCommitSha: pr.mergeCommitSha,
-		baseSha: pr.baseSha,
-		headSha: pr.headSha,
-		isDraft: pr.isDraft,
+		sourceBranch: fieldsOfPr.sourceBranch,
+		targetBranch: fieldsOfPr.targetBranch,
+		headRepoId: fieldsOfPr.headRepoId,
+		headOwner: fieldsOfPr.headOwner,
+		mergedAt: fieldsOfPr.mergedAt,
+		mergedBy: fieldsOfPr.mergedBy,
+		mergeCommitSha: fieldsOfPr.mergeCommitSha,
+		baseSha: fieldsOfPr.baseSha,
+		headSha: fieldsOfPr.headSha,
+		isDraft: fieldsOfPr.isDraft,
 	});
 }
 
@@ -377,7 +397,7 @@ export async function mergePullRequestBranches(
 	const result = await mergeBranches(
 		ownerKeyOf(repo),
 		repo.name,
-		pr.sourceBranch,
+		pr.headRef,
 		pr.targetBranch,
 		mergeOptionsFor(repo, pr, user, options),
 	);
@@ -541,7 +561,11 @@ export async function recordHeadBranchDeleted(
 		.from(pullRequests)
 		.innerJoin(issues, eq(issues.id, pullRequests.issueId))
 		.where(
-			and(eq(issues.repoId, repoId), eq(pullRequests.sourceBranch, branch)),
+			and(
+				eq(issues.repoId, repoId),
+				eq(pullRequests.sourceBranch, branch),
+				isNull(pullRequests.headOwner),
+			),
 		);
 	await recordTimelineEvents(
 		heads.map((head) => head.id),

@@ -218,7 +218,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"pulls/list":
 		"`state` (`open`/`closed`/`all`; closed includes merged), `head` (`branch` or `owner:branch`), `base`, `sort` (`created`/`updated`/`popularity`/`long-running`), `direction` (GitHub's defaults)",
 	"pulls/create":
-		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue`, `head_repo` and `maintainer_can_modify` are `422`); unknown or equal branches and an already-open pull request are `422`",
+		"write access; `title`, `body`, `head`, `base` (`draft` opens it as a draft: `mergeable_state` is `draft` and merging it is `405`; `issue` and `maintainer_can_modify` are `422`); `head` is `branch` or `owner:branch`, and `owner:branch` from a fork in the base's fork network (`head_repo` names it when it is not called like the base) copies the head into the base as `refs/pull/{n}/head`: the caller must read the fork, a private fork into a public base is `422`, and `head.repo` is `null` once the fork is deleted or unreadable; the head follows the fork branch on each read and merge; unknown or equal branches and an already-open pull request are `422`",
 	"pulls/get":
 		"media types `diff` (the unified diff, base to head) and `patch` (one format-patch section per commit, oldest first, up to 250 commits); both are `text/plain; charset=utf-8` (an inert type with `nosniff`, not GitHub's `application/vnd.github.v3.diff`/`.patch` Content-Type) and stream up to the 4 MB media cap, past which the answer is `406`",
 	"pulls/update":

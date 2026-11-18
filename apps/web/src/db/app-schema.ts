@@ -309,8 +309,22 @@ export const pullRequests = pgTable(
 		issueId: integer("issue_id")
 			.primaryKey()
 			.references(() => issues.id, { onDelete: "cascade" }),
+		/** The head branch: in this repository, or in the fork named by `headOwner`. */
 		sourceBranch: text("source_branch").notNull(),
 		targetBranch: text("target_branch").notNull(),
+		/**
+		 * The fork the head branch lives in (GitHub's `head.repo`). Null once that
+		 * fork is deleted; the PR then keeps working from `refs/pull/<n>/head`.
+		 */
+		headRepoId: integer("head_repo_id").references(() => repositories.id, {
+			onDelete: "set null",
+		}),
+		/**
+		 * Owner of the head repository when it is not this one (the `owner` of
+		 * `head.label`); null for a branch of this repository. Unlike
+		 * `headRepoId` it outlives the fork, so it says the PR is cross-repository.
+		 */
+		headOwner: text("head_owner"),
 		mergedAt: timestamptz("merged_at"),
 		mergedBy: text("merged_by").references(() => user.id),
 		mergeCommitSha: text("merge_commit_sha"),
