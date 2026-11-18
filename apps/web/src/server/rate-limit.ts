@@ -24,20 +24,20 @@ import { db } from "#/db";
 import * as config from "./config";
 import { logWarn } from "./perf-log";
 
-export interface RateLimitRule {
+interface RateLimitRule {
 	/** Window length in seconds. */
 	window: number;
 	/** Requests allowed per window. */
 	max: number;
 }
 
-export interface RateLimitDecision {
+interface RateLimitDecision {
 	allowed: boolean;
 	/** Seconds until the caller may retry; `null` when allowed. */
 	retryAfter: number | null;
 }
 
-export interface RateLimitStorage {
+interface RateLimitStorage {
 	consume(key: string, rule: RateLimitRule): Promise<RateLimitDecision>;
 }
 
@@ -144,7 +144,7 @@ export const rateLimitStorage: RateLimitStorage = {
  * their own `gh:` namespace. One round trip per metered request.
  * ------------------------------------------------------------------ */
 
-export type RateLimitResource =
+type RateLimitResource =
 	| "core"
 	| "core-write"
 	| "graphql"
@@ -168,7 +168,7 @@ export interface RateStatus {
 	identity: string;
 }
 
-export interface RateIdentity {
+interface RateIdentity {
 	kind: "user" | "ip";
 	id: string;
 }

@@ -34,7 +34,7 @@ export interface Connection<T> {
 export const encodeCursor = (offset: number) =>
 	Buffer.from(`cursor:v2:${offset}`).toString("base64");
 
-export function decodeCursor(cursor: string): number {
+function decodeCursor(cursor: string): number {
 	const match = /^cursor:v2:(\d{1,9})$/.exec(
 		Buffer.from(cursor, "base64").toString("utf8"),
 	);

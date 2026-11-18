@@ -97,7 +97,7 @@ export function resolveObject(
 	return readCommitNode(repo, rev);
 }
 
-export interface BlameRangeNode {
+interface BlameRangeNode {
 	startingLine: number;
 	endingLine: number;
 	age: number;

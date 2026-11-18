@@ -233,7 +233,7 @@ async function createPull(input: CreatePullRequestInput, ctx: GraphQLContext) {
 	};
 }
 /** The current head commit: the branch tip, or the pinned copy of a fork's. */
-export async function headTip(node: PullRequestNode): Promise<string | null> {
+async function headTip(node: PullRequestNode): Promise<string | null> {
 	return tipOf(
 		repoFor(ownerKeyOf(node.repo.row), node.repo.row.name),
 		qualifyBranchRef(node.row.headRef),

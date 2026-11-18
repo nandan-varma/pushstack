@@ -35,7 +35,7 @@ export function requireRepoScope(ctx: GraphQLContext, field: string) {
 	}
 }
 
-export interface WritableRepository {
+interface WritableRepository {
 	repo: Repository;
 	owner: PublicUser;
 	access: RepositoryAccess;

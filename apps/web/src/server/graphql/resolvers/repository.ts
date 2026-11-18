@@ -133,7 +133,7 @@ export interface RepositoryNode {
 	role: Role;
 }
 
-export function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
+function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 	const fullName = `${row.owner.username}/${row.name}`;
 	const host = new URL(htmlUrl("/")).host;
 	return {

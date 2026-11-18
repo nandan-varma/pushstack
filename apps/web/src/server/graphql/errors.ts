@@ -5,7 +5,7 @@
  */
 import { GraphQLError, type GraphQLFormattedError } from "graphql";
 
-export type GitHubErrorType =
+type GitHubErrorType =
 	| "NOT_FOUND"
 	| "FORBIDDEN"
 	| "UNPROCESSABLE"
