@@ -104,6 +104,20 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"sorted by name; `protected` is `422` (there is no branch protection)",
 	"repos/get-branch": "branch names may contain `/`",
 	"repos/list-tags": "version order",
+	"repos/list-webhooks":
+		"needs a `repo:write` token (there is no `admin:repo_hook` scope) and ownership or admin; pagination; `config.secret` reads as `********`, never the secret",
+	"repos/create-webhook":
+		"needs a `repo:write` token and ownership or admin (`403 Must have admin rights to Repository.`); `name` must be `web`, `active` defaults to `true`, `events` to `['push']`, `config.content_type` to `form`; an `https` `config.url`, a known event name and at most 20 hooks per event type are required (`422`), and `insecure_ssl: 1` is `422`; an empty `secret` stores none",
+	"repos/get-webhook":
+		"needs a `repo:write` token and ownership or admin; `404` for a hook of another repository",
+	"repos/update-webhook":
+		"`active`, `events` (replaces), `add_events`, `remove_events` (merged) and `config`; a `config` without `secret` clears the stored secret, and no `config` leaves it; same access and `422` rules as create",
+	"repos/delete-webhook":
+		"needs a `repo:write` token and ownership or admin; `204`",
+	"repos/get-webhook-config-for-repo":
+		'`secret` reads as `********` or `""`; never the secret itself',
+	"repos/update-webhook-config-for-repo":
+		'any subset of `url`, `content_type`, `secret` and `insecure_ssl: "0"`; a body without `secret` clears the stored secret',
 	"repos/list-releases":
 		"newest first; drafts only for write access; `assets` lists uploaded files; pagination",
 	"repos/create-release":

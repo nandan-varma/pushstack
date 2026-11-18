@@ -478,6 +478,10 @@
 				"private"
 			]
 		},
+		"repos/create-webhook": {
+			"query": [],
+			"body": ["active", "config", "events", "name"]
+		},
 		"repos/delete": {
 			"query": [],
 			"body": []
@@ -495,6 +499,10 @@
 			"body": []
 		},
 		"repos/delete-release-asset": {
+			"query": [],
+			"body": []
+		},
+		"repos/delete-webhook": {
 			"query": [],
 			"body": []
 		},
@@ -559,6 +567,14 @@
 			"query": [],
 			"body": []
 		},
+		"repos/get-webhook": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-webhook-config-for-repo": {
+			"query": [],
+			"body": []
+		},
 		"repos/list-branches": {
 			"query": ["page", "per_page", "protected"],
 			"body": []
@@ -619,6 +635,10 @@
 			"body": []
 		},
 		"repos/list-tags": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
+		"repos/list-webhooks": {
 			"query": ["page", "per_page"],
 			"body": []
 		},
@@ -686,6 +706,14 @@
 		"repos/update-release-asset": {
 			"query": [],
 			"body": ["label", "name", "state"]
+		},
+		"repos/update-webhook": {
+			"query": [],
+			"body": ["active", "add_events", "config", "events", "remove_events"]
+		},
+		"repos/update-webhook-config-for-repo": {
+			"query": [],
+			"body": ["content_type", "insecure_ssl", "secret", "url"]
 		},
 		"repos/upload-release-asset": {
 			"query": ["label", "name"],
@@ -767,6 +795,10 @@
 			"query": ["page", "per_page"],
 			"body": []
 		},
+		"users/list-following-for-user": {
+			"query": ["page", "per_page"],
+			"body": []
+		},
 		"users/list-gpg-keys-for-authenticated-user": {
 			"query": [],
 			"body": []
@@ -775,18 +807,14 @@
 			"query": [],
 			"body": []
 		},
-		"users/list-following-for-user": {
-			"query": ["page", "per_page"],
-			"body": []
-		},
 		"users/unfollow": {
 			"query": [],
 			"body": []
 		}
 	},
 	"absentFromGitHub": [
-		"repos/finish-release-asset-upload",
+		"git/list-refs",
 		"repos/create-release-asset-upload",
-		"git/list-refs"
+		"repos/finish-release-asset-upload"
 	]
 }
