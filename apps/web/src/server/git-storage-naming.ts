@@ -18,8 +18,8 @@ function segment(value: string, what: string): string {
 	return value;
 }
 
-export function ownerKeyOf(repo: { owner: { username: string } }): string {
-	return repo.owner.username;
+export function ownerKeyOf(repo: { owner: { login: string } }): string {
+	return repo.owner.login;
 }
 
 export function getRepoGitStorageRoot(

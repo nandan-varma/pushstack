@@ -19,7 +19,13 @@ import {
 import { isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import type { CollaboratorRole, Repository } from "#/db/app-schema";
-import { repositories, repositoryCollaborators } from "#/db/app-schema";
+import {
+	organizations,
+	orgMemberships,
+	repositories,
+	repositoryCollaborators,
+} from "#/db/app-schema";
+import { user } from "#/db/schema";
 import { perfContext, perfNote, perfStep } from "./perf-log";
 import {
 	getCurrentUser,
@@ -62,12 +68,26 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canModerate: true,
 		canMergePullRequest: true,
 	},
+	maintain: {
+		canRead: true,
+		canParticipate: true,
+		canWrite: true,
+		canModerate: true,
+		canMergePullRequest: true,
+	},
 	write: {
 		canRead: true,
 		canParticipate: true,
 		canWrite: true,
 		canModerate: false,
 		canMergePullRequest: true,
+	},
+	triage: {
+		canRead: true,
+		canParticipate: true,
+		canWrite: false,
+		canModerate: true,
+		canMergePullRequest: false,
 	},
 	read: {
 		canRead: true,
@@ -77,6 +97,28 @@ const PERMISSIONS: Record<Exclude<RepositoryRole, "anonymous">, Permissions> = {
 		canMergePullRequest: false,
 	},
 };
+
+/** Base permissions that let a member read the organization's private repositories. */
+const READ_BASE_PERMISSIONS = ["admin", "write", "read"] as const;
+
+/** GitHub's repository permission ladder, lowest first; a grant never lowers another. */
+const ROLE_RANK: Record<CollaboratorRole, number> = {
+	read: 1,
+	triage: 2,
+	write: 3,
+	maintain: 4,
+	admin: 5,
+};
+
+function highestRole(
+	...roles: Array<CollaboratorRole | null | undefined>
+): CollaboratorRole | null {
+	let best: CollaboratorRole | null = null;
+	for (const role of roles) {
+		if (role && (!best || ROLE_RANK[role] > ROLE_RANK[best])) best = role;
+	}
+	return best;
+}
 
 /**
  * An archived repository is read-only for everyone, owner included: no new
@@ -97,12 +139,17 @@ function buildAccess(
 	repository: Repository,
 	userId: string | null | undefined,
 	collaboratorRole: CollaboratorRole | null,
+	organizationRole: CollaboratorRole | null,
 ): RepositoryAccess {
+	const effective =
+		userId === null || userId === undefined
+			? null
+			: highestRole(collaboratorRole, organizationRole);
 	const role: RepositoryRole =
 		userId && repository.ownerId === userId
 			? "owner"
-			: userId && collaboratorRole
-				? collaboratorRole
+			: userId && effective
+				? effective
 				: "anonymous";
 	const live: Permissions =
 		role === "anonymous"
@@ -129,6 +176,31 @@ async function getCollaboratorRole(
 		where: { repoId: repoId, userId: userId },
 	});
 	return row?.role ?? null;
+}
+
+/**
+ * The organization's base permission for an active member: the floor under a
+ * direct collaborator or team grant. A pending membership grants nothing, and
+ * a direct collaborator who is not a member (an outside collaborator) never
+ * gets it.
+ */
+async function getOrganizationBaseRole(
+	organizationId: number,
+	userId: string,
+): Promise<CollaboratorRole | null> {
+	const [row] = await db
+		.select({ permission: organizations.defaultRepositoryPermission })
+		.from(orgMemberships)
+		.innerJoin(organizations, eq(organizations.id, orgMemberships.orgId))
+		.where(
+			and(
+				eq(orgMemberships.orgId, organizationId),
+				eq(orgMemberships.userId, userId),
+				eq(orgMemberships.state, "active"),
+			),
+		);
+	if (!row || row.permission === "none") return null;
+	return row.permission;
 }
 
 /**
@@ -171,9 +243,13 @@ export function getRepositoryAccess(
 			}),
 			userId ? getCollaboratorRole(repoId, userId) : null,
 		]);
-		return repository
-			? buildAccess(repository, userId, collaboratorRole)
+		if (!repository) return null;
+		const organizationRole = repository.organizationId
+			? userId
+				? await getOrganizationBaseRole(repository.organizationId, userId)
+				: null
 			: null;
+		return buildAccess(repository, userId, collaboratorRole, organizationRole);
 	});
 }
 
@@ -182,10 +258,17 @@ export async function getAccessForRepository(
 	userId?: string | null,
 ): Promise<RepositoryAccess> {
 	const needsRole = !!userId && repository.ownerId !== userId;
+	const [collaboratorRole, organizationRole] = await Promise.all([
+		needsRole ? getCollaboratorRole(repository.id, userId) : null,
+		userId && repository.organizationId
+			? getOrganizationBaseRole(repository.organizationId, userId)
+			: null,
+	]);
 	const access = buildAccess(
 		repository,
 		userId,
-		needsRole ? await getCollaboratorRole(repository.id, userId) : null,
+		collaboratorRole,
+		organizationRole,
 	);
 	accessCache.set(accessKey(repository.id, userId), access);
 	return access;
@@ -262,8 +345,23 @@ export async function getViewerRepositoryAccess(
 }
 
 export type RepositoryWithOwner = Repository & {
-	owner: { id: string; username: string };
+	owner: { id: string; username: string; login: string };
 };
+
+/** The owner as storage names it: an org's own login, or a user's username. */
+export function repoOwnerOf(repo: {
+	organizationId: number | null;
+	owner?: { username: string } | null;
+	organization?: { login: string } | null;
+}): { login: string } {
+	if (repo.organization) return { login: repo.organization.login };
+	if (repo.owner) return { login: repo.owner.username };
+	throw new Error("Repository has no owner");
+}
+
+export function isOrgOwned(repo: Pick<Repository, "organizationId">): boolean {
+	return repo.organizationId !== null;
+}
 
 /**
  * Repository + owner by id, for reads. A page load fans out to several server
@@ -282,12 +380,20 @@ export function evictRepositoryById(repoId: number): void {
 }
 
 function readRowWithOwner(repoId: number) {
-	return db.query.repositories
-		.findFirst({
-			where: { id: repoId },
-			with: { owner: { columns: { id: true, username: true } } },
+	return db
+		.select({
+			repo: repositories,
+			owner: {
+				id: user.id,
+				username: user.username,
+				login: user.username,
+			},
 		})
-		.then((row) => row ?? null);
+		.from(repositories)
+		.innerJoin(user, eq(repositories.ownerId, user.id))
+		.where(eq(repositories.id, repoId))
+		.limit(1)
+		.then(([row]) => (row ? { ...row.repo, owner: row.owner } : null));
 }
 
 async function cachedWithOwner(repoId: number): Promise<RepositoryWithOwner> {
@@ -357,9 +463,9 @@ export async function requireOwner(
  * SQL conditions below can't drift from {@link buildAccess}. The owner always
  * reads, and anyone reads a public repository.
  */
-const READ_ROLES = (["admin", "write", "read"] as const).filter(
-	(role) => PERMISSIONS[role].canRead,
-);
+const READ_ROLES = (
+	["admin", "maintain", "write", "triage", "read"] as const
+).filter((role) => PERMISSIONS[role].canRead);
 
 /**
  * Repositories a viewer may read, for any viewer: a signed-in user gets
@@ -386,6 +492,23 @@ export function readableRepositoriesCondition(userId: string) {
 						eq(repositoryCollaborators.repoId, repositories.id),
 						eq(repositoryCollaborators.userId, userId),
 						inArray(repositoryCollaborators.role, READ_ROLES),
+					),
+				),
+		),
+		exists(
+			db
+				.select({ one: sql`1` })
+				.from(orgMemberships)
+				.innerJoin(organizations, eq(organizations.id, orgMemberships.orgId))
+				.where(
+					and(
+						eq(orgMemberships.orgId, repositories.organizationId),
+						eq(orgMemberships.userId, userId),
+						eq(orgMemberships.state, "active"),
+						inArray(
+							organizations.defaultRepositoryPermission,
+							READ_BASE_PERMISSIONS,
+						),
 					),
 				),
 		),
@@ -425,6 +548,27 @@ export function canReadRepositoryCondition(
 						eq(repositoryCollaborators.repoId, repoId),
 						eq(repositoryCollaborators.userId, userId),
 						inArray(repositoryCollaborators.role, READ_ROLES),
+					),
+				),
+		),
+		exists(
+			db
+				.select({ one: sql`1` })
+				.from(repositories)
+				.innerJoin(
+					orgMemberships,
+					eq(orgMemberships.orgId, repositories.organizationId),
+				)
+				.innerJoin(organizations, eq(organizations.id, orgMemberships.orgId))
+				.where(
+					and(
+						eq(repositories.id, repoId),
+						eq(orgMemberships.userId, userId),
+						eq(orgMemberships.state, "active"),
+						inArray(
+							organizations.defaultRepositoryPermission,
+							READ_BASE_PERMISSIONS,
+						),
 					),
 				),
 		),

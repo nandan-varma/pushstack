@@ -5,7 +5,7 @@
 import type { resources } from "@pushstack/api-contract";
 import type { CommitInfo } from "git-fs-s3/ops";
 import type { z } from "zod";
-import type { Repository } from "#/db/app-schema";
+import type { Organization, OrgMembership, Repository } from "#/db/app-schema";
 import {
 	type CheckRunState,
 	suiteConclusion,
@@ -41,7 +41,14 @@ export type Shape<K extends keyof typeof resources> = z.output<
 	(typeof resources)[K]
 >;
 
-export type RepoRole = "owner" | "admin" | "write" | "read" | "anonymous";
+export type RepoRole =
+	| "owner"
+	| "admin"
+	| "maintain"
+	| "write"
+	| "triage"
+	| "read"
+	| "anonymous";
 
 export function simpleUser(user: PublicUser): Shape<"simpleUser"> {
 	return {
@@ -53,6 +60,33 @@ export function simpleUser(user: PublicUser): Shape<"simpleUser"> {
 		html_url: htmlUrl(`/${user.username}`),
 		type: "User" as const,
 		site_admin: false,
+	};
+}
+
+export function simpleOrganization(
+	organization: Organization,
+): Shape<"simpleOrganization"> {
+	return {
+		login: organization.login,
+		id: organization.id,
+		url: apiUrl(`/orgs/${organization.login}`),
+		html_url: htmlUrl(`/orgs/${organization.login}`),
+		description: organization.description,
+	};
+}
+
+export function organizationMembership(
+	membership: OrgMembership,
+	organization: Organization,
+	user: PublicUser,
+): Shape<"organizationMembership"> {
+	return {
+		url: apiUrl(`/orgs/${organization.login}/memberships/${user.username}`),
+		state: membership.state,
+		role: membership.role,
+		organization_url: apiUrl(`/orgs/${organization.login}`),
+		organization: simpleOrganization(organization),
+		user: simpleUser(user),
 	};
 }
 

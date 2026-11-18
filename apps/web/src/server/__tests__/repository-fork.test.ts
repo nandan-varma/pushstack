@@ -63,10 +63,10 @@ const { db } = await import("#/db");
 const { repoFor } = await import("../git-repo");
 const { createCommit, createBranch } = await import("../git-write");
 const { createRef } = await import("../git-objects");
-const { createRepositoryForUser, RepositoryExistsError } = await import(
+const { createRepositoryForOwner, RepositoryExistsError } = await import(
 	"../repository-create"
 );
-const { forkRepositoryForUser } = await import("../repository-fork");
+const { forkRepositoryForOwner } = await import("../repository-fork");
 const { deleteRepositoryAndStorage } = await import("../repository-settings");
 const { serveGitRequest } = await import("../git-http");
 const { findRepositoryByName } = await import("../repository-lookup");
@@ -120,7 +120,7 @@ async function refShas(ownerKey: string, name: string) {
 }
 
 async function parentWithHistory(name: string) {
-	await createRepositoryForUser(users.parentowner, {
+	await createRepositoryForOwner(users.parentowner, {
 		name,
 		visibility: "public",
 		autoInit: false,
@@ -171,7 +171,7 @@ afterAll(async () => {
 describe("forking a repository", () => {
 	it("records the fork's parent, visibility and default branch", async () => {
 		const parent = await parentRow("upstream");
-		const fork = await forkRepositoryForUser(parent, users.forker, "upstream");
+		const fork = await forkRepositoryForOwner(parent, users.forker, "upstream");
 
 		expect(fork).toMatchObject({
 			name: "upstream",
@@ -237,7 +237,7 @@ describe("forking a repository", () => {
 				})
 				.then((row) => {
 					if (!row) throw new Error("parent vanished");
-					return row;
+					return { ...row, owner: { ...row.owner, login: row.owner.username } };
 				}),
 		);
 
@@ -266,7 +266,7 @@ describe("forking a repository", () => {
 	});
 
 	it("answers the existing fork when the same parent is forked under the same name again", async () => {
-		const parent = await createRepositoryForUser(users.parentowner, {
+		const parent = await createRepositoryForOwner(users.parentowner, {
 			name: "again",
 			visibility: "public",
 			autoInit: false,
@@ -277,18 +277,18 @@ describe("forking a repository", () => {
 			files: [{ path: "a", content: "a\n" }],
 			author: { name: "P", email: "parentowner@example.com" },
 		});
-		const first = await forkRepositoryForUser(
+		const first = await forkRepositoryForOwner(
 			{
 				...parent,
-				owner: { id: users.parentowner.id, username: "parentowner" },
+				owner: { id: users.parentowner.id, login: "parentowner" },
 			},
 			users.forker,
 			"again",
 		);
-		const second = await forkRepositoryForUser(
+		const second = await forkRepositoryForOwner(
 			{
 				...parent,
-				owner: { id: users.parentowner.id, username: "parentowner" },
+				owner: { id: users.parentowner.id, login: "parentowner" },
 			},
 			users.forker,
 			"again",
@@ -297,21 +297,21 @@ describe("forking a repository", () => {
 	});
 
 	it("refuses a name the owner already uses for another repository", async () => {
-		await createRepositoryForUser(users.forker, {
+		await createRepositoryForOwner(users.forker, {
 			name: "taken",
 			visibility: "public",
 			autoInit: false,
 		});
-		const solo = await createRepositoryForUser(users.parentowner, {
+		const solo = await createRepositoryForOwner(users.parentowner, {
 			name: "solo",
 			visibility: "public",
 			autoInit: false,
 		});
 		await expect(
-			forkRepositoryForUser(
+			forkRepositoryForOwner(
 				{
 					...solo,
-					owner: { id: users.parentowner.id, username: "parentowner" },
+					owner: { id: users.parentowner.id, login: "parentowner" },
 				},
 				users.forker,
 				"taken",

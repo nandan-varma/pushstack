@@ -54,9 +54,35 @@ export class RepositoryExistsError extends Error {
 	}
 }
 
+/**
+ * A repository owner: the column it fills (`owner_id` or `organization_id`),
+ * its row id and its storage key. Name and email author the initial commit.
+ */
+export type RepositoryOwnerInput =
+	| {
+			kind: "user";
+			id: string;
+			login: string;
+			name: string;
+			email: string;
+	  }
+	| {
+			kind: "organization";
+			id: number;
+			login: string;
+			name: string;
+			email: string;
+	  };
+
+function ownerColumns(owner: RepositoryOwnerInput) {
+	return owner.kind === "user"
+		? { ownerId: owner.id }
+		: { organizationId: owner.id };
+}
+
 /** Insert the row, then init storage under the lock; rolls the row back on failure. */
-export async function createRepositoryForUser(
-	owner: { id: string; username: string; name: string; email: string },
+export async function createRepositoryForOwner(
+	owner: RepositoryOwnerInput,
 	data: CreateRepositoryInput,
 	/** Files for the initial commit, instead of the README and templates (a generated repository). */
 	templateFiles?: Array<{ path: string; content: Uint8Array }>,
@@ -89,7 +115,7 @@ export async function createRepositoryForUser(
 	const repo = await db
 		.insert(repositories)
 		.values({
-			ownerId: owner.id,
+			...ownerColumns(owner),
 			name: data.name,
 			description: data.description || null,
 			homepage: data.homepage || null,
@@ -111,15 +137,11 @@ export async function createRepositoryForUser(
 	try {
 		// Anything already under this prefix is a leftover of a delete whose
 		// storage cleanup failed; it must not become this repository's history.
-		await withRepositoryLock(owner.username, repo.name, async () => {
-			await deleteRepositoryStorage(owner.username, repo.name);
-			await initBareRepo(
-				owner.username,
-				repo.name,
-				NEW_REPOSITORY_DEFAULT_BRANCH,
-			);
+		await withRepositoryLock(owner.login, repo.name, async () => {
+			await deleteRepositoryStorage(owner.login, repo.name);
+			await initBareRepo(owner.login, repo.name, NEW_REPOSITORY_DEFAULT_BRANCH);
 			if (initialFiles.length > 0) {
-				await createInitialCommitUnlocked(owner.username, repo.name, {
+				await createInitialCommitUnlocked(owner.login, repo.name, {
 					branch: NEW_REPOSITORY_DEFAULT_BRANCH,
 					message: "Initial commit",
 					files: initialFiles,
@@ -138,18 +160,20 @@ export async function createRepositoryForUser(
 	} catch (error) {
 		await deleteRepositoryAndStorage({
 			...repo,
-			owner: { id: owner.id, username: owner.username },
+			owner: { username: owner.login, login: owner.login },
 		});
 		throw error;
 	}
-	// GitHub subscribes the creator to their new repository.
-	await setRepoSubscription(repo.id, owner.id, false);
 	// A lookup that missed before the insert is cached as "not found".
-	evictRepoByName(owner.username, repo.name, repo.id);
-	await recordActivity(owner.id, repo.id, {
-		type: "create_repo",
-		metadata: { repoName: repo.name },
-	});
+	evictRepoByName(owner.login, repo.name, repo.id);
+	if (owner.kind === "user") {
+		// GitHub subscribes the creator to their new repository.
+		await setRepoSubscription(repo.id, owner.id, false);
+		await recordActivity(owner.id, repo.id, {
+			type: "create_repo",
+			metadata: { repoName: repo.name },
+		});
+	}
 	return repo;
 }
 
@@ -163,9 +187,9 @@ export async function generateRepositoryFromTemplate(
 	template: {
 		name: string;
 		defaultBranch: string;
-		owner: { username: string };
+		owner: { login: string };
 	},
-	owner: { id: string; username: string; name: string; email: string },
+	owner: RepositoryOwnerInput,
 	data: {
 		name: string;
 		description?: string;
@@ -173,7 +197,7 @@ export async function generateRepositoryFromTemplate(
 	},
 ) {
 	const plan = await planArchive(
-		template.owner.username,
+		template.owner.login,
 		template.name,
 		template.defaultBranch,
 	);
@@ -184,7 +208,7 @@ export async function generateRepositoryFromTemplate(
 		files.push({
 			path: node.path,
 			content: await readArchiveBlob(
-				template.owner.username,
+				template.owner.login,
 				template.name,
 				node.oid,
 				budget,
@@ -194,5 +218,5 @@ export async function generateRepositoryFromTemplate(
 	if (files.length === 0) {
 		throw new ArchiveLimitError("The template repository has no files");
 	}
-	return createRepositoryForUser(owner, { ...data, autoInit: false }, files);
+	return createRepositoryForOwner(owner, { ...data, autoInit: false }, files);
 }

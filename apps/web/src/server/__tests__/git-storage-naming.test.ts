@@ -17,7 +17,7 @@ describe("storage keys", () => {
 			"repos/alice/my.repo/git",
 		);
 		expect(getRepoGitStoragePrefix("alice", "r")).toBe("repos/alice/r/git/");
-		expect(ownerKeyOf({ owner: { username: "alice" } })).toBe("alice");
+		expect(ownerKeyOf({ owner: { login: "alice" } })).toBe("alice");
 	});
 
 	it.each([[".."], ["."], ["a/b"], ["a\\b"], [""], ["-x"], ["x-"], ["a b"]])(

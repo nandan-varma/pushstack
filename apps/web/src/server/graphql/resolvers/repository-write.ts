@@ -14,7 +14,7 @@ import {
 	getAccessForRepository,
 	type RepositoryAccess,
 } from "../../repo-access";
-import { type PublicUser, publicUserColumns } from "../../repository-lookup";
+import { type PublicUser, repoOwnerColumns } from "../../repository-lookup";
 import type { GraphQLContext } from "../context";
 import { forbidden, GitHubGraphQLError, notFound } from "../errors";
 import { decodeNodeId, rowIdOfNodeKey } from "../node-id";
@@ -37,7 +37,7 @@ export function requireRepoScope(ctx: GraphQLContext, field: string) {
 
 interface WritableRepository {
 	repo: Repository;
-	owner: PublicUser;
+	owner: PublicUser & { login: string };
 	access: RepositoryAccess;
 }
 
@@ -67,7 +67,7 @@ export async function loadRepositoryById(
 /** The row and its owner, by id, with no access check. */
 export async function loadRepositoryRow(repoId: number) {
 	const [found] = await db
-		.select({ repo: repositories, owner: publicUserColumns })
+		.select({ repo: repositories, owner: repoOwnerColumns })
 		.from(repositories)
 		.innerJoin(user, eq(repositories.ownerId, user.id))
 		.where(eq(repositories.id, repoId))

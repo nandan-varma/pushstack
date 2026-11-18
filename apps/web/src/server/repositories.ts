@@ -48,19 +48,20 @@ import {
 	withRepositoryCapacityLock,
 } from "./repository-capacity";
 import {
-	createRepositoryForUser,
+	createRepositoryForOwner,
 	createRepositoryInputSchema,
 	generateRepositoryFromTemplate,
 	RepositoryExistsError,
 	repoNameSchema,
 } from "./repository-create";
 import {
-	forkRepositoryForUser,
+	forkRepositoryForOwner,
 	readableForkCounts,
 	readableForkLinks,
 	readableUpstream,
 } from "./repository-fork";
 import {
+	findRepositoryById,
 	findRepositoryByName,
 	publicUserColumns,
 	publicUserFields,
@@ -89,7 +90,10 @@ export const createRepository = createServerFn({ method: "POST" })
 	.validator(createRepositoryInputSchema)
 	.handler(async ({ data }) => {
 		const currentUser = await getCurrentUser();
-		const repo = await createRepositoryForUser(currentUser, data);
+		const repo = await createRepositoryForOwner(
+			{ ...currentUser, kind: "user", login: currentUser.username },
+			data,
+		);
 		return { ...repo, owner: { username: currentUser.username } };
 	});
 
@@ -237,14 +241,15 @@ export const forkRepository = createServerFn({ method: "POST" })
 		);
 		if (rate?.exceeded) throw new Error(rateLimitExceededMessage(rate));
 		// A fork only reads its parent, so an archived parent may still be forked.
-		const repo = await db.query.repositories.findFirst({
-			where: { id: data.repoId },
-			with: { owner: { columns: { id: true, username: true } } },
-		});
+		const repo = await findRepositoryById(data.repoId);
 		if (!repo) throw notFound();
 		let fork: { name: string };
 		try {
-			fork = await forkRepositoryForUser(repo, currentUser, repo.name);
+			fork = await forkRepositoryForOwner(
+				repo,
+				{ kind: "user", id: currentUser.id, login: currentUser.username },
+				repo.name,
+			);
 		} catch (error) {
 			if (error instanceof RepositoryExistsError) {
 				throw new Error(
@@ -419,16 +424,17 @@ export const generateRepository = createServerFn({ method: "POST" })
 		const currentUser = await getCurrentUser();
 		const access = await getRepositoryAccess(data.templateId, currentUser.id);
 		if (!access?.canRead || !access.repository.isTemplate) throw notFound();
-		const template = await db.query.repositories.findFirst({
-			where: { id: data.templateId },
-			with: { owner: publicUserFields },
-		});
+		const template = await findRepositoryById(data.templateId);
 		if (!template) throw notFound();
-		const repo = await generateRepositoryFromTemplate(template, currentUser, {
-			name: data.name,
-			description: data.description,
-			visibility: data.visibility,
-		});
+		const repo = await generateRepositoryFromTemplate(
+			template,
+			{ ...currentUser, kind: "user", login: currentUser.username },
+			{
+				name: data.name,
+				description: data.description,
+				visibility: data.visibility,
+			},
+		);
 		return { ...repo, owner: { username: currentUser.username } };
 	});
 

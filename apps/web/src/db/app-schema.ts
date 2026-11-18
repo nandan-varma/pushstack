@@ -41,9 +41,14 @@ export const repositories = pgTable(
 	"repositories",
 	{
 		id: serial("id").primaryKey(),
-		ownerId: text("owner_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
+		/** Exactly one of `ownerId` and `organizationId` is set (the check below). */
+		ownerId: text("owner_id").references(() => user.id, {
+			onDelete: "cascade",
+		}),
+		organizationId: integer("organization_id").references(
+			() => organizations.id,
+			{ onDelete: "cascade" },
+		),
 		name: text("name").notNull(),
 		description: text("description"),
 		visibility: text("visibility")
@@ -104,9 +109,98 @@ export const repositories = pgTable(
 			table.ownerId,
 			table.name,
 		),
+		orgNameIdx: uniqueIndex("repo_org_name_idx").on(
+			table.organizationId,
+			table.name,
+		),
 		nameIdx: index("repo_name_idx").on(table.name),
 		visibilityIdx: index("repo_visibility_idx").on(table.visibility),
 		forkOfIdx: index("repo_fork_of_idx").on(table.forkOfId),
+		orgIdx: index("repo_org_idx").on(table.organizationId),
+		singleOwner: check(
+			"repositories_single_owner",
+			sql`num_nonnulls(${table.ownerId}, ${table.organizationId}) = 1`,
+		),
+	}),
+);
+
+/**
+ * The namespace registry both a user and an organization claim at creation,
+ * written only in the same transaction as the row it names.
+ * `lower(login)` is unique so `Alice` cannot be a second owner beside `alice`
+ * (their storage keys would collide) and a login cannot belong to a user and
+ * an organization at once.
+ */
+export const logins = pgTable(
+	"logins",
+	{
+		login: text("login").notNull(),
+		kind: text("kind").$type<"user" | "organization">().notNull(),
+		refId: text("ref_id").notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		loginIdx: uniqueIndex("logins_login_idx").on(sql`lower(${table.login})`),
+		refIdx: uniqueIndex("logins_ref_idx").on(table.kind, table.refId),
+	}),
+);
+
+/**
+ * An organization is a repository owner beside a user. Its login is
+ * immutable: it names the `repos/{login}/` storage prefix, and moving that is
+ * a separate operation. Settings that belong to a profile are here; members
+ * and their roles live in `org_memberships`.
+ */
+export const organizations = pgTable(
+	"organizations",
+	{
+		id: serial("id").primaryKey(),
+		login: text("login").notNull(),
+		name: text("name"),
+		description: text("description"),
+		blog: text("blog"),
+		location: text("location"),
+		email: text("email"),
+		twitterUsername: text("twitter_username"),
+		defaultRepositoryPermission: text("default_repository_permission")
+			.$type<"none" | "read" | "write" | "admin">()
+			.notNull()
+			.default("read"),
+		membersCanCreateRepositories: boolean("members_can_create_repositories")
+			.notNull()
+			.default(true),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		loginIdx: uniqueIndex("org_login_idx").on(sql`lower(${table.login})`),
+	}),
+);
+
+/**
+ * A user's place in an organization: `state` is `pending` until an invitation
+ * is accepted, and only `active` grants the organization's base permission.
+ * `role` is organization administration, never repository ownership.
+ */
+export const orgMemberships = pgTable(
+	"org_memberships",
+	{
+		orgId: integer("org_id")
+			.notNull()
+			.references(() => organizations.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		role: text("role").$type<"admin" | "member">().notNull().default("member"),
+		state: text("state")
+			.$type<"active" | "pending">()
+			.notNull()
+			.default("active"),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.orgId, table.userId] }),
+		userIdx: index("org_membership_user_idx").on(table.userId),
 	}),
 );
 
@@ -974,7 +1068,7 @@ export const repositoryCollaborators = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		role: text("role")
-			.$type<"read" | "write" | "admin">()
+			.$type<"read" | "triage" | "write" | "maintain" | "admin">()
 			.notNull()
 			.default("read"),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
@@ -1259,6 +1353,9 @@ export const sshSigningKeys = pgTable(
 );
 
 export type Repository = typeof repositories.$inferSelect;
+export type Organization = typeof organizations.$inferSelect;
+export type Login = typeof logins.$inferSelect;
+export type OrgMembership = typeof orgMemberships.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
 export type PullRequestReview = typeof pullRequestReviews.$inferSelect;
 export type PullRequestReviewComment =

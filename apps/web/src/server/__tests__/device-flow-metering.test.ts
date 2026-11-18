@@ -44,7 +44,9 @@ const { getDeviceAuthorization, decideDeviceAuthorization } = await import(
 
 const user = (id: string) => ({
 	id,
+	kind: "user" as const,
 	username: id,
+	login: id,
 	name: id,
 	email: `${id}@example.com`,
 });

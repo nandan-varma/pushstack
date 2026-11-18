@@ -18,12 +18,13 @@ import { MAX_FORK_COPY_BYTES } from "#/lib/limits";
 import { isUniqueViolation } from "./db-errors";
 import { deleteRepositoryStorage, forkRepositoryStorage } from "./git-repo";
 import { withRepositoryLocks } from "./git-repo-lock";
+import { ownerKeyOf } from "./git-storage-naming";
 import { logError } from "./perf-log";
 import { getRepositoryAccess, readableForViewer } from "./repo-access";
 import { RepositoryExistsError } from "./repository-create";
 import {
 	evictRepoByName,
-	publicUserFields,
+	findRepositoryById,
 	type RepositoryRowWithOwner,
 } from "./repository-lookup";
 import { setRepoSubscription } from "./watch-store";
@@ -48,11 +49,7 @@ export async function forkSourceOf(
 		if (!parent) return null;
 		current = parent;
 	}
-	const root = await db.query.repositories.findFirst({
-		where: { id: current.id },
-		with: { owner: publicUserFields },
-	});
-	return root ?? null;
+	return findRepositoryById(current.id);
 }
 
 /** The parent is too large to copy within one request. */
@@ -76,24 +73,30 @@ export class ForkParentChangedError extends Error {
  * when `owner` already forked this parent under that name (GitHub returns it
  * too); any other repository of that name is a {@link RepositoryExistsError}.
  */
-export function forkRepositoryForUser(
-	parent: Repository & { owner: { id: string; username: string } },
-	owner: { id: string; username: string },
+export function forkRepositoryForOwner(
+	parent: Repository & { owner: { id: string; login: string } },
+	owner:
+		| { kind: "user"; id: string; login: string }
+		| { kind: "organization"; id: number; login: string },
 	name: string,
 ): Promise<Repository> {
 	return withRepositoryLocks(
 		[
-			{ ownerKey: parent.owner.username, repoName: parent.name },
-			{ ownerKey: owner.username, repoName: name },
+			{ ownerKey: ownerKeyOf(parent), repoName: parent.name },
+			{ ownerKey: owner.login, repoName: name },
 		],
 		() => forkUnderLocks(parent, owner, name),
 	);
 }
 
 /** Runs under the parent's and the fork name's locks (see withRepositoryLocks). */
+type ForkOwner =
+	| { kind: "user"; id: string; login: string }
+	| { kind: "organization"; id: number; login: string };
+
 async function forkUnderLocks(
-	parent: Repository & { owner: { id: string; username: string } },
-	owner: { id: string; username: string },
+	parent: Repository & { owner: { id: string; login: string } },
+	owner: ForkOwner,
 	name: string,
 ): Promise<Repository> {
 	// Re-read the parent under its lock: a rename or transfer that finished
@@ -105,29 +108,34 @@ async function forkUnderLocks(
 	if (
 		!current ||
 		current.name !== parent.name ||
-		current.owner.username !== parent.owner.username
+		current.owner.username !== parent.owner.login
 	) {
 		throw new ForkParentChangedError();
 	}
 	// A row exists only once its copy has committed, so this answers only a
 	// complete fork. A request that waited on the lock behind a copy lands here.
 	const existing = await db.query.repositories.findFirst({
-		where: { ownerId: owner.id, name },
+		where:
+			owner.kind === "user"
+				? { ownerId: owner.id, name }
+				: { organizationId: owner.id, name },
 	});
 	if (existing) {
 		if (existing.isFork && existing.forkOfId === parent.id) return existing;
 		throw new RepositoryExistsError();
 	}
-	await copyStorage(parent, owner.username, name, current.defaultBranch);
+	await copyStorage(parent, owner.login, name, current.defaultBranch);
 	const fork = await insertForkRow(parent, owner, name);
 	// Storage and row are both committed now: nothing below may fail the request.
-	try {
-		await setRepoSubscription(fork.id, owner.id, false);
-	} catch (error) {
-		logError("repository-fork", `subscribing to fork ${fork.id}`, error);
+	if (owner.kind === "user") {
+		try {
+			await setRepoSubscription(fork.id, owner.id, false);
+		} catch (error) {
+			logError("repository-fork", `subscribing to fork ${fork.id}`, error);
+		}
 	}
 	// A lookup that missed before the insert is cached as "not found".
-	evictRepoByName(owner.username, name, fork.id);
+	evictRepoByName(owner.login, name, fork.id);
 	return fork;
 }
 
@@ -137,14 +145,14 @@ async function forkUnderLocks(
  * is cleared by the next fork or create under this name (no row points at it).
  */
 async function copyStorage(
-	parent: Repository & { owner: { username: string } },
+	parent: Repository & { owner: { login: string } },
 	forkOwnerKey: string,
 	forkName: string,
 	defaultBranch: string,
 ): Promise<void> {
 	try {
 		await forkRepositoryStorage(
-			{ ownerKey: parent.owner.username, repoName: parent.name },
+			{ ownerKey: ownerKeyOf(parent), repoName: parent.name },
 			{ ownerKey: forkOwnerKey, repoName: forkName },
 			defaultBranch,
 			MAX_FORK_COPY_BYTES,
@@ -168,15 +176,17 @@ async function removeOrphanStorage(ownerKey: string, name: string) {
 }
 
 async function insertForkRow(
-	parent: Repository & { owner: { id: string; username: string } },
-	owner: { id: string; username: string },
+	parent: Repository & { owner: { id: string; login: string } },
+	owner: ForkOwner,
 	name: string,
 ): Promise<Repository> {
 	try {
 		const [repo] = await db
 			.insert(repositories)
 			.values({
-				ownerId: owner.id,
+				...(owner.kind === "user"
+					? { ownerId: owner.id }
+					: { organizationId: owner.id }),
 				name,
 				description: parent.description,
 				visibility: parent.visibility,
@@ -190,7 +200,7 @@ async function insertForkRow(
 	} catch (error) {
 		// A repository of this name was created outside the fork lock (its row
 		// goes in before its lock), so the copy we made is not ours to keep.
-		await removeOrphanStorage(owner.username, name);
+		await removeOrphanStorage(owner.login, name);
 		if (isUniqueViolation(error)) throw new RepositoryExistsError();
 		throw error;
 	}
@@ -235,12 +245,7 @@ export async function readableForkLinks(
 	const readable = async (row: RepositoryRowWithOwner | null) =>
 		row && (await getRepositoryAccess(row.id, viewerId))?.canRead ? row : null;
 	const parentRow =
-		repo.forkOfId === null
-			? null
-			: await db.query.repositories.findFirst({
-					where: { id: repo.forkOfId },
-					with: { owner: publicUserFields },
-				});
+		repo.forkOfId === null ? null : await findRepositoryById(repo.forkOfId);
 	const parent = await readable(parentRow ?? null);
 	const sourceRow = await forkSourceOf(repo);
 	const source =

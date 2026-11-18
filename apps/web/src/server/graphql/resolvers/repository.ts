@@ -40,7 +40,7 @@ import {
 	readableRepositoriesCondition,
 } from "../../repo-access";
 import {
-	createRepositoryForUser,
+	createRepositoryForOwner,
 	createRepositoryInputSchema,
 	RepositoryExistsError,
 	repoNameSchema,
@@ -49,7 +49,7 @@ import { readableForkCounts } from "../../repository-fork";
 import {
 	findRepositoryByName,
 	type PublicUser,
-	publicUserColumns,
+	repoOwnerColumns,
 } from "../../repository-lookup";
 import {
 	ArchivedRepositoryError,
@@ -90,8 +90,15 @@ import { loadRepositoryById, requireRepoScope } from "./repository-write";
 import { repositoryTemplateFields, templateTypeResolvers } from "./templates";
 import type { DomainResolvers, NodeLoader } from "./types";
 
-type Role = "owner" | "admin" | "write" | "read" | "anonymous";
-type RepoRow = Repository & { owner: PublicUser };
+type Role =
+	| "owner"
+	| "admin"
+	| "maintain"
+	| "write"
+	| "triage"
+	| "read"
+	| "anonymous";
+type RepoRow = Repository & { owner: PublicUser & { login: string } };
 
 export interface RepositoryNode {
 	__typename: "Repository";
@@ -175,10 +182,15 @@ function repositoryNode(row: RepoRow, role: Role): RepositoryNode {
 	};
 }
 
-const PERMISSION: Record<Role, "ADMIN" | "WRITE" | "READ"> = {
+const PERMISSION: Record<
+	Role,
+	"ADMIN" | "MAINTAIN" | "WRITE" | "TRIAGE" | "READ"
+> = {
 	owner: "ADMIN",
 	admin: "ADMIN",
+	maintain: "MAINTAIN",
 	write: "WRITE",
+	triage: "TRIAGE",
 	read: "READ",
 	// Anyone who can see a public repository may read it.
 	anonymous: "READ",
@@ -365,7 +377,7 @@ async function userRepositories(
 		const rows = await db
 			.select({
 				repo: repositories,
-				owner: publicUserColumns,
+				owner: repoOwnerColumns,
 				collaboratorRole: sql<
 					"read" | "write" | "admin" | null
 				>`(select ${repositoryCollaborators.role} from ${repositoryCollaborators} where ${repositoryCollaborators.repoId} = ${repositories.id} and ${repositoryCollaborators.userId} = ${viewer})`,
@@ -413,7 +425,7 @@ async function repositoryForks(
 		const rows = await db
 			.select({
 				repo: repositories,
-				owner: publicUserColumns,
+				owner: repoOwnerColumns,
 				collaboratorRole: sql<
 					"read" | "write" | "admin" | null
 				>`(select ${repositoryCollaborators.role} from ${repositoryCollaborators} where ${repositoryCollaborators.repoId} = ${repositories.id} and ${repositoryCollaborators.userId} = ${viewer})`,
@@ -457,7 +469,7 @@ export function repositoryNodeById(
 			const rows = await db
 				.select({
 					repo: repositories,
-					owner: publicUserColumns,
+					owner: repoOwnerColumns,
 					collaboratorRole: sql<
 						"read" | "write" | "admin" | null
 					>`(select ${repositoryCollaborators.role} from ${repositoryCollaborators} where ${repositoryCollaborators.repoId} = ${repositories.id} and ${repositoryCollaborators.userId} = ${viewer})`,
@@ -552,12 +564,15 @@ async function createRepository(
 		throw unprocessable(`${field} ${issue?.message ?? "is invalid"}`);
 	}
 	const [owner] = await db
-		.select({ ...publicUserColumns, email: user.email })
+		.select({ ...repoOwnerColumns, email: user.email })
 		.from(user)
 		.where(eq(user.id, viewer.id));
 	if (!owner) throw new Error("Authenticated user missing");
 	try {
-		const repo = await createRepositoryForUser(owner, parsed.data);
+		const repo = await createRepositoryForOwner(
+			{ ...owner, kind: "user", login: owner.username },
+			parsed.data,
+		);
 		return {
 			clientMutationId: input.clientMutationId ?? null,
 			repository: repositoryNode({ ...repo, owner }, "owner"),
@@ -725,6 +740,9 @@ export const repositoryResolvers: DomainResolvers = {
 			...repositoryLabelFields,
 			...repositoryMilestoneFields,
 			owner: async (source: RepositoryNode, _args, ctx) => {
+				if (!source.row.ownerId) {
+					throw new Error("Organization owners are not repository users");
+				}
 				const row = await loadUser(ctx, source.row.ownerId);
 				if (!row) throw new Error("Repository owner missing");
 				return userNode(row);

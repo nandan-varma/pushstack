@@ -19,8 +19,8 @@ import { logWarn } from "./perf-log";
 import { getRepositoryAccess } from "./repo-access";
 import { forkSourceOf } from "./repository-fork";
 import {
+	findRepositoryById,
 	findRepositoryByName,
-	publicUserFields,
 	type RepositoryRowWithOwner,
 } from "./repository-lookup";
 import type { PullRequest } from "./thread-store";
@@ -33,11 +33,7 @@ export async function headRepositoryOf(
 	pr: Pick<PullRequest, "headRepoId">,
 ): Promise<RepositoryRowWithOwner | null> {
 	if (pr.headRepoId === null) return null;
-	const row = await db.query.repositories.findFirst({
-		where: { id: pr.headRepoId },
-		with: { owner: publicUserFields },
-	});
-	return row ?? null;
+	return findRepositoryById(pr.headRepoId);
 }
 
 /** The head repository only when `viewerId` can read it (never named otherwise). */

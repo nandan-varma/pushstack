@@ -4,6 +4,8 @@ import { username } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db/index";
 import * as authSchema from "#/db/schema";
+import { addLogin, loginTaken } from "#/server/logins-store";
+import { logError } from "#/server/perf-log";
 import { rateLimitStorage } from "#/server/rate-limit";
 import { sendEmail } from "./email";
 import { isReservedName } from "./reserved-names";
@@ -84,6 +86,28 @@ export const auth = betterAuth({
 						throw new APIError("BAD_REQUEST", {
 							message: "A username is required",
 						});
+					}
+					// GitHub's 422 for a name that is already taken, including a
+					// case variant of a user's or an organization's login.
+					if (await loginTaken(data.username)) {
+						throw new APIError("UNPROCESSABLE_ENTITY", {
+							message: "Username is already taken",
+						});
+					}
+				},
+				after: async (createdUser) => {
+					const login = createdUser.username;
+					if (typeof login !== "string") return;
+					try {
+						await addLogin({
+							login,
+							kind: "user",
+							refId: createdUser.id,
+						});
+					} catch (error) {
+						// The user row is committed; the registry write is retried by
+						// the next db:push backfill rather than failing the signup.
+						logError("auth", `recording login ${login}`, error);
 					}
 				},
 			},

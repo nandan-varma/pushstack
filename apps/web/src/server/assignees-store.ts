@@ -30,7 +30,9 @@ export async function listAssignableUsers(
 				inArray(repositoryCollaborators.role, ["write", "admin"]),
 			),
 		);
-	const ids = [repo.ownerId, ...collaborators.map((c) => c.userId)];
+	const ids = [repo.ownerId, ...collaborators.map((c) => c.userId)].filter(
+		(id): id is string => id !== null,
+	);
 	const users = await db.query.user.findMany({
 		...publicUserFields,
 		where: { id: { in: ids } },

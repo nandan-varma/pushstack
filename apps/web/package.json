@@ -22,7 +22,7 @@
 		"smoke:git": "vitest run --config vitest.smoke.config.ts",
 		"typecheck": "tsc --noEmit",
 		"graphql:codegen": "tsx scripts/graphql-codegen.ts",
-		"db:push": "drizzle-kit push",
+		"db:push": "drizzle-kit push && tsx scripts/backfill-logins.ts",
 		"db:pull": "drizzle-kit pull",
 		"db:studio": "drizzle-kit studio",
 		"clean": "rm -rf .output .nitro .vinxi dist node_modules/.cache",

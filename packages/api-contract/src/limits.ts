@@ -60,6 +60,14 @@ export const MAX_GPG_KEY_CHARS = 65_536;
 export const MAX_SSH_SIGNING_KEY_CHARS = 2048;
 export const MAX_SIGNING_KEY_TITLE_CHARS = 100;
 
+/** Organization profile fields (GitHub's own maxima). */
+export const MAX_ORG_NAME_CHARS = 255;
+export const MAX_ORG_DESCRIPTION_CHARS = 500;
+export const MAX_ORG_BLOG_CHARS = 255;
+export const MAX_ORG_LOCATION_CHARS = 255;
+export const MAX_ORG_EMAIL_CHARS = 254;
+export const MAX_ORG_TWITTER_CHARS = 15;
+
 /** Usernames and repository names; keeps `/` and `..` out of storage keys. */
 export const STORAGE_NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
 

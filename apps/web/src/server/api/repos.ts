@@ -17,6 +17,7 @@ import {
 import { GitInvalidRequestError, isNotFoundError } from "git-fs-s3";
 import { db } from "#/db";
 import {
+	type CollaboratorRole,
 	issues,
 	type Repository,
 	repositories,
@@ -42,22 +43,22 @@ import {
 	readableForViewer,
 } from "../repo-access";
 import {
-	createRepositoryForUser,
+	createRepositoryForOwner,
 	generateRepositoryFromTemplate,
 	RepositoryExistsError,
 } from "../repository-create";
 import {
 	ForkParentChangedError,
 	ForkTooLargeError,
-	forkRepositoryForUser,
+	forkRepositoryForOwner,
 	readableForkCounts,
 	readableForkLinks,
 } from "../repository-fork";
 import {
+	findRepositoryById,
 	findRepositoryByName,
 	type PublicUser,
-	publicUserColumns,
-	publicUserFields,
+	repoOwnerColumns,
 } from "../repository-lookup";
 import {
 	ArchivedRepositoryError,
@@ -247,7 +248,7 @@ export async function listRepositories(
 			db
 				.select({
 					repo: repositories,
-					owner: publicUserColumns,
+					owner: repoOwnerColumns,
 					collaboratorRole: repositoryCollaborators.role,
 				})
 				.from(repositories)
@@ -270,7 +271,7 @@ export async function listRepositories(
 export type Row = {
 	repo: typeof repositories.$inferSelect;
 	owner: PublicUser;
-	collaboratorRole: "read" | "write" | "admin" | null;
+	collaboratorRole: CollaboratorRole | null;
 };
 
 /** Repository shapes for listed rows, with their star and open issue counts. */
@@ -456,7 +457,7 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 		| (typeof LICENSE_TEMPLATE_KEYS)[number]
 		| undefined;
 	const [owner] = await db
-		.select({ ...publicUserColumns, email: user.email })
+		.select({ ...repoOwnerColumns, email: user.email })
 		.from(user)
 		.where(eq(user.id, userId));
 	if (!owner) throw notFoundError();
@@ -466,22 +467,25 @@ export async function createAuthenticatedUserRepository(ctx: ApiContext) {
 			{ resource: "Repository", field: "homepage", code: "invalid" },
 		]);
 	}
-	let repo: Awaited<ReturnType<typeof createRepositoryForUser>>;
+	let repo: Awaited<ReturnType<typeof createRepositoryForOwner>>;
 	try {
-		repo = await createRepositoryForUser(owner, {
-			name: data.name,
-			description: data.description ?? undefined,
-			homepage: data.homepage || undefined,
-			visibility: data.private ? "private" : "public",
-			autoInit: data.auto_init,
-			hasIssues: data.has_issues,
-			hasWiki: data.has_wiki,
-			hasProjects: data.has_projects,
-			isTemplate: data.is_template,
-			// GitHub applies the templates only together with auto_init.
-			gitignoreTemplate: data.auto_init ? gitignoreTemplate : undefined,
-			licenseTemplate: data.auto_init ? licenseTemplate : undefined,
-		});
+		repo = await createRepositoryForOwner(
+			{ ...owner, kind: "user", login: owner.username },
+			{
+				name: data.name,
+				description: data.description ?? undefined,
+				homepage: data.homepage || undefined,
+				visibility: data.private ? "private" : "public",
+				autoInit: data.auto_init,
+				hasIssues: data.has_issues,
+				hasWiki: data.has_wiki,
+				hasProjects: data.has_projects,
+				isTemplate: data.is_template,
+				// GitHub applies the templates only together with auto_init.
+				gitignoreTemplate: data.auto_init ? gitignoreTemplate : undefined,
+				licenseTemplate: data.auto_init ? licenseTemplate : undefined,
+			},
+		);
 	} catch (error) {
 		if (error instanceof RepositoryExistsError) {
 			throw validationFailedError("Repository creation failed.", [
@@ -522,10 +526,7 @@ async function adminRepository(
 	});
 	if (!roles.some((role) => role === access.role)) throw adminDenied();
 	// Changes act on the row as it is now, not a cached copy up to 5 s old.
-	const fresh = await db.query.repositories.findFirst({
-		where: { id: repo.id },
-		with: { owner: publicUserFields },
-	});
+	const fresh = await findRepositoryById(repo.id);
 	if (!fresh) throw notFoundError();
 	return { repo: fresh, access };
 }
@@ -689,10 +690,11 @@ export async function replaceTopics(ctx: ApiContext) {
 export async function transferRepositoryHandler(ctx: ApiContext) {
 	const { repo } = await adminRepository(ctx, "repo:write", ["owner"]);
 	const data = await requestBody(ctx, "repos/transfer", "Repository");
-	const target = await db.query.user.findFirst({
-		columns: { id: true, apiId: true, username: true, name: true, image: true },
-		where: { username: data.new_owner },
-	});
+	const [target] = await db
+		.select({ ...repoOwnerColumns, login: user.username })
+		.from(user)
+		.where(eq(user.username, data.new_owner))
+		.limit(1);
 	if (!target) {
 		throw validationFailedError("Validation Failed", [
 			{ resource: "Repository", field: "new_owner", code: "invalid" },
@@ -735,7 +737,7 @@ export async function generateFromTemplate(ctx: ApiContext) {
 		{ message: "Repository creation failed." },
 	);
 	const [owner] = await db
-		.select({ ...publicUserColumns, email: user.email })
+		.select({ ...repoOwnerColumns, email: user.email })
 		.from(user)
 		.where(eq(user.id, userId));
 	if (!owner) throw notFoundError();
@@ -746,11 +748,15 @@ export async function generateFromTemplate(ctx: ApiContext) {
 	}
 	let repo: Awaited<ReturnType<typeof generateRepositoryFromTemplate>>;
 	try {
-		repo = await generateRepositoryFromTemplate(template, owner, {
-			name: data.name,
-			description: data.description ?? undefined,
-			visibility: data.private ? "private" : "public",
-		});
+		repo = await generateRepositoryFromTemplate(
+			template,
+			{ ...owner, kind: "user", login: owner.username },
+			{
+				name: data.name,
+				description: data.description ?? undefined,
+				visibility: data.private ? "private" : "public",
+			},
+		);
 	} catch (error) {
 		if (error instanceof RepositoryExistsError) {
 			throw validationFailedError("Repository creation failed.", [
@@ -798,7 +804,7 @@ export async function createForkHandler(ctx: ApiContext) {
 		message: "Repository creation failed.",
 	});
 	const [owner] = await db
-		.select(publicUserColumns)
+		.select(repoOwnerColumns)
 		.from(user)
 		.where(eq(user.id, userId));
 	if (!owner) throw notFoundError();
@@ -809,9 +815,13 @@ export async function createForkHandler(ctx: ApiContext) {
 	}
 	const rate = await hitRateLimit("fork", identityFor(ctx.request, userId));
 	if (rate?.exceeded) throw new RateLimitedError(rate);
-	let fork: Awaited<ReturnType<typeof forkRepositoryForUser>>;
+	let fork: Awaited<ReturnType<typeof forkRepositoryForOwner>>;
 	try {
-		fork = await forkRepositoryForUser(parent, owner, data.name ?? parent.name);
+		fork = await forkRepositoryForOwner(
+			parent,
+			{ kind: "user", id: owner.id, login: owner.username },
+			data.name ?? parent.name,
+		);
 	} catch (error) {
 		if (error instanceof RepositoryExistsError) {
 			throw validationFailedError("Validation Failed", [

@@ -22,8 +22,8 @@ import type { RepositorySearchQuery } from "#/lib/repository-search-query";
 import { containing } from "./db-filters";
 import { readableRepositoriesCondition } from "./repo-access";
 import {
-	publicUserColumns,
 	type RepositoryRowWithOwner,
+	repoOwnerColumns,
 } from "./repository-lookup";
 
 /** The repositories a parsed query matches, for `viewerId` (null: anonymous). */
@@ -68,7 +68,7 @@ export async function findRepositorySearchPage(
 ): Promise<{ rows: RepositoryRowWithOwner[]; total: number }> {
 	const [rows, [totalRow]] = await Promise.all([
 		db
-			.select({ repo: repositories, owner: publicUserColumns })
+			.select({ repo: repositories, owner: repoOwnerColumns })
 			.from(repositories)
 			.innerJoin(user, eq(user.id, repositories.ownerId))
 			.where(where)
