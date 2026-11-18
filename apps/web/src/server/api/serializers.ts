@@ -109,6 +109,7 @@ export function repository(
 		has_issues: repo.hasIssues,
 		has_wiki: repo.hasWiki,
 		has_projects: repo.hasProjects,
+		has_discussions: repo.hasDiscussions,
 		allow_merge_commit: repo.allowMergeCommit,
 		allow_squash_merge: repo.allowSquashMerge,
 		allow_rebase_merge: repo.allowRebaseMerge,

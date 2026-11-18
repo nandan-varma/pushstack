@@ -338,6 +338,7 @@ export const updateRepository = createServerFn({ method: "POST" })
 			hasIssues: z.boolean().optional(),
 			hasWiki: z.boolean().optional(),
 			hasProjects: z.boolean().optional(),
+			hasDiscussions: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ data }) => {

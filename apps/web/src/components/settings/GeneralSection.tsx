@@ -38,6 +38,7 @@ export function GeneralSection({
 		hasIssues: boolean;
 		hasWiki: boolean;
 		hasProjects: boolean;
+		hasDiscussions: boolean;
 		archived: boolean;
 	};
 	owner: string;
@@ -57,6 +58,7 @@ export function GeneralSection({
 		hasIssues: repo.hasIssues,
 		hasWiki: repo.hasWiki,
 		hasProjects: repo.hasProjects,
+		hasDiscussions: repo.hasDiscussions,
 	});
 	const [success, setSuccess] = useState(false);
 	const navigate = useNavigate();
@@ -114,7 +116,8 @@ export function GeneralSection({
 		flags.isTemplate !== repo.isTemplate ||
 		flags.hasIssues !== repo.hasIssues ||
 		flags.hasWiki !== repo.hasWiki ||
-		flags.hasProjects !== repo.hasProjects;
+		flags.hasProjects !== repo.hasProjects ||
+		flags.hasDiscussions !== repo.hasDiscussions;
 
 	return (
 		<Section title="General" description="Basic repository information.">
@@ -220,6 +223,7 @@ export function GeneralSection({
 							["hasIssues", "Issues"],
 							["hasWiki", "Wiki"],
 							["hasProjects", "Projects"],
+							["hasDiscussions", "Discussions"],
 							["isTemplate", "Template repository"],
 						] as const
 					).map(([key, label]) => (

@@ -68,6 +68,8 @@ export const repositories = pgTable(
 		hasIssues: boolean("has_issues").notNull().default(true),
 		hasWiki: boolean("has_wiki").notNull().default(false),
 		hasProjects: boolean("has_projects").notNull().default(false),
+		/** GitHub enables discussions on a new repository. */
+		hasDiscussions: boolean("has_discussions").notNull().default(true),
 		/**
 		 * Which merge methods a pull request may use; all on by default. At least
 		 * one stays on: `updateRepositorySettings` refuses a patch that leaves none.
@@ -357,6 +359,14 @@ export const comments = pgTable(
 			.notNull()
 			.references(() => user.id),
 		body: text("body").notNull(),
+		/**
+		 * The discussion comment this one answers (one reply level): a reply's
+		 * target must be a top-level comment.
+		 */
+		replyToId: integer("reply_to_id").references(
+			(): AnyPgColumn => comments.id,
+			{ onDelete: "cascade" },
+		),
 		createdAt: timestamptz("created_at").notNull().defaultNow(),
 		/** When the body was last edited by hand (the "edited" marker); null if never. */
 		editedAt: timestamptz("edited_at"),
@@ -367,6 +377,73 @@ export const comments = pgTable(
 			table.issueId,
 			table.createdAt,
 		),
+	}),
+);
+
+/**
+ * A repository's discussion categories. `format` drives GraphQL's
+ * `isAnswerable` (`q_and_a`) and the write-access rule for announcements.
+ */
+export const discussionCategories = pgTable(
+	"discussion_categories",
+	{
+		id: serial("id").primaryKey(),
+		repoId: integer("repo_id")
+			.notNull()
+			.references(() => repositories.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		slug: text("slug").notNull(),
+		emoji: text("emoji").notNull(),
+		description: text("description"),
+		format: text("format")
+			.$type<"open" | "announcement" | "q_and_a">()
+			.notNull()
+			.default("open"),
+		position: integer("position").notNull().default(0),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		repoSlugIdx: uniqueIndex("discussion_category_repo_slug_idx").on(
+			table.repoId,
+			table.slug,
+		),
+		repoNameIdx: uniqueIndex("discussion_category_repo_name_idx").on(
+			table.repoId,
+			sql`lower(${table.name})`,
+		),
+	}),
+);
+
+/**
+ * What a discussion adds to its issue (1:1 by `issue_id`), as
+ * `pull_requests` does for a pull request.
+ */
+export const discussions = pgTable(
+	"discussions",
+	{
+		issueId: integer("issue_id")
+			.primaryKey()
+			.references(() => issues.id, { onDelete: "cascade" }),
+		categoryId: integer("category_id")
+			.notNull()
+			.references(() => discussionCategories.id, { onDelete: "restrict" }),
+		answerCommentId: integer("answer_comment_id").references(
+			(): AnyPgColumn => comments.id,
+			{ onDelete: "set null" },
+		),
+		answerChosenAt: timestamptz("answer_chosen_at"),
+		answerChosenById: text("answer_chosen_by_id").references(() => user.id, {
+			onDelete: "set null",
+		}),
+		locked: boolean("locked").notNull().default(false),
+		pinnedAt: timestamptz("pinned_at"),
+	},
+	(table) => ({
+		categoryPinnedIdx: index("discussion_category_pinned_idx").on(
+			table.categoryId,
+			table.pinnedAt,
+		),
+		answerIdx: index("discussion_answer_idx").on(table.answerCommentId),
 	}),
 );
 

@@ -536,6 +536,7 @@ export const endpoints = defineEndpoints({
 			has_issues: z.boolean().optional(),
 			has_projects: z.boolean().optional(),
 			has_wiki: z.boolean().optional(),
+			has_discussions: z.boolean().optional(),
 			is_template: z.boolean().optional(),
 			default_branch: z.string().optional(),
 			archived: z.boolean().optional(),
