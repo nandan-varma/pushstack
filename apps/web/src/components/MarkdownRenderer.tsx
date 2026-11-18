@@ -16,6 +16,7 @@ import {
 import type { ResolveReference } from "@/lib/reference-patterns";
 import { createReferenceResolver } from "@/lib/reference-patterns";
 import { createAutolinkReferencesPlugin } from "@/lib/remark-autolink-references";
+import { createWikiLinksPlugin } from "@/lib/remark-wiki-links";
 import { resolveRepoRelativePath } from "@/lib/repo-path";
 
 interface MarkdownRendererProps {
@@ -27,6 +28,11 @@ interface MarkdownRendererProps {
 	/** The file this content came from, for resolving its relative links. */
 	filePath?: string;
 	repoId?: number;
+	/**
+	 * Where a wiki's relative links and `[[Page]]` links resolve: the wiki
+	 * pages are not files on a branch, so they cannot use the blob route.
+	 */
+	linkBase?: string;
 }
 
 import { isReservedName } from "@/lib/reserved-names";
@@ -167,11 +173,16 @@ const safeImg: Components["img"] = ({ src, alt, ...props }) => {
 	return <img src={src} alt={alt ?? ""} {...props} />;
 };
 
+function encodePath(path: string): string {
+	return path.split("/").map(encodeURIComponent).join("/");
+}
+
 function buildComponents(
 	owner?: string,
 	name?: string,
 	branch?: string,
 	filePath = "",
+	linkBase?: string,
 ): Components {
 	const base: Components = { pre: CodeBlock, a: safeAnchor, img: safeImg };
 	if (!owner || !name) return base;
@@ -232,7 +243,25 @@ function buildComponents(
 			// A href that qualified a scheme but isn't the external shape handled
 			// above (mailto:, http: without slashes) is a real URL, not a path in
 			// this repository; so is any href when there is no branch to browse.
-			if (URL_SCHEME_RE.test(href) || !branch) {
+			if (URL_SCHEME_RE.test(href)) {
+				return (
+					<a href={href} {...props}>
+						{children}
+					</a>
+				);
+			}
+			// A leading `/` is already an absolute path on this site; only a
+			// relative target belongs under the wiki.
+			if (linkBase && !href.startsWith("/")) {
+				const target = resolveRepoRelativePath(filePath, href);
+				if (target === null) return <>{children}</>;
+				return (
+					<a href={`${linkBase}/${encodePath(target)}`} {...props}>
+						{children}
+					</a>
+				);
+			}
+			if (!branch) {
 				return (
 					<a href={href} {...props}>
 						{children}
@@ -256,6 +285,17 @@ function buildComponents(
 		},
 		img: ({ src, alt, ...props }) => {
 			if (!src || !isSafeImageSrc(src)) return null;
+			if (linkBase && !URL_SCHEME_RE.test(src) && !src.startsWith("/")) {
+				const target = resolveRepoRelativePath(filePath, src);
+				if (target === null) return null;
+				return (
+					<img
+						src={`${linkBase}/${encodePath(target)}`}
+						alt={alt ?? ""}
+						{...props}
+					/>
+				);
+			}
 			if (URL_SCHEME_RE.test(src) || !branch) {
 				return <img src={src} alt={alt ?? ""} {...props} />;
 			}
@@ -280,10 +320,11 @@ export default function MarkdownRenderer({
 	branch,
 	filePath = "",
 	repoId,
+	linkBase,
 }: MarkdownRendererProps) {
 	const components = useMemo(
-		() => buildComponents(owner, name, branch, filePath),
-		[owner, name, branch, filePath],
+		() => buildComponents(owner, name, branch, filePath, linkBase),
+		[owner, name, branch, filePath, linkBase],
 	);
 
 	const { data: issueNumbers } = useQuery({
@@ -304,8 +345,9 @@ export default function MarkdownRenderer({
 		() => [
 			remarkGfm,
 			createAutolinkReferencesPlugin({ owner, name, resolveReference }),
+			...(linkBase ? [createWikiLinksPlugin(linkBase)] : []),
 		],
-		[owner, name, resolveReference],
+		[owner, name, resolveReference, linkBase],
 	);
 
 	return (

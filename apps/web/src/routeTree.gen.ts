@@ -70,6 +70,8 @@ import { Route as OwnerNameReleasesLatestRouteImport } from './routes/$owner.$na
 import { Route as OwnerNameReleasesNewRouteImport } from './routes/$owner.$name.releases.new'
 import { Route as OwnerNameSettingsIndexRouteImport } from './routes/$owner.$name.settings.index'
 import { Route as OwnerNameSettingsBranchesRouteImport } from './routes/$owner.$name.settings.branches'
+import { Route as OwnerNameWikiIndexRouteImport } from './routes/$owner.$name.wiki.index'
+import { Route as OwnerNameWikiPageRouteImport } from './routes/$owner.$name.wiki.$page'
 import { Route as GistOwnerIdRevisionRouteImport } from './routes/gist.$owner.$id.$revision'
 import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
@@ -392,6 +394,16 @@ const OwnerNameSettingsBranchesRoute =
     path: '/branches',
     getParentRoute: () => OwnerNameSettingsRoute,
   } as any)
+const OwnerNameWikiIndexRoute = OwnerNameWikiIndexRouteImport.update({
+  id: '/wiki/',
+  path: '/wiki/',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNameWikiPageRoute = OwnerNameWikiPageRouteImport.update({
+  id: '/wiki/$page',
+  path: '/wiki/$page',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
 const GistOwnerIdRevisionRoute = GistOwnerIdRevisionRouteImport.update({
   id: '/$revision',
   path: '/$revision',
@@ -525,11 +537,13 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRoute
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
+  '/$owner/$name/wiki/': typeof OwnerNameWikiIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -594,11 +608,13 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRoute
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings': typeof OwnerNameSettingsIndexRoute
+  '/$owner/$name/wiki': typeof OwnerNameWikiIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues/new/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -671,11 +687,13 @@ export interface FileRoutesById {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/$owner/$name/wiki/$page': typeof OwnerNameWikiPageRoute
   '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
   '/$owner/$name/settings/': typeof OwnerNameSettingsIndexRoute
+  '/$owner/$name/wiki/': typeof OwnerNameWikiIndexRoute
   '/$owner/$name/blame/$branch/$': typeof OwnerNameBlameBranchSplatRoute
   '/$owner/$name/blob/$branch/$': typeof OwnerNameBlobBranchSplatRoute
   '/$owner/$name/issues_/new_/choose': typeof OwnerNameIssuesNewChooseRoute
@@ -747,11 +765,13 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
     | '/$owner/$name/settings/'
+    | '/$owner/$name/wiki/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues/new/choose'
@@ -816,11 +836,13 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions'
     | '/$owner/$name/milestones'
     | '/$owner/$name/releases'
     | '/$owner/$name/settings'
+    | '/$owner/$name/wiki'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues/new/choose'
@@ -892,11 +914,13 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/$owner/$name/wiki/$page'
     | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
     | '/$owner/$name/settings/'
+    | '/$owner/$name/wiki/'
     | '/$owner/$name/blame/$branch/$'
     | '/$owner/$name/blob/$branch/$'
     | '/$owner/$name/issues_/new_/choose'
@@ -1365,6 +1389,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameSettingsBranchesRouteImport
       parentRoute: typeof OwnerNameSettingsRoute
     }
+    '/$owner/$name/wiki/': {
+      id: '/$owner/$name/wiki/'
+      path: '/wiki'
+      fullPath: '/$owner/$name/wiki/'
+      preLoaderRoute: typeof OwnerNameWikiIndexRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/wiki/$page': {
+      id: '/$owner/$name/wiki/$page'
+      path: '/wiki/$page'
+      fullPath: '/$owner/$name/wiki/$page'
+      preLoaderRoute: typeof OwnerNameWikiPageRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
     '/gist/$owner/$id/$revision': {
       id: '/gist/$owner/$id/$revision'
       path: '/$revision'
@@ -1589,8 +1627,10 @@ interface OwnerNameRouteChildren {
   OwnerNameRawSplatRoute: typeof OwnerNameRawSplatRoute
   OwnerNameReleasesLatestRoute: typeof OwnerNameReleasesLatestRoute
   OwnerNameReleasesNewRoute: typeof OwnerNameReleasesNewRoute
+  OwnerNameWikiPageRoute: typeof OwnerNameWikiPageRoute
   OwnerNameMilestonesIndexRoute: typeof OwnerNameMilestonesIndexRoute
   OwnerNameReleasesIndexRoute: typeof OwnerNameReleasesIndexRoute
+  OwnerNameWikiIndexRoute: typeof OwnerNameWikiIndexRoute
   OwnerNameBlameBranchSplatRoute: typeof OwnerNameBlameBranchSplatRoute
   OwnerNameBlobBranchSplatRoute: typeof OwnerNameBlobBranchSplatRoute
   OwnerNameIssuesNewChooseRoute: typeof OwnerNameIssuesNewChooseRoute
@@ -1628,8 +1668,10 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameRawSplatRoute: OwnerNameRawSplatRoute,
   OwnerNameReleasesLatestRoute: OwnerNameReleasesLatestRoute,
   OwnerNameReleasesNewRoute: OwnerNameReleasesNewRoute,
+  OwnerNameWikiPageRoute: OwnerNameWikiPageRoute,
   OwnerNameMilestonesIndexRoute: OwnerNameMilestonesIndexRoute,
   OwnerNameReleasesIndexRoute: OwnerNameReleasesIndexRoute,
+  OwnerNameWikiIndexRoute: OwnerNameWikiIndexRoute,
   OwnerNameBlameBranchSplatRoute: OwnerNameBlameBranchSplatRoute,
   OwnerNameBlobBranchSplatRoute: OwnerNameBlobBranchSplatRoute,
   OwnerNameIssuesNewChooseRoute: OwnerNameIssuesNewChooseRoute,

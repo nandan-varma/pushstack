@@ -2,6 +2,7 @@ import { createParsedObjectCache } from "git-edge";
 import type { OpsHooks } from "git-fs-s3/ops";
 import { GIT_CACHE_MAX_BYTES, GIT_CACHE_TTL_MS } from "./config";
 import { prefetchAllPacks } from "./git-fs";
+import type { RepoKind } from "./git-storage-naming";
 import { perfNote, perfStep } from "./perf-log";
 
 const resultCache = createParsedObjectCache({
@@ -21,6 +22,10 @@ export function opsHooksWith(prefetch: () => Promise<void>): OpsHooks {
 	return { resultCache, step: perfStep, onNote: perfNote, prefetch };
 }
 
-export function opsHooksFor(ownerKey: string, repoName: string): OpsHooks {
-	return opsHooksWith(() => prefetchAllPacks(ownerKey, repoName));
+export function opsHooksFor(
+	ownerKey: string,
+	repoName: string,
+	kind: RepoKind = "repo",
+): OpsHooks {
+	return opsHooksWith(() => prefetchAllPacks(ownerKey, repoName, kind));
 }

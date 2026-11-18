@@ -74,6 +74,7 @@ import {
 import { getTimeline } from "@/server/timeline";
 import { listTokens } from "@/server/tokens";
 import { getUserProfile } from "@/server/users";
+import { getWiki, getWikiPage } from "@/server/wiki";
 
 export const queryKeys = {
 	assignedThreads: ["threads", "assigned", "self"] as const,
@@ -183,6 +184,9 @@ export const queryKeys = {
 		["repos", repoId, "releases", "list", page] as const,
 	repoRelease: (repoId: number, tag: string) =>
 		["repos", repoId, "releases", "tag", tag] as const,
+	repoWiki: (repoId: number) => ["repos", repoId, "wiki"] as const,
+	repoWikiPage: (repoId: number, page: string) =>
+		["repos", repoId, "wiki", "page", page] as const,
 	repoMilestones: (repoId: number) => ["repos", repoId, "milestones"] as const,
 	repoMilestoneList: (repoId: number, state: string) =>
 		["repos", repoId, "milestones", "list", state] as const,
@@ -786,6 +790,22 @@ export function repositoryReleaseQueryOptions(repoId: number, tag: string) {
 	return queryOptions({
 		queryKey: queryKeys.repoRelease(repoId, tag),
 		queryFn: () => getReleaseByTagName({ data: { repoId, tag } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryWikiQueryOptions(repoId: number) {
+	return queryOptions({
+		queryKey: queryKeys.repoWiki(repoId),
+		queryFn: () => getWiki({ data: { repoId } }),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function repositoryWikiPageQueryOptions(repoId: number, page: string) {
+	return queryOptions({
+		queryKey: queryKeys.repoWikiPage(repoId, page),
+		queryFn: () => getWikiPage({ data: { repoId, page } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }

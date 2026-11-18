@@ -346,6 +346,7 @@ export interface ViewerRepositoryAccess {
 	canMerge: boolean;
 	canWrite: boolean;
 	canParticipate: boolean;
+	canEditWiki: boolean;
 }
 
 export async function getViewerRepositoryAccess(
@@ -357,6 +358,7 @@ export async function getViewerRepositoryAccess(
 		canMerge: access?.canMergePullRequest ?? false,
 		canWrite: access?.canWrite ?? false,
 		canParticipate: access?.canParticipate ?? false,
+		canEditWiki: access?.wikiEdit ?? false,
 	};
 }
 
