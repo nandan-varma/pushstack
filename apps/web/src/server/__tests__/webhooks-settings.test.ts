@@ -22,7 +22,6 @@ const { db } = await import("#/db");
 const { repositories, repositoryCollaborators } = await import(
 	"#/db/app-schema"
 );
-const { eq } = await import("drizzle-orm");
 const { findWebhook } = await import("../webhook-store");
 const { deleteRepoWebhook, saveRepoWebhook } = await import("../webhooks");
 
