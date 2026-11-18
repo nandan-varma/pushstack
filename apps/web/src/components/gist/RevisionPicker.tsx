@@ -1,3 +1,4 @@
+import { RelativeTime } from "@/components/RelativeTime";
 import {
 	Select,
 	SelectContent,
@@ -38,7 +39,7 @@ export function RevisionPicker({
 					<SelectItem key={revision.sha} value={revision.sha}>
 						<span className="font-mono">{revision.sha.slice(0, 7)}</span>
 						<span className="ml-2 text-bjork-text-muted">
-							{new Date(revision.createdAt).toLocaleDateString()}
+							<RelativeTime date={revision.createdAt} />
 						</span>
 					</SelectItem>
 				))}

@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CommentForm } from "@/components/CommentForm";
 import { Panel } from "@/components/layout/panel";
+import { RelativeTime } from "@/components/RelativeTime";
 import { useToast } from "@/components/toast-provider";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/lib/query-options";
@@ -62,7 +63,7 @@ export function GistComments({
 								{comment.author.username}
 							</Link>
 							<span className="text-bjork-text-muted">
-								{new Date(comment.createdAt).toLocaleString()}
+								<RelativeTime date={comment.createdAt} />
 							</span>
 						</div>
 						{comment.canDelete && (

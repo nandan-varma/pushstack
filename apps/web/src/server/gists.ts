@@ -8,10 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { isNotFoundError } from "git-fs-s3";
 import { z } from "zod";
 import { detectLanguage } from "#/lib/language-detection";
-import {
-	MAX_GIST_COMMENT_BODY_CHARS,
-	MAX_GIST_DESCRIPTION_CHARS,
-} from "#/lib/limits";
+import { MAX_GIST_COMMENT_BODY_CHARS } from "#/lib/limits";
 import { getAccessForGist } from "./gist-access";
 import { gistCommitPage, listGistFilePaths, readGistFiles } from "./gist-git";
 import {
@@ -35,7 +32,7 @@ import { readInput } from "./read-input";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 const INDEX_PAGE_SIZE = 10;
-const FILES_PAGE_SIZE = 10;
+const LIST_PAGE_SIZE = 10;
 const COMMENTS_PAGE_SIZE = 100;
 const REVISIONS_PAGE_SIZE = 50;
 
@@ -95,7 +92,7 @@ export const getGistPage = createServerFn({ method: "GET" })
 				await Promise.all([
 					readGistFiles(row.id, revision),
 					listGistComments(row.id, { limit: COMMENTS_PAGE_SIZE, offset: 0 }),
-					listGistForks(row.id, { limit: FILES_PAGE_SIZE, offset: 0 }),
+					listGistForks(row.id, { limit: LIST_PAGE_SIZE, offset: 0 }),
 					gistCommitPage(row.id, REVISIONS_PAGE_SIZE),
 					countGistStars(row.id),
 					row.forkOfId ? findGistById(row.forkOfId) : null,
@@ -172,7 +169,7 @@ export const getGistIndex = createServerFn({ method: "GET" }).handler(
 				files: await listGistFilePaths(row.id),
 			})),
 		);
-		return { signedIn: viewer !== null, gists, total: page.total };
+		return { signedIn: viewer !== null, gists };
 	},
 );
 
@@ -181,14 +178,7 @@ export const getGistIndex = createServerFn({ method: "GET" }).handler(
  * becomes GitHub's 301 to the `/gist/…` page) or a repository.
  */
 export const gistPathTarget = createServerFn({ method: "GET" })
-	.validator(
-		readInput(
-			z.object({
-				owner: z.string(),
-				name: z.string().max(MAX_GIST_DESCRIPTION_CHARS),
-			}),
-		),
-	)
+	.validator(readInput(z.object({ owner: z.string(), name: z.string() })))
 	.handler(async ({ data }) => {
 		const row = await findGistAtOwnerPath(data.owner, data.name);
 		return row ? ("gist" as const) : ("repository" as const);
