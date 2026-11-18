@@ -18,6 +18,11 @@ export function getWikiCloneUrl(owner: string, repoName: string): string {
 	return `${getGitBaseUrl()}/${owner}/${repoName}.wiki.git`;
 }
 
+/** A gist's clone URL is `/{id}.git`: no owner segment, as on GitHub. */
+export function getGistCloneUrl(gistId: string): string {
+	return `${getGitBaseUrl()}/${gistId}.git`;
+}
+
 export function getSetupInstructions(repoName: string, cloneUrl: string) {
 	return {
 		newRepo: `echo "# ${repoName}" >> README.md

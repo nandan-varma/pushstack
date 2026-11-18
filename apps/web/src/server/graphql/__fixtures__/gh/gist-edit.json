@@ -1,0 +1,9 @@
+{
+	"gh": "gh version 2.104.0 (2026-11-12)",
+	"command": "gh gist edit 0b2100e4a324319b06cb065e182d6c2d --add WORK/added.txt --desc Edited gist",
+	"requests": [
+		{
+			"query": "query UserCurrent{viewer{login}}"
+		}
+	]
+}

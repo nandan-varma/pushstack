@@ -30,6 +30,7 @@ export const DOMAINS = [
 	"pulls",
 	"projects",
 	"discussions",
+	"gists",
 ];
 const BUILT_IN = new Set(["String", "Int", "Float", "Boolean", "ID"]);
 const KEPT_DIRECTIVES = new Set(["deprecated"]);

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as GistRouteImport } from './routes/gist'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RepositoriesRouteImport } from './routes/repositories'
@@ -25,6 +26,7 @@ import { Route as AuthPassword_resetRouteImport } from './routes/_auth/password_
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as ApiGraphqlRouteImport } from './routes/api/graphql'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as GistIndexRouteImport } from './routes/gist.index'
 import { Route as LoginDeviceRouteImport } from './routes/login.device'
 import { Route as RepositoriesIndexRouteImport } from './routes/repositories/index'
 import { Route as SettingsApplicationsRouteImport } from './routes/settings_.applications'
@@ -43,6 +45,7 @@ import { Route as OwnerNameSetupRouteImport } from './routes/$owner.$name.setup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiDebugPerfRouteImport } from './routes/api/debug.perf'
 import { Route as ApiV3SplatRouteImport } from './routes/api/v3.$'
+import { Route as GistOwnerIdRouteImport } from './routes/gist.$owner.$id'
 import { Route as LoginDeviceCodeRouteImport } from './routes/login.device.code'
 import { Route as LoginOauthAccess_tokenRouteImport } from './routes/login.oauth.access_token'
 import { Route as LoginOauthAuthorizeRouteImport } from './routes/login.oauth.authorize'
@@ -67,6 +70,7 @@ import { Route as OwnerNameReleasesLatestRouteImport } from './routes/$owner.$na
 import { Route as OwnerNameReleasesNewRouteImport } from './routes/$owner.$name.releases.new'
 import { Route as OwnerNameSettingsIndexRouteImport } from './routes/$owner.$name.settings.index'
 import { Route as OwnerNameSettingsBranchesRouteImport } from './routes/$owner.$name.settings.branches'
+import { Route as GistOwnerIdRevisionRouteImport } from './routes/gist.$owner.$id.$revision'
 import { Route as OwnerNameBlameBranchSplatRouteImport } from './routes/$owner.$name.blame.$branch.$'
 import { Route as OwnerNameBlobBranchSplatRouteImport } from './routes/$owner.$name.blob.$branch.$'
 import { Route as OwnerNameIssuesNewChooseRouteImport } from './routes/$owner.$name.issues_.new_.choose'
@@ -77,6 +81,7 @@ import { Route as OwnerNameReleasesEditSplatRouteImport } from './routes/$owner.
 import { Route as OwnerNameReleasesTagSplatRouteImport } from './routes/$owner.$name.releases.tag.$'
 import { Route as OwnerNameTreeBranchSplatRouteImport } from './routes/$owner.$name.tree.$branch.$'
 import { Route as OwnerNameUploadBranchSplatRouteImport } from './routes/$owner.$name.upload.$branch.$'
+import { Route as GistOwnerIdRawSplatRouteImport } from './routes/gist.$owner.$id.raw.$'
 import { Route as OwnerNamePullsPullIdChar123TabChar125RouteImport } from './routes/$owner.$name._pulls.pull.$id.{-$tab}'
 
 const IndexRoute = IndexRouteImport.update({
@@ -96,6 +101,11 @@ const AboutRoute = AboutRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GistRoute = GistRouteImport.update({
+  id: '/gist',
+  path: '/gist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewRoute = NewRouteImport.update({
@@ -157,6 +167,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
+} as any)
+const GistIndexRoute = GistIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GistRoute,
 } as any)
 const LoginDeviceRoute = LoginDeviceRouteImport.update({
   id: '/login/device',
@@ -246,6 +261,11 @@ const ApiV3SplatRoute = ApiV3SplatRouteImport.update({
   id: '/api/v3/$',
   path: '/api/v3/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const GistOwnerIdRoute = GistOwnerIdRouteImport.update({
+  id: '/$owner/$id',
+  path: '/$owner/$id',
+  getParentRoute: () => GistRoute,
 } as any)
 const LoginDeviceCodeRoute = LoginDeviceCodeRouteImport.update({
   id: '/code',
@@ -372,6 +392,11 @@ const OwnerNameSettingsBranchesRoute =
     path: '/branches',
     getParentRoute: () => OwnerNameSettingsRoute,
   } as any)
+const GistOwnerIdRevisionRoute = GistOwnerIdRevisionRouteImport.update({
+  id: '/$revision',
+  path: '/$revision',
+  getParentRoute: () => GistOwnerIdRoute,
+} as any)
 const OwnerNameBlameBranchSplatRoute =
   OwnerNameBlameBranchSplatRouteImport.update({
     id: '/blame/$branch/$',
@@ -432,6 +457,11 @@ const OwnerNameUploadBranchSplatRoute =
     path: '/upload/$branch/$',
     getParentRoute: () => OwnerNameRoute,
   } as any)
+const GistOwnerIdRawSplatRoute = GistOwnerIdRawSplatRouteImport.update({
+  id: '/raw/$',
+  path: '/raw/$',
+  getParentRoute: () => GistOwnerIdRoute,
+} as any)
 const OwnerNamePullsPullIdChar123TabChar125Route =
   OwnerNamePullsPullIdChar123TabChar125RouteImport.update({
     id: '/pull/$id/{-$tab}',
@@ -443,6 +473,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/dashboard': typeof DashboardRoute
+  '/gist': typeof GistRouteWithChildren
   '/new': typeof NewRoute
   '/notifications': typeof NotificationsRoute
   '/repositories': typeof RepositoriesRouteWithChildren
@@ -458,6 +489,7 @@ export interface FileRoutesByFullPath {
   '/settings/applications': typeof SettingsApplicationsRoute
   '/settings/developers': typeof SettingsDevelopersRoute
   '/$owner/': typeof OwnerIndexRoute
+  '/gist/': typeof GistIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsRouteWithChildren
   '/$owner/$name/forks': typeof OwnerNameForksRoute
@@ -471,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
+  '/gist/$owner/$id': typeof GistOwnerIdRouteWithChildren
   '/login/device/code': typeof LoginDeviceCodeRoute
   '/login/oauth/access_token': typeof LoginOauthAccess_tokenRoute
   '/login/oauth/authorize': typeof LoginOauthAuthorizeRoute
@@ -492,6 +525,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
@@ -505,6 +539,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/releases/tag/$': typeof OwnerNameReleasesTagSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/gist/$owner/$id/raw/$': typeof GistOwnerIdRawSplatRoute
   '/$owner/$name/milestone/$number/': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
@@ -525,6 +560,7 @@ export interface FileRoutesByTo {
   '/settings/applications': typeof SettingsApplicationsRoute
   '/settings/developers': typeof SettingsDevelopersRoute
   '/$owner': typeof OwnerIndexRoute
+  '/gist': typeof GistIndexRoute
   '/repositories': typeof RepositoriesIndexRoute
   '/$owner/$name': typeof OwnerNameIndexRoute
   '/$owner/$name/forks': typeof OwnerNameForksRoute
@@ -537,6 +573,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
+  '/gist/$owner/$id': typeof GistOwnerIdRouteWithChildren
   '/login/device/code': typeof LoginDeviceCodeRoute
   '/login/oauth/access_token': typeof LoginOauthAccess_tokenRoute
   '/login/oauth/authorize': typeof LoginOauthAuthorizeRoute
@@ -557,6 +594,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases': typeof OwnerNameReleasesIndexRoute
@@ -570,6 +608,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/releases/tag/$': typeof OwnerNameReleasesTagSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/gist/$owner/$id/raw/$': typeof GistOwnerIdRawSplatRoute
   '/$owner/$name/milestone/$number': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
@@ -579,6 +618,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/about': typeof AboutRoute
   '/dashboard': typeof DashboardRoute
+  '/gist': typeof GistRouteWithChildren
   '/new': typeof NewRoute
   '/notifications': typeof NotificationsRoute
   '/repositories': typeof RepositoriesRouteWithChildren
@@ -594,6 +634,7 @@ export interface FileRoutesById {
   '/settings_/applications': typeof SettingsApplicationsRoute
   '/settings_/developers': typeof SettingsDevelopersRoute
   '/$owner/': typeof OwnerIndexRoute
+  '/gist/': typeof GistIndexRoute
   '/repositories/': typeof RepositoriesIndexRoute
   '/$owner/$name/_pulls': typeof OwnerNamePullsRouteWithChildren
   '/$owner/$name/discussions': typeof OwnerNameDiscussionsRouteWithChildren
@@ -608,6 +649,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
   '/api/v3/$': typeof ApiV3SplatRoute
+  '/gist/$owner/$id': typeof GistOwnerIdRouteWithChildren
   '/login/device/code': typeof LoginDeviceCodeRoute
   '/login/oauth/access_token': typeof LoginOauthAccess_tokenRoute
   '/login/oauth/authorize': typeof LoginOauthAuthorizeRoute
@@ -629,6 +671,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/latest': typeof OwnerNameReleasesLatestRoute
   '/$owner/$name/releases/new': typeof OwnerNameReleasesNewRoute
   '/$owner/$name/settings/branches': typeof OwnerNameSettingsBranchesRoute
+  '/gist/$owner/$id/$revision': typeof GistOwnerIdRevisionRoute
   '/$owner/$name/discussions/': typeof OwnerNameDiscussionsIndexRoute
   '/$owner/$name/milestones/': typeof OwnerNameMilestonesIndexRoute
   '/$owner/$name/releases/': typeof OwnerNameReleasesIndexRoute
@@ -642,6 +685,7 @@ export interface FileRoutesById {
   '/$owner/$name/releases/tag/$': typeof OwnerNameReleasesTagSplatRoute
   '/$owner/$name/tree/$branch/$': typeof OwnerNameTreeBranchSplatRoute
   '/$owner/$name/upload/$branch/$': typeof OwnerNameUploadBranchSplatRoute
+  '/gist/$owner/$id/raw/$': typeof GistOwnerIdRawSplatRoute
   '/$owner/$name/milestone/$number/': typeof OwnerNameMilestoneNumberIndexRoute
   '/$owner/$name/_pulls/pull/$id/{-$tab}': typeof OwnerNamePullsPullIdChar123TabChar125Route
 }
@@ -651,6 +695,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/dashboard'
+    | '/gist'
     | '/new'
     | '/notifications'
     | '/repositories'
@@ -666,6 +711,7 @@ export interface FileRouteTypes {
     | '/settings/applications'
     | '/settings/developers'
     | '/$owner/'
+    | '/gist/'
     | '/repositories/'
     | '/$owner/$name/discussions'
     | '/$owner/$name/forks'
@@ -679,6 +725,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/debug/perf'
     | '/api/v3/$'
+    | '/gist/$owner/$id'
     | '/login/device/code'
     | '/login/oauth/access_token'
     | '/login/oauth/authorize'
@@ -700,6 +747,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
@@ -713,6 +761,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/tag/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/gist/$owner/$id/raw/$'
     | '/$owner/$name/milestone/$number/'
     | '/$owner/$name/pull/$id/{-$tab}'
   fileRoutesByTo: FileRoutesByTo
@@ -733,6 +782,7 @@ export interface FileRouteTypes {
     | '/settings/applications'
     | '/settings/developers'
     | '/$owner'
+    | '/gist'
     | '/repositories'
     | '/$owner/$name'
     | '/$owner/$name/forks'
@@ -745,6 +795,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/debug/perf'
     | '/api/v3/$'
+    | '/gist/$owner/$id'
     | '/login/device/code'
     | '/login/oauth/access_token'
     | '/login/oauth/authorize'
@@ -765,6 +816,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions'
     | '/$owner/$name/milestones'
     | '/$owner/$name/releases'
@@ -778,6 +830,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/tag/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/gist/$owner/$id/raw/$'
     | '/$owner/$name/milestone/$number'
     | '/$owner/$name/pull/$id/{-$tab}'
   id:
@@ -786,6 +839,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/about'
     | '/dashboard'
+    | '/gist'
     | '/new'
     | '/notifications'
     | '/repositories'
@@ -801,6 +855,7 @@ export interface FileRouteTypes {
     | '/settings_/applications'
     | '/settings_/developers'
     | '/$owner/'
+    | '/gist/'
     | '/repositories/'
     | '/$owner/$name/_pulls'
     | '/$owner/$name/discussions'
@@ -815,6 +870,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/debug/perf'
     | '/api/v3/$'
+    | '/gist/$owner/$id'
     | '/login/device/code'
     | '/login/oauth/access_token'
     | '/login/oauth/authorize'
@@ -836,6 +892,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/latest'
     | '/$owner/$name/releases/new'
     | '/$owner/$name/settings/branches'
+    | '/gist/$owner/$id/$revision'
     | '/$owner/$name/discussions/'
     | '/$owner/$name/milestones/'
     | '/$owner/$name/releases/'
@@ -849,6 +906,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/releases/tag/$'
     | '/$owner/$name/tree/$branch/$'
     | '/$owner/$name/upload/$branch/$'
+    | '/gist/$owner/$id/raw/$'
     | '/$owner/$name/milestone/$number/'
     | '/$owner/$name/_pulls/pull/$id/{-$tab}'
   fileRoutesById: FileRoutesById
@@ -858,6 +916,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   AboutRoute: typeof AboutRoute
   DashboardRoute: typeof DashboardRoute
+  GistRoute: typeof GistRouteWithChildren
   NewRoute: typeof NewRoute
   NotificationsRoute: typeof NotificationsRoute
   RepositoriesRoute: typeof RepositoriesRouteWithChildren
@@ -905,6 +964,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gist': {
+      id: '/gist'
+      path: '/gist'
+      fullPath: '/gist'
+      preLoaderRoute: typeof GistRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new': {
@@ -990,6 +1056,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/gist/': {
+      id: '/gist/'
+      path: '/'
+      fullPath: '/gist/'
+      preLoaderRoute: typeof GistIndexRouteImport
+      parentRoute: typeof GistRoute
     }
     '/login/device': {
       id: '/login/device'
@@ -1116,6 +1189,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v3/$'
       preLoaderRoute: typeof ApiV3SplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/gist/$owner/$id': {
+      id: '/gist/$owner/$id'
+      path: '/$owner/$id'
+      fullPath: '/gist/$owner/$id'
+      preLoaderRoute: typeof GistOwnerIdRouteImport
+      parentRoute: typeof GistRoute
     }
     '/login/device/code': {
       id: '/login/device/code'
@@ -1285,6 +1365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameSettingsBranchesRouteImport
       parentRoute: typeof OwnerNameSettingsRoute
     }
+    '/gist/$owner/$id/$revision': {
+      id: '/gist/$owner/$id/$revision'
+      path: '/$revision'
+      fullPath: '/gist/$owner/$id/$revision'
+      preLoaderRoute: typeof GistOwnerIdRevisionRouteImport
+      parentRoute: typeof GistOwnerIdRoute
+    }
     '/$owner/$name/blame/$branch/$': {
       id: '/$owner/$name/blame/$branch/$'
       path: '/blame/$branch/$'
@@ -1355,6 +1442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerNameUploadBranchSplatRouteImport
       parentRoute: typeof OwnerNameRoute
     }
+    '/gist/$owner/$id/raw/$': {
+      id: '/gist/$owner/$id/raw/$'
+      path: '/raw/$'
+      fullPath: '/gist/$owner/$id/raw/$'
+      preLoaderRoute: typeof GistOwnerIdRawSplatRouteImport
+      parentRoute: typeof GistOwnerIdRoute
+    }
     '/$owner/$name/_pulls/pull/$id/{-$tab}': {
       id: '/$owner/$name/_pulls/pull/$id/{-$tab}'
       path: '/pull/$id/{-$tab}'
@@ -1378,6 +1472,32 @@ const AuthRouteChildren: AuthRouteChildren = {
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
+interface GistOwnerIdRouteChildren {
+  GistOwnerIdRevisionRoute: typeof GistOwnerIdRevisionRoute
+  GistOwnerIdRawSplatRoute: typeof GistOwnerIdRawSplatRoute
+}
+
+const GistOwnerIdRouteChildren: GistOwnerIdRouteChildren = {
+  GistOwnerIdRevisionRoute: GistOwnerIdRevisionRoute,
+  GistOwnerIdRawSplatRoute: GistOwnerIdRawSplatRoute,
+}
+
+const GistOwnerIdRouteWithChildren = GistOwnerIdRoute._addFileChildren(
+  GistOwnerIdRouteChildren,
+)
+
+interface GistRouteChildren {
+  GistIndexRoute: typeof GistIndexRoute
+  GistOwnerIdRoute: typeof GistOwnerIdRouteWithChildren
+}
+
+const GistRouteChildren: GistRouteChildren = {
+  GistIndexRoute: GistIndexRoute,
+  GistOwnerIdRoute: GistOwnerIdRouteWithChildren,
+}
+
+const GistRouteWithChildren = GistRoute._addFileChildren(GistRouteChildren)
 
 interface RepositoriesRouteChildren {
   RepositoriesIndexRoute: typeof RepositoriesIndexRoute
@@ -1543,6 +1663,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   AboutRoute: AboutRoute,
   DashboardRoute: DashboardRoute,
+  GistRoute: GistRouteWithChildren,
   NewRoute: NewRoute,
   NotificationsRoute: NotificationsRoute,
   RepositoriesRoute: RepositoriesRouteWithChildren,

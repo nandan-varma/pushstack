@@ -1,12 +1,13 @@
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
 /**
- * A gist's clone URL (`/{id}.git/…`) is one path segment, which no TanStack
- * route can express (a param cannot share a segment with a literal suffix), so
- * it is matched here, before the router. Repository clones keep their
- * `$owner.$name.*` routes.
+ * A gist's clone URL (`/{id}.git/…`, or `/gist/{id}.git/…` as gh asks for on
+ * GitHub Enterprise) is one path segment, which no TanStack route can express
+ * (a param cannot share a segment with a literal suffix), so it is matched
+ * here, before the router. Repository clones keep their `$owner.$name.*`
+ * routes.
  */
-const GIST_GIT_PATH = /^\/[0-9a-f]{32}\.git(?:\/|$)/;
+const GIST_GIT_PATH = /^\/(?:gist\/)?[0-9a-f]{32}\.git(?:\/|$)/;
 
 function isGistGitRequest(url: string): boolean {
 	try {

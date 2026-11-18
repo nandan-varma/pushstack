@@ -31,6 +31,7 @@ const DOMAINS = [
 	"pulls",
 	"projects",
 	"discussions",
+	"gists",
 ];
 
 export async function generateResolverTypes(): Promise<string> {
@@ -83,6 +84,10 @@ export async function generateResolverTypes(): Promise<string> {
 				SshSignature: "./commit#GitSignatureNode",
 				RateLimit: "../context#RateLimitInfo",
 				ProjectV2: "./projects#ProjectNode",
+				Gist: "./gists#GistNode",
+				GistFile: "./gists#GistFileNode",
+				GistComment: "./gists#GistCommentNode",
+				Language: "./gists#LanguageNode",
 				ProjectV2Item: "./projects#ProjectItemNode",
 				ProjectV2Field: "./projects#ProjectFieldNode",
 				ProjectV2SingleSelectField: "./projects#ProjectFieldNode",

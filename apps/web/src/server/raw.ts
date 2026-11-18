@@ -43,6 +43,23 @@ export function cacheControl(isPublic: boolean, ref: string): string {
 
 const notFound = () => new Response("Not found", { status: 404 });
 
+/** A file's exact bytes, streamed, with the inert content type this origin serves. */
+export function rawBytesResponse(
+	path: string,
+	bytes: Uint8Array,
+	cache: string,
+): Response {
+	return new Response(stream(bytes), {
+		headers: {
+			"Content-Length": String(bytes.byteLength),
+			"Content-Type": contentType(path, bytes.includes(0)),
+			"X-Content-Type-Options": "nosniff",
+			"Content-Disposition": "inline",
+			"Cache-Control": cache,
+		},
+	});
+}
+
 function stream(bytes: Uint8Array): ReadableStream<Uint8Array> {
 	let offset = 0;
 	return new ReadableStream({
@@ -113,15 +130,11 @@ export async function serveRawFile(request: Request): Promise<Response> {
 			);
 		}
 		const bytes = file.bytes;
-		return new Response(stream(bytes), {
-			headers: {
-				"Content-Length": String(bytes.byteLength),
-				"Content-Type": contentType(path, bytes.includes(0)),
-				"X-Content-Type-Options": "nosniff",
-				"Content-Disposition": "inline",
-				"Cache-Control": cacheControl(repository.visibility === "public", ref),
-			},
-		});
+		return rawBytesResponse(
+			path,
+			bytes,
+			cacheControl(repository.visibility === "public", ref),
+		);
 	} catch (error) {
 		if (isNotFoundError(error)) return notFound();
 		logError("raw", `GET ${owner}/${name}@${ref}:${path} failed`, error);

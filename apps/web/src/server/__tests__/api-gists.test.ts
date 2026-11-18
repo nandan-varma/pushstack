@@ -190,6 +190,15 @@ describe("gist lifecycle", () => {
 		expect((await call(`/gists/${publicId}/${UNKNOWN_SHA}`)).status).toBe(404);
 	});
 
+	it("accepts POST for an update, as gh sends it", async () => {
+		const updated = await call(
+			`/gists/${publicId}`,
+			post(token, { description: "posted" }),
+		);
+		expect(updated.status).toBe(200);
+		expect(updated.body.description).toBe("posted");
+	});
+
 	it("deletes a gist, then answers 404", async () => {
 		const deleted = await call(`/gists/${secretId}`, deleteRequest(token));
 		expect(deleted.status).toBe(204);

@@ -4,6 +4,7 @@ import {
 	type ErrorComponentProps,
 	Link,
 	Outlet,
+	redirect,
 	useMatchRoute,
 	useParams,
 } from "@tanstack/react-router";
@@ -18,17 +19,32 @@ import { useBranchUpdateBanner } from "@/hooks/use-branch-update-banner";
 import { perfTime } from "@/lib/perf-log";
 import { repositoryByNameQueryOptions } from "@/lib/query-options";
 import { SITE_URL } from "@/lib/site";
+import { gistPathTarget } from "@/server/gists";
 
 export const Route = createFileRoute("/$owner/$name")({
 	loader: ({ params, context: { queryClient } }) =>
-		perfTime(`loader repo-layout ${params.owner}/${params.name}`, () =>
-			queryClient.ensureQueryData(
-				repositoryByNameQueryOptions({
-					owner: params.owner,
-					name: params.name,
-				}),
-			),
-		),
+		perfTime(`loader repo-layout ${params.owner}/${params.name}`, async () => {
+			try {
+				return await queryClient.ensureQueryData(
+					repositoryByNameQueryOptions({
+						owner: params.owner,
+						name: params.name,
+					}),
+				);
+			} catch (error) {
+				// GitHub serves a gist at `/{user}/{id}` too: a repository miss that
+				// names a gist is a 301 to the gist page, not a 404.
+				const target = await gistPathTarget({
+					data: { owner: params.owner, name: params.name },
+				});
+				if (target !== "gist") throw error;
+				throw redirect({
+					to: "/gist/$owner/$id",
+					params: { owner: params.owner, id: params.name },
+					statusCode: 301,
+				});
+			}
+		}),
 	// Every repo sub-page (tree/issues/pulls/commits) shares this layout route,
 	// so this is the one place that can put the repo's own identity into every
 	// one of those pages' title/description instead of them all showing the

@@ -32,6 +32,7 @@ import {
 	getTreePageData,
 } from "@/server/files";
 import { listProfileConnections } from "@/server/follows";
+import { getGistIndex, getGistPage } from "@/server/gists";
 import { getIssueByNumber, getIssueNumbers, getIssues } from "@/server/issues";
 import { getLabels } from "@/server/labels";
 import {
@@ -89,6 +90,11 @@ export const queryKeys = {
 	userActivity: (userId: string | undefined, limit: number) =>
 		["activity", "user", userId ?? "self", limit] as const,
 	userProfile: (username: string) => ["users", "profile", username] as const,
+	gistIndex: ["gists", "index"] as const,
+	/** Every gist query: a star, comment or fork invalidates this one root. */
+	gistsRoot: ["gists"] as const,
+	gistPage: (owner: string, id: string, revision: string) =>
+		["gists", "page", owner, id, revision] as const,
 	searchRepositories: (query: string) =>
 		["search", "repositories", query] as const,
 	searchUsers: (query: string) => ["search", "users", query] as const,
@@ -1088,3 +1094,31 @@ export const assignedThreadsQueryOptions = () =>
 		queryKey: queryKeys.assignedThreads,
 		queryFn: () => getAssignedThreads(),
 	});
+
+/** `/gist`: the caller's gists, or recent public ones when signed out. */
+export const gistIndexQueryOptions = () =>
+	queryOptions({
+		queryKey: queryKeys.gistIndex,
+		queryFn: () => getGistIndex(),
+		staleTime: DEFAULT_STALE_TIME,
+	});
+
+/** One gist's files at a revision (HEAD when none), with its social data. */
+export function gistPageQueryOptions({
+	owner,
+	id,
+	revision,
+}: {
+	owner: string;
+	id: string;
+	revision?: string;
+}) {
+	const rev = revision ?? "HEAD";
+	const immutable = /^[0-9a-f]{40}$/i.test(rev);
+	return queryOptions({
+		queryKey: queryKeys.gistPage(owner, id, rev),
+		queryFn: () => getGistPage({ data: { owner, id, revision } }),
+		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
+		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
+	});
+}

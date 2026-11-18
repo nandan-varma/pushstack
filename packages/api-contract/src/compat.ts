@@ -119,7 +119,7 @@ export const compatibilityNotes: Record<OperationId, string> = {
 	"gists/get-revision":
 		"the gist's files at a commit sha; an unknown or malformed revision is `404`",
 	"gists/update":
-		"the owner and a `gist` token only (`404` otherwise); file keys are current names: `content` replaces, `filename` renames (keeping content when omitted), a null entry or an object with neither deletes; one commit per change",
+		"`PATCH` (and `POST`, as gh sends it); the owner and a `gist` token only (`404` otherwise); file keys are current names: `content` replaces, `filename` renames (keeping content when omitted), a null entry or an object with neither deletes; one commit per change",
 	"gists/delete":
 		"the owner and a `gist` token only (`404` otherwise); `204`; the git storage is removed",
 	"gists/check-is-starred":

@@ -17,11 +17,15 @@
 
 /**
  * Legacy codes checked against live GitHub on cli/cli (#269, samples decoded
- * from `gh api` and GraphQL). `05` is shared by Issue and Label; the name
- * tells them apart.
+ * from `gh api` and GraphQL). `05` is shared by Issue and Label, and `04` by
+ * User, Gist and GistComment; the name tells them apart, longest name first.
+ * `08` for Language is a documented GitHub id shape, not a live capture.
  */
 const TYPE_CODES = {
 	DiscussionCategory: "018",
+	GistComment: "04",
+	Gist: "04",
+	Language: "08",
 	Issue: "05",
 	IssueComment: "012",
 	Label: "05",
@@ -42,13 +46,16 @@ const TYPE_CODES = {
  * and `REA_lAHODKw3uc4d8iLozgxLM_A` is reaction 206255088 on pull request
  * 502407912. A discussion is `D_kwDODKw3uc4Aj7Sr`, its comment
  * `DC_kwDODKw3uc4A9XvP`, and a category is either the new form
- * `DIC_kwDODKw3uc4CBkqR` or the legacy `018:DiscussionCategory32153207`.
+ * `DIC_kwDODKw3uc4CBkqR` or the legacy `018:DiscussionCategory32153207`. A
+ * gist (`G_`) has no repository: its middle slot is the owner's user id and
+ * its key is the gist id.
  */
 const GLOBAL_PREFIX = {
 	Commit: "C",
 	Discussion: "D",
 	DiscussionCategory: "DIC",
 	DiscussionComment: "DC",
+	Gist: "G",
 	IssueComment: "IC",
 	Reaction: "REA",
 	Release: "RE",
@@ -253,6 +260,12 @@ function nodeOfTuple(
 	}
 	if (tuple.length !== 3 || tag !== 0) return null;
 	if (type === "Commit") {
+		return typeof third === "string"
+			? { type, key: third, repositoryId }
+			: null;
+	}
+	// A gist's key is its 32-hex id, not a row number.
+	if (type === "Gist") {
 		return typeof third === "string"
 			? { type, key: third, repositoryId }
 			: null;

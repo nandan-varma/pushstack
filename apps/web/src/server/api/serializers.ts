@@ -995,7 +995,7 @@ export function gistSimple(
 		forks_url: apiUrl(`${api}/forks`),
 		commits_url: apiUrl(`${api}/commits`),
 		id: gist.id,
-		node_id: Buffer.from(`Gist:${gist.id}`).toString("base64"),
+		node_id: encodeNodeId("Gist", gist.id),
 		git_pull_url: htmlUrl(`/${gist.id}.git`),
 		git_push_url: htmlUrl(`/${gist.id}.git`),
 		html_url: htmlUrl(`/${gist.owner.username}/${gist.id}`),

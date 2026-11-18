@@ -10,6 +10,11 @@ export type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 export interface Route {
 	method: Method;
 	/**
+	 * Further methods GitHub answers for the same operation (gh updates a gist
+	 * with POST; GitHub's docs name PATCH). The client sends `method`.
+	 */
+	also?: Method[];
+	/**
 	 * GitHub's path template. `{name}` is one segment; `{+name}` (RFC 6570
 	 * reserved expansion) takes every segment up to the literals after it,
 	 * slashes kept, and may be empty only when nothing follows it.
