@@ -13,6 +13,7 @@ import { getCommitDiff } from "./git-read";
 import { repoFor } from "./git-repo";
 import { ownerKeyOf } from "./git-storage-naming";
 import type { PublicUser, RepositoryRowWithOwner } from "./repository-lookup";
+import type { Thread } from "./thread-store";
 import type { Webhook, WebhookDeliveryRow } from "./webhook-store";
 
 const PING_ZEN = "Non-blocking is better than blocking.";
@@ -243,5 +244,34 @@ export async function pushPayload(
 			role: "admin",
 		}),
 		sender: input.sender ? simpleUser(input.sender) : null,
+	};
+}
+
+export interface PullRequestEventInput {
+	action: string;
+	thread: Thread;
+	sender: PublicUser;
+	/** `edited` and the label/assignee actions carry what changed. */
+	changes?: Record<string, unknown>;
+	label?: unknown;
+}
+
+/** The `pull_request` event, embedding the REST pull object. */
+export async function pullRequestPayload(
+	repo: RepositoryRowWithOwner,
+	input: PullRequestEventInput,
+) {
+	// Imported lazily: the REST module imports the stores that emit this event.
+	const { pullRequestRestPayload } = await import("./api/pulls");
+	return {
+		action: input.action,
+		number: input.thread.number,
+		pull_request: await pullRequestRestPayload(repo, input.thread),
+		...(input.changes && { changes: input.changes }),
+		...(input.label !== undefined && { label: input.label }),
+		repository: await repositoryPayload(repo, input.sender.id, {
+			role: "admin",
+		}),
+		sender: simpleUser(input.sender),
 	};
 }

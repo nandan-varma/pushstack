@@ -36,6 +36,7 @@ import {
 	recordTimelineEvent,
 	recordTimelineEvents,
 } from "./timeline-store";
+import { emitPullRequestEvent } from "./webhook-events";
 
 export type { PullRequest };
 
@@ -139,6 +140,12 @@ export async function insertPullRequest(
 		await discardIssueRow(issue.id, "failed pull request write");
 		throw error;
 	}
+	await emitPullRequestEvent({
+		repoId,
+		number: pr.number,
+		action: "opened",
+		senderId: userId,
+	});
 	return pr;
 }
 
@@ -207,6 +214,27 @@ export async function updatePullRequestFields(
 			metadata: { number: pr.number, title: pr.title, action },
 		});
 	}
+	const changes = {
+		...(titleChanged && { title: { from: pr.title } }),
+		...(bodyChanged && { body: { from: pr.body } }),
+	};
+	if (titleChanged || bodyChanged) {
+		await emitPullRequestEvent({
+			repoId: pr.repoId,
+			number: pr.number,
+			action: "edited",
+			senderId: userId,
+			changes,
+		});
+	}
+	if (statusChanged && fields.status) {
+		await emitPullRequestEvent({
+			repoId: pr.repoId,
+			number: pr.number,
+			action: fields.status === "closed" ? "closed" : "reopened",
+			senderId: userId,
+		});
+	}
 	const { headRef: _headRef, status: _status, ...fieldsOfPr } = pr;
 	return pullRequestOf(updated, {
 		sourceBranch: fieldsOfPr.sourceBranch,
@@ -258,6 +286,12 @@ export async function setPullRequestDraft(
 		thread: pr,
 		actorId: userId,
 		actorReason: "state_change",
+	});
+	await emitPullRequestEvent({
+		repoId: pr.repoId,
+		number: pr.number,
+		action: draft ? "converted_to_draft" : "ready_for_review",
+		senderId: userId,
 	});
 	return { ...pr, isDraft: draft };
 }
@@ -529,6 +563,14 @@ export async function mergePullRequestBranches(
 		recordActivity(user.id, pr.repoId, {
 			type: "pr",
 			metadata: { number: pr.number, title: pr.title, action: "merged" },
+		}),
+	);
+	await followUp("The closed webhook", () =>
+		emitPullRequestEvent({
+			repoId: pr.repoId,
+			number: pr.number,
+			action: "closed",
+			senderId: user.id,
 		}),
 	);
 	return { success: true, commitSha: result.commitSha };

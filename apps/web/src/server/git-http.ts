@@ -55,7 +55,10 @@ import {
 } from "./rate-limit";
 import { draftReleasesForDeletedTag } from "./release-store";
 import { findRepositoryByName } from "./repository-lookup";
-import { emitPushEvents } from "./webhook-events";
+import {
+	emitPullRequestSynchronizations,
+	emitPushEvents,
+} from "./webhook-events";
 import { ensureWikiRepository, WIKI_BRANCH } from "./wiki-git";
 
 type GitService = "git-upload-pack" | "git-receive-pack";
@@ -251,6 +254,17 @@ async function receivePack(
 			});
 		} catch (error) {
 			logWarn("git-http", "sending push webhooks failed", error);
+		}
+		try {
+			await emitPullRequestSynchronizations({
+				repoId,
+				defaultBranch,
+				pusherId,
+				updates: parsed.refUpdates,
+				results: outcome.results,
+			});
+		} catch (error) {
+			logWarn("git-http", "sending pull request webhooks failed", error);
 		}
 	}
 	return receivePackResponse(outcome.results, {

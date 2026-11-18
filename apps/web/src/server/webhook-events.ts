@@ -5,12 +5,15 @@
  * delivery. A delivery failure is logged and never fails the write that
  * triggered it; GitHub also never retries a failed delivery.
  */
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import type { RefUpdateCommand, RefUpdateResult } from "git-fs-s3/http";
 import { db } from "#/db";
-import { webhooks } from "#/db/app-schema";
+import { issues, pullRequests, webhooks } from "#/db/app-schema";
 import { user } from "#/db/schema";
-import { MAX_WEBHOOK_COMMITS } from "#/lib/limits";
+import {
+	MAX_WEBHOOK_COMMITS,
+	MAX_WEBHOOK_PR_SYNCHRONIZATIONS,
+} from "#/lib/limits";
 import { afterResponse } from "./after-response";
 import { bestEffort } from "./best-effort";
 import { commitsInUpdate } from "./commit-references";
@@ -20,8 +23,9 @@ import {
 	type PublicUser,
 	publicUserColumns,
 } from "./repository-lookup";
+import { findThread } from "./thread-store";
 import { deliverWebhook } from "./webhook-deliver";
-import { pushPayload } from "./webhook-payloads";
+import { pullRequestPayload, pushPayload } from "./webhook-payloads";
 import type { Webhook } from "./webhook-store";
 
 export type WebhookEventName = "push" | "issues" | "pull_request";
@@ -135,6 +139,113 @@ export async function emitPushEvents(batch: PushEventBatch): Promise<void> {
 						),
 						pusher: pusher && { name: pusher.name, email: pusher.email },
 						sender: pusher?.user ?? null,
+					}),
+				);
+			}
+			return payloads;
+		},
+	});
+}
+
+async function userById(userId: string): Promise<PublicUser | null> {
+	const [row] = await db
+		.select(publicUserColumns)
+		.from(user)
+		.where(eq(user.id, userId));
+	return row ?? null;
+}
+
+export interface PullRequestEvent {
+	repoId: number;
+	number: number;
+	action:
+		| "opened"
+		| "reopened"
+		| "closed"
+		| "synchronize"
+		| "edited"
+		| "ready_for_review"
+		| "converted_to_draft";
+	senderId: string;
+	changes?: Record<string, unknown>;
+	label?: unknown;
+}
+
+/** One `pull_request` event for the thread `number`, after the response. */
+export async function emitPullRequestEvent(
+	input: PullRequestEvent,
+): Promise<void> {
+	await emitWebhookEvent({
+		repoId: input.repoId,
+		event: "pull_request",
+		action: input.action,
+		payloads: async () => {
+			const [repo, thread, sender] = await Promise.all([
+				findRepositoryById(input.repoId),
+				findThread(input.repoId, input.number, "pull_request"),
+				userById(input.senderId),
+			]);
+			if (!repo || !thread || !sender) return [];
+			return [
+				await pullRequestPayload(repo, {
+					action: input.action,
+					thread,
+					sender,
+					...(input.changes && { changes: input.changes }),
+					...(input.label !== undefined && { label: input.label }),
+				}),
+			];
+		},
+	});
+}
+
+/**
+ * `synchronize` for every open pull request headed by a branch this push
+ * updated, bounded by {@link MAX_WEBHOOK_PR_SYNCHRONIZATIONS} in one query.
+ */
+export async function emitPullRequestSynchronizations(
+	batch: PushEventBatch,
+): Promise<void> {
+	const branches = batch.updates
+		.filter((update) =>
+			batch.results.some(
+				(result) => result.ok && result.refName === update.refName,
+			),
+		)
+		.filter((update) => update.refName.startsWith("refs/heads/"))
+		.map((update) => update.refName.slice("refs/heads/".length));
+	if (branches.length === 0) return;
+	const heads = await db
+		.select({ number: issues.number })
+		.from(issues)
+		.innerJoin(pullRequests, eq(pullRequests.issueId, issues.id))
+		.where(
+			and(
+				eq(issues.repoId, batch.repoId),
+				eq(issues.status, "open"),
+				inArray(pullRequests.sourceBranch, branches),
+			),
+		)
+		.limit(MAX_WEBHOOK_PR_SYNCHRONIZATIONS);
+	if (heads.length === 0) return;
+	const sender = batch.pusherId ? await userById(batch.pusherId) : null;
+	if (!sender) return;
+	await emitWebhookEvent({
+		repoId: batch.repoId,
+		event: "pull_request",
+		action: "synchronize",
+		payloads: async () => {
+			const repo = await findRepositoryById(batch.repoId);
+			if (!repo) return [];
+			const payloads = [];
+			for (const { number } of heads) {
+				const thread = await findThread(batch.repoId, number, "pull_request");
+				if (!thread) continue;
+				payloads.push(
+					await pullRequestPayload(repo, {
+						action: "synchronize",
+						thread,
+						sender,
 					}),
 				);
 			}

@@ -269,6 +269,8 @@ export const MAX_WEBHOOK_RETRY_DELAY_MS = 2_000;
 export const MAX_WEBHOOK_PAYLOAD_BYTES = 25 * 1024 * 1024;
 /** Commits one push payload lists (GitHub's cap), newest last. */
 export const MAX_WEBHOOK_COMMITS = 20;
+/** Open pull requests one branch update synchronizes (one `pull_request` event each). */
+export const MAX_WEBHOOK_PR_SYNCHRONIZATIONS = 100;
 /** File paths one commit in a push payload lists; a larger diff lists none. */
 export const MAX_WEBHOOK_COMMIT_FILES = 300;
 
