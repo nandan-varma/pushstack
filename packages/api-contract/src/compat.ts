@@ -162,6 +162,36 @@ export const compatibilityNotes: Record<OperationId, string> = {
 		"the rule's contexts in name order; `404` unless the rule requires status checks",
 	"repos/get-pull-request-review-protection":
 		"`404 Required pull request reviews not enabled` unless the rule requires reviews",
+	"repos/update-branch-protection":
+		"admin or owner only (`403 Must have admin rights to Repository.`); a full replace of the rule whose pattern is exactly the branch path (creating it when absent), unlike the reads, which match branch names; fields GitHub declares required here (`enforce_admins`, `required_pull_request_reviews`, `restrictions`) are optional so a minimal `PUT` works; `restrictions`, linear history, block creations, conversation resolution, lock branch and fork syncing are `422`",
+	"repos/delete-branch-protection":
+		"admin or owner only; `204`; deletes the rule whose pattern is exactly the branch path, `404` when there is none",
+	"repos/update-status-check-protection":
+		"admin or owner only; addresses the rule whose pattern is exactly the branch path; `strict` defaults to `false` and `contexts`/`checks` (checks wins) replace the rule's contexts; `404` when unprotected",
+	"repos/remove-status-check-protection":
+		"admin or owner only; `204`; disables required status checks and clears their contexts; `404` when unprotected",
+	"repos/add-status-check-contexts":
+		"admin or owner only; `{contexts}`; adding a context twice keeps one; returns every context in name order; `404` unless the rule requires status checks",
+	"repos/set-status-check-contexts":
+		"admin or owner only; replaces the contexts whole; `404` unless the rule requires status checks",
+	"repos/remove-status-check-contexts":
+		"admin or owner only; the body travels on the `DELETE`, as GitHub's does; returns the remaining contexts; `404` unless the rule requires status checks",
+	"repos/update-pull-request-review-protection":
+		"admin or owner only; enables required reviews if they were off; `required_approving_review_count` is 0–6 and above is `422`; `dismissal_restrictions`, `require_last_push_approval` and `bypass_pull_request_allowances` are `422`; `404` when unprotected",
+	"repos/delete-pull-request-review-protection":
+		"admin or owner only; `204`; disables required reviews; `404` when unprotected",
+	"repos/set-admin-branch-protection":
+		"admin or owner only; enables `enforce_admins` and returns the toggle; `404` when unprotected",
+	"repos/delete-admin-branch-protection":
+		"admin or owner only; `204`; disables `enforce_admins`; `404` when unprotected",
+	"repos/set-force-push-protection":
+		"no GitHub REST operation today (the toggle is set through `PUT …/protection`); admin or owner only; enables force pushes and returns the toggle; `404` when unprotected",
+	"repos/delete-force-push-protection":
+		"no GitHub REST operation today; admin or owner only; `204`; blocks force pushes; `404` when unprotected",
+	"repos/set-deletion-protection":
+		"no GitHub REST operation today; admin or owner only; enables branch deletion and returns the toggle; `404` when unprotected",
+	"repos/delete-deletion-protection":
+		"no GitHub REST operation today; admin or owner only; `204`; blocks branch deletion; `404` when unprotected",
 	"repos/get-admin-branch-protection":
 		"the `enforce_admins` toggle of the matching rule; `404` when unprotected",
 	"repos/get-force-push-protection":

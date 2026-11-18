@@ -838,9 +838,29 @@
 			"query": [],
 			"body": []
 		},
+		"repos/set-admin-branch-protection": {
+			"query": [],
+			"body": []
+		},
+		"repos/delete-admin-branch-protection": {
+			"query": [],
+			"body": []
+		},
 		"repos/get-all-status-check-contexts": {
 			"query": [],
 			"body": []
+		},
+		"repos/add-status-check-contexts": {
+			"query": [],
+			"body": ["contexts"]
+		},
+		"repos/set-status-check-contexts": {
+			"query": [],
+			"body": ["contexts"]
+		},
+		"repos/remove-status-check-contexts": {
+			"query": [],
+			"body": ["contexts"]
 		},
 		"repos/get-all-topics": {
 			"query": [
@@ -854,6 +874,26 @@
 			"body": []
 		},
 		"repos/get-branch-protection": {
+			"query": [],
+			"body": []
+		},
+		"repos/update-branch-protection": {
+			"query": [],
+			"body": [
+				"allow_deletions",
+				"allow_force_pushes",
+				"allow_fork_syncing",
+				"block_creations",
+				"enforce_admins",
+				"lock_branch",
+				"required_conversation_resolution",
+				"required_linear_history",
+				"required_pull_request_reviews",
+				"required_status_checks",
+				"restrictions"
+			]
+		},
+		"repos/delete-branch-protection": {
 			"query": [],
 			"body": []
 		},
@@ -889,6 +929,21 @@
 			"query": [],
 			"body": []
 		},
+		"repos/update-pull-request-review-protection": {
+			"query": [],
+			"body": [
+				"bypass_pull_request_allowances",
+				"dismiss_stale_reviews",
+				"dismissal_restrictions",
+				"require_code_owner_reviews",
+				"require_last_push_approval",
+				"required_approving_review_count"
+			]
+		},
+		"repos/delete-pull-request-review-protection": {
+			"query": [],
+			"body": []
+		},
 		"repos/get-release": {
 			"query": [],
 			"body": []
@@ -902,6 +957,14 @@
 			"body": []
 		},
 		"repos/get-status-checks-protection": {
+			"query": [],
+			"body": []
+		},
+		"repos/update-status-check-protection": {
+			"query": [],
+			"body": ["checks", "contexts", "strict"]
+		},
+		"repos/remove-status-check-protection": {
 			"query": [],
 			"body": []
 		},
@@ -1291,8 +1354,12 @@
 	"absentFromGitHub": [
 		"git/list-refs",
 		"repos/create-release-asset-upload",
+		"repos/delete-deletion-protection",
+		"repos/delete-force-push-protection",
 		"repos/finish-release-asset-upload",
 		"repos/get-deletion-protection",
-		"repos/get-force-push-protection"
+		"repos/get-force-push-protection",
+		"repos/set-deletion-protection",
+		"repos/set-force-push-protection"
 	]
 }

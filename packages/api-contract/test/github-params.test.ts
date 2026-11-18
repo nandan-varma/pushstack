@@ -35,6 +35,14 @@ const NOT_ON_GITHUB: Record<string, string> = {
 		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that read it on its own",
 	"repos/get-deletion-protection":
 		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that read it on its own",
+	"repos/set-force-push-protection":
+		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that write it on its own",
+	"repos/delete-force-push-protection":
+		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that write it on its own",
+	"repos/set-deletion-protection":
+		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that write it on its own",
+	"repos/delete-deletion-protection":
+		"GitHub carries the toggle only in the protection object; the sub-resource is served for clients that write it on its own",
 };
 
 describe("GitHub parameters", () => {

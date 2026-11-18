@@ -6,7 +6,10 @@ import { z } from "zod";
 import {
 	assigneeLogin,
 	assigneeLogins,
+	booleanBody,
 	branchParams,
+	branchProtectionApprovingReviews,
+	branchProtectionContexts,
 	commaList,
 	commentBody,
 	direction,
@@ -57,6 +60,7 @@ import {
 	MAX_REPO_TOPIC_CHARS,
 	MAX_REPO_TOPICS,
 	MAX_REPORT_URL_CHARS,
+	MAX_REQUIRED_STATUS_CONTEXTS,
 	MAX_SEARCH_QUERY_CHARS,
 	MAX_SIGNING_KEY_TITLE_CHARS,
 	MAX_SSH_SIGNING_KEY_CHARS,
@@ -318,6 +322,62 @@ const repoListSort = z
 	.enum(["created", "updated", "pushed", "full_name"])
 	.optional()
 	.catch(undefined);
+
+/** One required check and the app that must report it; `-1` is GitHub's "any app". */
+const branchProtectionCheck = z.object({
+	context: z.string().trim().min(1).max(MAX_STATUS_CONTEXT_CHARS),
+	app_id: z.number().int().min(-1).optional(),
+});
+const branchProtectionChecks = z
+	.array(branchProtectionCheck)
+	.max(MAX_REQUIRED_STATUS_CONTEXTS);
+
+/**
+ * `required_status_checks` as a write sends it. `contexts` is GitHub's
+ * deprecated list and `checks` the same list with its app; `checks` wins.
+ */
+const branchProtectionStatusChecksBody = z.object({
+	strict: booleanBody.optional(),
+	contexts: branchProtectionContexts.optional(),
+	checks: branchProtectionChecks.optional(),
+});
+
+/** `required_pull_request_reviews` as a write sends it. */
+const branchProtectionReviewsBody = z.object({
+	dismissal_restrictions: unsupported,
+	dismiss_stale_reviews: booleanBody.optional(),
+	require_code_owner_reviews: booleanBody.optional(),
+	required_approving_review_count: branchProtectionApprovingReviews.optional(),
+	require_last_push_approval: unsupported,
+	bypass_pull_request_allowances: unsupported,
+});
+
+/**
+ * `PUT …/protection`: GitHub's full replace. Fields PushStack does not
+ * implement are declared so sending one is a 422 naming it, never a silent drop.
+ */
+const branchProtectionBody = z.object({
+	required_status_checks: branchProtectionStatusChecksBody
+		.nullable()
+		.optional(),
+	enforce_admins: booleanBody.nullable().optional(),
+	required_pull_request_reviews: branchProtectionReviewsBody
+		.nullable()
+		.optional(),
+	restrictions: unsupported,
+	required_linear_history: unsupported,
+	allow_force_pushes: booleanBody.nullable().optional(),
+	allow_deletions: booleanBody.nullable().optional(),
+	block_creations: unsupported,
+	required_conversation_resolution: unsupported,
+	lock_branch: unsupported,
+	allow_fork_syncing: unsupported,
+});
+
+/** The contexts of `POST`/`PUT`/`DELETE …/contexts`. */
+const branchProtectionContextsBody = z.object({
+	contexts: branchProtectionContexts,
+});
 
 export const endpoints = defineEndpoints({
 	/** URL templates for the endpoints served, keyed as on GitHub. */
@@ -814,29 +874,95 @@ export const endpoints = defineEndpoints({
 		params: branchParams,
 		response: branchProtection,
 	},
+	"repos/update-branch-protection": {
+		params: branchParams,
+		body: branchProtectionBody,
+		response: branchProtection,
+	},
+	"repos/delete-branch-protection": {
+		params: branchParams,
+		response: noContent,
+	},
 	"repos/get-status-checks-protection": {
 		params: branchParams,
 		response: branchProtectionRequiredStatusChecks,
 	},
+	"repos/update-status-check-protection": {
+		params: branchParams,
+		body: branchProtectionStatusChecksBody,
+		response: branchProtectionRequiredStatusChecks,
+	},
+	"repos/remove-status-check-protection": {
+		params: branchParams,
+		response: noContent,
+	},
 	"repos/get-all-status-check-contexts": {
 		params: branchParams,
+		response: z.array(z.string()),
+	},
+	"repos/add-status-check-contexts": {
+		params: branchParams,
+		body: branchProtectionContextsBody,
+		response: z.array(z.string()),
+	},
+	"repos/set-status-check-contexts": {
+		params: branchParams,
+		body: branchProtectionContextsBody,
+		response: z.array(z.string()),
+	},
+	"repos/remove-status-check-contexts": {
+		params: branchParams,
+		body: branchProtectionContextsBody,
 		response: z.array(z.string()),
 	},
 	"repos/get-pull-request-review-protection": {
 		params: branchParams,
 		response: branchProtectionRequiredPullRequestReviews,
 	},
+	"repos/update-pull-request-review-protection": {
+		params: branchParams,
+		body: branchProtectionReviewsBody,
+		response: branchProtectionRequiredPullRequestReviews,
+	},
+	"repos/delete-pull-request-review-protection": {
+		params: branchParams,
+		response: noContent,
+	},
 	"repos/get-admin-branch-protection": {
 		params: branchParams,
 		response: branchProtectionToggle,
+	},
+	"repos/set-admin-branch-protection": {
+		params: branchParams,
+		response: branchProtectionToggle,
+	},
+	"repos/delete-admin-branch-protection": {
+		params: branchParams,
+		response: noContent,
 	},
 	"repos/get-force-push-protection": {
 		params: branchParams,
 		response: branchProtectionToggle,
 	},
+	"repos/set-force-push-protection": {
+		params: branchParams,
+		response: branchProtectionToggle,
+	},
+	"repos/delete-force-push-protection": {
+		params: branchParams,
+		response: noContent,
+	},
 	"repos/get-deletion-protection": {
 		params: branchParams,
 		response: branchProtectionToggle,
+	},
+	"repos/set-deletion-protection": {
+		params: branchParams,
+		response: branchProtectionToggle,
+	},
+	"repos/delete-deletion-protection": {
+		params: branchParams,
+		response: noContent,
 	},
 	"repos/list-tags": {
 		params: repoParams,
