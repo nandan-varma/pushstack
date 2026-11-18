@@ -84,7 +84,6 @@ import type {
 	IssueCommentsArgs,
 	IssueLabelsArgs,
 	IssueProjectCardsArgs,
-	IssueProjectItemsArgs,
 	IssueSubIssuesArgs,
 	QuerySearchArgs,
 	RemoveAssigneesFromAssignableInput,
@@ -515,10 +514,8 @@ export const issuesResolvers: DomainResolvers = {
 			repository: (node: IssueNode) => node.repo,
 			milestone: (node: IssueNode) =>
 				node.row.milestone ? milestoneNode(node.row.milestone) : null,
-			// Projects (v2) and classic projects are not served, so an issue is
-			// in none: an empty connection, which is what GitHub answers.
-			projectItems: (_node: IssueNode, args: IssueProjectItemsArgs) =>
-				offsetConnection(args, 0, async () => []),
+			// Classic projects are retired, so an issue is in none: an empty
+			// connection, which is what GitHub answers (`projectItems` is in projects.ts).
 			projectCards: (_node: IssueNode, args: IssueProjectCardsArgs) =>
 				offsetConnection(args, 0, async () => []),
 			labels: (node: IssueNode, args: IssueLabelsArgs) =>
