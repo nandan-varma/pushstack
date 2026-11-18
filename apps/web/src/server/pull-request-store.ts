@@ -15,6 +15,7 @@ import { getClosingIssueNumbers } from "#/lib/issue-references";
 import { MAX_COMMIT_MESSAGE_CHARS } from "#/lib/limits";
 import { recordActivity } from "./activity";
 import { bestEffort } from "./best-effort";
+import { mergeBlockedReason } from "./branch-protection";
 import { ownerKeyOf } from "./git-storage-naming";
 import {
 	deleteBranch,
@@ -414,7 +415,7 @@ function mergeOptionsFor(
  * access the lock needs) and that the repository allows the method.
  */
 export async function mergePullRequestBranches(
-	repo: Parameters<typeof ownerKeyOf>[0] & { name: string },
+	repo: Repository & Parameters<typeof ownerKeyOf>[0] & { name: string },
 	pr: PullRequest,
 	user: { id: string; name: string; email: string },
 	options: PullRequestMergeOptions,
@@ -425,8 +426,19 @@ export async function mergePullRequestBranches(
 			conflicts: string[];
 			headModified?: true;
 			refusal?: string;
+			/** Refused by the review rules: the API answers GitHub's generic 405. */
+			blocked?: true;
 	  }
 > {
+	const blocked = await mergeBlockedReason({
+		pullRequestId: pr.id,
+		repository: repo,
+		branch: pr.targetBranch,
+		actorId: user.id,
+	});
+	if (blocked) {
+		return { success: false, conflicts: [], refusal: blocked, blocked: true };
+	}
 	const result = await mergeBranches(
 		ownerKeyOf(repo),
 		repo.name,
@@ -579,11 +591,14 @@ async function closeLinkedIssues(
  * caller checked write access and that `branch` is not the default branch.
  */
 export async function deleteHeadBranch(
-	repo: Parameters<typeof ownerKeyOf>[0] & { id: number; name: string },
+	repo: Repository & Parameters<typeof ownerKeyOf>[0] & { name: string },
 	branch: string,
 	userId: string,
 ): Promise<void> {
-	await deleteBranch(ownerKeyOf(repo), repo.name, branch);
+	await deleteBranch(ownerKeyOf(repo), repo.name, branch, {
+		repository: repo,
+		actorId: userId,
+	});
 	await recordHeadBranchDeleted(repo.id, branch, userId);
 }
 

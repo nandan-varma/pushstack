@@ -51,7 +51,6 @@ import {
 	removeReviewRequests,
 	requestReviewers,
 } from "../review-request-store";
-import { reviewSummaryFor } from "../review-store";
 import {
 	findPullRequestByNumber,
 	findThread,
@@ -665,11 +664,6 @@ export async function mergePull(ctx: ApiContext) {
 	if (data.sha && (await branchTips(repo, [pr])).get(pr.headRef) !== data.sha) {
 		throw headModified();
 	}
-	// GitHub blocks the merge while changes are requested; an owner/admin may override.
-	if ((await reviewSummaryFor(pr.id)).blocksMerge && !access.canModerate) {
-		throw notMergeable();
-	}
-
 	const committer = await callerIdentity(caller);
 	const result = await mergePullRequestBranches(repo, pr, committer, {
 		method,
@@ -678,6 +672,7 @@ export async function mergePull(ctx: ApiContext) {
 		expectedHeadSha: data.sha ?? undefined,
 	});
 	if (!result.success) {
+		if (result.blocked) throw notMergeable();
 		if (result.refusal) throw new ApiError(405, result.refusal);
 		throw result.headModified ? headModified() : notMergeable();
 	}

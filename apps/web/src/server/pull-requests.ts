@@ -36,7 +36,6 @@ import {
 import { readInput, threadNumberSchema } from "./read-input";
 import {
 	canMergePullRequest,
-	canModerateRepo,
 	canWriteRepo,
 	getViewerRepositoryAccess,
 	readWithAccess,
@@ -308,15 +307,6 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 		}
 		if (pr.status !== "open") throw new Error("Pull request is not open");
 		if (pr.isDraft) throw new Error("Pull Request is still a draft");
-		// GitHub blocks the merge while a reviewer's latest review requested
-		// changes; an owner/admin may override, as GitHub's admin permission can.
-		if (
-			(await reviewSummaryFor(pr.id)).blocksMerge &&
-			!(await canModerateRepo(pr.repoId, currentUser.id))
-		) {
-			throw new Error("Changes were requested on this pull request");
-		}
-
 		return writeWithAccess(pr.repoId, async (repo) => {
 			const refusal = disallowedMergeMethodMessage(repo, "merge");
 			if (refusal) throw new Error(refusal);
@@ -327,7 +317,9 @@ export const mergePullRequest = createServerFn({ method: "POST" })
 				commitTitle: data.commitMessage,
 			});
 			if (!result.success) {
-				throw new Error(`Merge failed: ${result.conflicts.join(", ")}`);
+				throw new Error(
+					result.refusal ?? `Merge failed: ${result.conflicts.join(", ")}`,
+				);
 			}
 			return { commitSha: result.commitSha };
 		});

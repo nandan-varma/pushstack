@@ -1,12 +1,24 @@
 /**
  * The read model of classic branch protection: what GitHub's REST protection
- * object says about the rule protecting one branch. Enforcement (push, merge,
- * direct writes) reads the same rule through `branch-protection-store.ts`.
+ * object says about the rule protecting one branch, and the rules every writer
+ * enforces — a push, a direct write, a branch deletion, a merge. Enforcement
+ * reads the rule through `branch-protection-store.ts`, so there is one copy.
  */
 
+import { isNotFoundError } from "git-fs-s3";
+import type { RefUpdateCommand, RefUpdateVeto } from "git-fs-s3/http";
+import type { Repo } from "git-fs-s3/ops";
+import git from "isomorphic-git";
+import type { Repository } from "#/db/app-schema";
 import { apiUrl, encodePath } from "./api/http";
 import type { Shape } from "./api/serializers";
-import type { BranchProtection } from "./branch-protection-store";
+import {
+	type BranchProtection,
+	type BranchProtectionRule,
+	findBranchProtection,
+} from "./branch-protection-store";
+import { getAccessForRepository, type RepositoryAccess } from "./repo-access";
+import { reviewSummaryFor } from "./review-store";
 
 /** `GET …/branches/{branch}/protection`: GitHub's protection object. */
 export function branchProtectionView(
@@ -57,4 +69,157 @@ export function branchProtectionView(
 		lock_branch: { enabled: false },
 		allow_fork_syncing: { enabled: false },
 	};
+}
+
+/** Git's wording for anyref a protection rule refused, before the reason. */
+const PROTECTED_REASON = "protected branch hook declined";
+
+/**
+ * GitHub's "Do not allow bypassing the above settings": off (the default) lets
+ * the owner and repository admins past every rule of the branch.
+ */
+function bypassesRule(
+	rule: BranchProtectionRule,
+	access: RepositoryAccess,
+): boolean {
+	if (rule.enforceAdmins) return false;
+	return access.role === "owner" || access.role === "admin";
+}
+
+const GH006_PREFIX = "error: GH006";
+
+function veto(update: RefUpdateCommand, reason: string): RefUpdateVeto {
+	return {
+		refName: update.refName,
+		reason: PROTECTED_REASON,
+		messages: [
+			`${GH006_PREFIX}: Protected branch update failed for ${update.refName}.`,
+			`error: ${reason}.`,
+		],
+	};
+}
+
+/**
+ * Whether `update` rewrites history rather than adding to it. An oid the walk
+ * can't reach is either missing or off the branch, and neither is a
+ * fast-forward, so both count as a force push.
+ */
+async function isForcePush(
+	repo: Repo,
+	update: RefUpdateCommand,
+): Promise<boolean> {
+	if (update.oldOid === update.newOid) return false;
+	try {
+		return !(await git.isDescendent({
+			...repo,
+			oid: update.newOid,
+			ancestor: update.oldOid,
+		}));
+	} catch (error) {
+		if (isNotFoundError(error)) return true;
+		throw error;
+	}
+}
+
+/**
+ * The ref updates a push may not apply, as GitHub's GH006 refusals. Only
+ * branches are judged, and a branch is judged by the same rule its REST
+ * protection object reads.
+ */
+export async function vetPush(
+	repository: Repository,
+	actorId: string | null,
+	updates: RefUpdateCommand[],
+	repo: Repo,
+): Promise<RefUpdateVeto[]> {
+	const branches = updates.filter((update) =>
+		update.refName.startsWith("refs/heads/"),
+	);
+	if (branches.length === 0) return [];
+	const access = await getAccessForRepository(repository, actorId);
+	const vetoes: RefUpdateVeto[] = [];
+	for (const update of branches) {
+		const branch = update.refName.slice("refs/heads/".length);
+		const protection = await findBranchProtection(repository.id, branch);
+		if (!protection || bypassesRule(protection.rule, access)) continue;
+		if (update.newOid === "0".repeat(40)) {
+			if (!protection.rule.allowDeletions) {
+				vetoes.push(veto(update, "Cannot delete a protected branch"));
+			}
+			continue;
+		}
+		if (
+			!protection.rule.allowForcePushes &&
+			(await isForcePush(repo, update))
+		) {
+			vetoes.push(veto(update, "Cannot force-push to a protected branch"));
+		}
+	}
+	return vetoes;
+}
+
+/** GitHub's 422 reason a direct write to `branch` is refused, or null. */
+export async function writeBlockedReason(
+	repository: Repository,
+	branch: string,
+	actorId: string | null,
+): Promise<string | null> {
+	const protection = await findBranchProtection(repository.id, branch);
+	if (!protection?.rule.requiresPullRequest) return null;
+	if (
+		bypassesRule(
+			protection.rule,
+			await getAccessForRepository(repository, actorId),
+		)
+	) {
+		return null;
+	}
+	return "Changes must be made through a pull request.";
+}
+
+/** GitHub's 422 reason `branch` cannot be deleted, or null. */
+export async function deleteBlockedReason(
+	repository: Repository,
+	branch: string,
+	actorId: string | null,
+): Promise<string | null> {
+	const protection = await findBranchProtection(repository.id, branch);
+	if (!protection || protection.rule.allowDeletions) return null;
+	if (
+		bypassesRule(
+			protection.rule,
+			await getAccessForRepository(repository, actorId),
+		)
+	) {
+		return null;
+	}
+	return "Cannot delete a protected branch";
+}
+
+/**
+ * Why the merge of a pull request is refused, or null. A rule's required
+ * approvals block it; a changes-requested review blocks it with or without a
+ * rule. An owner/admin overrides unless the rule enforces admins.
+ */
+export async function mergeBlockedReason(input: {
+	pullRequestId: number;
+	repository: Repository;
+	branch: string;
+	actorId: string;
+}): Promise<string | null> {
+	const [review, protection, access] = await Promise.all([
+		reviewSummaryFor(input.pullRequestId),
+		findBranchProtection(input.repository.id, input.branch),
+		getAccessForRepository(input.repository, input.actorId),
+	]);
+	const enforced = protection
+		? !bypassesRule(protection.rule, access)
+		: !access.canModerate;
+	if (!enforced) return null;
+	if (review.changesRequested > 0) {
+		return "Changes were requested on this pull request";
+	}
+	const required = protection?.rule.requiredApprovingReviewCount ?? 0;
+	if (review.approved >= required) return null;
+	return `At least ${required} approving review${required === 1 ? "" : "s"} ${required === 1 ? "is" : "are"} required by reviewers with write access.`;
 }
