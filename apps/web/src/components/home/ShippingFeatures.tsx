@@ -37,7 +37,7 @@ export function ShippingFeatures() {
 				What this instance serves today.
 			</h2>
 			<p className="mt-4 max-w-2xl leading-7 text-bjork-text-muted">
-				Every card links to PushStack's own repository on this instance.
+				Explore PushStack's own repository and the features on this instance.
 			</p>
 			<div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 				<Feature

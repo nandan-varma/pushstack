@@ -64,8 +64,8 @@ export function LiveRepoPreview() {
 					</span>
 				</div>
 			</div>
-			<div className="grid ">
-				<div className="border-b border-bjork-border-muted p-5 sm:p-7 lg:border-r lg:border-b-0">
+			<div className="grid grid-cols-1">
+				<div className="border-b border-bjork-border-muted p-5 sm:p-7">
 					<p className="text-xs font-semibold tracking-[0.14em] text-bjork-text-soft uppercase">
 						Latest commits
 					</p>
