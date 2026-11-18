@@ -34,9 +34,9 @@ describe("the endpoint table", () => {
 		}
 	});
 
-	it("keeps rest params last and links GitHub's docs", () => {
+	it("keeps one rest param, followed by literals only", () => {
 		for (const [id, endpoint] of table) {
-			expect(endpoint.path, id).toMatch(/^\/[^+]*(\{\+[a-z_]+\})?$/);
+			expect(endpoint.path, id).toMatch(/^\/[^+]*(\{\+[a-z_]+\})?(\/[^+]*)?$/);
 			expect(endpoint.docs, id).toMatch(/^https:\/\/docs\.github\.com\/rest\//);
 			expect(id).toMatch(/^[a-z-]+\/[a-z-]+$/);
 		}
@@ -78,6 +78,27 @@ describe("matchPath", () => {
 				"/repos/a/b/contents",
 			),
 		).toEqual({ owner: "a", repo: "b", path: "" });
+	});
+
+	it("matches a rest param that is followed by literals", () => {
+		expect(
+			matchPath(
+				"/repos/{owner}/{repo}/branches/{+branch}/protection",
+				"/repos/a/b/branches/feat/x/protection",
+			),
+		).toEqual({ owner: "a", repo: "b", branch: "feat/x" });
+		expect(
+			matchPath(
+				"/repos/{owner}/{repo}/branches/{+branch}/protection",
+				"/repos/a/b/branches/main/protection",
+			),
+		).toEqual({ owner: "a", repo: "b", branch: "main" });
+		expect(
+			matchPath(
+				"/repos/{owner}/{repo}/branches/{+branch}/protection",
+				"/repos/a/b/branches/protection",
+			),
+		).toBeNull();
 	});
 
 	it("prefers literal routes listed first", () => {

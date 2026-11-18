@@ -527,11 +527,23 @@
 			"query": [],
 			"body": []
 		},
+		"repos/get-admin-branch-protection": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-all-status-check-contexts": {
+			"query": [],
+			"body": []
+		},
 		"repos/get-all-topics": {
 			"query": ["page", "per_page"],
 			"body": []
 		},
 		"repos/get-branch": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-branch-protection": {
 			"query": [],
 			"body": []
 		},
@@ -555,6 +567,10 @@
 			"query": [],
 			"body": []
 		},
+		"repos/get-pull-request-review-protection": {
+			"query": [],
+			"body": []
+		},
 		"repos/get-release": {
 			"query": [],
 			"body": []
@@ -564,6 +580,10 @@
 			"body": []
 		},
 		"repos/get-release-by-tag": {
+			"query": [],
+			"body": []
+		},
+		"repos/get-status-checks-protection": {
 			"query": [],
 			"body": []
 		},
@@ -815,6 +835,8 @@
 	"absentFromGitHub": [
 		"git/list-refs",
 		"repos/create-release-asset-upload",
-		"repos/finish-release-asset-upload"
+		"repos/finish-release-asset-upload",
+		"repos/get-deletion-protection",
+		"repos/get-force-push-protection"
 	]
 }

@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
 	assigneeLogin,
 	assigneeLogins,
+	branchParams,
 	commaList,
 	commentBody,
 	direction,
@@ -61,6 +62,10 @@ import {
 import {
 	blob,
 	branch,
+	branchProtection,
+	branchProtectionRequiredPullRequestReviews,
+	branchProtectionRequiredStatusChecks,
+	branchProtectionToggle,
 	checkRun,
 	checkSuite,
 	combinedCommitStatus,
@@ -616,8 +621,36 @@ export const endpoints = defineEndpoints({
 		response: z.array(shortBranch),
 	},
 	"repos/get-branch": {
-		params: repoParams.extend({ branch: z.string().min(1) }),
+		params: branchParams,
 		response: branch,
+	},
+	"repos/get-branch-protection": {
+		params: branchParams,
+		response: branchProtection,
+	},
+	"repos/get-status-checks-protection": {
+		params: branchParams,
+		response: branchProtectionRequiredStatusChecks,
+	},
+	"repos/get-all-status-check-contexts": {
+		params: branchParams,
+		response: z.array(z.string()),
+	},
+	"repos/get-pull-request-review-protection": {
+		params: branchParams,
+		response: branchProtectionRequiredPullRequestReviews,
+	},
+	"repos/get-admin-branch-protection": {
+		params: branchParams,
+		response: branchProtectionToggle,
+	},
+	"repos/get-force-push-protection": {
+		params: branchParams,
+		response: branchProtectionToggle,
+	},
+	"repos/get-deletion-protection": {
+		params: branchParams,
+		response: branchProtectionToggle,
 	},
 	"repos/list-tags": {
 		params: repoParams,

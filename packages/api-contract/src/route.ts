@@ -11,8 +11,8 @@ export interface Route {
 	method: Method;
 	/**
 	 * GitHub's path template. `{name}` is one segment; `{+name}` (RFC 6570
-	 * reserved expansion) is the rest of the path, slashes kept, and may be
-	 * empty — it is always last.
+	 * reserved expansion) takes every segment up to the literals after it,
+	 * slashes kept, and may be empty only when nothing follows it.
 	 */
 	path: string;
 	/** GitHub's REST reference for the operation. */
@@ -102,7 +102,9 @@ export function buildRequest(
 
 /**
  * The raw (still percent-decoded) path params when `pathname` matches
- * `template`, else null. A `{+name}` matches zero or more segments.
+ * `template`, else null. A `{+name}` matches every segment between the fixed
+ * parts around it, so it may be followed by literal segments
+ * (`…/branches/{+branch}/protection`) but by no other parameter.
  */
 export function matchPath(
 	template: string,
@@ -115,23 +117,34 @@ export function matchPath(
 	while (end > 0 && pathname.charCodeAt(end - 1) === 47) end--;
 	const segments = pathname.slice(0, end).split("/").slice(1);
 	const params: Record<string, string> = {};
+	const expansion = parts.findIndex((part) => part.startsWith("{+"));
+	const fixed = expansion === -1 ? parts : parts.slice(0, expansion);
+	const rest = expansion === -1 ? [] : parts.slice(expansion + 1);
+	// An empty expansion is only unambiguous when nothing follows it.
+	const shortest = fixed.length + rest.length + (rest.length > 0 ? 1 : 0);
+	if (segments.length < shortest) return null;
 	try {
-		for (const [index, part] of parts.entries()) {
-			const token = /^\{(\+?)([a-z_]+)\}$/.exec(part);
-			if (token?.[1]) {
-				params[token[2] as string] = segments
-					.slice(index)
-					.map(decodeURIComponent)
-					.join("/");
-				return params;
-			}
+		for (const [index, part] of fixed.entries()) {
 			const segment = segments[index];
 			if (segment === undefined) return null;
-			if (token) params[token[2] as string] = decodeURIComponent(segment);
+			const token = /^\{([a-z_]+)\}$/.exec(part);
+			if (token) params[token[1] as string] = decodeURIComponent(segment);
 			else if (part !== segment) return null;
+		}
+		if (expansion === -1) {
+			return segments.length === fixed.length ? params : null;
+		}
+		const [name] = pathParamNames(parts[expansion] as string);
+		params[name as string] = segments
+			.slice(fixed.length, segments.length - rest.length)
+			.map(decodeURIComponent)
+			.join("/");
+		for (const [offset, part] of rest.entries()) {
+			if (part !== segments[segments.length - rest.length + offset])
+				return null;
 		}
 	} catch {
 		return null; // malformed percent-encoding
 	}
-	return parts.length === segments.length ? params : null;
+	return params;
 }

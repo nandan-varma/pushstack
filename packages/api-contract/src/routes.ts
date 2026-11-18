@@ -309,6 +309,41 @@ export const routes = {
 		path: "/repos/{owner}/{repo}/branches",
 		docs: `${DOCS}/branches/branches#list-branches`,
 	},
+	"repos/get-branch-protection": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+	},
+	"repos/get-status-checks-protection": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks",
+		docs: `${DOCS}/branches/branch-protection#get-status-checks-protection`,
+	},
+	"repos/get-all-status-check-contexts": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_status_checks/contexts",
+		docs: `${DOCS}/branches/branch-protection#get-all-status-check-contexts`,
+	},
+	"repos/get-pull-request-review-protection": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/required_pull_request_reviews",
+		docs: `${DOCS}/branches/branch-protection#get-pull-request-review-protection`,
+	},
+	"repos/get-admin-branch-protection": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/enforce_admins",
+		docs: `${DOCS}/branches/branch-protection#get-admin-branch-protection`,
+	},
+	"repos/get-force-push-protection": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_force_pushes",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+	},
+	"repos/get-deletion-protection": {
+		method: "GET",
+		path: "/repos/{owner}/{repo}/branches/{+branch}/protection/allow_deletions",
+		docs: `${DOCS}/branches/branch-protection#get-branch-protection`,
+	},
 	"repos/get-branch": {
 		method: "GET",
 		path: "/repos/{owner}/{repo}/branches/{+branch}",

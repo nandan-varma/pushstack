@@ -1,3 +1,7 @@
+import {
+	listBranchProtectionRules,
+	matchBranchProtection,
+} from "../branch-protection-store";
 import { commitCommentCounts } from "../commit-comment-store";
 import { UNSIGNED, verifyCommits } from "../commit-verification";
 import { getBranches, getBranchPage, getCommit } from "../git-read";
@@ -21,15 +25,18 @@ export async function listBranches(ctx: ApiContext) {
 	const fullName = `${repo.owner.username}/${repo.name}`;
 	const params = pageParams(ctx.url.searchParams);
 	// Only the requested page's tips are read, not every branch of the repository.
-	const { total, branches } = await getBranchPage(ownerKeyOf(repo), repo.name, {
-		offset: params.offset,
-		limit: params.reachable ? params.perPage : 0,
-	});
+	const [{ total, branches }, rules] = await Promise.all([
+		getBranchPage(ownerKeyOf(repo), repo.name, {
+			offset: params.offset,
+			limit: params.reachable ? params.perPage : 0,
+		}),
+		listBranchProtectionRules(repo.id),
+	]);
 	return json(
 		branches.map((branch) => ({
 			name: branch.name,
 			commit: commitRef({ fullName }, branch.commit),
-			protected: false,
+			protected: matchBranchProtection(rules, branch.name) !== null,
 		})),
 		200,
 		linkHeader(ctx.url, params, total),
@@ -47,9 +54,12 @@ export async function getBranch(ctx: ApiContext) {
 		(candidate) => candidate.name === name,
 	);
 	if (!branch) throw notFoundError("Branch not found");
-	const [info, counts] = await Promise.all([
+	const [info, counts, protection] = await Promise.all([
 		getCommit(ownerKey, repo.name, branch.commit),
 		commitCommentCounts(repo.id, [branch.commit]),
+		listBranchProtectionRules(repo.id).then((rules) =>
+			matchBranchProtection(rules, branch.name),
+		),
 	]);
 	const verification = await verifyCommits(ownerKey, repo.name, [info]);
 
@@ -65,6 +75,6 @@ export async function getBranch(ctx: ApiContext) {
 			self: apiUrl(`/repos/${fullName}/branches/${encodePath(branch.name)}`),
 			html: branchHtmlUrl(fullName, branch.name),
 		},
-		protected: false,
+		protected: protection !== null,
 	});
 }
