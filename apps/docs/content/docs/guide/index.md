@@ -5,7 +5,7 @@ description: "Create an account and a repository, clone, push with a token, issu
 
 This page is for people who *use* PushStack: creating repositories, cloning and
 pushing, and working with issues and pull requests. For how the platform is
-built, see [architecture.md](/docs/internals).
+built, see [architecture](/docs/internals).
 
 Everything here is about the hosted instance at
 [git.nandan.fyi](https://git.nandan.fyi).
@@ -53,7 +53,7 @@ or web upload creates that branch.
 Later, `/{owner}/{name}/settings` → **General** renames the repository,
 changes its description, website, topics (up to 20, lowercase letters, numbers
 and hyphens; searchable as `topic:name`), visibility and default branch, turns
-the Issues, Wiki and Projects flags on or off (stored; only Issues exists) and
+Issues, Wiki and Projects on or off, and
 marks it a **template repository**. Others then see **Use this template** and
 get a copy of its files as one `Initial commit`. **Danger zone** archives the
 repository, transfers it to another user, or deletes it (type the name to
@@ -288,6 +288,54 @@ gitignore-style rules and the last matching line wins. When a pull request opens
 the owners of the changed paths who are collaborators are requested
 automatically, and a file's owners show above it in the blob view. Only
 `@username` owners count for now; teams and e-mail owners are ignored.
+
+## Discussions, wikis and projects
+
+Use the repository's **Discussions** tab for conversations outside the issue
+tracker. Choose a category when opening a thread; Q&A categories let the author
+or a maintainer mark a reply as the answer. Maintainers can pin or lock threads
+and convert between issues and discussions. Discussions share the repository's
+issue numbering.
+
+Enable **Wiki** in repository settings, then open the Wiki tab to create a
+`Home` page. Wiki pages are Markdown in a separate git repository:
+
+```bash
+git clone https://git.nandan.fyi/OWNER/REPO.wiki.git
+```
+
+Push wiki edits with the same personal access token as repository pushes.
+Page history is available through git. The web interface reads and edits pages;
+it does not yet have a revision-history view.
+
+Projects live at `/users/USERNAME/projects`. Open a project to see its items in
+a table. Project creation, fields and item changes use GraphQL for now; web
+editing and a board view are not yet available. Public projects show only
+content the visitor can read.
+
+## Gists
+
+Browse public snippets at `/gist`. To create one with the GitHub CLI, first
+create a personal access token with the `gist` scope in Settings and authenticate
+`gh` against this host (see [GitHub CLI setup](/docs/api/graphql)):
+
+```bash
+GH_HOST=git.nandan.fyi gh gist create --public example.txt
+GH_HOST=git.nandan.fyi gh gist list
+```
+
+A gist is a git repository containing one or more files. A secret gist is
+unlisted; anyone with its URL can read it. Use a private repository for private
+content.
+
+## Branch rules and webhooks
+
+Repository settings include **Branches** for protection rules and **Webhooks**
+for event delivery. Branch rules can require reviews, code owner approval and
+status checks, and restrict force pushes and deletions. Webhooks deliver push,
+issue and pull request events; use a webhook secret to verify deliveries and
+the delivery log to inspect or retry them. Webhook destinations must be public
+HTTPS addresses.
 
 ## Find things
 

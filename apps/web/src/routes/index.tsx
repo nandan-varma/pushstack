@@ -31,8 +31,8 @@ function Hero() {
 	return (
 		<section className="relative isolate border-b border-bjork-border-muted">
 			<div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_60%_55%_at_80%_0%,var(--bjork-accent-soft),transparent)]" />
-			<div className="mx-auto grid max-w-[1200px] gap-12 px-4 pt-14 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:pt-20 lg:pb-24">
-				<div className="rise-in">
+			<div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-12 px-4 pt-14 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:pt-20 lg:pb-24">
+				<div className="rise-in min-w-0">
 					<p className="font-mono text-[11px] font-medium tracking-[0.14em] text-bjork-accent uppercase">
 						Git hosting · GitHub-compatible
 					</p>
@@ -40,9 +40,9 @@ function Hero() {
 						Your code, on a forge that speaks GitHub.
 					</h1>
 					<p className="mt-5 max-w-xl text-lg leading-8 text-pretty text-bjork-text-muted">
-						Push over HTTPS, review in a split-view inbox, and script it all
-						with the REST API and CLI you already know. Git objects live in
-						object storage; nothing runs on a disk you have to babysit.
+						Host your repositories, review pull requests, and keep issues,
+						discussions and wikis beside your code. Push over HTTPS and use the
+						GitHub CLI and APIs you already know.
 					</p>
 					<div className="mt-8 flex flex-wrap gap-3">
 						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
@@ -58,7 +58,7 @@ function Hero() {
 						</Link>
 					</div>
 				</div>
-				<div className="rise-in [animation-delay:120ms]">
+				<div className="rise-in min-w-0 [animation-delay:120ms]">
 					<LiveRepoPreview />
 				</div>
 			</div>
@@ -72,7 +72,7 @@ function ApiSection({ restOperations }: { restOperations: number }) {
 			aria-labelledby="api-heading"
 			className="border-y border-bjork-border-muted bg-bjork-panel"
 		>
-			<div className="mx-auto grid max-w-[1200px] gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+			<div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
 				<div>
 					<h2
 						id="api-heading"
