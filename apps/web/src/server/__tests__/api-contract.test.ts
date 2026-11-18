@@ -414,6 +414,29 @@ beforeAll(async () => {
 	);
 	await check(`/repos/alice/proj/git/tags/${tagObject.sha}`);
 
+	// Repository webhooks.
+	const hook = await check(
+		"/repos/alice/proj/hooks",
+		post(alice, {
+			name: "web",
+			active: true,
+			events: ["push"],
+			config: { url: "https://example.com/hook", content_type: "json" },
+		}),
+	);
+	await check("/repos/alice/proj/hooks", auth);
+	await check(`/repos/alice/proj/hooks/${hook.id}`, auth);
+	await check(
+		`/repos/alice/proj/hooks/${hook.id}`,
+		patch(alice, { active: false }),
+	);
+	await check(`/repos/alice/proj/hooks/${hook.id}/config`, auth);
+	await check(
+		`/repos/alice/proj/hooks/${hook.id}/config`,
+		patch(alice, { content_type: "form" }),
+	);
+	await check(`/repos/alice/proj/hooks/${hook.id}`, del(alice));
+
 	// Releases and their assets.
 	const rel = await check(
 		"/repos/alice/proj/releases",

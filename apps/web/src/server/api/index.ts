@@ -183,6 +183,15 @@ import {
 	listWatchedByUser,
 	putRepoSubscription,
 } from "./watching";
+import {
+	createRepoWebhook,
+	deleteRepoWebhook,
+	getRepoWebhook,
+	getRepoWebhookConfig,
+	listRepoWebhooks,
+	updateRepoWebhook,
+	updateRepoWebhookConfig,
+} from "./webhooks";
 
 type Handler = (ctx: ApiContext) => Promise<Response>;
 
@@ -249,6 +258,13 @@ const HANDLERS = {
 	"repos/list-branches": listBranches,
 	"repos/get-branch": getBranch,
 	"repos/list-tags": listTags,
+	"repos/list-webhooks": listRepoWebhooks,
+	"repos/create-webhook": createRepoWebhook,
+	"repos/get-webhook": getRepoWebhook,
+	"repos/update-webhook": updateRepoWebhook,
+	"repos/delete-webhook": deleteRepoWebhook,
+	"repos/get-webhook-config-for-repo": getRepoWebhookConfig,
+	"repos/update-webhook-config-for-repo": updateRepoWebhookConfig,
 	"repos/list-releases": listRepoReleases,
 	"repos/create-release": createReleaseHandler,
 	"repos/generate-release-notes": generateNotesHandler,
