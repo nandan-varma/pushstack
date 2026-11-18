@@ -4,6 +4,8 @@ import {
 	bigint,
 	boolean,
 	check,
+	date,
+	doublePrecision,
 	index,
 	integer,
 	jsonb,
@@ -1378,5 +1380,141 @@ export const gistComments = pgTable(
 			table.createdAt,
 		),
 		userIdx: index("gist_comment_user_idx").on(table.userId),
+	}),
+);
+
+/**
+ * Projects v2 owned by a user. `number` is a per-owner sequence, claimed from
+ * `users.next_project_number` with one atomic UPDATE.
+ */
+export const projectV2 = pgTable(
+	"project_v2",
+	{
+		id: serial("id").primaryKey(),
+		ownerId: text("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		number: integer("number").notNull(),
+		title: text("title").notNull(),
+		shortDescription: text("short_description"),
+		readme: text("readme"),
+		public: boolean("public").notNull().default(false),
+		closed: boolean("closed").notNull().default(false),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+		closedAt: timestamptz("closed_at"),
+	},
+	(table) => ({
+		ownerNumberIdx: uniqueIndex("project_v2_owner_number_idx").on(
+			table.ownerId,
+			table.number,
+		),
+	}),
+);
+
+/** A project's fields: the built-in `Status` plus the custom ones. */
+export const projectV2Fields = pgTable(
+	"project_v2_fields",
+	{
+		id: serial("id").primaryKey(),
+		projectId: integer("project_id")
+			.notNull()
+			.references(() => projectV2.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		dataType: text("data_type")
+			.$type<"TEXT" | "NUMBER" | "DATE" | "SINGLE_SELECT">()
+			.notNull(),
+		position: integer("position").notNull(),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		projectNameIdx: uniqueIndex("project_v2_field_name_idx").on(
+			table.projectId,
+			sql`lower(${table.name})`,
+		),
+	}),
+);
+
+export const projectV2SingleSelectOptions = pgTable(
+	"project_v2_single_select_options",
+	{
+		id: serial("id").primaryKey(),
+		fieldId: integer("field_id")
+			.notNull()
+			.references(() => projectV2Fields.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		color: text("color").notNull(),
+		position: integer("position").notNull(),
+	},
+	(table) => ({
+		fieldNameIdx: uniqueIndex("project_v2_option_name_idx").on(
+			table.fieldId,
+			sql`lower(${table.name})`,
+		),
+	}),
+);
+
+/**
+ * An item's content is either an issue or pull request (`issueId`) or draft
+ * text; the check keeps exactly one set.
+ */
+export const projectV2Items = pgTable(
+	"project_v2_items",
+	{
+		id: serial("id").primaryKey(),
+		projectId: integer("project_id")
+			.notNull()
+			.references(() => projectV2.id, { onDelete: "cascade" }),
+		issueId: integer("issue_id").references(() => issues.id, {
+			onDelete: "cascade",
+		}),
+		draftTitle: text("draft_title"),
+		draftBody: text("draft_body"),
+		archived: boolean("archived").notNull().default(false),
+		createdAt: timestamptz("created_at").notNull().defaultNow(),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		projectIssueIdx: uniqueIndex("project_v2_item_issue_idx").on(
+			table.projectId,
+			table.issueId,
+		),
+		projectCreatedIdx: index("project_v2_item_created_idx").on(
+			table.projectId,
+			table.createdAt,
+		),
+		oneContent: check(
+			"project_v2_item_content",
+			sql`(${table.issueId} is null) <> (${table.draftTitle} is null)`,
+		),
+	}),
+);
+
+/** One value per item and field; the store sets the column matching the field's type. */
+export const projectV2ItemFieldValues = pgTable(
+	"project_v2_item_field_values",
+	{
+		id: serial("id").primaryKey(),
+		itemId: integer("item_id")
+			.notNull()
+			.references(() => projectV2Items.id, { onDelete: "cascade" }),
+		fieldId: integer("field_id")
+			.notNull()
+			.references(() => projectV2Fields.id, { onDelete: "cascade" }),
+		valueText: text("value_text"),
+		valueNumber: doublePrecision("value_number"),
+		valueDate: date("value_date", { mode: "string" }),
+		optionId: integer("option_id").references(
+			() => projectV2SingleSelectOptions.id,
+			{ onDelete: "cascade" },
+		),
+		updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+	},
+	(table) => ({
+		itemFieldIdx: uniqueIndex("project_v2_value_item_field_idx").on(
+			table.itemId,
+			table.fieldId,
+		),
 	}),
 );

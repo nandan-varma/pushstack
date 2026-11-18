@@ -23,7 +23,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSchema, Kind, parse, print } from "graphql";
 
-export const DOMAINS = ["core", "repository", "issues", "pulls"];
+export const DOMAINS = ["core", "repository", "issues", "pulls", "projects"];
 const BUILT_IN = new Set(["String", "Int", "Float", "Boolean", "ID"]);
 const KEPT_DIRECTIVES = new Set(["deprecated"]);
 
@@ -48,6 +48,18 @@ const subsets = DOMAINS.map((domain) => ({
 	),
 }));
 const vendored = new Set(subsets.flatMap((s) => Object.keys(s.types)));
+/**
+ * Interfaces a later domain's `$implements` adds to an already-defined type
+ * (Projects makes `User` a `ProjectV2Owner`). The earlier definition leaves
+ * them out, so the extension is the only place that declares them.
+ */
+const addedInterfaces = new Map();
+for (const { types } of subsets) {
+	for (const [name, entry] of Object.entries(types)) {
+		const override = Array.isArray(entry) ? undefined : entry?.$implements;
+		if (override) addedInterfaces.set(name, new Set(override));
+	}
+}
 
 const stripDirectives = (node) => ({
 	...node,
@@ -118,12 +130,17 @@ for (const { domain, types } of subsets) {
 			}
 		}
 		if ("interfaces" in def && def.interfaces) {
+			// An extension can add an interface (`$implements`), which is how a
+			// later domain makes an earlier type satisfy one of its own.
 			node.interfaces = extending
-				? []
+				? def.interfaces.filter(
+						(i) => implementsOverride?.includes(i.name.value) ?? false,
+					)
 				: def.interfaces.filter((i) =>
 						implementsOverride
 							? implementsOverride.includes(i.name.value)
-							: vendored.has(i.name.value),
+							: vendored.has(i.name.value) &&
+								!addedInterfaces.get(name)?.has(i.name.value),
 					);
 		}
 		if (def.kind === Kind.UNION_TYPE_DEFINITION) {

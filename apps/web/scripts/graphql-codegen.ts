@@ -24,7 +24,7 @@ export const GENERATED = path.join(
 );
 
 /** Definitions before extensions, as schema.ts concatenates them. */
-const DOMAINS = ["core", "repository", "issues", "pulls"];
+const DOMAINS = ["core", "repository", "issues", "pulls", "projects"];
 
 export async function generateResolverTypes(): Promise<string> {
 	// A domain not served yet is comments only, which is not a document.
@@ -72,7 +72,18 @@ export async function generateResolverTypes(): Promise<string> {
 				Release: "./releases#ReleaseNode",
 				IssueTemplate: "./templates#IssueTemplateNode",
 				ReleaseAsset: "./releases#ReleaseAssetNode",
+				GpgSignature: "./commit#GitSignatureNode",
+				SshSignature: "./commit#GitSignatureNode",
 				RateLimit: "../context#RateLimitInfo",
+				ProjectV2: "./projects#ProjectNode",
+				ProjectV2Item: "./projects#ProjectItemNode",
+				ProjectV2Field: "./projects#ProjectFieldNode",
+				ProjectV2SingleSelectField: "./projects#ProjectFieldNode",
+				DraftIssue: "./projects#DraftIssueNode",
+				ProjectV2ItemFieldTextValue: "./projects#ProjectFieldValueNode",
+				ProjectV2ItemFieldNumberValue: "./projects#ProjectFieldValueNode",
+				ProjectV2ItemFieldDateValue: "./projects#ProjectFieldValueNode",
+				ProjectV2ItemFieldSingleSelectValue: "./projects#ProjectFieldValueNode",
 			},
 		},
 	});

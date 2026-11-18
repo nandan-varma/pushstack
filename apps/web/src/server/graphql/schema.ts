@@ -5,11 +5,13 @@
 import { buildSchema, type GraphQLSchema, isObjectType } from "graphql";
 import { coreResolvers, nodeLoaders } from "./resolvers/core";
 import { issuesResolvers } from "./resolvers/issues";
+import { projectsResolvers } from "./resolvers/projects";
 import { pullsResolvers } from "./resolvers/pulls";
 import { repositoryResolvers } from "./resolvers/repository";
 import type { DomainResolvers } from "./resolvers/types";
 import coreSdl from "./schema/core.graphql?raw";
 import issuesSdl from "./schema/issues.graphql?raw";
+import projectsSdl from "./schema/projects.graphql?raw";
 import pullsSdl from "./schema/pulls.graphql?raw";
 import repositorySdl from "./schema/repository.graphql?raw";
 
@@ -19,6 +21,7 @@ const DOMAINS: [string, DomainResolvers][] = [
 	[repositorySdl, repositoryResolvers],
 	[issuesSdl, issuesResolvers],
 	[pullsSdl, pullsResolvers],
+	[projectsSdl, projectsResolvers],
 ];
 
 const schemaSdl = DOMAINS.map(([sdl]) => sdl).join("\n");

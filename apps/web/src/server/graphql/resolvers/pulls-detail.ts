@@ -287,10 +287,6 @@ export const pullDetailResolvers = {
 		if (!tip) throw new Error("Pull request head branch missing");
 		return tip;
 	},
-	// Projects (v2) are not served, so a pull request is in no project: an empty
-	// connection, which is what GitHub answers for one in none.
-	projectItems: (_node: PullRequestNode, args: ConnectionArgs) =>
-		offsetConnection(args, 0, async () => []),
 	// Classic projects were retired on GitHub; gh still asks (`pr edit`).
 	projectCards: (_node: PullRequestNode, args: ConnectionArgs) =>
 		offsetConnection(args, 0, async () => []),
