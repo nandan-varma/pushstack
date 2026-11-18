@@ -133,6 +133,17 @@ import {
 	putThreadSubscription,
 } from "./notifications";
 import {
+	checkMembership,
+	getCallerMembership,
+	getMembership,
+	listCallerMemberships,
+	listMembers,
+	listOutsideCollaboratorsHandler,
+	removeMember,
+	removeMembership,
+	setMembership,
+} from "./organizations";
+import {
 	checkPullMerged,
 	createPull,
 	getPull,
@@ -233,6 +244,16 @@ const HANDLERS = {
 	"meta/get": getMeta,
 	"rate-limit/get": getRateLimit,
 	"users/get-authenticated": getAuthenticatedUser,
+	"orgs/check-membership-for-user": checkMembership,
+	"orgs/get-membership-for-authenticated-user": getCallerMembership,
+	"orgs/get-membership-for-user": getMembership,
+	"orgs/list-members": listMembers,
+	"orgs/list-memberships-for-authenticated-user": listCallerMemberships,
+	"orgs/list-outside-collaborators": listOutsideCollaboratorsHandler,
+	"orgs/remove-member": removeMember,
+	"orgs/remove-membership-for-user": removeMembership,
+	"orgs/set-membership-for-user": setMembership,
+
 	"users/list-gpg-keys-for-authenticated-user": listGpgKeysForCaller,
 	"users/create-gpg-key-for-authenticated-user": createGpgKeyForCaller,
 	"users/get-gpg-key-for-authenticated-user": getGpgKeyForCaller,

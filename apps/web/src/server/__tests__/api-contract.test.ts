@@ -571,6 +571,20 @@ beforeAll(async () => {
 	await check(`/repos/alice/proj/releases/assets/${asset.id}`, del(alice));
 	await check(`/repos/alice/proj/releases/${rel.id}`, del(alice));
 	await check("/repos/alice/proj/git/refs/heads/topic", del(alice));
+
+	const { createOrganization } = await import("../organizations-store");
+	const { setOrganizationMembership } = await import("../organization-members");
+	const organization = await createOrganization({ login: "acme" });
+	await setOrganizationMembership(organization.id, users.alice.id, "admin");
+	await check("/orgs/acme/memberships/bob", put(alice, { role: "member" }));
+	await check("/orgs/acme/memberships/bob", auth);
+	await check("/orgs/acme/members", auth);
+	await check("/orgs/acme/members/bob", auth);
+	await check("/user/memberships/orgs", auth);
+	await check("/user/memberships/orgs/acme", auth);
+	await check("/orgs/acme/outside_collaborators", auth);
+	await check("/orgs/acme/members/bob", del(alice));
+	await check("/orgs/acme/memberships/bob", del(alice));
 });
 
 describe("the dispatcher against the contract", () => {

@@ -76,6 +76,55 @@ export const routes = {
 		docs: `${DOCS}/users/followers#unfollow-a-user`,
 		status: 204,
 	},
+
+	"orgs/list-memberships-for-authenticated-user": {
+		method: "GET",
+		path: "/user/memberships/orgs",
+		docs: `${DOCS}/orgs/members#list-organization-memberships-for-the-authenticated-user`,
+	},
+	"orgs/get-membership-for-authenticated-user": {
+		method: "GET",
+		path: "/user/memberships/orgs/{org}",
+		docs: `${DOCS}/orgs/members#get-an-organization-membership-for-the-authenticated-user`,
+	},
+	"orgs/list-members": {
+		method: "GET",
+		path: "/orgs/{org}/members",
+		docs: `${DOCS}/orgs/members#list-organization-members`,
+	},
+	"orgs/check-membership-for-user": {
+		method: "GET",
+		path: "/orgs/{org}/members/{username}",
+		docs: `${DOCS}/orgs/members#check-organization-membership-for-a-user`,
+		status: 204,
+	},
+	"orgs/remove-member": {
+		method: "DELETE",
+		path: "/orgs/{org}/members/{username}",
+		docs: `${DOCS}/orgs/members#remove-organization-member`,
+		status: 204,
+	},
+	"orgs/get-membership-for-user": {
+		method: "GET",
+		path: "/orgs/{org}/memberships/{username}",
+		docs: `${DOCS}/orgs/members#get-organization-membership-for-a-user`,
+	},
+	"orgs/set-membership-for-user": {
+		method: "PUT",
+		path: "/orgs/{org}/memberships/{username}",
+		docs: `${DOCS}/orgs/members#set-organization-membership-for-a-user`,
+	},
+	"orgs/remove-membership-for-user": {
+		method: "DELETE",
+		path: "/orgs/{org}/memberships/{username}",
+		docs: `${DOCS}/orgs/members#remove-organization-membership-for-a-user`,
+		status: 204,
+	},
+	"orgs/list-outside-collaborators": {
+		method: "GET",
+		path: "/orgs/{org}/outside_collaborators",
+		docs: `${DOCS}/orgs/outside-collaborators#list-outside-collaborators-for-an-organization`,
+	},
 	"activity/list-watched-repos-for-authenticated-user": {
 		method: "GET",
 		path: "/user/subscriptions",
