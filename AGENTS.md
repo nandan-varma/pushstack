@@ -2,7 +2,9 @@
 
 PushStack is a code forge that is **as close to GitHub as possible**: features, semantics, permissions, URLs, and above all the REST and GraphQL APIs, so repos and tooling (scripts, stock `gh`) migrate unchanged. When unsure, do what GitHub does; never invent. There are no users or data yet: replace, don't layer; no shims, fallbacks or legacy code. Bare essentials first; hard features go to the backlog with a design note.
 
-**Stateless by design.** Nothing here is status. Rediscover as needed: backlog = `gh issue list`, work = `gh pr list`, code = `ls`/grep, durable how-tos = `apps/docs/content/docs/` (esp. `internals/`: security, git-storage, database, server-functions, testing, performance, releasing). If you learn something durable, fix the doc that should have said it, in the same PR as the change; when code changes behavior, update its markdown. Keep this file short and true; delete what you cannot verify.
+**Stateless by design.** Nothing here is status. Rediscover as needed: backlog = `gh issue list`, work = `gh pr list`, code = `ls`/grep, durable how-tos = `apps/docs/content/docs/` (esp. `internals/`: security, git-storage, database, server-functions, testing, performance, releasing). Keep docs minimal so they cannot drift: document a durable rule, invariant or non-obvious why once, never what the code or a generated file already says (the API matrix is generated; do not restate endpoints, counts, file lists or status). When a change makes a doc line false, delete or fix it in the same PR. Keep this file short and true; delete what you cannot verify.
+
+**Code style.** Names and types carry the meaning; a comment explains only a non-obvious why (a constraint, an invariant, a GitHub quirk), never what the line does or what changed. No dead exports, commented-out code, TODOs without an issue, or flags and shims for old behavior. Prefer an existing library over hand-written parsing or protocol code. One way to do each thing: extend the shared module (`pull-create.ts`, `fork-objects.ts`) rather than copy its logic.
 
 ## Mental model
 
