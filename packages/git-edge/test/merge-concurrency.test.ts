@@ -1,5 +1,5 @@
 /**
- * threeWayMerge bounds its in-flight object I/O with one shared semaphore per
+ * threeWayMerge bounds its in-flight object I/O with one shared p-limit pool per
  * merge. The permit is never held across the recursive subtree merge — doing
  * so deadlocks as soon as every permit is owned by a caller waiting for
  * another permit.

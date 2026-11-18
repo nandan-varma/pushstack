@@ -8,10 +8,10 @@
  * Edge-compatible: no node: imports, uses only isomorphic-git object APIs.
  */
 
-import { createSemaphore } from "git-fs-s3";
 import { type Repo, withPackedWrites } from "git-fs-s3/ops";
 import git, { type CommitObject } from "isomorphic-git";
 import { merge as diff3Merge } from "node-diff3";
+import pLimit from "p-limit";
 import { GitEdgeError, GitMergeConflictError } from "./errors.js";
 
 export type { Repo };
@@ -82,21 +82,21 @@ interface MergeIO {
 
 /** The repository itself, with every object call bounded by one shared pool. */
 function repoIO(repo: Repo): MergeIO {
-	const reads = createSemaphore(MAX_CONCURRENT_READS);
+	const reads = pLimit(MAX_CONCURRENT_READS);
 	return {
 		async readTree(treeOid) {
 			if (treeOid === undefined) return new Map();
-			const { tree } = await reads.run(() =>
+			const { tree } = await reads(() =>
 				git.readTree({ ...repo, oid: treeOid }),
 			);
 			return new Map(tree.map((entry) => [entry.path, entry]));
 		},
 		async readBlob(oid) {
-			const { blob } = await reads.run(() => git.readBlob({ ...repo, oid }));
+			const { blob } = await reads(() => git.readBlob({ ...repo, oid }));
 			return blob;
 		},
-		writeTree: (tree) => reads.run(() => git.writeTree({ ...repo, tree })),
-		writeBlob: (blob) => reads.run(() => git.writeBlob({ ...repo, blob })),
+		writeTree: (tree) => reads(() => git.writeTree({ ...repo, tree })),
+		writeBlob: (blob) => reads(() => git.writeBlob({ ...repo, blob })),
 	};
 }
 

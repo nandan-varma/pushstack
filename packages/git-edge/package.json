@@ -50,7 +50,8 @@
 	},
 	"dependencies": {
 		"lru-cache": "^11.5.3",
-		"node-diff3": "^3.2.1"
+		"node-diff3": "^3.2.1",
+		"p-limit": "^7.3.3"
 	},
 	"peerDependencies": {
 		"git-fs-s3": ">=0.19.0",

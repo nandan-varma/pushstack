@@ -2,6 +2,13 @@
 
 This changelog is derived from this repository's release history; it is ordered newest first.
 
+## [Unreleased]
+
+### Changed
+
+- The merge's in-flight I/O is bounded with `p-limit` directly instead of
+  `git-fs-s3`'s removed `createSemaphore` export.
+
 ## [0.7.0] - 2026-10-22
 
 ### Changed
