@@ -1,4 +1,5 @@
 import { eq, sql } from "drizzle-orm";
+import { GitInvalidRequestError, isNotFoundError } from "git-fs-s3";
 import {
 	type CommitInfo,
 	DiffLimitError,
@@ -8,6 +9,7 @@ import { db } from "#/db";
 import { user } from "#/db/schema";
 import { MAX_HISTORY_WALK } from "#/lib/limits";
 import { commitCommentCounts } from "../commit-comment-store";
+import { importObjectsForRead } from "../git-objects";
 import {
 	getBranchDiff,
 	getBranches,
@@ -20,7 +22,9 @@ import {
 	getMergeBase,
 } from "../git-read";
 import { safeCommitRevSchema, safeRepoPathSchema } from "../git-ref-name";
+import { repoFor } from "../git-repo";
 import { ownerKeyOf } from "../git-storage-naming";
+import { findForkHead } from "../pull-head";
 import type { RepositoryRowWithOwner } from "../repository-lookup";
 import type { ApiContext } from "./auth";
 import { apiCaps } from "./caps";
@@ -269,33 +273,73 @@ export async function getCommitDetail(ctx: ApiContext) {
 }
 
 /**
- * One side of `base...head`: a ref, optionally `owner:ref`. There are no
- * forks, so another owner (or `owner:repo:ref`) names nothing here.
+ * One side of `base...head`: a ref, optionally `owner:ref`. Another owner names
+ * a repository of the same fork network (readable by the caller): its commit
+ * is copied in, kept for a day like any object no ref names yet, and the side
+ * becomes that commit's sha, so the comparison reads only this repository.
+ * Anything else is not found, whatever the reason.
  */
-function compareSide(side: string, repo: RepositoryRowWithOwner): string {
+async function compareSide(
+	side: string,
+	repo: RepositoryRowWithOwner,
+	viewerId: string | null,
+): Promise<string> {
 	const colon = side.indexOf(":");
-	let rev = side;
-	if (colon !== -1) {
-		const owner = side.slice(0, colon);
-		if (owner.toLowerCase() !== repo.owner.username.toLowerCase()) {
-			throw notFoundError();
-		}
-		rev = side.slice(colon + 1);
-	}
+	const owner = colon === -1 ? null : side.slice(0, colon);
+	const rev = colon === -1 ? side : side.slice(colon + 1);
 	if (!safeCommitRevSchema.safeParse(rev).success) throw notFoundError();
-	return rev;
+	if (
+		owner === null ||
+		owner.toLowerCase() === repo.owner.username.toLowerCase()
+	) {
+		return rev;
+	}
+	// Copying objects into a repository is a write: only for a signed-in caller.
+	if (viewerId === null) throw notFoundError();
+	const head = await findForkHead(repo, owner, repo.name, viewerId);
+	if (!head) throw notFoundError();
+	const sha = (
+		await getCommit(ownerKeyOf(head), head.name, rev).catch(
+			(error: unknown) => {
+				if (isNotFoundError(error)) throw notFoundError();
+				throw error;
+			},
+		)
+	).oid;
+	const tips = await getBranches(ownerKeyOf(repo), repo.name);
+	const have = tips.find((b) => b.name === repo.defaultBranch)?.commit;
+	try {
+		await importObjectsForRead(
+			ownerKeyOf(repo),
+			repo.name,
+			repoFor(ownerKeyOf(head), head.name),
+			sha,
+			have ? [have] : [],
+		);
+	} catch (error) {
+		if (error instanceof GitInvalidRequestError) {
+			throw new ApiError(422, error.message);
+		}
+		throw error;
+	}
+	return sha;
 }
 
 export async function compareCommits(ctx: ApiContext) {
 	const { repo } = await readableRepository(ctx);
+	const viewerId = ctx.caller?.userId ?? null;
 	const { basehead } = pathParams(ctx, "repos/compare-commits");
 	const separator = basehead.includes("...") ? "..." : "..";
 	const at = basehead.indexOf(separator);
 	if (at <= 0 || at + separator.length >= basehead.length) {
 		throw notFoundError();
 	}
-	const base = compareSide(basehead.slice(0, at), repo);
-	const head = compareSide(basehead.slice(at + separator.length), repo);
+	const base = await compareSide(basehead.slice(0, at), repo, viewerId);
+	const head = await compareSide(
+		basehead.slice(at + separator.length),
+		repo,
+		viewerId,
+	);
 	const ownerKey = ownerKeyOf(repo);
 	const fullName = fullNameOf(repo);
 	const [baseInfo, headInfo] = await Promise.all([

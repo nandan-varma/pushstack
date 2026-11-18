@@ -28,6 +28,25 @@ const OBJECT_KEEP_MS = 24 * 60 * 60 * 1000;
 /** Kept packs (one per object write) merged into one past this many. */
 const KEPT_PACK_THRESHOLD = 8;
 
+/** Merge accumulated kept packs; best effort, since the write already landed. */
+async function consolidateKept(
+	ownerKey: string,
+	repoName: string,
+	repo: Repo,
+	keepUntil: Date,
+): Promise<void> {
+	// Unmerged kept packs only cost reads until the next write merges them.
+	try {
+		const removed = await consolidateKeptPacks(repo, {
+			threshold: KEPT_PACK_THRESHOLD,
+			keepUntil,
+		});
+		if (removed.length > 0) afterRepositoryPush(ownerKey, repoName);
+	} catch (error) {
+		logWarn("git-objects", "merging kept packs failed", error);
+	}
+}
+
 function writeObjects<T>(
 	ownerKey: string,
 	repoName: string,
@@ -37,18 +56,28 @@ function writeObjects<T>(
 		const repo = repoFor(ownerKey, repoName);
 		const keepUntil = new Date(Date.now() + OBJECT_KEEP_MS);
 		const result = await withPackedWrites(repo, fn, { keepUntil });
-		// Best effort, like the repack after other writes: the objects landed,
-		// and unmerged kept packs only cost reads until the next write merges.
-		try {
-			const removed = await consolidateKeptPacks(repo, {
-				threshold: KEPT_PACK_THRESHOLD,
-				keepUntil,
-			});
-			if (removed.length > 0) afterRepositoryPush(ownerKey, repoName);
-		} catch (error) {
-			logWarn("git-objects", "merging kept packs failed", error);
-		}
+		await consolidateKept(ownerKey, repoName, repo, keepUntil);
 		return result;
+	});
+}
+
+/**
+ * Copy `oid` from `src` into the repository for a read-only comparison: no
+ * ref names it, so the pack is kept for a day like any object a client wrote
+ * ahead of its ref.
+ */
+export function importObjectsForRead(
+	ownerKey: string,
+	repoName: string,
+	src: Repo,
+	oid: string,
+	haves: readonly string[],
+): Promise<void> {
+	return withRepositoryLock(ownerKey, repoName, async () => {
+		const repo = repoFor(ownerKey, repoName);
+		const keepUntil = new Date(Date.now() + OBJECT_KEEP_MS);
+		await importCommit(src, repo, oid, haves, keepUntil);
+		await consolidateKept(ownerKey, repoName, repo, keepUntil);
 	});
 }
 

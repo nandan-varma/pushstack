@@ -16,6 +16,7 @@ export async function importCommit(
 	dst: Repo,
 	oid: string,
 	haves: readonly string[],
+	keepUntil?: Date,
 ): Promise<void> {
 	const type = isFullSha(oid)
 		? (await getObjectTypes(src, [oid])).get(oid)
@@ -28,6 +29,7 @@ export async function importCommit(
 			haves,
 			maxObjects: MAX_IMPORT_OBJECTS,
 			maxBytes: MAX_IMPORT_BYTES,
+			keepUntil,
 		});
 	} catch (error) {
 		if (error instanceof CopyLimitError) {

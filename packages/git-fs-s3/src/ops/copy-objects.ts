@@ -64,6 +64,11 @@ export interface CopyMissingOptions {
 	maxObjects: number;
 	/** Refuse before copying more inflated bytes than this. */
 	maxBytes: number;
+	/**
+	 * Keep the written pack until this date, for objects no ref names yet (a
+	 * read-only comparison): a repack leaves a kept pack in place.
+	 */
+	keepUntil?: Date;
 }
 
 export interface CopyMissingResult {
@@ -255,20 +260,24 @@ export async function copyMissingObjects(
 
 	if (copied.size === 0) return { objects: 0, bytes: 0 };
 
-	await withPackedWrites(dst, async (packed) => {
-		for (const [oid, object] of copied) {
-			const written = await git.writeObject({
-				...packed,
-				type: object.type,
-				object: object.content,
-				format: "content",
-			});
-			if (written !== oid) {
-				throw new Error(
-					`copyMissingObjects: wrote ${written} for ${oid} (object bytes changed)`,
-				);
+	await withPackedWrites(
+		dst,
+		async (packed) => {
+			for (const [oid, object] of copied) {
+				const written = await git.writeObject({
+					...packed,
+					type: object.type,
+					object: object.content,
+					format: "content",
+				});
+				if (written !== oid) {
+					throw new Error(
+						`copyMissingObjects: wrote ${written} for ${oid} (object bytes changed)`,
+					);
+				}
 			}
-		}
-	});
+		},
+		options.keepUntil ? { keepUntil: options.keepUntil } : undefined,
+	);
 	return { objects: copied.size, bytes };
 }

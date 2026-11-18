@@ -1,8 +1,8 @@
 /**
  * GitHub's compare spec: `base...head` (three-dot, against the merge base),
  * `base..head` (two-dot), or a lone `head` compared with the default branch.
- * Either side may be `owner:ref`; with no forks, only the repository's own
- * owner names anything. Returns null for a malformed spec. Refs are not
+ * Either side may be `owner:ref`; the web page and `.diff`/`.patch` only know
+ * the repository's own owner (the REST API also resolves forks). Returns null for a malformed spec. Refs are not
  * validated here: callers validate them with `safeCommitRevSchema`.
  */
 export interface CompareSpec {
