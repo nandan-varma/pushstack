@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectTable } from "@/components/project/ProjectTable";
@@ -29,9 +30,28 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const fields: ProjectField[] = [
-	{ name: "Status", dataType: "SINGLE_SELECT", options: [] },
-	{ name: "Notes", dataType: "TEXT", options: [] },
-	{ name: "Team", dataType: "SINGLE_SELECT", options: [] },
+	{ id: 1, name: "Status", dataType: "SINGLE_SELECT", options: [] },
+	{ id: 2, name: "Notes", dataType: "TEXT", options: [] },
+	{ id: 3, name: "Team", dataType: "SINGLE_SELECT", options: [] },
+];
+
+const fieldsWithIds: ProjectField[] = [
+	{
+		id: 1,
+		name: "Status",
+		dataType: "SINGLE_SELECT",
+		options: [
+			{ id: "9", name: "Todo", color: "GRAY" },
+			{ id: "10", name: "Done", color: "GREEN" },
+		],
+	},
+	{ id: 2, name: "Notes", dataType: "TEXT", options: [] },
+	{
+		id: 3,
+		name: "Team",
+		dataType: "SINGLE_SELECT",
+		options: [{ id: "11", name: "Core", color: "BLUE" }],
+	},
 ];
 
 const rows: ProjectTableRow[] = [
@@ -114,5 +134,98 @@ describe("ProjectTable", () => {
 		renderTable({ fields, rows: [], emptyMessage: "Empty" });
 		expect(screen.getByText("Empty")).toBeInTheDocument();
 		expect(screen.queryByRole("table")).toBeNull();
+	});
+
+	it("offers per-cell editors only to a writer", () => {
+		const onSetValue = vi.fn();
+		const writable = renderTable({
+			fields,
+			rows,
+			emptyMessage: "Empty",
+			canWrite: true,
+			onSetValue,
+			onClearValue: vi.fn(),
+		});
+		expect(
+			screen.getByRole("combobox", { name: "Set Status for Visible work" }),
+		).toBeInTheDocument();
+		expect(screen.getAllByRole("button", { name: "Save" }).length).toBe(
+			rows.length,
+		);
+		writable.unmount();
+
+		renderTable({ fields, rows, emptyMessage: "Empty" });
+		expect(screen.queryByRole("combobox")).toBeNull();
+		expect(screen.queryAllByRole("button", { name: "Save" })).toEqual([]);
+	});
+
+	it("sends a select value by its option id and clears one", async () => {
+		const user = userEvent.setup();
+		const onSetValue = vi.fn();
+		const onClearValue = vi.fn();
+		renderTable({
+			fields: fieldsWithIds,
+			rows,
+			emptyMessage: "Empty",
+			canWrite: true,
+			onSetValue,
+			onClearValue,
+		});
+		await user.click(
+			screen.getByRole("combobox", { name: "Set Team for Change it" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Core" }));
+		expect(onSetValue).toHaveBeenCalledWith(2, fieldsWithIds[2], {
+			type: "SINGLE_SELECT",
+			optionId: "11",
+		});
+
+		await user.click(
+			screen.getByRole("combobox", { name: "Set Status for Visible work" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "None" }));
+		expect(onClearValue).toHaveBeenCalledWith(1, fieldsWithIds[0]);
+	});
+
+	it("saves a text value and clears it", async () => {
+		const user = userEvent.setup();
+		const onSetValue = vi.fn();
+		const onClearValue = vi.fn();
+		renderTable({
+			fields: fieldsWithIds,
+			rows,
+			emptyMessage: "Empty",
+			canWrite: true,
+			onSetValue,
+			onClearValue,
+		});
+		const notes = screen.getByLabelText("Set Notes for Change it");
+		await user.clear(notes);
+		await user.type(notes, "hello");
+		await user.click(screen.getAllByRole("button", { name: "Save" })[1]);
+		expect(onSetValue).toHaveBeenCalledWith(2, fieldsWithIds[1], {
+			type: "TEXT",
+			text: "hello",
+		});
+
+		const withValue = screen.getByLabelText("Set Notes for Visible work");
+		await user.clear(withValue);
+		await user.type(withValue, "next");
+		await user.click(screen.getByRole("button", { name: "Clear" }));
+		expect(onClearValue).toHaveBeenCalledWith(1, fieldsWithIds[1]);
+	});
+
+	it("edits a draft through the pencil", async () => {
+		const user = userEvent.setup();
+		const onEditDraft = vi.fn();
+		renderTable({
+			fields,
+			rows,
+			emptyMessage: "Empty",
+			canWrite: true,
+			onEditDraft,
+		});
+		await user.click(screen.getByRole("button", { name: "Edit draft Draft plan" }));
+		expect(onEditDraft).toHaveBeenCalledWith(rows[2]);
 	});
 });

@@ -1,22 +1,42 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
 	notFound,
 	useNavigate,
 } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
+import { useState } from "react";
 import { Page } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PageHeader } from "@/components/PageHeader";
+import { ProjectDraftDialog } from "@/components/project/ProjectDraftDialog";
+import { ProjectFieldEditor } from "@/components/project/ProjectFieldEditor";
+import { ProjectItemPicker } from "@/components/project/ProjectItemPicker";
 import { ProjectTable } from "@/components/project/ProjectTable";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
+import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	MAX_PROJECT_BOARD_ITEMS,
 	MAX_PROJECT_FILTER_CHARS,
 } from "@/lib/limits";
-import { userProjectQueryOptions } from "@/lib/query-options";
+import {
+	projectAddableItemsQueryOptions,
+	queryKeys,
+	userProjectQueryOptions,
+} from "@/lib/query-options";
+import type {
+	ProjectFieldValueInput,
+	ProjectTableRow,
+} from "@/server/projects";
+import {
+	addUserProjectItem,
+	clearUserProjectItemFieldValue,
+	setUserProjectItemFieldValue,
+	updateUserProjectDraft,
+} from "@/server/projects";
 
 export const Route = createFileRoute("/users/$login/projects/$number")({
 	validateSearch: (
@@ -58,12 +78,68 @@ function ProjectNotFound() {
 	);
 }
 
+const EMPTY_DRAFT = { title: "", body: null };
+
 function ProjectPage() {
 	const { login, number } = Route.useParams();
 	const { q, page } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
 	const { data, isLoading } = useQuery(
 		userProjectQueryOptions(login, Number(number), q ?? "", page ?? 1),
+	);
+	const [pickerQuery, setPickerQuery] = useState("");
+	const [draftForm, setDraftForm] = useState<{
+		open: boolean;
+		itemId: number | null;
+		initial: { title: string; body: string | null };
+	}>({ open: false, itemId: null, initial: EMPTY_DRAFT });
+
+	const invalidateProject = () =>
+		queryClient.invalidateQueries({
+			queryKey: queryKeys.userProjectRoot(login, Number(number)),
+		});
+	const writeError = (error: Error, fallback: string) =>
+		toast(error.message || fallback, "error");
+
+	const addItem = useMutation({
+		mutationFn: addUserProjectItem,
+		onSuccess: () => {
+			invalidateProject();
+			toast("Item added", "success");
+		},
+		onError: (error: Error) => writeError(error, "Couldn't add the item"),
+	});
+	const addDraft = useMutation({
+		mutationFn: addUserProjectItem,
+		onSuccess: () => {
+			setDraftForm({ open: false, itemId: null, initial: EMPTY_DRAFT });
+			invalidateProject();
+		},
+		onError: (error: Error) => writeError(error, "Couldn't add the draft"),
+	});
+	const updateDraft = useMutation({
+		mutationFn: updateUserProjectDraft,
+		onSuccess: () => {
+			setDraftForm({ open: false, itemId: null, initial: EMPTY_DRAFT });
+			invalidateProject();
+		},
+		onError: (error: Error) => writeError(error, "Couldn't edit the draft"),
+	});
+	const setValue = useMutation({
+		mutationFn: setUserProjectItemFieldValue,
+		onSuccess: invalidateProject,
+		onError: (error: Error) => writeError(error, "Couldn't set the value"),
+	});
+	const clearValue = useMutation({
+		mutationFn: clearUserProjectItemFieldValue,
+		onSuccess: invalidateProject,
+		onError: (error: Error) => writeError(error, "Couldn't clear the value"),
+	});
+
+	const addable = useQuery(
+		projectAddableItemsQueryOptions(login, Number(number), pickerQuery),
 	);
 
 	if (isLoading || !data) {
@@ -84,6 +160,53 @@ function ProjectPage() {
 		params: { login, number },
 		search: { q: q || undefined, page: target > 1 ? target : undefined },
 	});
+	const canWrite = data.canWrite && !project.closed;
+	const submitDraft = (draft: { title: string; body: string | null }) => {
+		if (draftForm.itemId === null) {
+			addDraft.mutate({
+				data: {
+					login,
+					number: Number(number),
+					draftTitle: draft.title,
+					draftBody: draft.body,
+				},
+			});
+		} else {
+			updateDraft.mutate({
+				data: {
+					login,
+					number: Number(number),
+					itemId: draftForm.itemId,
+					title: draft.title,
+					body: draft.body,
+				},
+			});
+		}
+	};
+	const onSetValue = (
+		itemId: number,
+		field: { id: number; dataType: ProjectFieldValueInput["type"] },
+		input: ProjectFieldValueInput,
+	) =>
+		setValue.mutate({
+			data: {
+				login,
+				number: Number(number),
+				itemId,
+				fieldId: field.id,
+				value: input,
+			},
+		});
+	const onClearValue = (itemId: number, field: { id: number }) =>
+		clearValue.mutate({
+			data: { login, number: Number(number), itemId, fieldId: field.id },
+		});
+	const onEditDraft = (row: ProjectTableRow) =>
+		setDraftForm({
+			open: true,
+			itemId: row.id,
+			initial: { title: row.title, body: row.body },
+		});
 
 	return (
 		<Page className="space-y-5">
@@ -112,6 +235,41 @@ function ProjectPage() {
 						<Badge variant={project.public ? "outline" : "secondary"}>
 							{project.public ? "Public" : "Private"}
 						</Badge>
+						{canWrite && (
+							<span className="flex items-center gap-2">
+								<ProjectItemPicker
+									login={login}
+									number={Number(number)}
+									itemCount={data.itemCount}
+									pending={addItem.isPending}
+									results={addable.data?.items ?? []}
+									onSearch={setPickerQuery}
+									onAdd={(issueId) =>
+										addItem.mutate({
+											data: {
+												login,
+												number: Number(number),
+												issueId,
+											},
+										})
+									}
+								/>
+								<button
+									type="button"
+									className="inline-flex items-center gap-1 rounded-[13px] border border-bjork-border-muted px-3 py-1.5 text-sm text-bjork-text-medium hover:text-bjork-text"
+									onClick={() =>
+										setDraftForm({
+											open: true,
+											itemId: null,
+											initial: EMPTY_DRAFT,
+										})
+									}
+								>
+									<Plus aria-hidden="true" className="size-4" />
+									Add draft
+								</button>
+							</span>
+						)}
 					</>
 				}
 			/>
@@ -132,6 +290,13 @@ function ProjectPage() {
 					filter to narrow the list.
 				</p>
 			)}
+			{canWrite && (
+				<ProjectFieldEditor
+					login={login}
+					number={Number(number)}
+					fields={data.fields}
+				/>
+			)}
 			<ProjectTable
 				fields={data.fields}
 				rows={data.items}
@@ -140,7 +305,25 @@ function ProjectPage() {
 						? "No items match this filter."
 						: "This project has no items you can see."
 				}
+				canWrite={canWrite}
+				pending={setValue.isPending || clearValue.isPending}
+				onSetValue={onSetValue}
+				onClearValue={onClearValue}
+				onEditDraft={onEditDraft}
 			/>
+			{canWrite && (
+				<ProjectDraftDialog
+					open={draftForm.open}
+					onOpenChange={(open) => {
+						if (!open)
+							setDraftForm({ open: false, itemId: null, initial: EMPTY_DRAFT });
+					}}
+					initial={draftForm.initial}
+					submitLabel={draftForm.itemId === null ? "Add draft" : "Save draft"}
+					pending={addDraft.isPending || updateDraft.isPending}
+					onSubmit={submitDraft}
+				/>
+			)}
 			{data.pageCount > 1 && (
 				<nav
 					aria-label="Project item pages"
