@@ -391,7 +391,10 @@ export async function listProjectsForRepository(
 	repoId: number,
 	viewerId: string | null | undefined,
 	options: ProjectListOptions,
-): Promise<{ projects: ProjectView[]; total: number }> {
+): Promise<{
+	projects: (ProjectView & { ownerLogin: string })[];
+	total: number;
+}> {
 	const search = options.query?.trim() ?? "";
 	assertLength(
 		search,
@@ -414,17 +417,18 @@ export async function listProjectsForRepository(
 				),
 		),
 	);
-	const [projects, [held]] = await Promise.all([
+	const [rows, [held]] = await Promise.all([
 		db
-			.select(projectColumns)
+			.select({ ...projectColumns, ownerLogin: user.username })
 			.from(projectV2)
+			.innerJoin(user, eq(user.id, projectV2.ownerId))
 			.where(where)
 			.orderBy(...projectOrderBy(options.orderBy))
 			.limit(options.limit)
 			.offset(options.offset),
 		db.select({ total: count() }).from(projectV2).where(where),
 	]);
-	return { projects, total: Number(held?.total ?? 0) };
+	return { projects: rows, total: Number(held?.total ?? 0) };
 }
 
 export async function closeProject(

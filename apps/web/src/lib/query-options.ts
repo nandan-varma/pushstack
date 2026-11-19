@@ -48,6 +48,7 @@ import {
 } from "@/server/notifications";
 import { getAuthorizedApps, getOAuthApps } from "@/server/oauth-apps";
 import {
+	getRepositoryProjects,
 	getUserProject,
 	getUserProjects,
 	searchUserProjectAddableItems,
@@ -208,6 +209,8 @@ export const queryKeys = {
 		["projects", "user", login, "detail", number] as const,
 	projectAddableItems: (login: string, number: number, query: string) =>
 		["projects", "user", login, "detail", number, "addable", query] as const,
+	repoProjects: (repoId: number, page: number) =>
+		["repos", repoId, "projects", page] as const,
 	userProject: (
 		login: string,
 		number: number,
@@ -1237,5 +1240,18 @@ export function gistPageQueryOptions({
 		queryFn: () => getGistPage({ data: { owner, id, revision } }),
 		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
 		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
+	});
+}
+
+export function repoProjectsQueryOptions(
+	repoId: number,
+	page: number,
+	owner: string,
+	name: string,
+) {
+	return queryOptions({
+		queryKey: queryKeys.repoProjects(repoId, page),
+		queryFn: () => getRepositoryProjects({ data: { owner, name, page } }),
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }

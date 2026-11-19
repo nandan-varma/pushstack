@@ -26,6 +26,7 @@ const {
 	clearUserProjectItemFieldValue,
 	createUserProject,
 	createUserProjectField,
+	getRepositoryProjects,
 	getUserProject,
 	searchUserProjectAddableItems,
 	setUserProjectItemFieldValue,
@@ -109,7 +110,9 @@ describe("createUserProject", () => {
 
 	it("refuses a blank or oversized title", async () => {
 		await expect(
-			createUserProject({ data: { title: "  ", shortDescription: null, public: true } }),
+			createUserProject({
+				data: { title: "  ", shortDescription: null, public: true },
+			}),
 		).rejects.toThrow(/title/i);
 		await expect(
 			createUserProject({
@@ -121,7 +124,9 @@ describe("createUserProject", () => {
 	it("requires a signed-in viewer", async () => {
 		signOut();
 		await expect(
-			createUserProject({ data: { title: "Nope", shortDescription: null, public: true } }),
+			createUserProject({
+				data: { title: "Nope", shortDescription: null, public: true },
+			}),
 		).rejects.toThrow(/Unauthorized/i);
 		signIn(users.alice);
 	});
@@ -255,7 +260,12 @@ describe("addUserProjectItem", () => {
 			data: { login: "alice", number, issueId: issueIds.other },
 		});
 		await addUserProjectItem({
-			data: { login: "alice", number, draftTitle: "Write docs", draftBody: "Soon" },
+			data: {
+				login: "alice",
+				number,
+				draftTitle: "Write docs",
+				draftBody: "Soon",
+			},
 		});
 		const page = await getUserProject({
 			data: { login: "alice", number, page: 1 },
@@ -387,7 +397,10 @@ describe("set and clear field values", () => {
 					number,
 					itemId: item?.id ?? 0,
 					fieldId: field?.id ?? 0,
-					value: { type: "SINGLE_SELECT", optionId: field?.options[0]?.id ?? "" },
+					value: {
+						type: "SINGLE_SELECT",
+						optionId: field?.options[0]?.id ?? "",
+					},
 				},
 			}),
 		).rejects.toThrow(/Access denied/i);
@@ -518,5 +531,95 @@ describe("searchUserProjectAddableItems", () => {
 			}),
 		).rejects.toThrow(/Unauthorized/i);
 		signIn(users.alice);
+	});
+});
+
+describe("getRepositoryProjects", () => {
+	it("lists the readable projects holding an item from the repository", async () => {
+		signIn(users.bob);
+		const bobProject = await createUserProject({
+			data: {
+				title: "Bob's linked board",
+				shortDescription: null,
+				public: true,
+			},
+		});
+		await addUserProjectItem({
+			data: {
+				login: "bob",
+				number: bobProject.number,
+				issueId: issueIds.visible,
+			},
+		});
+		const found = await getRepositoryProjects({
+			data: { owner: "alice", name: "shown", page: 1 },
+		});
+		expect(found.projects.map((project) => project.title)).toContain(
+			"Bob's linked board",
+		);
+		expect(
+			found.projects.find((project) => project.title === "Bob's linked board"),
+		).toMatchObject({
+			ownerLogin: "bob",
+			number: bobProject.number,
+			public: true,
+			closed: false,
+		});
+	});
+
+	it("hides a project of a repository the viewer cannot read, and another's private one", async () => {
+		signIn(users.bob);
+		const privateBoard = await createUserProject({
+			data: { title: "Bob's secret", shortDescription: null, public: false },
+		});
+		await addUserProjectItem({
+			data: {
+				login: "bob",
+				number: privateBoard.number,
+				issueId: issueIds.visible,
+			},
+		});
+		const asBob = await getRepositoryProjects({
+			data: { owner: "alice", name: "shown", page: 1 },
+		});
+		expect(asBob.projects.map((project) => project.title)).toEqual(
+			expect.arrayContaining(["Bob's secret", "Bob's linked board"]),
+		);
+		expect(asBob.projects.map((project) => project.title)).not.toContain(
+			"Alice's secret",
+		);
+		await rejectsNotFound(
+			getRepositoryProjects({
+				data: { owner: "alice", name: "hidden", page: 1 },
+			}),
+		);
+
+		signIn(users.alice);
+		const secretBoard = await createUserProject({
+			data: { title: "Alice's secret", shortDescription: null, public: false },
+		});
+		await addUserProjectItem({
+			data: {
+				login: "alice",
+				number: secretBoard.number,
+				issueId: issueIds.secret,
+			},
+		});
+		const asOwner = await getRepositoryProjects({
+			data: { owner: "alice", name: "hidden", page: 1 },
+		});
+		expect(asOwner.projects.map((project) => project.title)).toEqual([
+			"Alice's secret",
+		]);
+		const shownRepo = await getRepositoryProjects({
+			data: { owner: "alice", name: "shown", page: 1 },
+		});
+		expect(shownRepo.projects.map((project) => project.title)).toEqual(
+			expect.arrayContaining(["Roadmap", "Bob's linked board"]),
+		);
+		expect(shownRepo.projects.map((project) => project.title)).not.toContain(
+			"Bob's secret",
+		);
+		signOut();
 	});
 });

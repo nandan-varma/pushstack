@@ -37,6 +37,7 @@ import {
 	listProjectFields,
 	listProjectItemFieldValuesForItems,
 	listProjectsForOwner,
+	listProjectsForRepository,
 	optionIdOf,
 	type ProjectBoardItem,
 	type ProjectFieldView,
@@ -47,6 +48,7 @@ import {
 	updateProjectDraftIssue,
 	updateProjectField,
 } from "./project-store";
+import { readRepoByName } from "./repository-lookup";
 import { getCurrentUser, getCurrentUserOptional } from "./session";
 
 const PROJECT_PAGE_SIZE = 20;
@@ -567,5 +569,54 @@ export const searchUserProjectAddableItems = createServerFn({ method: "GET" })
 				);
 				return { items };
 			},
+		),
+	);
+
+export const getRepositoryProjects = createServerFn({ method: "GET" })
+	.validator(
+		z.object({
+			owner: z.string().min(1),
+			name: z.string().min(1),
+			page: z
+				.number()
+				.int()
+				.min(1)
+				.max(Math.ceil(MAX_PROJECTS_PER_USER / PROJECT_PAGE_SIZE))
+				.default(1),
+		}),
+	)
+	.handler(({ data }) =>
+		perfContext(`getRepositoryProjects ${data.owner}/${data.name}`, async () =>
+			readRepoByName(
+				"getRepositoryProjects",
+				data.owner,
+				data.name,
+				async (repo) => {
+					const viewer = await getCurrentUserOptional();
+					const { projects, total } = await listProjectsForRepository(
+						repo.id,
+						viewer?.id,
+						{
+							offset: (data.page - 1) * PROJECT_PAGE_SIZE,
+							limit: PROJECT_PAGE_SIZE,
+						},
+					);
+					return {
+						projects: projects.map(
+							(project): ProjectSummary & { ownerLogin: string } => ({
+								number: project.number,
+								title: project.title,
+								shortDescription: project.shortDescription,
+								public: project.public,
+								closed: project.closed,
+								ownerLogin: project.ownerLogin,
+							}),
+						),
+						total,
+						page: data.page,
+						pageCount: Math.max(1, Math.ceil(total / PROJECT_PAGE_SIZE)),
+					};
+				},
+			),
 		),
 	);

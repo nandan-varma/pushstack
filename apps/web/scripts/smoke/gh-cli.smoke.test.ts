@@ -1141,6 +1141,55 @@ describe.skipIf(!enabled)(
 				content: { title: "Planned" },
 				notes: "Ready",
 			});
+
+			const fields = await ghAs(
+				"project-field-list",
+				"project",
+				"field-list",
+				number,
+				"--owner",
+				"octo",
+				"--format",
+				"json",
+			);
+			const fieldsJson = JSON.parse(fields.stdout) as {
+				fields: { name: string }[];
+			};
+			expect(fieldsJson.fields.map((entry) => entry.name)).toEqual([
+				"Status",
+				"Notes",
+			]);
+
+			const viewed = await ghAs(
+				"project-view",
+				"project",
+				"view",
+				number,
+				"--owner",
+				"octo",
+				"--format",
+				"json",
+			);
+			expect(JSON.parse(viewed.stdout)).toMatchObject({
+				title: "Roadmap",
+				number: Number(number),
+			});
+
+			const all = await ghAs(
+				"project-list",
+				"project",
+				"list",
+				"--owner",
+				"octo",
+				"--format",
+				"json",
+			);
+			const projectsJson = JSON.parse(all.stdout) as {
+				projects: { title: string }[];
+			};
+			expect(projectsJson.projects.map((entry) => entry.title)).toContain(
+				"Roadmap",
+			);
 		}, 120_000);
 
 		it("calls the REST API, which reports the token's classic scopes", async () => {
