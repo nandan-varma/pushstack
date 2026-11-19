@@ -40,6 +40,7 @@ import { Route as OwnerNameGitReceivePackRouteImport } from './routes/$owner.$na
 import { Route as OwnerNameGitUploadPackRouteImport } from './routes/$owner.$name.git-upload-pack'
 import { Route as OwnerNameIssuesRouteImport } from './routes/$owner.$name.issues'
 import { Route as OwnerNameLabelsRouteImport } from './routes/$owner.$name.labels'
+import { Route as OwnerNameProjectsRouteImport } from './routes/$owner.$name.projects'
 import { Route as OwnerNameSettingsRouteImport } from './routes/$owner.$name.settings'
 import { Route as OwnerNameSetupRouteImport } from './routes/$owner.$name.setup'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -241,6 +242,11 @@ const OwnerNameIssuesRoute = OwnerNameIssuesRouteImport.update({
 const OwnerNameLabelsRoute = OwnerNameLabelsRouteImport.update({
   id: '/labels',
   path: '/labels',
+  getParentRoute: () => OwnerNameRoute,
+} as any)
+const OwnerNameProjectsRoute = OwnerNameProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => OwnerNameRoute,
 } as any)
 const OwnerNameSettingsRoute = OwnerNameSettingsRouteImport.update({
@@ -535,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
+  '/$owner/$name/projects': typeof OwnerNameProjectsRoute
   '/$owner/$name/settings': typeof OwnerNameSettingsRouteWithChildren
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -612,6 +619,7 @@ export interface FileRoutesByTo {
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
+  '/$owner/$name/projects': typeof OwnerNameProjectsRoute
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/debug/perf': typeof ApiDebugPerfRoute
@@ -693,6 +701,7 @@ export interface FileRoutesById {
   '/$owner/$name/git-upload-pack': typeof OwnerNameGitUploadPackRoute
   '/$owner/$name/issues': typeof OwnerNameIssuesRouteWithChildren
   '/$owner/$name/labels': typeof OwnerNameLabelsRoute
+  '/$owner/$name/projects': typeof OwnerNameProjectsRoute
   '/$owner/$name/settings': typeof OwnerNameSettingsRouteWithChildren
   '/$owner/$name/setup': typeof OwnerNameSetupRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -775,6 +784,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
+    | '/$owner/$name/projects'
     | '/$owner/$name/settings'
     | '/$owner/$name/setup'
     | '/api/auth/$'
@@ -852,6 +862,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
+    | '/$owner/$name/projects'
     | '/$owner/$name/setup'
     | '/api/auth/$'
     | '/api/debug/perf'
@@ -932,6 +943,7 @@ export interface FileRouteTypes {
     | '/$owner/$name/git-upload-pack'
     | '/$owner/$name/issues'
     | '/$owner/$name/labels'
+    | '/$owner/$name/projects'
     | '/$owner/$name/settings'
     | '/$owner/$name/setup'
     | '/api/auth/$'
@@ -1228,6 +1240,13 @@ declare module '@tanstack/react-router' {
       path: '/labels'
       fullPath: '/$owner/$name/labels'
       preLoaderRoute: typeof OwnerNameLabelsRouteImport
+      parentRoute: typeof OwnerNameRoute
+    }
+    '/$owner/$name/projects': {
+      id: '/$owner/$name/projects'
+      path: '/projects'
+      fullPath: '/$owner/$name/projects'
+      preLoaderRoute: typeof OwnerNameProjectsRouteImport
       parentRoute: typeof OwnerNameRoute
     }
     '/$owner/$name/settings': {
@@ -1703,6 +1722,7 @@ interface OwnerNameRouteChildren {
   OwnerNameGitUploadPackRoute: typeof OwnerNameGitUploadPackRoute
   OwnerNameIssuesRoute: typeof OwnerNameIssuesRouteWithChildren
   OwnerNameLabelsRoute: typeof OwnerNameLabelsRoute
+  OwnerNameProjectsRoute: typeof OwnerNameProjectsRoute
   OwnerNameSettingsRoute: typeof OwnerNameSettingsRouteWithChildren
   OwnerNameSetupRoute: typeof OwnerNameSetupRoute
   OwnerNameIndexRoute: typeof OwnerNameIndexRoute
@@ -1744,6 +1764,7 @@ const OwnerNameRouteChildren: OwnerNameRouteChildren = {
   OwnerNameGitUploadPackRoute: OwnerNameGitUploadPackRoute,
   OwnerNameIssuesRoute: OwnerNameIssuesRouteWithChildren,
   OwnerNameLabelsRoute: OwnerNameLabelsRoute,
+  OwnerNameProjectsRoute: OwnerNameProjectsRoute,
   OwnerNameSettingsRoute: OwnerNameSettingsRouteWithChildren,
   OwnerNameSetupRoute: OwnerNameSetupRoute,
   OwnerNameIndexRoute: OwnerNameIndexRoute,

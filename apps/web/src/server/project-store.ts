@@ -391,7 +391,10 @@ export async function listProjectsForRepository(
 	repoId: number,
 	viewerId: string | null | undefined,
 	options: ProjectListOptions,
-): Promise<{ projects: ProjectView[]; total: number }> {
+): Promise<{
+	projects: (ProjectView & { ownerLogin: string })[];
+	total: number;
+}> {
 	const search = options.query?.trim() ?? "";
 	assertLength(
 		search,
@@ -414,17 +417,18 @@ export async function listProjectsForRepository(
 				),
 		),
 	);
-	const [projects, [held]] = await Promise.all([
+	const [rows, [held]] = await Promise.all([
 		db
-			.select(projectColumns)
+			.select({ ...projectColumns, ownerLogin: user.username })
 			.from(projectV2)
+			.innerJoin(user, eq(user.id, projectV2.ownerId))
 			.where(where)
 			.orderBy(...projectOrderBy(options.orderBy))
 			.limit(options.limit)
 			.offset(options.offset),
 		db.select({ total: count() }).from(projectV2).where(where),
 	]);
-	return { projects, total: Number(held?.total ?? 0) };
+	return { projects: rows, total: Number(held?.total ?? 0) };
 }
 
 export async function closeProject(
@@ -1278,6 +1282,64 @@ export async function listProjectItemFieldValues(
 		)
 		.where(eq(projectV2ItemFieldValues.itemId, itemId))
 		.orderBy(asc(projectV2Fields.position), asc(projectV2ItemFieldValues.id));
+}
+
+export interface AddableProjectItem {
+	id: number;
+	title: string;
+	number: number;
+	kind: "issue" | "pull_request";
+	repoOwner: string | null;
+	repoName: string;
+}
+
+/**
+ * Issues and pull requests the viewer can read and that are not already in
+ * the project, matched by title (or an exact number), for the add-item
+ * picker. The same visibility rule as `listProjectItems`.
+ */
+export async function searchAddableProjectItems(
+	projectId: number,
+	viewerId: string | null | undefined,
+	query: string,
+	limit: number,
+): Promise<AddableProjectItem[]> {
+	const search = query.trim();
+	assertLength(
+		search,
+		MAX_PROJECT_FILTER_CHARS,
+		`An item search is at most ${MAX_PROJECT_FILTER_CHARS} characters`,
+	);
+	const number = /^\d+$/.test(search) ? Number(search) : null;
+	return db
+		.select({
+			id: issues.id,
+			title: issues.title,
+			number: issues.number,
+			kind: sql<"issue" | "pull_request">`${issues.kind}`.as("kind"),
+			repoOwner: user.username,
+			repoName: repositories.name,
+		})
+		.from(issues)
+		.innerJoin(repositories, eq(repositories.id, issues.repoId))
+		.leftJoin(user, eq(user.id, repositories.ownerId))
+		.where(
+			and(
+				or(
+					eq(repositories.visibility, "public"),
+					viewerId ? eq(repositories.ownerId, viewerId) : undefined,
+				),
+				sql`not exists (select 1 from ${projectV2Items} where ${projectV2Items.issueId} = ${issues.id} and ${projectV2Items.projectId} = ${projectId})`,
+				sql`(${issues.kind} = 'pull_request' or ${issues.kind} = 'issue')`,
+				search
+					? number !== null
+						? eq(issues.number, number)
+						: or(ilike(issues.title, containing(search)))
+					: undefined,
+			),
+		)
+		.orderBy(desc(issues.updatedAt), asc(issues.id))
+		.limit(limit);
 }
 
 /** The first value whose field has this name (GitHub's `fieldValueByName`). */

@@ -47,6 +47,9 @@ const { githubValidationRules } = await import("../graphql/validation");
 const repositories = await import("../repositories");
 const { createIssueForUser } = await import("../issue-store");
 const { createMilestone } = await import("../milestone-store");
+const { addProjectItem, createProjectForUser } = await import(
+	"../project-store"
+);
 const { db } = await import("#/db");
 
 interface Fixture {
@@ -77,6 +80,13 @@ const PENDING: Record<string, "issues" | "pulls"> = {};
  * validated against the schema here, and executed by the smoke itself.
  */
 const VALIDATE_ONLY = new Set([
+	// A project, a field, a field value and the issue they target: created by
+	// the smoke's project workflow, so their ids and numbers only exist there.
+	"project-issue",
+	"project-create",
+	"project-field-create",
+	"project-item-add",
+	"project-item-edit",
 	"issue-close",
 	"issue-comment",
 	"issue-comment-2",
@@ -105,12 +115,21 @@ const VALIDATE_ONLY = new Set([
 	"discussion-answer",
 ]);
 
-/** Errors a served fixture is expected to answer with (by fixture name). */
-const EXPECTED_ERRORS: Record<string, string[]> = {
-	"repo-view-missing": ["NOT_FOUND"],
-	"pr-view": ["NOT_FOUND"],
+/**
+ * Errors each request of a served fixture answers with, by fixture name and
+ * request index. The org lookup gh's project commands send first answers
+ * NOT_FOUND exactly as GitHub's does for a login that is not an organization;
+ * the project reads behind it answer cleanly.
+ */
+const EXPECTED_ERRORS: Record<string, string[][]> = {
+	"repo-view-missing": [["NOT_FOUND"]],
+	"pr-view": [["NOT_FOUND"], ["NOT_FOUND"]],
 	// The fixture database has no pull request #1, as for pr-view.
-	"pr-view-projects": ["NOT_FOUND"],
+	"pr-view-projects": [["NOT_FOUND"]],
+	"project-list": [["NOT_FOUND"], []],
+	"project-view": [["NOT_FOUND"], []],
+	"project-field-list": [["NOT_FOUND"], []],
+	"project-item-list": [["NOT_FOUND"], []],
 };
 
 const schema = getSchema();
@@ -136,7 +155,7 @@ beforeAll(async () => {
 		where: { name: "hello" },
 	});
 	if (!hello) throw new Error("octo/hello missing");
-	await createIssueForUser(hello.id, users.octo.id, {
+	const helloIssue = await createIssueForUser(hello.id, users.octo.id, {
 		title: "Hello issue",
 		body: "Body of the hello issue.",
 		labels: [],
@@ -144,6 +163,13 @@ beforeAll(async () => {
 	// `gh issue create --milestone` resolves a title against these (ids 1 and 2).
 	await createMilestone(hello.id, users.octo.id, { title: "v1" });
 	await createMilestone(hello.id, users.octo.id, { title: "v2" });
+	// The project gh project view/field-list/item-list replay against (#1 of
+	// octo, with the built-in Status field and the hello issue as its item).
+	const project = await createProjectForUser(users.octo.id, {
+		title: "Roadmap",
+		public: true,
+	});
+	await addProjectItem(project.id, users.octo.id, { issueId: helloIssue.id });
 });
 
 /**
@@ -242,7 +268,7 @@ describe("captured gh documents", () => {
 		}
 
 		it(`${fixture.name}: ${fixture.command}`, async () => {
-			for (const request of fixture.requests) {
+			for (const [index, request] of fixture.requests.entries()) {
 				const document = parse(request.query);
 				expect(
 					validate(schema, document, githubValidationRules).map(
@@ -259,7 +285,7 @@ describe("captured gh documents", () => {
 				expect(status).toBe(200);
 				expect(
 					(body.errors ?? []).map((e: { type?: string }) => e.type),
-				).toEqual(EXPECTED_ERRORS[fixture.name] ?? []);
+				).toEqual(EXPECTED_ERRORS[fixture.name]?.[index] ?? []);
 
 				const fragments = new Map<string, FragmentDefinitionNode>();
 				for (const definition of document.definitions) {

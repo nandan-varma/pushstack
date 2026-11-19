@@ -47,7 +47,12 @@ import {
 	getUnreadNotificationCount,
 } from "@/server/notifications";
 import { getAuthorizedApps, getOAuthApps } from "@/server/oauth-apps";
-import { getUserProject, getUserProjects } from "@/server/projects";
+import {
+	getRepositoryProjects,
+	getUserProject,
+	getUserProjects,
+	searchUserProjectAddableItems,
+} from "@/server/projects";
 import {
 	getPullRequestByNumber,
 	getPullRequestCommits,
@@ -197,8 +202,15 @@ export const queryKeys = {
 		["repos", repoId, "milestones", number] as const,
 	repoMilestoneThreads: (repoId: number, number: number, state: string) =>
 		["repos", repoId, "milestones", number, "threads", state] as const,
+	userProjectsRoot: (login: string) => ["projects", "user", login] as const,
 	userProjects: (login: string, page: number) =>
 		["projects", "user", login, "list", page] as const,
+	userProjectRoot: (login: string, number: number) =>
+		["projects", "user", login, "detail", number] as const,
+	projectAddableItems: (login: string, number: number, query: string) =>
+		["projects", "user", login, "detail", number, "addable", query] as const,
+	repoProjects: (repoId: number, page: number) =>
+		["repos", repoId, "projects", page] as const,
 	userProject: (
 		login: string,
 		number: number,
@@ -896,6 +908,19 @@ export function userProjectQueryOptions(
 	});
 }
 
+export function projectAddableItemsQueryOptions(
+	login: string,
+	number: number,
+	query: string,
+) {
+	return queryOptions({
+		queryKey: queryKeys.projectAddableItems(login, number, query),
+		queryFn: () =>
+			searchUserProjectAddableItems({ data: { login, number, query } }),
+		staleTime: 0,
+	});
+}
+
 /** Reaction rollups for a thread and all its comments: one request per page. */
 export function threadReactionsQueryOptions(repoId: number, number: number) {
 	return queryOptions({
@@ -1215,5 +1240,18 @@ export function gistPageQueryOptions({
 		queryFn: () => getGistPage({ data: { owner, id, revision } }),
 		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
 		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
+	});
+}
+
+export function repoProjectsQueryOptions(
+	repoId: number,
+	page: number,
+	owner: string,
+	name: string,
+) {
+	return queryOptions({
+		queryKey: queryKeys.repoProjects(repoId, page),
+		queryFn: () => getRepositoryProjects({ data: { owner, name, page } }),
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }

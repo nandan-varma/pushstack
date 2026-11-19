@@ -3,6 +3,7 @@ import {
 	matchesProjectFilter,
 	type ProjectFilterItem,
 	parseProjectFilter,
+	sortProjectItems,
 } from "@/lib/project-filter";
 
 const row = (over: Partial<ProjectFilterItem> = {}): ProjectFilterItem => ({
@@ -74,5 +75,63 @@ describe("matchesProjectFilter", () => {
 		expect(matchesProjectFilter(draft, parseProjectFilter("no:status"))).toBe(
 			true,
 		);
+	});
+});
+
+describe("sortProjectItems", () => {
+	const rows: (ProjectFilterItem & { updatedAt: string })[] = [
+		{
+			title: "Write docs",
+			kind: "issue",
+			updatedAt: "2026-03-01T00:00:00.000Z",
+			values: { points: "5", due: "2026-05-02" },
+		},
+		{
+			title: "Ship the board",
+			kind: "issue",
+			updatedAt: "2026-02-01T00:00:00.000Z",
+			values: { points: "30", due: "2026-01-02" },
+		},
+		{
+			title: "Add search",
+			kind: "pull_request",
+			updatedAt: "2026-04-01T00:00:00.000Z",
+			values: { points: "6", due: "2026-01-10" },
+		},
+	];
+	const titles = (sorted: { title: string }[]) =>
+		sorted.map((entry) => entry.title);
+
+	it("sorts by title and flips with the direction", () => {
+		expect(
+			titles(sortProjectItems([...rows], { field: "title", direction: "asc" })),
+		).toEqual(["Add search", "Ship the board", "Write docs"]);
+		expect(
+			titles(
+				sortProjectItems([...rows], { field: "title", direction: "desc" }),
+			),
+		).toEqual(["Write docs", "Ship the board", "Add search"]);
+	});
+
+	it("sorts by update time", () => {
+		expect(
+			titles(
+				sortProjectItems([...rows], { field: "updated", direction: "desc" }),
+			),
+		).toEqual(["Add search", "Write docs", "Ship the board"]);
+	});
+
+	it("sorts a number field numerically, not lexically", () => {
+		expect(
+			titles(
+				sortProjectItems([...rows], { field: "points", direction: "asc" }),
+			),
+		).toEqual(["Write docs", "Add search", "Ship the board"]);
+	});
+
+	it("sorts a date field chronologically", () => {
+		expect(
+			titles(sortProjectItems([...rows], { field: "due", direction: "asc" })),
+		).toEqual(["Ship the board", "Add search", "Write docs"]);
 	});
 });

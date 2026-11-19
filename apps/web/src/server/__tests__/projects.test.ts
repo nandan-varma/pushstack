@@ -145,6 +145,7 @@ describe("getUserProjects", () => {
 			public: true,
 			closed: false,
 		});
+		expect(seen.viewerIsOwner).toBe(false);
 		signOut();
 	});
 
@@ -154,6 +155,7 @@ describe("getUserProjects", () => {
 			data: { login: "alice", page: 1 },
 		});
 		expect(seen.total).toBe(2);
+		expect(seen.viewerIsOwner).toBe(true);
 		signOut();
 	});
 

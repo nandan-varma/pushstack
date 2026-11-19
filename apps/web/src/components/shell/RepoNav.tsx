@@ -6,6 +6,7 @@ import {
 	HistoryIcon,
 	MessagesSquareIcon,
 	SettingsIcon,
+	TableIcon,
 	TagIcon,
 } from "@animateicons/react/lucide";
 import { useQuery } from "@tanstack/react-query";
@@ -163,6 +164,15 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					icon={HistoryIcon}
 					label="Commits"
 					active={commitsActive}
+				/>
+				<SidebarLink
+					to="/$owner/$name/projects"
+					params={{ owner, name }}
+					icon={TableIcon}
+					label="Projects"
+					active={Boolean(
+						matchRoute({ to: "/$owner/$name/projects", fuzzy: true }),
+					)}
 				/>
 				{repo.hasWiki && (
 					<SidebarLink
