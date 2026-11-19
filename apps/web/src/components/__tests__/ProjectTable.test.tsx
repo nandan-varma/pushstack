@@ -63,6 +63,7 @@ const rows: ProjectTableRow[] = [
 		repoName: "shown",
 		number: 7,
 		body: null,
+		updatedAt: "2026-01-01T00:00:00.000Z",
 		values: { status: "Todo", notes: "Needs review", team: null },
 	},
 	{
@@ -73,6 +74,7 @@ const rows: ProjectTableRow[] = [
 		repoName: "shown",
 		number: 8,
 		body: null,
+		updatedAt: "2026-01-01T00:00:00.000Z",
 		values: { status: "Done", notes: null, team: "Core" },
 	},
 	{
@@ -83,6 +85,7 @@ const rows: ProjectTableRow[] = [
 		repoName: null,
 		number: null,
 		body: "**Soon**",
+		updatedAt: "2026-01-01T00:00:00.000Z",
 		values: { status: null, notes: null, team: null },
 	},
 ];
@@ -225,7 +228,9 @@ describe("ProjectTable", () => {
 			canWrite: true,
 			onEditDraft,
 		});
-		await user.click(screen.getByRole("button", { name: "Edit draft Draft plan" }));
+		await user.click(
+			screen.getByRole("button", { name: "Edit draft Draft plan" }),
+		);
 		expect(onEditDraft).toHaveBeenCalledWith(rows[2]);
 	});
 });

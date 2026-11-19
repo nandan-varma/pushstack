@@ -77,6 +77,8 @@ export interface ProjectTableRow extends ProjectFilterItem {
 	number: number | null;
 	/** A draft's markdown body, rendered by the table. */
 	body: string | null;
+	/** The item's own update time, newest-first sorting for the board. */
+	updatedAt: string;
 }
 
 function displayValue(
@@ -136,6 +138,7 @@ function tableRows(
 			repoName: kind === "draft" ? null : item.repoName,
 			number: kind === "draft" ? null : item.contentNumber,
 			body: kind === "draft" ? item.draftBody : null,
+			updatedAt: item.updatedAt.toISOString(),
 			values: fields,
 		};
 	});

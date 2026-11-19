@@ -90,6 +90,40 @@ export function parseProjectFilter(input: string): ProjectFilter {
 	return filter;
 }
 
+export type ProjectSortField = "title" | "updated" | (string & {});
+
+export interface ProjectSort {
+	/** "title", "updated", or a lowercase field name. */
+	field: ProjectSortField;
+	direction: "asc" | "desc";
+}
+
+/**
+ * Sort rows by title, update time or a field's value (a number or date field
+ * compares its own type). In place, like the filter: nothing here reaches SQL.
+ */
+export function sortProjectItems<T extends ProjectFilterItem>(
+	items: (T & { updatedAt?: string })[],
+	sort: ProjectSort,
+): T[] {
+	const factor = sort.direction === "desc" ? -1 : 1;
+	return items.sort((a, b) => {
+		if (sort.field === "title") {
+			return factor * a.title.localeCompare(b.title);
+		}
+		if (sort.field === "updated") {
+			return factor * (a.updatedAt ?? "").localeCompare(b.updatedAt ?? "");
+		}
+		const left = a.values[sort.field] ?? "";
+		const right = b.values[sort.field] ?? "";
+		const numeric = Number(left);
+		if (left !== "" && right !== "" && !Number.isNaN(numeric)) {
+			return factor * (numeric - Number(right));
+		}
+		return factor * left.localeCompare(right);
+	});
+}
+
 export function matchesProjectFilter(
 	item: ProjectFilterItem,
 	filter: ProjectFilter,

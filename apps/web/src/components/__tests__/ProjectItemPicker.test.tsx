@@ -25,7 +25,9 @@ const results = [
 	},
 ];
 
-function renderPicker(props: Partial<Parameters<typeof ProjectItemPicker>[0]> = {}) {
+function renderPicker(
+	props: Partial<Parameters<typeof ProjectItemPicker>[0]> = {},
+) {
 	return render(
 		<ProjectItemPicker
 			login="alice"

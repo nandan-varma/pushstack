@@ -10,6 +10,11 @@ import { useState } from "react";
 import { Page } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PageHeader } from "@/components/PageHeader";
+import { ProjectBoard } from "@/components/project/ProjectBoard";
+import {
+	ProjectBoardToolbar,
+	type ProjectViewSearch,
+} from "@/components/project/ProjectBoardToolbar";
 import { ProjectDraftDialog } from "@/components/project/ProjectDraftDialog";
 import { ProjectFieldEditor } from "@/components/project/ProjectFieldEditor";
 import { ProjectItemPicker } from "@/components/project/ProjectItemPicker";
@@ -20,8 +25,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	MAX_PROJECT_BOARD_ITEMS,
+	MAX_PROJECT_FIELD_NAME_CHARS,
 	MAX_PROJECT_FILTER_CHARS,
 } from "@/lib/limits";
+import { sortProjectItems } from "@/lib/project-filter";
 import {
 	projectAddableItemsQueryOptions,
 	queryKeys,
@@ -41,7 +48,15 @@ import {
 export const Route = createFileRoute("/users/$login/projects/$number")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { q?: string; page?: number } => ({
+	): {
+		q?: string;
+		page?: number;
+		view?: "board";
+		group?: string;
+		sort?: string;
+		dir?: "asc" | "desc";
+		by?: string;
+	} => ({
 		q:
 			typeof search.q === "string" && search.q
 				? search.q.slice(0, MAX_PROJECT_FILTER_CHARS)
@@ -49,6 +64,20 @@ export const Route = createFileRoute("/users/$login/projects/$number")({
 		page:
 			typeof search.page === "number" && search.page > 1
 				? Math.floor(search.page)
+				: undefined,
+		view: search.view === "board" ? "board" : undefined,
+		group:
+			typeof search.group === "string" && search.group
+				? search.group.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
+				: undefined,
+		sort:
+			typeof search.sort === "string" && search.sort
+				? search.sort.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
+				: undefined,
+		dir: search.dir === "desc" ? "desc" : undefined,
+		by:
+			typeof search.by === "string" && search.by
+				? search.by.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
 				: undefined,
 	}),
 	loaderDeps: ({ search }) => ({ q: search.q ?? "", page: search.page ?? 1 }),
@@ -82,7 +111,7 @@ const EMPTY_DRAFT = { title: "", body: null };
 
 function ProjectPage() {
 	const { login, number } = Route.useParams();
-	const { q, page } = Route.useSearch();
+	const { q, page, view, group, sort, dir, by } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
@@ -161,6 +190,15 @@ function ProjectPage() {
 		search: { q: q || undefined, page: target > 1 ? target : undefined },
 	});
 	const canWrite = data.canWrite && !project.closed;
+	const viewSearch: ProjectViewSearch = { q, view, group, sort, dir, by };
+	const sorted = sortProjectItems([...data.items], {
+		field: sort ?? "title",
+		direction: dir ?? "asc",
+	});
+	const selects = data.fields.filter(
+		(field) => field.dataType === "SINGLE_SELECT",
+	);
+	const groupField = group ?? selects[0]?.name ?? "Status";
 	const submitDraft = (draft: { title: string; body: string | null }) => {
 		if (draftForm.itemId === null) {
 			addDraft.mutate({
@@ -290,6 +328,15 @@ function ProjectPage() {
 					filter to narrow the list.
 				</p>
 			)}
+			<ProjectBoardToolbar
+				login={login}
+				number={Number(number)}
+				view={view === "board" ? "board" : "table"}
+				search={viewSearch}
+				fields={data.fields}
+				itemCount={data.itemCount}
+				truncated={data.truncated}
+			/>
 			{canWrite && (
 				<ProjectFieldEditor
 					login={login}
@@ -297,20 +344,34 @@ function ProjectPage() {
 					fields={data.fields}
 				/>
 			)}
-			<ProjectTable
-				fields={data.fields}
-				rows={data.items}
-				emptyMessage={
-					q
-						? "No items match this filter."
-						: "This project has no items you can see."
-				}
-				canWrite={canWrite}
-				pending={setValue.isPending || clearValue.isPending}
-				onSetValue={onSetValue}
-				onClearValue={onClearValue}
-				onEditDraft={onEditDraft}
-			/>
+			{view === "board" ? (
+				<ProjectBoard
+					fields={data.fields}
+					rows={sorted}
+					group={groupField}
+					by={by ?? ""}
+					canWrite={canWrite}
+					pending={setValue.isPending || clearValue.isPending}
+					onSetValue={onSetValue}
+					onClearValue={onClearValue}
+					onEditDraft={onEditDraft}
+				/>
+			) : (
+				<ProjectTable
+					fields={data.fields}
+					rows={sorted}
+					emptyMessage={
+						q
+							? "No items match this filter."
+							: "This project has no items you can see."
+					}
+					canWrite={canWrite}
+					pending={setValue.isPending || clearValue.isPending}
+					onSetValue={onSetValue}
+					onClearValue={onClearValue}
+					onEditDraft={onEditDraft}
+				/>
+			)}
 			{canWrite && (
 				<ProjectDraftDialog
 					open={draftForm.open}
